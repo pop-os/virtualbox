@@ -1,10 +1,10 @@
-/* $Id: PATMGC.cpp $ */
+/* $Id: PATMGC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PATM - Dynamic Guest OS Patching Manager - Guest Context
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -49,7 +45,7 @@
 
 
 /**
- * #PF Virtual Handler callback for Guest access a page monitored by PATM
+ * \#PF Virtual Handler callback for Guest access a page monitored by PATM
  *
  * @returns VBox status code (appropritate for trap handling and GC return).
  * @param   pVM         VM Handle.
@@ -62,7 +58,7 @@
  */
 VMMRCDECL(int) PATMGCMonitorPage(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange)
 {
-    pVM->patm.s.pvFaultMonitor = (RTRCPTR)pvFault;
+    pVM->patm.s.pvFaultMonitor = (RTRCPTR)(RTRCUINTPTR)pvFault;
     return VINF_PATM_CHECK_PATCH_PAGE;
 }
 
@@ -91,8 +87,8 @@ VMMRCDECL(int) PATMGCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTR
 
     STAM_PROFILE_ADV_START(&pVM->patm.s.StatPatchWriteDetect, a);
 
-    pWritePageStart = (RTGCUINTPTR)GCPtr & PAGE_BASE_GC_MASK;
-    pWritePageEnd   = ((RTGCUINTPTR)GCPtr + cbWrite - 1) & PAGE_BASE_GC_MASK;
+    pWritePageStart = (RTRCUINTPTR)GCPtr & PAGE_BASE_GC_MASK;
+    pWritePageEnd   = ((RTRCUINTPTR)GCPtr + cbWrite - 1) & PAGE_BASE_GC_MASK;
 
     pPatchPage = (PPATMPATCHPAGE)RTAvloU32Get(CTXSUFF(&pVM->patm.s.PatchLookupTree)->PatchTreeByPage, (AVLOU32KEY)pWritePageStart);
     if (    !pPatchPage
@@ -109,7 +105,7 @@ VMMRCDECL(int) PATMGCHandleWriteToPatchPage(PVM pVM, PCPUMCTXCORE pRegFrame, RTR
 
     if (pPatchPage)
     {
-        if (    pPatchPage->pLowestAddrGC  > (RTRCPTR)((RTGCUINTPTR)GCPtr + cbWrite - 1)
+        if (    pPatchPage->pLowestAddrGC  > (RTRCPTR)((RTRCUINTPTR)GCPtr + cbWrite - 1)
             ||  pPatchPage->pHighestAddrGC < (RTRCPTR)GCPtr)
         {
             /* This part of the page was not patched; try to emulate the instruction. */
@@ -159,7 +155,7 @@ VMMDECL(int) PATMGCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
 
     /* Very important check -> otherwise we have a security leak. */
     AssertReturn(!pRegFrame->eflags.Bits.u1VM && (pRegFrame->ss & X86_SEL_RPL) == 1, VERR_ACCESS_DENIED);
-    Assert(PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip));
+    Assert(PATMIsPatchGCAddr(pVM, pRegFrame->eip));
 
     /* OP_ILLUD2 in PATM generated code? */
     if (CTXSUFF(pVM->patm.s.pGCState)->uPendingAction)
@@ -185,7 +181,7 @@ VMMDECL(int) PATMGCHandleIllegalInstrTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
                  *  edx = GC address to find
                  *  edi = PATCHJUMPTABLE ptr
                  */
-                AssertMsg(!pRegFrame->edi || PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->edi), ("edx = %x\n", pRegFrame->edi));
+                AssertMsg(!pRegFrame->edi || PATMIsPatchGCAddr(pVM, pRegFrame->edi), ("edx = %x\n", pRegFrame->edi));
 
                 Log(("PATMGC: lookup %x jump table=%x\n", pRegFrame->edx, pRegFrame->edi));
 
@@ -456,7 +452,7 @@ VMMDECL(int) PATMHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
     AssertReturn(!pRegFrame->eflags.Bits.u1VM && (pRegFrame->ss & X86_SEL_RPL) == 1, VERR_ACCESS_DENIED);
 
     /* Int 3 in PATM generated code? (most common case) */
-    if (PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip))
+    if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
     {
         /* @note hardcoded assumption about it being a single byte int 3 instruction. */
         pRegFrame->eip--;
@@ -515,7 +511,7 @@ VMMDECL(int) PATMHandleInt3PatchTrap(PVM pVM, PCPUMCTXCORE pRegFrame)
                 AssertFailed();
                 return VINF_EM_RAW_EMULATE_INSTR;
             }
-            rc = DISCoreOne(&cpu, (RTUINTPTR)&pRec->patch.aPrivInstr[0], &cbOp);
+            rc = DISCoreOne(&cpu, (uintptr_t)&pRec->patch.aPrivInstr[0], &cbOp);
             if (RT_FAILURE(rc))
             {
                 Log(("DISCoreOne failed with %Rrc\n", rc));

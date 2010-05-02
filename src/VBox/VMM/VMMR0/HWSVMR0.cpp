@@ -1,10 +1,10 @@
-/* $Id: HWSVMR0.cpp $ */
+/* $Id: HWSVMR0.cpp 28834 2010-04-27 14:44:55Z vboxsync $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -25,18 +21,19 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_HWACCM
 #include <VBox/hwaccm.h>
+#include <VBox/pgm.h>
+#include <VBox/selm.h>
+#include <VBox/iom.h>
+#include <VBox/dbgf.h>
+#include <VBox/tm.h>
+#include <VBox/pdmapi.h>
 #include "HWACCMInternal.h"
 #include <VBox/vm.h>
 #include <VBox/x86.h>
 #include <VBox/hwacc_svm.h>
-#include <VBox/pgm.h>
-#include <VBox/pdm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/selm.h>
-#include <VBox/iom.h>
 #include <VBox/dis.h>
-#include <VBox/dbgf.h>
 #include <VBox/disopcode.h>
 #include <iprt/param.h>
 #include <iprt/assert.h>
@@ -297,7 +294,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
         if (!pVM->hwaccm.s.fNestedPaging)
             pVMCB->ctrl.u16InterceptWrCRx = RT_BIT(0) | RT_BIT(3) | RT_BIT(4);
         else
-            pVMCB->ctrl.u16InterceptWrCRx = RT_BIT(0) | RT_BIT(4) | RT_BIT(8);
+            pVMCB->ctrl.u16InterceptWrCRx = RT_BIT(0) | RT_BIT(4);
 
         /* Intercept all DRx reads and writes by default. Changed later on. */
         pVMCB->ctrl.u16InterceptRdDRx = 0xFFFF;
@@ -342,6 +339,7 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
                                         | SVM_CTRL2_INTERCEPT_CLGI
                                         | SVM_CTRL2_INTERCEPT_SKINIT
                                         | SVM_CTRL2_INTERCEPT_WBINVD
+                                        | SVM_CTRL2_INTERCEPT_MONITOR
                                         | SVM_CTRL2_INTERCEPT_MWAIT_UNCOND; /* don't execute mwait or else we'll idle inside the guest (host thinks the cpu load is high) */
                                         ;
         Log(("pVMCB->ctrl.u32InterceptException = %x\n", pVMCB->ctrl.u32InterceptException));
@@ -364,7 +362,8 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
         pVMCB->ctrl.TLBCtrl.n.u32ASID = 1;
 
         /** Setup the PAT msr (nested paging only) */
-        pVMCB->guest.u64GPAT = 0x0007040600070406ULL;
+        /* The default value should be 0x0007040600070406ULL, but we want to treat all guest memory as WB, so choose type 6 for all PAT slots. */
+        pVMCB->guest.u64GPAT = 0x0006060606060606ULL;
 
         /* The following MSRs are saved automatically by vmload/vmsave, so we allow the guest
          * to modify them directly.
@@ -738,7 +737,7 @@ VMMR0DECL(int) SVMR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         if (!pVM->hwaccm.s.fNestedPaging)
         {
             val |= X86_CR0_PG;          /* Paging is always enabled; even when the guest is running in real mode or PE without paging. */
-            val |= X86_CR0_WP;          /* Must set this as we rely on protect various pages and supervisor writes must be caught. */
+            val |= X86_CR0_WP;          /* Must set this as we rely on protecting various pages and supervisor writes must be caught. */
         }
         pVMCB->guest.u64CR0 = val;
     }
@@ -1798,6 +1797,7 @@ ResumeExecution:
         }
 
 #ifdef VBOX_STRICT
+        case X86_XCPT_BP:   /* Breakpoint. */
         case X86_XCPT_GP:   /* General protection failure exception.*/
         case X86_XCPT_UD:   /* Unknown opcode exception. */
         case X86_XCPT_DE:   /* Divide error. */
@@ -1815,6 +1815,8 @@ ResumeExecution:
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitGuestGP);
                 Event.n.u1ErrorCodeValid    = 1;
                 Event.n.u32ErrorCode        = pVMCB->ctrl.u64ExitInfo1; /* EXITINFO1 = error code */
+                break;
+            case X86_XCPT_BP:
                 break;
             case X86_XCPT_DE:
                 STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitGuestDE);
@@ -2347,8 +2349,7 @@ ResumeExecution:
         /** Check if external interrupts are pending; if so, don't switch back. */
         STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitHlt);
         pCtx->rip++;    /* skip hlt */
-        if (    pCtx->eflags.Bits.u1IF
-            &&  VMCPU_FF_ISPENDING(pVCpu, (VMCPU_FF_INTERRUPT_APIC|VMCPU_FF_INTERRUPT_PIC)))
+        if (EMShouldContinueAfterHalt(pVCpu, pCtx))
             goto ResumeExecution;
 
         rc = VINF_EM_HALT;
@@ -2367,13 +2368,29 @@ ResumeExecution:
             /** Check if external interrupts are pending; if so, don't switch back. */
             if (    rc == VINF_SUCCESS
                 ||  (   rc == VINF_EM_HALT
-                     && pCtx->eflags.Bits.u1IF
-                     && VMCPU_FF_ISPENDING(pVCpu, (VMCPU_FF_INTERRUPT_APIC|VMCPU_FF_INTERRUPT_PIC)))
+                     && EMShouldContinueAfterHalt(pVCpu, pCtx))
                )
                 goto ResumeExecution;
         }
         AssertMsg(rc == VERR_EM_INTERPRETER || rc == VINF_EM_HALT, ("EMU: mwait failed with %Rrc\n", rc));
         break;
+
+    case SVM_EXIT_MONITOR:
+    {
+        Log2(("SVM: monitor\n"));
+
+        STAM_COUNTER_INC(&pVCpu->hwaccm.s.StatExitMonitor);
+        rc = EMInterpretMonitor(pVM, pVCpu, CPUMCTX2CORE(pCtx));
+        if (rc == VINF_SUCCESS)
+        {
+            /* Update EIP and continue execution. */
+            pCtx->rip += 3;     /* Note: hardcoded opcode size assumption! */
+            goto ResumeExecution;
+        }
+        AssertMsg(rc == VERR_EM_INTERPRETER, ("EMU: monitor failed with %Rrc\n", rc));
+        break;
+    }
+
 
     case SVM_EXIT_VMMCALL:
         rc = svmR0EmulateTprVMMCall(pVM, pVCpu, pCtx);
@@ -2480,7 +2497,6 @@ ResumeExecution:
         rc = VERR_EM_INTERPRETER;
         break;
 
-    case SVM_EXIT_MONITOR:
     case SVM_EXIT_PAUSE:
     case SVM_EXIT_MWAIT_ARMED:
         rc = VERR_EM_INTERPRETER;

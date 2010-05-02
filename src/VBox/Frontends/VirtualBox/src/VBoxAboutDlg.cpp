@@ -1,3 +1,4 @@
+/* $Id: VBoxAboutDlg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxAboutDlg.h"
 #include "VBoxGlobal.h"
 
@@ -30,6 +30,7 @@
 #include <QDir>
 #include <QEvent>
 #include <QPainter>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxAboutDlg::VBoxAboutDlg (QWidget* aParent, const QString &aVersion)
     : QIWithRetranslateUI2 <QIDialog> (aParent, Qt::CustomizeWindowHint |
@@ -90,13 +91,13 @@ void VBoxAboutDlg::paintEvent (QPaintEvent * /* aEvent */)
     if (!sColor.isEmpty())
         painter.setPen (QColor(sColor).name());
     else
-        painter.setPen (Qt::white);
+        painter.setPen (Qt::black);
 #if VBOX_OSE
     painter.drawText (QRect (0, 400, 600, 32),
                       Qt::AlignCenter | Qt::AlignVCenter | Qt::TextWordWrap,
                       mAboutText);
 #else /* VBOX_OSE */
-    painter.drawText (QRect (313, 370, 300, 72),
+    painter.drawText (QRect (271, 370, 360, 72),
                       Qt::AlignLeft | Qt::AlignBottom | Qt::TextWordWrap,
                       mAboutText);
 #endif /* VBOX_OSE */

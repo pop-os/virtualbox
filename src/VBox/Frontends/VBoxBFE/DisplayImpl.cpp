@@ -1,11 +1,11 @@
+/* $Id: DisplayImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
  * VBox frontends: Basic Frontend (BFE):
- * Implementation of VMDisplay class
+ * Implementation of Display class
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -29,7 +25,7 @@
 # include <VBox/com/defs.h>
 #endif
 
-#include <iprt/alloc.h>
+#include <iprt/mem.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
 #include <VBox/pdm.h>
@@ -39,16 +35,17 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/uuid.h>
 
 #ifdef RT_OS_L4
-#include <stdio.h>
-#include <l4/util/util.h>
-#include <l4/log/l4log.h>
+# include <stdio.h>
+# include <l4/util/util.h>
+# include <l4/log/l4log.h>
 #endif
 
 #include "DisplayImpl.h"
 #include "Framebuffer.h"
-#include "VMMDevInterface.h"
+#include "VMMDev.h"
 
 
 /*******************************************************************************
@@ -56,12 +53,12 @@
 *******************************************************************************/
 
 /**
- * VMDisplay driver instance data.
+ * Display driver instance data.
  */
 typedef struct DRVMAINDISPLAY
 {
     /** Pointer to the display object. */
-    VMDisplay                    *pDisplay;
+    Display                    *pDisplay;
     /** Pointer to the driver instance structure. */
     PPDMDRVINS                  pDrvIns;
     /** Pointer to the keyboard port interface of the driver/device above us. */
@@ -77,7 +74,7 @@ typedef struct DRVMAINDISPLAY
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-VMDisplay::VMDisplay()
+Display::Display()
 {
     mpDrv = NULL;
 
@@ -100,7 +97,7 @@ VMDisplay::VMDisplay()
     mu32ResizeStatus = ResizeStatus_Void;
 }
 
-VMDisplay::~VMDisplay()
+Display::~Display()
 {
     mFramebuffer = 0;
 }
@@ -115,9 +112,9 @@ VMDisplay::~VMDisplay()
  * @param w New display width
  * @param h New display height
  */
-int VMDisplay::handleDisplayResize (int w, int h)
+int Display::handleDisplayResize (int w, int h)
 {
-    LogFlow(("VMDisplay::handleDisplayResize(): w=%d, h=%d\n", w, h));
+    LogFlow(("Display::handleDisplayResize(): w=%d, h=%d\n", w, h));
 
     // if there is no Framebuffer, this call is not interesting
     if (mFramebuffer == NULL)
@@ -138,7 +135,7 @@ int VMDisplay::handleDisplayResize (int w, int h)
 
     if (!finished)
     {
-        LogFlow(("VMDisplay::handleDisplayResize: external framebuffer wants us to wait!\n"));
+        LogFlow(("Display::handleDisplayResize: external framebuffer wants us to wait!\n"));
 
         /* Note: The previously obtained framebuffer lock must be preserved.
          *       The EMT keeps the framebuffer lock until the resize process completes.
@@ -163,7 +160,7 @@ int VMDisplay::handleDisplayResize (int w, int h)
  *
  *  @thread EMT
  */
-void VMDisplay::handleResizeCompletedEMT (void)
+void Display::handleResizeCompletedEMT (void)
 {
     LogFlowFunc(("\n"));
     if (mFramebuffer)
@@ -188,9 +185,9 @@ void VMDisplay::handleResizeCompletedEMT (void)
  *
  * @returns COM status code
  */
-STDMETHODIMP VMDisplay::ResizeCompleted()
+STDMETHODIMP Display::ResizeCompleted()
 {
-    LogFlow(("VMDisplay::ResizeCompleted\n"));
+    LogFlow(("Display::ResizeCompleted\n"));
 
     // this is only valid for external framebuffers
     if (!mFramebuffer)
@@ -200,6 +197,17 @@ STDMETHODIMP VMDisplay::ResizeCompleted()
     bool f = ASMAtomicCmpXchgU32 (&mu32ResizeStatus, ResizeStatus_UpdateDisplayData, ResizeStatus_InProgress);
     AssertRelease(f);NOREF(f);
 
+    return S_OK;
+}
+
+STDMETHODIMP Display::GetScreenResolution(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel)
+{
+    if (aWidth)
+        *aWidth = getWidth();
+    if (aHeight)
+        *aHeight = getHeight();
+    if (aBitsPerPixel)
+        *aBitsPerPixel = getBitsPerPixel();
     return S_OK;
 }
 
@@ -235,7 +243,7 @@ static void checkCoordBounds (int *px, int *py, int *pw, int *ph, int cx, int cy
  * @param w New display width
  * @param h New display height
  */
-void VMDisplay::handleDisplayUpdate (int x, int y, int w, int h)
+void Display::handleDisplayUpdate (int x, int y, int w, int h)
 {
     // if there is no Framebuffer, this call is not interesting
     if (mFramebuffer == NULL)
@@ -264,7 +272,7 @@ void VMDisplay::handleDisplayUpdate (int x, int y, int w, int h)
  * @returns COM status code
  * @param width Address of result variable.
  */
-uint32_t VMDisplay::getWidth()
+uint32_t Display::getWidth()
 {
     Assert(mpDrv);
     return mpDrv->Connector.cx;
@@ -276,7 +284,7 @@ uint32_t VMDisplay::getWidth()
  * @returns COM status code
  * @param height Address of result variable.
  */
-uint32_t VMDisplay::getHeight()
+uint32_t Display::getHeight()
 {
     Assert(mpDrv);
     return mpDrv->Connector.cy;
@@ -288,13 +296,13 @@ uint32_t VMDisplay::getHeight()
  * @returns COM status code
  * @param bitsPerPixel Address of result variable.
  */
-uint32_t VMDisplay::getBitsPerPixel()
+uint32_t Display::getBitsPerPixel()
 {
     Assert(mpDrv);
     return mpDrv->Connector.cBits;
 }
 
-void VMDisplay::updatePointerShape(bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t width, uint32_t height, void *pShape)
+void Display::updatePointerShape(bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t width, uint32_t height, void *pShape)
 {
 }
 
@@ -308,7 +316,7 @@ void VMDisplay::updatePointerShape(bool fVisible, bool fAlpha, uint32_t xHot, ui
  * @returns COM status code
  * @param Framebuffer external Framebuffer object
  */
-STDMETHODIMP VMDisplay::SetFramebuffer(unsigned iScreenID, Framebuffer *Framebuffer)
+STDMETHODIMP Display::SetFramebuffer(unsigned iScreenID, Framebuffer *Framebuffer)
 {
     if (!Framebuffer)
         return E_POINTER;
@@ -325,7 +333,7 @@ STDMETHODIMP VMDisplay::SetFramebuffer(unsigned iScreenID, Framebuffer *Framebuf
 /* framebuffer. In order to synchronize with other framebuffer     */
 /* related activities this call needs to be framed by Lock/Unlock. */
 void
-VMDisplay::doInvalidateAndUpdate(struct DRVMAINDISPLAY  *mpDrv)
+Display::doInvalidateAndUpdate(struct DRVMAINDISPLAY  *mpDrv)
 {
     mpDrv->pDisplay->mFramebuffer->Lock();
     mpDrv->pUpPort->pfnUpdateDisplayAll( mpDrv->pUpPort);
@@ -338,22 +346,22 @@ VMDisplay::doInvalidateAndUpdate(struct DRVMAINDISPLAY  *mpDrv)
  *
  * @returns COM status code
  */
-STDMETHODIMP VMDisplay::InvalidateAndUpdate()
+STDMETHODIMP Display::InvalidateAndUpdate()
 {
-    LogFlow (("VMDisplay::InvalidateAndUpdate(): BEGIN\n"));
+    LogFlow (("Display::InvalidateAndUpdate(): BEGIN\n"));
 
     HRESULT rc = S_OK;
 
-    LogFlow (("VMDisplay::InvalidateAndUpdate(): sending DPYUPDATE request\n"));
+    LogFlow (("Display::InvalidateAndUpdate(): sending DPYUPDATE request\n"));
 
-    Assert(pVM);
+    Assert(gpVM);
     /* pdm.h says that this has to be called from the EMT thread */
-    int rcVBox = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY,
-                                     (PFNRT)VMDisplay::doInvalidateAndUpdate, 1, mpDrv);
+    int rcVBox = VMR3ReqCallVoidWait(gpVM, VMCPUID_ANY,
+                                     (PFNRT)Display::doInvalidateAndUpdate, 1, mpDrv);
     if (RT_FAILURE(rcVBox))
         rc = E_FAIL;
 
-    LogFlow (("VMDisplay::InvalidateAndUpdate(): END: rc=%08X\n", rc));
+    LogFlow (("Display::InvalidateAndUpdate(): END: rc=%08X\n", rc));
     return rc;
 }
 
@@ -364,7 +372,7 @@ STDMETHODIMP VMDisplay::InvalidateAndUpdate()
  * Helper to update the display information from the Framebuffer
  *
  */
-void VMDisplay::updateDisplayData()
+void Display::updateDisplayData()
 {
 
     while(!mFramebuffer)
@@ -390,7 +398,7 @@ void VMDisplay::updateDisplayData()
     }
 }
 
-void VMDisplay::resetFramebuffer()
+void Display::resetFramebuffer()
 {
     if (!mFramebuffer)
         return;
@@ -408,11 +416,11 @@ void VMDisplay::resetFramebuffer()
 /**
  * Handle display resize event
  *
- * @param  pInterface VMDisplay connector.
+ * @param  pInterface Display connector.
  * @param  cx         New width in pixels.
  * @param  cy         New height in pixels.
  */
-DECLCALLBACK(int) VMDisplay::displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy)
+DECLCALLBACK(int) Display::displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
@@ -423,13 +431,13 @@ DECLCALLBACK(int) VMDisplay::displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterf
 /**
  * Handle display update
  *
- * @param  pInterface VMDisplay connector.
+ * @param  pInterface Display connector.
  * @param  x          Left upper boundary x.
  * @param  y          Left upper boundary y.
  * @param  cx         Update rect width.
  * @param  cy         Update rect height.
  */
-DECLCALLBACK(void) VMDisplay::displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
+DECLCALLBACK(void) Display::displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
                                                   uint32_t x, uint32_t y, uint32_t cx, uint32_t cy)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
@@ -441,9 +449,9 @@ DECLCALLBACK(void) VMDisplay::displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
 /**
  * Periodic display refresh callback.
  *
- * @param  pInterface VMDisplay connector.
+ * @param  pInterface Display connector.
  */
-DECLCALLBACK(void) VMDisplay::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterface)
+DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterface)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
@@ -453,7 +461,7 @@ DECLCALLBACK(void) VMDisplay::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInte
      * pointed to by pDrv->pUpPort->pfnUpdateDisplay is unaware
      * of any locking issues. */
 
-    VMDisplay *pDisplay = pDrv->pDisplay;
+    Display *pDisplay = pDrv->pDisplay;
 
     uint32_t u32ResizeStatus = pDisplay->mu32ResizeStatus;
 
@@ -525,7 +533,7 @@ DECLCALLBACK(void) VMDisplay::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInte
  *
  * @param  pInterface Display connector.
  */
-DECLCALLBACK(void) VMDisplay::displayResetCallback(PPDMIDISPLAYCONNECTOR pInterface)
+DECLCALLBACK(void) Display::displayResetCallback(PPDMIDISPLAYCONNECTOR pInterface)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
@@ -540,7 +548,7 @@ DECLCALLBACK(void) VMDisplay::displayResetCallback(PPDMIDISPLAYCONNECTOR pInterf
  *
  * @see PDMIDISPLAYCONNECTOR::pfnLFBModeChange
  */
-DECLCALLBACK(void) VMDisplay::displayLFBModeChangeCallback(PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled)
+DECLCALLBACK(void) Display::displayLFBModeChangeCallback(PPDMIDISPLAYCONNECTOR pInterface, bool fEnabled)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
@@ -558,14 +566,14 @@ DECLCALLBACK(void) VMDisplay::displayLFBModeChangeCallback(PPDMIDISPLAYCONNECTOR
     pDrv->pDisplay->VideoAccelEnable (false, NULL);
 }
 
-DECLCALLBACK(void) VMDisplay::displayProcessAdapterDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, uint32_t u32VRAMSize)
+DECLCALLBACK(void) Display::displayProcessAdapterDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, uint32_t u32VRAMSize)
 {
     NOREF(pInterface);
     NOREF(pvVRAM);
     NOREF(u32VRAMSize);
 }
 
-DECLCALLBACK(void) VMDisplay::displayProcessDisplayDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, unsigned uScreenId)
+DECLCALLBACK(void) Display::displayProcessDisplayDataCallback(PPDMIDISPLAYCONNECTOR pInterface, void *pvVRAM, unsigned uScreenId)
 {
     NOREF(pInterface);
     NOREF(pvVRAM);
@@ -577,7 +585,7 @@ typedef struct _VBVADIRTYREGION
 {
     /* Copies of object's pointers used by vbvaRgn functions. */
     Framebuffer     *pFramebuffer;
-    VMDisplay        *pDisplay;
+    Display        *pDisplay;
     PPDMIDISPLAYPORT  pPort;
 
     /* Merged rectangles. */
@@ -588,7 +596,7 @@ typedef struct _VBVADIRTYREGION
 
 } VBVADIRTYREGION;
 
-void vbvaRgnInit (VBVADIRTYREGION *prgn, Framebuffer *pfb, VMDisplay *pd, PPDMIDISPLAYPORT pp)
+void vbvaRgnInit (VBVADIRTYREGION *prgn, Framebuffer *pfb, Display *pd, PPDMIDISPLAYPORT pp)
 {
     memset (prgn, 0, sizeof (VBVADIRTYREGION));
 
@@ -675,7 +683,7 @@ static void vbvaSetMemoryFlags (VBVAMEMORY *pVbvaMemory, bool fVideoAccelEnabled
     }
 }
 
-bool VMDisplay::VideoAccelAllowed (void)
+bool Display::VideoAccelAllowed (void)
 {
     return true;
 }
@@ -683,7 +691,7 @@ bool VMDisplay::VideoAccelAllowed (void)
 /**
  * @thread EMT
  */
-int VMDisplay::VideoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory)
+int Display::VideoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory)
 {
     int rc = VINF_SUCCESS;
 
@@ -816,7 +824,7 @@ static void vbvaFetchBytes (VBVAMEMORY *pVbvaMemory, uint8_t *pu8Dst, uint32_t c
     return;
 }
 
-void VMDisplay::SetVideoModeHint(ULONG aWidth, ULONG aHeight, ULONG aBitsPerPixel, ULONG aDisplay)
+void Display::SetVideoModeHint(ULONG aWidth, ULONG aHeight, ULONG aBitsPerPixel, ULONG aDisplay)
 {
     PPDMIVMMDEVPORT pVMMDevPort = gVMMDev->getVMMDevPort ();
 
@@ -869,7 +877,7 @@ static bool vbvaPartialRead (uint8_t **ppu8, uint32_t *pcb, uint32_t cbRecord, V
 /* For contiguous chunks just return the address in the buffer.
  * For crossing boundary - allocate a buffer from heap.
  */
-bool VMDisplay::vbvaFetchCmd (VBVACMDHDR **ppHdr, uint32_t *pcbCmd)
+bool Display::vbvaFetchCmd (VBVACMDHDR **ppHdr, uint32_t *pcbCmd)
 {
     uint32_t indexRecordFirst = mpVbvaMemory->indexRecordFirst;
     uint32_t indexRecordFree = mpVbvaMemory->indexRecordFree;
@@ -1007,7 +1015,7 @@ bool VMDisplay::vbvaFetchCmd (VBVACMDHDR **ppHdr, uint32_t *pcbCmd)
     return true;
 }
 
-void VMDisplay::vbvaReleaseCmd (VBVACMDHDR *pHdr, int32_t cbCmd)
+void Display::vbvaReleaseCmd (VBVACMDHDR *pHdr, int32_t cbCmd)
 {
     uint8_t *au8RingBuffer = mpVbvaMemory->au8RingBuffer;
 
@@ -1051,7 +1059,7 @@ void VMDisplay::vbvaReleaseCmd (VBVACMDHDR *pHdr, int32_t cbCmd)
  *
  * @thread EMT
  */
-void VMDisplay::VideoAccelFlush (void)
+void Display::VideoAccelFlush (void)
 {
 #ifdef DEBUG_sunlover
     LogFlow(("Display::VideoAccelFlush: mfVideoAccelEnabled = %d\n", mfVideoAccelEnabled));
@@ -1145,26 +1153,18 @@ void VMDisplay::VideoAccelFlush (void)
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-DECLCALLBACK(void *)  VMDisplay::drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+DECLCALLBACK(void *)  Display::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVMAINDISPLAY pDrv = PDMINS_2_DATA(pDrvIns, PDRVMAINDISPLAY);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_DISPLAY_CONNECTOR:
-            return &pDrv->Connector;
-        default:
-            return NULL;
-    }
+
+    if (RTUuidCompare2Strs(pszIID, PDMIBASE_IID) == 0)
+        return &pDrvIns->IBase;
+    if (RTUuidCompare2Strs(pszIID, PDMIDISPLAYCONNECTOR_IID) == 0)
+        return &pDrv->Connector;
+    return NULL;
 }
 
 
@@ -1173,16 +1173,16 @@ DECLCALLBACK(void *)  VMDisplay::drvQueryInterface(PPDMIBASE pInterface, PDMINTE
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) VMDisplay::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVMAINDISPLAY pData = PDMINS_2_DATA(pDrvIns, PDRVMAINDISPLAY);
-    LogFlow(("VMDisplay::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
-
+    LogFlow(("Display::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Object\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Object\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
     AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
@@ -1191,20 +1191,20 @@ DECLCALLBACK(int) VMDisplay::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     /*
      * Init Interfaces.
      */
-    pDrvIns->IBase.pfnQueryInterface    = VMDisplay::drvQueryInterface;
+    pDrvIns->IBase.pfnQueryInterface    = Display::drvQueryInterface;
 
-    pData->Connector.pfnResize          = VMDisplay::displayResizeCallback;
-    pData->Connector.pfnUpdateRect      = VMDisplay::displayUpdateCallback;
-    pData->Connector.pfnRefresh         = VMDisplay::displayRefreshCallback;
-    pData->Connector.pfnReset           = VMDisplay::displayResetCallback;
-    pData->Connector.pfnLFBModeChange   = VMDisplay::displayLFBModeChangeCallback;
-    pData->Connector.pfnProcessAdapterData = VMDisplay::displayProcessAdapterDataCallback;
-    pData->Connector.pfnProcessDisplayData = VMDisplay::displayProcessDisplayDataCallback;
+    pData->Connector.pfnResize          = Display::displayResizeCallback;
+    pData->Connector.pfnUpdateRect      = Display::displayUpdateCallback;
+    pData->Connector.pfnRefresh         = Display::displayRefreshCallback;
+    pData->Connector.pfnReset           = Display::displayResetCallback;
+    pData->Connector.pfnLFBModeChange   = Display::displayLFBModeChangeCallback;
+    pData->Connector.pfnProcessAdapterData = Display::displayProcessAdapterDataCallback;
+    pData->Connector.pfnProcessDisplayData = Display::displayProcessDisplayDataCallback;
 
     /*
      * Get the IDisplayPort interface of the above driver/device.
      */
-    pData->pUpPort = (PPDMIDISPLAYPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_DISPLAY_PORT);
+    pData->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIDISPLAYPORT);
     if (!pData->pUpPort)
     {
         AssertMsgFailed(("Configuration error: No display port interface above!\n"));
@@ -1212,16 +1212,16 @@ DECLCALLBACK(int) VMDisplay::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     }
 
     /*
-     * Get the VMDisplay object pointer and update the mpDrv member.
+     * Get the Display object pointer and update the mpDrv member.
      */
     void *pv;
-    int rc = CFGMR3QueryPtr(pCfgHandle, "Object", &pv);
+    int rc = CFGMR3QueryPtr(pCfg, "Object", &pv);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc));
         return rc;
     }
-    pData->pDisplay = (VMDisplay *)pv;        /** @todo Check this cast! */
+    pData->pDisplay = (Display *)pv;        /** @todo Check this cast! */
     pData->pDisplay->mpDrv = pData;
 
     /*
@@ -1240,14 +1240,18 @@ DECLCALLBACK(int) VMDisplay::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
 
 
 /**
- * VMDisplay driver registration record.
+ * Display driver registration record.
  */
-const PDMDRVREG VMDisplay::DrvReg =
+const PDMDRVREG Display::DrvReg =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "MainDisplay",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Main display driver (Main as in the API).",
     /* fFlags */
@@ -1259,8 +1263,10 @@ const PDMDRVREG VMDisplay::DrvReg =
     /* cbInstance */
     sizeof(DRVMAINDISPLAY),
     /* pfnConstruct */
-    VMDisplay::drvConstruct,
+    Display::drvConstruct,
     /* pfnDestruct */
+    NULL,
+    /* pfnRelocate */
     NULL,
     /* pfnIOCtl */
     NULL,

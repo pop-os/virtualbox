@@ -93,6 +93,9 @@ static const char *crExtensions =
 #ifdef CR_ARB_vertex_buffer_object
 	"GL_ARB_vertex_buffer_object "
 #endif
+#ifdef CR_ARB_pixel_buffer_object
+    "GL_ARB_pixel_buffer_object "
+#endif
 #ifdef CR_ARB_vertex_program
 	"GL_ARB_vertex_program "
 #endif
@@ -175,7 +178,7 @@ static const char *crExtensions =
 	"GL_NV_texgen_reflection "
 #endif
 #ifdef CR_NV_texture_rectangle
-	"GL_NV_texture_rectangle GL_EXT_texture_rectangle "
+	"GL_NV_texture_rectangle GL_EXT_texture_rectangle GL_ARB_texture_rectangle "
 #endif
 #ifdef CR_NV_vertex_program
 	"GL_NV_vertex_program "
@@ -205,7 +208,10 @@ static const char *crExtensions =
     "GL_ARB_vertex_shader "
 #endif
 #ifdef CR_ARB_fragment_shader
-    "GL_ARB_fragment_shader"
+    "GL_ARB_fragment_shader "
+#endif
+#ifdef CR_EXT_texture_sRGB
+    "CR_EXT_texture_sRGB "
 #endif
 	"";
 

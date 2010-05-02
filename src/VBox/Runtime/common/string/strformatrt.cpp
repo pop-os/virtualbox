@@ -1,10 +1,10 @@
-/* $Id: strformatrt.cpp $ */
+/* $Id: strformatrt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - IPRT String Formatter Extensions.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_rt_str_format_rt   The IPRT String Format Extensions
@@ -82,7 +78,7 @@
  *      - \%RHv             - Takes a #RTHCPTR, #RTHCINTPTR or #RTHCUINTPTR value.
  *      - \%RHx             - Takes a #RTHCUINT or #RTHCINT value, formatting it as hex.
  *      - \%RRv             - Takes a #RTRCPTR, #RTRCINTPTR or #RTRCUINTPTR value.
- *      - \%RCi             - Takes a #RTCCINT value.
+ *      - \%RCi             - Takes a #RTINT value.
  *      - \%RCp             - Takes a #RTCCPHYS value.
  *      - \%RCr             - Takes a #RTCCUINTREG value.
  *      - \%RCu             - Takes a #RTUINT value.
@@ -113,8 +109,6 @@
  *                            full description of the specified status code.
  *      - \%Rra             - Takes an integer iprt status code as argument. Will insert the
  *                            status code define + full description.
- *      - \%Rt              - Current thread (RTThreadSelf()), no arguments.
- *
  *      - \%Rwc             - Takes a long Windows error code as argument. Will insert the status
  *                            code define corresponding to the Windows error code.
  *      - \%Rwf             - Takes a long Windows error code as argument. Will insert the
@@ -131,6 +125,8 @@
  *
  *      - \%Rfn             - Pretty printing of a function or method. It drops the
  *                            return code and parameter list.
+ *      - \%Rbn             - Prints the base name.  For dropping the path in
+ *                            order to save space when printing a path name.
  *
  * On other platforms, \%Rw? simply prints the argument in a form of 0xXXXXXXXX.
  *
@@ -138,6 +134,15 @@
  * Group 4, structure dumpers.
  *
  *      - \%RDtimespec      - Takes a PCRTTIMESPEC.
+ *
+ *
+ * Group 5, XML / HTML escapers.
+ *      - \%RMas            - Takes a string pointer (const char *) and outputs
+ *                            it as an attribute value with the proper escaping.
+ *                            This typically ends up in double quotes.
+ *
+ *      - \%RMes            - Takes a string pointer (const char *) and outputs
+ *                            it as an element with the necessary escaping.
  *
  *
  */
@@ -160,6 +165,7 @@
 #include <iprt/ctype.h>
 #include <iprt/time.h>
 #include <iprt/net.h>
+#include <iprt/path.h>
 #include "internal/string.h"
 
 
@@ -231,7 +237,7 @@ size_t rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **p
                 {
 #define STRMEM(str) sizeof(str) - 1, str
                     { STRMEM("Ci"),      sizeof(RTINT),          10, RTSF_INT,   RTSTR_F_VALSIGNED },
-                    { STRMEM("Cp"),      sizeof(RTGCPHYS),       16, RTSF_INTW,  0 },
+                    { STRMEM("Cp"),      sizeof(RTCCPHYS),       16, RTSF_INTW,  0 },
                     { STRMEM("Cr"),      sizeof(RTCCUINTREG),    16, RTSF_INTW,  0 },
                     { STRMEM("Cu"),      sizeof(RTUINT),         10, RTSF_INT,   0 },
                     { STRMEM("Cv"),      sizeof(void *),         16, RTSF_INTW,  0 },
@@ -360,7 +366,7 @@ size_t rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **p
                  * Fetch the argument.
                  * It's important that a signed value gets sign-extended up to 64-bit.
                  */
-                u.u64 = 0;
+                RT_ZERO(u);
                 if (fFlags & RTSTR_F_VALSIGNED)
                 {
                     switch (s_aTypes[i].cb)
@@ -650,6 +656,45 @@ size_t rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **p
 
 
             /* Group 3 */
+
+            /*
+             * Base name printing.
+             */
+            case 'b':
+            {
+                switch (*(*ppszFormat)++)
+                {
+                    case 'n':
+                    {
+                        const char *pszLastSep;
+                        const char *psz = pszLastSep = va_arg(*pArgs, const char *);
+                        if (!VALID_PTR(psz))
+                            return pfnOutput(pvArgOutput, "<null>", sizeof("<null>") - 1);
+
+                        while ((ch = *psz) != '\0')
+                        {
+                            if (RTPATH_IS_SEP(ch))
+                            {
+                                do
+                                    psz++;
+                                while ((ch = *psz) != '\0' && RTPATH_IS_SEP(ch));
+                                if (!ch)
+                                    break;
+                                pszLastSep = psz;
+                            }
+                            psz++;
+                        }
+
+                        return pfnOutput(pvArgOutput, pszLastSep, psz - pszLastSep);
+                    }
+
+                    default:
+                        AssertMsgFailed(("Invalid status code format type '%.10s'!\n", pszFormatOrg));
+                        break;
+                }
+                break;
+            }
+
 
             /*
              * Pretty function / method name printing.
@@ -986,19 +1031,93 @@ size_t rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **p
                 break;
             }
 
+#ifdef IN_RING3
+            /*
+             * Group 5, XML / HTML escapers.
+             */
+            case 'M':
+            {
+                char chWhat = (*ppszFormat)[0];
+                bool fAttr  = chWhat == 'a';
+                char chType = (*ppszFormat)[1];
+                AssertMsgBreak(chWhat == 'a' || chWhat == 'e', ("Invalid IPRT format type '%.10s'!\n", pszFormatOrg));
+                *ppszFormat += 2;
+                switch (chType)
+                {
+                    case 's':
+                    {
+                        static const char   s_szElemEscape[] = "<>&\"'";
+                        static const char   s_szAttrEscape[] = "<>&\"\n\r"; /* more? */
+                        const char * const  pszEscape =  fAttr ?             s_szAttrEscape  :             s_szElemEscape;
+                        size_t       const  cchEscape = (fAttr ? RT_ELEMENTS(s_szAttrEscape) : RT_ELEMENTS(s_szElemEscape)) - 1;
+                        size_t      cchOutput = 0;
+                        const char *pszStr    = va_arg(*pArgs, char *);
+                        ssize_t     cchStr;
+                        ssize_t     offCur;
+                        ssize_t     offLast;
+
+                        if (!VALID_PTR(pszStr))
+                            pszStr = "<NULL>";
+                        cchStr = RTStrNLen(pszStr, (unsigned)cchPrecision);
+
+                        if (fAttr)
+                            cchOutput += pfnOutput(pvArgOutput, "\"", 1);
+                        if (!(fFlags & RTSTR_F_LEFT))
+                            while (--cchWidth >= cchStr)
+                                cchOutput += pfnOutput(pvArgOutput, " ", 1);
+
+                        offLast = offCur = 0;
+                        while (offCur < cchStr)
+                        {
+                            if (memchr(pszEscape, pszStr[offCur], cchEscape))
+                            {
+                                if (offLast < offCur)
+                                    cchOutput += pfnOutput(pvArgOutput, &pszStr[offLast], offCur - offLast);
+                                switch (pszStr[offCur])
+                                {
+                                    case '<':   cchOutput += pfnOutput(pvArgOutput, "&lt;", 4); break;
+                                    case '>':   cchOutput += pfnOutput(pvArgOutput, "&gt;", 4); break;
+                                    case '&':   cchOutput += pfnOutput(pvArgOutput, "&amp;", 5); break;
+                                    case '\'':  cchOutput += pfnOutput(pvArgOutput, "&apos;", 6); break;
+                                    case '"':   cchOutput += pfnOutput(pvArgOutput, "&qout;", 6); break;
+                                    case '\n':  cchOutput += pfnOutput(pvArgOutput, "&#xA;", 5); break;
+                                    case '\r':  cchOutput += pfnOutput(pvArgOutput, "&#xD;", 5); break;
+                                    default:
+                                        AssertFailed();
+                                }
+                                offLast = offCur + 1;
+                            }
+                            offCur++;
+                        }
+                        if (offLast < offCur)
+                            cchOutput += pfnOutput(pvArgOutput, &pszStr[offLast], offCur - offLast);
+
+                        while (--cchWidth >= cchStr)
+                            cchOutput += pfnOutput(pvArgOutput, " ", 1);
+                        if (fAttr)
+                            cchOutput += pfnOutput(pvArgOutput, "\"", 1);
+                        return cchOutput;
+                    }
+
+                    default:
+                        AssertMsgFailed(("Invalid IPRT format type '%.10s'!\n", pszFormatOrg));
+                }
+                break;
+            }
+#endif /* IN_RING3 */
+
             /*
              * Invalid/Unknown. Bitch about it.
              */
             default:
-                AssertMsgFailed(("Invalid VBox format type '%.10s'!\n", pszFormatOrg));
+                AssertMsgFailed(("Invalid IPRT format type '%.10s'!\n", pszFormatOrg));
                 break;
         }
     }
     else
-        AssertMsgFailed(("Invalid VBox format type '%.10s'!\n", pszFormatOrg));
+        AssertMsgFailed(("Invalid IPRT format type '%.10s'!\n", pszFormatOrg));
 
     NOREF(pszFormatOrg);
     return 0;
 }
-
 

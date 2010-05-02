@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006 Sun Microsystems, Inc.
+ * Copyright (C) 2006 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_VBoxVideo_h
@@ -98,8 +94,12 @@
  * runtime heapsimple API. Use minimum 2 pages here, because the info area also may
  * contain other data (for example HGSMIHOSTFLAGS structure).
  */
+#ifdef VBOXWDDM
+# define VBVA_ADAPTER_INFORMATION_SIZE (64*_1K)
+#else
 #define VBVA_ADAPTER_INFORMATION_SIZE  (16*_1K)
 #define VBVA_DISPLAY_INFORMATION_SIZE  (64*_1K)
+#endif
 #define VBVA_MIN_BUFFER_SIZE           (64*_1K)
 #endif /* VBOX_WITH_HGSMI */
 
@@ -446,6 +446,7 @@ typedef struct _VBOXVHWA_OVERLAYFX
 #define VBOXVHWA_SCAPS_VISIBLE          0x00008000
 #define VBOXVHWA_SCAPS_LOCALVIDMEM      0x10000000
 
+#define VBOXVHWA_PF_PALETTEINDEXED8     0x00000020
 #define VBOXVHWA_PF_RGB                 0x00000040
 #define VBOXVHWA_PF_RGBTOYUV            0x00000100
 #define VBOXVHWA_PF_YUV                 0x00000200
@@ -734,7 +735,10 @@ typedef struct _VBOXVHWACMD_SURF_OVERLAY_SETPOSITION
 
 typedef struct _VBOXVHWACMD_HH_CONSTRUCT
 {
-    void * pVM;
+    void    *pVM;
+    /* VRAM info for the backend to be able to properly translate VRAM offsets */
+    void    *pvVRAM;
+    uint32_t cbVRAM;
 } VBOXVHWACMD_HH_CONSTRUCT;
 
 typedef DECLCALLBACK(void) FNVBOXVHWA_HH_CALLBACK(void*);
@@ -742,8 +746,8 @@ typedef FNVBOXVHWA_HH_CALLBACK *PFNVBOXVHWA_HH_CALLBACK;
 
 #define VBOXVHWA_HH_CALLBACK_SET(_pCmd, _pfn, _parg) \
     do { \
-        (_pCmd)->GuestVBVAReserved1 = (uint64_t)(_pfn); \
-        (_pCmd)->GuestVBVAReserved2 = (uint64_t)(_parg); \
+        (_pCmd)->GuestVBVAReserved1 = (uint64_t)(uintptr_t)(_pfn); \
+        (_pCmd)->GuestVBVAReserved2 = (uint64_t)(uintptr_t)(_parg); \
     }while(0)
 
 #define VBOXVHWA_HH_CALLBACK_GET(_pCmd) ((PFNVBOXVHWA_HH_CALLBACK)(_pCmd)->GuestVBVAReserved1)
@@ -796,10 +800,17 @@ typedef struct _VBVABUFFER
 #ifdef VBOX_WITH_VIDEOHWACCEL
 # define VBVA_VHWA_CMD    9
 #endif /* # ifdef VBOX_WITH_VIDEOHWACCEL */
+#ifdef VBOXVDMA
+# define VBVA_VDMA_CTL   10 /* setup G<->H DMA channel info */
+# define VBVA_VDMA_CMD    11 /* G->H DMA command             */
+#endif
 
 /* host->guest commands */
-# define VBVAHG_EVENT 1
-# define VBVAHG_DISPLAY_CUSTOM 2
+# define VBVAHG_EVENT              1
+# define VBVAHG_DISPLAY_CUSTOM     2
+#ifdef VBOXVDMA
+# define VBVAHG_SHGSMI_COMPLETION  3
+#endif
 
 # ifdef VBOX_WITH_VIDEOHWACCEL
 #define VBVAHG_DCUSTOM_VHWA_CMDCOMPLETE 1
@@ -925,14 +936,26 @@ typedef struct VBVAINFOSCREEN
 #define VBVA_F_NONE    0x00000000
 #define VBVA_F_ENABLE  0x00000001
 #define VBVA_F_DISABLE 0x00000002
+#ifdef VBOXWDDM_WITH_VBVA
+/* extended VBVA to be used with WDDM */
+#define VBVA_F_EXTENDED 0x00000004
+#endif
 
 typedef struct _VBVAENABLE
 {
     uint32_t u32Flags;
     uint32_t u32Offset;
     int32_t  i32Result;
-
 } VBVAENABLE;
+
+#ifdef VBOXWDDM_WITH_VBVA
+typedef struct _VBVAENABLE_EX
+{
+    VBVAENABLE Base;
+    uint32_t u32ScreenId;
+} VBVAENABLE_EX;
+#endif
+
 
 typedef struct _VBVAMOUSEPOINTERSHAPE
 {
@@ -986,5 +1009,253 @@ typedef struct _VBVAMOUSEPOINTERSHAPE
 #pragma pack()
 
 #endif /* VBOX_WITH_HGSMI */
+
+#ifdef VBOXVDMA
+# pragma pack(1)
+
+/*
+ * VBOXSHGSMI made on top HGSMI and allows receiving notifications
+ * about G->H command completion
+ */
+/* SHGSMI command header */
+typedef struct VBOXSHGSMIHEADER
+{
+    uint64_t pvNext;    /*<- completion processing queue */
+    uint32_t fFlags;    /*<- see VBOXSHGSMI_FLAG_XXX Flags */
+    uint32_t cRefs;     /*<- command referece count */
+    uint64_t u64Info1;  /*<- contents depends on the fFlags value */
+    uint64_t u64Info2;  /*<- contents depends on the fFlags value */
+} VBOXSHGSMIHEADER, *PVBOXSHGSMIHEADER;
+
+/* the command processing was asynch, set by the host to indicate asynch command completion
+ * must not be cleared once set, the command completion is performed by issuing a host->guest completion command
+ * while keeping this flag unchanged */
+#define VBOXSHGSMI_FLAG_HG_ASYNCH               0x00010000
+///* if set     - asynch completion is performed by issuing the event,
+// * if cleared - asynch completion is performed by calling a callback */
+//#define VBOXSHGSMI_FLAG_GH_ASYNCH_EVENT         0x00000001
+/* issue interrupt on asynch completion, used for critical G->H commands,
+ * i.e. for completion of which guest is waiting. */
+#define VBOXSHGSMI_FLAG_GH_ASYNCH_IRQ           0x00000002
+/* guest does not do any op on completion of this command,
+ * the host may copy the command and indicate that it does not need the command anymore
+ * by not setting VBOXSHGSMI_FLAG_HG_ASYNCH */
+#define VBOXSHGSMI_FLAG_GH_ASYNCH_NOCOMPLETION  0x00000004
+/* guest requires the command to be processed asynchronously,
+ * not setting VBOXSHGSMI_FLAG_HG_ASYNCH by the host in this case is treated as command failure */
+#define VBOXSHGSMI_FLAG_GH_ASYNCH_FORCE         0x00000008
+/* force IRQ on cmd completion */
+#define VBOXSHGSMI_FLAG_GH_ASYNCH_IRQ_FORCE     0x00000010
+/* an IRQ-level callback is associated with the command */
+#define VBOXSHGSMI_FLAG_GH_ASYNCH_CALLBACK_IRQ  0x00000020
+/* guest expects this command to be completed synchronously */
+#define VBOXSHGSMI_FLAG_GH_SYNCH                0x00000040
+
+DECLINLINE(uint8_t *) VBoxSHGSMIBufferData (const VBOXSHGSMIHEADER* pHeader)
+{
+    return (uint8_t *)pHeader + sizeof (VBOXSHGSMIHEADER);
+}
+
+DECLINLINE(PVBOXSHGSMIHEADER) VBoxSHGSMIBufferHeader (const void *pvData)
+{
+    return (PVBOXSHGSMIHEADER)((uint8_t *)pvData - sizeof (VBOXSHGSMIHEADER));
+}
+
+/* VDMA - Video DMA */
+
+/* VDMA Control API */
+/* VBOXVDMA_CTL::u32Flags */
+typedef enum
+{
+    VBOXVDMA_CTL_TYPE_NONE = 0,
+    VBOXVDMA_CTL_TYPE_ENABLE,
+    VBOXVDMA_CTL_TYPE_DISABLE,
+    VBOXVDMA_CTL_TYPE_FLUSH
+} VBOXVDMA_CTL_TYPE;
+
+typedef struct VBOXVDMA_CTL
+{
+    VBOXVDMA_CTL_TYPE enmCtl;
+    uint32_t u32Offset;
+    int32_t  i32Result;
+} VBOXVDMA_CTL, *PVBOXVDMA_CTL;
+
+typedef struct VBOXVDMA_RECTL
+{
+    int16_t left;
+    int16_t top;
+    uint16_t width;
+    uint16_t height;
+} VBOXVDMA_RECTL, *PVBOXVDMA_RECTL;
+
+typedef enum
+{
+    VBOXVDMA_PIXEL_FORMAT_UNKNOWN      =  0,
+    VBOXVDMA_PIXEL_FORMAT_R8G8B8       = 20,
+    VBOXVDMA_PIXEL_FORMAT_A8R8G8B8     = 21,
+    VBOXVDMA_PIXEL_FORMAT_X8R8G8B8     = 22,
+    VBOXVDMA_PIXEL_FORMAT_R5G6B5       = 23,
+    VBOXVDMA_PIXEL_FORMAT_X1R5G5B5     = 24,
+    VBOXVDMA_PIXEL_FORMAT_A1R5G5B5     = 25,
+    VBOXVDMA_PIXEL_FORMAT_A4R4G4B4     = 26,
+    VBOXVDMA_PIXEL_FORMAT_R3G3B2       = 27,
+    VBOXVDMA_PIXEL_FORMAT_A8           = 28,
+    VBOXVDMA_PIXEL_FORMAT_A8R3G3B2     = 29,
+    VBOXVDMA_PIXEL_FORMAT_X4R4G4B4     = 30,
+    VBOXVDMA_PIXEL_FORMAT_A2B10G10R10  = 31,
+    VBOXVDMA_PIXEL_FORMAT_A8B8G8R8     = 32,
+    VBOXVDMA_PIXEL_FORMAT_X8B8G8R8     = 33,
+    VBOXVDMA_PIXEL_FORMAT_G16R16       = 34,
+    VBOXVDMA_PIXEL_FORMAT_A2R10G10B10  = 35,
+    VBOXVDMA_PIXEL_FORMAT_A16B16G16R16 = 36,
+    VBOXVDMA_PIXEL_FORMAT_A8P8         = 40,
+    VBOXVDMA_PIXEL_FORMAT_P8           = 41,
+    VBOXVDMA_PIXEL_FORMAT_L8           = 50,
+    VBOXVDMA_PIXEL_FORMAT_A8L8         = 51,
+    VBOXVDMA_PIXEL_FORMAT_A4L4         = 52,
+    VBOXVDMA_PIXEL_FORMAT_V8U8         = 60,
+    VBOXVDMA_PIXEL_FORMAT_L6V5U5       = 61,
+    VBOXVDMA_PIXEL_FORMAT_X8L8V8U8     = 62,
+    VBOXVDMA_PIXEL_FORMAT_Q8W8V8U8     = 63,
+    VBOXVDMA_PIXEL_FORMAT_V16U16       = 64,
+    VBOXVDMA_PIXEL_FORMAT_W11V11U10    = 65,
+    VBOXVDMA_PIXEL_FORMAT_A2W10V10U10  = 67
+} VBOXVDMA_PIXEL_FORMAT;
+
+typedef struct VBOXVDMA_SURF_DESC
+{
+    uint32_t width;
+    uint32_t height;
+    VBOXVDMA_PIXEL_FORMAT format;
+    uint32_t bpp;
+    uint32_t pitch;
+    uint32_t fFlags;
+} VBOXVDMA_SURF_DESC, *PVBOXVDMA_SURF_DESC;
+
+//typedef uint64_t VBOXVDMAPHADDRESS;
+typedef uint64_t VBOXVDMASURFHANDLE;
+
+typedef uint64_t VBOXVIDEOOFFSET;
+
+#define VBOXVIDEOOFFSET_VOID ((VBOXVIDEOOFFSET)~0)
+
+typedef enum
+{
+    VBOXVDMACMD_TYPE_UNDEFINED         = 0,
+    VBOXVDMACMD_TYPE_DMA_PRESENT_BLT   = 1,
+    VBOXVDMACMD_TYPE_DMA_BPB_TRANSFER  = 2,
+    VBOXVDMACMD_TYPE_DMA_BPB_FILL = 3,
+    VBOXVDMACMD_TYPE_DMA_PRESENT_SHADOW2PRIMARY = 4,
+} VBOXVDMACMD_TYPE;
+
+/* region specified as a rectangle, otherwize it is a size of memory pointed to by phys address */
+#define VBOXVDMAOPERAND_FLAGS_RECTL       0x1
+/* Surface handle is valid */
+#define VBOXVDMAOPERAND_FLAGS_PRIMARY        0x2
+/* address is offset in VRAM */
+#define VBOXVDMAOPERAND_FLAGS_VRAMOFFSET  0x4
+
+
+/* VBOXVDMACBUF_DR::phBuf specifies offset in VRAM */
+#define VBOXVDMACBUF_FLAG_BUF_VRAM_OFFSET 0x00000001
+/* command buffer follows the VBOXVDMACBUF_DR in VRAM, VBOXVDMACBUF_DR::phBuf is ignored */
+#define VBOXVDMACBUF_FLAG_BUF_FOLLOWS_DR  0x00000002
+
+/*
+ * We can not submit the DMA command via VRAM since we do not have control over
+ * DMA command buffer [de]allocation, i.e. we only control the buffer contents.
+ * In other words the system may call one of our callbacks to fill a command buffer
+ * with the necessary commands and then discard the buffer w/o any notification.
+ *
+ * We have only DMA command buffer physical address at submission time.
+ *
+ * so the only way is to */
+typedef struct VBOXVDMACBUF_DR
+{
+    uint32_t fFlags;
+    uint32_t cbBuf;
+    uint32_t u32FenceId;
+    /* RT_SUCCESS()     - on success
+     * VERR_INTERRUPTED - on preemption
+     * VERR_xxx         - on error */
+    int32_t  rc;
+    uint64_t u64GuestContext;
+    union
+    {
+        uint64_t phBuf;
+        VBOXVIDEOOFFSET offVramBuf;
+    } Location;
+} VBOXVDMACBUF_DR, *PVBOXVDMACBUF_DR;
+
+#define VBOXVDMACBUF_DR_TAIL(_pCmd, _t) ( (_t*)(((uint8_t*)(_pCmd)) + sizeof (VBOXVDMACBUF_DR)) )
+
+typedef struct VBOXVDMACMD
+{
+    VBOXVDMACMD_TYPE enmType;
+    uint32_t u32CmdSpecific;
+} VBOXVDMACMD, *PVBOXVDMACMD;
+
+#define VBOXVDMACMD_HEADER_SIZE() sizeof (VBOXVDMACMD)
+#define VBOXVDMACMD_SIZE_FROMBODYSIZE(_s) (VBOXVDMACMD_HEADER_SIZE() + (_s))
+#define VBOXVDMACMD_SIZE(_t) (VBOXVDMACMD_SIZE_FROMBODYSIZE(sizeof (_t)))
+#define VBOXVDMACMD_BODY(_pCmd, _t) ( (_t*)(((uint8_t*)(_pCmd)) + VBOXVDMACMD_HEADER_SIZE()) )
+#define VBOXVDMACMD_BODY_FIELD_OFFSET(_ot, _t, _f) ( (_ot)( VBOXVDMACMD_BODY(0, uint8_t) + RT_OFFSETOF(_t, _f) ) )
+
+typedef struct VBOXVDMACMD_DMA_PRESENT_BLT
+{
+    VBOXVIDEOOFFSET offSrc;
+    VBOXVIDEOOFFSET offDst;
+    VBOXVDMA_SURF_DESC srcDesc;
+    VBOXVDMA_SURF_DESC dstDesc;
+    VBOXVDMA_RECTL srcRectl;
+    VBOXVDMA_RECTL dstRectl;
+    uint32_t u32Reserved;
+    uint32_t cDstSubRects;
+    VBOXVDMA_RECTL aDstSubRects[1];
+} VBOXVDMACMD_DMA_PRESENT_BLT, *PVBOXVDMACMD_DMA_PRESENT_BLT;
+
+typedef struct VBOXVDMACMD_DMA_PRESENT_SHADOW2PRIMARY
+{
+    VBOXVDMA_RECTL Rect;
+} VBOXVDMACMD_DMA_PRESENT_SHADOW2PRIMARY, *PVBOXVDMACMD_DMA_PRESENT_SHADOW2PRIMARY;
+
+typedef struct VBOXVDMACMD_DMA_BPB_TRANSFER
+{
+    uint32_t cbTransferSize;
+    uint32_t offTransfer; /* <- applicable for offVramBuf, which always points to the surface start*/
+    uint32_t fFlags;
+    uint32_t u32Reserved;
+    union
+    {
+        uint64_t phBuf;
+        VBOXVIDEOOFFSET offVramBuf;
+    } Src;
+    union
+    {
+        uint64_t phBuf;
+        VBOXVIDEOOFFSET offVramBuf;
+    } Dst;
+} VBOXVDMACMD_DMA_BPB_TRANSFER, *PVBOXVDMACMD_DMA_BPB_TRANSFER;
+
+typedef struct VBOXVDMACMD_DMA_BPB_FILL
+{
+    VBOXVIDEOOFFSET offSurf;
+    uint32_t cbFillSize;
+    uint32_t u32FillPattern;
+} VBOXVDMACMD_DMA_BPB_FILL, *PVBOXVDMACMD_DMA_BPB_FILL;
+
+# pragma pack()
+#endif /* #ifdef VBOXVDMA */
+
+#ifdef VBOXVDMA_WITH_VBVA
+# pragma pack(1)
+
+typedef struct VBOXVDMAVBVACMD
+{
+    HGSMIOFFSET offCmd;
+} VBOXVDMAVBVACMD;
+
+#pragma pack()
+#endif
 
 #endif

@@ -24,9 +24,9 @@
         <translation></translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Jean-Jacques Sarton, Sun Microsystems, Inc.</translation>
+        <translation>Jean-Jacques Sarton, Oracle Corporation</translation>
     </message>
 </context>
 <context>
@@ -574,7 +574,7 @@ Version %1</source>
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>Annuler</translation>
@@ -1480,7 +1480,7 @@ Version %1</source>
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>Cancel</source>
         <translation type="obsolete">Annuler</translation>
@@ -1522,7 +1522,7 @@ Version %1</source>
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>Choisissez un fichier cible pour l&apos;exportation</translation>
@@ -3562,7 +3562,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>Choisissez une application virtuelle à importer</translation>
@@ -3645,7 +3645,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>Software License Agreement</source>
         <translation>Contrat de licence logiciel</translation>
@@ -3972,7 +3972,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>Créer un nouveau disque virtuel</translation>
@@ -4135,7 +4135,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>Créer un nouvelle machine virtuelle</translation>
@@ -5450,7 +5450,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">Boîte de dialogue d&apos;inscription VirtualBox</translation>
+        <translation>Boîte de dialogue d&apos;inscription VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -5458,7 +5458,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">Entrez votre nom complet en utilisant seulement les caractères latins.</translation>
+        <translation>Entrez votre nom complet en utilisant seulement les caractères latins.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -5466,7 +5466,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">Entrez votre adresse courriel. Prière dEntrez votre adresse courriel.apos;utiliser une adresse valide.</translation>
+        <translation>Entrez votre adresse courriel. Prière dEntrez votre adresse courriel.apos;utiliser une adresse valide.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -5474,7 +5474,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">Bienvenue sur le formulaire d&apos;inscription VirtualBox !</translation>
+        <translation>Bienvenue sur le formulaire d&apos;inscription VirtualBox !</translation>
     </message>
     <message>
         <source>Connection timed out.</source>
@@ -5486,7 +5486,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">La négociation de la connexion a échoué.</translation>
+        <translation>La négociation de la connexion a échoué.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -5502,63 +5502,63 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">Annuler</translation>
+        <translation>Annuler</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">Choisissez votre pays/territoire</translation>
+        <translation>Choisissez votre pays/territoire</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Veuillez remplir ce formulaire d&apos;enregistrement pour nous dire que vous utilisez VirtualBox et, si vous le souhaitez, pour que nous vous gardions au courrent sur les nouveautés et les actualisations de VirtualBox.&lt;/p&gt;&lt;p&gt;Veuillez utiliser seulement les caractères latins pour remplir les champs ci-dessous. Nous soulignons que Sun Microsystems n&apos;utilisera les informations que pour collectioner des statistiques d&apos;utilisation sur le produit et pour vous envoyer les circulaires informatifs sur VirtualBox. En particulier, Sun Microsystems ne transmettra jamais vos données à de tiers partis. Vous trouverez des informations détaillés sur l&apos;usage que nous font de vos données personnels dans le section &lt;b&gt;Politique de confidentialité&lt;/b&gt; du manuel d&apos;utilisation VirtualBox ou sur la page &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; du site toile VirtualBox.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Veuillez remplir ce formulaire d&apos;enregistrement pour nous dire que vous utilisez VirtualBox et, si vous le souhaitez, pour que nous vous gardions au courrent sur les nouveautés et les actualisations de VirtualBox.&lt;/p&gt;&lt;p&gt;Veuillez utiliser seulement les caractères latins pour remplir les champs ci-dessous. Nous soulignons que Sun Microsystems n&apos;utilisera les informations que pour collectioner des statistiques d&apos;utilisation sur le produit et pour vous envoyer les circulaires informatifs sur VirtualBox. En particulier, Sun Microsystems ne transmettra jamais vos données à de tiers partis. Vous trouverez des informations détaillés sur l&apos;usage que nous font de vos données personnels dans le section &lt;b&gt;Politique de confidentialité&lt;/b&gt; du manuel d&apos;utilisation VirtualBox ou sur la page &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; du site toile VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">J&apos;ai &amp;déjà un compte Sun Online :</translation>
+        <translation>J&apos;ai &amp;déjà un compte Sun Online :</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">Courri&amp;el :</translation>
+        <translation>Courri&amp;el :</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">Mot de &amp;passe :</translation>
+        <translation>Mot de &amp;passe :</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">J&apos;aimerais m&apos;en&amp;register et créer un nouveau compte Sun Online :</translation>
+        <translation>J&apos;aimerais m&apos;en&amp;register et créer un nouveau compte Sun Online :</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">&amp;Prénom :</translation>
+        <translation>&amp;Prénom :</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">&amp;Nom :</translation>
+        <translation>&amp;Nom :</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">&amp;Société :</translation>
+        <translation>&amp;Société :</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">Pa&amp;ys :</translation>
+        <translation>Pa&amp;ys :</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">Co&amp;urriel :</translation>
+        <translation>Co&amp;urriel :</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">Mot de p&amp;asse :</translation>
+        <translation>Mot de p&amp;asse :</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">Co&amp;nfirmation du mot de passe :</translation>
+        <translation>Co&amp;nfirmation du mot de passe :</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">En&amp;registrer</translation>
+        <translation>En&amp;registrer</translation>
     </message>
 </context>
 <context>
@@ -6211,7 +6211,7 @@ Pour que la souris soit capturée, cliquer dans la fenêtre de la machine virtue
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>Assistant du premier lancement</translation>
@@ -8244,7 +8244,7 @@ p, li { white-space: pre-wrap; }
         <translation>&amp;Processeur(s):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>Détermine le nombre de processeurs virtuels de la machine virtuelle.</translation>
     </message>
     <message>

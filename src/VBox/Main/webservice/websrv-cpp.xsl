@@ -8,8 +8,10 @@
         normally have to implement manually to create a
         web service; our generated code automatically maps
         all SOAP calls into COM/XPCOM method calls.
+        See webservice/Makefile.kmk for an overview of all the things
+        generated for the webservice.
 
-     Copyright (C) 2006-2009 Sun Microsystems, Inc.
+     Copyright (C) 2006-2010 Oracle Corporation
 
      This file is part of VirtualBox Open Source Edition (OSE), as
      available from http://www.virtualbox.org. This file is free software;
@@ -18,10 +20,6 @@
      Foundation, in version 2 as it comes in the "COPYING" file of the
      VirtualBox OSE distribution. VirtualBox OSE is distributed in the
      hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-
-     Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-     Clara, CA 95054 USA or visit http://www.sun.com if you need
-     additional information or have any questions.
 -->
 
 <xsl:stylesheet

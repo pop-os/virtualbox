@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*
@@ -270,6 +266,22 @@ sf_reg_open (struct inode *inode, struct file *file)
                 return -ENOMEM;
         }
 
+        /* Already open? */
+        if (sf_i->handle != SHFL_HANDLE_NIL)
+        {
+            /*
+             * This inode was created with sf_create_aux(). Check the CreateFlags:
+             * O_CREAT, O_TRUNC: inherent true (file was just created). Not sure
+             * about the access flags (SHFL_CF_ACCESS_*).
+             */
+            sf_i->force_restat = 1;
+            sf_r->handle = sf_i->handle;
+            sf_i->handle = SHFL_HANDLE_NIL;
+            sf_i->file = file;
+            file->private_data = sf_r;
+            return 0;
+        }
+
         RT_ZERO(params);
         params.Handle = SHFL_HANDLE_NIL;
         /* We check the value of params.Handle afterwards to find out if
@@ -327,7 +339,7 @@ sf_reg_open (struct inode *inode, struct file *file)
         }
 
         params.Info.Attr.fMode = inode->i_mode;
-        LogFunc(("sf_reg_open: calling vboxCallCreate, file %s, flags=%d, %#x\n",
+        LogFunc(("sf_reg_open: calling vboxCallCreate, file %s, flags=%#x, %#x\n",
                  sf_i->path->String.utf8 , file->f_flags, params.CreateFlags));
         rc = vboxCallCreate (&client_handle, &sf_g->map, sf_i->path, &params);
 
@@ -381,6 +393,7 @@ sf_reg_release (struct inode *inode, struct file *file)
 
         kfree (sf_r);
         sf_i->file = NULL;
+        sf_i->handle = SHFL_HANDLE_NIL;
         file->private_data = NULL;
         return 0;
 }

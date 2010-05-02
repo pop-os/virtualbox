@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_vmx_h
@@ -202,7 +198,7 @@ typedef struct EPTPDEBITS
     /** Reserved (must be 0). */
     uint64_t    u4Reserved      : 4;
     /** Big page (must be 0 here). */
-    uint64_t    u1Big           : 1;
+    uint64_t    u1Size          : 1;
     /** Available for software. */
     uint64_t    u4Available     : 4;
     /** Physical address of page table. Restricted by maximum physical address width of the cpu. */

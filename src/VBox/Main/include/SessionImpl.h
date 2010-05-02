@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_SESSIONIMPL
@@ -36,7 +32,7 @@
  *  @todo Dmitry, feel free to completely change this (and/or write a better description).
  *        (The same goes for the other darwin changes.)
  */
-#ifdef __DOXYGEN__
+#ifdef DOXYGEN_RUNNING
 # define VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
 #endif
 
@@ -72,49 +68,56 @@ public:
 
     // public initializers/uninitializers only for internal purposes
     HRESULT init();
-    void uninit (bool aFinalRelease);
+    void uninit(bool aFinalRelease);
 
     // ISession properties
-    STDMETHOD(COMGETTER(State)) (SessionState_T *aState);
-    STDMETHOD(COMGETTER(Type)) (SessionType_T *aType);
-    STDMETHOD(COMGETTER(Machine)) (IMachine **aMachine);
-    STDMETHOD(COMGETTER(Console)) (IConsole **aConsole);
+    STDMETHOD(COMGETTER(State))(SessionState_T *aState);
+    STDMETHOD(COMGETTER(Type))(SessionType_T *aType);
+    STDMETHOD(COMGETTER(Machine))(IMachine **aMachine);
+    STDMETHOD(COMGETTER(Console))(IConsole **aConsole);
 
     // ISession methods
     STDMETHOD(Close)();
 
     // IInternalSessionControl methods
-    STDMETHOD(GetPID) (ULONG *aPid);
-    STDMETHOD(GetRemoteConsole) (IConsole **aConsole);
-    STDMETHOD(AssignMachine) (IMachine *aMachine);
-    STDMETHOD(AssignRemoteMachine) (IMachine *aMachine, IConsole *aConsole);
-    STDMETHOD(UpdateMachineState) (MachineState_T aMachineState);
+    STDMETHOD(GetPID)(ULONG *aPid);
+    STDMETHOD(GetRemoteConsole)(IConsole **aConsole);
+    STDMETHOD(AssignMachine)(IMachine *aMachine);
+    STDMETHOD(AssignRemoteMachine)(IMachine *aMachine, IConsole *aConsole);
+    STDMETHOD(UpdateMachineState)(MachineState_T aMachineState);
     STDMETHOD(Uninitialize)();
     STDMETHOD(OnNetworkAdapterChange)(INetworkAdapter *networkAdapter, BOOL changeAdapter);
     STDMETHOD(OnSerialPortChange)(ISerialPort *serialPort);
     STDMETHOD(OnParallelPortChange)(IParallelPort *parallelPort);
     STDMETHOD(OnStorageControllerChange)();
     STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment, BOOL aForce);
+    STDMETHOD(OnCPUChange)(ULONG aCPU, BOOL aRemove);
     STDMETHOD(OnVRDPServerChange)();
     STDMETHOD(OnUSBControllerChange)();
-    STDMETHOD(OnSharedFolderChange) (BOOL aGlobal);
-    STDMETHOD(OnUSBDeviceAttach) (IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
-    STDMETHOD(OnUSBDeviceDetach) (IN_BSTR aId, IVirtualBoxErrorInfo *aError);
-    STDMETHOD(OnShowWindow) (BOOL aCheck, BOOL *aCanShow, ULONG64 *aWinId);
-    STDMETHOD(AccessGuestProperty) (IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags,
-                                    BOOL aIsSetter, BSTR *aRetValue, ULONG64 *aRetTimestamp, BSTR *aRetFlags);
-    STDMETHOD(EnumerateGuestProperties) (IN_BSTR aPatterns,
-                                         ComSafeArrayOut(BSTR, aNames),
-                                         ComSafeArrayOut(BSTR, aValues),
-                                         ComSafeArrayOut(ULONG64, aTimestamps),
-                                         ComSafeArrayOut(BSTR, aFlags));
+    STDMETHOD(OnSharedFolderChange)(BOOL aGlobal);
+    STDMETHOD(OnUSBDeviceAttach)(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
+    STDMETHOD(OnUSBDeviceDetach)(IN_BSTR aId, IVirtualBoxErrorInfo *aError);
+    STDMETHOD(OnShowWindow)(BOOL aCheck, BOOL *aCanShow, ULONG64 *aWinId);
+    STDMETHOD(AccessGuestProperty)(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags,
+                                   BOOL aIsSetter, BSTR *aRetValue, ULONG64 *aRetTimestamp, BSTR *aRetFlags);
+    STDMETHOD(EnumerateGuestProperties)(IN_BSTR aPatterns,
+                                        ComSafeArrayOut(BSTR, aNames),
+                                        ComSafeArrayOut(BSTR, aValues),
+                                        ComSafeArrayOut(ULONG64, aTimestamps),
+                                        ComSafeArrayOut(BSTR, aFlags));
+    STDMETHOD(OnlineMergeMedium)(IMediumAttachment *aMediumAttachment,
+                                 ULONG aSourceIdx, ULONG aTargetIdx,
+                                 IMedium *aSource, IMedium *aTarget,
+                                 BOOL aMergeForward, IMedium *aParentForTarget,
+                                 ComSafeArrayIn(IMedium *, aChildrenToReparent),
+                                 IProgress *aProgress);
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"Session"; }
 
 private:
 
-    HRESULT close (bool aFinalRelease, bool aFromServer);
+    HRESULT close(bool aFinalRelease, bool aFromServer);
     HRESULT grabIPCSemaphore();
     void releaseIPCSemaphore();
 

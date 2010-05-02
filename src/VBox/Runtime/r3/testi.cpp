@@ -1,10 +1,10 @@
-/* $Id: testi.cpp $ */
+/* $Id: testi.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Testcase Framework, the implicit test handle API variation.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -96,9 +92,37 @@ RTR3DECL(int) RTTestIPassed(const char *pszFormat, ...)
 }
 
 
+RTR3DECL(int) RTTestIValue(const char *pszName, uint64_t u64Value, RTTESTUNIT enmUnit)
+{
+    return RTTestValue(NIL_RTTEST, pszName, u64Value, enmUnit);
+}
+
+
+RTR3DECL(int) RTTestIValueF(uint64_t u64Value, RTTESTUNIT enmUnit, const char *pszNameFmt, ...)
+{
+    va_list va;
+    va_start(va, pszNameFmt);
+    int rc = RTTestValueV(NIL_RTTEST, u64Value, enmUnit, pszNameFmt, va);
+    va_end(va);
+    return rc;
+}
+
+
+RTR3DECL(int) RTTestIValueV(uint64_t u64Value, RTTESTUNIT enmUnit, const char *pszNameFmt, va_list va)
+{
+    return RTTestValueV(NIL_RTTEST, u64Value, enmUnit, pszNameFmt, va);
+}
+
+
 RTR3DECL(int) RTTestIErrorInc(void)
 {
     return RTTestErrorInc(NIL_RTTEST);
+}
+
+
+RTR3DECL(uint32_t) RTTestIErrorCount(void)
+{
+    return RTTestErrorCount(NIL_RTTEST);
 }
 
 
@@ -115,6 +139,23 @@ RTR3DECL(int) RTTestIFailed(const char *pszFormat, ...)
     int cch = RTTestFailedV(NIL_RTTEST, pszFormat, va);
     va_end(va);
     return cch;
+}
+
+
+RTR3DECL(int) RTTestIFailedRcV(int rcRet, const char *pszFormat, va_list va)
+{
+    RTTestFailedV(NIL_RTTEST, pszFormat, va);
+    return rcRet;
+}
+
+
+RTR3DECL(int) RTTestIFailedRc(int rcRet, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    RTTestFailedV(NIL_RTTEST, pszFormat, va);
+    va_end(va);
+    return rcRet;
 }
 
 

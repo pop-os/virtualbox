@@ -5,7 +5,7 @@
  *      (plus static gSOAP server code) to implement the actual webservice
  *      server, to which clients can connect.
  *
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 // shared webservice header
@@ -30,6 +26,9 @@
 #include <VBox/com/EventQueue.h>
 #include <VBox/VRDPAuth.h>
 #include <VBox/version.h>
+
+#include <iprt/buildconfig.h>
+#include <iprt/thread.h>
 #include <iprt/rand.h>
 #include <iprt/initterm.h>
 #include <iprt/getopt.h>
@@ -119,10 +118,10 @@ class SoapQ;
 SoapQ               *g_pSoapQ = NULL;
 
 // this mutex protects the auth lib and authentication
-RTLockMtx           *g_pAuthLibLockHandle;
+util::RWLockHandle  *g_pAuthLibLockHandle;
 
 // this mutex protects all of the below
-RTLockMtx           *g_pSessionsLockHandle;
+util::RWLockHandle  *g_pSessionsLockHandle;
 
 SessionsMap         g_mapSessions;
 ULONG64             g_iMaxManagedObjectID = 0;
@@ -140,7 +139,7 @@ ThreadsMap          g_mapThreads;
 
 static const RTGETOPTDEF g_aOptions[]
     = {
-        { "--help",             'h', RTGETOPT_REQ_NOTHING },
+        { "--help",             'h', RTGETOPT_REQ_NOTHING }, /* for DisplayHelp() */
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
         { "--background",       'b', RTGETOPT_REQ_NOTHING },
 #endif
@@ -288,6 +287,7 @@ public:
      */
     SoapQ(const struct soap *pSoap)
         : m_soap(pSoap),
+          m_mutex(util::LOCKCLASS_OBJECTSTATE),
           m_cIdleThreads(0)
     {
         RTSemEventMultiCreate(&m_event);
@@ -308,7 +308,7 @@ public:
     uint32_t add(int s)
     {
         uint32_t cItems;
-        RTLock qlock(m_mutex);
+        util::AutoWriteLock qlock(m_mutex COMMA_LOCKVAL_SRC_POS);
 
         // if no threads have yet been created, or if all threads are busy,
         // create a new SOAP thread
@@ -353,7 +353,7 @@ public:
             // wait for something to happen
             RTSemEventMultiWait(m_event, RT_INDEFINITE_WAIT);
 
-            RTLock qlock(m_mutex);
+            util::AutoWriteLock qlock(m_mutex COMMA_LOCKVAL_SRC_POS);
             if (m_llSocketsQ.size())
             {
                 int socket = m_llSocketsQ.front();
@@ -382,13 +382,13 @@ public:
      */
     void done()
     {
-        RTLock qlock(m_mutex);
+        util::AutoWriteLock qlock(m_mutex COMMA_LOCKVAL_SRC_POS);
         ++m_cIdleThreads;
     }
 
     const struct soap       *m_soap;            // soap structure created by main(), passed to constructor
 
-    RTLockMtx               m_mutex;
+    util::WriteLockHandle   m_mutex;
     RTSEMEVENTMULTI         m_event;            // posted by add(), blocked on by get()
 
     std::list<SoapThread*>  m_llAllThreads;     // all the threads created by the constructor
@@ -521,8 +521,6 @@ void doQueuesLoop()
         // initialize thread queue, mutex and eventsem
         g_pSoapQ = new SoapQ(&soap);
 
-        // start the SOAP processing thread
-
         for (uint64_t i = 1;
              ;
              i++)
@@ -586,7 +584,7 @@ int main(int argc, char* argv[])
     int c;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, 0 /* fFlags */);
+    RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, 0 /*fFlags*/);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -627,8 +625,7 @@ int main(int argc, char* argv[])
 
             case 'h':
                 DisplayHelp();
-                exit(0);
-            break;
+            return 0;
 
             case 'v':
                 g_fVerbose = true;
@@ -639,34 +636,20 @@ int main(int argc, char* argv[])
                 g_fDaemonize = true;
             break;
 #endif
-            case VINF_GETOPT_NOT_OPTION:
-                RTStrmPrintf(g_pStdErr, "unhandled parameter: %s\n", ValueUnion.psz);
-            return 1;
+            case 'V':
+                RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
+            return 0;
 
             default:
-                if (c > 0)
-                {
-                    if (RT_C_IS_GRAPH(c))
-                        RTStrmPrintf(g_pStdErr, "unhandled option: -%c", c);
-                    else
-                        RTStrmPrintf(g_pStdErr, "unhandled option: %i", c);
-                }
-                else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    RTStrmPrintf(g_pStdErr, "unknown option: %s", ValueUnion.psz);
-                else if (ValueUnion.pDef)
-                    RTStrmPrintf(g_pStdErr, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
-                else
-                    RTStrmPrintf(g_pStdErr, "%Rrs", c);
-                exit(1);
-            break;
+                rc = RTGetOptPrintError(c, &ValueUnion);
+            return rc;
         }
     }
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     if (g_fDaemonize)
     {
-        rc = RTProcDaemonize(false /* fNoChDir */, false /* fNoClose */,
-                             NULL);
+        rc = RTProcDaemonizeUsingFork(false /* fNoChDir */, false /* fNoClose */, NULL);
         if (RT_FAILURE(rc))
         {
             RTStrmPrintf(g_pStdErr, "vboxwebsrv: failed to daemonize, rc=%Rrc. exiting.\n", rc);
@@ -709,8 +692,8 @@ int main(int argc, char* argv[])
     }
 
     // create the global mutexes
-    g_pAuthLibLockHandle = new RTLockMtx();
-    g_pSessionsLockHandle = new RTLockMtx();
+    g_pAuthLibLockHandle = new util::RWLockHandle(util::LOCKCLASS_OBJECTSTATE);
+    g_pSessionsLockHandle = new util::RWLockHandle(util::LOCKCLASS_OBJECTSTATE);
 
     // SOAP queue pumper thread
     RTTHREAD  tQPumper;
@@ -789,7 +772,7 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
 
         // lock the sessions while we're iterating; this blocks
         // out the COM code from messing with it
-        RTLock lock(*g_pSessionsLockHandle);
+        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
         WEBDEBUG(("Watchdog: checking %d sessions\n", g_mapSessions.size()));
 
         SessionsMap::iterator it = g_mapSessions.begin(),
@@ -1040,6 +1023,7 @@ WebServiceSession::WebServiceSession()
     _uSessionID = RTRandU64();
 
     // register this session globally
+    Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
     g_mapSessions[_uSessionID] = this;
 }
 
@@ -1052,6 +1036,7 @@ WebServiceSession::~WebServiceSession()
 {
     // delete us from global map first so we can't be found
     // any more while we're cleaning up
+    Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
     g_mapSessions.erase(_uSessionID);
 
     // notify ManagedObjectRef destructor so it won't
@@ -1090,7 +1075,7 @@ int WebServiceSession::authenticate(const char *pcszUsername,
 {
     int rc = VERR_WEB_NOT_AUTHENTICATED;
 
-    RTLock lock(*g_pAuthLibLockHandle);
+    util::AutoReadLock lock(g_pAuthLibLockHandle COMMA_LOCKVAL_SRC_POS);
 
     static bool fAuthLibLoaded = false;
     static PVRDPAUTHENTRY pfnAuthEntry = NULL;
@@ -1336,6 +1321,7 @@ ManagedObjectRef::ManagedObjectRef(WebServiceSession &session,
     ComPtr<IUnknown> pcUnknown(pc);
     _ulp = (uintptr_t)(IUnknown*)pcUnknown;
 
+    Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
     _id = ++g_iMaxManagedObjectID;
     // and count globally
     ULONG64 cTotal = ++g_cManagedObjects;           // raise global count and make a copy for the debug message below
@@ -1360,6 +1346,7 @@ ManagedObjectRef::ManagedObjectRef(WebServiceSession &session,
  */
 ManagedObjectRef::~ManagedObjectRef()
 {
+    Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
     ULONG64 cTotal = --g_cManagedObjects;
 
     WEBDEBUG(("   * %s: deleting MOR for ID %llX (%s); now %lld objects total\n", __FUNCTION__, _id, _pcszInterface, cTotal));
@@ -1587,7 +1574,7 @@ int __vbox__IWebsessionManager_USCORElogon(
 
     do {
         // WebServiceSession constructor tinkers with global MOR map and requires a write lock
-        RTLock lock(*g_pSessionsLockHandle);
+        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         // create new session; the constructor stores the new session
         // in the global map automatically
@@ -1664,6 +1651,10 @@ int __vbox__IWebsessionManager_USCORElogoff(
     WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
 
     do {
+        // findSessionFromRef needs read lock, and the session destructor requires
+        // the write lock, so get the write lock here
+        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
+
         WebServiceSession* pSession;
         if ((pSession = WebServiceSession::findSessionFromRef(req->refIVirtualBox)))
         {

@@ -1,4 +1,4 @@
-/* $Id: tstPDMAsyncCompletionStress.cpp $ */
+/* $Id: tstPDMAsyncCompletionStress.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PDM Asynchronous Completion Stresstest.
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -48,6 +44,7 @@
 #include <iprt/stream.h>
 #include <iprt/thread.h>
 #include <iprt/param.h>
+#include <iprt/message.h>
 
 #define TESTCASE "tstPDMAsyncCompletionStress"
 
@@ -112,7 +109,7 @@ typedef struct PDMACTESTFILETASK
     /** Start offset. */
     RTFOFF                      off;
     /** Data segment */
-    PDMDATASEG                  DataSeg;
+    RTSGSEG                     DataSeg;
     /** Task handle. */
     PPDMASYNCCOMPLETIONTASK     hTask;
 } PDMACTESTFILETASK, *PPDMACTESTFILETASK;
@@ -158,6 +155,8 @@ size_t   g_cbTestPattern;
 /** Array holding test files. */
 PDMACTESTFILE g_aTestFiles[NR_OPEN_ENDPOINTS];
 
+static void tstPDMACStressTestFileTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rcReq);
+
 static void tstPDMACStressTestFileVerify(PPDMACTESTFILE pTestFile, PPDMACTESTFILETASK pTestTask)
 {
     size_t   cbLeft = pTestTask->DataSeg.cbSeg;
@@ -176,7 +175,19 @@ static void tstPDMACStressTestFileVerify(PPDMACTESTFILE pTestFile, PPDMACTESTFIL
         pbTestPattern = pSeg->pbData + offSeg;
 
         if (memcmp(pbBuf, pbTestPattern, cbCompare))
-            AssertMsgFailed(("Unexpected data for off=%RTfoff size=%u\n", pTestTask->off, pTestTask->DataSeg.cbSeg));
+        {
+            unsigned idx = 0;
+
+            while (   (pbBuf[idx] == pbTestPattern[idx])
+                   && (idx < cbCompare))
+                idx++;
+
+            RTMsgError("Unexpected data for off=%RTfoff size=%u\n"
+                       "Expected %c got %c\n",
+                       pTestTask->off + idx, pTestTask->DataSeg.cbSeg,
+                       pbTestPattern[idx], pbBuf[idx]);
+            RTAssertDebugBreak();
+        }
 
         pbBuf  += cbCompare;
         off    += cbCompare;
@@ -312,7 +323,7 @@ static bool tstPDMACTestIsTrue(int iPercentage)
 {
     int uRnd = RTRandU32Ex(0, 100);
 
-    return (uRnd < iPercentage); /* This should be enough for our purpose */
+    return (uRnd <= iPercentage); /* This should be enough for our purpose */
 }
 
 static int tstPDMACTestFileThread(PVM pVM, PPDMTHREAD pThread)
@@ -348,7 +359,8 @@ static int tstPDMACTestFileThread(PVM pVM, PPDMTHREAD pThread)
                 else
                     rc = tstPDMACStressTestFileRead(pTestFile, pTask);
 
-                AssertRC(rc);
+                if (rc != VINF_AIO_TASK_PENDING)
+                    tstPDMACStressTestFileTaskCompleted(pVM, pTask, pTestFile, rc);
 
                 cTasksStarted++;
             }
@@ -375,7 +387,7 @@ static int tstPDMACTestFileThread(PVM pVM, PPDMTHREAD pThread)
     return rc;
 }
 
-static void tstPDMACStressTestFileTaskCompleted(PVM pVM, void *pvUser, void *pvUser2)
+static void tstPDMACStressTestFileTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rcReq)
 {
     PPDMACTESTFILE pTestFile = (PPDMACTESTFILE)pvUser2;
     PPDMACTESTFILETASK pTestTask = (PPDMACTESTFILETASK)pvUser;

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_ostypes_h
@@ -93,10 +89,13 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_RedHat           = 0x5A000,
     VBOXOSTYPE_RedHat_x64       = 0x5A100,
     VBOXOSTYPE_Turbolinux       = 0x5B000,
+    VBOXOSTYPE_Turbolinux_x64   = 0x5B100,
     VBOXOSTYPE_Ubuntu           = 0x5C000,
     VBOXOSTYPE_Ubuntu_x64       = 0x5C100,
     VBOXOSTYPE_Xandros          = 0x5D000,
     VBOXOSTYPE_Xandros_x64      = 0x5D100,
+    VBOXOSTYPE_Oracle           = 0x5E000,
+    VBOXOSTYPE_Oracle_x64       = 0x5E100,
     VBOXOSTYPE_FreeBSD          = 0x60000,
     VBOXOSTYPE_FreeBSD_x64      = 0x60100,
     VBOXOSTYPE_OpenBSD          = 0x61000,
@@ -110,6 +109,8 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_OpenSolaris_x64  = 0x81100,
     VBOXOSTYPE_L4               = 0x90000,
     VBOXOSTYPE_QNX              = 0xA0000,
+    VBOXOSTYPE_MacOS            = 0xB0000,
+    VBOXOSTYPE_MacOS_x64        = 0xB0100,
     /** The usual 32-bit hack. */
     VBOXOSTYPE_32BIT_HACK = 0x7fffffff
 } VBOXOSTYPE;

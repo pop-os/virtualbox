@@ -1,10 +1,10 @@
-/* $Id: VBoxService-win.cpp $ */
+/* $Id: VBoxService-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton, Windows Specific Parts.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -116,6 +112,7 @@ Cleanup:
 }
 
 
+/** Reports our current status to the SCM. */
 BOOL VBoxServiceWinSetStatus(DWORD dwStatus, DWORD dwCheckPoint)
 {
     if (NULL == g_hWinServiceStatus) /* Program could be in testing mode, so no service environment available. */
@@ -127,7 +124,7 @@ BOOL VBoxServiceWinSetStatus(DWORD dwStatus, DWORD dwCheckPoint)
     SERVICE_STATUS ss;
     ss.dwServiceType              = SERVICE_WIN32_OWN_PROCESS;
     ss.dwCurrentState             = g_rcWinService;
-    ss.dwControlsAccepted	      = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+    ss.dwControlsAccepted         = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
     ss.dwWin32ExitCode            = NO_ERROR;
     ss.dwServiceSpecificExitCode  = 0; /* Not used */
     ss.dwCheckPoint               = dwCheckPoint;
@@ -137,6 +134,27 @@ BOOL VBoxServiceWinSetStatus(DWORD dwStatus, DWORD dwCheckPoint)
 }
 
 
+int VBoxServiceWinSetDesc(SC_HANDLE hService)
+{
+    /* On W2K+ there's ChangeServiceConfig2() which lets us set some fields
+       like a longer service description. */
+#ifndef TARGET_NT4
+    SERVICE_DESCRIPTION desc;
+    /** @todo On Vista+ SERVICE_DESCRIPTION also supports localized strings! */
+    desc. lpDescription = VBOXSERVICE_DESCRIPTION;
+    if (FALSE == ChangeServiceConfig2(hService,
+                                      SERVICE_CONFIG_DESCRIPTION, /* Service info level */
+                                      &desc))
+    {
+        VBoxServiceError("Cannot set the service description! Error: %ld\n", GetLastError());
+        return 1;
+    }
+#endif
+    return VINF_SUCCESS;
+}
+
+
+/** Installs the service into the registry. */
 int VBoxServiceWinInstall(void)
 {
     SC_HANDLE hService, hSCManager;
@@ -145,10 +163,11 @@ int VBoxServiceWinInstall(void)
     GetModuleFileName(NULL,imagePath,MAX_PATH);
     VBoxServiceVerbose(1, "Installing service ...\n");
 
-    hSCManager = OpenSCManager(NULL,NULL,SC_MANAGER_ALL_ACCESS);
+    hSCManager = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
 
-    if (NULL == hSCManager) {
-        VBoxServiceError("Could not open SCM! Error: %d\n", GetLastError());
+    if (NULL == hSCManager)
+    {
+        VBoxServiceError("Could not open SCM! Error: %ld\n", GetLastError());
         return 1;
     }
 
@@ -156,25 +175,71 @@ int VBoxServiceWinInstall(void)
                                 VBOXSERVICE_NAME, VBOXSERVICE_FRIENDLY_NAME,
                                 SERVICE_ALL_ACCESS,
                                 SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS,
-                                SERVICE_DEMAND_START,SERVICE_ERROR_NORMAL,
+                                SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
                                 imagePath, NULL, NULL, NULL, NULL, NULL);
+    int rc = VINF_SUCCESS;
+    if (NULL == hService)
+    {
+        DWORD dwErr = GetLastError();
+        switch (dwErr)
+        {
 
-    if (NULL == hService) {
-        VBoxServiceError("Could not create service! Error: %d\n", GetLastError());
-        CloseServiceHandle(hSCManager);
-        return 1;
+        case ERROR_SERVICE_EXISTS:
+
+            VBoxServiceVerbose(1, "Service already exists, just updating the service config.\n");
+            hService = OpenService (hSCManager,
+                                    VBOXSERVICE_NAME,
+                                    SERVICE_ALL_ACCESS);
+            if (NULL == hService)
+            {
+                VBoxServiceError("Could not open service! Error: %ld\n", GetLastError());
+                rc = 1;
+            }
+            else
+            {
+                if (ChangeServiceConfig (hService,
+                                         SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS,
+                                         SERVICE_DEMAND_START,
+                                         SERVICE_ERROR_NORMAL,
+                                         imagePath,
+                                         NULL,
+                                         NULL,
+                                         NULL,
+                                         NULL,
+                                         NULL,
+                                         VBOXSERVICE_FRIENDLY_NAME))
+                {
+                    VBoxServiceVerbose(1, "The service config has been successfully updated.\n");
+                }
+                else
+                {
+                    VBoxServiceError("Could not change service config! Error: %ld\n", GetLastError());
+                    rc = 1;
+                }
+            }
+            break;
+
+        default:
+
+            VBoxServiceError("Could not create service! Error: %ld\n", dwErr);
+            rc = 1;
+            break;
+        }
     }
     else
     {
         VBoxServiceVerbose(0, "Service successfully installed!\n");
     }
 
+    if (RT_SUCCESS(rc))
+        rc = VBoxServiceWinSetDesc(hService);
+
     CloseServiceHandle(hService);
     CloseServiceHandle(hSCManager);
-
-    return 0;
+    return rc;
 }
 
+/** Uninstalls the service from the registry. */
 int VBoxServiceWinUninstall(void)
 {
     SC_HANDLE hService, hSCManager;
@@ -382,4 +447,3 @@ void WINAPI VBoxServiceWinMain(DWORD argc, LPTSTR *argv)
         rc = VBoxServiceWinStart();
     }
 }
-

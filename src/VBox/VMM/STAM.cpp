@@ -1,10 +1,10 @@
-/* $Id: STAM.cpp $ */
+/* $Id: STAM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * STAM - The Statistics Manager.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_stam       STAM - The Statistics Manager
@@ -253,7 +249,7 @@ VMMR3DECL(int) STAMR3InitUVM(PUVM pUVM)
     static bool fRegisteredCmds = false;
     if (!fRegisteredCmds)
     {
-        int rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
+        rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
         if (RT_SUCCESS(rc))
             fRegisteredCmds = true;
     }
@@ -983,7 +979,8 @@ VMMR3DECL(int) STAMR3SnapshotU(PUVM pUVM, const char *pszPat, char **ppszSnapsho
  *                          The format of the snapshot should be XML, but that will have to be discussed
  *                          when this function is implemented.
  *                          The returned pointer must be freed by calling STAMR3SnapshotFree().
- * @param   pcchSnapshot    Where to store the size of the snapshot data. (Excluding the trailing '\0')
+ * @param   pcchSnapshot    Where to store the size of the snapshot data.
+ *                          (Excluding the trailing '\\0')
  */
 VMMR3DECL(int) STAMR3Snapshot(PVM pVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc)
 {

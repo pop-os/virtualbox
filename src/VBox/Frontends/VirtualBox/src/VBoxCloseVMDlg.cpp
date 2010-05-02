@@ -1,3 +1,4 @@
+/* $Id: VBoxCloseVMDlg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxCloseVMDlg.h"
 #include "VBoxProblemReporter.h"
 #ifdef Q_WS_MAC
@@ -28,11 +28,24 @@
 
 /* Qt includes */
 #include <QPushButton>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#ifdef VBOX_WITH_NEW_RUNTIME_CORE
+# include "UIMachineWindowNormal.h"
+#endif /* !VBOX_WITH_NEW_RUNTIME_CORE */
 
 VBoxCloseVMDlg::VBoxCloseVMDlg (QWidget *aParent)
     : QIWithRetranslateUI<QIDialog> (aParent)
 {
 #ifdef Q_WS_MAC
+
+# ifdef VBOX_WITH_NEW_RUNTIME_CORE
+    /* No sheets in another mode than normal for now. Firstly it looks ugly and
+     * secondly in some cases it is broken. */
+    UIMachineWindowNormal *pWnd = qobject_cast<UIMachineWindowNormal*>(aParent);
+    if (pWnd)
+        setWindowFlags (Qt::Sheet);
+# endif /* !VBOX_WITH_NEW_RUNTIME_CORE */
     /* Sheets are broken if the window is in fullscreen mode. So make it a
      * normal window in that case. */
     VBoxConsoleWnd *cwnd = qobject_cast<VBoxConsoleWnd*> (aParent);

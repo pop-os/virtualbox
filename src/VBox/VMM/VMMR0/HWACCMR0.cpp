@@ -1,10 +1,10 @@
-/* $Id: HWACCMR0.cpp $ */
+/* $Id: HWACCMR0.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * HWACCM - Host Context Ring 0.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -25,17 +21,14 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_HWACCM
 #include <VBox/hwaccm.h>
+#include <VBox/pgm.h>
 #include "HWACCMInternal.h"
 #include <VBox/vm.h>
 #include <VBox/x86.h>
 #include <VBox/hwacc_vmx.h>
 #include <VBox/hwacc_svm.h>
-#include <VBox/pgm.h>
-#include <VBox/pdm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/selm.h>
-#include <VBox/iom.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/cpuset.h>
@@ -1155,6 +1148,15 @@ VMMR0DECL(int) HWACCMR0Leave(PVM pVM, PVMCPU pVCpu)
     }
 
     rc = HWACCMR0Globals.pfnLeaveSession(pVM, pVCpu, pCtx);
+
+    /* We don't pass on invlpg information to the recompiler for nested paging guests, so we must make sure the recompiler flushes its TLB
+     * the next time it executes code.
+     */
+    if (    pVM->hwaccm.s.fNestedPaging
+        &&  CPUMIsGuestInPagedProtectedModeEx(pCtx))
+    {
+        CPUMSetChangedFlags(pVCpu, CPUM_CHANGED_GLOBAL_TLB_FLUSH);
+    }
 
     /* keep track of the CPU owning the VMCS for debugging scheduling weirdness and ring-3 calls. */
 #ifdef RT_STRICT

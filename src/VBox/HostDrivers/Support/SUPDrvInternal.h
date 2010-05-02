@@ -1,10 +1,10 @@
-/* $Revision: 56351 $ */
+/* $Revision: 28800 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___SUPDrvInternal_h
@@ -163,154 +159,23 @@
 #define BIRD_INV    0x62697264 /* 'drib' */
 
 
-/*
- * Win32
- */
-#if defined(RT_OS_WINDOWS)
+#ifdef RT_OS_WINDOWS
+/** Use a normal mutex for the loader so we remain at the same IRQL after
+ * taking it.
+ * @todo fix the mutex implementation on linux and make this the default. */
+# define SUPDRV_USE_MUTEX_FOR_LDR
 
-/* debug printf */
-# define OSDBGPRINT(a) DbgPrint a
-
-/** Maximum number of bytes we try to lock down in one go.
- * This is supposed to have a limit right below 256MB, but this appears
- * to actually be much lower. The values here have been determined experimentally.
- */
-#ifdef RT_ARCH_X86
-# define MAX_LOCK_MEM_SIZE   (32*1024*1024) /* 32mb */
-#endif
-#ifdef RT_ARCH_AMD64
-# define MAX_LOCK_MEM_SIZE   (24*1024*1024) /* 24mb */
+/** Use a normal mutex for the GIP so we remain at the same IRQL after
+ * taking it.
+ * @todo fix the mutex implementation on linux and make this the default. */
+# define SUPDRV_USE_MUTEX_FOR_GIP
 #endif
 
 
-/*
- * Linux
+/**
+ * OS debug print macro.
  */
-#elif defined(RT_OS_LINUX)
-
-/* check kernel version */
-# ifndef SUPDRV_AGNOSTIC
-#  if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
-#   error Unsupported kernel version!
-#  endif
-# endif
-
-RT_C_DECLS_BEGIN
-int  linux_dprintf(const char *format, ...);
-RT_C_DECLS_END
-
-/* debug printf */
-# define OSDBGPRINT(a) printk a
-
-
-/*
- * Darwin
- */
-#elif defined(RT_OS_DARWIN)
-
-/* debug printf */
-# define OSDBGPRINT(a) printf a
-
-
-/*
- * OS/2
- */
-#elif defined(RT_OS_OS2)
-
-/* No log API in OS/2 only COM port. */
-# define OSDBGPRINT(a) SUPR0Printf a
-
-
-/*
- * FreeBSD
- */
-#elif defined(RT_OS_FREEBSD)
-
-/* debug printf */
-# define OSDBGPRINT(a) printf a
-
-
-/*
- * Solaris
- */
-#elif defined(RT_OS_SOLARIS)
-# define OSDBGPRINT(a) SUPR0Printf a
-
-
-#else
-/** @todo other os'es */
-# error "OS interface defines is not done for this OS!"
-#endif
-
-
-/* dprintf */
-#if (defined(DEBUG) && !defined(NO_LOGGING))
-# ifdef LOG_TO_COM
-#  include <VBox/log.h>
-#  define dprintf(a) RTLogComPrintf a
-# else
-#  define dprintf(a) OSDBGPRINT(a)
-# endif
-#else
-# define dprintf(a) do {} while (0)
-#endif
-
-/* dprintf2 - extended logging. */
-#if defined(RT_OS_DARWIN) || defined(RT_OS_OS2) || defined(RT_OS_FREEBSD)
-# define dprintf2 dprintf
-#else
-# define dprintf2(a) do { } while (0)
-#endif
-
-
-/** @def RT_WITH_W64_UNWIND_HACK
- * Changes a function name into the wrapped version if we've
- * enabled the unwind hack.
- *
- * The unwind hack is for making the NT unwind procedures skip
- * our dynamically loaded code when they try to walk the call
- * stack. Needless to say, they kind of don't expect what
- * we're doing here and get kind of confused and may BSOD. */
-#ifdef DOXYGEN_RUNNING
-# define RT_WITH_W64_UNWIND_HACK
-#endif
-/** @def UNWIND_WRAP
- * If RT_WITH_W64_UNWIND_HACK is defined, the name will be prefixed with
- * 'supdrvNtWrap'.
- * @param Name  The function to wrapper.  */
-#ifdef RT_WITH_W64_UNWIND_HACK
-# define UNWIND_WRAP(Name)  supdrvNtWrap##Name
-#else
-# define UNWIND_WRAP(Name)  Name
-#endif
-
-
-/*
- * Error codes.
- */
-/** @todo retire the SUPDRV_ERR_* stuff, we ship err.h now. */
-/** Invalid parameter. */
-#define SUPDRV_ERR_GENERAL_FAILURE  (-1)
-/** Invalid parameter. */
-#define SUPDRV_ERR_INVALID_PARAM    (-2)
-/** Invalid magic or cookie. */
-#define SUPDRV_ERR_INVALID_MAGIC    (-3)
-/** Invalid loader handle. */
-#define SUPDRV_ERR_INVALID_HANDLE   (-4)
-/** Failed to lock the address range. */
-#define SUPDRV_ERR_LOCK_FAILED      (-5)
-/** Invalid memory pointer. */
-#define SUPDRV_ERR_INVALID_POINTER  (-6)
-/** Failed to patch the IDT. */
-#define SUPDRV_ERR_IDT_FAILED       (-7)
-/** Memory allocation failed. */
-#define SUPDRV_ERR_NO_MEMORY        (-8)
-/** Already loaded. */
-#define SUPDRV_ERR_ALREADY_LOADED   (-9)
-/** Permission denied. */
-#define SUPDRV_ERR_PERMISSION_DENIED (-10)
-/** Version mismatch. */
-#define SUPDRV_ERR_VERSION_MISMATCH (-11)
+#define OSDBGPRINT(a) SUPR0Printf a
 
 
 /** @name Context values for the per-session handle tables.
@@ -402,26 +267,41 @@ typedef struct SUPDRVLDRIMAGE
     struct SUPDRVLDRIMAGE * volatile pNext;
     /** Pointer to the image. */
     void                           *pvImage;
+    /** Pointer to the allocated image buffer.
+     * pvImage is 32-byte aligned or it may governed by the native loader (this
+     * member is NULL then). */
+    void                           *pvImageAlloc;
+    /** Size of the image including the tables. This is mainly for verification
+     * of the load request. */
+    uint32_t                        cbImageWithTabs;
+    /** Size of the image. */
+    uint32_t                        cbImageBits;
+    /** The number of entries in the symbol table. */
+    uint32_t                        cSymbols;
+    /** Pointer to the symbol table. */
+    PSUPLDRSYM                      paSymbols;
+    /** The offset of the string table. */
+    char                           *pachStrTab;
+    /** Size of the string table. */
+    uint32_t                        cbStrTab;
     /** Pointer to the optional module initialization callback. */
     PFNR0MODULEINIT                 pfnModuleInit;
     /** Pointer to the optional module termination callback. */
     PFNR0MODULETERM                 pfnModuleTerm;
     /** Service request handler. This is NULL for non-service modules. */
     PFNSUPR0SERVICEREQHANDLER       pfnServiceReqHandler;
-    /** Size of the image. */
-    uint32_t                        cbImage;
-    /** The offset of the symbol table. */
-    uint32_t                        offSymbols;
-    /** The number of entries in the symbol table. */
-    uint32_t                        cSymbols;
-    /** The offset of the string table. */
-    uint32_t                        offStrTab;
-    /** Size of the string table. */
-    uint32_t                        cbStrTab;
     /** The ldr image state. (IOCtl code of last opration.) */
     uint32_t                        uState;
     /** Usage count. */
     uint32_t volatile               cUsage;
+#ifdef RT_OS_WINDOWS
+    /** The section object for the loaded image (fNative=true). */
+    void                           *pvNtSectionObj;
+    /** Lock object. */
+    RTR0MEMOBJ                      hMemLock;
+#endif
+    /** Whether it's loaded by the native loader or not. */
+    bool                            fNative;
     /** Image name. */
     char                            szName[32];
 } SUPDRVLDRIMAGE, *PSUPDRVLDRIMAGE;
@@ -582,14 +462,16 @@ typedef struct SUPDRVDEVEXT
 
     /** Global cookie. */
     uint32_t                        u32Cookie;
-
-    /** The IDT entry number.
-     * Only valid if pIdtPatches is set. */
-    uint8_t volatile                u8Idt;
+    /** The actual size of SUPDRVSESSION. (SUPDRV_AGNOSTIC) */
+    uint32_t                        cbSession;
 
     /** Loader mutex.
      * This protects pvVMMR0, pvVMMR0Entry, pImages and SUPDRVSESSION::pLdrUsage. */
+#ifdef SUPDRV_USE_MUTEX_FOR_LDR
+    RTSEMMUTEX                      mtxLdr;
+#else
     RTSEMFASTMUTEX                  mtxLdr;
+#endif
 
     /** VMM Module 'handle'.
      * 0 if the code VMM isn't loaded and Idt are nops. */
@@ -607,7 +489,11 @@ typedef struct SUPDRVDEVEXT
     /** GIP mutex.
      * Any changes to any of the GIP members requires ownership of this mutex,
      * except on driver init and termination. */
+#ifdef SUPDRV_USE_MUTEX_FOR_GIP
+    RTSEMMUTEX                      mtxGip;
+#else
     RTSEMFASTMUTEX                  mtxGip;
+#endif
     /** Pointer to the Global Info Page (GIP). */
     PSUPGLOBALINFOPAGE              pGip;
     /** The physical address of the GIP. */
@@ -652,6 +538,55 @@ bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, c
 bool VBOXCALL   supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt);
 int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
 
+/**
+ * Try open the image using the native loader.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if native loading isn't supported.
+ *
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image handle.  pvImage should be set on
+ *                              success, pvImageAlloc can also be set if
+ *                              appropriate.
+ * @param   pszFilename         The file name - UTF-8, may containg UNIX
+ *                              slashes on non-UNIX systems.
+ */
+int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename);
+
+/**
+ * Validates an entry point address.
+ *
+ * Called before supdrvOSLdrLoad.
+ *
+ * @returns IPRT status code.
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image data (still in the open state).
+ * @param   pv                  The address within the image.
+ * @param   pbImageBits         The image bits as loaded by ring-3.
+ */
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage,
+                                           void *pv, const uint8_t *pbImageBits);
+
+/**
+ * Load the image.
+ *
+ * @returns IPRT status code.
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image data (up to date except for some
+ *                              entry point pointers).
+ * @param   pbImageBits         The image bits as loaded by ring-3.
+ */
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits);
+
+
+/**
+ * Unload the image.
+ *
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image data (mostly still valid).
+ */
+void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
+
 
 /*******************************************************************************
 *   Shared Functions                                                           *
@@ -660,19 +595,11 @@ int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
 int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr);
 int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
-int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt);
+int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession);
 void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
 int  VBOXCALL   supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSION *ppSession);
 void VBOXCALL   supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 void VBOXCALL   supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
-int  VBOXCALL   supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPHYS HCPhys, uint64_t u64NanoTS, unsigned uUpdateHz);
-void VBOXCALL   supdrvGipTerm(PSUPGLOBALINFOPAGE pGip);
-void VBOXCALL   supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC);
-void VBOXCALL   supdrvGipUpdatePerCpu(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC, unsigned iCpu);
-bool VBOXCALL   supdrvDetermineAsyncTsc(uint64_t *pu64DiffCores);
-
-/* SUPDrvAgnostic.c */
-SUPGIPMODE VBOXCALL supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt);
 
 RT_C_DECLS_END
 

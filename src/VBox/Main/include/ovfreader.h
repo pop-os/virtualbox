@@ -1,12 +1,12 @@
-/* $Id: ovfreader.h $ */
+/* $Id: ovfreader.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
+ * OVF reader declarations.
  *
- * OVF reader declarations. Depends only on IPRT, including the iprt::MiniString
- * and IPRT XML classes.
+ * Depends only on IPRT, including the iprt::MiniString and IPRT XML classes.
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,16 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_OVFREADER
 #define ____H_OVFREADER
 
-#include "iprt/xml_cpp.h"
+#include "iprt/cpp/xml.h"
 #include <map>
+
+namespace ovf
+{
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -148,6 +147,7 @@ enum CIMOSType_T
 
 struct DiskImage
 {
+    // fields from /DiskSection/Disk
     iprt::MiniString strDiskId;     // value from DiskSection/Disk/@diskId
     int64_t iCapacity;              // value from DiskSection/Disk/@capacity;
                                     // (maximum size for dynamic images, I guess; we always translate this to bytes)
@@ -156,6 +156,8 @@ struct DiskImage
                                     // space, but cannot be larger than iCapacity; -1 if not set)
     iprt::MiniString strFormat;              // value from DiskSection/Disk/@format
                 // typically http://www.vmware.com/specifications/vmdk.html#sparse
+    iprt::MiniString uuidVbox;      // optional; if the file was exported by VirtualBox >= 3.2,
+                                    // then this has the UUID with which the disk was registered
 
     // fields from /References/File; the spec says the file reference from disk can be empty,
     // so in that case, strFilename will be empty, then a new disk should be created
@@ -163,29 +165,32 @@ struct DiskImage
     int64_t iSize;                  // value from /References/File/@size (optional according to spec; then we set -1 here)
     int64_t iChunkSize;             // value from /References/File/@chunkSize (optional, unsupported)
     iprt::MiniString strCompression; // value from /References/File/@compression (optional, can be "gzip" according to spec)
+
+    // additional field which has a descriptive size in megabytes derived from the above; this can be used for progress reports
+    uint32_t ulSuggestedSizeMB;
 };
 
-enum OVFResourceType_T
-{   OVFResourceType_Other   = 1,
-    OVFResourceType_ComputerSystem  = 2,
-    OVFResourceType_Processor   = 3,
-    OVFResourceType_Memory  = 4,
-    OVFResourceType_IDEController   = 5,
-    OVFResourceType_ParallelSCSIHBA = 6,
-    OVFResourceType_FCHBA   = 7,
-    OVFResourceType_iSCSIHBA    = 8,
-    OVFResourceType_IBHCA   = 9,
-    OVFResourceType_EthernetAdapter = 10,
-    OVFResourceType_OtherNetworkAdapter = 11,
-    OVFResourceType_IOSlot  = 12,
-    OVFResourceType_IODevice    = 13,
-    OVFResourceType_FloppyDrive = 14,
-    OVFResourceType_CDDrive = 15,
-    OVFResourceType_DVDDrive    = 16,
-    OVFResourceType_HardDisk    = 17,
-    OVFResourceType_OtherStorageDevice  = 20,
-    OVFResourceType_USBController   = 23,
-    OVFResourceType_SoundCard   = 35
+enum ResourceType_T
+{   ResourceType_Other   = 1,
+    ResourceType_ComputerSystem  = 2,
+    ResourceType_Processor   = 3,
+    ResourceType_Memory  = 4,
+    ResourceType_IDEController   = 5,
+    ResourceType_ParallelSCSIHBA = 6,
+    ResourceType_FCHBA   = 7,
+    ResourceType_iSCSIHBA    = 8,
+    ResourceType_IBHCA   = 9,
+    ResourceType_EthernetAdapter = 10,
+    ResourceType_OtherNetworkAdapter = 11,
+    ResourceType_IOSlot  = 12,
+    ResourceType_IODevice    = 13,
+    ResourceType_FloppyDrive = 14,
+    ResourceType_CDDrive = 15,
+    ResourceType_DVDDrive    = 16,
+    ResourceType_HardDisk    = 17,
+    ResourceType_OtherStorageDevice  = 20,
+    ResourceType_USBController   = 23,
+    ResourceType_SoundCard   = 35
 };
 
 struct VirtualHardwareItem
@@ -197,7 +202,7 @@ struct VirtualHardwareItem
     uint32_t ulInstanceID;
     uint32_t ulParent;
 
-    OVFResourceType_T resourceType;
+    ResourceType_T resourceType;
     iprt::MiniString strOtherResourceType;
     iprt::MiniString strResourceSubType;
 
@@ -226,7 +231,15 @@ struct VirtualHardwareItem
     uint32_t ulLineNumber;              // line number of <Item> element in XML source; cached for error messages
 
     VirtualHardwareItem()
-        : ulInstanceID(0), fAutomaticAllocation(false), fAutomaticDeallocation(false), ullVirtualQuantity(0), ullReservation(0), ullLimit(0), ullWeight(0), ulBusNumber(0), ulLineNumber(0)
+        : ulInstanceID(0),
+          fAutomaticAllocation(false),
+          fAutomaticDeallocation(false),
+          ullVirtualQuantity(0),
+          ullReservation(0),
+          ullLimit(0),
+          ullWeight(0),
+          ulBusNumber(0),
+          ulLineNumber(0)
     {};
 };
 
@@ -238,18 +251,21 @@ typedef std::map<uint32_t, VirtualHardwareItem> HardwareItemsMap;
 
 struct HardDiskController
 {
-    uint32_t            idController;           // instance ID (Item/InstanceId); this gets referenced from HardDisk
+    uint32_t                idController;       // instance ID (Item/InstanceId); this gets referenced from VirtualDisk
+
     enum ControllerSystemType { IDE, SATA, SCSI };
-    ControllerSystemType system;                 // one of IDE, SATA, SCSI
-    iprt::MiniString    strControllerType;      // controller subtype (Item/ResourceSubType); e.g. "LsiLogic"; can be empty (esp. for IDE)
-    iprt::MiniString    strAddress;             // for IDE
-    uint32_t            ulBusNumber;            // for IDE
+    ControllerSystemType    system;             // one of IDE, SATA, SCSI
+
+    iprt::MiniString        strControllerType;  // controller subtype (Item/ResourceSubType); e.g. "LsiLogic"; can be empty (esp. for IDE)
+
+    uint32_t                ulAddress;          // controller index; this is determined heuristically by the OVF reader and will
+                                                // be 0 for the first controller of this type (e.g. IDE primary ctler), 1 for the
+                                                // next (e.g. IDE secondary ctler)
 
     HardDiskController()
         : idController(0),
-          ulBusNumber(0)
-    {
-    }
+          ulAddress(0)
+    { }
 };
 
 typedef std::map<uint32_t, HardDiskController> ControllersMap;
@@ -257,6 +273,7 @@ typedef std::map<uint32_t, HardDiskController> ControllersMap;
 struct VirtualDisk
 {
     uint32_t            idController;           // SCSI (or IDE) controller this disk is connected to;
+                                                // this must match HardDiskController.idController and
                                                 // points into VirtualSystem.mapControllers
     uint32_t            ulAddressOnParent;      // parsed strAddressOnParent of hardware item; will be 0 or 1 for IDE
                                                 // and possibly higher for disks attached to SCSI controllers (untested)
@@ -323,8 +340,16 @@ struct VirtualSystem
     iprt::MiniString    strProductUrl;          // product info if any; receives contents of VirtualSystem/ProductSection/ProductUrl
     iprt::MiniString    strVendorUrl;           // product info if any; receives contents of VirtualSystem/ProductSection/VendorUrl
 
+    const xml::ElementNode                      // pointer to <vbox:Machine> element under <VirtualSystem> element or NULL if not present
+                        *pelmVboxMachine;
+
     VirtualSystem()
-        : ullMemorySize(0), cCPUs(1), fHasFloppyDrive(false), fHasCdromDrive(false), fHasUsbController(false)
+        : ullMemorySize(0),
+          cCPUs(1),
+          fHasFloppyDrive(false),
+          fHasCdromDrive(false),
+          fHasUsbController(false),
+          pelmVboxMachine(NULL)
     {
     }
 };
@@ -362,17 +387,19 @@ class OVFReader
 {
 public:
     OVFReader(const iprt::MiniString &path);
-    ~OVFReader();
+
+    // Data fields
+    iprt::MiniString            m_strPath;            // file name given to constructor
+    DiskImagesMap               m_mapDisks;           // map of DiskImage structs, sorted by DiskImage.strDiskId
+    std::list<VirtualSystem>    m_llVirtualSystems;   // list of virtual systems, created by and valid after read()
+
+private:
+    xml::Document               m_doc;
 
     void LoopThruSections(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pCurElem);
     void HandleDiskSection(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pSectionElem);
     void HandleNetworkSection(const xml::ElementNode *pSectionElem);
     void HandleVirtualSystemContent(const xml::ElementNode *pContentElem);
-
-    // Data fields
-    iprt::MiniString         m_strPath;            // file name given to constructor
-    DiskImagesMap            m_mapDisks;           // map of DiskImage structs, sorted by DiskImage.strDiskId
-    std::list<VirtualSystem> m_llVirtualSystems;   // list of virtual systems, created by and valid after read()
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -392,5 +419,7 @@ class OVFLogicError : public xml::LogicError
 public:
     OVFLogicError(const char *aFormat, ...);
 };
+
+} // end namespace ovf
 
 #endif // ____H_OVFREADER

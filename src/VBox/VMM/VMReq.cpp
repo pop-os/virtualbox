@@ -1,10 +1,10 @@
-/* $Id: VMReq.cpp $ */
+/* $Id: VMReq.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VM - Virtual Machine
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -75,7 +71,7 @@ static int  vmR3ReqProcessOneU(PUVM pUVM, PVMREQ pReq);
  *
  * @remarks See remarks on VMR3ReqCallVU.
  */
-VMMR3DECL(int) VMR3ReqCall(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, uint32_t fFlags,
+VMMR3DECL(int) VMR3ReqCall(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, RTMSINTERVAL cMillies, uint32_t fFlags,
                            PFNRT pfnFunction, unsigned cArgs, ...)
 {
     va_list va;
@@ -369,7 +365,8 @@ VMMR3DECL(int) VMR3ReqCallVoidNoWaitU(PUVM pUVM, VMCPUID idDstCpu, PFNRT pfnFunc
  *
  * @remarks See remarks on VMR3ReqCallVU.
  */
-VMMR3DECL(int) VMR3ReqCallU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...)
+VMMR3DECL(int) VMR3ReqCallU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, RTMSINTERVAL cMillies, uint32_t fFlags,
+                            PFNRT pfnFunction, unsigned cArgs, ...)
 {
     va_list va;
     va_start(va, cArgs);
@@ -416,7 +413,8 @@ VMMR3DECL(int) VMR3ReqCallU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned
  *                hosts because 'int' is 32-bit.
  *                Use (void *)NULL or (uintptr_t)0 instead of NULL.
  */
-VMMR3DECL(int) VMR3ReqCallVU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args)
+VMMR3DECL(int) VMR3ReqCallVU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, RTMSINTERVAL cMillies, uint32_t fFlags,
+                             PFNRT pfnFunction, unsigned cArgs, va_list Args)
 {
     LogFlow(("VMR3ReqCallV: idDstCpu=%u cMillies=%d fFlags=%#x pfnFunction=%p cArgs=%d\n", idDstCpu, cMillies, fFlags, pfnFunction, cArgs));
 
@@ -634,6 +632,10 @@ VMMR3DECL(int) VMR3ReqAllocU(PUVM pUVM, PVMREQ *ppReq, VMREQTYPE enmType, VMCPUI
                     AssertRC(rc);
                     if (RT_FAILURE(rc))
                         return rc;
+#if 0 ///@todo @bugref{4725} - def RT_LOCK_STRICT
+                    for (VMCPUID idCpu = 0; idCpu < pUVM->cCpus; idCpu++)
+                        RTSemEventAddSignaller(pReq->EventSem, pUVM->aCpus[idCpu].vm.s.ThreadEMT);
+#endif
                 }
                 pReq->fEventSemClear = true;
             }
@@ -677,6 +679,10 @@ VMMR3DECL(int) VMR3ReqAllocU(PUVM pUVM, PVMREQ *ppReq, VMREQTYPE enmType, VMCPUI
         MMR3HeapFree(pReq);
         return rc;
     }
+#if 0 ///@todo @bugref{4725} - def RT_LOCK_STRICT
+    for (VMCPUID idCpu = 0; idCpu < pUVM->cCpus; idCpu++)
+        RTSemEventAddSignaller(pReq->EventSem, pUVM->aCpus[idCpu].vm.s.ThreadEMT);
+#endif
 
     /*
      * Initialize the packet and return it.
@@ -776,7 +782,7 @@ VMMR3DECL(int) VMR3ReqFree(PVMREQ pReq)
  *                          be completed. Use RT_INDEFINITE_WAIT to only
  *                          wait till it's completed.
  */
-VMMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, unsigned cMillies)
+VMMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, RTMSINTERVAL cMillies)
 {
     LogFlow(("VMR3ReqQueue: pReq=%p cMillies=%d\n", pReq, cMillies));
     /*
@@ -928,7 +934,7 @@ VMMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, unsigned cMillies)
  * @param   cMillies        Number of milliseconds to wait.
  *                          Use RT_INDEFINITE_WAIT to only wait till it's completed.
  */
-VMMR3DECL(int) VMR3ReqWait(PVMREQ pReq, unsigned cMillies)
+VMMR3DECL(int) VMR3ReqWait(PVMREQ pReq, RTMSINTERVAL cMillies)
 {
     LogFlow(("VMR3ReqWait: pReq=%p cMillies=%d\n", pReq, cMillies));
 
@@ -1258,7 +1264,4 @@ static int  vmR3ReqProcessOneU(PUVM pUVM, PVMREQ pReq)
     }
     return rcRet;
 }
-
-
-
 

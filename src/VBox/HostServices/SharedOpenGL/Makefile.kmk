@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox HGCM Service.
 #
 
 #
-# Copyright (C) 2008 Sun Microsystems, Inc.
+# Copyright (C) 2008 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -60,10 +56,9 @@ VBoxSharedCrOpenGL_INTERMEDIATES = \
 VBoxSharedCrOpenGL_INCS.win = \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_INC) \
 	$(VBOX_PATH_SDK)/bindings/mscom/include \
-	$(PATH_VBoxCOM)
 VBoxSharedCrOpenGL_INCS = \
-	. \
-	$(PATH_VBoxSVC)
+	$(PATH_VBoxSVC) \
+	$(PATH_VBoxCOM)
 ifdef VBOX_WITH_XPCOM
  VBoxSharedCrOpenGL_INCS += \
  	$(VBOX_XPCOM_INCS)
@@ -78,6 +73,7 @@ VBoxSharedCrOpenGL_LIBS = \
 	$(PATH_LIB)/VBoxOGLhostcrpacker$(VBOX_SUFF_LIB) \
 	$(PATH_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
 	$(VBOX_LIB_OGL_HOSTCRUTIL) \
+	$(PATH_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
 	$(LIB_RUNTIME) \
 	$(LIB_VMM)
 VBoxSharedCrOpenGL_LIBS.darwin = \
@@ -90,12 +86,17 @@ else
  VBoxSharedCrOpenGL_LIBS += \
 	$(PATH_BIN)/VBoxOGLrenderspu$(VBOX_SUFF_DLL)
 endif
+ifdef VBOX_WITH_XPCOM
+ VBoxSharedCrOpenGL_LIBS += \
+	$(LIB_XPCOM)
+endif
 
 #
 # VBoxOGLcrserverlib
 #
 VBoxOGLcrserverlib_TEMPLATE = VBOXCROGLR3HOSTLIB
 VBoxOGLcrserverlib_INCS  = \
+	. \
 	crserverlib
 VBoxOGLcrserverlib_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h \
@@ -123,7 +124,6 @@ VBoxOGLcrserverlib_SOURCES := \
 	crserverlib/server_projmatrix.c \
 	crserverlib/server_readpixels.c \
 	crserverlib/server_stream.c \
-	crserverlib/server_tiles.c \
 	crserverlib/server_viewport.c \
 	crserverlib/server_window.c \
 	crserverlib/server_winpos.c \
@@ -131,6 +131,7 @@ VBoxOGLcrserverlib_SOURCES := \
 	crserverlib/server_getshaders.c \
 	crserverlib/server_framebuffer.c \
 	crserverlib/server_glsl.c \
+	crserverlib/server_muralfbo.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_retval.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_get.c \
@@ -212,11 +213,18 @@ VBoxOGLcrunpacker_CLEAN = \
 #
 # Generate files for VBoxOGLcrunpacker.
 #
-$(VBOX_PATH_CROGL_GENFILES)/unpack.c: $(addprefix $(PATH_SUB_CURRENT)/unpacker/, unpack.py unpacker_special) $(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h $(VBOX_CROGL_API_FILES) | $$(dir $$@)
+$(VBOX_PATH_CROGL_GENFILES)/unpack.c: \
+		$(addprefix $(PATH_SUB_CURRENT)/unpacker/, unpack.py unpacker_special) \
+		$(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h \
+		$(VBOX_CROGL_API_FILES) \
+		| $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
-$(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h: $(addprefix $(PATH_SUB_CURRENT)/unpacker/, unpack_extend.py unpacker_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
+$(VBOX_PATH_CROGL_GENFILES)/unpack_extend.h: \
+		$(addprefix $(PATH_SUB_CURRENT)/unpacker/, unpack_extend.py unpacker_special) \
+		$(VBOX_CROGL_API_FILES) \
+		| $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 

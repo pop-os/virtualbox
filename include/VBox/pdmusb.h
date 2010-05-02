@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmusb_h
@@ -51,11 +47,44 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
+
+/**
+ * A string entry for the USB descriptor cache.
+ */
+typedef struct PDMUSBDESCCACHESTRING
+{
+    /** The string index. */
+    uint8_t     idx;
+    /** The UTF-8 representation of the string. */
+    const char *psz;
+} PDMUSBDESCCACHESTRING;
+/** Pointer to a const string entry. */
+typedef PDMUSBDESCCACHESTRING const *PCPDMUSBDESCCACHESTRING;
+
+
+/**
+ * A language entry for the USB descriptor cache.
+ */
+typedef struct PDMUSBDESCCACHELANG
+{
+    /** The language ID for the strings in this block. */
+    uint16_t                idLang;
+    /** The number of strings in the array. */
+    uint16_t                cStrings;
+    /** Pointer to an array of associated strings.
+     * This must be sorted in ascending order by string index as a binary lookup
+     * will be performed. */
+    PCPDMUSBDESCCACHESTRING paStrings;
+} PDMUSBDESCCACHELANG;
+/** Pointer to a const language entry. */
+typedef PDMUSBDESCCACHELANG const *PCPDMUSBDESCCACHELANG;
+
+
 /**
  * USB descriptor cache.
  *
  * This structure is owned by the USB device but provided to the PDM/VUSB layer
- * thru the PDMUSBREG::pfnGetDescriptorCache method. PDM/VUSB will use the
+ * thru the PDMUSBREG::pfnGetDescriptorCache method.  PDM/VUSB will use the
  * information here to map addresses to endpoints, perform SET_CONFIGURATION
  * requests, and optionally perform GET_DESCRIPTOR requests (see flag).
  *
@@ -64,11 +93,19 @@ RT_C_DECLS_BEGIN
 typedef struct PDMUSBDESCCACHE
 {
     /** USB device descriptor */
-    PCVUSBDESCDEVICE    pDevice;
+    PCVUSBDESCDEVICE        pDevice;
     /** USB Descriptor arrays (pDev->bNumConfigurations) */
-    PCVUSBDESCCONFIGEX  paConfigs;
+    PCVUSBDESCCONFIGEX      paConfigs;
+    /** Language IDs and their associated strings.
+     * This must be sorted in ascending order by language ID as a binary lookup
+     * will be used. */
+    PCPDMUSBDESCCACHELANG   paLanguages;
+    /** The number of entries in the array pointed to by paLanguages. */
+    uint16_t                cLanguages;
     /** Use the cached descriptors for GET_DESCRIPTOR requests. */
-    bool                fUseCachedDescriptors;
+    bool                    fUseCachedDescriptors;
+    /** Use the cached string descriptors. */
+    bool                    fUseCachedStringsDescriptors;
 } PDMUSBDESCCACHE;
 /** Pointer to an USB descriptor cache. */
 typedef PDMUSBDESCCACHE *PPDMUSBDESCCACHE;
@@ -87,7 +124,7 @@ typedef struct PDMUSBREG
     /** Structure version. PDM_DEVREG_VERSION defines the current version. */
     uint32_t            u32Version;
     /** Device name. */
-    char                szDeviceName[32];
+    char                szName[32];
     /** The description of the device. The UTF-8 string pointed to shall, like this structure,
      * remain unchanged from registration till VM destruction. */
     const char         *pszDescription;
@@ -105,14 +142,18 @@ typedef struct PDMUSBREG
      *
      * @returns VBox status.
      * @param   pUsbIns     The USB device instance data.
-     *                      If the registration structure is needed, pUsbDev->pDevReg points to it.
-     * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
-     *                      The instance number is also found in pUsbDev->iInstance, but since it's
-     *                      likely to be freqently used PDM passes it as parameter.
-     * @param   pCfg        Configuration node handle for the device. Use this to obtain the configuration
-     *                      of the device instance. It's also found in pUsbDev->pCfg, but since it's
-     *                      primary usage will in this function it's passed as a parameter.
-     * @param   pCfgGlobal  Handle to the global device configuration. Also found in pUsbDev->pCfgGlobal.
+     *                      If the registration structure is needed, it will be
+     *                      accessible thru pUsbDev->pReg.
+     * @param   iInstance   Instance number. Use this to figure out which registers
+     *                      and such to use. The instance number is also found in
+     *                      pUsbDev->iInstance, but since it's likely to be
+     *                      freqently used PDM passes it as parameter.
+     * @param   pCfg        Configuration node handle for the device.  Use this to
+     *                      obtain the configuration of the device instance.  It is
+     *                      also found in pUsbDev->pCfg, but since it is primary
+     *                      usage will in this function it is passed as a parameter.
+     * @param   pCfgGlobal  Handle to the global device configuration.  Also found
+     *                      in pUsbDev->pCfgGlobal.
      * @remarks This callback is required.
      */
     DECLR3CALLBACKMEMBER(int, pfnConstruct,(PPDMUSBINS pUsbIns, int iInstance, PCFGMNODE pCfg, PCFGMNODE pCfgGlobal));
@@ -183,6 +224,10 @@ typedef struct PDMUSBREG
 
     /**
      * VM Power Off notification.
+     *
+     * This is only called when the VMR3PowerOff call is made on a running VM.  This
+     * means that there is no notification if the VM was suspended before being
+     * powered of.  There will also be no callback when hot plugging devices.
      *
      * @param   pUsbIns     The USB device instance data.
      */
@@ -355,7 +400,7 @@ typedef struct PDMUSBREG
      * @param   cMillies            How log to wait for an URB to become ripe.
      * @remarks Mandatory.
      */
-    DECLR3CALLBACKMEMBER(PVUSBURB, pfnUrbReap,(PPDMUSBINS pUsbIns, unsigned cMillies));
+    DECLR3CALLBACKMEMBER(PVUSBURB, pfnUrbReap,(PPDMUSBINS pUsbIns, RTMSINTERVAL cMillies));
 
 
     /** Just some init precaution. Must be set to PDM_USBREG_VERSION. */
@@ -367,7 +412,7 @@ typedef PDMUSBREG *PPDMUSBREG;
 typedef PDMUSBREG const *PCPDMUSBREG;
 
 /** Current USBREG version number. */
-#define PDM_USBREG_VERSION  0xed010000
+#define PDM_USBREG_VERSION                      PDM_VERSION_MAKE(0xeeff, 1, 0)
 
 /** PDM USB Device Flags.
  * @{ */
@@ -450,7 +495,7 @@ typedef struct PDMUSBHLP
      * @param   pszDesc             The description of the info and any arguments the handler may take.
      * @param   pfnHandler          The handler function to be called to display the info.
      */
-/** @todo    DECLR3CALLBACKMEMBER(int, pfnDBGFInfoRegister,(PPDMUSBINS pUsbIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERUSB pfnHandler)); */
+    DECLR3CALLBACKMEMBER(int, pfnDBGFInfoRegister,(PPDMUSBINS pUsbIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERUSB pfnHandler));
 
     /**
      * Allocate memory which is associated with current VM instance
@@ -482,32 +527,39 @@ typedef struct PDMUSBHLP
      * @param   cMilliesInterval    Number of milliseconds between polling the queue.
      *                              If 0 then the emulation thread will be notified whenever an item arrives.
      * @param   pfnCallback         The consumer function.
+     * @param   pszName             The queue base name. The instance number will be
+     *                              appended automatically.
      * @param   ppQueue             Where to store the queue handle on success.
      * @thread  The emulation thread.
      */
-/** @todo    DECLR3CALLBACKMEMBER(int, pfnPDMQueueCreate,(PPDMUSBINS pUsbIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval, PFNPDMQUEUEUSB pfnCallback, PPDMQUEUE *ppQueue)); */
+    DECLR3CALLBACKMEMBER(int, pfnPDMQueueCreate,(PPDMUSBINS pUsbIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
+                                                 PFNPDMQUEUEUSB pfnCallback, const char *pszName, PPDMQUEUE *ppQueue));
 
     /**
      * Register a save state data unit.
      *
      * @returns VBox status.
      * @param   pUsbIns             The USB device instance.
-     * @param   pszName         Data unit name.
-     * @param   u32Instance     The instance identifier of the data unit.
-     *                          This must together with the name be unique.
-     * @param   u32Version      Data layout version number.
-     * @param   cbGuess         The approximate amount of data in the unit.
-     *                          Only for progress indicators.
-     * @param   pfnSavePrep     Prepare save callback, optional.
-     * @param   pfnSaveExec     Execute save callback, optional.
-     * @param   pfnSaveDone     Done save callback, optional.
-     * @param   pfnLoadPrep     Prepare load callback, optional.
-     * @param   pfnLoadExec     Execute load callback, optional.
-     * @param   pfnLoadDone     Done load callback, optional.
+     * @param   uVersion            Data layout version number.
+     * @param   cbGuess             The approximate amount of data in the unit.
+     *                              Only for progress indicators.
+     *
+     * @param   pfnLivePrep         Prepare live save callback, optional.
+     * @param   pfnLiveExec         Execute live save callback, optional.
+     * @param   pfnLiveVote         Vote live save callback, optional.
+     *
+     * @param   pfnSavePrep         Prepare save callback, optional.
+     * @param   pfnSaveExec         Execute save callback, optional.
+     * @param   pfnSaveDone         Done save callback, optional.
+     *
+     * @param   pfnLoadPrep         Prepare load callback, optional.
+     * @param   pfnLoadExec         Execute load callback, optional.
+     * @param   pfnLoadDone         Done load callback, optional.
      */
-/** @todo    DECLR3CALLBACKMEMBER(int, pfnSSMRegister,(PPDMUSBINS pUsbIns, const char *pszName, uint32_t u32Instance, uint32_t u32Version, size_t cbGuess,
+    DECLR3CALLBACKMEMBER(int, pfnSSMRegister,(PPDMUSBINS pUsbIns, uint32_t uVersion, size_t cbGuess,
+                                              PFNSSMUSBLIVEPREP pfnLivePrep, PFNSSMUSBLIVEEXEC pfnLiveExec, PFNSSMUSBLIVEVOTE pfnLiveVote,
                                               PFNSSMUSBSAVEPREP pfnSavePrep, PFNSSMUSBSAVEEXEC pfnSaveExec, PFNSSMUSBSAVEDONE pfnSaveDone,
-                                              PFNSSMUSBLOADPREP pfnLoadPrep, PFNSSMUSBLOADEXEC pfnLoadExec, PFNSSMUSBLOADDONE pfnLoadDone)); */
+                                              PFNSSMUSBLOADPREP pfnLoadPrep, PFNSSMUSBLOADEXEC pfnLoadExec, PFNSSMUSBLOADDONE pfnLoadDone));
 
     /**
      * Register a STAM sample.
@@ -534,11 +586,14 @@ typedef struct PDMUSBHLP
      * @param   pUsbIns             The USB device instance.
      * @param   enmClock            The clock to use on this timer.
      * @param   pfnCallback         Callback function.
+     * @param   pvUser              User argument for the callback.
+     * @param   fFlags              Flags, see TMTIMER_FLAGS_*.
      * @param   pszDesc             Pointer to description string which must stay around
      *                              until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
      * @param   ppTimer             Where to store the timer on success.
      */
-/** @todo    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFNTMTIMERUSB pfnCallback, const char *pszDesc, PPTMTIMERHC ppTimer)); */
+    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFNTMTIMERUSB pfnCallback, void *pvUser,
+                                                uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer));
 
     /**
      * Set the VM error message
@@ -606,7 +661,7 @@ typedef PDMUSBHLP *PPDMUSBHLP;
 typedef const PDMUSBHLP *PCPDMUSBHLP;
 
 /** Current USBHLP version number. */
-#define PDM_USBHLP_VERSION  0xec020001
+#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 1, 0)
 
 #endif /* IN_RING3 */
 
@@ -637,9 +692,9 @@ typedef struct PDMUSBINS
     } Internal;
 
     /** Pointer the PDM USB Device API. */
-    R3PTRTYPE(PCPDMUSBHLP)      pUsbHlp;
+    R3PTRTYPE(PCPDMUSBHLP)      pHlpR3;
     /** Pointer to the USB device registration structure.  */
-    R3PTRTYPE(PCPDMUSBREG)      pUsbReg;
+    R3PTRTYPE(PCPDMUSBREG)      pReg;
     /** Configuration handle. */
     R3PTRTYPE(PCFGMNODE)        pCfg;
     /** The (device) global configuration handle. */
@@ -661,7 +716,45 @@ typedef struct PDMUSBINS
 } PDMUSBINS;
 
 /** Current USBINS version number. */
-#define PDM_USBINS_VERSION  0xf3010000
+#define PDM_USBINS_VERSION                      PDM_VERSION_MAKE(0xeefd, 1, 0)
+
+/**
+ * Checks the structure versions of the USB device instance and USB device
+ * helpers, returning if they are incompatible.
+ *
+ * This is for use in the constructor.
+ *
+ * @param   pUsbIns     The USB device instance pointer.
+ */
+#define PDMUSB_CHECK_VERSIONS_RETURN(pUsbIns) \
+    do \
+    { \
+        PPDMUSBINS pUsbInsTypeCheck = (pUsbIns); NOREF(pUsbInsTypeCheck); \
+        AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->u32Version, PDM_USBINS_VERSION), \
+                              ("DevIns=%#x  mine=%#x\n", (pUsbIns)->u32Version, PDM_USBINS_VERSION), \
+                              VERR_VERSION_MISMATCH); \
+        AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->pHlpR3->u32Version, PDM_USBHLP_VERSION), \
+                              ("DevHlp=%#x  mine=%#x\n", (pUsbIns)->pHlpR3->u32Version, PDM_USBHLP_VERSION), \
+                              VERR_VERSION_MISMATCH); \
+    } while (0)
+
+/**
+ * Quietly checks the structure versions of the USB device instance and
+ * USB device helpers, returning if they are incompatible.
+ *
+ * This is for use in the destructor.
+ *
+ * @param   pUsbIns     The USB device instance pointer.
+ */
+#define PDMUSB_CHECK_VERSIONS_RETURN_QUIET(pUsbIns) \
+    do \
+    { \
+        PPDMUSBINS pUsbInsTypeCheck = (pUsbIns); NOREF(pUsbInsTypeCheck); \
+        if (RT_UNLIKELY(   !PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->u32Version, PDM_USBINS_VERSION) \
+                        || !PDM_VERSION_ARE_COMPATIBLE((pUsbIns)->pHlpR3->u32Version, PDM_USBHLPR3_VERSION) )) \
+            return VERR_VERSION_MISMATCH; \
+    } while (0)
+
 
 /** Converts a pointer to the PDMUSBINS::IBase to a pointer to PDMUSBINS. */
 #define PDMIBASE_2_PDMUSB(pInterface) ( (PPDMUSBINS)((char *)(pInterface) - RT_OFFSETOF(PDMUSBINS, IBase)) )
@@ -671,7 +764,7 @@ typedef struct PDMUSBINS
  * Assert that the current thread is the emulation thread.
  */
 #ifdef VBOX_STRICT
-# define PDMUSB_ASSERT_EMT(pUsbIns)  pUsbIns->pUsbHlp->pfnAssertEMT(pUsbIns, __FILE__, __LINE__, __FUNCTION__)
+# define PDMUSB_ASSERT_EMT(pUsbIns)  pUsbIns->pHlpR3->pfnAssertEMT(pUsbIns, __FILE__, __LINE__, __FUNCTION__)
 #else
 # define PDMUSB_ASSERT_EMT(pUsbIns)  do { } while (0)
 #endif
@@ -680,7 +773,7 @@ typedef struct PDMUSBINS
  * Assert that the current thread is NOT the emulation thread.
  */
 #ifdef VBOX_STRICT
-# define PDMUSB_ASSERT_OTHER(pUsbIns)  pUsbIns->pUsbHlp->pfnAssertOther(pUsbIns, __FILE__, __LINE__, __FUNCTION__)
+# define PDMUSB_ASSERT_OTHER(pUsbIns)  pUsbIns->pHlpR3->pfnAssertOther(pUsbIns, __FILE__, __LINE__, __FUNCTION__)
 #else
 # define PDMUSB_ASSERT_OTHER(pUsbIns)  do { } while (0)
 #endif
@@ -703,7 +796,15 @@ typedef struct PDMUSBINS
 #ifdef IN_RING3
 
 /**
- * VBOX_STRICT wrapper for pUsbHlp->pfnDBGFStopV.
+ * @copydoc PDMUSBHLP::pfnDriverAttach
+ */
+DECLINLINE(int) PDMUsbHlpDriverAttach(PPDMUSBINS pUsbIns, RTUINT iLun, PPDMIBASE pBaseInterface, PPDMIBASE *ppBaseInterface, const char *pszDesc)
+{
+    return pUsbIns->pHlpR3->pfnDriverAttach(pUsbIns, iLun, pBaseInterface, ppBaseInterface, pszDesc);
+}
+
+/**
+ * VBOX_STRICT wrapper for pHlpR3->pfnDBGFStopV.
  *
  * @returns VBox status code which must be passed up to the VMM.
  * @param   pUsbIns             Device instance.
@@ -717,7 +818,7 @@ DECLINLINE(int) PDMUsbDBGFStop(PPDMUSBINS pUsbIns, RT_SRC_POS_DECL, const char *
     int rc;
     va_list va;
     va_start(va, pszFormat);
-    rc = pUsbIns->pUsbHlp->pfnDBGFStopV(pUsbIns, RT_SRC_POS_ARGS, pszFormat, va);
+    rc = pUsbIns->pHlpR3->pfnDBGFStopV(pUsbIns, RT_SRC_POS_ARGS, pszFormat, va);
     va_end(va);
     return rc;
 #else
@@ -735,7 +836,7 @@ DECLINLINE(int) PDMUsbDBGFStop(PPDMUSBINS pUsbIns, RT_SRC_POS_DECL, const char *
  */
 DECLINLINE(VMSTATE) PDMUsbHlpVMState(PPDMUSBINS pUsbIns)
 {
-    return pUsbIns->pUsbHlp->pfnVMState(pUsbIns);
+    return pUsbIns->pHlpR3->pfnVMState(pUsbIns);
 }
 
 /**
@@ -743,7 +844,7 @@ DECLINLINE(VMSTATE) PDMUsbHlpVMState(PPDMUSBINS pUsbIns)
  */
 DECLINLINE(int) PDMUsbHlpSetAsyncNotification(PPDMUSBINS pUsbIns, PFNPDMUSBASYNCNOTIFY pfnAsyncNotify)
 {
-    return pUsbIns->pUsbHlp->pfnSetAsyncNotification(pUsbIns, pfnAsyncNotify);
+    return pUsbIns->pHlpR3->pfnSetAsyncNotification(pUsbIns, pfnAsyncNotify);
 }
 
 /**
@@ -751,7 +852,54 @@ DECLINLINE(int) PDMUsbHlpSetAsyncNotification(PPDMUSBINS pUsbIns, PFNPDMUSBASYNC
  */
 DECLINLINE(void) PDMUsbHlpAsyncNotificationCompleted(PPDMUSBINS pUsbIns)
 {
-    pUsbIns->pUsbHlp->pfnAsyncNotificationCompleted(pUsbIns);
+    pUsbIns->pHlpR3->pfnAsyncNotificationCompleted(pUsbIns);
+}
+
+/**
+ * Set the VM error message
+ *
+ * @returns rc.
+ * @param   pUsbIns             The USB device instance.
+ * @param   rc                  VBox status code.
+ * @param   RT_SRC_POS_DECL     Use RT_SRC_POS.
+ * @param   pszFormat           Error message format string.
+ * @param   ...                 Error message arguments.
+ */
+DECLINLINE(int) PDMUsbHlpVMSetError(PPDMUSBINS pUsbIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...)
+{
+    va_list     va;
+    va_start(va, pszFormat);
+    rc = pUsbIns->pHlpR3->pfnVMSetErrorV(pUsbIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
+    va_end(va);
+    return rc;
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnMMHeapAlloc
+ */
+DECLINLINE(void *) PDMUsbHlpMMHeapAlloc(PPDMUSBINS pUsbIns, size_t cb)
+{
+    return pUsbIns->pHlpR3->pfnMMHeapAlloc(pUsbIns, cb);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnMMHeapAllocZ
+ */
+DECLINLINE(void *) PDMUsbHlpMMHeapAllocZ(PPDMUSBINS pUsbIns, size_t cb)
+{
+    return pUsbIns->pHlpR3->pfnMMHeapAllocZ(pUsbIns, cb);
+}
+
+/**
+ * Frees memory allocated by PDMUsbHlpMMHeapAlloc or PDMUsbHlpMMHeapAllocZ.
+ *
+ * @param   pUsbIns                 The USB device instance.
+ * @param   pv                      The memory to free.  NULL is fine.
+ */
+DECLINLINE(void) PDMUsbHlpMMHeapFree(PPDMUSBINS pUsbIns, void *pv)
+{
+    NOREF(pUsbIns);
+    MMR3HeapFree(pv);
 }
 
 #endif /* IN_RING3 */
@@ -775,24 +923,14 @@ typedef struct PDMUSBREGCB
      *
      * @returns VBox status code.
      * @param   pCallbacks      Pointer to the callback table.
-     * @param   pDevReg         Pointer to the device registration record.
+     * @param   pReg            Pointer to the USB device registration record.
      *                          This data must be permanent and readonly.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRegister,(PCPDMUSBREGCB pCallbacks, PCPDMUSBREG pDevReg));
-
-    /**
-     * Allocate memory which is associated with current VM instance
-     * and automatically freed on it's destruction.
-     *
-     * @returns Pointer to allocated memory. The memory is *NOT* zero-ed.
-     * @param   pCallbacks      Pointer to the callback table.
-     * @param   cb              Number of bytes to allocate.
-     */
-    DECLR3CALLBACKMEMBER(void *, pfnMMHeapAlloc,(PCPDMUSBREGCB pCallbacks, size_t cb));
+    DECLR3CALLBACKMEMBER(int, pfnRegister,(PCPDMUSBREGCB pCallbacks, PCPDMUSBREG pReg));
 } PDMUSBREGCB;
 
 /** Current version of the PDMUSBREGCB structure.  */
-#define PDM_USBREG_CB_VERSION 0xee010000
+#define PDM_USBREG_CB_VERSION                   PDM_VERSION_MAKE(0xeefc, 1, 0)
 
 
 /**

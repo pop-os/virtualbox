@@ -1,10 +1,10 @@
-/* $Id: TRPMAll.cpp $ */
+/* $Id: TRPMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * TRPM - Trap Monitor - Any Context.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -422,7 +418,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
 #ifndef VBOX_RAW_V86
         && !(eflags.Bits.u1VM) /** @todo implement when needed (illegal for same privilege level transfers). */
 #endif
-        && !PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip)
+        && !PATMIsPatchGCAddr(pVM, pRegFrame->eip)
        )
     {
         uint16_t    cbIDT;
@@ -435,11 +431,11 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
         Assert(PATMAreInterruptsEnabledByCtxCore(pVM, pRegFrame));
         Assert(!VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
 
-        /* Get the current privilege level. */
-        cpl = CPUMGetGuestCPL(pVCpu, pRegFrame);
-
         if (GCPtrIDT && iGate * sizeof(VBOXIDTE) >= cbIDT)
             goto failure;
+
+        /* Get the current privilege level. */
+        cpl = CPUMGetGuestCPL(pVCpu, pRegFrame);
 
         /*
          * BIG TODO: The checks are not complete. see trap and interrupt dispatching section in Intel docs for details
@@ -449,7 +445,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
          */
         pIDTEntry = (RTGCPTR)((RTGCUINTPTR)GCPtrIDT + sizeof(VBOXIDTE) * iGate);
 #ifdef IN_RC
-        rc = MMGCRamRead(pVM, &GuestIdte, (void *)pIDTEntry, sizeof(GuestIdte));
+        rc = MMGCRamRead(pVM, &GuestIdte, (void *)(uintptr_t)pIDTEntry, sizeof(GuestIdte));
 #else
         rc = PGMPhysSimpleReadGCPtr(pVCpu, &GuestIdte, pIDTEntry, sizeof(GuestIdte));
 #endif
@@ -464,7 +460,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
                 goto failure;
             }
 #ifdef IN_RC
-            rc = MMGCRamRead(pVM, &GuestIdte, (void *)pIDTEntry, sizeof(GuestIdte));
+            rc = MMGCRamRead(pVM, &GuestIdte, (void *)(uintptr_t)pIDTEntry, sizeof(GuestIdte));
 #else
             rc = PGMPhysSimpleReadGCPtr(pVCpu, &GuestIdte, pIDTEntry, sizeof(GuestIdte));
 #endif
@@ -492,7 +488,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
             rc = SELMValidateAndConvertCSAddr(pVM, fakeflags, 0, GuestIdte.Gen.u16SegSel, NULL, pHandler, &dummy);
             if (rc == VINF_SUCCESS)
             {
-                VBOXGDTR gdtr = {0};
+                VBOXGDTR gdtr = {0, 0};
                 bool     fConforming = false;
                 int      idx = 0;
                 uint32_t dpl;
@@ -507,9 +503,9 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
                 if (!gdtr.pGdt)
                     goto failure;
 
-                pGdtEntry = (RTGCPTR)(uintptr_t)&((X86DESC *)gdtr.pGdt)[GuestIdte.Gen.u16SegSel >> X86_SEL_SHIFT]; /// @todo fix this
+                pGdtEntry = gdtr.pGdt + (GuestIdte.Gen.u16SegSel >> X86_SEL_SHIFT) * sizeof(X86DESC);
 #ifdef IN_RC
-                rc = MMGCRamRead(pVM, &Desc, (void *)pGdtEntry, sizeof(Desc));
+                rc = MMGCRamRead(pVM, &Desc, (void *)(uintptr_t)pGdtEntry, sizeof(Desc));
 #else
                 rc = PGMPhysSimpleReadGCPtr(pVCpu, &Desc, pGdtEntry, sizeof(Desc));
 #endif
@@ -524,7 +520,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
                         goto failure;
                     }
 #ifdef IN_RC
-                    rc = MMGCRamRead(pVM, &Desc, (void *)pGdtEntry, sizeof(Desc));
+                    rc = MMGCRamRead(pVM, &Desc, (void *)(uintptr_t)pGdtEntry, sizeof(Desc));
 #else
                     rc = PGMPhysSimpleReadGCPtr(pVCpu, &Desc, pGdtEntry, sizeof(Desc));
 #endif
@@ -588,7 +584,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
                 Assert(eflags.Bits.u1VM || (pRegFrame->ss & X86_SEL_RPL) != 0);
                 /* Check maximum amount we need (10 when executing in V86 mode) */
                 rc = PGMVerifyAccess(pVCpu, (RTGCUINTPTR)pTrapStackGC - 10*sizeof(uint32_t), 10 * sizeof(uint32_t), X86_PTE_RW);
-                pTrapStack = (uint32_t *)pTrapStackGC;
+                pTrapStack = (uint32_t *)(uintptr_t)pTrapStackGC;
 #else
                 Assert(eflags.Bits.u1VM || (pRegFrame->ss & X86_SEL_RPL) == 0 || (pRegFrame->ss & X86_SEL_RPL) == 3);
                 /* Check maximum amount we need (10 when executing in V86 mode) */
@@ -727,7 +723,7 @@ VMMDECL(int) TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGat
 #ifdef VBOX_WITH_STATISTICS
         if (pVM->trpm.s.aGuestTrapHandler[iGate] == TRPM_INVALID_HANDLER)
             STAM_COUNTER_INC(&pVM->trpm.s.StatForwardFailNoHandler);
-        else if (PATMIsPatchGCAddr(pVM, (RTRCPTR)pRegFrame->eip))
+        else if (PATMIsPatchGCAddr(pVM, pRegFrame->eip))
             STAM_COUNTER_INC(&pVM->trpm.s.StatForwardFailPatchAddr);
 #endif
     }

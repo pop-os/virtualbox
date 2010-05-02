@@ -1,4 +1,23 @@
+/* $Id: mbuf.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - mbuf handling (declarations/defines).
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -36,6 +55,7 @@
 
 #ifndef _MBUF_H_
 #define _MBUF_H_
+
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
 /* #define M_BUF_DEBUG */
 
@@ -156,10 +176,12 @@ struct mbuf * dtom (PNATState, void *);
 #define MBUF_HEAD(m) ((caddr_t)(((m)->m_flags & M_EXT) ? (m)->m_ext : (m)->m_dat))
 
 #define MBUF_IP_HEADER(m) (caddr_t)(MBUF_HEAD(m) + if_maxlinkhdr)
-#else
+
+#else /* VBOX_WITH_SLIRP_BSD_MBUF */
 # include "bsd/sys/mbuf.h"
-#endif
-#endif
+#endif /* VBOX_WITH_SLIRP_BSD_MBUF */
+
+#endif /* _MBUF_H_ */
 
 #if defined(M_BUF_DEBUG) && !defined(RT_OS_WINDOWS)
 # define m_get(x)                                                                                               \

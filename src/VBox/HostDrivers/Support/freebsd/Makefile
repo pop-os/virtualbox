@@ -1,11 +1,11 @@
-# $Id: Makefile $
+# $Id: Makefile 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Makefile for the VirtualBox FreeBSD Host Driver.
 #
 
 #
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,6 @@
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
 #
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
-#
 
 KMOD = vboxdrv
 
@@ -41,7 +37,7 @@ CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBO
 
 SRCS = \
 	SUPDrv.c \
-	SUPDrvAgnostic.c \
+	SUPDrvSem.c \
 
 # Include needed interface headers so they are created during build
 SRCS += \
@@ -72,6 +68,14 @@ SRCS += \
 
 .PATH:	${.CURDIR}/common/misc
 SRCS += \
+	RTAssertMsg1Weak.c \
+	RTAssertMsg2.c \
+	RTAssertMsg2Add.c \
+	RTAssertMsg2AddWeak.c \
+	RTAssertMsg2AddWeakV.c \
+	RTAssertMsg2Weak.c \
+	RTAssertMsg2WeakV.c \
+	assert.c \
 	handletable.c \
 	handletablectx.c \
 	once.c \
@@ -85,7 +89,7 @@ SRCS += \
 	strprintf.c \
 	strtonum.c \
 	memchr.c \
-	string.c
+	stringalloc.c
 
 .PATH:	${.CURDIR}/common/rand
 SRCS += \
@@ -139,6 +143,7 @@ SRCS += \
 	semevent-r0drv-freebsd.c \
 	semeventmulti-r0drv-freebsd.c \
 	semfastmutex-r0drv-freebsd.c \
+	semmutex-r0drv-freebsd.c \
 	spinlock-r0drv-freebsd.c \
 	thread-r0drv-freebsd.c \
 	thread2-r0drv-freebsd.c \
@@ -152,8 +157,7 @@ SRCS += \
 
 .PATH:	${.CURDIR}/VBox
 SRCS += \
-	log-vbox.c \
-	strformat-vbox.c
+	log-vbox.c
 
 .include <bsd.kmod.mk>
 

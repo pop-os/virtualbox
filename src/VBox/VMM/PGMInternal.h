@@ -1,10 +1,10 @@
-/* $Id: PGMInternal.h $ */
+/* $Id: PGMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PGM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___PGMInternal_h
@@ -84,6 +80,13 @@
 //#endif
 
 /**
+ * Large page support enabled only on 64 bits hosts; applies to nested paging only.
+ */
+#if (HC_ARCH_BITS == 64) && !defined(IN_RC)
+# define PGM_WITH_LARGE_PAGES
+#endif
+
+/**
  * Sync N pages instead of a whole page table
  */
 #define PGM_SYNC_N_PAGES
@@ -113,47 +116,6 @@
 #define PGM_MAX_PHYSCACHE_ENTRIES       64
 #define PGM_MAX_PHYSCACHE_ENTRIES_MASK  (PGM_MAX_PHYSCACHE_ENTRIES-1)
 
-/** @def PGMPOOL_WITH_CACHE
- * Enable agressive caching using the page pool.
- *
- * This requires PGMPOOL_WITH_USER_TRACKING and PGMPOOL_WITH_MONITORING.
- */
-#define PGMPOOL_WITH_CACHE
-
-/** @def PGMPOOL_WITH_MIXED_PT_CR3
- * When defined, we'll deal with 'uncachable' pages.
- */
-#ifdef PGMPOOL_WITH_CACHE
-# define PGMPOOL_WITH_MIXED_PT_CR3
-#endif
-
-/** @def PGMPOOL_WITH_MONITORING
- * Monitor the guest pages which are shadowed.
- * When this is enabled, PGMPOOL_WITH_CACHE or PGMPOOL_WITH_GCPHYS_TRACKING must
- * be enabled as well.
- * @remark doesn't really work without caching now. (Mixed PT/CR3 change.)
- */
-#ifdef PGMPOOL_WITH_CACHE
-# define PGMPOOL_WITH_MONITORING
-#endif
-
-/** @def PGMPOOL_WITH_GCPHYS_TRACKING
- * Tracking the of shadow pages mapping guest physical pages.
- *
- * This is very expensive, the current cache prototype is trying to figure out
- * whether it will be acceptable with an agressive caching policy.
- */
-#if defined(PGMPOOL_WITH_CACHE) || defined(PGMPOOL_WITH_MONITORING)
-# define PGMPOOL_WITH_GCPHYS_TRACKING
-#endif
-
-/** @def PGMPOOL_WITH_USER_TRACKING
- * Tracking users of shadow pages. This is required for the linking of shadow page
- * tables and physical guest addresses.
- */
-#if defined(PGMPOOL_WITH_GCPHYS_TRACKING) || defined(PGMPOOL_WITH_CACHE) || defined(PGMPOOL_WITH_MONITORING)
-# define PGMPOOL_WITH_USER_TRACKING
-#endif
 
 /** @def PGMPOOL_CFG_MAX_GROW
  * The maximum number of pages to add to the pool in one go.
@@ -362,7 +324,7 @@
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
-# define PGM_INVL_PG(pVCpu, GCVirt)             ASMInvalidatePage((void *)(GCVirt))
+# define PGM_INVL_PG(pVCpu, GCVirt)             ASMInvalidatePage((void *)(uintptr_t)(GCVirt))
 #elif defined(IN_RING0)
 # define PGM_INVL_PG(pVCpu, GCVirt)             HWACCMInvalidatePage(pVCpu, (RTGCPTR)(GCVirt))
 #else
@@ -376,7 +338,7 @@
  * @param   GCVirt      The virtual address of the page to invalidate.
  */
 #ifdef IN_RC
-# define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      ASMInvalidatePage((void *)(GCVirt))
+# define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      ASMInvalidatePage((void *)(uintptr_t)(GCVirt))
 #elif defined(IN_RING0)
 # define PGM_INVL_PG_ALL_VCPU(pVM, GCVirt)      HWACCMInvalidatePageOnAllVCpus(pVM, (RTGCPTR)(GCVirt))
 #else
@@ -652,9 +614,10 @@ typedef struct PGMPAGE
      *    (PGM_PAGE_HNDL_PHYS_STATE_*).
      *  - [8-9]: u2HandlerVirtStateY - the virtual handler state
      *    (PGM_PAGE_HNDL_VIRT_STATE_*).
+     *  - [13-14]: u2PDEType  - paging structure needed to map the page (PGM_PAGE_PDE_TYPE_*)
      *  - [15]:  fWrittenToY - flag indicating that a write monitored page was
      *    written to when set.
-     *  - [10-14]: 5 unused bits.
+     *  - [10-13]: 4 unused bits.
      * @remarks Warning! All accesses to the bits are hardcoded.
      *
      * @todo    Change this to a union with both bitfields, u8 and u accessors.
@@ -666,11 +629,13 @@ typedef struct PGMPAGE
      */
     RTUINT16U   u16MiscY;
     /** The page state.
-     * Only 2 bits are really needed for this. */
-    uint8_t     uStateY;
+     * Only 3 bits are really needed for this. */
+    uint16_t    uStateY   : 3;
     /** The page type (PGMPAGETYPE).
      * Only 3 bits are really needed for this. */
-    uint8_t     uTypeY;
+    uint16_t    uTypeY    : 3;
+    /** PTE index for usage tracking (page pool). */
+    uint16_t    uPteIdx   : 10;
     /** Usage tracking (page pool). */
     uint16_t    u16TrackingY;
     /** The number of read locks on this page. */
@@ -696,6 +661,7 @@ typedef PPGMPAGE *PPPGMPAGE;
         (pPage)->HCPhysAndPageID     = 0; \
         (pPage)->uStateY             = 0; \
         (pPage)->uTypeY              = 0; \
+        (pPage)->uPteIdx             = 0; \
         (pPage)->u16MiscY.u          = 0; \
         (pPage)->u16TrackingY        = 0; \
         (pPage)->cReadLocksY         = 0; \
@@ -713,6 +679,7 @@ typedef PPGMPAGE *PPPGMPAGE;
         (pPage)->HCPhysAndPageID     = (SetHCPhysTmp << (28-12)) | ((_idPage) & UINT32_C(0x0fffffff)); \
         (pPage)->uStateY             = (_uState); \
         (pPage)->uTypeY              = (_uType); \
+        (pPage)->uPteIdx             = 0; \
         (pPage)->u16MiscY.u          = 0; \
         (pPage)->u16TrackingY        = 0; \
         (pPage)->cReadLocksY         = 0; \
@@ -747,6 +714,8 @@ typedef PPGMPAGE *PPPGMPAGE;
 /** The page is shared, aka. copy-on-write.
  * This is a page that's shared with other VMs. */
 #define PGM_PAGE_STATE_SHARED           3
+/** The page is ballooned, so no longer available for this VM. */
+#define PGM_PAGE_STATE_BALLOONED        4
 /** @} */
 
 
@@ -831,6 +800,20 @@ typedef PPGMPAGE *PPPGMPAGE;
 #define PGM_PAGE_SET_TYPE(pPage, _enmType)  do { (pPage)->uTypeY = (_enmType); } while (0)
 
 /**
+ * Gets the page table index
+ * @returns The page table index.
+ * @param   pPage       Pointer to the physical guest page tracking structure.
+ */
+#define PGM_PAGE_GET_PTE_INDEX(pPage)            (pPage)->uPteIdx
+
+/**
+ * Sets the page table index
+ * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   iPte        New page table index.
+ */
+#define PGM_PAGE_SET_PTE_INDEX(pPage, _iPte)  do { (pPage)->uPteIdx = (_iPte); } while (0)
+
+/**
  * Checks if the page is marked for MMIO.
  * @returns true/false.
  * @param   pPage       Pointer to the physical guest page tracking structure.
@@ -851,9 +834,15 @@ typedef PPGMPAGE *PPPGMPAGE;
  */
 #define PGM_PAGE_IS_SHARED(pPage)           ( (pPage)->uStateY == PGM_PAGE_STATE_SHARED )
 
+/**
+ * Checks if the page is ballooned.
+ * @returns true/false.
+ * @param   pPage       Pointer to the physical guest page tracking structure.
+ */
+#define PGM_PAGE_IS_BALLOONED(pPage)        ( (pPage)->uStateY == PGM_PAGE_STATE_BALLOONED )
 
 /**
- * Marks the paget as written to (for GMM change monitoring).
+ * Marks the page as written to (for GMM change monitoring).
  * @param   pPage       Pointer to the physical guest page tracking structure.
  */
 #define PGM_PAGE_SET_WRITTEN_TO(pPage)      do { (pPage)->u16MiscY.au8[1] |= UINT8_C(0x80); } while (0)
@@ -871,6 +860,36 @@ typedef PPGMPAGE *PPPGMPAGE;
  */
 #define PGM_PAGE_IS_WRITTEN_TO(pPage)       ( !!((pPage)->u16MiscY.au8[1] & UINT8_C(0x80)) )
 
+/** @name PT usage values (PGMPAGE::u2PDEType).
+ *
+ * @{ */
+/** Either as a PT or PDE. */
+#define PGM_PAGE_PDE_TYPE_DONTCARE             0
+/** Must use a page table to map the range. */
+#define PGM_PAGE_PDE_TYPE_PT                   1
+/** Can use a page directory entry to map the continous range. */
+#define PGM_PAGE_PDE_TYPE_PDE                  2
+/** Can use a page directory entry to map the continous range - temporarily disabled (by page monitoring). */
+#define PGM_PAGE_PDE_TYPE_PDE_DISABLED         3
+/** @} */
+
+/**
+ * Set the PDE type of the page
+ * @param   pPage       Pointer to the physical guest page tracking structure.
+ * @param   uType       PGM_PAGE_PDE_TYPE_*
+ */
+#define PGM_PAGE_SET_PDE_TYPE(pPage, uType) \
+    do { \
+        (pPage)->u16MiscY.au8[1] = ((pPage)->u16MiscY.au8[1] & UINT8_C(0x9f)) \
+                                 | (((uType)                 & UINT8_C(0x03)) << 5); \
+    } while (0)
+
+/**
+ * Checks if the page was marked being part of a large page
+ * @returns true/false.
+ * @param   pPage       Pointer to the physical guest page tracking structure.
+ */
+#define PGM_PAGE_GET_PDE_TYPE(pPage)       ( ((pPage)->u16MiscY.au8[1] & UINT8_C(0x60)) >> 5)
 
 /** Enabled optimized access handler tests.
  * These optimizations makes ASSUMPTIONS about the state values and the u16MiscY
@@ -946,7 +965,7 @@ typedef PPGMPAGE *PPPGMPAGE;
  * @returns PGM_PAGE_HNDL_VIRT_STATE_* value.
  * @param   pPage       Pointer to the physical guest page tracking structure.
  */
-#define PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) ( (pPage)->u16MiscY.au8[1] & UINT8_C(0x03) )
+#define PGM_PAGE_GET_HNDL_VIRT_STATE(pPage) ((uint8_t)( (pPage)->u16MiscY.au8[1] & UINT8_C(0x03) ))
 
 /**
  * Sets the virtual access handler state of a page.
@@ -1692,18 +1711,25 @@ typedef const PGMPOOLUSER *PCPGMPOOLUSER;
 
 /** The NIL index for the phys ext chain. */
 #define NIL_PGMPOOL_PHYSEXT_INDEX       ((uint16_t)0xffff)
+/** The NIL pte index for a phys ext chain slot. */
+#define NIL_PGMPOOL_PHYSEXT_IDX_PTE     ((uint16_t)0xffff)
 
 /**
  * Node in the chain of physical cross reference extents.
  * @todo Calling this an 'extent' is not quite right, find a better name.
+ * @todo find out the optimal size of the aidx array
  */
 #pragma pack(1)
 typedef struct PGMPOOLPHYSEXT
 {
     /** The index to the next item in the chain. NIL_PGMPOOL_PHYSEXT_INDEX is no next. */
     uint16_t            iNext;
+    /** Alignment. */
+    uint16_t            u16Align;
     /** The user page index. */
     uint16_t            aidx[3];
+    /** The page table index or NIL_PGMPOOL_PHYSEXT_IDX_PTE if unknown. */
+    uint16_t            apte[3];
 } PGMPOOLPHYSEXT, *PPGMPOOLPHYSEXT;
 typedef const PGMPOOLPHYSEXT *PCPGMPOOLPHYSEXT;
 #pragma pack()
@@ -1835,15 +1861,12 @@ typedef struct PGMPOOLPAGE
     /** The next entry in the list this page currently resides in.
      * It's either in the free list or in the GCPhys hash. */
     uint16_t            iNext;
-#ifdef PGMPOOL_WITH_USER_TRACKING
     /** Head of the user chain. NIL_PGMPOOL_USER_INDEX if not currently in use. */
     uint16_t            iUserHead;
     /** The number of present entries. */
     uint16_t            cPresent;
     /** The first entry in the table which is present. */
     uint16_t            iFirstPresent;
-#endif
-#ifdef PGMPOOL_WITH_MONITORING
     /** The number of modifications to the monitored page. */
     uint16_t            cModifications;
     /** The next modified page. NIL_PGMPOOL_IDX if tail. */
@@ -1854,13 +1877,10 @@ typedef struct PGMPOOLPAGE
     uint16_t            iMonitoredNext;
     /** The previous page sharing access handler. NIL_PGMPOOL_IDX if head. */
     uint16_t            iMonitoredPrev;
-#endif
-#ifdef PGMPOOL_WITH_CACHE
     /** The next page in the age list. */
     uint16_t            iAgeNext;
     /** The previous page in the age list. */
     uint16_t            iAgePrev;
-#endif /* PGMPOOL_WITH_CACHE */
     /** Used to indicate that the page is zeroed. */
     bool                fZeroed;
     /** Used to indicate that a PT has non-global entries. */
@@ -1885,12 +1905,10 @@ typedef struct PGMPOOLPAGE
 typedef PGMPOOLPAGE const *PCPGMPOOLPAGE;
 
 
-#ifdef PGMPOOL_WITH_CACHE
 /** The hash table size. */
 # define PGMPOOL_HASH_SIZE      0x40
 /** The hash function. */
 # define PGMPOOL_HASH(GCPhys)   ( ((GCPhys) >> PAGE_SHIFT) & (PGMPOOL_HASH_SIZE - 1) )
-#endif
 
 
 /**
@@ -1916,7 +1934,6 @@ typedef struct PGMPOOL
     uint16_t                    iFreeHead;
     /* Padding. */
     uint16_t                    u16Padding;
-#ifdef PGMPOOL_WITH_USER_TRACKING
     /** Head of the chain of free user nodes. */
     uint16_t                    iUserFreeHead;
     /** The number of user nodes we've allocated. */
@@ -1929,8 +1946,6 @@ typedef struct PGMPOOL
     R3PTRTYPE(PPGMPOOLUSER)     paUsersR3;
     /** Pointer to the array of user nodes - R0 pointer. */
     R0PTRTYPE(PPGMPOOLUSER)     paUsersR0;
-#endif /* PGMPOOL_WITH_USER_TRACKING */
-#ifdef PGMPOOL_WITH_GCPHYS_TRACKING
     /** Head of the chain of free phys ext nodes. */
     uint16_t                    iPhysExtFreeHead;
     /** The number of user nodes we've allocated. */
@@ -1941,8 +1956,6 @@ typedef struct PGMPOOL
     R3PTRTYPE(PPGMPOOLPHYSEXT)  paPhysExtsR3;
     /** Pointer to the array of physical xref extent nodes - R0 pointer. */
     R0PTRTYPE(PPGMPOOLPHYSEXT)  paPhysExtsR0;
-#endif /* PGMPOOL_WITH_GCPHYS_TRACKING */
-#ifdef PGMPOOL_WITH_CACHE
     /** Hash table for GCPhys addresses. */
     uint16_t                    aiHash[PGMPOOL_HASH_SIZE];
     /** The head of the age list. */
@@ -1953,8 +1966,6 @@ typedef struct PGMPOOL
     bool                        fCacheEnabled;
     /** Alignment padding. */
     bool                        afPadding1[3];
-#endif /* PGMPOOL_WITH_CACHE */
-#ifdef PGMPOOL_WITH_MONITORING
     /** Head of the list of modified pages. */
     uint16_t                    iModifiedHead;
     /** The current number of modified pages. */
@@ -1978,7 +1989,6 @@ typedef struct PGMPOOL
     /* Array of current dirty pgm pool page indices. */
     uint16_t                    aIdxDirtyPages[16];
     uint64_t                    aDirtyPages[16][512];
-#endif /* PGMPOOL_WITH_MONITORING */
     /** The number of pages currently in use. */
     uint16_t                    cUsedPages;
 #ifdef VBOX_WITH_STATISTICS
@@ -2003,7 +2013,6 @@ typedef struct PGMPOOL
     STAMCOUNTER                 StatForceFlushReused;
     /** Profiling time spent zeroing pages. */
     STAMPROFILE                 StatZeroPage;
-# ifdef PGMPOOL_WITH_USER_TRACKING
     /** Profiling of pgmPoolTrackDeref. */
     STAMPROFILE                 StatTrackDeref;
     /** Profiling pgmTrackFlushGCPhysPT. */
@@ -2018,16 +2027,12 @@ typedef struct PGMPOOL
     STAMCOUNTER                 StatTrackFlushEntry;
     /** Nr of updated entries. */
     STAMCOUNTER                 StatTrackFlushEntryKeep;
-# endif
-# ifdef PGMPOOL_WITH_GCPHYS_TRACKING
     /** Profiling deref activity related tracking GC physical pages. */
     STAMPROFILE                 StatTrackDerefGCPhys;
     /** Number of linear searches for a HCPhys in the ram ranges. */
     STAMCOUNTER                 StatTrackLinearRamSearches;
     /** The number of failing pgmPoolTrackPhysExtAlloc calls. */
     STAMCOUNTER                 StamTrackPhysExtAllocFailures;
-# endif
-# ifdef PGMPOOL_WITH_MONITORING
     /** Profiling the RC/R0 access handler. */
     STAMPROFILE                 StatMonitorRZ;
     /** Times we've failed interpreting the instruction. */
@@ -2099,8 +2104,7 @@ typedef struct PGMPOOL
     /** The high wather mark for cModifiedPages. */
     uint16_t                    cModifiedPagesHigh;
     uint16_t                    Alignment2[3];      /**< Align the next member on a 64-bit boundrary. */
-# endif
-# ifdef PGMPOOL_WITH_CACHE
+
     /** The number of cache hits. */
     STAMCOUNTER                 StatCacheHits;
     /** The number of cache misses. */
@@ -2113,7 +2117,6 @@ typedef struct PGMPOOL
     STAMCOUNTER                 StatCacheCacheable;
     /** The number of uncacheable allocations. */
     STAMCOUNTER                 StatCacheUncacheable;
-# endif
 #else
     uint32_t                    Alignment3;         /**< Align the next member on a 64-bit boundrary. */
 #endif
@@ -2125,10 +2128,8 @@ typedef struct PGMPOOL
      */
     PGMPOOLPAGE                 aPages[PGMPOOL_IDX_FIRST];
 } PGMPOOL, *PPGMPOOL, **PPPGMPOOL;
-#ifdef PGMPOOL_WITH_MONITORING
 AssertCompileMemberAlignment(PGMPOOL, iModifiedHead, 8);
 AssertCompileMemberAlignment(PGMPOOL, aDirtyPages, 8);
-#endif
 AssertCompileMemberAlignment(PGMPOOL, cUsedPages, 8);
 #ifdef VBOX_WITH_STATISTICS
 AssertCompileMemberAlignment(PGMPOOL, StatAlloc, 8);
@@ -2454,7 +2455,7 @@ typedef struct PGMMODEDATA
     DECLR3CALLBACKMEMBER(int,       pfnR3BthMapCR3,(PVMCPU pVCpu, RTGCPHYS GCPhysCR3));
     DECLR3CALLBACKMEMBER(int,       pfnR3BthUnmapCR3,(PVMCPU pVCpu));
 
-    DECLRCCALLBACKMEMBER(int,       pfnRCBthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault));
+    DECLRCCALLBACKMEMBER(int,       pfnRCBthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, bool *pfLockTaken));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthInvalidatePage,(PVMCPU pVCpu, RTGCPTR GCPtrPage));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthSyncCR3,(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthSyncPage,(PVMCPU pVCpu, X86PDE PdeSrc, RTGCPTR GCPtrPage, unsigned cPages, unsigned uError));
@@ -2466,7 +2467,7 @@ typedef struct PGMMODEDATA
     DECLRCCALLBACKMEMBER(int,       pfnRCBthMapCR3,(PVMCPU pVCpu, RTGCPHYS GCPhysCR3));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthUnmapCR3,(PVMCPU pVCpu));
 
-    DECLR0CALLBACKMEMBER(int,       pfnR0BthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault));
+    DECLR0CALLBACKMEMBER(int,       pfnR0BthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, bool *pfLockTaken));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthInvalidatePage,(PVMCPU pVCpu, RTGCPTR GCPtrPage));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthSyncCR3,(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthSyncPage,(PVMCPU pVCpu, X86PDE PdeSrc, RTGCPTR GCPtrPage, unsigned cPages, unsigned uError));
@@ -2715,13 +2716,14 @@ typedef struct PGM
     RTR0PTR                         pvZeroPgR0;
     /** The GC mapping of the zero page. */
     RTGCPTR                         pvZeroPgRC;
-#if GC_ARCH_BITS != 32
-    uint32_t                        u32ZeroAlignment; /**< Alignment padding. */
-#endif
     /** @}*/
 
     /** The number of handy pages. */
     uint32_t                        cHandyPages;
+
+    /** The number of large handy pages. */
+    uint32_t                        cLargeHandyPages;
+
     /**
      * Array of handy pages.
      *
@@ -2733,6 +2735,15 @@ typedef struct PGM
      * (The current size of 32 pages, means 128 KB of handy memory.)
      */
     GMMPAGEDESC                     aHandyPages[PGM_HANDY_PAGES];
+
+    /**
+     * Array of large handy pages. (currently size 1)
+     *
+     * This array is used in a two way communication between pgmPhysAllocLargePage
+     * and GMMR0AllocateLargePage, with PGMR3PhysAllocateLargePage serving as
+     * an intermediary.
+     */
+    GMMPAGEDESC                     aLargeHandyPage[1];
 
     /**
      * Live save data.
@@ -2785,22 +2796,30 @@ typedef struct PGM
      * memory. */
     bool volatile                   fErrInjHandyPages;
     /** Padding. */
-    bool                            afReserved[7];
+    bool                            afReserved[3];
     /** @} */
 
     /** @name Release Statistics
      * @{ */
-    uint32_t                        cAllPages;          /**< The total number of pages. (Should be Private + Shared + Zero.) */
+    uint32_t                        cAllPages;          /**< The total number of pages. (Should be Private + Shared + Zero + Pure MMIO.) */
     uint32_t                        cPrivatePages;      /**< The number of private pages. */
     uint32_t                        cSharedPages;       /**< The number of shared pages. */
     uint32_t                        cZeroPages;         /**< The number of zero backed pages. */
+    uint32_t                        cPureMmioPages;     /**< The number of pure MMIO pages. */
     uint32_t                        cMonitoredPages;    /**< The number of write monitored pages. */
     uint32_t                        cWrittenToPages;    /**< The number of previously write monitored pages. */
     uint32_t                        cWriteLockedPages;  /**< The number of write locked pages. */
     uint32_t                        cReadLockedPages;   /**< The number of read locked pages. */
+    uint32_t                        cBalloonedPages;    /**< The number of ballooned pages. */
+    uint32_t                        aAlignment4[1];
 
     /** The number of times we were forced to change the hypervisor region location. */
     STAMCOUNTER                     cRelocations;
+
+    STAMCOUNTER                     StatLargePageAlloc;                 /**< The number of large pages we've allocated.*/
+    STAMCOUNTER                     StatLargePageReused;                /**< The number of large pages we've reused.*/
+    STAMCOUNTER                     StatLargePageRefused;               /**< The number of times we couldn't use a large page.*/
+    STAMCOUNTER                     StatLargePageRecheck;               /**< The number of times we rechecked a disabled large page.*/
     /** @} */
 
 #ifdef VBOX_WITH_STATISTICS /** @todo move this chunk to the heap.  */
@@ -2865,14 +2884,22 @@ typedef struct PGM
     STAMCOUNTER StatRCPhysSimpleWrite;
     STAMCOUNTER StatRCPhysSimpleWriteBytes;
 
-# ifdef PGMPOOL_WITH_GCPHYS_TRACKING
     STAMCOUNTER StatTrackVirgin;                    /**< The number of first time shadowings. */
     STAMCOUNTER StatTrackAliased;                   /**< The number of times switching to cRef2, i.e. the page is being shadowed by two PTs. */
     STAMCOUNTER StatTrackAliasedMany;               /**< The number of times we're tracking using cRef2. */
     STAMCOUNTER StatTrackAliasedLots;               /**< The number of times we're hitting pages which has overflowed cRef2. */
+    STAMCOUNTER StatTrackNoExtentsLeft;             /**< The number of times the extent list was exhausted. */
     STAMCOUNTER StatTrackOverflows;                 /**< The number of times the extent list grows to long. */
     STAMPROFILE StatTrackDeref;                     /**< Profiling of SyncPageWorkerTrackDeref (expensive). */
-# endif
+
+    /** Time spent by the host OS for large page allocation. */
+    STAMPROFILE                 StatAllocLargePage;
+    /** Time spent clearing the newly allocated large pages. */
+    STAMPROFILE                 StatClearLargePage;
+    /** pgmPhysIsValidLargePage profiling - R3 */
+    STAMPROFILE                 StatR3IsValidLargePage;
+    /** pgmPhysIsValidLargePage profiling - RZ*/
+    STAMPROFILE                 StatRZIsValidLargePage;
 #endif
 } PGM;
 #ifndef IN_TSTVMSTRUCTGC /* HACK */
@@ -3064,7 +3091,7 @@ typedef struct PGMCPU
     DECLR3CALLBACKMEMBER(int,       pfnR3BthMapCR3,(PVMCPU pVCpu, RTGCPHYS GCPhysCR3));
     DECLR3CALLBACKMEMBER(int,       pfnR3BthUnmapCR3,(PVMCPU pVCpu));
 
-    DECLR0CALLBACKMEMBER(int,       pfnR0BthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault));
+    DECLR0CALLBACKMEMBER(int,       pfnR0BthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, bool *pfLockTaken));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthInvalidatePage,(PVMCPU pVCpu, RTGCPTR GCPtrPage));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthSyncCR3,(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthSyncPage,(PVMCPU pVCpu, X86PDE PdeSrc, RTGCPTR GCPtrPage, unsigned cPages, unsigned uError));
@@ -3074,7 +3101,7 @@ typedef struct PGMCPU
     DECLR0CALLBACKMEMBER(int,       pfnR0BthMapCR3,(PVMCPU pVCpu, RTGCPHYS GCPhysCR3));
     DECLR0CALLBACKMEMBER(int,       pfnR0BthUnmapCR3,(PVMCPU pVCpu));
 
-    DECLRCCALLBACKMEMBER(int,       pfnRCBthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault));
+    DECLRCCALLBACKMEMBER(int,       pfnRCBthTrap0eHandler,(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, bool *pfLockTaken));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthInvalidatePage,(PVMCPU pVCpu, RTGCPTR GCPtrPage));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthSyncCR3,(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal));
     DECLRCCALLBACKMEMBER(int,       pfnRCBthSyncPage,(PVMCPU pVCpu, X86PDE PdeSrc, RTGCPTR GCPtrPage, unsigned cPages, unsigned uError));
@@ -3176,23 +3203,23 @@ typedef struct PGMCPU
     STAMCOUNTER StatRZTrap0eHandlersVirtualUnmarked;/**< RC/R0: Number of traps due to virtual access handlers found by virtual address (without proper physical flags). */
     STAMCOUNTER StatRZTrap0eHandlersUnhandled;      /**< RC/R0: Number of traps due to access outside range of monitored page(s). */
     STAMCOUNTER StatRZTrap0eHandlersInvalid;        /**< RC/R0: Number of traps due to access to invalid physical memory. */
-    STAMCOUNTER StatRZTrap0eUSNotPresentRead;       /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eUSNotPresentWrite;      /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eUSWrite;                /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eUSReserved;             /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eUSNXE;                  /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eUSRead;                 /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eSVNotPresentRead;       /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eSVNotPresentWrite;      /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eSVWrite;                /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eSVReserved;             /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eSNXE;                   /**< RC/R0: #PF err kind */
-    STAMCOUNTER StatRZTrap0eGuestPF;                /**< RC/R0: Real guest #PFs. */
-    STAMCOUNTER StatRZTrap0eGuestPFUnh;             /**< RC/R0: Real guest #PF ending up at the end of the #PF code. */
-    STAMCOUNTER StatRZTrap0eGuestPFMapping;         /**< RC/R0: Real guest #PF to HMA or other mapping. */
+    STAMCOUNTER StatRZTrap0eUSNotPresentRead;       /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eUSNotPresentWrite;      /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eUSWrite;                /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eUSReserved;             /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eUSNXE;                  /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eUSRead;                 /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eSVNotPresentRead;       /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eSVNotPresentWrite;      /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eSVWrite;                /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eSVReserved;             /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eSNXE;                   /**< RC/R0: \#PF err kind */
+    STAMCOUNTER StatRZTrap0eGuestPF;                /**< RC/R0: Real guest \#PFs. */
+    STAMCOUNTER StatRZTrap0eGuestPFUnh;             /**< RC/R0: Real guest \#PF ending up at the end of the \#PF code. */
+    STAMCOUNTER StatRZTrap0eGuestPFMapping;         /**< RC/R0: Real guest \#PF to HMA or other mapping. */
     STAMCOUNTER StatRZTrap0eWPEmulInRZ;             /**< RC/R0: WP=0 virtualization trap, handled. */
     STAMCOUNTER StatRZTrap0eWPEmulToR3;             /**< RC/R0: WP=0 virtualization trap, chickened out. */
-    STAMCOUNTER StatRZTrap0ePD[X86_PG_ENTRIES];     /**< RC/R0: PD distribution of the #PFs. */
+    STAMCOUNTER StatRZTrap0ePD[X86_PG_ENTRIES];     /**< RC/R0: PD distribution of the \#PFs. */
     STAMCOUNTER StatRZGuestCR3WriteHandled;         /**< RC/R0: The number of times WriteHandlerCR3() was successfully called. */
     STAMCOUNTER StatRZGuestCR3WriteUnhandled;       /**< RC/R0: The number of times WriteHandlerCR3() was called and we had to fall back to the recompiler. */
     STAMCOUNTER StatRZGuestCR3WriteConflict;        /**< RC/R0: The number of times WriteHandlerCR3() was called and a conflict was detected. */
@@ -3237,10 +3264,11 @@ typedef struct PGMCPU
     STAMCOUNTER StatRZInvalidatePagePDNPs;          /**< RC/R0: The number of times PGMInvalidatePage() was called for a not present page directory. */
     STAMCOUNTER StatRZInvalidatePagePDOutOfSync;    /**< RC/R0: The number of times PGMInvalidatePage() was called for an out of sync page directory. */
     STAMCOUNTER StatRZInvalidatePageSkipped;        /**< RC/R0: The number of times PGMInvalidatePage() was skipped due to not present shw or pending pending SyncCR3. */
-    STAMCOUNTER StatRZPageOutOfSyncUser;            /**< RC/R0: The number of times user page is out of sync was detected in #PF or VerifyAccessSyncPage. */
-    STAMCOUNTER StatRZPageOutOfSyncSupervisor;      /**< RC/R0: The number of times supervisor page is out of sync was detected in in #PF or VerifyAccessSyncPage. */
-    STAMCOUNTER StatRZPageOutOfSyncUserWrite;       /**< RC/R0: The number of times user page is out of sync was detected in #PF. */
-    STAMCOUNTER StatRZPageOutOfSyncSupervisorWrite; /**< RC/R0: The number of times supervisor page is out of sync was detected in in #PF. */
+    STAMCOUNTER StatRZPageOutOfSyncUser;            /**< RC/R0: The number of times user page is out of sync was detected in \#PF or VerifyAccessSyncPage. */
+    STAMCOUNTER StatRZPageOutOfSyncSupervisor;      /**< RC/R0: The number of times supervisor page is out of sync was detected in in \#PF or VerifyAccessSyncPage. */
+    STAMCOUNTER StatRZPageOutOfSyncUserWrite;       /**< RC/R0: The number of times user page is out of sync was detected in \#PF. */
+    STAMCOUNTER StatRZPageOutOfSyncSupervisorWrite; /**< RC/R0: The number of times supervisor page is out of sync was detected in in \#PF. */
+    STAMCOUNTER StatRZPageOutOfSyncBallloon;        /**< RC/R0: The number of times a ballooned page was accessed (read). */
     STAMPROFILE StatRZPrefetch;                     /**< RC/R0: PGMPrefetchPage. */
     STAMPROFILE StatRZFlushTLB;                     /**< RC/R0: Profiling of the PGMFlushTLB() body. */
     STAMCOUNTER StatRZFlushTLBNewCR3;               /**< RC/R0: The number of times PGMFlushTLB was called with a new CR3, non-global. (switch) */
@@ -3283,10 +3311,11 @@ typedef struct PGMCPU
     STAMCOUNTER StatR3InvalidatePagePDMappings;     /**< R3: The number of times PGMInvalidatePage() was called for a page directory containing mappings (no conflict). */
     STAMCOUNTER StatR3InvalidatePagePDOutOfSync;    /**< R3: The number of times PGMInvalidatePage() was called for an out of sync page directory. */
     STAMCOUNTER StatR3InvalidatePageSkipped;        /**< R3: The number of times PGMInvalidatePage() was skipped due to not present shw or pending pending SyncCR3. */
-    STAMCOUNTER StatR3PageOutOfSyncUser;            /**< R3: The number of times user page is out of sync was detected in #PF or VerifyAccessSyncPage. */
-    STAMCOUNTER StatR3PageOutOfSyncSupervisor;      /**< R3: The number of times supervisor page is out of sync was detected in in #PF or VerifyAccessSyncPage. */
-    STAMCOUNTER StatR3PageOutOfSyncUserWrite;       /**< R3: The number of times user page is out of sync was detected in #PF. */
-    STAMCOUNTER StatR3PageOutOfSyncSupervisorWrite; /**< R3: The number of times supervisor page is out of sync was detected in in #PF. */
+    STAMCOUNTER StatR3PageOutOfSyncUser;            /**< R3: The number of times user page is out of sync was detected in \#PF or VerifyAccessSyncPage. */
+    STAMCOUNTER StatR3PageOutOfSyncSupervisor;      /**< R3: The number of times supervisor page is out of sync was detected in in \#PF or VerifyAccessSyncPage. */
+    STAMCOUNTER StatR3PageOutOfSyncUserWrite;       /**< R3: The number of times user page is out of sync was detected in \#PF. */
+    STAMCOUNTER StatR3PageOutOfSyncSupervisorWrite; /**< R3: The number of times supervisor page is out of sync was detected in in \#PF. */
+    STAMCOUNTER StatR3PageOutOfSyncBallloon;        /**< R3: The number of times a ballooned page was accessed (read). */
     STAMPROFILE StatR3Prefetch;                     /**< R3: PGMPrefetchPage. */
     STAMPROFILE StatR3FlushTLB;                     /**< R3: Profiling of the PGMFlushTLB() body. */
     STAMCOUNTER StatR3FlushTLBNewCR3;               /**< R3: The number of times PGMFlushTLB was called with a new CR3, non-global. (switch) */
@@ -3345,17 +3374,19 @@ DECLCALLBACK(void) pgmR3InfoHandlers(PVM pVM, PCDBGFINFOHLP pHlp, const char *ps
 int             pgmR3InitSavedState(PVM pVM, uint64_t cbRam);
 
 int             pgmPhysAllocPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
+int             pgmPhysAllocLargePage(PVM pVM, RTGCPHYS GCPhys);
+int             pgmPhysIsValidLargePage(PVM pVM, RTGCPHYS GCPhys, PPGMPAGE pLargePage);
 int             pgmPhysPageLoadIntoTlb(PPGM pPGM, RTGCPHYS GCPhys);
 int             pgmPhysPageLoadIntoTlbWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 void            pgmPhysPageMakeWriteMonitoredWritable(PVM pVM, PPGMPAGE pPage);
 int             pgmPhysPageMakeWritable(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
-int             pgmPhysPageMakeWritableUnlocked(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys);
 int             pgmPhysPageMakeWritableAndMap(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysPageMap(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysPageMapReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void const **ppv);
 int             pgmPhysPageMapByPageID(PVM pVM, uint32_t idPage, RTHCPHYS HCPhys, void **ppv);
 int             pgmPhysGCPhys2CCPtrInternal(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, void **ppv);
 int             pgmPhysGCPhys2CCPtrInternalReadOnly(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, const void **ppv);
+VMMDECL(int)    pgmPhysHandlerRedirectToHC(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 VMMDECL(int)    pgmPhysRomWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
 #ifdef IN_RING3
 void            pgmR3PhysRelinkRamRanges(PVM pVM);
@@ -3366,8 +3397,10 @@ int             pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppC
 
 int             pgmR3PoolInit(PVM pVM);
 void            pgmR3PoolRelocate(PVM pVM);
+void            pgmR3PoolResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu);
 void            pgmR3PoolReset(PVM pVM);
 void            pgmR3PoolClearAll(PVM pVM);
+DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser);
 
 #endif /* IN_RING3 */
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
@@ -3382,25 +3415,24 @@ DECLINLINE(int) pgmPoolAlloc(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, uint
 
 void            pgmPoolFree(PVM pVM, RTHCPHYS HCPhys, uint16_t iUser, uint32_t iUserTable);
 void            pgmPoolFreeByPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint32_t iUserTable);
-int             pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
+int             pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush = true /* DO NOT USE false UNLESS YOU KNOWN WHAT YOU'RE DOING!! */);
 void            pgmPoolFlushPageByGCPhys(PVM pVM, RTGCPHYS GCPhys);
 PPGMPOOLPAGE    pgmPoolGetPage(PPGMPOOL pPool, RTHCPHYS HCPhys);
 int             pgmPoolSyncCR3(PVMCPU pVCpu);
 bool            pgmPoolIsDirtyPage(PVM pVM, RTGCPHYS GCPhys);
-int             pgmPoolTrackUpdateGCPhys(PVM pVM, PPGMPAGE pPhysPage, bool fFlushPTEs, bool *pfFlushTLBs);
+int             pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, bool fFlushPTEs, bool *pfFlushTLBs);
+void            pgmPoolTracDerefGCPhysHint(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS HCPhys, RTGCPHYS GCPhysHint, uint16_t iPte);
 void            pgmPoolInvalidateDirtyPage(PVM pVM, RTGCPHYS GCPhysPT);
-DECLINLINE(int) pgmPoolTrackFlushGCPhys(PVM pVM, PPGMPAGE pPhysPage, bool *pfFlushTLBs)
+DECLINLINE(int) pgmPoolTrackFlushGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, bool *pfFlushTLBs)
 {
-    return pgmPoolTrackUpdateGCPhys(pVM, pPhysPage, true /* flush PTEs */, pfFlushTLBs);
+    return pgmPoolTrackUpdateGCPhys(pVM, GCPhysPage, pPhysPage, true /* flush PTEs */, pfFlushTLBs);
 }
 
-uint16_t        pgmPoolTrackPhysExtAddref(PVM pVM, uint16_t u16, uint16_t iShwPT);
-void            pgmPoolTrackPhysExtDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPGMPAGE pPhysPage);
-#ifdef PGMPOOL_WITH_MONITORING
-void            pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault, CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvAddress, PDISCPUSTATE pCpu);
+uint16_t        pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t u16, uint16_t iShwPT, uint16_t iPte);
+void            pgmPoolTrackPhysExtDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPGMPAGE pPhysPage, uint16_t iPte);
+void            pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault, CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvAddress, unsigned cbWrite);
 int             pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 void            pgmPoolMonitorModifiedInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage);
-#endif
 
 void            pgmPoolAddDirtyPage(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage);
 void            pgmPoolResetDirtyPages(PVM pVM);
@@ -3426,1598 +3458,7 @@ PX86PML4        pgmGstLazyMapPml4(PPGMCPU pPGM);
 
 RT_C_DECLS_END
 
-/** @todo Split out all the inline stuff into a separate file.  Then we can
- *        include it later when VM and VMCPU are defined and so avoid all that
- *        &pVM->pgm.s and &pVCpu->pgm.s stuff.  It also chops ~1600 lines off
- *        this file and will make it somewhat easier to navigate... */
-
-/**
- * Gets the PGMRAMRANGE structure for a guest page.
- *
- * @returns Pointer to the RAM range on success.
- * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
- *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- */
-DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PPGM pPGM, RTGCPHYS GCPhys)
-{
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-                break;
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    return pRam;
-}
-
-
-/**
- * Gets the PGMPAGE structure for a guest page.
- *
- * @returns Pointer to the page on success.
- * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
- *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- */
-DECLINLINE(PPGMPAGE) pgmPhysGetPage(PPGM pPGM, RTGCPHYS GCPhys)
-{
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-                return NULL;
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    return &pRam->aPages[off >> PAGE_SHIFT];
-}
-
-
-/**
- * Gets the PGMPAGE structure for a guest page.
- *
- * Old Phys code: Will make sure the page is present.
- *
- * @returns VBox status code.
- * @retval  VINF_SUCCESS and a valid *ppPage on success.
- * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if the address isn't valid.
- *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- * @param   ppPage      Where to store the page pointer on success.
- */
-DECLINLINE(int) pgmPhysGetPageEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
-{
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-            {
-                *ppPage = NULL; /* avoid incorrect and very annoying GCC warnings */
-                return VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
-            }
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
-    return VINF_SUCCESS;
-}
-
-
-
-
-/**
- * Gets the PGMPAGE structure for a guest page.
- *
- * Old Phys code: Will make sure the page is present.
- *
- * @returns VBox status code.
- * @retval  VINF_SUCCESS and a valid *ppPage on success.
- * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if the address isn't valid.
- *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- * @param   ppPage      Where to store the page pointer on success.
- * @param   ppRamHint   Where to read and store the ram list hint.
- *                      The caller initializes this to NULL before the call.
- */
-DECLINLINE(int) pgmPhysGetPageWithHintEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRamHint)
-{
-    RTGCPHYS off;
-    PPGMRAMRANGE pRam = *ppRamHint;
-    if (    !pRam
-        ||  RT_UNLIKELY((off = GCPhys - pRam->GCPhys) >= pRam->cb))
-    {
-        pRam = pPGM->CTX_SUFF(pRamRanges);
-        off = GCPhys - pRam->GCPhys;
-        if (RT_UNLIKELY(off >= pRam->cb))
-        {
-            do
-            {
-                pRam = pRam->CTX_SUFF(pNext);
-                if (RT_UNLIKELY(!pRam))
-                {
-                    *ppPage = NULL; /* Kill the incorrect and extremely annoying GCC warnings. */
-                    return VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
-                }
-                off = GCPhys - pRam->GCPhys;
-            } while (off >= pRam->cb);
-        }
-        *ppRamHint = pRam;
-    }
-    *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Gets the PGMPAGE structure for a guest page together with the PGMRAMRANGE.
- *
- * @returns Pointer to the page on success.
- * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
- *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- * @param   ppRam       Where to store the pointer to the PGMRAMRANGE.
- */
-DECLINLINE(PPGMPAGE) pgmPhysGetPageAndRange(PPGM pPGM, RTGCPHYS GCPhys, PPGMRAMRANGE *ppRam)
-{
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-                return NULL;
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    *ppRam = pRam;
-    return &pRam->aPages[off >> PAGE_SHIFT];
-}
-
-
-/**
- * Gets the PGMPAGE structure for a guest page together with the PGMRAMRANGE.
- *
- * @returns Pointer to the page on success.
- * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
- *
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- * @param   ppPage      Where to store the pointer to the PGMPAGE structure.
- * @param   ppRam       Where to store the pointer to the PGMRAMRANGE structure.
- */
-DECLINLINE(int) pgmPhysGetPageAndRangeEx(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGE ppPage, PPGMRAMRANGE *ppRam)
-{
-    /*
-     * Optimize for the first range.
-     */
-    PPGMRAMRANGE pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb))
-    {
-        do
-        {
-            pRam = pRam->CTX_SUFF(pNext);
-            if (RT_UNLIKELY(!pRam))
-            {
-                *ppRam = NULL;  /* Shut up silly GCC warnings. */
-                *ppPage = NULL; /* ditto */
-                return VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
-            }
-            off = GCPhys - pRam->GCPhys;
-        } while (off >= pRam->cb);
-    }
-    *ppRam = pRam;
-    *ppPage = &pRam->aPages[off >> PAGE_SHIFT];
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Convert GC Phys to HC Phys.
- *
- * @returns VBox status.
- * @param   pPGM        PGM handle.
- * @param   GCPhys      The GC physical address.
- * @param   pHCPhys     Where to store the corresponding HC physical address.
- *
- * @deprecated  Doesn't deal with zero, shared or write monitored pages.
- *              Avoid when writing new code!
- */
-DECLINLINE(int) pgmRamGCPhys2HCPhys(PPGM pPGM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
-{
-    PPGMPAGE pPage;
-    int rc = pgmPhysGetPageEx(pPGM, GCPhys, &pPage);
-    if (RT_FAILURE(rc))
-        return rc;
-    *pHCPhys = PGM_PAGE_GET_HCPHYS(pPage) | (GCPhys & PAGE_OFFSET_MASK);
-    return VINF_SUCCESS;
-}
-
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-
-/**
- * Inlined version of the ring-0 version of PGMDynMapHCPage that
- * optimizes access to pages already in the set.
- *
- * @returns VINF_SUCCESS. Will bail out to ring-3 on failure.
- * @param   pPGM        Pointer to the PVM instance data.
- * @param   HCPhys      The physical address of the page.
- * @param   ppv         Where to store the mapping address.
- */
-DECLINLINE(int) pgmR0DynMapHCPageInlined(PPGM pPGM, RTHCPHYS HCPhys, void **ppv)
-{
-    PVM         pVM     = PGM2VM(pPGM);
-    PPGMCPU     pPGMCPU = (PPGMCPU)((uint8_t *)VMMGetCpu(pVM) + pPGM->offVCpuPGM); /* very pretty ;-) */
-    PPGMMAPSET  pSet    = &pPGMCPU->AutoSet;
-
-    STAM_PROFILE_START(&pPGMCPU->StatR0DynMapHCPageInl, a);
-    Assert(!(HCPhys & PAGE_OFFSET_MASK));
-    Assert(pSet->cEntries <= RT_ELEMENTS(pSet->aEntries));
-
-    unsigned    iHash   = PGMMAPSET_HASH(HCPhys);
-    unsigned    iEntry  = pSet->aiHashTable[iHash];
-    if (    iEntry < pSet->cEntries
-        &&  pSet->aEntries[iEntry].HCPhys == HCPhys)
-    {
-        *ppv = pSet->aEntries[iEntry].pvPage;
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapHCPageInlHits);
-    }
-    else
-    {
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapHCPageInlMisses);
-        pgmR0DynMapHCPageCommon(pVM, pSet, HCPhys, ppv);
-    }
-
-    STAM_PROFILE_STOP(&pPGMCPU->StatR0DynMapHCPageInl, a);
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Inlined version of the ring-0 version of PGMDynMapGCPage that optimizes
- * access to pages already in the set.
- *
- * @returns See PGMDynMapGCPage.
- * @param   pPGM        Pointer to the PVM instance data.
- * @param   GCPhys      The guest physical address of the page.
- * @param   ppv         Where to store the mapping address.
- */
-DECLINLINE(int) pgmR0DynMapGCPageInlined(PPGM pPGM, RTGCPHYS GCPhys, void **ppv)
-{
-    PVM     pVM     = PGM2VM(pPGM);
-    PPGMCPU pPGMCPU = (PPGMCPU)((uint8_t *)VMMGetCpu(pVM) + pPGM->offVCpuPGM); /* very pretty ;-) */
-
-    STAM_PROFILE_START(&pPGMCPU->StatR0DynMapGCPageInl, a);
-    AssertMsg(!(GCPhys & PAGE_OFFSET_MASK), ("%RGp\n", GCPhys));
-
-    /*
-     * Get the ram range.
-     */
-    PPGMRAMRANGE    pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS        off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb
-        /** @todo   || page state stuff */))
-    {
-        /* This case is not counted into StatR0DynMapGCPageInl. */
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlRamMisses);
-        return PGMDynMapGCPage(pVM, GCPhys, ppv);
-    }
-
-    RTHCPHYS HCPhys = PGM_PAGE_GET_HCPHYS(&pRam->aPages[off >> PAGE_SHIFT]);
-    STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlRamHits);
-
-    /*
-     * pgmR0DynMapHCPageInlined with out stats.
-     */
-    PPGMMAPSET pSet = &pPGMCPU->AutoSet;
-    Assert(!(HCPhys & PAGE_OFFSET_MASK));
-    Assert(pSet->cEntries <= RT_ELEMENTS(pSet->aEntries));
-
-    unsigned    iHash   = PGMMAPSET_HASH(HCPhys);
-    unsigned    iEntry  = pSet->aiHashTable[iHash];
-    if (    iEntry < pSet->cEntries
-        &&  pSet->aEntries[iEntry].HCPhys == HCPhys)
-    {
-        *ppv = pSet->aEntries[iEntry].pvPage;
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlHits);
-    }
-    else
-    {
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlMisses);
-        pgmR0DynMapHCPageCommon(pVM, pSet, HCPhys, ppv);
-    }
-
-    STAM_PROFILE_STOP(&pPGMCPU->StatR0DynMapGCPageInl, a);
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Inlined version of the ring-0 version of PGMDynMapGCPageOff that optimizes
- * access to pages already in the set.
- *
- * @returns See PGMDynMapGCPage.
- * @param   pPGM        Pointer to the PVM instance data.
- * @param   HCPhys      The physical address of the page.
- * @param   ppv         Where to store the mapping address.
- */
-DECLINLINE(int) pgmR0DynMapGCPageOffInlined(PPGM pPGM, RTGCPHYS GCPhys, void **ppv)
-{
-    PVM     pVM     = PGM2VM(pPGM);
-    PPGMCPU pPGMCPU = (PPGMCPU)((uint8_t *)VMMGetCpu(pVM) + pPGM->offVCpuPGM); /* very pretty ;-) */
-
-    STAM_PROFILE_START(&pPGMCPU->StatR0DynMapGCPageInl, a);
-
-    /*
-     * Get the ram range.
-     */
-    PPGMRAMRANGE    pRam = pPGM->CTX_SUFF(pRamRanges);
-    RTGCPHYS        off = GCPhys - pRam->GCPhys;
-    if (RT_UNLIKELY(off >= pRam->cb
-        /** @todo   || page state stuff */))
-    {
-        /* This case is not counted into StatR0DynMapGCPageInl. */
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlRamMisses);
-        return PGMDynMapGCPageOff(pVM, GCPhys, ppv);
-    }
-
-    RTHCPHYS HCPhys = PGM_PAGE_GET_HCPHYS(&pRam->aPages[off >> PAGE_SHIFT]);
-    STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlRamHits);
-
-    /*
-     * pgmR0DynMapHCPageInlined with out stats.
-     */
-    PPGMMAPSET pSet = &pPGMCPU->AutoSet;
-    Assert(!(HCPhys & PAGE_OFFSET_MASK));
-    Assert(pSet->cEntries <= RT_ELEMENTS(pSet->aEntries));
-
-    unsigned    iHash   = PGMMAPSET_HASH(HCPhys);
-    unsigned    iEntry  = pSet->aiHashTable[iHash];
-    if (    iEntry < pSet->cEntries
-        &&  pSet->aEntries[iEntry].HCPhys == HCPhys)
-    {
-        *ppv = (void *)((uintptr_t)pSet->aEntries[iEntry].pvPage | (PAGE_OFFSET_MASK & (uintptr_t)GCPhys));
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlHits);
-    }
-    else
-    {
-        STAM_COUNTER_INC(&pPGMCPU->StatR0DynMapGCPageInlMisses);
-        pgmR0DynMapHCPageCommon(pVM, pSet, HCPhys, ppv);
-        *ppv = (void *)((uintptr_t)*ppv | (PAGE_OFFSET_MASK & (uintptr_t)GCPhys));
-    }
-
-    STAM_PROFILE_STOP(&pPGMCPU->StatR0DynMapGCPageInl, a);
-    return VINF_SUCCESS;
-}
-
-#endif /* VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 */
-#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
-
-/**
- * Maps the page into current context (RC and maybe R0).
- *
- * @returns pointer to the mapping.
- * @param   pVM         Pointer to the PGM instance data.
- * @param   pPage       The page.
- */
-DECLINLINE(void *) pgmPoolMapPageInlined(PPGM pPGM, PPGMPOOLPAGE pPage)
-{
-    if (pPage->idx >= PGMPOOL_IDX_FIRST)
-    {
-        Assert(pPage->idx < pPGM->CTX_SUFF(pPool)->cCurPages);
-        void *pv;
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-        pgmR0DynMapHCPageInlined(pPGM, pPage->Core.Key, &pv);
-# else
-        PGMDynMapHCPage(PGM2VM(pPGM), pPage->Core.Key, &pv);
-# endif
-        return pv;
-    }
-    AssertFatalMsgFailed(("pgmPoolMapPageInlined invalid page index %x\n", pPage->idx));
-}
-
-/**
- * Temporarily maps one host page specified by HC physical address, returning
- * pointer within the page.
- *
- * Be WARNED that the dynamic page mapping area is small, 8 pages, thus the space is
- * reused after 8 mappings (or perhaps a few more if you score with the cache).
- *
- * @returns The address corresponding to HCPhys.
- * @param   pPGM        Pointer to the PVM instance data.
- * @param   HCPhys      HC Physical address of the page.
- */
-DECLINLINE(void *) pgmDynMapHCPageOff(PPGM pPGM, RTHCPHYS HCPhys)
-{
-    void *pv;
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    pgmR0DynMapHCPageInlined(pPGM, HCPhys & ~(RTHCPHYS)PAGE_OFFSET_MASK, &pv);
-# else
-    PGMDynMapHCPage(PGM2VM(pPGM), HCPhys & ~(RTHCPHYS)PAGE_OFFSET_MASK, &pv);
-# endif
-    pv = (void *)((uintptr_t)pv | ((uintptr_t)HCPhys & PAGE_OFFSET_MASK));
-    return pv;
-}
-
-#endif /*  VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 || IN_RC */
-#ifndef IN_RC
-
-/**
- * Queries the Physical TLB entry for a physical guest page,
- * attempting to load the TLB entry if necessary.
- *
- * @returns VBox status code.
- * @retval  VINF_SUCCESS on success
- * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
- *
- * @param   pPGM        The PGM instance handle.
- * @param   GCPhys      The address of the guest page.
- * @param   ppTlbe      Where to store the pointer to the TLB entry.
- */
-DECLINLINE(int) pgmPhysPageQueryTlbe(PPGM pPGM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
-{
-    int rc;
-    PPGMPAGEMAPTLBE pTlbe = &pPGM->CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
-    if (pTlbe->GCPhys == (GCPhys & X86_PTE_PAE_PG_MASK))
-    {
-        STAM_COUNTER_INC(&pPGM->CTX_MID_Z(Stat,PageMapTlbHits));
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = pgmPhysPageLoadIntoTlb(pPGM, GCPhys);
-    *ppTlbe = pTlbe;
-    return rc;
-}
-
-
-/**
- * Queries the Physical TLB entry for a physical guest page,
- * attempting to load the TLB entry if necessary.
- *
- * @returns VBox status code.
- * @retval  VINF_SUCCESS on success
- * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
- *
- * @param   pPGM        The PGM instance handle.
- * @param   pPage       Pointer to the PGMPAGE structure corresponding to
- *                      GCPhys.
- * @param   GCPhys      The address of the guest page.
- * @param   ppTlbe      Where to store the pointer to the TLB entry.
- */
-DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE ppTlbe)
-{
-    int rc;
-    PPGMPAGEMAPTLBE pTlbe = &pPGM->CTXSUFF(PhysTlb).aEntries[PGM_PAGEMAPTLB_IDX(GCPhys)];
-    if (pTlbe->GCPhys == (GCPhys & X86_PTE_PAE_PG_MASK))
-    {
-        STAM_COUNTER_INC(&pPGM->CTX_MID_Z(Stat,PageMapTlbHits));
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = pgmPhysPageLoadIntoTlbWithPage(pPGM, pPage, GCPhys);
-    *ppTlbe = pTlbe;
-    return rc;
-}
-
-#endif /* !IN_RC */
-
-/**
- * Calculated the guest physical address of the large (4 MB) page in 32 bits paging mode.
- * Takes PSE-36 into account.
- *
- * @returns guest physical address
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   Pde         Guest Pde
- */
-DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PPGM pPGM, X86PDE Pde)
-{
-    RTGCPHYS GCPhys = Pde.u & X86_PDE4M_PG_MASK;
-    GCPhys |= (RTGCPHYS)Pde.b.u8PageNoHigh << 32;
-
-    return GCPhys & pPGM->GCPhys4MBPSEMask;
-}
-
-
-/**
- * Gets the page directory entry for the specified address (32-bit paging).
- *
- * @returns The page directory entry in question.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(X86PDE) pgmGstGet32bitPDE(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PCX86PD pGuestPD = NULL;
-    int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPD);
-    if (RT_FAILURE(rc))
-    {
-        X86PDE ZeroPde = {0};
-        AssertMsgFailedReturn(("%Rrc\n", rc), ZeroPde);
-    }
-#else
-    PX86PD pGuestPD = pPGM->CTX_SUFF(pGst32BitPd);
-# ifdef IN_RING3
-    if (!pGuestPD)
-        pGuestPD = pgmGstLazyMap32BitPD(pPGM);
-# endif
-#endif
-    return pGuestPD->a[GCPtr >> X86_PD_SHIFT];
-}
-
-
-/**
- * Gets the address of a specific page directory entry (32-bit paging).
- *
- * @returns Pointer the page directory entry in question.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDE) pgmGstGet32bitPDEPtr(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PD  pGuestPD = NULL;
-    int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPD);
-    AssertRCReturn(rc, NULL);
-#else
-    PX86PD pGuestPD = pPGM->CTX_SUFF(pGst32BitPd);
-# ifdef IN_RING3
-    if (!pGuestPD)
-        pGuestPD = pgmGstLazyMap32BitPD(pPGM);
-# endif
-#endif
-    return &pGuestPD->a[GCPtr >> X86_PD_SHIFT];
-}
-
-
-/**
- * Gets the address the guest page directory (32-bit paging).
- *
- * @returns Pointer the page directory entry in question.
- * @param   pPGM        Pointer to the PGM instance data.
- */
-DECLINLINE(PX86PD) pgmGstGet32bitPDPtr(PPGMCPU pPGM)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PD  pGuestPD = NULL;
-    int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPD);
-    AssertRCReturn(rc, NULL);
-#else
-    PX86PD pGuestPD = pPGM->CTX_SUFF(pGst32BitPd);
-# ifdef IN_RING3
-    if (!pGuestPD)
-        pGuestPD = pgmGstLazyMap32BitPD(pPGM);
-# endif
-#endif
-    return pGuestPD;
-}
-
-
-/**
- * Gets the guest page directory pointer table.
- *
- * @returns Pointer to the page directory in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- */
-DECLINLINE(PX86PDPT) pgmGstGetPaePDPTPtr(PPGMCPU pPGM)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PDPT pGuestPDPT = NULL;
-    int rc = pgmR0DynMapGCPageOffInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPDPT);
-    AssertRCReturn(rc, NULL);
-#else
-    PX86PDPT pGuestPDPT = pPGM->CTX_SUFF(pGstPaePdpt);
-# ifdef IN_RING3
-    if (!pGuestPDPT)
-        pGuestPDPT = pgmGstLazyMapPaePDPT(pPGM);
-# endif
-#endif
-    return pGuestPDPT;
-}
-
-
-/**
- * Gets the guest page directory pointer table entry for the specified address.
- *
- * @returns Pointer to the page directory in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDPE) pgmGstGetPaePDPEPtr(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    AssertGCPtr32(GCPtr);
-
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PDPT pGuestPDPT = 0;
-    int rc = pgmR0DynMapGCPageOffInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPDPT);
-    AssertRCReturn(rc, 0);
-#else
-    PX86PDPT pGuestPDPT = pPGM->CTX_SUFF(pGstPaePdpt);
-# ifdef IN_RING3
-    if (!pGuestPDPT)
-        pGuestPDPT = pgmGstLazyMapPaePDPT(pPGM);
-# endif
-#endif
-    return &pGuestPDPT->a[(GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE];
-}
-
-
-/**
- * Gets the page directory for the specified address.
- *
- * @returns Pointer to the page directory in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDPAE) pgmGstGetPaePD(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    AssertGCPtr32(GCPtr);
-
-    PX86PDPT        pGuestPDPT = pgmGstGetPaePDPTPtr(pPGM);
-    AssertReturn(pGuestPDPT, NULL);
-    const unsigned  iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE;
-    if (pGuestPDPT->a[iPdpt].n.u1Present)
-    {
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-        PX86PDPAE   pGuestPD = NULL;
-        int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK, (void **)&pGuestPD);
-        AssertRCReturn(rc, NULL);
-#else
-        PX86PDPAE   pGuestPD = pPGM->CTX_SUFF(apGstPaePDs)[iPdpt];
-        if (    !pGuestPD
-            ||  (pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK) != pPGM->aGCPhysGstPaePDs[iPdpt])
-            pGuestPD = pgmGstLazyMapPaePD(pPGM, iPdpt);
-#endif
-        return pGuestPD;
-        /* returning NULL is ok if we assume it's just an invalid page of some kind emulated as all 0s. (not quite true) */
-    }
-    return NULL;
-}
-
-
-/**
- * Gets the page directory entry for the specified address.
- *
- * @returns Pointer to the page directory entry in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDEPAE) pgmGstGetPaePDEPtr(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    AssertGCPtr32(GCPtr);
-
-    PX86PDPT        pGuestPDPT = pgmGstGetPaePDPTPtr(pPGM);
-    AssertReturn(pGuestPDPT, NULL);
-    const unsigned  iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE;
-    if (pGuestPDPT->a[iPdpt].n.u1Present)
-    {
-        const unsigned iPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-        PX86PDPAE   pGuestPD = NULL;
-        int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK, (void **)&pGuestPD);
-        AssertRCReturn(rc, NULL);
-#else
-        PX86PDPAE   pGuestPD = pPGM->CTX_SUFF(apGstPaePDs)[iPdpt];
-        if (    !pGuestPD
-            ||  (pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK) != pPGM->aGCPhysGstPaePDs[iPdpt])
-            pGuestPD = pgmGstLazyMapPaePD(pPGM, iPdpt);
-#endif
-        return &pGuestPD->a[iPD];
-        /* returning NIL_RTGCPHYS is ok if we assume it's just an invalid page or something which we'll emulate as all 0s. (not quite true) */
-    }
-    return NULL;
-}
-
-
-/**
- * Gets the page directory entry for the specified address.
- *
- * @returns The page directory entry in question.
- * @returns A non-present entry if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(X86PDEPAE) pgmGstGetPaePDE(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    AssertGCPtr32(GCPtr);
-    X86PDEPAE   ZeroPde = {0};
-    PX86PDPT    pGuestPDPT = pgmGstGetPaePDPTPtr(pPGM);
-    if (RT_LIKELY(pGuestPDPT))
-    {
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE;
-        if (pGuestPDPT->a[iPdpt].n.u1Present)
-        {
-            const unsigned iPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-            PX86PDPAE   pGuestPD = NULL;
-            int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK, (void **)&pGuestPD);
-            AssertRCReturn(rc, ZeroPde);
-#else
-            PX86PDPAE   pGuestPD = pPGM->CTX_SUFF(apGstPaePDs)[iPdpt];
-            if (    !pGuestPD
-                ||  (pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK) != pPGM->aGCPhysGstPaePDs[iPdpt])
-                pGuestPD = pgmGstLazyMapPaePD(pPGM, iPdpt);
-#endif
-            return pGuestPD->a[iPD];
-        }
-    }
-    return ZeroPde;
-}
-
-
-/**
- * Gets the page directory pointer table entry for the specified address
- * and returns the index into the page directory
- *
- * @returns Pointer to the page directory in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- * @param   piPD        Receives the index into the returned page directory
- * @param   pPdpe       Receives the page directory pointer entry. Optional.
- */
-DECLINLINE(PX86PDPAE) pgmGstGetPaePDPtr(PPGMCPU pPGM, RTGCPTR GCPtr, unsigned *piPD, PX86PDPE pPdpe)
-{
-    AssertGCPtr32(GCPtr);
-
-    PX86PDPT        pGuestPDPT = pgmGstGetPaePDPTPtr(pPGM);
-    AssertReturn(pGuestPDPT, NULL);
-    const unsigned  iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE;
-    if (pPdpe)
-        *pPdpe = pGuestPDPT->a[iPdpt];
-    if (pGuestPDPT->a[iPdpt].n.u1Present)
-    {
-        const unsigned iPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-        PX86PDPAE   pGuestPD = NULL;
-        int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK, (void **)&pGuestPD);
-        AssertRCReturn(rc, NULL);
-#else
-        PX86PDPAE   pGuestPD = pPGM->CTX_SUFF(apGstPaePDs)[iPdpt];
-        if (    !pGuestPD
-            ||  (pGuestPDPT->a[iPdpt].u & X86_PDPE_PG_MASK) != pPGM->aGCPhysGstPaePDs[iPdpt])
-            pGuestPD = pgmGstLazyMapPaePD(pPGM, iPdpt);
-#endif
-        *piPD = iPD;
-        return pGuestPD;
-        /* returning NIL_RTGCPHYS is ok if we assume it's just an invalid page of some kind emulated as all 0s. */
-    }
-    return NULL;
-}
-
-#ifndef IN_RC
-
-/**
- * Gets the page map level-4 pointer for the guest.
- *
- * @returns Pointer to the PML4 page.
- * @param   pPGM        Pointer to the PGM instance data.
- */
-DECLINLINE(PX86PML4) pgmGstGetLongModePML4Ptr(PPGMCPU pPGM)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PML4 pGuestPml4;
-    int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPml4);
-    AssertRCReturn(rc, NULL);
-#else
-    PX86PML4 pGuestPml4 = pPGM->CTX_SUFF(pGstAmd64Pml4);
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3
-    if (!pGuestPml4)
-        pGuestPml4 = pgmGstLazyMapPml4(pPGM);
-# endif
-    Assert(pGuestPml4);
-#endif
-    return pGuestPml4;
-}
-
-
-/**
- * Gets the pointer to a page map level-4 entry.
- *
- * @returns Pointer to the PML4 entry.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   iPml4       The index.
- */
-DECLINLINE(PX86PML4E) pgmGstGetLongModePML4EPtr(PPGMCPU pPGM, unsigned int iPml4)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PML4 pGuestPml4;
-    int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPml4);
-    AssertRCReturn(rc, NULL);
-#else
-    PX86PML4 pGuestPml4 = pPGM->CTX_SUFF(pGstAmd64Pml4);
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3
-    if (!pGuestPml4)
-        pGuestPml4 = pgmGstLazyMapPml4(pPGM);
-# endif
-    Assert(pGuestPml4);
-#endif
-    return &pGuestPml4->a[iPml4];
-}
-
-
-/**
- * Gets a page map level-4 entry.
- *
- * @returns The PML4 entry.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   iPml4       The index.
- */
-DECLINLINE(X86PML4E) pgmGstGetLongModePML4E(PPGMCPU pPGM, unsigned int iPml4)
-{
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PX86PML4 pGuestPml4;
-    int rc = pgmR0DynMapGCPageInlined(PGMCPU2PGM(pPGM), pPGM->GCPhysCR3, (void **)&pGuestPml4);
-    if (RT_FAILURE(rc))
-    {
-        X86PML4E ZeroPml4e = {0};
-        AssertMsgFailedReturn(("%Rrc\n", rc), ZeroPml4e);
-    }
-#else
-    PX86PML4 pGuestPml4 = pPGM->CTX_SUFF(pGstAmd64Pml4);
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3
-    if (!pGuestPml4)
-        pGuestPml4 = pgmGstLazyMapPml4(pPGM);
-# endif
-    Assert(pGuestPml4);
-#endif
-    return pGuestPml4->a[iPml4];
-}
-
-
-/**
- * Gets the page directory pointer entry for the specified address.
- *
- * @returns Pointer to the page directory pointer entry in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- * @param   ppPml4e     Page Map Level-4 Entry (out)
- */
-DECLINLINE(PX86PDPE) pgmGstGetLongModePDPTPtr(PPGMCPU pPGM, RTGCPTR64 GCPtr, PX86PML4E *ppPml4e)
-{
-    PX86PML4        pGuestPml4 = pgmGstGetLongModePML4Ptr(pPGM);
-    const unsigned  iPml4  = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    PCX86PML4E      pPml4e = *ppPml4e = &pGuestPml4->a[iPml4];
-    if (pPml4e->n.u1Present)
-    {
-        PX86PDPT pPdpt;
-        int rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPml4e->u & X86_PML4E_PG_MASK, &pPdpt);
-        AssertRCReturn(rc, NULL);
-
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64;
-        return &pPdpt->a[iPdpt];
-    }
-    return NULL;
-}
-
-
-/**
- * Gets the page directory entry for the specified address.
- *
- * @returns The page directory entry in question.
- * @returns A non-present entry if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- * @param   ppPml4e     Page Map Level-4 Entry (out)
- * @param   pPdpe       Page directory pointer table entry (out)
- */
-DECLINLINE(X86PDEPAE) pgmGstGetLongModePDEEx(PPGMCPU pPGM, RTGCPTR64 GCPtr, PX86PML4E *ppPml4e, PX86PDPE pPdpe)
-{
-    X86PDEPAE       ZeroPde = {0};
-    PX86PML4        pGuestPml4 = pgmGstGetLongModePML4Ptr(pPGM);
-    const unsigned  iPml4  = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    PCX86PML4E      pPml4e = *ppPml4e = &pGuestPml4->a[iPml4];
-    if (pPml4e->n.u1Present)
-    {
-        PCX86PDPT   pPdptTemp;
-        int rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPml4e->u & X86_PML4E_PG_MASK, &pPdptTemp);
-        AssertRCReturn(rc, ZeroPde);
-
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64;
-        *pPdpe = pPdptTemp->a[iPdpt];
-        if (pPdptTemp->a[iPdpt].n.u1Present)
-        {
-            PCX86PDPAE pPD;
-            rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPdptTemp->a[iPdpt].u & X86_PDPE_PG_MASK, &pPD);
-            AssertRCReturn(rc, ZeroPde);
-
-            const unsigned iPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-            return pPD->a[iPD];
-        }
-    }
-
-    return ZeroPde;
-}
-
-
-/**
- * Gets the page directory entry for the specified address.
- *
- * @returns The page directory entry in question.
- * @returns A non-present entry if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(X86PDEPAE) pgmGstGetLongModePDE(PPGMCPU pPGM, RTGCPTR64 GCPtr)
-{
-    X86PDEPAE       ZeroPde = {0};
-    PCX86PML4       pGuestPml4 = pgmGstGetLongModePML4Ptr(pPGM);
-    const unsigned  iPml4 = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    if (pGuestPml4->a[iPml4].n.u1Present)
-    {
-        PCX86PDPT   pPdptTemp;
-        int rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pGuestPml4->a[iPml4].u & X86_PML4E_PG_MASK, &pPdptTemp);
-        AssertRCReturn(rc, ZeroPde);
-
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64;
-        if (pPdptTemp->a[iPdpt].n.u1Present)
-        {
-            PCX86PDPAE pPD;
-            rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPdptTemp->a[iPdpt].u & X86_PDPE_PG_MASK, &pPD);
-            AssertRCReturn(rc, ZeroPde);
-
-            const unsigned iPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-            return pPD->a[iPD];
-        }
-    }
-    return ZeroPde;
-}
-
-
-/**
- * Gets the page directory entry for the specified address.
- *
- * @returns Pointer to the page directory entry in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDEPAE) pgmGstGetLongModePDEPtr(PPGMCPU pPGM, RTGCPTR64 GCPtr)
-{
-    PCX86PML4       pGuestPml4 = pgmGstGetLongModePML4Ptr(pPGM);
-    const unsigned  iPml4 = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    if (pGuestPml4->a[iPml4].n.u1Present)
-    {
-        PCX86PDPT   pPdptTemp;
-        int rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pGuestPml4->a[iPml4].u & X86_PML4E_PG_MASK, &pPdptTemp);
-        AssertRCReturn(rc, NULL);
-
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64;
-        if (pPdptTemp->a[iPdpt].n.u1Present)
-        {
-            PX86PDPAE pPD;
-            rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPdptTemp->a[iPdpt].u & X86_PDPE_PG_MASK, &pPD);
-            AssertRCReturn(rc, NULL);
-
-            const unsigned iPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-            return &pPD->a[iPD];
-        }
-    }
-    return NULL;
-}
-
-
-/**
- * Gets the GUEST page directory pointer for the specified address.
- *
- * @returns The page directory in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- * @param   ppPml4e     Page Map Level-4 Entry (out)
- * @param   pPdpe       Page directory pointer table entry (out)
- * @param   piPD        Receives the index into the returned page directory
- */
-DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PPGMCPU pPGM, RTGCPTR64 GCPtr, PX86PML4E *ppPml4e, PX86PDPE pPdpe, unsigned *piPD)
-{
-    PX86PML4        pGuestPml4 = pgmGstGetLongModePML4Ptr(pPGM);
-    const unsigned  iPml4  = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    PCX86PML4E      pPml4e = *ppPml4e = &pGuestPml4->a[iPml4];
-    if (pPml4e->n.u1Present)
-    {
-        PCX86PDPT   pPdptTemp;
-        int rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPml4e->u & X86_PML4E_PG_MASK, &pPdptTemp);
-        AssertRCReturn(rc, NULL);
-
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64;
-        *pPdpe = pPdptTemp->a[iPdpt];
-        if (pPdptTemp->a[iPdpt].n.u1Present)
-        {
-            PX86PDPAE pPD;
-            rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPdptTemp->a[iPdpt].u & X86_PDPE_PG_MASK, &pPD);
-            AssertRCReturn(rc, NULL);
-
-            *piPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-            return pPD;
-        }
-    }
-    return 0;
-}
-
-#endif /* !IN_RC */
-
-/**
- * Gets the shadow page directory, 32-bit.
- *
- * @returns Pointer to the shadow 32-bit PD.
- * @param   pPGM        Pointer to the PGM instance data.
- */
-DECLINLINE(PX86PD) pgmShwGet32BitPDPtr(PPGMCPU pPGM)
-{
-    return (PX86PD)PGMPOOL_PAGE_2_PTR_BY_PGMCPU(pPGM, pPGM->CTX_SUFF(pShwPageCR3));
-}
-
-
-/**
- * Gets the shadow page directory entry for the specified address, 32-bit.
- *
- * @returns Shadow 32-bit PDE.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(X86PDE) pgmShwGet32BitPDE(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    const unsigned iPd = (GCPtr >> X86_PD_SHIFT) & X86_PD_MASK;
-
-    PX86PD pShwPde = pgmShwGet32BitPDPtr(pPGM);
-    if (!pShwPde)
-    {
-        X86PDE ZeroPde = {0};
-        return ZeroPde;
-    }
-    return pShwPde->a[iPd];
-}
-
-
-/**
- * Gets the pointer to the shadow page directory entry for the specified
- * address, 32-bit.
- *
- * @returns Pointer to the shadow 32-bit PDE.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDE) pgmShwGet32BitPDEPtr(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    const unsigned iPd = (GCPtr >> X86_PD_SHIFT) & X86_PD_MASK;
-
-    PX86PD pPde = pgmShwGet32BitPDPtr(pPGM);
-    AssertReturn(pPde, NULL);
-    return &pPde->a[iPd];
-}
-
-
-/**
- * Gets the shadow page pointer table, PAE.
- *
- * @returns Pointer to the shadow PAE PDPT.
- * @param   pPGM        Pointer to the PGM instance data.
- */
-DECLINLINE(PX86PDPT) pgmShwGetPaePDPTPtr(PPGMCPU pPGM)
-{
-    return (PX86PDPT)PGMPOOL_PAGE_2_PTR_BY_PGMCPU(pPGM, pPGM->CTX_SUFF(pShwPageCR3));
-}
-
-
-/**
- * Gets the shadow page directory for the specified address, PAE.
- *
- * @returns Pointer to the shadow PD.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    const unsigned  iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE;
-    PX86PDPT        pPdpt = pgmShwGetPaePDPTPtr(pPGM);
-
-    if (!pPdpt->a[iPdpt].n.u1Present)
-        return NULL;
-
-    /* Fetch the pgm pool shadow descriptor. */
-    PPGMPOOLPAGE pShwPde = pgmPoolGetPage(PGMCPU2PGM(pPGM)->CTX_SUFF(pPool), pPdpt->a[iPdpt].u & X86_PDPE_PG_MASK);
-    AssertReturn(pShwPde, NULL);
-
-    return (PX86PDPAE)PGMPOOL_PAGE_2_PTR_BY_PGMCPU(pPGM, pShwPde);
-}
-
-
-/**
- * Gets the shadow page directory for the specified address, PAE.
- *
- * @returns Pointer to the shadow PD.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PPGMCPU pPGM, PX86PDPT pPdpt, RTGCPTR GCPtr)
-{
-    const unsigned  iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE;
-
-    if (!pPdpt->a[iPdpt].n.u1Present)
-        return NULL;
-
-    /* Fetch the pgm pool shadow descriptor. */
-    PPGMPOOLPAGE    pShwPde = pgmPoolGetPage(PGMCPU2PGM(pPGM)->CTX_SUFF(pPool), pPdpt->a[iPdpt].u & X86_PDPE_PG_MASK);
-    AssertReturn(pShwPde, NULL);
-
-    return (PX86PDPAE)PGMPOOL_PAGE_2_PTR_BY_PGMCPU(pPGM, pShwPde);
-}
-
-
-/**
- * Gets the shadow page directory entry, PAE.
- *
- * @returns PDE.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(X86PDEPAE) pgmShwGetPaePDE(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    const unsigned  iPd   = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-
-    PX86PDPAE pShwPde = pgmShwGetPaePDPtr(pPGM, GCPtr);
-    if (!pShwPde)
-    {
-        X86PDEPAE ZeroPde = {0};
-        return ZeroPde;
-    }
-    return pShwPde->a[iPd];
-}
-
-
-/**
- * Gets the pointer to the shadow page directory entry for an address, PAE.
- *
- * @returns Pointer to the PDE.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(PX86PDEPAE) pgmShwGetPaePDEPtr(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    const unsigned  iPd   = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-
-    PX86PDPAE pPde = pgmShwGetPaePDPtr(pPGM, GCPtr);
-    AssertReturn(pPde, NULL);
-    return &pPde->a[iPd];
-}
-
-#ifndef IN_RC
-
-/**
- * Gets the shadow page map level-4 pointer.
- *
- * @returns Pointer to the shadow PML4.
- * @param   pPGM        Pointer to the PGM instance data.
- */
-DECLINLINE(PX86PML4) pgmShwGetLongModePML4Ptr(PPGMCPU pPGM)
-{
-    return (PX86PML4)PGMPOOL_PAGE_2_PTR_BY_PGMCPU(pPGM, pPGM->CTX_SUFF(pShwPageCR3));
-}
-
-
-/**
- * Gets the shadow page map level-4 entry for the specified address.
- *
- * @returns The entry.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- */
-DECLINLINE(X86PML4E) pgmShwGetLongModePML4E(PPGMCPU pPGM, RTGCPTR GCPtr)
-{
-    const unsigned  iPml4 = ((RTGCUINTPTR64)GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    PX86PML4        pShwPml4 = pgmShwGetLongModePML4Ptr(pPGM);
-
-    if (!pShwPml4)
-    {
-        X86PML4E ZeroPml4e = {0};
-        return ZeroPml4e;
-    }
-    return pShwPml4->a[iPml4];
-}
-
-
-/**
- * Gets the pointer to the specified shadow page map level-4 entry.
- *
- * @returns The entry.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   iPml4       The PML4 index.
- */
-DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PPGMCPU pPGM, unsigned int iPml4)
-{
-    PX86PML4 pShwPml4 = pgmShwGetLongModePML4Ptr(pPGM);
-    if (!pShwPml4)
-        return NULL;
-    return &pShwPml4->a[iPml4];
-}
-
-
-/**
- * Gets the GUEST page directory pointer for the specified address.
- *
- * @returns The page directory in question.
- * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pPGM        Pointer to the PGM instance data.
- * @param   GCPtr       The address.
- * @param   piPD        Receives the index into the returned page directory
- */
-DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PPGMCPU pPGM, RTGCPTR64 GCPtr, unsigned *piPD)
-{
-    PCX86PML4       pGuestPml4 = pgmGstGetLongModePML4Ptr(pPGM);
-    const unsigned  iPml4  = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
-    if (pGuestPml4->a[iPml4].n.u1Present)
-    {
-        PCX86PDPT   pPdptTemp;
-        int rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pGuestPml4->a[iPml4].u & X86_PML4E_PG_MASK, &pPdptTemp);
-        AssertRCReturn(rc, NULL);
-
-        const unsigned iPdpt = (GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64;
-        if (pPdptTemp->a[iPdpt].n.u1Present)
-        {
-            PX86PDPAE pPD;
-            rc = PGM_GCPHYS_2_PTR_BY_PGMCPU(pPGM, pPdptTemp->a[iPdpt].u & X86_PDPE_PG_MASK, &pPD);
-            AssertRCReturn(rc, NULL);
-
-            *piPD = (GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK;
-            return pPD;
-        }
-    }
-    return NULL;
-}
-
-#endif /* !IN_RC */
-
-/**
- * Gets the page state for a physical handler.
- *
- * @returns The physical handler page state.
- * @param   pCur    The physical handler in question.
- */
-DECLINLINE(unsigned) pgmHandlerPhysicalCalcState(PPGMPHYSHANDLER pCur)
-{
-    switch (pCur->enmType)
-    {
-        case PGMPHYSHANDLERTYPE_PHYSICAL_WRITE:
-            return PGM_PAGE_HNDL_PHYS_STATE_WRITE;
-
-        case PGMPHYSHANDLERTYPE_MMIO:
-        case PGMPHYSHANDLERTYPE_PHYSICAL_ALL:
-            return PGM_PAGE_HNDL_PHYS_STATE_ALL;
-
-        default:
-            AssertFatalMsgFailed(("Invalid type %d\n", pCur->enmType));
-    }
-}
-
-
-/**
- * Gets the page state for a virtual handler.
- *
- * @returns The virtual handler page state.
- * @param   pCur    The virtual handler in question.
- * @remarks This should never be used on a hypervisor access handler.
- */
-DECLINLINE(unsigned) pgmHandlerVirtualCalcState(PPGMVIRTHANDLER pCur)
-{
-    switch (pCur->enmType)
-    {
-        case PGMVIRTHANDLERTYPE_WRITE:
-            return PGM_PAGE_HNDL_VIRT_STATE_WRITE;
-        case PGMVIRTHANDLERTYPE_ALL:
-            return PGM_PAGE_HNDL_VIRT_STATE_ALL;
-        default:
-            AssertFatalMsgFailed(("Invalid type %d\n", pCur->enmType));
-    }
-}
-
-
-/**
- * Clears one physical page of a virtual handler
- *
- * @param   pPGM    Pointer to the PGM instance.
- * @param   pCur    Virtual handler structure
- * @param   iPage   Physical page index
- *
- * @remark  Only used when PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL is being set, so no
- *          need to care about other handlers in the same page.
- */
-DECLINLINE(void) pgmHandlerVirtualClearPage(PPGM pPGM, PPGMVIRTHANDLER pCur, unsigned iPage)
-{
-    const PPGMPHYS2VIRTHANDLER pPhys2Virt = &pCur->aPhysToVirt[iPage];
-
-    /*
-     * Remove the node from the tree (it's supposed to be in the tree if we get here!).
-     */
-#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-    AssertReleaseMsg(pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IN_TREE,
-                     ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                      pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias));
-#endif
-    if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_IS_HEAD)
-    {
-        /* We're the head of the alias chain. */
-        PPGMPHYS2VIRTHANDLER pRemove = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysRemove(&pPGM->CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key); NOREF(pRemove);
-#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-        AssertReleaseMsg(pRemove != NULL,
-                         ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                          pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias));
-        AssertReleaseMsg(pRemove == pPhys2Virt,
-                         ("wanted: pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n"
-                          "   got:    pRemove=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                          pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias,
-                          pRemove, pRemove->Core.Key, pRemove->Core.KeyLast, pRemove->offVirtHandler, pRemove->offNextAlias));
-#endif
-        if (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK)
-        {
-            /* Insert the next list in the alias chain into the tree. */
-            PPGMPHYS2VIRTHANDLER pNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPhys2Virt + (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-            AssertReleaseMsg(pNext->offNextAlias & PGMPHYS2VIRTHANDLER_IN_TREE,
-                             ("pNext=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32}\n",
-                             pNext, pNext->Core.Key, pNext->Core.KeyLast, pNext->offVirtHandler, pNext->offNextAlias));
-#endif
-            pNext->offNextAlias |= PGMPHYS2VIRTHANDLER_IS_HEAD;
-            bool fRc = RTAvlroGCPhysInsert(&pPGM->CTX_SUFF(pTrees)->PhysToVirtHandlers, &pNext->Core);
-            AssertRelease(fRc);
-        }
-    }
-    else
-    {
-        /* Locate the previous node in the alias chain. */
-        PPGMPHYS2VIRTHANDLER pPrev = (PPGMPHYS2VIRTHANDLER)RTAvlroGCPhysGet(&pPGM->CTX_SUFF(pTrees)->PhysToVirtHandlers, pPhys2Virt->Core.Key);
-#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-        AssertReleaseMsg(pPrev != pPhys2Virt,
-                         ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
-                          pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias, pPrev));
-#endif
-        for (;;)
-        {
-            PPGMPHYS2VIRTHANDLER pNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPrev + (pPrev->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-            if (pNext == pPhys2Virt)
-            {
-                /* unlink. */
-                LogFlow(("pgmHandlerVirtualClearPage: removed %p:{.offNextAlias=%#RX32} from alias chain. prev %p:{.offNextAlias=%#RX32} [%RGp-%RGp]\n",
-                         pPhys2Virt, pPhys2Virt->offNextAlias, pPrev, pPrev->offNextAlias, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast));
-                if (!(pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK))
-                    pPrev->offNextAlias &= ~PGMPHYS2VIRTHANDLER_OFF_MASK;
-                else
-                {
-                    PPGMPHYS2VIRTHANDLER pNewNext = (PPGMPHYS2VIRTHANDLER)((intptr_t)pPhys2Virt + (pPhys2Virt->offNextAlias & PGMPHYS2VIRTHANDLER_OFF_MASK));
-                    pPrev->offNextAlias = ((intptr_t)pNewNext - (intptr_t)pPrev)
-                                        | (pPrev->offNextAlias & ~PGMPHYS2VIRTHANDLER_OFF_MASK);
-                }
-                break;
-            }
-
-            /* next */
-            if (pNext == pPrev)
-            {
-#ifdef VBOX_STRICT_PGM_HANDLER_VIRTUAL
-                AssertReleaseMsg(pNext != pPrev,
-                                 ("pPhys2Virt=%p:{.Core.Key=%RGp, .Core.KeyLast=%RGp, .offVirtHandler=%#RX32, .offNextAlias=%#RX32} pPrev=%p\n",
-                                  pPhys2Virt, pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offVirtHandler, pPhys2Virt->offNextAlias, pPrev));
-#endif
-                break;
-            }
-            pPrev = pNext;
-        }
-    }
-    Log2(("PHYS2VIRT: Removing %RGp-%RGp %#RX32 %s\n",
-          pPhys2Virt->Core.Key, pPhys2Virt->Core.KeyLast, pPhys2Virt->offNextAlias, R3STRING(pCur->pszDesc)));
-    pPhys2Virt->offNextAlias = 0;
-    pPhys2Virt->Core.KeyLast = NIL_RTGCPHYS; /* require reinsert */
-
-    /*
-     * Clear the ram flags for this page.
-     */
-    PPGMPAGE pPage = pgmPhysGetPage(pPGM, pPhys2Virt->Core.Key);
-    AssertReturnVoid(pPage);
-    PGM_PAGE_SET_HNDL_VIRT_STATE(pPage, PGM_PAGE_HNDL_VIRT_STATE_NONE);
-}
-
-
-/**
- * Internal worker for finding a 'in-use' shadow page give by it's physical address.
- *
- * @returns Pointer to the shadow page structure.
- * @param   pPool       The pool.
- * @param   idx         The pool page index.
- */
-DECLINLINE(PPGMPOOLPAGE) pgmPoolGetPageByIdx(PPGMPOOL pPool, unsigned idx)
-{
-    AssertFatalMsg(idx >= PGMPOOL_IDX_FIRST && idx < pPool->cCurPages, ("idx=%d\n", idx));
-    return &pPool->aPages[idx];
-}
-
-
-#ifdef PGMPOOL_WITH_GCPHYS_TRACKING
-/**
- * Clear references to guest physical memory.
- *
- * @param   pPool       The pool.
- * @param   pPoolPage   The pool page.
- * @param   pPhysPage   The physical guest page tracking structure.
- */
-DECLINLINE(void) pgmTrackDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPoolPage, PPGMPAGE pPhysPage)
-{
-    /*
-     * Just deal with the simple case here.
-     */
-# ifdef LOG_ENABLED
-    const unsigned uOrg = PGM_PAGE_GET_TRACKING(pPhysPage);
-# endif
-    const unsigned cRefs = PGM_PAGE_GET_TD_CREFS(pPhysPage);
-    if (cRefs == 1)
-    {
-        Assert(pPoolPage->idx == PGM_PAGE_GET_TD_IDX(pPhysPage));
-        PGM_PAGE_SET_TRACKING(pPhysPage, 0);
-    }
-    else
-        pgmPoolTrackPhysExtDerefGCPhys(pPool, pPoolPage, pPhysPage);
-    Log2(("pgmTrackDerefGCPhys: %x -> %x pPhysPage=%R[pgmpage]\n", uOrg, PGM_PAGE_GET_TRACKING(pPhysPage), pPhysPage ));
-}
-#endif /* PGMPOOL_WITH_GCPHYS_TRACKING */
-
-
-#ifdef PGMPOOL_WITH_CACHE
-/**
- * Moves the page to the head of the age list.
- *
- * This is done when the cached page is used in one way or another.
- *
- * @param   pPool       The pool.
- * @param   pPage       The cached page.
- */
-DECLINLINE(void) pgmPoolCacheUsed(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
-{
-    PVM pVM = pPool->CTX_SUFF(pVM);
-    pgmLock(pVM);
-
-    /*
-     * Move to the head of the age list.
-     */
-    if (pPage->iAgePrev != NIL_PGMPOOL_IDX)
-    {
-        /* unlink */
-        pPool->aPages[pPage->iAgePrev].iAgeNext = pPage->iAgeNext;
-        if (pPage->iAgeNext != NIL_PGMPOOL_IDX)
-            pPool->aPages[pPage->iAgeNext].iAgePrev = pPage->iAgePrev;
-        else
-            pPool->iAgeTail = pPage->iAgePrev;
-
-        /* insert at head */
-        pPage->iAgePrev = NIL_PGMPOOL_IDX;
-        pPage->iAgeNext = pPool->iAgeHead;
-        Assert(pPage->iAgeNext != NIL_PGMPOOL_IDX); /* we would've already been head then */
-        pPool->iAgeHead = pPage->idx;
-        pPool->aPages[pPage->iAgeNext].iAgePrev = pPage->idx;
-    }
-    pgmUnlock(pVM);
-}
-#endif /* PGMPOOL_WITH_CACHE */
-
-/**
- * Locks a page to prevent flushing (important for cr3 root pages or shadow pae pd pages).
- *
- * @param   pVM         VM Handle.
- * @param   pPage       PGM pool page
- */
-DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
-{
-    Assert(PGMIsLockOwner(pPool->CTX_SUFF(pVM)));
-    ASMAtomicIncU32(&pPage->cLocked);
-}
-
-
-/**
- * Unlocks a page to allow flushing again
- *
- * @param   pVM         VM Handle.
- * @param   pPage       PGM pool page
- */
-DECLINLINE(void) pgmPoolUnlockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
-{
-    Assert(PGMIsLockOwner(pPool->CTX_SUFF(pVM)));
-    Assert(pPage->cLocked);
-    ASMAtomicDecU32(&pPage->cLocked);
-}
-
-
-/**
- * Checks if the page is locked (e.g. the active CR3 or one of the four PDs of a PAE PDPT)
- *
- * @returns VBox status code.
- * @param   pPage       PGM pool page
- */
-DECLINLINE(bool) pgmPoolIsPageLocked(PPGM pPGM, PPGMPOOLPAGE pPage)
-{
-    if (pPage->cLocked)
-    {
-        LogFlow(("pgmPoolIsPageLocked found root page %d\n", pPage->enmKind));
-        if (pPage->cModifications)
-            pPage->cModifications = 1; /* reset counter (can't use 0, or else it will be reinserted in the modified list) */
-        return true;
-    }
-    return false;
-}
-
-
-/**
- * Tells if mappings are to be put into the shadow page table or not.
- *
- * @returns boolean result
- * @param   pVM         VM handle.
- */
-DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PPGM pPGM)
-{
-#ifdef PGM_WITHOUT_MAPPINGS
-    /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(pPGM->fMappingsDisabled);
-    return false;
-#else
-    return !pPGM->fMappingsDisabled;
-#endif
-}
-
-
-/**
- * Checks if the mappings are floating and enabled.
- *
- * @returns true / false.
- * @param   pVM         The VM handle.
- */
-DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PPGM pPGM)
-{
-#ifdef PGM_WITHOUT_MAPPINGS
-    /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(pPGM->fMappingsDisabled);
-    return false;
-#else
-    return !pPGM->fMappingsDisabled
-        && !pPGM->fMappingsFixed;
-#endif
-}
-
 /** @} */
 
 #endif
-
 

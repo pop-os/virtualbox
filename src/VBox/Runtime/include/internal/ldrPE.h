@@ -1,10 +1,10 @@
-/* $Id: ldrPE.h $ */
+/* $Id: ldrPE.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Windows NT PE Structures and Constants.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_ldrPE_h
@@ -195,6 +191,17 @@
 #define  IMAGE_DEBUG_TYPE_OMAP_FROM_SRC  0x8
 #define  IMAGE_DEBUG_TYPE_BORLAND  0x9
 #define  IMAGE_DEBUG_TYPE_RESERVED10  0x10
+
+/* security directory */
+#define  WIN_CERT_REVISION_1_0  UINT16_C(0x0100)
+#define  WIN_CERT_REVISION_2_0  UINT16_C(0x0200)
+
+#define  WIN_CERT_TYPE_X509  UINT16_C(1)
+#define  WIN_CERT_TYPE_PKCS_SIGNED_DATA  UINT16_C(2)
+#define  WIN_CERT_TYPE_RESERVED_1  UINT16_C(3)
+#define  WIN_CERT_TYPE_TS_STACK_SIGNED  UINT16_C(4)
+#define  WIN_CERT_TYPE_EFI_PKCS115 UINT16_C(0x0ef0)
+#define  WIN_CERT_TYPE_EFI_GUID UINT16_C(0x0ef1)
 
 
 /*******************************************************************************
@@ -466,6 +473,16 @@ typedef struct _IMAGE_DEBUG_DIRECTORY
     uint32_t  PointerToRawData;
 } IMAGE_DEBUG_DIRECTORY;
 typedef IMAGE_DEBUG_DIRECTORY *PIMAGE_DEBUG_DIRECTORY;
+
+
+typedef struct WIN_CERTIFICATE
+{
+    uint32_t    dwLength;
+    uint16_t    wRevision;
+    uint16_t    wCertificateType;
+    uint8_t     bCertificate[8];
+} WIN_CERTIFICATE;
+typedef WIN_CERTIFICATE *PWIN_CERTIFICATE;
 
 #pragma pack()
 

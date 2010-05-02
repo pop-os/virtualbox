@@ -1,9 +1,9 @@
-// $Id: vbox.dsl $
+// $Id: vbox.dsl 28800 2010-04-27 08:22:32Z vboxsync $
 /// @file
 //
 // VirtualBox ACPI
 //
-// Copyright (C) 2006-2007 Sun Microsystems, Inc.
+// Copyright (C) 2006-2007 Oracle Corporation
 //
 // This file is part of VirtualBox Open Source Edition (OSE), as
 // available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
 // Foundation, in version 2 as it comes in the "COPYING" file of the
 // VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 // hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-//
-// Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-// Clara, CA 95054 USA or visit http://www.sun.com if you need
-// additional information or have any questions.
 
 DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
 {
@@ -120,243 +116,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
         Store (Arg0, PICM)
     }
 
-    // Processor object
-    // #1463: Showing the CPU can make the guest do bad things on it like SpeedStep.
-    // In this case, XP SP2 contains this buggy Intelppm.sys driver which wants to mess
-    // with SpeedStep if it finds a CPU object and when it finds out that it can't, it
-    // tries to unload and crashes (MS probably never tested this code path).
-    // So we enable this ACPI object only for certain guests, which do need it,
-    // if by accident Windows guest seen enabled CPU object, just boot from latest
-    // known good configuration, as it remembers state, even if ACPI object gets disabled.
-    Scope (\_PR)
-    {
-        Processor (CPU0, /* Name */
-                   0x00, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU1, /* Name */
-                   0x01, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU2, /* Name */
-                   0x02, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU3, /* Name */
-                   0x03, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU4, /* Name */
-                   0x04, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU5, /* Name */
-                   0x05, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU6, /* Name */
-                   0x06, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU7, /* Name */
-                   0x07, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU8, /* Name */
-                   0x08, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPU9, /* Name */
-                   0x09, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUA, /* Name */
-                   0x0a, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUB, /* Name */
-                   0x0b, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUC, /* Name */
-                   0x0c, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUD, /* Name */
-                   0x0d, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUE, /* Name */
-                   0x0e, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUF, /* Name */
-                   0x0f, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUG, /* Name */
-                   0x10, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUH, /* Name */
-                   0x11, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUI, /* Name */
-                   0x12, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUJ, /* Name */
-                   0x13, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUK, /* Name */
-                   0x14, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUL, /* Name */
-                   0x15, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUM, /* Name */
-                   0x16, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUN, /* Name */
-                   0x17, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUO, /* Name */
-                   0x18, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUP, /* Name */
-                   0x19, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUQ, /* Name */
-                   0x1a, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUR, /* Name */
-                   0x1b, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUS, /* Name */
-                   0x1c, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUT, /* Name */
-                   0x1d, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUU, /* Name */
-                   0x1e, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        Processor (CPUV, /* Name */
-                   0x1f, /* Id */
-                   0x0,  /* Processor IO ports range start */
-                   0x0   /* Processor IO ports range length */
-                   )
-        {
-        }
-        
-    }
-
     Scope (\_SB)
     {
         OperationRegion (SYSI, SystemIO, 0x4048, 0x08)
@@ -373,13 +132,18 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             UHPT,  32,
             USMC,  32,
             UFDC,  32,
-            // @todo: maybe make it bitmask instead?
+            // UCP0-UCP3 no longer used and only kept here for saved state compatibilty
             UCP0,  32,
-            UCP1,  32, 
-            UCP2,  32, 
-            UCP3,  32, 
+            UCP1,  32,
+            UCP2,  32,
+            UCP3,  32,
             MEMH,  32,
             URTC,  32,
+            CPUL,  32,
+            CPUC,  32,
+            CPET,  32,
+            CPEV,  32,
+            NICA,  32,
             Offset (0x80),
             ININ, 32,
             Offset (0x200),
@@ -399,8 +163,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             HEX4 (USMC)
             DBG ("UFDC: ")
             HEX4 (UFDC)
-            DBG ("UCP0: ")
-            HEX4 (UCP0)
             DBG ("MEMH: ")
             HEX4 (MEMH)
         }
@@ -747,7 +509,9 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             Name (_BBN, 0x00) // base bus adddress
             Name (_UID, 0x00)
 
-            // Method that returns routing table
+            // Method that returns routing table; also opens PCI to I/O APIC 
+            // interrupt routing backdoor by writing 0xdead 0xbeef signature
+            // to ISA bridge config space. See DevPCI.cpp/pciSetIrqInternal().
             Method (_PRT, 0, NotSerialized)
             {
                 if (LEqual (LAnd (PICM, UIOA), Zero)) {
@@ -849,8 +613,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
 
                     Name (_CRS, ResourceTemplate ()
                     {
-                        IO (Decode16, 0x0060, 0x0060, 0x00, 0x01)
-                        IO (Decode16, 0x0064, 0x0064, 0x00, 0x01)
                         IRQNoFlags () {12}
                     })
                 }
@@ -870,6 +632,166 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                         IRQNoFlags () {7}
                     })
                 }
+
+                // Programmable Interval Timer (i8254)
+                Device (TIMR)
+                {
+                    Name (_HID, EisaId ("PNP0100"))
+                    Name (_CRS, ResourceTemplate ()
+                    {
+                        IO (Decode16,
+                            0x0040,             // Range Minimum
+                            0x0040,             // Range Maximum
+                            0x00,               // Alignment
+                            0x04,               // Length
+                            )
+                        IO (Decode16,
+                            0x0050,             // Range Minimum
+                            0x0050,             // Range Maximum
+                            0x10,               // Alignment
+                            0x04,               // Length
+                            )
+                    })
+                }
+
+                // Programmable Interrupt Controller (i8259)
+                Device (PIC)
+                {
+                    Name (_HID, EisaId ("PNP0000"))
+                    Name (_CRS, ResourceTemplate ()
+                    {
+                        IO (Decode16,
+                            0x0020,             // Range Minimum
+                            0x0020,             // Range Maximum
+                            0x00,               // Alignment
+                            0x02,               // Length
+                            )
+                        IO (Decode16,
+                            0x00A0,             // Range Minimum
+                            0x00A0,             // Range Maximum
+                            0x00,               // Alignment
+                            0x02,               // Length
+                            )
+                        // because in APIC configs PIC connected to pin 0,
+                        // and ISA IRQ0 rerouted to pin 2
+                        IRQNoFlags ()
+                            {2}
+                    })
+                }
+
+
+                // Real Time Clock and CMOS (MC146818)
+                Device (RTC) 
+                {
+                    Name (_HID, EisaId ("PNP0B00"))
+                    Name (_CRS, ResourceTemplate ()
+                    {
+                      IO (Decode16,
+                          0x0070,             // Range Minimum
+                          0x0070,             // Range Maximum
+                          0x01,               // Alignment
+                          0x02,               // Length
+                      )
+                    })
+                    Method (_STA, 0, NotSerialized)
+                    {
+                       Return (URTC)
+                    }
+                }
+
+                // High Precision Event Timer
+                Device(HPET) 
+                {
+                  Name (_HID,  EISAID("PNP0103"))
+                  Name (_CID, EISAID("PNP0C01"))
+                  Name(_UID, 0)
+
+                  Method (_STA, 0, NotSerialized) 
+                  {
+                       Return(UHPT)
+                  }
+
+                  Name(CRS, ResourceTemplate() 
+                  {
+                      IRQNoFlags ()
+                            {0}
+                      IRQNoFlags ()
+                            {8}
+                      Memory32Fixed (ReadWrite,
+                            0xFED00000,         // Address Base
+                            0x00000400         // Address Length
+                            )
+                  })
+                
+                  Method (_CRS, 0, NotSerialized)
+                  {
+                     Return (CRS)
+                  }
+                }
+
+                // System Management Controller
+                Device (SMC)
+                {
+                    Name (_HID, EisaId ("APP0001"))
+                    Name (_CID, "smc-napa")
+
+                    Method (_STA, 0, NotSerialized)
+                    {
+                       Return (USMC)
+                    }
+                    Name (CRS, ResourceTemplate ()
+                    {
+                       IO (Decode16,
+                           0x0300,             // Range Minimum
+                           0x0300,             // Range Maximum
+                           0x01,               // Alignment
+                           0x20)               // Length                   
+                    IRQNoFlags ()
+                            {6}
+
+                    })
+                    Method (_CRS, 0, NotSerialized)
+                    {
+                       Return (CRS)
+                    }
+                 }                 
+             }
+
+            // NIC
+            Device (GIGE)
+            {
+                /**
+                 * Generic NIC, accoring to
+                 * http://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/devids.txt
+                 * Needed by some Windows guests.
+                 */
+                Name (_HID, EisaId ("PNP8390"))
+
+                Method(_ADR, 0, NotSerialized)
+                {
+                     Return (NICA)
+                }
+                /* Name (_PRW, Package (0x02)
+                   {
+                       0x09,
+                       0x04
+                    }) */
+
+                 /* Wake up on LAN? */
+                 Method (EWOL, 1, NotSerialized)
+                 {
+                    Return (0x00)
+                 }
+
+                 Method (_STA, 0, NotSerialized)
+                 {
+                    if (LEqual (NICA, Zero)) {
+                        Return (0x00)
+                    }
+                    else {
+                        Return (0x0F)
+                    }
+                 }
             }
 
             // Control method battery
@@ -1144,69 +1066,6 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
 
     Scope (\_SB)
     {
-         // High Precision Event Timer
-        Device(HPET) {
-            Name(_HID,  EISAID("PNP0103"))
-            Name (_CID, 0x010CD041)
-            Name(_UID, 0)
-            Method (_STA, 0, NotSerialized) {
-                    Return(UHPT)
-            }
-            Name(_CRS, ResourceTemplate() {
-                DWordMemory(
-                    ResourceConsumer, PosDecode, MinFixed, MaxFixed,
-                    NonCacheable, ReadWrite,
-                    0x00000000,
-                    0xFED00000,
-                    0xFED003FF,
-                    0x00000000,
-                    0x00000400 /* 1K memory: FED00000 - FED003FF */
-                )
-            })
-        }
-
-        // Conditionally enabled, as lead to hang of Windows 7 and Vista guests 
-        Device (RTC) {
-            Name (_HID, EisaId ("PNP0B00"))
-            Name (_CRS, ResourceTemplate ()
-            {
-                IO (Decode16,
-                    0x0070,             // Range Minimum
-                    0x0070,             // Range Maximum
-                    0x01,               // Alignment
-                    0x08,               // Length
-                    )
-            })
-            Method (_STA, 0, NotSerialized)
-            {
-                Return (URTC)
-            }
-        }
-
-       // System Management Controller
-       Device (SMC)
-       {
-            Name (_HID, EisaId ("APP0001"))
-            Name (_CID, "smc-napa")
-
-            Method (_STA, 0, NotSerialized)
-            {
-                Return (USMC)
-            }
-            Name (_CRS, ResourceTemplate ()
-            {
-                IO (Decode16,
-                    0x0300,             // Range Minimum
-                    0x0300,             // Range Maximum
-                    0x01,               // Alignment
-                    0x20,               // Length
-                    )
-                // This line seriously confuses Windows ACPI driver, so not even try to
-                // enable SMC for Windows guests
-                IRQNoFlags () {8}
-            })
-        }
-
         // Fields within PIIX3 configuration[0x60..0x63] with
         // IRQ mappings
         Field (\_SB.PCI0.SBRG.PCIC, ByteAcc, NoLock, Preserve)

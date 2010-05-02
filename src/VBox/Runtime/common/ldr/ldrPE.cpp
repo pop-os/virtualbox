@@ -1,10 +1,10 @@
-/* $Id: ldrPE.cpp $ */
+/* $Id: ldrPE.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, Portable Executable (PE).
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -43,7 +39,6 @@
 #include <iprt/err.h>
 #include "internal/ldrPE.h"
 #include "internal/ldr.h"
-
 
 
 /*******************************************************************************
@@ -1009,7 +1004,7 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
                                          const IMAGE_FILE_HEADER *pFileHdr, RTFOFF cbRawImage)
 {
     const uint16_t CorrectMagic = pFileHdr->SizeOfOptionalHeader == sizeof(IMAGE_OPTIONAL_HEADER32)
-             ? IMAGE_NT_OPTIONAL_HDR32_MAGIC : IMAGE_NT_OPTIONAL_HDR64_MAGIC;
+                                ? IMAGE_NT_OPTIONAL_HDR32_MAGIC : IMAGE_NT_OPTIONAL_HDR64_MAGIC;
     if (pOptHdr->Magic != CorrectMagic)
     {
         Log(("rtldrPEOpen: %s: Magic=%#x - expected %#x!!!\n", pszLogName, pOptHdr->Magic, CorrectMagic));
@@ -1113,12 +1108,27 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
                      pszLogName, i, pDir->VirtualAddress, pDir->Size));
                 return VERR_LDRPE_DELAY_IMPORT;
 
-            /* The security directory seems to be some kind of hack, and the rva is a fileoffset or something. */
             case IMAGE_DIRECTORY_ENTRY_SECURITY:      // 4
+                /* The VirtualAddress is a PointerToRawData. */
                 cb = (size_t)cbRawImage; Assert((RTFOFF)cb == cbRawImage);
                 Log(("rtldrPEOpen: %s: dir no. %d (SECURITY) VirtualAddress=%#x Size=%#x is not supported!!!\n",
                      pszLogName, i, pDir->VirtualAddress, pDir->Size));
-                return VERR_LDRPE_SECURITY;
+                if (pDir->Size < sizeof(WIN_CERTIFICATE))
+                {
+                    Log(("rtldrPEOpen: %s: Security directory is too small: %#x bytes\n", pszLogName, i, pDir->Size));
+                    return VERR_LDRPE_CERT_MALFORMED;
+                }
+                if (pDir->Size >= _1M)
+                {
+                    Log(("rtldrPEOpen: %s: Security directory is too large: %#x bytes\n", pszLogName, i, pDir->Size));
+                    return VERR_LDRPE_CERT_MALFORMED;
+                }
+                if (pDir->VirtualAddress & 7)
+                {
+                    Log(("rtldrPEOpen: %s: Security directory is misaligned: %#x\n", pszLogName, i, pDir->VirtualAddress));
+                    return VERR_LDRPE_CERT_MALFORMED;
+                }
+                break;
 
             case IMAGE_DIRECTORY_ENTRY_GLOBALPTR:     // 8   /* (MIPS GP) */
                 Log(("rtldrPEOpen: %s: dir no. %d (GLOBALPTR) VirtualAddress=%#x Size=%#x is not supported!!!\n",
@@ -1130,7 +1140,7 @@ static int rtldrPEValidateOptionalHeader(const IMAGE_OPTIONAL_HEADER64 *pOptHdr,
                      pszLogName, i, pDir->VirtualAddress, pDir->Size));
                 return VERR_LDRPE_TLS;
 
-            case IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR: // 14
+            case IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR:// 14
                 Log(("rtldrPEOpen: %s: dir no. %d (COM_DESCRIPTOR) VirtualAddress=%#x Size=%#x is not supported!!!\n",
                      pszLogName, i, pDir->VirtualAddress, pDir->Size));
                 return VERR_LDRPE_COM_DESCRIPTOR;
@@ -1413,6 +1423,65 @@ int rtldrPEValidateDirectories(PRTLDRMODPE pModPe, const IMAGE_OPTIONAL_HEADER64
             return VERR_BAD_EXE_FORMAT;
         }
     }
+
+    /*
+     * If the image is signed, take a look at the signature.
+     */
+    Dir = pOptHdr->DataDirectory[IMAGE_DIRECTORY_ENTRY_SECURITY];
+    if (Dir.Size)
+    {
+        PWIN_CERTIFICATE pFirst = (PWIN_CERTIFICATE)RTMemTmpAlloc(Dir.Size);
+        if (!pFirst)
+            return VERR_NO_TMP_MEMORY;
+        int rc = pModPe->pReader->pfnRead(pModPe->pReader, pFirst, Dir.Size, Dir.VirtualAddress);
+        if (RT_SUCCESS(rc))
+        {
+            uint32_t         off  = 0;
+            PWIN_CERTIFICATE pCur = pFirst;
+            do
+            {
+                /* validate the members. */
+                uint32_t const cbCur = RT_ALIGN_32(pCur->dwLength, 8);
+                if (   cbCur < sizeof(WIN_CERTIFICATE)
+                    || cbCur + off > RT_ALIGN_32(Dir.Size, 8))
+                {
+                    Log(("rtldrPEOpen: %s: cert at %#x/%#x: dwLength=%#x\n", pszLogName, off, Dir.Size, pCur->dwLength));
+                    rc = VERR_LDRPE_CERT_MALFORMED;
+                    break;
+                }
+                if (    pCur->wRevision != WIN_CERT_REVISION_2_0
+                    &&  pCur->wRevision != WIN_CERT_REVISION_1_0)
+                {
+                    Log(("rtldrPEOpen: %s: cert at %#x/%#x: wRevision=%#x\n", pszLogName, off, Dir.Size, pCur->wRevision));
+                    rc = pCur->wRevision >= WIN_CERT_REVISION_1_0 ? VERR_LDRPE_CERT_UNSUPPORTED : VERR_LDRPE_CERT_MALFORMED;
+                    break;
+                }
+                if (    pCur->wCertificateType != WIN_CERT_TYPE_PKCS_SIGNED_DATA
+                    &&  pCur->wCertificateType != WIN_CERT_TYPE_X509
+                    /*&&  pCur->wCertificateType != WIN_CERT_TYPE_RESERVED_1*/
+                    /*&&  pCur->wCertificateType != WIN_CERT_TYPE_TS_STACK_SIGNED*/
+                    &&  pCur->wCertificateType != WIN_CERT_TYPE_EFI_PKCS115
+                    &&  pCur->wCertificateType != WIN_CERT_TYPE_EFI_GUID
+                   )
+                {
+                    Log(("rtldrPEOpen: %s: cert at %#x/%#x: wRevision=%#x\n", pszLogName, off, Dir.Size, pCur->wRevision));
+                    rc = pCur->wCertificateType ? VERR_LDRPE_CERT_UNSUPPORTED : VERR_LDRPE_CERT_MALFORMED;
+                    break;
+                }
+
+                /** @todo Rainy Day: Implement further verfication using openssl. */
+
+                /* next */
+                off += cbCur;
+                pCur = (PWIN_CERTIFICATE)((uint8_t *)pCur + cbCur);
+            } while (off < Dir.Size);
+        }
+        RTMemTmpFree(pFirst);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+
     return VINF_SUCCESS;
 }
 
@@ -1522,6 +1591,4 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
     RTMemFree(paSections);
     return rc;
 }
-
-
 

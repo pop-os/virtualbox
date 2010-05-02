@@ -1,3 +1,4 @@
+/* $Id: VBoxVMSettingsDisplay.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "QIWidgetValidator.h"
@@ -52,36 +49,48 @@ VBoxVMSettingsDisplay::VBoxVMSettingsDisplay()
 
     /* Setup constants */
     CSystemProperties sys = vboxGlobal().virtualBox().GetSystemProperties();
-    const uint MinVRAM = sys.GetMinGuestVRAM();
-    const uint MaxVRAM = sys.GetMaxGuestVRAM();
+    m_minVRAM = sys.GetMinGuestVRAM();
+    m_maxVRAM = sys.GetMaxGuestVRAM();
+    m_maxVRAMVisible = m_maxVRAM;
+    const uint MinMonitors = 1;
+    const uint MaxMonitors = sys.GetMaxGuestMonitors();
 
     /* Setup validators */
-    mLeMemory->setValidator (new QIntValidator (MinVRAM, MaxVRAM, this));
+    mLeMemory->setValidator (new QIntValidator (m_minVRAM, m_maxVRAMVisible, this));
+    mLeMonitors->setValidator (new QIntValidator (MinMonitors, MaxMonitors, this));
     mLeVRDPPort->setValidator (new QRegExpValidator (QRegExp ("(([0-9]{1,5}(\\-[0-9]{1,5}){0,1}),)*([0-9]{1,5}(\\-[0-9]{1,5}){0,1})"), this));
     mLeVRDPTimeout->setValidator (new QIntValidator (this));
 
     /* Setup connections */
-    connect (mSlMemory, SIGNAL (valueChanged (int)),
-             this, SLOT (valueChangedVRAM (int)));
-    connect (mLeMemory, SIGNAL (textChanged (const QString&)),
-             this, SLOT (textChangedVRAM (const QString&)));
+    connect (mSlMemory, SIGNAL (valueChanged (int)), this, SLOT (valueChangedVRAM (int)));
+    connect (mLeMemory, SIGNAL (textChanged (const QString&)), this, SLOT (textChangedVRAM (const QString&)));
+    connect (mSlMonitors, SIGNAL (valueChanged (int)), this, SLOT (valueChangedMonitors (int)));
+    connect (mLeMonitors, SIGNAL (textChanged (const QString&)), this, SLOT (textChangedMonitors (const QString&)));
 
     /* Setup initial values */
-    mSlMemory->setPageStep (calcPageStep (MaxVRAM));
+    mSlMemory->setPageStep (calcPageStep (m_maxVRAMVisible));
     mSlMemory->setSingleStep (mSlMemory->pageStep() / 4);
     mSlMemory->setTickInterval (mSlMemory->pageStep());
+    mSlMonitors->setPageStep (1);
+    mSlMonitors->setSingleStep (1);
+    mSlMonitors->setTickInterval (1);
     /* Setup the scale so that ticks are at page step boundaries */
-    mSlMemory->setMinimum ((MinVRAM / mSlMemory->pageStep()) * mSlMemory->pageStep());
-    mSlMemory->setMaximum (MaxVRAM);
+    mSlMemory->setMinimum ((m_minVRAM / mSlMemory->pageStep()) * mSlMemory->pageStep());
+    mSlMemory->setMaximum (m_maxVRAMVisible);
     mSlMemory->setSnappingEnabled (true);
     quint64 needMBytes = VBoxGlobal::requiredVideoMemory (&mMachine) / _1M;
     mSlMemory->setErrorHint (0, 1);
     mSlMemory->setWarningHint (1, needMBytes);
-    mSlMemory->setOptimalHint (needMBytes, MaxVRAM);
+    mSlMemory->setOptimalHint (needMBytes, m_maxVRAMVisible);
+    mSlMonitors->setMinimum (MinMonitors);
+    mSlMonitors->setMaximum (MaxMonitors);
+    mSlMonitors->setSnappingEnabled (true);
     /* Limit min/max. size of QLineEdit */
     mLeMemory->setFixedWidthByText (QString().fill ('8', 4));
-    /* Ensure mLeMemory value and validation is updated */
+    mLeMonitors->setFixedWidthByText (QString().fill ('8', 4));
+    /* Ensure value and validation is updated */
     valueChangedVRAM (mSlMemory->value());
+    valueChangedMonitors (mSlMonitors->value());
     /* Setup VRDP widget */
     mCbVRDPMethod->insertItem (0, ""); /* KVRDPAuthType_Null */
     mCbVRDPMethod->insertItem (1, ""); /* KVRDPAuthType_External */
@@ -110,8 +119,17 @@ void VBoxVMSettingsDisplay::getFrom (const CMachine &aMachine)
 {
     mMachine = aMachine;
 
+    int currentSize = mMachine.GetVRAMSize();
+    m_initialVRAM = RT_MIN(currentSize, m_maxVRAM);
+
+    /* must come _before_ setting the initial memory value */
+    checkMultiMonitorReqs();
+
     /* Memory Size */
-    mSlMemory->setValue (mMachine.GetVRAMSize());
+    mSlMemory->setValue (currentSize);
+
+    /* Monitors Count */
+    mSlMonitors->setValue (mMachine.GetMonitorCount());
 
     /* 3D Acceleration */
     bool isAccelerationSupported = vboxGlobal().virtualBox().GetHost()
@@ -145,6 +163,9 @@ void VBoxVMSettingsDisplay::putBackTo()
 {
     /* Memory Size */
     mMachine.SetVRAMSize (mSlMemory->value());
+
+    /* Monitors Count */
+    mMachine.SetMonitorCount (mSlMonitors->value());
 
     /* 3D Acceleration */
     mMachine.SetAccelerate3DEnabled (mCb3D->isChecked());
@@ -185,7 +206,7 @@ void VBoxVMSettingsDisplay::setValidator (QIWidgetValidator *aVal)
 bool VBoxVMSettingsDisplay::revalidate (QString &aWarning, QString & /* aTitle */)
 {
     /* Video RAM amount test */
-    quint64 needBytes = VBoxGlobal::requiredVideoMemory (&mMachine);
+    quint64 needBytes = VBoxGlobal::requiredVideoMemory (&mMachine, mSlMonitors->value());
     if ((quint64) mSlMemory->value() * _1M < needBytes)
     {
         aWarning = tr (
@@ -221,7 +242,9 @@ void VBoxVMSettingsDisplay::setOrderAfter (QWidget *aWidget)
     setTabOrder (aWidget, mTwDisplay->focusProxy());
     setTabOrder (mTwDisplay->focusProxy(), mSlMemory);
     setTabOrder (mSlMemory, mLeMemory);
-    setTabOrder (mLeMemory, mCb3D);
+    setTabOrder (mLeMemory, mSlMonitors);
+    setTabOrder (mSlMonitors, mLeMonitors);
+    setTabOrder (mLeMonitors, mCb3D);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     setTabOrder (mCb3D, mCb2DVideo);
     setTabOrder (mCb2DVideo, mCbVRDP);
@@ -239,8 +262,10 @@ void VBoxVMSettingsDisplay::retranslateUi()
     Ui::VBoxVMSettingsDisplay::retranslateUi (this);
 
     CSystemProperties sys = vboxGlobal().virtualBox().GetSystemProperties();
-    mLbMemoryMin->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (sys.GetMinGuestVRAM()));
-    mLbMemoryMax->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (sys.GetMaxGuestVRAM()));
+    mLbMemoryMin->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (m_minVRAM));
+    mLbMemoryMax->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (m_maxVRAMVisible));
+    mLbMonitorsMin->setText (tr ("<qt>%1</qt>").arg (1));
+    mLbMonitorsMax->setText (tr ("<qt>%1</qt>").arg (sys.GetMaxGuestMonitors()));
 
     mCbVRDPMethod->setItemText (0,
         vboxGlobal().toString (KVRDPAuthType_Null));
@@ -258,5 +283,41 @@ void VBoxVMSettingsDisplay::valueChangedVRAM (int aVal)
 void VBoxVMSettingsDisplay::textChangedVRAM (const QString &aText)
 {
     mSlMemory->setValue (aText.toInt());
+}
+
+void VBoxVMSettingsDisplay::valueChangedMonitors (int aVal)
+{
+    mLeMonitors->setText (QString().setNum (aVal));
+    checkMultiMonitorReqs();
+}
+
+void VBoxVMSettingsDisplay::textChangedMonitors (const QString &aText)
+{
+    mSlMonitors->setValue (aText.toInt());
+}
+
+void VBoxVMSettingsDisplay::checkMultiMonitorReqs()
+{
+    int cVal = mSlMonitors->value();
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    mCb2DVideo->setEnabled(VBoxGlobal::isAcceleration2DVideoAvailable());
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+    mCb3D->setEnabled(vboxGlobal().virtualBox().GetHost().GetAcceleration3DAvailable());
+
+    /* The memory requirements have changed too. */
+    quint64 needMBytes = VBoxGlobal::requiredVideoMemory (&mMachine, cVal) / _1M;
+    /* Limit the maximum memory to save careless users from setting useless big values */
+    m_maxVRAMVisible = cVal * 32;
+    if (m_maxVRAMVisible < 128)
+        m_maxVRAMVisible = 128;
+    if (m_maxVRAMVisible < m_initialVRAM)
+        m_maxVRAMVisible = m_initialVRAM;
+    mSlMemory->setWarningHint (1, needMBytes);
+    mSlMemory->setPageStep (calcPageStep (m_maxVRAMVisible));
+    mSlMemory->setMaximum (m_maxVRAMVisible);
+    mSlMemory->setOptimalHint (needMBytes, m_maxVRAMVisible);
+    mLeMemory->setValidator (new QIntValidator (m_minVRAM, m_maxVRAMVisible, this));
+    mLbMemoryMax->setText (tr ("<qt>%1&nbsp;MB</qt>").arg (m_maxVRAMVisible));
+    /* ... or just call retranslateUi()? */
 }
 

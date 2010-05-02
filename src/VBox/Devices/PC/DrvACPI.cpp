@@ -1,10 +1,10 @@
-/* $Id: DrvACPI.cpp $ */
+/* $Id: DrvACPI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DrvACPI - ACPI Host Driver.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -32,6 +28,7 @@
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
+#include <iprt/uuid.h>
 
 #ifdef RT_OS_LINUX
 # include <iprt/critsect.h>
@@ -65,6 +62,8 @@
 *******************************************************************************/
 /**
  * ACPI driver instance data.
+ *
+ * @implements  PDMIACPICONNECTOR
  */
 typedef struct DRVACPI
 {
@@ -101,27 +100,16 @@ typedef struct DRVACPI
 
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) drvACPIQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) drvACPIQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_ACPI_CONNECTOR:
-            return &pThis->IACPIConnector;
-        default:
-            return NULL;
-    }
+    PDRVACPI   pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIACPICONNECTOR, &pThis->IACPIConnector);
+    return NULL;
 }
 
 /**
@@ -139,9 +127,10 @@ static DECLCALLBACK(int) drvACPIQueryPowerSource(PPDMIACPICONNECTOR pInterface,
     if (GetSystemPowerStatus(&powerStatus))
     {
         /* running on battery? */
-        if (    (powerStatus.ACLineStatus == 0)
-             || (powerStatus.ACLineStatus == 255)
-             && (powerStatus.BatteryFlag & 15))
+        if (    powerStatus.ACLineStatus == 0   /* Offline */
+             || powerStatus.ACLineStatus == 255 /* Unknown */
+             && (powerStatus.BatteryFlag & 15)  /* high | low | critical | charging */
+           ) /** @todo why is 'charging' included in the flag test?  Add parenthesis around the right bits so the code is clearer. */
         {
             *pPowerSource = PDM_ACPI_POWER_SOURCE_BATTERY;
         }
@@ -931,6 +920,7 @@ static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
     PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
 
     LogFlow(("drvACPIDestruct\n"));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
 #ifdef RT_OS_LINUX
     RTSemEventDestroy(pThis->hPollerSleepEvent);
@@ -944,9 +934,10 @@ static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVACPI pThis = PDMINS_2_DATA(pDrvIns, PDRVACPI);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     int rc = VINF_SUCCESS;
 
     /*
@@ -962,21 +953,20 @@ static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
 
     /*
      * Check that no-one is attached to us.
      */
-    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER, 
+    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
                     VERR_PDM_DRVINS_NO_ATTACH);
 
     /*
      * Query the ACPI port interface.
      */
-    pThis->pPort = (PPDMIACPIPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase,
-                                                                      PDMINTERFACE_ACPI_PORT);
+    pThis->pPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIACPIPORT);
     if (!pThis->pPort)
     {
         AssertMsgFailed(("Configuration error: the above device/driver didn't export the ACPI port interface!\n"));
@@ -987,8 +977,8 @@ static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     /*
      * Start the poller thread.
      */
-    rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pPollerThread, pThis, drvACPIPoller,
-                                  drvACPIPollerWakeup, 0, RTTHREADTYPE_INFREQUENT_POLLER, "ACPI Poller");
+    rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pPollerThread, pThis, drvACPIPoller,
+                               drvACPIPollerWakeup, 0, RTTHREADTYPE_INFREQUENT_POLLER, "ACPI Poller");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1010,8 +1000,12 @@ const PDMDRVREG g_DrvACPI =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "ACPIHost",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "ACPI Host Driver",
     /* fFlags */
@@ -1026,6 +1020,8 @@ const PDMDRVREG g_DrvACPI =
     drvACPIConstruct,
     /* pfnDestruct */
     drvACPIDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
@@ -1039,9 +1035,9 @@ const PDMDRVREG g_DrvACPI =
     /* pfnAttach */
     NULL,
     /* pfnDetach */
-    NULL, 
+    NULL,
     /* pfnPowerOff */
-    NULL, 
+    NULL,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

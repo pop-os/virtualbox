@@ -1,10 +1,10 @@
-/* $Id: VBoxGuestR3LibCredentials.cpp $ */
+/* $Id: VBoxGuestR3LibCredentials.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, user credentials.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,17 +22,15 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#include <iprt/asm.h>
 #include <iprt/string.h>
+#include <iprt/rand.h>
 #include <VBox/log.h>
 
 #include "VBGLR3Internal.h"
@@ -41,9 +39,10 @@
 /**
  * Checks whether user credentials are available to the guest or not.
  *
- * @returns true if credentials are available, false if not (or error occured).
+ * @returns IPRT status value; VINF_SUCCESS if credentials are available,
+ *          VERR_NOT_FOUND if not. Otherwise an error is occured.
  */
-VBGLR3DECL(bool) VbglR3CredentialsAreAvailable(void)
+VBGLR3DECL(int) VbglR3CredentialsQueryAvailability(void)
 {
     VMMDevCredentials Req;
     RT_ZERO(Req);
@@ -51,8 +50,12 @@ VBGLR3DECL(bool) VbglR3CredentialsAreAvailable(void)
     Req.u32Flags |= VMMDEV_CREDENTIALS_QUERYPRESENCE;
 
     int rc = vbglR3GRPerform(&Req.header);
-    return RT_SUCCESS(rc)
-        && (Req.u32Flags & VMMDEV_CREDENTIALS_PRESENT) != 0;
+    if (RT_SUCCESS(rc))
+    {
+        if ((Req.u32Flags & VMMDEV_CREDENTIALS_PRESENT) == 0)
+            rc = VERR_NOT_FOUND;
+    }
+    return rc;
 }
 
 
@@ -61,11 +64,11 @@ VBGLR3DECL(bool) VbglR3CredentialsAreAvailable(void)
  *
  * @returns IPRT status value
  * @param   ppszUser        Receives pointer of allocated user name string.
- *                          The returned pointer must be freed using RTStrFree().
+ *                          The returned pointer must be freed using VbglR3CredentialsDestroy().
  * @param   ppszPassword    Receives pointer of allocated user password string.
- *                          The returned pointer must be freed using RTStrFree().
+ *                          The returned pointer must be freed using VbglR3CredentialsDestroy().
  * @param   ppszDomain      Receives pointer of allocated domain name string.
- *                          The returned pointer must be freed using RTStrFree().
+ *                          The returned pointer must be freed using VbglR3CredentialsDestroy().
  */
 VBGLR3DECL(int) VbglR3CredentialsRetrieve(char **ppszUser, char **ppszPassword, char **ppszDomain)
 {
@@ -93,5 +96,56 @@ VBGLR3DECL(int) VbglR3CredentialsRetrieve(char **ppszUser, char **ppszPassword, 
         }
     }
     return rc;
+}
+
+
+/**
+ * Clears and frees the three strings.
+ *
+ * @param   pszUser        Receives pointer of the user name string to destroy.
+ *                         Optional.
+ * @param   pszPassword    Receives pointer of the password string to destroy.
+ *                         Optional.
+ * @param   pszDomain      Receives pointer of allocated domain name string.
+ *                         Optional.
+ * @param   cPasses        Number of wipe passes.  The more the better + slower.
+ */
+VBGLR3DECL(void) VbglR3CredentialsDestroy(char *pszUser, char *pszPassword, char *pszDomain, uint32_t cPasses)
+{
+    size_t const    cchUser     = pszUser     ? strlen(pszUser)     : 0;
+    size_t const    cchPassword = pszPassword ? strlen(pszPassword) : 0;
+    size_t const    cchDomain   = pszDomain   ? strlen(pszDomain)   : 0;
+
+    do
+    {
+        if (cchUser)
+            memset(pszUser,     0xff, cchUser);
+        if (cchPassword)
+            memset(pszPassword, 0xff, cchPassword);
+        if (cchDomain)
+            memset(pszDomain,   0xff, cchDomain);
+        ASMMemoryFence();
+
+        if (cchUser)
+            memset(pszUser,     0x00, cchUser);
+        if (cchPassword)
+            memset(pszPassword, 0x00, cchPassword);
+        if (cchDomain)
+            memset(pszDomain,   0x00, cchDomain);
+        ASMMemoryFence();
+
+        if (cchUser)
+            RTRandBytes(pszUser,     cchUser);
+        if (cchPassword)
+            RTRandBytes(pszPassword, cchPassword);
+        if (cchDomain)
+            RTRandBytes(pszDomain,   cchDomain);
+        ASMMemoryFence();
+
+    } while (cPasses-- > 0);
+
+    RTStrFree(pszUser);
+    RTStrFree(pszPassword);
+    RTStrFree(pszDomain);
 }
 

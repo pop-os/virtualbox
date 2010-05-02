@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_GUESTIMPL
@@ -25,9 +21,30 @@
 #include "VirtualBoxBase.h"
 #include <VBox/ostypes.h>
 
-class Console;
+#ifdef VBOX_WITH_GUEST_CONTROL
+# include <VBox/HostServices/GuestControlSvc.h>
+# include <hgcm/HGCM.h>
+using namespace guestControl;
+#endif
 
-#define GUEST_STAT_INVALID          (ULONG)-1
+typedef enum
+{
+    GUESTSTATTYPE_CPUUSER     = 0,
+    GUESTSTATTYPE_CPUKERNEL   = 1,
+    GUESTSTATTYPE_CPUIDLE     = 2,
+    GUESTSTATTYPE_MEMTOTAL    = 3,
+    GUESTSTATTYPE_MEMFREE     = 4,
+    GUESTSTATTYPE_MEMBALLOON  = 5,
+    GUESTSTATTYPE_MEMCACHE    = 6,
+    GUESTSTATTYPE_PAGETOTAL   = 7,
+    GUESTSTATTYPE_PAGEFREE    = 8,
+    GUESTSTATTYPE_MAX         = 9
+} GUESTSTATTYPE;
+
+class Console;
+#ifdef VBOX_WITH_GUEST_CONTROL
+class Progress;
+#endif
 
 class ATL_NO_VTABLE Guest :
     public VirtualBoxSupportErrorInfoImpl<Guest, IGuest>,
@@ -70,7 +87,16 @@ public:
     // IGuest methods
     STDMETHOD(SetCredentials)(IN_BSTR aUserName, IN_BSTR aPassword,
                               IN_BSTR aDomain, BOOL aAllowInteractiveLogon);
-    STDMETHOD(GetStatistic)(ULONG aCpuId, GuestStatisticType_T aStatistic, ULONG *aStatVal);
+    STDMETHOD(ExecuteProcess)(IN_BSTR aCommand, ULONG aFlags,
+                              ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
+                              IN_BSTR aStdIn, IN_BSTR aStdOut, IN_BSTR aStdErr,
+                              IN_BSTR aUserName, IN_BSTR aPassword,
+                              ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress);
+    STDMETHOD(GetProcessOutput)(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, ULONG64 aSize, ComSafeArrayOut(BYTE, aData));
+    STDMETHOD(GetProcessStatus)(ULONG aPID, ULONG *aExitCode, ULONG *aFlags, ULONG *aStatus);
+    STDMETHOD(InternalGetStatistics)(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
+                                     ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemCache,
+                                     ULONG *aPageTotal, ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal);
 
     // public methods that are not in IDL
     void setAdditionsVersion (Bstr aVersion, VBOXOSTYPE aOsType);
@@ -79,18 +105,59 @@ public:
 
     void setSupportsGraphics (BOOL aSupportsGraphics);
 
-    STDMETHOD(SetStatistic)(ULONG aCpuId, GuestStatisticType_T aStatistic, ULONG aStatVal);
+    HRESULT SetStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal);
 
     // for VirtualBoxSupportErrorInfoImpl
     static const wchar_t *getComponentName() { return L"Guest"; }
 
+# ifdef VBOX_WITH_GUEST_CONTROL
+    /** Static callback for handling guest notifications. */
+    static DECLCALLBACK(int) doGuestCtrlNotification(void *pvExtension, uint32_t u32Function, void *pvParms, uint32_t cbParms);
+# endif
+
 private:
+
+# ifdef VBOX_WITH_GUEST_CONTROL
+    struct CallbackContext
+    {
+        uint32_t                    mContextID;
+        eVBoxGuestCtrlCallbackType  mType;
+        void                       *pvData;
+        uint32_t                    cbData;
+        /** Atomic flag whether callback was called. */
+        volatile bool               bCalled;
+        /** Pointer to user-supplied IProgress. */
+        ComObjPtr<Progress>         pProgress;
+    };
+    typedef std::list< CallbackContext > CallbackList;
+    typedef std::list< CallbackContext >::iterator CallbackListIter;
+    typedef std::list< CallbackContext >::const_iterator CallbackListIterConst;
+
+    struct GuestProcess
+    {
+        uint32_t                 mPID;
+        uint32_t                 mStatus;
+        uint32_t                 mFlags;
+        uint32_t                 mExitCode;
+    };
+    typedef std::list< GuestProcess > GuestProcessList;
+    typedef std::list< GuestProcess >::iterator GuestProcessIter;
+    typedef std::list< GuestProcess >::const_iterator GuestProcessIterConst;
+
+    int prepareExecuteEnv(const char *pszEnv, void **ppvList, uint32_t *pcbList, uint32_t *pcEnv);
+    /** Handler for guest execution control notifications. */
+    int notifyCtrlExec(uint32_t u32Function, PHOSTEXECCALLBACKDATA pData);
+    int notifyCtrlExecOut(uint32_t u32Function, PHOSTEXECOUTCALLBACKDATA pData);
+    CallbackListIter getCtrlCallbackContextByID(uint32_t u32ContextID);
+    GuestProcessIter getProcessByPID(uint32_t u32PID);
+    void removeCtrlCallbackContext(CallbackListIter it);
+    uint32_t addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void *pvData, uint32_t cbData, Progress* pProgress);
+# endif
 
     struct Data
     {
         Data() : mAdditionsActive (FALSE), mSupportsSeamless (FALSE),
-                  /* Windows and OS/2 guests take this for granted */
-                 mSupportsGraphics (TRUE) {}
+                 mSupportsGraphics (FALSE) {}
 
         Bstr  mOSTypeId;
         BOOL  mAdditionsActive;
@@ -101,11 +168,19 @@ private:
 
     ULONG mMemoryBalloonSize;
     ULONG mStatUpdateInterval;
+    ULONG mCurrentGuestStat[GUESTSTATTYPE_MAX];
 
-    ULONG mCurrentGuestStat[GuestStatisticType_MaxVal];
-
-    ComObjPtr<Console, ComWeakRef> mParent;
+    Console *mParent;
     Data mData;
+
+# ifdef VBOX_WITH_GUEST_CONTROL
+    /** General extension callback for guest control. */
+    HGCMSVCEXTHANDLE  mhExtCtrl;
+
+    volatile uint32_t mNextContextID;
+    CallbackList mCallbackList;
+    GuestProcessList mGuestProcessList;
+# endif
 };
 
 #endif // ____H_GUESTIMPL

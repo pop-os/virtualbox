@@ -188,6 +188,7 @@ TAB_SIZE               = 4
 
 ALIASES                = \
     "note=@remark" \
+    interface_method_impl{2}="Implements \1 method \link \1::\2 \2 \endlink @copydoc \1::\2 "
 
 # Set the OPTIMIZE_OUTPUT_FOR_C tag to YES if your project consists of C
 # sources only. Doxygen will then generate output that is more tailored for C.
@@ -1161,7 +1162,8 @@ SEARCH_INCLUDES        = YES
 # undefined via #undef or recursively expanded use the := operator
 # instead of the = operator.
 
-PREDEFINED             = DOXYGEN_RUNNING __DOXYGEN__ \
+PREDEFINED             = \
+    DOXYGEN_RUNNING \
     RT_C_DECLS_END=  \
     RT_C_DECLS_BEGIN=  \
     VBOX=1 \
@@ -1172,8 +1174,19 @@ PREDEFINED             = DOXYGEN_RUNNING __DOXYGEN__ \
     R3_ARCH_BITS=HC_ARCH_BITS \
     R0_ARCH_BITS=HC_ARCH_BITS \
     RTDECL(type)=type \
-
-#    DECLCALLBACK(type)=type
+    RT_EXPORT_SYMBOL(name)= \
+    \
+    "DECLINLINE(type)=inline type" \
+    DECL_FORCE_INLINE(type)=DECLINLINE(type) \
+    \
+    AssertCompile(expr) \
+    AssertCompileSize(a,b) \
+    AssertCompileSizeAlignment(a,b) \
+    AssertCompileMemberSizeAlignment(a,b,c) \
+    AssertCompileMemberAlignment(a,b,c) \
+    AssertCompileMemberOffset(a,b,c) \
+    AssertCompile2MemberOffsets(a,b,c) \
+    \
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then
 # this tag can be used to specify a list of macro names that should be expanded.
@@ -1196,6 +1209,7 @@ EXPAND_AS_DEFINED      = \
     \
     DECLEXPORT \
     DECLIMPORT \
+    DECLHIDDEN \
     DECLASM \
     DECLASMTYPE \
     DECLCALLBACK \
@@ -1204,10 +1218,9 @@ EXPAND_AS_DEFINED      = \
     DECLRCCALLBACKMEMBER \
     DECLR3CALLBACKMEMBER \
     DECLR0CALLBACKMEMBER \
-    DECLINLINE \
     RTR3DECL \
     RTR0DECL \
-    RTGCDECL \
+    RTRCDECL \
     RTDECL \
     RTDATADECL \
     KAVL_FN \
@@ -1216,6 +1229,11 @@ EXPAND_AS_DEFINED      = \
     OTHERCTXSUFF \
     CTXMID \
     OTHERCTXMID \
+    \
+    RT_SRC_POS \
+    RT_SRC_POS_ARGS \
+    RT_SRC_POS_DECL
+
 
 # If the SKIP_FUNCTION_MACROS tag is set to YES (the default) then
 # doxygen's preprocessor will remove all function-like macros that are alone

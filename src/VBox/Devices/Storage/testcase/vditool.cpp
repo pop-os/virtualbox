@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -111,7 +107,7 @@ static int NewImage(const char *pszFilename, uint32_t cMBs)
     if (RT_FAILURE(rc))
         return PrintDone(rc);
 
-    PDMMEDIAGEOMETRY geo = { 0 }; /* auto-detect */
+    PDMMEDIAGEOMETRY geo = { 0, 0, 0 }; /* auto-detect */
     rc = VDCreateBase(hdd, "vdi", pszUtf8Filename,
                       (uint64_t)cMBs * _1M,
                       VD_IMAGE_FLAGS_NONE,
@@ -384,7 +380,7 @@ int main(int argc, char **argv)
 
     RTR3Init();
     RTPrintf("vditool -- for internal use only!\n"
-             "Copyright (c) 2009 Sun Microsystems, Inc.\n\n");
+             "Copyright (c) 2009 Oracle Corporation\n\n");
 
     /*
      * Do cmd line parsing.

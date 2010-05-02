@@ -1,11 +1,10 @@
-/* $Id: DevVirtioNet.cpp $ */
+/* $Id: DevVirtioNet.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevVirtioNet - Virtio Network Device
- *
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -25,9 +20,11 @@
 #define VNET_GC_SUPPORT
 
 #include <VBox/pdmdev.h>
+#include <VBox/pdmnetifs.h>
 #include <iprt/semaphore.h>
 #ifdef IN_RING3
 # include <iprt/mem.h>
+# include <iprt/uuid.h>
 #endif /* IN_RING3 */
 #include "../Builtins.h"
 #include "../VirtIO/Virtio.h"
@@ -36,8 +33,6 @@
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
 #define INSTANCE(pState) pState->VPCI.szInstance
-#define IFACE_TO_STATE(pIface, ifaceName) \
-        ((VNETSTATE *)((char*)pIface - RT_OFFSETOF(VNETSTATE, ifaceName)))
 #define STATUS pState->config.uStatus
 
 #ifdef IN_RING3
@@ -106,8 +101,11 @@ AssertCompileMemberOffset(struct VNetPCIConfig, uStatus, 6);
 
 /**
  * Device state structure. Holds the current state of device.
+ *
+ * @extends     VPCISTATE
+ * @implements  PDMINETWORKDOWN
+ * @implements  PDMINETWORKCONFIG
  */
-
 struct VNetState_st
 {
     /* VPCISTATE must be the first member! */
@@ -115,10 +113,10 @@ struct VNetState_st
 
 //    PDMCRITSECT             csRx;                           /**< Protects RX queue. */
 
-    PDMINETWORKPORT         INetworkPort;
+    PDMINETWORKDOWN         INetworkDown;
     PDMINETWORKCONFIG       INetworkConfig;
     R3PTRTYPE(PPDMIBASE)    pDrvBase;                 /**< Attached network driver. */
-    R3PTRTYPE(PPDMINETWORKCONNECTOR) pDrv;    /**< Connector of attached network driver. */
+    R3PTRTYPE(PPDMINETWORKUP) pDrv;    /**< Connector of attached network driver. */
 
     R3PTRTYPE(PPDMQUEUE)    pCanRxQueueR3;           /**< Rx wakeup signaller - R3. */
     R0PTRTYPE(PPDMQUEUE)    pCanRxQueueR0;           /**< Rx wakeup signaller - R0. */
@@ -131,19 +129,28 @@ struct VNetState_st
     /** transmit buffer */
     R3PTRTYPE(uint8_t*)     pTxBuf;
     /**< Link Up(/Restore) Timer. */
-    PTMTIMERR3              pLinkUpTimer; 
+    PTMTIMERR3              pLinkUpTimer;
 #ifdef VNET_TX_DELAY
     /**< Transmit Delay Timer - R3. */
-    PTMTIMERR3              pTxTimerR3; 
+    PTMTIMERR3              pTxTimerR3;
     /**< Transmit Delay Timer - R0. */
-    PTMTIMERR0              pTxTimerR0; 
+    PTMTIMERR0              pTxTimerR0;
     /**< Transmit Delay Timer - GC. */
-    PTMTIMERRC              pTxTimerRC; 
+    PTMTIMERRC              pTxTimerRC;
+
 #if HC_ARCH_BITS == 64
     uint32_t    padding2;
 #endif
 
+    uint32_t   u32i;
+    uint32_t   u32AvgDiff;
+    uint32_t   u32MinDiff;
+    uint32_t   u32MaxDiff;
+    uint64_t   u64NanoTS;
+
 #endif /* VNET_TX_DELAY */
+    /** Indicates transmission in progress -- only one thread is allowed. */
+    uint32_t                uIsTransmitting;
 
     /** PCI config area holding MAC address as well as TBD. */
     struct VNetPCIConfig    config;
@@ -169,17 +176,13 @@ struct VNetState_st
     /** Bit array of VLAN filter, one bit per VLAN ID. */
     uint8_t                 aVlanFilter[VNET_MAX_VID / sizeof(uint8_t)];
 
-#if HC_ARCH_BITS == 64
-    uint32_t    padding3;
-#endif
-
     R3PTRTYPE(PVQUEUE)      pRxQueue;
     R3PTRTYPE(PVQUEUE)      pTxQueue;
     R3PTRTYPE(PVQUEUE)      pCtlQueue;
     /* Receive-blocking-related fields ***************************************/
 
     /** EMT: Gets signalled when more RX descriptors become available. */
-    RTSEMEVENT  hEventMoreRxDescAvail;
+    RTSEMEVENT              hEventMoreRxDescAvail;
 
     /* Statistic fields ******************************************************/
 
@@ -266,6 +269,24 @@ DECLINLINE(void) vnetCsRxLeave(PVNETSTATE pState)
     // PDMCritSectLeave(&pState->csRx);
 }
 
+/**
+ * Dump a packet to debug log.
+ *
+ * @param   pState      The device state structure.
+ * @param   cpPacket    The packet.
+ * @param   cb          The size of the packet.
+ * @param   cszText     A string denoting direction of packet transfer.
+ */
+DECLINLINE(void) vnetPacketDump(PVNETSTATE pState, const uint8_t *cpPacket, size_t cb, const char *cszText)
+{
+#ifdef DEBUG
+    Log(("%s %s packet #%d (%d bytes):\n",
+         INSTANCE(pState), cszText, ++pState->u32PktNo, cb));
+    //Log3(("%.*Rhxd\n", cb, cpPacket));
+#endif
+}
+
+
 
 PDMBOTHCBDECL(uint32_t) vnetGetHostFeatures(void *pvState)
 {
@@ -328,7 +349,7 @@ PDMBOTHCBDECL(int) vnetSetConfig(void *pvState, uint32_t port, uint32_t cb, void
  *
  * @param   pState      The device state structure.
  */
-PDMBOTHCBDECL(void) vnetReset(void *pvState)
+PDMBOTHCBDECL(int) vnetReset(void *pvState)
 {
     VNETSTATE *pState = (VNETSTATE*)pvState;
     Log(("%s Reset triggered\n", INSTANCE(pState)));
@@ -337,7 +358,7 @@ PDMBOTHCBDECL(void) vnetReset(void *pvState)
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
     {
         LogRel(("vnetReset failed to enter RX critical section!\n"));
-        return;
+        return rc;
     }
     vpciReset(&pState->VPCI);
     vnetCsRxLeave(pState);
@@ -356,9 +377,18 @@ PDMBOTHCBDECL(void) vnetReset(void *pvState)
     pState->nMacFilterEntries = 0;
     memset(pState->aMacFilter,  0, VNET_MAC_FILTER_LEN * sizeof(RTMAC));
     memset(pState->aVlanFilter, 0, sizeof(pState->aVlanFilter));
+    pState->uIsTransmitting   = 0;
+#ifndef IN_RING3
+    return VINF_IOM_HC_IOPORT_WRITE;
+#else
+    if (pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, true);
+    return VINF_SUCCESS;
+#endif
 }
 
 #ifdef IN_RING3
+
 /**
  * Wakeup the RX thread.
  */
@@ -508,15 +538,18 @@ static int vnetCanReceive(VNETSTATE *pState)
         rc = VINF_SUCCESS;
     }
 
-    LogFlow(("%s vnetCanReceive -> %Vrc\n", INSTANCE(pState), rc));
+    LogFlow(("%s vnetCanReceive -> %Rrc\n", INSTANCE(pState), rc));
     vnetCsRxLeave(pState);
     return rc;
 }
 
-static DECLCALLBACK(int) vnetWaitReceiveAvail(PPDMINETWORKPORT pInterface, unsigned cMillies)
+/**
+ * @interface_method_impl{PDMINETWORKDOWN,pfnWaitReceiveAvail}
+ */
+static DECLCALLBACK(int) vnetNetworkDown_WaitReceiveAvail(PPDMINETWORKDOWN pInterface, RTMSINTERVAL cMillies)
 {
-    VNETSTATE *pState = IFACE_TO_STATE(pInterface, INetworkPort);
-    LogFlow(("%s vnetWaitReceiveAvail(cMillies=%u)\n", INSTANCE(pState), cMillies));
+    VNETSTATE *pState = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkDown);
+    LogFlow(("%s vnetNetworkDown_WaitReceiveAvail(cMillies=%u)\n", INSTANCE(pState), cMillies));
     int rc = vnetCanReceive(pState);
 
     if (RT_SUCCESS(rc))
@@ -538,39 +571,29 @@ static DECLCALLBACK(int) vnetWaitReceiveAvail(PPDMINETWORKPORT pInterface, unsig
             rc = VINF_SUCCESS;
             break;
         }
-        Log(("%s vnetWaitReceiveAvail: waiting cMillies=%u...\n",
+        Log(("%s vnetNetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n",
                 INSTANCE(pState), cMillies));
         RTSemEventWait(pState->hEventMoreRxDescAvail, cMillies);
     }
     STAM_PROFILE_STOP(&pState->StatRxOverflow, a);
     ASMAtomicXchgBool(&pState->fMaybeOutOfSpace, false);
 
-    LogFlow(("%s vnetWaitReceiveAvail -> %d\n", INSTANCE(pState), rc));
+    LogFlow(("%s vnetNetworkDown_WaitReceiveAvail -> %d\n", INSTANCE(pState), rc));
     return rc;
 }
 
 
 /**
- * Provides interfaces to the driver.
- *
- * @returns Pointer to interface. NULL if the interface is not supported.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  EMT
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) vnetQueryInterface(struct PDMIBASE *pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) vnetQueryInterface(struct PDMIBASE *pInterface, const char *pszIID)
 {
-    VNETSTATE *pState = IFACE_TO_STATE(pInterface, VPCI.IBase);
-    Assert(&pState->VPCI.IBase == pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_NETWORK_PORT:
-            return &pState->INetworkPort;
-        case PDMINTERFACE_NETWORK_CONFIG:
-            return &pState->INetworkConfig;
-        default:
-            return vpciQueryInterface(pInterface, enmInterface);
-    }
+    VNETSTATE *pThis = RT_FROM_MEMBER(pInterface, VNETSTATE, VPCI.IBase);
+    Assert(&pThis->VPCI.IBase == pInterface);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKDOWN, &pThis->INetworkDown);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKCONFIG, &pThis->INetworkConfig);
+    return vpciQueryInterface(pInterface, pszIID);
 }
 
 /**
@@ -652,6 +675,8 @@ static int vnetHandleRxPacket(PVNETSTATE pState, const void *pvBuf, size_t cb)
     hdr.u8Flags   = 0;
     hdr.u8GSOType = VNETHDR_GSO_NONE;
 
+    vnetPacketDump(pState, (const uint8_t*)pvBuf, cb, "<-- Incoming");
+
     unsigned int uOffset = 0;
     for (unsigned int nElem = 0; uOffset < cb; nElem++)
     {
@@ -700,19 +725,13 @@ static int vnetHandleRxPacket(PVNETSTATE pState, const void *pvBuf, size_t cb)
 }
 
 /**
- * Receive data from the network.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   pvBuf           The available data.
- * @param   cb              Number of bytes available in the buffer.
- * @thread  RX
+ * @interface_method_impl{PDMINETWORKDOWN,pfnReceive}
  */
-static DECLCALLBACK(int) vnetReceive(PPDMINETWORKPORT pInterface, const void *pvBuf, size_t cb)
+static DECLCALLBACK(int) vnetNetworkDown_Receive(PPDMINETWORKDOWN pInterface, const void *pvBuf, size_t cb)
 {
-    VNETSTATE *pState = IFACE_TO_STATE(pInterface, INetworkPort);
+    VNETSTATE *pState = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkDown);
 
-    Log2(("%s vnetReceive: pvBuf=%p cb=%u\n", INSTANCE(pState), pvBuf, cb));
+    Log2(("%s vnetNetworkDown_Receive: pvBuf=%p cb=%u\n", INSTANCE(pState), pvBuf, cb));
     int rc = vnetCanReceive(pState);
     if (RT_FAILURE(rc))
         return rc;
@@ -751,7 +770,7 @@ static DECLCALLBACK(int) vnetReceive(PPDMINETWORKPORT pInterface, const void *pv
  */
 static DECLCALLBACK(int) vnetGetMac(PPDMINETWORKCONFIG pInterface, PRTMAC pMac)
 {
-    VNETSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
+    VNETSTATE *pState = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkConfig);
     memcpy(pMac, pState->config.mac.au8, sizeof(RTMAC));
     return VINF_SUCCESS;
 }
@@ -765,7 +784,7 @@ static DECLCALLBACK(int) vnetGetMac(PPDMINETWORKCONFIG pInterface, PRTMAC pMac)
  */
 static DECLCALLBACK(PDMNETWORKLINKSTATE) vnetGetLinkState(PPDMINETWORKCONFIG pInterface)
 {
-    VNETSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
+    VNETSTATE *pState = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkConfig);
     if (STATUS & VNET_S_LINK_UP)
         return PDMNETWORKLINKSTATE_UP;
     return PDMNETWORKLINKSTATE_DOWN;
@@ -781,7 +800,7 @@ static DECLCALLBACK(PDMNETWORKLINKSTATE) vnetGetLinkState(PPDMINETWORKCONFIG pIn
  */
 static DECLCALLBACK(int) vnetSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETWORKLINKSTATE enmState)
 {
-    VNETSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
+    VNETSTATE *pState = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkConfig);
     bool fOldUp = !!(STATUS & VNET_S_LINK_UP);
     bool fNewUp = enmState == PDMNETWORKLINKSTATE_UP;
 
@@ -812,14 +831,37 @@ static DECLCALLBACK(void) vnetQueueReceive(void *pvState, PVQUEUE pQueue)
     vnetWakeupReceive(pState->VPCI.CTX_SUFF(pDevIns));
 }
 
-static DECLCALLBACK(void) vnetTransmitPendingPackets(PVNETSTATE pState, PVQUEUE pQueue)
+static void vnetTransmitPendingPackets(PVNETSTATE pState, PVQUEUE pQueue, bool fOnWorkerThread)
 {
+    /*
+     * Only one thread is allowed to transmit at a time, others should skip
+     * transmission as the packets will be picked up by the transmitting
+     * thread.
+     */
+    if (!ASMAtomicCmpXchgU32(&pState->uIsTransmitting, 1, 0))
+        return;
+
     if ((pState->VPCI.uStatus & VPCI_STATUS_DRV_OK) == 0)
     {
         Log(("%s Ignoring transmit requests from non-existent driver (status=0x%x).\n",
              INSTANCE(pState), pState->VPCI.uStatus));
         return;
     }
+
+    PPDMINETWORKUP pDrv = pState->pDrv;
+    if (pDrv)
+    {
+        int rc = pDrv->pfnBeginXmit(pDrv, fOnWorkerThread);
+        Assert(rc == VINF_SUCCESS || rc == VERR_TRY_AGAIN);
+        if (rc == VERR_TRY_AGAIN)
+        {
+            ASMAtomicWriteU32(&pState->uIsTransmitting, 0);
+            return;
+        }
+    }
+
+    Log3(("%s vnetTransmitPendingPackets: About to trasmit %d pending packets\n", INSTANCE(pState),
+          vringReadAvailIndex(&pState->VPCI, &pState->pTxQueue->VRing) - pState->pTxQueue->uNextAvailIndex));
 
     vpciSetWriteLed(&pState->VPCI, true);
 
@@ -851,8 +893,21 @@ static DECLCALLBACK(void) vnetTransmitPendingPackets(PVNETSTATE pState, PVQUEUE 
             }
             if (pState->pDrv)
             {
+                vnetPacketDump(pState, pState->pTxBuf, uOffset, "--> Outgoing");
+
                 STAM_PROFILE_START(&pState->StatTransmitSend, a);
-                int rc = pState->pDrv->pfnSend(pState->pDrv, pState->pTxBuf, uOffset);
+
+                /** @todo Optimize away the extra copying! (lazy bird) */
+                PPDMSCATTERGATHER pSgBuf;
+                int rc = pState->pDrv->pfnAllocBuf(pState->pDrv, uOffset, NULL /*pGso*/, &pSgBuf);
+                if (RT_SUCCESS(rc))
+                {
+                    Assert(pSgBuf->cSegs == 1);
+                    memcpy(pSgBuf->aSegs[0].pvSeg, pState->pTxBuf, uOffset);
+                    pSgBuf->cbUsed = uOffset;
+                    rc = pState->pDrv->pfnSendBuf(pState->pDrv, pSgBuf, false);
+                }
+
                 STAM_PROFILE_STOP(&pState->StatTransmitSend, a);
                 STAM_REL_COUNTER_ADD(&pState->StatTransmitBytes, uOffset);
             }
@@ -862,9 +917,23 @@ static DECLCALLBACK(void) vnetTransmitPendingPackets(PVNETSTATE pState, PVQUEUE 
         STAM_PROFILE_ADV_STOP(&pState->StatTransmit, a);
     }
     vpciSetWriteLed(&pState->VPCI, false);
+
+    if (pDrv)
+        pDrv->pfnEndXmit(pDrv);
+    ASMAtomicWriteU32(&pState->uIsTransmitting, 0);
+}
+
+/**
+ * @interface_method_impl{PDMINETWORKDOWN,pfnXmitPending}
+ */
+static DECLCALLBACK(void) vnetNetworkDown_XmitPending(PPDMINETWORKDOWN pInterface)
+{
+    VNETSTATE *pThis = RT_FROM_MEMBER(pInterface, VNETSTATE, INetworkDown);
+    vnetTransmitPendingPackets(pThis, pThis->pTxQueue, false /*fOnWorkerThread*/);
 }
 
 #ifdef VNET_TX_DELAY
+
 static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
 {
     VNETSTATE *pState = (VNETSTATE*)pvState;
@@ -874,13 +943,26 @@ static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
         int rc = TMTimerStop(pState->CTX_SUFF(pTxTimer));
         Log3(("%s vnetQueueTransmit: Got kicked with notification disabled, "
               "re-enable notification and flush TX queue\n", INSTANCE(pState)));
-        vnetTransmitPendingPackets(pState, pQueue);
-        vringSetNotification(&pState->VPCI, &pState->pTxQueue->VRing, true);
+        vnetTransmitPendingPackets(pState, pQueue, false /*fOnWorkerThread*/);
+        if (RT_FAILURE(vnetCsEnter(pState, VERR_SEM_BUSY)))
+            LogRel(("vnetQueueTransmit: Failed to enter critical section!/n"));
+        else
+        {
+            vringSetNotification(&pState->VPCI, &pState->pTxQueue->VRing, true);
+            vnetCsLeave(pState);
+        }
     }
     else
     {
-        vringSetNotification(&pState->VPCI, &pState->pTxQueue->VRing, false);
-        TMTimerSetMicro(pState->CTX_SUFF(pTxTimer), VNET_TX_DELAY);
+        if (RT_FAILURE(vnetCsEnter(pState, VERR_SEM_BUSY)))
+            LogRel(("vnetQueueTransmit: Failed to enter critical section!/n"));
+        else
+        {
+            vringSetNotification(&pState->VPCI, &pState->pTxQueue->VRing, false);
+            TMTimerSetMicro(pState->CTX_SUFF(pTxTimer), VNET_TX_DELAY);
+            pState->u64NanoTS = RTTimeNanoTS();
+            vnetCsLeave(pState);
+        }
     }
 }
 
@@ -898,29 +980,42 @@ static DECLCALLBACK(void) vnetTxTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
 {
     VNETSTATE *pState = (VNETSTATE*)pvUser;
 
-    int rc = vnetCsEnter(pState, VERR_SEM_BUSY);
-    if (RT_UNLIKELY(rc != VINF_SUCCESS))
+    uint32_t u32MicroDiff = (uint32_t)((RTTimeNanoTS() - pState->u64NanoTS)/1000);
+    if (u32MicroDiff < pState->u32MinDiff)
+        pState->u32MinDiff = u32MicroDiff;
+    if (u32MicroDiff > pState->u32MaxDiff)
+        pState->u32MaxDiff = u32MicroDiff;
+    pState->u32AvgDiff = (pState->u32AvgDiff * pState->u32i + u32MicroDiff) / (pState->u32i + 1);
+    pState->u32i++;
+    Log3(("vnetTxTimer: Expired, diff %9d usec, avg %9d usec, min %9d usec, max %9d usec\n",
+            u32MicroDiff, pState->u32AvgDiff, pState->u32MinDiff, pState->u32MaxDiff));
+
+//    Log3(("%s vnetTxTimer: Expired\n", INSTANCE(pState)));
+    vnetTransmitPendingPackets(pState, pState->pTxQueue, false /*fOnWorkerThread*/);
+    if (RT_FAILURE(vnetCsEnter(pState, VERR_SEM_BUSY)))
+    {
+        LogRel(("vnetTxTimer: Failed to enter critical section!/n"));
         return;
+    }
     vringSetNotification(&pState->VPCI, &pState->pTxQueue->VRing, true);
-    Log3(("%s vnetTxTimer: Expired, %d packets pending\n", INSTANCE(pState), 
-          vringReadAvailIndex(&pState->VPCI, &pState->pTxQueue->VRing) - pState->pTxQueue->uNextAvailIndex));
-    vnetTransmitPendingPackets(pState, pState->pTxQueue);
     vnetCsLeave(pState);
 }
 
 #else /* !VNET_TX_DELAY */
+
 static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
 {
     VNETSTATE *pState = (VNETSTATE*)pvState;
 
-    vnetTransmitPendingPackets(pState, pQueue);
+    vnetTransmitPendingPackets(pState, pQueue, false /*fOnWorkerThread*/);
 }
+
 #endif /* !VNET_TX_DELAY */
 
 static uint8_t vnetControlRx(PVNETSTATE pState, PVNETCTLHDR pCtlHdr, PVQUEUEELEM pElem)
 {
     uint8_t u8Ack = VNET_OK;
-    uint8_t fOn;
+    uint8_t fOn, fDrvWasPromisc = pState->fPromiscuous | pState->fAllMulti;
     PDMDevHlpPhysRead(pState->VPCI.CTX_SUFF(pDevIns),
                       pElem->aSegsOut[1].addr,
                       &fOn, sizeof(fOn));
@@ -936,6 +1031,9 @@ static uint8_t vnetControlRx(PVNETSTATE pState, PVNETCTLHDR pCtlHdr, PVQUEUEELEM
         default:
             u8Ack = VNET_ERROR;
     }
+    if (fDrvWasPromisc != (pState->fPromiscuous | pState->fAllMulti) && pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv,
+            (pState->fPromiscuous | pState->fAllMulti));
 
     return u8Ack;
 }
@@ -1221,7 +1319,8 @@ static DECLCALLBACK(int) vnetLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return VINF_SUCCESS;
 }
 
-/* Takes down the link temporarily if it's current status is up.
+/**
+ * Takes down the link temporarily if it's current status is up.
  *
  * This is used during restore and when replumbing the network link.
  *
@@ -1302,6 +1401,8 @@ static DECLCALLBACK(int) vnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
             pState->nMacFilterEntries = 0;
             memset(pState->aMacFilter, 0, VNET_MAC_FILTER_LEN * sizeof(RTMAC));
             memset(pState->aVlanFilter, 0, sizeof(pState->aVlanFilter));
+            if (pState->pDrv)
+                pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, true);
         }
     }
 
@@ -1319,6 +1420,9 @@ static DECLCALLBACK(int) vnetLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     VNETSTATE *pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
 
+    if (pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv,
+            (pState->fPromiscuous | pState->fAllMulti));
     /*
      * Indicate link down to the guest OS that all network connections have
      * been lost, unless we've been teleported here.
@@ -1365,7 +1469,7 @@ static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion,
                                    cb, 0, "vnetIOPortOut", "vnetIOPortIn",
                                    NULL, NULL, "VirtioNet");
     AssertRCReturn(rc, rc);
-    rc = PDMDevHlpIOPortRegisterGC(pPciDev->pDevIns, pState->VPCI.addrIOPort,
+    rc = PDMDevHlpIOPortRegisterRC(pPciDev->pDevIns, pState->VPCI.addrIOPort,
                                    cb, 0, "vnetIOPortOut", "vnetIOPortIn",
                                    NULL, NULL, "VirtioNet");
 #endif
@@ -1373,236 +1477,10 @@ static DECLCALLBACK(int) vnetMap(PPCIDEVICE pPciDev, int iRegion,
     return rc;
 }
 
-/**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
- * @thread  EMT
- */
-static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
-{
-    VNETSTATE* pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
-    int        rc;
-
-    /* Initialize PCI part first. */
-    pState->VPCI.IBase.pfnQueryInterface     = vnetQueryInterface;
-    rc = vpciConstruct(pDevIns, &pState->VPCI, iInstance,
-                       VNET_NAME_FMT, VNET_PCI_SUBSYSTEM_ID,
-                       VNET_PCI_CLASS, VNET_N_QUEUES);
-    pState->pRxQueue  = vpciAddQueue(&pState->VPCI, 256, vnetQueueReceive,  "RX ");
-    pState->pTxQueue  = vpciAddQueue(&pState->VPCI, 256, vnetQueueTransmit, "TX ");
-    pState->pCtlQueue = vpciAddQueue(&pState->VPCI, 16,  vnetQueueControl,  "CTL");
-
-    Log(("%s Constructing new instance\n", INSTANCE(pState)));
-
-    pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
-
-    /*
-     * Validate configuration.
-     */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "MAC\0" "CableConnected\0" "LineSpeed\0"))
-                    return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
-                                            N_("Invalid configuration for VirtioNet device"));
-
-    /* Get config params */
-    rc = CFGMR3QueryBytes(pCfgHandle, "MAC", pState->macConfigured.au8,
-                          sizeof(pState->macConfigured));
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to get MAC address"));
-    rc = CFGMR3QueryBool(pCfgHandle, "CableConnected", &pState->fCableConnected);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to get the value of 'CableConnected'"));
-
-    /* Initialize PCI config space */
-    memcpy(pState->config.mac.au8, pState->macConfigured.au8, sizeof(pState->config.mac.au8));
-    pState->config.uStatus = 0;
-
-    /* Initialize state structure */
-    pState->u32PktNo     = 1;
-
-    /* Interfaces */
-    pState->INetworkPort.pfnWaitReceiveAvail = vnetWaitReceiveAvail;
-    pState->INetworkPort.pfnReceive          = vnetReceive;
-    pState->INetworkConfig.pfnGetMac         = vnetGetMac;
-    pState->INetworkConfig.pfnGetLinkState   = vnetGetLinkState;
-    pState->INetworkConfig.pfnSetLinkState   = vnetSetLinkState;
-
-    pState->pTxBuf = (uint8_t *)RTMemAllocZ(VNET_MAX_FRAME_SIZE);
-    AssertMsgReturn(pState->pTxBuf, 
-                    ("Cannot allocate TX buffer for virtio-net device\n"), VERR_NO_MEMORY);
-
-    /* Initialize critical section. */
-    // char szTmp[sizeof(pState->VPCI.szInstance) + 2];
-    // RTStrPrintf(szTmp, sizeof(szTmp), "%sRX", pState->VPCI.szInstance);
-    // rc = PDMDevHlpCritSectInit(pDevIns, &pState->csRx, szTmp);
-    // if (RT_FAILURE(rc))
-    //     return rc;
-
-    /* Map our ports to IO space. */
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0,
-                                      VPCI_CONFIG + sizeof(VNetPCIConfig),
-                                      PCI_ADDRESS_SPACE_IO, vnetMap);
-    if (RT_FAILURE(rc))
-        return rc;
-
-
-    /* Register save/restore state handlers. */
-    rc = PDMDevHlpSSMRegisterEx(pDevIns, VIRTIO_SAVEDSTATE_VERSION, sizeof(VNETSTATE), NULL,
-                                NULL,         vnetLiveExec, NULL,
-                                vnetSavePrep, vnetSaveExec, NULL,
-                                vnetLoadPrep, vnetLoadExec, vnetLoadDone);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /* Create the RX notifier signaller. */
-    rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
-                                 vnetCanRxQueueConsumer, true, "VNet-Rcv", &pState->pCanRxQueueR3);
-    if (RT_FAILURE(rc))
-        return rc;
-    pState->pCanRxQueueR0 = PDMQueueR0Ptr(pState->pCanRxQueueR3);
-    pState->pCanRxQueueRC = PDMQueueRCPtr(pState->pCanRxQueueR3);
-
-    /* Create Link Up Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetLinkUpTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
-                                "VirtioNet Link Up Timer", &pState->pLinkUpTimer);
-    if (RT_FAILURE(rc))
-        return rc;
-
-#ifdef VNET_TX_DELAY
-    /* Create Transmit Delay Timer */
-    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetTxTimer, pState,
-                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
-                                "VirtioNet TX Delay Timer", &pState->pTxTimerR3);
-    if (RT_FAILURE(rc))
-        return rc;
-    pState->pTxTimerR0 = TMTimerR0Ptr(pState->pTxTimerR3);
-    pState->pTxTimerRC = TMTimerRCPtr(pState->pTxTimerR3);
-#endif /* VNET_TX_DELAY */
-
-    rc = PDMDevHlpDriverAttach(pDevIns, 0, &pState->VPCI.IBase, &pState->pDrvBase, "Network Port");
-    if (RT_SUCCESS(rc))
-    {
-        if (rc == VINF_NAT_DNS)
-        {
-            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
-                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
-        }
-        pState->pDrv = (PPDMINETWORKCONNECTOR)
-            pState->pDrvBase->pfnQueryInterface(pState->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
-        if (!pState->pDrv)
-        {
-            AssertMsgFailed(("%s Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
-            return VERR_PDM_MISSING_INTERFACE_BELOW;
-        }
-    }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
-    {
-        Log(("%s This adapter is not attached to any network!\n", INSTANCE(pState)));
-    }
-    else
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the network LUN"));
-
-    rc = RTSemEventCreate(&pState->hEventMoreRxDescAvail);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    vnetReset(pState);
-
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceiveBytes,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,          "Amount of data received",            "/Devices/VNet%d/ReceiveBytes", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmitBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,          "Amount of data transmitted",         "/Devices/VNet%d/TransmitBytes", iInstance);
-#if defined(VBOX_WITH_STATISTICS)
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceive,            STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling receive",                  "/Devices/VNet%d/Receive/Total", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceiveStore,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling receive storing",          "/Devices/VNet%d/Receive/Store", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatRxOverflow,         STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_OCCURENCE, "Profiling RX overflows",        "/Devices/VNet%d/RxOverflow", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatRxOverflowWakeup,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Nr of RX overflow wakeups",          "/Devices/VNet%d/RxOverflowWakeup", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmit,           STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling transmits in HC",          "/Devices/VNet%d/Transmit/Total", iInstance);
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmitSend,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling send transmit in HC",      "/Devices/VNet%d/Transmit/Send", iInstance);
-#endif /* VBOX_WITH_STATISTICS */
-
-    return VINF_SUCCESS;
-}
-
-/**
- * Destruct a device instance.
- *
- * We need to free non-VM resources only.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- * @thread  EMT
- */
-static DECLCALLBACK(int) vnetDestruct(PPDMDEVINS pDevIns)
-{
-    VNETSTATE* pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
-
-    Log(("%s Destroying instance\n", INSTANCE(pState)));
-    if (pState->hEventMoreRxDescAvail != NIL_RTSEMEVENT)
-    {
-        RTSemEventSignal(pState->hEventMoreRxDescAvail);
-        RTSemEventDestroy(pState->hEventMoreRxDescAvail);
-        pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
-    }
-
-    if (pState->pTxBuf)
-    {
-        RTMemFree(pState->pTxBuf);
-        pState->pTxBuf = NULL;
-    }
-    // if (PDMCritSectIsInitialized(&pState->csRx))
-    //     PDMR3CritSectDelete(&pState->csRx);
-
-    return vpciDestruct(&pState->VPCI);
-}
-
-/**
- * Device relocation callback.
- *
- * When this callback is called the device instance data, and if the
- * device have a GC component, is being relocated, or/and the selectors
- * have been changed. The device must use the chance to perform the
- * necessary pointer relocations and data updates.
- *
- * Before the GC code is executed the first time, this function will be
- * called with a 0 delta so GC pointer calculations can be one in one place.
- *
- * @param   pDevIns     Pointer to the device instance.
- * @param   offDelta    The relocation delta relative to the old location.
- *
- * @remark  A relocation CANNOT fail.
- */
-static DECLCALLBACK(void) vnetRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    VNETSTATE* pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
-    vpciRelocate(pDevIns, offDelta);
-    pState->pCanRxQueueRC = PDMQueueRCPtr(pState->pCanRxQueueR3);
-#ifdef VNET_TX_DELAY
-    pState->pTxTimerRC    = TMTimerRCPtr(pState->pTxTimerR3);
-#endif /* VNET_TX_DELAY */
-    // TBD
-}
-
-/**
- * @copydoc FNPDMDEVSUSPEND
- */
-static DECLCALLBACK(void) vnetSuspend(PPDMDEVINS pDevIns)
-{
-    /* Poke thread waiting for buffer space. */
-    vnetWakeupReceive(pDevIns);
-}
-
+/* -=-=-=-=- PDMDEVREG -=-=-=-=- */
 
 #ifdef VBOX_DYNAMIC_NET_ATTACH
+
 /**
  * Detach notification.
  *
@@ -1678,16 +1556,17 @@ static DECLCALLBACK(int) vnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
                                        N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
 #endif
         }
-        pState->pDrv = (PPDMINETWORKCONNECTOR)pState->pDrvBase->pfnQueryInterface(pState->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
-        if (!pState->pDrv)
-        {
-            AssertMsgFailed(("Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
-            rc = VERR_PDM_MISSING_INTERFACE_BELOW;
-        }
+        pState->pDrv = PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMINETWORKUP);
+        AssertMsgStmt(pState->pDrv, ("Failed to obtain the PDMINETWORKUP interface!\n"),
+                      rc = VERR_PDM_MISSING_INTERFACE_BELOW);
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    {
+        /* This should never happen because this function is not called
+         * if there is no driver to attach! */
         Log(("%s No attached driver!\n", INSTANCE(pState)));
-
+    }
 
     /*
      * Temporary set the link down if it was up so that the guest
@@ -1701,8 +1580,17 @@ static DECLCALLBACK(int) vnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
     return rc;
 
 }
+
 #endif /* VBOX_DYNAMIC_NET_ATTACH */
 
+/**
+ * @copydoc FNPDMDEVSUSPEND
+ */
+static DECLCALLBACK(void) vnetSuspend(PPDMDEVINS pDevIns)
+{
+    /* Poke thread waiting for buffer space. */
+    vnetWakeupReceive(pDevIns);
+}
 
 /**
  * @copydoc FNPDMDEVPOWEROFF
@@ -1711,6 +1599,222 @@ static DECLCALLBACK(void) vnetPowerOff(PPDMDEVINS pDevIns)
 {
     /* Poke thread waiting for buffer space. */
     vnetWakeupReceive(pDevIns);
+}
+
+/**
+ * Device relocation callback.
+ *
+ * When this callback is called the device instance data, and if the
+ * device have a GC component, is being relocated, or/and the selectors
+ * have been changed. The device must use the chance to perform the
+ * necessary pointer relocations and data updates.
+ *
+ * Before the GC code is executed the first time, this function will be
+ * called with a 0 delta so GC pointer calculations can be one in one place.
+ *
+ * @param   pDevIns     Pointer to the device instance.
+ * @param   offDelta    The relocation delta relative to the old location.
+ *
+ * @remark  A relocation CANNOT fail.
+ */
+static DECLCALLBACK(void) vnetRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+{
+    VNETSTATE* pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
+    vpciRelocate(pDevIns, offDelta);
+    pState->pCanRxQueueRC = PDMQueueRCPtr(pState->pCanRxQueueR3);
+#ifdef VNET_TX_DELAY
+    pState->pTxTimerRC    = TMTimerRCPtr(pState->pTxTimerR3);
+#endif /* VNET_TX_DELAY */
+    // TBD
+}
+
+/**
+ * Destruct a device instance.
+ *
+ * We need to free non-VM resources only.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ * @thread  EMT
+ */
+static DECLCALLBACK(int) vnetDestruct(PPDMDEVINS pDevIns)
+{
+    VNETSTATE* pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+
+    LogRel(("TxTimer stats (avg/min/max): %7d usec %7d usec %7d usec\n",
+            pState->u32AvgDiff, pState->u32MinDiff, pState->u32MaxDiff));
+    Log(("%s Destroying instance\n", INSTANCE(pState)));
+    if (pState->hEventMoreRxDescAvail != NIL_RTSEMEVENT)
+    {
+        RTSemEventSignal(pState->hEventMoreRxDescAvail);
+        RTSemEventDestroy(pState->hEventMoreRxDescAvail);
+        pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
+    }
+
+    if (pState->pTxBuf)
+    {
+        RTMemFree(pState->pTxBuf);
+        pState->pTxBuf = NULL;
+    }
+    // if (PDMCritSectIsInitialized(&pState->csRx))
+    //     PDMR3CritSectDelete(&pState->csRx);
+
+    return vpciDestruct(&pState->VPCI);
+}
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
+ */
+static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
+{
+    VNETSTATE* pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
+    int        rc;
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+
+    /* Initialize PCI part first. */
+    pState->VPCI.IBase.pfnQueryInterface    = vnetQueryInterface;
+    rc = vpciConstruct(pDevIns, &pState->VPCI, iInstance,
+                       VNET_NAME_FMT, VNET_PCI_SUBSYSTEM_ID,
+                       VNET_PCI_CLASS, VNET_N_QUEUES);
+    pState->pRxQueue  = vpciAddQueue(&pState->VPCI, 256, vnetQueueReceive,  "RX ");
+    pState->pTxQueue  = vpciAddQueue(&pState->VPCI, 256, vnetQueueTransmit, "TX ");
+    pState->pCtlQueue = vpciAddQueue(&pState->VPCI, 16,  vnetQueueControl,  "CTL");
+
+    Log(("%s Constructing new instance\n", INSTANCE(pState)));
+
+    pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
+
+    /*
+     * Validate configuration.
+     */
+    if (!CFGMR3AreValuesValid(pCfg, "MAC\0" "CableConnected\0" "LineSpeed\0"))
+                    return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
+                                            N_("Invalid configuration for VirtioNet device"));
+
+    /* Get config params */
+    rc = CFGMR3QueryBytes(pCfg, "MAC", pState->macConfigured.au8,
+                          sizeof(pState->macConfigured));
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to get MAC address"));
+    rc = CFGMR3QueryBool(pCfg, "CableConnected", &pState->fCableConnected);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to get the value of 'CableConnected'"));
+
+    /* Initialize PCI config space */
+    memcpy(pState->config.mac.au8, pState->macConfigured.au8, sizeof(pState->config.mac.au8));
+    pState->config.uStatus = 0;
+
+    /* Initialize state structure */
+    pState->u32PktNo     = 1;
+
+    /* Interfaces */
+    pState->INetworkDown.pfnWaitReceiveAvail = vnetNetworkDown_WaitReceiveAvail;
+    pState->INetworkDown.pfnReceive          = vnetNetworkDown_Receive;
+    pState->INetworkDown.pfnXmitPending      = vnetNetworkDown_XmitPending;
+
+    pState->INetworkConfig.pfnGetMac         = vnetGetMac;
+    pState->INetworkConfig.pfnGetLinkState   = vnetGetLinkState;
+    pState->INetworkConfig.pfnSetLinkState   = vnetSetLinkState;
+
+    pState->pTxBuf = (uint8_t *)RTMemAllocZ(VNET_MAX_FRAME_SIZE);
+    AssertMsgReturn(pState->pTxBuf,
+                    ("Cannot allocate TX buffer for virtio-net device\n"), VERR_NO_MEMORY);
+
+    /* Initialize critical section. */
+    // char szTmp[sizeof(pState->VPCI.szInstance) + 2];
+    // RTStrPrintf(szTmp, sizeof(szTmp), "%sRX", pState->VPCI.szInstance);
+    // rc = PDMDevHlpCritSectInit(pDevIns, &pState->csRx, szTmp);
+    // if (RT_FAILURE(rc))
+    //     return rc;
+
+    /* Map our ports to IO space. */
+    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0,
+                                      VPCI_CONFIG + sizeof(VNetPCIConfig),
+                                      PCI_ADDRESS_SPACE_IO, vnetMap);
+    if (RT_FAILURE(rc))
+        return rc;
+
+
+    /* Register save/restore state handlers. */
+    rc = PDMDevHlpSSMRegisterEx(pDevIns, VIRTIO_SAVEDSTATE_VERSION, sizeof(VNETSTATE), NULL,
+                                NULL,         vnetLiveExec, NULL,
+                                vnetSavePrep, vnetSaveExec, NULL,
+                                vnetLoadPrep, vnetLoadExec, vnetLoadDone);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* Create the RX notifier signaller. */
+    rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
+                              vnetCanRxQueueConsumer, true, "VNet-Rcv", &pState->pCanRxQueueR3);
+    if (RT_FAILURE(rc))
+        return rc;
+    pState->pCanRxQueueR0 = PDMQueueR0Ptr(pState->pCanRxQueueR3);
+    pState->pCanRxQueueRC = PDMQueueRCPtr(pState->pCanRxQueueR3);
+
+    /* Create Link Up Timer */
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetLinkUpTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                "VirtioNet Link Up Timer", &pState->pLinkUpTimer);
+    if (RT_FAILURE(rc))
+        return rc;
+
+#ifdef VNET_TX_DELAY
+    /* Create Transmit Delay Timer */
+    rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetTxTimer, pState,
+                                TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
+                                "VirtioNet TX Delay Timer", &pState->pTxTimerR3);
+    if (RT_FAILURE(rc))
+        return rc;
+    pState->pTxTimerR0 = TMTimerR0Ptr(pState->pTxTimerR3);
+    pState->pTxTimerRC = TMTimerRCPtr(pState->pTxTimerR3);
+
+    pState->u32i = pState->u32AvgDiff = pState->u32MaxDiff = 0;
+    pState->u32MinDiff = ~0;
+#endif /* VNET_TX_DELAY */
+
+    rc = PDMDevHlpDriverAttach(pDevIns, 0, &pState->VPCI.IBase, &pState->pDrvBase, "Network Port");
+    if (RT_SUCCESS(rc))
+    {
+        if (rc == VINF_NAT_DNS)
+        {
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+        }
+        pState->pDrv = PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMINETWORKUP);
+        AssertMsgReturn(pState->pDrv, ("Failed to obtain the PDMINETWORKUP interface!\n"),
+                        VERR_PDM_MISSING_INTERFACE_BELOW);
+    }
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME )
+    {
+         /* No error! */
+        Log(("%s This adapter is not attached to any network!\n", INSTANCE(pState)));
+    }
+    else
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the network LUN"));
+
+    rc = RTSemEventCreate(&pState->hEventMoreRxDescAvail);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = vnetReset(pState);
+    AssertRC(rc);
+
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceiveBytes,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,          "Amount of data received",            "/Devices/VNet%d/ReceiveBytes", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmitBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,          "Amount of data transmitted",         "/Devices/VNet%d/TransmitBytes", iInstance);
+#if defined(VBOX_WITH_STATISTICS)
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceive,            STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling receive",                  "/Devices/VNet%d/Receive/Total", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceiveStore,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling receive storing",          "/Devices/VNet%d/Receive/Store", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatRxOverflow,         STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_OCCURENCE, "Profiling RX overflows",        "/Devices/VNet%d/RxOverflow", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatRxOverflowWakeup,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Nr of RX overflow wakeups",          "/Devices/VNet%d/RxOverflowWakeup", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmit,           STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling transmits in HC",          "/Devices/VNet%d/Transmit/Total", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmitSend,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling send transmit in HC",      "/Devices/VNet%d/Transmit/Send", iInstance);
+#endif /* VBOX_WITH_STATISTICS */
+
+    return VINF_SUCCESS;
 }
 
 /**

@@ -1,10 +1,10 @@
-/* $Id: DevACPI.cpp $ */
+/* $Id: DevACPI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevACPI - Advanced Configuration and Power Interface (ACPI) Device.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -32,6 +28,7 @@
 #ifdef IN_RING3
 # include <iprt/alloc.h>
 # include <iprt/string.h>
+# include <iprt/uuid.h>
 #endif /* IN_RING3 */
 
 #include "../Builtins.h"
@@ -43,6 +40,9 @@
 #if defined(IN_RING3) && !defined(VBOX_DEVICE_STRUCT_TESTCASE)
 int acpiPrepareDsdt(PPDMDEVINS pDevIns, void* *ppPtr, size_t *puDsdtLen);
 int acpiCleanupDsdt(PPDMDEVINS pDevIns, void* pPtr);
+
+int acpiPrepareSsdt(PPDMDEVINS pDevIns, void* *ppPtr, size_t *puSsdtLen);
+int acpiCleanupSsdt(PPDMDEVINS pDevIns, void* pPtr);
 #endif /* !IN_RING3 */
 
 
@@ -137,18 +137,29 @@ enum
 
 enum
 {
+    CPU_EVENT_TYPE_ADD                  = 0x01, /**< Event type add */
+    CPU_EVENT_TYPE_REMOVE               = 0x03  /**< Event type remove */
+};
+
+enum
+{
     SYSTEM_INFO_INDEX_LOW_MEMORY_LENGTH = 0,
     SYSTEM_INFO_INDEX_USE_IOAPIC        = 1,
     SYSTEM_INFO_INDEX_HPET_STATUS       = 2,
     SYSTEM_INFO_INDEX_SMC_STATUS        = 3,
     SYSTEM_INFO_INDEX_FDC_STATUS        = 4,
-    SYSTEM_INFO_INDEX_CPU0_STATUS       = 5,
-    SYSTEM_INFO_INDEX_CPU1_STATUS       = 6,
-    SYSTEM_INFO_INDEX_CPU2_STATUS       = 7,
-    SYSTEM_INFO_INDEX_CPU3_STATUS       = 8,
+    SYSTEM_INFO_INDEX_CPU0_STATUS       = 5,  /**< For compatability with older saved states. */
+    SYSTEM_INFO_INDEX_CPU1_STATUS       = 6,  /**< For compatability with older saved states. */
+    SYSTEM_INFO_INDEX_CPU2_STATUS       = 7,  /**< For compatability with older saved states. */
+    SYSTEM_INFO_INDEX_CPU3_STATUS       = 8,  /**< For compatability with older saved states. */
     SYSTEM_INFO_INDEX_HIGH_MEMORY_LENGTH= 9,
     SYSTEM_INFO_INDEX_RTC_STATUS        = 10,
-    SYSTEM_INFO_INDEX_END               = 11,
+    SYSTEM_INFO_INDEX_CPU_LOCKED        = 11, /**< Contains a flag indicating whether the CPU is locked or not */
+    SYSTEM_INFO_INDEX_CPU_LOCK_CHECK    = 12, /**< For which CPU the lock status should be checked */
+    SYSTEM_INFO_INDEX_CPU_EVENT_TYPE    = 13, /**< Type of the CPU hot-plug event */
+    SYSTEM_INFO_INDEX_CPU_EVENT         = 14, /**< The CPU id the event is for */
+    SYSTEM_INFO_INDEX_NIC_ADDRESS       = 15, /**< NIC PCI address, or 0 */
+    SYSTEM_INFO_INDEX_END               = 16,
     SYSTEM_INFO_INDEX_INVALID           = 0x80,
     SYSTEM_INFO_INDEX_VALID             = 0x200
 };
@@ -229,8 +240,20 @@ typedef struct ACPIState
     bool                fGCEnabled;
     /** Flag whether the R0 part of the device is enabled. */
     bool                fR0Enabled;
-    /** Aligning IBase. */
-    bool                afAlignment[4];
+    /** Array of flags of attached CPUs */
+    VMCPUSET            CpuSetAttached;
+    /** Which CPU to check for the locked status. */
+    uint32_t            idCpuLockCheck;
+    /** Mask of locked CPUs (used by the guest) */
+    VMCPUSET            CpuSetLocked;
+    /** The CPU event type */
+    uint32_t            u32CpuEventType;
+    /** The CPU id affected */
+    uint32_t            u32CpuEvent;
+    /** Flag whether CPU hot plugging is enabled */
+    bool                fCpuHotPlug;
+    /** Primary NIC PCI address */
+    uint32_t             u32NicPciAddress;
 
     /** ACPI port base interface. */
     PDMIBASE            IBase;
@@ -368,8 +391,8 @@ struct ACPITBLFADT
                                                      (COM too?) */
 #define IAPC_BOOT_ARCH_8042             RT_BIT(1)  /**< legacy keyboard device present */
 #define IAPC_BOOT_ARCH_NO_VGA           RT_BIT(2)  /**< VGA not present */
-    uint8_t             u8Must0_0;              /**< must be 0 */
-    uint32_t            u32Flags;               /**< fixed feature flags */
+    uint8_t             u8Must0_0;                 /**< must be 0 */
+    uint32_t            u32Flags;                  /**< fixed feature flags */
 #define FADT_FL_WBINVD                  RT_BIT(0)  /**< emulation of WBINVD available */
 #define FADT_FL_WBINVD_FLUSH            RT_BIT(1)
 #define FADT_FL_PROC_C1                 RT_BIT(2)  /**< 1=C1 supported on all processors */
@@ -449,6 +472,39 @@ struct ACPITBLIOAPIC
 };
 AssertCompileSize(ACPITBLIOAPIC, 12);
 
+/** Interrupt Source Override Structure */
+struct ACPITBLISO
+{
+    uint8_t             u8Type;                 /**< 2 ==  Interrupt Source Override*/
+    uint8_t             u8Length;               /**< 10 */
+    uint8_t             u8Bus;                  /**< Bus */
+    uint8_t             u8Source;               /**< Bus-relative interrupt source (IRQ) */
+    uint32_t            u32GSI;                 /**< Global System Interrupt */
+    uint16_t            u16Flags;               /**< MPS INTI flags Global */
+};
+AssertCompileSize(ACPITBLISO, 10);
+#define NUMBER_OF_IRQ_SOURCE_OVERRIDES 1
+
+/** HPET Descriptor Structure */
+struct ACPITBLHPET
+{
+    ACPITBLHEADER aHeader;
+    uint32_t      u32Id;                        /**< hardware ID of event timer block
+                                                     [31:16] PCI vendor ID of first timer block
+                                                     [15]    legacy replacement IRQ routing capable
+                                                     [14]    reserved
+                                                     [13]    COUNT_SIZE_CAP counter size
+                                                     [12:8]  number of comparators in first timer block
+                                                     [7:0]   hardware rev ID */
+    ACPIGENADDR   HpetAddr;                     /**< lower 32-bit base address */
+    uint8_t       u32Number;                    /**< sequence number starting at 0 */
+    uint16_t      u32MinTick;                   /**< minimum clock ticks which can be set without
+                                                     lost interrupts while the counter is programmed
+                                                     to operate in periodic mode. Unit: clock tick. */
+    uint8_t       u8Attributes;                 /**< page protextion and OEM attribute. */
+};
+AssertCompileSize(ACPITBLHPET, 56);
+
 # ifdef IN_RING3 /** @todo r=bird: Move this down to where it's used. */
 
 #  define PCAT_COMPAT   0x1                     /**< system has also a dual-8259 setup */
@@ -470,6 +526,11 @@ class AcpiTableMADT
      * Number of CPU entries in this MADT.
      */
     uint32_t            m_cCpus;
+
+    /**
+     * Number of interrupt overrides.
+     */
+     uint32_t            m_cIsos;
 
 public:
     /**
@@ -498,11 +559,19 @@ public:
     }
 
     /**
+     * Address of ISO description
+     */
+    inline ACPITBLISO *ISO_addr(void) const
+    {
+        return (ACPITBLISO *)(u32Flags_addr() + 1);
+    }
+
+    /**
      * Address of per-CPU LAPIC descriptions
      */
     inline ACPITBLLAPIC *LApics_addr(void) const
     {
-        return (ACPITBLLAPIC *)(u32Flags_addr() + 1);
+        return (ACPITBLLAPIC *)(ISO_addr() + m_cIsos);
     }
 
     /**
@@ -533,17 +602,18 @@ public:
     /**
      * Size of MADT for given ACPI config, useful to compute layout.
      */
-    static uint32_t sizeFor(ACPIState *s)
+    static uint32_t sizeFor(ACPIState *s, uint32_t cIsos)
     {
-        return AcpiTableMADT(s->cCpus).size();
+        return AcpiTableMADT(s->cCpus, cIsos).size();
     }
 
     /*
      * Constructor, only works in Ring 3, doesn't look like a big deal.
      */
-    AcpiTableMADT(uint32_t cCpus)
+    AcpiTableMADT(uint32_t cCpus, uint32_t cIsos)
     {
         m_cCpus  = cCpus;
+        m_cIsos  = cIsos;
         m_pbData = NULL;                /* size() uses this and gcc will complain if not initilized. */
         uint32_t cb = size();
         m_pbData = (uint8_t *)RTMemAllocZ(cb);
@@ -649,6 +719,14 @@ static void acpiSetupDSDT(ACPIState *s, RTGCPHYS32 addr,
     acpiPhyscpy(s, addr, pPtr, uDsdtLen);
 }
 
+/** Secondary System Description Table (SSDT) */
+
+static void acpiSetupSSDT(ACPIState *s, RTGCPHYS32 addr,
+                            void* pPtr, size_t uSsdtLen)
+{
+    acpiPhyscpy(s, addr, pPtr, uSsdtLen);
+}
+
 /** Firmware ACPI Control Structure (FACS) */
 static void acpiSetupFACS(ACPIState *s, RTGCPHYS32 addr)
 {
@@ -668,15 +746,15 @@ static void acpiSetupFACS(ACPIState *s, RTGCPHYS32 addr)
 }
 
 /** Fixed ACPI Description Table (FADT aka FACP) */
-static void acpiSetupFADT(ACPIState *s, RTGCPHYS32 addr_acpi1, RTGCPHYS32 addr_acpi2, uint32_t facs_addr, uint32_t dsdt_addr)
+static void acpiSetupFADT(ACPIState *s, RTGCPHYS32 GCPhysAcpi1, RTGCPHYS32 GCPhysAcpi2, RTGCPHYS32 GCPhysFacs, RTGCPHYS GCPhysDsdt)
 {
     ACPITBLFADT fadt;
 
     /* First the ACPI version 2+ version of the structure. */
     memset(&fadt, 0, sizeof(fadt));
     acpiPrepareHeader(&fadt.header, "FACP", sizeof(fadt), 4);
-    fadt.u32FACS              = RT_H2LE_U32(facs_addr);
-    fadt.u32DSDT              = RT_H2LE_U32(dsdt_addr);
+    fadt.u32FACS              = RT_H2LE_U32(GCPhysFacs);
+    fadt.u32DSDT              = RT_H2LE_U32(GCPhysDsdt);
     fadt.u8IntModel           = 0;  /* dropped from the ACPI 2.0 spec. */
     fadt.u8PreferredPMProfile = 0;  /* unspecified */
     fadt.u16SCIInt            = RT_H2LE_U16(SCI_INT);
@@ -714,11 +792,17 @@ static void acpiSetupFADT(ACPIState *s, RTGCPHYS32 addr_acpi1, RTGCPHYS32 addr_a
     /** @note WBINVD is required for ACPI versions newer than 1.0 */
     fadt.u32Flags             = RT_H2LE_U32(  FADT_FL_WBINVD
                                             | FADT_FL_FIX_RTC
-                                            | FADT_FL_TMR_VAL_EXT);
+                                            | FADT_FL_TMR_VAL_EXT
+                                            | FADT_FL_RESET_REG_SUP);
+
+    /* We have to force physical APIC mode or Linux can't use more than 8 CPUs */
+    if (s->fCpuHotPlug)
+        fadt.u32Flags |= RT_H2LE_U32(FADT_FL_FORCE_APIC_PHYS_DEST_MODE);
+
     acpiWriteGenericAddr(&fadt.ResetReg,     1,  8, 0, 1, ACPI_RESET_BLK);
     fadt.u8ResetVal           = ACPI_RESET_REG_VAL;
-    fadt.u64XFACS             = RT_H2LE_U64((uint64_t)facs_addr);
-    fadt.u64XDSDT             = RT_H2LE_U64((uint64_t)dsdt_addr);
+    fadt.u64XFACS             = RT_H2LE_U64((uint64_t)GCPhysFacs);
+    fadt.u64XDSDT             = RT_H2LE_U64((uint64_t)GCPhysDsdt);
     acpiWriteGenericAddr(&fadt.X_PM1aEVTBLK, 1, 32, 0, 2, acpiPmPort(s, PM1a_EVT_OFFSET));
     acpiWriteGenericAddr(&fadt.X_PM1bEVTBLK, 0,  0, 0, 0, acpiPmPort(s, PM1b_EVT_OFFSET));
     acpiWriteGenericAddr(&fadt.X_PM1aCTLBLK, 1, 16, 0, 2, acpiPmPort(s, PM1a_CTL_OFFSET));
@@ -728,14 +812,14 @@ static void acpiSetupFADT(ACPIState *s, RTGCPHYS32 addr_acpi1, RTGCPHYS32 addr_a
     acpiWriteGenericAddr(&fadt.X_GPE0BLK,    1, 16, 0, 1, acpiPmPort(s, GPE0_OFFSET));
     acpiWriteGenericAddr(&fadt.X_GPE1BLK,    0,  0, 0, 0, acpiPmPort(s, GPE1_OFFSET));
     fadt.header.u8Checksum    = acpiChecksum((uint8_t *)&fadt, sizeof(fadt));
-    acpiPhyscpy(s, addr_acpi2, &fadt, sizeof(fadt));
+    acpiPhyscpy(s, GCPhysAcpi2, &fadt, sizeof(fadt));
 
     /* Now the ACPI 1.0 version. */
     fadt.header.u32Length     = ACPITBLFADT_VERSION1_SIZE;
     fadt.u8IntModel           = INT_MODEL_DUAL_PIC;
     fadt.header.u8Checksum    = 0;  /* Must be zeroed before recalculating checksum! */
     fadt.header.u8Checksum    = acpiChecksum((uint8_t *)&fadt, ACPITBLFADT_VERSION1_SIZE);
-    acpiPhyscpy(s, addr_acpi1, &fadt, ACPITBLFADT_VERSION1_SIZE);
+    acpiPhyscpy(s, GCPhysAcpi1, &fadt, ACPITBLFADT_VERSION1_SIZE);
 }
 
 /**
@@ -787,7 +871,7 @@ static int acpiSetupXSDT(ACPIState *s, RTGCPHYS32 addr, unsigned int nb_entries,
 }
 
 /** Root System Description Pointer (RSDP) */
-static void acpiSetupRSDP(ACPITBLRSDP *rsdp, uint32_t rsdt_addr, uint64_t xsdt_addr)
+static void acpiSetupRSDP(ACPITBLRSDP *rsdp, RTGCPHYS32 GCPhysRsdt, RTGCPHYS GCPhysXsdt)
 {
     memset(rsdp, 0, sizeof(*rsdp));
 
@@ -795,12 +879,12 @@ static void acpiSetupRSDP(ACPITBLRSDP *rsdp, uint32_t rsdt_addr, uint64_t xsdt_a
     memcpy(rsdp->au8Signature, "RSD PTR ", 8);
     memcpy(rsdp->au8OemId, "VBOX  ", 6);
     rsdp->u8Revision    = ACPI_REVISION;
-    rsdp->u32RSDT       = RT_H2LE_U32(rsdt_addr);
+    rsdp->u32RSDT       = RT_H2LE_U32(GCPhysRsdt);
     rsdp->u8Checksum    = acpiChecksum((uint8_t*)rsdp, RT_OFFSETOF(ACPITBLRSDP, u32Length));
 
     /* ACPI 2.0 part (XSDT) */
     rsdp->u32Length     = RT_H2LE_U32(sizeof(ACPITBLRSDP));
-    rsdp->u64XSDT       = RT_H2LE_U64(xsdt_addr);
+    rsdp->u64XSDT       = RT_H2LE_U64(GCPhysXsdt);
     rsdp->u8ExtChecksum = acpiChecksum((uint8_t*)rsdp, sizeof(ACPITBLRSDP));
 }
 
@@ -814,36 +898,76 @@ static void acpiSetupRSDP(ACPITBLRSDP *rsdp, uint32_t rsdt_addr, uint64_t xsdt_a
 static void acpiSetupMADT(ACPIState *s, RTGCPHYS32 addr)
 {
     uint16_t cpus = s->cCpus;
-    AcpiTableMADT madt(cpus);
+    AcpiTableMADT madt(cpus, 1 /* one source override */ );
 
     acpiPrepareHeader(madt.header_addr(), "APIC", madt.size(), 2);
 
     *madt.u32LAPIC_addr()          = RT_H2LE_U32(0xfee00000);
     *madt.u32Flags_addr()          = RT_H2LE_U32(PCAT_COMPAT);
 
+    /* LAPICs records */
     ACPITBLLAPIC* lapic = madt.LApics_addr();
     for (uint16_t i = 0; i < cpus; i++)
     {
         lapic->u8Type      = 0;
         lapic->u8Length    = sizeof(ACPITBLLAPIC);
         lapic->u8ProcId    = i;
+        /** Must match numbering convention in MPTABLES */
         lapic->u8ApicId    = i;
-        lapic->u32Flags    = RT_H2LE_U32(LAPIC_ENABLED);
+        lapic->u32Flags    = VMCPUSET_IS_PRESENT(&s->CpuSetAttached, i) ? RT_H2LE_U32(LAPIC_ENABLED) : 0;
         lapic++;
     }
 
+    /* IO-APIC record */
     ACPITBLIOAPIC* ioapic = madt.IOApic_addr();
-
     ioapic->u8Type     = 1;
     ioapic->u8Length   = sizeof(ACPITBLIOAPIC);
-    /** @todo is this the right id? */
+    /** Must match MP tables ID */
     ioapic->u8IOApicId = cpus;
     ioapic->u8Reserved = 0;
     ioapic->u32Address = RT_H2LE_U32(0xfec00000);
     ioapic->u32GSIB    = RT_H2LE_U32(0);
 
+    /* Interrupt Source Overrides */
+    /* If changing, also update PDMIsaSetIrq() and MPS */
+    ACPITBLISO* isos = madt.ISO_addr();
+    isos[0].u8Type     = 2;
+    isos[0].u8Length   = sizeof(ACPITBLISO);
+    isos[0].u8Bus      = 0; /* Must be 0 */
+    isos[0].u8Source   = 0; /* IRQ0 */
+    isos[0].u32GSI     = 2; /* connected to pin 2 */
+    isos[0].u16Flags   = 0; /* conform to the bus */
+    Assert(NUMBER_OF_IRQ_SOURCE_OVERRIDES == 1);
+
     madt.header_addr()->u8Checksum = acpiChecksum(madt.data(), madt.size());
     acpiPhyscpy(s, addr, madt.data(), madt.size());
+}
+
+
+/** High Performance Event Timer (HPET) descriptor */
+static void acpiSetupHPET(ACPIState *s, RTGCPHYS32 addr)
+{
+    ACPITBLHPET hpet;
+
+    memset(&hpet, 0, sizeof(hpet));
+
+    acpiPrepareHeader(&hpet.aHeader, "HPET", sizeof(hpet), 1);
+    /* Keep base address consistent with appropriate DSDT entry  (vbox.dsl) */
+    acpiWriteGenericAddr(&hpet.HpetAddr,
+                         0  /* Memory address space */,
+                         64 /* Register bit width */,
+                         0  /* Bit offset */,
+                         0, /* Register access size, is it correct? */
+                         0xfed00000 /* Address */);
+
+    hpet.u32Id        = 0x8086a201; /* must match what HPET ID returns, is it correct ? */
+    hpet.u32Number    = 0;
+    hpet.u32MinTick   = 4096;
+    hpet.u8Attributes = 0;
+
+    hpet.aHeader.u8Checksum = acpiChecksum((uint8_t *)&hpet, sizeof(hpet));
+
+    acpiPhyscpy(s, addr, (const uint8_t *)&hpet, sizeof(hpet));
 }
 
 /* SCI IRQ */
@@ -957,6 +1081,13 @@ static DECLCALLBACK(int) acpiGetGuestEnteredACPIMode(PPDMIACPIPORT pInterface, b
 {
     ACPIState *s = IACPIPORT_2_ACPISTATE(pInterface);
     *pfEntered = (s->pm1a_ctl & SCI_EN) != 0;
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) acpiGetCpuStatus(PPDMIACPIPORT pInterface, unsigned uCpu, bool *pfLocked)
+{
+    ACPIState *s = IACPIPORT_2_ACPISTATE(pInterface);
+    *pfLocked = VMCPUSET_IS_PRESENT(&s->CpuSetLocked, uCpu);
     return VINF_SUCCESS;
 }
 
@@ -1350,7 +1481,7 @@ PDMBOTHCBDECL(int) acpiSysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
                                            | STA_DEVICE_ENABLED_MASK
                                            | STA_DEVICE_SHOW_IN_UI_MASK
                                            | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
-                            : 0;
+                                        : 0;
                     break;
 
                 case SYSTEM_INFO_INDEX_SMC_STATUS:
@@ -1358,7 +1489,7 @@ PDMBOTHCBDECL(int) acpiSysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
                                           | STA_DEVICE_ENABLED_MASK
                                           /* no need to show this device in the UI */
                                           | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
-                            : 0;
+                                       : 0;
                     break;
 
                 case SYSTEM_INFO_INDEX_FDC_STATUS:
@@ -1366,29 +1497,61 @@ PDMBOTHCBDECL(int) acpiSysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
                                           | STA_DEVICE_ENABLED_MASK
                                           | STA_DEVICE_SHOW_IN_UI_MASK
                                           | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
-                            : 0;
+                                       : 0;
                     break;
 
+                case SYSTEM_INFO_INDEX_NIC_ADDRESS:
+                    *pu32 = s->u32NicPciAddress;
+                    break;
 
+                /* This is only for compatability with older saved states that
+                   may include ACPI code that read these values.  Legacy is
+                   a wonderful thing, isn't it? :-) */
                 case SYSTEM_INFO_INDEX_CPU0_STATUS:
                 case SYSTEM_INFO_INDEX_CPU1_STATUS:
                 case SYSTEM_INFO_INDEX_CPU2_STATUS:
                 case SYSTEM_INFO_INDEX_CPU3_STATUS:
-                  *pu32 = s->fShowCpu
-                    && s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS < s->cCpus
-                    ?
-                      STA_DEVICE_PRESENT_MASK
-                    | STA_DEVICE_ENABLED_MASK
-                    | STA_DEVICE_SHOW_IN_UI_MASK
-                    | STA_DEVICE_FUNCTIONING_PROPERLY_MASK
-                    : 0;
+                    *pu32 = (   s->fShowCpu
+                             && s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS < s->cCpus
+                             && VMCPUSET_IS_PRESENT(&s->CpuSetAttached,
+                                                    s->uSystemInfoIndex - SYSTEM_INFO_INDEX_CPU0_STATUS))
+                                        ? (  STA_DEVICE_PRESENT_MASK
+                                           | STA_DEVICE_ENABLED_MASK
+                                           | STA_DEVICE_SHOW_IN_UI_MASK
+                                           | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
+                                        : 0;
+                    break;
 
-                 case SYSTEM_INFO_INDEX_RTC_STATUS:
+                case SYSTEM_INFO_INDEX_RTC_STATUS:
                     *pu32 = s->fShowRtc ? (  STA_DEVICE_PRESENT_MASK
                                            | STA_DEVICE_ENABLED_MASK
                                            | STA_DEVICE_SHOW_IN_UI_MASK
                                            | STA_DEVICE_FUNCTIONING_PROPERLY_MASK)
-                            : 0;
+                                        : 0;
+                    break;
+
+                case SYSTEM_INFO_INDEX_CPU_LOCKED:
+                {
+                    if (s->idCpuLockCheck < VMM_MAX_CPU_COUNT)
+                    {
+                        *pu32 = VMCPUSET_IS_PRESENT(&s->CpuSetLocked, s->idCpuLockCheck);
+                        s->idCpuLockCheck = UINT32_C(0xffffffff); /* Make the entry invalid */
+                    }
+                    else
+                    {
+                        AssertMsgFailed(("ACPI: CPU lock check protocol violation\n"));
+                        /* Always return locked status just to be safe */
+                        *pu32 = 1;
+                    }
+                    break;
+                }
+
+                case SYSTEM_INFO_INDEX_CPU_EVENT_TYPE:
+                    *pu32 = s->u32CpuEventType;
+                    break;
+
+                case SYSTEM_INFO_INDEX_CPU_EVENT:
+                    *pu32 = s->u32CpuEvent;
                     break;
 
                 /* Solaris 9 tries to read from this index */
@@ -1416,16 +1579,29 @@ PDMBOTHCBDECL(int) acpiSysInfoDataWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 
     Log(("addr=%#x cb=%d u32=%#x si=%#x\n", Port, cb, u32, s->uSystemInfoIndex));
 
-    if (cb == 4 && u32 == 0xbadc0de)
+    if (cb == 4)
     {
         switch (s->uSystemInfoIndex)
         {
             case SYSTEM_INFO_INDEX_INVALID:
+                AssertMsg(u32 == 0xbadc0de, ("u32=%u\n", u32));
                 s->u8IndexShift = 0;
                 break;
 
             case SYSTEM_INFO_INDEX_VALID:
+                AssertMsg(u32 == 0xbadc0de, ("u32=%u\n", u32));
                 s->u8IndexShift = 2;
+                break;
+
+            case SYSTEM_INFO_INDEX_CPU_LOCK_CHECK:
+                s->idCpuLockCheck = u32;
+                break;
+
+            case SYSTEM_INFO_INDEX_CPU_LOCKED:
+                if (u32 < s->cCpus)
+                    VMCPUSET_DEL(&s->CpuSetLocked, u32); /* Unlock the CPU */
+                else
+                    LogRel(("ACPI: CPU %u does not exist\n", u32));
                 break;
 
             default:
@@ -1489,6 +1665,9 @@ PDMBOTHCBDECL(int) acpiPM1aEnWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Po
         case 2:
             acpiPM1aEnWritew((ACPIState*)pvUser, Port, u32);
             break;
+        case 4:
+            acpiPM1aEnWritew((ACPIState*)pvUser, Port, u32 & 0xffff);
+            break;
         default:
             AssertMsgFailed(("Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
             break;
@@ -1503,6 +1682,9 @@ PDMBOTHCBDECL(int) acpiPM1aStsWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
         case 2:
             acpiPM1aStsWritew((ACPIState*)pvUser, Port, u32);
             break;
+        case 4:
+            acpiPM1aStsWritew((ACPIState*)pvUser, Port, u32 & 0xffff);
+            break;
         default:
             AssertMsgFailed(("Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
             break;
@@ -1516,6 +1698,8 @@ PDMBOTHCBDECL(int) acpiPM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
     {
         case 2:
             return acpiPM1aCtlWritew((ACPIState*)pvUser, Port, u32);
+        case 4:
+            return acpiPM1aCtlWritew((ACPIState*)pvUser, Port, u32 & 0xffff);
         default:
             AssertMsgFailed(("Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
             break;
@@ -1685,10 +1869,10 @@ static int acpiRegisterPmHandlers(ACPIState*  pThis)
 #undef L
 #undef R
 
-    /* register GC stuff */
+    /* register RC stuff */
     if (pThis->fGCEnabled)
     {
-        rc = PDMDevHlpIOPortRegisterGC(pThis->pDevIns, acpiPmPort(pThis, PM_TMR_OFFSET),
+        rc = PDMDevHlpIOPortRegisterRC(pThis->pDevIns, acpiPmPort(pThis, PM_TMR_OFFSET),
                                        1, 0, NULL, "acpiPMTmrRead",
                                        NULL, NULL, "ACPI PM Timer");
         AssertRCReturn(rc, rc);
@@ -1778,7 +1962,6 @@ static DECLCALLBACK(int) acpi_load_state(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHand
 {
     ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
 
-
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
     /*
      * Unregister PM handlers, will register with actual base
@@ -1819,26 +2002,14 @@ static DECLCALLBACK(int) acpi_load_state(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHand
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) acpiQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) acpiQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    ACPIState *pThis = (ACPIState*)((uintptr_t)pInterface - RT_OFFSETOF(ACPIState, IBase));
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->IBase;
-        case PDMINTERFACE_ACPI_PORT:
-            return &pThis->IACPIPort;
-        default:
-            return NULL;
-    }
+    ACPIState *pThis = RT_FROM_MEMBER(pInterface, ACPIState, IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIACPIPORT, &pThis->IACPIPort);
+    return NULL;
 }
 
 /**
@@ -1847,35 +2018,40 @@ static DECLCALLBACK(void *) acpiQueryInterface(PPDMIBASE pInterface, PDMINTERFAC
 static int acpiPlantTables(ACPIState *s)
 {
     int        rc;
-    RTGCPHYS32 rsdt_addr, xsdt_addr, fadt_acpi1_addr, fadt_acpi2_addr, facs_addr, dsdt_addr, last_addr, apic_addr = 0;
+    RTGCPHYS32 GCPhysCur, GCPhysRsdt, GCPhysXsdt, GCPhysFadtAcpi1, GCPhysFadtAcpi2, GCPhysFacs, GCPhysDsdt;
+    RTGCPHYS32 GCPhysHpet = 0, GCPhysApic = 0, GCPhysSsdt = 0;
     uint32_t   addend = 0;
-    RTGCPHYS32 rsdt_addrs[4];
-    RTGCPHYS32 xsdt_addrs[4];
-    uint32_t   cAddr;
-    size_t     rsdt_tbl_len = sizeof(ACPITBLHEADER);
-    size_t     xsdt_tbl_len = sizeof(ACPITBLHEADER);
+    RTGCPHYS32 aGCPhysRsdt[4];
+    RTGCPHYS32 aGCPhysXsdt[4];
+    uint32_t   cAddr, iMadt = 0, iHpet = 0, iSsdt = 0;
+    size_t     cbRsdt = sizeof(ACPITBLHEADER);
+    size_t     cbXsdt = sizeof(ACPITBLHEADER);
 
-    cAddr = 1;           /* FADT */
+    cAddr = 1;                  /* FADT */
     if (s->u8UseIOApic)
-        cAddr++;         /* MADT */
+        iMadt = cAddr++;        /* MADT */
 
-    rsdt_tbl_len += cAddr*4;  /* each entry: 32 bits phys. address. */
-    xsdt_tbl_len += cAddr*8;  /* each entry: 64 bits phys. address. */
+    if (s->fUseHpet)
+        iHpet = cAddr++;        /* HPET */
 
-    rc = CFGMR3QueryU64(s->pDevIns->pCfgHandle, "RamSize", &s->u64RamSize);
+    iSsdt = cAddr++;            /* SSDT */
+
+    cbRsdt += cAddr*sizeof(uint32_t);  /* each entry: 32 bits phys. address. */
+    cbXsdt += cAddr*sizeof(uint64_t);  /* each entry: 64 bits phys. address. */
+
+    rc = CFGMR3QueryU64(s->pDevIns->pCfg, "RamSize", &s->u64RamSize);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(s->pDevIns, rc,
-                                N_("Configuration error: Querying "
-                                   "\"RamSize\" as integer failed"));
+                                N_("Configuration error: Querying \"RamSize\" as integer failed"));
 
     uint32_t cbRamHole;
-    rc = CFGMR3QueryU32Def(s->pDevIns->pCfgHandle, "RamHoleSize", &cbRamHole, MM_RAM_HOLE_SIZE_DEFAULT);
+    rc = CFGMR3QueryU32Def(s->pDevIns->pCfg, "RamHoleSize", &cbRamHole, MM_RAM_HOLE_SIZE_DEFAULT);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(s->pDevIns, rc,
                                 N_("Configuration error: Querying \"RamHoleSize\" as integer failed"));
 
     /*
-     * Calc the sizes for the high and low regions.
+     * Calculate the sizes for the high and low regions.
      */
     const uint64_t offRamHole = _4G - cbRamHole;
     s->cbRamHigh = offRamHole < s->u64RamSize ? s->u64RamSize - offRamHole : 0;
@@ -1888,61 +2064,97 @@ static int acpiPlantTables(ACPIState *s)
     }
     s->cbRamLow = (uint32_t)cbRamLow;
 
-    rsdt_addr = 0;
-    xsdt_addr = RT_ALIGN_32(rsdt_addr + rsdt_tbl_len, 16);
-    fadt_acpi1_addr = RT_ALIGN_32(xsdt_addr       + xsdt_tbl_len, 16);
-    fadt_acpi2_addr = RT_ALIGN_32(fadt_acpi1_addr + ACPITBLFADT_VERSION1_SIZE, 16);
-    /** @todo ACPI 3.0 doc says it needs to be aligned on a 64 byte boundary. */
-    facs_addr = RT_ALIGN_32(fadt_acpi2_addr + sizeof(ACPITBLFADT), 16);
+    GCPhysCur = 0;
+    GCPhysRsdt = GCPhysCur;
+
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + cbRsdt, 16);
+    GCPhysXsdt = GCPhysCur;
+
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + cbXsdt, 16);
+    GCPhysFadtAcpi1 = GCPhysCur;
+
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + ACPITBLFADT_VERSION1_SIZE, 16);
+    GCPhysFadtAcpi2 = GCPhysCur;
+
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLFADT), 64);
+    GCPhysFacs = GCPhysCur;
+
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLFACS), 16);
     if (s->u8UseIOApic)
     {
-        apic_addr = RT_ALIGN_32(facs_addr + sizeof(ACPITBLFACS), 16);
-        /**
-         * @todo nike: maybe some refactoring needed to compute tables layout,
-         * but as this code is executed only once it doesn't make sense to optimize much
-         */
-        dsdt_addr = RT_ALIGN_32(apic_addr + AcpiTableMADT::sizeFor(s), 16);
+        GCPhysApic = GCPhysCur;
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + AcpiTableMADT::sizeFor(s, NUMBER_OF_IRQ_SOURCE_OVERRIDES), 16);
     }
-    else
+    if (s->fUseHpet)
     {
-        dsdt_addr = RT_ALIGN_32(facs_addr + sizeof(ACPITBLFACS), 16);
+        GCPhysHpet = GCPhysCur;
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLHPET), 16);
     }
 
-    void*  pDsdtCode = NULL;
-    size_t uDsdtSize = 0;
-    rc = acpiPrepareDsdt(s->pDevIns, &pDsdtCode, &uDsdtSize);
+    void*  pSsdtCode = NULL;
+    size_t cbSsdtSize = 0;
+    rc = acpiPrepareSsdt(s->pDevIns, &pSsdtCode, &cbSsdtSize);
     if (RT_FAILURE(rc))
         return rc;
 
-    last_addr = RT_ALIGN_32(dsdt_addr + uDsdtSize, 16);
-    if (last_addr > 0x10000)
+    GCPhysSsdt = GCPhysCur;
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + cbSsdtSize, 16);
+
+    GCPhysDsdt = GCPhysCur;
+
+    void*  pDsdtCode = NULL;
+    size_t cbDsdtSize = 0;
+    rc = acpiPrepareDsdt(s->pDevIns, &pDsdtCode, &cbDsdtSize);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    GCPhysCur = RT_ALIGN_32(GCPhysCur + cbDsdtSize, 16);
+
+    if (GCPhysCur > 0x10000)
         return PDMDEV_SET_ERROR(s->pDevIns, VERR_TOO_MUCH_DATA,
-                                N_("Error: ACPI tables > 64KB"));
+                                N_("Error: ACPI tables bigger than 64KB"));
 
     Log(("RSDP 0x%08X\n", find_rsdp_space()));
     addend = s->cbRamLow - 0x10000;
-    Log(("RSDT 0x%08X XSDT 0x%08X\n", rsdt_addr + addend, xsdt_addr + addend));
-    Log(("FACS 0x%08X FADT (1.0) 0x%08X, FADT (2+) 0x%08X\n", facs_addr + addend, fadt_acpi1_addr + addend, fadt_acpi2_addr + addend));
-    Log(("DSDT 0x%08X\n", dsdt_addr + addend));
-    acpiSetupRSDP((ACPITBLRSDP*)s->au8RSDPPage, rsdt_addr + addend, xsdt_addr + addend);
-    acpiSetupDSDT(s, dsdt_addr + addend, pDsdtCode, uDsdtSize);
-    acpiCleanupDsdt(s->pDevIns, pDsdtCode);
-    acpiSetupFACS(s, facs_addr + addend);
-    acpiSetupFADT(s, fadt_acpi1_addr + addend, fadt_acpi2_addr + addend, facs_addr + addend, dsdt_addr + addend);
+    Log(("RSDT 0x%08X XSDT 0x%08X\n", GCPhysRsdt + addend, GCPhysXsdt + addend));
+    Log(("FACS 0x%08X FADT (1.0) 0x%08X, FADT (2+) 0x%08X\n", GCPhysFacs + addend, GCPhysFadtAcpi1 + addend, GCPhysFadtAcpi2 + addend));
+    Log(("DSDT 0x%08X", GCPhysDsdt + addend));
+    if (s->u8UseIOApic)
+        Log((" MADT 0x%08X", GCPhysApic + addend));
+    if (s->fUseHpet)
+        Log((" HPET 0x%08X", GCPhysHpet + addend));
+    Log((" SSDT 0x%08X", GCPhysSsdt + addend));
+    Log(("\n"));
 
-    rsdt_addrs[0] = fadt_acpi1_addr + addend;
-    xsdt_addrs[0] = fadt_acpi2_addr + addend;
+    acpiSetupRSDP((ACPITBLRSDP*)s->au8RSDPPage, GCPhysRsdt + addend, GCPhysXsdt + addend);
+    acpiSetupDSDT(s, GCPhysDsdt + addend, pDsdtCode, cbDsdtSize);
+    acpiCleanupDsdt(s->pDevIns, pDsdtCode);
+    acpiSetupFACS(s, GCPhysFacs + addend);
+    acpiSetupFADT(s, GCPhysFadtAcpi1 + addend, GCPhysFadtAcpi2 + addend, GCPhysFacs + addend, GCPhysDsdt + addend);
+
+    aGCPhysRsdt[0] = GCPhysFadtAcpi1 + addend;
+    aGCPhysXsdt[0] = GCPhysFadtAcpi2 + addend;
     if (s->u8UseIOApic)
     {
-        acpiSetupMADT(s, apic_addr + addend);
-        rsdt_addrs[1] = apic_addr + addend;
-        xsdt_addrs[1] = apic_addr + addend;
+        acpiSetupMADT(s, GCPhysApic + addend);
+        aGCPhysRsdt[iMadt] = GCPhysApic + addend;
+        aGCPhysXsdt[iMadt] = GCPhysApic + addend;
     }
+    if (s->fUseHpet)
+    {
+        acpiSetupHPET(s, GCPhysHpet + addend);
+        aGCPhysRsdt[iHpet] = GCPhysHpet + addend;
+        aGCPhysXsdt[iHpet] = GCPhysHpet + addend;
+    }
+    acpiSetupSSDT(s, GCPhysSsdt + addend, pSsdtCode, cbSsdtSize);
+    acpiCleanupSsdt(s->pDevIns, pSsdtCode);
+    aGCPhysRsdt[iSsdt] = GCPhysSsdt + addend;
+    aGCPhysXsdt[iSsdt] = GCPhysSsdt + addend;
 
-    rc = acpiSetupRSDT(s, rsdt_addr + addend, cAddr, rsdt_addrs);
+    rc = acpiSetupRSDT(s, GCPhysRsdt + addend, cAddr, aGCPhysRsdt);
     if (RT_FAILURE(rc))
         return rc;
-    return acpiSetupXSDT(s, xsdt_addr + addend, cAddr, xsdt_addrs);
+    return acpiSetupXSDT(s, GCPhysXsdt + addend, cAddr, aGCPhysXsdt);
 }
 
 static int acpiUpdatePmHandlers(ACPIState *pThis, RTIOPORT uNewBase)
@@ -1959,6 +2171,12 @@ static int acpiUpdatePmHandlers(ACPIState *pThis, RTIOPORT uNewBase)
         pThis->uPmIoPortBase = uNewBase;
 
         rc = acpiRegisterPmHandlers(pThis);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        /* We have to update FADT table acccording to the new base */
+        rc = acpiPlantTables(pThis);
+        AssertRC(rc);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -1997,8 +2215,84 @@ static void acpiPciConfigWrite(PPCIDEVICE pPciDev, uint32_t Address, uint32_t u3
             uNewBase &= 0xffc0;
 
             rc = acpiUpdatePmHandlers(pThis, uNewBase);
-            Assert(RT_SUCCESS(rc));
+            AssertRC(rc);
         }
+    }
+}
+
+/**
+ * Attach a new CPU.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being attached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ *
+ * @remarks This code path is not used during construction.
+ */
+static DECLCALLBACK(int) acpiAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+{
+    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
+
+    LogFlow(("acpiAttach: pDevIns=%p iLUN=%u fFlags=%#x\n", pDevIns, iLUN, fFlags));
+
+    AssertMsgReturn(!(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
+                    ("Hot-plug flag is not set\n"),
+                    VERR_NOT_SUPPORTED);
+    AssertReturn(iLUN < VMM_MAX_CPU_COUNT, VERR_PDM_NO_SUCH_LUN);
+
+    /* Check if it was already attached */
+    if (VMCPUSET_IS_PRESENT(&s->CpuSetAttached, iLUN))
+        return VINF_SUCCESS;
+
+    PPDMIBASE IBaseTmp;
+    int rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &s->IBase, &IBaseTmp, "ACPI CPU");
+
+    if (RT_SUCCESS(rc))
+    {
+        /* Enable the CPU */
+        VMCPUSET_ADD(&s->CpuSetAttached, iLUN);
+
+        /*
+         * Lock the CPU because we don't know if the guest will use it or not.
+         * Prevents ejection while the CPU is still used
+         */
+        VMCPUSET_ADD(&s->CpuSetLocked, iLUN);
+        s->u32CpuEventType = CPU_EVENT_TYPE_ADD;
+        s->u32CpuEvent     = iLUN;
+        /* Notify the guest */
+        update_gpe0(s, s->gpe0_sts | 0x2, s->gpe0_en);
+    }
+    return rc;
+}
+
+/**
+ * Detach notification.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ */
+static DECLCALLBACK(void) acpiDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+{
+    ACPIState *s = PDMINS_2_DATA(pDevIns, ACPIState *);
+
+    LogFlow(("acpiDetach: pDevIns=%p iLUN=%u fFlags=%#x\n", pDevIns, iLUN, fFlags));
+
+    AssertMsgReturnVoid(!(fFlags & PDM_TACH_FLAGS_NOT_HOT_PLUG),
+                        ("Hot-plug flag is not set\n"));
+
+    /* Check if it was already detached */
+    if (VMCPUSET_IS_PRESENT(&s->CpuSetAttached, iLUN))
+    {
+        AssertMsgReturnVoid(!(VMCPUSET_IS_PRESENT(&s->CpuSetLocked, iLUN)), ("CPU is still locked by the guest\n"));
+
+        /* Disable the CPU */
+        VMCPUSET_DEL(&s->CpuSetAttached, iLUN);
+        s->u32CpuEventType = CPU_EVENT_TYPE_REMOVE;
+        s->u32CpuEvent     = iLUN;
+        /* Notify the guest */
+        update_gpe0(s, s->gpe0_sts | 0x2, s->gpe0_en);
     }
 }
 
@@ -2033,25 +2327,16 @@ static DECLCALLBACK(void) acpiRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 }
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     ACPIState *s   = PDMINS_2_DATA(pDevIns, ACPIState *);
     PCIDevice *dev = &s->dev;
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /* Validate and read the configuration. */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "RamSize\0"
                               "RamHoleSize\0"
                               "IOAPIC\0"
@@ -2063,6 +2348,9 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "FdcEnabled\0"
                               "ShowRtc\0"
                               "ShowCpu\0"
+                              "NicPciAddress\0"
+                              "CpuHotPlug\0"
+                              "AmlFilePath\0"
                               ))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Configuration error: Invalid config key for ACPI device"));
@@ -2070,65 +2358,134 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     s->pDevIns = pDevIns;
 
     /* query whether we are supposed to present an IOAPIC */
-    int rc = CFGMR3QueryU8Def(pCfgHandle, "IOAPIC", &s->u8UseIOApic, 1);
+    int rc = CFGMR3QueryU8Def(pCfg, "IOAPIC", &s->u8UseIOApic, 1);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"IOAPIC\""));
 
-    rc = CFGMR3QueryU16Def(pCfgHandle, "NumCPUs", &s->cCpus, 1);
+    rc = CFGMR3QueryU16Def(pCfg, "NumCPUs", &s->cCpus, 1);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"NumCPUs\" as integer failed"));
 
     /* query whether we are supposed to present an FDC controller */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "FdcEnabled", &s->fUseFdc, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "FdcEnabled", &s->fUseFdc, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"FdcEnabled\""));
 
     /* query whether we are supposed to present HPET */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "HpetEnabled", &s->fUseHpet, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "HpetEnabled", &s->fUseHpet, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"HpetEnabled\""));
     /* query whether we are supposed to present SMC */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "SmcEnabled", &s->fUseSmc, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "SmcEnabled", &s->fUseSmc, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"SmcEnabled\""));
 
     /* query whether we are supposed to present RTC object */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "ShowRtc", &s->fShowRtc, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "ShowRtc", &s->fShowRtc, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"ShowRtc\""));
 
     /* query whether we are supposed to present CPU objects */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "ShowCpu", &s->fShowCpu, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "ShowCpu", &s->fShowCpu, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"ShowCpu\""));
 
-    rc = CFGMR3QueryBool(pCfgHandle, "GCEnabled", &s->fGCEnabled);
+    /* query primary NIC PCI address */
+    rc = CFGMR3QueryU32Def(pCfg, "NicPciAddress", &s->u32NicPciAddress, 0);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"NicPciAddress\""));
+
+    /* query whether we are allow CPU hot plugging */
+    rc = CFGMR3QueryBoolDef(pCfg, "CpuHotPlug", &s->fCpuHotPlug, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed to read \"CpuHotPlug\""));
+
+    rc = CFGMR3QueryBool(pCfg, "GCEnabled", &s->fGCEnabled);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         s->fGCEnabled = true;
     else if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"GCEnabled\""));
 
-    rc = CFGMR3QueryBool(pCfgHandle, "R0Enabled", &s->fR0Enabled);
+    rc = CFGMR3QueryBool(pCfg, "R0Enabled", &s->fR0Enabled);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         s->fR0Enabled = true;
     else if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("configuration error: failed to read R0Enabled as boolean"));
 
+    /*
+     * Interfaces
+     */
+    /* IBase */
+    s->IBase.pfnQueryInterface              = acpiQueryInterface;
+    /* IACPIPort */
+    s->IACPIPort.pfnSleepButtonPress        = acpiSleepButtonPress;
+    s->IACPIPort.pfnPowerButtonPress        = acpiPowerButtonPress;
+    s->IACPIPort.pfnGetPowerButtonHandled   = acpiGetPowerButtonHandled;
+    s->IACPIPort.pfnGetGuestEnteredACPIMode = acpiGetGuestEnteredACPIMode;
+    s->IACPIPort.pfnGetCpuStatus            = acpiGetCpuStatus;
+
+    VMCPUSET_EMPTY(&s->CpuSetAttached);
+    VMCPUSET_EMPTY(&s->CpuSetLocked);
+    s->idCpuLockCheck = UINT32_C(0xffffffff);
+    s->u32CpuEventType = 0;
+    s->u32CpuEvent     = UINT32_C(0xffffffff);
+
+    /* The first CPU can't be attached/detached */
+    VMCPUSET_ADD(&s->CpuSetAttached, 0);
+    VMCPUSET_ADD(&s->CpuSetLocked, 0);
+
+    /* Try to attach the other CPUs */
+    for (unsigned i = 1; i < s->cCpus; i++)
+    {
+        if (s->fCpuHotPlug)
+        {
+            PPDMIBASE IBaseTmp;
+            rc = PDMDevHlpDriverAttach(pDevIns, i, &s->IBase, &IBaseTmp, "ACPI CPU");
+
+            if (RT_SUCCESS(rc))
+            {
+                VMCPUSET_ADD(&s->CpuSetAttached, i);
+                VMCPUSET_ADD(&s->CpuSetLocked, i);
+                Log(("acpi: Attached CPU %u\n", i));
+            }
+            else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+                Log(("acpi: CPU %u not attached yet\n", i));
+            else
+                return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach CPU object\n"));
+        }
+        else
+        {
+            /* CPU is always attached if hot-plug is not enabled. */
+            VMCPUSET_ADD(&s->CpuSetAttached, i);
+            VMCPUSET_ADD(&s->CpuSetLocked, i);
+        }
+    }
+
+
     /* Set default port base */
     s->uPmIoPortBase = PM_PORT_BASE;
 
+    /*
+     * FDC and SMC try to use the same non-shareable interrupt (6),
+     * enable only one device.
+     */
+    if (s->fUseSmc)
+        s->fUseFdc = false;
+
     /* */
-    uint32_t rsdp_addr = find_rsdp_space();
-    if (!rsdp_addr)
+    RTGCPHYS32 GCPhysRsdp = find_rsdp_space();
+    if (!GCPhysRsdp)
         return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
                                 N_("Can not find space for RSDP. ACPI is disabled"));
 
@@ -2136,7 +2493,7 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = PDMDevHlpROMRegister(pDevIns, rsdp_addr, 0x1000, s->au8RSDPPage,
+    rc = PDMDevHlpROMRegister(pDevIns, GCPhysRsdp, 0x1000, s->au8RSDPPage,
                               PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "ACPI RSDP");
     if (RT_FAILURE(rc))
         return rc;
@@ -2205,6 +2562,12 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
 
     dev->config[0x40] = 0x01; /* PM base address, this bit marks it as IO range, not PA */
 
+#if 0
+    int smb_io_base = 0xb100;
+    dev->config[0x90] = smb_io_base | 1; /* SMBus base address */
+    dev->config[0x90] = smb_io_base >> 8;
+#endif
+
     rc = PDMDevHlpPCIRegister(pDevIns, dev);
     if (RT_FAILURE(rc))
         return rc;
@@ -2217,24 +2580,13 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-    /*
-     * Interfaces
-     */
-    /* IBase */
-    s->IBase.pfnQueryInterface              = acpiQueryInterface;
-    /* IACPIPort */
-    s->IACPIPort.pfnSleepButtonPress        = acpiSleepButtonPress;
-    s->IACPIPort.pfnPowerButtonPress        = acpiPowerButtonPress;
-    s->IACPIPort.pfnGetPowerButtonHandled   = acpiGetPowerButtonHandled;
-    s->IACPIPort.pfnGetGuestEnteredACPIMode = acpiGetGuestEnteredACPIMode;
-
    /*
     * Get the corresponding connector interface
     */
    rc = PDMDevHlpDriverAttach(pDevIns, 0, &s->IBase, &s->pDrvBase, "ACPI Driver Port");
    if (RT_SUCCESS(rc))
    {
-       s->pDrv = (PPDMIACPICONNECTOR)s->pDrvBase->pfnQueryInterface(s->pDrvBase, PDMINTERFACE_ACPI_CONNECTOR);
+       s->pDrv = PDMIBASE_QUERY_INTERFACE(s->pDrvBase, PDMIACPICONNECTOR);
        if (!s->pDrv)
            return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_MISSING_INTERFACE,
                                    N_("LUN #0 doesn't have an ACPI connector interface"));
@@ -2242,7 +2594,7 @@ static DECLCALLBACK(int) acpiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
    {
        Log(("acpi: %s/%d: warning: no driver attached to LUN #0!\n",
-            pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+            pDevIns->pReg->szName, pDevIns->iInstance));
        rc = VINF_SUCCESS;
    }
    else
@@ -2258,7 +2610,7 @@ const PDMDEVREG g_DeviceACPI =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "acpi",
     /* szRCMod */
     "VBoxDDGC.gc",
@@ -2291,9 +2643,9 @@ const PDMDEVREG g_DeviceACPI =
     /* pfnResume */
     NULL,
     /* pfnAttach */
-    NULL,
+    acpiAttach,
     /* pfnDetach */
-    NULL,
+    acpiDetach,
     /* pfnQueryInterface. */
     NULL,
     /* pfnInitComplete */

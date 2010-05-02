@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFlt-darwin.cpp $ */
+/* $Id: VBoxNetFlt-darwin.cpp 28830 2010-04-27 14:05:25Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Darwin Specific Code.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -36,6 +32,7 @@
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV
 #include <VBox/log.h>
 #include <VBox/err.h>
+#include <VBox/intnetinline.h>
 #include <VBox/version.h>
 #include <iprt/initterm.h>
 #include <iprt/assert.h>
@@ -235,14 +232,14 @@ DECLINLINE(ifnet_t) vboxNetFltDarwinRetainIfNet(PVBOXNETFLTINS pThis)
     /*
      * Be careful here to avoid problems racing the detached callback.
      */
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     if (!ASMAtomicUoReadBool(&pThis->fDisconnectedFromHost))
     {
         pIfNet = (ifnet_t)ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pIfNet);
         if (pIfNet)
             ifnet_reference(pIfNet);
     }
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     return pIfNet;
 }
@@ -384,26 +381,27 @@ static mbuf_t vboxNetFltDarwinMBufFromSG(PVBOXNETFLTINS pThis, PINTNETSG pSG)
             &&  mbuf_maxlen(pCur) >= pSG->cbTotal)
         {
             mbuf_setlen(pCur, pSG->cbTotal);
-            memcpy(mbuf_data(pCur), pSG->aSegs[0].pv, pSG->cbTotal);
+            IntNetSgRead(pSG, mbuf_data(pCur));
         }
         else
         {
             /* Multi buffer copying. */
-            size_t         cbSrc = pSG->cbTotal;
-            uint8_t const *pbSrc = (uint8_t const *)pSG->aSegs[0].pv;
-            while (cbSrc > 0 && pCur)
+            size_t  cbLeft = pSG->cbTotal;
+            size_t  offSrc = 0;
+            while (cbLeft > 0 && pCur)
             {
                 size_t cb = mbuf_maxlen(pCur);
-                if (cbSrc < cb)
-                    cb = cbSrc;
+                if (cb > cbLeft)
+                    cb = cbLeft;
                 mbuf_setlen(pCur, cb);
-                memcpy(mbuf_data(pCur), pbSrc, cb);
+                IntNetSgReadEx(pSG, offSrc, cb, mbuf_data(pCur));
 
                 /* advance */
-                pbSrc += cb;
-                cbSrc -= cb;
+                offSrc += cb;
+                cbLeft -= cb;
                 pCur = mbuf_next(pCur);
             }
+            Assert(cbLeft == 0);
         }
         if (!err)
         {
@@ -492,18 +490,11 @@ DECLINLINE(void) vboxNetFltDarwinMBufToSG(PVBOXNETFLTINS pThis, mbuf_t pMBuf, vo
 {
     NOREF(pThis);
 
-    pSG->pvOwnerData = NULL;
-    pSG->pvUserData = NULL;
-    pSG->pvUserData2 = NULL;
-    pSG->cUsers = 1;
-    pSG->fFlags = INTNETSG_FLAGS_TEMP;
-    pSG->cSegsAlloc = cSegs;
-
     /*
-     * Walk the chain and convert the buffers to segments.
+     * Walk the chain and convert the buffers to segments.  Works INTNETSG::cbTotal.
      */
     unsigned iSeg = 0;
-    pSG->cbTotal = 0;
+    IntNetSgInitTempSegs(pSG, 0 /*cbTotal*/, cSegs, 0 /*cSegsUsed*/);
     for (mbuf_t pCur = pMBuf; pCur; pCur = mbuf_next(pCur))
     {
         size_t cbSeg = mbuf_len(pCur);
@@ -622,6 +613,31 @@ DECLINLINE(void) vboxNetFltDarwinMBufToSG(PVBOXNETFLTINS pThis, mbuf_t pMBuf, vo
 
 
 /**
+ * Helper for determining whether the host wants the interface to be
+ * promiscuous.
+ */
+static bool vboxNetFltDarwinIsPromiscuous(PVBOXNETFLTINS pThis)
+{
+    bool fRc = false;
+    ifnet_t pIfNet = vboxNetFltDarwinRetainIfNet(pThis);
+    if (pIfNet)
+    {
+        /* gather the data */
+        uint16_t fIf = ifnet_flags(pIfNet);
+        unsigned cPromisc = VBOX_GET_PCOUNT(pIfNet);
+        bool fSetPromiscuous = ASMAtomicUoReadBool(&pThis->u.s.fSetPromiscuous);
+        vboxNetFltDarwinReleaseIfNet(pThis, pIfNet);
+
+        /* calc the return. */
+        fRc = (fIf & IFF_PROMISC)
+           && cPromisc > fSetPromiscuous;
+    }
+    return fRc;
+}
+
+
+
+/**
  *
  * @see iff_detached_func in the darwin kpi.
  */
@@ -647,7 +663,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
      * We carefully take the spinlock and increase the interface reference
      * behind it in order to avoid problematic races with the detached callback.
      */
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
 
     pIfNet = (ifnet_t)ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pIfNet);
     int cPromisc = VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : - 1;
@@ -660,7 +676,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
     ASMAtomicUoWriteBool(&pThis->fRediscoveryPending, false);
     ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
 
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     if (pIfNet)
         ifnet_release(pIfNet);
@@ -755,6 +771,8 @@ static void vboxNetFltDarwinIffEvent(void *pvThis, ifnet_t pIfNet, protocol_fami
             }
             else if (pEvMsg->event_code == KEV_DL_LINK_OFF)
                 Log(("vboxNetFltDarwinIffEvent: %s goes down (%d)\n", pThis->szName, VBOX_GET_PCOUNT(pIfNet)));
+/** @todo KEV_DL_LINK_ADDRESS_CHANGED  -> pfnReportMacAddress */
+/** @todo KEV_DL_SIFFLAGS              -> pfnReportPromiscuousMode */
         }
         else
             Log(("vboxNetFltDarwinIffEvent: pThis->u.s.pIfNet=%p pIfNet=%p (%d)\n", pThis->u.s.pIfNet, pIfNet, VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : -1));
@@ -798,13 +816,7 @@ static errno_t vboxNetFltDarwinIffInputOutputWorker(PVBOXNETFLTINS pThis, mbuf_t
     /*
      * Active? Retain the instance and increment the busy counter.
      */
-    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
-    const bool fActive = ASMAtomicUoReadBool(&pThis->fActive);
-    if (fActive)
-        vboxNetFltRetain(pThis, true /* fBusy */);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
-    if (!fActive)
+    if (!vboxNetFltTryRetainBusyActive(pThis))
         return 0;
 
     /*
@@ -900,14 +912,14 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
     }
 
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pIfNet, pIfNet);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     /*
      * Get the mac address while we still have a valid ifnet reference.
      */
-    err = ifnet_lladdr_copy_bytes(pIfNet, &pThis->u.s.Mac, sizeof(pThis->u.s.Mac));
+    err = ifnet_lladdr_copy_bytes(pIfNet, &pThis->u.s.MacAddr, sizeof(pThis->u.s.MacAddr));
     if (!err)
     {
         /*
@@ -926,7 +938,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
         err = iflt_attach(pIfNet, &RegRec, &pIfFilter);
         Assert(err || pIfFilter);
 
-        RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+        RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
         pIfNet = (ifnet_t)ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pIfNet);
         if (pIfNet && !err)
         {
@@ -934,7 +946,19 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
             ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pIfFilter, pIfFilter);
             pIfNet = NULL; /* don't dereference it */
         }
-        RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
+
+        /* Report capabilities. */
+        if (   !pIfNet
+            && vboxNetFltTryRetainBusyNotDisconnected(pThis))
+        {
+            Assert(pThis->pSwitchPort);
+            pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
+            pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort, vboxNetFltDarwinIsPromiscuous(pThis));
+            pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, 0,  INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
+            pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, 0 /* none */);
+            vboxNetFltRelease(pThis, true /*fBusy*/);
+        }
     }
 
     /* Release the interface on failure. */
@@ -943,7 +967,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
 
     int rc = RTErrConvertFromErrno(err);
     if (RT_SUCCESS(rc))
-        LogRel(("VBoxFltDrv: attached to '%s' / %.*Rhxs\n", pThis->szName, sizeof(pThis->u.s.Mac), &pThis->u.s.Mac));
+        LogRel(("VBoxFltDrv: attached to '%s' / %.*Rhxs\n", pThis->szName, sizeof(pThis->u.s.MacAddr), &pThis->u.s.MacAddr));
     else
         LogRel(("VBoxFltDrv: failed to attach to ifnet '%s' (err=%d)\n", pThis->szName, err));
     return rc;
@@ -1006,41 +1030,6 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
     }
 
     return rc;
-}
-
-
-bool vboxNetFltPortOsIsPromiscuous(PVBOXNETFLTINS pThis)
-{
-    bool fRc = false;
-    ifnet_t pIfNet = vboxNetFltDarwinRetainIfNet(pThis);
-    if (pIfNet)
-    {
-        /* gather the data */
-        uint16_t fIf = ifnet_flags(pIfNet);
-        unsigned cPromisc = VBOX_GET_PCOUNT(pIfNet);
-        bool fSetPromiscuous = ASMAtomicUoReadBool(&pThis->u.s.fSetPromiscuous);
-        vboxNetFltDarwinReleaseIfNet(pThis, pIfNet);
-
-        /* calc the return. */
-        fRc = (fIf & IFF_PROMISC)
-           && cPromisc > fSetPromiscuous;
-    }
-    return fRc;
-}
-
-
-void vboxNetFltPortOsGetMacAddress(PVBOXNETFLTINS pThis, PRTMAC pMac)
-{
-    *pMac = pThis->u.s.Mac;
-}
-
-
-bool vboxNetFltPortOsIsHostMac(PVBOXNETFLTINS pThis, PCRTMAC pMac)
-{
-    /* ASSUMES that the MAC address never changes. */
-    return pThis->u.s.Mac.au16[0] == pMac->au16[0]
-        && pThis->u.s.Mac.au16[1] == pMac->au16[1]
-        && pThis->u.s.Mac.au16[2] == pMac->au16[2];
 }
 
 
@@ -1169,11 +1158,11 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     /*
      * Carefully obtain the interface filter reference and detach it.
      */
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     pIfFilter = (interface_filter_t)ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pIfFilter);
     if (pIfFilter)
         ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pIfFilter, NULL);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     if (pIfFilter)
         iflt_detach(pIfFilter);
@@ -1196,7 +1185,7 @@ int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
     pThis->u.s.pIfFilter = NULL;
     pThis->u.s.fSetPromiscuous = false;
     pThis->u.s.fNeedSetPromiscuous = false;
-    //pThis->u.s.Mac = {0};
+    //pThis->u.s.MacAddr = {0};
 
     return VINF_SUCCESS;
 }

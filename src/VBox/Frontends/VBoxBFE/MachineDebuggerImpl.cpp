@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef VBOXBFE_WITHOUT_COM
@@ -103,8 +99,8 @@ STDMETHODIMP MachineDebugger::COMGETTER(RecompileUser)(BOOL *enabled)
 {
     if (!enabled)
         return E_POINTER;
-    if (pVM)
-        *enabled = !EMIsRawRing3Enabled(pVM);
+    if (gpVM)
+        *enabled = !EMIsRawRing3Enabled(gpVM);
     else
         *enabled = false;
     return S_OK;
@@ -130,13 +126,13 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser)(BOOL enable)
             return S_OK;
         }
     }
-    if (!pVM)
+    if (!gpVM)
     {
         return E_FAIL;
     }
 
     EMRAWMODE rawModeFlag = enable ? EMRAW_RING3_DISABLE : EMRAW_RING3_ENABLE;
-    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, pVM, rawModeFlag);
+    int rcVBox = VMR3ReqCallWait(gpVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, gpVM, rawModeFlag);
     if (RT_SUCCESS(rcVBox))
         return S_OK;
 
@@ -155,8 +151,8 @@ STDMETHODIMP MachineDebugger::COMGETTER(RecompileSupervisor)(BOOL *enabled)
 {
     if (!enabled)
         return E_POINTER;
-    if (pVM)
-        *enabled = !EMIsRawRing0Enabled(pVM);
+    if (gpVM)
+        *enabled = !EMIsRawRing0Enabled(gpVM);
     else
         *enabled = false;
     return S_OK;
@@ -182,13 +178,13 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileSupervisor)(BOOL enable)
             return S_OK;
         }
     }
-    if (!pVM)
+    if (!gpVM)
     {
         return E_FAIL;
     }
 
     EMRAWMODE rawModeFlag = enable ? EMRAW_RING0_DISABLE : EMRAW_RING0_ENABLE;
-    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, pVM, rawModeFlag);
+    int rcVBox = VMR3ReqCallWait(gpVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, gpVM, rawModeFlag);
     if (RT_SUCCESS(rcVBox))
         return S_OK;
 
@@ -207,8 +203,8 @@ STDMETHODIMP MachineDebugger::COMGETTER(PATMEnabled)(BOOL *enabled)
 {
     if (!enabled)
         return E_POINTER;
-    if (pVM)
-        *enabled = PATMIsEnabled(pVM);
+    if (gpVM)
+        *enabled = PATMIsEnabled(gpVM);
     else
         *enabled = false;
     return S_OK;
@@ -235,10 +231,10 @@ STDMETHODIMP MachineDebugger::COMSETTER(PATMEnabled)(BOOL enable)
         }
     }
 
-    if (!pVM)
+    if (!gpVM)
         return E_FAIL;
 
-    PATMR3AllowPatching(pVM, enable);
+    PATMR3AllowPatching(gpVM, enable);
     return E_NOTIMPL;
 }
 
@@ -252,8 +248,8 @@ STDMETHODIMP MachineDebugger::COMGETTER(CSAMEnabled)(BOOL *enabled)
 {
     if (!enabled)
         return E_POINTER;
-    if (pVM)
-        *enabled = CSAMIsEnabled(pVM);
+    if (gpVM)
+        *enabled = CSAMIsEnabled(gpVM);
     else
         *enabled = false;
     return S_OK;
@@ -280,13 +276,13 @@ STDMETHODIMP MachineDebugger::COMSETTER(CSAMEnabled)(BOOL enable)
         }
     }
 
-    if (!pVM)
+    if (!gpVM)
         return E_FAIL;
 
     if (enable)
-        CSAMEnableScanning(pVM);
+        CSAMEnableScanning(gpVM);
     else
-        CSAMDisableScanning(pVM);
+        CSAMDisableScanning(gpVM);
     return E_NOTIMPL;
 }
 

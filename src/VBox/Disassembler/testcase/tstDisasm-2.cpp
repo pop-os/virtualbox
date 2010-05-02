@@ -1,10 +1,10 @@
-/* $Id: tstDisasm-2.cpp $ */
+/* $Id: tstDisasm-2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Testcase - Generic Disassembler Tool.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -822,7 +818,6 @@ int main(int argc, char **argv)
     {
         { "--address",      'a', RTGETOPT_REQ_UINT64 },
         { "--cpumode",      'c', RTGETOPT_REQ_UINT32 },
-        { "--help",         'h', RTGETOPT_REQ_NOTHING },
         { "--bytes",        'b', RTGETOPT_REQ_INT64 },
         { "--listing",      'l', RTGETOPT_REQ_NOTHING },
         { "--no-listing",   'L', RTGETOPT_REQ_NOTHING },
@@ -835,8 +830,9 @@ int main(int argc, char **argv)
     int ch;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, 0 /* fFlags */);
-    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
+    RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, RTGETOPTINIT_FLAGS_OPTS_FIRST);
+    while (   (ch = RTGetOpt(&GetState, &ValueUnion))
+           && ch != VINF_GETOPT_NOT_OPTION)
     {
         switch (ch)
         {
@@ -845,7 +841,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'b':
-                cbMax = ValueUnion.i;
+                cbMax = ValueUnion.i64;
                 break;
 
             case 'c':
@@ -874,7 +870,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'o':
-                off = ValueUnion.i;
+                off = ValueUnion.i64;
                 break;
 
             case 's':
@@ -913,12 +909,12 @@ int main(int argc, char **argv)
                 fHexBytes = true;
                 break;
 
-            case VINF_GETOPT_NOT_OPTION:
-                break;
+            case 'V':
+                RTPrintf("$Revision: $\n");
+                return 0;
 
             default:
-                RTStrmPrintf(g_pStdErr, "%s: syntax error: %Rrc\n", argv0, ch);
-                return 1;
+                return RTGetOptPrintError(ch, &ValueUnion);
         }
     }
     int iArg = GetState.iNext - 1; /** @todo Not pretty, add RTGetOptInit flag for this. */

@@ -1,9 +1,10 @@
+/* $Id: xml.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- * VirtualBox XML Manipulation API.
+ * IPRT - XML Manipulation API.
  */
 
 /*
- * Copyright (C) 2007-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,17 +22,15 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
-#include <iprt/cdefs.h>
-#include <iprt/err.h>
+#include <iprt/dir.h>
 #include <iprt/file.h>
-#include <iprt/lock.h>
-#include <iprt/xml_cpp.h>
+#include <iprt/err.h>
+#include <iprt/param.h>
+#include <iprt/path.h>
+#include <iprt/cpp/lock.h>
+#include <iprt/cpp/xml.h>
 
 #include <libxml/tree.h>
 #include <libxml/parser.h>
@@ -56,7 +55,7 @@
  * of libxml, among other things.
  *
  * The constructor and destructor of this structure are used to perform global
- * module initiaizaton and cleanup. Thee must be only one global variable of
+ * module initiaizaton and cleanup. There must be only one global variable of
  * this structure.
  */
 static
@@ -148,14 +147,19 @@ char *XmlError::Format(xmlErrorPtr aErr)
     return finalMsg;
 }
 
-EIPRTFailure::EIPRTFailure(int aRC)
+EIPRTFailure::EIPRTFailure(int aRC, const char *pcszContext, ...)
     : RuntimeError(NULL),
       mRC(aRC)
 {
-    char *newMsg = NULL;
-    RTStrAPrintf(&newMsg, "Runtime error: %d (%s)", aRC, RTErrGetShort(aRC));
+    char *pszContext2;
+    va_list args;
+    va_start(args, pcszContext);
+    RTStrAPrintfV(&pszContext2, pcszContext, args);
+    char *newMsg;
+    RTStrAPrintf(&newMsg, "%s: %d (%s)", pszContext2, aRC, RTErrGetShort(aRC));
     setWhat(newMsg);
     RTStrFree(newMsg);
+    RTStrFree(pszContext2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,12 +177,14 @@ struct File::Data
     iprt::MiniString strFileName;
     RTFILE handle;
     bool opened : 1;
+    bool flushOnClose : 1;
 };
 
-File::File(Mode aMode, const char *aFileName)
+File::File(Mode aMode, const char *aFileName, bool aFlushIt /* = false */)
     : m(new Data())
 {
     m->strFileName = aFileName;
+    m->flushOnClose = aFlushIt;
 
     uint32_t flags = 0;
     switch (aMode)
@@ -199,27 +205,37 @@ File::File(Mode aMode, const char *aFileName)
 
     int vrc = RTFileOpen(&m->handle, aFileName, flags);
     if (RT_FAILURE(vrc))
-        throw EIPRTFailure(vrc);
+        throw EIPRTFailure(vrc, "Runtime error opening '%s' for reading", aFileName);
 
     m->opened = true;
+    m->flushOnClose = aFlushIt && (flags & RTFILE_O_ACCESS_MASK) != RTFILE_O_READ;
 }
 
-File::File(RTFILE aHandle, const char *aFileName /* = NULL */)
+File::File(RTFILE aHandle, const char *aFileName /* = NULL */, bool aFlushIt /* = false */)
     : m(new Data())
 {
     if (aHandle == NIL_RTFILE)
-        throw EInvalidArg (RT_SRC_POS);
+        throw EInvalidArg(RT_SRC_POS);
 
     m->handle = aHandle;
 
     if (aFileName)
         m->strFileName = aFileName;
 
-    setPos (0);
+    m->flushOnClose = aFlushIt;
+
+    setPos(0);
 }
 
 File::~File()
 {
+    if (m->flushOnClose)
+    {
+        RTFileFlush(m->handle);
+        if (!m->strFileName.isEmpty())
+            RTDirFlushParent(m->strFileName.c_str());
+    }
+
     if (m->opened)
         RTFileClose(m->handle);
     delete m;
@@ -233,53 +249,53 @@ const char* File::uri() const
 uint64_t File::pos() const
 {
     uint64_t p = 0;
-    int vrc = RTFileSeek (m->handle, 0, RTFILE_SEEK_CURRENT, &p);
-    if (RT_SUCCESS (vrc))
+    int vrc = RTFileSeek(m->handle, 0, RTFILE_SEEK_CURRENT, &p);
+    if (RT_SUCCESS(vrc))
         return p;
 
-    throw EIPRTFailure (vrc);
+    throw EIPRTFailure(vrc, "Runtime error seeking in file '%s'", m->strFileName.c_str());
 }
 
-void File::setPos (uint64_t aPos)
+void File::setPos(uint64_t aPos)
 {
     uint64_t p = 0;
     unsigned method = RTFILE_SEEK_BEGIN;
     int vrc = VINF_SUCCESS;
 
     /* check if we overflow int64_t and move to INT64_MAX first */
-    if (((int64_t) aPos) < 0)
+    if ((int64_t)aPos < 0)
     {
-        vrc = RTFileSeek (m->handle, INT64_MAX, method, &p);
-        aPos -= (uint64_t) INT64_MAX;
+        vrc = RTFileSeek(m->handle, INT64_MAX, method, &p);
+        aPos -= (uint64_t)INT64_MAX;
         method = RTFILE_SEEK_CURRENT;
     }
     /* seek the rest */
-    if (RT_SUCCESS (vrc))
-        vrc = RTFileSeek (m->handle, (int64_t) aPos, method, &p);
-    if (RT_SUCCESS (vrc))
+    if (RT_SUCCESS(vrc))
+        vrc = RTFileSeek(m->handle, (int64_t) aPos, method, &p);
+    if (RT_SUCCESS(vrc))
         return;
 
-    throw EIPRTFailure (vrc);
+    throw EIPRTFailure(vrc, "Runtime error seeking in file '%s'", m->strFileName.c_str());
 }
 
-int File::read (char *aBuf, int aLen)
+int File::read(char *aBuf, int aLen)
 {
     size_t len = aLen;
-    int vrc = RTFileRead (m->handle, aBuf, len, &len);
-    if (RT_SUCCESS (vrc))
+    int vrc = RTFileRead(m->handle, aBuf, len, &len);
+    if (RT_SUCCESS(vrc))
         return (int)len;
 
-    throw EIPRTFailure (vrc);
+    throw EIPRTFailure(vrc, "Runtime error reading from file '%s'", m->strFileName.c_str());
 }
 
-int File::write (const char *aBuf, int aLen)
+int File::write(const char *aBuf, int aLen)
 {
     size_t len = aLen;
     int vrc = RTFileWrite (m->handle, aBuf, len, &len);
     if (RT_SUCCESS (vrc))
         return (int)len;
 
-    throw EIPRTFailure (vrc);
+    throw EIPRTFailure(vrc, "Runtime error writing to file '%s'", m->strFileName.c_str());
 
     return -1 /* failure */;
 }
@@ -290,7 +306,7 @@ void File::truncate()
     if (RT_SUCCESS (vrc))
         return;
 
-    throw EIPRTFailure (vrc);
+    throw EIPRTFailure(vrc, "Runtime error truncating file '%s'", m->strFileName.c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -414,13 +430,6 @@ xmlParserInput* GlobalLock::callDefaultLoader(const char *aURI,
 
 struct Node::Data
 {
-    xmlNode     *plibNode;          // != NULL if this is an element or content node
-    xmlAttr     *plibAttr;          // != NULL if this is an attribute node
-
-    Node        *pParent;           // NULL only for the root element
-    const char  *pcszName;          // element or attribute name, points either into plibNode or plibAttr;
-                                    // NULL if this is a content node
-
     struct compare_const_char
     {
         bool operator()(const char* s1, const char* s2) const
@@ -438,13 +447,19 @@ struct Node::Data
     InternalNodesList children;
 };
 
-Node::Node(EnumType type)
-    : mType(type),
+Node::Node(EnumType type,
+           Node *pParent,
+           xmlNode *plibNode,
+           xmlAttr *plibAttr)
+    : m_Type(type),
+      m_pParent(pParent),
+      m_plibNode(plibNode),
+      m_plibAttr(plibAttr),
+      m_pcszNamespacePrefix(NULL),
+      m_pcszNamespaceHref(NULL),
+      m_pcszName(NULL),
       m(new Data)
 {
-    m->plibNode = NULL;
-    m->plibAttr = NULL;
-    m->pParent = NULL;
 }
 
 Node::~Node()
@@ -452,65 +467,79 @@ Node::~Node()
     delete m;
 }
 
-void Node::buildChildren()       // private
+void Node::buildChildren(const ElementNode &elmRoot)       // private
 {
     // go thru this element's attributes
-    xmlAttr *plibAttr = m->plibNode->properties;
+    xmlAttr *plibAttr = m_plibNode->properties;
     while (plibAttr)
     {
-        const char *pcszAttribName = (const char*)plibAttr->name;
-        boost::shared_ptr<AttributeNode> pNew(new AttributeNode);
-        pNew->m->plibAttr = plibAttr;
-        pNew->m->pcszName = (const char*)plibAttr->name;
-        pNew->m->pParent = this;
+        const char *pcszKey;
+        boost::shared_ptr<AttributeNode> pNew(new AttributeNode(elmRoot, this, plibAttr, &pcszKey));
         // store
-        m->attribs[pcszAttribName] = pNew;
+        m->attribs[pcszKey] = pNew;
 
         plibAttr = plibAttr->next;
     }
 
     // go thru this element's child elements
-    xmlNodePtr plibNode = m->plibNode->children;
+    xmlNodePtr plibNode = m_plibNode->children;
     while (plibNode)
     {
         boost::shared_ptr<Node> pNew;
 
         if (plibNode->type == XML_ELEMENT_NODE)
-            pNew = boost::shared_ptr<Node>(new ElementNode);
+            pNew = boost::shared_ptr<Node>(new ElementNode(&elmRoot, this, plibNode));
         else if (plibNode->type == XML_TEXT_NODE)
-            pNew = boost::shared_ptr<Node>(new ContentNode);
+            pNew = boost::shared_ptr<Node>(new ContentNode(this, plibNode));
         if (pNew)
         {
-            pNew->m->plibNode = plibNode;
-            pNew->m->pcszName = (const char*)plibNode->name;
-            pNew->m->pParent = this;
             // store
             m->children.push_back(pNew);
 
             // recurse for this child element to get its own children
-            pNew->buildChildren();
+            pNew->buildChildren(elmRoot);
         }
 
         plibNode = plibNode->next;
     }
 }
 
+/**
+ * Returns the name of the node, which is either the element name or
+ * the attribute name. For other node types it probably returns NULL.
+ * @return
+ */
 const char* Node::getName() const
 {
-    return m->pcszName;
+    return m_pcszName;
 }
 
-bool Node::nameEquals(const char *pcsz) const
+/**
+ * Variant of nameEquals that checks the namespace as well.
+ * @param pcszNamespace
+ * @param pcsz
+ * @return
+ */
+bool Node::nameEquals(const char *pcszNamespace, const char *pcsz) const
 {
-    if (m->pcszName == pcsz)
+    if (m_pcszName == pcsz)
         return true;
-    if (m->pcszName == NULL)
+    if (m_pcszName == NULL)
         return false;
     if (pcsz == NULL)
         return false;
-    return !strcmp(m->pcszName, pcsz);
-}
+    if (strcmp(m_pcszName, pcsz))
+        return false;
 
+    // name matches: then check namespaces as well
+    if (!pcszNamespace)
+        return true;
+    // caller wants namespace:
+    if (!m_pcszNamespacePrefix)
+        // but node has no namespace:
+        return false;
+    return !strcmp(m_pcszNamespacePrefix, pcszNamespace);
+}
 
 /**
  * Returns the value of a node. If this node is an attribute, returns
@@ -520,17 +549,17 @@ bool Node::nameEquals(const char *pcsz) const
  */
 const char* Node::getValue() const
 {
-    if (    (m->plibAttr)
-         && (m->plibAttr->children)
+    if (    (m_plibAttr)
+         && (m_plibAttr->children)
        )
         // libxml hides attribute values in another node created as a
         // single child of the attribute node, and it's in the content field
-        return (const char*)m->plibAttr->children->content;
+        return (const char*)m_plibAttr->children->content;
 
-    if (    (m->plibNode)
-         && (m->plibNode->children)
+    if (    (m_plibNode)
+         && (m_plibNode->children)
        )
-        return (const char*)m->plibNode->children->content;
+        return (const char*)m_plibNode->children->content;
 
     return NULL;
 }
@@ -610,15 +639,31 @@ bool Node::copyValue(uint64_t &i) const
  */
 int Node::getLineNumber() const
 {
-    if (m->plibAttr)
-        return m->pParent->m->plibNode->line;
+    if (m_plibAttr)
+        return m_pParent->m_plibNode->line;
 
-    return m->plibNode->line;
+    return m_plibNode->line;
 }
 
-ElementNode::ElementNode()
-    : Node(IsElement)
+ElementNode::ElementNode(const ElementNode *pelmRoot,
+                         Node *pParent,
+                         xmlNode *plibNode)
+    : Node(IsElement,
+           pParent,
+           plibNode,
+           NULL)
 {
+    if (!(m_pelmRoot = pelmRoot))
+        // NULL passed, then this is the root element
+        m_pelmRoot = this;
+
+    m_pcszName = (const char*)plibNode->name;
+
+    if (plibNode->ns)
+    {
+        m_pcszNamespacePrefix = (const char*)m_plibNode->ns->prefix;
+        m_pcszNamespaceHref = (const char*)m_plibNode->ns->href;
+    }
 }
 
 /**
@@ -634,33 +679,33 @@ int ElementNode::getChildElements(ElementNodesList &children,
     const
 {
     int i = 0;
-    Data::InternalNodesList::const_iterator
-        it,
-        last = m->children.end();
-    for (it = m->children.begin();
-         it != last;
+    for (Data::InternalNodesList::iterator it = m->children.begin();
+         it != m->children.end();
          ++it)
     {
         // export this child node if ...
-        if (    (!pcszMatch)    // the caller wants all nodes or
-             || (!strcmp(pcszMatch, (**it).getName())) // the element name matches
-           )
-        {
-            Node *pNode = (*it).get();
-            if (pNode->isElement())
-                children.push_back(static_cast<ElementNode*>(pNode));
-            ++i;
-        }
+        Node *p = it->get();
+        if (p->isElement())
+            if (    (!pcszMatch)    // the caller wants all nodes or
+                 || (!strcmp(pcszMatch, p->getName())) // the element name matches
+               )
+            {
+                children.push_back(static_cast<ElementNode*>(p));
+                ++i;
+            }
     }
     return i;
 }
 
 /**
  * Returns the first child element whose name matches pcszMatch.
- * @param pcszMatch
+ *
+ * @param pcszNamespace Namespace prefix (e.g. "vbox") or NULL to match any namespace.
+ * @param pcszMatch Element name to match.
  * @return
  */
-const ElementNode* ElementNode::findChildElement(const char *pcszMatch)
+const ElementNode* ElementNode::findChildElement(const char *pcszNamespace,
+                                                 const char *pcszMatch)
     const
 {
     Data::InternalNodesList::const_iterator
@@ -673,7 +718,7 @@ const ElementNode* ElementNode::findChildElement(const char *pcszMatch)
         if ((**it).isElement())
         {
             ElementNode *pelm = static_cast<ElementNode*>((*it).get());
-            if (!strcmp(pcszMatch, pelm->getName())) // the element name matches
+            if (pelm->nameEquals(pcszNamespace, pcszMatch))
                 return pelm;
         }
     }
@@ -710,6 +755,22 @@ const ElementNode* ElementNode::findChildElementFromId(const char *pcszId) const
 }
 
 /**
+ * Looks up the given attribute node in this element's attribute map.
+ *
+ * With respect to namespaces, the internal attributes map stores namespace
+ * prefixes with attribute names only if the attribute uses a non-default
+ * namespace. As a result, the following rules apply:
+ *
+ *  -- To find attributes from a non-default namespace, pcszMatch must not
+ *     be prefixed with a namespace.
+ *
+ *  -- To find attributes from the default namespace (or if the document does
+ *     not use namespaces), pcszMatch must be prefixed with the namespace
+ *     prefix and a colon.
+ *
+ * For example, if the document uses the "vbox:" namespace by default, you
+ * must omit "vbox:" from pcszMatch to find such attributes, whether they
+ * are specifed in the xml or not.
  *
  * @param pcszMatch
  * @return
@@ -729,8 +790,8 @@ const AttributeNode* ElementNode::findAttribute(const char *pcszMatch) const
  * Convenience method which attempts to find the attribute with the given
  * name and returns its value as a string.
  *
- * @param pcszMatch name of attribute to find.
- * @param str out: attribute value
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
+ * @param ppcsz out: attribute value
  * @return TRUE if attribute was found and str was thus updated.
  */
 bool ElementNode::getAttributeValue(const char *pcszMatch, const char *&ppcsz) const
@@ -749,7 +810,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, const char *&ppcsz) c
  * Convenience method which attempts to find the attribute with the given
  * name and returns its value as a string.
  *
- * @param pcszMatch name of attribute to find.
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
  * @param str out: attribute value; overwritten only if attribute was found
  * @return TRUE if attribute was found and str was thus updated.
  */
@@ -771,7 +832,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, iprt::MiniString &str
  * RTStrToInt32Ex internally and will only output the integer if that
  * function returns no error.
  *
- * @param pcszMatch name of attribute to find.
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
  * @param i out: attribute value; overwritten only if attribute was found
  * @return TRUE if attribute was found and str was thus updated.
  */
@@ -792,7 +853,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, int32_t &i) const
  * RTStrToUInt32Ex internally and will only output the integer if that
  * function returns no error.
  *
- * @param pcszMatch name of attribute to find.
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
  * @param i out: attribute value; overwritten only if attribute was found
  * @return TRUE if attribute was found and str was thus updated.
  */
@@ -813,7 +874,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, uint32_t &i) const
  * RTStrToInt64Ex internally and will only output the integer if that
  * function returns no error.
  *
- * @param pcszMatch name of attribute to find.
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
  * @param i out: attribute value
  * @return TRUE if attribute was found and str was thus updated.
  */
@@ -834,7 +895,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, int64_t &i) const
  * RTStrToUInt64Ex internally and will only output the integer if that
  * function returns no error.
  *
- * @param pcszMatch name of attribute to find.
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
  * @param i out: attribute value; overwritten only if attribute was found
  * @return TRUE if attribute was found and str was thus updated.
  */
@@ -854,8 +915,8 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, uint64_t &i) const
  * name and returns its value as a boolean. This accepts "true", "false",
  * "yes", "no", "1" or "0" as valid values.
  *
- * @param pcszMatch name of attribute to find.
- * @param i out: attribute value; overwritten only if attribute was found
+ * @param pcszMatch name of attribute to find (see findAttribute() for namespace remarks)
+ * @param f out: attribute value; overwritten only if attribute was found
  * @return TRUE if attribute was found and str was thus updated.
  */
 bool ElementNode::getAttributeValue(const char *pcszMatch, bool &f) const
@@ -894,7 +955,7 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, bool &f) const
 ElementNode* ElementNode::createChild(const char *pcszElementName)
 {
     // we must be an element, not an attribute
-    if (!m->plibNode)
+    if (!m_plibNode)
         throw ENodeIsNotElement(RT_SRC_POS);
 
     // libxml side: create new node
@@ -902,14 +963,11 @@ ElementNode* ElementNode::createChild(const char *pcszElementName)
     if (!(plibNode = xmlNewNode(NULL,        // namespace
                                 (const xmlChar*)pcszElementName)))
         throw std::bad_alloc();
-    xmlAddChild(m->plibNode, plibNode);
+    xmlAddChild(m_plibNode, plibNode);
 
     // now wrap this in C++
-    ElementNode *p = new ElementNode;
+    ElementNode *p = new ElementNode(m_pelmRoot, this, plibNode);
     boost::shared_ptr<ElementNode> pNew(p);
-    pNew->m->plibNode = plibNode;
-    pNew->m->pcszName = (const char*)plibNode->name;
-
     m->children.push_back(pNew);
 
     return p;
@@ -920,7 +978,7 @@ ElementNode* ElementNode::createChild(const char *pcszElementName)
  * Creates a content node and appends it to the list of children
  * in "this".
  *
- * @param pcszElementName
+ * @param pcszContent
  * @return
  */
 ContentNode* ElementNode::addContent(const char *pcszContent)
@@ -929,14 +987,11 @@ ContentNode* ElementNode::addContent(const char *pcszContent)
     xmlNode *plibNode;
     if (!(plibNode = xmlNewText((const xmlChar*)pcszContent)))
         throw std::bad_alloc();
-    xmlAddChild(m->plibNode, plibNode);
+    xmlAddChild(m_plibNode, plibNode);
 
     // now wrap this in C++
-    ContentNode *p = new ContentNode;
+    ContentNode *p = new ContentNode(this, plibNode);
     boost::shared_ptr<ContentNode> pNew(p);
-    pNew->m->plibNode = plibNode;
-    pNew->m->pcszName = NULL;
-
     m->children.push_back(pNew);
 
     return p;
@@ -961,16 +1016,13 @@ AttributeNode* ElementNode::setAttribute(const char *pcszName, const char *pcszV
     if (it == m->attribs.end())
     {
         // libxml side: xmlNewProp creates an attribute
-        xmlAttr *plibAttr = xmlNewProp(m->plibNode, (xmlChar*)pcszName, (xmlChar*)pcszValue);
-        const char *pcszAttribName = (const char*)plibAttr->name;
+        xmlAttr *plibAttr = xmlNewProp(m_plibNode, (xmlChar*)pcszName, (xmlChar*)pcszValue);
 
         // C++ side: create an attribute node around it
-        boost::shared_ptr<AttributeNode> pNew(new AttributeNode);
-        pNew->m->plibAttr = plibAttr;
-        pNew->m->pcszName = (const char*)plibAttr->name;
-        pNew->m->pParent = this;
+        const char *pcszKey;
+        boost::shared_ptr<AttributeNode> pNew(new AttributeNode(*m_pelmRoot, this, plibAttr, &pcszKey));
         // store
-        m->attribs[pcszAttribName] = pNew;
+        m->attribs[pcszKey] = pNew;
     }
     else
     {
@@ -1032,13 +1084,55 @@ AttributeNode* ElementNode::setAttribute(const char *pcszName, bool f)
     return setAttribute(pcszName, (f) ? "true" : "false");
 }
 
-AttributeNode::AttributeNode()
-    : Node(IsAttribute)
+/**
+ * Private constructur for a new attribute node. This one is special:
+ * in ppcszKey, it returns a pointer to a string buffer that should be
+ * used to index the attribute correctly with namespaces.
+ *
+ * @param pParent
+ * @param elmRoot
+ * @param plibAttr
+ * @param ppcszKey
+ */
+AttributeNode::AttributeNode(const ElementNode &elmRoot,
+                             Node *pParent,
+                             xmlAttr *plibAttr,
+                             const char **ppcszKey)
+    : Node(IsAttribute,
+           pParent,
+           NULL,
+           plibAttr)
 {
+    m_pcszName = (const char*)plibAttr->name;
+
+    *ppcszKey = m_pcszName;
+
+    if (    plibAttr->ns
+         && plibAttr->ns->prefix
+       )
+    {
+        m_pcszNamespacePrefix = (const char*)plibAttr->ns->prefix;
+        m_pcszNamespaceHref = (const char*)plibAttr->ns->href;
+
+        if (    !elmRoot.m_pcszNamespaceHref
+             || (strcmp(m_pcszNamespaceHref, elmRoot.m_pcszNamespaceHref))
+           )
+        {
+            // not default namespace:
+            m_strKey = m_pcszNamespacePrefix;
+            m_strKey.append(':');
+            m_strKey.append(m_pcszName);
+
+            *ppcszKey = m_strKey.c_str();
+        }
+    }
 }
 
-ContentNode::ContentNode()
-    : Node(IsContent)
+ContentNode::ContentNode(Node *pParent, xmlNode *plibNode)
+    : Node(IsContent,
+           pParent,
+           plibNode,
+           NULL)
 {
 }
 
@@ -1077,8 +1171,6 @@ NodesLoop::~NodesLoop()
  *      while (pChild = loop.forAllNodes())
  *          ...;
  * </code>
- * @param node
- * @param pcszMatch
  * @return
  */
 const ElementNode* NodesLoop::forAllNodes() const
@@ -1170,11 +1262,9 @@ Document::~Document()
  */
 void Document::refreshInternals() // private
 {
-    m->pRootElement = new ElementNode();
-    m->pRootElement->m->plibNode = xmlDocGetRootElement(m->plibDocument);
-    m->pRootElement->m->pcszName = (const char*)m->pRootElement->m->plibNode->name;
+    m->pRootElement = new ElementNode(NULL, NULL, xmlDocGetRootElement(m->plibDocument));
 
-    m->pRootElement->buildChildren();
+    m->pRootElement->buildChildren(*m->pRootElement);
 }
 
 /**
@@ -1215,9 +1305,7 @@ ElementNode* Document::createRootElement(const char *pcszRootElementName)
     xmlDocSetRootElement(m->plibDocument, plibRootNode);
 
     // now wrap this in C++
-    m->pRootElement = new ElementNode();
-    m->pRootElement->m->plibNode = plibRootNode;
-    m->pRootElement->m->pcszName = (const char*)plibRootNode->name;
+    m->pRootElement = new ElementNode(NULL, NULL, plibRootNode);
 
     return m->pRootElement;
 }
@@ -1282,8 +1370,8 @@ struct IOContext
     File file;
     iprt::MiniString error;
 
-    IOContext(const char *pcszFilename, File::Mode mode)
-        : file(mode, pcszFilename)
+    IOContext(const char *pcszFilename, File::Mode mode, bool fFlush = false)
+        : file(mode, pcszFilename, fFlush)
     {
     }
 
@@ -1308,8 +1396,8 @@ struct ReadContext : IOContext
 
 struct WriteContext : IOContext
 {
-    WriteContext(const char *pcszFilename)
-        : IOContext(pcszFilename, File::Mode_Overwrite)
+    WriteContext(const char *pcszFilename, bool fFlush)
+        : IOContext(pcszFilename, File::Mode_Overwrite, fFlush)
     {
     }
 };
@@ -1320,7 +1408,7 @@ struct WriteContext : IOContext
  *
  * The document that is passed in will be reset before being filled if not empty.
  *
- * @param pcszFilename in: name fo file to parse.
+ * @param strFilename in: name fo file to parse.
  * @param doc out: document to be reset and filled with data according to file contents.
  */
 void XmlFileParser::read(const iprt::MiniString &strFilename,
@@ -1395,9 +1483,9 @@ XmlFileWriter::~XmlFileWriter()
     delete m;
 }
 
-void XmlFileWriter::write(const char *pcszFilename)
+void XmlFileWriter::writeInternal(const char *pcszFilename, bool fSafe)
 {
-    WriteContext context(pcszFilename);
+    WriteContext context(pcszFilename, fSafe);
 
     GlobalLock lock;
 
@@ -1429,6 +1517,50 @@ void XmlFileWriter::write(const char *pcszFilename)
     xmlSaveClose(saveCtxt);
 }
 
+void XmlFileWriter::write(const char *pcszFilename, bool fSafe)
+{
+    if (!fSafe)
+        writeInternal(pcszFilename, fSafe);
+    else
+    {
+        /* Empty string and directory spec must be avoid. */
+        if (RTPathFilename(pcszFilename) == NULL)
+            throw xml::LogicError(RT_SRC_POS);
+
+        /* Construct both filenames first to ease error handling.  */
+        char szTmpFilename[RTPATH_MAX];
+        int rc = RTStrCopy(szTmpFilename, sizeof(szTmpFilename) - strlen(s_pszTmpSuff), pcszFilename);
+        if (RT_FAILURE(rc))
+            throw EIPRTFailure(rc, "RTStrCopy");
+        strcat(szTmpFilename, s_pszTmpSuff);
+
+        char szPrevFilename[RTPATH_MAX];
+        rc = RTStrCopy(szPrevFilename, sizeof(szPrevFilename) - strlen(s_pszPrevSuff), pcszFilename);
+        if (RT_FAILURE(rc))
+            throw EIPRTFailure(rc, "RTStrCopy");
+        strcat(szPrevFilename, s_pszPrevSuff);
+
+        /* Write the XML document to the temporary file.  */
+        writeInternal(szTmpFilename, fSafe);
+
+        /* Make a backup of any existing file (ignore failure). */
+        uint64_t cbPrevFile;
+        rc = RTFileQuerySize(pcszFilename, &cbPrevFile);
+        if (RT_SUCCESS(rc) && cbPrevFile >= 16)
+            RTFileRename(pcszFilename, szPrevFilename, RTPATHRENAME_FLAGS_REPLACE);
+
+        /* Commit the temporary file. Just leave the tmp file behind on failure. */
+        rc = RTFileRename(szTmpFilename, pcszFilename, RTPATHRENAME_FLAGS_REPLACE);
+        if (RT_FAILURE(rc))
+            throw EIPRTFailure(rc, "Failed to replace '%s' with '%s'", pcszFilename, szTmpFilename);
+
+        /* Flush the directory changes (required on linux at least). */
+        RTPathStripFilename(szTmpFilename);
+        rc = RTDirFlush(szTmpFilename);
+        AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_SUPPORTED || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
+    }
+}
+
 int XmlFileWriter::WriteCallback(void *aCtxt, const char *aBuf, int aLen)
 {
     WriteContext *pContext = static_cast<WriteContext*>(aCtxt);
@@ -1454,7 +1586,9 @@ int XmlFileWriter::CloseCallback(void *aCtxt)
     return -1;
 }
 
+/*static*/ const char * const XmlFileWriter::s_pszTmpSuff  = "-tmp";
+/*static*/ const char * const XmlFileWriter::s_pszPrevSuff = "-prev";
+
 
 } // end namespace xml
-
 

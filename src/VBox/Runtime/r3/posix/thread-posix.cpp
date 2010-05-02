@@ -1,10 +1,10 @@
-/* $Id: thread-posix.cpp $ */
+/* $Id: thread-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Threads, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -36,6 +32,10 @@
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+#if defined(RT_OS_LINUX)
+# include <unistd.h>
+# include <sys/syscall.h>
+#endif
 #if defined(RT_OS_SOLARIS)
 # include <sched.h>
 #endif
@@ -52,8 +52,10 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
+#ifndef IN_GUEST
 /** The signal we're using for RTThreadPoke. */
-#define RTTHREAD_POSIX_POKE_SIG  SIGUSR2
+# define RTTHREAD_POSIX_POKE_SIG    SIGUSR2
+#endif
 
 
 /*******************************************************************************
@@ -61,6 +63,10 @@
 *******************************************************************************/
 /** The pthread key in which we store the pointer to our own PRTTHREAD structure. */
 static pthread_key_t    g_SelfKey;
+#ifdef RTTHREAD_POSIX_POKE_SIG
+/** Set if we can poke a thread, clear if we cannot. */
+static bool             g_fCanPokeThread;
+#endif
 
 
 /*******************************************************************************
@@ -81,26 +87,37 @@ int rtThreadNativeInit(void)
     if (rc)
         return VERR_NO_TLS_FOR_SELF;
 
+#ifdef RTTHREAD_POSIX_POKE_SIG
     /*
-     * Register the dummy signal handler for RTThreadPoke.
-     * (Assert may explode here, but at least we'll notice.)
+     * Try register the dummy signal handler for RTThreadPoke.
      */
-    struct sigaction SigAct;
-    memset(&SigAct, '\0', sizeof(SigAct));
-    SigAct.sa_handler = rtThreadPosixPokeSignal;
-    sigfillset(&SigAct.sa_mask);
-    SigAct.sa_flags = 0;
-
+    g_fCanPokeThread = false;
     struct sigaction SigActOld;
-    if (!sigaction(RTTHREAD_POSIX_POKE_SIG, &SigAct, &SigActOld))
-        Assert(SigActOld.sa_handler == SIG_DFL);
-    else
+    if (!sigaction(RTTHREAD_POSIX_POKE_SIG, NULL, &SigActOld))
     {
-        rc = RTErrConvertFromErrno(errno);
-        AssertMsgFailed(("rc=%Rrc errno=%d\n", rc, errno));
-        pthread_key_delete(g_SelfKey);
-        g_SelfKey = 0;
+        if (   SigActOld.sa_handler == SIG_DFL
+            || SigActOld.sa_handler == rtThreadPosixPokeSignal)
+        {
+            struct sigaction SigAct;
+            memset(&SigAct, '\0', sizeof(SigAct));
+            SigAct.sa_handler = rtThreadPosixPokeSignal;
+            sigfillset(&SigAct.sa_mask);
+            SigAct.sa_flags = 0;
+
+            /* ASSUMES no sigaction race... (lazy bird) */
+            if (!sigaction(RTTHREAD_POSIX_POKE_SIG, &SigAct, NULL))
+                g_fCanPokeThread = true;
+            else
+            {
+                AssertMsgFailed(("rc=%Rrc errno=%d\n", RTErrConvertFromErrno(errno), errno));
+                pthread_key_delete(g_SelfKey);
+                g_SelfKey = 0;
+            }
+        }
     }
+    else
+        AssertMsgFailed(("rc=%Rrc errno=%d\n", RTErrConvertFromErrno(errno), errno));
+#endif /* RTTHREAD_POSIX_POKE_SIG */
     return rc;
 }
 
@@ -124,6 +141,7 @@ static void rtThreadKeyDestruct(void *pvValue)
 }
 
 
+#ifdef RTTHREAD_POSIX_POKE_SIG
 /**
  * Dummy signal handler for the poke signal.
  *
@@ -134,6 +152,7 @@ static void rtThreadPosixPokeSignal(int iSignal)
     Assert(iSignal == RTTHREAD_POSIX_POKE_SIG);
     NOREF(iSignal);
 }
+#endif
 
 
 /**
@@ -153,7 +172,10 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
     sigemptyset(&SigSet);
     sigaddset(&SigSet, SIGALRM);
     sigprocmask(SIG_BLOCK, &SigSet, NULL);
-    siginterrupt(RTTHREAD_POSIX_POKE_SIG, 1);
+#ifdef RTTHREAD_POSIX_POKE_SIG
+    if (g_fCanPokeThread)
+        siginterrupt(RTTHREAD_POSIX_POKE_SIG, 1);
+#endif
 
     int rc = pthread_setspecific(g_SelfKey, pThread);
     if (!rc)
@@ -169,6 +191,14 @@ static void *rtThreadNativeMain(void *pvArgs)
 {
     PRTTHREADINT  pThread = (PRTTHREADINT)pvArgs;
 
+#if defined(RT_OS_LINUX)
+    /*
+     * Set the TID.
+     */
+    pThread->tid = syscall(__NR_gettid);
+    ASMMemoryFence();
+#endif
+
     /*
      * Block SIGALRM - required for timer-posix.cpp.
      * This is done to limit harm done by OSes which doesn't do special SIGALRM scheduling.
@@ -178,7 +208,10 @@ static void *rtThreadNativeMain(void *pvArgs)
     sigemptyset(&SigSet);
     sigaddset(&SigSet, SIGALRM);
     sigprocmask(SIG_BLOCK, &SigSet, NULL);
-    siginterrupt(RTTHREAD_POSIX_POKE_SIG, 1);
+#ifdef RTTHREAD_POSIX_POKE_SIG
+    if (g_fCanPokeThread)
+        siginterrupt(RTTHREAD_POSIX_POKE_SIG, 1);
+#endif
 
     int rc = pthread_setspecific(g_SelfKey, pThread);
     AssertReleaseMsg(!rc, ("failed to set self TLS. rc=%d thread '%s'\n", rc, pThread->szName));
@@ -203,6 +236,10 @@ int rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNativeThread)
      */
     if (!pThread->cbStack)
         pThread->cbStack = 512*1024;
+
+#ifdef RT_OS_LINUX
+    pThread->tid = -1;
+#endif
 
     /*
      * Setup thread attributes.
@@ -249,7 +286,7 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 }
 
 
-RTDECL(int) RTThreadSleep(unsigned cMillies)
+RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
 {
     LogFlow(("RTThreadSleep: cMillies=%d\n", cMillies));
     if (!cMillies)
@@ -320,14 +357,23 @@ RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask)
 }
 
 
+#ifdef RTTHREAD_POSIX_POKE_SIG
 RTDECL(int) RTThreadPoke(RTTHREAD hThread)
 {
     AssertReturn(hThread != RTThreadSelf(), VERR_INVALID_PARAMETER);
     PRTTHREADINT pThread = rtThreadGet(hThread);
     AssertReturn(pThread, VERR_INVALID_HANDLE);
-
-    int rc = pthread_kill((pthread_t)(uintptr_t)pThread->Core.Key, RTTHREAD_POSIX_POKE_SIG);
+    int rc;
+    if (g_fCanPokeThread)
+    {
+        rc = pthread_kill((pthread_t)(uintptr_t)pThread->Core.Key, RTTHREAD_POSIX_POKE_SIG);
+        rc = RTErrConvertFromErrno(rc);
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
 
     rtThreadRelease(pThread);
-    return RTErrConvertFromErrno(rc);
+    return rc;
 }
+#endif
+

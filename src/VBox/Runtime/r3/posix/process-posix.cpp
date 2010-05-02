@@ -1,10 +1,10 @@
-/* $Id: process-posix.cpp $ */
+/* $Id: process-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Process, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -53,30 +49,107 @@
 #endif
 
 #include <iprt/process.h>
-#include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/assert.h>
-#include <iprt/err.h>
 #include <iprt/env.h>
+#include <iprt/err.h>
+#include <iprt/file.h>
+#include <iprt/pipe.h>
+#include <iprt/socket.h>
+#include <iprt/string.h>
 #include "internal/process.h"
 
 
 
 RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs, RTENV Env, unsigned fFlags, PRTPROCESS pProcess)
 {
+    return RTProcCreateEx(pszExec, papszArgs, Env, fFlags,
+                          NULL, NULL, NULL,  /* standard handles */
+                          NULL /*pszAsUser*/, NULL /* pszPassword*/,
+                          pProcess);
+}
+
+
+RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArgs, RTENV hEnv, uint32_t fFlags,
+                               PCRTHANDLE phStdIn, PCRTHANDLE phStdOut, PCRTHANDLE phStdErr, const char *pszAsUser,
+                               const char *pszPassword, PRTPROCESS phProcess)
+{
     int rc;
 
     /*
-     * Validate input.
+     * Input validation
      */
     AssertPtrReturn(pszExec, VERR_INVALID_POINTER);
     AssertReturn(*pszExec, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fFlags & ~RTPROC_FLAGS_DAEMONIZE), VERR_INVALID_PARAMETER);
-    AssertReturn(Env != NIL_RTENV, VERR_INVALID_PARAMETER);
-    const char * const *papszEnv = RTEnvGetExecEnvP(Env);
+    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DAEMONIZE_DEPRECATED | RTPROC_FLAGS_DETACHED)), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & RTPROC_FLAGS_DETACHED) || !phProcess, VERR_INVALID_PARAMETER);
+    AssertReturn(hEnv != NIL_RTENV, VERR_INVALID_PARAMETER);
+    const char * const *papszEnv = RTEnvGetExecEnvP(hEnv);
     AssertPtrReturn(papszEnv, VERR_INVALID_HANDLE);
     AssertPtrReturn(papszArgs, VERR_INVALID_PARAMETER);
-    /* later: path searching. */
+    /** @todo search the PATH (add flag for this). */
+    AssertPtrNullReturn(pszAsUser, VERR_INVALID_POINTER);
+    AssertReturn(!pszAsUser || *pszAsUser, VERR_INVALID_PARAMETER);
+    AssertReturn(!pszPassword || pszAsUser, VERR_INVALID_PARAMETER);
+    AssertPtrNullReturn(pszPassword, VERR_INVALID_POINTER);
 
+    /*
+     * Get the file descriptors for the handles we've been passed.
+     */
+    PCRTHANDLE  paHandles[3] = { phStdIn, phStdOut, phStdErr };
+    int         aStdFds[3]   = {      -1,       -1,       -1 };
+    for (int i = 0; i < 3; i++)
+    {
+        if (paHandles[i])
+        {
+            AssertPtrReturn(paHandles[i], VERR_INVALID_POINTER);
+            switch (paHandles[i]->enmType)
+            {
+                case RTHANDLETYPE_FILE:
+                    aStdFds[i] = paHandles[i]->u.hFile != NIL_RTFILE
+                               ? (int)RTFileToNative(paHandles[i]->u.hFile)
+                               : -2 /* close it */;
+                    break;
+
+                case RTHANDLETYPE_PIPE:
+                    aStdFds[i] = paHandles[i]->u.hPipe != NIL_RTPIPE
+                               ? (int)RTPipeToNative(paHandles[i]->u.hPipe)
+                               : -2 /* close it */;
+                    break;
+
+                case RTHANDLETYPE_SOCKET:
+                    aStdFds[i] = paHandles[i]->u.hSocket != NIL_RTSOCKET
+                               ? (int)RTSocketToNative(paHandles[i]->u.hSocket)
+                               : -2 /* close it */;
+                    break;
+
+                default:
+                    AssertMsgFailedReturn(("%d: %d\n", i, paHandles[i]->enmType), VERR_INVALID_PARAMETER);
+            }
+            /** @todo check the close-on-execness of these handles?  */
+        }
+    }
+
+    for (int i = 0; i < 3; i++)
+        if (aStdFds[i] == i)
+            aStdFds[i] = -1;
+
+    for (int i = 0; i < 3; i++)
+        AssertMsgReturn(aStdFds[i] < 0 || aStdFds[i] > i,
+                        ("%i := %i not possible because we're lazy\n", i, aStdFds[i]),
+                        VERR_NOT_SUPPORTED);
+
+    /*
+     * Resolve the user id if specified.
+     */
+    uid_t uid = ~(uid_t)0;
+    gid_t gid = ~(gid_t)0;
+    if (pszAsUser)
+    {
+        AssertMsgFailed(("Implement get uid by name lookup\n"));
+        return VERR_NOT_IMPLEMENTED;
+    }
 
     /*
      * Check for execute access to the file.
@@ -88,25 +161,6 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
         return rc;
     }
 
-#if 0
-    /*
-     * Squeeze gdb --args in front of what's being spawned.
-     */
-    unsigned cArgs = 0;
-    while (papszArgs[cArgs])
-        cArgs++;
-    cArgs += 3;
-    const char **papszArgsTmp = (const char **)alloca(cArgs * sizeof(char *));
-    papszArgsTmp[0] = "/usr/bin/gdb";
-    papszArgsTmp[1] = "--args";
-    papszArgsTmp[2] = pszExec;
-    for (unsigned i = 1; papszArgs[i]; i++)
-        papszArgsTmp[i + 2] = papszArgs[i];
-    papszArgsTmp[cArgs - 1] = NULL;
-    pszExec = papszArgsTmp[0];
-    papszArgs = papszArgsTmp;
-#endif
-
     /*
      * Spawn the child.
      *
@@ -115,12 +169,17 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
      * the IPRT waipit call doesn't race anyone (read XPCOM) doing group wide
      * waits.
      */
-    pid_t pid;
+    pid_t pid = -1;
 #ifdef HAVE_POSIX_SPAWN
-    if (!(fFlags & RTPROC_FLAGS_DAEMONIZE))
+    /** @todo OS/2: implement DETACHED (BACKGROUND stuff), see VbglR3Daemonize.  */
+    /** @todo Try do the detach thing with posix spawn.  */
+    if (   !(fFlags & (RTPROC_FLAGS_DAEMONIZE_DEPRECATED | RTPROC_FLAGS_DETACHED))
+        && uid == ~(uid_t)0
+        && gid == ~(gid_t)0
+        )
     {
+        /* Spawn attributes. */
         posix_spawnattr_t Attr;
-
         rc = posix_spawnattr_init(&Attr);
         if (!rc)
         {
@@ -133,21 +192,61 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
                 Assert(rc == 0);
             }
 # endif
-            if (!rc)
+
+            /* File changes. */
+            posix_spawn_file_actions_t  FileActions;
+            posix_spawn_file_actions_t *pFileActions = NULL;
+            if (aStdFds[0] != -1 || aStdFds[1] != -1 || aStdFds[2] != -1)
             {
-                /** @todo check if it requires any mandatory attributes or something, don't
-                 *        remember atm. */
-                rc = posix_spawn(&pid, pszExec, NULL, &Attr, (char * const *)papszArgs,
-                                 (char * const *)papszEnv);
+                rc = posix_spawn_file_actions_init(&FileActions);
                 if (!rc)
                 {
-                    int rc2 = posix_spawnattr_destroy(&Attr); Assert(rc2 == 0); NOREF(rc2);
-                    if (pProcess)
-                        *pProcess = pid;
-                    return VINF_SUCCESS;
+                    pFileActions = &FileActions;
+                    for (int i = 0; i < 3; i++)
+                    {
+                        int fd = aStdFds[i];
+                        if (fd == -2)
+                            rc = posix_spawn_file_actions_addclose(&FileActions, i);
+                        else if (fd >= 0 && fd != i)
+                        {
+                            rc = posix_spawn_file_actions_adddup2(&FileActions, fd, i);
+                            if (!rc)
+                            {
+                                for (int j = i + 1; j < 3; j++)
+                                    if (aStdFds[j] == fd)
+                                    {
+                                        fd = -1;
+                                        break;
+                                    }
+                                if (fd >= 0)
+                                    rc = posix_spawn_file_actions_addclose(&FileActions, fd);
+                            }
+                        }
+                        if (rc)
+                            break;
+                    }
                 }
             }
+
+            if (!rc)
+                rc = posix_spawn(&pid, pszExec, pFileActions, &Attr, (char * const *)papszArgs,
+                                 (char * const *)papszEnv);
+
+            /* cleanup */
             int rc2 = posix_spawnattr_destroy(&Attr); Assert(rc2 == 0); NOREF(rc2);
+            if (pFileActions)
+            {
+                rc2 = posix_spawn_file_actions_destroy(pFileActions);
+                Assert(rc2 == 0);
+            }
+
+            /* return on success.*/
+            if (!rc)
+            {
+                if (phProcess)
+                    *phProcess = pid;
+                return VINF_SUCCESS;
+            }
         }
     }
     else
@@ -158,28 +257,82 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
         {
             setpgid(0, 0); /* see comment above */
 
-            if (fFlags & RTPROC_FLAGS_DAEMONIZE)
+            /*
+             * Change group and user if requested.
+             */
+#if 1 /** @todo This needs more work, see suplib/hardening. */
+            if (gid != ~(gid_t)0)
             {
-                rc = RTProcDaemonize(true /* fNoChDir */, false /* fNoClose */, NULL /* pszPidFile */);
-                AssertReleaseMsgFailed(("RTProcDaemonize returns %Rrc errno=%d\n", rc, errno));
-                exit(127);
+                if (setgid(gid))
+                    exit(126);
             }
+
+            if (uid != ~(uid_t)0)
+            {
+                if (setuid(uid))
+                    exit(126);
+            }
+#endif
+
+            /*
+             * Apply changes to the standard file descriptor and stuff.
+             */
+            for (int i = 0; i < 3; i++)
+            {
+                int fd = aStdFds[i];
+                if (fd == -2)
+                    close(i);
+                else if (fd >= 0)
+                {
+                    int rc2 = dup2(fd, i);
+                    if (rc2 != i)
+                        exit(125);
+                    for (int j = i + 1; j < 3; j++)
+                        if (aStdFds[j] == fd)
+                        {
+                            fd = -1;
+                            break;
+                        }
+                    if (fd >= 0)
+                        close(fd);
+                }
+            }
+
+            /*
+             * Daemonize the process if requested.
+             */
+            if (fFlags & (RTPROC_FLAGS_DAEMONIZE_DEPRECATED | RTPROC_FLAGS_DETACHED))
+            {
+                rc = RTProcDaemonizeUsingFork(true /*fNoChDir*/,
+                                              !(fFlags & RTPROC_FLAGS_DAEMONIZE_DEPRECATED) /*fNoClose*/,
+                                              NULL /* pszPidFile */);
+                if (RT_FAILURE(rc))
+                {
+                    /* parent */
+                    AssertReleaseMsgFailed(("RTProcDaemonize returns %Rrc errno=%d\n", rc, errno));
+                    exit(127);
+                }
+                /* daemonized child */
+            }
+
+            /*
+             * Finally, execute the requested program.
+             */
             rc = execve(pszExec, (char * const *)papszArgs, (char * const *)papszEnv);
             AssertReleaseMsgFailed(("execve returns %d errno=%d\n", rc, errno));
             exit(127);
         }
         if (pid > 0)
         {
-            if (pProcess)
-                *pProcess = pid;
+            if (phProcess)
+                *phProcess = pid;
             return VINF_SUCCESS;
         }
         rc = errno;
     }
 
-    /* failure, errno value in rc. */
-    AssertMsgFailed(("spawn/exec failed rc=%d\n", rc)); /* this migth be annoying... */
-    return RTErrConvertFromErrno(rc);
+
+    return VERR_NOT_IMPLEMENTED;
 }
 
 
@@ -273,18 +426,7 @@ RTR3DECL(uint64_t) RTProcGetAffinityMask()
 }
 
 
-/**
- * Daemonize the current process, making it a background process. The current
- * process will exit if daemonizing is successful.
- *
- * @returns iprt status code.
- * @param   fNoChDir    Pass false to change working directory to "/".
- * @param   fNoClose    Pass false to redirect standard file streams to the null device.
- * @param   pszPidfile  Path to a file to write the process id of the daemon
- *                      process to. Daemonizing will fail if this file already
- *                      exists or cannot be written. May be NULL.
- */
-RTR3DECL(int)   RTProcDaemonize(bool fNoChDir, bool fNoClose, const char *pszPidfile)
+RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const char *pszPidfile)
 {
     /*
      * Fork the child process in a new session and quit the parent.
@@ -325,7 +467,7 @@ RTR3DECL(int)   RTProcDaemonize(bool fNoChDir, bool fNoClose, const char *pszPid
         return RTErrConvertFromErrno(errno);
     if (pid != 0)
     {
-        /* Parent exits, no longer necessary. Child creates gets reparented
+        /* Parent exits, no longer necessary. The child gets reparented
          * to the init process. */
         exit(0);
     }
@@ -361,12 +503,15 @@ RTR3DECL(int)   RTProcDaemonize(bool fNoChDir, bool fNoClose, const char *pszPid
     }
 
     if (!fNoChDir)
-        chdir("/");
+    {
+        int rcChdir = chdir("/");
+    }
 
     /* Second fork to lose session leader status. */
     pid = fork();
     if (pid == -1)
         return RTErrConvertFromErrno(errno);
+
     if (pid != 0)
     {
         /* Write the pid file, this is done in the parent, before exiting. */
@@ -374,7 +519,7 @@ RTR3DECL(int)   RTProcDaemonize(bool fNoChDir, bool fNoClose, const char *pszPid
         {
             char szBuf[256];
             size_t cbPid = RTStrPrintf(szBuf, sizeof(szBuf), "%d\n", pid);
-            write(fdPidfile, szBuf, cbPid);
+            int rcWrite = write(fdPidfile, szBuf, cbPid);
             close(fdPidfile);
         }
         exit(0);

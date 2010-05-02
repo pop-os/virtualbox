@@ -1,10 +1,10 @@
-/* $Id: fileaio-posix.cpp $ */
+/* $Id: fileaio-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for POSIX compliant host platforms.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -422,10 +418,10 @@ RTDECL(int) RTFileAioReqPrepareRead(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
 
 
 RTDECL(int) RTFileAioReqPrepareWrite(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
-                                     void *pvBuf, size_t cbWrite, void *pvUser)
+                                     void const *pvBuf, size_t cbWrite, void *pvUser)
 {
     return rtFileAioReqPrepareTransfer(hReq, hFile, LIO_WRITE,
-                                       off, pvBuf, cbWrite, pvUser);
+                                       off, (void *)pvBuf, cbWrite, pvUser);
 }
 
 
@@ -806,7 +802,7 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
 }
 
 
-RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMillisTimeout,
+RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL cMillies,
                              PRTFILEAIOREQ pahReqs, size_t cReqs, uint32_t *pcReqs)
 {
     int rc = VINF_SUCCESS;
@@ -831,10 +827,10 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
     if (RT_UNLIKELY(cMinReqs > (uint32_t)cRequestsWaiting))
         return VERR_INVALID_PARAMETER;
 
-    if (cMillisTimeout != RT_INDEFINITE_WAIT)
+    if (cMillies != RT_INDEFINITE_WAIT)
     {
-        Timeout.tv_sec  = cMillisTimeout / 1000;
-        Timeout.tv_nsec = (cMillisTimeout % 1000) * 1000000;
+        Timeout.tv_sec  = cMillies / 1000;
+        Timeout.tv_nsec = (cMillies % 1000) * 1000000;
         pTimeout = &Timeout;
         StartNanoTS = RTTimeNanoTS();
     }
@@ -857,7 +853,7 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
         if (RT_UNLIKELY(!pCtxInt->iFirstFree))
         {
             for (unsigned i = 0; i < pCtxInt->cReqsWaitMax; i++)
-                AssertMsg2("wait[%d] = %#p\n", i, pCtxInt->apReqs[i]);
+                RTAssertMsg2Weak("wait[%d] = %#p\n", i, pCtxInt->apReqs[i]);
 
             AssertMsgFailed(("No request to wait for. pReqsWaitHead=%#p pReqsWaitTail=%#p\n",
                             pCtxInt->pReqsWaitHead, pCtxInt->pReqsWaitTail));
@@ -963,13 +959,13 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
             if (!cMinReqs)
                 break;
 
-            if (cMillisTimeout != RT_INDEFINITE_WAIT)
+            if (cMillies != RT_INDEFINITE_WAIT)
             {
                 uint64_t TimeDiff;
 
                 /* Recalculate the timeout. */
                 TimeDiff = RTTimeSystemNanoTS() - StartNanoTS;
-                Timeout.tv_sec = Timeout.tv_sec - (TimeDiff / 1000000);
+                Timeout.tv_sec  = Timeout.tv_sec  - (TimeDiff / 1000000);
                 Timeout.tv_nsec = Timeout.tv_nsec - (TimeDiff % 1000000);
             }
 

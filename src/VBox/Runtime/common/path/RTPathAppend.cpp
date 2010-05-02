@@ -1,10 +1,10 @@
-/* $Id: RTPathAppend.cpp $ */
+/* $Id: RTPathAppend.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - RTPathAppend
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -34,6 +30,7 @@
 *******************************************************************************/
 #include "internal/iprt.h"
 #include <iprt/path.h>
+
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/err.h>
@@ -49,9 +46,10 @@
  * @param   pszPath         The path to investigate.
  *
  * @remarks Unnecessary root slashes will not be counted. The caller will have
- *          to deal with it where it matters.
+ *          to deal with it where it matters.  (Unlike rtPathRootSpecLen which
+ *          counts them.)
  */
-static size_t rtPathRootSpecLen(const char *pszPath)
+static size_t rtPathRootSpecLen2(const char *pszPath)
 {
     /* fend of wildlife. */
     if (!pszPath)
@@ -169,7 +167,7 @@ RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend)
 
         /* In the leading path we can skip unnecessary trailing slashes, but
            be sure to leave one. */
-        size_t const cchRoot = rtPathRootSpecLen(pszPath);
+        size_t const cchRoot = rtPathRootSpecLen2(pszPath);
         while (     (size_t)(pszPathEnd - pszPath) > RT_MAX(1, cchRoot)
                &&   RTPATH_IS_SLASH(pszPathEnd[-2]))
             pszPathEnd--;

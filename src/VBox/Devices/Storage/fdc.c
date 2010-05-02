@@ -1,12 +1,11 @@
 #ifdef VBOX
+/* $Id: fdc.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
- * VBox storage devices:
- * Floppy disk controller
+ * VBox storage devices: Floppy disk controller
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -54,8 +49,8 @@
 #define LOG_GROUP LOG_GROUP_DEV_FDC
 #include <VBox/pdmdev.h>
 #include <iprt/assert.h>
-#include <iprt/uuid.h>
 #include <iprt/string.h>
+#include <iprt/uuid.h>
 
 #include "Builtins.h"
 #include "../vl_vbox.h"
@@ -131,17 +126,35 @@ typedef enum fdrive_type_t {
     FDRIVE_DRV_288  = 0x01,   /* 2.88 MB 3"5 drive      */
     FDRIVE_DRV_120  = 0x02,   /* 1.2  MB 5"25 drive     */
     FDRIVE_DRV_NONE = 0x03    /* No drive connected     */
+#ifdef VBOX
+    , FDRIVE_DRV_DUMMY = INT32_MAX
+#endif
 } fdrive_type_t;
 
 typedef enum fdrive_flags_t {
     FDRIVE_MOTOR_ON   = 0x01, /* motor on/off           */
     FDRIVE_REVALIDATE = 0x02  /* Revalidated            */
+#ifdef VBOX
+    , FDRIVE_DUMMY = INT32_MAX
+#endif
 } fdrive_flags_t;
 
 typedef enum fdisk_flags_t {
     FDISK_DBL_SIDES  = 0x01
+#ifdef VBOX
+    , FDDISK_DUMMY = INT32_MAX
+#endif
 } fdisk_flags_t;
 
+#ifdef VBOX
+/**
+ * The status for one drive.
+ *
+ * @implements  PDMIBASE
+ * @implements  PDMIBLOCKPORT
+ * @implements  PDMIMOUNTNOTIFY
+ */
+#endif
 typedef struct fdrive_t {
 #ifndef VBOX
     BlockDriverState *bs;
@@ -355,8 +368,8 @@ static void fd_revalidate (fdrive_t *drv)
 #else /* VBOX */
             /* @todo */ /** @todo r=bird: todo what exactly?!?!? */
             {
-                uint64_t size =  drv->pDrvBlock->pfnGetSize (drv->pDrvBlock);
-                nb_sectors = size / 512;
+                uint64_t size2 = drv->pDrvBlock->pfnGetSize (drv->pDrvBlock);
+                nb_sectors = size2 / 512;
             }
 #endif /* VBOX */
             match = -1;
@@ -494,6 +507,13 @@ do { (state) = ((state) & ~FD_STATE_STATE) | (new_state); } while (0)
 #define FD_DID_SEEK(state) ((state) & FD_STATE_SEEK)
 #define FD_FORMAT_CMD(state) ((state) & FD_STATE_FORMAT)
 
+#ifdef VBOX
+/**
+ * Floppy controller state.
+ *
+ * @implements  PDMILEDPORTS
+ */
+#endif
 struct fdctrl_t {
 #ifndef VBOX
     fdctrl_t *fdctrl;
@@ -539,11 +559,11 @@ struct fdctrl_t {
     /** Pointer to device instance. */
     PPDMDEVINS pDevIns;
 
-    /** Status Port - The base interface. */
+    /** Status LUN: The base interface. */
     PDMIBASE IBaseStatus;
-    /** Status Port - The Leds interface. */
+    /** Status LUN: The Leds interface. */
     PDMILEDPORTS ILeds;
-    /** Status Port - The Partner of ILeds. */
+    /** Status LUN: The Partner of ILeds. */
     PPDMILEDCONNECTORS pLedsConnector;
 #endif
 };
@@ -1242,12 +1262,12 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
 #ifdef VBOX
             {
                 uint32_t read;
-                int rc = PDMDevHlpDMAWriteMemory(fdctrl->pDevIns, nchan,
-                                                 fdctrl->fifo + rel_pos,
-                                                 fdctrl->data_pos,
-                                                 len, &read);
+                int rc2 = PDMDevHlpDMAWriteMemory(fdctrl->pDevIns, nchan,
+                                                  fdctrl->fifo + rel_pos,
+                                                  fdctrl->data_pos,
+                                                  len, &read);
                 dump (fdctrl->fifo + rel_pos, len);
-                AssertMsgRC (rc, ("DMAWriteMemory -> %Rrc\n", rc));
+                AssertMsgRC (rc2, ("DMAWriteMemory -> %Rrc\n", rc2));
             }
 #else
             DMA_write_memory (nchan, fdctrl->fifo + rel_pos,
@@ -1261,11 +1281,11 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
 #ifdef VBOX
             {
                 uint32_t written;
-                int rc = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, nchan,
-                                                fdctrl->fifo + rel_pos,
-                                                fdctrl->data_pos,
-                                                len, &written);
-                AssertMsgRC (rc, ("DMAReadMemory -> %Rrc\n", rc));
+                int rc2 = PDMDevHlpDMAReadMemory(fdctrl->pDevIns, nchan,
+                                                 fdctrl->fifo + rel_pos,
+                                                 fdctrl->data_pos,
+                                                 len, &written);
+                AssertMsgRC (rc2, ("DMAReadMemory -> %Rrc\n", rc2));
             }
 #else
             DMA_read_memory (nchan, fdctrl->fifo + rel_pos,
@@ -1307,12 +1327,10 @@ static int fdctrl_transfer_handler (void *opaque, int nchan,
                 uint8_t tmpbuf[FD_SECTOR_LEN];
                 int ret;
 #ifdef VBOX
-                int rc;
                 uint32_t read;
-
-                rc = PDMDevHlpDMAReadMemory (fdctrl->pDevIns, nchan, tmpbuf,
-                                             fdctrl->data_pos, len, &read);
-                AssertMsg (RT_SUCCESS (rc), ("DMAReadMemory -> %Rrc\n", rc));
+                int rc2 = PDMDevHlpDMAReadMemory (fdctrl->pDevIns, nchan, tmpbuf,
+                                                  fdctrl->data_pos, len, &read);
+                AssertMsg (RT_SUCCESS (rc2), ("DMAReadMemory -> %Rrc2\n", rc2));
 #else
                 DMA_read_memory (nchan, tmpbuf, fdctrl->data_pos, len);
 #endif
@@ -2484,27 +2502,16 @@ static DECLCALLBACK(int) fdcLoadExec (PPDMDEVINS pDevIns,
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to IDEState::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) fdQueryInterface (PPDMIBASE pInterface,
-                                              PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) fdQueryInterface (PPDMIBASE pInterface, const char *pszIID)
 {
-    fdrive_t *drv = PDMIBASE_2_FDRIVE(pInterface);
-    switch (enmInterface) {
-    case PDMINTERFACE_BASE:
-        return &drv->IBase;
-    case PDMINTERFACE_BLOCK_PORT:
-        return &drv->IPort;
-    case PDMINTERFACE_MOUNT_NOTIFY:
-        return &drv->IMountNotify;
-    default:
-        return NULL;
-    }
+    fdrive_t *pDrive = PDMIBASE_2_FDRIVE(pInterface);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrive->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKPORT, &pDrive->IPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNTNOTIFY, &pDrive->IMountNotify);
+    return NULL;
 }
 
 /**
@@ -2531,26 +2538,15 @@ static DECLCALLBACK(int) fdcStatusQueryStatusLed (PPDMILEDPORTS pInterface,
 
 
 /**
- * Queries an interface to the status LUN.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to IDEState::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) fdcStatusQueryInterface (PPDMIBASE pInterface,
-                                                     PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) fdcStatusQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    fdctrl_t *fdctrl = (fdctrl_t *)
-        ((uintptr_t)pInterface - RT_OFFSETOF (fdctrl_t, IBaseStatus));
-    switch (enmInterface) {
-    case PDMINTERFACE_BASE:
-        return &fdctrl->IBaseStatus;
-    case PDMINTERFACE_LED_PORTS:
-        return &fdctrl->ILeds;
-    default:
-        return NULL;
-    }
+    fdctrl_t *pThis = RT_FROM_MEMBER (pInterface, fdctrl_t, IBaseStatus);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBaseStatus);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
+    return NULL;
 }
 
 
@@ -2579,20 +2575,11 @@ static int fdConfig (fdrive_t *drv, PPDMDEVINS pDevIns)
      */
     rc = PDMDevHlpDriverAttach (pDevIns, drv->iLUN, &drv->IBase, &drv->pDrvBase, descs[drv->iLUN]);
     if (RT_SUCCESS (rc)) {
-        drv->pDrvBlock = drv->pDrvBase->pfnQueryInterface (
-            drv->pDrvBase,
-            PDMINTERFACE_BLOCK
-            );
+        drv->pDrvBlock = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIBLOCK);
         if (drv->pDrvBlock) {
-            drv->pDrvBlockBios = drv->pDrvBase->pfnQueryInterface (
-                drv->pDrvBase,
-                PDMINTERFACE_BLOCK_BIOS
-                );
+            drv->pDrvBlockBios = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIBLOCKBIOS);
             if (drv->pDrvBlockBios) {
-                drv->pDrvMount = drv->pDrvBase->pfnQueryInterface (
-                    drv->pDrvBase,
-                    PDMINTERFACE_MOUNT
-                    );
+                drv->pDrvMount = PDMIBASE_QUERY_INTERFACE(drv->pDrvBase, PDMIMOUNT);
                 if (drv->pDrvMount) {
                     /*
                      * Init the state.
@@ -2756,21 +2743,11 @@ static DECLCALLBACK(void) fdcReset (PPDMDEVINS pDevIns)
 
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
                                        int iInstance,
-                                       PCFGMNODE pCfgHandle)
+                                       PCFGMNODE pCfg)
 {
     int            rc;
     fdctrl_t       *fdctrl = PDMINS_2_DATA(pDevIns, fdctrl_t*);
@@ -2781,17 +2758,18 @@ static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
     PPDMIBASE      pBase;
 
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "IRQ\0DMA\0MemMapped\0IOBase\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "IRQ\0DMA\0MemMapped\0IOBase\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
     /*
      * Read the configuration.
      */
-    rc = CFGMR3QueryU8 (pCfgHandle, "IRQ", &irq_lvl);
+    rc = CFGMR3QueryU8 (pCfg, "IRQ", &irq_lvl);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         irq_lvl = 6;
     else if (RT_FAILURE (rc)) {
@@ -2799,7 +2777,7 @@ static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
         return rc;
     }
 
-    rc = CFGMR3QueryU8 (pCfgHandle, "DMA", &dma_chann);
+    rc = CFGMR3QueryU8 (pCfg, "DMA", &dma_chann);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         dma_chann = 2;
     else if (RT_FAILURE (rc)) {
@@ -2807,7 +2785,7 @@ static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
         return rc;
     }
 
-    rc = CFGMR3QueryU16 (pCfgHandle, "IOBase", &io_base);
+    rc = CFGMR3QueryU16 (pCfg, "IOBase", &io_base);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         io_base = 0x3f0;
     else if (RT_FAILURE (rc)) {
@@ -2815,7 +2793,7 @@ static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
         return rc;
     }
 
-    rc = CFGMR3QueryBool (pCfgHandle, "MemMapped", &mem_mapped);
+    rc = CFGMR3QueryBool (pCfg, "MemMapped", &mem_mapped);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         mem_mapped = false;
     else if (RT_FAILURE (rc)) {
@@ -2903,8 +2881,7 @@ static DECLCALLBACK(int) fdcConstruct (PPDMDEVINS pDevIns,
      */
     rc = PDMDevHlpDriverAttach (pDevIns, PDM_STATUS_LUN, &fdctrl->IBaseStatus, &pBase, "Status Port");
     if (RT_SUCCESS (rc)) {
-        fdctrl->pLedsConnector =
-            pBase->pfnQueryInterface (pBase, PDMINTERFACE_LED_CONNECTORS);
+        fdctrl->pLedsConnector = PDMIBASE_QUERY_INTERFACE(pBase, PDMILEDCONNECTORS);
     } else if (rc != VERR_PDM_NO_ATTACHED_DRIVER) {
         AssertMsgFailed (("Failed to attach to status driver. rc=%Rrc\n",
                           rc));
@@ -2940,7 +2917,7 @@ const PDMDEVREG g_DeviceFloppyController =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "i82078",
     /* szRCMod */
     "",

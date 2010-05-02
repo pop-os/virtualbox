@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___netif_h
@@ -26,8 +22,13 @@
 #include <iprt/net.h>
 #include <iprt/asm.h>
 
-#define VBOXNET_IPV4ADDR_DEFAULT "192.168.56.1"
-#define VBOXNET_IPV4MASK_DEFAULT "255.255.255.0"
+#ifndef RT_OS_WINDOWS
+#include <arpa/inet.h>
+#include <stdio.h>
+#endif /* RT_OS_WINDOWS */
+
+#define VBOXNET_IPV4ADDR_DEFAULT      0x0138A8C0  /* 192.168.56.1 */
+#define VBOXNET_IPV4MASK_DEFAULT      "255.255.255.0"
 
 #define VBOXNET_MAX_SHORT_NAME 50
 
@@ -137,6 +138,23 @@ DECLINLINE(Bstr) composeHardwareAddress(PRTMAC aMacPtr)
                 aMacPtr->au8[2], aMacPtr->au8[3],
                 aMacPtr->au8[4], aMacPtr->au8[5]);
     return Bstr(szTmp);
+}
+
+DECLINLINE(Bstr) getDefaultIPv4Address(Bstr bstrIfName)
+{
+    /* Get the index from the name */
+    int iInstance;
+    if (sscanf(Utf8Str(bstrIfName).raw(), "vboxnet%d", &iInstance) != 1)
+        return Bstr("0.0.0.0");
+
+    in_addr tmp;
+#if defined(RT_OS_WINDOWS)
+    tmp.S_un.S_addr = VBOXNET_IPV4ADDR_DEFAULT + (iInstance << 16);
+#else
+    tmp.s_addr = VBOXNET_IPV4ADDR_DEFAULT + (iInstance << 16);
+#endif
+    char *addr = inet_ntoa(tmp);
+    return Bstr(addr);
 }
 
 #endif  /* ___netif_h */

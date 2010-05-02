@@ -1,10 +1,10 @@
-/* $Id: semspinmutex-r0drv-generic.c $ */
+/* $Id: semspinmutex-r0drv-generic.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Spinning Mutex Semaphores, Ring-0 Driver, Generic.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -126,7 +122,7 @@ RTDECL(int) RTSemSpinMutexCreate(PRTSEMSPINMUTEX phSpinMtx, uint32_t fFlags)
     pThis->fFlags     = fFlags;
     pThis->hOwner     = NIL_RTNATIVETHREAD;
     pThis->cLockers   = 0;
-    rc = RTSemEventCreate(&pThis->hEventSem);
+    rc = RTSemEventCreateEx(&pThis->hEventSem, RTSEMEVENT_FLAGS_NO_LOCK_VAL, NIL_RTLOCKVALCLASS, NULL);
     if (RT_SUCCESS(rc))
     {
         *phSpinMtx = pThis;

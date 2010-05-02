@@ -1,11 +1,11 @@
-/* $Id: unpack_shaders.c $ */
+/* $Id: unpack_shaders.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * VBox OpenGL DRI driver functions
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "unpacker.h"
@@ -159,6 +155,60 @@ void crUnpackExtendUniformMatrix4fv(void)
     GLboolean transpose = READ_DATA(16, GLboolean);
     const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
     cr_unpackDispatch.UniformMatrix4fv(location, count, transpose, value);
+}
+
+void crUnpackExtendUniformMatrix2x3fv(void)
+{
+    GLint location = READ_DATA(8, GLint);
+    GLsizei count = READ_DATA(12, GLsizei);
+    GLboolean transpose = READ_DATA(16, GLboolean);
+    const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
+    cr_unpackDispatch.UniformMatrix2x3fv(location, count, transpose, value);
+}
+
+void crUnpackExtendUniformMatrix3x2fv(void)
+{
+    GLint location = READ_DATA(8, GLint);
+    GLsizei count = READ_DATA(12, GLsizei);
+    GLboolean transpose = READ_DATA(16, GLboolean);
+    const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
+    cr_unpackDispatch.UniformMatrix3x2fv(location, count, transpose, value);
+}
+
+void crUnpackExtendUniformMatrix2x4fv(void)
+{
+    GLint location = READ_DATA(8, GLint);
+    GLsizei count = READ_DATA(12, GLsizei);
+    GLboolean transpose = READ_DATA(16, GLboolean);
+    const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
+    cr_unpackDispatch.UniformMatrix2x4fv(location, count, transpose, value);
+}
+
+void crUnpackExtendUniformMatrix4x2fv(void)
+{
+    GLint location = READ_DATA(8, GLint);
+    GLsizei count = READ_DATA(12, GLsizei);
+    GLboolean transpose = READ_DATA(16, GLboolean);
+    const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
+    cr_unpackDispatch.UniformMatrix4x2fv(location, count, transpose, value);
+}
+
+void crUnpackExtendUniformMatrix3x4fv(void)
+{
+    GLint location = READ_DATA(8, GLint);
+    GLsizei count = READ_DATA(12, GLsizei);
+    GLboolean transpose = READ_DATA(16, GLboolean);
+    const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
+    cr_unpackDispatch.UniformMatrix3x4fv(location, count, transpose, value);
+}
+
+void crUnpackExtendUniformMatrix4x3fv(void)
+{
+    GLint location = READ_DATA(8, GLint);
+    GLsizei count = READ_DATA(12, GLsizei);
+    GLboolean transpose = READ_DATA(16, GLboolean);
+    const GLfloat *value = DATA_POINTER(16+sizeof(GLboolean), const GLfloat);
+    cr_unpackDispatch.UniformMatrix4x3fv(location, count, transpose, value);
 }
 
 void crUnpackExtendDrawBuffers(void)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "svchlp.h"
@@ -234,7 +230,7 @@ int SVCHlpClient::read (Utf8Str &aVal)
     }
 
     aVal.reserve(len + 1);
-    aVal.mutableRaw() [len] = 0;
+    aVal.mutableRaw()[len] = 0;
 
     /* read string data */
     vrc = read (aVal.mutableRaw(), len);
@@ -282,14 +278,13 @@ int SVCHlpServer::run()
             case SVCHlpMsg::DhcpRediscover:
             {
 #ifdef VBOX_WITH_NETFLT
-                vrc = netIfNetworkInterfaceHelperServer (this, msgCode);
+                vrc = netIfNetworkInterfaceHelperServer(this, msgCode);
 #endif
                 break;
             }
             default:
-                AssertMsgFailedReturn ((
-                    "Invalid message code %d (%08lX)\n", msgCode, msgCode),
-                    VERR_GENERAL_FAILURE);
+                AssertMsgFailedReturn(("Invalid message code %d (%08lX)\n", msgCode, msgCode),
+                                      VERR_GENERAL_FAILURE);
         }
 
         if (RT_FAILURE(vrc))

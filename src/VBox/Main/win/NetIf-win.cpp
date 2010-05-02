@@ -1,10 +1,10 @@
-/* $Id: NetIf-win.cpp $ */
+/* $Id: NetIf-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Main - NetIfList, Windows implementation.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -876,7 +872,7 @@ static BOOL IsUACEnabled()
                         "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
                         0, KEY_QUERY_VALUE, &hKey);
 
-    Assert (rc == ERROR_SUCCESS || rc == ERROR_PATH_NOT_FOUND);
+    Assert(rc == ERROR_SUCCESS || rc == ERROR_PATH_NOT_FOUND);
     if (rc == ERROR_SUCCESS)
     {
 
@@ -886,7 +882,7 @@ static BOOL IsUACEnabled()
 
         RegCloseKey (hKey);
 
-        Assert (rc == ERROR_SUCCESS || rc == ERROR_FILE_NOT_FOUND);
+        Assert(rc == ERROR_SUCCESS || rc == ERROR_FILE_NOT_FOUND);
     }
 
     LogFlowFunc (("rc=%d, dwEnableLUA=%d\n", rc, dwEnableLUA));
@@ -907,10 +903,7 @@ static int vboxNetWinAddComponent(std::list <ComObjPtr<HostNetworkInterface> > *
     Assert(hr == S_OK);
     if(hr == S_OK)
     {
-        size_t cUnicodeName = wcslen(lpszName) + 1;
-        size_t uniLen = (cUnicodeName * 2 + sizeof (OLECHAR) - 1) / sizeof (OLECHAR);
-        Bstr name (uniLen + 1 /* extra zero */);
-        wcscpy((wchar_t *) name.mutableRaw(), lpszName);
+        Bstr name(lpszName);
 
         hr = pncc->GetInstanceGuid(&IfGuid);
         Assert(hr == S_OK);
@@ -922,7 +915,7 @@ static int vboxNetWinAddComponent(std::list <ComObjPtr<HostNetworkInterface> > *
             rc = collectNetIfInfo(name, Guid(IfGuid), &Info);
             if (RT_FAILURE(rc))
             {
-                Log(("vboxNetWinAddComponent: collectNetIfInfo() -> %Vrc\n", rc));
+                Log(("vboxNetWinAddComponent: collectNetIfInfo() -> %Rrc\n", rc));
             }
             /* create a new object and add it to the list */
             ComObjPtr<HostNetworkInterface> iface;
@@ -974,9 +967,6 @@ static int netIfListHostAdapters(std::list <ComObjPtr<HostNetworkInterface> > &l
             {
                 ULONG uComponentStatus;
                 hr = pMpNcc->GetDeviceStatus(&uComponentStatus);
-//#ifndef DEBUG_bird
-//                Assert(hr == S_OK);
-//#endif
                 if(hr == S_OK)
                 {
                     if(uComponentStatus == 0)
@@ -1065,7 +1055,7 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox,
                              FALSE /* aCancelable */);
         if(SUCCEEDED(rc))
         {
-            CheckComRCReturnRC(rc);
+            if (FAILED(rc)) return rc;
             progress.queryInterfaceTo(aProgress);
 
             /* create a new uninitialized host interface object */
@@ -1119,7 +1109,7 @@ int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVBox, IN_GUID aId,
                             FALSE /* aCancelable */);
         if(SUCCEEDED(rc))
         {
-            CheckComRCReturnRC(rc);
+            if (FAILED(rc)) return rc;
             progress.queryInterfaceTo(aProgress);
 
             /* create the networkInterfaceHelperClient() argument */
@@ -1174,7 +1164,7 @@ int NetIfEnableStaticIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf, ULON
                                     FALSE /* aCancelable */);
                 if(SUCCEEDED(rc))
                 {
-                    CheckComRCReturnRC(rc);
+                    if (FAILED(rc)) return rc;
 //                    progress.queryInterfaceTo(aProgress);
 
                     /* create the networkInterfaceHelperClient() argument */
@@ -1236,7 +1226,7 @@ int NetIfEnableStaticIpConfigV6(VirtualBox *vBox, HostNetworkInterface * pIf, IN
                                     FALSE /* aCancelable */);
                 if(SUCCEEDED(rc))
                 {
-                    CheckComRCReturnRC(rc);
+                    if (FAILED(rc)) return rc;
 //                    progress.queryInterfaceTo(aProgress);
 
                     /* create the networkInterfaceHelperClient() argument */
@@ -1298,7 +1288,7 @@ int NetIfEnableDynamicIpConfig(VirtualBox *vBox, HostNetworkInterface * pIf)
                                     FALSE /* aCancelable */);
                 if(SUCCEEDED(rc))
                 {
-                    CheckComRCReturnRC(rc);
+                    if (FAILED(rc)) return rc;
 //                    progress.queryInterfaceTo(aProgress);
 
                     /* create the networkInterfaceHelperClient() argument */
@@ -1358,7 +1348,7 @@ int NetIfDhcpRediscover(VirtualBox *vBox, HostNetworkInterface * pIf)
                                     FALSE /* aCancelable */);
                 if(SUCCEEDED(rc))
                 {
-                    CheckComRCReturnRC(rc);
+                    if (FAILED(rc)) return rc;
 //                    progress.queryInterfaceTo(aProgress);
 
                     /* create the networkInterfaceHelperClient() argument */
@@ -1457,9 +1447,6 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
                                 {
                                     ULONG uComponentStatus;
                                     hr = pMpNcc->GetDeviceStatus(&uComponentStatus);
-//#ifndef DEBUG_bird
-//                                    Assert(hr == S_OK);
-//#endif
                                     if(hr == S_OK)
                                     {
                                         if(uComponentStatus == 0)

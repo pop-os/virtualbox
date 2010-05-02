@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.h $ */
+/* $Id: NetworkAdapterImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,14 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_NETWORKADAPTER
 #define ____H_NETWORKADAPTER
 
 #include "VirtualBoxBase.h"
+#include "NATEngineImpl.h"
 
-class Machine;
 class GuestOSType;
 
 namespace settings
@@ -48,23 +44,11 @@ public:
                  mAttachmentType(NetworkAttachmentType_Null),
                  mCableConnected(TRUE), mLineSpeed(0), mTraceEnabled(FALSE),
                  mHostInterface("") /* cannot be null */,
+#ifdef VBOX_WITH_VDE
+                 mVDENetwork("") /* can be null */,
+#endif
                  mNATNetwork("") /* cannot be null */
         {}
-
-        bool operator== (const Data &that) const
-        {
-            return this == &that ||
-                   (mSlot == that.mSlot &&
-                    mEnabled == that.mEnabled &&
-                    mMACAddress == that.mMACAddress &&
-                    mAttachmentType == that.mAttachmentType &&
-                    mCableConnected == that.mCableConnected &&
-                    mLineSpeed == that.mLineSpeed &&
-                    mTraceEnabled == that.mTraceEnabled &&
-                    mHostInterface == that.mHostInterface &&
-                    mInternalNetwork == that.mInternalNetwork &&
-                    mNATNetwork == that.mNATNetwork);
-        }
 
         NetworkAdapterType_T mAdapterType;
         ULONG mSlot;
@@ -77,7 +61,11 @@ public:
         Bstr mTraceFile;
         Bstr mHostInterface;
         Bstr mInternalNetwork;
+#ifdef VBOX_WITH_VDE
+        Bstr mVDENetwork;
+#endif
         Bstr mNATNetwork;
+        ULONG mBootPriority;
     };
 
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (NetworkAdapter)
@@ -118,6 +106,8 @@ public:
     STDMETHOD(COMSETTER(InternalNetwork)) (IN_BSTR aInternalNetwork);
     STDMETHOD(COMGETTER(NATNetwork)) (BSTR *aNATNetwork);
     STDMETHOD(COMSETTER(NATNetwork)) (IN_BSTR aNATNetwork);
+    STDMETHOD(COMGETTER(VDENetwork)) (BSTR *aVDENetwork);
+    STDMETHOD(COMSETTER(VDENetwork)) (IN_BSTR aVDENetwork);
     STDMETHOD(COMGETTER(CableConnected)) (BOOL *aConnected);
     STDMETHOD(COMSETTER(CableConnected)) (BOOL aConnected);
     STDMETHOD(COMGETTER(TraceEnabled)) (BOOL *aEnabled);
@@ -126,12 +116,16 @@ public:
     STDMETHOD(COMSETTER(LineSpeed)) (ULONG aSpeed);
     STDMETHOD(COMGETTER(TraceFile)) (BSTR *aTraceFile);
     STDMETHOD(COMSETTER(TraceFile)) (IN_BSTR aTraceFile);
+    STDMETHOD(COMGETTER(NatDriver)) (INATEngine **aNatDriver);
+    STDMETHOD(COMGETTER(BootPriority)) (ULONG *aBootPriority);
+    STDMETHOD(COMSETTER(BootPriority)) (ULONG aBootPriority);
 
     // INetworkAdapter methods
     STDMETHOD(AttachToNAT)();
     STDMETHOD(AttachToBridgedInterface)();
     STDMETHOD(AttachToInternalNetwork)();
     STDMETHOD(AttachToHostOnlyInterface)();
+    STDMETHOD(AttachToVDE)();
     STDMETHOD(Detach)();
 
     // public methods only for internal purposes
@@ -139,9 +133,8 @@ public:
     HRESULT loadSettings(const settings::NetworkAdapter &data);
     HRESULT saveSettings(settings::NetworkAdapter &data);
 
-    bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
-    bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
-    bool rollback();
+    bool isModified();
+    void rollback();
     void commit();
     void copyFrom (NetworkAdapter *aThat);
     void applyDefaults (GuestOSType *aOsType);
@@ -154,10 +147,12 @@ private:
     void detach();
     void generateMACAddress();
 
-    const ComObjPtr<Machine, ComWeakRef> mParent;
+    Machine * const     mParent;
     const ComObjPtr<NetworkAdapter> mPeer;
+    const ComObjPtr<NATEngine> mNATEngine;
 
-    Backupable<Data> mData;
+    bool                m_fModified;
+    Backupable<Data>    mData;
 };
 
 #endif // ____H_NETWORKADAPTER

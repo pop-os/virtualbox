@@ -1,4 +1,4 @@
-/* $Id: SystemPropertiesImpl.h $ */
+/* $Id: SystemPropertiesImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_SYSTEMPROPERTIESIMPL
@@ -31,7 +27,6 @@
 
 #include <list>
 
-class VirtualBox;
 namespace settings
 {
     struct SystemProperties;
@@ -86,6 +81,14 @@ public:
     STDMETHOD(COMGETTER(MediumFormats)) (ComSafeArrayOut (IMediumFormat *, aMediumFormats));
     STDMETHOD(COMGETTER(DefaultHardDiskFormat)) (BSTR *aDefaultHardDiskFormat);
     STDMETHOD(COMSETTER(DefaultHardDiskFormat)) (IN_BSTR aDefaultHardDiskFormat);
+    STDMETHOD(COMGETTER(FreeDiskSpaceWarning))(ULONG64 *aFreeDiskSpace);
+    STDMETHOD(COMSETTER(FreeDiskSpaceWarning))(ULONG64 aFreeDiskSpace);
+    STDMETHOD(COMGETTER(FreeDiskSpacePercentWarning))(ULONG *aFreeDiskSpacePercent);
+    STDMETHOD(COMSETTER(FreeDiskSpacePercentWarning))(ULONG aFreeDiskSpacePercent);
+    STDMETHOD(COMGETTER(FreeDiskSpaceError))(ULONG64 *aFreeDiskSpace);
+    STDMETHOD(COMSETTER(FreeDiskSpaceError))(ULONG64 aFreeDiskSpace);
+    STDMETHOD(COMGETTER(FreeDiskSpacePercentError))(ULONG *aFreeDiskSpacePercent);
+    STDMETHOD(COMSETTER(FreeDiskSpacePercentError))(ULONG aFreeDiskSpacePercent);
     STDMETHOD(COMGETTER(RemoteDisplayAuthLibrary)) (BSTR *aRemoteDisplayAuthLibrary);
     STDMETHOD(COMSETTER(RemoteDisplayAuthLibrary)) (IN_BSTR aRemoteDisplayAuthLibrary);
     STDMETHOD(COMGETTER(WebServiceAuthLibrary)) (BSTR *aWebServiceAuthLibrary);
@@ -124,20 +127,20 @@ private:
     HRESULT setRemoteDisplayAuthLibrary(const Utf8Str &aPath);
     HRESULT setWebServiceAuthLibrary(const Utf8Str &aPath);
 
-    const ComObjPtr<VirtualBox, ComWeakRef> mParent;
+    VirtualBox * const  mParent;
 
-    Utf8Str m_strDefaultMachineFolder;
-    Utf8Str m_strDefaultMachineFolderFull;
-    Utf8Str m_strDefaultHardDiskFolder;
-    Utf8Str m_strDefaultHardDiskFolderFull;
-    Utf8Str m_strDefaultHardDiskFormat;
+    Utf8Str             m_strDefaultMachineFolder;
+    Utf8Str             m_strDefaultMachineFolderFull;
+    Utf8Str             m_strDefaultHardDiskFolder;
+    Utf8Str             m_strDefaultHardDiskFolderFull;
+    Utf8Str             m_strDefaultHardDiskFormat;
 
-    MediumFormatList mMediumFormats;
+    MediumFormatList    mMediumFormats;
 
-    Utf8Str m_strRemoteDisplayAuthLibrary;
-    Utf8Str m_strWebServiceAuthLibrary;
-    ULONG mLogHistoryCount;
-    AudioDriverType_T mDefaultAudioDriver;
+    Utf8Str             m_strRemoteDisplayAuthLibrary;
+    Utf8Str             m_strWebServiceAuthLibrary;
+    ULONG               mLogHistoryCount;
+    AudioDriverType_T   mDefaultAudioDriver;
 
     friend class VirtualBox;
 };

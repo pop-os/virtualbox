@@ -1,10 +1,10 @@
-/* $Id: VM.cpp $ */
+/* $Id: VM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VM - Virtual Machine
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_vm     VM API
@@ -522,7 +518,7 @@ static int vmR3CreateUVM(uint32_t cCpus, PUVM *ppUVM)
         }
         RTTlsFree(pUVM->vm.s.idxTLS);
     }
-    RTMemPageFree(pUVM);
+    RTMemPageFree(pUVM, sizeof(*pUVM));
     return rc;
 }
 
@@ -706,6 +702,12 @@ static int vmR3CreateU(PUVM pUVM, uint32_t cCpus, PFNCFGMCONSTRUCTOR pfnCFGMCons
             int rc2 = CFGMR3Term(pVM);
             AssertRC(rc2);
         }
+
+        /*
+         * Do automatic cleanups while the VM structure is still alive and all
+         * references to it are still working.
+         */
+        PDMR3CritSectTerm(pVM);
 
         /*
          * Drop all references to VM and the VMCPU structures, then
@@ -1020,7 +1022,10 @@ static int vmR3InitRing0(PVM pVM)
 
     /** @todo Move this to the VMINITCOMPLETED_RING0 notification handler. */
     if (RT_SUCCESS(rc))
+    {
         rc = HWACCMR3InitFinalizeR0(pVM);
+        CPUMR3SetHWVirtEx(pVM, HWACCMIsEnabled(pVM));
+    }
 
     LogFlow(("vmR3InitRing0: returns %Rrc\n", rc));
     return rc;
@@ -1509,7 +1514,7 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3LiveDoStep1Cleanup(PVM pVM, PVMCPU pVCpu, 
     bool *pfSuspended = (bool *)pvUser;
     NOREF(pVCpu);
 
-    int rc = vmR3TrySetState(pVM, "vmR3LiveDoStep1Cleanup", 6,
+    int rc = vmR3TrySetState(pVM, "vmR3LiveDoStep1Cleanup", 8,
                              VMSTATE_OFF,               VMSTATE_OFF_LS,                     /* 1 */
                              VMSTATE_FATAL_ERROR,       VMSTATE_FATAL_ERROR_LS,             /* 2 */
                              VMSTATE_GURU_MEDITATION,   VMSTATE_GURU_MEDITATION_LS,         /* 3 */
@@ -1987,18 +1992,18 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3PowerOff(PVM pVM, PVMCPU pVCpu, void *pvUs
      */
     if (pVCpu->idCpu == pVM->cCpus - 1)
     {
-        int rc = vmR3TrySetState(pVM, "VMR3PowerOff", 10,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_RUNNING,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_SUSPENDED,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_DEBUGGING,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_LOAD_FAILURE,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_GURU_MEDITATION,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_FATAL_ERROR,
-                                 VMSTATE_POWERING_OFF,    VMSTATE_CREATED, /** @todo update the diagram! */
-                                 VMSTATE_POWERING_OFF_LS, VMSTATE_RUNNING_LS,
-                                 VMSTATE_POWERING_OFF_LS, VMSTATE_DEBUGGING_LS,
-                                 VMSTATE_POWERING_OFF_LS, VMSTATE_GURU_MEDITATION_LS,
-                                 VMSTATE_POWERING_OFF_LS, VMSTATE_FATAL_ERROR_LS);
+        int rc = vmR3TrySetState(pVM, "VMR3PowerOff", 11,
+                                 VMSTATE_POWERING_OFF,    VMSTATE_RUNNING,           /* 1 */
+                                 VMSTATE_POWERING_OFF,    VMSTATE_SUSPENDED,         /* 2 */
+                                 VMSTATE_POWERING_OFF,    VMSTATE_DEBUGGING,         /* 3 */
+                                 VMSTATE_POWERING_OFF,    VMSTATE_LOAD_FAILURE,      /* 4 */
+                                 VMSTATE_POWERING_OFF,    VMSTATE_GURU_MEDITATION,   /* 5 */
+                                 VMSTATE_POWERING_OFF,    VMSTATE_FATAL_ERROR,       /* 6 */
+                                 VMSTATE_POWERING_OFF,    VMSTATE_CREATED,           /* 7 */   /** @todo update the diagram! */
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_RUNNING_LS,        /* 8 */
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_DEBUGGING_LS,      /* 9 */
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_GURU_MEDITATION_LS,/* 10 */
+                                 VMSTATE_POWERING_OFF_LS, VMSTATE_FATAL_ERROR_LS);   /* 11 */
         if (RT_FAILURE(rc))
             return rc;
         if (rc >= 7)
@@ -2027,8 +2032,6 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3PowerOff(PVM pVM, PVMCPU pVCpu, void *pvUs
         if (enmVMState != VMSTATE_GURU_MEDITATION)
         {
             /** @todo SMP support? */
-            PVMCPU pVCpu = VMMGetCpu(pVM);
-
             /** @todo make the state dumping at VMR3PowerOff optional. */
             RTLogRelPrintf("****************** Guest state at power off ******************\n");
             DBGFR3Info(pVM, "cpumguest", "verbose", DBGFR3InfoLogRelHlp());
@@ -2197,14 +2200,14 @@ VMMR3DECL(int) VMR3Destroy(PVM pVM)
         /* Terminate the other EMTs. */
         for (VMCPUID idCpu = 1; idCpu < pVM->cCpus; idCpu++)
         {
-            int rc = VMR3ReqCallWaitU(pUVM, idCpu, (PFNRT)vmR3Destroy, 1, pVM);
+            rc = VMR3ReqCallWaitU(pUVM, idCpu, (PFNRT)vmR3Destroy, 1, pVM);
             AssertLogRelRC(rc);
         }
     }
     else
     {
         /* vmR3Destroy on all EMTs, ending with EMT(0). */
-        int rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ALL_REVERSE, (PFNRT)vmR3Destroy, 1, pVM);
+        rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ALL_REVERSE, (PFNRT)vmR3Destroy, 1, pVM);
         AssertLogRelRC(rc);
 
         /* Wait for EMTs and destroy the UVM. */
@@ -2433,7 +2436,7 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
      */
     for (unsigned i = 0; i < 10; i++)
     {
-        PVMREQ pReqHead = (PVMREQ)ASMAtomicXchgPtr((void *volatile *)&pUVM->vm.s.pReqs, NULL);
+        PVMREQ pReqHead = (PVMREQ)ASMAtomicXchgPtr((void * volatile *)&pUVM->vm.s.pReqs, NULL);
         AssertMsg(!pReqHead, ("This isn't supposed to happen! VMR3Destroy caller has to serialize this.\n"));
         if (!pReqHead)
             break;
@@ -2452,13 +2455,13 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
     /*
      * Now all queued VCPU requests (again, there shouldn't be any).
      */
-    for (VMCPUID i = 0; i < pUVM->cCpus; i++)
+    for (VMCPUID idCpu = 0; idCpu < pUVM->cCpus; idCpu++)
     {
-        PUVMCPU pUVCpu = &pUVM->aCpus[i];
+        PUVMCPU pUVCpu = &pUVM->aCpus[idCpu];
 
         for (unsigned i = 0; i < 10; i++)
         {
-            PVMREQ pReqHead = (PVMREQ)ASMAtomicXchgPtr((void *volatile *)&pUVCpu->vm.s.pReqs, NULL);
+            PVMREQ pReqHead = (PVMREQ)ASMAtomicXchgPtr((void * volatile *)&pUVCpu->vm.s.pReqs, NULL);
             AssertMsg(!pReqHead, ("This isn't supposed to happen! VMR3Destroy caller has to serialize this.\n"));
             if (!pReqHead)
                 break;
@@ -2502,7 +2505,7 @@ static void vmR3DestroyUVM(PUVM pUVM, uint32_t cMilliesEMTWait)
     RTTlsFree(pUVM->vm.s.idxTLS);
 
     ASMAtomicUoWriteU32(&pUVM->u32Magic, UINT32_MAX);
-    RTMemPageFree(pUVM);
+    RTMemPageFree(pUVM, sizeof(*pUVM));
 
     RTLogFlush(NULL);
 }
@@ -3182,8 +3185,15 @@ static int vmR3TrySetState(PVM pVM, const char *pszWho, unsigned cTransitions, .
          * Complain about it.
          */
         if (cTransitions == 1)
+        {
             LogRel(("%s: %s -> %s failed, because the VM state is actually %s\n",
                     pszWho, VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew), VMR3GetStateName(enmStateCur)));
+            VMSetError(pVM, VERR_VM_INVALID_VM_STATE, RT_SRC_POS,
+                       N_("%s failed because the VM state is %s instead of %s"),
+                       pszWho, VMR3GetStateName(enmStateCur), VMR3GetStateName(enmStateOld));
+            AssertMsgFailed(("%s: %s -> %s failed, because the VM state is actually %s\n",
+                             pszWho, VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew), VMR3GetStateName(enmStateCur)));
+        }
         else
         {
             va_end(va);
@@ -3197,13 +3207,12 @@ static int vmR3TrySetState(PVM pVM, const char *pszWho, unsigned cTransitions, .
                         i ? ", " : " ", VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew)));
             }
             LogRel((" failed, because the VM state is actually %s\n", VMR3GetStateName(enmStateCur)));
+            VMSetError(pVM, VERR_VM_INVALID_VM_STATE, RT_SRC_POS,
+                       N_("%s failed because the current VM state, %s, was not found in the state transition table"),
+                       pszWho, VMR3GetStateName(enmStateCur), VMR3GetStateName(enmStateOld));
+            AssertMsgFailed(("%s - state=%s, see release log for full details. Check the cTransitions passed us.\n",
+                             pszWho, VMR3GetStateName(enmStateCur)));
         }
-
-        VMSetError(pVM, VERR_VM_INVALID_VM_STATE, RT_SRC_POS,
-                   N_("%s failed because the VM state is %s instead of %s"),
-                   VMR3GetStateName(enmStateCur), VMR3GetStateName(enmStateOld));
-        AssertMsgFailed(("%s: %s -> %s failed, state is actually %s\n",
-                         pszWho, VMR3GetStateName(enmStateOld), VMR3GetStateName(enmStateNew), VMR3GetStateName(enmStateCur)));
     }
 
     RTCritSectLeave(&pUVM->vm.s.AtStateCritSect);
@@ -3610,12 +3619,18 @@ DECLCALLBACK(void) vmR3SetErrorUV(PUVM pUVM, int rc, RT_SRC_POS_DECL, const char
      */
     va_list va3;
     va_copy(va3, *pArgs);
-    RTLogRelPrintf("VMSetError: %s(%d) %s\nVMSetError: %N\n", pszFile, iLine, pszFunction, pszFormat, &va3);
+    RTLogRelPrintf("VMSetError: %s(%d) %s; rc=%Rrc\n"
+                   "VMSetError: %N\n",
+                   pszFile, iLine, pszFunction, rc,
+                   pszFormat, &va3);
     va_end(va3);
 
 #ifdef LOG_ENABLED
     va_copy(va3, *pArgs);
-    RTLogPrintf("VMSetError: %s(%d) %s\n%N\n", pszFile, iLine, pszFunction, pszFormat, &va3);
+    RTLogPrintf("VMSetError: %s(%d) %s; rc=%Rrc\n"
+                "%N\n",
+                pszFile, iLine, pszFunction, rc,
+                pszFormat, &va3);
     va_end(va3);
 #endif
 
@@ -4041,5 +4056,97 @@ VMMR3DECL(RTTHREAD) VMR3GetVMCPUThreadU(PUVM pUVM)
         return NIL_RTTHREAD;
 
     return pUVCpu->vm.s.ThreadEMT;
+}
+
+
+/**
+ * Return the package and core id of a CPU.
+ *
+ * @returns VBOX status code.
+ * @param   pVM              The VM to operate on.
+ * @param   idCpu            Virtual CPU to get the ID from.
+ * @param   pidCpuCore       Where to store the core ID of the virtual CPU.
+ * @param   pidCpuPackage    Where to store the package ID of the virtual CPU.
+ *
+ */
+VMMR3DECL(int) VMR3GetCpuCoreAndPackageIdFromCpuId(PVM pVM, VMCPUID idCpu, uint32_t *pidCpuCore, uint32_t *pidCpuPackage)
+{
+    if (idCpu >= pVM->cCpus)
+        return VERR_INVALID_CPU_ID;
+
+#ifdef VBOX_WITH_MULTI_CORE
+    *pidCpuCore    = idCpu;
+    *pidCpuPackage = 0;
+#else
+    *pidCpuCore    = 0;
+    *pidCpuPackage = idCpu;
+#endif
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for VMR3HotUnplugCpu.
+ *
+ * @returns VINF_EM_WAIT_SPIP (strict status code).
+ * @param   pVM                 The VM handle.
+ * @param   idCpu               The current CPU.
+ */
+static DECLCALLBACK(int) vmR3HotUnplugCpu(PVM pVM, VMCPUID idCpu)
+{
+    PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
+    VMCPU_ASSERT_EMT(pVCpu);
+
+    /*
+     * Reset per CPU resources.
+     *
+     * Actually only needed for VT-x because the CPU seems to be still in some
+     * paged mode and startup fails after a new hot plug event. SVM works fine
+     * even without this.
+     */
+    Log(("vmR3HotUnplugCpu for VCPU %u\n", idCpu));
+    PGMR3ResetUnpluggedCpu(pVM, pVCpu);
+    PDMR3ResetCpu(pVCpu);
+    TRPMR3ResetCpu(pVCpu);
+    CPUMR3ResetCpu(pVCpu);
+    EMR3ResetCpu(pVCpu);
+    HWACCMR3ResetCpu(pVCpu);
+    return VINF_EM_WAIT_SIPI;
+}
+
+
+/**
+ * Hot-unplugs a CPU from the guest.
+ *
+ * @returns VBox status code.
+ * @param   pVM     The VM to operate on.
+ * @param   idCpu   Virtual CPU to perform the hot unplugging operation on.
+ */
+VMMR3DECL(int) VMR3HotUnplugCpu(PVM pVM, VMCPUID idCpu)
+{
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
+
+    /** @todo r=bird: Don't destroy the EMT, it'll break VMMR3EmtRendezvous and
+     *        broadcast requests.  Just note down somewhere that the CPU is
+     *        offline and send it to SPIP wait.  Maybe modify VMCPUSTATE and push
+     *        it out of the EM loops when offline. */
+    return VMR3ReqCallNoWaitU(pVM->pUVM, idCpu, (PFNRT)vmR3HotUnplugCpu, 2, pVM, idCpu);
+}
+
+
+/**
+ * Hot-plugs a CPU on the guest.
+ *
+ * @returns VBox status code.
+ * @param   pVM     The VM to operate on.
+ * @param   idCpu   Virtual CPU to perform the hot plugging operation on.
+ */
+VMMR3DECL(int) VMR3HotPlugCpu(PVM pVM, VMCPUID idCpu)
+{
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
+
+    /** @todo r-bird: Just mark it online and make sure it waits on SPIP. */
+    return VINF_SUCCESS;
 }
 

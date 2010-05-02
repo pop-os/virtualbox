@@ -1,10 +1,10 @@
-/* $Id: sysfs.h $ */
+/* $Id: sysfs.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Linux sysfs access.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_linux_sysfs_h
@@ -39,7 +35,7 @@
 
 RT_C_DECLS_BEGIN
 
-/** @defgroup grp_rt_mp RTLinuxSysfs - Linux sysfs
+/** @defgroup grp_rt_linux_sysfs    RTLinuxSysfs - Linux sysfs
  * @ingroup grp_rt
  * @{
  */
@@ -97,6 +93,18 @@ RTDECL(void) RTLinuxSysFsClose(int fd);
  * @param   cchBuf      The size of the buffer. Must be at least 2 bytes.
  */
 RTDECL(ssize_t) RTLinuxSysFsReadStr(int fd, char *pszBuf, size_t cchBuf);
+
+/**
+ * Reads the remainder of a file opened with RTLinuxSysFsOpen or
+ * RTLinuxSysFsOpenV.
+ *
+ * @returns IPRT status code.
+ * @param   fd          The file descriptor returned by RTLinuxSysFsOpen or RTLinuxSysFsOpenV.
+ * @param   pvBuf       Where to store the bits from the file.
+ * @param   cbBuf       The size of the buffer.
+ * @param   pcbRead     Where to return the number of bytes read.  Optional.
+ */
+RTDECL(int) RTLinuxSysFsReadFile(int fd, void *pvBuf, size_t cbBuf, size_t *pcbRead);
 
 /**
  * Reads a number from a sysfs file.

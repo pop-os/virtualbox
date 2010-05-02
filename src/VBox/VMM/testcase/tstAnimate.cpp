@@ -1,10 +1,10 @@
-/* $Id: tstAnimate.cpp $ */
+/* $Id: tstAnimate.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox Animation Testcase / Tool.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -679,7 +675,7 @@ int main(int argc, char **argv)
 
                 case 'o':
                 {
-                    int rc = RTStrToUInt64Ex(argv[++i], NULL, 0, &offRawMem);
+                    rc = RTStrToUInt64Ex(argv[++i], NULL, 0, &offRawMem);
                     if (RT_FAILURE(rc))
                     {
                         RTPrintf("tstAnimate: Syntax error: Invalid offset given to -o.\n");
@@ -691,7 +687,7 @@ int main(int argc, char **argv)
                 case 'm':
                 {
                     char *pszNext;
-                    int rc = RTStrToUInt64Ex(argv[++i], &pszNext, 0, &cbMem);
+                    rc = RTStrToUInt64Ex(argv[++i], &pszNext, 0, &cbMem);
                     if (RT_FAILURE(rc))
                     {
                         RTPrintf("tstAnimate: Syntax error: Invalid memory size given to -m.\n");
@@ -725,7 +721,7 @@ int main(int argc, char **argv)
 
                 case 'w':
                 {
-                    int rc = RTStrToUInt32Ex(argv[++i], NULL, 0, &u32WarpDrive);
+                    rc = RTStrToUInt32Ex(argv[++i], NULL, 0, &u32WarpDrive);
                     if (RT_FAILURE(rc))
                     {
                         RTPrintf("tstAnimate: Syntax error: Invalid number given to -w.\n");
@@ -798,7 +794,7 @@ int main(int argc, char **argv)
     {
         if (FileRawMem != NIL_RTFILE)
         {
-            int rc = RTFileGetSize(FileRawMem, &cbMem);
+            rc = RTFileGetSize(FileRawMem, &cbMem);
             AssertReleaseRC(rc);
             cbMem -= offRawMem;
             cbMem &= ~(PAGE_SIZE - 1);

@@ -1,4 +1,4 @@
-/* $Id: Global.h $ */
+/* $Id: Global.h 28825 2010-04-27 13:50:46Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_GLOBAL
@@ -38,6 +34,12 @@
 #define VBOXOSHINT_64BIT                RT_BIT(0)
 #define VBOXOSHINT_HWVIRTEX             RT_BIT(1)
 #define VBOXOSHINT_IOAPIC               RT_BIT(2)
+#define VBOXOSHINT_EFI                  RT_BIT(3)
+#define VBOXOSHINT_PAE                  RT_BIT(4)
+#define VBOXOSHINT_USBHID               RT_BIT(5)
+#define VBOXOSHINT_HPET                 RT_BIT(6)
+#define VBOXOSHINT_USBTABLET            RT_BIT(7)
+#define VBOXOSHINT_RTCUTC               RT_BIT(8)
 
 /**
  * Contains global static definitions that can be referenced by all COM classes
@@ -50,17 +52,21 @@ public:
     /** Represents OS Type <-> string mappings. */
     struct OSType
     {
-        const char                 *familyId;          /* utf-8 */
-        const char                 *familyDescription; /* utf-8 */
-        const char                 *id;          /* utf-8 */
-        const char                 *description; /* utf-8 */
-        const VBOXOSTYPE            osType;
-        const uint32_t              osHint;
-        const uint32_t              recommendedRAM;
-        const uint32_t              recommendedVRAM;
-        const uint32_t              recommendedHDD;
-        const NetworkAdapterType_T  networkAdapterType;
-        const uint32_t              numSerialEnabled;
+        const char                    *familyId;          /* utf-8 */
+        const char                    *familyDescription; /* utf-8 */
+        const char                    *id;          /* utf-8 */
+        const char                    *description; /* utf-8 */
+        const VBOXOSTYPE               osType;
+        const uint32_t                 osHint;
+        const uint32_t                 recommendedRAM;
+        const uint32_t                 recommendedVRAM;
+        const uint32_t                 recommendedHDD;
+        const NetworkAdapterType_T     networkAdapterType;
+        const uint32_t                 numSerialEnabled;
+        const StorageControllerType_T  dvdStorageControllerType;
+        const StorageBus_T             dvdStorageBusType;
+        const StorageControllerType_T  hdStorageControllerType;
+        const StorageBus_T             hdStorageBusType;
     };
 
     static const OSType sOSTypes[SchemaDefs::OSTypeId_COUNT];
@@ -105,7 +111,7 @@ public:
     /**
      * Returns @c true if the given machine state is a transient state. This is
      * a recommended way to detect if the VM is performing some potentially
-     * lengthy operation (such as starting, stopping, saving, discarding
+     * lengthy operation (such as starting, stopping, saving, deleting
      * snapshot, etc.). Note some (but not all) transitional states are also
      * online states (see #IsOnline()).
      */

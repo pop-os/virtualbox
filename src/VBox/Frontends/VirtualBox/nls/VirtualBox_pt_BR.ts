@@ -24,10 +24,10 @@
         <translation>Brazil</translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
         <translatorcomment>O ponto final não faz sentido...</translatorcomment>
-        <translation type="obsolete">Érico Mendonça &lt;erico.mendonca@gmail.com&gt;</translation>
+        <translation>Érico Mendonça &lt;erico.mendonca@gmail.com&gt;</translation>
     </message>
 </context>
 <context>
@@ -562,7 +562,7 @@ Versão %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>Cancelar</translation>
@@ -1784,7 +1784,7 @@ Versão %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>Cancel</source>
         <translation type="obsolete">Cancelar</translation>
@@ -1838,7 +1838,7 @@ Versão %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>Selecione um arquivo de destino para exportar</translation>
@@ -4316,7 +4316,7 @@ to the system default language.&lt;/qt&gt;
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>Selecione um &lt;i&gt;appliance&lt;/i&gt; para importar</translation>
@@ -4379,7 +4379,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation>&lt;b&gt;O sistema virtual &quot;%1&quot; exige que você concorde com os termos e condições da licença de uso exibida abaixo antes de continuar.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Clique em &lt;b&gt;Concordo&lt;/b&gt; para continuar ou clique em &lt;b&gt;Discordo&lt;/b&gt; para cancelar a importação.</translation>
@@ -4714,7 +4714,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>Criar Novo Disco Virtual</translation>
@@ -4951,7 +4951,7 @@ demorar bastante tempo, dependendo do tamanho escolhido e da velocidade de seu d
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>Criar Nova Máquina Virtual</translation>
@@ -6398,7 +6398,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">Diálogo de Registro do VirtualBox</translation>
+        <translation>Diálogo de Registro do VirtualBox</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6410,7 +6410,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">Entre com o seu nome completo em caracteres Latinos (sem acentos ou símbolos).</translation>
+        <translation>Entre com o seu nome completo em caracteres Latinos (sem acentos ou símbolos).</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -6418,7 +6418,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">Entre com o seu endereço de e-mail válido.</translation>
+        <translation>Entre com o seu endereço de e-mail válido.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -6430,7 +6430,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">Bem-vindo ao Formulário de Registro do VirtualBox!</translation>
+        <translation>Bem-vindo ao Formulário de Registro do VirtualBox!</translation>
     </message>
     <message>
         <source>&amp;Confirm</source>
@@ -6446,7 +6446,7 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">Não foi possível estabelecer negociação da conexão.</translation>
+        <translation>Não foi possível estabelecer negociação da conexão.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6462,63 +6462,63 @@ utilizando o diálogo de Configurações da MV.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">Cancelar</translation>
+        <translation>Cancelar</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">Selecione o País/Território</translation>
+        <translation>Selecione o País/Território</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Por favor preencha este formulário de registro para que nós possamos ser informados que você utiliza o VirtualBox, e opcionalmente podermos mantê-lo informado sobre eventuais novidades e atualizações do VirtualBox.&lt;/p&gt;&lt;p&gt;Por favor use caracteres acentuados nos campos abaixo. A Sun Microsystems garante que irá utilizar esta informação apenas para obter estatísticas de uso do produto e para enviar newsletters do VirtualBox para você. A Sun Microsystems nunca irá repassar seus dados para terceiros. Informações detalhadas sobre como utilizamos os seus dados pessoais podem ser encontradas na seção &lt;b&gt;Política de Privacidade&lt;/b&gt; do Manual do VirtualBox, ou na &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;página de Política de Privacidade&lt;/a&gt; no site do VirtualBox.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Por favor preencha este formulário de registro para que nós possamos ser informados que você utiliza o VirtualBox, e opcionalmente podermos mantê-lo informado sobre eventuais novidades e atualizações do VirtualBox.&lt;/p&gt;&lt;p&gt;Por favor use caracteres acentuados nos campos abaixo. A Sun Microsystems garante que irá utilizar esta informação apenas para obter estatísticas de uso do produto e para enviar newsletters do VirtualBox para você. A Sun Microsystems nunca irá repassar seus dados para terceiros. Informações detalhadas sobre como utilizamos os seus dados pessoais podem ser encontradas na seção &lt;b&gt;Política de Privacidade&lt;/b&gt; do Manual do VirtualBox, ou na &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;página de Política de Privacidade&lt;/a&gt; no site do VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">Eu já possuo uma conta Sun Online (&amp;H):</translation>
+        <translation>Eu já possuo uma conta Sun Online (&amp;H):</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">&amp;E-mail:</translation>
+        <translation>&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">Senha (&amp;P):</translation>
+        <translation>Senha (&amp;P):</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">Eu gostaria de me registrar criando uma nova conta no Sun Online (&amp;W):</translation>
+        <translation>Eu gostaria de me registrar criando uma nova conta no Sun Online (&amp;W):</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">Primeiro Nome (&amp;F):</translation>
+        <translation>Primeiro Nome (&amp;F):</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">Sobrenome (&amp;L):</translation>
+        <translation>Sobrenome (&amp;L):</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">Empresa (&amp;C):</translation>
+        <translation>Empresa (&amp;C):</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">País (&amp;U):</translation>
+        <translation>País (&amp;U):</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">E-&amp;mail:</translation>
+        <translation>E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">Senh&amp;a:</translation>
+        <translation>Senh&amp;a:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">Co&amp;nfirme a Senha:</translation>
+        <translation>Co&amp;nfirme a Senha:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">&amp;Registrar</translation>
+        <translation>&amp;Registrar</translation>
     </message>
 </context>
 <context>
@@ -7710,7 +7710,7 @@ qualquer valor.&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>Assistente de Primeira Execução</translation>
@@ -10954,7 +10954,7 @@ faz com que o convidado veja uma placa de som, mas todos os acessos a ela serão
         <translation>&amp;Processador(es):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>Controla a quantidade de CPUs virtuais que serão disponibilizadas na máquina virtual.</translation>
     </message>
     <message>

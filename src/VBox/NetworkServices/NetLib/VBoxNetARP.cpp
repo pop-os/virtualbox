@@ -1,10 +1,10 @@
-/* $Id: VBoxNetARP.cpp $ */
+/* $Id: VBoxNetARP.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetARP - IntNet ARP Client Routines.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -25,6 +21,7 @@
 #define LOG_GROUP LOG_GROUP_DEFAULT
 #include "VBoxNetLib.h"
 #include <iprt/string.h>
+#include <VBox/intnetinline.h>
 #include <VBox/log.h>
 
 
@@ -42,14 +39,15 @@
 bool VBoxNetArpHandleIt(PSUPDRVSESSION pSession, INTNETIFHANDLE hIf, PINTNETBUF pBuf, PCRTMAC pMacAddr, RTNETADDRIPV4 IPv4Addr)
 {
     /*
-     * Valid IntNet Ethernet frame?
+     * Valid IntNet Ethernet frame? Skip GSO, no ARP in there.
      */
-    PCINTNETHDR pHdr = (PINTNETHDR)((uintptr_t)pBuf + pBuf->Recv.offRead);
-    if (pHdr->u16Type != INTNETHDR_TYPE_FRAME)
+    PCINTNETHDR pHdr = IntNetRingGetNextFrameToRead(&pBuf->Recv);
+    if (   !pHdr
+        || pHdr->u16Type != INTNETHDR_TYPE_FRAME)
         return false;
 
-    size_t      cbFrame = pHdr->cbFrame;
-    const void *pvFrame = INTNETHdrGetFramePtr(pHdr, pBuf);
+    size_t          cbFrame = pHdr->cbFrame;
+    const void     *pvFrame = IntNetHdrGetFramePtr(pHdr, pBuf);
     PCRTNETETHERHDR pEthHdr = (PCRTNETETHERHDR)pvFrame;
 
     /*
@@ -153,5 +151,4 @@ bool VBoxNetArpHandleIt(PSUPDRVSESSION pSession, INTNETIFHANDLE hIf, PINTNETBUF 
 
     return true;
 }
-
 

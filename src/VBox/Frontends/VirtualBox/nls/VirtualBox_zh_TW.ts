@@ -24,9 +24,9 @@
         <translation>Taiwan</translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">alan@stable</translation>
+        <translation>alan@stable</translation>
     </message>
 </context>
 <context>
@@ -375,7 +375,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>取消</translation>
@@ -919,7 +919,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>The download process has been cancelled by the user.</source>
         <translation>使用者已取消下載程序。</translation>
@@ -933,7 +933,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>選取匯出的檔案</translation>
@@ -2575,7 +2575,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>選取匯入的應用裝置</translation>
@@ -2638,7 +2638,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation>&lt;b&gt;虛擬系統「%1」需要您同意以下顯示的軟體授權合約之條款與條件。&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;按一下 [&lt;b&gt;同意&lt;/b&gt;] 繼續或按一下 [&lt;b&gt;不同意&lt;/b&gt;] 取消匯入。</translation>
@@ -2911,7 +2911,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>新建虛擬磁碟</translation>
@@ -3026,7 +3026,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>新建虛擬機器</translation>
@@ -4011,83 +4011,83 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">VirtualBox 註冊對話方塊</translation>
+        <translation>VirtualBox 註冊對話方塊</translation>
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">使用拉丁字母輸入您的全名。</translation>
+        <translation>使用拉丁字母輸入您的全名。</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">輸入您的電子郵件位址。 請在此使用有效的位址。</translation>
+        <translation>輸入您的電子郵件位址。 請在此使用有效的位址。</translation>
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">歡迎使用 VirtualBox 註冊表單!</translation>
+        <translation>歡迎使用 VirtualBox 註冊表單!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">無法執行連線交握。</translation>
+        <translation>無法執行連線交握。</translation>
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">取消</translation>
+        <translation>取消</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">選取國家/地區</translation>
+        <translation>選取國家/地區</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;請填寫這個註冊表單可以讓我們知道您使用 VirtualBox ，並選擇性的保持通知您有關 VirtualBox 新聞與更新。&lt;/p&gt;&lt;p&gt;請只使用拉丁字元填寫以下欄位。 Sun Microsystems 只使用這個資訊，收集產品使用情況統計資訊並向您傳送 VirtualBox 電子報。 特別是， Sun Microsystems 將永不傳遞您的資料給協力廠商。 VirtualBox 手冊的 &lt;b&gt; 隱私權原則&lt;/b&gt; 單元或 VirtualBox 的網站 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt; 隱私權原則 &lt;/a&gt; 中可以找到有關我們如何使用您個人資料的詳細資訊。&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;請填寫這個註冊表單可以讓我們知道您使用 VirtualBox ，並選擇性的保持通知您有關 VirtualBox 新聞與更新。&lt;/p&gt;&lt;p&gt;請只使用拉丁字元填寫以下欄位。 Sun Microsystems 只使用這個資訊，收集產品使用情況統計資訊並向您傳送 VirtualBox 電子報。 特別是， Sun Microsystems 將永不傳遞您的資料給協力廠商。 VirtualBox 手冊的 &lt;b&gt; 隱私權原則&lt;/b&gt; 單元或 VirtualBox 的網站 &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt; 隱私權原則 &lt;/a&gt; 中可以找到有關我們如何使用您個人資料的詳細資訊。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">我已經有 Sun Online 帳戶(&amp;A):</translation>
+        <translation>我已經有 Sun Online 帳戶(&amp;A):</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">電子郵件(&amp;E):</translation>
+        <translation>電子郵件(&amp;E):</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">密碼(&amp;P):</translation>
+        <translation>密碼(&amp;P):</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">我希望新建 Sun Online 帳戶(&amp;W):</translation>
+        <translation>我希望新建 Sun Online 帳戶(&amp;W):</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">名字(&amp;F):</translation>
+        <translation>名字(&amp;F):</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">姓氏(&amp;L):</translation>
+        <translation>姓氏(&amp;L):</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">公司(&amp;C):</translation>
+        <translation>公司(&amp;C):</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">國家(&amp;U):</translation>
+        <translation>國家(&amp;U):</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">電子郵件(&amp;M):</translation>
+        <translation>電子郵件(&amp;M):</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">密碼(&amp;A):</translation>
+        <translation>密碼(&amp;A):</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">確認密碼(&amp;N):</translation>
+        <translation>確認密碼(&amp;N):</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">註冊(&amp;R)</translation>
+        <translation>註冊(&amp;R)</translation>
     </message>
 </context>
 <context>
@@ -4632,7 +4632,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>首次執行精靈</translation>
@@ -5836,7 +5836,7 @@ p, li { white-space: pre-wrap; }
         <translation>處理器(&amp;P):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>控制虛擬機器中的虛擬 CPU 數。</translation>
     </message>
     <message>

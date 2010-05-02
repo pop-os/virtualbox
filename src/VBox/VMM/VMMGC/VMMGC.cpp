@@ -1,10 +1,10 @@
-/* $Id: VMMGC.cpp $ */
+/* $Id: VMMGC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VMM - Raw-mode Context.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -329,7 +325,7 @@ static int vmmGCTest(PVM pVM, unsigned uOperation, unsigned uArg)
 
 
 /**
- * Temporary #PF trap handler for the #PF test case.
+ * Temporary \#PF trap handler for the \#PF test case.
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.
@@ -348,7 +344,8 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
 
 
 /**
- * Temporary #PF trap handler for the #PF test case, this one messes up the fs selector.
+ * Temporary \#PF trap handler for the \#PF test case, this one messes up the fs
+ * selector.
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.

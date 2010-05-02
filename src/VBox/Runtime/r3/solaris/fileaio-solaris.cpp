@@ -1,15 +1,28 @@
-/* $Id: fileaio-solaris.cpp $ */
+/* $Id: fileaio-solaris.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for the Solaris host platform.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
- * Sun Microsystems, Inc. confidential
- * All rights reserved
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ *
+ * The contents of this file may alternatively be used under the terms
+ * of the Common Development and Distribution License Version 1.0
+ * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+ * VirtualBox OSE distribution, in which case the provisions of the
+ * CDDL are applicable instead of those of the GPL.
+ *
+ * You may elect to license modified versions of this file under the
+ * terms and conditions of either the GPL or the CDDL or both.
  */
-
 
 /*******************************************************************************
 *   Header Files                                                               *
@@ -173,10 +186,10 @@ RTDECL(int) RTFileAioReqPrepareRead(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
 }
 
 RTDECL(int) RTFileAioReqPrepareWrite(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
-                                     void *pvBuf, size_t cbWrite, void *pvUser)
+                                     void const *pvBuf, size_t cbWrite, void *pvUser)
 {
     return rtFileAioReqPrepareTransfer(hReq, hFile, LIO_WRITE,
-                                       off, pvBuf, cbWrite, pvUser);
+                                       off, (void *)pvBuf, cbWrite, pvUser);
 }
 
 RTDECL(int) RTFileAioReqPrepareFlush(RTFILEAIOREQ hReq, RTFILE hFile, void *pvUser)
@@ -415,7 +428,7 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
     return rc;
 }
 
-RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMillisTimeout,
+RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL cMillies,
                              PRTFILEAIOREQ pahReqs, size_t cReqs, uint32_t *pcReqs)
 {
     int rc = VINF_SUCCESS;
@@ -441,10 +454,10 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
     struct timespec    *pTimeout = NULL;
     struct timespec     Timeout = {0,0};
     uint64_t            StartNanoTS = 0;
-    if (cMillisTimeout != RT_INDEFINITE_WAIT)
+    if (cMillies != RT_INDEFINITE_WAIT)
     {
-        Timeout.tv_sec  = cMillisTimeout / 1000;
-        Timeout.tv_nsec = cMillisTimeout % 1000 * 1000000;
+        Timeout.tv_sec  = cMillies / 1000;
+        Timeout.tv_nsec = cMillies % 1000 * 1000000;
         pTimeout = &Timeout;
         StartNanoTS = RTTimeNanoTS();
     }
@@ -499,14 +512,22 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
         cMinReqs -= cRequests;
         cReqs    -= cRequests;
 
-        if (cMillisTimeout != RT_INDEFINITE_WAIT)
+        if (cMillies != RT_INDEFINITE_WAIT)
         {
             uint64_t NanoTS = RTTimeNanoTS();
             uint64_t cMilliesElapsed = (NanoTS - StartNanoTS) / 1000000;
 
             /* The syscall supposedly updates it, but we're paranoid. :-) */
-            Timeout.tv_sec  = (cMillisTimeout - (unsigned)cMilliesElapsed) / 1000;
-            Timeout.tv_nsec = (cMillisTimeout - (unsigned)cMilliesElapsed) % 1000 * 1000000;
+            if (cMilliesElapsed < cMillies)
+            {
+                Timeout.tv_sec  = (cMillies - (RTMSINTERVAL)cMilliesElapsed) / 1000;
+                Timeout.tv_nsec = (cMillies - (RTMSINTERVAL)cMilliesElapsed) % 1000 * 1000000;
+            }
+            else
+            {
+                Timeout.tv_sec  = 0;
+                Timeout.tv_nsec = 0;
+            }
         }
     }
 

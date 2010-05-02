@@ -80,7 +80,7 @@ typedef struct {
     CROcclusionBits   occlusion;
 #endif
     CRPixelBits       pixel;
-    CRPointBits   point;
+    CRPointBits       point;
     CRPolygonBits     polygon;
     CRProgramBits     program;
     CRRegCombinerBits regcombiner;
@@ -156,6 +156,9 @@ struct CRContext {
 #ifdef CR_OPENGL_VERSION_2_0
     CRGLSLState        glsl;
 #endif
+
+    /*@todo add back buffer, depth and fbos and move out of here*/
+    GLvoid *pImage; /*stored front buffer image*/
 
     /** For buffering vertices for selection/feedback */
     /*@{*/

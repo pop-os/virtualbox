@@ -1,10 +1,10 @@
-/* $Id: DevRTC.cpp $ */
+/* $Id: DevRTC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- * Motorola MC146818 RTC/CMOS Device.
+ * Motorola MC146818 RTC/CMOS Device with PIIX4 extensions.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -53,6 +49,11 @@
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
+
+#ifdef IN_RING3
+# include <iprt/alloc.h>
+# include <iprt/uuid.h>
+#endif /* IN_RING3 */
 
 #include "../Builtins.h"
 
@@ -111,7 +112,13 @@ RT_C_DECLS_END
 
 
 /** The saved state version. */
-#define RTC_SAVED_STATE_VERSION             2
+#define RTC_SAVED_STATE_VERSION             4
+/** The saved state version used by VirtualBox pre-3.2.
+ * This does not include the second 128-byte bank. */
+#define RTC_SAVED_STATE_VERSION_VBOX_32PRE  3
+/** The saved state version used by VirtualBox 3.1 and earlier.
+ * This does not include disabled by HPET state. */
+#define RTC_SAVED_STATE_VERSION_VBOX_31     2
 /** The saved state version used by VirtualBox 3.0 and earlier.
  * This does not include the configuration.  */
 #define RTC_SAVED_STATE_VERSION_VBOX_30     1
@@ -135,9 +142,9 @@ struct my_tm
 
 
 struct RTCState {
-    uint8_t cmos_data[128];
-    uint8_t cmos_index;
-    uint8_t Alignment0[7];
+    uint8_t cmos_data[256];
+    uint8_t cmos_index[2];
+    uint8_t Alignment0[6];
     struct my_tm current_tm;
     /** The configured IRQ. */
     int32_t irq;
@@ -145,6 +152,8 @@ struct RTCState {
     RTIOPORT IOPortBase;
     /** Use UTC or local time initially. */
     bool fUTC;
+    /** Disabled by HPET legacy mode. */
+    bool fDisabledByHpet;
     /* periodic timer */
     int64_t next_periodic_time;
     /* second update */
@@ -185,6 +194,9 @@ struct RTCState {
     uint32_t cRelLogEntries;
     /** The current/previous timer period. Used to prevent flooding changes. */
     int32_t CurPeriod;
+
+    /** HPET legacy mode notification interface. */
+    PDMIHPETLEGACYNOTIFY  IHpetLegacyNotify;
 };
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -225,28 +237,38 @@ static void rtc_timer_update(RTCState *s, int64_t current_time)
     }
 }
 
+static void rtc_raise_irq(RTCState* pThis, uint32_t iLevel)
+{
+    if (!pThis->fDisabledByHpet)
+        PDMDevHlpISASetIrq(pThis->CTX_SUFF(pDevIns), pThis->irq, iLevel);
+}
+
 static void rtc_periodic_timer(void *opaque)
 {
     RTCState *s = (RTCState*)opaque;
 
     rtc_timer_update(s, s->next_periodic_time);
     s->cmos_data[RTC_REG_C] |= 0xc0;
-    PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), s->irq, 1);
+
+    rtc_raise_irq(s, 1);
 }
 
 static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
 {
     RTCState *s = (RTCState*)opaque;
+    uint32_t bank;
 
+    bank = (addr >> 1) & 1;
     if ((addr & 1) == 0) {
-        s->cmos_index = data & 0x7f;
+        s->cmos_index[bank] = (data & 0x7f) + (bank * 128);
     } else {
-        Log(("CMOS: Write idx %#04x: %#04x (old %#04x)\n", s->cmos_index, data, s->cmos_data[s->cmos_index]));
-        switch(s->cmos_index) {
+        Log(("CMOS: Write bank %d idx %#04x: %#04x (old %#04x)\n", bank,
+             s->cmos_index[bank], data, s->cmos_data[s->cmos_index[bank]]));
+        switch(s->cmos_index[bank]) {
         case RTC_SECONDS_ALARM:
         case RTC_MINUTES_ALARM:
         case RTC_HOURS_ALARM:
-            s->cmos_data[s->cmos_index] = data;
+            s->cmos_data[s->cmos_index[0]] = data;
             break;
         case RTC_SECONDS:
         case RTC_MINUTES:
@@ -255,7 +277,7 @@ static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
         case RTC_DAY_OF_MONTH:
         case RTC_MONTH:
         case RTC_YEAR:
-            s->cmos_data[s->cmos_index] = data;
+            s->cmos_data[s->cmos_index[0]] = data;
             /* if in set mode, do not update the time */
             if (!(s->cmos_data[RTC_REG_B] & REG_B_SET)) {
                 rtc_set_time(s);
@@ -288,7 +310,7 @@ static void cmos_ioport_write(void *opaque, uint32_t addr, uint32_t data)
             /* cannot write to them */
             break;
         default:
-            s->cmos_data[s->cmos_index] = data;
+            s->cmos_data[s->cmos_index[bank]] = data;
             break;
         }
     }
@@ -445,14 +467,14 @@ static void rtc_update_second2(void *opaque)
              from_bcd(s, s->cmos_data[RTC_HOURS_ALARM]) == s->current_tm.tm_hour)) {
 
             s->cmos_data[RTC_REG_C] |= 0xa0;
-            PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), s->irq, 1);
+            rtc_raise_irq(s, 1);
         }
     }
 
     /* update ended interrupt */
     if (s->cmos_data[RTC_REG_B] & REG_B_UIE) {
         s->cmos_data[RTC_REG_C] |= 0x90;
-        PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), s->irq, 1);
+        rtc_raise_irq(s, 1);
     }
 
     /* clear update in progress bit */
@@ -467,10 +489,13 @@ static uint32_t cmos_ioport_read(void *opaque, uint32_t addr)
 {
     RTCState *s = (RTCState*)opaque;
     int ret;
+    unsigned bank;
+
+    bank = (addr >> 1) & 1;
     if ((addr & 1) == 0) {
         return 0xff;
     } else {
-        switch(s->cmos_index) {
+        switch(s->cmos_index[bank]) {
         case RTC_SECONDS:
         case RTC_MINUTES:
         case RTC_HOURS:
@@ -478,21 +503,21 @@ static uint32_t cmos_ioport_read(void *opaque, uint32_t addr)
         case RTC_DAY_OF_MONTH:
         case RTC_MONTH:
         case RTC_YEAR:
-            ret = s->cmos_data[s->cmos_index];
+            ret = s->cmos_data[s->cmos_index[0]];
             break;
         case RTC_REG_A:
-            ret = s->cmos_data[s->cmos_index];
+            ret = s->cmos_data[s->cmos_index[0]];
             break;
         case RTC_REG_C:
-            ret = s->cmos_data[s->cmos_index];
-            PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), s->irq, 0);
+            ret = s->cmos_data[s->cmos_index[0]];
+            rtc_raise_irq(s, 0);
             s->cmos_data[RTC_REG_C] = 0x00;
             break;
         default:
-            ret = s->cmos_data[s->cmos_index];
+            ret = s->cmos_data[s->cmos_index[bank]];
             break;
         }
-        Log(("CMOS: Read idx %#04x: %#04x\n", s->cmos_index, ret));
+        Log(("CMOS: Read bank %d idx %#04x: %#04x\n", bank, s->cmos_index[bank], ret));
         return ret;
     }
 }
@@ -624,7 +649,7 @@ static DECLCALLBACK(int) rtcSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 
     /* The state. */
     SSMR3PutMem(pSSM, pThis->cmos_data, 128);
-    SSMR3PutU8(pSSM, pThis->cmos_index);
+    SSMR3PutU8(pSSM, pThis->cmos_index[0]);
 
     SSMR3PutS32(pSSM, pThis->current_tm.tm_sec);
     SSMR3PutS32(pSSM, pThis->current_tm.tm_min);
@@ -642,7 +667,10 @@ static DECLCALLBACK(int) rtcSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     TMR3TimerSave(pThis->CTX_SUFF(pSecondTimer), pSSM);
     TMR3TimerSave(pThis->CTX_SUFF(pSecondTimer2), pSSM);
 
-    return VINF_SUCCESS;
+    SSMR3PutBool(pSSM, pThis->fDisabledByHpet);
+
+    SSMR3PutMem(pSSM, &pThis->cmos_data[128], 128);
+    return SSMR3PutU8(pSSM, pThis->cmos_index[1]);
 }
 
 
@@ -655,6 +683,8 @@ static DECLCALLBACK(int) rtcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     int         rc;
 
     if (    uVersion != RTC_SAVED_STATE_VERSION
+        &&  uVersion != RTC_SAVED_STATE_VERSION_VBOX_32PRE
+        &&  uVersion != RTC_SAVED_STATE_VERSION_VBOX_31
         &&  uVersion != RTC_SAVED_STATE_VERSION_VBOX_30)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
@@ -682,7 +712,7 @@ static DECLCALLBACK(int) rtcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
     /* The state. */
     SSMR3GetMem(pSSM, pThis->cmos_data, 128);
-    SSMR3GetU8(pSSM, &pThis->cmos_index);
+    SSMR3GetU8(pSSM, &pThis->cmos_index[0]);
 
     SSMR3GetS32(pSSM, &pThis->current_tm.tm_sec);
     SSMR3GetS32(pSSM, &pThis->current_tm.tm_min);
@@ -700,6 +730,16 @@ static DECLCALLBACK(int) rtcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     TMR3TimerLoad(pThis->CTX_SUFF(pSecondTimer), pSSM);
     TMR3TimerLoad(pThis->CTX_SUFF(pSecondTimer2), pSSM);
 
+    if (uVersion > RTC_SAVED_STATE_VERSION_VBOX_31)
+         SSMR3GetBool(pSSM, &pThis->fDisabledByHpet);
+
+    if (uVersion > RTC_SAVED_STATE_VERSION_VBOX_32PRE)
+    {
+        /* Second CMOS bank. */
+        SSMR3GetMem(pSSM, &pThis->cmos_data[128], 128);
+        SSMR3GetU8(pSSM, &pThis->cmos_index[1]);
+    }
+
     int period_code = pThis->cmos_data[RTC_REG_A] & 0x0f;
     if (    period_code != 0
         &&  (pThis->cmos_data[RTC_REG_B] & REG_B_PIE)) {
@@ -713,6 +753,7 @@ static DECLCALLBACK(int) rtcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
         pThis->CurPeriod = 0;
     }
     pThis->cRelLogEntries = 0;
+
     return VINF_SUCCESS;
 }
 
@@ -741,7 +782,7 @@ static void rtcCalcCRC(RTCState *pThis)
  *
  * @returns VBox status code.
  * @param   pDevIns     Device instance of the RTC.
- * @param   iReg        The CMOS register index.
+ * @param   iReg        The CMOS register index; bit 8 determines bank.
  * @param   u8Value     The CMOS register value.
  */
 static DECLCALLBACK(int) rtcCMOSWrite(PPDMDEVINS pDevIns, unsigned iReg, uint8_t u8Value)
@@ -768,7 +809,7 @@ static DECLCALLBACK(int) rtcCMOSWrite(PPDMDEVINS pDevIns, unsigned iReg, uint8_t
  *
  * @returns VBox status code.
  * @param   pDevIns     Device instance of the RTC.
- * @param   iReg        The CMOS register index.
+ * @param   iReg        The CMOS register index; bit 8 determines bank.
  * @param   pu8Value    Where to store the CMOS register value.
  */
 static DECLCALLBACK(int) rtcCMOSRead(PPDMDEVINS pDevIns, unsigned iReg, uint8_t *pu8Value)
@@ -796,7 +837,7 @@ static DECLCALLBACK(int)  rtcInitComplete(PPDMDEVINS pDevIns)
      * Set the CMOS date/time.
      */
     RTTIMESPEC  Now;
-    PDMDevHlpUTCNow(pDevIns, &Now);
+    PDMDevHlpTMUtcNow(pDevIns, &Now);
     RTTIME Time;
     if (pThis->fUTC)
         RTTimeExplode(&Time, &Now);
@@ -825,12 +866,36 @@ static DECLCALLBACK(int)  rtcInitComplete(PPDMDEVINS pDevIns)
      */
     rtcCalcCRC(pThis);
 
-    Log(("CMOS: \n%16.128Rhxd\n", pThis->cmos_data));
+    Log(("CMOS bank 0: \n%16.128Rhxd\n", &pThis->cmos_data[0]));
+    Log(("CMOS bank 1: \n%16.128Rhxd\n", &pThis->cmos_data[128]));
     return VINF_SUCCESS;
 }
 
 
 /* -=-=-=-=-=- real code -=-=-=-=-=- */
+
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *) rtcQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+{
+    PPDMDEVINS  pDevIns = RT_FROM_MEMBER(pInterface, PDMDEVINS, IBase);
+    RTCState   *pThis   = PDMINS_2_DATA(pDevIns, RTCState *);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE,             &pDevIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHPETLEGACYNOTIFY, &pThis->IHpetLegacyNotify);
+    return NULL;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHPETLEGACYNOTIFY,pfnModeChanged}
+ */
+static DECLCALLBACK(void) rtcHpetLegacyNotify_ModeChanged(PPDMIHPETLEGACYNOTIFY pInterface, bool fActivated)
+{
+    RTCState *pThis = RT_FROM_MEMBER(pInterface, RTCState, IHpetLegacyNotify);
+    pThis->fDisabledByHpet = fActivated;
+}
+
 
 /**
  * @copydoc
@@ -847,19 +912,9 @@ static DECLCALLBACK(void) rtcRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     RTCState   *pThis = PDMINS_2_DATA(pDevIns, RTCState *);
     int         rc;
@@ -868,7 +923,7 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "Irq\0"
                               "Base\0"
                               "UseUTC\0"
@@ -880,30 +935,30 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      * Init the data.
      */
     uint8_t u8Irq;
-    rc = CFGMR3QueryU8Def(pCfgHandle, "Irq", &u8Irq, 8);
+    rc = CFGMR3QueryU8Def(pCfg, "Irq", &u8Irq, 8);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"Irq\" as a uint8_t failed"));
     pThis->irq = u8Irq;
 
-    rc = CFGMR3QueryPortDef(pCfgHandle, "Base", &pThis->IOPortBase, 0x70);
+    rc = CFGMR3QueryPortDef(pCfg, "Base", &pThis->IOPortBase, 0x70);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"Base\" as a RTIOPORT failed"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "UseUTC", &pThis->fUTC, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "UseUTC", &pThis->fUTC, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"UseUTC\" as a bool failed"));
 
     bool fGCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read GCEnabled as boolean"));
 
     bool fR0Enabled;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read R0Enabled as boolean"));
@@ -922,6 +977,12 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     pThis->RtcReg.u32Version    = PDM_RTCREG_VERSION;
     pThis->RtcReg.pfnRead       = rtcCMOSRead;
     pThis->RtcReg.pfnWrite      = rtcCMOSWrite;
+    pThis->fDisabledByHpet      = false;
+
+    /* IBase */
+    pDevIns->IBase.pfnQueryInterface        = rtcQueryInterface;
+    /* IHpetLegacyNotify */
+    pThis->IHpetLegacyNotify.pfnModeChanged = rtcHpetLegacyNotify_ModeChanged;
 
     /*
      * Create timers, arm them, register I/O Ports and save state.
@@ -955,20 +1016,20 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = PDMDevHlpIOPortRegister(pDevIns, pThis->IOPortBase, 2, NULL,
+    rc = PDMDevHlpIOPortRegister(pDevIns, pThis->IOPortBase, 4, NULL,
                                  rtcIOPortWrite, rtcIOPortRead, NULL, NULL, "MC146818 RTC/CMOS");
     if (RT_FAILURE(rc))
         return rc;
     if (fGCEnabled)
     {
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, pThis->IOPortBase, 2, 0,
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->IOPortBase, 4, 0,
                                        "rtcIOPortWrite", "rtcIOPortRead", NULL, NULL, "MC146818 RTC/CMOS");
         if (RT_FAILURE(rc))
             return rc;
     }
     if (fR0Enabled)
     {
-        rc = PDMDevHlpIOPortRegisterR0(pDevIns, pThis->IOPortBase, 2, 0,
+        rc = PDMDevHlpIOPortRegisterR0(pDevIns, pThis->IOPortBase, 4, 0,
                                        "rtcIOPortWrite", "rtcIOPortRead", NULL, NULL, "MC146818 RTC/CMOS");
         if (RT_FAILURE(rc))
             return rc;
@@ -981,7 +1042,7 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Register ourselves as the RTC/CMOS with PDM.
      */
-    rc = pDevIns->pDevHlpR3->pfnRTCRegister(pDevIns, &pThis->RtcReg, &pThis->pRtcHlpR3);
+    rc = PDMDevHlpRTCRegister(pDevIns, &pThis->RtcReg, &pThis->pRtcHlpR3);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -996,7 +1057,7 @@ const PDMDEVREG g_DeviceMC146818 =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "mc146818",
     /* szRCMod */
     "VBoxDDGC.gc",

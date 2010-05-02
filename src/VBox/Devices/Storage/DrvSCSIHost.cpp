@@ -1,12 +1,10 @@
-/* $Id: DrvSCSIHost.cpp $ */
+/* $Id: DrvSCSIHost.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
- * VBox storage drivers:
- * Host SCSI access driver.
+ * VBox storage drivers: Host SCSI access driver.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -31,10 +25,11 @@
 #include <VBox/pdmthread.h>
 #include <VBox/scsi.h>
 #include <iprt/assert.h>
-#include <iprt/string.h>
-#include <iprt/alloc.h>
-#include <iprt/req.h>
 #include <iprt/file.h>
+#include <iprt/mem.h>
+#include <iprt/req.h>
+#include <iprt/string.h>
+#include <iprt/uuid.h>
 
 #if defined(RT_OS_LINUX)
 # include <limits.h>
@@ -46,6 +41,8 @@
 
 /**
  * SCSI driver instance data.
+ *
+ * @implements  PDMISCSICONNECTOR
  */
 typedef struct DRVSCSIHOST
 {
@@ -54,7 +51,7 @@ typedef struct DRVSCSIHOST
 
     /** Pointer to the SCSI port interface of the device above. */
     PPDMISCSIPORT           pDevScsiPort;
-    /** The scsi connector interface .*/
+    /** The SCSI connector interface .   */
     PDMISCSICONNECTOR       ISCSIConnector;
 
     /** PAth to the device file. */
@@ -109,7 +106,7 @@ static void drvscsihostDumpScsiRequest(PPDMSCSIREQUEST pRequest)
 static int drvscsihostScatterGatherListCopyFromBuffer(PPDMSCSIREQUEST pRequest, void *pvBuf, size_t cbBuf)
 {
     unsigned cSGEntry = 0;
-    PPDMDATASEG pSGEntry = &pRequest->paScatterGatherHead[cSGEntry];
+    PRTSGSEG pSGEntry = &pRequest->paScatterGatherHead[cSGEntry];
     uint8_t *pu8Buf = (uint8_t *)pvBuf;
 
     while (cSGEntry < pRequest->cScatterGatherEntries)
@@ -392,23 +389,22 @@ static DECLCALLBACK(int) drvscsihostRequestSend(PPDMISCSICONNECTOR pInterface, P
     return VINF_SUCCESS;
 }
 
-/* -=-=-=-=- IBase -=-=-=-=- */
+/* -=-=-=-=- PDMIBASE -=-=-=-=- */
 
-/** @copydoc PDMIBASE::pfnQueryInterface. */
-static DECLCALLBACK(void *)  drvscsihostQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *)  drvscsihostQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS   pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVSCSIHOST pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_SCSI_CONNECTOR:
-            return &pThis->ISCSIConnector;
-        default:
-            return NULL;
-    }
+    PDRVSCSIHOST pThis   = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMISCSICONNECTOR, &pThis->ISCSIConnector);
+    return NULL;
 }
+
+/* -=-=-=-=- PDMDRVREG -=-=-=-=- */
 
 /**
  * Destruct a driver instance.
@@ -420,8 +416,8 @@ static DECLCALLBACK(void *)  drvscsihostQueryInterface(PPDMIBASE pInterface, PDM
  */
 static DECLCALLBACK(void) drvscsihostDestruct(PPDMDRVINS pDrvIns)
 {
-    int rc;
     PDRVSCSIHOST pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
     if (pThis->DeviceFile != NIL_RTFILE)
         RTFileClose(pThis->DeviceFile);
@@ -431,7 +427,7 @@ static DECLCALLBACK(void) drvscsihostDestruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pQueueRequests)
     {
-        rc = RTReqDestroyQueue(pThis->pQueueRequests);
+        int rc = RTReqDestroyQueue(pThis->pQueueRequests);
         AssertMsgRC(rc, ("Failed to destroy queue rc=%Rrc\n", rc));
     }
 
@@ -442,16 +438,16 @@ static DECLCALLBACK(void) drvscsihostDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVSCSIHOST pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSIHOST);
-
-    LogFlowFunc(("pDrvIns=%#p pCfgHandle=%#p\n", pDrvIns, pCfgHandle));
+    LogFlowFunc(("pDrvIns=%#p pCfg=%#p\n", pDrvIns, pCfg));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "DevicePath\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "DevicePath\0"))
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
                                 N_("Invalid configuration for host scsi access driver"));
 
@@ -464,7 +460,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     pThis->DeviceFile = NIL_RTFILE;
 
     /* Query the SCSI port interface above. */
-    pThis->pDevScsiPort = (PPDMISCSIPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_SCSI_PORT);
+    pThis->pDevScsiPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMISCSIPORT);
     AssertMsgReturn(pThis->pDevScsiPort, ("Missing SCSI port interface above\n"), VERR_PDM_MISSING_INTERFACE);
 
     /* Create request queue. */
@@ -472,7 +468,7 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
 
     /* Open the device. */
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "DevicePath", &pThis->pszDevicePath);
+    rc = CFGMR3QueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"DevicePath\" value"));
@@ -483,8 +479,8 @@ static DECLCALLBACK(int) drvscsihostConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
                                    N_("DrvSCSIHost#%d: Failed to open device '%s'"), pDrvIns->iInstance, pThis->pszDevicePath);
 
     /* Create I/O thread. */
-    rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsihostAsyncIOLoop,
-                                  drvscsihostAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
+    rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsihostAsyncIOLoop,
+                               drvscsihostAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
 
     return VINF_SUCCESS;
@@ -497,8 +493,12 @@ const PDMDRVREG g_DrvSCSIHost =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "SCSIHost",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Host SCSI driver.",
     /* fFlags */
@@ -513,6 +513,8 @@ const PDMDRVREG g_DrvSCSIHost =
     drvscsihostConstruct,
     /* pfnDestruct */
     drvscsihostDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

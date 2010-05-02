@@ -1,3 +1,4 @@
+/* $Id: VBoxGLSupportInfo.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,11 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
+
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include <iprt/assert.h>
 #include <iprt/log.h>
 #include <iprt/err.h>
@@ -35,6 +36,7 @@
 
 #include <VBox/VBoxGL2D.h>
 #include "VBoxFBOverlayCommon.h"
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /*****************/
 
@@ -85,16 +87,15 @@ PFNVBOXVHWA_BUFFER_DATA vboxglBufferData = NULL;
 PFNVBOXVHWA_MAP_BUFFER vboxglMapBuffer = NULL;
 PFNVBOXVHWA_UNMAP_BUFFER vboxglUnmapBuffer = NULL;
 
-#if 0
-#if defined Q_WS_WIN
-#define VBOXVHWA_GETPROCADDRESS(_t, _n) (_t)wglGetProcAddress(_n)
-#elif defined Q_WS_X11
-#include <GL/glx.h>
-#define VBOXVHWA_GETPROCADDRESS(_t, _n) (_t)glXGetProcAddress((const GLubyte *)(_n))
-#else
-#error "Port me!!!"
-#endif
-#endif
+PFNVBOXVHWA_IS_FRAMEBUFFER vboxglIsFramebuffer = NULL;
+PFNVBOXVHWA_BIND_FRAMEBUFFER vboxglBindFramebuffer = NULL;
+PFNVBOXVHWA_DELETE_FRAMEBUFFERS vboxglDeleteFramebuffers = NULL;
+PFNVBOXVHWA_GEN_FRAMEBUFFERS vboxglGenFramebuffers = NULL;
+PFNVBOXVHWA_CHECK_FRAMEBUFFER_STATUS vboxglCheckFramebufferStatus = NULL;
+PFNVBOXVHWA_FRAMEBUFFER_TEXTURE1D vboxglFramebufferTexture1D = NULL;
+PFNVBOXVHWA_FRAMEBUFFER_TEXTURE2D vboxglFramebufferTexture2D = NULL;
+PFNVBOXVHWA_FRAMEBUFFER_TEXTURE3D vboxglFramebufferTexture3D = NULL;
+PFNVBOXVHWA_GET_FRAMEBUFFER_ATTACHMENT_PARAMETRIV vboxglGetFramebufferAttachmentParameteriv = NULL;
 
 #define VBOXVHWA_GETPROCADDRESS(_c, _t, _n) ((_t)(uintptr_t)(_c).getProcAddress(QString(_n)))
 
@@ -102,15 +103,15 @@ PFNVBOXVHWA_UNMAP_BUFFER vboxglUnmapBuffer = NULL;
     do { \
         if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_v)) == NULL) \
         { \
-            VBOXQGLLOG(("ERROR: '%s' function not found\n", "gl"#_v));\
+            VBOXQGLLOGREL(("ERROR: '%s' function not found\n", "gl"#_v));\
             AssertBreakpoint(); \
             if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_v"ARB")) == NULL) \
             { \
-                VBOXQGLLOG(("ERROR: '%s' function not found\n", "gl"#_v"ARB"));\
+                VBOXQGLLOGREL(("ERROR: '%s' function not found\n", "gl"#_v"ARB"));\
                 AssertBreakpoint(); \
                 if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_v"EXT")) == NULL) \
                 { \
-                    VBOXQGLLOG(("ERROR: '%s' function not found\n", "gl"#_v"EXT"));\
+                    VBOXQGLLOGREL(("ERROR: '%s' function not found\n", "gl"#_v"EXT"));\
                     AssertBreakpoint(); \
                     (_rc)++; \
                 } \
@@ -122,29 +123,37 @@ PFNVBOXVHWA_UNMAP_BUFFER vboxglUnmapBuffer = NULL;
     do { \
         if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_f)) == NULL) \
         { \
-            VBOXQGLLOG(("ERROR: '%s' function is not found\n", "gl"#_f));\
+            VBOXQGLLOGREL(("ERROR: '%s' function is not found\n", "gl"#_f));\
             AssertBreakpoint(); \
             (_rc)++; \
         } \
     }while(0)
 
-//#define VBOXVHWA_PFNINIT_OBJECT_ARB(_t, _v, _rc) VBOXVHWA_PFNINIT(_t, _v, #_v"ObjectARB" ,_rc)
 #define VBOXVHWA_PFNINIT_OBJECT_ARB(_c, _t, _v, _rc) \
         do { \
             if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_v"ObjectARB")) == NULL) \
             { \
-                VBOXQGLLOG(("ERROR: '%s' function is not found\n", "gl"#_v"ObjectARB"));\
+                VBOXQGLLOGREL(("ERROR: '%s' function is not found\n", "gl"#_v"ObjectARB"));\
                 AssertBreakpoint(); \
                 (_rc)++; \
             } \
         }while(0)
 
-//#define VBOXVHWA_PFNINIT_ARB(_t, _v, _rc) VBOXVHWA_PFNINIT(_t, _v, #_v"ARB" ,_rc)
 #define VBOXVHWA_PFNINIT_ARB(_c, _t, _v, _rc) \
         do { \
             if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_v"ARB")) == NULL) \
             { \
-                VBOXQGLLOG(("ERROR: '%s' function is not found\n", "gl"#_v"ARB"));\
+                VBOXQGLLOGREL(("ERROR: '%s' function is not found\n", "gl"#_v"ARB"));\
+                AssertBreakpoint(); \
+                (_rc)++; \
+            } \
+        }while(0)
+
+#define VBOXVHWA_PFNINIT_EXT(_c, _t, _v, _rc) \
+        do { \
+            if((vboxgl##_v = VBOXVHWA_GETPROCADDRESS(_c, _t, "gl"#_v"EXT")) == NULL) \
+            { \
+                VBOXQGLLOGREL(("ERROR: '%s' function is not found\n", "gl"#_v"EXT"));\
                 AssertBreakpoint(); \
                 (_rc)++; \
             } \
@@ -265,7 +274,7 @@ void VBoxGLInfo::init(const QGLContext * pContext)
     {
         VBOXQGLLOGREL (("gl version string: 0%s\n", str));
 
-        mGLVersion = parseVersion(str);
+        mGLVersion = parseVersion (str);
         Assert(mGLVersion > 0);
         if(mGLVersion < 0)
         {
@@ -275,8 +284,10 @@ void VBoxGLInfo::init(const QGLContext * pContext)
         {
             VBOXQGLLOGREL (("gl version: 0x%x\n", mGLVersion));
             VBOXQGL_CHECKERR(
-                    str = glGetString(GL_EXTENSIONS);
+                    str = glGetString (GL_EXTENSIONS);
                     );
+
+            VBOXQGLLOGREL (("gl extensions: %s\n", str));
 
             const char * pos = strstr((const char *)str, "GL_ARB_multitexture");
             m_GL_ARB_multitexture = pos != NULL;
@@ -309,6 +320,11 @@ void VBoxGLInfo::init(const QGLContext * pContext)
             pos = strstr((const char *)str, "GL_ARB_texture_non_power_of_two");
             m_GL_ARB_texture_non_power_of_two = pos != NULL;
             VBOXQGLLOGREL (("GL_ARB_texture_non_power_of_two: %d\n", m_GL_ARB_texture_non_power_of_two));
+
+            pos = strstr((const char *)str, "GL_EXT_framebuffer_object");
+            m_GL_EXT_framebuffer_object = pos != NULL;
+            VBOXQGLLOGREL (("GL_EXT_framebuffer_object: %d\n", m_GL_EXT_framebuffer_object));
+
 
             initExtSupport(*pContext);
         }
@@ -473,6 +489,34 @@ void VBoxGLInfo::initExtSupport(const QGLContext & context)
             break;
 
         mFragmentShaderSupported = true;
+    } while(0);
+
+    do
+    {
+        rc = 0;
+        mFBOSupported = false;
+
+        if(m_GL_EXT_framebuffer_object)
+        {
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_IS_FRAMEBUFFER, IsFramebuffer, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_BIND_FRAMEBUFFER, BindFramebuffer, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_DELETE_FRAMEBUFFERS, DeleteFramebuffers, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_GEN_FRAMEBUFFERS, GenFramebuffers, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_CHECK_FRAMEBUFFER_STATUS, CheckFramebufferStatus, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_FRAMEBUFFER_TEXTURE1D, FramebufferTexture1D, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_FRAMEBUFFER_TEXTURE2D, FramebufferTexture2D, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_FRAMEBUFFER_TEXTURE3D, FramebufferTexture3D, rc);
+            VBOXVHWA_PFNINIT_EXT(context, PFNVBOXVHWA_GET_FRAMEBUFFER_ATTACHMENT_PARAMETRIV, GetFramebufferAttachmentParameteriv, rc);
+        }
+        else
+        {
+            break;
+        }
+
+        if(RT_FAILURE(rc))
+            break;
+
+        mFBOSupported = true;
     } while(0);
 
     if(m_GL_ARB_texture_rectangle || m_GL_EXT_texture_rectangle || m_GL_NV_texture_rectangle)
@@ -663,3 +707,4 @@ const class QGLContext * VBoxGLTmpContext::makeCurrent()
     }
     return NULL;
 }
+

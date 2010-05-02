@@ -1,10 +1,10 @@
-/* $Id: VBoxNetAdp-solaris.c $ */
+/* $Id: VBoxNetAdp-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetAdapter - Network Adapter Driver (Host), Solaris Specific Code.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -58,10 +54,12 @@
 #define VBOXNETADP_MTU           1500
 
 #if defined(DEBUG_ramshankar)
+# undef LogFlowFunc
+# define LogFlowFunc        LogRel
 # undef Log
-# define Log        LogRel
+# define Log                LogRel
 # undef LogFlow
-# define LogFlow    LogRel
+# define LogFlow            LogRel
 #endif
 
 static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
@@ -176,8 +174,10 @@ static struct modldrv g_VBoxNetAdpSolarisDriver =
 static struct modlinkage g_VBoxNetAdpSolarisModLinkage =
 {
     MODREV_1,                       /* loadable module system revision */
-    &g_VBoxNetAdpSolarisDriver,     /* adapter streams driver framework */
-    NULL                            /* terminate array of linkage structures */
+    {
+        &g_VBoxNetAdpSolarisDriver, /* adapter streams driver framework */
+        NULL                        /* terminate array of linkage structures */
+    }
 };
 
 
@@ -214,7 +214,7 @@ static int vboxNetAdpSolarisSetMulticast(gld_mac_info_t *pMacInfo, unsigned char
  */
 int _init(void)
 {
-    LogFlow((DEVICE_NAME ":_init\n"));
+    LogFlowFunc((DEVICE_NAME ":_init\n"));
 
     /*
      * Prevent module autounloading.
@@ -247,8 +247,7 @@ int _init(void)
 
 int _fini(void)
 {
-    int rc;
-    LogFlow((DEVICE_NAME ":_fini\n"));
+    LogFlowFunc((DEVICE_NAME ":_fini\n"));
 
     /*
      * Undo the work done during start (in reverse order).
@@ -261,7 +260,7 @@ int _fini(void)
 
 int _info(struct modinfo *pModInfo)
 {
-    LogFlow((DEVICE_NAME ":_info\n"));
+    LogFlowFunc((DEVICE_NAME ":_info\n"));
 
     int rc = mod_info(&g_VBoxNetAdpSolarisModLinkage, pModInfo);
 
@@ -280,7 +279,7 @@ int _info(struct modinfo *pModInfo)
  */
 static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
 {
-    LogFlow((DEVICE_NAME ":VBoxNetAdpSolarisAttach pDip=%p enmCmd=%d\n", pDip, enmCmd));
+    LogFlowFunc((DEVICE_NAME ":VBoxNetAdpSolarisAttach pDip=%p enmCmd=%d\n", pDip, enmCmd));
 
     int rc = -1;
     switch (enmCmd)
@@ -366,8 +365,11 @@ static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
             /* Nothing to do here... */
             return DDI_SUCCESS;
         }
+
+        /* case DDI_PM_RESUME: */
+        default:
+            return DDI_FAILURE;
     }
-    return DDI_FAILURE;
 }
 
 
@@ -381,7 +383,7 @@ static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
  */
 static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 {
-    LogFlow((DEVICE_NAME ":VBoxNetAdpSolarisDetach pDip=%p enmCmd=%d\n", pDip, enmCmd));
+    LogFlowFunc((DEVICE_NAME ":VBoxNetAdpSolarisDetach pDip=%p enmCmd=%d\n", pDip, enmCmd));
 
     switch (enmCmd)
     {
@@ -420,8 +422,12 @@ static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
             /* Nothing to do here... */
             return DDI_SUCCESS;
         }
+
+        /* case DDI_SUSPEND: */
+        /* case DDI_HOTPLUG_DETACH: */
+        default:
+            return DDI_FAILURE;
     }
-    return DDI_FAILURE;
 }
 
 

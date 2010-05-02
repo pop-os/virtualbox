@@ -1,3 +1,4 @@
+/* $Id: VBoxVMSettingsSystem.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* Global includes */
@@ -169,6 +166,10 @@ void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
     /* EFI */
     mCbEFI->setChecked (mMachine.GetFirmwareType() >= KFirmwareType_EFI && mMachine.GetFirmwareType() <= KFirmwareType_EFIDUAL);
 
+    /* RTC */
+    bool rtcUseUTC = mMachine.GetRTCUseUTC ();
+    mCbTCUseUTC->setChecked (rtcUseUTC);
+
     /* CPU count */
     bool fVTxAMDVSupported = vboxGlobal().virtualBox().GetHost()
                              .GetProcessorFeature (KProcessorFeature_HWVirtEx);
@@ -180,7 +181,7 @@ void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
     bool fPAESupported = vboxGlobal().virtualBox().GetHost()
                          .GetProcessorFeature (KProcessorFeature_PAE);
     mCbPae->setEnabled (fPAESupported);
-    mCbPae->setChecked (aMachine.GetCpuProperty(KCpuPropertyType_PAE));
+    mCbPae->setChecked (aMachine.GetCPUProperty(KCPUPropertyType_PAE));
 
     /* VT-x/AMD-V page */
     if (!fVTxAMDVSupported)
@@ -237,11 +238,14 @@ void VBoxVMSettingsSystem::putBackTo()
     /* EFI */
     mMachine.SetFirmwareType (mCbEFI->isChecked() ? KFirmwareType_EFI : KFirmwareType_BIOS);
 
+    /* RTC */
+    mMachine.SetRTCUseUTC (mCbTCUseUTC->isChecked());
+
     /* RAM size */
     mMachine.SetCPUCount (mSlCPU->value());
 
     /* PAE/NX */
-    mMachine.SetCpuProperty(KCpuPropertyType_PAE, mCbPae->isChecked());
+    mMachine.SetCPUProperty(KCPUPropertyType_PAE, mCbPae->isChecked());
 
     /* VT-x/AMD-V */
     mMachine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled,

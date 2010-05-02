@@ -45,7 +45,7 @@
  *    out/<platform>/obj/Runtime/errmsgvboxcomdata.h
  *    (<result> extraction for the %Rhrc format specifier)
  *
-     Copyright (C) 2006-2009 Sun Microsystems, Inc.
+     Copyright (C) 2006-2010 Oracle Corporation
 
      This file is part of VirtualBox Open Source Edition (OSE), as
      available from http://www.virtualbox.org. This file is free software;
@@ -54,10 +54,6 @@
      Foundation, in version 2 as it comes in the "COPYING" file of the
      VirtualBox OSE distribution. VirtualBox OSE is distributed in the
      hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-
-     Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-     Clara, CA 95054 USA or visit http://www.sun.com if you need
-     additional information or have any questions.
 -->
 
 <idl>
@@ -453,8 +449,14 @@
       <!-- The big storage controller / DVD / Floppy rework (done)
            -->
     </const>
-    <const name="Future"     value="12">
-      <desc>Settings version greater than "1.9", written by a future VirtualBox version.</desc>
+    <const name="v1_10"     value="12">
+      <desc>Settings version "1.10", written by VirtualBox 3.2.x.</desc>
+      <!-- Machine changes: RTC localOrUTC (done)
+           CPU hot-plug support
+           -->
+    </const>
+    <const name="Future"     value="13">
+      <desc>Settings version greater than "1.10", written by a future VirtualBox version.</desc>
     </const>
   </enum>
 
@@ -472,7 +474,7 @@
 
   <enum
     name="MachineState"
-    uuid="36518cf6-cdf0-4d0d-ad2a-5ee9c60c7494"
+    uuid="e998d075-543a-41fc-8aa9-5ca3e92393fd"
   >
     <desc>
       Virtual machine execution state.
@@ -561,8 +563,8 @@
       </pre>
 
       The next two diagrams demonstrate the process of taking a snapshot of a
-      powered off virtual machine and performing one of the "discard..."
-      operations, respectively.
+      powered off virtual machine, restoring the state to that as of a snapshot
+      or deleting a snapshot, respectively.
 
       <pre>
     +----------------------------------(same state as before the call)------+
@@ -715,18 +717,28 @@
         Teleporting the machine state in from another host or process.
       </desc>
     </const>
-    <const name="RestoringSnapshot"     value="16">
+    <const name="DeletingSnapshotOnline" value="16">
+      <desc>
+        Teleporting the machine state in from another host or process.
+      </desc>
+    </const>
+    <const name="DeletingSnapshotPaused" value="17">
+      <desc>
+        Teleporting the machine state in from another host or process.
+      </desc>
+    </const>
+    <const name="RestoringSnapshot"     value="18">
       <desc>
         A machine snapshot is being restored; this typically does not take long.
       </desc>
     </const>
-    <const name="DeletingSnapshot"      value="17">
+    <const name="DeletingSnapshot"      value="19">
       <desc>
         A machine snapshot is being deleted; this can take a long time since this
         may require merging differencing media.
       </desc>
     </const>
-    <const name="SettingUp"             value="18">
+    <const name="SettingUp"             value="20">
       <desc>
         Lengthy setup operation is in progress.
       </desc>
@@ -737,7 +749,7 @@
         Pseudo-state: first online state (for use in relational expressions).
       </desc>
     </const>
-    <const name="LastOnline"  value="13" wsmap="suppress"> <!-- TeleportingIn -->
+    <const name="LastOnline"  value="17" wsmap="suppress"> <!-- DeletingSnapshotPaused -->
       <desc>
         Pseudo-state: last online state (for use in relational expressions).
       </desc>
@@ -748,7 +760,7 @@
         Pseudo-state: first transient state (for use in relational expressions).
       </desc>
     </const>
-    <const name="LastTransient"  value="18" wsmap="suppress"> <!-- SettingUp -->
+    <const name="LastTransient"  value="20" wsmap="suppress"> <!-- SettingUp -->
       <desc>
         Pseudo-state: last transient state (for use in relational expressions).
       </desc>
@@ -800,12 +812,12 @@
   </enum>
 
   <enum
-    name="CpuPropertyType"
-    uuid="af7bb668-eeb1-4404-b77f-a114b30c92d6"
+    name="CPUPropertyType"
+    uuid="24d356a6-2f45-4abd-b977-1cbe9c4701f5"
   >
     <desc>
       Virtual CPU property type. This enumeration represents possible values of the
-      IMachine get- and setCpuProperty methods.
+      IMachine get- and setCPUProperty methods.
     </desc>
     <const name="Null"                  value="0">
       <desc>Null value (never used by the API).</desc>
@@ -859,6 +871,11 @@
     <const name="NestedPaging"        value="4">
       <desc>
         Whether Nested Paging is enabled. If this extension is not available, it will not be used.
+      </desc>
+    </const>
+    <const name="LargePages"          value="5">
+      <desc>
+        Whether large page allocation is enabled; requires nested paging and a 64 bits host.
       </desc>
     </const>
   </enum>
@@ -973,102 +990,6 @@
   </enum>
 
   <enum
-    name="GuestStatisticType"
-    uuid="aa7c1d71-aafe-47a8-9608-27d2d337cf55"
-  >
-    <desc>
-      Statistics type for <link to="IGuest::getStatistic"/>.
-    </desc>
-
-    <const name="CPULoad_Idle"         value="0">
-      <desc>
-        Idle CPU load (0-100%) for last interval.
-      </desc>
-    </const>
-    <const name="CPULoad_Kernel"       value="1">
-      <desc>
-        Kernel CPU load (0-100%) for last interval.
-      </desc>
-    </const>
-    <const name="CPULoad_User"         value="2">
-      <desc>
-        User CPU load (0-100%) for last interval.
-      </desc>
-    </const>
-    <const name="Threads"              value="3">
-      <desc>
-        Total number of threads in the system.
-      </desc>
-    </const>
-    <const name="Processes"            value="4">
-      <desc>
-        Total number of processes in the system.
-      </desc>
-    </const>
-    <const name="Handles"              value="5">
-      <desc>
-        Total number of handles in the system.
-      </desc>
-    </const>
-    <const name="MemoryLoad"           value="6">
-      <desc>
-        Memory load (0-100%).
-      </desc>
-    </const>
-    <const name="PhysMemTotal"         value="7">
-      <desc>
-        Total physical memory in megabytes.
-      </desc>
-    </const>
-    <const name="PhysMemAvailable"     value="8">
-      <desc>
-        Free physical memory in megabytes.
-      </desc>
-    </const>
-    <const name="PhysMemBalloon"       value="9">
-      <desc>
-        Ballooned physical memory in megabytes.
-      </desc>
-    </const>
-    <const name="MemCommitTotal"       value="10">
-      <desc>
-        Total amount of memory in the committed state in megabytes.
-      </desc>
-    </const>
-    <const name="MemKernelTotal"       value="11">
-      <desc>
-        Total amount of memory used by the guest OS's kernel in megabytes.
-      </desc>
-    </const>
-    <const name="MemKernelPaged"       value="12">
-      <desc>
-        Total amount of paged memory used by the guest OS's kernel in megabytes.
-      </desc>
-    </const>
-    <const name="MemKernelNonpaged"    value="13">
-      <desc>
-        Total amount of non-paged memory used by the guest OS's kernel in megabytes.
-      </desc>
-    </const>
-    <const name="MemSystemCache"       value="14">
-      <desc>
-        Total amount of memory used by the guest OS's system cache in megabytes.
-      </desc>
-    </const>
-    <const name="PageFileSize"         value="15">
-      <desc>
-        Pagefile size in megabytes.
-      </desc>
-    </const>
-    <const name="SampleNumber"         value="16">
-      <desc>
-        Statistics sample number
-      </desc>
-    </const>
-    <const name="MaxVal"               value="17"/>
-  </enum>
-
-  <enum
     name="BIOSBootMenuMode"
     uuid="ae4fb9f7-29d2-45b4-b2c7-d579603135d5"
   >
@@ -1098,7 +1019,7 @@
    <enum
     name="FirmwareType"
     uuid="b903f264-c230-483e-ac74-2b37ce60d371"
-  >
+   >
     <desc>
       Firmware type.
     </desc>
@@ -1117,6 +1038,90 @@
     <const name="EFIDUAL"        value="5">
       <desc>Efi firmware, combined 32 and 64-bit.</desc>
     </const>
+  </enum>
+
+   <enum
+    name="PointingHidType"
+    uuid="0d3c17a2-821a-4b2e-ae41-890c6c60aa97"
+   >
+    <desc>
+      Type of pointing device used in a virtual machine.
+    </desc>
+    <const name="None"           value="1">
+      <desc>No mouse.</desc>
+    </const>
+    <const name="PS2Mouse"       value="2">
+      <desc>PS/2 auxillary device, a.k.a. mouse.</desc>
+    </const>
+    <const name="USBMouse"       value="3">
+      <desc>USB mouse (relative pointer).</desc>
+    </const>
+    <const name="USBTablet"      value="4">
+      <desc>USB tablet (absolute pointer).</desc>
+    </const>
+    <const name="ComboMouse"     value="5">
+      <desc>Combined device, working as PS/2 or USB mouse, depending on guest behavior.
+      Using of such device can have negative performance implications. </desc>
+    </const>
+  </enum>
+
+   <enum
+    name="KeyboardHidType"
+    uuid="5a5b0996-3a3e-44bb-9019-56979812cbcc"
+   >
+    <desc>
+      Type of keyboard device used in a virtual machine.
+    </desc>
+    <const name="None"              value="1">
+      <desc>No keyboard.</desc>
+    </const>
+    <const name="PS2Keyboard"       value="2">
+      <desc>PS/2 keyboard.</desc>
+    </const>
+    <const name="USBKeyboard"       value="3">
+      <desc>USB keyboard.</desc>
+    </const>
+    <const name="ComboKeyboard"     value="4">
+      <desc>Combined device, working as PS/2 or USB keyboard, depending on guest behavior.
+      Using of such device can have negative performance implications. </desc>
+    </const>
+  </enum>
+
+  <enum
+   name="IoMgrType"
+   uuid="35567419-4d2a-4256-a74e-efcae33493a2"
+   >
+     <desc>
+       Type of the I/O manager used for the image files in a virtual machine.
+     </desc>
+     <const name="Simple" value="1">
+       <desc>Simple manager. Normally only used if the default one runs into an
+       error. </desc>
+     </const>
+     <const name="Async" value="2">
+       <desc>Asynchronous manager using the async I/O API on the host if present.
+       This is the default manager.</desc>
+     </const>
+   </enum>
+
+  <enum
+   name="IoBackendType"
+   uuid="2a7e16d1-4e6b-4d5d-b0c9-b9bbe6c5b2ad"
+   >
+     <desc>
+       Type of I/O backend used for the image files in a virtual machine.
+     </desc>
+     <const name="Buffered" value="1">
+       <desc>Image files will use the host cache if possible.
+       This type does not work with the Async I/O manager on Linux hosts.
+       Default on all hosts except Linux.</desc>
+     </const>
+     <const name="Unbuffered" value="2">
+       <desc>Image files will not use the host cache.
+       This should be used on OS X and Linux hosts if a high I/O load is expected
+       or many virtual machines are running to prevent I/O cache
+       related hangs. Default on Linux hosts.</desc>
+     </const>
   </enum>
 
   <!--
@@ -1220,7 +1225,7 @@
   </interface>
 
   <interface
-     name="ILocalOwner" extends="$dispatched"
+     name="ILocalOwner" extends="$unknown"
      uuid="308FF42A-DC45-49D4-A950-B1EEE5E00BB5" wsmap="suppress"
      >
     <desc>
@@ -1249,7 +1254,7 @@
 
   <interface
      name="IVirtualBoxCallback" extends="$unknown"
-     uuid="9a65adf2-3ee6-406b-bca2-2b1fa05f0d0b"
+     uuid="7f6a65b6-ad5d-4a67-8872-0b11cb7ea95c"
      wsmap="suppress"
      >
 
@@ -1417,9 +1422,9 @@
       </param>
     </method>
 
-    <method name="onSnapshotDiscarded">
+    <method name="onSnapshotDeleted">
       <desc>
-        Snapshot of the given machine has been discarded.
+        Snapshot of the given machine has been deleted.
 
         <note>
           This notification is delivered <b>after</b> the snapshot
@@ -1434,8 +1439,8 @@
       </param>
       <param name="snapshotId" type="uuid" mod="string" dir="in">
         <desc>
-          ID of the discarded snapshot. @c null means the current machine
-          state has been discarded (restored from the current snapshot).
+          ID of the deleted snapshot. @c null means the current machine
+          state has been deleted (restored from the current snapshot).
         </desc>
       </param>
     </method>
@@ -1593,8 +1598,8 @@
   </interface>
 
   <interface
-    name="IVirtualBox" extends="$dispatched"
-    uuid="2158464a-f706-414b-a8c4-fb589dfc6b62"
+    name="IVirtualBox" extends="$unknown"
+    uuid="3f36e024-7fed-4f20-a02c-9158a82b44e6"
     wsmap="managed"
   >
     <desc>
@@ -1823,6 +1828,9 @@
       </param>
       <param name="id" type="uuid" mod="string" dir="in">
         <desc>Machine UUID (optional).</desc>
+      </param>
+      <param name="override" type="boolean" dir="in">
+        <desc>Create the VM even if there are conflicting files.</desc>
       </param>
       <param name="machine" type="IMachine" dir="return">
         <desc>Created machine object.</desc>
@@ -2112,8 +2120,8 @@
         This method tries to guess the storage format of the specified medium
         by reading medium data at the specified location.
 
-        If @a write is ReadWrite (which it should be), the image is opened for
-        read/write access and must have according permissions, as VirtualBox
+        If @a accessMode is ReadWrite (which it should be), the image is opened
+        for read/write access and must have according permissions, as VirtualBox
         may actually write status information into the disk's metadata sections.
 
         Note that write access is required for all typical image usage in VirtualBox,
@@ -2682,7 +2690,8 @@
         object remains in the closed state, and accessing the machine or its
         console through it is invalid. It is recommended to use
         <link to="IProgress::waitForCompletion" /> or similar calls to wait for
-        completion.
+        completion. Completion is signalled when the VM is powered on. Error
+        messages etc. can be queried via the progress object, if available.
 
         As with all <link to="ISession" /> objects, it is recommended to call
         <link to="ISession::close" /> on the local session object once openRemoteSession()
@@ -3189,17 +3198,17 @@
     <desc>
         Represents a platform-independent appliance in OVF format. An instance of this is returned
         by <link to="IVirtualBox::createAppliance" />, which can then be used to import and export
-        appliances with VirtualBox.
+        virtual machines within an appliance with VirtualBox.
 
         The OVF standard suggests two different physical file formats:
 
         <ol>
-            <li>If the OVF is distributed as a set of files, then @a file must be a fully qualified
-                path name to an existing OVF descriptor file with an <tt>.ovf</tt> file extension. If
-                this descriptor file references other files, as OVF appliances distributed as a set of
-                files most likely do, those files must be in the same directory as the descriptor file.</li>
+            <li>If the appliance is distributed as a set of files, there must be at least one XML descriptor
+                file that conforms to the OVF standard and carries an <tt>.ovf</tt> file extension. If
+                this descriptor file references other files such as disk images, as OVF appliances typically
+                do, those additional files must be in the same directory as the descriptor file.</li>
 
-            <li>If the OVF is distributed as a single file, it must be in TAR format and have the
+              <li>If the appliance is distributed as a single file, it must be in TAR format and have the
                 <tt>.ova</tt> file extension. This TAR file must then contain at least the OVF descriptor
                 files and optionally other files.
 
@@ -3216,7 +3225,7 @@
 
           <li>On the new object, call <link to="#read" /> with the full path of the OVF file you
               would like to import. So long as this file is syntactically valid, this will succeed
-              and return an instance of IAppliance that contains the parsed data from the OVF file.
+              and fill the appliance object with the parsed data from the OVF file.
           </li>
 
           <li>Next, call <link to="#interpret" />, which analyzes the OVF data and sets up the
@@ -3273,7 +3282,7 @@
       <desc>
         Array of virtual disk definitions. One such description exists for each
         disk definition in the OVF; each string array item represents one such piece of
-        disk information, with the information fields separated by tab (\\t) characters.
+        disk information, with the information fields separated by tab (\t) characters.
 
         The caller should be prepared for additional fields being appended to
         this string in future versions of VirtualBox and therefore check for
@@ -3490,24 +3499,24 @@
       items with the same indices correspond and jointly represent an import instruction for VirtualBox.
 
       The list below identifies the value sets that are possible depending on the
-      <link to="VirtualSystemDescriptionType" /> enum value in the array item in aTypes[]. In each case,
-      the array item with the same index in aOvfValues[] will contain the original value as contained
-      in the OVF file (just for informational purposes), and the corresponding item in aVBoxValues[]
+      <link to="VirtualSystemDescriptionType" /> enum value in the array item in @a aTypes[]. In each case,
+      the array item with the same index in @a aOvfValues[] will contain the original value as contained
+      in the OVF file (just for informational purposes), and the corresponding item in @a aVBoxValues[]
       will contain a suggested value to be used for VirtualBox. Depending on the description type,
-      the aExtraConfigValues[] array item may also be used.
+      the @a aExtraConfigValues[] array item may also be used.
 
       <ul>
       <li>
         "OS": the guest operating system type. There must be exactly one such array item on import. The
-        corresponding item in aVBoxValues[] contains the suggested guest operating system for VirtualBox.
+        corresponding item in @a  aVBoxValues[] contains the suggested guest operating system for VirtualBox.
         This will be one of the values listed in <link to="IVirtualBox::guestOSTypes" />. The corresponding
-        item in aOvfValues[] will contain a numerical value that described the operating system in the OVF.
+        item in @a aOvfValues[] will contain a numerical value that described the operating system in the OVF.
       </li>
       <li>
         "Name": the name to give to the new virtual machine. There can be at most one such array item;
         if none is present on import, then an automatic name will be created from the operating system
-        type. The correponding item im aOvfValues[] will contain the suggested virtual machine name
-        from the OVF file, and aVBoxValues[] will contain a suggestion for a unique VirtualBox
+        type. The correponding item im @a aOvfValues[] will contain the suggested virtual machine name
+        from the OVF file, and @a aVBoxValues[] will contain a suggestion for a unique VirtualBox
         <link to="IMachine" /> name that does not exist yet.
       </li>
       <li>
@@ -3529,52 +3538,59 @@
         type.
       </li>
       <li>
-        "HarddiskControllerIDE": an IDE hard disk controller. There can be at most one such item. This
-        has no value in aOvfValues[] or aVBoxValues[].
-        The matching item in the aRefs[] array will contain an integer that items of the "Harddisk"
+        "HardDiskControllerIDE": an IDE hard disk controller. There can be at most two such items.
+        An optional value in @a aOvfValues[] and @a aVBoxValues[] can be "PIIX3" or "PIIX4" to specify
+        the type of IDE controller; this corresponds to the ResourceSubType element which VirtualBox
+        writes into the OVF.
+        The matching item in the @a aRefs[] array will contain an integer that items of the "Harddisk"
         type can use to specify which hard disk controller a virtual disk should be connected to.
+        Note that in OVF, an IDE controller has two channels, corresponding to "master" and "slave"
+        in traditional terminology, whereas the IDE storage controller that VirtualBox supports in
+        its virtual machines supports four channels (primary master, primary slave, secondary master,
+        secondary slave) and thus maps to two IDE controllers in the OVF sense.
       </li>
       <li>
-        "HarddiskControllerSATA": an SATA hard disk controller. There can be at most one such item. This
-        has no value in aOvfValues[] or aVBoxValues[].
-        The matching item in the aRefs[] array will be used as with IDE controllers (see above).
+        "HardDiskControllerSATA": an SATA hard disk controller. There can be at most one such item. This
+        has no value in @a aOvfValues[] or @a aVBoxValues[].
+        The matching item in the @a aRefs[] array will be used as with IDE controllers (see above).
       </li>
       <li>
-        "HarddiskControllerSCSI": a SCSI hard disk controller. There can be at most one such item.
-        The items in aOvfValues[] and aVBoxValues[] will either be "LsiLogic" or "BusLogic".
-        The matching item in the aRefs[] array will be used as with IDE controllers (see above).
+        "HardDiskControllerSCSI": a SCSI hard disk controller. There can be at most one such item.
+        The items in @a aOvfValues[] and @a aVBoxValues[] will either be "LsiLogic" or "BusLogic".
+        The matching item in the @a aRefs[] array will be used as with IDE controllers (see above).
       </li>
       <li>
         "HardDiskImage": a virtual hard disk, most probably as a reference to an image file. There can be an
         arbitrary number of these items, one for each virtual disk image that accompanies the OVF.
 
-        The array item in aOvfValues[] will contain the file specification from the OVF file (without
+        The array item in @a aOvfValues[] will contain the file specification from the OVF file (without
         a path since the image file should be in the same location as the OVF file itself), whereas the
-        item in aVBoxValues[] will contain a qualified path specification to where VirtualBox uses the
+        item in @a aVBoxValues[] will contain a qualified path specification to where VirtualBox uses the
         hard disk image. This means that on import the image will be copied and converted from the
         "ovf" location to the "vbox" location; on export, this will be handled the other way round.
         On import, the target image will also be registered with VirtualBox.
 
-        The matching item in the aExtraConfigValues[] array must contain a string of the following
+        The matching item in the @a aExtraConfigValues[] array must contain a string of the following
         format: "controller=&lt;index&gt;;channel=&lt;c&gt;"
         In this string, &lt;index&gt; must be an integer specifying the hard disk controller to connect
         the image to. That number must be the index of an array item with one of the hard disk controller
-        types (HarddiskControllerSCSI, HarddiskControllerSATA, HarddiskControllerIDE).
+        types (HardDiskControllerSCSI, HardDiskControllerSATA, HardDiskControllerIDE).
         In addition, &lt;c&gt; must specify the channel to use on that controller. For IDE controllers,
-        this can range from 0-3 (which VirtualBox will interpret as primary master, primary slave, secondary master and
-        secondary slave. For SATA and SCSI controllers, the channel can range from 0-29.
+        this can be 0 or 1 for master or slave, respectively. For compatibility with VirtualBox versions
+        before 3.2, the values 2 and 3 (for secondary master and secondary slave) are also supported, but
+        no longer exported. For SATA and SCSI controllers, the channel can range from 0-29.
       </li>
       <li>
-         "CDROM": a virtual CD-ROM drive. The matching item in aExtraConfigValue[] contains the same
+         "CDROM": a virtual CD-ROM drive. The matching item in @a aExtraConfigValue[] contains the same
          attachment information as with "HardDiskImage" items.
       </li>
       <li>
-        "CDROM": a virtual floppy drive. The matching item in aExtraConfigValue[] contains the same
+        "CDROM": a virtual floppy drive. The matching item in @a aExtraConfigValue[] contains the same
         attachment information as with "HardDiskImage" items.
       </li>
       <li>
-        "NetworkAdapter": a network adapter. The array item in aVBoxValues[] will specify the hardware
-        for the network adapter, whereas the array item in aExtraConfigValues[] will have a string
+        "NetworkAdapter": a network adapter. The array item in @a aVBoxValues[] will specify the hardware
+        for the network adapter, whereas the array item in @a aExtraConfigValues[] will have a string
         of the "type=&lt;X&gt;" format, where &lt;X&gt; must be either "NAT" or "Bridged".
       </li>
       <li>
@@ -3724,7 +3740,7 @@
 
   <interface
      name="IInternalMachineControl" extends="$unknown"
-     uuid="35d8d838-d066-447d-927a-fd93afdbec90"
+     uuid="57e9a280-8d57-4331-aa31-f009f5194f52"
      internal="yes"
      wsmap="suppress"
      >
@@ -3750,6 +3766,17 @@
 
     <method name="getIPCId">
       <param name="id" type="wstring" dir="return"/>
+    </method>
+
+    <method name="setPowerUpInfo">
+      <desc>
+        Transfers success (@c null) or error information for this session.
+        This method updates the progress object to signal completion of the
+        <link to="IVirtualBox::openRemoteSession"/> method if appropriate,
+        which means that the progress object returned by
+        <link to="IConsole::powerUp"/>.
+      </desc>
+      <param name="error" type="IVirtualBoxErrorInfo" dir="in"/>
     </method>
 
     <method name="runUSBDeviceFilters">
@@ -3958,13 +3985,38 @@
         <desc>The console object that initiated this call.</desc>
       </param>
       <param name="id" type="uuid" mod="string" dir="in">
-        <desc>UUID of the snapshot to discard.</desc>
+        <desc>UUID of the snapshot to delete.</desc>
       </param>
       <param name="machineState" type="MachineState" dir="out">
         <desc>New machine state after this operation is started.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="finishOnlineMergeMedium">
+      <desc>
+        Gets called by IConsole::onlineMergeMedium.
+      </desc>
+      <param name="mediumAttachment" type="IMediumAttachment" dir="in">
+        <desc>The medium attachment which needs to be cleaned up.</desc>
+      </param>
+      <param name="source" type="IMedium" dir="in">
+        <desc>Merge source medium.</desc>
+      </param>
+      <param name="target" type="IMedium" dir="in">
+        <desc>Merge target medium.</desc>
+      </param>
+      <param name="mergeForward" type="boolean" dir="in">
+        <desc>Merge direction.</desc>
+      </param>
+      <param name="parentForTarget" type="IMedium" dir="in">
+        <desc>For forward merges: new parent for target medium.</desc>
+      </param>
+      <param name="childrenToReparent" type="IMedium" safearray="yes" dir="in">
+        <desc>For backward merges: list of media which need their parent UUID
+        updated.</desc>
       </param>
     </method>
 
@@ -4017,36 +4069,6 @@
       </param>
     </method>
 
-    <method name="pushGuestProperties">
-      <desc>
-        Set the list of the guest properties matching a set of patterns along
-        with their values, time stamps and flags and return responsibility for
-        managing properties to IMachine.
-      </desc>
-      <param name="name" type="wstring" dir="in" safearray="yes">
-        <desc>
-          The names of the properties.
-        </desc>
-      </param>
-      <param name="value" type="wstring" dir="in" safearray="yes">
-        <desc>
-          The values of the properties.  The array entries match the
-          corresponding entries in the @a name array.
-        </desc>
-      </param>
-      <param name="timestamp" type="unsigned long long" dir="in" safearray="yes">
-        <desc>
-          The time stamps of the properties.  The array entries match
-          the corresponding entries in the @a name array.
-        </desc>
-      </param>
-      <param name="flags" type="wstring" dir="in" safearray="yes">
-        <desc>
-          The flags of the properties.  The array entries match the
-          corresponding entries in the @a name array.
-        </desc>
-      </param>
-    </method>
     <method name="pushGuestProperty">
       <desc>
         Update a single guest property in IMachine.
@@ -4159,7 +4181,7 @@
 
   <interface
      name="IMachine" extends="$unknown"
-     uuid="99404f50-dd10-40d3-889b-dd2f79f1e95e"
+     uuid="b8a9324a-1042-4c78-aff6-9d1c2bfd8cd0"
      wsmap="managed"
      >
     <desc>
@@ -4350,16 +4372,18 @@
       <desc>Number of virtual CPUs in the VM.</desc>
     </attribute>
 
+    <attribute name="CPUHotPlugEnabled" type="boolean">
+      <desc>
+        This setting determines whether VirtualBox allows CPU
+        hotplugging for this machine.</desc>
+    </attribute>
+
     <attribute name="memorySize" type="unsigned long">
       <desc>System memory size in megabytes.</desc>
     </attribute>
 
     <attribute name="memoryBalloonSize" type="unsigned long">
-      <desc>Initial memory balloon size in megabytes.</desc>
-    </attribute>
-
-    <attribute name="statisticsUpdateInterval" type="unsigned long">
-      <desc>Initial interval to update guest statistics in seconds.</desc>
+      <desc>Memory balloon size in megabytes.</desc>
     </attribute>
 
     <attribute name="VRAMSize" type="unsigned long">
@@ -4392,9 +4416,28 @@
       <desc>Object containing all BIOS settings.</desc>
     </attribute>
 
-     <attribute name="firmwareType" type="FirmwareType">
+    <attribute name="firmwareType" type="FirmwareType">
       <desc>Type of firmware (such as legacy BIOS or EFI), used for initial
        bootstrap in this VM.</desc>
+    </attribute>
+
+    <attribute name="pointingHidType" type="PointingHidType">
+      <desc>Type of pointing HID (such as mouse or tablet) used in this VM.
+        The default is typically "PS2Mouse" but can vary depending on the
+        requirements of the guest operating system.</desc>
+    </attribute>
+
+    <attribute name="keyboardHidType" type="KeyboardHidType">
+      <desc>Type of keyboard HID used in this VM.
+        The default is typically "PS2Keyboard" but can vary depending on the
+        requirements of the guest operating system.</desc>
+    </attribute>
+
+    <attribute name="hpetEnabled" type="boolean">
+      <desc>This attribute controls if High Precision Event Timer (HPET) is
+        enabled in this VM. Use this property if you want to provide guests
+        with additional time source, or if guest requires HPET to function correctly.
+        Default is false.</desc>
     </attribute>
 
     <attribute name="snapshotFolder" type="wstring">
@@ -4589,8 +4632,8 @@
         happens:
         <ul>
           <li>settings of the machine are changed</li>
-          <li>the saved state is discarded</li>
-          <li>the current snapshot is discarded</li>
+          <li>the saved state is deleted</li>
+          <li>the current snapshot is deleted</li>
           <li>an attempt to execute the machine is made</li>
         </ul>
 
@@ -4662,6 +4705,46 @@
         The password the to check for on the target teleporter.  This is just a
         very basic measure to prevent simple hacks and operators accidentally
         beaming a virtual machine to the wrong place.
+      </desc>
+    </attribute>
+
+    <attribute name="RTCUseUTC" type="boolean">
+      <desc>
+        When set to @a true, the RTC device of the virtual machine will run
+        in UTC time, otherwise in local time. Especially Unix guests prefer
+        the time in UTC.
+      </desc>
+    </attribute>
+
+    <attribute name="ioMgr" type="IoMgrType">
+      <desc>
+        Selects the I/O manager to use for the virtual machine.
+      </desc>
+    </attribute>
+
+    <attribute name="ioBackend" type="IoBackendType">
+      <desc>
+        Selects the I/O backend to use for the virtual machine.
+      </desc>
+    </attribute>
+
+    <attribute name="ioCacheEnabled" type="boolean">
+      <desc>
+        When set to @a true, the builtin I/O cache of the virtual machine
+        will be enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="ioCacheSize" type="unsigned long">
+      <desc>
+        Maximum size of the I/O cache in MB.
+      </desc>
+    </attribute>
+
+    <attribute name="ioBandwidthMax" type="unsigned long">
+      <desc>
+        The maximum number of MB the VM is allowed to transfer per second.
+        0 means unlimited bandwidth.
       </desc>
     </attribute>
 
@@ -5198,7 +5281,7 @@
       </param>
     </method>
 
-    <method name="getCpuProperty" const="yes">
+    <method name="getCPUProperty" const="yes">
       <desc>
         Returns the virtual CPU boolean value of the specified property.
 
@@ -5207,7 +5290,7 @@
         </result>
 
       </desc>
-      <param name="property" type="CpuPropertyType" dir="in">
+      <param name="property" type="CPUPropertyType" dir="in">
         <desc>
           Property type to query.
         </desc>
@@ -5219,7 +5302,7 @@
       </param>
     </method>
 
-    <method name="setCpuProperty">
+    <method name="setCPUProperty">
       <desc>
         Sets the virtual CPU boolean value of the specified property.
 
@@ -5228,7 +5311,7 @@
         </result>
 
       </desc>
-      <param name="property" type="CpuPropertyType" dir="in">
+      <param name="property" type="CPUPropertyType" dir="in">
         <desc>
           Property type to query.
         </desc>
@@ -5240,7 +5323,7 @@
       </param>
     </method>
 
-    <method name="getCpuIdLeaf" const="yes">
+    <method name="getCPUIDLeaf" const="yes">
       <desc>
         Returns the virtual CPU cpuid information for the specified leaf.
 
@@ -5257,32 +5340,32 @@
       </desc>
       <param name="id" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf index.
+          CPUID leaf index.
         </desc>
       </param>
       <param name="valEax" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register eax.
+          CPUID leaf value for register eax.
         </desc>
       </param>
       <param name="valEbx" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register ebx.
+          CPUID leaf value for register ebx.
         </desc>
       </param>
       <param name="valEcx" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register ecx.
+          CPUID leaf value for register ecx.
         </desc>
       </param>
       <param name="valEdx" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register edx.
+          CPUID leaf value for register edx.
         </desc>
       </param>
     </method>
 
-    <method name="setCpuIdLeaf" const="yes">
+    <method name="setCPUIDLeaf">
       <desc>
         Sets the virtual CPU cpuid information for the specified leaf. Note that these values
         are not passed unmodified. VirtualBox clears features that it doesn't support.
@@ -5303,32 +5386,32 @@
       </desc>
       <param name="id" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf index.
+          CPUID leaf index.
         </desc>
       </param>
       <param name="valEax" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf value for register eax.
+          CPUID leaf value for register eax.
         </desc>
       </param>
       <param name="valEbx" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf value for register ebx.
+          CPUID leaf value for register ebx.
         </desc>
       </param>
       <param name="valEcx" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf value for register ecx.
+          CPUID leaf value for register ecx.
         </desc>
       </param>
       <param name="valEdx" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf value for register edx.
+          CPUID leaf value for register edx.
         </desc>
       </param>
     </method>
 
-    <method name="removeCpuIdLeaf" const="yes">
+    <method name="removeCPUIDLeaf">
       <desc>
         Removes the virtual CPU cpuid leaf for the specified index
 
@@ -5339,14 +5422,14 @@
       </desc>
       <param name="id" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf index.
+          CPUID leaf index.
         </desc>
       </param>
     </method>
 
-    <method name="removeAllCpuIdLeafs" const="yes">
+    <method name="removeAllCPUIDLeaves">
       <desc>
-        Removes all the virtual CPU cpuid leafs
+        Removes all the virtual CPU cpuid leaves
       </desc>
     </method>
 
@@ -5643,7 +5726,7 @@
       </param>
     </method>
 
-    <method name="getGuestProperty">
+    <method name="getGuestProperty" const="yes">
       <desc>
         Reads an entry from the machine's guest property store.
 
@@ -5677,7 +5760,7 @@
       </param>
     </method>
 
-    <method name="getGuestPropertyValue">
+    <method name="getGuestPropertyValue" const="yes">
       <desc>
         Reads a value from the machine's guest property store.
 
@@ -5699,7 +5782,7 @@
       </param>
     </method>
 
-    <method name="getGuestPropertyTimestamp">
+    <method name="getGuestPropertyTimestamp" const="yes">
       <desc>
         Reads a property timestamp from the machine's guest property store.
 
@@ -5918,7 +6001,92 @@
         </desc>
       </param>
     </method>
-</interface>
+
+    <method name="hotPlugCPU">
+      <desc>
+        Plugs a CPU into the machine.
+      </desc>
+      <param name="cpu" type="unsigned long" dir="in">
+        <desc>
+          The CPU id to insert.
+        </desc>
+      </param>
+    </method>
+
+    <method name="hotUnplugCPU">
+      <desc>
+        Removes a CPU from the machine.
+      </desc>
+      <param name="cpu" type="unsigned long" dir="in">
+        <desc>
+          The CPU id to remove.
+        </desc>
+      </param>
+    </method>
+
+    <method name="getCPUStatus">
+      <desc>
+        Returns the current status of the given CPU.
+      </desc>
+      <param name="cpu" type="unsigned long" dir="in">
+        <desc>
+          The CPU id to check for.
+        </desc>
+      </param>
+      <param name="attached" type="boolean" dir="return">
+        <desc>
+          Status of the CPU.
+        </desc>
+      </param>
+    </method>
+
+    <method name="queryLogFilename">
+      <desc>
+        Queries for the VM log file name of an given index. Returns an empty
+        string if a log file with that index doesn't exists.
+      </desc>
+      <param name="idx" type="unsigned long" dir="in">
+        <desc>
+          Which log file name to query. 0=current log file.
+        </desc>
+      </param>
+      <param name="filename" type="wstring" dir="return">
+        <desc>
+          On return the full path to the log file or an empty string on error.
+        </desc>
+      </param>
+    </method>
+
+    <method name="readLog">
+      <desc>
+        Reads the VM log file. The chunk size is limited, so even if you
+        ask for a big piece there might be less data returned.
+      </desc>
+      <param name="idx" type="unsigned long" dir="in">
+        <desc>
+          Which log file to read. 0=current log file.
+        </desc>
+      </param>
+      <param name="offset" type="unsigned long long" dir="in">
+        <desc>
+          Offset in the log file.
+        </desc>
+      </param>
+      <param name="size" type="unsigned long long" dir="in">
+        <desc>
+          Chunk size to read in the log file.
+        </desc>
+      </param>
+      <param name="data" type="octet" dir="return" safearray="yes">
+        <desc>
+          Data read from the log file. A data size of 0 means end of file
+          if the requested chunk size was not 0. This is the unprocessed
+          file data, i.e. the line ending style depends on the platform of
+          the system the server is running on.
+        </desc>
+      </param>
+    </method>
+  </interface>
 
   <!--
   // IConsole
@@ -5927,7 +6095,7 @@
 
   <interface
      name="IConsoleCallback" extends="$unknown"
-     uuid="d6239535-bda2-4ef7-83f4-f4722e4a3b2c"
+     uuid="60703f8d-81e4-4b45-a147-dcfd07692b19"
      wsmap="suppress"
      >
 
@@ -6020,6 +6188,7 @@
         guest have changed. The new capabilities are passed.
       </desc>
       <param name="supportsAbsolute" type="boolean" dir="in"/>
+      <param name="supportsRelative" type="boolean" dir="in"/>
       <param name="needsHostCursor" type="boolean" dir="in"/>
     </method>
 
@@ -6102,6 +6271,18 @@
       </desc>
       <param name="mediumAttachment" type="IMediumAttachment" dir="in">
         <desc>Medium attachment that is subject to change.</desc>
+      </param>
+    </method>
+
+    <method name="onCPUChange">
+      <desc>
+        Notification when a CPU changes.
+      </desc>
+      <param name="cpu" type="unsigned long" dir="in">
+        <desc>The CPU which changed</desc>
+      </param>
+      <param name="add" type="boolean" dir="in">
+        <desc>Flag whether the CPU was added or removed</desc>
       </param>
     </method>
 
@@ -7007,7 +7188,7 @@
         the snapshot will be deleted. The contents of all differencing media of
         this snapshot will be merged with the contents of their dependent child
         media to keep the medium chain valid (in other words, all changes
-        represented by media being discarded will be propagated to their child
+        represented by media being deleted will be propagated to their child
         medium). After that, this snapshot's differencing medium will be
         deleted. The parent of this snapshot will become a new parent for all
         its child snapshots.
@@ -7015,7 +7196,7 @@
         If the deleted snapshot is the current one, its parent snapshot will
         become a new current snapshot. The current machine state is not directly
         affected in this case, except that currently attached differencing
-        media based on media of the discarded snapshot will be also merged as
+        media based on media of the deleted snapshot will be also merged as
         described above.
 
         If the deleted snapshot is the first or current snapshot, then the
@@ -7026,11 +7207,11 @@
         Deleting a snapshot has the following preconditions:
 
         <ul>
-          <li>Child media of all normal media of the discarded snapshot
+          <li>Child media of all normal media of the deleted snapshot
             must be accessible (see <link to="IMedium::state"/>) for this
             operation to succeed.  In particular, this means that all virtual
             machines, whose media are directly or indirectly based on the
-            media of discarded snapshot, must be powered off.</li>
+            media of deleted snapshot, must be powered off.</li>
 
           <li>You cannot delete the snapshot if a medium attached to it has
           more than once child medium (differencing images) because otherwise
@@ -7047,7 +7228,7 @@
         <note>
           Merging medium contents can be very time and disk space
           consuming, if these media are big in size and have many
-          children. However, if the snapshot being discarded is the last
+          children. However, if the snapshot being deleted is the last
           (head) snapshot on the branch, the operation will be rather
           quick.
         </note>
@@ -7056,7 +7237,7 @@
         </result>
       </desc>
       <param name="id" type="uuid" mod="string" dir="in">
-        <desc>UUID of the snapshot to discard.</desc>
+        <desc>UUID of the snapshot to delete.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation completion.</desc>
@@ -7086,7 +7267,7 @@
         <note>
           If the machine state is <link to="MachineState_Saved">Saved</link>
           prior to this operation, the saved state file will be implicitly
-          discarded (as if <link to="IConsole::forgetSavedState"/> were
+          deleted (as if <link to="IConsole::forgetSavedState"/> were
           called).
         </note>
 
@@ -7460,7 +7641,7 @@
       </param>
     </method>
 
-    <method name="getProcessorCpuIdLeaf">
+    <method name="getProcessorCPUIDLeaf">
       <desc>
         Returns the CPU cpuid information for the specified leaf.
       </desc>
@@ -7475,34 +7656,34 @@
       </param>
       <param name="leaf" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf index (eax).
+          CPUID leaf index (eax).
         </desc>
       </param>
       <param name="subLeaf" type="unsigned long" dir="in">
         <desc>
-          Cpuid leaf sub index (ecx).  This currently only applies to cache
+          CPUID leaf sub index (ecx).  This currently only applies to cache
           information on Intel CPUs.  Use 0 if retriving values for
-          <link to="IMachine::setCpuIdLeaf"/>.
+          <link to="IMachine::setCPUIDLeaf"/>.
         </desc>
       </param>
       <param name="valEax" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register eax.
+          CPUID leaf value for register eax.
         </desc>
       </param>
       <param name="valEbx" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register ebx.
+          CPUID leaf value for register ebx.
         </desc>
       </param>
       <param name="valEcx" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register ecx.
+          CPUID leaf value for register ecx.
         </desc>
       </param>
       <param name="valEdx" type="unsigned long" dir="out">
         <desc>
-          Cpuid leaf value for register edx.
+          CPUID leaf value for register edx.
         </desc>
       </param>
     </method>
@@ -7780,7 +7961,7 @@
   <interface
      name="ISystemProperties"
      extends="$unknown"
-     uuid="8030645c-8fef-4320-bb7b-c829f00069dc"
+     uuid="07c3ffd8-8f59-49cc-b608-53a332e85cc3"
      wsmap="managed"
      >
     <desc>
@@ -7814,6 +7995,10 @@
 
     <attribute name="maxGuestCPUCount" type="unsigned long" readonly="yes">
       <desc>Maximum CPU count.</desc>
+    </attribute>
+
+    <attribute name="maxGuestMonitors" type="unsigned long" readonly="yes">
+      <desc>Maximum of monitors which could be connected.</desc>
     </attribute>
 
     <attribute name="maxVDISize" type="unsigned long long" readonly="yes">
@@ -7984,6 +8169,28 @@
       </desc>
     </attribute>
 
+    <attribute name="freeDiskSpaceWarning" type="unsigned long long">
+      <desc>Issue a warning if the free disk space is below (or in some disk
+      intensive operation is expected to go below) the given size in
+      Megabytes.</desc>
+    </attribute>
+
+    <attribute name="freeDiskSpacePercentWarning" type="unsigned long">
+      <desc>Issue a warning if the free disk space is below (or in some disk
+      intensive operation is expected to go below) the given percentage.</desc>
+    </attribute>
+
+    <attribute name="freeDiskSpaceError" type="unsigned long long">
+      <desc>Issue an error if the free disk space is below (or in some disk
+      intensive operation is expected to go below) the given size in
+      Megabytes.</desc>
+    </attribute>
+
+    <attribute name="freeDiskSpacePercentError" type="unsigned long">
+      <desc>Issue an error if the free disk space is below (or in some disk
+      intensive operation is expected to go below) the given percentage.</desc>
+    </attribute>
+
     <attribute name="remoteDisplayAuthLibrary" type="wstring">
       <desc>
         Library that provides authentication for VRDP clients. The library
@@ -8120,7 +8327,7 @@
 
   <interface
     name="IGuestOSType" extends="$unknown"
-    uuid="cfe9e64c-4430-435b-9e7c-e3d8e417bd58"
+    uuid="8aa950f6-668c-4388-b251-3809b404e862"
     wsmap="struct"
   >
     <desc>
@@ -8169,11 +8376,52 @@
     <attribute name="adapterType" type="NetworkAdapterType" readonly="yes">
       <desc>Returns recommended network adapter for this OS type.</desc>
     </attribute>
+
+    <attribute name="recommendedPae" type="boolean" readonly="yes">
+      <desc>Returns @c true if using PAE is recommended for this OS type.</desc>
+    </attribute>
+
+    <attribute name="recommendedDvdStorageController" type="StorageControllerType" readonly="yes">
+      <desc>Recommended storage controller type for DVD/CD drives.</desc>
+    </attribute>
+
+    <attribute name="recommendedDvdStorageBus" type="StorageBus" readonly="yes">
+      <desc>Recommended storage bus type for DVD/CD drives.</desc>
+    </attribute>
+
+    <attribute name="recommendedHdStorageController" type="StorageControllerType" readonly="yes">
+      <desc>Recommended storage controller type for HD drives.</desc>
+    </attribute>
+
+    <attribute name="recommendedHdStorageBus" type="StorageBus" readonly="yes">
+      <desc>Recommended storage bus type for HD drives.</desc>
+    </attribute>
+
+    <attribute name="recommendedFirmware" type="FirmwareType" readonly="yes">
+      <desc>Recommended firmware type.</desc>
+    </attribute>
+
+    <attribute name="recommendedUsbHid" type="boolean" readonly="yes">
+      <desc>Returns @c true if using USB Human Interface Devices, such as keyboard and mouse recommended.</desc>
+    </attribute>
+
+     <attribute name="recommendedHpet" type="boolean" readonly="yes">
+      <desc>Returns @c true if using HPET is recommended for this OS type.</desc>
+    </attribute>
+
+    <attribute name="recommendedUsbTablet" type="boolean" readonly="yes">
+      <desc>Returns @c true if using a USB Tablet is recommended.</desc>
+    </attribute>
+
+    <attribute name="recommendedRtcUseUtc" type="boolean" readonly="yes">
+      <desc>Returns @c true if the RTC of this VM should be set to UTC</desc>
+    </attribute>
+
   </interface>
 
   <interface
      name="IGuest" extends="$unknown"
-     uuid="d8556fca-81bc-12af-fca3-365528fa38ca"
+     uuid="d073545f-9635-489e-b36f-d468a10f8987"
      wsmap="managed"
      >
     <desc>
@@ -8235,12 +8483,51 @@
     </attribute>
 
     <attribute name="memoryBalloonSize" type="unsigned long">
-      <desc>Guest system memory balloon size in megabytes.</desc>
+      <desc>Guest system memory balloon size in megabytes (transient property).</desc>
     </attribute>
 
     <attribute name="statisticsUpdateInterval" type="unsigned long">
       <desc>Interval to update guest statistics in seconds.</desc>
     </attribute>
+
+    <method name="internalGetStatistics">
+      <desc>
+         Internal method; do not use as it might change at any time
+      </desc>
+      <param name="cpuUser" type="unsigned long" dir="out">
+         <desc>Percentage of processor time spent in user mode as seen by the guest</desc>
+      </param>
+      <param name="cpuKernel" type="unsigned long" dir="out">
+         <desc>Percentage of processor time spent in kernel mode as seen by the guest</desc>
+      </param>
+      <param name="cpuIdle" type="unsigned long" dir="out">
+         <desc>Percentage of processor time spent idling as seen by the guest</desc>
+      </param>
+      <param name="memTotal" type="unsigned long" dir="out">
+         <desc>Total amount of physical guest RAM</desc>
+      </param>
+      <param name="memFree" type="unsigned long" dir="out">
+         <desc>Free amount of physical guest RAM</desc>
+      </param>
+      <param name="memBalloon" type="unsigned long" dir="out">
+         <desc>Amount of ballooned physical guest RAM</desc>
+      </param>
+      <param name="memCache" type="unsigned long" dir="out">
+         <desc>Total amount of guest (disk) cache memory</desc>
+      </param>
+      <param name="pagedTotal" type="unsigned long" dir="out">
+         <desc>Total amount of space in the page file</desc>
+      </param>
+      <param name="memAllocTotal" type="unsigned long" dir="out">
+         <desc>Total amount of memory allocated by the hypervisor</desc>
+      </param>
+      <param name="memFreeTotal" type="unsigned long" dir="out">
+         <desc>Total amount of free memory available in the hypervisor</desc>
+      </param>
+      <param name="memBalloonTotal" type="unsigned long" dir="out">
+         <desc>Total amount of memory ballooned by the hypervisor</desc>
+      </param>
+    </method>
 
     <method name="setCredentials">
       <desc>
@@ -8273,19 +8560,153 @@
       </param>
     </method>
 
-    <method name="getStatistic">
+    <method name="executeProcess">
       <desc>
-        Query specified guest statistics as reported by the VirtualBox Additions.
+        Executes an existing program inside the guest VM.
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Could not execute process.
+        </result>
+
       </desc>
-      <param name="cpuId" type="unsigned long" dir="in">
-        <desc>Virtual CPU id; not relevant for all statistic types</desc>
+      <param name="execName" type="wstring" dir="in">
+        <desc>
+          Full path name of the command to execute on the guest; the
+          commands has to exists in the guest VM in order to be executed.
+        </desc>
       </param>
-      <param name="statistic" type="GuestStatisticType" dir="in">
-        <desc>Statistic type.</desc>
+      <param name="flags" type="unsigned long" dir="in">
+        <desc>
+          Execution flags - currently not supported and therefore
+          has to be set to 0.
+        </desc>
       </param>
-      <param name="statVal" type="unsigned long" dir="return">
-        <desc>Statistics value</desc>
+      <param name="arguments" type="wstring" safearray="yes" dir="in">
+        <desc>
+          Array of arguments passed to the execution command.
+        </desc>
       </param>
+      <param name="environment" type="wstring" safearray="yes" dir="in">
+        <desc>
+          Environment variables that can be set while the command is being
+          executed, in form of "NAME=VALUE"; one pair per entry. To unset a
+          variable just set its name ("NAME") without a value.
+        </desc>
+      </param>
+      <param name="stdIn" type="wstring" dir="in">
+        <desc>
+          What to do with the standard input (stdin) of the command being
+          executed. Currently not used and has to be set to an empty value.
+        </desc>
+      </param>
+      <param name="stdOut" type="wstring" dir="in">
+        <desc>
+          What to do with the standard output (stdout) of the command being
+          executed. Currently not used and has to be set to an empty value.
+        </desc>
+      </param>
+      <param name="stdErr" type="wstring" dir="in">
+        <desc>
+          What to do with the standard error (stderr) of the command being
+          executed. Currently not used and has to be set to an empty value.
+        </desc>
+      </param>
+      <param name="userName" type="wstring" dir="in">
+        <desc>
+          User name under which the command will be executed; has to exist
+          and have the appropriate rights to execute programs in the VM.
+        </desc>
+      </param>
+      <param name="password" type="wstring" dir="in">
+        <desc>
+          Password of the user account specified.
+        </desc>
+      </param>
+      <param name="timeoutMS" type="unsigned long" dir="in">
+        <desc>
+          The maximum timeout value (in msec) to wait for finished program
+          execution. Pass 0 for an infinite timeout.
+        </desc>
+      </param>
+      <param name="pid" type="unsigned long" dir="out">
+        <desc>
+          The PID (process ID) of the started command for later reference.
+        </desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="getProcessOutput">
+      <desc>
+        Retrieves output of a formerly started process.
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Could not retrieve output.
+        </result>
+
+      </desc>
+      <param name="pid" type="unsigned long" dir="in">
+        <desc>
+          Process id returned by earlier executeProcess() call.
+        </desc>
+      </param>
+      <param name="flags" type="unsigned long" dir="in">
+        <desc>
+          Flags describing which output to retrieve.
+        </desc>
+      </param>
+      <param name="timeoutMS" type="unsigned long" dir="in">
+        <desc>
+          The maximum timeout value (in msec) to wait for output
+          data. Pass 0 for an infinite timeout.
+        </desc>
+      </param>
+      <param name="size" type="unsigned long long" dir="in">
+        <desc>
+          Size in bytes to read in the buffer.
+        </desc>
+      </param>
+      <param name="data" type="octet" dir="return" safearray="yes">
+        <desc>
+          Buffer for retrieving the actual output. A data size of 0 means end of file
+          if the requested size was not 0. This is the unprocessed
+          output data, i.e. the line ending style depends on the platform of
+          the system the server is running on.
+        </desc>
+      </param>
+    </method>
+
+    <method name="getProcessStatus">
+      <desc>
+        Retrieves status, exit code and the exit reason of a formerly started process.
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Process with specified PID was not found.
+        </result>
+
+      </desc>
+      <param name="pid" type="unsigned long" dir="in">
+        <desc>
+          Process id returned by earlier executeProcess() call.
+        </desc>
+      </param>
+      <param name="exitcode" type="unsigned long" dir="out">
+        <desc>
+          The exit code (if available).
+        </desc>
+      </param>
+      <param name="flags" type="unsigned long" dir="out">
+        <desc>
+          Additional flags of process status (not used at the moment).
+        </desc>
+      </param>
+      <param name="reason" type="unsigned long" dir="return">
+        <desc>
+          The current process status.
+        </desc>
+      </param>      
     </method>
 
   </interface>
@@ -8588,7 +9009,7 @@
       <link to="IMachine::currentSnapshot"/>. Presently, this is always set
       to the last snapshot in the chain. In a future version of VirtualBox,
       it will be possible to reset a machine's current state to that of an
-      earlier snapshot without discarding the current state so that it will be
+      earlier snapshot without deleting the current state so that it will be
       possible to create alternative snapshot paths in a snapshot tree.
 
       In the current implementation, multiple snapshot branches within one
@@ -8832,7 +9253,7 @@
 
   <interface
     name="IMedium" extends="$unknown"
-    uuid="aa8167ba-df72-4738-b740-9b84377ba9f1"
+    uuid="d709160c-303f-4ead-b7ef-53ffa26aa861"
     wsmap="managed"
   >
     <desc>
@@ -10024,8 +10445,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           duration of this operation.
         </note>
       </desc>
-      <param name="targetId" type="uuid" mod="string" dir="in">
-        <desc>UUID of the target ancestor or descendant medium.</desc>
+      <param name="target" type="IMedium" dir="in">
+        <desc>Target medium.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation completion.</desc>
@@ -10469,13 +10890,37 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         Whether the guest OS supports absolute mouse pointer positioning
         or not.
         <note>
-          VirtualBox Guest Tools need to be installed to the guest OS
-          in order to enable absolute mouse positioning support.
           You can use the <link to="IConsoleCallback::onMouseCapabilityChange"/>
           callback to be instantly informed about changes of this attribute
           during virtual machine execution.
         </note>
         <see><link to="#putMouseEventAbsolute"/></see>
+      </desc>
+    </attribute>
+
+    <attribute name="relativeSupported" type="boolean" readonly="yes">
+      <desc>
+        Whether the guest OS supports relative mouse pointer positioning
+        or not.
+        <note>
+          You can use the <link to="IConsoleCallback::onMouseCapabilityChange"/>
+          callback to be instantly informed about changes of this attribute
+          during virtual machine execution.
+        </note>
+        <see><link to="#putMouseEvent"/></see>
+      </desc>
+    </attribute>
+
+    <attribute name="needsHostCursor" type="boolean" readonly="yes">
+      <desc>
+        Whether the guest OS can currently switch to drawing it's own mouse
+        cursor on demand.
+        <note>
+          You can use the <link to="IConsoleCallback::onMouseCapabilityChange"/>
+          callback to be instantly informed about changes of this attribute
+          during virtual machine execution.
+        </note>
+        <see><link to="#putMouseEvent"/></see>
       </desc>
     </attribute>
 
@@ -11006,7 +11451,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
      name="IDisplay" extends="$unknown"
-     uuid="e2a38ebc-d854-4a3e-bc2e-fdf5ac4a0000"
+     uuid="1fa79e39-0cc9-4ab3-9df3-ed3e96b42496"
      wsmap="managed"
      >
     <desc>
@@ -11020,20 +11465,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       IFramebuffer interface. Examples of the output target are a window on
       the host computer or an RDP session's display on a remote computer.
     </desc>
-    <attribute name="width" type="unsigned long" readonly="yes">
-      <desc>Current display width.</desc>
-    </attribute>
-
-    <attribute name="height" type="unsigned long" readonly="yes">
-      <desc>Current display height.</desc>
-    </attribute>
-
-    <attribute name="bitsPerPixel" type="unsigned long" readonly="yes">
-      <desc>
-        Current guest display color depth. Note that this may differ
-        from <link to="IFramebuffer::bitsPerPixel"/>.
-      </desc>
-    </attribute>
+    <method name="getScreenResolution">
+      <desc>Queries display width, height and color depth for given screen.</desc>
+      <param name="screenId" type="unsigned long" dir="in"/>
+      <param name="width" type="unsigned long" dir="out"/>
+      <param name="height" type="unsigned long" dir="out"/>
+      <param name="bitsPerPixel" type="unsigned long" dir="out"/>
+    </method>
 
     <method name="setFramebuffer">
       <desc>
@@ -11102,7 +11540,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         A pixel consists of 4 bytes in order: B, G, R, 0.
 
         <note>This API can be used only by the COM/XPCOM C++ API as it
-            requires pointer support. Use <link to="#takeScreenShotSlow" />
+            requires pointer support. Use <link to="#takeScreenShotToArray" />
             with other language bindings.
         </note>
 
@@ -11114,12 +11552,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         </result>
 
       </desc>
+      <param name="screenId" type="unsigned long" dir="in"/>
       <param name="address" type="octet" mod="ptr" dir="in"/>
       <param name="width" type="unsigned long" dir="in"/>
       <param name="height" type="unsigned long" dir="in"/>
     </method>
 
-    <method name="takeScreenShotSlow">
+    <method name="takeScreenShotToArray">
       <desc>
         Takes a guest screen shot of the requested size and returns it as
         an array of bytes in uncompressed 32-bit RGBA format.
@@ -11136,6 +11575,11 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           Could not take a screenshot.
         </result>
       </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+          Monitor to take screenshot from.
+        </desc>
+      </param>
       <param name="width" type="unsigned long" dir="in">
         <desc>
           Desired image width.
@@ -11166,9 +11610,14 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         </result>
 
       </desc>
+      <param name="screenId" type="unsigned long" dir="in"/>
       <param name="address" type="octet" mod="ptr" dir="in"/>
-      <param name="x" type="unsigned long" dir="in"/>
-      <param name="y" type="unsigned long" dir="in"/>
+      <param name="x" type="unsigned long" dir="in">
+        <desc>Relative to the screen top left corner.</desc>
+      </param>
+      <param name="y" type="unsigned long" dir="in">
+        <desc>Relative to the screen top left corner.</desc>
+      </param>
       <param name="width" type="unsigned long" dir="in"/>
       <param name="height" type="unsigned long" dir="in"/>
     </method>
@@ -11195,17 +11644,6 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
       </desc>
       <param name="screenId" type="unsigned long" dir="in"/>
-    </method>
-
-    <method name="updateCompleted">
-      <desc>
-        Signals that a framebuffer has completed the update operation.
-
-        <result name="VBOX_E_NOT_SUPPORTED">
-          Operation only valid for external frame buffers.
-        </result>
-
-      </desc>
     </method>
 
     <method name="completeVHWACommand">
@@ -11240,6 +11678,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <const name="Bridged"               value="2"/>
     <const name="Internal"              value="3"/>
     <const name="HostOnly"              value="4"/>
+    <const name="VDE"                   value="5"/>
   </enum>
 
   <enum
@@ -11275,7 +11714,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
      name="INetworkAdapter" extends="$unknown"
-     uuid="65607a27-2b73-4d43-b4cc-0ba2c817fbde"
+     uuid="5bdb9df8-a5e1-4322-a139-b7a4a734c790"
      wsmap="managed"
      >
     <desc>
@@ -11342,6 +11781,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
+    <attribute name="VDENetwork" type="wstring">
+      <desc>
+        Name of the VDE switch the VM is attached to.
+      </desc>
+    </attribute>
+
     <attribute name="cableConnected" type="boolean">
       <desc>
         Flag whether the adapter reports the cable as connected or not.
@@ -11369,6 +11814,21 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
+    <attribute name="natDriver" type="INATEngine" readonly="yes">
+      <desc>
+        Points to the NAT engine which handles the network address translation
+        for this interface. This is active only when the interface actually uses
+        NAT (see <link to="#attachToNAT" />).
+      </desc>
+    </attribute>
+
+    <attribute name="bootPriority" type="unsigned long">
+      <desc>
+        Network boot priority of the adapter. Priority 1 is highest. If not set,
+        the priority is considered to be at the lowest possible setting.
+      </desc>
+    </attribute>
+
     <method name="attachToNAT">
       <desc>
         Attach the network adapter to the Network Address Translation (NAT) interface.
@@ -11390,6 +11850,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <method name="attachToHostOnlyInterface">
       <desc>
         Attach the network adapter to the host-only network.
+      </desc>
+    </method>
+
+    <method name="attachToVDE">
+      <desc>
+        Attach the network adapter to a VDE network.
       </desc>
     </method>
 
@@ -11698,7 +12164,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
      name="IUSBController" extends="$unknown"
-     uuid="238540fa-4b73-435a-a38e-4e1d9eab5c17"
+     uuid="6fdcccc5-abd3-4fec-9387-2ad3914fc4a8"
      wsmap="managed"
      >
     <attribute name="enabled" type="boolean">
@@ -11716,6 +12182,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         guest system. If disabled, the virtual guest hardware will
         not contain a USB EHCI controller. Can only be changed when
         the VM is powered off.
+      </desc>
+    </attribute>
+
+    <attribute name="proxyAvailable" type="boolean" readonly="yes">
+      <desc>
+        Flag whether there is an USB proxy available.
       </desc>
     </attribute>
 
@@ -12372,7 +12844,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
      name="IVRDPServer" extends="$unknown"
-     uuid="72e671bc-1712-4052-ad6b-e45e76d9d3e4"
+     uuid="7aeeb530-0b08-41fe-835d-9be9ec1dbe5c"
      wsmap="managed"
      >
     <attribute name="enabled" type="boolean">
@@ -12413,6 +12885,18 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         Flag whether the existing connection must be dropped and a new connection
         must be established by the VRDP server, when a new client connects in single
         connection mode.
+      </desc>
+    </attribute>
+
+    <attribute name="videoChannel" type="boolean">
+      <desc>
+        Flag whether RDP video channel is supported.
+      </desc>
+    </attribute>
+
+    <attribute name="videoChannelQuality" type="unsigned long">
+      <desc>
+        Image quality in percents.
       </desc>
     </attribute>
 
@@ -12526,7 +13010,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
      name="IInternalSessionControl" extends="$unknown"
-     uuid="f9aac6d0-41b3-46b7-bea4-6370b4036de6"
+     uuid="cc8d63a0-568e-45dd-9bf6-6354049ece1e"
      internal="yes"
      wsmap="suppress"
      >
@@ -12692,6 +13176,18 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
       <param name="mediumAttachment" type="IMediumAttachment" dir="in"/>
       <param name="force" type="boolean" dir="in"/>
+    </method>
+
+    <method name="onCPUChange">
+      <desc>
+        Notification when a CPU changes.
+      </desc>
+      <param name="cpu" type="unsigned long" dir="in">
+        <desc>The CPU which changed</desc>
+      </param>
+      <param name="add" type="boolean" dir="in">
+        <desc>Flag whether the CPU was added or removed</desc>
+      </param>
     </method>
 
     <method name="onVRDPServerChange">
@@ -12873,10 +13369,57 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
+    <method name="onlineMergeMedium">
+      <desc>
+        Triggers online merging of a hard disk. Used internally when deleting
+        a snapshot while a VM referring to the same hard disk chain is running.
+
+        <result name="VBOX_E_INVALID_VM_STATE">
+          Machine session is not open.
+        </result>
+        <result name="VBOX_E_INVALID_OBJECT_STATE">
+          Session type is not direct.
+        </result>
+
+      </desc>
+      <param name="mediumAttachment" type="IMediumAttachment" dir="in">
+        <desc>The medium attachment to identify the medium chain.</desc>
+      </param>
+      <param name="sourceIdx" type="unsigned long" dir="in">
+        <desc>The index of the source image in the chain.
+        Redundant, but drastically reduces IPC.</desc>
+      </param>
+      <param name="targetIdx" type="unsigned long" dir="in">
+        <desc>The index of the target image in the chain.
+        Redundant, but drastically reduces IPC.</desc>
+      </param>
+      <param name="source" type="IMedium" dir="in">
+        <desc>Merge source medium.</desc>
+      </param>
+      <param name="target" type="IMedium" dir="in">
+        <desc>Merge target medium.</desc>
+      </param>
+      <param name="mergeForward" type="boolean" dir="in">
+        <desc>Merge direction.</desc>
+      </param>
+      <param name="parentForTarget" type="IMedium" dir="in">
+        <desc>For forward merges: new parent for target medium.</desc>
+      </param>
+      <param name="childrenToReparent" type="IMedium" safearray="yes" dir="in">
+        <desc>For backward merges: list of media which need their parent UUID
+        updated.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="in">
+        <desc>
+          Progress object for this operation.
+        </desc>
+      </param>
+    </method>
+
   </interface>
 
   <interface
-     name="ISession" extends="$dispatched"
+     name="ISession" extends="$unknown"
      uuid="12F4DCDB-12B2-4EC1-B7CD-DDD9F6C5BF4D"
      wsmap="managed"
      >
@@ -13034,6 +13577,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <const name="SATA"      value="2"/>
     <const name="SCSI"      value="3"/>
     <const name="Floppy"    value="4"/>
+    <const name="SAS"       value="5"/>
   </enum>
 
   <enum
@@ -13069,11 +13613,14 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <const name="I82078"    value="7">
       <desc>A floppy disk controller; this is the only variant for floppy drives.</desc>
     </const>
+    <const name="LsiLogicSas"  value="8">
+      <desc>A variant of the LsiLogic controller using SAS.</desc>
+    </const>
   </enum>
 
   <interface
     name="IStorageController" extends="$unknown"
-    uuid="6bf8335b-d14a-44a5-9b45-ddc49ce7d5b2"
+    uuid="7635f4ec-8a28-44b5-9223-315a87b710fb"
     wsmap="managed"
   >
     <desc>
@@ -13156,7 +13703,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <method name="GetIDEEmulationPort">
+    <attribute name="ioBackend" type="IoBackendType">
+      <desc>
+        The I/O backend to use for the given storage controller.
+      </desc>
+    </attribute>
+
+    <method name="getIDEEmulationPort">
       <desc>
         Gets the corresponding port number which is emulated as an IDE device.
         Works only with SATA controllers.
@@ -13173,7 +13726,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="portNumber" type="long" dir="return"/>
     </method>
 
-    <method name="SetIDEEmulationPort">
+    <method name="setIDEEmulationPort">
       <desc>
         Sets the port number which is emulated as an IDE device.
         Works only with SATA controllers.
@@ -13370,33 +13923,39 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     wsmap="managed"
   >
     <desc>
-      The IPerformanceCollector interface represents a service that collects and
-      stores performance metrics data.
+      The IPerformanceCollector interface represents a service that collects
+      and stores performance metrics data.
 
-      Performance metrics are associated with objects of interfaces like IHost and
-      IMachine. Each object has a distinct set of performance metrics.
-      The set can be obtained with <link to="IPerformanceCollector::getMetrics"/>.
+      Performance metrics are associated with objects of interfaces like IHost
+      and IMachine. Each object has a distinct set of performance metrics.  The
+      set can be obtained with <link to="IPerformanceCollector::getMetrics"/>.
 
       Metric data is collected at the specified intervals and is retained
       internally. The interval and the number of retained samples can be set
-      with <link to="IPerformanceCollector::setupMetrics" />.
+      with <link to="IPerformanceCollector::setupMetrics" />. Both metric data
+      and collection settings are not persistent, they are discarded as soon as
+      VBoxSVC process terminates. Moreover, metric settings and data associated
+      with a particular VM only exist while VM is running. They disappear as
+      soon as VM shuts down. It is not possible to set up metrics for machines
+      that are powered off. One needs to start VM first, then set up metric
+      collection parameters.
 
       Metrics are organized hierarchically, with each level separated by a
       slash (/) character. Generally, the scheme for metric names is like this:
 
       <tt>Category/Metric[/SubMetric][:aggregation]</tt>
 
-      "Category/Metric" together form the base metric name. A base metric is the
-      smallest unit for which a sampling interval and the number of retained
-      samples can be set. Only base metrics can be enabled and disabled. All
-      sub-metrics are collected when their base metric is collected.
-      Collected values for any set of sub-metrics can be queried with
-      <link to="IPerformanceCollector::queryMetricsData" />.
+      "Category/Metric" together form the base metric name. A base metric is
+      the smallest unit for which a sampling interval and the number of
+      retained samples can be set. Only base metrics can be enabled and
+      disabled. All sub-metrics are collected when their base metric is
+      collected.  Collected values for any set of sub-metrics can be queried
+      with <link to="IPerformanceCollector::queryMetricsData" />.
 
-      For example "CPU/Load/User:avg"
-      metric name stands for the "CPU" category, "Load" metric, "User" submetric,
-      "average" aggregate. An aggregate function is computed over all retained
-      data. Valid aggregate functions are:
+      For example "CPU/Load/User:avg" metric name stands for the "CPU"
+      category, "Load" metric, "User" submetric, "average" aggregate. An
+      aggregate function is computed over all retained data. Valid aggregate
+      functions are:
 
       <ul>
           <li>avg -- average</li>
@@ -13404,12 +13963,11 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           <li>max -- maximum</li>
       </ul>
 
-      When setting up
-      metric parameters, querying metric data, enabling or disabling metrics
-      wildcards can be used in metric names to specify a subset of metrics. For
-      example, to select all CPU-related metrics use <tt>CPU/*</tt>, all
-      averages can be queried using <tt>*:avg</tt> and so on. To query metric
-      values without aggregates <tt>*:</tt> can be used.
+      When setting up metric parameters, querying metric data, enabling or
+      disabling metrics wildcards can be used in metric names to specify a
+      subset of metrics. For example, to select all CPU-related metrics
+      use <tt>CPU/*</tt>, all averages can be queried using <tt>*:avg</tt> and
+      so on. To query metric values without aggregates <tt>*:</tt> can be used.
 
       The valid names for base metrics are:
 
@@ -13430,12 +13988,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           will be collected for. Use references to IHost and IMachine objects.
         </li>
         <li>
-          Allocate and populate an array with base metric names the data will be
-          collected for.
+          Allocate and populate an array with base metric names the data will
+          be collected for.
         </li>
         <li>
-          Call <link to="IPerformanceCollector::setupMetrics" />. From now on the
-          metric data will be collected and stored.
+          Call <link to="IPerformanceCollector::setupMetrics" />. From now on
+          the metric data will be collected and stored.
         </li>
         <li>
           Wait for the data to get collected.
@@ -13450,9 +14008,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           collected for. Note that metric names differ from base metric names.
         </li>
         <li>
-          Call <link to="IPerformanceCollector::queryMetricsData" />. The data that
-          have been collected so far are returned. Note that the values are still
-          retained internally and data collection continues.
+          Call <link to="IPerformanceCollector::queryMetricsData" />. The data
+          that have been collected so far are returned. Note that the values
+          are still retained internally and data collection continues.
         </li>
       </ul>
 
@@ -13507,14 +14065,14 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <method name="setupMetrics">
       <desc>
         Sets parameters of specified base metrics for a set of objects. Returns
-        an array of <link to="IPerformanceMetric" /> describing the metrics have
-        been affected.
+        an array of <link to="IPerformanceMetric" /> describing the metrics
+        have been affected.
         <note>
-          @c Null or empty metric name array means all metrics. @c Null or empty
-          object array means all existing objects. If metric name array contains
-          a single element and object array contains many, the single metric
-          name array element is applied to each object array element to form
-          metric/object pairs.
+          @c Null or empty metric name array means all metrics. @c Null or
+          empty object array means all existing objects. If metric name array
+          contains a single element and object array contains many, the single
+          metric name array element is applied to each object array element to
+          form metric/object pairs.
         </note>
       </desc>
       <param name="metricNames" type="wstring" dir="in" safearray="yes">
@@ -13530,14 +14088,14 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
       <param name="period" type="unsigned long" dir="in">
         <desc>
-          Time interval in seconds between two consecutive samples of performance
-          data.
+          Time interval in seconds between two consecutive samples of
+          performance data.
         </desc>
       </param>
       <param name="count" type="unsigned long" dir="in">
         <desc>
-          Number of samples to retain in performance data history. Older samples
-          get discarded.
+          Number of samples to retain in performance data history. Older
+          samples get discarded.
         </desc>
       </param>
       <param name="affectedMetrics" type="IPerformanceMetric" dir="return" safearray="yes">
@@ -13553,11 +14111,11 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <link to="IPerformanceMetric" /> describing the metrics have been
         affected.
         <note>
-          @c Null or empty metric name array means all metrics. @c Null or empty
-          object array means all existing objects. If metric name array contains
-          a single element and object array contains many, the single metric
-          name array element is applied to each object array element to form
-          metric/object pairs.
+          @c Null or empty metric name array means all metrics. @c Null or
+          empty object array means all existing objects. If metric name array
+          contains a single element and object array contains many, the single
+          metric name array element is applied to each object array element to
+          form metric/object pairs.
         </note>
       </desc>
       <param name="metricNames" type="wstring" dir="in" safearray="yes">
@@ -13584,11 +14142,11 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <link to="IPerformanceMetric" /> describing the metrics have been
         affected.
         <note>
-          @c Null or empty metric name array means all metrics. @c Null or empty
-          object array means all existing objects. If metric name array contains
-          a single element and object array contains many, the single metric
-          name array element is applied to each object array element to form
-          metric/object pairs.
+          @c Null or empty metric name array means all metrics. @c Null or
+          empty object array means all existing objects. If metric name array
+          contains a single element and object array contains many, the single
+          metric name array element is applied to each object array element to
+          form metric/object pairs.
         </note>
       </desc>
       <param name="metricNames" type="wstring" dir="in" safearray="yes">
@@ -13627,22 +14185,21 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <tt>returnData[returnIndices[i]]</tt>.
 
         <note>
-          @c Null or empty metric name array means all metrics. @c Null or empty
-          object array means all existing objects. If metric name array contains
-          a single element and object array contains many, the single metric
-          name array element is applied to each object array element to form
-          metric/object pairs.
+          @c Null or empty metric name array means all metrics. @c Null or
+          empty object array means all existing objects. If metric name array
+          contains a single element and object array contains many, the single
+          metric name array element is applied to each object array element to
+          form metric/object pairs.
         </note>
         <note>
-          Data collection continues behind the scenes after call to
-          @c queryMetricsData. The return data can be seen as the snapshot of
-          the current state at the time of @c queryMetricsData call. The
-          internally kept metric values are not cleared by the call. This makes
-          possible querying different subsets of metrics or aggregates with
-          subsequent calls. If periodic querying is needed it is highly
-          suggested to query the values with @c interval*count period to avoid
-          confusion. This way a completely new set of data values will be
-          provided by each query.
+          Data collection continues behind the scenes after call to @c
+          queryMetricsData. The return data can be seen as the snapshot of the
+          current state at the time of @c queryMetricsData call. The internally
+          kept metric values are not cleared by the call. This makes possible
+          querying different subsets of metrics or aggregates with subsequent
+          calls. If periodic querying is needed it is highly suggested to query
+          the values with @c interval*count period to avoid confusion. This way
+          a completely new set of data values will be provided by each query.
         </note>
       </desc>
       <param name="metricNames" type="wstring" dir="in" safearray="yes">
@@ -13682,15 +14239,16 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
        </param>
        <param name="returnSequenceNumbers" type="unsigned long" dir="out" safearray="yes">
          <desc>
-           Sequence numbers of the first elements of value sequences of particular metrics
-           returned in @c returnData. For aggregate metrics it is the sequence number of
-           the sample the aggregate started calculation from.
+           Sequence numbers of the first elements of value sequences of
+           particular metrics returned in @c returnData. For aggregate metrics
+           it is the sequence number of the sample the aggregate started
+           calculation from.
          </desc>
        </param>
       <param name="returnDataIndices" type="unsigned long" dir="out" safearray="yes">
         <desc>
-          Indices of the first elements of value sequences of particular metrics
-          returned in @c returnData.
+          Indices of the first elements of value sequences of particular
+          metrics returned in @c returnData.
         </desc>
       </param>
       <param name="returnDataLengths" type="unsigned long" dir="out" safearray="yes">
@@ -13706,6 +14264,143 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
+  </interface>
+ <enum
+  name="NATAliasMode"
+  uuid="67772168-50d9-11df-9669-7fb714ee4fa1">
+  <desc></desc>
+  <const name="AliasLog" value="0x1">
+    <desc></desc>
+  </const>
+  <const name="AliasProxyOnly" value="0x02">
+    <desc></desc>
+  </const>
+  <const name="AliasUseSamePorts" value="0x04">
+    <desc></desc>
+  </const>
+ </enum>
+  <enum
+    name="NATProtocol"
+    uuid="e90164be-eb03-11de-94af-fff9b1c1b19f"
+  >
+    <desc>Protocol definitions used with NAT port-forwarding rules.</desc>
+    <const name="UDP" value="0">
+        <desc>Port-forwarding uses UDP protocol.</desc>
+    </const>
+    <const name="TCP" value="1">
+        <desc>Port-forwarding uses TCP protocol.</desc>
+    </const>
+  </enum>
+
+  <interface
+     name="INATEngine" extends="$unknown"
+     uuid="4b286616-eb03-11de-b0fb-1701eca42246"
+     wsmap="managed"
+     >
+     <desc>Interface for managing a NAT engine which is used with a virtual machine. This
+       allows for changing NAT behavior such as port-forwarding rules. This interface is
+       used in the <link to="INetworkAdapter::natDriver" /> attribute.</desc>
+    <attribute name="network" type="wstring">
+      <desc>The network attribute of the NAT engine (the same value is used with built-in
+        DHCP server to fill corresponding fields of DHCP leases).</desc>
+    </attribute>
+    <attribute name="hostIP" type="wstring">
+        <desc>IP of host interface to bind all opened sockets to.
+          <note>Changing this does not change binding of port forwarding.</note>
+      </desc>
+    </attribute>
+    <attribute name="tftpPrefix" type="wstring">
+      <desc>TFTP prefix attribute which is used with the built-in DHCP server to fill
+        the corresponding fields of DHCP leases.</desc>
+    </attribute>
+    <attribute name="tftpBootFile" type="wstring">
+      <desc>TFTP boot file attribute which is used with the built-in DHCP server to fill
+        the corresponding fields of DHCP leases.</desc>
+    </attribute>
+    <attribute name="tftpNextServer" type="wstring">
+      <desc>TFTP server attribute which is used with the built-in DHCP server to fill
+        the corresponding fields of DHCP leases.
+        <note>The preferred form is IPv4 addresses.</note>
+      </desc>
+    </attribute>
+    <attribute name="aliasMode" type="unsigned long">
+      <desc></desc>
+    </attribute>
+    <attribute name="dnsPassDomain" type="boolean">
+      <desc>Whether the DHCP server should pass the DNS domain used by the host.</desc>
+    </attribute>
+    <attribute name="dnsProxy" type="boolean">
+      <desc>Whether the DHCP server (and the DNS traffic by NAT) should pass the address
+        of the DNS proxy and process traffic using DNS servers registered on the host.</desc>
+    </attribute>
+    <attribute name="dnsUseHostResolver" type="boolean">
+      <desc>Whether the DHCP server (and the DNS traffic by NAT) should pass the address
+        of the DNS proxy and process traffic using the host resolver mechanism.</desc>
+    </attribute>
+    <attribute name="redirects" type="wstring" readonly="yes" safearray="yes">
+      <desc>Array of NAT port-forwarding rules in string representation, in the following
+        format: "name,protocol id,host ip,host port,guest ip,guest port".</desc>
+    </attribute>
+    <method name="setNetworkSettings">
+      <desc>Sets network configuration of the NAT engine.</desc>
+      <param name="mtu" type="unsigned long" dir="in">
+        <desc>MTU (maximum transmission unit) of the NAT engine in bytes.</desc>
+      </param>
+      <param name="sockSnd" type="unsigned long" dir="in">
+        <desc>Capacity of the socket send buffer in bytes when creating a new socket.</desc>
+      </param>
+      <param name="sockRcv" type="unsigned long" dir="in">
+        <desc>Capacity of the socket receive buffer in bytes when creating a new socket.</desc>
+      </param>
+      <param name="TcpWndSnd" type="unsigned long" dir="in">
+        <desc>Initial size of the NAT engine's sending TCP window in bytes when
+          establishing a new TCP connection.</desc>
+      </param>
+      <param name="TcpWndRcv" type="unsigned long" dir="in">
+        <desc>Initial size of the NAT engine's receiving TCP window in bytes when
+          establishing a new TCP connection.</desc>
+      </param>
+    </method>
+    <method name="getNetworkSettings">
+      <desc>Returns network configuration of NAT engine. See <link to="#setNetworkSettings" />
+        for parameter descriptions.</desc>
+      <param name="mtu" type="unsigned long" dir="out" />
+      <param name="sockSnd" type="unsigned long" dir="out" />
+      <param name="sockRcv" type="unsigned long" dir="out" />
+      <param name="TcpWndSnd" type="unsigned long" dir="out" />
+      <param name="TcpWndRcv" type="unsigned long" dir="out" />
+    </method>
+    <method name="addRedirect">
+        <desc>Adds a new NAT port-forwarding rule.</desc>
+        <param name="name" type="wstring" dir="in">
+          <desc>The name of the rule. An empty name is acceptable, in which case the NAT engine
+            auto-generates one using the other parameters.</desc>
+        </param>
+        <param name="proto" type="NATProtocol" dir="in">
+          <desc>Protocol handled with the rule.</desc>
+        </param>
+        <param name="hostIp" type="wstring" dir="in">
+          <desc>IP of the host interface to which the rule should apply. An empty ip address is
+            acceptable, in which case the NAT engine binds the handling socket to any interface.</desc>
+        </param>
+        <param name="hostPort" type="unsigned short" dir="in">
+          <desc>The port number to listen on.</desc>
+        </param>
+        <param name="guestIp" type="wstring" dir="in">
+          <desc>The IP address of the guest which the NAT engine will forward matching packets
+            to. An empty IP address is acceptable, in which case the NAT engine will forward
+            packets to the first DHCP lease (x.x.x.15).</desc>
+        </param>
+        <param name="guestPort" type="unsigned short" dir="in">
+          <desc>The port number to forward.</desc>
+        </param>
+    </method>
+    <method name="removeRedirect">
+      <desc>Removes a port-forwarding rule that was previously registered.</desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>The name of the rule to delete.</desc>
+      </param>
+    </method>
   </interface>
 
   <module name="VBoxSVC" context="LocalServer">

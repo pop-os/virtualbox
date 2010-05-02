@@ -1,10 +1,10 @@
-/* $Id: dbgmod.h $ */
+/* $Id: dbgmod.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Internal Header for RTDbgMod and the associated interpreters.
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_dbgmod_h
@@ -37,8 +33,7 @@
 
 RT_C_DECLS_BEGIN
 
-/** @defgroup grp_rt_dbgmod     RTDbgMod - Debug Module Interperter
- * @ingroup grp_rt
+/** @addtogroup grp_rt_dbgmod
  * @internal
  * @{
  */
@@ -223,6 +218,7 @@ typedef struct RTDBGMODVTDBG
      * @param   iSeg        The segment number (0-based). RTDBGMOD_SEG_RVA can be used.
      * @param   off         The offset into the segment.
      * @param   cb          The area covered by the symbol. 0 is fine.
+     * @param   fFlags      Flags.
      * @param   piOrdinal   Where to return the symbol ordinal on success. If the
      *                      interpreter doesn't do ordinals, this will be set to
      *                      UINT32_MAX. Optional
@@ -305,6 +301,7 @@ typedef struct RTDBGMODVTDBG
      * @param   pMod        Pointer to the module structure.
      * @param   pszFile     The filename.
      * @param   cchFile     The length of the filename.
+     * @param   uLineNo     The line number.
      * @param   iSeg        The segment number (0-based).
      * @param   off         The offset into the segment.
      * @param   piOrdinal   Where to return the line number ordinal on success. If
@@ -411,5 +408,4 @@ int rtDbgModContainerCreate(PRTDBGMODINT pMod, RTUINTPTR cbSeg);
 RT_C_DECLS_END
 
 #endif
-
 

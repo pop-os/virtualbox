@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_env_h
@@ -88,6 +84,23 @@ RTDECL(int) RTEnvDestroy(RTENV Env);
  */
 RTDECL(char const * const *) RTEnvGetExecEnvP(RTENV Env);
 
+/**
+ * Get a sorted, UTF-16 environment block for CreateProcess.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hEnv            Environment block handle.
+ * @param   ppwszzBlock     Where to return the environment block.  This must be
+ *                          freed by calling RTEnvFreeUtf16Block.
+ */
+RTDECL(int) RTEnvQueryUtf16Block(RTENV hEnv, PRTUTF16 *ppwszzBlock);
+
+/**
+ * Frees an environment block returned by RTEnvGetUtf16Block().
+ *
+ * @param   pwszzBlock      What RTEnvGetUtf16Block returned.  NULL is ignored.
+ */
+RTDECL(void) RTEnvFreeUtf16Block(PRTUTF16 pwszzBlock);
 
 /**
  * Checks if an environment variable exists in the default environment block.
@@ -129,6 +142,7 @@ RTDECL(const char *) RTEnvGet(const char *pszVar);
  * Gets an environment variable in a specific environment block.
  *
  * @returns IPRT status code.
+ * @retval  VERR_ENV_VAR_NOT_FOUND if the variable was not found.
  *
  * @param   Env         The environment handle.
  * @param   pszVar      The environment variable name.
@@ -210,6 +224,17 @@ RTDECL(int) RTEnvUnset(const char *pszVar);
  * @param   pszVar      The environment variable name.
  */
 RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar);
+
+/**
+ * Duplicates the value of a environment variable if it exists.
+ *
+ * @returns Pointer to a string containing the value, free it using RTStrFree.
+ *          NULL if the variable was not found or we're out of memory.
+ *
+ * @param   Env         The environment handle.
+ * @param   pszVar      The environment variable name.
+ */
+RTDECL(char *) RTEnvDupEx(RTENV Env, const char *pszVar);
 
 #endif /* IN_RING3 */
 

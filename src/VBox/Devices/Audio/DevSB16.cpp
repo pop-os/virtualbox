@@ -1,4 +1,4 @@
-/* $Id: DevSB16.cpp $ */
+/* $Id: DevSB16.cpp 26165 2010-02-02 19:50:31Z vboxsync $ */
 /** @file
  * DevSB16 - VBox SB16 Audio Controller.
  *
@@ -35,6 +35,7 @@
 #include <VBox/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
+#include <iprt/uuid.h>
 #include "../vl_vbox.h"
 
 extern "C" {
@@ -187,6 +188,7 @@ typedef struct SB16State {
 #else
     PTMTIMER  pTimer;
     PPDMIBASE pDrvBase;
+    /** LUN\#0: Base interface. */
     PDMIBASE  IBase;
 #endif
     /* mixer state */
@@ -1769,19 +1771,17 @@ static DECLCALLBACK(int) sb16LoadExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     return VINF_SUCCESS;
 }
 
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
 static DECLCALLBACK(void *) sb16QueryInterface (struct PDMIBASE *pInterface,
-                                                PDMINTERFACE enmInterface)
+                                                const char *pszIID)
 {
-    SB16State *pThis = (SB16State *)((uintptr_t)pInterface
-                     - RT_OFFSETOF(SB16State, IBase));
+    SB16State *pThis = RT_FROM_MEMBER(pInterface, SB16State, IBase);
     Assert(&pThis->IBase == pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->IBase;
-        default:
-            return NULL;
-    }
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    return NULL;
 }
 
 static DECLCALLBACK(int) sb16Construct (PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
@@ -1793,6 +1793,7 @@ static DECLCALLBACK(int) sb16Construct (PPDMDEVINS pDevIns, int iInstance, PCFGM
      * Validations.
      */
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
     if (!CFGMR3AreValuesValid(pCfgHandle,
                               "IRQ\0"
                               "DMA\0"
@@ -1910,7 +1911,7 @@ const PDMDEVREG g_DeviceSB16 =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "sb16",
     /* szRCMod */
     "",

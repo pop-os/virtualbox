@@ -1,11 +1,11 @@
+/* $Id: DisplayImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
  * VBox frontends: Basic Frontend (BFE):
- * Declaration of VMDisplay class
+ * Declaration of Display class
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_DISPLAYIMPL
@@ -29,13 +25,13 @@
 #include "Framebuffer.h"
 struct VBVACMDHDR;
 
-class VMDisplay
+class Display
 {
 
 public:
 
-    VMDisplay();
-    ~VMDisplay();
+    Display();
+    ~Display();
 
     // public methods only for internal purposes
     int handleDisplayResize (int w, int h);
@@ -57,6 +53,7 @@ public:
     STDMETHODIMP SetFramebuffer(unsigned iScreenID, Framebuffer *Framebuffer);
     STDMETHODIMP InvalidateAndUpdate();
     STDMETHODIMP ResizeCompleted();
+    STDMETHODIMP GetScreenResolution(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel);
 
     void resetFramebuffer();
 
@@ -67,8 +64,8 @@ private:
 
     void updateDisplayData();
 
-    static DECLCALLBACK(void*) drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
+    static DECLCALLBACK(void*) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(int)   drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(int)   displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t cx, uint32_t cy);
     static DECLCALLBACK(void)  displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
                                                      uint32_t x, uint32_t y, uint32_t cx, uint32_t cy);
@@ -110,6 +107,6 @@ private:
     };
 };
 
-extern VMDisplay *gDisplay;
+extern Display *gDisplay;
 
-#endif // ____H_DISPLAYIMPL
+#endif // !____H_DISPLAYIMPL

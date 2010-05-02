@@ -1,10 +1,10 @@
-/* $Id: VDICore.h $ */
+/* $Id: VDICore.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Virtual Disk Image (VDI), Core Code Header (internal).
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __VDICore_h__
@@ -532,7 +528,7 @@ typedef struct VDIIMAGEDESC
     RTFILE                  File;
 #else
     /** Opaque storage handle. */
-    void                   *pvStorage;
+    PVDIOSTORAGE            pStorage;
 #endif
 #ifndef VBOX_VDICORE_VD
     /** True if the image is operating in readonly mode. */
@@ -585,15 +581,17 @@ typedef struct VDIIMAGEDESC
     PDMMEDIAGEOMETRY        PCHSGeometry;
     /** Pointer to the per-disk VD interface list. */
     PVDINTERFACE            pVDIfsDisk;
+    /** Pointer to the per-image VD interface list. */
+    PVDINTERFACE            pVDIfsImage;
     /** Error interface. */
     PVDINTERFACE            pInterfaceError;
     /** Error interface callback table. */
     PVDINTERFACEERROR       pInterfaceErrorCallbacks;
 # ifdef VBOX_WITH_NEW_IO_CODE
-    /** Async I/O interface. */
-    PVDINTERFACE        pInterfaceAsyncIO;
-    /** Async I/O interface callbacks. */
-    PVDINTERFACEASYNCIO pInterfaceAsyncIOCallbacks;
+    /** I/O interface. */
+    PVDINTERFACE            pInterfaceIO;
+    /** I/O interface callbacks. */
+    PVDINTERFACEIO          pInterfaceIOCallbacks;
 # endif
 #endif /* VBOX_VDICORE_VD */
 } VDIIMAGEDESC, *PVDIIMAGEDESC;

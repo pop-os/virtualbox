@@ -1,10 +1,10 @@
-/* $Id: tstMicro.cpp $ */
+/* $Id: tstMicro.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Micro Testcase, profiling special CPU operations.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -26,7 +22,7 @@
 #include <VBox/vmm.h>
 #include <VBox/mm.h>
 #include <VBox/cpum.h>
-#include <VBox/pdm.h>
+#include <VBox/pdmapi.h>
 #include <VBox/dbgf.h>
 #include <VBox/pgm.h>
 #include <VBox/err.h>
@@ -202,31 +198,31 @@ static DECLCALLBACK(int) doit(PVM pVM)
     /*
      * Loading the module and resolve the entry point.
      */
-    int rc = PDMR3LdrLoadRC(pVM, NULL, "tstMicroGC.gc");
+    int rc = PDMR3LdrLoadRC(pVM, NULL, "tstMicroRC.gc");
     if (RT_FAILURE(rc))
     {
-        RTPrintf(TESTCASE ": Failed to load tstMicroGC.gc, rc=%Rra\n", rc);
+        RTPrintf(TESTCASE ": Failed to load tstMicroRC.gc, rc=%Rra\n", rc);
         return rc;
     }
     RTRCPTR RCPtrEntry;
-    rc = PDMR3LdrGetSymbolRC(pVM, "tstMicroGC.gc", "tstMicroGC", &RCPtrEntry);
+    rc = PDMR3LdrGetSymbolRC(pVM, "tstMicroRC.gc", "tstMicroRC", &RCPtrEntry);
     if (RT_FAILURE(rc))
     {
-        RTPrintf(TESTCASE ": Failed to resolve the 'tstMicroGC' entry point in tstMicroGC.gc, rc=%Rra\n", rc);
+        RTPrintf(TESTCASE ": Failed to resolve the 'tstMicroRC' entry point in tstMicroRC.gc, rc=%Rra\n", rc);
         return rc;
     }
     RTRCPTR RCPtrStart;
-    rc = PDMR3LdrGetSymbolRC(pVM, "tstMicroGC.gc", "tstMicroGCAsmStart", &RCPtrStart);
+    rc = PDMR3LdrGetSymbolRC(pVM, "tstMicroRC.gc", "tstMicroRCAsmStart", &RCPtrStart);
     if (RT_FAILURE(rc))
     {
-        RTPrintf(TESTCASE ": Failed to resolve the 'tstMicroGCAsmStart' entry point in tstMicroGC.gc, rc=%Rra\n", rc);
+        RTPrintf(TESTCASE ": Failed to resolve the 'tstMicroRCAsmStart' entry point in tstMicroRC.gc, rc=%Rra\n", rc);
         return rc;
     }
     RTRCPTR RCPtrEnd;
-    rc = PDMR3LdrGetSymbolRC(pVM, "tstMicroGC.gc", "tstMicroGCAsmEnd", &RCPtrEnd);
+    rc = PDMR3LdrGetSymbolRC(pVM, "tstMicroRC.gc", "tstMicroRCAsmEnd", &RCPtrEnd);
     if (RT_FAILURE(rc))
     {
-        RTPrintf(TESTCASE ": Failed to resolve the 'tstMicroGCAsmEnd' entry point in tstMicroGC.gc, rc=%Rra\n", rc);
+        RTPrintf(TESTCASE ": Failed to resolve the 'tstMicroRCAsmEnd' entry point in tstMicroRC.gc, rc=%Rra\n", rc);
         return rc;
     }
 

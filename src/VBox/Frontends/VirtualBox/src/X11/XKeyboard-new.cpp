@@ -1,3 +1,4 @@
+/* $Id: XKeyboard-new.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_GUI
@@ -204,7 +201,8 @@ void doXKeyboardLogging(Display *dpy)
         dumpLayout(dpy);
     if ((1 == gfByLayoutOK) && (gfByTypeOK != 1))
         dumpType(dpy);
-    if ((gfByLayoutOK != 1) && (gfByTypeOK != 1)) {
+    if ((gfByLayoutOK != 1) && (gfByTypeOK != 1))
+    {
         LogRel(("Failed to recognize the keyboard mapping or to guess it based on\n"
                 "the keyboard layout.  It is very likely that some keys will not\n"
                 "work correctly in the guest.  If you would like to help us improve\n"
@@ -212,12 +210,12 @@ void doXKeyboardLogging(Display *dpy)
                 "about your keyboard type, its layout and other relevant\n"
                 "information such as whether you are using a remote X server or\n"
                 "something similar. \n"));
-	unsigned *keyc2scan=X11DRV_getKeyc2scan();
+        unsigned *keyc2scan = X11DRV_getKeyc2scan();
 
-	LogRel(("The keycode-to-scancode table is: %d=%d",0,keyc2scan[0]));
-	for(int i=1; i<256; i++)
-	    LogRel((",%d=%d",i,keyc2scan[i]));
-	LogRel(("\n"));
+        LogRel(("The keycode-to-scancode table is: %d=%d",0,keyc2scan[0]));
+        for (int i = 1; i < 256; i++)
+            LogRel((",%d=%d",i,keyc2scan[i]));
+        LogRel(("\n"));
     }
 }
 
@@ -243,7 +241,7 @@ int getKeysymsPerKeycode()
     return 8;
 }
 
-/** 
+/**
  * Initialize X11 keyboard including the remapping specified in the
  * global property GUI/RemapScancodes. This property is a string of
  * comma-seperated x=y pairs, where x is the X11 keycode and y is the
@@ -255,22 +253,26 @@ void initMappedX11Keyboard(Display *pDisplay, QString remapScancodes)
     int (*scancodes)[2] = NULL;
     int (*scancodesTail)[2] = NULL;
 
-    if(remapScancodes != QString::null) {
-	QStringList tuples = remapScancodes.split(",", QString::SkipEmptyParts);
-	scancodes = scancodesTail = new int [tuples.size()+1][2];
-	for (int i = 0; i < tuples.size(); ++i) {
-	    QStringList keyc2scan = tuples.at(i).split("=");
-	    (*scancodesTail)[0] = keyc2scan.at(0).toUInt();
-	    (*scancodesTail)[1] = keyc2scan.at(1).toUInt();
-	    /* Do not advance on (ignore) identity mappings as this is
-	       the stop signal to initXKeyboard and friends */
-	    if((*scancodesTail)[0] != (*scancodesTail)[1]) 
-		scancodesTail++;
-	}
-	(*scancodesTail)[0] = (*scancodesTail)[1] = 0;
-    } 
+    if (remapScancodes != QString::null)
+    {
+        QStringList tuples = remapScancodes.split(",", QString::SkipEmptyParts);
+        scancodes = scancodesTail = new int [tuples.size()+1][2];
+        for (int i = 0; i < tuples.size(); ++i)
+        {
+            QStringList keyc2scan = tuples.at(i).split("=");
+            (*scancodesTail)[0] = keyc2scan.at(0).toUInt();
+            (*scancodesTail)[1] = keyc2scan.at(1).toUInt();
+            /* Do not advance on (ignore) identity mappings as this is
+               the stop signal to initXKeyboard and friends */
+            if ((*scancodesTail)[0] != (*scancodesTail)[1])
+                scancodesTail++;
+        }
+        (*scancodesTail)[0] = (*scancodesTail)[1] = 0;
+    }
     /* initialize the X keyboard subsystem */
     initXKeyboard (pDisplay ,scancodes);
 
-    if(scancodes) delete scancodes;
+    if (scancodes)
+        delete scancodes;
 }
+

@@ -1,10 +1,10 @@
-/* $Id: VBoxFBQuartz2D.cpp $ */
+/* $Id: VBoxFBQuartz2D.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Qt GUI (aka VirtualBox) - Quartz2D framebuffer implementation.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,14 +13,13 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #if defined (VBOX_GUI_USE_QUARTZ2D)
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include <iprt/asm.h>
 
 /* VBox includes */
@@ -36,6 +35,7 @@
 #include <QDesktopWidget>
 
 #include "iprt/system.h"
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 //#define COMP_WITH_SHADOW
 //#define OVERLAY_CLIPRECTS
@@ -225,7 +225,8 @@ void VBoxQuartz2DFrameBuffer::paintEvent (QPaintEvent *aEvent)
     CGContextScaleCTM (ctx, 1.0, -1.0);
 
     /* We handle the seamless mode as a special case. */
-    if (main->isTrueSeamless())
+    if (   main
+        && main->isTrueSeamless())
     {
         /* Here we paint the windows without any wallpaper.
          * So the background would be set transparently. */
@@ -463,3 +464,4 @@ void VBoxQuartz2DFrameBuffer::testAndSetSNCarbonFix()
 #endif /* QT_MAC_USE_COCOA */
 
 #endif /* defined (VBOX_GUI_USE_QUARTZ2D) */
+

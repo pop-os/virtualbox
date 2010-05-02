@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "shflhandle.h"
@@ -39,7 +35,7 @@ typedef struct
 
 static SHFLINTHANDLE *pHandles = NULL;
 static int32_t        lastHandleIndex = 0;
-static RTCRITSECT     lock = {0};
+static RTCRITSECT     lock;
 
 int vbsfInitHandleTable()
 {
@@ -89,8 +85,8 @@ SHFLHANDLE  vbsfAllocHandle(uint32_t uType, uintptr_t pvUserData)
     {
         if(pHandles[handle].pvUserData == 0)
         {
-    	    lastHandleIndex = handle;
-	        break;
+            lastHandleIndex = handle;
+            break;
         }
     }
 
@@ -101,8 +97,8 @@ SHFLHANDLE  vbsfAllocHandle(uint32_t uType, uintptr_t pvUserData)
         {
             if(pHandles[handle].pvUserData == 0)
             {
-    	        lastHandleIndex = handle;
-	            break;
+                lastHandleIndex = handle;
+                break;
             }
         }
         if(handle == SHFLHANDLE_MAX)

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,18 +23,13 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_DBus_h
 #define ___VBox_DBus_h
 
-#include <stdint.h>
-
-#define VBOX_DBUS_1_3_LIB "libdbus-1.so.3"
+#include <iprt/types.h>
+#include <iprt/stdarg.h>
 
 /** Types and defines from the dbus header files which we need.  These are
  * taken more or less verbatim from the DBus public interface header files. */
@@ -49,13 +44,18 @@ struct DBusError
     unsigned int dummy5 : 1;
     void *padding1;
 };
+typedef struct DBusError DBusError;
+
 struct DBusConnection;
 typedef struct DBusConnection DBusConnection;
+
 typedef uint32_t dbus_bool_t;
 typedef uint32_t dbus_uint32_t;
 typedef enum { DBUS_BUS_SESSON, DBUS_BUS_SYSTEM, DBUS_BUS_STARTER } DBusBusType;
+
 struct DBusMessage;
 typedef struct DBusMessage DBusMessage;
+
 struct DBusMessageIter
 {
     void *dummy1;
@@ -102,21 +102,11 @@ typedef DBusHandlerResult (*DBusHandleMessageFunction) (DBusConnection *,
 typedef void (*DBusFreeFunction) (void *);
 
 /* Declarations of the functions that we need from libdbus-1 */
-#define VBOX_PROXY_STUB(function, rettype, signature, shortsig) \
-RTR3DECL(rettype) ( function ) signature ;
+#define VBOX_DBUS_GENERATE_HEADER
 
 #include <VBox/dbus-calls.h>
 
-#undef VBOX_PROXY_STUB
-
-/**
- * Try to dynamically load the DBus library.  This function should be called
- * before attempting to use any of the DBus functions.  It is safe to call this
- * function multiple times.
- *
- * @returns iprt status code
- */
-RTR3DECL(int) RTDBusLoadLib(void);
+#undef VBOX_DBUS_GENERATE_HEADER
 
 #endif /* ___VBox_DBus_h not defined */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

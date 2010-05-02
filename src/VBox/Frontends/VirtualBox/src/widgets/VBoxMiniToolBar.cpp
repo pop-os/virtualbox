@@ -1,3 +1,4 @@
+/* $Id: VBoxMiniToolBar.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* VBox includes */
@@ -105,6 +102,8 @@ VBoxMiniToolBar::VBoxMiniToolBar (QWidget *aParent, Alignment aAlignment, bool a
 
     /* Right margin of tool-bar */
     mMargins << widgetForAction (addWidget (new QWidget (this)));
+
+    aParent->installEventFilter(this);
 }
 
 VBoxMiniToolBar& VBoxMiniToolBar::operator<< (QList <QMenu*> aMenus)
@@ -215,14 +214,14 @@ void VBoxMiniToolBar::timerEvent (QTimerEvent *aEvent)
 {
     if (aEvent->timerId() == mScrollTimer.timerId())
     {
-        QRect screen = mSeamless ? QApplication::desktop()->availableGeometry (window()) :
+        QRect screen = mSeamless ? vboxGlobal().availableGeometry (QApplication::desktop()->screenNumber(window())) :
                                    QApplication::desktop()->screenGeometry (window());
         switch (mAlignment)
         {
             case AlignTop:
             {
-                if (((mPositionY == screen.y()) && mSlideToScreen) ||
-                    ((mPositionY == screen.y() - height() + 1) && !mSlideToScreen))
+                if (((mPositionY == 0) && mSlideToScreen) ||
+                    ((mPositionY == - height() + 1) && !mSlideToScreen))
                 {
                     mScrollTimer.stop();
                     if (mHideAfterSlide)
@@ -237,8 +236,8 @@ void VBoxMiniToolBar::timerEvent (QTimerEvent *aEvent)
             }
             case AlignBottom:
             {
-                if (((mPositionY == screen.y() + screen.height() - height()) && mSlideToScreen) ||
-                    ((mPositionY == screen.y() + screen.height() - 1) && !mSlideToScreen))
+                if (((mPositionY == screen.height() - height()) && mSlideToScreen) ||
+                    ((mPositionY == screen.height() - 1) && !mSlideToScreen))
                 {
                     mScrollTimer.stop();
                     if (mHideAfterSlide)
@@ -381,19 +380,19 @@ void VBoxMiniToolBar::recreateMask()
 
 void VBoxMiniToolBar::moveToBase()
 {
-    QRect screen = mSeamless ? QApplication::desktop()->availableGeometry (window()) :
+    QRect screen = mSeamless ? vboxGlobal().availableGeometry (QApplication::desktop()->screenNumber(window())) :
                                QApplication::desktop()->screenGeometry (window());
     mPositionX = screen.x() + screen.width() / 2 - width() / 2;
     switch (mAlignment)
     {
         case AlignTop:
         {
-            mPositionY = screen.y() - height() + 1;
+            mPositionY = - height() + 1;
             break;
         }
         case AlignBottom:
         {
-            mPositionY = screen.y() + screen.height() - 1;
+            mPositionY = screen.height() - 1;
             break;
         }
         default:
@@ -409,9 +408,19 @@ QPoint VBoxMiniToolBar::mapFromScreen (const QPoint &aPoint)
 {
     QPoint globalPosition = parentWidget()->mapFromGlobal (aPoint);
     QRect fullArea = QApplication::desktop()->screenGeometry (window());
-    QRect realArea = mSeamless ? QApplication::desktop()->availableGeometry (window()) :
+    QRect realArea = mSeamless ? vboxGlobal().availableGeometry (QApplication::desktop()->screenNumber(window())) :
                                  QApplication::desktop()->screenGeometry (window());
     QPoint shiftToReal (realArea.topLeft() - fullArea.topLeft());
     return globalPosition + shiftToReal;
+}
+
+bool VBoxMiniToolBar::eventFilter(QObject *pObj, QEvent *pEvent)
+{
+    if (pEvent->type() == QEvent::Resize)
+    {
+        moveToBase();
+        return true;
+    }
+    return VBoxToolBar::eventFilter(pObj, pEvent);
 }
 

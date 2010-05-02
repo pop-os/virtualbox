@@ -1,10 +1,10 @@
-/* $Id: SUPLib-win.cpp $ */
+/* $Id: SUPLib-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Windows NT specific parts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -535,9 +531,9 @@ int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
 
 
 /**
- * Converts a supdrv error code to an nt status code.
+ * Converts a supdrv win32 error code to an IPRT status code.
  *
- * @returns corresponding SUPDRV_ERR_*.
+ * @returns corresponding IPRT error code.
  * @param   rc  Win32 error code.
  */
 static int suplibConvertWin32Err(int rc)
@@ -571,23 +567,14 @@ static int suplibConvertWin32Err(int rc)
     {
         //case 0:                             return STATUS_SUCCESS;
         case 0:                             return VINF_SUCCESS;
-        //case SUPDRV_ERR_GENERAL_FAILURE:    return STATUS_NOT_SUPPORTED;
         case ERROR_NOT_SUPPORTED:           return VERR_GENERAL_FAILURE;
-        //case SUPDRV_ERR_INVALID_PARAM:      return STATUS_INVALID_PARAMETER;
         case ERROR_INVALID_PARAMETER:       return VERR_INVALID_PARAMETER;
-        //case SUPDRV_ERR_INVALID_MAGIC:      return STATUS_ACCESS_DENIED;
         case ERROR_UNKNOWN_REVISION:        return VERR_INVALID_MAGIC;
-        //case SUPDRV_ERR_INVALID_HANDLE:     return STATUS_INVALID_HANDLE;
         case ERROR_INVALID_HANDLE:          return VERR_INVALID_HANDLE;
-        //case SUPDRV_ERR_INVALID_POINTER:    return STATUS_INVALID_ADDRESS;
         case ERROR_UNEXP_NET_ERR:           return VERR_INVALID_POINTER;
-        //case SUPDRV_ERR_LOCK_FAILED:        return STATUS_NOT_LOCKED;
         case ERROR_NOT_LOCKED:              return VERR_LOCK_FAILED;
-        //case SUPDRV_ERR_ALREADY_LOADED:     return STATUS_IMAGE_ALREADY_LOADED;
         case ERROR_SERVICE_ALREADY_RUNNING: return VERR_ALREADY_LOADED;
-        //case SUPDRV_ERR_PERMISSION_DENIED:  return STATUS_ACCESS_DENIED;
         case ERROR_ACCESS_DENIED:           return VERR_PERMISSION_DENIED;
-        //case SUPDRV_ERR_VERSION_MISMATCH:   return STATUS_REVISION_MISMATCH;
         case ERROR_REVISION_MISMATCH:       return VERR_VERSION_MISMATCH;
     }
 

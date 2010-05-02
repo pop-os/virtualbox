@@ -1,10 +1,10 @@
-/* $Id: strversion.cpp $ */
+/* $Id: strversion.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Version String Parsing.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -90,7 +86,7 @@ static bool rtStrVersionParseBlock(const char **ppszVer, int32_t *pi32Value, siz
         size_t cchBlock = psz - *ppszVer;
 
         /* Translate standard pre release terms to negative values. */
-        uint32_t iVal1;
+        int32_t iVal1;
         if (     cchBlock == 2 && !RTStrNICmp(*ppszVer, "RC", 2))
             iVal1 = -100000;
         else if (cchBlock == 3 && !RTStrNICmp(*ppszVer, "PRE", 3))
@@ -117,7 +113,7 @@ static bool rtStrVersionParseBlock(const char **ppszVer, int32_t *pi32Value, siz
                 if (RT_SUCCESS(rc) && rc != VWRN_NUMBER_TOO_BIG && *pi32Value)
                     iVal1 += *pi32Value - 1;
                 else
-                {    
+                {
                     AssertRC(rc);
                     psz = psz2;
                 }
@@ -163,7 +159,7 @@ RTDECL(int) RTStrVersionCompare(const char *pszVer1, const char *pszVer2)
                 return iVal1 < iVal2 ? -1 : 1;
         }
         else if (   fNumeric1 != fNumeric2
-                 && (  fNumeric1 
+                 && (  fNumeric1
                      ? iVal1 == 0 && cchBlock2 == 0
                      : iVal2 == 0 && cchBlock1 == 0)
                 )
@@ -172,7 +168,7 @@ RTDECL(int) RTStrVersionCompare(const char *pszVer1, const char *pszVer2)
         }
         else if (   fNumeric1 != fNumeric2
                  && (fNumeric1 ? iVal1 : iVal2) < 0)
-        {    
+        {
             /* Pre-release indicators are smaller than all other strings. */
             return fNumeric1 ? -1 : 1;
         }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <VBox/VMMDev.h>
@@ -47,17 +43,10 @@
 
 /* #define DEBUG_POINTER */
 
-#define BOOL_STR(a) ((a) ? "TRUE" : "FALSE")
-
-#ifdef DEBUG_VIDEO
-# define TRACE_LINE() do \
-    { \
-        ErrorF ("%s: line %d\n", __FUNCTION__, __LINE__); \
-    } while(0)
+#ifdef DEBUG
 # define PUT_PIXEL(c) ErrorF ("%c", c)
 #else /* DEBUG_VIDEO not defined */
 # define PUT_PIXEL(c) do { } while(0)
-# define TRACE_LINE() do { } while(0)
 #endif /* DEBUG_VIDEO not defined */
 
 /** Macro to printf an error message and return from a function */
@@ -140,12 +129,18 @@ vbox_host_uses_hwcursor(ScrnInfoPtr pScrn)
      * to draw the pointer. */
     if (rc)
     {
-        if (fFeatures & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
+        if (   (fFeatures & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 5
+                /* As of this version (server 1.6) all major Linux releases
+                 * are known to handle USB tablets correctly. */
+            || (fFeatures & VMMDEV_MOUSE_HOST_HAS_ABS_DEV)
+#endif
+            )
             /* Assume this will never be unloaded as long as the X session is
              * running. */
-            pVBox->mouseDriverLoaded = TRUE;
+            pVBox->guestCanAbsolute = TRUE;
         if (   (fFeatures & VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER)
-            || !pVBox->mouseDriverLoaded
+            || !pVBox->guestCanAbsolute
             || !(fFeatures & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE)
            )
             rc = FALSE;
@@ -208,7 +203,6 @@ vboxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
     int i;
 
     pVBox = pScrn->driverPrivate;
-    TRACE_ENTRY();
     if (pVBox->useVbva == FALSE)
         return;
     pMem = pVBox->pVbvaMemory;
@@ -344,32 +338,32 @@ vboxInitVbva(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
         }
     }
 #else
-    PCITAG pciTag;
-    ADDRESS pciAddress;
+    PCITAG pciTagDev;
+    ADDRESS pciAddrDev;
 
     TRACE_ENTRY();
     /* Locate the device.  It should already have been enabled by
        the kernel driver. */
-    pciTag = pciFindFirst((unsigned) VMMDEV_DEVICEID << 16 | VMMDEV_VENDORID,
-                          (CARD32) ~0);
-    if (pciTag == PCI_NOT_FOUND)
+    pciTagDev = pciFindFirst((unsigned) VMMDEV_DEVICEID << 16 | VMMDEV_VENDORID,
+                             (CARD32) ~0);
+    if (pciTagDev == PCI_NOT_FOUND)
     {
         xf86DrvMsg(scrnIndex, X_ERROR,
                    "Could not find the VirtualBox base device on the PCI bus.\n");
         return FALSE;
     }
     /* Read the address and size of the second I/O region. */
-    pciAddress = pciReadLong(pciTag, PCI_MAP_REG_START + 4);
-    if (pciAddress == 0 || pciAddress == (CARD32) ~0)
+    pciAddrDev = pciReadLong(pciTagDev, PCI_MAP_REG_START + 4);
+    if (pciAddrDev == 0 || pciAddrDev == (CARD32) ~0)
         RETERROR(scrnIndex, FALSE,
                  "The VirtualBox base device contains an invalid memory address.\n");
-    if (PCI_MAP_IS64BITMEM(pciAddress))
+    if (PCI_MAP_IS64BITMEM(pciAddrDev))
         RETERROR(scrnIndex, FALSE,
                  "The VirtualBox base device has a 64bit mapping address.  "
                  "This is currently not supported.\n");
     /* Map it.  We hardcode the size as X does not export the
        function needed to determine it. */
-    pVBox->pVMMDevMemory = xf86MapPciMem(scrnIndex, 0, pciTag, pciAddress,
+    pVBox->pVMMDevMemory = xf86MapPciMem(scrnIndex, 0, pciTagDev, pciAddrDev,
                                          sizeof(VMMDevMemory));
 #endif
     if (pVBox->pVMMDevMemory == NULL)
@@ -472,7 +466,6 @@ vbox_vmm_hide_cursor(ScrnInfoPtr pScrn, VBOXPtr pVBox)
 {
     int rc;
 
-    TRACE_ENTRY();
     pVBox->reqp->fFlags = 0;
     rc = VbglR3SetPointerShapeReq(pVBox->reqp);
     if (RT_FAILURE(rc))
@@ -490,7 +483,6 @@ vbox_vmm_show_cursor(ScrnInfoPtr pScrn, VBOXPtr pVBox)
 {
     int rc;
 
-    TRACE_ENTRY();
     if (vbox_host_uses_hwcursor(pScrn)) {
         pVBox->reqp->fFlags = VBOX_MOUSE_POINTER_VISIBLE;
         rc = VbglR3SetPointerShapeReq(pVBox->reqp);
@@ -512,7 +504,6 @@ vbox_vmm_load_cursor_image(ScrnInfoPtr pScrn, VBOXPtr pVBox,
     VMMDevReqMousePointer *reqp;
     reqp = (VMMDevReqMousePointer *)image;
 
-    TRACE_LOG("w=%d h=%d size=%d\n", reqp->width, reqp->height, reqp->header.size);
 #ifdef DEBUG_POINTER
     vbox_show_shape(reqp->width, reqp->height, 0, image);
 #endif
@@ -530,8 +521,6 @@ vbox_vmm_load_cursor_image(ScrnInfoPtr pScrn, VBOXPtr pVBox,
 static void
 vbox_set_cursor_colors(ScrnInfoPtr pScrn, int bg, int fg)
 {
-    TRACE_ENTRY();
-
     NOREF(pScrn);
     NOREF(bg);
     NOREF(fg);
@@ -554,8 +543,6 @@ vbox_hide_cursor(ScrnInfoPtr pScrn)
 {
     VBOXPtr pVBox = pScrn->driverPrivate;
 
-    TRACE_ENTRY();
-
     vbox_vmm_hide_cursor(pScrn, pVBox);
 }
 
@@ -564,8 +551,6 @@ vbox_show_cursor(ScrnInfoPtr pScrn)
 {
     VBOXPtr pVBox = pScrn->driverPrivate;
 
-    TRACE_ENTRY();
-
     vbox_vmm_show_cursor(pScrn, pVBox);
 }
 
@@ -573,8 +558,6 @@ static void
 vbox_load_cursor_image(ScrnInfoPtr pScrn, unsigned char *image)
 {
     VBOXPtr pVBox = pScrn->driverPrivate;
-
-    TRACE_ENTRY();
 
     vbox_vmm_load_cursor_image(pScrn, pVBox, image);
 }
@@ -604,7 +587,6 @@ vbox_realize_cursor(xf86CursorInfoPtr infoPtr, CursorPtr pCurs)
     int rc, scrnIndex = infoPtr->pScrn->scrnIndex;
     VMMDevReqMousePointer *reqp;
 
-    TRACE_ENTRY();
     pVBox = infoPtr->pScrn->driverPrivate;
     bitsp = pCurs->bits;
     w = bitsp->width;
@@ -728,7 +710,6 @@ vbox_use_hw_cursor_argb(ScreenPtr pScreen, CursorPtr pCurs)
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     Bool rc = TRUE;
 
-    TRACE_ENTRY();
     if (!vbox_host_uses_hwcursor(pScrn))
         rc = FALSE;
     if (   rc
@@ -738,6 +719,11 @@ vbox_use_hw_cursor_argb(ScreenPtr pScreen, CursorPtr pCurs)
            )
        )
         rc = FALSE;
+#ifndef VBOXVIDEO_13
+    /* Evil hack - we use this as another way of poking the driver to update
+     * our list of video modes. */
+    vboxWriteHostModes(pScrn, pScrn->currentMode);
+#endif
     TRACE_LOG("rc=%s\n", BOOL_STR(rc));
     return rc;
 }
@@ -1019,6 +1005,27 @@ vboxHostLikesVideoMode(ScrnInfoPtr pScrn, uint32_t cx, uint32_t cy, uint32_t cBi
 }
 
 /**
+ * Check if any seamless mode is enabled.
+ * Seamless is only relevant for the newer Xorg modules.
+ *
+ * @returns the result of the query
+ * (true = seamless enabled, false = seamless not enabled)
+ * @param   pScrn  Screen info pointer.
+ */
+Bool
+vboxGuestIsSeamless(ScrnInfoPtr pScrn)
+{
+    VMMDevSeamlessMode mode;
+    VBOXPtr pVBox = pScrn->driverPrivate;
+    TRACE_ENTRY();
+    if (!pVBox->useDevice)
+        return FALSE;
+    if (RT_FAILURE(VbglR3SeamlessGetLastEvent(&mode)))
+        return FALSE;
+    return (mode != VMMDev_Seamless_Disabled);
+}
+
+/**
  * Save video mode parameters to the registry.
  *
  * @returns iprt status value
@@ -1059,4 +1066,312 @@ vboxRetrieveVideoMode(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy, uint32_t 
     else
         TRACE_LOG("Failed to retrieve video mode, error %d\n", rc);
     return (RT_SUCCESS(rc));
+}
+
+/**
+ * Fills a display mode M with a built-in mode of name pszName and dimensions
+ * cx and cy.
+ */
+static void vboxFillDisplayMode(DisplayModePtr m, const char *pszName,
+                                unsigned cx, unsigned cy)
+{
+    TRACE_LOG("pszName=%s, cx=%u, cy=%u\n", pszName, cx, cy);
+    m->status        = MODE_OK;
+    m->type          = M_T_BUILTIN;
+    /* VBox only supports screen widths which are a multiple of 8 */
+    m->HDisplay      = cx & ~7;
+    m->HSyncStart    = m->HDisplay + 2;
+    m->HSyncEnd      = m->HDisplay + 4;
+    m->HTotal        = m->HDisplay + 6;
+    m->VDisplay      = cy;
+    m->VSyncStart    = m->VDisplay + 2;
+    m->VSyncEnd      = m->VDisplay + 4;
+    m->VTotal        = m->VDisplay + 6;
+    m->Clock         = m->HTotal * m->VTotal * 60 / 1000; /* kHz */
+    if (pszName)
+    {
+        if (m->name)
+            xfree(m->name);
+        m->name      = xnfstrdup(pszName);
+    }
+}
+
+/** vboxvideo's list of standard video modes */
+struct
+{
+    /** mode width */
+    uint32_t cx;
+    /** mode height */
+    uint32_t cy;
+} vboxStandardModes[] =
+{
+    { 1600, 1200 },
+    { 1440, 1050 },
+    { 1280, 960 },
+    { 1024, 768 },
+    { 800, 600 },
+    { 640, 480 },
+    { 0, 0 }
+};
+enum
+{
+    vboxNumStdModes = sizeof(vboxStandardModes) / sizeof(vboxStandardModes[0])
+};
+
+/**
+ * Returns a standard mode which the host likes.  Can be called multiple
+ * times with the index returned by the previous call to get a list of modes.
+ * @returns  the index of the mode in the list, or 0 if no more modes are
+ *           available
+ * @param    pScrn   the screen information structure
+ * @param    pScrn->bitsPerPixel
+ *                   if this is non-null, only modes with this BPP will be
+ *                   returned
+ * @param    cIndex  the index of the last mode queried, or 0 to query the
+ *                   first mode available.  Note: the first index is 1
+ * @param    pcx     where to store the mode's width
+ * @param    pcy     where to store the mode's height
+ * @param    pcBits  where to store the mode's BPP
+ */
+static unsigned vboxNextStandardMode(ScrnInfoPtr pScrn, unsigned cIndex,
+                                     uint32_t *pcx, uint32_t *pcy,
+                                     uint32_t *pcBits)
+{
+    XF86ASSERT(cIndex < vboxNumStdModes,
+               ("cIndex = %d, vboxNumStdModes = %d\n", cIndex,
+                vboxNumStdModes));
+    for (unsigned i = cIndex; i < vboxNumStdModes - 1; ++i)
+    {
+        uint32_t cBits = pScrn->bitsPerPixel;
+        uint32_t cx = vboxStandardModes[i].cx;
+        uint32_t cy = vboxStandardModes[i].cy;
+
+        if (cBits != 0 && !vboxHostLikesVideoMode(pScrn, cx, cy, cBits))
+            continue;
+        if (vboxHostLikesVideoMode(pScrn, cx, cy, 32))
+            cBits = 32;
+        else if (vboxHostLikesVideoMode(pScrn, cx, cy, 16))
+            cBits = 16;
+        else
+            continue;
+        if (pcx)
+            *pcx = cx;
+        if (pcy)
+            *pcy = cy;
+        if (pcBits)
+            *pcBits = cBits;
+        return i + 1;
+    }
+    return 0;
+}
+
+/**
+ * Returns the preferred video mode.  The current order of preference is
+ * (from highest to least preferred):
+ *  - The mode corresponding to the last size hint from the host
+ *  - The video mode saved from the last session
+ *  - The largest standard mode which the host likes, falling back to
+ *    640x480x32 as a worst case
+ *  - If the host can't be contacted at all, we return 1024x768x32
+ *
+ * The return type is void as we guarantee we will return some mode.
+ */
+void vboxGetPreferredMode(ScrnInfoPtr pScrn, uint32_t *pcx,
+                          uint32_t *pcy, uint32_t *pcBits)
+{
+    /* Query the host for the preferred resolution and colour depth */
+    uint32_t cx = 0, cy = 0, iDisplay = 0, cBits = 32;
+    VBOXPtr pVBox = pScrn->driverPrivate;
+
+    TRACE_ENTRY();
+    if (pVBox->useDevice)
+    {
+        bool found = vboxGetDisplayChangeRequest(pScrn, &cx, &cy, &cBits, &iDisplay);
+        if ((cx == 0) || (cy == 0))
+            found = false;
+        if (!found)
+            found = vboxRetrieveVideoMode(pScrn, &cx, &cy, &cBits);
+        if ((cx == 0) || (cy == 0))
+            found = false;
+        if (found)
+            /* Adjust to a multiple of eight */
+            cx &= ~7;
+        if (!found)
+            found = (vboxNextStandardMode(pScrn, 0, &cx, &cy, &cBits) != 0);
+        if (!found)
+        {
+            /* Last resort */
+            cx = 640;
+            cy = 480;
+            cBits = 32;
+        }
+    }
+    else
+    {
+        cx = 1024;
+        cy = 768;
+    }
+    if (pcx)
+        *pcx = cx;
+    if (pcy)
+        *pcy = cy;
+    if (pcx)
+        *pcBits = cBits;
+}
+
+/* Move a screen mode found to the end of the list, so that RandR will give
+ * it the highest priority when a mode switch is requested.  Returns the mode
+ * that was previously before the mode in the list in order to allow the
+ * caller to continue walking the list. */
+static DisplayModePtr vboxMoveModeToFront(ScrnInfoPtr pScrn,
+                                          DisplayModePtr pMode)
+{
+    DisplayModePtr pPrev = pMode->prev;
+    if (pMode != pScrn->modes)
+    {
+        pMode->prev->next = pMode->next;
+        pMode->next->prev = pMode->prev;
+        pMode->next = pScrn->modes;
+        pMode->prev = pScrn->modes->prev;
+        pMode->next->prev = pMode;
+        pMode->prev->next = pMode;
+        pScrn->modes = pMode;
+    }
+    return pPrev;
+}
+
+/**
+ * Rewrites the first dynamic mode found which is not the current screen mode
+ * to contain the host's currently preferred screen size, then moves that
+ * mode to the front of the screen information structure's mode list.
+ * Additionally, if the current mode is not dynamic, the second dynamic mode
+ * will be set to match the current mode and also added to the front.  This
+ * ensures that the user can always reset the current size to kick the driver
+ * to update its mode list.
+ */
+void vboxWriteHostModes(ScrnInfoPtr pScrn, DisplayModePtr pCurrent)
+{
+    uint32_t cx = 0, cy = 0, iDisplay = 0, cBits = 0;
+    DisplayModePtr pMode;
+    bool found = false;
+
+    TRACE_ENTRY();
+    vboxGetPreferredMode(pScrn, &cx, &cy, &cBits);
+#ifdef DEBUG
+    /* Count the number of modes for sanity */
+    unsigned cModes = 1, cMode = 0;
+    DisplayModePtr pCount;
+    for (pCount = pScrn->modes; ; pCount = pCount->next, ++cModes)
+        if (pCount->next == pScrn->modes)
+            break;
+#endif
+    for (pMode = pScrn->modes; ; pMode = pMode->next)
+    {
+#ifdef DEBUG
+        XF86ASSERT (cMode++ < cModes, (NULL));
+#endif
+        if (   pMode != pCurrent
+            && !strcmp(pMode->name, "VBoxDynamicMode"))
+        {
+            if (!found)
+                vboxFillDisplayMode(pMode, NULL, cx, cy);
+            else if (pCurrent)
+                vboxFillDisplayMode(pMode, NULL, pCurrent->HDisplay,
+                                    pCurrent->VDisplay);
+            found = true;
+            pMode = vboxMoveModeToFront(pScrn, pMode);
+        }
+        if (pMode->next == pScrn->modes)
+            break;
+    }
+    XF86ASSERT (found,
+                ("vboxvideo: no free dynamic mode found.  Exiting.\n"));
+    XF86ASSERT (   (pScrn->modes->HDisplay == (long) cx)
+                || (   (pScrn->modes->HDisplay == pCurrent->HDisplay)
+                    && (pScrn->modes->next->HDisplay == (long) cx)),
+                ("pScrn->modes->HDisplay=%u, pScrn->modes->next->HDisplay=%u\n",
+                 pScrn->modes->HDisplay, pScrn->modes->next->HDisplay));
+    XF86ASSERT (   (pScrn->modes->VDisplay == (long) cy)
+                || (   (pScrn->modes->VDisplay == pCurrent->VDisplay)
+                    && (pScrn->modes->next->VDisplay == (long) cy)),
+                ("pScrn->modes->VDisplay=%u, pScrn->modes->next->VDisplay=%u\n",
+                 pScrn->modes->VDisplay, pScrn->modes->next->VDisplay));
+}
+
+/**
+ * Allocates an empty display mode and links it into the doubly linked list of
+ * modes pointed to by pScrn->modes.  Returns a pointer to the newly allocated
+ * memory.
+ */
+static DisplayModePtr vboxAddEmptyScreenMode(ScrnInfoPtr pScrn)
+{
+    DisplayModePtr pMode = xnfcalloc(sizeof(DisplayModeRec), 1);
+
+    TRACE_ENTRY();
+    if (!pScrn->modes)
+    {
+        pScrn->modes = pMode;
+        pMode->next = pMode;
+        pMode->prev = pMode;
+    }
+    else
+    {
+        pMode->next = pScrn->modes;
+        pMode->prev = pScrn->modes->prev;
+        pMode->next->prev = pMode;
+        pMode->prev->next = pMode;
+    }
+    return pMode;
+}
+
+/**
+ * Create display mode entries in the screen information structure for each
+ * of the initial graphics modes that we wish to support.  This includes:
+ *  - An initial mode, of the size requested by the caller
+ *  - Two dynamic modes, one of which will be updated to match the last size
+ *    hint from the host on each mode switch, but initially also of the
+ *    requested size
+ *  - Several standard modes, if possible ones that the host likes
+ *  - Any modes that the user requested in xorg.conf/XFree86Config
+ */
+void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit, uint32_t cyInit)
+{
+    unsigned cx = 0, cy = 0, cIndex = 0;
+    /* For reasons related to the way RandR 1.1 is implemented, we need to
+     * make sure that the initial mode (more precisely, a mode equal to the
+     * initial virtual resolution) is always present in the mode list.  RandR
+     * has the assumption build in that there will either be a mode of that
+     * size present at all times, or that the first mode in the list will
+     * always be smaller than the initial virtual resolution.  Since our
+     * approach to dynamic resizing isn't quite the way RandR was intended to
+     * be, and breaks the second assumption, we guarantee the first. */
+    DisplayModePtr pMode = vboxAddEmptyScreenMode(pScrn);
+    vboxFillDisplayMode(pMode, "VBoxInitialMode", cxInit, cyInit);
+    /* Create our two dynamic modes. */
+    pMode = vboxAddEmptyScreenMode(pScrn);
+    vboxFillDisplayMode(pMode, "VBoxDynamicMode", cxInit, cyInit);
+    pMode = vboxAddEmptyScreenMode(pScrn);
+    vboxFillDisplayMode(pMode, "VBoxDynamicMode", cxInit, cyInit);
+    /* Add standard modes supported by the host */
+    for ( ; ; )
+    {
+        char szName[256];
+        cIndex = vboxNextStandardMode(pScrn, cIndex, &cx, &cy, NULL);
+        if (cIndex == 0)
+            break;
+        sprintf(szName, "VBox-%ux%u", cx, cy);
+        pMode = vboxAddEmptyScreenMode(pScrn);
+        vboxFillDisplayMode(pMode, szName, cx, cy);
+    }
+    /* And finally any modes specified by the user.  We assume here that
+     * the mode names reflect the mode sizes. */
+    for (unsigned i = 0;    pScrn->display->modes != NULL
+                         && pScrn->display->modes[i] != NULL; i++)
+    {
+        if (sscanf(pScrn->display->modes[i], "%ux%u", &cx, &cy) == 2)
+        {
+            pMode = vboxAddEmptyScreenMode(pScrn);
+            vboxFillDisplayMode(pMode, pScrn->display->modes[i], cx, cy);
+        }
+    }
 }

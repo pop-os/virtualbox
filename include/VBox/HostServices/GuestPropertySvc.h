@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_HostService_GuestPropertyService_h
@@ -250,14 +246,7 @@ enum eHostFn
      * Set global flags for the service.  Currently RDONLYGUEST is supported.
      * Takes one 32-bit unsigned integer parameter for the flags.
      */
-    SET_GLOBAL_FLAGS_HOST = 7,
-
-    /**
-     * Flush notifications.
-     * Takes one 32-bit unsigned integer parameter that gives the number of
-     * milliseconds to wait for the worker thread to get the work done.
-     */
-    FLUSH_NOTIFICATIONS_HOST
+    SET_GLOBAL_FLAGS_HOST = 7
 };
 
 /**
@@ -416,7 +405,7 @@ typedef struct _EnumProperties
 
     /**
      * Array of patterns to match the properties against, separated by '|'
-     * characters.  For backwards compatibility, '\0' is also accepted
+     * characters.  For backwards compatibility, '\\0' is also accepted
      * as a separater.
      * (IN pointer)
      * If only a single, empty pattern is given then match all.

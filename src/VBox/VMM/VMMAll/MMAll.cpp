@@ -1,10 +1,10 @@
-/* $Id: MMAll.cpp $ */
+/* $Id: MMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Any Context.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -185,6 +181,7 @@ DECLINLINE(PMMLOOKUPHYPER) mmHyperLookupRC(PVM pVM, RTRCPTR RCPtr, uint32_t *pof
                     break;
             }
             AssertMsgFailed(("enmType=%d\n", pLookup->enmType));
+            *poff = 0; /* shut up gcc */
             return NULL;
         }
 
@@ -195,6 +192,7 @@ DECLINLINE(PMMLOOKUPHYPER) mmHyperLookupRC(PVM pVM, RTRCPTR RCPtr, uint32_t *pof
     }
 
     AssertMsgFailed(("RCPtr=%RRv is not inside the hypervisor memory area!\n", RCPtr));
+    *poff = 0; /* shut up gcc */
     return NULL;
 }
 
@@ -287,7 +285,7 @@ DECLINLINE(RTR0PTR) mmHyperLookupCalcR0(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_
  */
 DECLINLINE(RTRCPTR) mmHyperLookupCalcRC(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_t off)
 {
-    return (RTRCPTR)((RTGCUINTPTR)pVM->mm.s.pvHyperAreaGC + pLookup->off + off);
+    return (RTRCPTR)((RTRCUINTPTR)pVM->mm.s.pvHyperAreaGC + pLookup->off + off);
 }
 
 
@@ -410,6 +408,7 @@ VMMDECL(RTRCPTR) MMHyperR3ToRC(PVM pVM, RTR3PTR R3Ptr)
 }
 
 
+#ifndef IN_RING3
 /**
  * Converts a ring-3 host context address in the Hypervisor memory region to a current context address.
  *
@@ -419,7 +418,6 @@ VMMDECL(RTRCPTR) MMHyperR3ToRC(PVM pVM, RTR3PTR R3Ptr)
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
  */
-#ifndef IN_RING3
 VMMDECL(void *) MMHyperR3ToCC(PVM pVM, RTR3PTR R3Ptr)
 {
     uint32_t off;
@@ -468,7 +466,7 @@ VMMDECL(RTR0PTR) MMHyperRCToR0(PVM pVM, RTRCPTR RCPtr)
     return NIL_RTR0PTR;
 }
 
-
+#ifndef IN_RC
 /**
  * Converts a raw-mode context address in the Hypervisor memory region to a current context address.
  *
@@ -478,7 +476,6 @@ VMMDECL(RTR0PTR) MMHyperRCToR0(PVM pVM, RTRCPTR RCPtr)
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
  */
-#ifndef IN_RC
 VMMDECL(void *) MMHyperRCToCC(PVM pVM, RTRCPTR RCPtr)
 {
     uint32_t off;
@@ -489,8 +486,7 @@ VMMDECL(void *) MMHyperRCToCC(PVM pVM, RTRCPTR RCPtr)
 }
 #endif
 
-
-
+#ifndef IN_RING3
 /**
  * Converts a current context address in the Hypervisor memory region to a ring-3 host context address.
  *
@@ -500,7 +496,6 @@ VMMDECL(void *) MMHyperRCToCC(PVM pVM, RTRCPTR RCPtr)
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
  */
-#ifndef IN_RING3
 VMMDECL(RTR3PTR) MMHyperCCToR3(PVM pVM, void *pv)
 {
     uint32_t off;
@@ -511,6 +506,7 @@ VMMDECL(RTR3PTR) MMHyperCCToR3(PVM pVM, void *pv)
 }
 #endif
 
+#ifndef IN_RING0
 /**
  * Converts a current context address in the Hypervisor memory region to a ring-0 host context address.
  *
@@ -520,7 +516,6 @@ VMMDECL(RTR3PTR) MMHyperCCToR3(PVM pVM, void *pv)
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
  */
-#ifndef IN_RING0
 VMMDECL(RTR0PTR) MMHyperCCToR0(PVM pVM, void *pv)
 {
     uint32_t off;
@@ -532,6 +527,7 @@ VMMDECL(RTR0PTR) MMHyperCCToR0(PVM pVM, void *pv)
 #endif
 
 
+#ifndef IN_RC
 /**
  * Converts a current context address in the Hypervisor memory region to a raw-mode context address.
  *
@@ -541,7 +537,6 @@ VMMDECL(RTR0PTR) MMHyperCCToR0(PVM pVM, void *pv)
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
  */
-#ifndef IN_RC
 VMMDECL(RTRCPTR) MMHyperCCToRC(PVM pVM, void *pv)
 {
     uint32_t off;

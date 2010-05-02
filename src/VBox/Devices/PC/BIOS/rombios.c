@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////////////
-// $Id: rombios.c $
+// $Id: rombios.c,v 1.176 2006/12/30 17:13:17 vruppert Exp $
 /////////////////////////////////////////////////////////////////////////
 //
 //  Copyright (C) 2002  MandrakeSoft S.A.
@@ -4299,6 +4299,15 @@ ASM_END
       SET_CF();
       regs.u.r8.ah = UNSUPPORTED_FUNCTION;
       break;
+    case 0xec: /* AMD64 target operating mode callback */
+      if (regs.u.r8.al != 0)
+          goto undecoded;
+      regs.u.r8.ah = 0;
+      if (regs.u.r8.bl >= 1 && regs.u.r8.bl <= 3)
+          CLEAR_CF();   /* Accepted value. */
+      else
+          SET_CF();     /* Reserved, error. */
+      break;
 undecoded:
 #endif /* VBOX */
     default:
@@ -5403,8 +5412,8 @@ BX_DEBUG_INT74("int74_function: make_farcall=1\n");
 #if BX_USE_ATADRV
 
   void
-int13_harddisk(EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
-  Bit16u EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS;
+int13_harddisk(EHBX, EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
+  Bit16u EHBX, EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS;
 {
   Bit32u lba;
   Bit16u ebda_seg=read_word(0x0040,0x000E);
@@ -6647,8 +6656,8 @@ ASM_END
 }
 
   void
-int13_harddisk(EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
-  Bit16u EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS;
+int13_harddisk(EHBX, EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS)
+  Bit16u EHBX, EHAX, DS, ES, DI, SI, BP, ELDX, BX, DX, CX, AX, IP, CS, FLAGS;
 {
   Bit8u    drive, num_sectors, sector, head, status, mod;
   Bit8u    drive_map;
@@ -9090,10 +9099,14 @@ int13_notcdrom:
 #endif
 
 int13_disk:
-  ;; int13_harddisk modifies high word of EAX
+  ;; int13_harddisk modifies high word of EAX and EBX
   shr   eax, #16
   push  ax
+  shr   ebx, #16
+  push  bx
   call  _int13_harddisk
+  pop   bx
+  shl   ebx, #16
   pop   ax
   shl   eax, #16
 

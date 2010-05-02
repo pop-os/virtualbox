@@ -1,10 +1,10 @@
-/* $Id: fileaio-win.cpp $ */
+/* $Id: fileaio-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for the Windows host platform.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -211,10 +207,10 @@ RTDECL(int) RTFileAioReqPrepareRead(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
 }
 
 RTDECL(int) RTFileAioReqPrepareWrite(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
-                                     void *pvBuf, size_t cbWrite, void *pvUser)
+                                     void const *pvBuf, size_t cbWrite, void *pvUser)
 {
     return rtFileAioReqPrepareTransfer(hReq, hFile, TRANSFERDIRECTION_WRITE,
-                                       off, pvBuf, cbWrite, pvUser);
+                                       off, (void *)pvBuf, cbWrite, pvUser);
 }
 
 RTDECL(int) RTFileAioReqPrepareFlush(RTFILEAIOREQ hReq, RTFILE hFile, void *pvUser)
@@ -347,24 +343,26 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
     PRTFILEAIOCTXINTERNAL pCtxInt = hAioCtx;
     RTFILEAIOCTX_VALID_RETURN(pCtxInt);
     AssertReturn(cReqs > 0,  VERR_INVALID_PARAMETER);
+    Assert(cReqs <= INT32_MAX);
     AssertPtrReturn(pahReqs, VERR_INVALID_POINTER);
-    int i;
+    size_t i;
 
     for (i = 0; i < cReqs; i++)
     {
         PRTFILEAIOREQINTERNAL pReqInt = pahReqs[i];
         BOOL fSucceeded;
 
+        Assert(pReqInt->cbTransfer == (DWORD)pReqInt->cbTransfer);
         if (pReqInt->enmTransferDirection == TRANSFERDIRECTION_READ)
         {
             fSucceeded = ReadFile(pReqInt->hFile, pReqInt->pvBuf,
-                                  pReqInt->cbTransfer, NULL,
+                                  (DWORD)pReqInt->cbTransfer, NULL,
                                   &pReqInt->Overlapped);
         }
         else if (pReqInt->enmTransferDirection == TRANSFERDIRECTION_WRITE)
         {
             fSucceeded = WriteFile(pReqInt->hFile, pReqInt->pvBuf,
-                                   pReqInt->cbTransfer, NULL,
+                                   (DWORD)pReqInt->cbTransfer, NULL,
                                    &pReqInt->Overlapped);
         }
         else
@@ -380,12 +378,12 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
         RTFILEAIOREQ_SET_STATE(pReqInt, SUBMITTED);
     }
 
-    ASMAtomicAddS32(&pCtxInt->cRequests, i);
+    ASMAtomicAddS32(&pCtxInt->cRequests, (int32_t)i);
 
     return rc;
 }
 
-RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMillisTimeout,
+RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL cMillies,
                              PRTFILEAIOREQ pahReqs, size_t cReqs, uint32_t *pcReqs)
 {
     /*
@@ -416,16 +414,16 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
     int rc = VINF_SUCCESS;
     int cRequestsCompleted = 0;
     while (   !pCtxInt->fWokenUp
-           && (cMinReqs > 0))
+           && cMinReqs > 0)
     {
         uint64_t     StartNanoTS = 0;
-        DWORD        dwTimeout = cMillisTimeout == RT_INDEFINITE_WAIT ? INFINITE : cMillisTimeout;
+        DWORD        dwTimeout = cMillies == RT_INDEFINITE_WAIT ? INFINITE : cMillies;
         DWORD        cbTransfered;
         LPOVERLAPPED pOverlapped;
         ULONG_PTR    lCompletionKey;
         BOOL         fSucceeded;
 
-        if (cMillisTimeout != RT_INDEFINITE_WAIT)
+        if (cMillies != RT_INDEFINITE_WAIT)
             StartNanoTS = RTTimeNanoTS();
 
         ASMAtomicXchgBool(&pCtxInt->fWaiting, true);
@@ -445,37 +443,37 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMi
         /* Check if we got woken up. */
         if (lCompletionKey == AIO_CONTEXT_WAKEUP_EVENT)
             break;
-        else
+
+        /* A request completed. */
+        PRTFILEAIOREQINTERNAL pReqInt = OVERLAPPED_2_RTFILEAIOREQINTERNAL(pOverlapped);
+        AssertPtr(pReqInt);
+        Assert(pReqInt->u32Magic == RTFILEAIOREQ_MAGIC);
+
+        /* Mark the request as finished. */
+        RTFILEAIOREQ_SET_STATE(pReqInt, COMPLETED);
+
+        /* completion status. */
+        fSucceeded = GetOverlappedResult(pReqInt->hFile,
+                                         &pReqInt->Overlapped,
+                                         &cbTransfered,
+                                         FALSE);
+        pReqInt->cbTransfered = cbTransfered;
+        pReqInt->Rc = VINF_SUCCESS;
+
+        pahReqs[cRequestsCompleted++] = (RTFILEAIOREQ)pReqInt;
+
+        /* Update counter. */
+        cMinReqs--;
+
+        if (cMillies != RT_INDEFINITE_WAIT)
         {
-            /* A request completed. */
-            PRTFILEAIOREQINTERNAL pReqInt = OVERLAPPED_2_RTFILEAIOREQINTERNAL(pOverlapped);
-            AssertPtr(pReqInt);
-            Assert(pReqInt->u32Magic == RTFILEAIOREQ_MAGIC);
-
-            /* Mark the request as finished. */
-            RTFILEAIOREQ_SET_STATE(pReqInt, COMPLETED);
-
-            /* completion status. */
-            DWORD cbTransfered;
-            fSucceeded = GetOverlappedResult(pReqInt->hFile,
-                                             &pReqInt->Overlapped,
-                                             &cbTransfered,
-                                             FALSE);
-            pReqInt->cbTransfered = cbTransfered;
-            pReqInt->Rc = VINF_SUCCESS;
-
-            pahReqs[cRequestsCompleted++] = (RTFILEAIOREQ)pReqInt;
-
-            /* Update counter. */
-            cMinReqs --;
-
-            if (cMillisTimeout != RT_INDEFINITE_WAIT)
-            {
-                /* Recalculate timeout. */
-                uint64_t NanoTS = RTTimeNanoTS();
-                uint64_t cMilliesElapsed = (NanoTS - StartNanoTS) / 1000000;
-                cMillisTimeout -= cMilliesElapsed;
-            }
+            /* Recalculate timeout. */
+            uint64_t NanoTS = RTTimeNanoTS();
+            uint64_t cMilliesElapsed = (NanoTS - StartNanoTS) / 1000000;
+            if (cMilliesElapsed < cMillies)
+                cMillies -= cMilliesElapsed;
+            else
+                cMillies = 0;
         }
     }
 

@@ -1,10 +1,10 @@
-/* $Id: ldr.h $ */
+/* $Id: ldr.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Loader Internals.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_ldr_h
@@ -40,7 +36,7 @@ RT_C_DECLS_BEGIN
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-#ifdef __DOXYGEN__
+#ifdef DOXYGEN_RUNNING
 /** @def LDR_WITH_NATIVE
  * Define this to get native support. */
 # define LDR_WITH_NATIVE
@@ -64,7 +60,7 @@ RT_C_DECLS_BEGIN
 /** @def LDR_WITH_MACHO
  * Define this to get mach-o support (not implemented yet). */
 # define LDR_WITH_MACHO
-#endif /* __DOXYGEN__ */
+#endif /* DOXYGEN_RUNNING */
 
 #if defined(LDR_WITH_ELF32) || defined(LDR_WITH_ELF64)
 /** @def LDR_WITH_ELF

@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox API testcases.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -112,6 +108,7 @@ tstCollector_SOURCES  = \
 	tstCollector.cpp \
 	../Performance.cpp
 tstCollector_INCS     = ../include
+tstCollector_DEFS    += VBOX_COLLECTOR_TEST_CASE
 tstCollector_LDFLAGS.darwin  += -lproc
 tstCollector_LDFLAGS.solaris += -lkstat
 tstCollector_LDFLAGS.win     += psapi.lib powrprof.lib
@@ -130,9 +127,12 @@ tstHostHardwareLinux_DEFS      = \
 	VBOX_TEST_USB_LINUX \
 	TESTCASE \
 	$(if $(VBOX_WITH_LINUX_COMPILER_H),VBOX_WITH_LINUX_COMPILER_H,) \
-	$(if $(VBOX_WITH_DBUS),VBOX_WITH_DBUS,) \
-	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,)
-tstHostHardwareLinux_LIBS     += $(PATH_OUT)/lib/USBLib.a
+	$(if $(VBOX_WITH_DBUS),$(if $(VBOX_USB_WITH_DBUS),VBOX_USB_WITH_DBUS,),) \
+	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,) \
+	$(if $(VBOX_USB_WITH_FAM),VBOX_USB_WITH_FAM,)
+tstHostHardwareLinux_LIBS     += \
+	$(PATH_OUT)/lib/USBLib.a \
+	$(if $(VBOX_USB_WITH_FAM),fam,)
 
 
 # generate rules.

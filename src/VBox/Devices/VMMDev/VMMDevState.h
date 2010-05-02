@@ -1,10 +1,10 @@
-/* $Id: VMMDevState.h $ */
+/* $Id: VMMDevState.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device, internal header.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VMMDev_VMMDevState_h
@@ -27,6 +23,33 @@
 #include <VBox/pdmifs.h>
 
 #define TIMESYNC_BACKDOOR
+
+typedef struct DISPLAYCHANGEINFO
+{
+    uint32_t xres;
+    uint32_t yres;
+    uint32_t bpp;
+    uint32_t display;
+} DISPLAYCHANGEINFO;
+
+typedef struct DISPLAYCHANGEREQUEST
+{
+    bool fPending;
+    DISPLAYCHANGEINFO displayChangeRequest;
+    DISPLAYCHANGEINFO lastReadDisplayChangeRequest;
+} DISPLAYCHANGEREQUEST;
+
+typedef struct DISPLAYCHANGEDATA
+{
+    /* Which monitor is being reported to the guest. */
+    int iCurrentMonitor;
+
+    /** true if the guest responded to VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST at least once */
+    bool fGuestSentChangeEventAck;
+
+    DISPLAYCHANGEREQUEST aRequests[64]; // @todo maxMonitors
+} DISPLAYCHANGEDATA;
+
 
 /** device structure containing all state information */
 typedef struct VMMDevState
@@ -50,13 +73,13 @@ typedef struct VMMDevState
 
     /** Pointer to device instance. */
     PPDMDEVINSR3 pDevIns;
-    /** VMMDev port base interface. */
-    PDMIBASE Base;
-    /** VMMDev port interface. */
-    PDMIVMMDEVPORT Port;
+    /** LUN\#0 + Status: VMMDev port base interface. */
+    PDMIBASE IBase;
+    /** LUN\#0: VMMDev port interface. */
+    PDMIVMMDEVPORT IPort;
 #ifdef VBOX_WITH_HGCM
-    /** HGCM port interface. */
-    PDMIHGCMPORT HGCMPort;
+    /** LUN\#0: HGCM port interface. */
+    PDMIHGCMPORT IHGCMPort;
 #endif
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE) pDrvBase;
@@ -116,18 +139,7 @@ typedef struct VMMDevState
     /** Video acceleration status set by guest. */
     uint32_t u32VideoAccelEnabled;
 
-    /** true if the guest responded to VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST at least once */
-    bool fGuestSentChangeEventAck;
-
-    /** resolution change request */
-    struct
-    {
-        uint32_t xres;
-        uint32_t yres;
-        uint32_t bpp;
-        uint32_t display;
-    } displayChangeRequest,
-      lastReadDisplayChangeRequest;
+    DISPLAYCHANGEDATA displayChangeData;
 
     /** credentials for guest logon purposes */
     struct
@@ -187,7 +199,7 @@ typedef struct VMMDevState
     uint32_t u32HGCMEnabled;
 #endif /* VBOX_WITH_HGCM */
 
-    /* Shared folders LED */
+    /** Status LUN: Shared folders LED */
     struct
     {
         /** The LED. */
@@ -197,6 +209,17 @@ typedef struct VMMDevState
         /** Partner of ILeds. */
         R3PTRTYPE(PPDMILEDCONNECTORS)       pLedsConnector;
     } SharedFolders;
+
+    /** FLag whether CPU hotplug events are monitored */
+    bool                 fCpuHotPlugEventsEnabled;
+    /** CPU hotplug event */
+    VMMDevCpuEventType   enmCpuHotPlugEvent;
+    /** Core id of the CPU to change */
+    uint32_t             idCpuCore;
+    /** Package id of the CPU to changhe */
+    uint32_t             idCpuPackage;
+
+    uint32_t             StatMemBalloonChunks;
 } VMMDevState;
 AssertCompileMemberAlignment(VMMDevState, CritSect, 8);
 

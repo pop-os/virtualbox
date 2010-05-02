@@ -1,10 +1,10 @@
-/* $Id: NetIf-generic.cpp $ */
+/* $Id: NetIf-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Main - Generic NetIf implementation.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <VBox/err.h>
@@ -45,7 +41,7 @@ static int NetIfAdpCtl(const char * pcszIfName, const char *pszAddr, const char 
     int rc = RTPathExecDir(szAdpCtl, sizeof(szAdpCtl) - sizeof("/" VBOXNETADPCTL_NAME));
     if (RT_FAILURE(rc))
     {
-        LogRel(("NetIfAdpCtl: failed to get program path, rc=%Vrc.\n", rc));
+        LogRel(("NetIfAdpCtl: failed to get program path, rc=%Rrc.\n", rc));
         return rc;
     }
     strcat(szAdpCtl, "/" VBOXNETADPCTL_NAME);
@@ -153,7 +149,7 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
             if (RT_FAILURE(rc))
             {
                 progress->notifyComplete(E_FAIL, COM_IIDOF(IHostNetworkInterface), HostNetworkInterface::getComponentName(),
-                                         "Failed to get program path, rc=%Vrc\n", rc);
+                                         "Failed to get program path, rc=%Rrc\n", rc);
                 return rc;
             }
             strcat(szAdpCtl, "/" VBOXNETADPCTL_NAME " add");
@@ -230,10 +226,10 @@ int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVBox, IN_GUID aId,
     {
         Bstr ifname;
         ComPtr<IHostNetworkInterface> iface;
-        if (FAILED (host->FindHostNetworkInterfaceById (Guid(aId).toUtf16(), iface.asOutParam())))
+        if (FAILED(host->FindHostNetworkInterfaceById (Guid(aId).toUtf16(), iface.asOutParam())))
             return VERR_INVALID_PARAMETER;
-        iface->COMGETTER (Name) (ifname.asOutParam());
-        if (ifname.isNull())
+        iface->COMGETTER(Name) (ifname.asOutParam());
+        if (ifname.isEmpty())
             return VERR_INTERNAL_ERROR;
 
         rc = progress->init (pVBox, host,
@@ -241,7 +237,6 @@ int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVBox, IN_GUID aId,
                             FALSE /* aCancelable */);
         if(SUCCEEDED(rc))
         {
-            CheckComRCReturnRC(rc);
             progress.queryInterfaceTo(aProgress);
             rc = NetIfAdpCtl(Utf8Str(ifname).c_str(), "remove", NULL, NULL);
             if (RT_FAILURE(rc))

@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -84,7 +80,7 @@
 #endif /* !DEBUG_sunlover */
 
 #ifdef DEBUG_misha
-# define VBOXHGSMI_STATE_DEBUG
+//# define VBOXHGSMI_STATE_DEBUG
 #endif
 
 #ifdef VBOXHGSMI_STATE_DEBUG
@@ -151,6 +147,9 @@ typedef struct _HGSMIINSTANCE
     HGSMILIST hostFIFORead;            /* Host buffers readed by the guest. */
     HGSMILIST hostFIFOProcessed;       /* Processed by the guest. */
     HGSMILIST hostFIFOFree;            /* Buffers for reuse. */
+#ifdef VBOXVDMA
+    HGSMILIST guestCmdCompleted;       /* list of completed guest commands to be returned to the guest*/
+#endif
     RTCRITSECT    hostFIFOCritSect;    /* FIFO serialization lock. */
 
     PFNHGSMINOTIFYGUEST pfnNotifyGuest; /* Guest notification callback. */
@@ -197,6 +196,7 @@ typedef struct _HGSMIHOSTFIFOENTRY
 
 #define HGSMILISTENTRY_2_FIFOENTRY(_pe) \
     ( (HGSMIHOSTFIFOENTRY*)((uint8_t *)(_pe) - RT_OFFSETOF(HGSMIHOSTFIFOENTRY, entry)) )
+
 //AssertCompile(RT_OFFSETOF(HGSMIHOSTFIFOENTRY, entry) == 0);
 
 
@@ -208,6 +208,43 @@ typedef struct _HGSMIHOSTFIFOENTRY
 #define HGSMI_F_HOST_FIFO_CANCELED  0x0020
 
 static DECLCALLBACK(void) hgsmiHostCommandFreeCallback (void *pvCallback);
+
+#ifdef VBOXVDMA
+
+typedef struct _HGSMIGUESTCOMPLENTRY
+{
+    /* The list field. Must be the first field. */
+    HGSMILISTENTRY entry;
+    /* guest command buffer */
+    HGSMIOFFSET offBuffer;
+} HGSMIGUESTCOMPLENTRY;
+
+#define HGSMILISTENTRY_2_HGSMIGUESTCOMPLENTRY(_pe) \
+    ( (HGSMIGUESTCOMPLENTRY*)((uint8_t *)(_pe) - RT_OFFSETOF(HGSMIGUESTCOMPLENTRY, entry)) )
+
+static void hgsmiGuestCompletionFIFOFree (HGSMIINSTANCE *pIns, HGSMIGUESTCOMPLENTRY *pEntry)
+{
+    NOREF (pIns);
+    RTMemFree (pEntry);
+}
+
+static int hgsmiGuestCompletionFIFOAlloc (HGSMIINSTANCE *pIns, HGSMIGUESTCOMPLENTRY **ppEntry)
+{
+    int rc = VINF_SUCCESS;
+
+    NOREF (pIns);
+
+    HGSMIGUESTCOMPLENTRY *pEntry = (HGSMIGUESTCOMPLENTRY *)RTMemAllocZ (sizeof (HGSMIGUESTCOMPLENTRY));
+
+    if (pEntry)
+        *ppEntry = pEntry;
+    else
+        rc = VERR_NO_MEMORY;
+
+    return rc;
+}
+
+#endif
 
 static int hgsmiLock (HGSMIINSTANCE *pIns)
 {
@@ -340,10 +377,42 @@ HGSMIOFFSET HGSMIGuestRead (PHGSMIINSTANCE pIns)
 
     VM_ASSERT_EMT(pIns->pVM);
 
+#ifndef VBOXVDMA
     /* Currently there is no functionality here. */
     NOREF(pIns);
 
     return HGSMIOFFSET_VOID;
+#else
+    /* use this to speedup guest cmd completion
+     * this mechanism is alternative to submitting H->G command for notification */
+    HGSMIOFFSET offCmd = HGSMIOFFSET_VOID;
+    int rc = hgsmiFIFOLock(pIns);
+    AssertRC(rc);
+    if(RT_SUCCESS(rc))
+    {
+        /* Get the host FIFO head entry. */
+        HGSMILISTENTRY *pHead = pIns->guestCmdCompleted.pHead;
+        if(pHead)
+            hgsmiListRemove (&pIns->guestCmdCompleted, pHead, NULL);
+
+        if(!pIns->guestCmdCompleted.pHead)
+            pIns->pHGFlags->u32HostFlags &= (~HGSMIHOSTFLAGS_GCOMMAND_COMPLETED);
+
+        hgsmiFIFOUnlock(pIns);
+
+        if (pHead)
+        {
+            HGSMIGUESTCOMPLENTRY *pEntry = HGSMILISTENTRY_2_HGSMIGUESTCOMPLENTRY(pHead);
+            offCmd = pEntry->offBuffer;
+
+            LogFlowFunc(("host FIFO head %p.\n", pEntry));
+
+            hgsmiGuestCompletionFIFOFree (pIns, pEntry);
+        }
+    }
+    /* Special value that means there is no host buffers to be processed. */
+    return offCmd;
+#endif
 }
 
 static bool hgsmiProcessHostCmdCompletion (HGSMIINSTANCE *pIns,
@@ -436,7 +505,7 @@ HGSMIOFFSET HGSMIHostRead (HGSMIINSTANCE *pIns)
     VM_ASSERT_EMT(pIns->pVM);
 
     int rc = hgsmiFIFOLock(pIns);
-    Assert(RT_SUCCESS(rc));
+    AssertRC(rc);
     if(RT_SUCCESS(rc))
     {
         /* Get the host FIFO head entry. */
@@ -1595,3 +1664,77 @@ void HGSMIDestroy (PHGSMIINSTANCE pIns)
 
     LogFlowFunc(("leave\n"));
 }
+
+#ifdef VBOXVDMA
+
+static int hgsmiGuestCommandComplete (HGSMIINSTANCE *pIns, HGSMIOFFSET offMem)
+{
+    HGSMIGUESTCOMPLENTRY *pEntry;
+
+    int rc = hgsmiGuestCompletionFIFOAlloc (pIns, &pEntry);
+    AssertRC(rc);
+    if (RT_SUCCESS (rc))
+    {
+        pEntry->offBuffer = offMem;
+
+        rc = hgsmiFIFOLock(pIns);
+        AssertRC(rc);
+        if (RT_SUCCESS (rc))
+        {
+            hgsmiListAppend (&pIns->guestCmdCompleted, &pEntry->entry);
+            pIns->pHGFlags->u32HostFlags |= HGSMIHOSTFLAGS_GCOMMAND_COMPLETED;
+
+            hgsmiFIFOUnlock(pIns);
+        }
+        else
+        {
+            hgsmiGuestCompletionFIFOFree(pIns, pEntry);
+        }
+    }
+
+    return rc;
+}
+
+int hgsmiCompleteGuestCommand(PHGSMIINSTANCE pIns,
+        HGSMIOFFSET offBuffer,
+        bool bDoIrq)
+{
+    int rc = hgsmiGuestCommandComplete (pIns, offBuffer);
+    if (RT_SUCCESS (rc))
+    {
+        if(bDoIrq)
+        {
+            /* Now guest can read the FIFO, the notification is informational. */
+            hgsmiNotifyGuest (pIns);
+        }
+    }
+    return rc;
+}
+
+int HGSMICompleteGuestCommand(PHGSMIINSTANCE pIns,
+        void *pvMem,
+        bool bDoIrq)
+{
+    LogFlowFunc(("pIns = %p, pvMem = %p\n", pIns, pvMem));
+
+    VM_ASSERT_OTHER_THREAD(pIns->pVM);
+
+    int rc = VINF_SUCCESS;
+    HGSMIOFFSET offBuffer = HGSMIHeapBufferOffset (&pIns->hostHeap, pvMem);
+    Assert(offBuffer != HGSMIOFFSET_VOID);
+    if (offBuffer != HGSMIOFFSET_VOID)
+    {
+        rc = hgsmiCompleteGuestCommand (pIns, offBuffer, bDoIrq);
+        AssertRC (rc);
+    }
+    else
+    {
+        LogRel(("invalid cmd offset \n"));
+        rc = VERR_INVALID_PARAMETER;
+    }
+
+    LogFlowFunc(("rc = %Rrc\n", rc));
+
+    return rc;
+}
+#endif

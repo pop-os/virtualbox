@@ -1,10 +1,10 @@
-/* $Id: tstTSC.cpp $ */
+/* $Id: tstTSC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - SMP TSC testcase.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -419,7 +415,6 @@ int main(int argc, char **argv)
     {
         { "--duration",         'd', RTGETOPT_REQ_UINT32 },
         { "--calc-frequency",   'f', RTGETOPT_REQ_NOTHING },
-        { "--help",             'h', RTGETOPT_REQ_NOTHING }
     };
     int iArg = 1;
     int ch;
@@ -429,20 +424,23 @@ int main(int argc, char **argv)
     while ((ch = RTGetOpt(&GetState, &Value)))
         switch (ch)
         {
-            case 'd':   cMsDuration = Value.u32; break;
-            case 'f':   fCalcFrequency = true; break;
+            case 'd':   cMsDuration = Value.u32;
+                break;
+
+            case 'f':   fCalcFrequency = true;
+                break;
+
             case 'h':
                 RTPrintf("usage: tstTSC\n"
                          "   or: tstTSC <-f|--calc-frequency> [--duration|-d ms]\n");
                 return 1;
 
-            case VINF_GETOPT_NOT_OPTION:
-                RTStrmPrintf(g_pStdErr, "tstTSC: too many arguments\n");
-                break;
+            case 'V':
+                RTPrintf("$Revision: $\n");
+                return 0;
 
             default:
-                RTStrmPrintf(g_pStdErr, "tstTSC: Unknown arg or error (ch=%d)\n", ch);
-                return 1;
+                return RTGetOptPrintError(ch, &Value);
         }
 
     if (fCalcFrequency)

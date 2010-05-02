@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxSpecialControls_h__
@@ -48,12 +44,38 @@ public:
 
     void setText (const QString &aText) { mButton->setText (aText); }
     void setToolTip (const QString &aTip) { mButton->setToolTip (aTip); }
+    void removeBorder() {}
 
 protected:
     void paintEvent (QPaintEvent * /* aEvent */) {}
+    void resizeEvent(QResizeEvent *pEvent);
 
 private:
     VBoxCocoaButton *mButton;
+};
+
+/********************************************************************************
+ *
+ * A reset button in the native Cocoa version.
+ *
+ ********************************************************************************/
+class UIResetButton: public QAbstractButton
+{
+    Q_OBJECT;
+
+public:
+    UIResetButton(QWidget *pParent = 0);
+
+    void setText(const QString &strText) { m_pButton->setText(strText); }
+    void setToolTip(const QString &strTip) { m_pButton->setToolTip(strTip); }
+    void removeBorder() {}
+
+protected:
+    void paintEvent(QPaintEvent * /* pEvent */) {}
+    void resizeEvent(QResizeEvent *pEvent);
+
+private:
+    VBoxCocoaButton *m_pButton;
 };
 
 /********************************************************************************
@@ -129,9 +151,24 @@ class VBoxMiniCancelButton: public QIWithRetranslateUI<QIToolButton>
 
 public:
     VBoxMiniCancelButton (QWidget *aParent = 0);
+    void removeBorder();
 
 protected:
     void retranslateUi() {};
+};
+
+/********************************************************************************
+ *
+ * A reset button for the other OS's (same as the cancel button for now)
+ *
+ ********************************************************************************/
+class UIResetButton: public VBoxMiniCancelButton
+{
+    Q_OBJECT;
+
+public:
+    UIResetButton(QWidget *pParent = 0)
+      : VBoxMiniCancelButton(pParent) {}
 };
 
 /********************************************************************************

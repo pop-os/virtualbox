@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_req_h
@@ -185,7 +181,7 @@ RTDECL(int) RTReqDestroyQueue(PRTREQQUEUE pQueue);
  * @param   cMillies        Number of milliseconds to wait for a pending request.
  *                          Use RT_INDEFINITE_WAIT to only wait till one is added.
  */
-RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies);
+RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, RTMSINTERVAL cMillies);
 
 
 /**
@@ -212,7 +208,7 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, unsigned cMillies);
  *
  * @remarks See remarks on RTReqCallV.
  */
-RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
+RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
 
 
 /**
@@ -239,7 +235,7 @@ RTDECL(int) RTReqCall(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNR
  *
  * @remarks See remarks on RTReqCallV.
  */
-RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
+RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, PFNRT pfnFunction, unsigned cArgs, ...);
 
 
 /**
@@ -268,7 +264,7 @@ RTDECL(int) RTReqCallVoid(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, 
  *
  * @remarks See remarks on RTReqCallV.
  */
-RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
+RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
 
 
 /**
@@ -304,7 +300,7 @@ RTDECL(int) RTReqCallEx(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, un
  *                hosts because 'int' is 32-bit.
  *                Use (void *)NULL or (uintptr_t)0 instead of NULL.
  */
-RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
+RTDECL(int) RTReqCallV(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTMSINTERVAL cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
 
 
 /**
@@ -351,7 +347,7 @@ RTDECL(int) RTReqFree(PRTREQ pReq);
  *                          be completed. Use RT_INDEFINITE_WAIT to only
  *                          wait till it's completed.
  */
-RTDECL(int) RTReqQueue(PRTREQ pReq, unsigned cMillies);
+RTDECL(int) RTReqQueue(PRTREQ pReq, RTMSINTERVAL cMillies);
 
 
 /**
@@ -365,7 +361,7 @@ RTDECL(int) RTReqQueue(PRTREQ pReq, unsigned cMillies);
  * @param   cMillies        Number of milliseconds to wait.
  *                          Use RT_INDEFINITE_WAIT to only wait till it's completed.
  */
-RTDECL(int) RTReqWait(PRTREQ pReq, unsigned cMillies);
+RTDECL(int) RTReqWait(PRTREQ pReq, RTMSINTERVAL cMillies);
 
 /**
  * Checks if the queue is busy or not.

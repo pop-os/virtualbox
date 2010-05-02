@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,10 +19,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /**
@@ -46,8 +42,8 @@
 
 // #define wchar_t linux_wchar_t
 
-MODULE_DESCRIPTION ("Host file system access VFS for VirtualBox");
-MODULE_AUTHOR ("Sun Microsystems, Inc.");
+MODULE_DESCRIPTION (VBOX_PRODUCT " VFS Module for Host File System Access");
+MODULE_AUTHOR (VBOX_VENDOR);
 MODULE_LICENSE ("GPL");
 #ifdef MODULE_VERSION
 MODULE_VERSION(VBOX_VERSION_STRING " (interface " RT_XSTR(VMMDEV_VERSION) ")");
@@ -239,6 +235,7 @@ sf_read_super_aux (struct super_block *sb, void *data, int flags)
                 goto fail1;
         }
 
+        sf_i->handle = SHFL_HANDLE_NIL;
         sf_i->path = kmalloc (sizeof (SHFLSTRING) + 1, GFP_KERNEL);
         if (!sf_i->path) {
                 err = -ENOMEM;

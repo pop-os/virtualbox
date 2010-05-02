@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_system_h
@@ -139,6 +135,47 @@ RTDECL(int) RTSystemQueryTotalRam(uint64_t *pcb);
  */
 RTDECL(int) RTSystemQueryUnavailableRam(uint64_t *pcb);
 
+
+/**
+ * The DMI strings.
+ */
+typedef enum RTSYSDMISTR
+{
+    /** Invalid zero entry. */
+    RTSYSDMISTR_INVALID = 0,
+    /** The product name. */
+    RTSYSDMISTR_PRODUCT_NAME,
+    /** The product version. */
+    RTSYSDMISTR_PRODUCT_VERSION,
+    /** The product UUID. */
+    RTSYSDMISTR_PRODUCT_UUID,
+    /** The product serial. */
+    RTSYSDMISTR_PRODUCT_SERIAL,
+    /** The end of the valid strings. */
+    RTSYSDMISTR_END,
+    /** The usual 32-bit hack.  */
+    RTSYSDMISTR_32_BIT_HACK = 0x7fffffff
+} RTSYSDMISTR;
+
+/**
+ * Queries a DMI string.
+ *
+ * @returns IPRT status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the buffer is too small.  The buffer will
+ *          contain the chopped off result in this case, provided cbBuf isn't 0.
+ * @retval  VERR_ACCESS_DENIED if the information isn't accessible to the
+ *          caller.
+ * @retval  VERR_NOT_SUPPORTED if the information isn't available on the system
+ *          in general.  The caller must expect this status code and deal with
+ *          it.
+ *
+ * @param   enmString           Which string to query.
+ * @param   pszBuf              Where to store the string.  This is always
+ *                              terminated, even on error.
+ * @param   cbBuf               The buffer size.
+ */
+RTDECL(int) RTSystemQueryDmiString(RTSYSDMISTR enmString, char *pszBuf, size_t cbBuf);
 
 /** @} */
 

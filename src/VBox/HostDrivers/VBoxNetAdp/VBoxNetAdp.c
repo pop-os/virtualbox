@@ -1,10 +1,10 @@
-/* $Id: VBoxNetAdp.c $ */
+/* $Id: VBoxNetAdp.c 28830 2010-04-27 14:05:25Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Common Code.
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_netadp     VBoxNetAdp - Network Adapter
@@ -40,6 +36,7 @@
 #include <iprt/string.h>
 
 #ifdef VBOXANETADP_DO_NOT_USE_NETFLT
+#error "this code is broken"
 
 #include <VBox/sup.h>
 #include <iprt/assert.h>
@@ -110,9 +107,9 @@ DECLINLINE(void) vboxNetAdpSetStateWithLock(PVBOXNETADP pThis, VBOXNETADPSTATE e
 {
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     Log(("vboxNetAdpSetStateWithLock: pThis=%p, state=%d.\n", pThis, enmNewState));
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     vboxNetAdpSetState(pThis, enmNewState);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 }
 
 
@@ -128,9 +125,9 @@ DECLINLINE(VBOXNETADPSTATE) vboxNetAdpGetStateWithLock(PVBOXNETADP pThis)
 {
     VBOXNETADPSTATE enmState;
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     enmState = vboxNetAdpGetState(pThis);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
     Log(("vboxNetAdpGetStateWithLock: pThis=%p, state=%d.\n", pThis, enmState));
     return enmState;
 }
@@ -151,13 +148,13 @@ DECLINLINE(bool) vboxNetAdpCheckAndSetState(PVBOXNETADP pThis, VBOXNETADPSTATE e
     bool fRc = true; /* be optimistic */
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     enmActualState = vboxNetAdpGetState(pThis); /** @todo r=bird: ASMAtomicCmpXchgU32()*/
     if (enmActualState == enmOldState)
         vboxNetAdpSetState(pThis, enmNewState);
     else
         fRc = false;
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     if (fRc)
         Log(("vboxNetAdpCheckAndSetState: pThis=%p, state changed: %d -> %d.\n", pThis, enmOldState, enmNewState));
@@ -182,14 +179,14 @@ static PVBOXNETADP vboxNetAdpFind(PVBOXNETADPGLOBALS pGlobals, const char *pszNa
     {
         RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
         PVBOXNETADP pThis = &pGlobals->aAdapters[i];
-        RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+        RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
         if (    vboxNetAdpGetState(pThis)
             &&  !strcmp(pThis->szName, pszName))
         {
-            RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
             return pThis;
         }
-        RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
     }
     return NULL;
 }
@@ -349,14 +346,14 @@ DECLHIDDEN(bool) vboxNetAdpPrepareToReceive(PVBOXNETADP pThis)
      */
     AssertPtr(pThis);
     Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     if (vboxNetAdpGetState(pThis) == kVBoxNetAdpState_Active)
     {
         fCanReceive = true;
         vboxNetAdpRetain(pThis);
         vboxNetAdpBusy(pThis);
     }
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
     Log(("vboxNetAdpPrepareToReceive: fCanReceive=%d.\n", fCanReceive));
 
     return fCanReceive;
@@ -397,33 +394,11 @@ DECLHIDDEN(void) vboxNetAdpCancelReceive(PVBOXNETADP pThis)
     vboxNetAdpRelease(pThis);
 }
 
-#ifdef RT_WITH_W64_UNWIND_HACK
-# if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
-#  define NETADP_DECL_CALLBACK(type) DECLASM(DECLHIDDEN(type))
-#  define NETADP_CALLBACK(_n) netfltNtWrap##_n
-
-NETADP_DECL_CALLBACK(int)  NETADP_CALLBACK(vboxNetAdpPortXmit)(PINTNETTRUNKIFPORT pIfPort, PINTNETSG pSG, uint32_t fDst);
-NETADP_DECL_CALLBACK(bool) NETADP_CALLBACK(vboxNetAdpPortIsPromiscuous)(PINTNETTRUNKIFPORT pIfPort);
-NETADP_DECL_CALLBACK(void) NETADP_CALLBACK(vboxNetAdpPortGetMacAddress)(PINTNETTRUNKIFPORT pIfPort, PRTMAC pMac);
-NETADP_DECL_CALLBACK(bool) NETADP_CALLBACK(vboxNetAdpPortIsHostMac)(PINTNETTRUNKIFPORT pIfPort, PCRTMAC pMac);
-NETADP_DECL_CALLBACK(int)  NETADP_CALLBACK(vboxNetAdpPortWaitForIdle)(PINTNETTRUNKIFPORT pIfPort, uint32_t cMillies);
-NETADP_DECL_CALLBACK(bool) NETADP_CALLBACK(vboxNetAdpPortSetActive)(PINTNETTRUNKIFPORT pIfPort, bool fActive);
-NETADP_DECL_CALLBACK(void) NETADP_CALLBACK(vboxNetAdpPortDisconnectAndRelease)(PINTNETTRUNKIFPORT pIfPort);
-NETADP_DECL_CALLBACK(void) NETADP_CALLBACK(vboxNetAdpPortRetain)(PINTNETTRUNKIFPORT pIfPort);
-NETADP_DECL_CALLBACK(void) NETADP_CALLBACK(vboxNetAdpPortRelease)(PINTNETTRUNKIFPORT pIfPort);
-
-# else
-#  error "UNSUPPORTED (RT_WITH_W64_UNWIND_HACK)"
-# endif
-#else
-# define NETADP_DECL_CALLBACK(type) static DECLCALLBACK(type)
-# define NETADP_CALLBACK(_n) _n
-#endif
 
 /**
  * @copydoc INTNETTRUNKIFPORT::pfnXmit
  */
-NETADP_DECL_CALLBACK(int) vboxNetAdpPortXmit(PINTNETTRUNKIFPORT pIfPort, PINTNETSG pSG, uint32_t fDst)
+static DECLCALLBACK(int) vboxNetAdpPortXmit(PINTNETTRUNKIFPORT pIfPort, PINTNETSG pSG, uint32_t fDst)
 {
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
@@ -441,17 +416,17 @@ NETADP_DECL_CALLBACK(int) vboxNetAdpPortXmit(PINTNETTRUNKIFPORT pIfPort, PINTNET
     /*
      * Do a retain/busy, invoke the OS specific code.
      */
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     if (vboxNetAdpGetState(pThis) != kVBoxNetAdpState_Active)
     {
-        RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
         Log(("vboxNetAdpReceive: Dropping incoming packet for inactive interface %s.\n",
              pThis->szName));
         return VERR_INVALID_STATE;
     }
     vboxNetAdpRetain(pThis);
     vboxNetAdpBusy(pThis);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     rc = vboxNetAdpPortOsXmit(pThis, pSG, fDst);
     vboxNetAdpIdle(pThis);
@@ -462,30 +437,9 @@ NETADP_DECL_CALLBACK(int) vboxNetAdpPortXmit(PINTNETTRUNKIFPORT pIfPort, PINTNET
 
 
 /**
- * @copydoc INTNETTRUNKIFPORT::pfnIsPromiscuous
- */
-NETADP_DECL_CALLBACK(bool) vboxNetAdpPortIsPromiscuous(PINTNETTRUNKIFPORT pIfPort)
-{
-    PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
-
-    /*
-     * Input validation.
-     */
-    AssertPtr(pThis);
-    Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
-    Assert(vboxNetAdpGetStateWithLock(pThis) == kVBoxNetAdpState_Active);
-
-    /*
-     * Ask the OS specific code.
-     */
-    return vboxNetAdpPortOsIsPromiscuous(pThis);
-}
-
-
-/**
  * @copydoc INTNETTRUNKIFPORT::pfnGetMacAddress
  */
-NETADP_DECL_CALLBACK(void) vboxNetAdpPortGetMacAddress(PINTNETTRUNKIFPORT pIfPort, PRTMAC pMac)
+static DECLCALLBACK(void) vboxNetAdpPortGetMacAddress(PINTNETTRUNKIFPORT pIfPort, PRTMAC pMac)
 {
     PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
 
@@ -504,30 +458,9 @@ NETADP_DECL_CALLBACK(void) vboxNetAdpPortGetMacAddress(PINTNETTRUNKIFPORT pIfPor
 
 
 /**
- * @copydoc INTNETTRUNKIFPORT::pfnIsHostMac
- */
-NETADP_DECL_CALLBACK(bool) vboxNetAdpPortIsHostMac(PINTNETTRUNKIFPORT pIfPort, PCRTMAC pMac)
-{
-    PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
-
-    /*
-     * Input validation.
-     */
-    AssertPtr(pThis);
-    Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
-    Assert(vboxNetAdpGetStateWithLock(pThis) == kVBoxNetAdpState_Active);
-
-    /*
-     * Ask the OS specific code.
-     */
-    return vboxNetAdpPortOsIsHostMac(pThis, pMac);
-}
-
-
-/**
  * @copydoc INTNETTRUNKIFPORT::pfnWaitForIdle
  */
-NETADP_DECL_CALLBACK(int) vboxNetAdpPortWaitForIdle(PINTNETTRUNKIFPORT pIfPort, uint32_t cMillies)
+static DECLCALLBACK(int) vboxNetAdpPortWaitForIdle(PINTNETTRUNKIFPORT pIfPort, uint32_t cMillies)
 {
     int rc;
     PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
@@ -557,7 +490,7 @@ NETADP_DECL_CALLBACK(int) vboxNetAdpPortWaitForIdle(PINTNETTRUNKIFPORT pIfPort, 
 /**
  * @copydoc INTNETTRUNKIFPORT::pfnSetActive
  */
-NETADP_DECL_CALLBACK(bool) vboxNetAdpPortSetActive(PINTNETTRUNKIFPORT pIfPort, bool fActive)
+static DECLCALLBACK(bool) vboxNetAdpPortSetActive(PINTNETTRUNKIFPORT pIfPort, bool fActive)
 {
     bool fPreviouslyActive;
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
@@ -571,7 +504,7 @@ NETADP_DECL_CALLBACK(bool) vboxNetAdpPortSetActive(PINTNETTRUNKIFPORT pIfPort, b
     Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
 
     Log(("vboxNetAdpPortSetActive: pThis=%p, fActive=%d, state before: %d.\n", pThis, fActive, vboxNetAdpGetState(pThis)));
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
 
     fPreviouslyActive = vboxNetAdpGetState(pThis) == kVBoxNetAdpState_Active;
     if (fPreviouslyActive != fActive)
@@ -589,7 +522,7 @@ NETADP_DECL_CALLBACK(bool) vboxNetAdpPortSetActive(PINTNETTRUNKIFPORT pIfPort, b
         }
     }
 
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
     Log(("vboxNetAdpPortSetActive: state after: %RTbool.\n", vboxNetAdpGetState(pThis)));
     return fPreviouslyActive;
 }
@@ -598,7 +531,7 @@ NETADP_DECL_CALLBACK(bool) vboxNetAdpPortSetActive(PINTNETTRUNKIFPORT pIfPort, b
 /**
  * @copydoc INTNETTRUNKIFPORT::pfnDisconnectAndRelease
  */
-NETADP_DECL_CALLBACK(void) vboxNetAdpPortDisconnectAndRelease(PINTNETTRUNKIFPORT pIfPort)
+static DECLCALLBACK(void) vboxNetAdpPortDisconnectAndRelease(PINTNETTRUNKIFPORT pIfPort)
 {
     PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
@@ -617,18 +550,18 @@ NETADP_DECL_CALLBACK(void) vboxNetAdpPortDisconnectAndRelease(PINTNETTRUNKIFPORT
     /*
      * Disconnect and release it.
      */
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     //Assert(vboxNetAdpGetState(pThis) == kVBoxNetAdpState_Connected);
     Assert(!pThis->cBusy);
     vboxNetAdpSetState(pThis, kVBoxNetAdpState_Transitional);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     vboxNetAdpOsDisconnectIt(pThis);
     pThis->pSwitchPort = NULL;
 
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     vboxNetAdpSetState(pThis, kVBoxNetAdpState_Available);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     vboxNetAdpRelease(pThis);
 }
@@ -637,7 +570,7 @@ NETADP_DECL_CALLBACK(void) vboxNetAdpPortDisconnectAndRelease(PINTNETTRUNKIFPORT
 /**
  * @copydoc INTNETTRUNKIFPORT::pfnRelease
  */
-NETADP_DECL_CALLBACK(void) vboxNetAdpPortRelease(PINTNETTRUNKIFPORT pIfPort)
+static DECLCALLBACK(void) vboxNetAdpPortRelease(PINTNETTRUNKIFPORT pIfPort)
 {
     PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
     vboxNetAdpRelease(pThis);
@@ -647,7 +580,7 @@ NETADP_DECL_CALLBACK(void) vboxNetAdpPortRelease(PINTNETTRUNKIFPORT pIfPort)
 /**
  * @copydoc INTNETTRUNKIFPORT::pfnRetain
  */
-NETADP_DECL_CALLBACK(void) vboxNetAdpPortRetain(PINTNETTRUNKIFPORT pIfPort)
+static DECLCALLBACK(void) vboxNetAdpPortRetain(PINTNETTRUNKIFPORT pIfPort)
 {
     PVBOXNETADP pThis = IFPORT_2_VBOXNETADP(pIfPort);
     vboxNetAdpRetain(pThis);
@@ -673,9 +606,9 @@ int vboxNetAdpCreate (PINTNETTRUNKFACTORY pIfFactory, PVBOXNETADP *ppNew)
             vboxNetAdpComposeMACAddress(pThis, &Mac);
             rc = vboxNetAdpOsCreate(pThis, &Mac);
             *ppNew = pThis;
-            RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+            RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
             vboxNetAdpSetState(pThis, kVBoxNetAdpState_Available);
-            RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
             return rc;
         }
     }
@@ -689,21 +622,21 @@ int vboxNetAdpDestroy (PVBOXNETADP pThis)
     int rc = VINF_SUCCESS;
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     if (vboxNetAdpGetState(pThis) != kVBoxNetAdpState_Available || pThis->cBusy)
     {
-        RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
         return VERR_INTNET_FLT_IF_BUSY;
     }
     vboxNetAdpSetState(pThis, kVBoxNetAdpState_Transitional);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
     vboxNetAdpRelease(pThis);
 
     vboxNetAdpOsDestroy(pThis);
 
-    RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     vboxNetAdpSetState(pThis, kVBoxNetAdpState_Invalid);
-    RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     return rc;
 }
@@ -906,15 +839,12 @@ static int vboxNetAdpSlotCreate(PVBOXNETADPGLOBALS pGlobals, unsigned uUnit, PVB
     int rc;
 
     pNew->MyPort.u32Version             = INTNETTRUNKIFPORT_VERSION;
-    pNew->MyPort.pfnRetain              = NETADP_CALLBACK(vboxNetAdpPortRetain);
-    pNew->MyPort.pfnRelease             = NETADP_CALLBACK(vboxNetAdpPortRelease);
-    pNew->MyPort.pfnDisconnectAndRelease= NETADP_CALLBACK(vboxNetAdpPortDisconnectAndRelease);
-    pNew->MyPort.pfnSetActive           = NETADP_CALLBACK(vboxNetAdpPortSetActive);
-    pNew->MyPort.pfnWaitForIdle         = NETADP_CALLBACK(vboxNetAdpPortWaitForIdle);
-    pNew->MyPort.pfnGetMacAddress       = NETADP_CALLBACK(vboxNetAdpPortGetMacAddress);
-    pNew->MyPort.pfnIsHostMac           = NETADP_CALLBACK(vboxNetAdpPortIsHostMac);
-    pNew->MyPort.pfnIsPromiscuous       = NETADP_CALLBACK(vboxNetAdpPortIsPromiscuous);
-    pNew->MyPort.pfnXmit                = NETADP_CALLBACK(vboxNetAdpPortXmit);
+    pNew->MyPort.pfnRetain              = vboxNetAdpPortRetain;
+    pNew->MyPort.pfnRelease             = vboxNetAdpPortRelease;
+    pNew->MyPort.pfnDisconnectAndRelease= vboxNetAdpPortDisconnectAndRelease;
+    pNew->MyPort.pfnSetState            = vboxNetAdpPortSetState;
+    pNew->MyPort.pfnWaitForIdle         = vboxNetAdpPortWaitForIdle;
+    pNew->MyPort.pfnXmit                = vboxNetAdpPortXmit;
     pNew->MyPort.u32VersionEnd          = INTNETTRUNKIFPORT_VERSION;
     pNew->pSwitchPort                   = NULL;
     pNew->pGlobals                      = pGlobals;

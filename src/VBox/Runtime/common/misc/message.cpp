@@ -1,10 +1,10 @@
-/* $Id: message.cpp $ */
+/* $Id: message.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Error reporting to standard error.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -40,22 +36,11 @@
 #include "internal/process.h"
 
 
-RTDECL(int)  RTMsgError(const char *pszFormat, ...)
-{
-    va_list va;
-    va_start(va, pszFormat);
-    int rc = RTMsgErrorV(pszFormat, va);
-    va_end(va);
-    return rc;
-}
-RT_EXPORT_SYMBOL(RTMsgError);
-
-
-RTDECL(int)  RTMsgErrorV(const char *pszFormat, va_list va)
+static int rtMsgWorker(PRTSTREAM pDst, const char *pszPrefix, const char *pszFormat, va_list va)
 {
     if (   !*pszFormat
         || !strcmp(pszFormat, "\n"))
-        RTStrmPrintf(g_pStdErr, "\n");
+        RTStrmPrintf(pDst, "\n");
     else
     {
         char *pszMsg;
@@ -69,15 +54,15 @@ RTDECL(int)  RTMsgErrorV(const char *pszFormat, va_list va)
                 char *pszEnd = strchr(psz, '\n');
                 if (!pszEnd)
                 {
-                    RTStrmPrintf(g_pStdErr, "%s: error: %s\n", &g_szrtProcExePath[g_offrtProcName], psz);
+                    RTStrmPrintf(pDst, "%s: %s%s\n", &g_szrtProcExePath[g_offrtProcName], pszPrefix, psz);
                     break;
                 }
                 if (pszEnd == psz)
-                    RTStrmPrintf(g_pStdErr, "\n");
+                    RTStrmPrintf(pDst, "\n");
                 else
                 {
                     *pszEnd = '\0';
-                    RTStrmPrintf(g_pStdErr, "%s: error: %s\n", &g_szrtProcExePath[g_offrtProcName], psz);
+                    RTStrmPrintf(pDst, "%s: %s%s\n", &g_szrtProcExePath[g_offrtProcName], pszPrefix, psz);
                 }
                 psz = pszEnd + 1;
             } while (*psz);
@@ -86,15 +71,118 @@ RTDECL(int)  RTMsgErrorV(const char *pszFormat, va_list va)
         else
         {
             /* Simple fallback for handling out-of-memory conditions. */
-            RTStrmPrintf(g_pStdErr, "%s: error: ", &g_szrtProcExePath[g_offrtProcName]);
-            RTStrmPrintfV(g_pStdErr, pszFormat, va);
+            RTStrmPrintf(pDst, "%s: %s", &g_szrtProcExePath[g_offrtProcName], pszPrefix);
+            RTStrmPrintfV(pDst, pszFormat, va);
             if (!strchr(pszFormat, '\n'))
-                RTStrmPrintf(g_pStdErr, "\n");
+                RTStrmPrintf(pDst, "\n");
         }
     }
 
     return VINF_SUCCESS;
 }
+
+RTDECL(int)  RTMsgError(const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    int rc = RTMsgErrorV(pszFormat, va);
+    va_end(va);
+    return rc;
+}
+RT_EXPORT_SYMBOL(RTMsgError);
+
+
+RTDECL(int)  RTMsgErrorV(const char *pszFormat, va_list va)
+{
+    return rtMsgWorker(g_pStdErr, "error: ", pszFormat, va);
+}
 RT_EXPORT_SYMBOL(RTMsgErrorV);
 
+
+RTDECL(RTEXITCODE) RTMsgErrorExit(RTEXITCODE enmExitCode, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    RTMsgErrorV(pszFormat, va);
+    va_end(va);
+    return enmExitCode;
+}
+RT_EXPORT_SYMBOL(RTMsgErrorExitV);
+
+
+RTDECL(RTEXITCODE) RTMsgErrorExitV(RTEXITCODE enmExitCode, const char *pszFormat, va_list va)
+{
+    RTMsgErrorV(pszFormat, va);
+    return enmExitCode;
+}
+RT_EXPORT_SYMBOL(RTMsgErrorExitV);
+
+
+RTDECL(int) RTMsgErrorRc(int rcRet, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    RTMsgErrorV(pszFormat, va);
+    va_end(va);
+    return rcRet;
+}
+RT_EXPORT_SYMBOL(RTMsgErrorRcV);
+
+
+RTDECL(int) RTMsgErrorRcV(int rcRet, const char *pszFormat, va_list va)
+{
+    RTMsgErrorV(pszFormat, va);
+    return rcRet;
+}
+RT_EXPORT_SYMBOL(RTMsgErrorRcV);
+
+
+RTDECL(RTEXITCODE) RTMsgInitFailure(int rcRTR3Init)
+{
+    if (   g_offrtProcName
+        && g_offrtProcName < sizeof(g_szrtProcExePath)
+        && g_szrtProcExePath[0]
+        && g_szrtProcExePath[g_offrtProcName])
+        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3Init: %Rrc\n", &g_szrtProcExePath[g_offrtProcName], rcRTR3Init);
+    else
+        RTStrmPrintf(g_pStdErr, "fatal error: RTR3Init: %Rrc\n", rcRTR3Init);
+    return RTEXITCODE_INIT;
+}
+RT_EXPORT_SYMBOL(RTMsgInitFailure);
+
+
+RTDECL(int)  RTMsgWarning(const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    int rc = RTMsgWarningV(pszFormat, va);
+    va_end(va);
+    return rc;
+}
+RT_EXPORT_SYMBOL(RTMsgInfo);
+
+
+RTDECL(int)  RTMsgWarningV(const char *pszFormat, va_list va)
+{
+    return rtMsgWorker(g_pStdErr, "warning: ", pszFormat, va);
+}
+RT_EXPORT_SYMBOL(RTMsgWarningV);
+
+
+RTDECL(int)  RTMsgInfo(const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    int rc = RTMsgInfoV(pszFormat, va);
+    va_end(va);
+    return rc;
+}
+RT_EXPORT_SYMBOL(RTMsgInfo);
+
+
+RTDECL(int)  RTMsgInfoV(const char *pszFormat, va_list va)
+{
+    return rtMsgWorker(g_pStdOut, "info: ", pszFormat, va);
+}
+RT_EXPORT_SYMBOL(RTMsgInfoV);
 

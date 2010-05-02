@@ -1,10 +1,10 @@
-/* $Id: TRPM.cpp $ */
+/* $Id: TRPM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * TRPM - The Trap Monitor.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_trpm   TRPM - The Trap Monitor
@@ -36,7 +32,7 @@
  * When executing in the raw-mode context, TRPM will be managing the IDT and
  * processing all traps and interrupts.  It will also monitor the guest IDT
  * because CSAM wishes to know about changes to it (trap/interrupt/syscall
- * handler patching) and TRPM needs to keep the #\BP gate in sync (ring-3
+ * handler patching) and TRPM needs to keep the \#BP gate in sync (ring-3
  * considerations).  See TRPMR3SyncIDT and CSAMR3CheckGates.
  *
  * External interrupts will be forwarded to the host context by the quickest
@@ -593,9 +589,9 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      * would make init order impossible if we should assert the presence of these
      * exports in TRPMR3Init().
      */
-    RTRCPTR aRCPtrs[TRPM_HANDLER_MAX] = {0};
-    int rc;
-    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerInterupt", &aRCPtrs[TRPM_HANDLER_INT]);
+    RTRCPTR aRCPtrs[TRPM_HANDLER_MAX];
+    RT_ZERO(aRCPtrs);
+    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerInterupt", &aRCPtrs[TRPM_HANDLER_INT]);
     AssertReleaseMsgRC(rc, ("Couldn't find TRPMGCHandlerInterupt in VMMGC.gc!\n"));
 
     rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "TRPMGCHandlerGeneric",  &aRCPtrs[TRPM_HANDLER_TRAP]);
@@ -682,15 +678,14 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 
         if (ASMBitTest(&pVM->trpm.s.au32IdtPatched[0], iTrap))
         {
-            PVBOXIDTE   pIdte = &pVM->trpm.s.aIdt[iTrap];
-            RTGCPTR     pHandler = VBOXIDTE_OFFSET(*pIdte);
+            PVBOXIDTE   pIdteCur = &pVM->trpm.s.aIdt[iTrap];
+            RTGCPTR     pHandler = VBOXIDTE_OFFSET(*pIdteCur);
 
             Log(("TRPMR3Relocate: *iGate=%2X Handler %RGv -> %RGv\n", iTrap, pHandler, pHandler + offDelta));
             pHandler += offDelta;
 
-            pIdte->Gen.u16OffsetHigh = pHandler >> 16;
-            pIdte->Gen.u16OffsetLow  = pHandler & 0xFFFF;
-
+            pIdteCur->Gen.u16OffsetHigh = pHandler >> 16;
+            pIdteCur->Gen.u16OffsetLow  = pHandler & 0xFFFF;
         }
     }
 
@@ -711,6 +706,19 @@ VMMR3DECL(int) TRPMR3Term(PVM pVM)
 {
     NOREF(pVM);
     return 0;
+}
+
+
+/**
+ * Resets a virtual CPU.
+ *
+ * Used by TRPMR3Reset and CPU hot plugging.
+ *
+ * @param   pVCpu               The virtual CPU handle.
+ */
+VMMR3DECL(void) TRPMR3ResetCpu(PVMCPU pVCpu)
+{
+    pVCpu->trpm.s.uActiveVector = ~0;
 }
 
 
@@ -744,10 +752,7 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
      * Reinitialize other members calling the relocator to get things right.
      */
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
-    {
-        PVMCPU pVCpu = &pVM->aCpus[i];
-        pVCpu->trpm.s.uActiveVector = ~0;
-    }
+        TRPMR3ResetCpu(&pVM->aCpus[i]);
     memcpy(&pVM->trpm.s.aIdt[0], &g_aIdt[0], sizeof(pVM->trpm.s.aIdt));
     memset(pVM->trpm.s.aGuestTrapHandler, 0, sizeof(pVM->trpm.s.aGuestTrapHandler));
     TRPMR3Relocate(pVM, 0);
@@ -1440,7 +1445,7 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
     int      rc;
 
     pCtx = CPUMQueryGuestCtxPtr(pVCpu);
-    Assert(!PATMIsPatchGCAddr(pVM, (RTGCPTR)pCtx->eip));
+    Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
     Assert(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
 
     /* Currently only useful for external hardware interrupts. */

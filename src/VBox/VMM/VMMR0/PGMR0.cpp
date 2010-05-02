@@ -1,10 +1,10 @@
-/* $Id: PGMR0.cpp $ */
+/* $Id: PGMR0.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Ring-0.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -24,8 +20,9 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
 #include <VBox/pgm.h>
-#include "PGMInternal.h"
+#include "../PGMInternal.h"
 #include <VBox/vm.h>
+#include "../PGMInline.h"
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
@@ -162,6 +159,30 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
     return rc;
 }
 
+/**
+ * Worker function for PGMR3PhysAllocateLargeHandyPage
+ *
+ * @returns The following VBox status codes.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VINF_EM_NO_MEMORY if we're out of memory.
+ *
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The VMCPU handle.
+ *
+ * @remarks Must be called from within the PGM critical section. The caller
+ *          must clear the new pages.
+ */
+VMMR0DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
+{
+    Assert(PDMCritSectIsOwnerEx(&pVM->pgm.s.CritSect, pVCpu->idCpu));
+
+    Assert(!pVM->pgm.s.cLargeHandyPages);
+    int rc = GMMR0AllocateLargePage(pVM, pVCpu->idCpu, _2M, &pVM->pgm.s.aLargeHandyPage[0].idPage, &pVM->pgm.s.aLargeHandyPage[0].HCPhysGCPhys);
+    if (RT_SUCCESS(rc))
+        pVM->pgm.s.cLargeHandyPages = 1;
+
+    return rc;
+}
 
 /**
  * #PF Handler for nested paging.
@@ -178,7 +199,7 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
 {
     int rc;
 
-    LogFlow(("PGMTrap0eHandler: uErr=%#x pvFault=%RGp eip=%RGv\n", uErr, pvFault, (RTGCPTR)pRegFrame->rip));
+    LogFlow(("PGMTrap0eHandler: uErr=%RGx pvFault=%RGp eip=%RGv\n", uErr, pvFault, (RTGCPTR)pRegFrame->rip));
     STAM_PROFILE_START(&pVCpu->pgm.s.StatRZTrap0e, a);
     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = NULL; } );
 
@@ -231,30 +252,33 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
      * We pretend the guest is in protected mode without paging, so we can use existing code to build the
      * nested page tables.
      */
-    pgmLock(pVM);
+    bool fLockTaken = false;
     switch(enmShwPagingMode)
     {
     case PGMMODE_32_BIT:
-        rc = PGM_BTH_NAME_32BIT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault);
+        rc = PGM_BTH_NAME_32BIT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
         break;
     case PGMMODE_PAE:
     case PGMMODE_PAE_NX:
-        rc = PGM_BTH_NAME_PAE_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault);
+        rc = PGM_BTH_NAME_PAE_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
         break;
     case PGMMODE_AMD64:
     case PGMMODE_AMD64_NX:
-        rc = PGM_BTH_NAME_AMD64_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault);
+        rc = PGM_BTH_NAME_AMD64_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
         break;
     case PGMMODE_EPT:
-        rc = PGM_BTH_NAME_EPT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault);
+        rc = PGM_BTH_NAME_EPT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
         break;
     default:
         AssertFailed();
         rc = VERR_INVALID_PARAMETER;
         break;
     }
-    Assert(PGMIsLockOwner(pVM));
-    pgmUnlock(pVM);
+    if (fLockTaken)
+    {
+        Assert(PGMIsLockOwner(pVM));
+        pgmUnlock(pVM);
+    }
     if (rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
         rc = VINF_SUCCESS;
     else

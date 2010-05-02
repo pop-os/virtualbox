@@ -1,10 +1,10 @@
-/* $Id: SUPLib-linux.cpp $ */
+/* $Id: SUPLib-linux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - GNU/Linux specific parts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -181,7 +177,7 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
      * Issue device iocontrol.
      */
     if (RT_LIKELY(ioctl(pThis->hDevice, uFunction, pvReq) >= 0))
-	return VINF_SUCCESS;
+        return VINF_SUCCESS;
 
     /* This is the reverse operation of the one found in SUPDrv-linux.c */
     switch (errno)
@@ -216,30 +212,30 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
     size_t cbMmap = (pThis->fSysMadviseWorks ? cPages : cPages + 2) << PAGE_SHIFT;
     char *pvPages = (char *)mmap(NULL, cbMmap, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (pvPages == MAP_FAILED)
-	return VERR_NO_MEMORY;
+        return VERR_NO_MEMORY;
 
     if (pThis->fSysMadviseWorks)
     {
-	/*
-	 * It is not fatal if we fail here but a forked child (e.g. the ALSA sound server)
-	 * could crash. Linux < 2.6.16 does not implement madvise(MADV_DONTFORK) but the
-	 * kernel seems to split bigger VMAs and that is all that we want -- later we set the
-	 * VM_DONTCOPY attribute in supdrvOSLockMemOne().
-	 */
-	if (madvise (pvPages, cbMmap, MADV_DONTFORK))
-	    LogRel(("SUPLib: madvise %p-%p failed\n", pvPages, cbMmap));
-	*ppvPages = pvPages;
+        /*
+         * It is not fatal if we fail here but a forked child (e.g. the ALSA sound server)
+         * could crash. Linux < 2.6.16 does not implement madvise(MADV_DONTFORK) but the
+         * kernel seems to split bigger VMAs and that is all that we want -- later we set the
+         * VM_DONTCOPY attribute in supdrvOSLockMemOne().
+         */
+        if (madvise (pvPages, cbMmap, MADV_DONTFORK))
+            LogRel(("SUPLib: madvise %p-%p failed\n", pvPages, cbMmap));
+        *ppvPages = pvPages;
     }
     else
     {
-	/*
-	 * madvise(MADV_DONTFORK) is not available (most probably Linux 2.4). Enclose any
-	 * mmapped region by two unmapped pages to guarantee that there is exactly one VM
-	 * area struct of the very same size as the mmap area.
-	 */
-	mprotect(pvPages,                      PAGE_SIZE, PROT_NONE);
-	mprotect(pvPages + cbMmap - PAGE_SIZE, PAGE_SIZE, PROT_NONE);
-	*ppvPages = pvPages + PAGE_SIZE;
+        /*
+         * madvise(MADV_DONTFORK) is not available (most probably Linux 2.4). Enclose any
+         * mmapped region by two unmapped pages to guarantee that there is exactly one VM
+         * area struct of the very same size as the mmap area.
+         */
+        mprotect(pvPages,                      PAGE_SIZE, PROT_NONE);
+        mprotect(pvPages + cbMmap - PAGE_SIZE, PAGE_SIZE, PROT_NONE);
+        *ppvPages = pvPages + PAGE_SIZE;
     }
     memset(*ppvPages, 0, cPages << PAGE_SHIFT);
     return VINF_SUCCESS;

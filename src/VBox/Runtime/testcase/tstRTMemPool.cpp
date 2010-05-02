@@ -1,10 +1,10 @@
-/* $Id: tstRTMemPool.cpp $ */
+/* $Id: tstRTMemPool.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - MemPool.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -72,6 +68,7 @@ static void tst1(RTMEMPOOL hMemPool)
         RTTESTI_CHECK_RETV(pv = RTMemPoolAllocZ(hMemPool, 1024));
         RTTESTI_CHECK(ASMMemIsAllU32(pv, 1024, 0) == NULL);
         memset(pv, 'a', 1024);
+        RTTESTI_CHECK_RETV(RTMemPoolRefCount(pv) == 1);
         RTTESTI_CHECK_RETV(RTMemPoolRelease(hMemPool, pv) == 0);
     }
 
@@ -91,6 +88,7 @@ static void tst1(RTMEMPOOL hMemPool)
         RTTESTI_CHECK(memcmp(pv, szTest, sizeof(szTest)) == 0);
         RTTESTI_CHECK(ASMMemIsAll8((uint8_t *)pv + sizeof(szTest), cb, 0) == NULL);
         memset(pv, 'b', sizeof(szTest) + cb);
+        RTTESTI_CHECK_RETV(RTMemPoolRefCount(pv) == 1);
         RTTESTI_CHECK_RETV(RTMemPoolRelease(hMemPool, pv) == 0);
     }
 
@@ -116,17 +114,25 @@ static void tst1(RTMEMPOOL hMemPool)
     {
         void *pv2;
         RTTESTI_CHECK_RETV(pv = RTMemPoolAlloc(hMemPool, i));
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 1);
         memset(pv, 'a', i);
         RTTESTI_CHECK_MSG_RETV((pv2 = ASMMemIsAll8(pv, i, 'a')) == NULL, ("i=%#x pv=%p off=%#x\n", i, pv, (uintptr_t)pv2 - (uintptr_t)pv));
         RTTESTI_CHECK(RTMemPoolRetain(pv) == 2);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 2);
         RTTESTI_CHECK(RTMemPoolRetain(pv) == 3);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 3);
         RTTESTI_CHECK(RTMemPoolRetain(pv) == 4);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 4);
         RTTESTI_CHECK_MSG_RETV((pv2 = ASMMemIsAll8(pv, i, 'a')) == NULL, ("i=%#x pv=%p off=%#x\n", i, pv, (uintptr_t)pv2 - (uintptr_t)pv));
         RTTESTI_CHECK(RTMemPoolRelease(hMemPool, pv) == 3);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 3);
         RTTESTI_CHECK_MSG_RETV((pv2 = ASMMemIsAll8(pv, i, 'a')) == NULL, ("i=%#x pv=%p off=%#x\n", i, pv, (uintptr_t)pv2 - (uintptr_t)pv));
         RTTESTI_CHECK(RTMemPoolRetain(pv) == 4);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 4);
         RTTESTI_CHECK(RTMemPoolRetain(pv) == 5);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 5);
         RTTESTI_CHECK(RTMemPoolRetain(pv) == 6);
+        RTTESTI_CHECK(RTMemPoolRefCount(pv) == 6);
         RTTESTI_CHECK(RTMemPoolRelease(NIL_RTMEMPOOL, pv) == 5);
         RTTESTI_CHECK(RTMemPoolRelease(NIL_RTMEMPOOL, pv) == 4);
         RTTESTI_CHECK_MSG_RETV((pv2 = ASMMemIsAll8(pv, i, 'a')) == NULL, ("i=%#x pv=%p off=%#x\n", i, pv, (uintptr_t)pv2 - (uintptr_t)pv));
@@ -136,6 +142,7 @@ static void tst1(RTMEMPOOL hMemPool)
             RTTESTI_CHECK(RTMemPoolRelease(hMemPool, pv) == cRefs);
             if (cRefs == 0)
                 break;
+            RTTESTI_CHECK(RTMemPoolRefCount(pv) == cRefs);
             RTTESTI_CHECK_MSG_RETV((pv2 = ASMMemIsAll8(pv, i, 'a')) == NULL, ("i=%#x pv=%p off=%#x cRefs=%d\n", i, pv, (uintptr_t)pv2 - (uintptr_t)pv, cRefs));
             for (uint32_t j = 0; j < 42; j++)
             {
@@ -338,5 +345,4 @@ int main()
      */
     return RTTestSummaryAndDestroy(hTest);
 }
-
 

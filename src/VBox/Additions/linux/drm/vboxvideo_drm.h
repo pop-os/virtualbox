@@ -1,10 +1,10 @@
-/** @file $Id: vboxvideo_drm.h $
+/** @file $Id: vboxvideo_drm.h 28800 2010-04-27 08:22:32Z vboxsync $
  *
  * VirtualBox Additions Linux kernel driver, DRM support
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -56,19 +52,20 @@
 /* General customization:
  */
 
-#define DRIVER_AUTHOR		"Sun Microsystems Inc."
+#include "product-generated.h"
 
-#define DRIVER_NAME		"vboxvideo"
-#define DRIVER_DESC		"VirtualBox Graphics Card"
-#define DRIVER_DATE		"20090303"
+#define DRIVER_AUTHOR       VBOX_VENDOR
 
-#define DRIVER_MAJOR		1
-#define DRIVER_MINOR		0
-#define DRIVER_PATCHLEVEL	0
+#define DRIVER_NAME         "vboxvideo"
+#define DRIVER_DESC         VBOX_PRODUCT " Graphics Card"
+#define DRIVER_DATE         "20090303"
+
+#define DRIVER_MAJOR        1
+#define DRIVER_MINOR        0
+#define DRIVER_PATCHLEVEL   0
 
 #define vboxvideo_PCI_IDS \
-	{0x80ee, 0xbeef, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, \
-	{0, 0, 0}
+    {0x80ee, 0xbeef, PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0}, \
+    {0, 0, 0}
 
 #endif
-

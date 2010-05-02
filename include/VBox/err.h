@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_err_h
@@ -57,7 +53,7 @@
 #define VERR_CFG_INVALID_FORMAT             (-1005)
 /** No configuration value exists. */
 #define VERR_CFG_NO_VALUE                   (-1006)
-/** Not selector not present. */
+/** Selector not present. */
 #define VERR_SELECTOR_NOT_PRESENT           (-1007)
 /** Not code selector. */
 #define VERR_NOT_CODE_SELECTOR              (-1008)
@@ -466,6 +462,10 @@
 #define VINF_PGM_HANDLER_ALREADY_ALIASED        (1643)
 /** PGM pool flush pending - return to ring 3. */
 #define VINF_PGM_POOL_FLUSH_PENDING             (1644)
+/** Unable to use the range for a large page. */
+#define VERR_PGM_INVALID_LARGE_PAGE_RANGE       (-1645)
+/** Don't mess around with ballooned pages. */
+#define VERR_PGM_PHYS_PAGE_BALLOONED            (-1646)
 /** @} */
 
 
@@ -736,6 +736,10 @@
 #define VERR_CFGM_NODE_EXISTS               (-2161)
 /** A new leaf couldn't be inserted because one with the same name exists. */
 #define VERR_CFGM_LEAF_EXISTS               (-2162)
+/** An unknown config value was encountered. */
+#define VERR_CFGM_CONFIG_UNKNOWN_VALUE      (-2163)
+/** An unknown config node (key) was encountered. */
+#define VERR_CFGM_CONFIG_UNKNOWN_NODE       (-2164)
 /** @} */
 
 
@@ -1212,6 +1216,8 @@
 #define VERR_VD_RAW_INVALID_HEADER                  (-3270)
 /** Raw: Invalid image file type. */
 #define VERR_VD_RAW_INVALID_TYPE                    (-3271)
+/** The backend needs more metadata before it can continue. */
+#define VERR_VD_NOT_ENOUGH_METADATA                 (-3272)
 /** @} */
 
 
@@ -1500,28 +1506,42 @@
 #define VERR_CPU_HOTPLUG_NOT_MONITORED_BY_GUEST    (-4700)
 /** @} */
 
+/** @name VBox async I/O manager Status Codes
+ * @{
+ */
+/** Async I/O task is pending, a completion handler will be called. */
+#define VINF_AIO_TASK_PENDING                       4800
+/** @} */
+
+/** @name VBox Virtual SCSI Status Codes
+ * @{
+ */
+/** LUN type is not supported */
+#define VERR_VSCSI_LUN_TYPE_NOT_SUPPORTED           (-4900)
+/** LUN is already/still attached to a device */
+#define VERR_VSCSI_LUN_ATTACHED_TO_DEVICE           (-4901)
+/** The specified LUN is invalid */
+#define VERR_VSCSI_LUN_INVALID                      (-4902)
+/** The LUN is not attached to the device */
+#define VERR_VSCSI_LUN_NOT_ATTACHED                 (-4903)
+/** The LUN is still busy. */
+#define VERR_VSCSI_LUN_BUSY                         (-4904)
+/** @} */
+
+/** @name VBox FAM error codes
+ * @{
+ */
+/** FAM failed to open a connection */
+#define VERR_FAM_OPEN_FAILED                        (-5000)
+/** FAM failed to add a file to the list to be monitored */
+#define VERR_FAM_MONITOR_FILE_FAILED                (-5001)
+/** FAM failed to add a directory to the list to be monitored */
+#define VERR_FAM_MONITOR_DIRECTORY_FAILED           (-5002)
+/** The connection to the FAM daemon was lost */
+#define VERR_FAM_CONNECTION_LOST                    (-5003)
+/** @} */
+
 /* SED-END */
-
-
-/** @def VBOX_SUCCESS
- * Check for success.
- *
- * @returns true if rc indicates success.
- * @returns false if rc indicates failure.
- *
- * @param   rc  The iprt status code to test.
- */
-#define VBOX_SUCCESS(rc)    RT_SUCCESS(rc)
-
-/** @def VBOX_FAILURE
- * Check for failure.
- *
- * @returns true if rc indicates failure.
- * @returns false if rc indicates success.
- *
- * @param   rc  The iprt status code to test.
- */
-#define VBOX_FAILURE(rc)    RT_FAILURE(rc)
 
 /** @} */
 

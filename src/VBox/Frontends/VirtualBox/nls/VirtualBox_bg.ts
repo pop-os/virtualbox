@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE TS>
-<TS version="2.0" language="bg_BG">
+<!DOCTYPE TS><TS version="1.1" language="bg_BG">
+<defaultcodec></defaultcodec>
 <context>
     <name>@@@</name>
     <message>
@@ -24,9 +24,9 @@
         <translation>Bulgaria</translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Stoyan Marinov, Moyat.NET.</translation>
+        <translation>Stoyan Marinov, Moyat.NET.</translation>
     </message>
 </context>
 <context>
@@ -408,7 +408,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>Отказ</translation>
@@ -1099,7 +1099,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>The download process has been cancelled by the user.</source>
         <translation>Изтеглянето е прекъснато от потребителя.</translation>
@@ -1113,7 +1113,7 @@
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>Изберете файл, към който да се изнесе</translation>
@@ -2890,7 +2890,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>Изберете приспособление за внасяне</translation>
@@ -2947,7 +2947,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation>&lt;b&gt;Виртуалната система &quot;%1&quot; изисква да се съгласите с условията на договора на софтуерния лиценз, показани по-долу.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Натиснете &lt;b&gt;Съгласявам се&lt;/b&gt;, за да продължите, или натиснете &lt;b&gt;Не се съгласявам&lt;/b&gt;, за да откажете внасянето.</translation>
@@ -3231,7 +3231,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>Създаване на нов виртуален диск</translation>
@@ -3346,7 +3346,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>Създаване на нова виртуална машина</translation>
@@ -4496,7 +4496,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">Регистрационен диалог на VirtualBox</translation>
+        <translation>Регистрационен диалог на VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Name</source>
@@ -4504,7 +4504,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">Въведете цялото си име, като използвате латински букви.</translation>
+        <translation>Въведете цялото си име, като използвате латински букви.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -4512,7 +4512,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">Въведете валиден e-mail адрес.</translation>
+        <translation>Въведете валиден e-mail адрес.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -4520,11 +4520,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">Добре дошли в регистрационната форма на VirtualBox!</translation>
+        <translation>Добре дошли в регистрационната форма на VirtualBox!</translation>
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">Не може да се осъществи връзка.</translation>
+        <translation>Не може да се осъществи връзка.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -4540,63 +4540,63 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">Отказ</translation>
+        <translation>Отказ</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">Изберете страна/територия</translation>
+        <translation>Изберете страна/територия</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Моля, попълнете тази регистрационна форма, за да ни информирате, че използвате VirtualBox и, евентуално, за да бъдете информирани за новини и обновления на VirtualBox.&lt;/p&gt;&lt;p&gt;Моля, използвайте само латински букви в полетата по-долу. Моля, имайте в предвид, че Sun Microsystems ще използва тази информация само за изготвяне на статистика за използваемостта на продукта и за изпращане на новинарски бюлетини за VirtualBox. Освен за тези цели, Sun Microsystems никога няма да споделя вашите данни с трети страни. Подробна информация относно това как използваме вашите лични данни може да бъде намерена в секцията &lt;b&gt;Конфиденциална политика&lt;/b&gt; от ръководството на VirtualBox или на страницата &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Конфиденциална политика&lt;/a&gt; на уеб страницата на VirtualBox.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Моля, попълнете тази регистрационна форма, за да ни информирате, че използвате VirtualBox и, евентуално, за да бъдете информирани за новини и обновления на VirtualBox.&lt;/p&gt;&lt;p&gt;Моля, използвайте само латински букви в полетата по-долу. Моля, имайте в предвид, че Sun Microsystems ще използва тази информация само за изготвяне на статистика за използваемостта на продукта и за изпращане на новинарски бюлетини за VirtualBox. Освен за тези цели, Sun Microsystems никога няма да споделя вашите данни с трети страни. Подробна информация относно това как използваме вашите лични данни може да бъде намерена в секцията &lt;b&gt;Конфиденциална политика&lt;/b&gt; от ръководството на VirtualBox или на страницата &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Конфиденциална политика&lt;/a&gt; на уеб страницата на VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">&amp;Вече имам Sun Online акаунт:</translation>
+        <translation>&amp;Вече имам Sun Online акаунт:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">&amp;E-mail:</translation>
+        <translation>&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">&amp;Парола:</translation>
+        <translation>&amp;Парола:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">&amp;Искам да се регистрирам, създавайки нов Sun Online акаунт:</translation>
+        <translation>&amp;Искам да се регистрирам, създавайки нов Sun Online акаунт:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">&amp;Име:</translation>
+        <translation>&amp;Име:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">&amp;Фамилия:</translation>
+        <translation>&amp;Фамилия:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">&amp;Компания:</translation>
+        <translation>&amp;Компания:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">&amp;Държава:</translation>
+        <translation>&amp;Държава:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">E-&amp;mail:</translation>
+        <translation>E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">&amp;Парола:</translation>
+        <translation>&amp;Парола:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">П&amp;арола отново:</translation>
+        <translation>П&amp;арола отново:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">&amp;Регистрация</translation>
+        <translation>&amp;Регистрация</translation>
     </message>
 </context>
 <context>
@@ -5218,7 +5218,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>Помощник за първо включване</translation>
@@ -6858,7 +6858,7 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <translation>&amp;Процесор(и):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>Контролира броя на виртуалните процесори във виртуалната машина.</translation>
     </message>
     <message>

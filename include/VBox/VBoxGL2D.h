@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 #ifndef __VBoxGLSupportInfo_h__
 #define __VBoxGLSupportInfo_h__
@@ -134,6 +130,9 @@ typedef ptrdiff_t GLsizeiptr;
 #ifndef GL_STREAM_COPY
 # define GL_STREAM_COPY                 0x88E2
 #endif
+#ifndef GL_DYNAMIC_DRAW
+# define GL_DYNAMIC_DRAW                0x88E8
+#endif
 
 #ifndef GL_PIXEL_PACK_BUFFER
 # define GL_PIXEL_PACK_BUFFER           0x88EB
@@ -154,6 +153,24 @@ typedef GLvoid (APIENTRY *PFNVBOXVHWA_BIND_BUFFER)(GLenum target, GLuint buffer)
 typedef GLvoid (APIENTRY *PFNVBOXVHWA_BUFFER_DATA)(GLenum target, GLsizeiptr size, const GLvoid *data, GLenum usage);
 typedef GLvoid* (APIENTRY *PFNVBOXVHWA_MAP_BUFFER)(GLenum target, GLenum access);
 typedef GLboolean (APIENTRY *PFNVBOXVHWA_UNMAP_BUFFER)(GLenum target);
+
+/* GL_EXT_framebuffer_object */
+#ifndef GL_FRAMEBUFFER
+# define GL_FRAMEBUFFER                0x8D40
+#endif
+#ifndef GL_COLOR_ATTACHMENT0
+# define GL_COLOR_ATTACHMENT0          0x8CE0
+#endif
+
+typedef GLboolean (APIENTRY *PFNVBOXVHWA_IS_FRAMEBUFFER)(GLuint framebuffer);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_BIND_FRAMEBUFFER)(GLenum target, GLuint framebuffer);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_DELETE_FRAMEBUFFERS)(GLsizei n, const GLuint *framebuffers);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_GEN_FRAMEBUFFERS)(GLsizei n, GLuint *framebuffers);
+typedef GLenum (APIENTRY *PFNVBOXVHWA_CHECK_FRAMEBUFFER_STATUS)(GLenum target);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_FRAMEBUFFER_TEXTURE1D)(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_FRAMEBUFFER_TEXTURE2D)(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_FRAMEBUFFER_TEXTURE3D)(GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level, GLint zoffset);
+typedef GLvoid (APIENTRY *PFNVBOXVHWA_GET_FRAMEBUFFER_ATTACHMENT_PARAMETRIV)(GLenum target, GLenum attachment, GLenum pname, GLint *params);
 
 
 /*****************/
@@ -206,6 +223,17 @@ extern PFNVBOXVHWA_BUFFER_DATA vboxglBufferData;
 extern PFNVBOXVHWA_MAP_BUFFER vboxglMapBuffer;
 extern PFNVBOXVHWA_UNMAP_BUFFER vboxglUnmapBuffer;
 
+extern PFNVBOXVHWA_IS_FRAMEBUFFER vboxglIsFramebuffer;
+extern PFNVBOXVHWA_BIND_FRAMEBUFFER vboxglBindFramebuffer;
+extern PFNVBOXVHWA_DELETE_FRAMEBUFFERS vboxglDeleteFramebuffers;
+extern PFNVBOXVHWA_GEN_FRAMEBUFFERS vboxglGenFramebuffers;
+extern PFNVBOXVHWA_CHECK_FRAMEBUFFER_STATUS vboxglCheckFramebufferStatus;
+extern PFNVBOXVHWA_FRAMEBUFFER_TEXTURE1D vboxglFramebufferTexture1D;
+extern PFNVBOXVHWA_FRAMEBUFFER_TEXTURE2D vboxglFramebufferTexture2D;
+extern PFNVBOXVHWA_FRAMEBUFFER_TEXTURE3D vboxglFramebufferTexture3D;
+extern PFNVBOXVHWA_GET_FRAMEBUFFER_ATTACHMENT_PARAMETRIV vboxglGetFramebufferAttachmentParameteriv;
+
+
 class VBoxGLInfo
 {
 public:
@@ -215,6 +243,7 @@ public:
         mTextureRectangleSupported(false),
         mTextureNP2Supported(false),
         mPBOSupported(false),
+        mFBOSupported(false),
         mMultiTexNumSupported(1), /* 1 would mean it is not supported */
         m_GL_ARB_multitexture(false),
         m_GL_ARB_shader_objects(false),
@@ -224,6 +253,7 @@ public:
         m_GL_EXT_texture_rectangle(false),
         m_GL_NV_texture_rectangle(false),
         m_GL_ARB_texture_non_power_of_two(false),
+        m_GL_EXT_framebuffer_object(false),
         mInitialized(false)
     {}
 
@@ -236,6 +266,10 @@ public:
     bool isTextureRectangleSupported() const { return mTextureRectangleSupported; }
     bool isTextureNP2Supported() const { return mTextureNP2Supported; }
     bool isPBOSupported() const { return mPBOSupported; }
+    /* some ATI drivers do not seem to support non-zero offsets when dealing with PBOs
+     * @todo: add a check for that, always unsupported currently */
+    bool isPBOOffsetSupported() const { return false; }
+    bool isFBOSupported() const { return mFBOSupported; }
     /* 1 would mean it is not supported */
     int getMultiTexNumSupported() const { return mMultiTexNumSupported; }
 
@@ -248,6 +282,7 @@ private:
     bool mTextureRectangleSupported;
     bool mTextureNP2Supported;
     bool mPBOSupported;
+    bool mFBOSupported;
     int mMultiTexNumSupported; /* 1 would mean it is not supported */
 
     bool m_GL_ARB_multitexture;
@@ -258,6 +293,7 @@ private:
     bool m_GL_EXT_texture_rectangle;
     bool m_GL_NV_texture_rectangle;
     bool m_GL_ARB_texture_non_power_of_two;
+    bool m_GL_EXT_framebuffer_object;
 
     bool mInitialized;
 };

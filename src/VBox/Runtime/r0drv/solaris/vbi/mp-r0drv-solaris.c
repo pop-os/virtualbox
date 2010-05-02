@@ -1,10 +1,10 @@
-/* $Id: mp-r0drv-solaris.c $ */
+/* $Id: mp-r0drv-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -227,7 +223,6 @@ static int rtmpOnOthersSolarisWrapper(void *uArg, void *uIgnored1, void *uIgnore
 
 RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
-    int rc;
     RTMPARGS Args;
     RT_ASSERT_INTS_ON();
 
@@ -274,7 +269,6 @@ static int rtmpOnSpecificSolarisWrapper(void *uArg, void *uIgnored1, void *uIgno
 
 RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
-    int rc;
     RTMPARGS Args;
     RT_ASSERT_INTS_ON();
 

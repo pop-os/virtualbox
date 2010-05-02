@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h $ */
+/* $Id: ApplianceImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_APPLIANCEIMPL
@@ -27,11 +23,28 @@
 /* VBox includes */
 #include "VirtualBoxBase.h"
 
-#include "ovfreader.h"
-
 /* VBox forward declarations */
-class VirtualBox;
 class Progress;
+class VirtualSystemDescription;
+struct VirtualSystemDescriptionEntry;
+
+namespace ovf
+{
+    struct HardDiskController;
+    struct VirtualSystem;
+    class OVFReader;
+    struct DiskImage;
+}
+
+namespace xml
+{
+    class ElementNode;
+}
+
+namespace settings
+{
+    class MachineConfigFile;
+}
 
 class ATL_NO_VTABLE Appliance :
     public VirtualBoxBase,
@@ -53,6 +66,13 @@ public:
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (Appliance)
+
+    enum OVFFormat
+    {
+        unspecified,
+        OVF_0_9,
+        OVF_1_0
+    };
 
     // public initializer/uninitializer for internal purposes only
     HRESULT FinalConstruct() { return S_OK; }
@@ -85,20 +105,24 @@ public:
     /* private instance data */
 private:
     /** weak VirtualBox parent */
-    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
+    VirtualBox* const   mVirtualBox;
 
     struct Data;            // opaque, defined in ApplianceImpl.cpp
     Data *m;
 
+    bool isApplianceIdle() const;
+
     HRESULT searchUniqueVMName(Utf8Str& aName) const;
     HRESULT searchUniqueDiskImageFilePath(Utf8Str& aName) const;
+    HRESULT getDefaultHardDiskFolder(Utf8Str &str) const;
     void waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
     void addWarning(const char* aWarning, ...);
 
-    void disksWeight(uint32_t &ulTotalMB, uint32_t &cDisks) const;
-    HRESULT setUpProgressFS(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
-    HRESULT setUpProgressImportS3(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
-    HRESULT setUpProgressWriteS3(ComObjPtr<Progress> &pProgress, const Bstr &bstrDescription);
+    void disksWeight();
+    enum SetUpProgressMode { Regular, ImportS3, WriteS3 };
+    HRESULT setUpProgress(ComObjPtr<Progress> &pProgress,
+                          const Bstr &bstrDescription,
+                          SetUpProgressMode mode);
 
     struct LocationInfo;
     void parseURI(Utf8Str strUri, LocationInfo &locInfo) const;
@@ -106,31 +130,49 @@ private:
     Utf8Str manifestFileName(Utf8Str aPath) const;
 
     HRESULT readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
-    HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
     struct TaskOVF;
-    struct TaskImportOVF; /* Worker threads for import */
-    static DECLCALLBACK(int) taskThreadImportOVF(RTTHREAD aThread, void *pvUser);
+    static DECLCALLBACK(int) taskThreadImportOrExport(RTTHREAD aThread, void *pvUser);
 
-    int readFS(TaskImportOVF *pTask);
-    int readS3(TaskImportOVF *pTask);
+    HRESULT readFS(const LocationInfo &locInfo);
+    HRESULT readS3(TaskOVF *pTask);
 
-    int importFS(TaskImportOVF *pTask);
-    int importS3(TaskImportOVF *pTask);
-
-    void ConvertDiskAttachmentValues(const HardDiskController &hdc,
+    void convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
                                      uint32_t ulAddressOnParent,
                                      Bstr &controllerType,
                                      int32_t &lChannel,
                                      int32_t &lDevice);
 
-    HRESULT writeImpl(int aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+    HRESULT manifestVerify(const LocationInfo &locInfo, const ovf::OVFReader &reader);
 
-    struct TaskExportOVF; /* Worker threads for export */
-    static DECLCALLBACK(int) taskThreadWriteOVF(RTTHREAD aThread, void *pvUser);
+    HRESULT importFS(const LocationInfo &locInfo, ComObjPtr<Progress> &aProgress);
 
-    int writeFS(TaskExportOVF *pTask);
-    int writeS3(TaskExportOVF *pTask);
+    struct ImportStack;
+    void importOneDiskImage(const ovf::DiskImage &di,
+                            const Utf8Str &strTargetPath,
+                            ComPtr<IMedium> &pTargetHD,
+                            ImportStack &stack);
+    void importMachineGeneric(const ovf::VirtualSystem &vsysThis,
+                              ComObjPtr<VirtualSystemDescription> &vsdescThis,
+                              ComPtr<IMachine> &pNewMachine,
+                              ImportStack &stack);
+    void importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThis,
+                           ComPtr<IMachine> &pNewMachine,
+                           ImportStack &stack);
+
+    HRESULT importS3(TaskOVF *pTask);
+
+    HRESULT writeImpl(OVFFormat aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+
+    struct XMLStack;
+    void buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSystemsTo,
+                                     ComObjPtr<VirtualSystemDescription> &vsdescThis,
+                                     OVFFormat enFormat,
+                                     XMLStack &stack);
+
+    HRESULT writeFS(const LocationInfo &locInfo, const OVFFormat enFormat, ComObjPtr<Progress> &pProgress);
+    HRESULT writeS3(TaskOVF *pTask);
 
     friend class Machine;
 };
@@ -144,7 +186,7 @@ struct VirtualSystemDescriptionEntry
     Utf8Str strVbox;                        // configuration value (type-dependent)
     Utf8Str strExtraConfig;                 // extra configuration key=value strings (type-dependent)
 
-    uint32_t ulSizeMB;                      // hard disk images only: size of the uncompressed image in MB
+    uint32_t ulSizeMB;                      // hard disk images only: a copy of ovf::DiskImage::ulSuggestedSizeMB
 };
 
 class ATL_NO_VTABLE VirtualSystemDescription :
@@ -213,13 +255,16 @@ public:
 
     void addEntry(VirtualSystemDescriptionType_T aType,
                   const Utf8Str &strRef,
-                  const Utf8Str &aOrigValue,
-                  const Utf8Str &aAutoValue,
+                  const Utf8Str &aOvfValue,
+                  const Utf8Str &aVboxValue,
                   uint32_t ulSizeMB = 0,
                   const Utf8Str &strExtraConfig = "");
 
     std::list<VirtualSystemDescriptionEntry*> findByType(VirtualSystemDescriptionType_T aType);
     const VirtualSystemDescriptionEntry* findControllerFromID(uint32_t id);
+
+    void importVboxMachineXML(const xml::ElementNode &elmMachine);
+    const settings::MachineConfigFile* getMachineConfig() const;
 
     /* private instance data */
 private:

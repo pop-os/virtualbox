@@ -1,10 +1,10 @@
-/* $Id: DevEFI.cpp $ */
+/* $Id: DevEFI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevEFI - EFI <-> VirtualBox Integration Framework.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -39,6 +35,7 @@
 #include <iprt/uuid.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/mp.h>
 #ifdef DEBUG
 # include <iprt/stream.h>
 # define DEVEFI_WITH_VBOXDBG_SCRIPT
@@ -106,6 +103,29 @@ typedef struct DEVEFI
 
     /** I/O-APIC enabled? */
     uint8_t         u8IOAPIC;
+
+    /* Boot parameters passed to the firmware */
+    char            szBootArgs[256];
+
+    /* Host UUID (for DMI) */
+    RTUUID          aUuid;
+
+    /* Device properties buffer */
+    uint8_t*           pu8DeviceProps;
+    /* Device properties buffer size */
+    uint32_t           u32DevicePropsLen;
+
+    /* Virtual machine front side bus frequency */
+    uint64_t        u64FsbFrequency;
+    /* Virtual machine time stamp counter frequency */
+    uint64_t        u64TscFrequency;
+    /* Virtual machine CPU frequency */
+    uint64_t        u64CpuFrequency;
+    /* GOP mode */
+    uint32_t        u32GopMode;
+    /* Uga mode resolutions */
+    uint32_t        u32UgaHorisontal;
+    uint32_t        u32UgaVertical;
 } DEVEFI;
 typedef DEVEFI *PDEVEFI;
 
@@ -125,7 +145,6 @@ static void cmosWrite(PPDMDEVINS pDevIns, int off, uint32_t u32Val)
 
 static uint32_t efiInfoSize(PDEVEFI pThis)
 {
-    /* So far, everything is 4 bytes, as we only support 32-bit EFI */
     switch (pThis->iInfoSelector)
     {
         case EFI_INFO_INDEX_VOLUME_BASE:
@@ -134,7 +153,19 @@ static uint32_t efiInfoSize(PDEVEFI pThis)
         case EFI_INFO_INDEX_TEMPMEM_SIZE:
         case EFI_INFO_INDEX_STACK_BASE:
         case EFI_INFO_INDEX_STACK_SIZE:
+        case EFI_INFO_INDEX_GOP_MODE:
+        case EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION:
+        case EFI_INFO_INDEX_UGA_HORISONTAL_RESOLUTION:
             return 4;
+        case EFI_INFO_INDEX_BOOT_ARGS:
+            return (uint32_t)RTStrNLen(pThis->szBootArgs,
+                                       sizeof pThis->szBootArgs) + 1;
+        case EFI_INFO_INDEX_DEVICE_PROPS:
+            return pThis->u32DevicePropsLen;
+        case EFI_INFO_INDEX_FSB_FREQUENCY:
+        case EFI_INFO_INDEX_CPU_FREQUENCY:
+        case EFI_INFO_INDEX_TSC_FREQUENCY:
+            return 8;
     }
     Assert(false);
     return 0;
@@ -142,35 +173,62 @@ static uint32_t efiInfoSize(PDEVEFI pThis)
 
 static uint8_t efiInfoNextByte(PDEVEFI pThis)
 {
-    uint32_t iValue;
+    union
+    {
+        uint32_t u32;
+        uint64_t u64;
+    } value;
+
     switch (pThis->iInfoSelector)
     {
         case EFI_INFO_INDEX_VOLUME_BASE:
-            iValue = pThis->GCLoadAddress;
+            value.u32 = pThis->GCLoadAddress;
             break;
         case EFI_INFO_INDEX_VOLUME_SIZE:
-            iValue = pThis->cbEfiRom;
+            value.u32 = pThis->cbEfiRom;
             break;
         case EFI_INFO_INDEX_TEMPMEM_BASE:
-            iValue = VBOX_EFI_TOP_OF_STACK; /* just after stack */
+            value.u32 = VBOX_EFI_TOP_OF_STACK; /* just after stack */
             break;
         case EFI_INFO_INDEX_TEMPMEM_SIZE:
-            iValue = 512 * 1024; /* 512 K */
+            value.u32 = 512 * 1024; /* 512 K */
             break;
         case EFI_INFO_INDEX_STACK_BASE:
             /* Keep in sync with value in EfiThunk.asm */
-            iValue = VBOX_EFI_TOP_OF_STACK - 128*1024; /* 2M - 128 K */
+            value.u32 = VBOX_EFI_TOP_OF_STACK - 128*1024; /* 2M - 128 K */
             break;
         case EFI_INFO_INDEX_STACK_SIZE:
-            iValue = 128*1024; /* 128 K */
+            value.u32 = 128*1024; /* 128 K */
+            break;
+        case EFI_INFO_INDEX_FSB_FREQUENCY:
+            value.u64 = pThis->u64FsbFrequency;
+            break;
+        case EFI_INFO_INDEX_TSC_FREQUENCY:
+            value.u64 = pThis->u64TscFrequency;
+            break;
+        case EFI_INFO_INDEX_CPU_FREQUENCY:
+            value.u64 = pThis->u64CpuFrequency;
+            break;
+        case EFI_INFO_INDEX_BOOT_ARGS:
+            return pThis->szBootArgs[pThis->iInfoPosition];
+        case EFI_INFO_INDEX_DEVICE_PROPS:
+            return pThis->pu8DeviceProps[pThis->iInfoPosition];
+        case EFI_INFO_INDEX_GOP_MODE:
+            value.u32 = pThis->u32GopMode;
+            break;
+        case EFI_INFO_INDEX_UGA_HORISONTAL_RESOLUTION:
+            value.u32 = pThis->u32UgaHorisontal;
+            break;
+        case EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION:
+            value.u32 = pThis->u32UgaVertical;
             break;
         default:
             Assert(false);
-            iValue = 0;
+            value.u64 = 0;
             break;
     }
-    /* somewhat ugly, but works atm */
-    return *((uint8_t*)&iValue+pThis->iInfoPosition);
+
+    return *((uint8_t*)&value+pThis->iInfoPosition);
 }
 
 /**
@@ -206,6 +264,16 @@ static DECLCALLBACK(int) efiIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
                 pThis->iInfoPosition++;
             }
             return VINF_SUCCESS;
+
+       case EFI_PANIC_PORT:
+#ifdef IN_RING3
+           LogRel(("Panic port read!\n"));
+           /* Insert special code here on panic reads */
+           return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "EFI Panic: panic port read!\n");
+#else
+           /* Reschedule to R3 */
+           return VINF_IOM_HC_IOPORT_READ;
+#endif
     }
 
     return VERR_IOM_IOPORT_UNUSED;
@@ -291,14 +359,14 @@ static DECLCALLBACK(int) efiIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                 case EFI_PANIC_CMD_BAD_ORG:
                     LogRel(("EFI Panic: You have to fix ORG offset in EfiThunk.asm! Must be 0x%x\n",
                             g_cbEfiThunkBinary));
-                    AssertMsg2("Fix ORG offset in EfiThunk.asm: must be 0x%x\n",
-                               g_cbEfiThunkBinary);
+                    RTAssertMsg2Weak("Fix ORG offset in EfiThunk.asm: must be 0x%x\n",
+                                     g_cbEfiThunkBinary);
                     break;
 
                 case EFI_PANIC_CMD_THUNK_TRAP:
                     LogRel(("EFI Panic: Unexpected trap!!\n"));
 #ifdef VBOX_STRICT
-                    return PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "EFI Panic: Unexpected trap during early bootstrap!\n");
+                    return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "EFI Panic: Unexpected trap during early bootstrap!\n");
 #else
                     AssertReleaseMsgFailed(("Unexpected trap during early EFI bootstrap!!\n"));
 #endif
@@ -312,7 +380,7 @@ static DECLCALLBACK(int) efiIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                 case EFI_PANIC_CMD_END_MSG:
                     LogRel(("EFI Panic: %s\n", pThis->szPanicMsg));
 #ifdef VBOX_STRICT
-                    return PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "EFI Panic: %s\n", pThis->szPanicMsg);
+                    return PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "EFI Panic: %s\n", pThis->szPanicMsg);
 #else
                     return VERR_INTERNAL_ERROR;
 #endif
@@ -389,6 +457,7 @@ static DECLCALLBACK(int) efiInitComplete(PPDMDEVINS pDevIns)
 static DECLCALLBACK(void) efiReset(PPDMDEVINS pDevIns)
 {
     PDEVEFI  pThis = PDMINS_2_DATA(pDevIns, PDEVEFI);
+    int rc;
 
     LogFlow(("efiReset\n"));
 
@@ -401,6 +470,13 @@ static DECLCALLBACK(void) efiReset(PPDMDEVINS pDevIns)
     pThis->szPanicMsg[0] = '\0';
 
     /*
+     * Plan some structures in RAM.
+     */
+    FwCommonPlantSmbiosAndDmiHdrs(pDevIns);
+    if (pThis->u8IOAPIC)
+        FwCommonPlantMpsFloatPtr(pDevIns);
+
+    /*
      * Re-shadow the Firmware Volume and make it RAM/RAM.
      */
     uint32_t    cPages = RT_ALIGN_64(pThis->cbEfiRom, PAGE_SIZE) >> PAGE_SHIFT;
@@ -408,7 +484,6 @@ static DECLCALLBACK(void) efiReset(PPDMDEVINS pDevIns)
     while (cPages > 0)
     {
         uint8_t abPage[PAGE_SIZE];
-        int     rc;
 
         /* Read the (original) ROM page and write it back to the RAM page. */
         rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, PAGE_SIZE, PGMROMPROT_READ_ROM_WRITE_RAM);
@@ -463,6 +538,13 @@ static DECLCALLBACK(int) efiDestruct(PPDMDEVINS pDevIns)
     {
         MMR3HeapFree(pThis->pu8EfiThunk);
         pThis->pu8EfiThunk = NULL;
+    }
+
+    if (pThis->pu8DeviceProps)
+    {
+        MMR3HeapFree(pThis->pu8DeviceProps);
+        pThis->pu8DeviceProps = NULL;
+        pThis->u32DevicePropsLen = 0;
     }
 
     return VINF_SUCCESS;
@@ -677,9 +759,9 @@ static int efiParseFirmware(PDEVEFI pThis)
  *
  * @returns VBox status.
  * @param   pThis       The device instance data.
- * @param   pCfgHandle  Configuration node handle for the device.
+ * @param   pCfg        Configuration node handle for the device.
  */
-static int efiLoadRom(PDEVEFI pThis, PCFGMNODE pCfgHandle)
+static int efiLoadRom(PDEVEFI pThis, PCFGMNODE pCfg)
 {
     /*
      * Read the entire firmware volume into memory.
@@ -758,14 +840,14 @@ static int efiLoadRom(PDEVEFI pThis, PCFGMNODE pCfgHandle)
  *
  * @returns VBox status code.
  * @param   pThis       The device instance data.
- * @param   pCfgHandle  Configuration node handle for the device.
+ * @param   pCfg        Configuration node handle for the device.
  */
-static int efiLoadThunk(PDEVEFI pThis, PCFGMNODE pCfgHandle)
+static int efiLoadThunk(PDEVEFI pThis, PCFGMNODE pCfg)
 {
     uint8_t f64BitEntry = 0;
     int rc;
 
-    rc = CFGMR3QueryU8Def(pCfgHandle, "64BitEntry", &f64BitEntry, 0);
+    rc = CFGMR3QueryU8Def(pCfg, "64BitEntry", &f64BitEntry, 0);
     if (RT_FAILURE (rc))
         return PDMDEV_SET_ERROR(pThis->pDevIns, rc,
                                 N_("Configuration error: Failed to read \"64BitEntry\""));
@@ -828,20 +910,63 @@ static int efiLoadThunk(PDEVEFI pThis, PCFGMNODE pCfgHandle)
 }
 
 
+static uint8_t efiGetHalfByte(char ch)
+{
+    uint8_t val;
+
+    if (ch >= '0' && ch <= '9')
+        val = ch - '0';
+    else if (ch >= 'A' && ch <= 'F')
+        val = ch - 'A' + 10;
+    else if(ch >= 'a' && ch <= 'f')
+        val = ch - 'a' + 10;
+    else
+        val = 0xff;
+
+    return val;
+
+}
+
+
+static int efiParseDeviceString(PDEVEFI  pThis, char* pszDeviceProps)
+{
+    int         rc = 0;
+    uint32_t    iStr, iHex, u32OutLen;
+    uint8_t     u8Value = 0;                    /* (shut up gcc) */
+    bool        fUpper = true;
+
+    u32OutLen = (uint32_t)RTStrNLen(pszDeviceProps, RTSTR_MAX) / 2 + 1;
+
+    pThis->pu8DeviceProps =
+            (uint8_t*)PDMDevHlpMMHeapAlloc(pThis->pDevIns, u32OutLen);
+    if (!pThis->pu8DeviceProps)
+        return VERR_NO_MEMORY;
+
+    for (iStr=0, iHex = 0; pszDeviceProps[iStr]; iStr++)
+    {
+        uint8_t u8Hb = efiGetHalfByte(pszDeviceProps[iStr]);
+        if (u8Hb > 0xf)
+            continue;
+
+        if (fUpper)
+            u8Value = u8Hb << 4;
+        else
+            pThis->pu8DeviceProps[iHex++] = u8Hb | u8Value;
+
+        Assert(iHex < u32OutLen);
+        fUpper = !fUpper;
+    }
+
+    Assert(iHex == 0 || fUpper);
+    pThis->u32DevicePropsLen = iHex;
+
+    return rc;
+}
+
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PDEVEFI     pThis = PDMINS_2_DATA(pDevIns, PDEVEFI);
     int         rc;
@@ -853,7 +978,7 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "EfiRom\0"
                               "RamSize\0"
                               "RamHoleSize\0"
@@ -881,16 +1006,23 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                               "DmiOEMVBoxVer\0"
                               "DmiOEMVBoxRev\0"
 #endif
+                              "DmiUseHostInfo\0"
+                              "DmiExposeMemoryTable\0"
                               "64BitEntry\0"
+                              "BootArgs\0"
+                              "DeviceProps\0"
+                              "GopMode\0"
+                              "UgaHorizontalResolution\0"
+                              "UgaVerticalResolution\0"
                               ))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Configuration error: Invalid config value(s) for the EFI device"));
 
     /* CPU count (optional). */
-    rc = CFGMR3QueryU32Def(pCfgHandle, "NumCPUs", &pThis->cCpus, 1);
+    rc = CFGMR3QueryU32Def(pCfg, "NumCPUs", &pThis->cCpus, 1);
     AssertLogRelRCReturn(rc, rc);
 
-    rc = CFGMR3QueryU8Def(pCfgHandle, "IOAPIC", &pThis->u8IOAPIC, 1);
+    rc = CFGMR3QueryU8Def(pCfg, "IOAPIC", &pThis->u8IOAPIC, 1);
     if (RT_FAILURE (rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to read \"IOAPIC\""));
@@ -899,52 +1031,45 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      * Query the machine's UUID for SMBIOS/DMI use.
      */
     RTUUID  uuid;
-    rc = CFGMR3QueryBytes(pCfgHandle, "UUID", &uuid, sizeof(uuid));
+    rc = CFGMR3QueryBytes(pCfg, "UUID", &uuid, sizeof(uuid));
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"UUID\" failed"));
 
-    /* Convert the UUID to network byte order. Not entirely straightforward as parts are MSB already... */
+    /*
+     * Convert the UUID to network byte order. Not entirely straightforward as
+     * parts are MSB already...
+     */
     uuid.Gen.u32TimeLow = RT_H2BE_U32(uuid.Gen.u32TimeLow);
     uuid.Gen.u16TimeMid = RT_H2BE_U16(uuid.Gen.u16TimeMid);
     uuid.Gen.u16TimeHiAndVersion = RT_H2BE_U16(uuid.Gen.u16TimeHiAndVersion);
-    rc = FwCommonPlantDMITable(pDevIns, pThis->au8DMIPage, VBOX_DMI_TABLE_SIZE, &uuid, pCfgHandle, true /* fPutSmbiosHeaders */);
-    if (RT_FAILURE(rc))
-        return rc;
+    memcpy(&pThis->aUuid, &uuid, sizeof pThis->aUuid);
 
-    FwCommonPlantMpsTable(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
-                          _4K - VBOX_DMI_TABLE_SIZE, pThis->cCpus);
 
-    rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage,
-                              PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /* RAM sizes */
-    rc = CFGMR3QueryU64(pCfgHandle, "RamSize", &pThis->cbRam);
+    /*
+     * RAM sizes
+     */
+    rc = CFGMR3QueryU64(pCfg, "RamSize", &pThis->cbRam);
     AssertLogRelRCReturn(rc, rc);
-    rc = CFGMR3QueryU64(pCfgHandle, "RamHoleSize", &pThis->cbRamHole);
+    rc = CFGMR3QueryU64(pCfg, "RamHoleSize", &pThis->cbRamHole);
     AssertLogRelRCReturn(rc, rc);
     pThis->cbBelow4GB = RT_MIN(pThis->cbRam, _4G - pThis->cbRamHole);
     pThis->cbAbove4GB = pThis->cbRam - pThis->cbBelow4GB;
 
-
     /*
      * Get the system EFI ROM file name.
      */
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "EfiRom", &pThis->pszEfiRomFile);
+    rc = CFGMR3QueryStringAlloc(pCfg, "EfiRom", &pThis->pszEfiRomFile);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
-        pThis->pszEfiRomFile = (char*)PDMDevHlpMMHeapAlloc(pDevIns, RTPATH_MAX);
+        pThis->pszEfiRomFile = (char *)PDMDevHlpMMHeapAlloc(pDevIns, RTPATH_MAX);
         if (!pThis->pszEfiRomFile)
             return VERR_NO_MEMORY;
 
-        int rc = RTPathAppPrivateArch(pThis->pszEfiRomFile, RTPATH_MAX - 32);
+        rc = RTPathAppPrivateArch(pThis->pszEfiRomFile, RTPATH_MAX);
         AssertRCReturn(rc, rc);
-
-        size_t offFilename = strlen(pThis->pszEfiRomFile);
-        strcpy(pThis->pszEfiRomFile+offFilename, "/VBoxEFI32.fd");
-        rc = VINF_SUCCESS;
+        rc = RTPathAppend(pThis->pszEfiRomFile, RTPATH_MAX, "VBoxEFI32.fd");
+        AssertRCReturn(rc, rc);
     }
     else if (RT_FAILURE(rc))
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
@@ -953,6 +1078,87 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     {
         MMR3HeapFree(pThis->pszEfiRomFile);
         pThis->pszEfiRomFile = NULL;
+    }
+
+    /*
+     * Get boot args.
+     */
+    rc = CFGMR3QueryString(pCfg, "BootArgs",
+                           pThis->szBootArgs, sizeof pThis->szBootArgs);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+    {
+        strcpy(pThis->szBootArgs, "");
+        rc = VINF_SUCCESS;
+    }
+    if (RT_FAILURE(rc))
+        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                   N_("Configuration error: Querying \"BootArgs\" as a string failed"));
+
+    LogRel(("EFI boot args: %s\n", pThis->szBootArgs));
+
+    /*
+     * Get device props.
+     */
+    char* pszDeviceProps;
+    rc = CFGMR3QueryStringAlloc(pCfg, "DeviceProps", &pszDeviceProps);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+    {
+        pszDeviceProps = NULL;
+        rc = VINF_SUCCESS;
+    }
+    if (RT_FAILURE(rc))
+        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                   N_("Configuration error: Querying \"DeviceProps\" as a string failed"));
+    if (pszDeviceProps)
+    {
+        LogRel(("EFI device props: %s\n", pszDeviceProps));
+        rc = efiParseDeviceString(pThis, pszDeviceProps);
+        MMR3HeapFree(pszDeviceProps);
+        if (RT_FAILURE(rc))
+            return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                       N_("Configuration error: Cannot parse device properties"));
+    }
+    else
+    {
+        pThis->pu8DeviceProps    = NULL;
+        pThis->u32DevicePropsLen = 0;
+    }
+
+    /*
+     * CPU frequencies
+     */
+    // @todo: we need to have VMM API to access TSC increase speed, for now provide reasonable default
+    pThis->u64TscFrequency = RTMpGetMaxFrequency(0) * 1024 * 1024;// TMCpuTicksPerSecond(PDMDevHlpGetVM(pDevIns));
+    if (pThis->u64TscFrequency == 0)
+        pThis->u64TscFrequency = UINT64_C(2500000000);
+    /* Multiplier is read from MSR_IA32_PERF_STATUS, and now is hardcoded as 4 */
+    pThis->u64FsbFrequency = pThis->u64TscFrequency / 4;
+    pThis->u64CpuFrequency = pThis->u64TscFrequency;
+
+    /*
+     * GOP graphics
+     */
+    rc = CFGMR3QueryU32(pCfg, "GopMode", &pThis->u32GopMode);
+    AssertRC(rc);
+    if (pThis->u32GopMode == UINT32_MAX)
+    {
+        pThis->u32GopMode = 2; /* 1024x768 */
+    }
+
+    /*
+     * Uga graphics
+     */
+    rc = CFGMR3QueryU32(pCfg, "UgaHorizontalResolution", &pThis->u32UgaHorisontal);
+    AssertRC(rc);
+    if (pThis->u32UgaHorisontal == 0)
+    {
+        pThis->u32UgaHorisontal = 1024; /* 1024x768 */
+    }
+    rc = CFGMR3QueryU32(pCfg, "UgaVerticalResolution", &pThis->u32UgaVertical);
+    AssertRC(rc);
+    if (pThis->u32UgaVertical == 0)
+    {
+        pThis->u32UgaVertical = 768; /* 1024x768 */
     }
 
 #ifdef DEVEFI_WITH_VBOXDBG_SCRIPT
@@ -965,11 +1171,11 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Load firmware volume and thunk ROM.
      */
-    rc = efiLoadRom(pThis, pCfgHandle);
+    rc = efiLoadRom(pThis, pCfg);
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = efiLoadThunk(pThis, pCfgHandle);
+    rc = efiLoadThunk(pThis, pCfg);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -981,6 +1187,25 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                                  NULL, NULL, "EFI communication ports");
     if (RT_FAILURE(rc))
         return rc;
+
+    /*
+     * Plant DMI and MPS tables
+     */
+    rc = FwCommonPlantDMITable(pDevIns,
+                               pThis->au8DMIPage,
+                               VBOX_DMI_TABLE_SIZE,
+                               &pThis->aUuid,
+                               pDevIns->pCfg);
+    AssertRCReturn(rc, rc);
+    if (pThis->u8IOAPIC)
+        FwCommonPlantMpsTable(pDevIns,
+                              pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
+                              _4K - VBOX_DMI_TABLE_SIZE,
+                              pThis->cCpus);
+    rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage,
+                              PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");
+
+    AssertRCReturn(rc, rc);
 
     /*
      * Call reset to set things up.
@@ -997,7 +1222,7 @@ const PDMDEVREG g_DeviceEFI =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "efi",
     /* szRCMod */
     "",

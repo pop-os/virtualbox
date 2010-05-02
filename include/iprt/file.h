@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_file_h
@@ -32,6 +28,7 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+#include <iprt/stdarg.h>
 #ifdef IN_RING3
 # include <iprt/fs.h>
 #endif
@@ -239,6 +236,41 @@ RTR3DECL(int)  RTFileSetForceFlags(unsigned fOpenForAccess, unsigned fSet, unsig
 RTR3DECL(int)  RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen);
 
 /**
+ * Open a file given as a format string.
+ *
+ * @returns iprt status code.
+ * @param   pFile           Where to store the handle to the opened file.
+ * @param   fOpen           Open flags, i.e a combination of the RTFILE_O_* defines.
+ *                          The ACCESS, ACTION and DENY flags are mandatory!
+ * @param   pszFilenameFmt  Format string givin the path to the file which is to
+ *                          be opened. (UTF-8)
+ * @param   ...             Arguments to the format string.
+ */
+RTR3DECL(int)  RTFileOpenF(PRTFILE pFile, uint32_t fOpen, const char *pszFilenameFmt, ...);
+
+/**
+ * Open a file given as a format string.
+ *
+ * @returns iprt status code.
+ * @param   pFile           Where to store the handle to the opened file.
+ * @param   fOpen           Open flags, i.e a combination of the RTFILE_O_* defines.
+ *                          The ACCESS, ACTION and DENY flags are mandatory!
+ * @param   pszFilenameFmt  Format string givin the path to the file which is to
+ *                          be opened. (UTF-8)
+ * @param   va              Arguments to the format string.
+ */
+RTR3DECL(int)  RTFileOpenV(PRTFILE pFile, uint32_t fOpen, const char *pszFilenameFmt, va_list va);
+
+/**
+ * Open the bit bucket (aka /dev/null or nul).
+ *
+ * @returns IPRT status code.
+ * @param   phFile          Where to store the handle to the opened file.
+ * @param   fAccess         The desired access only, i.e. read, write or both.
+ */
+RTR3DECL(int)  RTFileOpenBitBucket(PRTFILE phFile, uint32_t fAccess);
+
+/**
  * Close a file opened by RTFileOpen().
  *
  * @returns iprt status code.
@@ -259,7 +291,7 @@ RTR3DECL(int) RTFileFromNative(PRTFILE pFile, RTHCINTPTR uNative);
  * Gets the native handle for an IPRT file handle.
  *
  * @return  The native handle.
- * @params  File            The IPRT file handle.
+ * @param   File            The IPRT file handle.
  */
 RTR3DECL(RTHCINTPTR) RTFileToNative(RTFILE File);
 
@@ -743,7 +775,7 @@ RTR3DECL(int) RTFileGetOwner(RTFILE File, uint32_t *pUid, uint32_t *pGid);
  * @param   cbData      Size of the IOCTL data.
  * @param   piRet       Return value of the IOCTL request.
  */
-RTR3DECL(int) RTFileIoCtl(RTFILE File, int iRequest, void *pvData, unsigned cbData, int *piRet);
+RTR3DECL(int) RTFileIoCtl(RTFILE File, unsigned long ulRequest, void *pvData, unsigned cbData, int *piRet);
 
 /**
  * Query the sizes of a filesystem.
@@ -778,7 +810,7 @@ RTR3DECL(int) RTFileQueryFsSizes(RTFILE hFile, PRTFOFF pcbTotal, RTFOFF *pcbFree
  *          means that the return memory may reflect the state of the file when it's
  *          accessed instead of when this call was done. So, in short, don't use this
  *          API for volatile files, then rather use the extended variant with a
- *          yet-to-be-defined.
+ *          yet-to-be-defined flag.
  */
 RTDECL(int) RTFileReadAll(const char *pszFilename, void **ppvFile, size_t *pcbFile);
 
@@ -1034,13 +1066,13 @@ RTDECL(int) RTFileAioReqPrepareRead(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
  * @param   hReq            The request handle.
  * @param   hFile           The file to write to.
  * @param   off             The offset to start writing at.
- * @param   pvBuf           Where to store the written bits.
- * @param   cbRead          Number of bytes to write.
+ * @param   pvBuf           The bits to write.
+ * @param   cbWrite         Number of bytes to write.
  * @param   pvUser          Opaque user data associated with this request which
  *                          can be retrieved with RTFileAioReqGetUser().
  */
 RTDECL(int) RTFileAioReqPrepareWrite(RTFILEAIOREQ hReq, RTFILE hFile, RTFOFF off,
-                                     void *pvBuf, size_t cbWrite, void *pvUser);
+                                     void const *pvBuf, size_t cbWrite, void *pvUser);
 
 /**
  * Prepares an async flush of all cached data associated with a file handle.
@@ -1093,7 +1125,7 @@ RTDECL(int) RTFileAioReqCancel(RTFILEAIOREQ hReq);
  *                          Optional since it is not relevant for all kinds of
  *                          requests.
  */
-RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransfered);
+RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransferred);
 
 
 
@@ -1194,8 +1226,8 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
  *                          completed requests from.
  * @param   cMinReqs        The minimum number of requests which have to
  *                          complete before this function returns.
- * @param   cMillisTimeout  The number of milliseconds to wait before returning
- *                          VERR_TIMEOUT. Use RT_INDEFINITE_WAIT to wait
+ * @param   cMillies        The number of milliseconds to wait before returning
+ *                          VERR_TIMEOUT.  Use RT_INDEFINITE_WAIT to wait
  *                          forever.
  * @param   pahReqs         Pointer to an array where the handles of the
  *                          completed requests will be stored on success.
@@ -1211,7 +1243,7 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
  *          uint32_t's, this is to avoid annoying warnings when using
  *          RT_ELEMENTS and similar macros.
  */
-RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, unsigned cMillisTimeout,
+RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL cMillies,
                              PRTFILEAIOREQ pahReqs, size_t cReqs, uint32_t *pcReqs);
 
 /**

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_HGSMI_HGSMIChSetup_h
@@ -49,6 +45,10 @@ AssertCompileSize(HGSMIBUFFERLOCATION, 8);
 /* HGSMI setup and configuration data structures. */
 #define HGSMIHOSTFLAGS_COMMANDS_PENDING 0x1
 #define HGSMIHOSTFLAGS_IRQ              0x2
+#ifdef VBOXVDMA
+/* one or more guest commands is completed */
+# define HGSMIHOSTFLAGS_GCOMMAND_COMPLETED 0x4
+#endif
 
 typedef struct _HGSMIHOSTFLAGS
 {

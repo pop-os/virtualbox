@@ -1,4 +1,4 @@
-/* $Id: tstHostHardwareLinux.cpp $ */
+/* $Id: tstHostHardwareLinux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * Test executable for quickly excercising/debugging the Linux host hardware
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <HostHardwareLinux.h>
@@ -28,6 +24,7 @@
 #include <iprt/initterm.h>
 #include <iprt/param.h>
 #include <iprt/stream.h>
+#include <iprt/thread.h>
 #include <iprt/linux/sysfs.h>
 
 #include <iprt/cdefs.h>
@@ -36,6 +33,28 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+
+void doHotplugEvent(VBoxMainHotplugWaiter *waiter, RTMSINTERVAL cMillies)
+{
+    while (true)
+    {
+        int rc = waiter->Wait (cMillies);
+        if (rc == VERR_TRY_AGAIN)
+        {
+            RTThreadYield();
+            continue;
+        }
+        if (rc == VERR_TIMEOUT)
+            break;
+        if (RT_FAILURE(rc))
+        {
+            RTPrintf("Failed!\n");
+            exit(1);
+        }
+        if (RT_SUCCESS(rc))
+            break;
+    }
+}
 
 int main()
 {
@@ -131,17 +150,9 @@ int main()
     VBoxMainHotplugWaiter waiter;
     RTPrintf ("Waiting for hotplug events.  Note that DBus often seems to deliver duplicate events in close succession.\n");
     RTPrintf ("Waiting for a hotplug event for five seconds...\n");
-    if (RT_FAILURE(waiter.Wait (5000)))
-    {
-        RTPrintf("Failed!\n");
-        exit(1);
-    }
+    doHotplugEvent(&waiter, 5000);
     RTPrintf ("Waiting for a hotplug event, Ctrl-C to abort...\n");
-    if (RT_FAILURE(waiter.Wait(RT_INDEFINITE_WAIT)))
-    {
-        RTPrintf("Failed!\n");
-        exit(1);
-    }
+    doHotplugEvent(&waiter, RT_INDEFINITE_WAIT);
 #endif  /* VBOX_USB_WITH_SYSFS */
     return 0;
 }

@@ -1,10 +1,10 @@
-/* $Id: sysfs.cpp $ */
+/* $Id: sysfs.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Linux sysfs access.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -207,6 +203,39 @@ RTDECL(ssize_t) RTLinuxSysFsReadStr(int fd, char *pszBuf, size_t cchBuf)
     ssize_t cchRead = read(fd, pszBuf, cchBuf - 1);
     pszBuf[cchRead >= 0 ? cchRead : 0] = '\0';
     return cchRead;
+}
+
+
+RTDECL(int) RTLinuxSysFsReadFile(int fd, void *pvBuf, size_t cbBuf, size_t *pcbRead)
+{
+    int     rc;
+    ssize_t cbRead = read(fd, pvBuf, cbBuf);
+    if (cbRead >= 0)
+    {
+        if (pcbRead)
+            *pcbRead = cbRead;
+        if ((size_t)cbRead < cbBuf)
+            rc = VINF_SUCCESS;
+        else
+        {
+            /* Check for EOF */
+            char    ch;
+            off_t   off     = lseek(fd, 0, SEEK_CUR);
+            ssize_t cbRead2 = read(fd, &ch, 1);
+            if (cbRead2 == 0)
+                rc = VINF_SUCCESS;
+            else if (cbRead2 > 0)
+            {
+                lseek(fd, off, SEEK_SET);
+                rc = VERR_BUFFER_OVERFLOW;
+            }
+            else
+                rc = RTErrConvertFromErrno(errno);
+        }
+    }
+    else
+        rc = RTErrConvertFromErrno(errno);
+    return rc;
 }
 
 
@@ -412,7 +441,7 @@ static ssize_t rtLinuxFindDevicePathRecursive(dev_t DevNum, RTFMODE fMode, const
                 rcRet = -1;
                 break;
             }
-            if (RTFS_IS_SYMLINK(Entry.Info.Attr.fMode)) /* paranoia. @todo RTDirReadEx now returns symlinks, see also #if 1 below. */
+            if (RTFS_IS_SYMLINK(Entry.Info.Attr.fMode))
                 continue;
 
             /* Do the matching. */
@@ -437,12 +466,6 @@ static ssize_t rtLinuxFindDevicePathRecursive(dev_t DevNum, RTFMODE fMode, const
                 rcRet = -1;
                 break;
             }
-#if 1 /** @todo This is a temporary hack, as RTDirReadEx in 3.0 doesn't know about symbolic links. */
-            struct stat Stat = { 0 };
-            if (   lstat(szPath, &Stat) < 0
-                || S_ISLNK(Stat.st_mode))
-                continue;
-#endif
             strcat(&szPath[cchBasePath], "/");
             rcRet = rtLinuxFindDevicePathRecursive(DevNum, fMode, szPath, pszBuf, cchBuf);
             if (rcRet >= 0 || errno != ENOENT)

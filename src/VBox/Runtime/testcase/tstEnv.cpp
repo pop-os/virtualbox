@@ -1,10 +1,10 @@
-/* $Id: tstEnv.cpp $ */
+/* $Id: tstEnv.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - Environment.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -192,6 +188,27 @@ int main()
     CHECK_STR(szBuf, "MyValue32");
     CHECK_RC(RTEnvGetEx(Env, "IPRTMyNewVar15", szBuf, sizeof(szBuf), &cch), VINF_SUCCESS);
     CHECK_STR(szBuf, "MyValue15");
+
+    /*
+     * Dup.
+     */
+    char *psz1;
+    CHECK(RTEnvDupEx(Env, "NonExistantVariable") == NULL);
+    psz1 = RTEnvDupEx(Env, "IPRTMyNewVar15");
+    CHECK(psz1);
+    if (psz1)
+        CHECK_STR(psz1, "MyValue15");
+    RTStrFree(psz1);
+
+    static char s_szBigValue[10999];
+    memset(s_szBigValue, 'a', sizeof(s_szBigValue));
+    s_szBigValue[sizeof(s_szBigValue) - 1] = '\0';
+    CHECK_RC(RTEnvSetEx(Env, "IPRTBigValue", s_szBigValue), VINF_SUCCESS);
+    psz1 = RTEnvDupEx(Env, "IPRTBigValue");
+    CHECK(psz1);
+    if (psz1)
+        CHECK_STR(psz1, s_szBigValue);
+    RTStrFree(psz1);
 
     /*
      * Another cloning.

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __H_VBOXSDL
@@ -26,12 +22,14 @@
 /* include this first so Windows.h get's in before our stuff. */
 #include <SDL.h>
 #ifndef RT_OS_DARWIN
+# define Display Display_  /* Xlib defines "Display" and so do we... */
 # include <SDL_syswm.h>
+# undef Display
 #endif
 #if defined(RT_OS_WINDOWS) /// @todo someone please explain why this is necessary. This breaks darwin solid.
 // damn SDL redefines main!
 #undef main
-#endif 
+#endif
 
 #include "ConsoleImpl.h"
 #include <iprt/string.h>
@@ -114,6 +112,8 @@ public:
     virtual void     eventQuit();
     virtual void     resetCursor();
     virtual void     resetKeys(void);
+    virtual VMMDev  *getVMMDev();
+    virtual Display *getDisplay();
 
 private:
 

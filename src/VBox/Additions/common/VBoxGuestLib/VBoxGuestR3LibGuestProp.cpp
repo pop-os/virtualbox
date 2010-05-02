@@ -1,10 +1,10 @@
-/* $Id: VBoxGuestR3LibGuestProp.cpp $ */
+/* $Id: VBoxGuestR3LibGuestProp.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, guest properties.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -35,13 +31,23 @@
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include <iprt/assert.h>
-#include <iprt/autores.h>
+#include <iprt/cpp/autores.h>
 #include <iprt/stdarg.h>
 #include <VBox/log.h>
 #include <VBox/HostServices/GuestPropertySvc.h>
 
 #include "VBGLR3Internal.h"
 
+#ifdef VBOX_VBGLR3_XFREE86
+/* Rather than try to resolve all the header file conflicts, I will just
+   prototype what we need here. */
+extern "C" char* xf86strcpy(char*,const char*);
+# undef strcpy
+# define strcpy xf86strcpy
+extern "C" void* xf86memchr(const void*,int,xf86size_t);
+# undef memchr
+# define memchr xf86memchr
+#endif /* VBOX_VBGLR3_XFREE86 */
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -204,7 +210,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValue(uint32_t u32ClientId, const char *pszN
     return rc;
 }
 
-
+#ifndef VBOX_VBGLR3_XFREE86
 /**
  * Write a property value where the value is formatted in RTStrPrintfV fashion.
  *
@@ -249,7 +255,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValueF(uint32_t u32ClientId, const char *psz
     va_end(va);
     return rc;
 }
-
+#endif /* VBOX_VBGLR3_XFREE86 */
 
 /**
  * Retrieve a property.
@@ -346,7 +352,7 @@ VBGLR3DECL(int) VbglR3GuestPropRead(uint32_t u32ClientId, const char *pszName,
     return VINF_SUCCESS;
 }
 
-
+#ifndef VBOX_VBGLR3_XFREE86
 /**
  * Retrieve a property value, allocating space for it.
  *
@@ -426,7 +432,7 @@ VBGLR3DECL(void) VbglR3GuestPropReadValueFree(char *pszValue)
 {
     RTMemFree(pszValue);
 }
-
+#endif /* VBOX_VBGLR3_XFREE86 */
 
 /**
  * Retrieve a property value, using a user-provided buffer to store it.
@@ -451,25 +457,17 @@ VBGLR3DECL(int) VbglR3GuestPropReadValue(uint32_t u32ClientId, const char *pszNa
                                          char *pszValue, uint32_t cchValue,
                                          uint32_t *pcchValueActual)
 {
-    char *pszBuf = NULL;
-    int rc = VbglR3GuestPropReadValueAlloc(u32ClientId, pszName, &pszBuf);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchValueActual = strlen(pszBuf) + 1;
-        if (cchValueActual <= cchValue)
-            memcpy(pszValue, pszBuf, cchValueActual);
-        else
-        {
-            if (pcchValueActual != NULL)
-                *pcchValueActual = (uint32_t)cchValueActual;
-            rc = VERR_BUFFER_OVERFLOW;
-        }
-    }
-    VbglR3GuestPropReadValueFree(pszBuf);
+    void *pvBuf = pszValue;
+    uint32_t cchValueActual;
+    int rc = VbglR3GuestPropRead(u32ClientId, pszName, pvBuf, cchValue,
+                                 &pszValue, NULL, NULL, &cchValueActual);
+    if (pcchValueActual != NULL)
+        *pcchValueActual = cchValueActual;
     return rc;
 }
 
 
+#ifndef VBOX_VBGLR3_XFREE86
 /**
  * Raw API for enumerating guest properties which match a given pattern.
  *
@@ -911,4 +909,4 @@ VBGLR3DECL(int) VbglR3GuestPropWait(uint32_t u32ClientId,
 
     return VINF_SUCCESS;
 }
-
+#endif /* VBOX_VBGLR3_XFREE86 */

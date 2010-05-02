@@ -24,9 +24,9 @@
         <translation></translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Radek Vybiral, Jan Kalab &lt;pitel@nomi.cz&gt;, Jan Lipovsky, Ondrej Karlik</translation>
+        <translation>Radek Vybiral, Jan Kalab &lt;pitel@nomi.cz&gt;, Jan Lipovsky, Ondrej Karlik</translation>
     </message>
 </context>
 <context>
@@ -541,7 +541,7 @@ Verze %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxAdditionsDownloader</name>
+    <name>UIDownloaderAdditions</name>
     <message>
         <source>Cancel</source>
         <translation>Zrušit</translation>
@@ -1670,7 +1670,7 @@ Verze %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxDownloaderWgt</name>
+    <name>UIDownloader</name>
     <message>
         <source>Cancel</source>
         <translation type="obsolete">Zrušit</translation>
@@ -1724,7 +1724,7 @@ Verze %1</translation>
     </message>
 </context>
 <context>
-    <name>VBoxExportApplianceWzd</name>
+    <name>UIExportApplianceWzd</name>
     <message>
         <source>Select a file to export into</source>
         <translation>Vyberte soubor pro export</translation>
@@ -3866,7 +3866,7 @@ na výchozí jazyk systému.&lt;/qt&gt;
     </message>
 </context>
 <context>
-    <name>VBoxImportApplianceWzd</name>
+    <name>UIImportApplianceWzd</name>
     <message>
         <source>Select an appliance to import</source>
         <translation>Vyberte applianci pro import</translation>
@@ -3929,7 +3929,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxImportLicenseViewer</name>
+    <name>UIImportLicenseViewer</name>
     <message>
         <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
         <translation>&lt;b&gt;Virtuální počítač &quot;%1&quot; vyžaduje souhlas s podmínkami používání uvedené v softwarové licenci zobrazené níže.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Klikněte na &lt;b&gt;Souhlasím&lt;/b&gt; pro pokračování nebo &lt;b&gt;Nesouhlasím&lt;/b&gt; pro přerušení importu. </translation>
@@ -4256,7 +4256,7 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxNewHDWzd</name>
+    <name>UINewHDWzd</name>
     <message>
         <source>Create New Virtual Disk</source>
         <translation>Vytvořit nový virtuální disk</translation>
@@ -4469,7 +4469,7 @@ jako velikost virtuálního pevného disku.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
-    <name>VBoxNewVMWzd</name>
+    <name>UINewVMWzd</name>
     <message>
         <source>Create New Virtual Machine</source>
         <translation>Vytvoření nového virtuálního počítače</translation>
@@ -5898,7 +5898,7 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation type="obsolete">Registrační dialog VirtualBoxu</translation>
+        <translation>Registrační dialog VirtualBoxu</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -5910,11 +5910,11 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation type="obsolete">Vložte vaše celé jméno v latinské abecedě.</translation>
+        <translation>Vložte vaše celé jméno v latinské abecedě.</translation>
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation type="obsolete">Vložte vaši platnou e-mailovou adresu.</translation>
+        <translation>Vložte vaši platnou e-mailovou adresu.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -5926,7 +5926,7 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation type="obsolete">Vítejte ve formuláři registrace VirtualBoxu!</translation>
+        <translation>Vítejte ve formuláři registrace VirtualBoxu!</translation>
     </message>
     <message>
         <source>&amp;Confirm</source>
@@ -5942,7 +5942,7 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation type="obsolete">Nelze provést prvotní spojení.</translation>
+        <translation>Nelze provést prvotní spojení.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -5958,63 +5958,63 @@ krok a připojit pevné disky později použitím dialogu Nastavení VM.&lt;/p&g
     </message>
     <message>
         <source>Cancel</source>
-        <translation type="obsolete">Zrušit</translation>
+        <translation>Zrušit</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation type="obsolete">Vyberte zemi/teritorium</translation>
+        <translation>Vyberte zemi/teritorium</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Prosíme vyplňte registrační formulář a dejte nám vědět že používáte VirtualBox a, volitelně, budete informováni o novinkách a aktualizacích VirtualBoxu.&lt;/p&gt;&lt;p&gt;Vložte vaše celé jméno pomocí latinské abecedy a váš e-mail do políčka níže. Vězte že Sun Microsystems použije tyto informace pouze získávání statistik o používání produktu a pro odesílání novinek o Virtualboxu. Sun Microsystems nikdy nepředá vaše data třetím stranám. Detailní informace o tom, jak používáme vaše osobní data můlžete nalézt v sekci &lt;b&gt;Privacy Policy&lt;/b&gt; manuálu VirtualBoxu, nebo na webové stránce &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; VirtualBoxu.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Prosíme vyplňte registrační formulář a dejte nám vědět že používáte VirtualBox a, volitelně, budete informováni o novinkách a aktualizacích VirtualBoxu.&lt;/p&gt;&lt;p&gt;Vložte vaše celé jméno pomocí latinské abecedy a váš e-mail do políčka níže. Vězte že Sun Microsystems použije tyto informace pouze získávání statistik o používání produktu a pro odesílání novinek o Virtualboxu. Sun Microsystems nikdy nepředá vaše data třetím stranám. Detailní informace o tom, jak používáme vaše osobní data můlžete nalézt v sekci &lt;b&gt;Privacy Policy&lt;/b&gt; manuálu VirtualBoxu, nebo na webové stránce &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; VirtualBoxu.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation type="obsolete">Již &amp;mám účet na Sun Online:</translation>
+        <translation>Již &amp;mám účet na Sun Online:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation type="obsolete">E-&amp;mail:</translation>
+        <translation>E-&amp;mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation type="obsolete">&amp;Heslo:</translation>
+        <translation>&amp;Heslo:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation type="obsolete">Chci se re&amp;gistrovat a vytvořit nový účet na Sun Online:</translation>
+        <translation>Chci se re&amp;gistrovat a vytvořit nový účet na Sun Online:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation type="obsolete">&amp;Křestní jméno:</translation>
+        <translation>&amp;Křestní jméno:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation type="obsolete">Pří&amp;jmení:</translation>
+        <translation>Pří&amp;jmení:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation type="obsolete">&amp;Firma:</translation>
+        <translation>&amp;Firma:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation type="obsolete">&amp;Země:</translation>
+        <translation>&amp;Země:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation type="obsolete">E-&amp;mail:</translation>
+        <translation>E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation type="obsolete">H&amp;eslo:</translation>
+        <translation>H&amp;eslo:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation type="obsolete">Po&amp;tvrdit heslo:</translation>
+        <translation>Po&amp;tvrdit heslo:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation type="obsolete">&amp;Registrovat</translation>
+        <translation>&amp;Registrovat</translation>
     </message>
 </context>
 <context>
@@ -7036,7 +7036,7 @@ hodnotu.&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
+    <name>UIFirstRunWzd</name>
     <message>
         <source>First Run Wizard</source>
         <translation>Průvodce prvním spuštěním</translation>
@@ -9696,7 +9696,7 @@ ukáže hostovanému OS zvukovou kartu, ale každý přístup bude ignorován.&l
         <translation>Pro&amp;cessor(y):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
         <translation>Nastavení počtu virtuálních CPU pro tento virtuální počítač.</translation>
     </message>
     <message>

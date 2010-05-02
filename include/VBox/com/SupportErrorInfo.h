@@ -1,4 +1,4 @@
-/* $Id: SupportErrorInfo.h $ */
+/* $Id: SupportErrorInfo.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_com_SupportErrorInfo_h
@@ -245,98 +241,6 @@ protected:
      * Must be implemented in subclasses.
      */
     virtual const char *componentName() const = 0;
-
-    /**
-     * Sets the error information for the current thread.
-     *
-     * When the error information is set, it can be retrieved by a caller of an
-     * interface method using the respective methods that return an IErrorInfo
-     * object in MS COM (nsIException object in XPCOM) set for the current
-     * thread. This object can also be or queried for the platform-independent
-     * IVirtualBoxErrorInfo interface that provides extended error information
-     * (only for components from the VirtualBox COM library). Alternatively, the
-     * platform-independent ErrorInfo class can be used to retrieve error info
-     * in a convenient way.
-     *
-     * It is assumed that the interface method that uses this function returns
-     * an non S_OK result code to the caller (otherwise, there is no reason
-     * for the caller to check for error info after method invocation).
-     *
-     * Here is a table of correspondence between this method's arguments and
-     * IErrorInfo/nsIException/IVirtualBoxErrorInfo attributes/methods:
-     *
-     * <pre>
-     * argument    IErrorInfo      nsIException    IVirtualBoxErrorInfo
-     * ----------------------------------------------------------------
-     * resultCode  --              result          resultCode
-     * iid         GetGUID         --              interfaceID
-     * component   GetSource       --              component
-     * text        GetDescription  message         text
-     * </pre>
-     *
-     * Note that this is a generic method. There are more convenient overloaded
-     * versions that automatically substitute some arguments taking their
-     * values from the template parameters. See #setError (HRESULT, const char
-     * *, ...) for an example.
-     *
-     * It is also possible to turn on the multi-error mode so that setting a new
-     * error information does not destroy the previous error (if any) but makes
-     * it accessible using the IVirtualBoxErrorInfo::next attribute. See
-     * MultiResult for more information.
-     *
-     * @param  aResultCode  Result (error) code, must not be S_OK.
-     * @param  aIID         IID of the interface that defines the error.
-     * @param  aComponent   Name of the component that sets the error (UTF8).
-     * @param  aText        Error message in UTF8 (must not be NULL).
-     *
-     * @return @a aResultCode argument, for convenience. If an error occurs
-     *         while setting error info itself, that error is returned instead
-     *         of the @a aResultCode argument.
-     */
-    static HRESULT setError(HRESULT aResultCode,
-                            const GUID &aIID,
-                            const char *aComponent,
-                            const char *aText)
-    {
-        return setErrorInternal(aResultCode,
-                                &aIID,
-                                aComponent,
-                                aText,
-                                false /* aWarning */);
-    }
-
-    static HRESULT setError(HRESULT aResultCode,
-                            const GUID &aIID,
-                            const char *aComponent,
-                            const Utf8Str &strText)
-    {
-        return setErrorInternal(aResultCode,
-                                &aIID,
-                                aComponent,
-                                strText,
-                                false /* aWarning */);
-    }
-
-    /**
-     * Same as #setError() except that it makes sure that aResultCode doesn't
-     * have the error severity bit (31) set when passed down to the created
-     * IVirtualBoxErrorInfo object.
-     *
-     * The error severity bit is always cleared by this call, thereof you can
-     * use ordinary E_XXX result code constants, for convenience. However, this
-     * behavior may be non-standard on some COM platforms.
-     */
-    static HRESULT setWarning(HRESULT aResultCode,
-                              const GUID &aIID,
-                              const char *aComponent,
-                              const char *aText)
-    {
-        return setErrorInternal(aResultCode,
-                                &aIID,
-                                aComponent,
-                                aText,
-                                true /* aWarning */);
-    }
 
     /**
      * Same as #setError (HRESULT, const GUID &, const char *, const char *) but

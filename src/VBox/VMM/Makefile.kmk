@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Top-level makefile for the VMM.
 #
 
 #
-# Copyright (C) 2006-2010 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../..
@@ -31,7 +27,7 @@ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 #
 LIBRARIES += VMMR3
 
-VMMR3_TEMPLATE  = VBOXR3
+VMMR3_TEMPLATE  = VBoxR3Dll
 
 VMMR3_DEFS      = IN_VMM_R3 IN_DIS IN_GMM_R3 IN_DBG
 ## @todo eliminate IN_GMM_R3
@@ -44,7 +40,7 @@ endif
 ifdef VBOX_WITH_MULTI_CORE
  VMMR3_DEFS    += VBOX_WITH_MULTI_CORE
 endif
-ifdef VBOX_WITH_USB
+ifdef VBOX_WITH_VUSB
  VMMR3_DEFS    += VBOX_WITH_USB
 endif
 ifdef VBOX_WITH_VMI
@@ -59,6 +55,9 @@ ifdef VBOX_WITH_LIVE_MIGRATION
 endif
 ifdef VBOX_WITH_RAW_MODE
  VMMR3_DEFS    += VBOX_WITH_RAW_MODE
+endif
+ifdef VBOX_WITH_PAGE_SHARING
+ VMMR3_DEFS    += VBOX_WITH_PAGE_SHARING
 endif
 VMMR3_DEFS.darwin = VMM_R0_SWITCH_STACK
 VMMR3_DEFS.darwin.x86 = \
@@ -114,6 +113,7 @@ VMMR3_SOURCES   = \
 	PGMPhys.cpp \
 	PGMPool.cpp \
 	PGMSavedState.cpp \
+	PGMSharedPage.cpp \
 	SELM.cpp \
 	SSM.cpp \
 	STAM.cpp \
@@ -169,7 +169,7 @@ ifdef VBOX_WITH_VMI
  	PARAV/PARAV.cpp \
  	PARAV/PARAVAll.cpp
 endif
-ifdef VBOX_WITH_USB
+ifdef VBOX_WITH_VUSB
  VMMR3_SOURCES += PDMUsb.cpp
 endif
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
@@ -179,6 +179,9 @@ ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
  	PDMAsyncCompletionFileFailsafe.cpp \
  	PDMAsyncCompletionFileNormal.cpp \
  	PDMAsyncCompletionFileCache.cpp
+endif
+if defined(VBOX_WITH_WARNINGS_AS_ERRORS) && "$(KBUILD_TARGET)" == "win"
+PDMAsyncCompletionFileCache.cpp_CXXFLAGS = -WX-
 endif
 
 ifdef VBOX_WITH_RAW_MODE
@@ -207,7 +210,7 @@ SSM.cpp_DEFS +=	\
 # The VMM DLL.
 #
 DLLS += VBoxVMM
-VBoxVMM_TEMPLATE = VBOXR3
+VBoxVMM_TEMPLATE = VBoxR3Dll
 VBoxVMM_DEFS = $(VMMR3_DEFS)
 VBoxVMM_DEFS.$(KBUILD_TARGET) = $(VMMR3_DEFS.$(KBUILD_TARGET))
 VBoxVMM_SOURCES = VBoxVMMDeps.cpp
@@ -252,7 +255,7 @@ if defined(VBOX_WITH_RAW_MODE) && $(intersects $(VBOX_LDR_FMT32), pe lx)
  # VMMGCBuiltin.lib
  #
  LIBRARIES += VMMGCBuiltin
- VMMGCBuiltin_TEMPLATE = VBOXGC
+ VMMGCBuiltin_TEMPLATE = VBoxRc
  ifeq ($(VBOX_LDR_FMT32),pe)
   VMMGCBuiltin_SOURCES = VMMGC/VMMGCBuiltin.def
  endif
@@ -267,7 +270,7 @@ if defined(VBOX_WITH_RAW_MODE) && $(intersects $(VBOX_LDR_FMT32), pe lx)
  # VMMGCImp.lib
  #
  LIBRARIES += VMMGCImp
- VMMGCImp_TEMPLATE = VBOXGC
+ VMMGCImp_TEMPLATE = VBoxRc
  VMMGCImp_SOURCES = $(PATH_VMMGCImp)/VMMGC.def
  VMMGCImp_CLEAN   = $(PATH_VMMGCImp)/VMMGC.def
 
@@ -296,7 +299,7 @@ if1of ($(VBOX_LDR_FMT), pe lx)
  # VMMR0Imp.lib
  #
  LIBRARIES += VMMR0Imp
- VMMR0Imp_TEMPLATE = VBOXR0
+ VMMR0Imp_TEMPLATE = VBoxR0
  VMMR0Imp_SOURCES  = $(PATH_VMMR0Imp)/VMMR0.def
  VMMR0Imp_CLEAN    = $(PATH_VMMR0Imp)/VMMR0.def
 
@@ -324,10 +327,10 @@ ifdef VBOX_WITH_RAW_MODE
  # VMMGC.gc
  #
  SYSMODS += VMMGC
- VMMGC_TEMPLATE  = VBOXGC
+ VMMGC_TEMPLATE  = VBoxRc
  VMMGC_SYSSUFF   = .gc
 
- VMMGC_DEFS      = IN_VMM_RC IN_RT_GC IN_RT_RC IN_DIS DIS_CORE_ONLY VBOX_WITH_RAW_MODE
+ VMMGC_DEFS      = IN_VMM_RC IN_RT_RC IN_DIS DIS_CORE_ONLY VBOX_WITH_RAW_MODE
  ifdef VBOX_WITH_R0_LOGGING
   VMMGC_DEFS    += VBOX_WITH_R0_LOGGING
  endif
@@ -350,15 +353,11 @@ ifdef VBOX_WITH_RAW_MODE
  	PATM
 
  VMMGC_LIBS      = \
- 	$(PATH_LIB)/DisasmGC$(VBOX_SUFF_LIB) \
- 	$(PATH_LIB)/RuntimeGC$(VBOX_SUFF_LIB)
+ 	$(PATH_LIB)/DisasmRC$(VBOX_SUFF_LIB) \
+ 	$(PATH_LIB)/RuntimeRC$(VBOX_SUFF_LIB)
  ifneq ($(filter pe lx,$(VBOX_LDR_FMT32)),)
   VMMGC_LIBS    += \
  	$(PATH_LIB)/VMMGCBuiltin$(VBOX_SUFF_LIB)
- endif
-
- ifeq ($(VBOX_LDR_FMT32),pe)
-  VMMGC_LDFLAGS  = -Entry:VMMGCEntry
  endif
 
  VMMGC_SOURCES   = \
@@ -436,7 +435,7 @@ endif # VBOX_WITH_RAW_MODE
 # VMMR0.r0
 #
 SYSMODS += VMMR0
-VMMR0_TEMPLATE  = VBOXR0
+VMMR0_TEMPLATE  = VBoxR0
 VMMR0_SYSSUFF   = .r0
 
 VMMR0_DEFS      = IN_VMM_R0 IN_RT_R0 IN_DIS DIS_CORE_ONLY IN_GVMM_R0 IN_GMM_R0 IN_INTNET_R0 RTASSERT_HAVE_SHOULD_PANIC
@@ -453,15 +452,15 @@ endif
 ifdef VBOX_WITH_RAW_MODE
  VMMR0_DEFS    += VBOX_WITH_RAW_MODE
 endif
+ifdef VBOX_WITH_PAGE_SHARING
+ VMMR0_DEFS    += VBOX_WITH_PAGE_SHARING
+endif
 VMMR0_DEFS.darwin = VMM_R0_SWITCH_STACK
 VMMR0_DEFS.darwin.x86 = \
 	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0 \
 	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0
 VMMR0_DEFS.win.amd64  = VBOX_WITH_KERNEL_USING_XMM
 
-ifeq ($(VBOX_LDR_FMT),pe)
- VMMR0_LDFLAGS  = -Entry:VMMR0EntryEx
-endif
 ifeq ($(VBOX_LDR_FMT),elf)
  VMMR0_LDFLAGS  = -e VMMR0EntryEx
 endif
@@ -479,6 +478,7 @@ VMMR0_SOURCES   = \
 	VMMR0/HWSVMR0.cpp \
 	VMMR0/HWVMXR0.cpp \
 	VMMR0/PDMR0Device.cpp \
+	VMMR0/PDMR0Driver.cpp \
 	VMMR0/PGMR0.cpp \
 	VMMR0/TRPMR0.cpp \
 	VMMR0/TRPMR0A.asm \

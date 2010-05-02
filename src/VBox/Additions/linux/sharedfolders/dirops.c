@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "vfsmod.h"
@@ -295,6 +291,7 @@ sf_lookup (struct inode *parent, struct dentry *dentry
                         err = -ENOMEM;
                         goto fail1;
                 }
+                sf_new_i->handle = SHFL_HANDLE_NIL;
 
                 ino = iunique (parent->i_sb, 1);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 4, 25)
@@ -337,7 +334,7 @@ sf_lookup (struct inode *parent, struct dentry *dentry
 static int
 sf_instantiate (const char *caller, struct inode *parent,
                 struct dentry *dentry, SHFLSTRING *path,
-                RTFSOBJINFO *info)
+                RTFSOBJINFO *info, SHFLHANDLE handle)
 {
         int err;
         ino_t ino;
@@ -378,9 +375,11 @@ sf_instantiate (const char *caller, struct inode *parent,
         d_instantiate (dentry, inode);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 4, 25)
-                unlock_new_inode(inode);
+        unlock_new_inode(inode);
 #endif
 
+        /* Store this handle if we leave the handle open. */
+        sf_new_i->handle = handle;
         return 0;
 
  fail1:
@@ -391,7 +390,7 @@ sf_instantiate (const char *caller, struct inode *parent,
 }
 
 static int
-sf_create_aux (struct inode *parent, struct dentry *dentry, int mode, int dirop)
+sf_create_aux (struct inode *parent, struct dentry *dentry, int mode, int fDirectory)
 {
         int rc, err;
         SHFLCREATEPARMS params;
@@ -417,11 +416,11 @@ sf_create_aux (struct inode *parent, struct dentry *dentry, int mode, int dirop)
                 | SHFL_CF_ACT_CREATE_IF_NEW
                 | SHFL_CF_ACT_FAIL_IF_EXISTS
                 | SHFL_CF_ACCESS_READWRITE
-                | (dirop ? SHFL_CF_DIRECTORY : 0)
+                | (fDirectory ? SHFL_CF_DIRECTORY : 0)
                 ;
 
         params.Info.Attr.fMode = 0
-                | (dirop ? RTFS_TYPE_DIRECTORY : RTFS_TYPE_FILE)
+                | (fDirectory ? RTFS_TYPE_DIRECTORY : RTFS_TYPE_FILE)
                 | (mode & S_IRWXUGO)
                 ;
 
@@ -432,7 +431,7 @@ sf_create_aux (struct inode *parent, struct dentry *dentry, int mode, int dirop)
                 goto fail0;
         }
 
-        LogFunc(("calling vboxCallCreate, folder %s, flags %#x\n",
+        LogFunc(("sf_create_aux: calling vboxCallCreate, folder %s, flags %#x\n",
                  path->String.utf8, params.CreateFlags));
         rc = vboxCallCreate (&client_handle, &sf_g->map, path, &params);
         if (RT_FAILURE (rc)) {
@@ -441,28 +440,37 @@ sf_create_aux (struct inode *parent, struct dentry *dentry, int mode, int dirop)
                         goto fail0;
                 }
                 err = -EPROTO;
-                LogFunc(("(%d): vboxCallCreate(%s) failed rc=%Rrc\n", dirop,
-                         sf_i->path->String.utf8, rc));
+                LogFunc(("(%d): vboxCallCreate(%s) failed rc=%Rrc\n",
+                         fDirectory, sf_i->path->String.utf8, rc));
                 goto fail0;
         }
 
         if (params.Result != SHFL_FILE_CREATED) {
                 err = -EPERM;
-                LogFunc(("(%d): could not create file %s result=%d\n", dirop,
-                         sf_i->path->String.utf8, params.Result));
+                LogFunc(("(%d): could not create file %s result=%d\n",
+                         fDirectory, sf_i->path->String.utf8, params.Result));
                 goto fail0;
         }
 
-        err = sf_instantiate (__func__, parent, dentry, path, &params.Info);
+        err = sf_instantiate (__func__, parent, dentry, path, &params.Info,
+                             fDirectory ? SHFL_HANDLE_NIL : params.Handle);
         if (err) {
                 LogFunc(("(%d): could not instantiate dentry for %s err=%d\n",
-                         dirop, sf_i->path->String.utf8, err));
+                         fDirectory, sf_i->path->String.utf8, err));
                 goto fail1;
         }
 
-        rc = vboxCallClose (&client_handle, &sf_g->map, params.Handle);
-        if (RT_FAILURE (rc)) {
-                LogFunc(("(%d): vboxCallClose failed rc=%Rrc\n", dirop, rc));
+        /*
+         * Don't close this handle right now. We assume that the same file is
+         * opened with sf_reg_open() and later closed with sf_reg_close(). Save
+         * the handle in between. Does not apply to directories. True?
+         */
+        if (fDirectory)
+        {
+                rc = vboxCallClose (&client_handle, &sf_g->map, params.Handle);
+                if (RT_FAILURE (rc)) {
+                        LogFunc(("(%d): vboxCallClose failed rc=%Rrc\n", fDirectory, rc));
+                }
         }
 
         sf_i->force_restat = 1;
@@ -471,7 +479,7 @@ sf_create_aux (struct inode *parent, struct dentry *dentry, int mode, int dirop)
  fail1:
         rc = vboxCallClose (&client_handle, &sf_g->map, params.Handle);
         if (RT_FAILURE (rc)) {
-                LogFunc(("(%d): vboxCallClose failed rc=%Rrc\n", dirop, rc));
+                LogFunc(("(%d): vboxCallClose failed rc=%Rrc\n", fDirectory, rc));
         }
 
  fail0:
@@ -498,7 +506,7 @@ sf_mkdir (struct inode *parent, struct dentry *dentry, int mode)
 }
 
 static int
-sf_unlink_aux (struct inode *parent, struct dentry *dentry, int dirop)
+sf_unlink_aux (struct inode *parent, struct dentry *dentry, int fDirectory)
 {
         int rc, err;
         struct sf_glob_info *sf_g = GET_GLOB_INFO (parent->i_sb);
@@ -514,9 +522,9 @@ sf_unlink_aux (struct inode *parent, struct dentry *dentry, int dirop)
         }
 
         rc = vboxCallRemove (&client_handle, &sf_g->map, path,
-                             dirop ? SHFL_REMOVE_DIR : SHFL_REMOVE_FILE);
+                             fDirectory ? SHFL_REMOVE_DIR : SHFL_REMOVE_FILE);
         if (RT_FAILURE (rc)) {
-                LogFunc(("(%d): vboxCallRemove(%s) failed rc=%Rrc\n", dirop,
+                LogFunc(("(%d): vboxCallRemove(%s) failed rc=%Rrc\n", fDirectory,
                          path->String.utf8, rc));
                          err = -RTErrConvertToErrno (rc);
                 goto fail1;

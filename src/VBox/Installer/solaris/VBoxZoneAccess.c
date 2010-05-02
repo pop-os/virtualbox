@@ -1,10 +1,10 @@
-/* $Id: VBoxZoneAccess.c $ */
+/* $Id: VBoxZoneAccess.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxZoneAccess - Hack that keeps vboxdrv referenced for granting zone access, Solaris hosts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -44,9 +40,9 @@ int main(int argc, char *argv[])
     }
 
     /* Daemonize... */
-    RTProcDaemonize(false /* fNoChDir */,
-                    false /* fNoClose */,
-                    NULL /* pszPidfile */);
+    RTProcDaemonizeUsingFork(false /* fNoChDir */,
+                             false /* fNoClose */,
+                             NULL /* pszPidfile */);
 
     /* Open the device */
     hDevice = open(DEVICE_NAME, O_RDWR, 0);

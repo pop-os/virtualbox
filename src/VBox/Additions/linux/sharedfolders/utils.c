@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "vfsmod.h"
@@ -157,7 +153,7 @@ sf_stat (const char *caller, struct sf_glob_info *sf_g,
 
         RT_ZERO(params);
         params.CreateFlags = SHFL_CF_LOOKUP | SHFL_CF_ACT_FAIL_IF_NEW;
-        LogFunc(("calling vboxCallCreate, file %s, flags %#x\n",
+        LogFunc(("sf_stat: calling vboxCallCreate, file %s, flags %#x\n",
                  path->String.utf8, params.CreateFlags));
         rc = vboxCallCreate (&client_handle, &sf_g->map, path, &params);
         if (RT_FAILURE (rc)) {
@@ -291,7 +287,7 @@ sf_setattr (struct dentry *dentry, struct iattr *iattr)
             params.CreateFlags |= SHFL_CF_ACCESS_WRITE;
 
         rc = vboxCallCreate (&client_handle, &sf_g->map, sf_i->path, &params);
-        if (VBOX_FAILURE (rc)) {
+        if (RT_FAILURE (rc)) {
                 LogFunc(("vboxCallCreate(%s) failed rc=%Rrc\n",
                         sf_i->path->String.utf8, rc));
                 err = -RTErrConvertToErrno(rc);
@@ -341,7 +337,7 @@ sf_setattr (struct dentry *dentry, struct iattr *iattr)
             rc = vboxCallFSInfo(&client_handle, &sf_g->map, params.Handle,
                                 SHFL_INFO_SET | SHFL_INFO_FILE, &cbBuffer,
                                 (PSHFLDIRINFO)&info);
-            if (VBOX_FAILURE (rc)) {
+            if (RT_FAILURE (rc)) {
                 LogFunc(("vboxCallFSInfo(%s, FILE) failed rc=%Rrc\n",
                         sf_i->path->String.utf8, rc));
                 err = -RTErrConvertToErrno(rc);
@@ -357,7 +353,7 @@ sf_setattr (struct dentry *dentry, struct iattr *iattr)
             rc = vboxCallFSInfo(&client_handle, &sf_g->map, params.Handle,
                                 SHFL_INFO_SET | SHFL_INFO_SIZE, &cbBuffer,
                                 (PSHFLDIRINFO)&info);
-            if (VBOX_FAILURE (rc)) {
+            if (RT_FAILURE (rc)) {
                 LogFunc(("vboxCallFSInfo(%s, SIZE) failed rc=%Rrc\n",
                         sf_i->path->String.utf8, rc));
                 err = -RTErrConvertToErrno(rc);
@@ -366,7 +362,7 @@ sf_setattr (struct dentry *dentry, struct iattr *iattr)
         }
 
         rc = vboxCallClose (&client_handle, &sf_g->map, params.Handle);
-        if (VBOX_FAILURE (rc))
+        if (RT_FAILURE (rc))
         {
                 LogFunc(("vboxCallClose(%s) failed rc=%Rrc\n",
                       sf_i->path->String.utf8, rc));
@@ -376,7 +372,7 @@ sf_setattr (struct dentry *dentry, struct iattr *iattr)
 
 fail1:
         rc = vboxCallClose (&client_handle, &sf_g->map, params.Handle);
-        if (VBOX_FAILURE (rc))
+        if (RT_FAILURE (rc))
         {
                 LogFunc(("vboxCallClose(%s) failed rc=%Rrc\n",
                       sf_i->path->String.utf8, rc));

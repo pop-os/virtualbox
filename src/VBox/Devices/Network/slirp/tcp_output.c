@@ -1,4 +1,23 @@
+/* $Id: tcp_output.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - TCP output.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1990, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -80,7 +99,9 @@ tcp_output(PNATState pData, register struct tcpcb *tp)
     u_char opt[MAX_TCPOPTLEN];
     unsigned optlen, hdrlen;
     int idle, sendalot;
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     int size;
+#endif
 
     DEBUG_CALL("tcp_output");
     DEBUG_ARG("tp = %lx", (long )tp);
@@ -300,7 +321,7 @@ send:
 
             opt[0] = TCPOPT_MAXSEG;
             opt[1] = 4;
-            mss = htons((u_int16_t) tcp_mss(pData, tp, 0));
+            mss = RT_H2N_U16((u_int16_t) tcp_mss(pData, tp, 0));
             memcpy((caddr_t)(opt + 2), (caddr_t)&mss, sizeof(mss));
             optlen = 4;
 
@@ -309,10 +330,10 @@ send:
                 && (   (flags & TH_ACK) == 0
                     || (tp->t_flags & TF_RCVD_SCALE)))
             {
-                *((u_int32_t *) (opt + optlen)) = htonl(  TCPOPT_NOP << 24
-                                                        | TCPOPT_WINDOW << 16
-                                                        | TCPOLEN_WINDOW << 8
-                                                        | tp->request_r_scale);
+                *((u_int32_t *) (opt + optlen)) = RT_H2N_U32(  TCPOPT_NOP << 24
+                                                             | TCPOPT_WINDOW << 16
+                                                             | TCPOLEN_WINDOW << 8
+                                                             | tp->request_r_scale);
                 optlen += 4;
             }
 #endif
@@ -333,9 +354,9 @@ send:
         u_int32_t *lp = (u_int32_t *)(opt + optlen);
 
         /* Form timestamp option as shown in appendix A of RFC 1323. */
-        *lp++ = htonl(TCPOPT_TSTAMP_HDR);
-        *lp++ = htonl(tcp_now);
-        *lp   = htonl(tp->ts_recent);
+        *lp++ = RT_H2N_U32_C(TCPOPT_TSTAMP_HDR);
+        *lp++ = RT_H2N_U32(tcp_now);
+        *lp   = RT_H2N_U32(tp->ts_recent);
         optlen += TCPOLEN_TSTAMP_APPA;
     }
 #endif
@@ -374,26 +395,17 @@ send:
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
         m = m_get(pData);
 #else
+        size = MCLBYTES;
         if ((len + hdrlen + ETH_HLEN) < MSIZE)
-        {
             size = MCLBYTES;
-        }
         else if ((len + hdrlen + ETH_HLEN) < MCLBYTES)
-        {
             size = MCLBYTES;
-        }
         else if((len + hdrlen + ETH_HLEN) < MJUM9BYTES)
-        {
             size = MJUM9BYTES;
-        }
         else if ((len + hdrlen + ETH_HLEN) < MJUM16BYTES)
-        {
             size = MJUM16BYTES;
-        }
         else
-        {
             AssertMsgFailed(("Unsupported size"));
-        }
         m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
 #endif
         if (m == NULL)
@@ -518,10 +530,10 @@ send:
      * (retransmit and persist are mutually exclusive...)
      */
     if (len || (flags & (TH_SYN|TH_FIN)) || tp->t_timer[TCPT_PERSIST])
-        ti->ti_seq = htonl(tp->snd_nxt);
+        ti->ti_seq = RT_H2N_U32(tp->snd_nxt);
     else
-        ti->ti_seq = htonl(tp->snd_max);
-    ti->ti_ack = htonl(tp->rcv_nxt);
+        ti->ti_seq = RT_H2N_U32(tp->snd_max);
+    ti->ti_ack = RT_H2N_U32(tp->rcv_nxt);
     if (optlen)
     {
         memcpy((caddr_t)(ti + 1), (caddr_t)opt, optlen);
@@ -538,16 +550,16 @@ send:
         win = (long)TCP_MAXWIN << tp->rcv_scale;
     if (win < (long)(tp->rcv_adv - tp->rcv_nxt))
         win = (long)(tp->rcv_adv - tp->rcv_nxt);
-    ti->ti_win = htons((u_int16_t) (win>>tp->rcv_scale));
+    ti->ti_win = RT_H2N_U16((u_int16_t) (win>>tp->rcv_scale));
 
 #if 0
     if (SEQ_GT(tp->snd_up, tp->snd_nxt))
     {
-        ti->ti_urp = htons((u_int16_t)(tp->snd_up - tp->snd_nxt));
+        ti->ti_urp = RT_H2N_U16((u_int16_t)(tp->snd_up - tp->snd_nxt));
 #else
     if (SEQ_GT(tp->snd_up, tp->snd_una))
     {
-        ti->ti_urp = htons((u_int16_t)(tp->snd_up - ntohl(ti->ti_seq)));
+        ti->ti_urp = RT_H2N_U16((u_int16_t)(tp->snd_up - RT_N2H_U32(ti->ti_seq)));
 #endif
         ti->ti_flags |= TH_URG;
     }
@@ -565,8 +577,8 @@ send:
      * checksum extended header and data.
      */
     if (len + optlen)
-        ti->ti_len = htons((u_int16_t)(sizeof (struct tcphdr)
-                                       + optlen + len));
+        ti->ti_len = RT_H2N_U16((u_int16_t)(sizeof (struct tcphdr)
+                                            + optlen + len));
     ti->ti_sum = cksum(m, (int)(hdrlen + len));
 
     /*
@@ -686,7 +698,7 @@ out:
         }
 #endif
         if (m != NULL)
-            m_free(pData, m);
+            m_freem(pData, m);
         return (error);
     }
     tcpstat.tcps_sndtotal++;

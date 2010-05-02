@@ -1,3 +1,4 @@
+/* $Id: VBoxApplianceEditorWgt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* VBox includes */
@@ -218,7 +215,7 @@ QVariant HardwareItem::data (int aColumn, int aRole) const
                                 v = tmp; break;
                             }
                         case KVirtualSystemDescriptionType_OS: v = vboxGlobal().vmGuestOSTypeDescription (mConfigValue); break;
-                        case KVirtualSystemDescriptionType_Memory: v = mConfigValue + " " + VBoxApplianceEditorWgt::tr ("MB"); break;
+                        case KVirtualSystemDescriptionType_Memory: v = mConfigValue + " " + VBoxApplianceEditorWgt::tr ("MB", "size suffix MBytes=1024 KBytes"); break;
                         case KVirtualSystemDescriptionType_SoundCard: v = vboxGlobal().toString (static_cast<KAudioControllerType> (mConfigValue.toInt())); break;
                         case KVirtualSystemDescriptionType_NetworkAdapter: v = vboxGlobal().toString (static_cast<KNetworkAdapterType> (mConfigValue.toInt())); break;
                         default: v = mConfigValue; break;
@@ -397,7 +394,7 @@ QWidget * HardwareItem::createEditor (QWidget *aParent, const QStyleOptionViewIt
                 {
                     QSpinBox *e = new QSpinBox (aParent);
                     e->setRange (VBoxApplianceEditorWgt::minGuestRAM(), VBoxApplianceEditorWgt::maxGuestRAM());
-                    e->setSuffix (" " + VBoxApplianceEditorWgt::tr ("MB"));
+                    e->setSuffix (" " + VBoxApplianceEditorWgt::tr ("MB", "size suffix MBytes=1024KBytes"));
                     editor = e;
                     break;
                 }

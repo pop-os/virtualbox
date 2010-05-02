@@ -1,10 +1,10 @@
-/* $Revision: 53285 $ */
+/* $Revision: 28800 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Linux.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -89,6 +85,9 @@ typedef struct RTR0MEMOBJLNX
     /** Array of struct page pointers. (variable size) */
     struct page        *apPages[1];
 } RTR0MEMOBJLNX, *PRTR0MEMOBJLNX;
+
+
+static void rtR0MemObjLinuxFreePages(PRTR0MEMOBJLNX pMemLnx);
 
 
 /**
@@ -175,13 +174,16 @@ static pgprot_t rtR0MemObjLinuxConvertProt(unsigned fProt, bool fKernel)
  * @param   ppMemLnx    Where to store the memory object pointer.
  * @param   enmType     The object type.
  * @param   cb          The number of bytes to allocate.
+ * @param   uAlignment  The alignment of the phyiscal memory.
+ *                      Only valid if fContiguous == true, ignored otherwise.
  * @param   fFlagsLnx   The page allocation flags (GPFs).
  * @param   fContiguous Whether the allocation must be contiguous.
  */
-static int rtR0MemObjLinuxAllocPages(PRTR0MEMOBJLNX *ppMemLnx, RTR0MEMOBJTYPE enmType, size_t cb, unsigned fFlagsLnx, bool fContiguous)
+static int rtR0MemObjLinuxAllocPages(PRTR0MEMOBJLNX *ppMemLnx, RTR0MEMOBJTYPE enmType, size_t cb,
+                                     size_t uAlignment, unsigned fFlagsLnx, bool fContiguous)
 {
     size_t          iPage;
-    size_t          cPages = cb >> PAGE_SHIFT;
+    size_t const    cPages = cb >> PAGE_SHIFT;
     struct page    *paPages;
 
     /*
@@ -201,11 +203,11 @@ static int rtR0MemObjLinuxAllocPages(PRTR0MEMOBJLNX *ppMemLnx, RTR0MEMOBJTYPE en
     if (    fContiguous
         ||  cb <= PAGE_SIZE * 2)
     {
-#ifdef VBOX_USE_INSERT_PAGE
-        paPages = alloc_pages(fFlagsLnx |  __GFP_COMP, rtR0MemObjLinuxOrder(cb >> PAGE_SHIFT));
-#else
-        paPages = alloc_pages(fFlagsLnx, rtR0MemObjLinuxOrder(cb >> PAGE_SHIFT));
-#endif
+# ifdef VBOX_USE_INSERT_PAGE
+        paPages = alloc_pages(fFlagsLnx |  __GFP_COMP, rtR0MemObjLinuxOrder(cPages));
+# else
+        paPages = alloc_pages(fFlagsLnx, rtR0MemObjLinuxOrder(cPages));
+# endif
         if (paPages)
         {
             fContiguous = true;
@@ -236,7 +238,7 @@ static int rtR0MemObjLinuxAllocPages(PRTR0MEMOBJLNX *ppMemLnx, RTR0MEMOBJTYPE en
 
 #else /* < 2.4.22 */
     /** @todo figure out why we didn't allocate page-by-page on 2.4.21 and older... */
-    paPages = alloc_pages(fFlagsLnx, rtR0MemObjLinuxOrder(cb >> PAGE_SHIFT));
+    paPages = alloc_pages(fFlagsLnx, rtR0MemObjLinuxOrder(cPages));
     if (!paPages)
     {
         rtR0MemObjDelete(&pMemLnx->Core);
@@ -259,6 +261,29 @@ static int rtR0MemObjLinuxAllocPages(PRTR0MEMOBJLNX *ppMemLnx, RTR0MEMOBJTYPE en
      */
     for (iPage = 0; iPage < cPages; iPage++)
         SetPageReserved(pMemLnx->apPages[iPage]);
+
+    /*
+     * Note that the physical address of memory allocated with alloc_pages(flags, order)
+     * is always 2^(PAGE_SHIFT+order)-aligned.
+     */
+    if (   fContiguous
+        && uAlignment > PAGE_SIZE)
+    {
+        /*
+         * Check for alignment constraints. The physical address of memory allocated with
+         * alloc_pages(flags, order) is always 2^(PAGE_SHIFT+order)-aligned.
+         */
+        if (RT_UNLIKELY(page_to_phys(pMemLnx->apPages[0]) & ~(uAlignment - 1)))
+        {
+            /*
+             * This should never happen!
+             */
+            printk("rtR0MemObjLinuxAllocPages(cb=%ld, uAlignment=%ld): alloc_pages(..., %d) returned physical memory at %lu!\n",
+                    (unsigned long)cb, (unsigned long)uAlignment, rtR0MemObjLinuxOrder(cPages), (unsigned long)page_to_phys(pMemLnx->apPages[0]));
+            rtR0MemObjLinuxFreePages(pMemLnx);
+            return VERR_NO_MEMORY;
+        }
+    }
 
     *ppMemLnx = pMemLnx;
     return VINF_SUCCESS;
@@ -502,9 +527,9 @@ int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
     int rc;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 22)
-    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_PAGE, cb, GFP_HIGHUSER, false /* non-contiguous */);
+    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_PAGE, cb, PAGE_SIZE, GFP_HIGHUSER, false /* non-contiguous */);
 #else
-    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_PAGE, cb, GFP_USER, false /* non-contiguous */);
+    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_PAGE, cb, PAGE_SIZE, GFP_USER, false /* non-contiguous */);
 #endif
     if (RT_SUCCESS(rc))
     {
@@ -531,17 +556,17 @@ int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecut
     /* Try to avoid GFP_DMA. GFM_DMA32 was introduced with Linux 2.6.15. */
 #if (defined(RT_ARCH_AMD64) || defined(CONFIG_X86_PAE)) && defined(GFP_DMA32)
     /* ZONE_DMA32: 0-4GB */
-    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, GFP_DMA32, false /* non-contiguous */);
+    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_DMA32, false /* non-contiguous */);
     if (RT_FAILURE(rc))
 #endif
 #ifdef RT_ARCH_AMD64
         /* ZONE_DMA: 0-16MB */
-        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, GFP_DMA, false /* non-contiguous */);
+        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_DMA, false /* non-contiguous */);
 #else
 # ifdef CONFIG_X86_PAE
 # endif
         /* ZONE_NORMAL: 0-896MB */
-        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, GFP_USER, false /* non-contiguous */);
+        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_LOW, cb, PAGE_SIZE, GFP_USER, false /* non-contiguous */);
 #endif
     if (RT_SUCCESS(rc))
     {
@@ -567,15 +592,15 @@ int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
 
 #if (defined(RT_ARCH_AMD64) || defined(CONFIG_X86_PAE)) && defined(GFP_DMA32)
     /* ZONE_DMA32: 0-4GB */
-    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_CONT, cb, GFP_DMA32, true /* contiguous */);
+    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_CONT, cb, PAGE_SIZE, GFP_DMA32, true /* contiguous */);
     if (RT_FAILURE(rc))
 #endif
 #ifdef RT_ARCH_AMD64
         /* ZONE_DMA: 0-16MB */
-        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_CONT, cb, GFP_DMA, true /* contiguous */);
+        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_CONT, cb, PAGE_SIZE, GFP_DMA, true /* contiguous */);
 #else
         /* ZONE_NORMAL (32-bit hosts): 0-896MB */
-        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_CONT, cb, GFP_USER, true /* contiguous */);
+        rc = rtR0MemObjLinuxAllocPages(&pMemLnx, RTR0MEMOBJTYPE_CONT, cb, PAGE_SIZE, GFP_USER, true /* contiguous */);
 #endif
     if (RT_SUCCESS(rc))
     {
@@ -607,15 +632,18 @@ int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
  * @param   ppMemLnx    Where to
  * @param   enmType     The object type.
  * @param   cb          The size of the allocation.
+ * @param   uAlignment  The alignment of the physical memory.
+ *                      Only valid for fContiguous == true, ignored otherwise.
  * @param   PhysHighest See rtR0MemObjNativeAllocPhys.
  * @param   fGfp        The Linux GFP flags to use for the allocation.
  */
-static int rtR0MemObjLinuxAllocPhysSub2(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTYPE enmType, size_t cb, RTHCPHYS PhysHighest, unsigned fGfp)
+static int rtR0MemObjLinuxAllocPhysSub2(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTYPE enmType,
+                                        size_t cb, size_t uAlignment, RTHCPHYS PhysHighest, unsigned fGfp)
 {
     PRTR0MEMOBJLNX pMemLnx;
     int rc;
 
-    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, enmType, cb, fGfp,
+    rc = rtR0MemObjLinuxAllocPages(&pMemLnx, enmType, cb, uAlignment, fGfp,
                                    enmType == RTR0MEMOBJTYPE_PHYS /* contiguous / non-contiguous */);
     if (RT_FAILURE(rc))
         return rc;
@@ -655,9 +683,12 @@ static int rtR0MemObjLinuxAllocPhysSub2(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTY
  * @param   ppMem       Where to store the memory object pointer on success.
  * @param   enmType     The object type.
  * @param   cb          The size of the allocation.
+ * @param   uAlignment  The alignment of the physical memory.
+ *                      Only valid for enmType == RTR0MEMOBJTYPE_PHYS, ignored otherwise.
  * @param   PhysHighest See rtR0MemObjNativeAllocPhys.
  */
-static int rtR0MemObjLinuxAllocPhysSub(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTYPE enmType, size_t cb, RTHCPHYS PhysHighest)
+static int rtR0MemObjLinuxAllocPhysSub(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTYPE enmType,
+                                       size_t cb, size_t uAlignment, RTHCPHYS PhysHighest)
 {
     int rc;
 
@@ -673,45 +704,45 @@ static int rtR0MemObjLinuxAllocPhysSub(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJTYP
      */
     if (PhysHighest == NIL_RTHCPHYS)
         /* ZONE_HIGHMEM: the whole physical memory */
-        rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, PhysHighest, GFP_HIGHUSER);
+        rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, uAlignment, PhysHighest, GFP_HIGHUSER);
     else if (PhysHighest <= _1M * 16)
         /* ZONE_DMA: 0-16MB */
-        rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, PhysHighest, GFP_DMA);
+        rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, uAlignment, PhysHighest, GFP_DMA);
     else
     {
         rc = VERR_NO_MEMORY;
         if (RT_FAILURE(rc))
             /* ZONE_HIGHMEM: the whole physical memory */
-            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, PhysHighest, GFP_HIGHUSER);
+            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, uAlignment, PhysHighest, GFP_HIGHUSER);
         if (RT_FAILURE(rc))
             /* ZONE_NORMAL: 0-896MB */
-            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, PhysHighest, GFP_USER);
+            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, uAlignment, PhysHighest, GFP_USER);
 #ifdef GFP_DMA32
         if (RT_FAILURE(rc))
             /* ZONE_DMA32: 0-4GB */
-            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, PhysHighest, GFP_DMA32);
+            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, uAlignment, PhysHighest, GFP_DMA32);
 #endif
         if (RT_FAILURE(rc))
             /* ZONE_DMA: 0-16MB */
-            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, PhysHighest, GFP_DMA);
+            rc = rtR0MemObjLinuxAllocPhysSub2(ppMem, enmType, cb, uAlignment, PhysHighest, GFP_DMA);
     }
     return rc;
 }
 
 
-int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
+int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
 {
-    return rtR0MemObjLinuxAllocPhysSub(ppMem, RTR0MEMOBJTYPE_PHYS, cb, PhysHighest);
+    return rtR0MemObjLinuxAllocPhysSub(ppMem, RTR0MEMOBJTYPE_PHYS, cb, uAlignment, PhysHighest);
 }
 
 
 int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
 {
-    return rtR0MemObjLinuxAllocPhysSub(ppMem, RTR0MEMOBJTYPE_PHYS_NC, cb, PhysHighest);
+    return rtR0MemObjLinuxAllocPhysSub(ppMem, RTR0MEMOBJTYPE_PHYS_NC, cb, PAGE_SIZE, PhysHighest);
 }
 
 
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb)
+int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, unsigned CachePolicy)
 {
     /*
      * All we need to do here is to validate that we can use
@@ -727,6 +758,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
 
     pMemLnx->Core.u.Phys.PhysBase = PhysAddr;
     pMemLnx->Core.u.Phys.fAllocated = false;
+    pMemLnx->Core.u.Phys.CachePolicy = CachePolicy;
     Assert(!pMemLnx->cPages);
     *ppMem = &pMemLnx->Core;
     return VINF_SUCCESS;
@@ -1133,7 +1165,9 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
              * MMIO / physical memory.
              */
             Assert(pMemLnxToMap->Core.enmType == RTR0MEMOBJTYPE_PHYS && !pMemLnxToMap->Core.u.Phys.fAllocated);
-            pMemLnx->Core.pv = ioremap(pMemLnxToMap->Core.u.Phys.PhysBase, pMemLnxToMap->Core.cb);
+            pMemLnx->Core.pv = (pMemLnxToMap->Core.u.Phys.CachePolicy == RTMEM_CACHE_POLICY_MMIO)
+                                   ? ioremap_nocache(pMemLnxToMap->Core.u.Phys.PhysBase, pMemLnxToMap->Core.cb)
+                                   : ioremap(pMemLnxToMap->Core.u.Phys.PhysBase, pMemLnxToMap->Core.cb);
             if (pMemLnx->Core.pv)
             {
                 /** @todo fix protection. */
