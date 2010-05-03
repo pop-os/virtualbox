@@ -6,15 +6,9 @@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/x11/Installer/98vboxadd-xclient	2009-10-07 13:42:27.862988136 +0200
-@@ -26,7 +26,7 @@
-   fi
- done
- 
--/usr/bin/VBoxClient --clipboard
--/usr/bin/VBoxClient --checkhostversion
--/usr/bin/VBoxClient --display
--/usr/bin/VBoxClient --seamless
-+/usr/bin/VBoxClient --clipboard || true
-+/usr/bin/VBoxClient --checkhostversion || true
-+/usr/bin/VBoxClient --display || true
-+/usr/bin/VBoxClient --seamless || true
+@@ -50,3 +50,5 @@
+     /usr/bin/VBoxClient --display
+ test -z "$no_display" &&
+     /usr/bin/VBoxClient --seamless
++
++exit 0

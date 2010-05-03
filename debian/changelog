@@ -4,7 +4,7 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
   * Strip EFI firmware images as they are non-free.
     - Add 23-dont-install-efi-images.dpatch.
   * Add build-dependencies required by new upstream version.
-  * Adapt 18-system-xorg.dpatch to new upstream version.
+  * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
   * Update to new upstream release of vdfuse.
   * Build vdfuse with -Wl,--as-needed.
   * Install /usr/bin/VBoxClient-all and make
@@ -16,7 +16,7 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
   * Enable VNC server in VBoxHeadless.
   * Don't build VBoxBFE as it's not installed anyway.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 03 May 2010 11:45:51 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 03 May 2010 13:04:49 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
