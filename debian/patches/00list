@@ -4,7 +4,6 @@
 07-vboxnetflt-reference.dpatch
 12-make-module.dpatch
 13-module-mismatch.dpatch
-#15-wined3d-guest-addition.dpatch
 16-no-update.dpatch
 18-system-xorg.dpatch
 22-no-static-libstdcpp.dpatch

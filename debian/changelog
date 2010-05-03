@@ -15,8 +15,10 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
   * Enable VDE networking.
   * Enable VNC server in VBoxHeadless.
   * Don't build VBoxBFE as it's not installed anyway.
+  * Drop 15-wined3d-guest-addition.dpatch as the Windows guest additions
+    provide Direct3D acceleration.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 03 May 2010 13:04:49 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 03 May 2010 13:14:49 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
