@@ -1,6 +1,7 @@
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD2.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDDU.so
+virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxGuestControlSvc.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxGuestPropSvc.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxHeadless.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxKeyboard.so

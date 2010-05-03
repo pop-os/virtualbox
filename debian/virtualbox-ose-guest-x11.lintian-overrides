@@ -1,4 +1,3 @@
-virtualbox-ose-guest-x11: shlib-with-non-pic-code usr/lib/VBoxOGL.so
 virtualbox-ose-guest-x11: shlib-without-versioned-soname
 virtualbox-ose-guest-x11: shlib-without-versioned-soname
 virtualbox-ose-guest-x11: shlib-without-versioned-soname
