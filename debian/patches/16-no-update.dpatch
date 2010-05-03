@@ -1,66 +1,65 @@
 #! /bin/sh /usr/share/dpatch/dpatch-run
 # Description: Disable "Check for Updates" action.
 # Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
-# Author: Daniel Hahler <ubuntu@thequod.de>
+# Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
 
 @DPATCH@
-diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
---- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2009-05-16 16:07:45.094522826 +0200
-@@ -4936,6 +4936,9 @@
+diff -Nur virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
+--- virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2010-04-27 22:24:11.000000000 +0200
++++ virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2010-05-03 22:05:38.752788747 +0200
+@@ -4728,6 +4728,9 @@
   */
  void VBoxGlobal::showUpdateDialog (bool aForce)
  {
-+    /* Update dialog disabled in Ubuntu: */
++    // Updates are handled through package managers.
 +    return;
 +
      /* Silently check in one day after current time-stamp */
      QTimer::singleShot (24 /* hours */   * 60   /* minutes */ *
                          60 /* seconds */ * 1000 /* milliseconds */,
-diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp
---- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.cpp	2009-05-16 16:07:06.586518040 +0200
-@@ -45,7 +45,7 @@
- {
-     VBoxUpdateData data (vboxGlobal().virtualBox().GetExtraData (VBoxDefs::GUI_UpdateDate));
+diff -Nur virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp
+--- virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp	2010-04-27 22:24:05.000000000 +0200
++++ virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp	2010-05-03 23:45:11.234038121 +0200
+@@ -218,13 +218,6 @@
+ #ifdef Q_WS_MAC
+     if (m_fIsFirstTime)
+ #endif /* Q_WS_MAC */
+-        pMenu->addAction(pActionsPool->action(UIActionIndex_Simple_Update));
+-
+-#ifndef Q_WS_MAC
+-    pMenu->addSeparator();
+-#else /* Q_WS_MAC */
+-    if (m_fIsFirstTime)
+-#endif /* !Q_WS_MAC */
+         pMenu->addAction(pActionsPool->action(UIActionIndex_Simple_About));
  
--    mCbCheck->setChecked (!data.isNoNeedToCheck());
-+    mCbCheck->setChecked (false);
-     if (mCbCheck->isChecked())
-     {
-         mCbOncePer->setCurrentIndex (data.periodIndex());
-diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp
---- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2009-05-16 16:11:47.386517660 +0200
-@@ -87,8 +87,7 @@
+     /* Because this connections are done to VBoxGlobal, they are needed once only.
+diff -Nur virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialogSpecific.cpp virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialogSpecific.cpp
+--- virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialogSpecific.cpp	2010-04-27 22:24:11.000000000 +0200
++++ virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/settings/VBoxSettingsDialogSpecific.cpp	2010-05-03 22:10:25.501539426 +0200
+@@ -209,6 +209,8 @@
+             /* Break to common result */
+             break;
+         }
++        case UpdateId:
++            return false;
+         default:
+             break;
+     }
+diff -Nur virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp
+--- virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2010-04-27 22:24:12.000000000 +0200
++++ virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/VBoxHelpActions.cpp	2010-05-03 22:04:06.154038535 +0200
+@@ -88,13 +88,6 @@
+         GetExtraData (VBoxDefs::GUI_RegistrationDlgWinID).isEmpty());
  #endif
  
-     aMenu->addAction (updateAction);
+-    aMenu->addAction (updateAction);
 -    updateAction->setEnabled (vboxGlobal().virtualBox().
 -        GetExtraData (VBoxDefs::GUI_UpdateDlgWinID).isEmpty());
-+    updateAction->setEnabled (false);
+-
+-#ifndef Q_WS_MAC
+-    aMenu->addSeparator();
+-#endif /* Q_WS_MAC */
+     aMenu->addAction (aboutAction);
+ }
  
- #ifndef Q_WS_MAC
-     aMenu->addSeparator();
-diff -urNad virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui
---- virtualbox-ose-2.2.2-dfsg/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui	2009-04-29 09:12:58.000000000 +0200
-+++ virtualbox-ose-2.2.2-dfsg.patch/src/VBox/Frontends/VirtualBox/src/settings/global/VBoxGLSettingsUpdate.ui	2009-05-16 16:12:57.066517714 +0200
-@@ -18,6 +18,9 @@
-  </comment>
-  <class>VBoxGLSettingsUpdate</class>
-  <widget class="QWidget" name="VBoxGLSettingsUpdate" >
-+  <property name="enabled" >
-+   <bool>false</bool>
-+  </property>
-   <property name="geometry" >
-    <rect>
-     <x>0</x>
-@@ -48,7 +51,7 @@
-       <string>&amp;Check for updates</string>
-      </property>
-      <property name="checked" >
--      <bool>true</bool>
-+      <bool>false</bool>
-      </property>
-     </widget>
-    </item>
