@@ -1,4 +1,3 @@
-virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxBFE.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD2.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDDU.so
