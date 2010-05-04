@@ -114,6 +114,7 @@ Description: x86 virtualization solution - debugging symbols
 
 Package: virtualbox-ose-dkms
 Replaces: virtualbox-ose-source (<< 3.1.0-dfsg-1)
+Conflicts: virtualbox-ose-guest-dkms
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, dkms (>= 2.1.0.1)
@@ -147,6 +148,7 @@ Description: x86 virtualization solution - kernel module source
 
 Package: virtualbox-ose-guest-dkms
 Replaces: virtualbox-ose-guest-source (<< 3.1.0-dfsg-1)
+Conflicts: virtualbox-ose-dkms
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, dkms (>= 2.1.0.1)

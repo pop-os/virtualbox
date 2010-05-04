@@ -18,8 +18,10 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
   * Drop 15-wined3d-guest-addition.dpatch as the Windows guest additions
     provide Direct3D acceleration.
   * Hide the update menu item and settings page instead of disabling them.
+  * Make both dkms packages conflict with each other as the kernel modules
+    export the same symbol. (LP: #571574)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 03 May 2010 22:14:36 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 04 May 2010 10:55:43 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
