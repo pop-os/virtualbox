@@ -1,7 +1,8 @@
 virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release 3.2.0 Beta 1.
-  * Strip EFI firmware images as they are non-free.
+  * Disable EFI and strip the binary EFI firmware images from the package as
+    they aren't completely dfsg-free yet.
     - Add 23-dont-install-efi-images.dpatch.
   * Add build-dependencies required by new upstream version.
   * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
@@ -21,7 +22,7 @@ virtualbox-ose (3.1.51-dfsg-1) UNRELEASED; urgency=low
   * Make both dkms packages conflict with each other as the kernel modules
     export the same symbol. (LP: #571574)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 04 May 2010 10:55:43 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 05 May 2010 16:54:59 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
