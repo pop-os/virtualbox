@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.h 28830 2010-04-27 14:05:25Z vboxsync $ */
+/* $Id: VBoxNetFlt-win.h 29108 2010-05-05 20:17:42Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
@@ -206,6 +206,9 @@ DECLINLINE(void) vboxNetFltWinPpFreePacketInfo(PPACKET_INFO pInfo)
 /** sets flags to the packet info */
 #define SET_FLAGS_TO_INFO(_pPacketInfo, _fFlags) (ASMAtomicUoWriteU32((volatile uint32_t *)&(_pPacketInfo)->fFlags, (_fFlags)))
 
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+DECLHIDDEN(bool) vboxNetFltWinPostIntnet(PVBOXNETFLTINS pInstance, PVOID pvPacket, const UINT fFlags);
+#else
 DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQuEnqueuePacket(PVBOXNETFLTINS pInstance, PVOID pPacket, const UINT fPacketFlags);
 
 #ifndef VBOX_NETFLT_ONDEMAND_BIND
@@ -213,6 +216,9 @@ DECLHIDDEN(void) vboxNetFltWinQuFiniPacketQueue(PVBOXNETFLTINS pInstance);
 
 DECLHIDDEN(NTSTATUS) vboxNetFltWinQuInitPacketQueue(PVBOXNETFLTINS pInstance);
 #endif
+
+#endif /* #ifndef VBOXNETFLT_NO_PACKET_QUEUE */
+
 
 #ifndef VBOXNETADP
 /**

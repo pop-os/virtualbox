@@ -1,4 +1,4 @@
-/* $Id: VBoxManageSnapshot.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxManageSnapshot.cpp 28870 2010-04-28 14:33:11Z vboxsync $ */
 /** @file
  * VBoxManage - The 'snapshot' command.
  */
@@ -420,12 +420,8 @@ int handleSnapshot(HandlerArg *a)
             else
             {
                 /* assume it's a UUID */
-                Bstr guidSnap(a->argv[2]);
-                if (!guidSnap.isEmpty())
-                {
-                    CHECK_ERROR_BREAK(pMachine, GetSnapshot(guidSnap, snapshot.asOutParam()));
-                }
-                else
+                rc = pMachine->GetSnapshot(Bstr(a->argv[2]), snapshot.asOutParam());
+                if (FAILED(rc) || !snapshot)
                 {
                     /* then it must be a name */
                     CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]), snapshot.asOutParam()));
@@ -483,12 +479,8 @@ int handleSnapshot(HandlerArg *a)
             ComPtr<ISnapshot> snapshot;
 
             /* assume it's a UUID */
-            Bstr guidSnap(a->argv[2]);
-            if (!guidSnap.isEmpty())
-            {
-                CHECK_ERROR_BREAK(pMachine, GetSnapshot(guidSnap, snapshot.asOutParam()));
-            }
-            else
+            rc = pMachine->GetSnapshot(Bstr(a->argv[2]), snapshot.asOutParam());
+            if (FAILED(rc) || !snapshot)
             {
                 /* then it must be a name */
                 CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]), snapshot.asOutParam()));

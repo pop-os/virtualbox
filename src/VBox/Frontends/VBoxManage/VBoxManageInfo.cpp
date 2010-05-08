@@ -1,4 +1,4 @@
-/* $Id: VBoxManageInfo.cpp 28836 2010-04-27 15:08:21Z vboxsync $ */
+/* $Id: VBoxManageInfo.cpp 29117 2010-05-05 22:59:38Z vboxsync $ */
 /** @file
  * VBoxManage - The 'showvminfo' command and helper routines.
  */
@@ -889,6 +889,21 @@ HRESULT showVMInfo (ComPtr<IVirtualBox> virtualBox,
                         }
                         else
                             strAttachment = Utf8StrFmt("Host-only Interface '%lS'", strHostonlyAdp.raw());
+                        break;
+                    }
+#endif
+#ifdef VBOX_WITH_VDE
+                    case NetworkAttachmentType_VDE:
+                    {
+                        Bstr strVDEAdp;
+                        nic->COMGETTER(VDENetwork)(strVDEAdp.asOutParam());
+                        if (details == VMINFO_MACHINEREADABLE)
+                        {
+                            RTPrintf("vdenet%d=\"%lS\"\n", currentNIC + 1, strVDEAdp.raw());
+                            strAttachment = "VDE";
+                        }
+                        else
+                            strAttachment = Utf8StrFmt("VDE Network '%lS'", strVDEAdp.raw());
                         break;
                     }
 #endif

@@ -1,4 +1,4 @@
-/* $Id: GMMR0Internal.h 28806 2010-04-27 09:58:07Z vboxsync $ */
+/* $Id: GMMR0Internal.h 29168 2010-05-06 16:01:48Z vboxsync $ */
 /** @file
  * GMM - The Global Memory Manager, Internal Header.
  */
@@ -34,11 +34,28 @@ typedef struct GMMVMSIZES
     /** The number of pages for fixed allocations like MMIO2 and the hyper heap. */
     uint32_t        cFixedPages;
 } GMMVMSIZES;
+/** Pointer to a GMMVMSIZES. */
 typedef GMMVMSIZES *PGMMVMSIZES;
 
+/**
+ * Shared region descriptor
+ */
+typedef struct GMMSHAREDREGIONDESC
+{
+    /** Region base address. */
+    RTGCPTR64           GCRegionAddr;
+    /** Region size. */
+    uint32_t            cbRegion;
+    /** Alignment. */
+    uint32_t            u32Alignment;
+    /** Pointer to physical page id array. */
+    uint32_t           *paHCPhysPageID;
+} GMMSHAREDREGIONDESC;
+/** Pointer to a GMMSHAREDREGIONDESC. */
+typedef GMMSHAREDREGIONDESC *PGMMSHAREDREGIONDESC;
 
 /**
- * Shared module registration info
+ * Shared module registration info (global)
  */
 typedef struct GMMSHAREDMODULE
 {
@@ -48,15 +65,43 @@ typedef struct GMMSHAREDMODULE
     uint32_t                    cbModule;
     /** Number of included region descriptors */
     uint32_t                    cRegions;
+    /** Number of users (VMs). */
+    uint32_t                    cUsers;
+    /** Align. */
+    uint32_t                    u32Align;
     /** Module name */
     char                        szName[GMM_SHARED_MODULE_MAX_NAME_STRING];
     /** Module version */
     char                        szVersion[GMM_SHARED_MODULE_MAX_VERSION_STRING];
     /** Shared region descriptor(s). */
-    VMMDEVSHAREDREGIONDESC      aRegions[1];
+    GMMSHAREDREGIONDESC         aRegions[1];
 } GMMSHAREDMODULE;
-/** Pointer to a GMMMODULE. */
+/** Pointer to a GMMSHAREDMODULE. */
 typedef GMMSHAREDMODULE *PGMMSHAREDMODULE;
+
+/**
+ * Shared module registration info (per VM)
+ */
+typedef struct GMMSHAREDMODULEPERVM
+{
+    /** Tree node. */
+    AVLGCPTRNODECORE            Core;
+
+    /** Pointer to global shared module info. */
+    PGMMSHAREDMODULE            pGlobalModule;
+
+    /** Set if another VM registered a different shared module at the same base address. */
+    bool                        fCollision;
+    /** Alignment. */
+    bool                        bAlignment;
+
+    /** Number of regions. */
+    unsigned                    cRegions;
+    /** Shared region descriptor(s). */
+    GMMSHAREDREGIONDESC         aRegions[1];
+} GMMSHAREDMODULEPERVM;
+/** Pointer to a GMMSHAREDMODULEPERVM. */
+typedef GMMSHAREDMODULEPERVM *PGMMSHAREDMODULEPERVM;
 
 /**
  * The per-VM GMM data.
@@ -91,6 +136,9 @@ typedef struct GMMPERVM
     uint64_t            cReqActuallyBalloonedPages;
     /** The number of pages we've currently requested the guest to take back. */
     uint64_t            cReqDeflatePages;
+
+    /** Shared module tree (per-vm). */
+    PAVLGCPTRNODECORE   pSharedModuleTree;
 
     /** Whether ballooning is enabled or not. */
     bool                fBallooningEnabled;

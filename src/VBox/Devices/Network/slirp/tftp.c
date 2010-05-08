@@ -1,4 +1,4 @@
-/* $Id: tftp.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tftp.c 29050 2010-05-05 02:26:10Z vboxsync $ */
 /** @file
  * NAT - TFTP server.
  */
@@ -156,6 +156,7 @@ static int tftp_send_oack(PNATState pData,
     memset(m->m_data, 0, m->m_size);
     m->m_data += if_maxlinkhdr;
 #else
+    m->m_data += if_maxlinkhdr;
     m->m_pkthdr.header = mtod(m, void *);
 #endif
     tp = (void *)m->m_data;
@@ -205,6 +206,7 @@ static int tftp_send_error(PNATState pData,
     memset(m->m_data, 0, m->m_size);
     m->m_data += if_maxlinkhdr;
 #else
+    m->m_data += if_maxlinkhdr;
     m->m_pkthdr.header = mtod(m, void *);
 #endif
     tp = (void *)m->m_data;
@@ -261,9 +263,10 @@ static int tftp_send_data(PNATState pData,
     memset(m->m_data, 0, m->m_size);
     m->m_data += if_maxlinkhdr;
 #else
+    m->m_data += if_maxlinkhdr;
     m->m_pkthdr.header = mtod(m, void *);
 #endif
-    tp = (void *)m->m_data;
+    tp = mtod(m, void *);
     m->m_data += sizeof(struct udpiphdr);
 
     tp->tp_op = RT_H2N_U16_C(TFTP_DATA);

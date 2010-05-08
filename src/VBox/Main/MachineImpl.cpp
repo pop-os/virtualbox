@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 28851 2010-04-27 17:41:05Z vboxsync $ */
+/* $Id: MachineImpl.cpp 29192 2010-05-07 09:54:07Z vboxsync $ */
 
 /** @file
  * Implementation of IMachine in VBoxSVC.
@@ -5870,9 +5870,25 @@ bool Machine::checkForSpawnFailure()
                            &status);
 
     if (vrc != VERR_PROCESS_RUNNING)
-        rc = setError(E_FAIL,
-                      tr("Virtual machine '%ls' has terminated unexpectedly during startup"),
-                      getName().raw());
+    {
+        if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_NORMAL)
+            rc = setError(E_FAIL,
+                          tr("Virtual machine '%ls' has terminated unexpectedly during startup with exit code %d"),
+                          getName().raw(), status.iStatus);
+        else if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_SIGNAL)
+            rc = setError(E_FAIL,
+                          tr("Virtual machine '%ls' has terminated unexpectedly during startup because of signal %d"),
+                          getName().raw(), status.iStatus);
+        else if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_ABEND)
+            rc = setError(E_FAIL,
+                          tr("Virtual machine '%ls' has terminated abnormally"),
+                          getName().raw(), status.iStatus);
+        else
+            rc = setError(E_FAIL,
+                          tr("Virtual machine '%ls' has terminated unexpectedly during startup (%Rrc)"),
+                          getName().raw(), rc);
+    }
+
 #endif
 
     if (FAILED(rc))
@@ -7315,8 +7331,22 @@ HRESULT Machine::getMediumAttachmentsOfController(CBSTR aName,
          it != mMediaData->mAttachments.end();
          ++it)
     {
-        if ((*it)->getControllerName() == aName)
-            atts.push_back(*it);
+        const ComObjPtr<MediumAttachment> &pAtt = *it;
+
+        // should never happen, but deal with NULL pointers in the list.
+        AssertStmt(!pAtt.isNull(), continue);
+
+        // getControllerName() needs caller+read lock
+        AutoCaller autoAttCaller(pAtt);
+        if (FAILED(autoAttCaller.rc()))
+        {
+            atts.clear();
+            return autoAttCaller.rc();
+        }
+        AutoReadLock attLock(pAtt COMMA_LOCKVAL_SRC_POS);
+
+        if (pAtt->getControllerName() == aName)
+            atts.push_back(pAtt);
     }
 
     return S_OK;

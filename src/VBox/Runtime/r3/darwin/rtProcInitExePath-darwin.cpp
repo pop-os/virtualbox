@@ -1,4 +1,4 @@
-/* $Id: rtProcInitExePath-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: rtProcInitExePath-darwin.cpp 28929 2010-04-30 11:26:46Z vboxsync $ */
 /** @file
  * IPRT - rtProcInitName, Darwin.
  */
@@ -48,15 +48,8 @@ DECLHIDDEN(int) rtProcInitExePath(char *pszPath, size_t cchPath)
     const char *pszImageName = _dyld_get_image_name(0);
     AssertReturn(pszImageName, VERR_INTERNAL_ERROR);
 
-    char *pszTmp;
-    int rc = rtPathFromNative(&pszTmp, pszImageName);
-    AssertMsgRCReturn(rc, ("rc=%Rrc pszLink=\"%s\"\nhex: %.*Rhsx\n", rc, pszPath, strlen(pszImageName), pszPath), rc);
-
-    size_t cch = strlen(pszTmp);
-    AssertReturn(cch <= cchPath, VERR_BUFFER_OVERFLOW);
-
-    memcpy(pszPath, pszTmp, cch + 1);
-    RTStrFree(pszTmp);
+    int rc = rtPathFromNativeCopy(pszPath, cchPath, pszImageName, NULL);
+    AssertMsgRCReturn(rc, ("rc=%Rrc pszLink=\"%s\"\nhex: %.*Rhxs\n", rc, pszPath, strlen(pszImageName), pszPath), rc);
 
     return VINF_SUCCESS;
 }

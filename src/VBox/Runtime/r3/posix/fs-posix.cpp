@@ -1,4 +1,4 @@
-/* $Id: fs-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: fs-posix.cpp 28915 2010-04-29 18:12:35Z vboxsync $ */
 /** @file
  * IPRT - File System, Linux.
  */
@@ -55,8 +55,8 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
     /*
      * Convert the path and query the information.
      */
-    char *pszNativeFsPath;
-    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
     if (RT_SUCCESS(rc))
     {
         /** @todo I'm not quite sure if statvfs was properly specified by SuS, I have to check my own
@@ -80,7 +80,7 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFsPath);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
 
     LogFlow(("RTFsQuerySizes(%p:{%s}, %p:{%RTfoff}, %p:{%RTfoff}, %p:{%RX32}, %p:{%RX32}): returns %Rrc\n",
@@ -102,8 +102,8 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
      * Conver the path and query the stats.
      * We're simply return the device id.
      */
-    char *pszNativeFsPath;
-    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat Stat;
@@ -114,7 +114,7 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFsPath);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
     LogFlow(("RTFsQuerySerial(%p:{%s}, %p:{%RX32}: returns %Rrc\n",
              pszFsPath, pszFsPath, pu32Serial, pu32Serial ? *pu32Serial : 0, rc));
@@ -133,8 +133,8 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
     /*
      * Convert the path and query the information.
      */
-    char *pszNativeFsPath;
-    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct statvfs StatVFS;
@@ -154,7 +154,7 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFsPath);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
 
     LogFlow(("RTFsQueryProperties(%p:{%s}, %p:{.cbMaxComponent=%u, .fCaseSensitive=%RTbool}): returns %Rrc\n",

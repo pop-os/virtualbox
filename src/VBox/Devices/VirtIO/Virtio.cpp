@@ -1,4 +1,4 @@
-/* $Id: Virtio.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Virtio.cpp 28907 2010-04-29 16:09:43Z vboxsync $ */
 /** @file
  * Virtio - Virtio Common Functions (VRing, VQueue, Virtio PCI)
  */
@@ -26,7 +26,7 @@
 #define INSTANCE(pState) pState->szInstance
 #define IFACE_TO_STATE(pIface, ifaceName) ((VPCISTATE *)((char*)pIface - RT_OFFSETOF(VPCISTATE, ifaceName)))
 
-#ifdef DEBUG
+#ifdef LOG_ENABLED
 #define QUEUENAME(s, q) (q->pcszName)
 #endif /* DEBUG */
 

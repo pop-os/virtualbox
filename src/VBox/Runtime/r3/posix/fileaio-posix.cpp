@@ -1,4 +1,4 @@
-/* $Id: fileaio-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: fileaio-posix.cpp 29129 2010-05-06 10:40:30Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for POSIX compliant host platforms.
  */
@@ -395,6 +395,7 @@ DECLINLINE(int) rtFileAioReqPrepareTransfer(RTFILEAIOREQ hReq, RTFILE hFile,
     Assert(cbTransfer > 0);
 
     memset(&pReqInt->AioCB, 0, sizeof(struct aiocb));
+    pReqInt->fFlush               = false;
     pReqInt->AioCB.aio_lio_opcode = uTransferDirection;
     pReqInt->AioCB.aio_fildes     = (int)hFile;
     pReqInt->AioCB.aio_offset     = off;
@@ -435,7 +436,11 @@ RTDECL(int) RTFileAioReqPrepareFlush(RTFILEAIOREQ hReq, RTFILE hFile, void *pvUs
 
     pReqInt->fFlush           = true;
     pReqInt->AioCB.aio_fildes = (int)hFile;
+    pReqInt->AioCB.aio_offset = 0;
+    pReqInt->AioCB.aio_nbytes = 0;
+    pReqInt->AioCB.aio_buf    = NULL;
     pReqInt->pvUser           = pvUser;
+    pReqInt->Rc               = VERR_FILE_AIO_IN_PROGRESS;
     RTFILEAIOREQ_SET_STATE(pReqInt, PREPARED);
 
     return VINF_SUCCESS;

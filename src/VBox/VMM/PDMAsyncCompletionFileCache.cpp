@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileCache.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFileCache.cpp 29121 2010-05-06 09:09:33Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * File data cache.
@@ -603,7 +603,6 @@ static void pdmacFileCacheWriteToEndpoint(PPDMACFILECACHEENTRY pEntry)
     pIoTask->DataSeg.pvSeg   = pEntry->pbData;
     pIoTask->pvUser          = pEntry;
     pIoTask->pfnCompleted    = pdmacFileCacheTaskCompleted;
-    ASMAtomicIncU32(&pEntry->pEndpoint->DataCache.cWritesOutstanding);
 
     /* Send it off to the I/O manager. */
     pdmacFileEpAddTask(pEntry->pEndpoint, pIoTask);
@@ -809,9 +808,6 @@ static void pdmacFileCacheTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int 
 
     if (pTask->enmTransferType == PDMACTASKFILETRANSFER_WRITE)
     {
-        AssertMsg(pEndpointCache->cWritesOutstanding > 0, ("Completed write request but outstanding task count is 0\n"));
-        ASMAtomicDecU32(&pEndpointCache->cWritesOutstanding);
-
         /*
          * An error here is difficult to handle as the original request completed already.
          * The error is logged for now and the VM is paused.
@@ -878,14 +874,6 @@ static void pdmacFileCacheTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int 
     bool fCommit = false;
     if (fDirty)
         fCommit = pdmacFileCacheAddDirtyEntry(pEndpointCache, pEntry);
-
-    /* Complete a pending flush if all writes have completed */
-    if (!ASMAtomicReadU32(&pEndpointCache->cWritesOutstanding))
-    {
-        PPDMASYNCCOMPLETIONTASKFILE pTaskFlush = (PPDMASYNCCOMPLETIONTASKFILE)ASMAtomicXchgPtr((void * volatile *)&pEndpointCache->pTaskFlush, NULL);
-        if (pTaskFlush)
-            pdmR3AsyncCompletionCompleteTask(&pTaskFlush->Core, VINF_SUCCESS, true);
-    }
 
     RTSemRWReleaseWrite(pEndpoint->DataCache.SemRWEntries);
 
@@ -1721,8 +1709,6 @@ int pdmacFileEpCacheRead(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOM
     LogFlowFunc((": pEndpoint=%#p{%s} pTask=%#p off=%RTfoff paSegments=%#p cSegments=%u cbRead=%u\n",
                  pEndpoint, pEndpoint->Core.pszUri, pTask, off, paSegments, cSegments, cbRead));
 
-    pTask->cbTransferLeft = cbRead;
-    pTask->rc             = VINF_SUCCESS;
     /* Set to completed to make sure that the task is valid while we access it. */
     ASMAtomicWriteBool(&pTask->fCompleted, true);
 
@@ -1955,8 +1941,6 @@ int pdmacFileEpCacheWrite(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCO
     LogFlowFunc((": pEndpoint=%#p{%s} pTask=%#p off=%RTfoff paSegments=%#p cSegments=%u cbWrite=%u\n",
                  pEndpoint, pEndpoint->Core.pszUri, pTask, off, paSegments, cSegments, cbWrite));
 
-    pTask->cbTransferLeft = cbWrite;
-    pTask->rc             = VINF_SUCCESS;
     /* Set to completed to make sure that the task is valid while we access it. */
     ASMAtomicWriteBool(&pTask->fCompleted, true);
 
@@ -2197,22 +2181,8 @@ int pdmacFileEpCacheFlush(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCO
     LogFlowFunc((": pEndpoint=%#p{%s} pTask=%#p\n",
                  pEndpoint, pEndpoint->Core.pszUri, pTask));
 
-    pTask->rc = VINF_SUCCESS;
-
-    if (ASMAtomicReadPtr((void * volatile *)&pEndpoint->DataCache.pTaskFlush))
-        rc = VERR_RESOURCE_BUSY;
-    else
-    {
-        /* Check for dirty entries in the cache. */
-        pdmacFileCacheEndpointCommit(&pEndpoint->DataCache);
-        if (ASMAtomicReadU32(&pEndpoint->DataCache.cWritesOutstanding) > 0)
-        {
-            ASMAtomicWritePtr((void * volatile *)&pEndpoint->DataCache.pTaskFlush, pTask);
-            rc = VINF_AIO_TASK_PENDING;
-        }
-        else
-            pdmR3AsyncCompletionCompleteTask(&pTask->Core, VINF_SUCCESS, false);
-    }
+    /* Commit dirty entries in the cache. */
+    pdmacFileCacheEndpointCommit(&pEndpoint->DataCache);
 
     LogFlowFunc((": Leave rc=%Rrc\n", rc));
     return rc;

@@ -87,7 +87,6 @@ WITH_KMODS=1
 WITH_OPENGL=1
 WITH_HARDENING=1
 WITH_VDE=0
-WITH_FAM=1
 BUILD_LIBXML2=
 BUILD_LIBXSLT=
 BUILD_LIBCURL=
@@ -1036,28 +1035,6 @@ extern "C" int main(void)
 EOF
   if test_compile "-lpam" pam pam; then
     test_execute
-  fi
-}
-
-
-#
-# Check for fam, needed by Main/HostHardwareLinux
-#
-check_fam()
-{
-  test_header fam
-  cat > $ODIR.tmp_src.cc << EOF
-#include <fam.h>
-extern "C" int main(void)
-{
-  FAMConnection conn;
-  FAMOpen(&conn);
-  FAMClose(&conn);
-  return 1;
-}
-EOF
-  if test_compile "-lfam" fam fam; then
-    echo "found."
   fi
 }
 
@@ -2082,9 +2059,8 @@ EOF
 [ $WITH_ALSA    -eq 1 ] && echo "  --disable-alsa           disable the ALSA sound backend"
 [ $WITH_PULSE   -eq 1 ] && echo "  --disable-pulse          disable the PulseAudio backend"
 [ $WITH_DBUS    -eq 1 ] && echo "  --disable-dbus           don't use DBus and hal for hardware detection"
-[ $OSE -eq 0 -a $WITH_FAM -eq 1 ] && echo "  --disable-fam            don't use FAM for USB polling"
 [ $WITH_KMODS   -eq 1 ] && echo "  --disable-kmods          don't build Linux kernel modules (host and guest)"
-[ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support"
+[ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support (2D & 3D)"
 [ $WITH_GSOAP   -eq 0 ] && echo "  --enable-webservice      enable the webservice stuff"
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
@@ -2237,9 +2213,6 @@ for option in $*; do
       ;;
     --disable-dbus)
       [ $WITH_DBUS -eq 1 ] && WITH_DBUS=0
-      ;;
-    --disable-fam)
-      [ $WITH_FAM -eq 1 ] && WITH_FAM=0
       ;;
     --disable-kmods)
       [ $WITH_KMODS -eq 1 ] && WITH_KMODS=0
@@ -2410,7 +2383,11 @@ if [ -n "$HEADLESS" ]; then
 fi
 
 # emit disable directives corresponding to any --disable-xxx options.
-[ $WITH_OPENGL -eq 0 ]    && cnf_append "VBOX_WITH_CROGL" ""
+if [ $WITH_OPENGL -eq 0 ]; then
+  cnf_append "VBOX_WITH_CROGL" ""
+  cnf_append "VBOX_WITH_VIDEOHWACCEL" ""
+  cnf_append "VBOX_GUI_USE_QGL" ""
+fi
 [ $WITH_XPCOM -eq 0 ]     && cnf_append "VBOX_WITH_MAIN" ""
 [ $WITH_QT4 -eq 0   ]     && cnf_append "VBOX_WITH_QTGUI" ""
 [ $WITH_SDL_TTF -eq 0 ]   && cnf_append "VBOX_WITH_SECURELABEL" ""
@@ -2443,11 +2420,6 @@ check_curl
 [ "$OS" != "darwin"  ] && check_z
 [ "$OS" != "darwin" -a "$OS" != "freebsd" ] && check_png
 [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
-if [ $WITH_FAM -eq 1 ]; then
-  [ $OSE -eq 0 -a "$OS" = "linux" ] && check_fam
-else
-  cnf_append "VBOX_USB_WITH_FAM" ""
-fi
 [ $WITH_SDL -eq 1 ]    && check_sdl
 [ $WITH_SDL_TTF -eq 1 -a $OSE -eq 0 ] && check_sdl_ttf
 [ $WITH_X11    -eq 1 ] && check_x

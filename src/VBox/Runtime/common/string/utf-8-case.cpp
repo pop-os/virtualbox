@@ -1,4 +1,4 @@
-/* $Id: utf-8-case.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: utf-8-case.cpp 28903 2010-04-29 14:58:12Z vboxsync $ */
 /** @file
  * IPRT - UTF-8 Case Sensitivity and Folding.
  */
@@ -108,7 +108,7 @@ RTDECL(int) RTStrICmp(const char *psz1, const char *psz2)
             return 0;
     }
 
-    /* Hit some bad encoding, continue in case insensitive mode. */
+    /* Hit some bad encoding, continue in case sensitive mode. */
     return RTStrCmp(psz1, psz2);
 }
 RT_EXPORT_SYMBOL(RTStrICmp);

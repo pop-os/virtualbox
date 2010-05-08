@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: KeyboardImpl.h 28909 2010-04-29 16:34:17Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -22,6 +22,9 @@
 #include "ConsoleEvents.h"
 
 #include <VBox/pdmdrv.h>
+
+/** Limit of simultaneously attached devices (just USB and/or PS/2). */
+enum { KEYBOARD_MAX_DEVICES = 2 };
 
 /** Simple keyboard event class. */
 class KeyboardEvent
@@ -88,12 +91,13 @@ public:
 private:
 
     static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(void)   keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);
     static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
 
     Console * const         mParent;
-    /** Pointer to the associated keyboard driver. */
-    struct DRVMAINKEYBOARD *mpDrv;
+    /** Pointer to the associated keyboard driver(s). */
+    struct DRVMAINKEYBOARD *mpDrv[KEYBOARD_MAX_DEVICES];
     /** Pointer to the device instance for the VMM Device. */
     PPDMDEVINS              mpVMMDev;
     /** Set after the first attempt to find the VMM Device. */

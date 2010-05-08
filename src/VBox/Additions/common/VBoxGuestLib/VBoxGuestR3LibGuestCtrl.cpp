@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibGuestCtrl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxGuestR3LibGuestCtrl.cpp 28887 2010-04-29 11:19:17Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, guest control.
  */
@@ -109,25 +109,22 @@ VBGLR3DECL(int) VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg,
 
     VBoxGuestCtrlHGCMMsgType Msg;
 
-    Msg.hdr.u32Timeout = u32Timeout;
-    Msg.hdr.fInterruptible = true;
-
-    Msg.hdr.info.result = VERR_WRONG_ORDER;
-    Msg.hdr.info.u32ClientID = u32ClientId;
-    Msg.hdr.info.u32Function = GUEST_GET_HOST_MSG; /* Tell the host we want our next command. */
-    Msg.hdr.info.cParms = 2;                       /* Just peek for the next message! */
+    Msg.hdr.result = VERR_WRONG_ORDER;
+    Msg.hdr.u32ClientID = u32ClientId;
+    Msg.hdr.u32Function = GUEST_GET_HOST_MSG; /* Tell the host we want our next command. */
+    Msg.hdr.cParms = 2;                       /* Just peek for the next message! */
 
     VbglHGCMParmUInt32Set(&Msg.msg, 0);
     VbglHGCMParmUInt32Set(&Msg.num_parms, 0);
 
-    int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_CALL_TIMED(sizeof(Msg)), &Msg, sizeof(Msg));
+    int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_CALL(sizeof(Msg)), &Msg, sizeof(Msg));
     if (RT_SUCCESS(rc))
     {
         rc = VbglHGCMParmUInt32Get(&Msg.msg, puMsg);
         if (RT_SUCCESS(rc))
             rc = VbglHGCMParmUInt32Get(&Msg.num_parms, puNumParms);
             if (RT_SUCCESS(rc))
-                rc = Msg.hdr.info.result;
+                rc = Msg.hdr.result;
                 /* Ok, so now we know what message type and how much parameters there are. */
     }
     return rc;

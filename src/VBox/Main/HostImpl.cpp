@@ -1,4 +1,4 @@
-/* $Id: HostImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: HostImpl.cpp 28924 2010-04-30 09:08:17Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation: Host
  */
@@ -500,7 +500,11 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces)(ComSafeArrayOut(IHostNetworkInte
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* The code is so hideously complicated that I can't tell whether the
+     * host object lock is really needed. It was taken here, and as the
+     * VirtualBox (mParent) is taken as well below nested deep down that
+     * would be a lock order violation. */
+    AutoMultiWriteLock2 alock(m->pParent, this COMMA_LOCKVAL_SRC_POS);
 
     std::list <ComObjPtr<HostNetworkInterface> > list;
 
@@ -1013,7 +1017,8 @@ STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostN
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* No need to lock anything. If there ever will - watch out, the function
+     * called below grabs the VirtualBox lock. */
 
     int r = NetIfCreateHostOnlyNetworkInterface(m->pParent, aHostNetworkInterface, aProgress);
     if (RT_SUCCESS(r))
@@ -1030,7 +1035,9 @@ STDMETHODIMP Host::RemoveHostOnlyNetworkInterface(IN_BSTR aId,
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* No need to lock anything, the code below does not touch the state
+     * of the host object. If that ever changes then check for lock order
+     * violations with the called functions. */
 
     /* first check whether an interface with the given name already exists */
     {

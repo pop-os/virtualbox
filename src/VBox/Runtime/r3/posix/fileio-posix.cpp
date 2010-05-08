@@ -1,4 +1,4 @@
-/* $Id: fileio-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: fileio-posix.cpp 28918 2010-04-29 18:30:09Z vboxsync $ */
 /** @file
  * IPRT - File I/O, POSIX.
  */
@@ -74,12 +74,6 @@ extern int futimes(int __fd, __const struct timeval __tvp[2]) __THROW;
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** @def RT_DONT_CONVERT_FILENAMES
- * Define this to pass UTF-8 unconverted to the kernel. */
-#ifdef DOXYGEN_RUNNING
-#define RT_DONT_CONVERT_FILENAMES 1
-#endif
-
 /** Default file permissions for newly created files. */
 #if defined(S_IRUSR) && defined(S_IWUSR)
 # define RT_FILE_PERMISSION  (S_IRUSR | S_IWUSR)
@@ -91,15 +85,15 @@ extern int futimes(int __fd, __const struct timeval __tvp[2]) __THROW;
 RTDECL(bool) RTFileExists(const char *pszPath)
 {
     bool fRc = false;
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat s;
         fRc = !stat(pszNativePath, &s)
             && S_ISREG(s.st_mode);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTFileExists(%p={%s}): returns %RTbool\n", pszPath, pszPath, fRc));
@@ -200,19 +194,14 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
     /*
      * Open/create the file.
      */
-#ifdef RT_DONT_CONVERT_FILENAMES
-    int fh = open(pszFilename, fOpenMode, fMode);
-    int iErr = errno;
-#else
-    char *pszNativeFilename;
-    rc = rtPathToNative(&pszNativeFilename, pszFilename);
+    char const *pszNativeFilename;
+    rc = rtPathToNative(&pszNativeFilename, pszFilename, NULL);
     if (RT_FAILURE(rc))
         return (rc);
 
     int fh = open(pszNativeFilename, fOpenMode, fMode);
     int iErr = errno;
-    rtPathFreeNative(pszNativeFilename);
-#endif
+    rtPathFreeNative(pszNativeFilename, pszFilename);
     if (fh >= 0)
     {
         iErr = 0;
@@ -371,13 +360,13 @@ RTR3DECL(RTHCINTPTR) RTFileToNative(RTFILE File)
 
 RTR3DECL(int)  RTFileDelete(const char *pszFilename)
 {
-    char *pszNativeFilename;
-    int rc = rtPathToNative(&pszNativeFilename, pszFilename);
+    char const *pszNativeFilename;
+    int rc = rtPathToNative(&pszNativeFilename, pszFilename, NULL);
     if (RT_SUCCESS(rc))
     {
         if (unlink(pszNativeFilename) != 0)
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFilename);
+        rtPathFreeNative(pszNativeFilename, pszFilename);
     }
     return rc;
 }

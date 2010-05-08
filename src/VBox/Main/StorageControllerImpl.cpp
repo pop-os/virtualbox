@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: StorageControllerImpl.cpp 29002 2010-05-04 11:14:34Z vboxsync $ */
 
 /** @file
  *
@@ -143,7 +143,10 @@ HRESULT StorageController::init(Machine *aParent,
     m->bd->strName = aName;
     m->bd->mInstance = aInstance;
     m->bd->mStorageBus = aStorageBus;
-    m->bd->mIoBackendType = IoBackendType_Buffered;
+    if (aStorageBus != StorageBus_IDE)
+        m->bd->mIoBackendType = IoBackendType_Unbuffered;
+    else
+        m->bd->mIoBackendType = IoBackendType_Buffered;
 
     switch (aStorageBus)
     {

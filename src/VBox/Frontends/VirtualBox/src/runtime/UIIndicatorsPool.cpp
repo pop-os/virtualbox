@@ -1,4 +1,4 @@
-/* $Id: UIIndicatorsPool.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIIndicatorsPool.cpp 29148 2010-05-06 12:29:45Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -56,10 +56,10 @@ public:
         const CMachine &machine = m_session.GetMachine();
 
         QString strToolTip = QApplication::translate("VBoxConsoleWnd", "<p style='white-space:pre'><nobr>Indicates the activity "
-                                "of the virtual hard disks:</nobr>%1</p>", "HDD tooltip");
+                                                     "of the virtual hard disks:</nobr>%1</p>", "HDD tooltip");
 
         QString strFullData;
-        bool bAttachmentsPresent = false;
+        bool fAttachmentsPresent = false;
 
         const CStorageControllerVector &controllers = machine.GetStorageControllers();
         foreach (const CStorageController &controller, controllers)
@@ -73,17 +73,20 @@ public:
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
                     .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(VBoxMedium(attachment.GetMedium(), VBoxDefs::MediumType_HardDisk).location());
-                bAttachmentsPresent = true;
+                fAttachmentsPresent = true;
             }
             if (!strAttData.isNull())
                 strFullData += QString("<br><nobr><b>%1</b></nobr>").arg(controller.GetName()) + strAttData;
         }
 
-        if (!bAttachmentsPresent)
-            strFullData += QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>No hard disks attached</b></nobr>", "HDD tooltip");
+        /* For now we will hide that LED at all if there are no attachments! */
+        if (!fAttachmentsPresent)
+            setHidden(true);
+        //if (!fAttachmentsPresent)
+        //    strFullData += QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>No hard disks attached</b></nobr>", "HDD tooltip");
 
         setToolTip(strToolTip.arg(strFullData));
-        setState(bAttachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        setState(fAttachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 
 protected:
@@ -120,10 +123,11 @@ public:
         const CMachine &machine = m_session.GetMachine();
 
         QString strToolTip = QApplication::translate("VBoxConsoleWnd", "<p style='white-space:pre'><nobr>Indicates the activity "
-                                "of the CD/DVD devices:</nobr>%1</p>", "CD/DVD tooltip");
+                                                     "of the CD/DVD devices:</nobr>%1</p>", "CD/DVD tooltip");
 
         QString strFullData;
-        bool bAttachmentsPresent = false;
+        bool fAttachmentsPresent = false;
+        bool fAttachmentsMounted = false;
 
         const CStorageControllerVector &controllers = machine.GetStorageControllers();
         foreach (const CStorageController &controller, controllers)
@@ -138,18 +142,22 @@ public:
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
                     .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
+                fAttachmentsPresent = true;
                 if (!vboxMedium.isNull())
-                    bAttachmentsPresent = true;
+                    fAttachmentsMounted = true;
             }
             if (!strAttData.isNull())
                 strFullData += QString("<br><nobr><b>%1</b></nobr>").arg(controller.GetName()) + strAttData;
         }
 
-        if (strFullData.isNull())
-            strFullData = QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>No CD/DVD devices attached</b></nobr>", "CD/DVD tooltip");
+        /* For now we will hide that LED at all if there are no attachments! */
+        if (!fAttachmentsPresent)
+            setHidden(true);
+        //if (!fAttachmentsPresent)
+        //    strFullData = QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>No CD/DVD devices attached</b></nobr>", "CD/DVD tooltip");
 
         setToolTip(strToolTip.arg(strFullData));
-        setState(bAttachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        setState(fAttachmentsMounted ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 
 protected:
@@ -185,36 +193,42 @@ public:
     {
         const CMachine &machine = m_session.GetMachine();
 
-        QString tip = QApplication::translate("VBoxConsoleWnd", "<p style='white-space:pre'><nobr>Indicates the activity "
-                          "of the floppy devices:</nobr>%1</p>", "FD tooltip");
-        QString data;
-        bool attachmentsPresent = false;
+        QString strToolTip = QApplication::translate("VBoxConsoleWnd", "<p style='white-space:pre'><nobr>Indicates the activity "
+                                                     "of the floppy devices:</nobr>%1</p>", "FD tooltip");
+
+        QString strFullData;
+        bool fAttachmentsPresent = false;
+        bool fAttachmentsMounted = false;
 
         const CStorageControllerVector &controllers = machine.GetStorageControllers();
         foreach (const CStorageController &controller, controllers)
         {
-            QString attData;
-            const CMediumAttachmentVector &attachments = machine.GetMediumAttachmentsOfController (controller.GetName());
+            QString strAttData;
+            const CMediumAttachmentVector &attachments = machine.GetMediumAttachmentsOfController(controller.GetName());
             foreach (const CMediumAttachment &attachment, attachments)
             {
                 if (attachment.GetType() != KDeviceType_Floppy)
                     continue;
-                VBoxMedium vboxMedium (attachment.GetMedium(), VBoxDefs::MediumType_Floppy);
-                attData += QString ("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg (vboxGlobal().toString (StorageSlot (controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
-                    .arg (vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
+                VBoxMedium vboxMedium(attachment.GetMedium(), VBoxDefs::MediumType_Floppy);
+                strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
+                fAttachmentsPresent = true;
                 if (!vboxMedium.isNull())
-                    attachmentsPresent = true;
+                    fAttachmentsMounted = true;
             }
-            if (!attData.isNull())
-                data += QString ("<br><nobr><b>%1</b></nobr>").arg (controller.GetName()) + attData;
+            if (!strAttData.isNull())
+                strFullData += QString("<br><nobr><b>%1</b></nobr>").arg(controller.GetName()) + strAttData;
         }
 
-        if (data.isNull())
-            data = QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>No floppy devices attached</b></nobr>", "FD tooltip");
+        /* For now we will hide that LED at all if there are no attachments! */
+        if (!fAttachmentsPresent)
+            setHidden(true);
+        //if (!fAttachmentsPresent)
+        //    strFullData = QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>No floppy devices attached</b></nobr>", "FD tooltip");
 
-        setToolTip (tip.arg (data));
-        setState (attachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        setToolTip(strToolTip.arg(strFullData));
+        setState(fAttachmentsMounted ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 
 protected:
@@ -260,6 +274,8 @@ public:
             if (machine.GetNetworkAdapter(uSlot).GetEnabled())
                 ++ uCount;
         setState(uCount > 0 ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        if (!uCount)
+            setHidden(true);
 
         QString strToolTip = QApplication::translate("VBoxConsoleWnd", "<p style='white-space:pre'><nobr>Indicates the activity of the "
                                 "network interfaces:</nobr>%1</p>", "Network adapters tooltip");
@@ -664,6 +680,9 @@ QIStateIndicator* UIIndicatorsPool::indicator(UIIndicatorIndex index)
                 break;
             case UIIndicatorIndex_OpticalDisks:
                 m_IndicatorsPool[index] = new UIIndicatorOpticalDisks(m_session);
+                break;
+            case UIIndicatorIndex_FloppyDisks:
+                m_IndicatorsPool[index] = new UIIndicatorFloppyDisks(m_session);
                 break;
             case UIIndicatorIndex_NetworkAdapters:
                 m_IndicatorsPool[index] = new UIIndicatorNetworkAdapters(m_session);

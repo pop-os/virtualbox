@@ -1,4 +1,4 @@
-/* $Id: VBoxSettingsDialogSpecific.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxSettingsDialogSpecific.cpp 28940 2010-04-30 14:41:10Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -412,6 +412,16 @@ void VBoxVMSettingsDlg::putBackTo()
     }
 #endif
 
+#ifndef VBOX_OSE
+    /* Enable OHCI controller if HID is enabled */
+    if (systemPage && systemPage->isHIDEnabled())
+    {
+        CUSBController ctl = mMachine.GetUSBController();
+        if (!ctl.isNull())
+            ctl.SetEnabled(true);
+    }
+#endif /* VBOX_OSE */
+
     /* Clear the "GUI_FirstRun" extra data key in case if the boot order
      * and/or disk configuration were changed */
     if (mResetFirstRunFlag)
@@ -554,6 +564,27 @@ bool VBoxVMSettingsDlg::correlate (QWidget *aPage, QString &aWarning)
         }
     }
 #endif
+
+#ifndef VBOX_OSE
+    if (aPage == mSelector->idToPage (SystemId) ||
+        aPage == mSelector->idToPage (USBId))
+    {
+        VBoxVMSettingsSystem *systemPage =
+            qobject_cast <VBoxVMSettingsSystem*> (mSelector->idToPage (SystemId));
+        VBoxVMSettingsUSB *usbPage =
+            qobject_cast <VBoxVMSettingsUSB*> (mSelector->idToPage (USBId));
+        if (systemPage && usbPage &&
+            systemPage->isHIDEnabled() && !usbPage->isOHCIEnabled())
+        {
+            aWarning = tr (
+                "you have enabled a USB HID (Human Interface Device). "
+                "This will not work unless USB emulation is also enabled. "
+                "This will be done automatically when you accept the VM Settings "
+                "by pressing the OK button.");
+            return true;
+        }
+    }
+#endif /* VBOX_OSE */
 
     return true;
 }

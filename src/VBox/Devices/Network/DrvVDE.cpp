@@ -1,4 +1,4 @@
-/* $Id: DrvVDE.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvVDE.cpp 29122 2010-05-06 09:13:22Z vboxsync $ */
 /** @file
  * VDE network transport driver.
  */
@@ -24,6 +24,7 @@
 #include <VBox/pdmdrv.h>
 #include <VBox/pdmnetifs.h>
 #include <VBox/pdmnetinline.h>
+#include <VBox/VDEPlug.h>
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -44,7 +45,6 @@
 #include <unistd.h>
 
 #include "Builtins.h"
-#include "VDEPlug.h"
 
 
 /*******************************************************************************

@@ -1,4 +1,4 @@
-/* $Id: UIMachineView.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIMachineView.cpp 29000 2010-05-04 10:00:56Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1236,6 +1236,9 @@ void UIMachineView::sltMachineStateChanged()
                 /* Fully repaint to pick up m_pauseShot: */
                 viewport()->repaint();
             }
+            /* reuse the focus event handler to uncapture everything */
+            if (hasFocus())
+                focusEvent (false /* aHasFocus*/, false /* aReleaseHostKey */);
             break;
         }
         case KMachineState_Stuck:

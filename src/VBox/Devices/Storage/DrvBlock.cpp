@@ -1,4 +1,4 @@
-/* $Id: DrvBlock.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvBlock.cpp 29034 2010-05-04 14:51:40Z vboxsync $ */
 /** @file
  * VBox storage devices: Generic block driver
  */
@@ -906,6 +906,11 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
     rc = CFGMR3QueryBoolDef(pCfg, "IgnoreFlush", &pThis->fIgnoreFlush, true);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"IgnoreFlush\" from the config"));
+
+    if (pThis->fIgnoreFlush)
+        LogRel(("DrvBlock: Flushes will be ignored\n"));
+    else
+        LogRel(("DrvBlock: Flushes will be passed to the disk\n"));
 #endif /* VBOX_IGNORE_FLUSH */
 
     /*

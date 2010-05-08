@@ -1,4 +1,4 @@
-/* $Id: utf-8.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: utf-8.cpp 28903 2010-04-29 14:58:12Z vboxsync $ */
 /** @file
  * IPRT - UTF-8 Decoding.
  */
@@ -51,7 +51,7 @@
  * @param   pcchActual      Where to store the actual size of the UTF-8 string
  *                          on success (cch = cb again). Optional.
  */
-static int rtUtf8Length(const char *psz, size_t cch, size_t *pcuc, size_t *pcchActual)
+int rtUtf8Length(const char *psz, size_t cch, size_t *pcuc, size_t *pcchActual)
 {
     const unsigned char *puch = (const unsigned char *)psz;
     size_t cCodePoints = 0;
@@ -315,9 +315,6 @@ RTDECL(int) RTStrValidateEncodingEx(const char *psz, size_t cch, uint32_t fFlags
             rc = VERR_BUFFER_OVERFLOW;
     }
     return rc;
-
-
-    return RTStrUniLenEx(psz, cch, &cCpsIgnored);
 }
 RT_EXPORT_SYMBOL(RTStrValidateEncodingEx);
 

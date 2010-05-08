@@ -920,6 +920,12 @@ void MainConfigFile::readMedium(MediaType t,
                 med.hdType = MediumType_Immutable;
             else if (strType == "WRITETHROUGH")
                 med.hdType = MediumType_Writethrough;
+            else if (strType == "SHAREABLE")
+            {
+                /// @todo remove check once the medium type is implemented
+                throw ConfigFileError(this, &elmMedium, N_("HardDisk/@type attribute of Shareable is not implemented yet"));
+                med.hdType = MediumType_Shareable;
+            }
             else
                 throw ConfigFileError(this, &elmMedium, N_("HardDisk/@type attribute must be one of Normal, Immutable or Writethrough"));
         }
@@ -1177,7 +1183,8 @@ void MainConfigFile::writeHardDisk(xml::ElementNode &elmMedium,
         const char *pcszType =
             mdm.hdType == MediumType_Normal ? "Normal" :
             mdm.hdType == MediumType_Immutable ? "Immutable" :
-            /*mdm.hdType == MediumType_Writethrough ?*/ "Writethrough";
+            mdm.hdType == MediumType_Writethrough ? "Writethrough" :
+            mdm.hdType == MediumType_Shareable ? "Shareable" : "INVALID";
         pelmHardDisk->setAttribute("type", pcszType);
     }
 
@@ -1374,8 +1381,10 @@ bool NetworkAdapter::operator==(const NetworkAdapter &n) const
                   && (fTraceEnabled     == n.fTraceEnabled)
                   && (strTraceFile      == n.strTraceFile)
                   && (mode              == n.mode)
+                  && (nat               == n.nat)
                   && (strName           == n.strName)
                   && (ulBootPriority    == n.ulBootPriority)
+                  && (fHasDisabledNAT   == n.fHasDisabledNAT)
                 )
            );
 }
@@ -3416,9 +3425,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
 #if defined(VBOX_WITH_VDE)
                 case NetworkAttachmentType_VDE:
-                    pelmNAT = pelmAdapter->createChild("VDE");
-                    if (nic.strName.length())
-                        pelmNAT->setAttribute("network", nic.strName);
+                    pelmAdapter->createChild("VDE")->setAttribute("network", nic.strName);
                 break;
 #endif
 
@@ -3675,6 +3682,12 @@ void MachineConfigFile::buildNetworkXML(NetworkAttachmentType_T mode,
         case NetworkAttachmentType_HostOnly:
             elmParent.createChild("HostOnlyInterface")->setAttribute("name", nic.strName);
         break;
+
+#ifdef VBOX_WITH_VDE
+        case NetworkAttachmentType_VDE:
+            elmParent.createChild("VDE")->setAttribute("network", nic.strName);
+        break;
+#endif
 
         default: /*case NetworkAttachmentType_Null:*/
         break;

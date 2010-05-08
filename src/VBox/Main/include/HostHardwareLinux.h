@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: HostHardwareLinux.h 28882 2010-04-28 23:17:52Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under Linux.
  *
@@ -175,12 +175,14 @@ typedef VBoxMainUSBDeviceInfo::USBDeviceInfo::InterfaceList USBInterfaceList;
 class VBoxMainHotplugWaiterImpl
 {
 public:
-    VBoxMainHotplugWaiterImpl (void) {}
-    virtual ~VBoxMainHotplugWaiterImpl (void) {}
+    VBoxMainHotplugWaiterImpl(void) {}
+    virtual ~VBoxMainHotplugWaiterImpl(void) {}
     /** @copydoc VBoxMainHotplugWaiter::Wait */
-    virtual int Wait (RTMSINTERVAL cMillies) = 0;
+    virtual int Wait(RTMSINTERVAL cMillies) = 0;
     /** @copydoc VBoxMainHotplugWaiter::Interrupt */
-    virtual void Interrupt (void) = 0;
+    virtual void Interrupt(void) = 0;
+    /** @copydoc VBoxMainHotplugWaiter::getStatus */
+    virtual int getStatus(void) = 0;
 };
 
 /**
@@ -223,6 +225,11 @@ public:
     void Interrupt (void)
     {
         mImpl->Interrupt();
+    }
+
+    int getStatus(void)
+    {
+        return mImpl ? mImpl->getStatus() : VERR_NO_MEMORY;
     }
 };
 

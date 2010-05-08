@@ -1,4 +1,4 @@
-/* $Id: DrvSCSI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvSCSI.cpp 29049 2010-05-04 23:17:46Z vboxsync $ */
 /** @file
  * VBox storage drivers: Generic SCSI command parser and execution driver
  */
@@ -199,7 +199,7 @@ static int drvscsiTransferCompleteNotify(PPDMIBLOCKASYNCPORT pInterface, void *p
     else if (enmTxDir == VSCSIIOREQTXDIR_WRITE)
         pThis->pLed->Actual.s.fWriting = 0;
     else
-        AssertMsgFailed(("Invalid transfer direction %u\n", enmTxDir));
+        AssertMsg(enmTxDir == VSCSIIOREQTXDIR_FLUSH, ("Invalid transfer direction %u\n", enmTxDir));
 
     ASMAtomicDecU32(&pThis->StatIoDepth);
     VSCSIIoReqCompleted(hVScsiIoReq, rc);

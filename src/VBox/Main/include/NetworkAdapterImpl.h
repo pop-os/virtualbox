@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: NetworkAdapterImpl.h 28867 2010-04-28 13:28:20Z vboxsync $ */
 
 /** @file
  *
@@ -40,14 +40,18 @@ public:
 
     struct Data
     {
-        Data() : mSlot(0), mEnabled(FALSE),
+        Data() : mSlot(0),
+                 mEnabled(FALSE),
                  mAttachmentType(NetworkAttachmentType_Null),
-                 mCableConnected(TRUE), mLineSpeed(0), mTraceEnabled(FALSE),
+                 mCableConnected(TRUE),
+                 mLineSpeed(0),
+                 mTraceEnabled(FALSE),
                  mHostInterface("") /* cannot be null */,
 #ifdef VBOX_WITH_VDE
                  mVDENetwork("") /* can be null */,
 #endif
-                 mNATNetwork("") /* cannot be null */
+                 mNATNetwork("") /* cannot be null */,
+                 mBootPriority(0)
         {}
 
         NetworkAdapterType_T mAdapterType;

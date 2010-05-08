@@ -1,10 +1,10 @@
-/* $Id: pathhost-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: pathhost-generic.cpp 28919 2010-04-29 18:34:08Z vboxsync $ */
 /** @file
- * IPRT - Path Convertions, generic.
+ * IPRT - Path Convertions, generic pass through.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,39 +29,53 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_PATH
-#include <iprt/string.h>
 #include "internal/iprt.h"
-
 #include "internal/path.h"
 
+#include <iprt/assert.h>
+#include <iprt/string.h>
 
-int rtPathToNative(char **ppszNativePath, const char *pszPath)
-{
-    return RTStrUtf8ToCurrentCP(ppszNativePath, pszPath);
-}
 
-int rtPathToNativeEx(char **ppszNativePath, const char *pszPath, const char *pszBasePath)
+int rtPathToNative(char const **ppszNativePath, const char *pszPath, const char *pszBasePath)
 {
-    NOREF(pszBasePath);
-    return RTStrUtf8ToCurrentCP(ppszNativePath, pszPath);
-}
-
-void rtPathFreeNative(char *pszNativePath)
-{
-    if (pszNativePath)
-        RTStrFree(pszNativePath);
+    *ppszNativePath = pszPath;
+    NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
+    return VINF_SUCCESS;
 }
 
 
-int rtPathFromNative(char **pszPath, const char *pszNativePath)
+void rtPathFreeNative(char const *pszNativePath, const char *pszPath)
 {
-    return RTStrCurrentCPToUtf8(pszPath, pszNativePath);
+    Assert(pszNativePath == pszPath || !pszNativePath);
+    NOREF(pszNativePath); NOREF(pszPath);
 }
 
 
-int rtPathFromNativeEx(char **pszPath, const char *pszNativePath, const char *pszBasePath)
+int rtPathFromNative(const char **ppszPath, const char *pszNativePath, const char *pszBasePath)
 {
-    NOREF(pszBasePath);
-    return RTStrCurrentCPToUtf8(pszPath, pszNativePath);
+    int rc = RTStrValidateEncodingEx(pszNativePath, RTSTR_MAX, 0 /*fFlags*/);
+    if (RT_SUCCESS(rc))
+        *ppszPath = pszNativePath;
+    else
+        *ppszPath = NULL;
+    NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
+    return rc;
+}
+
+
+void rtPathFreeIprt(const char *pszPath, const char *pszNativePath)
+{
+    Assert(pszPath == pszNativePath || !pszPath);
+    NOREF(pszPath); NOREF(pszNativePath);
+}
+
+
+int rtPathFromNativeCopy(char *pszPath, size_t cbPath, const char *pszNativePath, const char *pszBasePath)
+{
+    int rc = RTStrValidateEncodingEx(pszNativePath, RTSTR_MAX, 0 /*fFlags*/);
+    if (RT_SUCCESS(rc))
+        rc = RTStrCopy(pszPath, cbPath, pszNativePath);
+    NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
+    return rc;
 }
 

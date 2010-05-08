@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowSeamless.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIMachineWindowSeamless.cpp 29133 2010-05-06 11:20:42Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -26,7 +26,9 @@
 
 /* Local includes */
 #include "VBoxGlobal.h"
-#include "VBoxMiniToolBar.h"
+#ifndef Q_WS_MAC
+# include "VBoxMiniToolBar.h"
+#endif /* Q_WS_MAC */
 
 #include "UIActionsPool.h"
 #include "UIMachineLogic.h"
@@ -43,7 +45,9 @@ UIMachineWindowSeamless::UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, 
     : QIWithRetranslateUI2<QMainWindow>(0, Qt::FramelessWindowHint)
     , UIMachineWindow(pMachineLogic, uScreenId)
     , m_pMainMenu(0)
+#ifndef Q_WS_MAC
     , m_pMiniToolBar(0)
+#endif /* Q_WS_MAC */
 {
     /* "This" is machine window: */
     m_pMachineWindow = this;
@@ -71,7 +75,9 @@ UIMachineWindowSeamless::UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, 
     prepareMachineView();
 
     /* Prepare mini tool-bar: */
+#ifndef Q_WS_MAC
     prepareMiniToolBar();
+#endif /* Q_WS_MAC */
 
     /* Retranslate fullscreen window finally: */
     retranslateUi();
@@ -129,11 +135,13 @@ void UIMachineWindowSeamless::sltPopupMainMenu()
     }
 }
 
+#ifndef Q_WS_MAC
 void UIMachineWindowSeamless::sltUpdateMiniToolBarMask()
 {
     if (m_pMiniToolBar)
         setMask(machineView()->lastVisibleRegion());
 }
+#endif /* Q_WS_MAC */
 
 void UIMachineWindowSeamless::sltTryClose()
 {
@@ -221,6 +229,7 @@ void UIMachineWindowSeamless::prepareMenu()
     m_pMainMenu = uisession()->newMenu(fMenus);
 }
 
+#ifndef Q_WS_MAC
 void UIMachineWindowSeamless::prepareMiniToolBar()
 {
     /* Get current machine: */
@@ -239,8 +248,12 @@ void UIMachineWindowSeamless::prepareMiniToolBar()
         m_pMiniToolBar->setSeamlessMode(true);
         m_pMiniToolBar->updateDisplay(true, true);
         QList<QMenu*> menus;
-        menus << uisession()->actionsPool()->action(UIActionIndex_Menu_Machine)->menu();
-        menus << uisession()->actionsPool()->action(UIActionIndex_Menu_Devices)->menu();
+        UIMainMenuType fMenu = UIMainMenuType(UIMainMenuType_Machine | UIMainMenuType_Devices);
+        if (QApplication::desktop()->numScreens() > 1)
+            fMenu = UIMainMenuType(fMenu | UIMainMenuType_View);
+        QList<QAction*> actions = uisession()->newMenu(fMenu)->actions();
+        for (int i=0; i < actions.size(); ++i)
+            menus << actions.at(i)->menu();
         *m_pMiniToolBar << menus;
         connect(m_pMiniToolBar, SIGNAL(exitAction()),
                 uisession()->actionsPool()->action(UIActionIndex_Toggle_Seamless), SLOT(trigger()));
@@ -249,6 +262,7 @@ void UIMachineWindowSeamless::prepareMiniToolBar()
         connect(m_pMiniToolBar, SIGNAL(geometryUpdated()), this, SLOT(sltUpdateMiniToolBarMask()));
     }
 }
+#endif /* Q_WS_MAC */
 
 void UIMachineWindowSeamless::prepareMachineView()
 {
@@ -291,6 +305,7 @@ void UIMachineWindowSeamless::loadWindowSettings()
 
 void UIMachineWindowSeamless::saveWindowSettings()
 {
+#ifndef Q_WS_MAC
     /* Get machine: */
     CMachine machine = session().GetConsole().GetMachine();
 
@@ -300,6 +315,7 @@ void UIMachineWindowSeamless::saveWindowSettings()
         if (m_pMiniToolBar)
             machine.SetExtraData(VBoxDefs::GUI_MiniToolBarAutoHide, m_pMiniToolBar->isAutoHide() ? QString() : "off");
     }
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineWindowSeamless::cleanupMachineView()
@@ -324,6 +340,7 @@ void UIMachineWindowSeamless::updateAppearanceOf(int iElement)
     UIMachineWindow::updateAppearanceOf(iElement);
 
     /* If mini tool-bar is present: */
+#ifndef Q_WS_MAC
     if (m_pMiniToolBar)
     {
         /* Get machine: */
@@ -338,6 +355,7 @@ void UIMachineWindowSeamless::updateAppearanceOf(int iElement)
         /* Update mini tool-bar text: */
         m_pMiniToolBar->setDisplayText(machine.GetName() + strSnapshotName);
     }
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineWindowSeamless::showSeamless()
@@ -368,24 +386,19 @@ void UIMachineWindowSeamless::setMask(const QRegion &constRegion)
 #endif
 
     /* Mini tool-bar: */
+#ifndef Q_WS_MAC
     if (m_pMiniToolBar)
     {
         /* Get mini-toolbar mask: */
         QRegion toolBarRegion(m_pMiniToolBar->mask());
 
-        /* Shift mask according global position: */
-        toolBarRegion.translate(m_pMiniToolBar->mapToGlobal(toolBarRegion.boundingRect().topLeft()) - QPoint(1, 0));
-
-        /* Shift mask according available geometry: */
-        int iScreen = static_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
-        QRect screenArea = QApplication::desktop()->screenGeometry(iScreen);
-        QRect workingArea = vboxGlobal().availableGeometry(iScreen);
-        QPoint workingAreaOffset(screenArea.topLeft() - workingArea.topLeft());
-        toolBarRegion.translate(workingAreaOffset);
+        /* Move mini-toolbar mask to mini-toolbar position: */
+        toolBarRegion.translate(QPoint(m_pMiniToolBar->x(), m_pMiniToolBar->y()));
 
         /* Including mini tool-bar mask: */
         region += toolBarRegion;
     }
+#endif /* Q_WS_MAC */
 
 #if 0 // TODO: Is it really needed now?
     /* Restrict the drawing to the available space on the screen.

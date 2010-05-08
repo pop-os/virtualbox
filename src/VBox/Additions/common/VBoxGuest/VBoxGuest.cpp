@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxGuest.cpp 29046 2010-05-04 20:42:39Z vboxsync $ */
 /** @file
  * VBoxGuest - Guest Additions Driver, Common Code.
  */
@@ -33,6 +33,10 @@
 #include <iprt/param.h>
 #ifdef VBOX_WITH_HGCM
 # include <iprt/thread.h>
+#endif
+#include "version-generated.h"
+#if defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
+# include "revision-generated.h"
 #endif
 
 
@@ -271,6 +275,26 @@ static int vboxGuestInitReportGuestInfo(PVBOXGUESTDEVEXT pDevExt, VBOXOSTYPE enm
             LogRel(("vboxGuestInitReportGuestInfo: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
                     rc, pReq->header.rc));
         VbglGRFree(&pReq->header);
+    }
+    VMMDevReportGuestInfo2 *pReq2;
+    if (RT_SUCCESS(rc))
+        rc = VbglGRAlloc((VMMDevRequestHeader **)&pReq2, sizeof(*pReq2), VMMDevReq_ReportGuestInfo2);
+    if (RT_SUCCESS(rc))
+    {
+        pReq2->guestInfo.additionsMajor = VBOX_VERSION_MAJOR;
+        pReq2->guestInfo.additionsMinor = VBOX_VERSION_MINOR;
+        pReq2->guestInfo.additionsBuild = VBOX_VERSION_BUILD;
+        pReq2->guestInfo.additionsRevision = VBOX_SVN_REV;
+        pReq2->guestInfo.additionsFeatures = 0;
+        RTStrCopy(pReq2->guestInfo.szName, sizeof(pReq2->guestInfo.szName), VBOX_VERSION_STRING);
+        rc = VbglGRPerform(&pReq2->header);
+        if (rc == VERR_NOT_IMPLEMENTED) /* compatibility with older hosts */
+            rc = VINF_SUCCESS;
+        if (    RT_FAILURE(rc)
+            ||  RT_FAILURE(pReq2->header.rc))
+            LogRel(("vboxGuestInitReportGuestInfo2: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
+                    rc, pReq2->header.rc));
+        VbglGRFree(&pReq2->header);
     }
     return rc;
 }

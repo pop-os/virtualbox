@@ -1,4 +1,4 @@
-/* $Id: ovfreader.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ovfreader.h 29087 2010-05-05 14:20:30Z vboxsync $ */
 /** @file
  * OVF reader declarations.
  *
@@ -155,7 +155,7 @@ struct DiskImage
                                     // (actual used size of disk, always in bytes; can be an estimate of used disk
                                     // space, but cannot be larger than iCapacity; -1 if not set)
     iprt::MiniString strFormat;              // value from DiskSection/Disk/@format
-                // typically http://www.vmware.com/specifications/vmdk.html#sparse
+                // typically http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized
     iprt::MiniString uuidVbox;      // optional; if the file was exported by VirtualBox >= 3.2,
                                     // then this has the UUID with which the disk was registered
 
@@ -256,7 +256,10 @@ struct HardDiskController
     enum ControllerSystemType { IDE, SATA, SCSI };
     ControllerSystemType    system;             // one of IDE, SATA, SCSI
 
-    iprt::MiniString        strControllerType;  // controller subtype (Item/ResourceSubType); e.g. "LsiLogic"; can be empty (esp. for IDE)
+    iprt::MiniString        strControllerType;
+            // controller subtype (Item/ResourceSubType); e.g. "LsiLogic"; can be empty (esp. for IDE)
+            // note that we treat LsiLogicSAS as a SCSI controller (system == SCSI) even though VirtualBox
+            // treats it as a fourth class besides IDE, SATA, SCSI
 
     uint32_t                ulAddress;          // controller index; this is determined heuristically by the OVF reader and will
                                                 // be 0 for the first controller of this type (e.g. IDE primary ctler), 1 for the
