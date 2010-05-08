@@ -1,4 +1,4 @@
 /usr/src/virtualbox-ose-guest-CVERSION/r0drv /usr/src/virtualbox-ose-guest-CVERSION/vboxguest/r0drv
-/usr/src/virtualbox-ose-guest-CVERSION/r0drv /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs/r0drv
+/usr/src/virtualbox-ose-guest-CVERSION/r0drv /usr/src/virtualbox-ose-guest-CVERSION/vboxsf/r0drv
 /usr/src/virtualbox-ose-guest-CVERSION/include /usr/src/virtualbox-ose-guest-CVERSION/vboxguest/include
-/usr/src/virtualbox-ose-guest-CVERSION/include /usr/src/virtualbox-ose-guest-CVERSION/vboxvfs/include
+/usr/src/virtualbox-ose-guest-CVERSION/include /usr/src/virtualbox-ose-guest-CVERSION/vboxsf/include
