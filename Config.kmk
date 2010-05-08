@@ -1,4 +1,4 @@
-# $Id: Config.kmk 28857 2010-04-27 20:13:47Z vboxsync $
+# $Id: Config.kmk 29195 2010-05-07 10:17:14Z vboxsync $
 ## @file
 # The global build configuration file for VBox.
 #
@@ -152,12 +152,13 @@ VBOX_VERSION_MINOR = 2
 # will be published, odd numbers are set during development.
 VBOX_VERSION_BUILD = 0
 # Full version string (may include more than just x.y.z, but no spaces or other problematic chars).
-VBOX_VERSION_STRING = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)_BETA1
+VBOX_VERSION_STRING = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)_BETA2
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
  export VBOX_ADDITIONS_SH_MODE = release
  export VBOX_DOCUMENTATION_SH_MODE = release
+ export VBOX_EFI_SH_MODE = release
 endif
 
 # Some info on the vendor
@@ -173,6 +174,7 @@ VBOX_PRODUCT = Oracle VM VirtualBox
 # 	src/VBox/Frontends/VirtualBox/nls/*.ts
 # 	debian/control
 # 	src/VBox/Installer/linux/{debian,rpm}
+# 	src/VBox/Installer/linux/virtualbox.desktop
 # 	src/VBox/Additions/WINNT/Installer/ISO/ReadmeDrivers.txt
 
 # Maybe we want set this manually.
@@ -378,8 +380,9 @@ endif
 # Enable the hal/sysfs USB code on Linux.
 ifeq ($(KBUILD_TARGET),linux)
  VBOX_USB_WITH_SYSFS=1
- VBOX_USB_WITH_DBUS=1
- VBOX_USB_WITH_FAM=1
+ # Disabled for now
+ # VBOX_USB_WITH_DBUS=1
+ VBOX_USB_WITH_INOTIFY=1
 endif
 # Use the new VBI module on Solaris.
 #VBOX_WITH_SOLARIS_VBI = 1
@@ -457,6 +460,12 @@ VBOX_WITH_VBOXBFE = 1
 #VBOX_WITH_VBOXFB = 1
 # Enables the Python<->XPCOM and Python<->COM bindings.
 VBOX_WITH_PYTHON ?= 1
+if1of ($(KBUILD_TARGET), darwin)
+ # Enable Java<->XPCOM bridge
+ VBOX_WITH_JXPCOM ?= 1
+endif
+# Use XPIDL instead of genjifaces.
+VBOX_WITH_JAVA_SUPPORT_IN_XPIDL ?= 1
 # Build against multiple Python versions present in the system
 VBOX_WITH_MULTIVERSION_PYTHON ?= 1
 # Enable the kchmviewer.
@@ -590,6 +599,9 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  if1of ($(KBUILD_TARGET), darwin freebsd linux solaris)
   VBOX_WITH_NETADP = 1
  endif
+endif
+if1of ($(KBUILD_TARGET), freebsd linux)
+ VBOX_WITH_VDE = 1
 endif
 ## @}
 
@@ -804,8 +816,6 @@ ifdef VBOX_OSE
  if1of ($(KBUILD_TARGET), solaris)
   VBOX_WITH_NEW_USB_CODE_ON_SOLARIS=
  endif
- VBOX_WITH_LPC=
- VBOX_WITH_SMC=
  VBOX_USB_WITH_SYSFS=
  # branding
  VBOX_BRAND_BIOS_LOGO          := $(PATH_ROOT)/src/VBox/Devices/Graphics/BIOS/ose_logo.bmp
@@ -1238,11 +1248,11 @@ ifeq ($(KBUILD_TYPE),debug)
  VBOX_GCC_OPT    ?= -O0
  VBOX_VCC_FP     ?= -Oy-
  VBOX_VCC_OPT    ?=
- VBOX_GCC_R0_FP  ?= -fno-omit-frame-pointer
+ VBOX_GCC_R0_FP  ?= -fno-omit-frame-pointer -fno-optimize-sibling-calls
  VBOX_GCC_R0_OPT ?= -O2
  VBOX_VCC_R0_FP  ?= -Oy-
  VBOX_VCC_R0_OPT ?=
- VBOX_GCC_GC_FP  ?= -fno-omit-frame-pointer
+ VBOX_GCC_GC_FP  ?= -fno-omit-frame-pointer -fno-optimize-sibling-calls
  VBOX_GCC_GC_OPT ?= -O2
  VBOX_VCC_GC_FP  ?= -Oy-
  VBOX_VCC_GC_OPT ?=
@@ -2926,6 +2936,18 @@ ifeq ($(KBUILD_TARGET),win)
 endif
 
 #
+# Ring-3 testcase (no -pedantic)
+#
+TEMPLATE_VBOXR3TSTNPEXE  = VBox Ring 3 Testcase Exe Non-pedantic
+TEMPLATE_VBOXR3TSTNPEXE_EXTENDS = VBOXR3TSTEXE
+ifneq ($(KBUILD_TARGET),win) # (only gcc)
+ TEMPLATE_VBOXR3TSTNPEXE_TOOL             = $(VBOX_GCC_TOOL)
+ TEMPLATE_VBOXR3TSTNPEXE_CXXFLAGS         = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3TSTEXE_CXXFLAGS)) -Wno-sign-compare
+ TEMPLATE_VBOXR3TSTNPEXE_CFLAGS           = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3TSTEXE_CFLAGS)) -Wno-sign-compare
+endif
+
+
+#
 # Template for the CppUnit kind of testcases.
 #
 TEMPLATE_VBOXCPPUNITEXE  = VBox CppUnit Testcase Exe
@@ -2942,30 +2964,22 @@ TEMPLATE_VBOXCPPUNITEXE_LIBS = \
 TEMPLATE_VBOXR3NPEXE                     = VBox Ring 3 Non-pedantic
 TEMPLATE_VBOXR3NPEXE_EXTENDS             = VBOXR3EXE
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
- TEMPLATE_VBOXR3NPEXE_TOOL                = $(VBOX_GCC_TOOL)
- TEMPLATE_VBOXR3NPEXE_CXXFLAGS            = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -Wno-sign-compare
- TEMPLATE_VBOXR3NPEXE_CFLAGS              = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3EXE_CFLAGS)) -Wno-sign-compare
+ TEMPLATE_VBOXR3NPEXE_TOOL               = $(VBOX_GCC_TOOL)
+ TEMPLATE_VBOXR3NPEXE_CXXFLAGS           = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -Wno-sign-compare
+ TEMPLATE_VBOXR3NPEXE_CFLAGS             = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3EXE_CFLAGS)) -Wno-sign-compare
 endif
 
 
 #
 # Template for building bad C/C++ style R3 shared libraries / Dlls (no -pedantic).
-# This is mostly identical to the VBOXR3NPEXE template.
+# (Same transformation as for VBOXR3NPEXE.)
 #
 TEMPLATE_VBOXR3NP= VBox Ring 3 Non-pedantic
-TEMPLATE_VBOXR3NP_EXTENDS = VBOXR3NPEXE
-TEMPLATE_VBOXR3NP_LDFLAGS.l4 = \
-	$(L4_LIBDIR)/../crt0.s.o \
-	-T$(L4_LIBDIR)/../main_rel.ld \
-	-nostdlib
-TEMPLATE_VBOXR3NP_DEFS.l4 = $(TEMPLATE_VBOXR3NPEXE_DEFS.l4) __PIC__
-ifeq ($(filter-out solaris.x86 %.amd64,$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)),)
- ifneq ($(KBUILD_TARGET),win)
-  TEMPLATE_VBOXR3NP_DEFS = $(TEMPLATE_VBOXR3NPEXE_DEFS) PIC
-  TEMPLATE_VBOXR3NP_CFLAGS = $(TEMPLATE_VBOXR3NPEXE_CFLAGS) -fPIC
-  TEMPLATE_VBOXR3NP_CXXFLAGS = $(TEMPLATE_VBOXR3NPEXE_CXXFLAGS) -fPIC
-  TEMPLATE_VBOXR3NP_LDFLAGS = $(TEMPLATE_VBOXR3NPEXE_LDFLAGS) -fPIC
- endif
+TEMPLATE_VBOXR3NP_EXTENDS = VBOXR3
+ifneq ($(KBUILD_TARGET),win) # (only gcc)
+ TEMPLATE_VBOXR3NP_TOOL                  = $(VBOX_GCC_TOOL)
+ TEMPLATE_VBOXR3NP_CXXFLAGS              = $(filter-out -pedantic -Wshadow,$(TEMPLATE_VBOXR3_CXXFLAGS)) -Wno-sign-compare
+ TEMPLATE_VBOXR3NP_CFLAGS                = $(filter-out -pedantic -Wshadow -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations,$(TEMPLATE_VBOXR3_CFLAGS)) -Wno-sign-compare
 endif
 
 
@@ -3110,7 +3124,7 @@ TEMPLATE_VBOXMAINEXE_CFLAGS.kprofile     = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprof
 TEMPLATE_VBOXMAINEXE_LDFLAGS.x86         = -m32
 TEMPLATE_VBOXMAINEXE_LDFLAGS.amd64       = -m64
  ifeq ($(KBUILD_TARGET),linux)
-TEMPLATE_VBOXMAINEXE_LIBS                = pthread m rt $(LIB_RUNTIME)
+TEMPLATE_VBOXMAINEXE_LIBS                = pthread m rt $(LIB_RUNTIME) dl
 TEMPLATE_VBOXMAINEXE_LDFLAGS.linux       = $(VBOX_LD_as_needed)
  else ifeq ($(KBUILD_TARGET),l4)
 TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME)
@@ -4086,7 +4100,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 28857 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 29195 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -4123,6 +4137,15 @@ $(VBOX_SVN_REV_KMK):
 	$(QUIET)echo '* $(VBOX_SVN_REV_KMK) was externally overwritten:'
 	$(QUIET)$(CAT) $(VBOX_SVN_REV_KMK)
 endif
+
+# only needed for VBoxGuest for Linux/FreeBSD guests
+VBOX_SVN_REV_HEADER = $(PATH_OUT)/revision-generated.h
+$(VBOX_SVN_REV_HEADER): $(VBOX_SVN_REV_KMK)
+	$(call MSG_GENERATE,,$@)
+	$(QUIET)$(RM) -f $@ $@.tmp
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(APPEND) $@.tmp '#define VBOX_SVN_REV $(VBOX_SVN_REV)'
+	$(QUIET)$(MV) -f $@.tmp $@
 
 #
 # Shared definitions of the XIDL file to use as a source for

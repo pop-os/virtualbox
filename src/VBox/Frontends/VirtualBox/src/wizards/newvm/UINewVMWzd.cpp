@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp 28825 2010-04-27 13:50:46Z vboxsync $ */
+/* $Id: UINewVMWzd.cpp 29002 2010-05-04 11:14:34Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -40,7 +40,6 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("DOS", Qt::CaseInsensitive), "DOS" },
 
     /* Windows */
-    { QRegExp("Wi.*3", Qt::CaseInsensitive), "Windows31" },
     { QRegExp("Wi.*98", Qt::CaseInsensitive), "Windows98" },
     { QRegExp("Wi.*95", Qt::CaseInsensitive), "Windows95" },
     { QRegExp("Wi.*Me", Qt::CaseInsensitive), "WindowsMe" },
@@ -56,6 +55,7 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("(Wi.*2)|(W2K)", Qt::CaseInsensitive), "Windows2000" },
     { QRegExp("Wi.*7.*64", Qt::CaseInsensitive), "Windows7_64" },
     { QRegExp("Wi.*7", Qt::CaseInsensitive), "Windows7" },
+    { QRegExp("Wi.*3", Qt::CaseInsensitive), "Windows31" },
     { QRegExp("Wi", Qt::CaseInsensitive), "WindowsXP" },
 
     /* Solaris */
@@ -100,8 +100,8 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("Ub", Qt::CaseInsensitive), "Ubuntu" },
     { QRegExp("Xa.*64", Qt::CaseInsensitive), "Xandros_64" },
     { QRegExp("Xa", Qt::CaseInsensitive), "Xandros" },
-    { QRegExp("Or.*64", Qt::CaseInsensitive), "Oracle_64" },
-    { QRegExp("Or", Qt::CaseInsensitive), "Oracle" },
+    { QRegExp("((Or)|(oel)).*64", Qt::CaseInsensitive), "Oracle_64" },
+    { QRegExp("(Or)|(oel)", Qt::CaseInsensitive), "Oracle" },
     { QRegExp("((Li)|(lnx)).*2.?2", Qt::CaseInsensitive), "Linux22" },
     { QRegExp("((Li)|(lnx)).*2.?4.*64", Qt::CaseInsensitive), "Linux24_64" },
     { QRegExp("((Li)|(lnx)).*2.?4", Qt::CaseInsensitive), "Linux24" },
@@ -665,51 +665,43 @@ bool UINewVMWzdPage5::constructMachine()
         usbController.SetEnabledEhci(true);
     }
 
-    /* Create default storage controllers */
+    /* Create recommended DVD storage controller */
     QString ctrDvdName = VBoxVMSettingsHD::tr("Storage Controller");
     KStorageBus ctrDvdBus = type.GetRecommendedDvdStorageBus();
-
-    // Add IDE storage controller
     m_Machine.AddStorageController(ctrDvdName, ctrDvdBus);
 
-    // Set DVD storage controller type
+    /* Set recommended DVD storage controller type */
     CStorageController dvdCtr = m_Machine.GetStorageControllerByName(ctrDvdName);
     KStorageControllerType dvdStorageControllerType = type.GetRecommendedDvdStorageController();
     dvdCtr.SetControllerType(dvdStorageControllerType);
 
-    // Create a storage controller for harddisks if this is not the same as the DVD controller
+    /* Create recommended HD storage controller if it's not the same as the DVD controller */
     KStorageBus ctrHdBus = type.GetRecommendedHdStorageBus();
     KStorageControllerType hdStorageControllerType = type.GetRecommendedHdStorageController();
     CStorageController hdCtr;
     QString ctrHdName;
-
-    if (   ctrHdBus != ctrDvdBus
-        && hdStorageControllerType != dvdStorageControllerType)
+    if (ctrHdBus != ctrDvdBus || hdStorageControllerType != dvdStorageControllerType)
     {
         ctrHdName = VBoxVMSettingsHD::tr("Storage Controller 1");
         m_Machine.AddStorageController(ctrHdName, ctrHdBus);
         hdCtr = m_Machine.GetStorageControllerByName(ctrHdName);
         hdCtr.SetControllerType(hdStorageControllerType);
-
-        // Disable the I/O cache if this is not a IDE controller.
-        if (ctrHdBus != KStorageBus_IDE)
-            hdCtr.SetIoBackend(KIoBackendType_Unbuffered);
     }
     else
     {
-        // The Hard disk controller is the same
+        /* The HD controller is the same as DVD */
         hdCtr = dvdCtr;
         ctrHdName = ctrDvdName;
     }
 
-    // Turn on PAE, if recommended
+    /* Turn on PAE, if recommended */
     m_Machine.SetCPUProperty(KCPUPropertyType_PAE, type.GetRecommendedPae());
 
-    // Set recommended firmware type
+    /* Set recommended firmware type */
     KFirmwareType fwType = type.GetRecommendedFirmware();
     m_Machine.SetFirmwareType(fwType);
 
-    // Set recommended human interface device types
+    /* Set recommended human interface device types */
     if (type.GetRecommendedUsbHid())
     {
         m_Machine.SetKeyboardHidType(KKeyboardHidType_USBKeyboard);
@@ -725,10 +717,10 @@ bool UINewVMWzdPage5::constructMachine()
             usbController.SetEnabled(true);
     }
 
-    // Set HPET flag
+    /* Set HPET flag */
     m_Machine.SetHpetEnabled(type.GetRecommendedHpet());
 
-    // Set UTC flags
+    /* Set UTC flags */
     m_Machine.SetRTCUseUTC(type.GetRecommendedRtcUseUtc());
 
     /* Register the VM prior to attaching hard disks */
@@ -748,7 +740,7 @@ bool UINewVMWzdPage5::constructMachine()
         {
             CMachine m = session.GetMachine();
 
-            /* Boot hard disk (IDE Primary Master) */
+            /* Boot hard disk */
             if (!field("hardDiskId").toString().isNull())
             {
                 m.AttachDevice(ctrHdName, 0, 0, KDeviceType_HardDisk, field("hardDiskId").toString());

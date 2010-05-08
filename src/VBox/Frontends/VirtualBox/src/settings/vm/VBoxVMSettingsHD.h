@@ -308,6 +308,8 @@ public:
     QStringList ctrAllMediumIds (bool aShowDiffs) const;
     QStringList ctrUsedMediumIds() const;
 
+    void setAttachments(const QList<AbstractItem*> &attachments) { mAttachments = attachments; }
+
 private:
 
     ItemType rtti() const;
@@ -332,7 +334,7 @@ class AttachmentItem : public AbstractItem
 {
 public:
 
-    AttachmentItem (AbstractItem *aParent, KDeviceType aDeviceType, bool aVerbose);
+    AttachmentItem (AbstractItem *aParent, KDeviceType aDeviceType);
 
     StorageSlot attSlot() const;
     SlotsList attSlots() const;
@@ -480,10 +482,13 @@ public:
     QModelIndex addController (const QString &aCtrName, KStorageBus aBusType, KStorageControllerType aCtrType);
     void delController (const QUuid &aCtrId);
 
-    QModelIndex addAttachment (const QUuid &aCtrId, KDeviceType aDeviceType, bool aVerbose);
+    QModelIndex addAttachment (const QUuid &aCtrId, KDeviceType aDeviceType);
     void delAttachment (const QUuid &aCtrId, const QUuid &aAttId);
 
     void setMachineId (const QString &aMachineId);
+
+    void sort(int iColumn = 0, Qt::SortOrder order = Qt::AscendingOrder);
+    QModelIndex attachmentBySlot(QModelIndex controllerIndex, StorageSlot attachmentStorageSlot);
 
 private:
 

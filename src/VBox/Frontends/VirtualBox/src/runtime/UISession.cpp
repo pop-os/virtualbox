@@ -1,4 +1,4 @@
-/* $Id: UISession.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UISession.cpp 29014 2010-05-04 13:17:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -168,6 +168,7 @@ private:
 };
 
 /* Serial port change event: */
+/* Not used:
 class UISerialPortChangeEvent : public QEvent
 {
 public:
@@ -182,8 +183,10 @@ private:
 
     const CSerialPort m_serialPort;
 };
+*/
 
 /* Parallel port change event: */
+/* Not used:
 class UIParallelPortChangeEvent : public QEvent
 {
 public:
@@ -198,8 +201,10 @@ private:
 
     const CParallelPort m_parallelPort;
 };
+*/
 
 /* Storage controller change event: */
+/* Not used:
 class UIStorageControllerChangeEvent : public QEvent
 {
 public:
@@ -207,6 +212,7 @@ public:
     UIStorageControllerChangeEvent()
         : QEvent((QEvent::Type)UIConsoleEventType_StorageControllerChange) {}
 };
+*/
 
 /* Storage medium change event: */
 class UIMediumChangeEvent : public QEvent
@@ -224,6 +230,7 @@ private:
 };
 
 /* CPU change event: */
+/* Not used:
 class UICPUChangeEvent : public QEvent
 {
 public:
@@ -240,8 +247,10 @@ private:
     ulong m_uCPU;
     bool m_bRemove;
 };
+*/
 
 /* VRDP server change event: */
+/* Not used:
 class UIVRDPServerChangeEvent : public QEvent
 {
 public:
@@ -249,8 +258,10 @@ public:
     UIVRDPServerChangeEvent()
         : QEvent((QEvent::Type)UIConsoleEventType_VRDPServerChange) {}
 };
+*/
 
 /* Remote display info change event: */
+/* Not used:
 class UIRemoteDisplayInfoChangeEvent : public QEvent
 {
 public:
@@ -258,6 +269,7 @@ public:
     UIRemoteDisplayInfoChangeEvent()
         : QEvent((QEvent::Type)UIConsoleEventType_RemoteDisplayInfoChange) {}
 };
+*/
 
 /* USB controller change event: */
 class UIUSBControllerChangeEvent : public QEvent
@@ -318,6 +330,7 @@ private:
 };
 
 /* Can show window event: */
+/* Not used:
 class UICanUIShowWindowEvent : public QEvent
 {
 public:
@@ -325,8 +338,10 @@ public:
     UICanUIShowWindowEvent()
         : QEvent((QEvent::Type)UIConsoleEventType_CanShowWindow) {}
 };
+*/
 
 /* Show window event: */
+#ifdef Q_WS_MAC
 class UIShowWindowEvent : public QEvent
 {
 public:
@@ -334,6 +349,7 @@ public:
     UIShowWindowEvent()
         : QEvent((QEvent::Type)UIConsoleEventType_ShowWindow) {}
 };
+#endif /* Q_WS_MAC */
 
 class UIConsoleCallback : VBOX_SCRIPTABLE_IMPL(IConsoleCallback)
 {
@@ -405,22 +421,22 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnSerialPortChange)(ISerialPort *pSerialPort)
+    STDMETHOD(OnSerialPortChange)(ISerialPort * /* pSerialPort */)
     {
-        QApplication::postEvent(m_pEventHandler, new UISerialPortChangeEvent(CSerialPort(pSerialPort)));
-        return S_OK;
+        /* Not used: QApplication::postEvent(m_pEventHandler, new UISerialPortChangeEvent(CSerialPort(pSerialPort))); */
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
-    STDMETHOD(OnParallelPortChange)(IParallelPort *pParallelPort)
+    STDMETHOD(OnParallelPortChange)(IParallelPort * /* pParallelPort */)
     {
-        QApplication::postEvent(m_pEventHandler, new UIParallelPortChangeEvent(CParallelPort(pParallelPort)));
-        return S_OK;
+        /* Not used: QApplication::postEvent(m_pEventHandler, new UIParallelPortChangeEvent(CParallelPort(pParallelPort))); */
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnStorageControllerChange)()
     {
-        QApplication::postEvent(m_pEventHandler, new UIStorageControllerChangeEvent);
-        return S_OK;
+        /* Not used: QApplication::postEvent(m_pEventHandler, new UIStorageControllerChangeEvent); */
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnMediumChange)(IMediumAttachment *pMediumAttachment)
@@ -429,22 +445,22 @@ public:
         return S_OK;
     }
 
-    STDMETHOD(OnCPUChange)(ULONG uCPU, BOOL bRemove)
+    STDMETHOD(OnCPUChange)(ULONG /* uCPU */, BOOL /* bRemove */)
     {
-        QApplication::postEvent(m_pEventHandler, new UICPUChangeEvent(uCPU, bRemove));
-        return S_OK;
+        /* Not used: QApplication::postEvent(m_pEventHandler, new UICPUChangeEvent(uCPU, bRemove)); */
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnVRDPServerChange)()
     {
-        QApplication::postEvent(m_pEventHandler, new UIVRDPServerChangeEvent);
-        return S_OK;
+        /* Not used: QApplication::postEvent(m_pEventHandler, new UIVRDPServerChangeEvent); */
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnRemoteDisplayInfoChange)()
     {
-        QApplication::postEvent(m_pEventHandler, new UIRemoteDisplayInfoChangeEvent);
-        return S_OK;
+        /* Not used: QApplication::postEvent(m_pEventHandler, new UIRemoteDisplayInfoChangeEvent); */
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnUSBControllerChange)()
@@ -486,7 +502,7 @@ public:
         if (!puWinId)
             return E_POINTER;
 
-#if defined (Q_WS_MAC)
+#ifdef Q_WS_MAC
         /* Let's try the simple approach first - grab the focus.
          * Getting a window out of the dock (minimized or whatever it's called)
          * needs to be done on the GUI thread, so post it a note: */
@@ -503,10 +519,10 @@ public:
              * focus stealing restrictions that other window managers implement). */
             *puWinId = ::darwinGetCurrentProcessId();
         }
-#else
+#else /* Q_WS_MAC */
         /* Return the ID of the top-level console window. */
         *puWinId = (ULONG64)m_pEventHandler->winId();
-#endif
+#endif /* !Q_WS_MAC */
 
         return S_OK;
     }
@@ -1040,25 +1056,31 @@ bool UISession::event(QEvent *pEvent)
             return true;
         }
 
+        /* Not used:
         case UIConsoleEventType_SerialPortChange:
         {
             UISerialPortChangeEvent *pConsoleEvent = static_cast<UISerialPortChangeEvent*>(pEvent);
             emit sigSerialPortChange(pConsoleEvent->serialPort());
             return true;
         }
+        */
 
+        /* Not used:
         case UIConsoleEventType_ParallelPortChange:
         {
             UIParallelPortChangeEvent *pConsoleEvent = static_cast<UIParallelPortChangeEvent*>(pEvent);
             emit sigParallelPortChange(pConsoleEvent->parallelPort());
             return true;
         }
+        */
 
+        /* Not used:
         case UIConsoleEventType_StorageControllerChange:
         {
             emit sigStorageControllerChange();
             return true;
         }
+        */
 
         case UIConsoleEventType_MediumChange:
         {
@@ -1067,24 +1089,30 @@ bool UISession::event(QEvent *pEvent)
             return true;
         }
 
+        /* Not used:
         case UIConsoleEventType_CPUChange:
         {
             UICPUChangeEvent *pConsoleEvent = static_cast<UICPUChangeEvent*>(pEvent);
             emit sigCPUChange(pConsoleEvent->cpu(), pConsoleEvent->remove());
             return true;
         }
+        */
 
+        /* Not used:
         case UIConsoleEventType_VRDPServerChange:
         {
             emit sigVRDPServerChange();
             return true;
         }
+        */
 
+        /* Not used:
         case UIConsoleEventType_RemoteDisplayInfoChange:
         {
             emit sigRemoteDisplayInfoChange();
             return true;
         }
+        */
 
         case UIConsoleEventType_USBControllerChange:
         {
@@ -1113,21 +1141,11 @@ bool UISession::event(QEvent *pEvent)
         }
 
 #ifdef Q_WS_MAC
-        /* posted OnShowWindow */
         case UIConsoleEventType_ShowWindow:
         {
-            /* Dunno what Qt3 thinks a window that has minimized to the dock
-             * should be - it is not hidden, neither is it minimized. OTOH it is
-             * marked shown and visible, but not activated. This latter isn't of
-             * much help though, since at this point nothing is marked activated.
-             * I might have overlooked something, but I'm buggered what if I know
-             * what. So, I'll just always show & activate the stupid window to
-             * make it get out of the dock when the user wishes to show a VM. */
-#if 0
-            // TODO_NEW_CORE
-            window()->show();
-            window()->activateWindow();
-#endif
+            emit sigShowWindows();
+            /* Accept event: */
+            pEvent->accept();
             return true;
         }
 #endif
@@ -1452,13 +1470,14 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 void UISession::reinitMenuPool()
 {
     /* Get uisession machine: */
-    CMachine machine = session().GetConsole().GetMachine();
+    const CMachine &machine = session().GetConsole().GetMachine();
 
     /* Availability settings: */
     {
         /* USB Stuff: */
-        CUSBController usbController = machine.GetUSBController();
+        const CUSBController &usbController = machine.GetUSBController();
         if (   usbController.isNull()
+            || !usbController.GetEnabled()
             || !usbController.GetProxyAvailable())
         {
             /* Hide USB menu if controller is NULL or no USB proxy available: */

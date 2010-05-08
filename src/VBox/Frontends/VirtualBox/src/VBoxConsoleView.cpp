@@ -1,4 +1,4 @@
-/* $Id: VBoxConsoleView.cpp 28849 2010-04-27 17:23:12Z vboxsync $ */
+/* $Id: VBoxConsoleView.cpp 28960 2010-05-02 19:36:26Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -484,7 +484,7 @@ public:
         /* @todo */
         //QApplication::postEvent (mView,
         //    new StorageControllerChangeEvent ());
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment)
@@ -511,29 +511,29 @@ public:
     {
         NOREF(aCPU);
         NOREF(aRemove);
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnSerialPortChange) (ISerialPort *aSerialPort)
     {
         NOREF(aSerialPort);
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnParallelPortChange) (IParallelPort *aParallelPort)
     {
         NOREF(aParallelPort);
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnVRDPServerChange)()
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnRemoteDisplayInfoChange)()
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnUSBControllerChange)()

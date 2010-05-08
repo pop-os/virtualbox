@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsSystem.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVMSettingsSystem.cpp 28939 2010-04-30 14:31:54Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -117,6 +117,11 @@ int VBoxVMSettingsSystem::cpuCount() const
     return mSlCPU->value();
 }
 
+bool VBoxVMSettingsSystem::isHIDEnabled() const
+{
+    return mCbUseAbsHID->isChecked();
+}
+
 void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
 {
     mMachine = aMachine;
@@ -169,6 +174,10 @@ void VBoxVMSettingsSystem::getFrom (const CMachine &aMachine)
     /* RTC */
     bool rtcUseUTC = mMachine.GetRTCUseUTC ();
     mCbTCUseUTC->setChecked (rtcUseUTC);
+
+    /* USB tablet */
+    KPointingHidType pointingHid = mMachine.GetPointingHidType ();
+    mCbUseAbsHID->setChecked (pointingHid == KPointingHidType_USBTablet);
 
     /* CPU count */
     bool fVTxAMDVSupported = vboxGlobal().virtualBox().GetHost()
@@ -241,6 +250,9 @@ void VBoxVMSettingsSystem::putBackTo()
     /* RTC */
     mMachine.SetRTCUseUTC (mCbTCUseUTC->isChecked());
 
+    /* USB tablet */
+    mMachine.SetPointingHidType (mCbUseAbsHID->isChecked() ? KPointingHidType_USBTablet : KPointingHidType_PS2Mouse );
+
     /* RAM size */
     mMachine.SetCPUCount (mSlCPU->value());
 
@@ -260,6 +272,7 @@ void VBoxVMSettingsSystem::setValidator (QIWidgetValidator *aVal)
     mValidator = aVal;
     connect (mCbApic, SIGNAL (stateChanged (int)), mValidator, SLOT (revalidate()));
     connect (mCbVirt, SIGNAL (stateChanged (int)), mValidator, SLOT (revalidate()));
+    connect (mCbUseAbsHID, SIGNAL (stateChanged (int)), mValidator, SLOT (revalidate()));
 }
 
 bool VBoxVMSettingsSystem::revalidate (QString &aWarning, QString & /* aTitle */)

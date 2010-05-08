@@ -1,4 +1,4 @@
-/* $Id: dir-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: dir-posix.cpp 28918 2010-04-29 18:30:09Z vboxsync $ */
 /** @file
  * IPRT - Directory manipulation, POSIX.
  */
@@ -61,15 +61,15 @@
 RTDECL(bool) RTDirExists(const char *pszPath)
 {
     bool fRc = false;
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat s;
         fRc = !stat(pszNativePath, &s)
             && S_ISDIR(s.st_mode);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTDirExists(%p={%s}): returns %RTbool\n", pszPath, pszPath, fRc));
@@ -83,8 +83,8 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
     fMode = rtFsModeNormalize(fMode, pszPath, 0);
     if (rtFsModeIsValidPermissions(fMode))
     {
-        char *pszNativePath;
-        rc = rtPathToNative(&pszNativePath, pszPath);
+        char const *pszNativePath;
+        rc = rtPathToNative(&pszNativePath, pszPath, NULL);
         if (RT_SUCCESS(rc))
         {
             if (mkdir(pszNativePath, fMode & RTFS_UNIX_MASK))
@@ -109,7 +109,7 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
             }
         }
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
     else
     {
@@ -123,14 +123,14 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
 
 RTDECL(int) RTDirRemove(const char *pszPath)
 {
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         if (rmdir(pszNativePath))
             rc = RTErrConvertFromErrno(errno);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTDirRemove(%p={%s}): returns %Rrc\n", pszPath, pszPath, rc));
@@ -173,13 +173,13 @@ RTDECL(int) RTDirFlush(const char *pszPath)
 }
 
 
-int rtOpenDirNative(PRTDIR pDir, char *pszPathBuf)
+int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
 {
     /*
      * Convert to a native path and try opendir.
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pDir->pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pDir->pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         pDir->pDir = opendir(pszNativePath);
@@ -195,7 +195,7 @@ int rtOpenDirNative(PRTDIR pDir, char *pszPathBuf)
         else
             rc = RTErrConvertFromErrno(errno);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pDir->pszPath);
     }
 
     return rc;
@@ -260,13 +260,12 @@ static int rtDirReadMore(PRTDIR pDir)
                 return VERR_NO_MORE_FILES;
         }
 
-#ifndef RT_DONT_CONVERT_FILENAMES
         /*
          * Convert the filename to UTF-8.
          */
         if (!pDir->pszName)
         {
-            int rc = rtPathFromNativeEx(&pDir->pszName, pDir->Data.d_name, pDir->pszPath);
+            int rc = rtPathFromNative(&pDir->pszName, pDir->Data.d_name, pDir->pszPath);
             if (RT_FAILURE(rc))
             {
                 pDir->pszName = NULL;
@@ -277,13 +276,8 @@ static int rtDirReadMore(PRTDIR pDir)
         if (    !pDir->pfnFilter
             ||  pDir->pfnFilter(pDir, pDir->pszName))
             break;
-        RTStrFree(pDir->pszName);
-        pDir->pszName = NULL;
-#else
-        if (   !pDir->pfnFilter
-            || pDir->pfnFilter(pDir, pDir->Data.d_name))
-            break;
-#endif
+        rtPathFreeIprt(pDir->pszName, pDir->Data.d_name);
+        pDir->pszName     = NULL;
         pDir->fDataUnread = false;
     }
 
@@ -348,13 +342,8 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry)
         /*
          * Check if we've got enough space to return the data.
          */
-#ifdef RT_DONT_CONVERT_FILENAMES
-        const char  *pszName    = pDir->Data.d_name;
-        const size_t cchName    = strlen(pszName);
-#else
         const char  *pszName    = pDir->pszName;
         const size_t cchName    = pDir->cchName;
-#endif
         const size_t cbRequired = RT_OFFSETOF(RTDIRENTRY, szName[1]) + cchName;
         if (pcbDirEntry)
             *pcbDirEntry = cbRequired;
@@ -375,10 +364,8 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry)
 
             /* free cached data */
             pDir->fDataUnread  = false;
-#ifndef RT_DONT_CONVERT_FILENAMES
-            RTStrFree(pDir->pszName);
+            rtPathFreeIprt(pDir->pszName, pDir->Data.d_name);
             pDir->pszName = NULL;
-#endif
         }
         else
             rc = VERR_BUFFER_OVERFLOW;
@@ -456,13 +443,8 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
         /*
          * Check if we've got enough space to return the data.
          */
-#ifdef RT_DONT_CONVERT_FILENAMES
-        const char  *pszName    = pDir->Data.d_name;
-        const size_t cchName    = strlen(pszName);
-#else
         const char  *pszName    = pDir->pszName;
         const size_t cchName    = pDir->cchName;
-#endif
         const size_t cbRequired = RT_OFFSETOF(RTDIRENTRYEX, szName[1]) + cchName;
         if (pcbDirEntry)
             *pcbDirEntry = cbRequired;
@@ -500,10 +482,8 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
 
             /* free cached data */
             pDir->fDataUnread  = false;
-#ifndef RT_DONT_CONVERT_FILENAMES
-            RTStrFree(pDir->pszName);
+            rtPathFreeIprt(pDir->pszName, pDir->Data.d_name);
             pDir->pszName = NULL;
-#endif
         }
         else
             rc = VERR_BUFFER_OVERFLOW;

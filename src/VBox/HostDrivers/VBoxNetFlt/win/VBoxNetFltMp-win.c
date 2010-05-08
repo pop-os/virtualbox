@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltMp-win.c 28830 2010-04-27 14:05:25Z vboxsync $ */
+/* $Id: VBoxNetFltMp-win.c 29108 2010-05-05 20:17:42Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Miniport edge of ndis filter driver
  */
@@ -799,7 +799,7 @@ vboxNetFltWinMpSendPackets(
     )
 {
     PADAPT pAdapt = (PADAPT)fMiniportAdapterContext;
-    NDIS_STATUS         fStatus;
+    NDIS_STATUS         fStatus = NDIS_STATUS_SUCCESS;
     UINT                i;
     PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
     bool bNetFltActive;
@@ -829,7 +829,12 @@ vboxNetFltWinMpSendPackets(
             pPacket = pPacketArray[i];
 
             if(!cNetFltRefs
-                    || (fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_SRC_HOST)) != NDIS_STATUS_SUCCESS)
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+                    || !vboxNetFltWinPostIntnet(pNetFlt, pPacket, PACKET_SRC_HOST)
+#else
+                    || (fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_SRC_HOST)) != NDIS_STATUS_SUCCESS
+#endif
+                    )
             {
 #ifndef VBOXNETADP
                 fStatus = vboxNetFltWinSendPassThru(pAdapt, pPacket);
@@ -858,8 +863,14 @@ vboxNetFltWinMpSendPackets(
             }
             else
             {
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+                NdisMSendComplete(pAdapt->hMiniportHandle,
+                                  pPacket,
+                                  NDIS_STATUS_SUCCESS);
+#else
                 cAdaptRefs--;
                 cNetFltRefs--;
+#endif
             }
         }
 

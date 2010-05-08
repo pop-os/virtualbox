@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestCtrl.cpp 28818 2010-04-27 13:14:40Z vboxsync $ */
+/* $Id: VBoxManageGuestCtrl.cpp 29193 2010-05-07 09:57:16Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestcontrol' command.
  */
@@ -43,6 +43,8 @@
 # include <errno.h>
 #endif
 
+#include <signal.h>
+
 #ifdef RT_OS_DARWIN
 # include <CoreFoundation/CFRunLoop.h>
 #endif
@@ -55,6 +57,9 @@ using namespace com;
  */
 /** @todo */
 
+/** Set by the signal handler. */
+static volatile bool    g_fExecCanceled = false;
+
 void usageGuestControl(void)
 {
     RTPrintf("VBoxManage guestcontrol     execute <vmname>|<uuid>\n"
@@ -64,6 +69,19 @@ void usageGuestControl(void)
              "                            [--username <name> [--password <password>]]\n"
              "                            [--verbose] [--wait-for exit,stdout,stderr||]\n"
              "\n");
+}
+
+/**
+ * Signal handler that sets g_fCanceled.
+ *
+ * This can be executed on any thread in the process, on Windows it may even be
+ * a thread dedicated to delivering this signal.  Do not doing anything
+ * unnecessary here.
+ */
+static void execProcessSignalHandler(int iSignal)
+{
+    NOREF(iSignal);
+    ASMAtomicWriteBool(&g_fExecCanceled, true);
 }
 
 static int handleExecProgram(HandlerArg *a)
@@ -304,62 +322,54 @@ static int handleExecProgram(HandlerArg *a)
                 else if (verbose)
                     RTPrintf("Waiting for process to exit ...\n");                        
 
-                /* Wait for process to exit ... */
+                /* setup signal handling if cancelable */
                 ASSERT(progress);
-                rc = progress->WaitForCompletion(have_timeout ? 
-                                                 (u32TimeoutMS + 5000) :    /* Timeout value + safety counter */
-                                                  -1                        /* Wait forever */);
-                if (FAILED(rc))
+                bool fCanceledAlready = false;
+                BOOL fCancelable;
+                HRESULT hrc = progress->COMGETTER(Cancelable)(&fCancelable);
+                if (FAILED(hrc))
+                    fCancelable = FALSE;
+                if (fCancelable)
                 {
-                    if (u32TimeoutMS)
-                        RTPrintf("Process '%s' (PID: %u) did not end within %ums! Wait aborted.\n",
-                                 Utf8Cmd.raw(), uPID, u32TimeoutMS);
-                    break;
+                    signal(SIGINT,   execProcessSignalHandler);
+            #ifdef SIGBREAK
+                    signal(SIGBREAK, execProcessSignalHandler);
+            #endif
                 }
-                else
-                {
-                    BOOL completed;
-                    CHECK_ERROR_RET(progress, COMGETTER(Completed)(&completed), rc);
-                    ASSERT(completed);
 
-                    LONG iRc;
-                    CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
-                    if (FAILED(iRc))
+                /* Wait for process to exit ... */
+                BOOL fCompleted = false;
+                ULONG cbOutputData = 0;
+                SafeArray<BYTE> aOutputData;
+                while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
+                {
+                    /* 
+                     * because we want to get all the output data even if the process
+                     * already ended, we first need to check whether there is some data
+                     * left to output before checking the actual timeout and is-process-completed
+                     * stuff. 
+                     */
+                    if (cbOutputData <= 0)
                     {
-                        ComPtr<IVirtualBoxErrorInfo> execError;
-                        rc = progress->COMGETTER(ErrorInfo)(execError.asOutParam());
-                        com::ErrorInfo info (execError);
-                        RTPrintf("Process error details:\n");
-                        GluePrintErrorInfo(info);
-                        RTPrintf("\n");
+                        if (fCompleted)
+                            break;
+
+                        if (   have_timeout
+                            && RTTimeMilliTS() - u64StartMS > u32TimeoutMS + 5000)
+                        {
+                            progress->Cancel();
+                            break;
+                        }
                     }
 
-                    ULONG uStatus, uExitCode, uFlags;
-                    CHECK_ERROR_BREAK(guest, GetProcessStatus(uPID, &uExitCode, &uFlags, &uStatus));
-                    if (verbose)
-                        RTPrintf("Exit code=%u (Status=%u, Flags=%u)\n", uExitCode, uStatus, uFlags);
-
-                    /* Print output if wanted. */
-                    if (   waitForStdOut
+                    if (   waitForStdOut 
                         || waitForStdErr)
                     {
-                        bool bFound = false;
-                        while (true)
+                        CHECK_ERROR_BREAK(guest, GetProcessOutput(uPID, 0 /* aFlags */, 
+                                                                  u32TimeoutMS, _64K, ComSafeArrayAsOutParam(aOutputData)));
+                        cbOutputData = aOutputData.size();
+                        if (cbOutputData > 0)
                         {
-                            SafeArray<BYTE> aOutputData;
-                            ULONG cbOutputData;
-                            CHECK_ERROR_BREAK(guest, GetProcessOutput(uPID, 0 /* aFlags */, 
-                                                                      u32TimeoutMS, _64K, ComSafeArrayAsOutParam(aOutputData)));
-                            cbOutputData = aOutputData.size();
-                            if (cbOutputData == 0)
-                                break;
-
-                            if (!bFound && verbose) 
-                            {
-                                RTPrintf("Retrieving output data ...\n");
-                                bFound = true;
-                            }
-
                             /* aOutputData has a platform dependent line ending, standardize on
                              * Unix style, as RTStrmWrite does the LF -> CR/LF replacement on
                              * Windows. Otherwise we end up with CR/CR/LF on Windows. */
@@ -379,8 +389,61 @@ static int handleExecProgram(HandlerArg *a)
                             }
                             RTStrmWrite(g_pStdOut, aOutputData.raw(), cbOutputDataPrint);
                         }
-                        if (!bFound && verbose) 
-                            RTPrintf("No output data available\n");
+                    }
+
+                    /* process async cancelation */
+                    if (g_fExecCanceled && !fCanceledAlready)
+                    {
+                        hrc = progress->Cancel();
+                        if (SUCCEEDED(hrc))
+                            fCanceledAlready = true;
+                        else
+                            g_fExecCanceled = false;
+                    }
+
+                    progress->WaitForCompletion(100);
+                }
+
+                /* undo signal handling */
+                if (fCancelable)
+                {
+                    signal(SIGINT,   SIG_DFL);
+            #ifdef SIGBREAK
+                    signal(SIGBREAK, SIG_DFL);
+            #endif
+                }
+
+                BOOL fCanceled;
+                CHECK_ERROR_RET(progress, COMGETTER(Canceled)(&fCanceled), rc);
+                if (fCanceled)
+                {
+                    RTPrintf("Process execution canceled!\n");
+                }
+                else
+                {                   
+                    if (fCompleted)
+                    {
+                        LONG iRc = false;
+                        CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
+                        if (FAILED(iRc))
+                        {
+                            ComPtr<IVirtualBoxErrorInfo> execError;
+                            rc = progress->COMGETTER(ErrorInfo)(execError.asOutParam());
+                            com::ErrorInfo info (execError);
+                            RTPrintf("\n\nProcess error details:\n");
+                            GluePrintErrorInfo(info);
+                            RTPrintf("\n");
+                        }
+                        if (verbose)
+                        {
+                            ULONG uRetStatus, uRetExitCode, uRetFlags;
+                            CHECK_ERROR_BREAK(guest, GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &uRetStatus));
+                            RTPrintf("Exit code=%u (Status=%u, Flags=%u)\n", uRetExitCode, uRetStatus, uRetFlags);
+                        }       
+                    }
+                    else /* not completed yet? -> timeout */
+                    {
+                        RTPrintf("Process timed out!\n");
                     }
                 }
             }

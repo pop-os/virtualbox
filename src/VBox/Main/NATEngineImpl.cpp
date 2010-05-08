@@ -1,4 +1,4 @@
-/* $Id: NATEngineImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: NATEngineImpl.cpp 28864 2010-04-28 12:59:54Z vboxsync $ */
 /** @file
  * Implementation of INATEngine in VBoxSVC.
  */
@@ -327,9 +327,9 @@ HRESULT NATEngine::loadSettings(const settings::NAT &data)
     mData->mDnsProxy = data.fDnsProxy;
     mData->mDnsUseHostResolver = data.fDnsUseHostResolver;
     /* Alias */
-    mData->mAliasMode |= (data.fAliasLog ? NATAliasMode_AliasLog : 0);
-    mData->mAliasMode |= (data.fAliasProxyOnly ? NATAliasMode_AliasProxyOnly : 0);
-    mData->mAliasMode = (data.fAliasUseSamePorts ? NATAliasMode_AliasUseSamePorts : 0);
+    mData->mAliasMode  = (data.fAliasUseSamePorts ? NATAliasMode_AliasUseSamePorts : 0);
+    mData->mAliasMode |= (data.fAliasLog          ? NATAliasMode_AliasLog          : 0);
+    mData->mAliasMode |= (data.fAliasProxyOnly    ? NATAliasMode_AliasProxyOnly    : 0);
     /* port forwarding */
     mNATRules.clear();
     for (settings::NATRuleList::const_iterator it = data.llRules.begin();

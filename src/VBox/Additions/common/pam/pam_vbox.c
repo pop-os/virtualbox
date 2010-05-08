@@ -1,4 +1,4 @@
-/* $Id: pam_vbox.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: pam_vbox.c 29060 2010-05-05 09:14:49Z vboxsync $ */
 /** @file
  * pam_vbox - PAM module for auto logons.
  */
@@ -24,7 +24,7 @@
 #define PAM_SM_SESSION
 
 #ifdef _DEBUG
- #define PAM_DEBUG
+# define PAM_DEBUG
 #endif
 
 #ifdef RT_OS_SOLARIS
@@ -33,11 +33,7 @@
 #include <security/pam_modules.h>
 #include <security/pam_appl.h>
 #ifdef RT_OS_LINUX
-#include <security/_pam_macros.h>
-#endif
-
-#ifndef PAM_EXTERN
-# define PAM_EXTERN extern
+# include <security/_pam_macros.h>
 #endif
 
 #include <pwd.h>
@@ -56,10 +52,10 @@
 
 /** For debugging. */
 #ifdef _DEBUG
- static pam_handle_t *g_pam_handle;
- static int g_verbosity = 99;
+static pam_handle_t *g_pam_handle;
+static int g_verbosity = 99;
 #else
- static int g_verbosity = 0;
+static int g_verbosity = 0;
 #endif
 
 /**
@@ -70,11 +66,11 @@
 static void pam_vbox_writesyslog(char *pszBuf)
 {
 #ifdef RT_OS_LINUX
-        openlog("pam_vbox", LOG_PID, LOG_AUTHPRIV);
-        syslog(LOG_ERR, pszBuf);
-        closelog();
+    openlog("pam_vbox", LOG_PID, LOG_AUTHPRIV);
+    syslog(LOG_ERR, pszBuf);
+    closelog();
 #elif defined(RT_OS_SOLARIS)
-        syslog(LOG_ERR, "pam_vbox: %s\n", pszBuf);
+    syslog(LOG_ERR, "pam_vbox: %s\n", pszBuf);
 #endif
 }
 
@@ -88,9 +84,8 @@ static void pam_vbox_writesyslog(char *pszBuf)
 static void pam_vbox_error(pam_handle_t *h, const char *pszFormat, ...)
 {
     va_list va;
-    va_start(va, pszFormat);
-    /** @todo is this NULL terminated? */
     char *buf;
+    va_start(va, pszFormat);
     if (RT_SUCCESS(RTStrAPrintfV(&buf, pszFormat, va)))
     {
         LogRel(("%s: Error: %s", VBOX_MODULE_NAME, buf));
@@ -109,28 +104,30 @@ static void pam_vbox_error(pam_handle_t *h, const char *pszFormat, ...)
  */
 static void pam_vbox_log(pam_handle_t *h, const char *pszFormat, ...)
 {
-    va_list va;
-    va_start(va, pszFormat);
-    /** @todo is this NULL terminated? */
-    char *buf;
-    if (RT_SUCCESS(RTStrAPrintfV(&buf, pszFormat, va)))
+    if (g_verbosity)
     {
-        if (g_verbosity)
+        va_list va;
+        char *buf;
+        va_start(va, pszFormat);
+        if (RT_SUCCESS(RTStrAPrintfV(&buf, pszFormat, va)))
         {
             /* Only do normal logging in debug mode; could contain
              * sensitive data! */
             LogRel(("%s: %s", VBOX_MODULE_NAME, buf));
             /* Log to syslog */
             pam_vbox_writesyslog(buf);
+            RTStrFree(buf);
         }
-        RTStrFree(buf);
+        va_end(va);
     }
-    va_end(va);
 }
 
 
-int pam_vbox_do_check(pam_handle_t *h)
+static int pam_vbox_do_check(pam_handle_t *h)
 {
+    int rc;
+    int pamrc;
+
 #ifdef _DEBUG
     g_pam_handle = h; /* hack for getting assertion text */
 #endif
@@ -140,7 +137,7 @@ int pam_vbox_do_check(pam_handle_t *h)
      * This could result in not able to log into the system anymore. */
     RTAssertSetMayPanic(false);
 
-    int rc = RTR3Init();
+    rc = RTR3Init();
     if (RT_FAILURE(rc))
     {
         pam_vbox_error(h, "pam_vbox_do_check: could not init runtime! rc=%Rrc. Aborting.\n", rc);
@@ -172,7 +169,7 @@ int pam_vbox_do_check(pam_handle_t *h)
         pam_vbox_log(h, "pam_vbox_do_check: guest lib initialized.\n");
     }
 
-    int pamrc = PAM_OPEN_ERR; /* The PAM return code; intentionally not used as an exit value below. */
+    pamrc = PAM_OPEN_ERR; /* The PAM return code; intentionally not used as an exit value below. */
     if (RT_SUCCESS(rc))
     {
         char *rhost = NULL;
@@ -257,14 +254,15 @@ int pam_vbox_do_check(pam_handle_t *h)
  *
  * @todo
  */
-PAM_EXTERN int pam_sm_authenticate(pam_handle_t *h, int flags,
-                                   int argc, const char **argv)
+DECLEXPORT(int) pam_sm_authenticate(pam_handle_t *h, int flags,
+                                    int argc, const char **argv)
 {
     /* Parse arguments. */
-    for (int i=0; i<argc; i++)
+    int i;
+    for (i = 0; i < argc; i++)
     {
         if (!RTStrICmp(argv[i], "debug"))
-            g_verbosity=1;
+            g_verbosity = 1;
         else
             pam_vbox_error(h, "pam_sm_authenticate: unknown command line argument \"%s\"\n", argv[i]);
     }
@@ -280,21 +278,21 @@ PAM_EXTERN int pam_sm_authenticate(pam_handle_t *h, int flags,
  *
  * @todo
  */
-PAM_EXTERN int pam_sm_setcred(pam_handle_t *h, int flags, int argc, const char **argv)
+DECLEXPORT(int) pam_sm_setcred(pam_handle_t *h, int flags, int argc, const char **argv)
 {
     pam_vbox_log(h, "pam_vbox_setcred called.\n");
     return PAM_SUCCESS;
 }
 
 
-PAM_EXTERN int pam_sm_acct_mgmt(pam_handle_t *h, int flags, int argc, const char **argv)
+DECLEXPORT(int) pam_sm_acct_mgmt(pam_handle_t *h, int flags, int argc, const char **argv)
 {
     pam_vbox_log(h, "pam_vbox_acct_mgmt called.\n");
     return PAM_SUCCESS;
 }
 
 
-PAM_EXTERN int pam_sm_open_session(pam_handle_t *h, int flags, int argc, const char **argv)
+DECLEXPORT(int) pam_sm_open_session(pam_handle_t *h, int flags, int argc, const char **argv)
 {
     pam_vbox_log(h, "pam_vbox_open_session called.\n");
     RTPrintf("This session was provided by VirtualBox Guest Additions. Have a lot of fun!\n");
@@ -302,13 +300,13 @@ PAM_EXTERN int pam_sm_open_session(pam_handle_t *h, int flags, int argc, const c
 }
 
 
-PAM_EXTERN int pam_sm_close_session(pam_handle_t *h, int flags, int argc, const char **argv)
+DECLEXPORT(int) pam_sm_close_session(pam_handle_t *h, int flags, int argc, const char **argv)
 {
     pam_vbox_log(h, "pam_vbox_close_session called.\n");
     return PAM_SUCCESS;
 }
 
-PAM_EXTERN int pam_sm_chauthtok(pam_handle_t *h, int flags, int argc, const char **argv)
+DECLEXPORT(int) pam_sm_chauthtok(pam_handle_t *h, int flags, int argc, const char **argv)
 {
     pam_vbox_log(h, "pam_vbox_sm_chauthtok called.\n");
     return PAM_SUCCESS;

@@ -1,4 +1,4 @@
-/* $Id: GMM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: GMM.cpp 29086 2010-05-05 14:05:17Z vboxsync $ */
 /** @file
  * GMM - Global Memory Manager, ring-3 request wrappers.
  */
@@ -289,7 +289,7 @@ GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, GMMBALLOONACTION enmAction, uint32_
 /**
  * @see GMMR0QueryVMMMemoryStatsReq
  */
-GMMR3DECL(int)  GMMR3QueryVMMMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, uint64_t *pcTotalFreePages, uint64_t *pcTotalBalloonPages)
+GMMR3DECL(int)  GMMR3QueryHypervisorMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, uint64_t *pcTotalFreePages, uint64_t *pcTotalBalloonPages)
 {
     GMMMEMSTATSREQ Req;
     Req.Hdr.u32Magic     = SUPVMMR0REQHDR_MAGIC;
@@ -303,12 +303,38 @@ GMMR3DECL(int)  GMMR3QueryVMMMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, u
     *pcTotalBalloonPages = 0;
 
     /* Must be callable from any thread, so can't use VMMR3CallR0. */
-    int rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0, VMMR0_DO_GMM_QUERY_VMM_MEM_STATS, 0, &Req.Hdr);
+    int rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0, VMMR0_DO_GMM_QUERY_HYPERVISOR_MEM_STATS, 0, &Req.Hdr);
     if (rc == VINF_SUCCESS)
     {
         *pcTotalAllocPages   = Req.cAllocPages;
         *pcTotalFreePages    = Req.cFreePages;
         *pcTotalBalloonPages = Req.cBalloonedPages;
+    }
+    return rc;
+}
+
+/**
+ * @see GMMR0QueryMemoryStatsReq
+ */
+GMMR3DECL(int)  GMMR3QueryMemoryStats(PVM pVM, uint64_t *pcAllocPages, uint64_t *pcMaxPages, uint64_t *pcBalloonPages)
+{
+    GMMMEMSTATSREQ Req;
+    Req.Hdr.u32Magic    = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq       = sizeof(Req);
+    Req.cAllocPages     = 0;
+    Req.cFreePages      = 0;
+    Req.cBalloonedPages = 0;
+
+    *pcAllocPages      = 0;
+    *pcMaxPages         = 0;
+    *pcBalloonPages     = 0;
+
+    int rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_QUERY_MEM_STATS, 0, &Req.Hdr);
+    if (rc == VINF_SUCCESS)
+    {
+        *pcAllocPages   = Req.cAllocPages;
+        *pcMaxPages     = Req.cMaxPages;
+        *pcBalloonPages = Req.cBalloonedPages;
     }
     return rc;
 }
@@ -354,58 +380,21 @@ GMMR3DECL(int)  GMMR3SeedChunk(PVM pVM, RTR3PTR pvR3)
 /**
  * @see GMMR0RegisterSharedModule
  */
-GMMR3DECL(int) GMMR3RegisterSharedModule(PVM pVM, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule,
-                                         unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions)
+GMMR3DECL(int) GMMR3RegisterSharedModule(PVM pVM, PGMMREGISTERSHAREDMODULEREQ pReq)
 {
-    PGMMREGISTERSHAREDMODULEREQ pReq;
-    int rc;
-
-    /* Sanity check. */
-    AssertReturn(cRegions < VMMDEVSHAREDREGIONDESC_MAX, VERR_INVALID_PARAMETER);
-
-    pReq = (PGMMREGISTERSHAREDMODULEREQ)RTMemAllocZ(RT_OFFSETOF(GMMREGISTERSHAREDMODULEREQ, aRegions[cRegions]));
-    AssertReturn(pReq, VERR_NO_MEMORY);
-
     pReq->Hdr.u32Magic  = SUPVMMR0REQHDR_MAGIC;
     pReq->Hdr.cbReq     = sizeof(*pReq);
-    pReq->GCBaseAddr    = GCBaseAddr;
-    pReq->cbModule      = cbModule;
-    pReq->cRegions      = cRegions;
-    for (unsigned i = 0; i < cRegions; i++)
-        pReq->aRegions[i] = pRegions[i];
-
-    if (    RTStrCopy(pReq->szName, sizeof(pReq->szName), pszModuleName) != VINF_SUCCESS
-        ||  RTStrCopy(pReq->szVersion, sizeof(pReq->szVersion), pszVersion) != VINF_SUCCESS)
-    {
-        rc = VERR_BUFFER_OVERFLOW;
-        goto end;
-    }
-
-    rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_REGISTER_SHARED_MODULE, 0, &pReq->Hdr);
-end:
-    RTMemFree(pReq);
-    return rc;
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_REGISTER_SHARED_MODULE, 0, &pReq->Hdr);
 }
 
 /**
  * @see GMMR0RegisterSharedModule
  */
-GMMR3DECL(int) GMMR3UnregisterSharedModule(PVM pVM, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule)
+GMMR3DECL(int) GMMR3UnregisterSharedModule(PVM pVM, PGMMREGISTERSHAREDMODULEREQ pReq)
 {
-    GMMUNREGISTERSHAREDMODULEREQ Req;
-    Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    Req.Hdr.cbReq = sizeof(Req);
-
-    Req.GCBaseAddr    = GCBaseAddr;
-    Req.cbModule      = cbModule;
-
-    if (    RTStrCopy(Req.szName, sizeof(Req.szName), pszModuleName) != VINF_SUCCESS
-        ||  RTStrCopy(Req.szVersion, sizeof(Req.szVersion), pszVersion) != VINF_SUCCESS)
-    {
-        return VERR_BUFFER_OVERFLOW;
-    }
-
-    return VMMR3CallR0(pVM, VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE, 0, &Req.Hdr);
+    pReq->Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    pReq->Hdr.cbReq = sizeof(*pReq);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE, 0, &pReq->Hdr);
 }
 
 /**

@@ -1,4 +1,4 @@
-/* $Id: state_glsl.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: state_glsl.c 28861 2010-04-28 11:27:18Z vboxsync $ */
 
 /** @file
  * VBox OpenGL: GLSL state tracking
@@ -27,12 +27,22 @@ static CRGLSLShader* crStateGetShaderObj(GLuint id)
 {
     CRContext *g = GetCurrentContext();
 
+    if (!g)
+    {
+        crWarning("crStateGetShaderObj called without current ctx");
+    }
+
     return !g ? NULL : (CRGLSLShader *) crHashtableSearch(g->glsl.shaders, id);
 }
 
 static CRGLSLProgram* crStateGetProgramObj(GLuint id)
 {
     CRContext *g = GetCurrentContext();
+
+    if (!g)
+    {
+        crWarning("crStateGetProgramObj called without current ctx");
+    }
 
     return !g ? NULL : (CRGLSLProgram *) crHashtableSearch(g->glsl.programs, id);
 }

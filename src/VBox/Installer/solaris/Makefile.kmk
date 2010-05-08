@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: Makefile.kmk 29188 2010-05-07 09:45:30Z vboxsync $
 ## @file
 # Sub-Makefile for the Solaris installer.
 #
@@ -218,6 +218,7 @@ SOLARIS_STRIP_BINS = \
 	$(if $(VBOX_WITH_SHARED_CLIPBOARD),VBoxSharedClipboard.so,) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestPropSvc.so,) \
 	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxGuestControlSvc.so,) \
+	$(if $(VBOX_WITH_JXPCOM),libvboxjxpcom.so,) \
 	$(if $(VBOX_WITH_QTGUI),\
 	  VBoxKeyboard.so \
 	  $(if $(VBOX_WITH_QT4_SUN),\
@@ -331,6 +332,11 @@ ifdef VBOX_WITH_PYTHON
 	sdk/installer/vboxapisetup.py \
 	sdk/installer/vboxapi/__init__.py \
 	sdk/installer/vboxapi/VirtualBox_constants.py
+endif
+
+ifdef VBOX_WITH_JXPCOM
+   SOLARIS_COMMON += \
+         sdk/bindings/xpcom/java/vboxjxpcom.jar
 endif
 
 # VRDP
@@ -452,6 +458,8 @@ BLDDIRS += $(foreach d,\
 	 sdk/bindings/xpcom/python/xpcom \
 	 sdk/bindings/xpcom/python/xpcom/server \
 	 sdk/bindings/xpcom/python/xpcom/client,) \
+	$(if $(VBOX_WITH_JXPCOM), \
+	 sdk/bindings/xpcom/java,) \
 ,$(SOLARIS_VBOXINST_DIR)/$(d)/)
 
 BLDDIRS += $(foreach d,\

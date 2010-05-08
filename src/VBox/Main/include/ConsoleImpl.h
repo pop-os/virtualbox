@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h 28835 2010-04-27 14:46:23Z vboxsync $ */
+/* $Id: ConsoleImpl.h 28959 2010-05-02 19:36:11Z vboxsync $ */
 /** @file
  * VBox Console COM Class definition
  */
@@ -33,6 +33,7 @@ class SharedFolder;
 class RemoteDisplayInfo;
 class AudioSniffer;
 class ConsoleVRDPServer;
+class ConsoleCallbackRegistration;      /* See ConsoleImpl.cpp. */
 class VMMDev;
 class Progress;
 
@@ -649,7 +650,7 @@ private:
      * operation before starting. */
     ComObjPtr<Progress> mptrCancelableProgress;
 
-    typedef std::list <ComPtr<IConsoleCallback> > CallbackList;
+    typedef std::list<ConsoleCallbackRegistration> CallbackList;
     CallbackList mCallbacks;
 
     struct

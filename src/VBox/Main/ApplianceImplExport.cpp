@@ -1,4 +1,4 @@
-/* $Id: ApplianceImplExport.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ApplianceImplExport.cpp 29088 2010-05-05 14:37:26Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -173,12 +173,9 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
         if (FAILED(rc)) throw rc;
 
         ComPtr<IStorageController> pIDEController;
-#ifdef VBOX_WITH_AHCI
         ComPtr<IStorageController> pSATAController;
-#endif /* VBOX_WITH_AHCI */
-#ifdef VBOX_WITH_LSILOGIC
         ComPtr<IStorageController> pSCSIController;
-#endif /* VBOX_WITH_LSILOGIC */
+        ComPtr<IStorageController> pSASController;
         for (size_t j = 0; j < nwControllers.size(); ++j)
         {
             StorageBus_T eType;
@@ -187,16 +184,15 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
             if (   eType == StorageBus_IDE
                 && pIDEController.isNull())
                 pIDEController = nwControllers[j];
-#ifdef VBOX_WITH_AHCI
             else if (   eType == StorageBus_SATA
                      && pSATAController.isNull())
                 pSATAController = nwControllers[j];
-#endif /* VBOX_WITH_AHCI */
-#ifdef VBOX_WITH_LSILOGIC
             else if (   eType == StorageBus_SCSI
                      && pSATAController.isNull())
                 pSCSIController = nwControllers[j];
-#endif /* VBOX_WITH_LSILOGIC */
+            else if (   eType == StorageBus_SAS
+                     && pSASController.isNull())
+                pSASController = nwControllers[j];
         }
 
 //     <const name="HardDiskControllerIDE" value="6" />
@@ -228,7 +224,6 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
             }
         }
 
-#ifdef VBOX_WITH_AHCI
 //     <const name="HardDiskControllerSATA" value="7" />
         if (!pSATAController.isNull())
         {
@@ -239,9 +234,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                                strVbox,
                                strVbox);
         }
-#endif // VBOX_WITH_AHCI
 
-#ifdef VBOX_WITH_LSILOGIC
 //     <const name="HardDiskControllerSCSI" value="8" />
         if (!pSCSIController.isNull())
         {
@@ -264,7 +257,18 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
             else
                 throw rc;
         }
-#endif // VBOX_WITH_LSILOGIC
+
+        if (!pSASController.isNull())
+        {
+            // VirtualBox considers the SAS controller a class of its own but in OVF
+            // it should be a SCSI controller
+            Utf8Str strVbox = "LsiLogicSas";
+            lSCSIControllerIndex = (int32_t)pNewDesc->m->llDescriptions.size();
+            pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSCSI,
+                               Utf8StrFmt("%d", lSCSIControllerIndex),
+                               strVbox,
+                               strVbox);
+        }
 
 //     <const name="HardDiskImage" value="9" />
 //     <const name="Floppy" value="18" />
@@ -1034,11 +1038,13 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                         lBusNumber = 0;
 
                         if (    desc.strVbox.isEmpty()      // LsiLogic is the default in VirtualBox
-                                || (!desc.strVbox.compare("lsilogic", Utf8Str::CaseInsensitive))
+                             || (!desc.strVbox.compare("lsilogic", Utf8Str::CaseInsensitive))
                             )
                             strResourceSubType = "lsilogic";
                         else if (!desc.strVbox.compare("buslogic", Utf8Str::CaseInsensitive))
                             strResourceSubType = "buslogic";
+                        else if (!desc.strVbox.compare("lsilogicsas", Utf8Str::CaseInsensitive))
+                            strResourceSubType = "lsilogicsas";
                         else
                             throw setError(VBOX_E_NOT_SUPPORTED,
                                             tr("Invalid config string \"%s\" in SCSI controller"), desc.strVbox.c_str());
@@ -1211,19 +1217,41 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
 
                 pItem = pelmVirtualHardwareSection->createChild("Item");
 
-                // NOTE: do not change the order of these items without good reason! While we don't care
-                // about ordering, VMware's ovftool does and fails if the items are not written in
-                // exactly this order, as stupid as it seems.
+                // NOTE: DO NOT CHANGE THE ORDER of these items! The OVF standards prescribes that
+                // the elements from the rasd: namespace must be sorted by letter, and VMware
+                // actually requires this as well (see public bug #6612)
+
+                if (lAddress != -1)
+                    pItem->createChild("rasd:Address")->addContent(Utf8StrFmt("%d", lAddress));
+
+                if (lAddressOnParent != -1)
+                    pItem->createChild("rasd:AddressOnParent")->addContent(Utf8StrFmt("%d", lAddressOnParent));
+
+                if (!strAllocationUnits.isEmpty())
+                    pItem->createChild("rasd:AllocationUnits")->addContent(strAllocationUnits);
+
+                if (lAutomaticAllocation != -1)
+                    pItem->createChild("rasd:AutomaticAllocation")->addContent( (lAutomaticAllocation) ? "true" : "false" );
+
+                if (lBusNumber != -1)
+                    if (enFormat == OVF_0_9) // BusNumber is invalid OVF 1.0 so only write it in 0.9 mode for OVFTool compatibility
+                        pItem->createChild("rasd:BusNumber")->addContent(Utf8StrFmt("%d", lBusNumber));
 
                 if (!strCaption.isEmpty())
-                {
                     pItem->createChild("rasd:Caption")->addContent(strCaption);
-                    if (enFormat == OVF_1_0)
-                        pItem->createChild("rasd:ElementName")->addContent(strCaption);
-                }
+
+                if (!strConnection.isEmpty())
+                    pItem->createChild("rasd:Connection")->addContent(strConnection);
 
                 if (!strDescription.isEmpty())
                     pItem->createChild("rasd:Description")->addContent(strDescription);
+
+                if (!strCaption.isEmpty())
+                    if (enFormat == OVF_1_0)
+                        pItem->createChild("rasd:ElementName")->addContent(strCaption);
+
+                if (!strHostResource.isEmpty())
+                    pItem->createChild("rasd:HostResource")->addContent(strHostResource);
 
                 // <rasd:InstanceID>1</rasd:InstanceID>
                 xml::ElementNode *pelmInstanceID;
@@ -1233,38 +1261,18 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                     pelmInstanceID = pItem->createChild("rasd:InstanceID");      // capitalization changed...
                 pelmInstanceID->addContent(Utf8StrFmt("%d", ulInstanceID++));
 
-                // <rasd:ResourceType>3</rasd:ResourceType>
-                pItem->createChild("rasd:ResourceType")->addContent(Utf8StrFmt("%d", type));
+                if (ulParent)
+                    pItem->createChild("rasd:Parent")->addContent(Utf8StrFmt("%d", ulParent));
+
                 if (!strResourceSubType.isEmpty())
                     pItem->createChild("rasd:ResourceSubType")->addContent(strResourceSubType);
 
-                if (!strHostResource.isEmpty())
-                    pItem->createChild("rasd:HostResource")->addContent(strHostResource);
-
-                if (!strAllocationUnits.isEmpty())
-                    pItem->createChild("rasd:AllocationUnits")->addContent(strAllocationUnits);
+                // <rasd:ResourceType>3</rasd:ResourceType>
+                pItem->createChild("rasd:ResourceType")->addContent(Utf8StrFmt("%d", type));
 
                 // <rasd:VirtualQuantity>1</rasd:VirtualQuantity>
                 if (lVirtualQuantity != -1)
                     pItem->createChild("rasd:VirtualQuantity")->addContent(Utf8StrFmt("%d", lVirtualQuantity));
-
-                if (lAutomaticAllocation != -1)
-                    pItem->createChild("rasd:AutomaticAllocation")->addContent( (lAutomaticAllocation) ? "true" : "false" );
-
-                if (!strConnection.isEmpty())
-                    pItem->createChild("rasd:Connection")->addContent(strConnection);
-
-                if (lAddress != -1)
-                    pItem->createChild("rasd:Address")->addContent(Utf8StrFmt("%d", lAddress));
-
-                if (lBusNumber != -1)
-                    if (enFormat == OVF_0_9) // BusNumber is invalid OVF 1.0 so only write it in 0.9 mode for OVFTool compatibility
-                        pItem->createChild("rasd:BusNumber")->addContent(Utf8StrFmt("%d", lBusNumber));
-
-                if (ulParent)
-                    pItem->createChild("rasd:Parent")->addContent(Utf8StrFmt("%d", ulParent));
-                if (lAddressOnParent != -1)
-                    pItem->createChild("rasd:AddressOnParent")->addContent(Utf8StrFmt("%d", lAddressOnParent));
             }
         }
     } // for (size_t uLoop = 1; uLoop <= 2; ++uLoop)
@@ -1272,12 +1280,20 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
     // now that we're done with the official OVF <Item> tags under <VirtualSystem>, write out VirtualBox XML
     // under the vbox: namespace
     xml::ElementNode *pelmVBoxMachine = pelmVirtualSystem->createChild("vbox:Machine");
+    // ovf:required="false" tells other OVF parsers that they can ignore this thing
+    pelmVBoxMachine->setAttribute("ovf:required", "false");
+    // ovf:Info element is required or VMware will bail out on the vbox:Machine element
+    pelmVBoxMachine->createChild("ovf:Info")->addContent("Complete VirtualBox machine configuration in VirtualBox format");
+
+    // create an empty machine config
     settings::MachineConfigFile *pConfig = new settings::MachineConfigFile(NULL);
 
     try
     {
         AutoWriteLock machineLock(vsdescThis->m->pMachine COMMA_LOCKVAL_SRC_POS);
+        // fill the machine config
         vsdescThis->m->pMachine->copyMachineDataToSettings(*pConfig);
+        // write the machine config to the vbox:Machine element
         pConfig->buildMachineXML(*pelmVBoxMachine,
                                  settings::MachineConfigFile::BuildMachineXML_WriteVboxVersionAttribute);
                                         // but not BuildMachineXML_IncludeSnapshots
@@ -1342,7 +1358,7 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
         /* <Envelope>/<DiskSection>:
             <DiskSection>
                 <Info>List of the virtual disks used in the package</Info>
-                <Disk ovf:capacity="4294967296" ovf:diskId="lamp" ovf:format="http://www.vmware.com/specifications/vmdk.html#compressed" ovf:populatedSize="1924967692"/>
+                <Disk ovf:capacity="4294967296" ovf:diskId="lamp" ovf:format="..." ovf:populatedSize="1924967692"/>
             </DiskSection> */
         xml::ElementNode *pelmDiskSection;
         if (enFormat == OVF_0_9)
@@ -1532,12 +1548,17 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
             pelmFile->setAttribute("ovf:size", Utf8StrFmt("%RI64", cbFile).c_str());
 
             // add disk to XML Disks section
-            // <Disk ovf:capacity="8589934592" ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:format="http://www.vmware.com/specifications/vmdk.html#sparse"/>
+            // <Disk ovf:capacity="8589934592" ovf:diskId="vmdisk1" ovf:fileRef="file1" ovf:format="..."/>
             xml::ElementNode *pelmDisk = pelmDiskSection->createChild("Disk");
             pelmDisk->setAttribute("ovf:capacity", Utf8StrFmt("%RI64", cbCapacity).c_str());
             pelmDisk->setAttribute("ovf:diskId", strDiskID);
             pelmDisk->setAttribute("ovf:fileRef", strFileRef);
-            pelmDisk->setAttribute("ovf:format", "http://www.vmware.com/specifications/vmdk.html#sparse");      // must be sparse or ovftool chokes
+            pelmDisk->setAttribute("ovf:format",
+                    (enFormat == OVF_0_9)
+                        ?  "http://www.vmware.com/specifications/vmdk.html#sparse"      // must be sparse or ovftool chokes
+                        :  "http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"
+                                                                                    // correct string as communicated to us by VMware (public bug #6612)
+                                  );
             pelmDisk->setAttribute("vbox:uuid", Utf8StrFmt("%RTuuid", guidSource.raw()).c_str());
         }
 

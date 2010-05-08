@@ -361,6 +361,13 @@
     </desc>
   </result>
 
+  <result name="VBOX_E_DONT_CALL_AGAIN" value="0x80BB000D">
+    <desc>
+      Returned by callback methods which does not need to be called again
+      because the client does not actually make use of them.
+    </desc>
+  </result>
+
   <!--
     Note that src/VBox/Runtime/common/err/errmsgvboxcom.xsl will ignore
     everything in <result>/<desc> after (and including) the first dot, so express
@@ -1088,11 +1095,36 @@
   </enum>
 
   <enum
+       name="IoBackendType"
+       uuid="2a7e16d1-4e6b-4d5d-b0c9-b9bbe6c5b2ad"
+       >
+    <desc>
+      Type of I/O backend used for the image files in a virtual machine.
+    </desc>
+    <const name="Buffered" value="1">
+      <desc>Image files will use the host cache if possible.
+        The storage controller emulation will use a dedicated I/O thread, enable the host I/O cache and
+        use synchronous file APIs on the host.
+        This type does not work with the Async I/O manager on Linux hosts.
+        This was the only option in the API before VirtualBox 3.2 and is still the default for IDE controllers.</desc>
+    </const>
+    <const name="Unbuffered" value="2">
+      <desc>Image files will not use the host cache.
+        The storage controller emulation will use asynchronous I/O APIs on the host. This makes it possible
+        to turn off the host I/O caches because it can handle unaligned access to the file.
+        This should be used on OS X and Linux hosts if a high I/O load is expected
+        or many virtual machines are running to prevent I/O cache related hangs.
+        This is new with the API of version 3.2 and is now the default for non-IDE storage controllers.</desc>
+    </const>
+  </enum>
+
+  <enum
    name="IoMgrType"
    uuid="35567419-4d2a-4256-a74e-efcae33493a2"
    >
      <desc>
-       Type of the I/O manager used for the image files in a virtual machine.
+       Type of the I/O manager used for the image files in a virtual machine if the backend is
+       set to the "Unbuffered" type.
      </desc>
      <const name="Simple" value="1">
        <desc>Simple manager. Normally only used if the default one runs into an
@@ -1103,26 +1135,6 @@
        This is the default manager.</desc>
      </const>
    </enum>
-
-  <enum
-   name="IoBackendType"
-   uuid="2a7e16d1-4e6b-4d5d-b0c9-b9bbe6c5b2ad"
-   >
-     <desc>
-       Type of I/O backend used for the image files in a virtual machine.
-     </desc>
-     <const name="Buffered" value="1">
-       <desc>Image files will use the host cache if possible.
-       This type does not work with the Async I/O manager on Linux hosts.
-       Default on all hosts except Linux.</desc>
-     </const>
-     <const name="Unbuffered" value="2">
-       <desc>Image files will not use the host cache.
-       This should be used on OS X and Linux hosts if a high I/O load is expected
-       or many virtual machines are running to prevent I/O cache
-       related hangs. Default on Linux hosts.</desc>
-     </const>
-  </enum>
 
   <!--
   // IVirtualBoxErrorInfo
@@ -1262,6 +1274,9 @@
       <desc>
         The execution state of the given machine has changed.
         <see>IMachine::state</see>
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1274,6 +1289,9 @@
     <method name="onMachineDataChange">
       <desc>
         Any of the settings of the given machine has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1285,6 +1303,9 @@
         Notification when someone tries to change extra data for
         either the given machine or (if @c null) global extra data.
         This gives the chance to veto against changes.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP. Change is allowed.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>
@@ -1320,6 +1341,9 @@
       <desc>
         Notification when machine specific or global extra data
         has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>
@@ -1365,6 +1389,10 @@
         unregistered medium. It is supposed that the
         application will do required cleanup based on the
         @a mediumId value.
+
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="mediumId" type="uuid" mod="string" dir="in">
         <desc>ID of the medium this event relates to.</desc>
@@ -1384,6 +1412,9 @@
       <desc>
         The given machine was registered or unregistered
         within this VirtualBox installation.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1400,6 +1431,9 @@
       <desc>
         The state of the session for the given machine was changed.
         <see>IMachine::sessionState</see>
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1413,6 +1447,9 @@
       <desc>
         A new snapshot of the machine has been taken.
         <see>ISnapshot</see>
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1433,6 +1470,10 @@
         </note>
 
         <see>ISnapshot</see>
+
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1449,6 +1490,9 @@
       <desc>
         Snapshot properties (name and/or description) have been changed.
         <see>ISnapshot</see>
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>ID of the machine this event relates to.</desc>
@@ -1461,6 +1505,9 @@
     <method name="onGuestPropertyChange">
       <desc>
         Notification when a guest property has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="machineId" type="uuid" mod="string" dir="in">
         <desc>
@@ -3556,7 +3603,10 @@
       </li>
       <li>
         "HardDiskControllerSCSI": a SCSI hard disk controller. There can be at most one such item.
-        The items in @a aOvfValues[] and @a aVBoxValues[] will either be "LsiLogic" or "BusLogic".
+        The items in @a aOvfValues[] and @a aVBoxValues[] will either be "LsiLogic", "BusLogic" or
+        "LsiLogicSas". (Note that in OVF, the LsiLogicSas controller is treated as a SCSI controller
+        whereas VirtualBox considers it a class of storage controllers of its own; see
+        <link to="StorageControllerType" />).
         The matching item in the @a aRefs[] array will be used as with IDE controllers (see above).
       </li>
       <li>
@@ -6118,6 +6168,9 @@
       <desc>
         Notification when the guest mouse pointer shape has
         changed. The new shape data is given.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="visible" type="boolean" dir="in">
         <desc>
@@ -6186,6 +6239,9 @@
       <desc>
         Notification when the mouse capabilities reported by the
         guest have changed. The new capabilities are passed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="supportsAbsolute" type="boolean" dir="in"/>
       <param name="supportsRelative" type="boolean" dir="in"/>
@@ -6196,6 +6252,9 @@
       <desc>
         Notification when the guest OS executes the KBD_CMD_SET_LEDS command
         to alter the state of the keyboard LEDs.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="numLock" type="boolean" dir="in"/>
       <param name="capsLock" type="boolean" dir="in"/>
@@ -6206,6 +6265,9 @@
       <desc>
         Notification when the execution state of the machine has changed.
         The new state will be given.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="state" type="MachineState" dir="in"/>
     </method>
@@ -6224,6 +6286,9 @@
         virtual <link to="IMachine::getNetworkAdapter">network adapters</link>
         changes.  Interested callees should use INetworkAdapter methods and
         attributes to find out what has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="networkAdapter" type="INetworkAdapter" dir="in">
         <desc>Network adapter that is subject to change.</desc>
@@ -6236,6 +6301,9 @@
         virtual <link to="IMachine::getSerialPort">serial ports</link> changes.
         Interested callees should use ISerialPort methods and attributes
         to find out what has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="serialPort" type="ISerialPort" dir="in">
         <desc>Serial port that is subject to change.</desc>
@@ -6248,6 +6316,9 @@
         virtual <link to="IMachine::getParallelPort">parallel ports</link>
         changes.  Interested callees should use ISerialPort methods and
         attributes to find out what has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="parallelPort" type="IParallelPort" dir="in">
         <desc>Parallel port that is subject to change.</desc>
@@ -6260,6 +6331,9 @@
         virtual <link to="IMachine::storageControllers">storage controllers</link>
         changes. Interested callees should query the corresponding collections
         to find out what has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
     </method>
 
@@ -6268,6 +6342,9 @@
         Notification when a
         <link to="IMachine::mediumAttachments">medium attachment</link>
         changes.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="mediumAttachment" type="IMediumAttachment" dir="in">
         <desc>Medium attachment that is subject to change.</desc>
@@ -6277,6 +6354,9 @@
     <method name="onCPUChange">
       <desc>
         Notification when a CPU changes.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="cpu" type="unsigned long" dir="in">
         <desc>The CPU which changed</desc>
@@ -6292,6 +6372,9 @@
         <link to="IMachine::VRDPServer">VRDP server</link> changes.
         Interested callees should use IVRDPServer methods and attributes to
         find out what has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
     </method>
 
@@ -6300,6 +6383,9 @@
         Notification when the status of the VRDP server changes. Interested callees
         should use <link to="IConsole::RemoteDisplayInfo">IRemoteDisplayInfo</link>
         attributes to find out what is the current status.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
     </method>
 
@@ -6309,6 +6395,9 @@
         <link to="IMachine::USBController">USB controller</link> changes.
         Interested callees should use IUSBController methods and attributes to
         find out what has changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
     </method>
 
@@ -6332,6 +6421,9 @@
         doesn't change and the @a error parameter represents the error
         message describing the failure.
 
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="device" type="IUSBDevice" dir="in">
         <desc>Device that is subject to state change.</desc>
@@ -6360,6 +6452,9 @@
         machine (<link to="Scope_Session">Session</link>). Interested callees
         should use query the corresponding collections to find out what has
         changed.
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="scope" type="Scope" dir="in">
         <desc>Scope of the notification.</desc>
@@ -6426,6 +6521,9 @@
           user notification and performs necessary actions.
         </note>
 
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="fatal" type="boolean" dir="in">
         <desc>Whether the error is fatal or not</desc>
@@ -6458,6 +6556,10 @@
           return @c true and @c S_OK from all but one of them that
           actually manages console window activation.
         </note>
+
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="canShow" type="boolean" dir="return">
         <desc>
@@ -6502,6 +6604,10 @@
           return @c S_OK from all but one of them that actually
           manages console window activation.
         </note>
+
+        <result name="VBOX_E_DONT_CALL_AGAIN">
+          Do not call again, this method is a NOP.
+        </result>
       </desc>
       <param name="winId" type="unsigned long long" dir="return">
         <desc>
@@ -8706,7 +8812,7 @@
         <desc>
           The current process status.
         </desc>
-      </param>      
+      </param>
     </method>
 
   </interface>
@@ -9136,7 +9242,7 @@
 
   <enum
     name="MediumType"
-    uuid="11f6f7a5-0327-409a-9d42-7db6a0cec578"
+    uuid="46bf1fd4-ad86-4ded-8c49-28bd2d148e5a"
    >
     <desc>
       Virtual medium type.
@@ -9159,6 +9265,12 @@
       <desc>
         Write through medium (attached directly, ignored when
         taking snapshots).
+      </desc>
+    </const>
+    <const name="Shareable"         value="3">
+      <desc>
+        Allow using this medium concurrently by several machines.
+        <note>This is a stub value. Not usable until this note is removed.</note>
       </desc>
     </const>
   </enum>
@@ -9253,7 +9365,7 @@
 
   <interface
     name="IMedium" extends="$unknown"
-    uuid="d709160c-303f-4ead-b7ef-53ffa26aa861"
+    uuid="1d578f43-5ef1-4415-b556-7592d3ccdc8f"
     wsmap="managed"
   >
     <desc>
@@ -9715,6 +9827,21 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         The list of all storage formats supported by this VirtualBox
         installation can be obtained using
         <link to="ISystemProperties::mediumFormats"/>.
+      </desc>
+    </attribute>
+
+    <attribute name="mediumFormat" type="IMediumFormat" readonly="yes">
+      <desc>
+        Storage medium format object corresponding to this medium.
+
+        The value of this attribute is a reference to the medium format object
+        that specifies the backend properties used to store medium data. The
+        storage format is defined when you create a new medium or automatically
+        detected when you open an existing medium, and cannot be changed later.
+
+        <note>@c null is returned if there is no associated medium format
+        object. This can e.g. happen for medium objects representing host
+        drives and other special medium objects.</note>
       </desc>
     </attribute>
 

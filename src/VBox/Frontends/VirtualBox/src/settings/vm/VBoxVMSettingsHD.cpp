@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsHD.cpp 28804 2010-04-27 09:54:17Z vboxsync $ */
+/* $Id: VBoxVMSettingsHD.cpp 29010 2010-05-04 12:17:43Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -601,7 +601,7 @@ void ControllerItem::delChild (AbstractItem *aItem)
 }
 
 /* Attachment Item */
-AttachmentItem::AttachmentItem (AbstractItem *aParent, KDeviceType aDeviceType, bool aVerbose)
+AttachmentItem::AttachmentItem (AbstractItem *aParent, KDeviceType aDeviceType)
     : AbstractItem (aParent)
     , mAttDeviceType (aDeviceType)
     , mAttIsShowDiffs (false)
@@ -615,24 +615,10 @@ AttachmentItem::AttachmentItem (AbstractItem *aParent, KDeviceType aDeviceType, 
     AssertMsg (!attSlots().isEmpty(), ("There should be at least one available slot!\n"));
     mAttSlot = attSlots() [0];
 
-    /* Try to select unique medium */
+    /* Try to select unique medium for HD and empty medium for CD/FD device */
     QStringList freeMediumIds (attMediumIds());
-    switch (mAttDeviceType)
-    {
-        case KDeviceType_HardDisk:
-            if (freeMediumIds.size() > 0)
-                setAttMediumId (freeMediumIds [0]);
-            break;
-        case KDeviceType_DVD:
-        case KDeviceType_Floppy:
-            if (freeMediumIds.size() > 1)
-                setAttMediumId (freeMediumIds [1]);
-            else if (!aVerbose && freeMediumIds.size() > 0)
-                setAttMediumId (freeMediumIds [0]);
-            break;
-        default:
-            break;
-    }
+    if (freeMediumIds.size() > 0)
+        setAttMediumId (freeMediumIds [0]);
 }
 
 StorageSlot AttachmentItem::attSlot() const
@@ -1335,6 +1321,7 @@ bool StorageModel::setData (const QModelIndex &aIndex, const QVariant &aValue, i
                 {
                     static_cast <AttachmentItem*> (item)->setAttSlot (aValue.value <StorageSlot>());
                     emit dataChanged (aIndex, aIndex);
+                    sort();
                     return true;
                 }
             return false;
@@ -1409,14 +1396,14 @@ void StorageModel::delController (const QUuid &aCtrId)
     }
 }
 
-QModelIndex StorageModel::addAttachment (const QUuid &aCtrId, KDeviceType aDeviceType, bool aVerbose)
+QModelIndex StorageModel::addAttachment (const QUuid &aCtrId, KDeviceType aDeviceType)
 {
     if (AbstractItem *parent = mRootItem->childById (aCtrId))
     {
         int parentPosition = mRootItem->posOfChild (parent);
         QModelIndex parentIndex = index (parentPosition, 0, root());
         beginInsertRows (parentIndex, parent->childCount(), parent->childCount());
-        new AttachmentItem (parent, aDeviceType, aVerbose);
+        new AttachmentItem (parent, aDeviceType);
         endInsertRows();
         return index (parent->childCount() - 1, 0, parentIndex);
     }
@@ -1441,6 +1428,81 @@ void StorageModel::delAttachment (const QUuid &aCtrId, const QUuid &aAttId)
 void StorageModel::setMachineId (const QString &aMachineId)
 {
     mRootItem->setMachineId (aMachineId);
+}
+
+void StorageModel::sort(int /* iColumn */, Qt::SortOrder order)
+{
+    /* Count of controller items: */
+    int iItemLevel1Count = mRootItem->childCount();
+    /* For each of controller items: */
+    for (int iItemLevel1Pos = 0; iItemLevel1Pos < iItemLevel1Count; ++iItemLevel1Pos)
+    {
+        /* Get iterated controller item: */
+        AbstractItem *pItemLevel1 = mRootItem->childByPos(iItemLevel1Pos);
+        ControllerItem *pControllerItem = static_cast<ControllerItem*>(pItemLevel1);
+        /* Count of attachment items: */
+        int iItemLevel2Count = pItemLevel1->childCount();
+        /* Prepare empty list for sorted attachments: */
+        QList<AbstractItem*> newAttachments;
+        /* For each of attachment items: */
+        for (int iItemLevel2Pos = 0; iItemLevel2Pos < iItemLevel2Count; ++iItemLevel2Pos)
+        {
+            /* Get iterated attachment item: */
+            AbstractItem *pItemLevel2 = pItemLevel1->childByPos(iItemLevel2Pos);
+            AttachmentItem *pAttachmentItem = static_cast<AttachmentItem*>(pItemLevel2);
+            /* Get iterated attachment storage slot: */
+            StorageSlot attachmentSlot = pAttachmentItem->attSlot();
+            int iInsertPosition = 0;
+            for (; iInsertPosition < newAttachments.size(); ++iInsertPosition)
+            {
+                /* Get sorted attachment item: */
+                AbstractItem *pNewItemLevel2 = newAttachments[iInsertPosition];
+                AttachmentItem *pNewAttachmentItem = static_cast<AttachmentItem*>(pNewItemLevel2);
+                /* Get sorted attachment storage slot: */
+                StorageSlot newAttachmentSlot = pNewAttachmentItem->attSlot();
+                /* Apply sorting rule: */
+                if (((order == Qt::AscendingOrder) && (attachmentSlot < newAttachmentSlot)) ||
+                    ((order == Qt::DescendingOrder) && (attachmentSlot > newAttachmentSlot)))
+                    break;
+            }
+            /* Insert iterated attachment into sorted position: */
+            newAttachments.insert(iInsertPosition, pItemLevel2);
+        }
+
+        /* If that controller has attachments: */
+        if (iItemLevel2Count)
+        {
+            /* We should update corresponding model-indexes: */
+            QModelIndex controllerIndex = index(iItemLevel1Pos, 0, root());
+            pControllerItem->setAttachments(newAttachments);
+            /* That is actually beginMoveRows() + endMoveRows() which
+             * unfortunately become available only in Qt 4.6 version. */
+            beginRemoveRows(controllerIndex, 0, iItemLevel2Count - 1);
+            endRemoveRows();
+            beginInsertRows(controllerIndex, 0, iItemLevel2Count - 1);
+            endInsertRows();
+        }
+    }
+}
+
+QModelIndex StorageModel::attachmentBySlot(QModelIndex controllerIndex, StorageSlot attachmentStorageSlot)
+{
+    /* Check what parent model index is valid, set and of 'controller' type: */
+    AssertMsg(controllerIndex.isValid(), ("Controller index should be valid!\n"));
+    AbstractItem *pParentItem = static_cast<AbstractItem*>(controllerIndex.internalPointer());
+    AssertMsg(pParentItem, ("Parent item should be set!\n"));
+    AssertMsg(pParentItem->rtti() == AbstractItem::Type_ControllerItem, ("Parent item should be of 'controller' type!\n"));
+    NOREF(pParentItem);
+
+    /* Search for suitable attachment one by one: */
+    for (int i = 0; i < rowCount(controllerIndex); ++i)
+    {
+        QModelIndex curAttachmentIndex = index(i, 0, controllerIndex);
+        StorageSlot curAttachmentStorageSlot = data(curAttachmentIndex, R_AttSlot).value<StorageSlot>();
+        if (curAttachmentStorageSlot ==  attachmentStorageSlot)
+            return curAttachmentIndex;
+    }
+    return QModelIndex();
 }
 
 Qt::ItemFlags StorageModel::flags (const QModelIndex &aIndex) const
@@ -1742,7 +1804,7 @@ void VBoxVMSettingsHD::getFrom (const CMachine &aMachine)
         CMediumAttachmentVector attachments = mMachine.GetMediumAttachmentsOfController (controllerName);
         foreach (const CMediumAttachment &attachment, attachments)
         {
-            QModelIndex attIndex = mStorageModel->addAttachment (ctrId, attachment.GetType(), false);
+            QModelIndex attIndex = mStorageModel->addAttachment (ctrId, attachment.GetType());
             mStorageModel->setData (attIndex, QVariant::fromValue (StorageSlot (controller.GetBus(), attachment.GetPort(), attachment.GetDevice())), StorageModel::R_AttSlot);
             CMedium medium (attachment.GetMedium());
             VBoxMedium vboxMedium;
@@ -2208,8 +2270,14 @@ void VBoxVMSettingsHD::setInformation()
         {
             /* Setting Attachment Slot */
             if (sdr == mCbSlot)
-                mStorageModel->setData (index, QVariant::fromValue (vboxGlobal().toStorageSlot (mCbSlot->currentText())),
-                                        StorageModel::R_AttSlot);
+            {
+                QModelIndex controllerIndex = mStorageModel->parent(index);
+                StorageSlot attachmentStorageSlot = vboxGlobal().toStorageSlot(mCbSlot->currentText());
+                mStorageModel->setData(index, QVariant::fromValue(attachmentStorageSlot), StorageModel::R_AttSlot);
+                QModelIndex theSameIndexAtNewPosition = mStorageModel->attachmentBySlot(controllerIndex, attachmentStorageSlot);
+                AssertMsg(theSameIndexAtNewPosition.isValid(), ("Current attachment disappears!\n"));
+                mTwStorageTree->setCurrentIndex(theSameIndexAtNewPosition);
+            }
             /* Setting Attachment Medium */
             else if (sdr == mCbVdi)
                 mStorageModel->setData (index, mCbVdi->id(), StorageModel::R_AttMediumId);
@@ -2568,7 +2636,8 @@ void VBoxVMSettingsHD::addAttachmentWrapper (KDeviceType aDevice)
     Assert (mStorageModel->data (index, StorageModel::R_IsController).toBool());
     Assert (mStorageModel->data (index, StorageModel::R_IsMoreAttachmentsPossible).toBool());
 
-    mStorageModel->addAttachment (QUuid (mStorageModel->data (index, StorageModel::R_ItemId).toString()), aDevice, true);
+    mStorageModel->addAttachment (QUuid (mStorageModel->data (index, StorageModel::R_ItemId).toString()), aDevice);
+    mStorageModel->sort();
     emit storageChanged();
     if (mValidator) mValidator->revalidate();
 }

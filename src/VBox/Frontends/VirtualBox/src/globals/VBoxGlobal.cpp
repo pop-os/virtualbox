@@ -1,4 +1,4 @@
-/* $Id: VBoxGlobal.cpp 28854 2010-04-27 19:41:12Z vboxsync $ */
+/* $Id: VBoxGlobal.cpp 29174 2010-05-06 20:49:56Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -422,7 +422,7 @@ public:
         Q_UNUSED (id);
         Q_UNUSED (type);
         Q_UNUSED (registered);
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnMachineRegistered) (IN_BSTR id, BOOL registered)
@@ -468,7 +468,7 @@ public:
                                       IN_BSTR /* value */,
                                       IN_BSTR /* flags */)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
 private:
@@ -1889,7 +1889,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
     static const char *sSectionItemTpl1 =
         "<tr><td width=40%><nobr><i>%1</i></nobr></td><td/><td/></tr>";
     static const char *sSectionItemTpl2 =
-        "<tr><td width=40%><nobr>%1:</nobr></td><td/><td>%2</td></tr>";
+        "<tr><td width=40%><nobr>%1</nobr></td><td/><td>%2</td></tr>";
     static const char *sSectionItemTpl3 =
         "<tr><td width=40%><nobr>%1</nobr></td><td/><td/></tr>";
 
@@ -3062,6 +3062,7 @@ void VBoxGlobal::retranslateUi()
     mDiskTypes [KMediumType_Normal] =           tr ("Normal", "DiskType");
     mDiskTypes [KMediumType_Immutable] =        tr ("Immutable", "DiskType");
     mDiskTypes [KMediumType_Writethrough] =     tr ("Writethrough", "DiskType");
+    mDiskTypes [KMediumType_Shareable] =        tr ("Shareable", "DiskType");
     mDiskTypes_Differencing =                   tr ("Differencing", "DiskType");
 
     mVRDPAuthTypes [KVRDPAuthType_Null] =       tr ("Null", "VRDPAuthType");
@@ -4491,32 +4492,30 @@ QWidget *VBoxGlobal::findWidget (QWidget *aParent, const char *aName,
     if (aParent == NULL)
     {
         QWidgetList list = QApplication::topLevelWidgets();
-        QWidget* w = NULL;
-        foreach(w, list)
+        foreach(QWidget *w, list)
         {
             if ((!aName || strcmp (w->objectName().toAscii().constData(), aName) == 0) &&
                 (!aClassName || strcmp (w->metaObject()->className(), aClassName) == 0))
-                break;
+                return w;
             if (aRecursive)
             {
                 w = findWidget (w, aName, aClassName, aRecursive);
                 if (w)
-                    break;
+                    return w;
             }
         }
-        return w;
+        return NULL;
     }
 
     /* Find the first children of aParent with the appropriate properties.
      * Please note that this call is recursivly. */
     QList<QWidget *> list = qFindChildren<QWidget *> (aParent, aName);
-    QWidget *child = NULL;
-    foreach(child, list)
+    foreach(QWidget *child, list)
     {
         if (!aClassName || strcmp (child->metaObject()->className(), aClassName) == 0)
-            break;
+            return child;
     }
-    return child;
+    return NULL;
 }
 
 /**
@@ -5223,6 +5222,10 @@ void VBoxGlobal::init()
             if (++i < argc)
                 vm_render_mode_str = qApp->argv() [i];
         }
+        else if (!::strcmp (arg, "--no-startvm-errormsgbox"))
+        {
+            mShowStartVMErrors = false;
+        }
 #ifdef VBOX_WITH_DEBUGGER_GUI
         else if (!::strcmp (arg, "-dbg") || !::strcmp (arg, "--dbg"))
         {
@@ -5261,10 +5264,6 @@ void VBoxGlobal::init()
         else if (!::strcmp (arg, "--start-running"))
         {
             mStartPaused = false;
-        }
-        else if (!::strcmp (arg, "--no-startvm-errormsgbox"))
-        {
-            mShowStartVMErrors = false;
         }
 #endif
         /** @todo add an else { msgbox(syntax error); exit(1); } here, pretty please... */

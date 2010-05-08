@@ -1,4 +1,4 @@
-/* $Id: tstHostHardwareLinux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstHostHardwareLinux.cpp 28882 2010-04-28 23:17:52Z vboxsync $ */
 /** @file
  *
  * Test executable for quickly excercising/debugging the Linux host hardware
@@ -34,17 +34,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-void doHotplugEvent(VBoxMainHotplugWaiter *waiter, RTMSINTERVAL cMillies)
+int doHotplugEvent(VBoxMainHotplugWaiter *waiter, RTMSINTERVAL cMillies)
 {
+    int rc;
     while (true)
     {
-        int rc = waiter->Wait (cMillies);
-        if (rc == VERR_TRY_AGAIN)
-        {
-            RTThreadYield();
-            continue;
-        }
-        if (rc == VERR_TIMEOUT)
+        rc = waiter->Wait (cMillies);
+        if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
             break;
         if (RT_FAILURE(rc))
         {
@@ -54,6 +50,7 @@ void doHotplugEvent(VBoxMainHotplugWaiter *waiter, RTMSINTERVAL cMillies)
         if (RT_SUCCESS(rc))
             break;
     }
+    return rc;
 }
 
 int main()
@@ -153,6 +150,10 @@ int main()
     doHotplugEvent(&waiter, 5000);
     RTPrintf ("Waiting for a hotplug event, Ctrl-C to abort...\n");
     doHotplugEvent(&waiter, RT_INDEFINITE_WAIT);
+    RTPrintf ("Testing interrupting a hotplug event...\n");
+    waiter.Interrupt();
+    rc = doHotplugEvent(&waiter, 5000);
+    RTPrintf ("%s\n", rc == VERR_INTERRUPTED ? "Success!" : "Failed!");
 #endif  /* VBOX_USB_WITH_SYSFS */
     return 0;
 }

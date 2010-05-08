@@ -220,7 +220,7 @@ def autoCompletion(commands, ctx):
   readline.set_completer(completer.complete)
   delims = readline.get_completer_delims()
   readline.set_completer_delims(re.sub("[\\.]", "", delims)) # remove some of the delimiters
-  readline.parse_and_bind("set editing-mode emacs")  
+  readline.parse_and_bind("set editing-mode emacs")
   # OSX need it
   if platform.system() == 'Darwin':
       # see http://www.certif.com/spec_help/readline.html
@@ -264,6 +264,10 @@ def colCat(ctx,str):
 
 def colVm(ctx,vm):
     return colored(vm, 'blue')
+
+def colPath(ctx,vm):
+    return colored(vm, 'green')
+
 
 def createVm(ctx,name,kind,base):
     mgr = ctx['mgr']
@@ -519,24 +523,22 @@ def ginfo(ctx,console, args):
         printSf(ctx,sf)
 
 def cmdExistingVm(ctx,mach,cmd,args):
-    mgr=ctx['mgr']
-    vb=ctx['vb']
-    session = mgr.getSessionObject(vb)
-    uuid = mach.id
     try:
-        progress = vb.openExistingSession(session, uuid)
+        session = ctx['global'].openMachineSession(mach.id)
     except Exception,e:
         printErr(ctx, "Session to '%s' not open: %s" %(mach.name,str(e)))
         if g_verbose:
             traceback.print_exc()
         return
-    if str(session.state) != str(ctx['ifaces'].SessionState_Open):
+    if session.state != ctx['ifaces'].SessionState_Open:
         print "Session to '%s' in wrong state: %s" %(mach.name, session.state)
+        session.close()
         return
     # this could be an example how to handle local only (i.e. unavailable
     # in Webservices) functionality
     if ctx['remote'] and cmd == 'some_local_only_command':
         print 'Trying to use local only functionality, ignored'
+        session.close()
         return
     console=session.console
     ops={'pause':           lambda: console.pause(),
@@ -570,14 +572,30 @@ def cmdClosedVm(ctx,mach,cmd,args=[],save=True):
     session = ctx['global'].openMachineSession(mach.id)
     mach = session.machine
     try:
-         cmd(ctx, mach, args)
+        cmd(ctx, mach, args)
     except Exception, e:
+        save = False
         printErr(ctx,e)
         if g_verbose:
             traceback.print_exc()
     if save:
          mach.saveSettings()
-    session.close()
+    ctx['global'].closeMachineSession(session)
+
+
+def cmdAnyVm(ctx,mach,cmd, args=[],save=False):
+    session = ctx['global'].openMachineSession(mach.id)
+    mach = session.machine
+    try:
+         cmd(ctx, mach, session.console, args)
+    except Exception, e:
+        save = False;
+        printErr(ctx,e)
+        if g_verbose:
+            traceback.print_exc()
+    if save:
+         mach.saveSettings()
+    ctx['global'].closeMachineSession(session)
 
 def machById(ctx,id):
     mach = None
@@ -1113,7 +1131,11 @@ def colorsCmd(ctx, args):
 
 def hostCmd(ctx, args):
    vb = ctx['vb']
-   print "VirtualBox version %s" %(vb.version)
+   print "VirtualBox version %s" %(colored(vb.version, 'blue'))
+   props = vb.systemProperties
+   print "Machines: %s" %(colPath(ctx,props.defaultMachineFolder))
+   print "HDDs:     %s" %(colPath(ctx,props.defaultHardDiskFolder))
+
    #print "Global shared folders:"
    #for ud in ctx['global'].getArray(vb, 'sharedFolders'):
    #    printSf(ctx,sf)
@@ -2098,6 +2120,314 @@ def unshareFolderCmd(ctx,args):
         cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx,mach,console,args: console.removeSharedFolder(name)])
     return 0
 
+
+def snapshotCmd(ctx,args):
+    if (len(args) < 2 or args[1] == 'help'):
+        print "Take snapshot:    snapshot vm take name <description>"
+        print "Restore snapshot: snapshot vm restore name"
+        print "Merge snapshot:   snapshot vm merge name"
+        return 0
+
+    mach = argsToMach(ctx,args)
+    if mach is None:
+        return 0
+    cmd = args[2]
+    if cmd == 'take':
+        if (len(args) < 4):
+            print "usage: snapshot vm take name <description>"
+            return 0
+        name = args[3]
+        if (len(args) > 4):
+            desc = args[4]
+        else:
+            desc = ""
+        cmdAnyVm(ctx, mach, lambda ctx,mach,console,args: progressBar(ctx, console.takeSnapshot(name,desc)))
+
+    if cmd == 'restore':
+        if (len(args) < 4):
+            print "usage: snapshot vm restore name"
+            return 0
+        name = args[3]
+        snap = mach.findSnapshot(name)
+        cmdAnyVm(ctx, mach, lambda ctx,mach,console,args: progressBar(ctx, console.restoreSnapshot(snap)))
+        return 0
+
+    if cmd == 'restorecurrent':
+        if (len(args) < 4):
+            print "usage: snapshot vm restorecurrent"
+            return 0
+        snap = mach.currentSnapshot()
+        cmdAnyVm(ctx, mach, lambda ctx,mach,console,args: progressBar(ctx, console.restoreSnapshot(snap)))
+        return 0
+
+    if cmd == 'delete':
+        if (len(args) < 4):
+            print "usage: snapshot vm delete name"
+            return 0
+        name = args[3]
+        snap = mach.findSnapshot(name)
+        cmdAnyVm(ctx, mach, lambda ctx,mach,console,args: progressBar(ctx, console.deleteSnapshot(snap.id)))
+        return 0
+
+    print "Command '%s' is unknown" %(cmd)
+
+    return 0
+
+def natAlias(ctx, mach, nicnum, nat, args=[]):
+    """This command shows/alters NAT's alias settings. 
+    usage: nat <vm> <nicnum> alias [default|[log] [proxyonly] [sameports]]
+    default - set settings to default values
+    log - switch on alias loging
+    proxyonly - switch proxyonly mode on
+    sameports - enforces NAT using the same ports 
+    """
+    alias = {
+        'log': 0x1,
+        'proxyonly': 0x2,
+        'sameports': 0x4
+    }
+    if len(args) == 1:
+        first = 0
+        msg = ''
+        for aliasmode, aliaskey in alias.iteritems(): 
+            if first == 0:
+                first = 1
+            else:
+                msg += ', '
+            if int(nat.aliasMode) & aliaskey: 
+                msg += '{0}: {1}'.format(aliasmode, 'on')
+            else:
+                msg += '{0}: {1}'.format(aliasmode, 'off')
+        msg += ')'
+        return (0, [msg])
+    else:
+        nat.aliasMode = 0
+        if 'default' not in args:
+            for a in range(1, len(args)):
+                if not alias.has_key(args[a]):
+                    print 'Invalid alias mode: ' + args[a]
+                    print natAlias.__doc__
+                    return (1, None)
+                nat.aliasMode = int(nat.aliasMode) | alias[args[a]];
+    return (0, None)
+
+def natSettings(ctx, mach, nicnum, nat, args):
+    """This command shows/alters NAT settings.
+    usage: nat <vm> <nicnum> settings [<mtu> [[<socsndbuf> <sockrcvbuf> [<tcpsndwnd> <tcprcvwnd>]]]]
+    mtu - set mtu <= 16000
+    socksndbuf/sockrcvbuf - sets amount of kb for socket sending/receiving buffer 
+    tcpsndwnd/tcprcvwnd - sets size of initial tcp sending/receiving window
+    """
+    if len(args) == 1:
+        (mtu, socksndbuf, sockrcvbuf, tcpsndwnd, tcprcvwnd) = nat.getNetworkSettings();
+        if mtu == 0: mtu = 1500
+        if socksndbuf == 0: socksndbuf = 64
+        if sockrcvbuf == 0: sockrcvbuf = 64
+        if tcpsndwnd == 0: tcpsndwnd = 64
+        if tcprcvwnd == 0: tcprcvwnd = 64
+        msg = 'mtu:{0} socket(snd:{1}, rcv:{2}) tcpwnd(snd:{3}, rcv:{4})'.format(mtu, socksndbuf, sockrcvbuf, tcpsndwnd, tcprcvwnd);
+        return (0, [msg])
+    else:
+        if args[1] < 16000:
+            print 'invalid mtu value ({0} no in range [65 - 16000])'.format(args[1])
+            return (1, None)
+        for i in range(2, len(args)):
+            if not args[i].isdigit() or int(args[i]) < 8 or int(args[i]) > 1024:
+                print 'invalid {0} parameter ({1} not in range [8-1024])'.format(i, args[i])
+                return (1, None) 
+        a = [args[1]]
+        if len(args) < 6:
+            for i in range(2, len(args)): a.append(args[i]) 
+            for i in range(len(args), 6): a.append(0)
+        else:
+            for i in range(2, len(args)): a.append(args[i]) 
+        #print a
+        nat.setNetworkSettings(int(a[0]), int(a[1]), int(a[2]), int(a[3]), int(a[4]))
+    return (0, None)
+
+def natDns(ctx, mach, nicnum, nat, args):
+    """This command shows/alters DNS's NAT settings
+    usage: nat <vm> <nicnum> dns [passdomain] [proxy] [usehostresolver]
+    passdomain - enforces builtin DHCP server to pass domain
+    proxy - switch on builtin NAT DNS proxying mechanism
+    usehostresolver - proxies all DNS requests to Host Resolver interface
+    """
+    yesno = {0: 'off', 1: 'on'}
+    if len(args) == 1:
+        msg = 'passdomain:{0}, proxy:{1}, usehostresolver:{2}'.format(yesno[int(nat.dnsPassDomain)], yesno[int(nat.dnsProxy)], yesno[int(nat.dnsUseHostResolver)])
+        return (0, [msg])
+    else:
+        nat.dnsPassDomain = 'passdomain' in args
+        nat.dnsProxy =  'proxy' in args
+        nat.dnsUseHostResolver =  'usehostresolver' in args
+    return (0, None)
+
+def natTftp(ctx, mach, nicnum, nat, args):
+    """This command shows/alters TFTP settings
+    usage nat <vm> <nicnum> tftp [prefix <prefix>| bootfile <bootfile>| server <server>]
+    prefix - alters prefix TFTP settings
+    bootfile - alters bootfile TFTP settings
+    server - sets booting server
+    """
+    if len(args) == 1:
+        server = nat.tftpNextServer
+        if server is None:
+            server = nat.network
+            if server is None:
+                server = '10.0.{0}/24'.format(int(nicnum) + 2)
+            (server,mask) = server.split('/')
+            while server.count('.') != 3:
+                server += '.0'
+            (a,b,c,d) = server.split('.')
+            server = '{0}.{1}.{2}.4'.format(a,b,c)
+        prefix = nat.tftpPrefix
+        if prefix is None:
+            prefix = '{0}/TFTP/'.format(ctx['vb'].homeFolder)
+        bootfile = nat.tftpBootFile
+        if bootfile is None:
+            bootfile = '{0}.pxe'.format(mach.name)
+        msg = 'server:{0}, prefix:{1}, bootfile:{2}'.format(server, prefix, bootfile)
+        return (0, [msg])
+    else:
+
+        cmd = args[1]
+        if len(args) != 3:
+            print 'invalid args:', args
+            print natTftp.__doc__
+            return (1, None)
+        if cmd == 'prefix': nat.tftpPrefix = args[2]
+        elif cmd == 'bootfile': nat.tftpBootFile = args[2]
+        elif cmd == 'server': nat.tftpNextServer = args[2]
+        else:
+            print "invalid cmd:", cmd
+            return (1, None)
+    return (0, None)
+
+def natPortForwarding(ctx, mach, nicnum, nat, args):
+    """This command shows/manages port-forwarding settings
+    usage: 
+        nat <vm> <nicnum> <pf> [ simple tcp|udp <hostport> <guestport>]
+            |[no_name tcp|udp <hostip> <hostport> <guestip> <guestport>] 
+            |[ex tcp|udp <pf-name> <hostip> <hostport> <guestip> <guestport>]
+            |[delete <pf-name>]
+    """
+    if len(args) == 1:
+        # note: keys/values are swapped in defining part of the function
+        proto = {0: 'udp', 1: 'tcp'}
+        msg = []
+        pfs = ctx['global'].getArray(nat, 'redirects')
+        for pf in pfs:
+            (pfnme, pfp, pfhip, pfhp, pfgip, pfgp) = str(pf).split(',')
+            msg.append('{0}: {1} {2}:{3} => {4}:{5}'.format(pfnme, proto[int(pfp)], pfhip, pfhp, pfgip, pfgp))
+        return (0, msg) # msg is array
+    else:
+        proto = {'udp': 0, 'tcp': 1}
+        pfcmd = {
+            'simple': {
+                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 5, 
+                'func':lambda: nat.addRedirect('', proto[args[2]], '', int(args[3]), '', int(args[4]))
+            },
+            'no_name': { 
+                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 7, 
+                'func': lambda: nat.addRedirect('', proto[args[2]], args[3], int(args[4]), args[5], int(args[6]))
+            },
+            'ex': { 
+                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 8, 
+                'func': lambda: nat.addRedirect(args[3], proto[args[2]], args[4], int(args[5]), args[6], int(args[7]))
+            },
+            'delete': {
+                'validate': lambda: len(args) == 3,
+                'func': lambda: nat.removeRedirect(args[2])
+            }
+        } 
+
+        if not pfcmd[args[1]]['validate']():
+            print 'invalid port-forwarding or args of sub command ', args[1]
+            print natPortForwarding.__doc__
+            return (1, None)
+
+        a = pfcmd[args[1]]['func']()
+    return (0, None)
+
+def natNetwork(ctx, mach, nicnum, nat, args):
+    """This command shows/alters NAT network settings 
+    usage: nat <vm> <nicnum> network [<network>]
+    """
+    if len(args) == 1:
+        if nat.network is not None and len(str(nat.network)) != 0:
+            msg = '\'%s\'' % (nat.network)
+        else:
+            msg = '10.0.{0}.0/24'.format(int(nicnum) + 2)
+        return (0, [msg])
+    else:
+        (addr, mask) = args[1].split('/')
+        if addr.count('.') > 3 or int(mask) < 0 or int(mask) > 32:
+            print 'Invalid arguments'
+            return (1, None)
+        nat.network = args[1]
+    return (0, None)
+def natCmd(ctx, args):
+    """This command is entry point to NAT settins management
+    usage: nat <vm> <nicnum> <cmd> <cmd-args>
+    cmd - [alias|settings|tftp|dns|pf|network]
+    for more information about commands:
+    nat help <cmd>
+    """
+
+    natcommands = {
+        'alias' : natAlias,
+        'settings' : natSettings,
+        'tftp': natTftp,
+        'dns': natDns,
+        'pf': natPortForwarding,
+        'network': natNetwork
+    }
+
+    if args[1] == 'help':
+        if len(args) > 2:
+            print natcommands[args[2]].__doc__
+        else:
+            print natCmd.__doc__
+        return 0
+    if len(args) == 1 or len(args) < 4 or args[3] not in natcommands:
+        print natCmd.__doc__
+        return 0
+    mach = ctx['argsToMach'](args)
+    if mach == None:
+        print "please specify vm"
+        return 0
+    if len(args) < 3 or not args[2].isdigit() or int(args[2]) not in range(0, ctx['vb'].systemProperties.networkAdapterCount):
+        print 'please specify adapter num {0} isn\'t in range [0-{1}]'.format(args[2], ctx['vb'].systemProperties.networkAdapterCount)
+        return 0
+    nicnum = int(args[2])
+    cmdargs = []
+    for i in range(3, len(args)):
+        cmdargs.append(args[i])
+        
+    # @todo vvl if nicnum is missed but command is entered 
+    # use NAT func for every adapter on machine.
+    func = args[3]
+    rosession = 1
+    session = None
+    if len(cmdargs) > 1:
+        rosession = 0
+        session = ctx['global'].openMachineSession(mach.id);
+        mach = session.machine;
+
+    adapter = mach.getNetworkAdapter(nicnum)
+    natEngine = adapter.natDriver
+    (rc, report) = natcommands[func](ctx, mach, nicnum, natEngine, cmdargs) 
+    if rosession == 0:
+        if rc == 0:
+            mach.saveSettings()
+        session.close()
+    elif report is not None:
+        for r in report:
+            msg ='{0} nic{1} {2}: {3}'.format(mach.name, nicnum, func, r)
+            print msg
+    return 0
+
+
 aliases = {'s':'start',
            'i':'info',
            'l':'list',
@@ -2171,6 +2501,8 @@ commands = {'help':['Prints help information', helpCmd, 0],
             'unshareFolder': ['Remove folder sharing', unshareFolderCmd, 0],
             'gui': ['Start GUI frontend', guiCmd, 0],
             'colors':['Toggle colors', colorsCmd, 0],
+            'snapshot':['VM snapshot manipulation, snapshot help for more info', snapshotCmd, 0],
+            'nat':['NAT manipulation, nat help for more info', natCmd, 0],
             }
 
 def runCommandArgs(ctx, args):

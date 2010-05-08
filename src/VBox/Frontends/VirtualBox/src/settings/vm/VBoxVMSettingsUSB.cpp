@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsUSB.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVMSettingsUSB.cpp 28939 2010-04-30 14:31:54Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -129,6 +129,11 @@ VBoxVMSettingsUSB::VBoxVMSettingsUSB (FilterType aType)
     retranslateUi();
 }
 
+bool VBoxVMSettingsUSB::isOHCIEnabled() const
+{
+    return mGbUSB->isChecked();
+}
+
 void VBoxVMSettingsUSB::getFrom (const CSystemProperties &, const VBoxGlobalSettings &)
 {
     mGbUSB->setVisible (false);
@@ -225,6 +230,7 @@ void VBoxVMSettingsUSB::putBackTo()
 void VBoxVMSettingsUSB::setValidator (QIWidgetValidator *aVal)
 {
     mValidator = aVal;
+    connect (mGbUSB, SIGNAL (stateChanged (int)), mValidator, SLOT (revalidate()));
 }
 
 void VBoxVMSettingsUSB::setOrderAfter (QWidget *aWidget)

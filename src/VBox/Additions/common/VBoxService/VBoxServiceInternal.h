@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxServiceInternal.h 29040 2010-05-04 20:09:03Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -24,9 +24,8 @@
 # include <process.h> /* Needed for file version information. */
 #endif
 
-#ifdef VBOX_WITH_GUEST_CONTROL
-# include <iprt/list.h>
-#endif
+#include <iprt/list.h>
+#include <iprt/critsect.h>
 
 /**
  * A service descriptor.
@@ -93,6 +92,7 @@ typedef VBOXSERVICE *PVBOXSERVICE;
 typedef VBOXSERVICE const *PCVBOXSERVICE;
 
 #ifdef RT_OS_WINDOWS
+
 /** The service name (needed for mutex creation on Windows). */
 # define VBOXSERVICE_NAME           "VBoxService"
 /** The friendly service name. */
@@ -122,9 +122,10 @@ typedef struct
 } VBOXSERVICEVMINFOPROC, *PVBOXSERVICEVMINFOPROC;
 /** Function prototypes for dynamic loading. */
 typedef DWORD (WINAPI *PFNWTSGETACTIVECONSOLESESSIONID)(void);
-#endif /* RT_OS_WINDOWS */
 
+#endif /* RT_OS_WINDOWS */
 #ifdef VBOX_WITH_GUEST_CONTROL
+
 enum VBOXSERVICECTRLTHREADDATATYPE
 {
     VBoxServiceCtrlThreadDataUnknown = 0,
@@ -133,10 +134,11 @@ enum VBOXSERVICECTRLTHREADDATATYPE
 
 typedef struct
 {
-    uint8_t  *pbData;
-    uint32_t  cbSize;
-    uint32_t  cbOffset;
-    uint32_t  cbRead;
+    uint8_t    *pbData;
+    uint32_t    cbSize;
+    uint32_t    cbOffset;
+    uint32_t    cbRead;
+    RTCRITSECT  CritSect;
 } VBOXSERVICECTRLEXECPIPEBUF;
 /** Pointer to thread data. */
 typedef VBOXSERVICECTRLEXECPIPEBUF *PVBOXSERVICECTRLEXECPIPEBUF;
@@ -166,7 +168,7 @@ typedef struct
 typedef VBOXSERVICECTRLTHREADDATAEXEC *PVBOXSERVICECTRLTHREADDATAEXEC;
 
 /* Structure for holding thread relevant data. */
-typedef struct
+typedef struct VBOXSERVICECTRLTHREAD
 {
     /** Node. */
     RTLISTNODE                      Node;
@@ -193,7 +195,7 @@ typedef VBOXSERVICECTRLTHREAD *PVBOXSERVICECTRLTHREAD;
 /**
  * For buffering process input supplied by the client.
  */
-typedef struct
+typedef struct VBOXSERVICECTRLSTDINBUF
 {
     /** The mount of buffered data. */
     size_t  cb;
@@ -210,7 +212,46 @@ typedef struct
 } VBOXSERVICECTRLSTDINBUF;
 /** Pointer to a standard input buffer. */
 typedef VBOXSERVICECTRLSTDINBUF *PVBOXSERVICECTRLSTDINBUF;
-#endif
+
+#endif /* VBOX_WITH_GUEST_CONTROL */
+#ifdef VBOX_WITH_GUEST_PROPS
+
+/**
+ * A guest property cache.
+ */
+typedef struct VBOXSERVICEVEPROPCACHE
+{
+    /** The client ID for HGCM communication. */
+    uint32_t    uClientID;
+    /** List of VBOXSERVICEVEPROPCACHEENTRY nodes. */
+    RTLISTNODE  ListEntries;
+    /** Critical section for thread-safe use. */
+    RTCRITSECT  CritSect;
+} VBOXSERVICEVEPROPCACHE;
+/** Pointer to a guest property cache. */
+typedef VBOXSERVICEVEPROPCACHE *PVBOXSERVICEVEPROPCACHE;
+
+/**
+ * An entry in the property cache (VBOXSERVICEVEPROPCACHE).
+ */
+typedef struct VBOXSERVICEVEPROPCACHEENTRY
+{
+    /** Node. */
+    RTLISTNODE  Node;
+    /** Name (and full path) of guest property. */
+    char       *pszName;
+    /** The last value stored (for reference). */
+    char       *pszValue;
+    /** Reset value to write if property is temporary.  If NULL, it will be
+     *  deleted. */
+    char       *pszValueReset;
+    /** Flags. */
+    uint32_t    fFlags;
+} VBOXSERVICEVEPROPCACHEENTRY;
+/** Pointer to a cached guest property. */
+typedef VBOXSERVICEVEPROPCACHEENTRY *PVBOXSERVICEVEPROPCACHEENTRY;
+
+#endif /* VBOX_WITH_GUEST_PROPS */
 
 RT_C_DECLS_BEGIN
 

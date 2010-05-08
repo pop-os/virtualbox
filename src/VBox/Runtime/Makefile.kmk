@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: Makefile.kmk 28912 2010-04-29 16:50:25Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT (IPRT).
 #
@@ -186,16 +186,19 @@ ifdef IPRT_WITH_KSTUFF
  RuntimeR3_DEFS        += LDR_WITH_KLDR
 endif
 ifdef VBOX_MAIN_RELEASE_LOG ## @todo (dmik): temporary, until RTThreadSelf/RTThreadAdopt are properly updated
- RuntimeR3_DEFS         += RTCRITSECT_STRICT
+ RuntimeR3_DEFS        += RTCRITSECT_STRICT
 endif
 ifdef IPRT_WITH_LZJB
- RuntimeR3_DEFS         += RTZIP_USE_LZJB
+ RuntimeR3_DEFS        += RTZIP_USE_LZJB
 endif
 ifdef IPRT_WITH_LZO
- RuntimeR3_DEFS         += RTZIP_USE_LZO
+ RuntimeR3_DEFS        += RTZIP_USE_LZO
+endif
+ifn1of ($(KBUILD_TARGET), win)
+ RuntimeR3_DEFS        += RT_WITH_ICONV_CACHE
 endif
 ifdef IPRT_WITH_FUTEX_BASED_SEMS
- RuntimeR3_DEFS.linux   += IPRT_WITH_FUTEX_BASED_SEMS
+ RuntimeR3_DEFS.linux  += IPRT_WITH_FUTEX_BASED_SEMS
 endif
 RuntimeR3_INCS          = \
 	include \
@@ -488,7 +491,6 @@ RuntimeR3_SOURCES.win.amd64 = $(RuntimeWin64ASM_SOURCES)
 RuntimeR3_SOURCES.win.x86   = $(RuntimeWin32ASM_SOURCES)
 
 RuntimeR3_SOURCES.linux = \
-	generic/pathhost-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -518,6 +520,7 @@ RuntimeR3_SOURCES.linux = \
 	r3/posix/fs-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/path-posix.cpp \
+	r3/posix/pathhost-posix.cpp \
 	r3/posix/pipe-posix.cpp \
 	r3/posix/poll-posix.cpp \
 	r3/posix/process-posix.cpp \
@@ -553,7 +556,6 @@ else
 endif
 
 RuntimeR3_SOURCES.os2   = \
-	generic/pathhost-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -597,6 +599,7 @@ RuntimeR3_SOURCES.os2   = \
 	r3/posix/fs-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/path-posix.cpp \
+	r3/posix/pathhost-posix.cpp \
 	r3/posix/process-posix.cpp \
 	r3/posix/RTTimeNow-posix.cpp \
 	r3/posix/RTTimeSet-posix.cpp \
@@ -608,7 +611,6 @@ RuntimeR3_SOURCES.darwin = \
 	darwin/RTErrConvertFromDarwinCOM.cpp \
 	darwin/RTErrConvertFromDarwinIO.cpp \
 	darwin/RTErrConvertFromDarwinKern.cpp \
-	generic/pathhost-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -627,6 +629,7 @@ RuntimeR3_SOURCES.darwin = \
 	r3/darwin/alloc-darwin.cpp \
 	r3/darwin/filelock-darwin.cpp \
 	r3/darwin/mp-darwin.cpp \
+	r3/darwin/pathhost-darwin.cpp \
 	r3/darwin/rtProcInitExePath-darwin.cpp \
 	r3/darwin/RTSystemQueryDmiString-darwin.cpp \
 	r3/darwin/sched-darwin.cpp \
@@ -654,7 +657,6 @@ RuntimeR3_SOURCES.darwin = \
 
 ## @todo Make BSD sched, implement RTMP*.
 RuntimeR3_SOURCES.freebsd = \
-	generic/pathhost-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -690,6 +692,7 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/fs-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/path-posix.cpp \
+	r3/posix/pathhost-posix.cpp \
 	r3/posix/pipe-posix.cpp \
 	r3/posix/poll-posix.cpp \
 	r3/posix/process-posix.cpp \
@@ -709,7 +712,6 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/posix/utf8-posix.cpp
 
 RuntimeR3_SOURCES.solaris = \
-	generic/pathhost-generic.cpp \
 	generic/RTDirQueryInfo-generic.cpp \
 	generic/RTDirSetTimes-generic.cpp \
 	generic/RTFileMove-generic.cpp \
@@ -732,6 +734,7 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/fs-posix.cpp \
 	r3/posix/ldrNative-posix.cpp \
 	r3/posix/path-posix.cpp \
+	r3/posix/pathhost-posix.cpp \
 	r3/posix/pipe-posix.cpp \
 	r3/posix/poll-posix.cpp \
 	r3/posix/process-posix.cpp \
@@ -1191,11 +1194,6 @@ RuntimeR0_TEMPLATE      = VBoxR0
 RuntimeR0_DEFS          = IN_RT_R0 RT_WITH_VBOX
 RuntimeR0_INCS          = include
 RuntimeR0_SOURCES       = \
-	common/checksum/crc32.cpp \
-	common/checksum/crc64.cpp \
-	common/checksum/md5.cpp \
-	common/checksum/ipv4.cpp \
-	common/checksum/ipv6.cpp \
 	common/log/logellipsis.cpp \
 	common/log/logrelellipsis.cpp \
 	common/log/logcom.cpp \
@@ -1208,18 +1206,11 @@ RuntimeR0_SOURCES       = \
 	common/misc/RTAssertMsg2Weak.cpp \
 	common/misc/RTAssertMsg2WeakV.cpp \
 	common/misc/buildconfig.cpp \
-	common/misc/handletable.cpp \
-	common/misc/handletablectx.cpp \
-	common/misc/handletablesimple.cpp \
 	common/misc/sanity-c.c \
 	common/misc/sanity-cpp.cpp \
 	common/misc/term.cpp \
-	common/string/strformat.cpp \
-	common/string/strformatrt.cpp \
-	common/string/strformattype.cpp \
 	common/string/strncmp.cpp \
 	common/string/strpbrk.cpp \
-	common/string/strprintf.cpp \
 	common/table/avlgcptr.cpp \
 	common/table/avlhcphys.cpp \
 	common/table/avllu32.cpp \
@@ -1238,6 +1229,22 @@ RuntimeR0_SOURCES       = \
 	generic/RTAssertShouldPanic-generic.cpp \
 	\
 	$(RuntimeNoCrt_SOURCES)
+
+ifneq ($(KBUILD_TARGET),win)
+RuntimeR0_SOURCES      += \
+	common/checksum/crc32.cpp \
+	common/checksum/crc64.cpp \
+	common/checksum/md5.cpp \
+	common/checksum/ipv4.cpp \
+	common/checksum/ipv6.cpp \
+	common/misc/handletable.cpp \
+	common/misc/handletablectx.cpp \
+	common/misc/handletablesimple.cpp \
+	common/string/strformat.cpp \
+	common/string/strformatrt.cpp \
+	common/string/strformattype.cpp \
+	common/string/strprintf.cpp
+endif
 
 if1of ($(KBUILD_TARGET), darwin solaris freebsd)
 RuntimeR0_SOURCES += \

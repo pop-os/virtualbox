@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VirtualBoxImpl.h 28944 2010-04-30 17:49:02Z vboxsync $ */
 
 /** @file
  *
@@ -40,6 +40,7 @@ class Host;
 class SystemProperties;
 class DHCPServer;
 class PerformanceCollector;
+class VirtualBoxCallbackRegistration; /* see VirtualBoxImpl.cpp */
 
 typedef std::list< ComObjPtr<SessionMachine> > SessionMachinesList;
 
@@ -66,7 +67,7 @@ class ATL_NO_VTABLE VirtualBox :
 
 public:
 
-    typedef std::list< ComPtr<IVirtualBoxCallback> > CallbackList;
+    typedef std::list< VirtualBoxCallbackRegistration > CallbackList;
     typedef std::list< ComPtr<IInternalSessionControl> > InternalControlList;
 
     class CallbackEvent;
@@ -215,6 +216,8 @@ public:
     void addProcessToReap (RTPROCESS pid);
     void updateClientWatcher();
 
+    void removeDeadCallback(const ComPtr<IVirtualBoxCallback> &aCallback);
+
     void onMachineStateChange(const Guid &aId, MachineState_T aState);
     void onMachineDataChange(const Guid &aId);
     BOOL onExtraDataCanChange(const Guid &aId, IN_BSTR aKey, IN_BSTR aValue,
@@ -320,4 +323,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#endif // ____H_VIRTUALBOXIMPL
+#endif // !____H_VIRTUALBOXIMPL

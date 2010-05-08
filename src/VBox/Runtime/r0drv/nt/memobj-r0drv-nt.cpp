@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-nt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: memobj-r0drv-nt.cpp 29027 2010-05-04 14:33:41Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, NT.
  */
@@ -483,9 +483,9 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
 }
 
 
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, unsigned CachePolicy)
+int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
-    AssertReturn(CachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_IMPLEMENTED);
+    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_IMPLEMENTED);
 
     /*
      * Validate the address range and create a descriptor for it.
@@ -502,6 +502,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
     {
         pMemNt->Core.u.Phys.PhysBase = Phys;
         pMemNt->Core.u.Phys.fAllocated = false;
+        pMemNt->Core.u.Phys.uCachePolicy = uCachePolicy;
         *ppMem = &pMemNt->Core;
         return VINF_SUCCESS;
     }

@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFile.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFile.cpp 29121 2010-05-06 09:09:33Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -20,7 +20,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
-//#define DEBUG
 #include "PDMInternal.h"
 #include <VBox/pdm.h>
 #include <VBox/mm.h>
@@ -258,6 +257,8 @@ void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
 {
     PPDMASYNCCOMPLETIONTASKFILE pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pvUser;
 
+    LogFlowFunc(("pTask=%#p pvUser=%#p rc=%Rrc\n", pTask, pvUser, rc));
+
     if (pTask->enmTransferType == PDMACTASKFILETRANSFER_FLUSH)
     {
         pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, rc, true);
@@ -277,6 +278,16 @@ void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
     }
 }
 
+DECLINLINE(void) pdmacFileEpTaskInit(PPDMASYNCCOMPLETIONTASK pTask, size_t cbTransfer)
+{
+    PPDMASYNCCOMPLETIONTASKFILE pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pTask;
+
+    Assert((uint32_t)cbTransfer == cbTransfer && (int32_t)cbTransfer >= 0);
+    ASMAtomicWriteS32(&pTaskFile->cbTransferLeft, (int32_t)cbTransfer);
+    ASMAtomicWriteBool(&pTaskFile->fCompleted, false);
+    ASMAtomicWriteS32(&pTaskFile->rc, VINF_SUCCESS);
+}
+
 int pdmacFileEpTaskInitiate(PPDMASYNCCOMPLETIONTASK pTask,
                             PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
                             PCRTSGSEG paSegments, size_t cSegments,
@@ -289,11 +300,6 @@ int pdmacFileEpTaskInitiate(PPDMASYNCCOMPLETIONTASK pTask,
 
     Assert(   (enmTransfer == PDMACTASKFILETRANSFER_READ)
            || (enmTransfer == PDMACTASKFILETRANSFER_WRITE));
-
-    Assert((uint32_t)cbTransfer == cbTransfer && (int32_t)cbTransfer >= 0);
-    ASMAtomicWriteS32(&pTaskFile->cbTransferLeft, (int32_t)cbTransfer);
-    ASMAtomicWriteBool(&pTaskFile->fCompleted, false);
-    ASMAtomicWriteS32(&pTaskFile->rc, VINF_SUCCESS);
 
     for (unsigned i = 0; i < cSegments; i++)
     {
@@ -822,6 +828,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                 pEpFile->cTasksCached   = 0;
                 pEpFile->pBwMgr         = pEpClassFile->pBwMgr;
                 pEpFile->enmBackendType = enmEpBackend;
+                pEpFile->fAsyncFlushSupported = true;
                 pdmacFileBwRef(pEpFile->pBwMgr);
 
                 if (enmMgrType == PDMACEPFILEMGRTYPE_SIMPLE)
@@ -969,7 +976,12 @@ static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
     int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
+    LogFlowFunc(("pTask=%#p pEndpoint=%#p off=%RTfoff paSegments=%#p cSegments=%zu cbRead=%zu\n",
+                 pTask, pEndpoint, off, paSegments, cSegments, cbRead));
+
     STAM_PROFILE_ADV_START(&pEpFile->StatRead, Read);
+
+    pdmacFileEpTaskInit(pTask, cbRead);
 
     if (pEpFile->fCaching)
         rc = pdmacFileEpCacheRead(pEpFile, (PPDMASYNCCOMPLETIONTASKFILE)pTask,
@@ -996,6 +1008,8 @@ static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
 
     STAM_PROFILE_ADV_START(&pEpFile->StatWrite, Write);
 
+    pdmacFileEpTaskInit(pTask, cbWrite);
+
     if (pEpFile->fCaching)
         rc = pdmacFileEpCacheWrite(pEpFile, (PPDMASYNCCOMPLETIONTASKFILE)pTask,
                                    off, paSegments, cSegments, cbWrite);
@@ -1016,32 +1030,31 @@ static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
 static int pdmacFileEpFlush(PPDMASYNCCOMPLETIONTASK pTask,
                             PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
-    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONTASKFILE pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pTask;
 
     if (RT_UNLIKELY(pEpFile->fReadonly))
         return VERR_NOT_SUPPORTED;
 
-    pTaskFile->cbTransferLeft = 0;
-    pTaskFile->rc             = VINF_SUCCESS;
+    pdmacFileEpTaskInit(pTask, 0);
 
     if (pEpFile->fCaching)
-        rc = pdmacFileEpCacheFlush(pEpFile, pTaskFile);
-    else
     {
-        PPDMACTASKFILE pIoTask = pdmacFileTaskAlloc(pEpFile);
-        AssertPtr(pIoTask);
-
-        pIoTask->pEndpoint       = pEpFile;
-        pIoTask->enmTransferType = PDMACTASKFILETRANSFER_FLUSH;
-        pIoTask->pvUser          = pTaskFile;
-        pIoTask->pfnCompleted    = pdmacFileEpTaskCompleted;
-        pdmacFileEpAddTask(pEpFile, pIoTask);
-        rc = VINF_AIO_TASK_PENDING;
+        int rc = pdmacFileEpCacheFlush(pEpFile, pTaskFile);
+        AssertRC(rc);
     }
 
-    return rc;
+    PPDMACTASKFILE pIoTask = pdmacFileTaskAlloc(pEpFile);
+    if (RT_UNLIKELY(!pIoTask))
+        return VERR_NO_MEMORY;
+
+    pIoTask->pEndpoint       = pEpFile;
+    pIoTask->enmTransferType = PDMACTASKFILETRANSFER_FLUSH;
+    pIoTask->pvUser          = pTaskFile;
+    pIoTask->pfnCompleted    = pdmacFileEpTaskCompleted;
+    pdmacFileEpAddTask(pEpFile, pIoTask);
+
+    return VINF_AIO_TASK_PENDING;
 }
 
 static int pdmacFileEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t *pcbSize)

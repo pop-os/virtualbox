@@ -1,4 +1,4 @@
-/* $Id: DevPS2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevPS2.cpp 28909 2010-04-29 16:34:17Z vboxsync $ */
 /** @file
  * DevPS2 - PS/2 keyboard & mouse controller device.
  */
@@ -1482,7 +1482,11 @@ static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, 
  */
 static DECLCALLBACK(void)  kbdReset(PPDMDEVINS pDevIns)
 {
-    kbd_reset(PDMINS_2_DATA(pDevIns, KBDState *));
+    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+
+    kbd_reset(pThis);
+    /* Activate the PS/2 keyboard by default. */
+    pThis->Keyboard.pDrv->pfnSetActive(pThis->Keyboard.pDrv, true);
 }
 
 

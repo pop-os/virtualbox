@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.cpp 28856 2010-04-27 19:47:35Z vboxsync $ */
+/* $Id: SnapshotImpl.cpp 29036 2010-05-04 14:54:12Z vboxsync $ */
 
 /** @file
  *
@@ -22,6 +22,7 @@
 
 #include "MachineImpl.h"
 #include "MediumImpl.h"
+#include "MediumFormatImpl.h"
 #include "Global.h"
 #include "ProgressImpl.h"
 
@@ -2473,9 +2474,11 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                     Assert(pMedium->getState() == MediumState_Deleting);
                     /* No need to hold the lock any longer. */
                     mLock.release();
+                    bool fNeedsSave = false;
                     rc = pMedium->deleteStorage(&aTask.pProgress,
                                                 true /* aWait */,
-                                                &fNeedsSaveSettings);
+                                                &fNeedsSave);
+                    fNeedsSaveSettings |= fNeedsSave;
                     if (FAILED(rc))
                         throw rc;
 
@@ -2485,13 +2488,11 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             }
             else
             {
+                bool fNeedsSave = false;
                 if (it->mfNeedsOnlineMerge)
                 {
 /// @todo VBoxHDD cannot handle backward merges where source==active disk yet
-// and as Console::onlineMergeMedium blocks all othert backward merges since
-// SessionMachine::FinishOnlineMergeMedium can't handle reparenting yet, block
-// here. Can be removed step by step.
-                    if (!it->mfMergeForward)
+                    if (!it->mfMergeForward && it->mChildrenToReparent.size() == 0)
                         throw setError(E_NOTIMPL,
                                        tr("Snapshot '%s' of the machine '%ls' cannot be deleted while a VM is running, as this case is not implemented yet. You can delete the snapshot when the VM is powered off"),
                                        aTask.pSnapshot->getName().c_str(),
@@ -2506,7 +2507,7 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                                            it->mChildrenToReparent,
                                            it->mpMediumLockList,
                                            aTask.pProgress,
-                                           &fNeedsSaveSettings);
+                                           &fNeedsSave);
                 }
                 else
                 {
@@ -2518,11 +2519,36 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                                                it->mpMediumLockList,
                                                &aTask.pProgress,
                                                true /* aWait */,
-                                               &fNeedsSaveSettings);
+                                               &fNeedsSave);
                 }
+                fNeedsSaveSettings |= fNeedsSave;
 
+                // If the merge failed, we need to do our best to have a usable
+                // VM configuration afterwards. The return code doesn't tell
+                // whether the merge completed and so we have to check if the
+                // source medium (diff images are always file based at the
+                // moment) is still there or not. Be careful not to lose the
+                // error code below, before the "Delayed failure exit".
                 if (FAILED(rc))
-                    throw rc;
+                {
+                    AutoReadLock mlock(it->mpSource COMMA_LOCKVAL_SRC_POS);
+                    const ComObjPtr<MediumFormat> &sourceFormat = it->mpSource->getMediumFormat();
+                    // No medium format description? get out of here.
+                    if (sourceFormat.isNull())
+                        throw rc;
+                    // Diff medium not backed by a file - cannot get status so
+                    // be pessimistic.
+                    if (!(sourceFormat->capabilities() & MediumFormatCapabilities_File))
+                        throw rc;
+                    const Utf8Str &loc = it->mpSource->getLocationFull();
+                    // Source medium is still there, so merge failed early.
+                    if (RTFileExists(loc.raw()))
+                        throw rc;
+
+                    // Source medium is gone. Assume the merge succeeded and
+                    // thus it's safe to remove the attachment. We use the
+                    // "Delayed failure exit" below.
+                }
 
                 // need to change the medium attachment for backward merges
                 fReparentTarget = !it->mfMergeForward;
@@ -2585,8 +2611,13 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             // One attachment is merged, must save the settings
             fMachineSettingsChanged = true;
 
-            /* prevent from calling cancelDeleteSnapshotMedium() */
+            // prevent calling cancelDeleteSnapshotMedium() for this attachment
             it = toDelete.erase(it);
+
+            // Delayed failure exit when the merge cleanup failed but the
+            // merge actually succeeded.
+            if (FAILED(rc))
+                throw rc;
         }
 
         {
@@ -3159,15 +3190,24 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
         // disconnect the deleted branch at the elder end
         targetChild->deparent();
 
-        // reparent source's children and disconnect the deleted
-        // branch at the younger end
+        // Update parent UUIDs of the source's children, reparent them and
+        // disconnect the deleted branch at the younger end
         com::SafeIfaceArray<IMedium> childrenToReparent(ComSafeArrayInArg(aChildrenToReparent));
         if (childrenToReparent.size() > 0)
         {
-/// @todo this is NOT fully working, the image open/parent change is missing.
-// See Medium::taskMergeHandler. Should be safe to add, as the VM is paused
-// right now. Should not get here, check in Console::onlineMergeMedium.
-            AssertFailedReturn(E_FAIL);
+            // Fix the parent UUID of the images which needs to be moved to
+            // underneath target. The running machine has the images opened,
+            // but only for reading since the VM is paused. If anything fails
+            // we must continue. The worst possible result is that the images
+            // need manual fixing via VBoxManage to adjust the parent UUID.
+            MediaList toReparent;
+            for (size_t i = 0; i < childrenToReparent.size(); i++)
+            {
+                Medium *pMedium = static_cast<Medium *>(childrenToReparent[i]);
+                toReparent.push_back(pMedium);
+            }
+            pTarget->fixParentUuidOfChildren(toReparent);
+
             // obey {parent,child} lock order
             AutoWriteLock sourceLock(pSource COMMA_LOCKVAL_SRC_POS);
 

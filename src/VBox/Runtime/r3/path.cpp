@@ -1,4 +1,4 @@
-/* $Id: path.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: path.cpp 28916 2010-04-29 18:13:54Z vboxsync $ */
 /** @file
  * IPRT - Path Manipulation.
  */
@@ -70,19 +70,7 @@ RTDECL(int) RTPathExecDir(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_PRIVATE)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_APP_PRIVATE);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathPrivateNoArch = strlen(pszUtf8Path);
-        if (cchPathPrivateNoArch < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathPrivateNoArch + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_APP_PRIVATE);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif
@@ -104,19 +92,7 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_PRIVATE_ARCH)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_APP_PRIVATE_ARCH);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathPrivateArch = strlen(pszUtf8Path);
-        if (cchPathPrivateArch < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathPrivateArch + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_APP_PRIVATE_ARCH);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif
@@ -139,19 +115,7 @@ RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_SHARED_LIBS)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_SHARED_LIBS);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathSharedLibs = strlen(pszUtf8Path);
-        if (cchPathSharedLibs < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathSharedLibs + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_SHARED_LIBS);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif
@@ -172,19 +136,7 @@ RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathAppDocs(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_DOCS)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_APP_DOCS);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathAppDocs = strlen(pszUtf8Path);
-        if (cchPathAppDocs < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathAppDocs + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_APP_DOCS);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif

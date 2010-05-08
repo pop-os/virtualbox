@@ -1,4 +1,4 @@
-/* $Id: VBoxManageList.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxManageList.cpp 28888 2010-04-29 11:50:05Z vboxsync $ */
 /** @file
  * VBoxManage - The 'list' command.
  */
@@ -123,6 +123,9 @@ static void listHardDisks(const ComPtr<IVirtualBox> aVirtualBox,
                 break;
             case MediumType_Writethrough:
                 typeStr = "writethrough";
+                break;
+            case MediumType_Shareable:
+                typeStr = "shareable";
                 break;
         }
         RTPrintf("Type:        %s\n", typeStr);

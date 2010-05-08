@@ -1,4 +1,4 @@
-/* $Id: ConsoleImplTeleporter.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ConsoleImplTeleporter.cpp 28965 2010-05-03 09:55:57Z vboxsync $ */
 /** @file
  * VBox Console COM Class implementation, The Teleporter Part.
  */
@@ -28,6 +28,7 @@
 
 #include <iprt/err.h>
 #include <iprt/rand.h>
+#include <iprt/socket.h>
 #include <iprt/tcp.h>
 #include <iprt/timer.h>
 
@@ -1248,10 +1249,12 @@ Console::teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser)
             if (RT_FAILURE(vrc))
                 break;
 
+            RTSocketRetain(pState->mhSocket); /* For concurrent access by I/O thread and EMT. */
             pState->moffStream = 0;
             void *pvUser2 = static_cast<void *>(static_cast<TeleporterState *>(pState));
             vrc = VMR3LoadFromStream(pState->mpVM, &g_teleporterTcpOps, pvUser2,
                                      teleporterProgressCallback, pvUser2);
+            RTSocketRelease(pState->mhSocket);
             if (RT_FAILURE(vrc))
             {
                 LogRel(("Teleporter: VMR3LoadFromStream -> %Rrc\n", vrc));

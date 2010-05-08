@@ -83,6 +83,20 @@
 /** Returns @c true if @a rc represents a warning result code */
 #define SUCCEEDED_WARNING(rc)   (SUCCEEDED (rc) && (rc) != S_OK)
 
+/** Tests is a COM result code indicates that the process implementing the
+ * interface is dead.
+ *
+ * COM status codes:
+ *      0x800706ba - RPC_S_SERVER_UNAVAILABLE.  Killed before call was made.
+ *      0x800706be - RPC_S_CALL_FAILED.         Killed after call was made.
+ *      0x800706bf - RPC_S_CALL_FAILED_DNE.     Not observed, but should be matter of timing.
+ */
+#define FAILED_DEAD_INTERFACE(rc) \
+    (   (rc) == HRESULT_FROM_WIN32(RPC_S_SERVER_UNAVAILABLE) \
+     || (rc) == HRESULT_FROM_WIN32(RPC_S_CALL_FAILED) \
+     || (rc) == HRESULT_FROM_WIN32(RPC_S_CALL_FAILED_DNE) \
+    )
+
 /** Immutable BSTR string */
 typedef const OLECHAR *CBSTR;
 
@@ -248,6 +262,8 @@ typedef const OLECHAR *CBSTR;
 #define FAILED      NS_FAILED
 
 #define SUCCEEDED_WARNING(rc)   (NS_SUCCEEDED (rc) && (rc) != NS_OK)
+
+#define FAILED_DEAD_INTERFACE(rc) (false) /**< @todo */
 
 #define IUnknown nsISupports
 

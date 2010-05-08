@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltCommon-win.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxNetFltCommon-win.h 29108 2010-05-05 20:17:42Z vboxsync $ */
 /** @file
  * VBoxNetFltCommon.h - Network Filter Driver (Host), Windows Specific Code. Common headeer with commonly used defines and decls
  */
@@ -175,6 +175,7 @@ typedef struct VBOXNETFLTINS *PVBOXNETFLTINS;
  * if clear the packet comes from the wire (underlying miniport) */
 #define PACKET_SRC_HOST             0x00000002
 
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
 /** flag specifying the packet was originated by our driver
  * i.e. we could use it on our needs and should not return it
  * we are enqueueing "our" packets on ProtocolReceive call-back when
@@ -185,6 +186,7 @@ typedef struct VBOXNETFLTINS *PVBOXNETFLTINS;
 /** flag passed to vboxNetFltWinQuEnqueuePacket specifying that the packet should be copied
  * this is supported for Ndis Packet only */
 #define PACKET_COPY                 0x00000008
+#endif
 
 /** packet queue element containing the packet info */
 typedef struct _PACKET_INFO

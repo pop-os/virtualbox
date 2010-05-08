@@ -1,4 +1,4 @@
-/* $Id: DrvVD.cpp 28835 2010-04-27 14:46:23Z vboxsync $ */
+/* $Id: DrvVD.cpp 29135 2010-05-06 11:28:04Z vboxsync $ */
 /** @file
  * DrvVD - Generic VBox disk media driver.
  */
@@ -301,16 +301,6 @@ static DECLCALLBACK(void) drvvdAsyncTaskCompleted(PPDMDRVINS pDrvIns, void *pvTe
         AssertPtr(pStorageBackend->pfnCompleted);
         rc = pStorageBackend->pfnCompleted(pvUser, rcReq);
         AssertRC(rc);
-
-        /* If thread synchronization is active, then signal the end of the
-         * this disk read/write operation. */
-        /** @todo provide a way to determine the type of task (read/write)
-         * which was completed, see also VBoxHDD.cpp. */
-        if (RT_UNLIKELY(pStorageBackend->pInterfaceThreadSyncCallbacks))
-        {
-            int rc2 = pStorageBackend->pInterfaceThreadSyncCallbacks->pfnFinishWrite(pStorageBackend->pInterfaceThreadSync->pvUser);
-            AssertRC(rc2);
-        }
     }
 }
 
@@ -1424,6 +1414,12 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
                                 &pThis->VDITcpNetCallbacks, NULL,
                                 &pThis->pVDIfsDisk);
         }
+
+        /** @todo quick hack to work around problems in the async I/O
+         * implementation (rw semaphore thread ownership problem)
+         * while a merge is running. Remove once this is fixed. */
+        if (pThis->fMergePending)
+            fUseNewIo = false;
 
         if (RT_SUCCESS(rc) && fUseNewIo)
         {

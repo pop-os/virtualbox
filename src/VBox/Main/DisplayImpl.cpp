@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DisplayImpl.cpp 28927 2010-04-30 11:07:23Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -1144,10 +1144,28 @@ int Display::handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
             /* Prepare a new array of rectangles which intersect with the framebuffer.
              */
             RTRECT rectFramebuffer;
-            rectFramebuffer.xLeft   = pFBInfo->xOrigin;
-            rectFramebuffer.yTop    = pFBInfo->yOrigin;
-            rectFramebuffer.xRight  = pFBInfo->xOrigin + pFBInfo->w;
-            rectFramebuffer.yBottom = pFBInfo->yOrigin + pFBInfo->h;
+            if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+            {
+                rectFramebuffer.xLeft   = 0;
+                rectFramebuffer.yTop    = 0;
+                if (mpDrv)
+                {
+                    rectFramebuffer.xRight  = mpDrv->IConnector.cx;
+                    rectFramebuffer.yBottom = mpDrv->IConnector.cy;
+                }
+                else
+                {
+                    rectFramebuffer.xRight  = 0;
+                    rectFramebuffer.yBottom = 0;
+                }
+            }
+            else
+            {
+                rectFramebuffer.xLeft   = pFBInfo->xOrigin;
+                rectFramebuffer.yTop    = pFBInfo->yOrigin;
+                rectFramebuffer.xRight  = pFBInfo->xOrigin + pFBInfo->w;
+                rectFramebuffer.yBottom = pFBInfo->yOrigin + pFBInfo->h;
+            }
 
             uint32_t cRectVisibleRegion = 0;
 

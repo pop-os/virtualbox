@@ -1,4 +1,4 @@
-/* $Id: mp-linux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: mp-linux.cpp 28863 2010-04-28 12:24:32Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Linux.
  */
@@ -139,11 +139,14 @@ RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
     if (    i == -1
         &&  RTLinuxSysFsExists("devices/system/cpu/cpu%d", (int)idCpu))
     {
-        Assert(!RTLinuxSysFsExists("devices/system/cpu/cpu%d/online", (int)idCpu));
+        /** @todo Assert(!RTLinuxSysFsExists("devices/system/cpu/cpu%d/online",
+         *               (int)idCpu));
+         * Unfortunately, the online file wasn't always world readable (centos
+         * 2.6.18-164). */
         i = 1;
     }
 
-    Assert(i == 0 || i == -1 || i == 1);
+    AssertMsg(i == 0 || i == -1 || i == 1, ("i=%d\n", i));
     return i != 0 && i != -1;
 }
 

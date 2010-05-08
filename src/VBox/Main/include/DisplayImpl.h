@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DisplayImpl.h 28973 2010-05-03 12:30:09Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -110,6 +110,7 @@ public:
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IDisplay)
         COM_INTERFACE_ENTRY2(IDispatch,IDisplay)
+        COM_INTERFACE_ENTRY(IConsoleCallback)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (Display)

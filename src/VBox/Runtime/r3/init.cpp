@@ -1,4 +1,4 @@
-/* $Id: init.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: init.cpp 28903 2010-04-29 14:58:12Z vboxsync $ */
 /** @file
  * IPRT - Init Ring-3.
  */
@@ -233,6 +233,12 @@ static void rtR3SigChildHandler(int iSignal)
 static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
 {
     /*
+     * Init C runtime locale before we do anything that may end up converting
+     * paths or we'll end up using the "C" locale for path conversion.
+     */
+    setlocale(LC_CTYPE, "");
+
+    /*
      * The Process ID.
      */
 #ifdef _MSC_VER
@@ -308,9 +314,6 @@ static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
     /*
      * The remainder cannot easily be undone, so it has to go last.
      */
-
-    /* Init C runtime locale. */
-    setlocale(LC_CTYPE, "");
 
     /* Fork and exit callbacks. */
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
