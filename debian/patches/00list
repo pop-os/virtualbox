@@ -7,4 +7,3 @@
 16-no-update.dpatch
 18-system-xorg.dpatch
 22-no-static-libstdcpp.dpatch
-23-dont-install-efi-images.dpatch
