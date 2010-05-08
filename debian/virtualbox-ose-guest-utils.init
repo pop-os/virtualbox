@@ -46,19 +46,6 @@ case "$1" in
 		fi
 	fi
 
-	if ! running vboxvfs; then
-		if ! modprobe vboxvfs > /dev/null 2>&1; then
-			# vboxvfs not installed, or has a problem
-			log_failure_msg "Shared folders not available, kernel module not loadable (vboxvfs)"
-			log_end_msg 1
-			exit 1
-		fi
-	fi
-
-	# Mount all shared folders from /etc/fstab. Normally this is done by some
-	# other startup script but this requires the vboxvfs kernel module loaded.
-	mount -a -t vboxsf
-
 	start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/VBoxService
 	if [ $? -ne 0 ]; then
 		log_end_msg 1
@@ -76,16 +63,6 @@ case "$1" in
 	if [ $? -ne 0 ]; then
 		log_end_msg 1
 		exit 1
-	fi
-
-	umount -a -t vboxsf
-
-	if running vboxvfs; then
-		if ! rmmod vboxvfs 2>/dev/null; then
-			log_failure_msg "Cannot unload shared folders kernel module (vboxvfs)"
-			log_end_msg 1
-			exit 1
-		fi
 	fi
 
 	if running vboxguest; then
@@ -108,11 +85,6 @@ case "$1" in
 
 	if ! running vboxguest; then
 		echo "Guest additions kernel module (vboxguest) not loaded"
-		status=3
-	fi
-
-	if ! running vboxvfs; then
-		echo "Shared folders kernel module (vboxvfs) not loaded"
 		status=3
 	fi
 

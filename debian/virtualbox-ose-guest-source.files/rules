@@ -41,7 +41,7 @@ MAKE:=kmk
 
 clean:
 	$(MAKE) -C vboxguest clean
-	$(MAKE) -C vboxvfs clean
+	$(MAKE) -C vboxsf clean
 	$(MAKE) -C vboxvideo clean
 	dh_clean
 
@@ -52,7 +52,7 @@ binary-modules: prep-deb-files
 	$(MAKE) -C $(KSRC) M=$(CURDIR)
 	# Install the modules
 	dh_install vboxguest/vboxguest.ko /lib/modules/$(KVERS)/misc/
-	dh_install vboxvfs/vboxvfs.ko /lib/modules/$(KVERS)/misc/
+	dh_install vboxsf/vboxsf.ko /lib/modules/$(KVERS)/misc/
 	dh_install vboxvideo/vboxvideo.ko /lib/modules/$(KVERS)/misc/
 	dh_installudev
 	dh_installdocs

@@ -1,3 +1,3 @@
 .NOTPARALLEL:
 
-obj-m = vboxguest/ vboxvfs/ vboxvideo/
+obj-m = vboxguest/ vboxsf/ vboxvideo/
