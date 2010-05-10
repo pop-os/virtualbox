@@ -1904,6 +1904,12 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
     AssertMsg(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3 || RT_FAILURE(rc), ("rc=%Rrc\n", rc));
     if (rc == VINF_SUCCESS)
     {
+        if (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL)
+        {
+            /* Go back to ring 3 if a pgm pool sync is again pending. */
+            return VINF_PGM_SYNC_CR3;
+        }
+
         if (!(pVCpu->pgm.s.fSyncFlags & PGM_SYNC_ALWAYS))
         {
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3);

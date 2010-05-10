@@ -527,7 +527,7 @@ static unsigned vboxNetFltLinuxSGSegments(PVBOXNETFLTINS pThis, struct sk_buff *
 }
 
 /* WARNING! This function should only be called after vboxNetFltLinuxSkBufToSG()! */
-static void  vboxNetFltLinuxFreeSkBuff(struct sk_buff *pBuf, PINTNETSG pSG)
+static void  vboxNetFltLinuxDestroySG(struct sk_buff *pBuf, PINTNETSG pSG)
 {
 #ifdef VBOXNETFLT_SG_SUPPORT
     int i;
@@ -538,8 +538,7 @@ static void  vboxNetFltLinuxFreeSkBuff(struct sk_buff *pBuf, PINTNETSG pSG)
         kunmap(pSG->aSegs[i+1].pv);
     }
 #endif
-
-    dev_kfree_skb(pBuf);
+    NOREF(pSG);
 }
 
 #ifndef LOG_ENABLED
@@ -572,26 +571,36 @@ static void vboxNetFltDumpPacket(PINTNETSG pSG, bool fEgress, const char *pszWhe
 
 static int vboxNetFltLinuxForwardSegment(PVBOXNETFLTINS pThis, struct sk_buff *pBuf, uint32_t fSrc)
 {
+    int      rc;
     unsigned cSegs = vboxNetFltLinuxSGSegments(pThis, pBuf);
     if (cSegs < MAX_SKB_FRAGS)
     {
-        uint8_t *pTmp;
         PINTNETSG pSG = (PINTNETSG)alloca(RT_OFFSETOF(INTNETSG, aSegs[cSegs]));
-        if (!pSG)
+        if (RT_LIKELY(pSG))
+        {
+            vboxNetFltLinuxSkBufToSG(pThis, pBuf, pSG, cSegs, fSrc);
+
+            vboxNetFltDumpPacket(pSG, false, (fSrc & INTNETTRUNKDIR_HOST) ? "host" : "wire", 1);
+            pThis->pSwitchPort->pfnRecv(pThis->pSwitchPort, pSG, fSrc);
+
+            vboxNetFltLinuxDestroySG(pBuf, pSG);
+            rc = VINF_SUCCESS;
+        }
+        else
         {
             Log(("VBoxNetFlt: Failed to allocate SG buffer.\n"));
-            return VERR_NO_MEMORY;
+            rc = VERR_NO_MEMORY;
         }
-        vboxNetFltLinuxSkBufToSG(pThis, pBuf, pSG, cSegs, fSrc);
-
-        pTmp = pSG->aSegs[0].pv;
-        vboxNetFltDumpPacket(pSG, false, (fSrc & INTNETTRUNKDIR_HOST) ? "host" : "wire", 1);
-        pThis->pSwitchPort->pfnRecv(pThis->pSwitchPort, pSG, fSrc);
-        Log4(("VBoxNetFlt: Dropping the sk_buff.\n"));
-        vboxNetFltLinuxFreeSkBuff(pBuf, pSG);
+    }
+    else
+    {
+        Log(("VBoxNetFlt: Bad sk_buff? cSegs=%#x.\n", cSegs));
+        rc = VERR_INTERNAL_ERROR_3;
     }
 
-    return VINF_SUCCESS;
+    Log4(("VBoxNetFlt: Dropping the sk_buff.\n"));
+    dev_kfree_skb(pBuf);
+    return rc;
 }
 
 static void vboxNetFltLinuxForwardToIntNet(PVBOXNETFLTINS pThis, struct sk_buff *pBuf)

@@ -103,8 +103,7 @@ VBOX_ADD_STRIP_BIN.linux += \
 	VBoxClient
 
 VBOX_ADD_BIN.linux += \
-	VBoxClient-all \
-	VBoxRandR
+	VBoxClient-all
 
 VBOX_ADD_STRIP_SBIN += \
 	VBoxService
@@ -126,6 +125,7 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxmouse_drv_15.so \
 	vboxmouse_drv_16.so \
 	vboxmouse_drv_17.so \
+	vboxmouse_drv_18.so \
 	vboxvideo_drv_70.so \
 	vboxvideo_drv_71.so \
 	vboxvideo_drv_13.so \
@@ -133,6 +133,7 @@ VBOX_ADD_STRIP_MOD.linux = \
 	vboxvideo_drv_15.so \
 	vboxvideo_drv_16.so \
 	vboxvideo_drv_17.so \
+	vboxvideo_drv_18.so \
 	mount.vboxsf
 
 VBOX_ADD_MOD.linux = \
@@ -147,7 +148,7 @@ VBOX_ADD_KMOD = \
 	vboxguest
 
 VBOX_ADD_KMOD.linux = \
-	vboxvfs \
+	vboxsf \
 	vboxvideo
 
 VBOX_ADD_INIT.linux = \
@@ -309,6 +310,7 @@ ifndef VBOX_OSE
  lnx_add_inst-noexec_SOURCES = \
 	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
 	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
+	$(VBOX_REL_X11_ADD_INST)50-vboxmouse.conf \
 	$(VBOX_REL_LNX_ADD_INST)90-vboxguest.fdi \
 	selinux-fedora/vbox_x11.pp
 
@@ -367,7 +369,6 @@ ifndef VBOX_OSE
  LnxAdd-Nostrip-Bin_INST    = $(subst $(PATH_TARGET),obj,$(VBOX_LNX_ADD_INST_BIN_DIR))
  LnxAdd-Nostrip-Bin_MODE    = a+rx,u+w
  LnxAdd-Nostrip-Bin_SOURCES = \
-	$(VBOX_REL_X11_ADD_INST)VBoxRandR.sh=>VBoxRandR \
 	$(VBOX_REL_X11_ADD_INST)98vboxadd-xclient=>VBoxClient-all
 
 

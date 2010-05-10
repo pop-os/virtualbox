@@ -194,7 +194,9 @@ public:
 //    VBoxVHWAColorFormat(GLint aInternalFormat, GLenum aFormat, GLenum aType, uint32_t aDataFormat);
     VBoxVHWAColorFormat(uint32_t bitsPerPixel, uint32_t r, uint32_t g, uint32_t b);
     VBoxVHWAColorFormat(uint32_t fourcc);
-    VBoxVHWAColorFormat(){}
+    VBoxVHWAColorFormat() :
+        mBitsPerPixel(0) /* needed for isValid() to work */
+    {}
     GLint internalFormat() const {return mInternalFormat; }
     GLenum format() const {return mFormat; }
     GLenum type() const {return mType; }

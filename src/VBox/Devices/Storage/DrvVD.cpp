@@ -234,7 +234,7 @@ static void drvvdErrorCallback(void *pvUser, int rc, RT_SRC_POS_DECL,
 
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 
-static DECLCALLBACK(void) drvvdAsyncTaskCompleted(PPDMDRVINS pDrvIns, void *pvTemplateUser, void *pvUser)
+static DECLCALLBACK(void) drvvdAsyncTaskCompleted(PPDMDRVINS pDrvIns, void *pvTemplateUser, void *pvUser, int rcReq)
 {
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
     PDRVVDSTORAGEBACKEND pStorageBackend = (PDRVVDSTORAGEBACKEND)pvTemplateUser;
@@ -256,7 +256,7 @@ static DECLCALLBACK(void) drvvdAsyncTaskCompleted(PPDMDRVINS pDrvIns, void *pvTe
 
         if (rc == VINF_VD_ASYNC_IO_FINISHED)
         {
-            rc = pThis->pDrvMediaAsyncPort->pfnTransferCompleteNotify(pThis->pDrvMediaAsyncPort, pvCallerUser);
+            rc = pThis->pDrvMediaAsyncPort->pfnTransferCompleteNotify(pThis->pDrvMediaAsyncPort, pvCallerUser, rcReq);
             AssertRC(rc);
         }
         else
@@ -353,8 +353,14 @@ static DECLCALLBACK(int) drvvdAsyncIOReadSync(void *pvUser, void *pStorage, uint
         return rc;
 
     /* Wait */
-    rc = RTSemEventWait(pStorageBackend->EventSem, RT_INDEFINITE_WAIT);
-    AssertRC(rc);
+    if (rc == VINF_AIO_TASK_PENDING)
+    {
+        /* Wait */
+        rc = RTSemEventWait(pStorageBackend->EventSem, RT_INDEFINITE_WAIT);
+        AssertRC(rc);
+    }
+    else
+        ASMAtomicXchgBool(&pStorageBackend->fSyncIoPending, false);
 
     if (pcbRead)
         *pcbRead = cbRead;
@@ -379,9 +385,14 @@ static DECLCALLBACK(int) drvvdAsyncIOWriteSync(void *pvUser, void *pStorage, uin
     if (RT_FAILURE(rc))
         return rc;
 
-    /* Wait */
-    rc = RTSemEventWait(pStorageBackend->EventSem, RT_INDEFINITE_WAIT);
-    AssertRC(rc);
+    if (rc == VINF_AIO_TASK_PENDING)
+    {
+        /* Wait */
+        rc = RTSemEventWait(pStorageBackend->EventSem, RT_INDEFINITE_WAIT);
+        AssertRC(rc);
+    }
+    else
+        ASMAtomicXchgBool(&pStorageBackend->fSyncIoPending, false);
 
     if (pcbWritten)
         *pcbWritten = cbWrite;
@@ -402,9 +413,14 @@ static DECLCALLBACK(int) drvvdAsyncIOFlushSync(void *pvUser, void *pStorage)
     if (RT_FAILURE(rc))
         return rc;
 
-    /* Wait */
-    rc = RTSemEventWait(pStorageBackend->EventSem, RT_INDEFINITE_WAIT);
-    AssertRC(rc);
+    if (rc == VINF_AIO_TASK_PENDING)
+    {
+        /* Wait */
+        rc = RTSemEventWait(pStorageBackend->EventSem, RT_INDEFINITE_WAIT);
+        AssertRC(rc);
+    }
+    else
+        ASMAtomicXchgBool(&pStorageBackend->fSyncIoPending, false);
 
     return VINF_SUCCESS;
 }
@@ -848,6 +864,15 @@ static DECLCALLBACK(int) drvvdStartWrite(PPDMIMEDIAASYNC pInterface, uint64_t uO
     return rc;
 }
 
+static DECLCALLBACK(int) drvvdStartFlush(PPDMIMEDIAASYNC pInterface, void *pvUser)
+{
+     LogFlow(("%s: pvUser=%#p\n", __FUNCTION__, pvUser));
+    PVBOXDISK pThis = PDMIMEDIAASYNC_2_VBOXDISK(pInterface);
+    int rc = VDAsyncFlush(pThis->pDisk, pvUser);
+    LogFlow(("%s: returns %Rrc\n", __FUNCTION__, rc));
+    return rc;
+}
+
 /*******************************************************************************
 *   Async transport port interface methods                                     *
 *******************************************************************************/
@@ -1057,6 +1082,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
     /* IMediaAsync */
     pThis->IMediaAsync.pfnStartRead       = drvvdStartRead;
     pThis->IMediaAsync.pfnStartWrite      = drvvdStartWrite;
+    pThis->IMediaAsync.pfnStartFlush      = drvvdStartFlush;
 
     /* Initialize supported VD interfaces. */
     pThis->pVDIfsDisk = NULL;
@@ -1252,11 +1278,8 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
         }
     }
 
-/* Async I/O disabled completely for 3.1 because the async I/O code can't determine the size of a block device. */
-#if 0
-    if (pThis->pDrvMediaAsyncPort)
+    if (pThis->pDrvMediaAsyncPort && fUseNewIo)
         pThis->fAsyncIOSupported = true;
-#endif
 
     while (pCurNode && RT_SUCCESS(rc))
     {

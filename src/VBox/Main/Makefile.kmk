@@ -219,8 +219,9 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_LINUX_COMPILER_H),VBOX_WITH_LINUX_COMPILER_H,) \
 	$(if $(VBOX_WITH_RESOURCE_USAGE_API),VBOX_WITH_RESOURCE_USAGE_API,) \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
-	$(if $(VBOX_WITH_DBUS),VBOX_WITH_DBUS,) \
+	$(if $(VBOX_WITH_DBUS),$(if $(VBOX_USB_WITH_DBUS),VBOX_USB_WITH_DBUS,),) \
 	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,) \
+	$(if $(VBOX_USB_WITH_INOTIFY),VBOX_USB_WITH_INOTIFY,) \
 	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,)
 ifdef VBOX_WITH_USB
  VBoxSVC_DEFS += \
@@ -487,9 +488,10 @@ if (   defined(VBOX_WITH_QTGUI) \
    VBoxTestOGL_QT_MODULES += Core Gui OpenGL
    VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
    VBoxTestOGL_LIBS.win     += $(PATH_SDK_WINPSDK_LIB)/Opengl32.lib
-   VBoxTestOGL_LIBS.solaris += GL
-   VBoxTestOGL_LIBS.linux   += GL
-   VBoxTestOGL_LIBS.freebsd += GL
+   if1of ($(KBUILD_TARGET), solaris linux freebsd)
+    # must come after VBoxOGL2D, therefore don't set the arch-specific LIBS variable here!
+    VBoxTestOGL_LIBS += GL
+   endif
   endif
   VBoxTestOGL_LDFLAGS.win = /SUBSYSTEM:windows
  endif

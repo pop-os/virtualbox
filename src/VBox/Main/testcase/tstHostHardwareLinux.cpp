@@ -28,6 +28,7 @@
 #include <iprt/initterm.h>
 #include <iprt/param.h>
 #include <iprt/stream.h>
+#include <iprt/thread.h>
 #include <iprt/linux/sysfs.h>
 
 #include <iprt/cdefs.h>
@@ -36,6 +37,25 @@
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+
+int doHotplugEvent(VBoxMainHotplugWaiter *waiter, unsigned cMillies)
+{
+    int rc;
+    while (true)
+    {
+        rc = waiter->Wait (cMillies);
+        if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
+            break;
+        if (RT_FAILURE(rc))
+        {
+            RTPrintf("Failed!\n");
+            exit(1);
+        }
+        if (RT_SUCCESS(rc))
+            break;
+    }
+    return rc;
+}
 
 int main()
 {
@@ -131,17 +151,13 @@ int main()
     VBoxMainHotplugWaiter waiter;
     RTPrintf ("Waiting for hotplug events.  Note that DBus often seems to deliver duplicate events in close succession.\n");
     RTPrintf ("Waiting for a hotplug event for five seconds...\n");
-    if (RT_FAILURE(waiter.Wait (5000)))
-    {
-        RTPrintf("Failed!\n");
-        exit(1);
-    }
+    doHotplugEvent(&waiter, 5000);
     RTPrintf ("Waiting for a hotplug event, Ctrl-C to abort...\n");
-    if (RT_FAILURE(waiter.Wait(RT_INDEFINITE_WAIT)))
-    {
-        RTPrintf("Failed!\n");
-        exit(1);
-    }
+    doHotplugEvent(&waiter, RT_INDEFINITE_WAIT);
+    RTPrintf ("Testing interrupting a hotplug event...\n");
+    waiter.Interrupt();
+    rc = doHotplugEvent(&waiter, 5000);
+    RTPrintf ("%s\n", rc == VERR_INTERRUPTED ? "Success!" : "Failed!");
 #endif  /* VBOX_USB_WITH_SYSFS */
     return 0;
 }

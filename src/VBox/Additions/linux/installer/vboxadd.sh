@@ -1,6 +1,6 @@
 #! /bin/sh
 # Sun VirtualBox
-# Linux Additions kernel module init script ($Revision: 58884 $)
+# Linux Additions kernel module init script ($Revision: 61057 $)
 #
 
 #
@@ -35,7 +35,7 @@
 PATH=$PATH:/bin:/sbin:/usr/sbin
 PACKAGE=VBoxGuestAdditions
 BUILDVBOXGUEST=`/bin/ls /usr/src/vboxguest*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
-BUILDVBOXVFS=`/bin/ls /usr/src/vboxvfs*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
+BUILDVBOXSF=`/bin/ls /usr/src/vboxsf*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
 BUILDVBOXVIDEO=`/bin/ls /usr/src/vboxvideo*/build_in_tmp 2>/dev/null|cut -d' ' -f1`
 LOG="/var/log/vboxadd-install.log"
 MODPROBE=/sbin/modprobe
@@ -192,9 +192,9 @@ running_vboxadd()
     lsmod | grep -q "vboxadd[^_-]"
 }
 
-running_vboxvfs()
+running_vboxsf()
 {
-    lsmod | grep -q "vboxvfs[^_-]"
+    lsmod | grep -q "vboxsf[^_-]"
 }
 
 start()
@@ -259,23 +259,24 @@ start()
         fi
     fi
 
-    if [ -n "$BUILDVBOXVFS" ]; then
-        running_vboxvfs || {
-            $MODPROBE vboxvfs > /dev/null 2>&1 || {
+    if [ -n "$BUILDVBOXSF" ]; then
+        running_vboxsf || {
+            $MODPROBE vboxsf > /dev/null 2>&1 || {
                 if dmesg | grep "vboxConnect failed" > /dev/null 2>&1; then
                     fail_msg
                     echo "Unable to start shared folders support.  Make sure that your VirtualBox build"
                     echo "supports this feature."
                     exit 1
                 fi
-                fail "modprobe vboxvfs failed"
+                fail "modprobe vboxsf failed"
             }
         }
     fi
 
     # Mount all shared folders from /etc/fstab. Normally this is done by some
     # other startup script but this requires the vboxdrv kernel module loaded.
-    mount -a -t vboxsf
+    # This isn't necessary anymore as the vboxsf module is autoloaded.
+    # mount -a -t vboxsf
 
     succ_msg
     return 0
@@ -287,9 +288,9 @@ stop()
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
-    if [ -n "$BUILDVBOXVFS" ]; then
-        if running_vboxvfs; then
-            rmmod vboxvfs 2>/dev/null || fail "Cannot unload module vboxvfs"
+    if [ -n "$BUILDVBOXSF" ]; then
+        if running_vboxsf; then
+            rmmod vboxsf 2>/dev/null || fail "Cannot unload module vboxsf"
         fi
     fi
     if running_vboxguest; then
@@ -316,9 +317,9 @@ setup()
         find /lib/modules/`uname -r` -name "vboxvideo\.*" 2>/dev/null|xargs rm -f 2>/dev/null
         succ_msg
     fi
-    if find /lib/modules/`uname -r` -name "vboxvfs\.*" 2>/dev/null|grep -q vboxvfs; then
-        begin "Removing old VirtualBox vboxvfs kernel module"
-        find /lib/modules/`uname -r` -name "vboxvfs\.*" 2>/dev/null|xargs rm -f 2>/dev/null
+    if find /lib/modules/`uname -r` -name "vboxsf\.*" 2>/dev/null|grep -q vboxsf; then
+        begin "Removing old VirtualBox vboxsf kernel module"
+        find /lib/modules/`uname -r` -name "vboxsf\.*" 2>/dev/null|xargs rm -f 2>/dev/null
         succ_msg
     fi
     if find /lib/modules/`uname -r` -name "vboxguest\.*" 2>/dev/null|grep -q vboxguest; then
@@ -344,9 +345,9 @@ setup()
         fail "Look at $LOG to find out what went wrong"
     fi
     succ_msg
-    if [ -n "$BUILDVBOXVFS" ]; then
+    if [ -n "$BUILDVBOXSF" ]; then
         begin "Building the shared folder support module"
-        if ! $BUILDVBOXVFS \
+        if ! $BUILDVBOXSF \
             --use-module-symvers /tmp/vboxguest-Module.symvers \
             --no-print-directory install >> $LOG 2>&1; then
             fail "Look at $LOG to find out what went wrong"
@@ -419,7 +420,7 @@ cleanup()
     DKMS=`which dkms 2>/dev/null`
     if [ -n "$DKMS" ]; then
       echo "Attempt to remove old DKMS modules..."
-      for mod in vboxadd vboxguest vboxvfs vboxvideo; do
+      for mod in vboxadd vboxguest vboxvfs vboxsf vboxvideo; do
         $DKMS status -m $mod | while read line; do
           if echo "$line" | grep -q added > /dev/null ||
              echo "$line" | grep -q built > /dev/null ||
@@ -437,11 +438,12 @@ cleanup()
     find /lib/modules -name vboxadd\* | xargs rm 2>/dev/null
     find /lib/modules -name vboxguest\* | xargs rm 2>/dev/null
     find /lib/modules -name vboxvfs\* | xargs rm 2>/dev/null
+    find /lib/modules -name vboxsf\* | xargs rm 2>/dev/null
     find /lib/modules -name vboxvideo\* | xargs rm 2>/dev/null
     depmod
 
     # Remove old module sources
-    rm -rf /usr/src/vboxadd-* /usr/src/vboxguest-* /usr/src/vboxvfs-* /usr/src/vboxvideo-*
+    rm -rf /usr/src/vboxadd-* /usr/src/vboxguest-* /usr/src/vboxvfs-* /usr/src/vboxsf-* /usr/src/vboxvideo-*
 
     # Remove other files
     rm /sbin/mount.vboxsf 2>/dev/null

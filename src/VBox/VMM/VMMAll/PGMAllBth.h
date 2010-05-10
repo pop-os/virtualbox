@@ -214,6 +214,20 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegF
     Assert(pPDDst);
 #  endif
 
+# if !defined(PGM_WITHOUT_MAPPINGS) && ((PGM_GST_TYPE == PGM_TYPE_32BIT) || (PGM_GST_TYPE == PGM_TYPE_PAE))
+    /*
+     * Check for write conflicts with our hypervisor mapping early on. If the guest happens to access a non-present page,
+     * where our hypervisor is currently mapped, then we'll create a #PF storm in the guest.
+     */
+    if (    (uErr & (X86_TRAP_PF_P | X86_TRAP_PF_RW)) == (X86_TRAP_PF_P | X86_TRAP_PF_RW)
+        &&  MMHyperIsInsideArea(pVM, pvFault))
+    {
+        /* Force a CR3 sync to check for conflicts and emulate the instruction. */
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
+        return VINF_EM_RAW_EMULATE_INSTR;
+    }
+# endif
+
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
     /*
      * If we successfully correct the write protection fault due to dirty bit
@@ -3479,14 +3493,12 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
-    if (VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3))
-        fGlobal = true; /* Change this CR3 reload to be a global one. */
-
-    LogFlow(("SyncCR3 %d\n", fGlobal));
+    LogFlow(("SyncCR3 fGlobal=%d\n", !!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3)));
 
 #if PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT
 
     pgmLock(pVM);
+
 # ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     if (pPool->cDirtyPages)
@@ -3512,8 +3524,6 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr
     /*
      * Nested / EPT - almost no work.
      */
-    /** @todo check if this is really necessary; the call does it as well... */
-    HWACCMFlushTLB(pVCpu);
     Assert(!pgmMapAreMappingsEnabled(&pVM->pgm.s));
     return VINF_SUCCESS;
 

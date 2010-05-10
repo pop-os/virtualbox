@@ -159,25 +159,31 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
     /* First get information that won't change while the OS is running. */
     char szInfo[256] = {0};
     rc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szInfo, sizeof(szInfo));
-    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/Product", "%s", szInfo);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/Product",
+                          "%s", RT_FAILURE(rc) ? "" : szInfo);
 
     rc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szInfo, sizeof(szInfo));
-    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/Release", "%s", szInfo);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/Release",
+                          "%s", RT_FAILURE(rc) ? "" : szInfo);
 
     rc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szInfo, sizeof(szInfo));
-    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/Version", "%s", szInfo);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/Version",
+                          "%s", RT_FAILURE(rc) ? "" : szInfo);
 
     rc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szInfo, sizeof(szInfo));
-    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/ServicePack", "%s", szInfo);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestInfo/OS/ServicePack",
+                          "%s", RT_FAILURE(rc) ? "" : szInfo);
 
     /* Retrieve version information about Guest Additions and installed files (components). */
     char *pszAddVer, *pszAddRev;
     rc = VbglR3GetAdditionsVersion(&pszAddVer, &pszAddRev);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestAdd/Version",
+                          "%s", RT_FAILURE(rc) ? "" : pszAddVer);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestAdd/Revision",
+                          "%s", RT_FAILURE(rc) ? "" : pszAddRev);
     if (RT_SUCCESS(rc))
     {
         /* Write information to host. */
-        rc = VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestAdd/Version", "%s", pszAddVer);
-        rc = VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestAdd/Revision", "%s", pszAddRev);
         RTStrFree(pszAddVer);
         RTStrFree(pszAddRev);
     }
@@ -185,11 +191,10 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
 #ifdef RT_OS_WINDOWS
     char *pszInstDir;
     rc = VbglR3GetAdditionsInstallationPath(&pszInstDir);
+    VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestAdd/InstallDir",
+                          "%s", RT_FAILURE(rc) ? "" : pszInstDir);
     if (RT_SUCCESS(rc))
-    {
-        rc = VBoxServiceWritePropF(g_VMInfoGuestPropSvcClientID, "/VirtualBox/GuestAdd/InstallDir", "%s", pszInstDir);
         RTStrFree(pszInstDir);
-    }
     rc = VBoxServiceWinGetComponentVersions(g_VMInfoGuestPropSvcClientID);
 #endif
 
@@ -449,8 +454,6 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
     WSACleanup();
 #endif /* !RT_OS_WINDOWS */
 
-    RTSemEventMultiDestroy(g_VMInfoEvent);
-    g_VMInfoEvent = NIL_RTSEMEVENTMULTI;
     return rc;
 }
 

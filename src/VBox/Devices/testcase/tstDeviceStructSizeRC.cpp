@@ -1179,6 +1179,8 @@ int main()
     GEN_CHECK_OFF(AHCIPort, fResetDevice);
     GEN_CHECK_OFF(AHCIPort, u32TasksFinished);
     GEN_CHECK_OFF(AHCIPort, u32QueuedTasksFinished);
+    GEN_CHECK_OFF(AHCIPort, aCachedTasks);
+    GEN_CHECK_OFF(AHCIPort, pTaskErr);
     GEN_CHECK_OFF(AHCIPort, StatDMA);
     GEN_CHECK_OFF(AHCIPort, StatBytesWritten);
     GEN_CHECK_OFF(AHCIPort, StatBytesRead);
@@ -1203,6 +1205,7 @@ int main()
     GEN_CHECK_OFF(AHCIPort, szInquiryProductId[AHCI_ATAPI_INQUIRY_PRODUCT_ID_LENGTH]);
     GEN_CHECK_OFF(AHCIPort, szInquiryRevision);
     GEN_CHECK_OFF(AHCIPort, szInquiryRevision[AHCI_ATAPI_INQUIRY_REVISION_LENGTH]);
+    GEN_CHECK_OFF(AHCIPort, cErrors);
 
     GEN_CHECK_SIZE(AHCI);
     GEN_CHECK_OFF(AHCI, dev);

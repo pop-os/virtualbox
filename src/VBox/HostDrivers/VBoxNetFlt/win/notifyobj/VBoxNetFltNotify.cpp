@@ -768,8 +768,6 @@ STDAPI DllRegisterServer(void)
 STDAPI DllUnregisterServer(void)
 {
     TraceMsg( L"DllUnregisterServer.\n");
-
-    _Module.UnregisterServer();
-
+    _Module.UnregisterServer(TRUE);
     return S_OK;
 }

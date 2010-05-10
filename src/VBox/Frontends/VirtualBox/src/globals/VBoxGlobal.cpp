@@ -4141,32 +4141,30 @@ QWidget *VBoxGlobal::findWidget (QWidget *aParent, const char *aName,
     if (aParent == NULL)
     {
         QWidgetList list = QApplication::topLevelWidgets();
-        QWidget* w = NULL;
-        foreach(w, list)
+        foreach(QWidget *w, list)
         {
             if ((!aName || strcmp (w->objectName().toAscii().constData(), aName) == 0) &&
                 (!aClassName || strcmp (w->metaObject()->className(), aClassName) == 0))
-                break;
+                return w;
             if (aRecursive)
             {
                 w = findWidget (w, aName, aClassName, aRecursive);
                 if (w)
-                    break;
+                    return w;
             }
         }
-        return w;
+        return NULL;
     }
 
     /* Find the first children of aParent with the appropriate properties.
      * Please note that this call is recursivly. */
     QList<QWidget *> list = qFindChildren<QWidget *> (aParent, aName);
-    QWidget *child = NULL;
-    foreach(child, list)
+    foreach(QWidget *child, list)
     {
         if (!aClassName || strcmp (child->metaObject()->className(), aClassName) == 0)
-            break;
+            return child;
     }
-    return child;
+    return NULL;
 }
 
 /**
@@ -4801,6 +4799,9 @@ void VBoxGlobal::init()
 
     /* process command line */
 
+    bool bForceSeamless = false;
+    bool bForceFullscreen = false;
+
     vm_render_mode_str = RTStrDup (virtualBox()
             .GetExtraData (VBoxDefs::GUI_RenderMode).toAscii().constData());
 
@@ -4849,6 +4850,14 @@ void VBoxGlobal::init()
                     vmUuid = m.GetId();
                 }
             }
+        }
+        else if (!::strcmp(arg, "-seamless") || !::strcmp(arg, "--seamless"))
+        {
+            bForceSeamless = true;
+        }
+        else if (!::strcmp(arg, "-fullscreen") || !::strcmp(arg, "--fullscreen"))
+        {
+            bForceFullscreen = true;
         }
 #ifdef VBOX_GUI_WITH_SYSTRAY
         else if (!::strcmp (arg, "-systray") || !::strcmp (arg, "--systray"))
@@ -4907,6 +4916,15 @@ void VBoxGlobal::init()
 #endif
         /** @todo add an else { msgbox(syntax error); exit(1); } here, pretty please... */
         i++;
+    }
+
+    if (bForceSeamless && !vmUuid.isEmpty())
+    {
+        mVBox.GetMachine(vmUuid).SetExtraData(VBoxDefs::GUI_Seamless, "on");
+    }
+    else if (bForceFullscreen && !vmUuid.isEmpty())
+    {
+        mVBox.GetMachine(vmUuid).SetExtraData(VBoxDefs::GUI_Fullscreen, "on");
     }
 
     vm_render_mode = vboxGetRenderMode (vm_render_mode_str);

@@ -1265,6 +1265,7 @@ typedef struct PDMIISCSITRANSPORTASYNC
      * @thread  EMT thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIISCSITRANSPORTASYNC pTransport, PISCSIREQ pRequests, unsigned cRequests, void *pvUser));
+
 } PDMIISCSITRANSPORTASYNC;
 
 
@@ -1316,9 +1317,10 @@ typedef struct PDMIBLOCKASYNCPORT
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvUser          The user argument given in pfnStartWrite/Read.
+     * @param   rcReq           IPRT Status code of the completed request.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIBLOCKASYNCPORT pInterface, void *pvUser));
+    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIBLOCKASYNCPORT pInterface, void *pvUser, int rcReq));
 } PDMIBLOCKASYNCPORT;
 
 
@@ -1358,6 +1360,16 @@ typedef struct PDMIBLOCKASYNC
      */
     DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIBLOCKASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser));
 
+    /**
+     * Flush everything to disk.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
+
 } PDMIBLOCKASYNC;
 
 
@@ -1375,9 +1387,10 @@ typedef struct PDMIMEDIAASYNCPORT
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvUser          The user argument given in pfnStartWrite.
+     * @param   rcReq           IPRT Status code of the completed request.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIMEDIAASYNCPORT pInterface, void *pvUser));
+    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIMEDIAASYNCPORT pInterface, void *pvUser, int rcReq));
 } PDMIMEDIAASYNCPORT;
 
 
@@ -1416,6 +1429,16 @@ typedef struct PDMIMEDIAASYNC
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIMEDIAASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser));
+
+    /**
+     * Flush everything to disk.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIMEDIAASYNC pInterface, void *pvUser));
 
 } PDMIMEDIAASYNC;
 

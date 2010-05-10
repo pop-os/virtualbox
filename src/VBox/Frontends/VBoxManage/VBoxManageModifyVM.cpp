@@ -1236,8 +1236,11 @@ int handleModifyVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
-                CHECK_ERROR(nic, COMSETTER(NATNetwork)(Bstr(ValueUnion.psz)));
+                const char *psz = ValueUnion.psz;
+                if (!strcmp("default", psz))
+                    psz = "";
 
+                CHECK_ERROR(nic, COMSETTER(NATNetwork)(Bstr(psz)));
                 break;
             }
 

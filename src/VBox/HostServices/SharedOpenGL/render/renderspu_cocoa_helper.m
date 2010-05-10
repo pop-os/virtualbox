@@ -1133,6 +1133,7 @@ while(0);
                 }
                 glEnd();
             }
+            glFinish();
             [m_pSharedGLCtx flushBuffer];
             [m_pGLCtx makeCurrentContext];
         }
@@ -1418,7 +1419,6 @@ void cocoaFlush()
     DEBUG_MSG_1(("glFlush called\n"));
 
 #ifdef FBO
-# if 0
     NSOpenGLContext *pCtx = [NSOpenGLContext currentContext];
     if (pCtx)
     {
@@ -1429,7 +1429,6 @@ void cocoaFlush()
                 [pView performSelector:@selector(flushFBO)];
         }
     }
-# endif
 #else
     glFlush();
 #endif

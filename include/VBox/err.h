@@ -1500,6 +1500,26 @@
 #define VERR_CPU_HOTPLUG_NOT_MONITORED_BY_GUEST    (-4700)
 /** @} */
 
+/** @name VBox async I/O manager Status Codes
+ * @{
+ */
+/** Async I/O task is pending, a completion handler will be called. */
+#define VINF_AIO_TASK_PENDING                       4800
+/** @} */
+
+/** @name VBox FAM error codes
+ * @{
+ */
+/** FAM failed to open a connection */
+#define VERR_FAM_OPEN_FAILED                        (-5000)
+/** FAM failed to add a file to the list to be monitored */
+#define VERR_FAM_MONITOR_FILE_FAILED                (-5001)
+/** FAM failed to add a directory to the list to be monitored */
+#define VERR_FAM_MONITOR_DIRECTORY_FAILED           (-5002)
+/** The connection to the FAM daemon was lost */
+#define VERR_FAM_CONNECTION_LOST                    (-5003)
+/** @} */
+
 /* SED-END */
 
 

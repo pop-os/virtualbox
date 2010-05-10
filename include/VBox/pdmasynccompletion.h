@@ -63,8 +63,9 @@ typedef PPDMASYNCCOMPLETIONENDPOINT *PPPDMASYNCCOMPLETIONENDPOINT;
  *
  * @param   pDevIns     The device instance.
  * @param   pvUser      User argument.
+ * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEDEV(PPDMDEVINS pDevIns, void *pvUser);
+typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEDEV(PPDMDEVINS pDevIns, void *pvUser, int rc);
 /** Pointer to a FNPDMASYNCCOMPLETEDEV(). */
 typedef FNPDMASYNCCOMPLETEDEV *PFNPDMASYNCCOMPLETEDEV;
 
@@ -75,8 +76,9 @@ typedef FNPDMASYNCCOMPLETEDEV *PFNPDMASYNCCOMPLETEDEV;
  * @param   pDrvIns        The driver instance.
  * @param   pvTemplateUser User argument given when creating the template.
  * @param   pvUser         User argument given during request initiation.
+ * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEDRV(PPDMDRVINS pDrvIns, void *pvTemplateUser, void *pvUser);
+typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEDRV(PPDMDRVINS pDrvIns, void *pvTemplateUser, void *pvUser, int rc);
 /** Pointer to a FNPDMASYNCCOMPLETEDRV(). */
 typedef FNPDMASYNCCOMPLETEDRV *PFNPDMASYNCCOMPLETEDRV;
 
@@ -86,8 +88,9 @@ typedef FNPDMASYNCCOMPLETEDRV *PFNPDMASYNCCOMPLETEDRV;
  *
  * @param   pUsbIns     The USB device instance.
  * @param   pvUser      User argument.
+ * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEUSB(PPDMUSBINS pUsbIns, void *pvUser);
+typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEUSB(PPDMUSBINS pUsbIns, void *pvUser, int rc);
 /** Pointer to a FNPDMASYNCCOMPLETEUSB(). */
 typedef FNPDMASYNCCOMPLETEUSB *PFNPDMASYNCCOMPLETEUSB;
 
@@ -98,8 +101,9 @@ typedef FNPDMASYNCCOMPLETEUSB *PFNPDMASYNCCOMPLETEUSB;
  * @param   pVM         Pointer to the shared VM structure.
  * @param   pvUser      User argument for the task.
  * @param   pvUser2     User argument for the template.
+ * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEINT(PVM pVM, void *pvUser, void *pvUser2);
+typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEINT(PVM pVM, void *pvUser, void *pvUser2, int rc);
 /** Pointer to a FNPDMASYNCCOMPLETEINT(). */
 typedef FNPDMASYNCCOMPLETEINT *PFNPDMASYNCCOMPLETEINT;
 
@@ -303,6 +307,21 @@ VMMR3DECL(int) PDMR3AsyncCompletionEpFlush(PPDMASYNCCOMPLETIONENDPOINT pEndpoint
  */
 VMMR3DECL(int) PDMR3AsyncCompletionEpGetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                                              uint64_t *pcbSize);
+
+/**
+ * Sets the size of an endpoint.
+ * Not that some endpoints may not support this and will return an error
+ * (sockets for example).
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_SUPPORTED if the endpoint does not support this operation.
+ * @param   pEndpoint       The file endpoint.
+ * @param   cbSize          The size to set.
+ *
+ * @note PDMR3AsyncCompletionEpFlush should be called before this operation is executed.
+ */
+VMMR3DECL(int) PDMR3AsyncCompletionEpSetSize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
+                                             uint64_t cbSize);
 
 /**
  * Cancels a async completion task.

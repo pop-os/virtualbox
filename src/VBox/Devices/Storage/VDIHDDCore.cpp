@@ -2238,6 +2238,10 @@ static int vdiCompact(void *pBackendData, unsigned uPercentStart,
     return rc;
 }
 
+static int vdiAsyncFlush(void *pvBackendData, void *pvUser)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
 
 VBOXHDDBACKEND g_VDIBackend =
 {
@@ -2328,6 +2332,8 @@ VBOXHDDBACKEND g_VDIBackend =
     vdiAsyncRead,
     /* pfnAsyncWrite */
     vdiAsyncWrite,
+    /* pfnAsyncFlush */
+    vdiAsyncFlush,
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */

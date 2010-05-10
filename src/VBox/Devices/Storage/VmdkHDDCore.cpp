@@ -6052,6 +6052,28 @@ out:
     return rc;
 }
 
+static int vmdkAsyncFlush(void *pvBackendData, void *pvUser)
+{
+    PVMDKIMAGE pImage = (PVMDKIMAGE)pvBackendData;
+    PVMDKEXTENT pExtent = NULL;
+    void *pTask;
+    int rc;
+
+    uint64_t uSectorExtentRel;
+
+    rc = vmdkFindExtent(pImage, VMDK_BYTE2SECTOR(0),
+                        &pExtent, &uSectorExtentRel);
+    if (RT_FAILURE(rc))
+        goto out;
+
+    rc = pImage->pInterfaceAsyncIOCallbacks->pfnFlushAsync(pImage->pInterfaceAsyncIO->pvUser,
+                                                           pExtent->pFile->pStorage,
+                                                           pvUser, &pTask);
+
+out:
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
 
 VBOXHDDBACKEND g_VmdkBackend =
 {
@@ -6142,6 +6164,8 @@ VBOXHDDBACKEND g_VmdkBackend =
     vmdkAsyncRead,
     /* pfnAsyncWrite */
     vmdkAsyncWrite,
+    /* pfnAsyncFlush */
+    vmdkAsyncFlush,
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */
