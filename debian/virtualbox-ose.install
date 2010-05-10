@@ -5,7 +5,6 @@ out/bin/VBoxREM* /usr/lib/virtualbox
 out/bin/VBox*.so /usr/lib/virtualbox
 out/bin/VBox*.gc /usr/lib/virtualbox
 out/bin/VBox*.r0 /usr/lib/virtualbox
-out/bin/VBoxEFI* /usr/lib/virtualbox
 out/bin/VBoxHeadless /usr/lib/virtualbox
 out/bin/VBoxManage /usr/lib/virtualbox
 out/bin/VBoxNetAdpCtl /usr/lib/virtualbox
