@@ -12,6 +12,7 @@
 %define VERR_NO_MEMORY    (-8)
 %define VERR_ALREADY_LOADED    (-9)
 %define VERR_PERMISSION_DENIED    (-10)
+%define VINF_PERMISSION_DENIED    10
 %define VERR_VERSION_MISMATCH    (-11)
 %define VERR_NOT_IMPLEMENTED    (-12)
 %define VERR_NO_TMP_MEMORY    (-20)
@@ -98,6 +99,7 @@
 %define VERR_CALLBACK_RETURN    (-88)
 %define VINF_CALLBACK_RETURN    88
 %define VERR_AUTHENTICATION_FAILURE    (-89)
+%define VERR_NOT_POWER_OF_TWO    (-90)
 %define VERR_FILE_IO_ERROR    (-100)
 %define VERR_OPEN_FAILED    (-101)
 %define VERR_FILE_NOT_FOUND    (-102)
@@ -318,6 +320,7 @@
 %define VERR_GETOPT_INDEX_MISSING    (-829)
 %define VERR_CACHE_FULL    (-850)
 %define VERR_CACHE_EMPTY    (-851)
+%define VERR_MEM_CACHE_MAX_SIZE    (-855)
 %define VERR_S3_ACCESS_DENIED    (-875)
 %define VERR_S3_NOT_FOUND    (-876)
 %define VERR_S3_BUCKET_ALREADY_EXISTS    (-877)

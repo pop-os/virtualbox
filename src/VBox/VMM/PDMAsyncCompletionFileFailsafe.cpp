@@ -1,7 +1,7 @@
 /* $Id: PDMAsyncCompletionFileFailsafe.cpp $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
- * Failsafe File I/O manager.
+ * Simple File I/O manager.
  */
 
 /*
@@ -20,7 +20,6 @@
  * additional information or have any questions.
  */
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
-#define RT_STRICT
 #include <iprt/types.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>
@@ -57,7 +56,7 @@ static int pdmacFileAioMgrFailsafeProcessEndpointTaskList(PPDMASYNCCOMPLETIONEND
                 }
                 else
                 {
-                    if (RT_UNLIKELY(pCurr->Off + pCurr->DataSeg.cbSeg > (RTFOFF)pEndpoint->cbFile))
+                    if (RT_UNLIKELY((uint64_t)pCurr->Off + pCurr->DataSeg.cbSeg > pEndpoint->cbFile))
                     {
                         ASMAtomicWriteU64(&pEndpoint->cbFile, pCurr->Off + pCurr->DataSeg.cbSeg);
                         RTFileSetSize(pEndpoint->File, pCurr->Off + pCurr->DataSeg.cbSeg);
@@ -75,13 +74,11 @@ static int pdmacFileAioMgrFailsafeProcessEndpointTaskList(PPDMASYNCCOMPLETIONEND
                 AssertMsgFailed(("Invalid transfer type %d\n", pTasks->enmTransferType));
         }
 
-        AssertRC(rc);
-
-        pCurr->pfnCompleted(pCurr, pCurr->pvUser);
+        pCurr->pfnCompleted(pCurr, pCurr->pvUser, rc);
         pdmacFileTaskFree(pEndpoint, pCurr);
     }
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
 static int pdmacFileAioMgrFailsafeProcessEndpoint(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)

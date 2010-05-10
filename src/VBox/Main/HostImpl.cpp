@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -629,7 +629,11 @@ STDMETHODIMP Host::COMGETTER(NetworkInterfaces)(ComSafeArrayOut(IHostNetworkInte
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    /* The code is so hideously complicated that I can't tell whether the
+     * host object lock is really needed. It was taken here, and as the
+     * VirtualBox (mParent) is taken as well below nested deep down that
+     * would be a lock order violation. */
+    AutoMultiWriteLock2 alock(m->pParent, this);
 
     std::list <ComObjPtr<HostNetworkInterface> > list;
 
@@ -1239,7 +1243,8 @@ STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostN
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    /* No need to lock anything. If there ever will - watch out, the function
+     * called below grabs the VirtualBox lock. */
 
     int r = NetIfCreateHostOnlyNetworkInterface(m->pParent, aHostNetworkInterface, aProgress);
     if (RT_SUCCESS(r))
@@ -1256,7 +1261,9 @@ STDMETHODIMP Host::RemoveHostOnlyNetworkInterface(IN_BSTR aId,
     AutoCaller autoCaller(this);
     CheckComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    /* No need to lock anything, the code below does not touch the state
+     * of the host object. If that ever changes then check for lock order
+     * violations with the called functions. */
 
     /* first check whether an interface with the given name already exists */
     {
@@ -2344,7 +2351,7 @@ HRESULT Host::checkUSBProxyService()
         if (m->pUSBProxyService->getLastError() == VINF_SUCCESS)
 #ifdef RT_OS_LINUX
             return setWarning (VBOX_E_HOST_ERROR,
-# ifdef VBOX_WITH_DBUS
+# ifdef VBOX_USB_WITH_DBUS
                 tr ("The USB Proxy Service could not be started, because neither the USB file system (usbfs) nor the hardware information service (hal) is available")
 # else
                 tr ("The USB Proxy Service could not be started, because the USB file system (usbfs) is not available")

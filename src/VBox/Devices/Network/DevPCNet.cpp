@@ -4830,9 +4830,13 @@ static DECLCALLBACK(int) pcnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t
             rc = VERR_PDM_MISSING_INTERFACE_BELOW;
         }
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    {
+        /* This should never happen because this function is not called
+         * if there is no driver to attach! */
         Log(("#%d No attached driver!\n", PCNET_INST_NR));
-
+    }
 
     /*
      * Temporary set the link down if it was up so that the guest
@@ -5226,8 +5230,12 @@ static DECLCALLBACK(int) pcnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
             return VERR_PDM_MISSING_INTERFACE_BELOW;
         }
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    {
+        /* No error! */
         Log(("No attached driver!\n"));
+    }
     else
         return rc;
 

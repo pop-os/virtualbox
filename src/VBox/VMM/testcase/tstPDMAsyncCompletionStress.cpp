@@ -375,7 +375,7 @@ static int tstPDMACTestFileThread(PVM pVM, PPDMTHREAD pThread)
     return rc;
 }
 
-static void tstPDMACStressTestFileTaskCompleted(PVM pVM, void *pvUser, void *pvUser2)
+static void tstPDMACStressTestFileTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rcReq)
 {
     PPDMACTESTFILE pTestFile = (PPDMACTESTFILE)pvUser2;
     PPDMACTESTFILETASK pTestTask = (PPDMACTESTFILETASK)pvUser;

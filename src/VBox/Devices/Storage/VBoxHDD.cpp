@@ -3894,6 +3894,11 @@ VBOXDDU_DECL(int) VDAsyncRead(PVBOXHDD pDisk, uint64_t uOffset, size_t cbRead,
 
     } while (0);
 
+    if (rc == VINF_SUCCESS)
+        rc = VINF_VD_ASYNC_IO_FINISHED;
+    else if (rc == VINF_AIO_TASK_PENDING)
+        rc = VINF_SUCCESS;
+
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -3949,10 +3954,45 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t uOffset, size_t cbWrite,
                                             paSeg, cSeg, pvUser);
     } while (0);
 
+    if (rc == VINF_SUCCESS)
+        rc = VINF_VD_ASYNC_IO_FINISHED;
+    else if (rc == VINF_AIO_TASK_PENDING)
+        rc = VINF_SUCCESS;
+
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 
 }
+
+
+VBOXDDU_DECL(int) VDAsyncFlush(PVBOXHDD pDisk, void *pvUser)
+{
+    int rc;
+
+    LogFlowFunc(("pDisk=%#p\n", pDisk));
+
+    do
+    {
+        /* sanity check */
+        AssertPtrBreakStmt(pDisk, rc = VERR_INVALID_PARAMETER);
+        AssertMsg(pDisk->u32Signature == VBOXHDDDISK_SIGNATURE, ("u32Signature=%08x\n", pDisk->u32Signature));
+
+        PVDIMAGE pImage = pDisk->pLast;
+        AssertPtrBreakStmt(pImage, rc = VERR_VD_NOT_OPENED);
+
+        vdResetModifiedFlag(pDisk);
+        rc = pImage->Backend->pfnAsyncFlush(pImage->pvBackendData, pvUser);
+    } while (0);
+
+    if (rc == VINF_SUCCESS)
+        rc = VINF_VD_ASYNC_IO_FINISHED;
+    else if (rc == VINF_AIO_TASK_PENDING)
+        rc = VINF_SUCCESS;
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
 
 #if 0
 /** @copydoc VBOXHDDBACKEND::pfnComposeLocation */

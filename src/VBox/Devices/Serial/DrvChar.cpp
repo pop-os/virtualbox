@@ -1,11 +1,13 @@
+/* $Id: DrvChar.cpp $ */
 /** @file
+ * Driver that adapts PDMISTREAM into PDMICHARCONNECTOR / PDMICHARPORT.
  *
- * VBox stream I/O devices:
- * Generic char driver
+ * Converts synchronous calls (PDMICHARCONNECTOR::pfnWrite, PDMISTREAM::pfnRead)
+ * into asynchronous ones.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Sun Microsystems, Inc.
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +69,7 @@ typedef struct DRVCHAR
 
     /** Internal send FIFO queue */
     uint8_t                     aSendQueue[CHAR_MAX_SEND_QUEUE];
-    uint32_t                    iSendQueueHead;
+    uint32_t volatile           iSendQueueHead;
     uint32_t                    iSendQueueTail;
 
     uintptr_t                   AlignmentPadding;
@@ -145,7 +147,7 @@ static DECLCALLBACK(int) drvCharSetParameters(PPDMICHAR pInterface, unsigned Bps
 /* -=-=-=-=- receive thread -=-=-=-=- */
 
 /**
- * Send thread loop.
+ * Send thread loop - pushes data down thru the driver chain.
  *
  * @returns 0 on success.
  * @param   ThreadSelf  Thread handle to this thread.
@@ -155,7 +157,7 @@ static DECLCALLBACK(int) drvCharSendLoop(RTTHREAD ThreadSelf, void *pvUser)
 {
     PDRVCHAR pThis = (PDRVCHAR)pvUser;
 
-    for(;;)
+    while (!pThis->fShutdown)
     {
         int rc = RTSemEventWait(pThis->SendSem, RT_INDEFINITE_WAIT);
         if (RT_FAILURE(rc))
@@ -164,38 +166,35 @@ static DECLCALLBACK(int) drvCharSendLoop(RTTHREAD ThreadSelf, void *pvUser)
         /*
          * Write the character to the attached stream (if present).
          */
-        if (    !pThis->fShutdown
-            &&  pThis->pDrvStream)
-        {
-            while (pThis->iSendQueueTail != pThis->iSendQueueHead)
-            {
-                size_t cbProcessed = 1;
+        if (    pThis->fShutdown
+            ||  !pThis->pDrvStream)
+            break;
 
-                rc = pThis->pDrvStream->pfnWrite(pThis->pDrvStream, &pThis->aSendQueue[pThis->iSendQueueTail], &cbProcessed);
-                if (RT_SUCCESS(rc))
-                {
-                    Assert(cbProcessed);
-                    pThis->iSendQueueTail++;
-                    pThis->iSendQueueTail &= CHAR_MAX_SEND_QUEUE_MASK;
-                }
-                else if (rc == VERR_TIMEOUT)
-                {
-                    /* Normal case, just means that the stream didn't accept a new
-                     * character before the timeout elapsed. Just retry. */
-                    rc = VINF_SUCCESS;
-                }
-                else
-                {
-                    LogFlow(("Write failed with %Rrc; skipping\n", rc));
-                    break;
-                }
+        while (   pThis->iSendQueueTail != pThis->iSendQueueHead
+               && !pThis->fShutdown)
+        {
+            size_t cbProcessed = 1;
+
+            rc = pThis->pDrvStream->pfnWrite(pThis->pDrvStream, &pThis->aSendQueue[pThis->iSendQueueTail], &cbProcessed);
+            if (RT_SUCCESS(rc))
+            {
+                Assert(cbProcessed);
+                pThis->iSendQueueTail++;
+                pThis->iSendQueueTail &= CHAR_MAX_SEND_QUEUE_MASK;
+            }
+            else if (rc == VERR_TIMEOUT)
+            {
+                /* Normal case, just means that the stream didn't accept a new
+                 * character before the timeout elapsed. Just retry. */
+                rc = VINF_SUCCESS;
+            }
+            else
+            {
+                LogFlow(("Write failed with %Rrc; skipping\n", rc));
+                break;
             }
         }
-        else
-            break;
     }
-
-    pThis->SendThread = NIL_RTTHREAD;
 
     return VINF_SUCCESS;
 }
@@ -266,8 +265,6 @@ static DECLCALLBACK(int) drvCharReceiveLoop(RTTHREAD ThreadSelf, void *pvUser)
         }
     }
 
-    pThis->ReceiveThread = NIL_RTTHREAD;
-
     return VINF_SUCCESS;
 }
 
@@ -303,7 +300,7 @@ static DECLCALLBACK(int) drvCharSetBreak(PPDMICHAR pInterface, bool fBreak)
 
 /**
  * Construct a char driver instance.
- *  
+ *
  * @copydoc FNPDMDRVCONSTRUCT
  */
 static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
@@ -314,8 +311,10 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     /*
      * Init basic data members and interfaces.
      */
-    pThis->ReceiveThread                    = NIL_RTTHREAD;
     pThis->fShutdown                        = false;
+    pThis->ReceiveThread                    = NIL_RTTHREAD;
+    pThis->SendThread                       = NIL_RTTHREAD;
+    pThis->SendSem                          = NIL_RTSEMEVENT;
     /* IBase. */
     pDrvIns->IBase.pfnQueryInterface        = drvCharQueryInterface;
     /* IChar. */
@@ -342,20 +341,22 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
     if (!pThis->pDrvStream)
         return PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_MISSING_INTERFACE_BELOW, RT_SRC_POS, N_("Char#%d has no stream interface below"), pDrvIns->iInstance);
 
-    /* 
+    /*
      * Don't start the receive thread if the driver doesn't support reading
      */
     if (pThis->pDrvStream->pfnRead)
     {
-        rc = RTThreadCreate(&pThis->ReceiveThread, drvCharReceiveLoop, (void *)pThis, 0, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "CharRecv");
+        rc = RTThreadCreate(&pThis->ReceiveThread, drvCharReceiveLoop, (void *)pThis, 0,
+                            RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "CharRecv");
         if (RT_FAILURE(rc))
             return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Char#%d cannot create receive thread"), pDrvIns->iInstance);
     }
 
     rc = RTSemEventCreate(&pThis->SendSem);
-    AssertRC(rc);
+    AssertRCReturn(rc, rc);
 
-    rc = RTThreadCreate(&pThis->SendThread, drvCharSendLoop, (void *)pThis, 0, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "CharSend");
+    rc = RTThreadCreate(&pThis->SendThread, drvCharSendLoop, (void *)pThis, 0,
+                        RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "CharSend");
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Char#%d cannot create send thread"), pDrvIns->iInstance);
 
@@ -377,32 +378,43 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHand
  */
 static DECLCALLBACK(void) drvCharDestruct(PPDMDRVINS pDrvIns)
 {
-    PDRVCHAR     pThis = PDMINS_2_DATA(pDrvIns, PDRVCHAR);
-
+    PDRVCHAR pThis = PDMINS_2_DATA(pDrvIns, PDRVCHAR);
     LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
 
+    /*
+     * Tell the threads to shut down.
+     */
     pThis->fShutdown = true;
-    if (pThis->ReceiveThread)
+    if (pThis->SendSem != NIL_RTSEMEVENT)
     {
-        RTThreadWait(pThis->ReceiveThread, 1000, NULL);
-        if (pThis->ReceiveThread != NIL_RTTHREAD)
-            LogRel(("Char%d: receive thread did not terminate\n", pDrvIns->iInstance));
+        RTSemEventSignal(pThis->SendSem);
+        RTSemEventDestroy(pThis->SendSem);
+        pThis->SendSem = NIL_RTSEMEVENT;
     }
 
-    /* Empty the send queue */
-    pThis->iSendQueueTail = pThis->iSendQueueHead = 0;
-
-    RTSemEventSignal(pThis->SendSem);
-    RTSemEventDestroy(pThis->SendSem);
-    pThis->SendSem = NIL_RTSEMEVENT;
-
-    if (pThis->SendThread)
+    /*
+     * Wait for the threads.
+     * ASSUMES that PDM destroys the driver chain from the the bottom and up.
+     */
+    if (pThis->ReceiveThread != NIL_RTTHREAD)
     {
-        RTThreadWait(pThis->SendThread, 1000, NULL);
-        if (pThis->SendThread != NIL_RTTHREAD)
-            LogRel(("Char%d: send thread did not terminate\n", pDrvIns->iInstance));
+        int rc = RTThreadWait(pThis->ReceiveThread, 30000, NULL);
+        if (RT_SUCCESS(rc))
+            pThis->ReceiveThread = NIL_RTTHREAD;
+        else
+            LogRel(("Char%d: receive thread did not terminate (%Rrc)\n", pDrvIns->iInstance, rc));
+    }
+
+    if (pThis->SendThread != NIL_RTTHREAD)
+    {
+        int rc = RTThreadWait(pThis->SendThread, 30000, NULL);
+        if (RT_SUCCESS(rc))
+            pThis->SendThread = NIL_RTTHREAD;
+        else
+            LogRel(("Char%d: send thread did not terminate (%Rrc)\n", pDrvIns->iInstance, rc));
     }
 }
+
 
 /**
  * Char driver registration record.
@@ -440,9 +452,9 @@ const PDMDRVREG g_DrvChar =
     /* pfnAttach */
     NULL,
     /* pfnDetach */
-    NULL, 
+    NULL,
     /* pfnPowerOff */
-    NULL, 
+    NULL,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

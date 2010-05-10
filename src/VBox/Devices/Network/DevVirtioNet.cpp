@@ -328,7 +328,7 @@ PDMBOTHCBDECL(int) vnetSetConfig(void *pvState, uint32_t port, uint32_t cb, void
  *
  * @param   pState      The device state structure.
  */
-PDMBOTHCBDECL(void) vnetReset(void *pvState)
+PDMBOTHCBDECL(int) vnetReset(void *pvState)
 {
     VNETSTATE *pState = (VNETSTATE*)pvState;
     Log(("%s Reset triggered\n", INSTANCE(pState)));
@@ -337,7 +337,7 @@ PDMBOTHCBDECL(void) vnetReset(void *pvState)
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
     {
         LogRel(("vnetReset failed to enter RX critical section!\n"));
-        return;
+        return rc;
     }
     vpciReset(&pState->VPCI);
     vnetCsRxLeave(pState);
@@ -356,6 +356,13 @@ PDMBOTHCBDECL(void) vnetReset(void *pvState)
     pState->nMacFilterEntries = 0;
     memset(pState->aMacFilter,  0, VNET_MAC_FILTER_LEN * sizeof(RTMAC));
     memset(pState->aVlanFilter, 0, sizeof(pState->aVlanFilter));
+#ifndef IN_RING3
+    return VINF_IOM_HC_IOPORT_WRITE;
+#else
+    if (pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, true);
+    return VINF_SUCCESS;
+#endif
 }
 
 #ifdef IN_RING3
@@ -920,7 +927,7 @@ static DECLCALLBACK(void) vnetQueueTransmit(void *pvState, PVQUEUE pQueue)
 static uint8_t vnetControlRx(PVNETSTATE pState, PVNETCTLHDR pCtlHdr, PVQUEUEELEM pElem)
 {
     uint8_t u8Ack = VNET_OK;
-    uint8_t fOn;
+    uint8_t fOn, fDrvWasPromisc = pState->fPromiscuous | pState->fAllMulti;
     PDMDevHlpPhysRead(pState->VPCI.CTX_SUFF(pDevIns),
                       pElem->aSegsOut[1].addr,
                       &fOn, sizeof(fOn));
@@ -936,6 +943,9 @@ static uint8_t vnetControlRx(PVNETSTATE pState, PVNETCTLHDR pCtlHdr, PVQUEUEELEM
         default:
             u8Ack = VNET_ERROR;
     }
+    if (fDrvWasPromisc != (pState->fPromiscuous | pState->fAllMulti) && pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv,
+            (pState->fPromiscuous | pState->fAllMulti));
 
     return u8Ack;
 }
@@ -1302,6 +1312,8 @@ static DECLCALLBACK(int) vnetLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint3
             pState->nMacFilterEntries = 0;
             memset(pState->aMacFilter, 0, VNET_MAC_FILTER_LEN * sizeof(RTMAC));
             memset(pState->aVlanFilter, 0, sizeof(pState->aVlanFilter));
+            if (pState->pDrv)
+                pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, true);
         }
     }
 
@@ -1319,6 +1331,9 @@ static DECLCALLBACK(int) vnetLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     VNETSTATE *pState = PDMINS_2_DATA(pDevIns, VNETSTATE*);
 
+    if (pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv,
+            (pState->fPromiscuous | pState->fAllMulti));
     /*
      * Indicate link down to the guest OS that all network connections have
      * been lost, unless we've been teleported here.
@@ -1506,8 +1521,10 @@ static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
             return VERR_PDM_MISSING_INTERFACE_BELOW;
         }
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME )
     {
+         /* No error! */
         Log(("%s This adapter is not attached to any network!\n", INSTANCE(pState)));
     }
     else
@@ -1517,7 +1534,8 @@ static DECLCALLBACK(int) vnetConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     if (RT_FAILURE(rc))
         return rc;
 
-    vnetReset(pState);
+    rc = vnetReset(pState);
+    AssertRC(rc);
 
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatReceiveBytes,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,          "Amount of data received",            "/Devices/VNet%d/ReceiveBytes", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmitBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,          "Amount of data transmitted",         "/Devices/VNet%d/TransmitBytes", iInstance);
@@ -1685,9 +1703,13 @@ static DECLCALLBACK(int) vnetAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
             rc = VERR_PDM_MISSING_INTERFACE_BELOW;
         }
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    {
+        /* This should never happen because this function is not called
+         * if there is no driver to attach! */
         Log(("%s No attached driver!\n", INSTANCE(pState)));
-
+    }
 
     /*
      * Temporary set the link down if it was up so that the guest

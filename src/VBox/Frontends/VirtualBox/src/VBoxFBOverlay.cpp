@@ -3093,7 +3093,7 @@ int VBoxGLWidget::vhwaSurfaceCanCreate(struct _VBOXVHWACMD_SURF_CANCREATE *pCmd)
 
 int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
 {
-    VBOXQGLLOG_ENTER(("\n"));
+    VBOXQGLLOG_ENTER (("\n"));
 
     uint32_t handle = VBOXVHWA_SURFHANDLE_INVALID;
     if(pCmd->SurfInfo.hSurf != VBOXVHWA_SURFHANDLE_INVALID)
@@ -3101,27 +3101,17 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
         handle = pCmd->SurfInfo.hSurf;
         if(mSurfHandleTable.get(handle))
         {
-//            do
-//            {
-//                if(!mcVGASurfCreated)
-//                {
-//                    /* check if it is a primary surface that needs handle adjusting*/
-//                    if((pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_PRIMARYSURFACE)
-//                            && handle2Surface(handle) == mDisplay.getVGA())
-//                    {
-//                        /* remove, the primary surface will be assigned to a new handle assumed by the guest */
-//                        mSurfHandleTable.remove(handle);
-//                        break;
-//                    }
-//                }
-                Assert(0);
-                return VERR_GENERAL_FAILURE;
-//            }while(0);
+            Assert(0);
+            return VERR_GENERAL_FAILURE;
         }
     }
 
     VBoxVHWASurfaceBase *surf = NULL;
-//    VBoxVHWAColorFormat *pFormat = NULL, Format;
+    /* in case the Framebuffer is working in "not using VRAM" mode,
+     * we need to report the pitch, etc. info of the form guest expects from us*/
+    VBoxVHWAColorFormat reportedFormat;
+    /* paranoya to ensure the VBoxVHWAColorFormat API works properly */
+    Assert(!reportedFormat.isValid());
     bool bNoPBO = false;
     bool bPrimary = false;
 
@@ -3150,14 +3140,20 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
         pSrcOverlayCKey = &SrcOverlayCKey;
     }
 
-    if(pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_PRIMARYSURFACE)
+    if (pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_PRIMARYSURFACE)
     {
         bNoPBO = true;
         bPrimary = true;
         VBoxVHWASurfaceBase * pVga = vboxGetVGASurface();
 
         Assert((pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_OFFSCREENPLAIN) == 0);
-        if(pVga->handle() == VBOXVHWA_SURFHANDLE_INVALID
+
+        reportedFormat = VBoxVHWAColorFormat(pCmd->SurfInfo.PixelFormat.c.rgbBitCount,
+                                    pCmd->SurfInfo.PixelFormat.m1.rgbRBitMask,
+                                    pCmd->SurfInfo.PixelFormat.m2.rgbGBitMask,
+                                    pCmd->SurfInfo.PixelFormat.m3.rgbBBitMask);
+
+        if (pVga->handle() == VBOXVHWA_SURFHANDLE_INVALID
                 && (pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_OFFSCREENPLAIN) == 0)
         {
             Assert(pCmd->SurfInfo.PixelFormat.flags & VBOXVHWA_PF_RGB);
@@ -3168,12 +3164,9 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
 //                if(pCmd->SurfInfo.width == pVga->width()
 //                        && pCmd->SurfInfo.height == pVga->height())
                 {
-                    VBoxVHWAColorFormat format(pCmd->SurfInfo.PixelFormat.c.rgbBitCount,
-                                                pCmd->SurfInfo.PixelFormat.m1.rgbRBitMask,
-                                                pCmd->SurfInfo.PixelFormat.m2.rgbGBitMask,
-                                                pCmd->SurfInfo.PixelFormat.m3.rgbBBitMask);
-                    Assert(pVga->colorFormat().equals(format));
-//                    if(pVga->colorFormat().equals(format))
+                    // the assert below is incorrect in case the Framebuffer is working in "not using VRAM" mode
+//                    Assert(pVga->pixelFormat().equals(format));
+//                    if(pVga->pixelFormat().equals(format))
                     {
                         surf = pVga;
 
@@ -3198,48 +3191,39 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
 
     if(!surf)
     {
-        if(pCmd->SurfInfo.PixelFormat.flags & VBOXVHWA_PF_RGB)
-        {
-            VBoxVHWAColorFormat format(pCmd->SurfInfo.PixelFormat.c.rgbBitCount,
+        QSize surfSize(pCmd->SurfInfo.width, pCmd->SurfInfo.height);
+        QRect primaryRect = mDisplay.getPrimary()->rect();
+        VBoxVHWAColorFormat format;
+        if (bPrimary)
+            format = mDisplay.getVGA()->colorFormat();
+        else if (pCmd->SurfInfo.PixelFormat.flags & VBOXVHWA_PF_RGB)
+            format = VBoxVHWAColorFormat(pCmd->SurfInfo.PixelFormat.c.rgbBitCount,
                                             pCmd->SurfInfo.PixelFormat.m1.rgbRBitMask,
                                             pCmd->SurfInfo.PixelFormat.m2.rgbGBitMask,
                                             pCmd->SurfInfo.PixelFormat.m3.rgbBBitMask);
-            QSize surfSize(pCmd->SurfInfo.width, pCmd->SurfInfo.height);
-            QRect primaryRect = mDisplay.getPrimary()->rect();
-            surf = new VBoxVHWASurfaceBase(this, surfSize,
-//                        ((pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_OVERLAY) ? mDisplay.getPrimary()->rect().size() : &surfSize),
+        else if (pCmd->SurfInfo.PixelFormat.flags & VBOXVHWA_PF_FOURCC)
+            format = VBoxVHWAColorFormat(pCmd->SurfInfo.PixelFormat.fourCC);
+        else
+            AssertBreakpoint();
+
+        if (format.isValid())
+        {
+            surf = new VBoxVHWASurfaceBase(this,
+                        surfSize,
                         primaryRect,
                         QRect(0, 0, surfSize.width(), surfSize.height()),
                         mViewport,
                         format,
-                        pSrcBltCKey, pDstBltCKey, pSrcOverlayCKey, pDstOverlayCKey,
+                        pSrcBltCKey, pDstBltCKey, pSrcOverlayCKey, pDstOverlayCKey
 #ifdef VBOXVHWA_USE_TEXGROUP
-                        0,
+                        , 0
 #endif
-                        bNoPBO);
-        }
-        else if(pCmd->SurfInfo.PixelFormat.flags & VBOXVHWA_PF_FOURCC)
-        {
-            QSize surfSize(pCmd->SurfInfo.width, pCmd->SurfInfo.height);
-            QRect primaryRect = mDisplay.getPrimary()->rect();
-
-            VBoxVHWAColorFormat format(pCmd->SurfInfo.PixelFormat.fourCC);
-            surf = new VBoxVHWASurfaceBase(this, surfSize,
-            //                        ((pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_OVERLAY) ? mDisplay.getPrimary()->rect().size() : &QSize(pCmd->SurfInfo.width, pCmd->SurfInfo.height)),
-                                    primaryRect,
-                                    QRect(0, 0, surfSize.width(), surfSize.height()),
-                                    mViewport,
-                                    format,
-                                    pSrcBltCKey, pDstBltCKey, pSrcOverlayCKey, pDstOverlayCKey,
-#ifdef VBOXVHWA_USE_TEXGROUP
-                                    0,
-#endif
-                                    bNoPBO);
+                        , bNoPBO);
         }
         else
         {
-            Assert(0);
-            VBOXQGLLOG_EXIT(("pSurf (0x%x)\n",surf));
+            AssertBreakpoint();
+            VBOXQGLLOG_EXIT(("pSurf (0x%p)\n",surf));
             return VERR_GENERAL_FAILURE;
         }
 
@@ -3271,7 +3255,6 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
             VBoxVHWASurfaceBase * pVga = vboxGetVGASurface();
             Assert(pVga->handle() != VBOXVHWA_SURFHANDLE_INVALID);
             Assert(pVga != surf); NOREF(pVga);
-//            Assert(mbVGASurfCreated);
             mDisplay.getVGA()->getComplexList()->add(surf);
 #ifdef DEBUGVHWASTRICT
             Assert(pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_VISIBLE);
@@ -3284,15 +3267,33 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
             }
         }
     }
+    else
+    {
+        Assert(pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_PRIMARYSURFACE);
+    }
 
     Assert(mDisplay.getVGA() == mDisplay.getPrimary());
 
     /* tell the guest how we think the memory is organized */
     VBOXQGLLOG(("bps: %d\n", surf->bitsPerPixel()));
 
-    pCmd->SurfInfo.pitch        = surf->bitsPerPixel() * surf->width() / 8;
-    pCmd->SurfInfo.sizeX = surf->memSize();
-    pCmd->SurfInfo.sizeY = 1;
+    if (!reportedFormat.isValid())
+    {
+        pCmd->SurfInfo.pitch = surf->bitsPerPixel() * surf->width() / 8;
+        pCmd->SurfInfo.sizeX = surf->memSize();
+        pCmd->SurfInfo.sizeY = 1;
+    }
+    else
+    {
+        /* this is the case of Framebuffer not using Gueat VRAM */
+        /* can happen for primary surface creation only */
+        Assert(pCmd->SurfInfo.surfCaps & VBOXVHWA_SCAPS_PRIMARYSURFACE);
+        pCmd->SurfInfo.pitch = (reportedFormat.bitsPerPixel() * surf->width() + 7) / 8;
+        /* we support only RGB case now, otherwise we would need more complicated mechanism of memsize calculation */
+        Assert(!reportedFormat.fourcc());
+        pCmd->SurfInfo.sizeX = (reportedFormat.bitsPerPixel() * surf->width() + 7) / 8 * surf->height();
+        pCmd->SurfInfo.sizeY = 1;
+    }
 
     if(handle != VBOXVHWA_SURFHANDLE_INVALID)
     {
@@ -3316,7 +3317,7 @@ int VBoxGLWidget::vhwaSurfaceCreate(struct _VBOXVHWACMD_SURF_CREATE *pCmd)
     surf->setHandle(handle);
     Assert(surf->handle() == handle);
 
-    VBOXQGLLOG_EXIT(("pSurf (0x%x)\n",surf));
+    VBOXQGLLOG_EXIT(("pSurf (0x%p)\n",surf));
 
     return VINF_SUCCESS;
 }

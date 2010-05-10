@@ -1785,6 +1785,15 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t uOffset, size_t cbWrite,
                                void *pvUser);
 
 
+/**
+ * Start a asynchronous flush request.
+ *
+ * @return  VBox status code.
+ * @param   pDisk           Pointer to the HDD container.
+ * @param   pvUser          User data which is passed on completion.
+ */
+VBOXDDU_DECL(int) VDAsyncFlush(PVBOXHDD pDisk, void *pvUser);
+
 RT_C_DECLS_END
 
 /** @} */

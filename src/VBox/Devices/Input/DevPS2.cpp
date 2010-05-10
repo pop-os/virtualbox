@@ -277,18 +277,35 @@ static void kbd_update_irq(KBDState *s)
 
     irq1_level = 0;
     irq12_level = 0;
-    s->status &= ~(KBD_STAT_OBF | KBD_STAT_MOUSE_OBF);
-    if (q->count != 0)
-    {
-        s->status |= KBD_STAT_OBF;
-        if ((s->mode & KBD_MODE_KBD_INT) && !(s->mode & KBD_MODE_DISABLE_KBD))
-            irq1_level = 1;
+    
+    /* Determine new OBF state, but only if OBF is clear. If OBF was already
+     * set, we cannot risk changing the event type after an ISR potentially
+     * started executing! Only kbd_read_data() clears the OBF bits.
+     */
+    if (!(s->status & KBD_STAT_OBF)) {
+        s->status &= ~KBD_STAT_MOUSE_OBF;
+        /* Keyboard data has priority if both kbd and aux data is available. */
+        if (q->count != 0)
+        {
+            s->status |= KBD_STAT_OBF;
+        }
+        else if (mcq->count != 0 || meq->count != 0)
+        {
+            s->status |= KBD_STAT_OBF | KBD_STAT_MOUSE_OBF;
+        }
     }
-    else if (mcq->count != 0 || meq->count != 0)
-    {
-        s->status |= KBD_STAT_OBF | KBD_STAT_MOUSE_OBF;
-        if (s->mode & KBD_MODE_MOUSE_INT)
-            irq12_level = 1;
+    /* Determine new IRQ state. */
+    if (s->status & KBD_STAT_OBF) {
+        if (s->status & KBD_STAT_MOUSE_OBF)
+        {
+            if (s->mode & KBD_MODE_MOUSE_INT)
+                irq12_level = 1;
+        } 
+        else 
+        {   /* KBD_STAT_OBF set but KBD_STAT_MOUSE_OBF isn't. */
+            if ((s->mode & KBD_MODE_KBD_INT) && !(s->mode & KBD_MODE_DISABLE_KBD))
+                irq1_level = 1;
+        }
     }
     PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, irq1_level);
     PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, irq12_level);
@@ -530,6 +547,8 @@ static uint32_t kbd_read_data(void *opaque, uint32_t addr)
             PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 12, 0);
         else
             PDMDevHlpISASetIrq(s->CTX_SUFF(pDevIns), 1, 0);
+        /* Reading data clears the OBF bits, too. */
+        s->status &= ~(KBD_STAT_OBF | KBD_STAT_MOUSE_OBF);
     }
     /* reassert IRQs if data left */
     kbd_update_irq(s);
@@ -878,7 +897,7 @@ static void kbd_write_mouse(KBDState *s, int val)
                 s->mouse_detect_state = 0;
             break;
         case 2:
-            if (val == 80)
+            if (val == 80 && s->mouse_type < 4)
             {
                 LogRelFlowFunc(("switching mouse device to IMPS/2 mode\n"));
                 s->mouse_type = 3; /* IMPS/2 */

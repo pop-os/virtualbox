@@ -1,4 +1,4 @@
-; $Id: ASMAtomicUoReadU64.asm 56386 2010-01-06 06:01:40Z bird $
+; $Id: ASMAtomicUoReadU64.asm $
 ;; @file
 ; IPRT - ASMAtomicUoReadU64().
 ;

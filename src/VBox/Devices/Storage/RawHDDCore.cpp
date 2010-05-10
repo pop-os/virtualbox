@@ -1229,6 +1229,11 @@ static int rawAsyncWrite(void *pvBackendData, uint64_t uOffset, size_t cbWrite,
     return rc;
 }
 
+static int rawAsyncFlush(void *pvBackendData, void *pvUser)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
 VBOXHDDBACKEND g_RawBackend =
 {
     /* pszBackendName */
@@ -1317,6 +1322,8 @@ VBOXHDDBACKEND g_RawBackend =
     rawAsyncRead,
     /* pfnAsyncWrite */
     rawAsyncWrite,
+    /* pfnAsyncFlush */
+    rawAsyncFlush,
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */

@@ -897,11 +897,11 @@ PDMBOTHCBDECL(int) apicReadMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Re
             val = 0;
             break;
         case 0x0d:
-            val = apic->log_dest << 24;
+            val = (uint64_t)apic->log_dest << 24;
             break;
         case 0x0e:
             /* Bottom 28 bits are always 1 */
-            val = (apic->dest_mode << 28) | 0xfffffff;
+            val = ((uint64_t)apic->dest_mode << 28) | 0xfffffff;
             break;
         case 0x0f:
             val = apic->spurious_vec;
@@ -920,7 +920,7 @@ PDMBOTHCBDECL(int) apicReadMSR(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t u32Re
             break;
         case 0x30:
             /* Here one of the differences with regular APIC: ICR is single 64-bit register */
-            val = ((uint64_t)apic->icr[0x31] << 32) | apic->icr[0x30];
+            val = ((uint64_t)apic->icr[1] << 32) | apic->icr[0];
             break;
         case 0x32: case 0x33: case 0x34: case 0x35: case 0x36: case 0x37:
             val = apic->lvt[index - 0x32];

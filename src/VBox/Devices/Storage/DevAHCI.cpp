@@ -225,6 +225,23 @@ typedef DECLCALLBACK(int)   FNAHCIPOSTPROCESS(PAHCIPORTTASKSTATE pAhciPortTaskSt
 typedef FNAHCIPOSTPROCESS *PFNAHCIPOSTPROCESS;
 
 /**
+ * Transfer type.
+ */
+typedef enum AHCITXDIR
+{
+    /** Invalid */
+    AHCITXDIR_INVALID = 0,
+    /** None */
+    AHCITXDIR_NONE,
+    /** Read */
+    AHCITXDIR_READ,
+    /** Write */
+    AHCITXDIR_WRITE,
+    /** Flush */
+    AHCITXDIR_FLUSH
+} AHCITXDIR;
+
+/**
  * A task state.
  */
 typedef struct AHCIPORTTASKSTATE
@@ -242,7 +259,7 @@ typedef struct AHCIPORTTASKSTATE
     /** Physical address of the command header. - GC */
     RTGCPHYS                   GCPhysCmdHdrAddr;
     /** Data direction. */
-    uint8_t                    uTxDir;
+    AHCITXDIR                  enmTxDir;
     /** Start offset. */
     uint64_t                   uOffset;
     /** Number of bytes to transfer. */
@@ -438,6 +455,8 @@ typedef struct AHCIPort
      * Only used with the async interface.
      */
     R3PTRTYPE(PAHCIPORTTASKSTATE)   aCachedTasks[AHCI_NR_COMMAND_SLOTS];
+    /** First task throwing an error. */
+    R3PTRTYPE(volatile PAHCIPORTTASKSTATE) pTaskErr;
 
     uint32_t                        u32Alignment5[4];
 
@@ -482,9 +501,8 @@ typedef struct AHCIPort
     char                            szInquiryProductId[AHCI_ATAPI_INQUIRY_PRODUCT_ID_LENGTH+1];
     /** The revision string for SCSI INQUIRY commands. */
     char                            szInquiryRevision[AHCI_ATAPI_INQUIRY_REVISION_LENGTH+1];
-
-    uint32_t                        Alignment7;
-
+     /** Error counter */
+     uint32_t                        cErrors;
 } AHCIPort, *PAHCIPort;
 
 /*
@@ -2699,7 +2717,7 @@ static void atapiCmdOK(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskStat
     pAhciPortTaskState->uATARegError = 0;
     pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
     pAhciPortTaskState->cmdFis[AHCI_CMDFIS_SECTN] = (pAhciPortTaskState->cmdFis[AHCI_CMDFIS_SECTN] & ~7)
-        | ((pAhciPortTaskState->uTxDir != PDMBLOCKTXDIR_TO_DEVICE) ? ATAPI_INT_REASON_IO : 0)
+        | ((pAhciPortTaskState->enmTxDir != AHCITXDIR_WRITE) ? ATAPI_INT_REASON_IO : 0)
         | (!pAhciPortTaskState->cbTransfer ? ATAPI_INT_REASON_CD : 0);
     pAhciPort->uATAPISenseKey = SCSI_SENSE_NONE;
     pAhciPort->uATAPIASC = SCSI_ASC_NONE;
@@ -3438,7 +3456,7 @@ static int atapiReadSectors(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTas
 
 static int atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskState)
 {
-    int rc = PDMBLOCKTXDIR_NONE;
+    int rc = AHCITXDIR_NONE;
     const uint8_t *pbPacket;
     uint32_t cbMax;
 
@@ -3551,7 +3569,7 @@ static int atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAh
                     break;
                 }
                 atapiReadSectors(pAhciPort, pAhciPortTaskState, iATAPILBA, cSectors, 2048);
-                rc = PDMBLOCKTXDIR_FROM_DEVICE;
+                rc = AHCITXDIR_READ;
             }
             break;
         case SCSI_READ_CD:
@@ -3600,12 +3618,12 @@ static int atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAh
                     case 0x10:
                         /* normal read */
                         atapiReadSectors(pAhciPort, pAhciPortTaskState, iATAPILBA, cSectors, 2048);
-                        rc = PDMBLOCKTXDIR_FROM_DEVICE;
+                        rc = AHCITXDIR_READ;
                         break;
                     case 0xf8:
                         /* read all data */
                         atapiReadSectors(pAhciPort, pAhciPortTaskState, iATAPILBA, cSectors, 2352);
-                        rc = PDMBLOCKTXDIR_FROM_DEVICE;
+                        rc = AHCITXDIR_READ;
                         break;
                     default:
                         LogRel(("AHCI ATAPI: LUN#%d: CD-ROM sector format not supported\n", pAhciPort->iLUN));
@@ -3871,14 +3889,14 @@ static void ahciSendD2HFis(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTask
  * @returns Nothing
  * @param   pAhciPort           The port for which the SDB Fis is send.
  * @param   uFinishedTasks      Bitmask of finished tasks.
- * @param   pAhciPortTaskState  The state of the last task.
  * @param   fInterrupt          If an interrupt should be asserted.
  */
-static void ahciSendSDBFis(PAHCIPort pAhciPort, uint32_t uFinishedTasks, PAHCIPORTTASKSTATE pAhciPortTaskState, bool fInterrupt)
+static void ahciSendSDBFis(PAHCIPort pAhciPort, uint32_t uFinishedTasks, bool fInterrupt)
 {
     uint32_t sdbFis[2];
     bool fAssertIntr = false;
     PAHCI pAhci = pAhciPort->CTX_SUFF(pAhci);
+    PAHCIPORTTASKSTATE pTaskErr = (PAHCIPORTTASKSTATE)ASMAtomicReadPtr((void * volatile *)&pAhciPort->pTaskErr);
 
     ahciLog(("%s: Building SDB FIS\n", __FUNCTION__));
 
@@ -3887,13 +3905,26 @@ static void ahciSendSDBFis(PAHCIPort pAhciPort, uint32_t uFinishedTasks, PAHCIPO
         memset(&sdbFis[0], 0, sizeof(sdbFis));
         sdbFis[0] = AHCI_CMDFIS_TYPE_SETDEVBITS;
         sdbFis[0] |= (fInterrupt ? (1 << 14) : 0);
-        sdbFis[0] |= pAhciPortTaskState->uATARegError << 24;
-        sdbFis[0] |= (pAhciPortTaskState->uATARegStatus & 0x77) << 16; /* Some bits are marked as reserved and thus are masked out. */
-        sdbFis[1] = uFinishedTasks;
+        if (RT_UNLIKELY(pTaskErr))
+        {
+            sdbFis[0]  = pTaskErr->uATARegError;
+            sdbFis[0] |= (pTaskErr->uATARegStatus & 0x77) << 16; /* Some bits are marked as reserved and thus are masked out. */
 
-        ahciPostFisIntoMemory(pAhciPort, AHCI_CMDFIS_TYPE_SETDEVBITS, (uint8_t *)sdbFis);
+            /* Update registers. */
+            pAhciPort->regTFD = (pTaskErr->uATARegError << 8) | pTaskErr->uATARegStatus;
+        }
+        else
+        {
+            sdbFis[0]  = 0;
+            sdbFis[0] |= (ATA_STAT_READY | ATA_STAT_SEEK) << 16;
+            pAhciPort->regTFD = ATA_STAT_READY | ATA_STAT_SEEK;
+        }
 
-        if (pAhciPortTaskState->uATARegStatus & ATA_STAT_ERR)
+        sdbFis[1] = pAhciPort->u32QueuedTasksFinished | uFinishedTasks;
+
+         ahciPostFisIntoMemory(pAhciPort, AHCI_CMDFIS_TYPE_SETDEVBITS, (uint8_t *)sdbFis);
+
+        if (RT_UNLIKELY(pTaskErr))
         {
             /* Error bit is set. */
             ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_TFES);
@@ -3908,9 +3939,6 @@ static void ahciSendSDBFis(PAHCIPort pAhciPort, uint32_t uFinishedTasks, PAHCIPO
             if (pAhciPort->regIE & AHCI_PORT_IE_SDBE)
                 fAssertIntr = true;
         }
-
-        /* Update registers. */
-        pAhciPort->regTFD = (pAhciPortTaskState->uATARegError << 8) | pAhciPortTaskState->uATARegStatus;
 
         ASMAtomicOrU32(&pAhciPort->u32QueuedTasksFinished, uFinishedTasks);
 
@@ -4164,7 +4192,7 @@ static int ahciScatterGatherListCreateSafe(PAHCIPort pAhciPort, PAHCIPORTTASKSTA
     pAhciPortTaskState->cbBufferUnaligned = pAhciPortTaskState->cbSGBuffers;
 
     /* Allocate new buffers and SG lists. */
-    pAhciPortTaskState->pvBufferUnaligned = RTMemAlloc(pAhciPortTaskState->cbSGBuffers);
+    pAhciPortTaskState->pvBufferUnaligned = RTMemPageAlloc(pAhciPortTaskState->cbSGBuffers);
     if (!pAhciPortTaskState->pvBufferUnaligned)
         return VERR_NO_MEMORY;
 
@@ -4214,7 +4242,7 @@ static int ahciScatterGatherListCreateSafe(PAHCIPort pAhciPort, PAHCIPORTTASKSTA
     pAhciPortTaskState->paSGEntries[0].u.temp.GCPhysAddrBaseFirstUnaligned = AHCI_RTGCPHYS_FROM_U32(pCmdHdr->u32CmdTblAddrUp, pCmdHdr->u32CmdTblAddr) + AHCI_CMDHDR_PRDT_OFFSET;
     pAhciPortTaskState->paSGEntries[0].u.temp.pvBuf = pAhciPortTaskState->pvBufferUnaligned;
 
-    if (pAhciPortTaskState->uTxDir == PDMBLOCKTXDIR_TO_DEVICE)
+    if (pAhciPortTaskState->enmTxDir == AHCITXDIR_WRITE)
         ahciCopyFromSGListIntoBuffer(pDevIns, &pAhciPortTaskState->paSGEntries[0]);
 
     return VINF_SUCCESS;
@@ -4266,7 +4294,7 @@ static int ahciScatterGatherListCreate(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE p
      */
     if (pAhciPortTaskState->pfnPostProcess)
     {
-        ahciLog(("%s: Request with post processing.\n"));
+        ahciLog(("%s: Request with post processing.\n", __FUNCTION__));
 
         ahciScatterGatherListGetTotalBufferSize(pAhciPort, pAhciPortTaskState);
 
@@ -4384,7 +4412,7 @@ static int ahciScatterGatherListCreate(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE p
                                  * If the transfer is to the device we need to copy the content of the not mapped guest
                                  * segments into the temporary buffer.
                                  */
-                                if (pAhciPortTaskState->uTxDir == PDMBLOCKTXDIR_TO_DEVICE)
+                                if (pAhciPortTaskState->enmTxDir == AHCITXDIR_WRITE)
                                     ahciCopyFromSGListIntoBuffer(pDevIns, pSGInfoCurr);
 
                                 /* Advance to next entry saving the pointers to the current ones. */
@@ -4630,7 +4658,7 @@ static int ahciScatterGatherListCreate(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE p
          * If the transfer is to the device we need to copy the content of the not mapped guest
          * segments into the temporary buffer.
          */
-        if (pAhciPortTaskState->uTxDir == PDMBLOCKTXDIR_TO_DEVICE)
+        if (pAhciPortTaskState->enmTxDir == AHCITXDIR_WRITE)
             ahciCopyFromSGListIntoBuffer(pDevIns, pSGInfoCurr);
     }
 
@@ -4672,7 +4700,7 @@ static int ahciScatterGatherListDestroy(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE 
             /* Release the lock. */
             PDMDevHlpPhysReleasePageMappingLock(pDevIns, &pSGInfoCurr->u.direct.PageLock);
         }
-        else if (pAhciPortTaskState->uTxDir == PDMBLOCKTXDIR_FROM_DEVICE)
+        else if (pAhciPortTaskState->enmTxDir == AHCITXDIR_READ)
         {
             /* Copy the data into the guest segments now. */
             ahciCopyFromBufferIntoSGList(pDevIns, pSGInfoCurr);
@@ -4839,21 +4867,50 @@ static int ahciScatterGatherListCopyFromBuffer(PAHCIPORTTASKSTATE pAhciPortTaskS
  *
  * @param pAhciPort             Pointer to the port where to request completed.
  * @param pAhciPortTaskState    Pointer to the task which finished.
+ * @param rcReq                 IPRT status code of the completed request.
  */
-static int ahciTransferComplete(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskState)
+static int ahciTransferComplete(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskState, int rcReq)
 {
     /* Free system resources occupied by the scatter gather list. */
-    ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
+    if (pAhciPortTaskState->enmTxDir != AHCITXDIR_FLUSH)
+        ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
 
-    pAhciPortTaskState->cmdHdr.u32PRDBC = pAhciPortTaskState->cbTransfer;
+    if (RT_FAILURE(rcReq))
+    {
+        pAhciPortTaskState->cmdHdr.u32PRDBC = 0;
+        pAhciPortTaskState->uATARegError = ID_ERR;
+        pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
 
-    pAhciPortTaskState->uATARegError = 0;
-    pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
-    /* Write updated command header into memory of the guest. */
-    PDMDevHlpPhysWrite(pAhciPort->CTX_SUFF(pDevIns), pAhciPortTaskState->GCPhysCmdHdrAddr,
-                       &pAhciPortTaskState->cmdHdr, sizeof(CmdHdr));
+        /* Log the error. */
+        if (pAhciPort->cErrors++ < MAX_LOG_REL_ERRORS)
+        {
+            if (pAhciPortTaskState->enmTxDir == AHCITXDIR_FLUSH)
+                LogRel(("AHCI#%u: Flush returned rc=%Rrc\n",
+                        pAhciPort->iLUN, rcReq));
+            else
+                LogRel(("AHCI#%u: %s at offset %llu (%u bytes left) returned rc=%Rrc\n",
+                        pAhciPort->iLUN,
+                        pAhciPortTaskState->enmTxDir == AHCITXDIR_READ
+                        ? "Read"
+                        : "Write",
+                        pAhciPortTaskState->uOffset,
+                        pAhciPortTaskState->cbTransfer, rcReq));
+        }
+        ASMAtomicCmpXchgPtr((void * volatile *)&pAhciPort->pTaskErr, pAhciPortTaskState, NULL);
+    }
+    else
+    {
+        pAhciPortTaskState->cmdHdr.u32PRDBC = pAhciPortTaskState->cbTransfer;
 
-    if (pAhciPortTaskState->uTxDir == PDMBLOCKTXDIR_FROM_DEVICE)
+        pAhciPortTaskState->uATARegError = 0;
+        pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+
+        /* Write updated command header into memory of the guest. */
+        PDMDevHlpPhysWrite(pAhciPort->CTX_SUFF(pDevIns), pAhciPortTaskState->GCPhysCmdHdrAddr,
+                           &pAhciPortTaskState->cmdHdr, sizeof(CmdHdr));
+    }
+
+    if (pAhciPortTaskState->enmTxDir == AHCITXDIR_READ)
     {
         STAM_REL_COUNTER_ADD(&pAhciPort->StatBytesRead, pAhciPortTaskState->cbTransfer);
         pAhciPort->Led.Actual.s.fReading = 0;
@@ -4871,10 +4928,11 @@ static int ahciTransferComplete(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPor
         ahciLog(("%s: Before decrement uActTasksActive=%u\n", __FUNCTION__, pAhciPort->uActTasksActive));
         cOutstandingTasks = ASMAtomicDecU32(&pAhciPort->uActTasksActive);
         ahciLog(("%s: After decrement uActTasksActive=%u\n", __FUNCTION__, cOutstandingTasks));
-        ASMAtomicOrU32(&pAhciPort->u32QueuedTasksFinished, (1 << pAhciPortTaskState->uTag));
+        if (RT_SUCCESS(rcReq) && !ASMAtomicReadPtr((void * volatile *)&pAhciPort->pTaskErr))
+            ASMAtomicOrU32(&pAhciPort->u32QueuedTasksFinished, (1 << pAhciPortTaskState->uTag));
 
         if (!cOutstandingTasks)
-            ahciSendSDBFis(pAhciPort, pAhciPort->u32QueuedTasksFinished, pAhciPortTaskState, true);
+            ahciSendSDBFis(pAhciPort, 0, true);
     }
     else
         ahciSendD2HFis(pAhciPort, pAhciPortTaskState, pAhciPortTaskState->cmdFis, true);
@@ -4892,7 +4950,7 @@ static int ahciTransferComplete(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPor
  * @param   pInterface   Pointer to the interface.
  * @param   pvUser       User data.
  */
-static DECLCALLBACK(int) ahciTransferCompleteNotify(PPDMIBLOCKASYNCPORT pInterface, void *pvUser)
+static DECLCALLBACK(int) ahciTransferCompleteNotify(PPDMIBLOCKASYNCPORT pInterface, void *pvUser, int rcReq)
 {
     PAHCIPort pAhciPort = PDMIBLOCKASYNCPORT_2_PAHCIPORT(pInterface);
     PAHCIPORTTASKSTATE pAhciPortTaskState = (PAHCIPORTTASKSTATE)pvUser;
@@ -4900,7 +4958,7 @@ static DECLCALLBACK(int) ahciTransferCompleteNotify(PPDMIBLOCKASYNCPORT pInterfa
     ahciLog(("%s: pInterface=%p pvUser=%p uTag=%u\n",
              __FUNCTION__, pInterface, pvUser, pAhciPortTaskState->uTag));
 
-    int rc = ahciTransferComplete(pAhciPort, pAhciPortTaskState);
+    int rc = ahciTransferComplete(pAhciPort, pAhciPortTaskState, rcReq);
 
     if (pAhciPort->uActTasksActive == 0 && pAhciPort->pAhciR3->fSignalIdle)
         PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
@@ -4913,9 +4971,9 @@ static DECLCALLBACK(int) ahciTransferCompleteNotify(PPDMIBLOCKASYNCPORT pInterfa
  * @returns The direction of the data transfer
  * @param   pCmdHdr Pointer to the command header.
  */
-static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskState, uint8_t *pCmdFis)
+static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskState, uint8_t *pCmdFis)
 {
-    int rc = PDMBLOCKTXDIR_NONE;
+    AHCITXDIR rc = AHCITXDIR_NONE;
     bool fLBA48 = false;
     CmdHdr   *pCmdHdr = &pAhciPortTaskState->cmdHdr;
 
@@ -4929,23 +4987,24 @@ static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskS
             {
                 if (pAhciPort->pDrvBlock && !pAhciPort->fATAPI)
                 {
+                    int rc2;
                     uint16_t u16Temp[256];
 
                     /* Fill the buffer. */
                     ahciIdentifySS(pAhciPort, u16Temp);
 
                     /* Create scatter gather list. */
-                    rc = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, false);
-                    if (RT_FAILURE(rc))
-                        AssertMsgFailed(("Creating list failed rc=%Rrc\n", rc));
+                    rc2 = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, false);
+                    if (RT_FAILURE(rc2))
+                        AssertMsgFailed(("Creating list failed rc=%Rrc\n", rc2));
 
                     /* Copy the buffer. */
                     pCmdHdr->u32PRDBC = ahciScatterGatherListCopyFromBuffer(pAhciPortTaskState, &u16Temp[0], sizeof(u16Temp));
 
                     /* Destroy list. */
-                    rc = ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
-                    if (RT_FAILURE(rc))
-                        AssertMsgFailed(("Freeing list failed rc=%Rrc\n", rc));
+                    rc2 = ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
+                    if (RT_FAILURE(rc2))
+                        AssertMsgFailed(("Freeing list failed rc=%Rrc\n", rc2));
 
                     pAhciPortTaskState->uATARegError = 0;
                     pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
@@ -4976,9 +5035,7 @@ static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskS
                     pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
                     break;
                 case 0x82: /* write cache disable */
-                    rc = pAhciPort->pDrvBlock->pfnFlush(pAhciPort->pDrvBlock);
-                    pAhciPortTaskState->uATARegError = 0;
-                    pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+                    rc = AHCITXDIR_FLUSH;
                     break;
                 case 0x03:
                 { /* set transfer mode */
@@ -5005,9 +5062,7 @@ static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskS
         }
         case ATA_FLUSH_CACHE_EXT:
         case ATA_FLUSH_CACHE:
-            rc = pAhciPort->pDrvBlock->pfnFlush(pAhciPort->pDrvBlock);
-            pAhciPortTaskState->uATARegError = 0;
-            pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+            rc = AHCITXDIR_FLUSH;
             break;
         case ATA_PACKET:
             if (!pAhciPort->fATAPI)
@@ -5017,7 +5072,7 @@ static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskS
             }
             else
             {
-                rc = atapiParseCmdVirtualATAPI(pAhciPort, pAhciPortTaskState);
+                int rc2 = atapiParseCmdVirtualATAPI(pAhciPort, pAhciPortTaskState);
             }
             break;
         case ATA_IDENTIFY_PACKET_DEVICE:
@@ -5071,7 +5126,7 @@ static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskS
         {
             pAhciPortTaskState->cbTransfer = ahciGetNSectors(pCmdFis, fLBA48) * 512;
             pAhciPortTaskState->uOffset = ahciGetSector(pAhciPort, pCmdFis, fLBA48) * 512;
-            rc = PDMBLOCKTXDIR_FROM_DEVICE;
+            rc = AHCITXDIR_READ;
             break;
         }
         case ATA_WRITE_DMA_EXT:
@@ -5080,21 +5135,95 @@ static int ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPortTaskS
         {
             pAhciPortTaskState->cbTransfer = ahciGetNSectors(pCmdFis, fLBA48) * 512;
             pAhciPortTaskState->uOffset = ahciGetSector(pAhciPort, pCmdFis, fLBA48) * 512;
-            rc = PDMBLOCKTXDIR_TO_DEVICE;
+            rc = AHCITXDIR_WRITE;
             break;
         }
         case ATA_READ_FPDMA_QUEUED:
         {
             pAhciPortTaskState->cbTransfer = ahciGetNSectorsQueued(pCmdFis) * 512;
             pAhciPortTaskState->uOffset = ahciGetSectorQueued(pCmdFis) * 512;
-            rc = PDMBLOCKTXDIR_FROM_DEVICE;
+            rc = AHCITXDIR_READ;
             break;
         }
         case ATA_WRITE_FPDMA_QUEUED:
         {
             pAhciPortTaskState->cbTransfer = ahciGetNSectorsQueued(pCmdFis) * 512;
             pAhciPortTaskState->uOffset = ahciGetSectorQueued(pCmdFis) * 512;
-            rc = PDMBLOCKTXDIR_TO_DEVICE;
+            rc = AHCITXDIR_WRITE;
+            break;
+        }
+        case ATA_READ_LOG_EXT:
+        {
+            size_t cbLogRead = ((pCmdFis[AHCI_CMDFIS_SECTCEXP] << 8) | pCmdFis[AHCI_CMDFIS_SECTC]) * 512;
+            unsigned offLogRead = ((pCmdFis[AHCI_CMDFIS_CYLLEXP] << 8) | pCmdFis[AHCI_CMDFIS_CYLL]) * 512;
+            unsigned iPage = pCmdFis[AHCI_CMDFIS_SECTN];
+
+            LogFlow(("Trying to read %zu bytes starting at offset %u from page %u\n", cbLogRead, offLogRead, iPage));
+
+            uint8_t aBuf[512];
+
+            memset(aBuf, 0, sizeof(aBuf));
+
+            if (offLogRead + cbLogRead <= sizeof(aBuf))
+            {
+                switch (iPage)
+                {
+                    case 0x10:
+                    {
+                        LogFlow(("Reading error page\n"));
+                        PAHCIPORTTASKSTATE pTaskErr = (PAHCIPORTTASKSTATE)ASMAtomicXchgPtr((void * volatile *)&pAhciPort->pTaskErr, NULL);
+                        if (pTaskErr)
+                        {
+                            aBuf[0] = pTaskErr->fQueued ? pTaskErr->uTag : (1 << 7);
+                            aBuf[2] = pTaskErr->uATARegStatus;
+                            aBuf[3] = pTaskErr->uATARegError;
+                            aBuf[4] = pTaskErr->cmdFis[AHCI_CMDFIS_SECTN];
+                            aBuf[5] = pTaskErr->cmdFis[AHCI_CMDFIS_CYLL];
+                            aBuf[6] = pTaskErr->cmdFis[AHCI_CMDFIS_CYLH];
+                            aBuf[7] = pTaskErr->cmdFis[AHCI_CMDFIS_HEAD];
+                            aBuf[8] = pTaskErr->cmdFis[AHCI_CMDFIS_SECTNEXP];
+                            aBuf[9] = pTaskErr->cmdFis[AHCI_CMDFIS_CYLLEXP];
+                            aBuf[10] = pTaskErr->cmdFis[AHCI_CMDFIS_CYLHEXP];
+                            aBuf[12] = pTaskErr->cmdFis[AHCI_CMDFIS_SECTC];
+                            aBuf[13] = pTaskErr->cmdFis[AHCI_CMDFIS_SECTCEXP];
+
+                            /* Calculate checksum */
+                            uint8_t uChkSum = 0;
+                            for (unsigned i = 0; i < RT_ELEMENTS(aBuf)-1; i++)
+                                uChkSum += aBuf[i];
+
+                            aBuf[511] = (uint8_t)-(int8_t)uChkSum;
+
+                            /*
+                             * Reading this log page results in an abort of all outstanding commands
+                             * and clearing the SActive register and TaskFile register.
+                             */
+                            ahciSendSDBFis(pAhciPort, 0xffffffff, true);
+                        }
+                        break;
+                    }
+                }
+
+                /* Create scatter gather list. */
+                int rc2 = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, false);
+                if (RT_FAILURE(rc2))
+                    AssertMsgFailed(("Creating list failed rc=%Rrc\n", rc2));
+
+                /* Copy the buffer. */
+                pCmdHdr->u32PRDBC = ahciScatterGatherListCopyFromBuffer(pAhciPortTaskState, &aBuf[offLogRead], cbLogRead);
+
+                /* Destroy list. */
+                rc2 = ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
+                if (RT_FAILURE(rc2))
+                    AssertMsgFailed(("Freeing list failed rc=%Rrc\n", rc2));
+
+                pAhciPortTaskState->uATARegError = 0;
+                pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+
+                /* Write updated command header into memory of the guest. */
+                PDMDevHlpPhysWrite(pAhciPort->CTX_SUFF(pDevIns), pAhciPortTaskState->GCPhysCmdHdrAddr, pCmdHdr, sizeof(CmdHdr));
+            }
+
             break;
         }
         /* All not implemented commands go below. */
@@ -5151,7 +5280,7 @@ static void ahciPortTaskGetCommandFis(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pA
     PDMDevHlpPhysRead(pAhciPort->CTX_SUFF(pDevIns), GCPhysAddrCmdTbl, &pAhciPortTaskState->cmdFis[0], AHCI_CMDFIS_TYPE_H2D_SIZE);
 
     /* Set transfer direction. */
-    pAhciPortTaskState->uTxDir = (pAhciPortTaskState->cmdHdr.u32DescInf & AHCI_CMDHDR_W) ? PDMBLOCKTXDIR_TO_DEVICE : PDMBLOCKTXDIR_FROM_DEVICE;
+    pAhciPortTaskState->enmTxDir = (pAhciPortTaskState->cmdHdr.u32DescInf & AHCI_CMDHDR_W) ? AHCITXDIR_WRITE : AHCITXDIR_READ;
 
     /* If this is an ATAPI command read the atapi command. */
     if (pAhciPortTaskState->cmdHdr.u32DescInf & AHCI_CMDHDR_A)
@@ -5220,7 +5349,7 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
     }
     else
     {
-        int                iTxDir;
+        AHCITXDIR          enmTxDir;
         PAHCIPORTTASKSTATE pAhciPortTaskState;
 
         ahciLog(("%s: Processing command at slot %d\n", __FUNCTION__, pNotifierItem->iTask));
@@ -5276,9 +5405,11 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
             }
         }
 
-        iTxDir = ahciProcessCmd(pAhciPort, pAhciPortTaskState, pAhciPortTaskState->cmdFis);
+        enmTxDir = ahciProcessCmd(pAhciPort, pAhciPortTaskState, pAhciPortTaskState->cmdFis);
 
-        if (iTxDir != PDMBLOCKTXDIR_NONE)
+        pAhciPortTaskState->enmTxDir = enmTxDir;
+
+        if (enmTxDir != AHCITXDIR_NONE)
         {
             if (pAhciPortTaskState->fQueued)
             {
@@ -5287,13 +5418,21 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
                 ahciLog(("%s: After increment uActTasksActive=%u\n", __FUNCTION__, pAhciPort->uActTasksActive));
             }
 
-            STAM_REL_COUNTER_INC(&pAhciPort->StatDMA);
+            if (enmTxDir != AHCITXDIR_FLUSH)
+            {
+                STAM_REL_COUNTER_INC(&pAhciPort->StatDMA);
 
-            rc = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, (iTxDir == PDMBLOCKTXDIR_FROM_DEVICE) ? false : true);
-            if (RT_FAILURE(rc))
-                AssertMsgFailed(("%s: Failed to process command %Rrc\n", __FUNCTION__, rc));
+                rc = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, (enmTxDir == AHCITXDIR_READ) ? false : true);
+                if (RT_FAILURE(rc))
+                    AssertMsgFailed(("%s: Failed to process command %Rrc\n", __FUNCTION__, rc));
+            }
 
-            if (iTxDir == PDMBLOCKTXDIR_FROM_DEVICE)
+            if (enmTxDir == AHCITXDIR_FLUSH)
+            {
+                rc = pAhciPort->pDrvBlockAsync->pfnStartFlush(pAhciPort->pDrvBlockAsync,
+                                                              pAhciPortTaskState);
+            }
+            else if (enmTxDir == AHCITXDIR_READ)
             {
                 pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
                 rc = pAhciPort->pDrvBlockAsync->pfnStartRead(pAhciPort->pDrvBlockAsync, pAhciPortTaskState->uOffset,
@@ -5310,10 +5449,9 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
                                                               pAhciPortTaskState);
             }
             if (rc == VINF_VD_ASYNC_IO_FINISHED)
-                rc = ahciTransferComplete(pAhciPort, pAhciPortTaskState);
-
-            if (RT_FAILURE(rc))
-                AssertMsgFailed(("%s: Failed to enqueue command %Rrc\n", __FUNCTION__, rc));
+                rc = ahciTransferComplete(pAhciPort, pAhciPortTaskState, VINF_SUCCESS);
+            else if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
+                rc = ahciTransferComplete(pAhciPort, pAhciPortTaskState, rc);
         }
         else
         {
@@ -5441,7 +5579,7 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         while (   (cTasksToProcess > 0)
                && RT_LIKELY(!pAhciPort->fPortReset))
         {
-            int       iTxDir;
+            AHCITXDIR enmTxDir;
             uint8_t   uActTag;
 
             STAM_PROFILE_START(&pAhciPort->StatProfileProcessTime, a);
@@ -5491,16 +5629,47 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             }
             else
             {
-                iTxDir = ahciProcessCmd(pAhciPort, pAhciPortTaskState, &pAhciPortTaskState->cmdFis[0]);
+                enmTxDir = ahciProcessCmd(pAhciPort, pAhciPortTaskState, &pAhciPortTaskState->cmdFis[0]);
 
-                if (iTxDir != PDMBLOCKTXDIR_NONE)
+                if (enmTxDir == AHCITXDIR_FLUSH)
+                {
+                    rc = pAhciPort->pDrvBlock->pfnFlush(pAhciPort->pDrvBlock);
+
+                    /* Log the error. */
+                    if (   RT_FAILURE(rc)
+                        && pAhciPort->cErrors++ < MAX_LOG_REL_ERRORS)
+                    {
+                        LogRel(("AHCI#%u: Flush returned rc=%Rrc\n",
+                                pAhciPort->iLUN, rc));
+                    }
+
+                    if (RT_FAILURE(rc))
+                    {
+                        pAhciPortTaskState->uATARegError = ID_ERR;
+                        pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
+                    }
+                    else
+                    {
+                        pAhciPortTaskState->uATARegError = 0;
+                        pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+                    }
+
+                    if (pAhciPortTaskState->fQueued)
+                        uQueuedTasksFinished |= (1 << pAhciPortTaskState->uTag);
+                    else
+                    {
+                        /* Task is not queued send D2H FIS */
+                        ahciSendD2HFis(pAhciPort, pAhciPortTaskState, &pAhciPortTaskState->cmdFis[0], true);
+                    }
+                }
+                else if (enmTxDir != AHCITXDIR_NONE)
                 {
                     uint64_t uOffset;
                     size_t cbTransfer;
                     PPDMDATASEG pSegCurr;
                     PAHCIPORTTASKSTATESGENTRY pSGInfoCurr;
 
-                    rc = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, (iTxDir == PDMBLOCKTXDIR_FROM_DEVICE) ? false : true);
+                    rc = ahciScatterGatherListCreate(pAhciPort, pAhciPortTaskState, (enmTxDir == AHCITXDIR_READ) ? false : true);
                     if (RT_FAILURE(rc))
                         AssertMsgFailed(("%s: Failed to get number of list elments %Rrc\n", __FUNCTION__, rc));
 
@@ -5522,14 +5691,14 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                         AssertMsg(!(uOffset % 512), ("Offset is not sector aligned %llu\n", uOffset));
                         AssertMsg(!(cbProcess % 512), ("Number of bytes to process is not sector aligned %lu\n", cbProcess));
 
-                        if (iTxDir == PDMBLOCKTXDIR_FROM_DEVICE)
+                        if (enmTxDir == AHCITXDIR_READ)
                         {
                             pAhciPort->Led.Asserted.s.fReading = pAhciPort->Led.Actual.s.fReading = 1;
                             rc = pAhciPort->pDrvBlock->pfnRead(pAhciPort->pDrvBlock, uOffset,
                                                                pSegCurr->pvSeg, cbProcess);
                             pAhciPort->Led.Actual.s.fReading = 0;
                             if (RT_FAILURE(rc))
-                                AssertMsgFailed(("%s: Failed to read data %Rrc\n", __FUNCTION__, rc));
+                                break;
 
                             STAM_REL_COUNTER_ADD(&pAhciPort->StatBytesRead, cbProcess);
                         }
@@ -5540,7 +5709,7 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                                                                 pSegCurr->pvSeg, cbProcess);
                             pAhciPort->Led.Actual.s.fWriting = 0;
                             if (RT_FAILURE(rc))
-                                AssertMsgFailed(("%s: Failed to write data %Rrc\n", __FUNCTION__, rc));
+                                break;
 
                             STAM_REL_COUNTER_ADD(&pAhciPort->StatBytesWritten, cbProcess);
                         }
@@ -5554,16 +5723,36 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
                     STAM_PROFILE_STOP(&pAhciPort->StatProfileReadWrite, a);
 
+                    /* Log the error. */
+                    if (   RT_FAILURE(rc)
+                        && pAhciPort->cErrors++ < MAX_LOG_REL_ERRORS)
+                    {
+                        LogRel(("AHCI#%u: %s at offset %llu (%u bytes left) returned rc=%Rrc\n",
+                                pAhciPort->iLUN,
+                                enmTxDir == AHCITXDIR_READ
+                                ? "Read"
+                                : "Write",
+                                uOffset, cbTransfer, rc));
+                    }
+
                     /* Cleanup. */
-                    rc = ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
-                    if (RT_FAILURE(rc))
+                    int rc2 = ahciScatterGatherListDestroy(pAhciPort, pAhciPortTaskState);
+                    if (RT_FAILURE(rc2))
                         AssertMsgFailed(("Destroying task list failed rc=%Rrc\n", rc));
 
                     if (RT_LIKELY(!pAhciPort->fPortReset))
                     {
-                        pAhciPortTaskState->cmdHdr.u32PRDBC = pAhciPortTaskState->cbTransfer;
-                        pAhciPortTaskState->uATARegError = 0;
-                        pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+                        pAhciPortTaskState->cmdHdr.u32PRDBC = pAhciPortTaskState->cbTransfer - cbTransfer;
+                        if (RT_FAILURE(rc))
+                        {
+                            pAhciPortTaskState->uATARegError = ID_ERR;
+                            pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_ERR;
+                        }
+                        else
+                        {
+                            pAhciPortTaskState->uATARegError = 0;
+                            pAhciPortTaskState->uATARegStatus = ATA_STAT_READY | ATA_STAT_SEEK;
+                        }
                         /* Write updated command header into memory of the guest. */
                         PDMDevHlpPhysWrite(pAhciPort->CTX_SUFF(pDevIns), pAhciPortTaskState->GCPhysCmdHdrAddr,
                                            &pAhciPortTaskState->cmdHdr, sizeof(CmdHdr));
@@ -5603,12 +5792,21 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             pAhciPort->uActReadPos %= RT_ELEMENTS(pAhciPort->ahciIOTasks);
             ahciLog(("%s: After uActReadPos=%u\n", __FUNCTION__, pAhciPort->uActReadPos));
             cTasksToProcess--;
-            if (!cTasksToProcess)
+
+            /* If we encountered an error notify the guest and continue with the next task. */
+            if (RT_FAILURE(rc))
+            {
+                if (uQueuedTasksFinished && RT_LIKELY(!pAhciPort->fPortReset))
+                    ahciSendSDBFis(pAhciPort, uQueuedTasksFinished, true);
+
+                uQueuedTasksFinished = 0;
+            }
+            else if (!cTasksToProcess)
                 cTasksToProcess = ASMAtomicXchgU32(&pAhciPort->uActTasksActive, 0);
         }
 
         if (uQueuedTasksFinished && RT_LIKELY(!pAhciPort->fPortReset))
-            ahciSendSDBFis(pAhciPort, uQueuedTasksFinished, pAhciPortTaskState, true);
+            ahciSendSDBFis(pAhciPort, uQueuedTasksFinished, true);
 
         uQueuedTasksFinished = 0;
 
@@ -5624,7 +5822,7 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             /* For the release statistics. There is no macro to set the counter to a specific value. */
             pAhciPort->StatIORequestsPerSecond.c = uIOsPerSec;
         }
-    }
+    } /* While running */
 
     if (pAhci->fSignalIdle)
         PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);

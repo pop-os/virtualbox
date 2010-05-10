@@ -1,4 +1,4 @@
-; $Id: ASMAtomicXchgU64.asm 56380 2010-01-06 04:19:49Z bird $
+; $Id: ASMAtomicXchgU64.asm $
 ;; @file
 ; IPRT - ASMAtomicXchgU64().
 ;

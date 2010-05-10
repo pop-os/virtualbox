@@ -2271,7 +2271,7 @@ STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
     LogFlowFunc (("width=%d, height=%d\n",
                   width, height));
 
-    CheckComArgSafeArrayNotNull(aScreenData);
+    CheckComArgOutSafeArrayPointerValid(aScreenData);
     CheckComArgExpr(width, width != 0);
     CheckComArgExpr(height, height != 0);
 
@@ -2334,6 +2334,8 @@ STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
     else
         rc = setError (VBOX_E_IPRT_ERROR,
                        tr ("Could not take a screenshot (%Rrc)"), vrc);
+
+    RTMemFree(pu8Data);
 
     LogFlowFunc (("rc=%08X\n", rc));
     LogFlowFuncLeave();

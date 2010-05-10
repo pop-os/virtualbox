@@ -1200,6 +1200,11 @@ static int parallelsAsyncWrite(void *pvBackendData, uint64_t uOffset, size_t cbW
     return VERR_NOT_SUPPORTED;
 }
 
+static int parallelsAsyncFlush(void *pvBackendData, void *pvUser)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
 VBOXHDDBACKEND g_ParallelsBackend =
 {
     /* pszBackendName */
@@ -1288,6 +1293,8 @@ VBOXHDDBACKEND g_ParallelsBackend =
     parallelsAsyncRead,
     /* pfnAsyncWrite */
     parallelsAsyncWrite,
+    /* pfnAsyncFlush */
+    parallelsAsyncFlush,
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */

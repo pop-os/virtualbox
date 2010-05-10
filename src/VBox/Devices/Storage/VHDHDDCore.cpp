@@ -2153,6 +2153,10 @@ static int vhdAsyncWrite(void *pvBackendData, uint64_t uOffset, size_t cbToWrite
     return rc;
 }
 
+static int vhdAsyncFlush(void *pvBackendData, void *pvUser)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
 
 VBOXHDDBACKEND g_VhdBackend =
 {
@@ -2243,6 +2247,8 @@ VBOXHDDBACKEND g_VhdBackend =
     vhdAsyncRead,
     /* pfnAsyncWrite */
     vhdAsyncWrite,
+    /* pfnAsyncFlush */
+    vhdAsyncFlush,
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */

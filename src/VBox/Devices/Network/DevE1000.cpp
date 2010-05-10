@@ -1585,7 +1585,6 @@ static void e1kPrintTDesc(E1KSTATE* pState, E1KTXDESC* pDesc, const char* cszDir
             break;
     }
 }
-#endif /* IN_RING3 */
 
 /**
  * Hardware reset. Revert all registers to initial values.
@@ -1602,7 +1601,12 @@ PDMBOTHCBDECL(void) e1kHardReset(E1KSTATE *pState)
     CTRL   = 0x0a09;    /* FRCSPD=1b SPEED=10b LRST=1b FD=1b */
     Assert(GET_BITS(RCTL, BSIZE) == 0);
     pState->u16RxBSize = 2048;
+
+    /* Reset promiscous mode */
+    if (pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, false);
 }
+#endif /* IN_RING3 */
 
 /**
  * Raise interrupt if not masked.
@@ -2069,7 +2073,11 @@ static int e1kRegWriteCTRL(E1KSTATE* pState, uint32_t offset, uint32_t index, ui
 
     if (value & CTRL_RESET)
     { /* RST */
+#ifndef IN_RING3
+        return VINF_IOM_HC_IOPORT_WRITE;
+#else
         e1kHardReset(pState);
+#endif
     }
     else
     {
@@ -2414,6 +2422,18 @@ static int e1kRegWriteIMC(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
  */
 static int e1kRegWriteRCTL(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
 {
+    /* Update promiscous mode */
+    bool fBecomePromiscous = !!(value & (RCTL_UPE | RCTL_MPE));
+    if (fBecomePromiscous != !!( RCTL & (RCTL_UPE | RCTL_MPE)))
+    {
+        /* Promiscuity has changed, pass the knowledge on. */
+#ifndef IN_RING3
+        return VINF_IOM_HC_IOPORT_WRITE;
+#else
+        if (pState->pDrv)
+            pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, fBecomePromiscous);
+#endif
+    }
     e1kRegWriteDefault(pState, offset, index, value);
     pState->u16RxBSize = 2048 >> GET_BITS(RCTL, BSIZE);
     if (RCTL & RCTL_BSEX)
@@ -4662,6 +4682,12 @@ static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     int rc = e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS);
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
         return rc;
+
+    /* Update promiscous mode */
+    if (pState->pDrv)
+        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv,
+                                             !!(RCTL & (RCTL_UPE | RCTL_MPE)));
+
     /*
     * Force the link down here, since PDMNETWORKLINKSTATE_DOWN_RESUME is never
     * passed to us. We go through all this stuff if the link was up and we
@@ -5036,8 +5062,10 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
             return VERR_PDM_MISSING_INTERFACE_BELOW;
         }
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
     {
+        /* No error! */
         E1kLog(("%s This adapter is not attached to any network!\n", INSTANCE(pState)));
     }
     else
@@ -5253,9 +5281,13 @@ static DECLCALLBACK(int) e1kAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t f
             rc = VERR_PDM_MISSING_INTERFACE_BELOW;
         }
     }
-    else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    {
+        /* This should never happen because this function is not called
+         * if there is no driver to attach! */
         Log(("%s No attached driver!\n", INSTANCE(pState)));
-
+    }
 
     /*
      * Temporary set the link down if it was up so that the guest

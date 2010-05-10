@@ -1,4 +1,4 @@
-; $Id: ASMAtomicCmpXchgU8.asm 56163 2009-12-18 15:22:16Z bird $
+; $Id: ASMAtomicCmpXchgU8.asm $
 ;; @file
 ; IPRT - ASMAtomicCmpXchgU8().
 ;

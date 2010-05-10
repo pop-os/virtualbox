@@ -24,8 +24,10 @@
 #include "PDMInternal.h"
 #include <iprt/cdefs.h>
 #include <iprt/critsect.h>
+#include <iprt/memcache.h>
 #include <VBox/types.h>
 #include <VBox/cfgm.h>
+#include <VBox/stam.h>
 #include <VBox/pdmasynccompletion.h>
 
 RT_C_DECLS_BEGIN
@@ -141,7 +143,7 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSOPS
                                            PPDMASYNCCOMPLETIONENDPOINT pEndpoint));
 
     /**
-     * Initiates a flush request on the given endpoint.
+     * Queries the size of the endpoint. Optional.
      *
      * @returns VBox status code.
      * @param   pEndpoint     Endpoint the request is for.
@@ -149,6 +151,18 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSOPS
      */
     DECLR3CALLBACKMEMBER(int, pfnEpGetSize, (PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                                              uint64_t *pcbSize));
+
+    /**
+     * Sets the size of the endpoint. Optional.
+     * This is a synchronous operation.
+     *
+     *
+     * @returns VBox status code.
+     * @param   pEndpoint     Endpoint the request is for.
+     * @param   cbSize        New size for the endpoint.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnEpSetSize, (PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
+                                             uint64_t cbSize));
 
     /** Initialization safety marker. */
     uint32_t    u32VersionEnd;
@@ -169,13 +183,6 @@ typedef struct PDMASYNCCOMPLETIONEPCLASS
 {
     /** Pointer to the shared VM structure. */
     PVM                                         pVM;
-    /** @name   Things configurable through CFGM
-     * @{ */
-    /** Size of the per endpoint cache. */
-    uint32_t                                    cEndpointCacheSize;
-    /** Size of the per class cache. */
-    uint32_t                                    cEpClassCacheSize;
-    /** @} */
     /** Critical section protecting the endpoint list. */
     RTCRITSECT                                  CritSect;
     /** Number of endpoints in the list. */
@@ -184,11 +191,8 @@ typedef struct PDMASYNCCOMPLETIONEPCLASS
     R3PTRTYPE(PPDMASYNCCOMPLETIONENDPOINT)      pEndpointsHead;
     /** Pointer to the callback table. */
     R3PTRTYPE(PCPDMASYNCCOMPLETIONEPCLASSOPS)   pEndpointOps;
-    /** Bigger cache for free task items used by all endpoints
-     * of this class. */
-    R3PTRTYPE(volatile PPDMASYNCCOMPLETIONTASK) apTaskCache[10];
-    /** Number of tasks cached */
-    volatile uint32_t                           cTasksCached;
+    /** Task cache. */
+    RTMEMCACHE                                  hMemCacheTasks;
 } PDMASYNCCOMPLETIONEPCLASS;
 /** Pointer to the PDM async completion endpoint class data. */
 typedef PDMASYNCCOMPLETIONEPCLASS *PPDMASYNCCOMPLETIONEPCLASS;
@@ -205,16 +209,6 @@ typedef struct PDMASYNCCOMPLETIONENDPOINT
     R3PTRTYPE(PPDMASYNCCOMPLETIONENDPOINT)      pPrev;
     /** Pointer to the class this endpoint belongs to. */
     R3PTRTYPE(PPDMASYNCCOMPLETIONEPCLASS)       pEpClass;
-    /** Head of the small cache for allocated task structures for exclusive
-     * use by this endpoint. */
-    R3PTRTYPE(volatile PPDMASYNCCOMPLETIONTASK) pTasksFreeHead;
-    /** Tail of the small cache for allocated task structures for exclusive
-     * use by this endpoint. */
-    R3PTRTYPE(volatile PPDMASYNCCOMPLETIONTASK) pTasksFreeTail;
-    /** Number of elements in the cache. */
-    volatile uint32_t                           cTasksCached;
-    /** Start slot for the global task cache. */
-    unsigned                                    iSlotStart;
     /** ID of the next task to ensure consistency. */
     volatile uint32_t                           uTaskIdNext;
     /** Flag whether a wraparound occurred for the ID counter. */
@@ -225,6 +219,18 @@ typedef struct PDMASYNCCOMPLETIONENDPOINT
     unsigned                                    cUsers;
     /** URI describing the endpoint */
     char                                       *pszUri;
+#ifdef VBOX_WITH_STATISTICS
+    STAMCOUNTER                                 StatTaskRunTimesNs[10];
+    STAMCOUNTER                                 StatTaskRunTimesMicroSec[10];
+    STAMCOUNTER                                 StatTaskRunTimesMs[10];
+    STAMCOUNTER                                 StatTaskRunTimesSec[10];
+    STAMCOUNTER                                 StatTaskRunOver100Sec;
+    STAMCOUNTER                                 StatIoOpsPerSec;
+    STAMCOUNTER                                 StatIoOpsStarted;
+    STAMCOUNTER                                 StatIoOpsCompleted;
+    uint64_t                                    tsIntervalStartMs;
+    uint64_t                                    cIoOpsCompleted;
+#endif
 } PDMASYNCCOMPLETIONENDPOINT;
 
 /**
@@ -245,15 +251,22 @@ typedef struct PDMASYNCCOMPLETIONTASK
     void                                   *pvUser;
     /** Task id. */
     uint32_t                                uTaskId;
+#ifdef VBOX_WITH_STATISTICS
+    /** Start timestamp. */
+    uint64_t                                tsNsStart;
+#endif
 } PDMASYNCCOMPLETIONTASK;
 
 /**
  * Called by the endpoint if a task has finished.
  *
  * @returns nothing
- * @param   pTask    Pointer to the finished task.
+ * @param   pTask                     Pointer to the finished task.
+ * @param   rc                        Status code of the completed request.
+ * @param   fCallCompletionHandler    Flag whether the completion handler should be called to
+ *                                    inform the owner of the task that it has completed.
  */
-void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask);
+void pdmR3AsyncCompletionCompleteTask(PPDMASYNCCOMPLETIONTASK pTask, int rc, bool fCallCompletionHandler);
 
 RT_C_DECLS_END
 

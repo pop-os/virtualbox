@@ -3807,6 +3807,8 @@ VBOXHDDBACKEND g_ISCSIBackend =
     NULL,
     /* pfnAsyncWrite */
     NULL,
+    /* pfnAsyncFlush */
+    NULL,
     /* pfnComposeLocation */
     iscsiComposeLocation,
     /* pfnComposeName */

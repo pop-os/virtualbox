@@ -1,6 +1,6 @@
 /** @file
  *
- * vboxvfs -- VirtualBox Guest Additions for Linux:
+ * vboxsf -- VirtualBox Guest Additions for Linux:
  * Virtual File System for VirtualBox Shared Folders
  *
  * Module initialization/finalization
@@ -239,6 +239,7 @@ sf_read_super_aux (struct super_block *sb, void *data, int flags)
                 goto fail1;
         }
 
+        sf_i->handle = SHFL_HANDLE_NIL;
         sf_i->path = kmalloc (sizeof (SHFLSTRING) + 1, GFP_KERNEL);
         if (!sf_i->path) {
                 err = -ENOMEM;
@@ -504,7 +505,7 @@ init (void)
         }
 
         printk(KERN_DEBUG
-               "vboxvfs: Successfully loaded version " VBOX_VERSION_STRING
+               "vboxsf: Successfully loaded version " VBOX_VERSION_STRING
                " (interface " RT_XSTR(VMMDEV_VERSION) ")\n");
 
         return 0;

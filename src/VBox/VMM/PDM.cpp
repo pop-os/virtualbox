@@ -1601,7 +1601,7 @@ DECLINLINE(bool) pdmR3PowerOffDrv(PPDMDRVINS pDrvIns, unsigned *pcAsync,
     if (!pDrvIns->Internal.s.fVMSuspended)
     {
         pDrvIns->Internal.s.fVMSuspended = true;
-        if (pDrvIns->pDrvReg->pfnSuspend)
+        if (pDrvIns->pDrvReg->pfnPowerOff)
         {
             if (!pDrvIns->Internal.s.pfnAsyncNotify)
             {
@@ -1676,7 +1676,7 @@ DECLINLINE(void) pdmR3PowerOffDev(PPDMDEVINS pDevIns, unsigned *pcAsync)
     if (!(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_SUSPENDED))
     {
         pDevIns->Internal.s.fIntFlags |= PDMDEVINSINT_FLAGS_SUSPENDED;
-        if (pDevIns->pDevReg->pfnSuspend)
+        if (pDevIns->pDevReg->pfnPowerOff)
         {
             if (!pDevIns->Internal.s.pfnAsyncNotify)
             {
