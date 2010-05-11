@@ -1,13 +1,11 @@
 virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
 
   * New upstream version.
-  * Strip EFI firmware images as they are non-free.
-    - Add 23-dont-install-efi-images.dpatch.
   * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
   * Use upstream 50-vboxmouse.conf instead of our own.
   * Add libxrandr-dev to build-dependencies.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 10 May 2010 23:32:44 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 11:13:01 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 

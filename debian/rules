@@ -111,7 +111,6 @@ dfsg-free: clean
 	rm -rf ./src/libs/libxslt*
 	rm -rf ./src/libs/zlib*
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
-	rm -rf ./src/VBox/Devices/EFI/FirmwareBin
 	find src/VBox/Additions/x11/x11include -mindepth 1 -maxdepth 1 \
 		-type d -not -name '*mesa-*' | xargs rm -rf
 	cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
