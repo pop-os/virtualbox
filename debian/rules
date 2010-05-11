@@ -32,7 +32,7 @@ MAKE:=kmk
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
 %:
-	dh --with quilt,python_central $@
+	dh --with quilt,python_central,dkms $@
 
 override_dh_auto_configure:
 	xsltproc --nonet --stringparam section.autolabel 1 \
@@ -75,16 +75,12 @@ override_dh_auto_build:
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
 
-override_dh_auto_install:
-	dh_auto_install
-
-	# Create DKMS control files
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).files/dkms.conf.in > debian/$(pdkms)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).files/dkms.conf.in > debian/$(gdkms)/usr/src/virtualbox-ose-guest-$(upstreamversion)/dkms.conf
-
 	# Build install files for the dkms'ified sources
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
+
+override_dh_auto_install:
+	dh_auto_install
 
 	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
 	    cd out/bin/sdk/installer && \
@@ -141,6 +137,9 @@ override_dh_installudev:
 
 override_dh_installinit:
 	dh_installinit --no-start
+
+override_dh_dkms:
+	dh_dkms -V $(upstreamversion)
 
 override_dh_strip:
 	dh_strip --dbg-package=$(sname)-dbg

@@ -1,24 +1,11 @@
 #!/bin/sh
-# Copyright (C) 2008 Mario Limonciello
 
 set -e
 
 #DEBHELPER#
 
-NAME=virtualbox-ose
-PACKAGE_NAME=$NAME-dkms
-CVERSION=`dpkg-query -W -f='${Version}' $PACKAGE_NAME | awk -F "-" '{print $1}' | cut -d\: -f2`
-ARCH=`dpkg --print-architecture`
-
 case "$1" in
 	configure)
-		#These are no longer used
-		dkms remove -m vboxdrv -v $CVERSION --all -q || true
-		dkms remove -m vboxnetflt -v $CVERSION --all -q || true
-		dkms remove -m vboxnetadp -v $CVERSION --all -q || true
-
-		/usr/lib/dkms/common.postinst $NAME $CVERSION /usr/share/$PACKAGE_NAME $ARCH $2
-
 		# only restart if VirtualBox isn't running
 		if test -x /etc/init.d/virtualbox-ose && ! pidof VBoxSVC > /dev/null; then
 			if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then

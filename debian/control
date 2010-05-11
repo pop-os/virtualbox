@@ -8,6 +8,7 @@ Build-Depends: bcc,
                bzip2,
                chrpath,
                debhelper (>= 7.2.7~),
+               dkms (>= 2.1.1.1),
                docbook-xml,
                docbook-xsl,
                g++-multilib [amd64],
@@ -117,7 +118,7 @@ Replaces: virtualbox-ose-source (<< 3.1.0-dfsg-1)
 Conflicts: virtualbox-ose-guest-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, dkms (>= 2.1.0.1)
+Depends: ${misc:Depends}
 Description: x86 virtualization solution - kernel module sources for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -151,7 +152,7 @@ Replaces: virtualbox-ose-guest-source (<< 3.1.0-dfsg-1)
 Conflicts: virtualbox-ose-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, dkms (>= 2.1.0.1)
+Depends: ${misc:Depends}
 Description: x86 virtualization solution - guest addition module source for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
