@@ -1,8 +1,6 @@
-#!/bin/sh /usr/share/dpatch/dpatch-run
-# Description: Made error message tell about missing vboxnetflt module.
-# Author: Michael Meskes <meskes@debian.org>
+Description: Made error message tell about missing vboxnetflt module.
+Author: Michael Meskes <meskes@debian.org>
 
-@DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Devices/Network/DrvIntNet.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/Devices/Network/DrvIntNet.cpp	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp	2009-10-07 13:43:15.622989484 +0200

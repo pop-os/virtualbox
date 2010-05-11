@@ -1,0 +1,9 @@
+01-build-arch.patch
+04-vboxdrv-references.patch
+06-xsession.patch
+07-vboxnetflt-reference.patch
+12-make-module.patch
+13-module-mismatch.patch
+16-no-update.patch
+18-system-xorg.patch
+22-no-static-libstdcpp.patch

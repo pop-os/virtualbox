@@ -1,9 +1,7 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-# Description: Disable "Check for Updates" action.
-# Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
-# Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
+Description: Disable "Check for Updates" action.
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
+Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
 
-@DPATCH@
 diff -Nur virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
 --- virtualbox-ose-3.1.51.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2010-04-27 22:24:11.000000000 +0200
 +++ virtualbox-ose-3.1.51/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2010-05-03 22:05:38.752788747 +0200

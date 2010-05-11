@@ -1,12 +1,10 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-# Description: Do not include statically linked libstdc++.
-#  Not a good idea if we don't need to be binary-compatible across exotic
-#  distribution. Doesn't work with trunk glibc heading towards 2.11 anyways.
-#  Static linking is not really supported anyways.
-# Author: Lubomir Rintel <lkundrak@v3.sk>
-# Origin: http://cvs.rpmfusion.org/viewvc/rpms/VirtualBox-OSE/devel/VirtualBox-OSE-3.1.0-libcxx.patch?root=free&view=markup
+Description: Do not include statically linked libstdc++.
+ Not a good idea if we don't need to be binary-compatible across exotic
+ distribution. Doesn't work with trunk glibc heading towards 2.11 anyways.
+ Static linking is not really supported anyways.
+Author: Lubomir Rintel <lkundrak@v3.sk>
+Origin: http://cvs.rpmfusion.org/viewvc/rpms/VirtualBox-OSE/devel/VirtualBox-OSE-3.1.0-libcxx.patch?root=free&view=markup
 
-@DPATCH@
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 18:44:29.962989537 +0200

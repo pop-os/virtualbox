@@ -1,8 +1,6 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-# Description: Build the X.Org driver only for the selected system X Server version.
-# Author: Michael Meskes <meskes@debian.org>, Felix Geyer <debfx-pkg@fobos.de>
+Description: Build the X.Org driver only for the selected system X Server version.
+Author: Michael Meskes <meskes@debian.org>, Felix Geyer <debfx-pkg@fobos.de>
 
-@DPATCH@
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 13:44:19.145463290 +0200

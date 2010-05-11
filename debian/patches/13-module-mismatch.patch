@@ -1,8 +1,6 @@
-#!/bin/sh /usr/share/dpatch/dpatch-run
-# Description: Adjusts failure message with Debian specific solution.
-# Author: Daniel Baumann <daniel@debian.org>
+Description: Adjusts failure message with Debian specific solution.
+Author: Daniel Baumann <daniel@debian.org>
 
-@DPATCH@
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/VMM/VM.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/VMM/VM.cpp
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/VMM/VM.cpp	2009-10-07 13:43:36.542988533 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/VMM/VM.cpp	2009-10-07 13:43:37.342988388 +0200

@@ -22,8 +22,9 @@ virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
   * Hide the update menu item and settings page instead of disabling them.
   * Make both dkms packages conflict with each other as the kernel modules
     export the same symbol. (LP: #571574)
+  * Switch from dpatch to quilt patching system.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 08 May 2010 15:54:41 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 12:19:07 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
