@@ -8,8 +8,10 @@ virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
   * Add libxrandr-dev to build-dependencies.
   * Don't load the kernel modules in the guest utils init script as they are
     loaded automatically.
+  * Drop 15-wined3d-guest-addition.dpatch as the Windows guest additions
+    provide Direct3D acceleration.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 12:21:10 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 18:04:08 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
