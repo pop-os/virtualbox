@@ -1,6 +1,6 @@
 virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
 
-  * New upstream version.
+  * New upstream version (LP: #578723).
     - Fixes vboxsf file systems not being mounted while booting on Ubuntu.
       (LP: #530179)
   * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
@@ -11,7 +11,7 @@ virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
   * Drop 15-wined3d-guest-addition.dpatch as the Windows guest additions
     provide Direct3D acceleration.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 18:04:08 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 18:06:04 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
