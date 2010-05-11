@@ -26,25 +26,10 @@ in_virtual_machine()
 	return 0
 }
 
-running()
-{
-    lsmod | grep -q "$1[^_-]"
-}
-
 case "$1" in
   start)
 	in_virtual_machine || exit 0
 	log_begin_msg "Starting VirtualBox Additions"
-
-	# should already be loaded automatically
-	if ! running vboxguest; then
-		if ! modprobe vboxguest > /dev/null 2>&1; then
-			# vboxguest not installed, or has a problem
-			log_failure_msg "Guest additions not available, kernel module not loadable (vboxguest)"
-			log_end_msg 1
-			exit 1
-		fi
-	fi
 
 	start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/VBoxService
 	if [ $? -ne 0 ]; then
@@ -65,14 +50,6 @@ case "$1" in
 		exit 1
 	fi
 
-	if running vboxguest; then
-		if ! rmmod vboxguest 2>/dev/null; then
-			log_failure_msg "Cannot unload guest additions kernel module (vboxguest)"
-			log_end_msg 1
-			exit 1
-		fi
-	fi
-
 	log_end_msg 0
 	;;
 
@@ -81,19 +58,12 @@ case "$1" in
 	;;
 
   status)
-	status=0
-
-	if ! running vboxguest; then
-		echo "Guest additions kernel module (vboxguest) not loaded"
-		status=3
-	fi
-
 	if ! pgrep -x VBoxService > /dev/null; then
 		echo "VBoxService daemon isn't running"
-		status=3
+		exit 3
 	fi
 
-	exit $status
+	exit 0
 	;;
 
   *)
