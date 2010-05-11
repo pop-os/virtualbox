@@ -1,7 +1,5 @@
 #!/usr/bin/make -f
 
-include /usr/share/dpatch/dpatch.make
-
 # Name of the source packages
 psource:=virtualbox-ose-source
 gsource:=virtualbox-ose-guest-source
@@ -33,23 +31,20 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
+%:
+	dh --with quilt,python_central $@
 
-# Generate README.Debian as text/html ...
-debian/README.Debian.html: debian/virtualbox-ose.files/README.Debian.xml
+override_dh_auto_configure:
 	xsltproc --nonet --stringparam section.autolabel 1 \
-	    -o $@ \
+	    -o debian/README.Debian.html \
 	    /usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
-	    $<
+	    debian/virtualbox-ose.files/README.Debian.xml
 
-# ... and text/plain
-debian/virtualbox-ose.README.Debian: debian/README.Debian.html
 	chmod 755 debian/lynx-dump-postprocess
-	export LC_ALL=C; lynx -force_html -dump $< | ./debian/lynx-dump-postprocess > $@.tmp
-	mv $@.tmp $@
+	export LC_ALL=C; lynx -force_html -dump debian/README.Debian.html | \
+	    ./debian/lynx-dump-postprocess > debian/virtualbox-ose.README.Debian.tmp
+	mv debian/virtualbox-ose.README.Debian.tmp debian/virtualbox-ose.README.Debian
 
-out/env.sh: patch-stamp
-	dh_testdir
 	mkdir -p out
 	./configure \
 	    --ose \
@@ -59,9 +54,7 @@ out/env.sh: patch-stamp
 	    --enable-webservice \
 	    --enable-vde
 
-build: build-stamp
-build-stamp: out/env.sh
-	dh_testdir
+override_dh_auto_build:
 	# Building package
 	. out/env.sh && $(MAKE) \
 	    AUTOCFG=$(abspath out/AutoConfig.kmk) \
@@ -72,14 +65,94 @@ build-stamp: out/env.sh
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
+
 	gcc debian/vdfuse/vdfuse.c -o debian/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
 	    $(CFLAGS) $(LDFLAGS) $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so \
 	    out/bin/VBoxDDU.so out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
-	touch $@
 
-clean: unpatch
-	dh_testdir
-	dh_testroot
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).dirs.in > debian/$(gdkms).dirs
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).dirs.in > debian/$(pdkms).dirs
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
+
+override_dh_auto_install:
+	dh_auto_install
+
+	# Create DKMS control files
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).files/dkms.conf.in > debian/$(pdkms)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).files/dkms.conf.in > debian/$(gdkms)/usr/src/virtualbox-ose-guest-$(upstreamversion)/dkms.conf
+
+	# Build install files for the dkms'ified sources
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
+
+	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
+	    cd out/bin/sdk/installer && \
+	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
+
+ifeq ($(VIDEODEP),)
+	@echo 'error: xserver-xorg-dev >= 1.7.6.901 needs to be installed'
+	@exit 1
+else
+	echo "xviddriver:Depends=$(VIDEODEP)" >> debian/$(uxname).substvars
+	echo "xinpdriver:Depends=$(INPUTDEP)" >> debian/$(uxname).substvars
+	# the following is there for compatibility...
+	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+	echo "xserver:Depends=$(VIDEODEP), $(INPUTDEP)" >> debian/$(uxname).substvars
+endif
+
+override_dh_install:
+	dh_install
+
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py
+	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py
+	chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
+	install -m 755 src/VBox/Additions/x11/Installer/98vboxadd-xclient debian/$(uxname)/usr/bin/VBoxClient-all
+	chrpath -d debian/$(uxname)/usr/bin/VBoxClient
+	chrpath -d debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+	chrpath -d debian/$(uxname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
+	chrpath -d debian/$(uname)/sbin/mount.vboxsf
+	chrpath -d debian/$(uname)/usr/sbin/VBoxService
+	chrpath -d debian/$(uname)/usr/sbin/VBoxControl
+	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
+
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
+	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
+
+	# These files have incorrect permissions, fixing it.
+	chmod 755 debian/$(psource)/usr/src/modules/$(sname)/debian/rules
+	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
+
+	cd debian/$(psource)/usr/src && \
+	    tar -cjf $(sname).tar.bz2 modules && \
+	    rm -rf modules
+	cd debian/$(gsource)/usr/src && \
+	    tar -cjf $(gname).tar.bz2 modules && \
+	    rm -rf modules
+
+override_dh_installudev:
+	dh_installudev -p$(uxname) --priority=69
+	dh_installudev --remaining-packages
+
+override_dh_installinit:
+	dh_installinit --no-start
+
+override_dh_strip:
+	dh_strip --dbg-package=$(sname)-dbg
+
+override_dh_shlibdeps:
+	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
+	    -dRecommends debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -dDepends
+	dh_shlibdeps --remaining-packages
+
+override_dh_auto_clean:
+	dh_auto_clean
+
 	# Cleaning package
 	rm -rf out
 	rm -f build-stamp
@@ -93,7 +166,6 @@ clean: unpatch
 	rm -f debian/vdfuse/vdfuse
 
 	find . -name "*.pyc" -exec rm -f {} \;
-	dh_clean
 
 #Rebuild the orig.tar.gz
 dfsg-free: clean
@@ -119,116 +191,3 @@ dfsg-free: clean
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
 	        -czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
 	        virtualbox-ose-$(upstreamversion)-dfsg
-
-# install: DH_OPTIONS=
-install: build debian/virtualbox-ose.README.Debian debian/README.Debian.html
-	dh_testdir
-	dh_testroot
-	dh_clean -k
-
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).dirs.in > debian/$(gdkms).dirs
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).dirs.in > debian/$(pdkms).dirs
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
-
-	dh_installdirs
-
-	# Create DKMS control files
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).files/dkms.conf.in > debian/$(pdkms)/usr/src/virtualbox-ose-$(upstreamversion)/dkms.conf
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).files/dkms.conf.in > debian/$(gdkms)/usr/src/virtualbox-ose-guest-$(upstreamversion)/dkms.conf
-
-	# Build install files for the dkms'ified sources
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
-
-	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
-	    cd out/bin/sdk/installer && \
-	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
-	# Install helper scripts for vbox* interfaces
-	dh_installifupdown -p$(sname)
-
-serverabi: install
-ifeq ($(VIDEODEP),)
-	@echo 'error: xserver-xorg-dev >= 1.7.6.901 needs to be installed'
-	@exit 1
-else
-	echo "xviddriver:Depends=$(VIDEODEP)" >> debian/$(uxname).substvars
-	echo "xinpdriver:Depends=$(INPUTDEP)" >> debian/$(uxname).substvars
-	# the following is there for compatibility...
-	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
-	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
-	echo "xserver:Depends=$(VIDEODEP), $(INPUTDEP)" >> debian/$(uxname).substvars
-endif
-
-binary-arch: build install serverabi
-	dh_testdir -s
-	dh_testroot -s
-	dh_installchangelogs -s
-	dh_installdocs -s
-	dh_installmenu -s
-	dh_install -s
-	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py
-	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py
-	-chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/client/*.py
-	-chmod 755 debian/$(uxname)/usr/share/virtualbox/x11config.pl
-	install -m 755 src/VBox/Additions/x11/Installer/98vboxadd-xclient debian/$(uxname)/usr/bin/VBoxClient-all
-	-chrpath -d debian/$(uxname)/usr/bin/VBoxClient
-	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-	-chrpath -d debian/$(uxname)/usr/lib/xorg/modules/input/vboxmouse_drv.so
-	-chrpath -d debian/$(uname)/sbin/mount.vboxsf
-	-chrpath -d debian/$(uname)/usr/sbin/VBoxService
-	-chrpath -d debian/$(uname)/usr/sbin/VBoxControl
-	-chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
-	dh_pycentral -p$(sname)
-	dh_strip -s --dbg-package=$(sname)-dbg
-	dh_link -s
-	dh_compress -s
-	dh_fixperms -s
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
-	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
-	# Override evdev driver
-	dh_installudev -p$(uxname) --priority=69
-	dh_installudev -s -N$(uxname)
-	dh_installinit -s --no-start
-	dh_lintian -s
-	dh_installdeb -s
-	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
-	    -dRecommends debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -dDepends
-	dh_shlibdeps -s -N$(sname)
-	dh_gencontrol -s
-	dh_md5sums -s
-	dh_builddeb -s
-
-binary-indep: build install
-	dh_testdir -i
-	dh_testroot -i
-	dh_installchangelogs -i
-	dh_installdocs -i
-	dh_install -i
-	# These files have incorrect permissions, fixing it.
-	chmod 755 debian/$(psource)/usr/src/modules/$(sname)/debian/rules
-	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
-	dh_link -i
-	# Create .tar.bz2 for virtualbox*source
-	cd debian/$(psource)/usr/src && \
-		tar -cjf $(sname).tar.bz2 modules && \
-		rm -rf modules
-	cd debian/$(gsource)/usr/src && \
-		tar -cjf $(gname).tar.bz2 modules && \
-		rm -rf modules
-	dh_lintian -i
-	dh_compress -i
-	dh_fixperms -i
-	dh_installudev -i
-	dh_installdeb -i
-	dh_gencontrol -i
-	dh_md5sums -i
-	dh_builddeb -i
-
-binary: binary-arch binary-indep
-.PHONY: patch unpatch serverabi \
-	build clean binary-arch binary-indep binary install \
-	binary-modules kdist kdist_configure kdist_image kdist_clean

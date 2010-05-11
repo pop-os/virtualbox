@@ -23,8 +23,9 @@ virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
   * Make both dkms packages conflict with each other as the kernel modules
     export the same symbol. (LP: #571574)
   * Switch from dpatch to quilt patching system.
+  * Convert debian/rules to dh7.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 12:19:07 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 19:42:57 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
