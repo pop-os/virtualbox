@@ -27,19 +27,6 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefi
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
---- virtualbox-ose-3.1.51-dfsg.orig/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
-+++ virtualbox-ose-3.1.51-dfsg/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
-@@ -42,10 +42,6 @@
- LIBRARIES += \
- 	VBoxGuestR3Lib \
- 	VBoxGuestR3LibShared
--if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
-- LIBRARIES += \
-- 	VBoxGuestR3LibXFree86
--endif
- 
- 
- #
 diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/Makefile.kmk virtualbox-ose-3.1.4-dfsg/src/VBox/Additions/x11/Makefile.kmk
 --- virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/Makefile.kmk	2010-02-13 15:19:45.000000000 +0100
 +++ virtualbox-ose-3.1.4-dfsg/src/VBox/Additions/x11/Makefile.kmk	2010-03-01 00:13:12.324136362 +0100
