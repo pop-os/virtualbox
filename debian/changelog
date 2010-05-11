@@ -9,8 +9,6 @@ virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
   * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
   * Update to new upstream release of vdfuse.
   * Build vdfuse with -Wl,--as-needed.
-  * Install /usr/bin/VBoxClient-all and make
-    /etc/X11/Xsession.d/98vboxadd-xclient a symlink to it.
   * Install vbox PAM module.
   * Drop 17-disable-help-contents.dpatch and 20-hide-help-buttons.dpatch
     as VirtualBox can download the manual.
