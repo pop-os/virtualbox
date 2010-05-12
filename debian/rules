@@ -99,21 +99,19 @@ override_dh_auto_build:
 	    $(CFLAGS) $(LDFLAGS) $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so \
 	    out/bin/VBoxDDU.so out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
 
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).dirs.in > debian/$(gdkms).dirs
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).dirs.in > debian/$(pdkms).dirs
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
-
-	# Build install files for the dkms'ified sources
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
-
 override_dh_auto_install:
 	dh_auto_install
 
 	export VBOX_INSTALL_PATH=$(INSTALL_PATH) && \
 	    cd out/bin/sdk/installer && \
 	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
+
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
+
+	# Build install files for the dkms'ified sources
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
+	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
 ifeq ($(XORG_PKG_ABI),new)
 
@@ -224,8 +222,6 @@ override_dh_auto_clean:
 	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
 	rm -f debian/$(pdkms).install
 	rm -f debian/$(gdkms).install
-	rm -f debian/$(pdkms).dirs
-	rm -f debian/$(gdkms).dirs
 	rm -f debian/$(pdkms).links
 	rm -f debian/$(gdkms).links
 	rm -f debian/vdfuse/vdfuse
