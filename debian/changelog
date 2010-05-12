@@ -1,12 +1,10 @@
 virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release 3.2.0 Beta 2.
-    - Fixes vboxsf file systems not being mounted while booting on Ubuntu.
-      (LP: #530179)
   * Disable EFI and strip the binary EFI firmware images from the package as
     they aren't completely dfsg-free yet.
   * Add build-dependencies required by new upstream version.
-  * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
+  * Adapt 18-system-xorg.dpatch to new upstream version.
   * Update to new upstream release of vdfuse.
   * Build vdfuse with -Wl,--as-needed.
   * Install vbox PAM module.
@@ -15,8 +13,6 @@ virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
   * Enable VDE networking.
   * Enable VNC server in VBoxHeadless.
   * Don't build VBoxBFE as it's not installed anyway.
-  * Drop 15-wined3d-guest-addition.dpatch as the Windows guest additions
-    provide Direct3D acceleration.
   * Hide the update menu item and settings page instead of disabling them.
   * Make both dkms packages conflict with each other as the kernel modules
     export the same symbol. (LP: #571574)
@@ -25,6 +21,21 @@ virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
   * Use dkms debhelper script.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 22:07:58 +0200
+
+virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
+
+  * New upstream version (LP: #578723).
+    - Fixes vboxsf file systems not being mounted while booting on Ubuntu.
+      (LP: #530179)
+  * Adapt 18-system-xorg.dpatch and 06-xsession.dpatch to new upstream version.
+  * Use upstream 50-vboxmouse.conf instead of our own.
+  * Add libxrandr-dev to build-dependencies.
+  * Don't load the kernel modules in the guest utils init script as they are
+    loaded automatically.
+  * Drop 15-wined3d-guest-addition.dpatch as the Windows guest additions
+    provide Direct3D acceleration.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 11 May 2010 18:06:04 +0200
 
 virtualbox-ose (3.1.6-dfsg-3) unstable; urgency=low
 
