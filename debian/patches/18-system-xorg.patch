@@ -217,7 +217,7 @@ diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile.k
  vboxvideo_drv_18_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxvideo_drv_18_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
  vboxvideo_drv_18_DEFS := $(vboxvideo_drv_15_DEFS)
-@@ -261,6 +252,16 @@
+@@ -261,6 +252,21 @@
  vboxvideo_drv_18_SOURCES := $(vboxvideo_drv_15_SOURCES)
  
  
@@ -229,6 +229,11 @@ diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile.k
 +	/usr/include/X11/dri \
 +	/usr/include/drm
 +DLLS += vboxvideo_drv_$(XSERVER_VERSION)
++
++# required for lenny backports
++ifeq ($(XSERVER_VERSION),14)
++	vboxvideo_drv_$(XSERVER_VERSION)_INCS += $(VBOX_PATH_X11_XORG_1_4)/xorg
++endif
 +
 +
  # Check the undefined symbols in the X.Org modules against lists of allowed

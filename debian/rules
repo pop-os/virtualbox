@@ -15,21 +15,50 @@ uxname:=virtualbox-ose-guest-x11
 fname:=virtualbox-ose-fuse
 
 INSTALL_PATH:=/usr/lib/virtualbox
-
-# Some defines needed for X
-VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
-INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
-# these two can be removed post-squeeze
-VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
-INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
-VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
-INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
-
-XSERVER_VERSION = 17
-
 MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
+
+BACKPORT =
+
+XSERVER_VERSION = 17
+INSTALL_X11_PCI_ID = 0
+INSTALL_X11_HAL = 0
+INSTALL_X11_UDEV = 1
+INSTALL_XORGCONFD = new
+XORG_PKG_ABI = new
+
+ifeq ($(BACKPORT),lenny)
+	XSERVER_VERSION = 14
+	INSTALL_X11_PCI_ID = 1
+	INSTALL_X11_HAL = 1
+	INSTALL_X11_UDEV = 0
+	INSTALL_XORGCONFD = no
+	XORG_PKG_ABI = old
+else ifeq ($(BACKPORT),lucid)
+	INSTALL_XORGCONFD = old
+	XORG_PKG_ABI = old
+endif
+
+
+ifeq ($(XORG_PKG_ABI),new)
+	# Some defines needed for X
+	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
+	INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
+	# these two can be removed post-squeeze
+	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
+	INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
+	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
+	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
+else
+	# Some defines needed for X
+	SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
+	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
+	INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
+	SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
+	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
+	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
+endif
 
 %:
 	dh --with quilt,python_central,dkms $@
@@ -86,6 +115,8 @@ override_dh_auto_install:
 	    cd out/bin/sdk/installer && \
 	    python ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 
+ifeq ($(XORG_PKG_ABI),new)
+
 ifeq ($(VIDEODEP),)
 	@echo 'error: xserver-xorg-dev >= 1.7.6.901 needs to be installed'
 	@exit 1
@@ -98,8 +129,40 @@ else
 	echo "xserver:Depends=$(VIDEODEP), $(INPUTDEP)" >> debian/$(uxname).substvars
 endif
 
+else # ifeq ($(XORG_PKG_ABI),new)
+
+ifeq ($(SERVERMINVERS),)
+	@echo error: xserver-xorg-dev needs to be installed
+	@exit 1
+else
+	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
+	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
+endif
+
+endif # ifeq ($(XORG_PKG_ABI),new)
+
+
 override_dh_install:
 	dh_install
+
+ifeq ($(INSTALL_X11_PCI_ID),1)
+	dh_install -p$(uxname) src/VBox/Additions/x11/Installer/vboxvideo.ids \
+	    /usr/share/xserver-xorg/pci
+endif
+
+ifeq ($(INSTALL_X11_HAL),1)
+	dh_install -p$(uxname) src/VBox/Additions/linux/installer/90-vboxguest.fdi \
+	    /usr/share/hal/fdi/policy/20thirdparty
+endif
+
+ifeq ($(INSTALL_XORGCONFD),new)
+	dh_install -p$(uxname) debian/50-vboxmouse.conf \
+	    /usr/share/X11/xorg.conf.d
+else ifeq ($(INSTALL_XORGCONFD),old)
+	dh_install -p$(uxname) debian/50-vboxmouse.conf \
+	    /usr/lib/X11/xorg.conf.d
+endif
 
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/*.py
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/sdk/bindings/xpcom/python/xpcom/server/*.py
@@ -131,8 +194,12 @@ override_dh_install:
 	    rm -rf modules
 
 override_dh_installudev:
+ifeq ($(INSTALL_X11_UDEV),1)
 	dh_installudev -p$(uxname) --priority=69
 	dh_installudev --remaining-packages
+else
+	dh_installudev -N$(uxname)
+endif
 
 override_dh_installinit:
 	dh_installinit --no-start
@@ -184,7 +251,12 @@ dfsg-free: clean
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
 	rm -f ./src/VBox/Devices/EFI/FirmwareBin/VBoxEFI*.fd
 	find src/VBox/Additions/x11/x11include -mindepth 1 -maxdepth 1 \
-		-type d -not -name '*mesa-*' | xargs rm -rf
+	    -type d ! -name '*mesa-*' ! -name '1.4' -exec rm -rf {} \;
+	# x11include/1.4/xorg/Pci.h is required for lenny backports
+	find src/VBox/Additions/x11/x11include/1.4 -mindepth 1 \
+	    -type f ! -wholename '*/xorg/Pci.h' -exec rm -rf {} \;
+	find src/VBox/Additions/x11/x11include/1.4 -mindepth 1 \
+	    -depth -type d -empty -exec rmdir {} \;
 	cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
 	        -czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
