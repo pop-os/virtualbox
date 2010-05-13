@@ -64,16 +64,6 @@ endif
 	dh --with quilt,python_central,dkms $@
 
 override_dh_auto_configure:
-	xsltproc --nonet --stringparam section.autolabel 1 \
-	    -o debian/README.Debian.html \
-	    /usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
-	    debian/virtualbox-ose.files/README.Debian.xml
-
-	chmod 755 debian/lynx-dump-postprocess
-	export LC_ALL=C; lynx -force_html -dump debian/README.Debian.html | \
-	    ./debian/lynx-dump-postprocess > debian/virtualbox-ose.README.Debian.tmp
-	mv debian/virtualbox-ose.README.Debian.tmp debian/virtualbox-ose.README.Debian
-
 	mkdir -p out
 	./configure \
 	    --ose \
@@ -95,9 +85,20 @@ override_dh_auto_build:
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
 
-	gcc debian/vdfuse/vdfuse.c -o debian/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
+	mkdir -p out/vdfuse
+	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
 	    $(CFLAGS) $(LDFLAGS) $(shell pkg-config --cflags --libs fuse) -Iinclude out/bin/VBoxDD.so out/bin/VBoxDD2.so \
 	    out/bin/VBoxDDU.so out/bin/VBoxVMM.so out/bin/VBoxREM.so out/bin/VBoxRT.so
+
+	xsltproc --nonet --stringparam section.autolabel 1 \
+	    -o debian/README.Debian.html \
+	    /usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
+	    debian/virtualbox-ose.files/README.Debian.xml
+
+	chmod 755 debian/lynx-dump-postprocess
+	export LC_ALL=C; lynx -force_html -dump debian/README.Debian.html | \
+	    ./debian/lynx-dump-postprocess > debian/virtualbox-ose.README.Debian.tmp
+	mv debian/virtualbox-ose.README.Debian.tmp debian/virtualbox-ose.README.Debian
 
 override_dh_auto_install:
 	dh_auto_install
@@ -227,7 +228,6 @@ override_dh_auto_clean:
 	rm -f debian/$(gdkms).install
 	rm -f debian/$(pdkms).links
 	rm -f debian/$(gdkms).links
-	rm -f debian/vdfuse/vdfuse
 
 	find . -name "*.pyc" -exec rm -f {} \;
 
