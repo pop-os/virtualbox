@@ -1,6 +1,6 @@
-virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.1.53-dfsg-1) UNRELEASED; urgency=low
 
-  * New upstream release 3.2.0 Beta 2.
+  * New upstream release 3.2.0 Beta 3.
   * Add build-dependencies required by new upstream version.
   * Adapt 18-system-xorg.dpatch to new upstream version.
   * Update to new upstream release of vdfuse.
@@ -18,7 +18,7 @@ virtualbox-ose (3.1.52-dfsg-1) UNRELEASED; urgency=low
   * Convert debian/rules to dh7.
   * Use dkms debhelper script.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 12 May 2010 22:56:17 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 13 May 2010 18:20:43 +0200
 
 virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
 
