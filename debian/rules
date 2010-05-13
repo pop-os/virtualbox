@@ -155,10 +155,10 @@ ifeq ($(INSTALL_X11_HAL),1)
 endif
 
 ifeq ($(INSTALL_XORGCONFD),new)
-	dh_install -p$(uxname) debian/50-vboxmouse.conf \
+	dh_install -p$(uxname) src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
 	    /usr/share/X11/xorg.conf.d
 else ifeq ($(INSTALL_XORGCONFD),old)
-	dh_install -p$(uxname) debian/50-vboxmouse.conf \
+	dh_install -p$(uxname) src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
 	    /usr/lib/X11/xorg.conf.d
 endif
 
