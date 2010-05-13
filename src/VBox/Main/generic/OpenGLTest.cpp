@@ -1,4 +1,4 @@
-/* $Id: OpenGLTest.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: OpenGLTest.cpp 29208 2010-05-07 13:09:51Z vboxsync $ */
 /** @file
  * VBox host opengl support test - generic implementation.
  */
@@ -37,17 +37,10 @@ bool is3DAccelerationSupported()
     rc = RTPathExecDir(pszVBoxPath, RTPATH_MAX); AssertRCReturn(rc, false);
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     rc = RTPathAppend(pszVBoxPath, RTPATH_MAX, "VBoxTestOGL.exe");
-    static char pszVBoxPathArg[RTPATH_MAX];
-    pszVBoxPathArg[0] = '"';
-    strcpy(pszVBoxPathArg+1, pszVBoxPath);
-    char *pszPathEnd = (char *)memchr(pszVBoxPathArg, '\0', RTPATH_MAX);
-    pszPathEnd[0] = '"';
-    pszPathEnd[1] = '\0';
-    papszArgs[0] = pszVBoxPathArg;         /* argv[0] */
 #else
     rc = RTPathAppend(pszVBoxPath, RTPATH_MAX, "VBoxTestOGL");
-    papszArgs[0] = pszVBoxPath;         /* argv[0] */
 #endif
+    papszArgs[0] = pszVBoxPath;         /* argv[0] */
     AssertRCReturn(rc, false);
 
     rc = RTProcCreate(pszVBoxPath, papszArgs, RTENV_DEFAULT, 0, &Process);

@@ -1,7 +1,5 @@
-/* $Id: MachineImpl.h 28835 2010-04-27 14:46:23Z vboxsync $ */
-
+/* $Id: MachineImpl.h 29385 2010-05-11 18:05:44Z vboxsync $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
@@ -295,8 +293,6 @@ public:
         KeyboardHidType_T    mKeyboardHidType;
         PointingHidType_T    mPointingHidType;
 
-        IoMgrType_T          mIoMgrType;
-        IoBackendType_T      mIoBackendType;
         BOOL                 mIoCacheEnabled;
         ULONG                mIoCacheSize;
         ULONG                mIoBandwidthMax;
@@ -394,6 +390,8 @@ public:
     STDMETHOD(COMSETTER(HpetEnabled))(BOOL enabled);
     STDMETHOD(COMGETTER(MemoryBalloonSize))(ULONG *memoryBalloonSize);
     STDMETHOD(COMSETTER(MemoryBalloonSize))(ULONG memoryBalloonSize);
+    STDMETHOD(COMGETTER(PageFusionEnabled))(BOOL *enabled);
+    STDMETHOD(COMSETTER(PageFusionEnabled))(BOOL enabled);
     STDMETHOD(COMGETTER(VRAMSize))(ULONG *memorySize);
     STDMETHOD(COMSETTER(VRAMSize))(ULONG memorySize);
     STDMETHOD(COMGETTER(MonitorCount))(ULONG *monitorCount);
@@ -443,10 +441,6 @@ public:
     STDMETHOD(COMSETTER(KeyboardHidType)) (KeyboardHidType_T  aKeyboardHidType);
     STDMETHOD(COMGETTER(PointingHidType)) (PointingHidType_T *aPointingHidType);
     STDMETHOD(COMSETTER(PointingHidType)) (PointingHidType_T  aPointingHidType);
-    STDMETHOD(COMGETTER(IoMgr)) (IoMgrType_T *aIoMgrType);
-    STDMETHOD(COMSETTER(IoMgr)) (IoMgrType_T  aIoMgrType);
-    STDMETHOD(COMGETTER(IoBackend)) (IoBackendType_T *aIoBackendType);
-    STDMETHOD(COMSETTER(IoBackend)) (IoBackendType_T  aIoBackendType);
     STDMETHOD(COMGETTER(IoCacheEnabled)) (BOOL *aEnabled);
     STDMETHOD(COMSETTER(IoCacheEnabled)) (BOOL  aEnabled);
     STDMETHOD(COMGETTER(IoCacheSize)) (ULONG *aIoCacheSize);
@@ -502,10 +496,10 @@ public:
     STDMETHOD(RemoveStorageController(IN_BSTR aName));
     STDMETHOD(GetStorageControllerByName(IN_BSTR aName, IStorageController **storageController));
     STDMETHOD(GetStorageControllerByInstance(ULONG aInstance, IStorageController **storageController));
-    STDMETHOD(QuerySavedThumbnailSize)(ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
-    STDMETHOD(ReadSavedThumbnailToArray)(BOOL aBGR, ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
-    STDMETHOD(QuerySavedScreenshotPNGSize)(ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
-    STDMETHOD(ReadSavedScreenshotPNGToArray)(ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
+    STDMETHOD(QuerySavedThumbnailSize)(ULONG aScreenId, ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
+    STDMETHOD(ReadSavedThumbnailToArray)(ULONG aScreenId, BOOL aBGR, ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
+    STDMETHOD(QuerySavedScreenshotPNGSize)(ULONG aScreenId, ULONG *aSize, ULONG *aWidth, ULONG *aHeight);
+    STDMETHOD(ReadSavedScreenshotPNGToArray)(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData));
     STDMETHOD(HotPlugCPU(ULONG aCpu));
     STDMETHOD(HotUnplugCPU(ULONG aCpu));
     STDMETHOD(GetCPUStatus(ULONG aCpu, BOOL *aCpuAttached));
@@ -608,7 +602,7 @@ public:
     virtual HRESULT onNetworkAdapterChange(INetworkAdapter * /* networkAdapter */, BOOL /* changeAdapter */) { return S_OK; }
     virtual HRESULT onSerialPortChange(ISerialPort * /* serialPort */) { return S_OK; }
     virtual HRESULT onParallelPortChange(IParallelPort * /* parallelPort */) { return S_OK; }
-    virtual HRESULT onVRDPServerChange() { return S_OK; }
+    virtual HRESULT onVRDPServerChange(BOOL /* aRestart */) { return S_OK; }
     virtual HRESULT onUSBControllerChange() { return S_OK; }
     virtual HRESULT onStorageControllerChange() { return S_OK; }
     virtual HRESULT onCPUChange(ULONG /* aCPU */, BOOL /* aRemove */) { return S_OK; }
@@ -747,7 +741,7 @@ protected:
         /* flags for #saveStateSettings() */
         SaveSTS_CurStateModified = 0x20,
         SaveSTS_StateFilePath = 0x40,
-        SaveSTS_StateTimeStamp = 0x80,
+        SaveSTS_StateTimeStamp = 0x80
     };
 
     HRESULT prepareSaveSettings(bool *pfNeedsGlobalSaveSettings);
@@ -946,7 +940,7 @@ public:
     HRESULT onSerialPortChange(ISerialPort *serialPort);
     HRESULT onParallelPortChange(IParallelPort *parallelPort);
     HRESULT onCPUChange(ULONG aCPU, BOOL aRemove);
-    HRESULT onVRDPServerChange();
+    HRESULT onVRDPServerChange(BOOL aRestart);
     HRESULT onUSBControllerChange();
     HRESULT onUSBDeviceAttach(IUSBDevice *aDevice,
                               IVirtualBoxErrorInfo *aError,

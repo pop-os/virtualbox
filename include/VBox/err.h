@@ -79,6 +79,10 @@
 #define VERR_INVALID_CPU_ID                 (-1018)
 /** Too many VCPUs. */
 #define VERR_TOO_MANY_CPUS                  (-1019)
+/** The service was disabled on the host.
+ * Returned by pfnInit in VBoxService to indicated a non-fatal error that
+ * should results in the particular service being disabled. */
+#define VERR_SERVICE_DISABLED               (-1020)
 /** @} */
 
 
@@ -472,6 +476,8 @@
 #define VERR_PGM_SHARED_MODULE_NOT_FOUND        (-1648)
 /** Shared module different from previously registered module. */
 #define VINF_PGM_SHARED_MODULE_COLLISION        (1649)
+/** Inconsistent local and global registration records. */
+#define VERR_PGM_SHARED_MODULE_REGISTRATION_INCONSISTENCY (-1650)
 /** @} */
 
 

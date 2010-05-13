@@ -1,3 +1,4 @@
+/* $Id: Settings.cpp 29386 2010-05-11 18:07:09Z vboxsync $ */
 /** @file
  * Settings File Manipulation API.
  *
@@ -1629,12 +1630,10 @@ bool Snapshot::operator==(const Snapshot &s) const
  */
 IoSettings::IoSettings()
 {
-    ioMgrType        = IoMgrType_Async;
-    ioBackendType    = IoBackendType_Unbuffered;
     fIoCacheEnabled  = true;
     ulIoCacheSize    = 5;
     ulIoBandwidthMax = 0;
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -2513,34 +2512,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             readGuestProperties(*pelmHwChild, hw);
         else if (pelmHwChild->nameEquals("IO"))
         {
-            Utf8Str strTemp;
             const xml::ElementNode *pelmIoChild;
 
-            if ((pelmIoChild = pelmHwChild->findChildElement("IoMgr")))
-            {
-                if (pelmIoChild->getAttributeValue("type", strTemp))
-                {
-                    if (strTemp == "Async")
-                        hw.ioSettings.ioMgrType = IoMgrType_Async;
-                    else if (strTemp == "Simple")
-                        hw.ioSettings.ioMgrType = IoMgrType_Simple;
-                    else
-                        throw ConfigFileError(this, pelmIoChild, N_("Invalid value '%s' in IoMgr/@type attribute"), strTemp.c_str());
-                }
-            }
-
-            if ((pelmIoChild = pelmHwChild->findChildElement("IoBackend")))
-            {
-                if (pelmIoChild->getAttributeValue("type", strTemp))
-                {
-                    if (strTemp == "Unbuffered")
-                        hw.ioSettings.ioBackendType = IoBackendType_Unbuffered;
-                    else if (strTemp == "Buffered")
-                        hw.ioSettings.ioBackendType = IoBackendType_Buffered;
-                    else
-                        throw ConfigFileError(this, pelmIoChild, N_("Invalid value '%s' in IoBackend/@type attribute"), strTemp.c_str());
-                }
-            }
             if ((pelmIoChild = pelmHwChild->findChildElement("IoCache")))
             {
                 pelmIoChild->getAttributeValue("enabled", hw.ioSettings.fIoCacheEnabled);
@@ -3550,27 +3523,6 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         xml::ElementNode *pelmIo = pelmHardware->createChild("IO");
         xml::ElementNode *pelmIoCache;
         xml::ElementNode *pelmIoBandwidth;
-        const char *pcszTemp;
-
-        switch (hw.ioSettings.ioMgrType)
-        {
-            case IoMgrType_Simple: pcszTemp = "Simple"; break;
-            case IoMgrType_Async:
-            default:
-                pcszTemp = "Async"; break;
-        }
-
-        pelmIo->createChild("IoMgr")->setAttribute("type", pcszTemp);
-
-        switch (hw.ioSettings.ioBackendType)
-        {
-            case IoBackendType_Buffered: pcszTemp = "Buffered"; break;
-            case IoBackendType_Unbuffered:
-            default:
-                pcszTemp = "Unbuffered"; break;
-        }
-
-        pelmIo->createChild("IoBackend")->setAttribute("type", pcszTemp);
 
         pelmIoCache = pelmIo->createChild("IoCache");
         pelmIoCache->setAttribute("enabled", hw.ioSettings.fIoCacheEnabled);
@@ -3699,9 +3651,14 @@ void MachineConfigFile::buildNetworkXML(NetworkAttachmentType_T mode,
  * keys under that. Called for both the <Machine> node and for snapshots.
  * @param elmParent
  * @param st
+ * @param fSkipRemovableMedia If true, DVD and floppy attachments are skipped and
+ *   an empty drive is always written instead. This is for the OVF export case.
+ *   This parameter is ignored unless the settings version is at least v1.9, which
+ *   is always the case when this gets called for OVF export.
  */
 void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
-                                                   const Storage &st)
+                                                   const Storage &st,
+                                                   bool fSkipRemovableMedia)
 {
     xml::ElementNode *pelmStorageControllers = elmParent.createChild("StorageControllers");
 
@@ -3813,7 +3770,11 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
             pelmDevice->setAttribute("port", att.lPort);
             pelmDevice->setAttribute("device", att.lDevice);
 
-            if (!att.uuid.isEmpty())
+            if (    !att.uuid.isEmpty()
+                 && (    att.deviceType == DeviceType_HardDisk
+                      || !fSkipRemovableMedia
+                    )
+               )
                 pelmDevice->createChild("Image")->setAttribute("uuid", makeString(att.uuid));
             else if (    (m->sv >= SettingsVersion_v1_9)
                       && (att.strHostDriveSrc.length())
@@ -3846,7 +3807,11 @@ void MachineConfigFile::buildSnapshotXML(xml::ElementNode &elmParent,
         pelmSnapshot->createChild("Description")->addContent(snap.strDescription);
 
     buildHardwareXML(*pelmSnapshot, snap.hardware, snap.storage);
-    buildStorageControllersXML(*pelmSnapshot, snap.storage);
+    buildStorageControllersXML(*pelmSnapshot,
+                               snap.storage,
+                               false /* fSkipRemovableMedia */);
+                                    // we only skip removable media for OVF, but we never get here for OVF
+                                    // since snapshots never get written then
 
     if (snap.llChildSnapshots.size())
     {
@@ -3883,6 +3848,12 @@ void MachineConfigFile::buildSnapshotXML(xml::ElementNode &elmParent,
  *      attribute to the machine tag with the vbox settings version. This is for
  *      the OVF export case in which we don't have the settings version set in
  *      the root element.
+ *
+ *  --  BuildMachineXML_SkipRemovableMedia: If set, removable media attachments
+ *      (DVDs, floppies) are silently skipped. This is for the OVF export case
+ *      until we support copying ISO and RAW media as well.  This flas is ignored
+ *      unless the settings version is at least v1.9, which is always the case
+ *      when this gets called for OVF export.
  *
  * @param elmMachine XML <Machine> element to add attributes and elements to.
  * @param fl Flags.
@@ -3935,7 +3906,9 @@ void MachineConfigFile::buildMachineXML(xml::ElementNode &elmMachine,
         buildSnapshotXML(elmMachine, llFirstSnapshot.front());
 
     buildHardwareXML(elmMachine, hardwareMachine, storageMachine);
-    buildStorageControllersXML(elmMachine, storageMachine);
+    buildStorageControllersXML(elmMachine,
+                               storageMachine,
+                               !!(fl & BuildMachineXML_SkipRemovableMedia));
 }
 
 /**
@@ -4085,9 +4058,7 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
     {
         if (   hardwareMachine.ioSettings.fIoCacheEnabled != true
             || hardwareMachine.ioSettings.ulIoCacheSize != 5
-            || hardwareMachine.ioSettings.ulIoBandwidthMax != 0
-            || hardwareMachine.ioSettings.ioMgrType != IoMgrType_Async
-            || hardwareMachine.ioSettings.ioBackendType != IoBackendType_Unbuffered)
+            || hardwareMachine.ioSettings.ulIoBandwidthMax != 0)
             m->sv = SettingsVersion_v1_10;
     }
 

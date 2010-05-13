@@ -110,7 +110,7 @@
 #  define RT_ARCH_AMD64
 # elif defined(__i386__) || defined(_M_IX86) || defined(__X86__)
 #  define RT_ARCH_X86
-# elif defined(__sparc64__)
+# elif defined(__sparcv9)
 #  define RT_ARCH_SPARC64
 # elif defined(__sparc__)
 #  define RT_ARCH_SPARC
@@ -1670,7 +1670,7 @@
 #   define RT_BREAKPOINT()      __asm__ __volatile__("int3; jmp 1f; 1:\n\t")
 #  endif
 # elif defined(RT_ARCH_SPARC64)
-#  define RT_BREAKPOINT()       __asm__ __volatile__("illtrap $0\n\t")  /** @todo Sparc64: this is just a wild guess. */
+#  define RT_BREAKPOINT()       __asm__ __volatile__("illtrap 0\n\t")   /** @todo Sparc64: this is just a wild guess. */
 # elif defined(RT_ARCH_SPARC)
 #  define RT_BREAKPOINT()       __asm__ __volatile__("unimp 0\n\t")     /** @todo Sparc: this is just a wild guess (same as Sparc64, just different name). */
 # endif
@@ -1807,7 +1807,8 @@
 # ifdef IN_RING3
 #  if defined(RT_OS_SOLARIS)
 /** Sparc64 user mode: According to Figure 9.4 in solaris internals */
-#   define RT_VALID_PTR(ptr)    ( (uintptr_t)(ptr) + 0x80004000U >= 0x80004000U + 0x100000000ULL )
+/** @todo #   define RT_VALID_PTR(ptr)    ( (uintptr_t)(ptr) + 0x80004000U >= 0x80004000U + 0x100000000ULL ) - figure this. */
+#   define RT_VALID_PTR(ptr)    ( (uintptr_t)(ptr) + 0x80000000U >= 0x80000000U + 0x100000000ULL )
 #  else
 #   error "Port me"
 #  endif
@@ -1948,6 +1949,38 @@
 
 /** Applies NOREF() to the source position arguments. */
 #define RT_SRC_POS_NOREF() do { NOREF(pszFile); NOREF(iLine); NOREF(pszFunction); } while (0)
+
+
+/** @def RT_INLINE_ASM_EXTERNAL
+ * Defined as 1 if the compiler does not support inline assembly.
+ * The ASM* functions will then be implemented in external .asm files.
+ */
+#if (defined(_MSC_VER) && defined(RT_ARCH_AMD64)) \
+ || (!defined(RT_ARCH_AMD64) && !defined(RT_ARCH_X86))
+# define RT_INLINE_ASM_EXTERNAL 1
+#else
+# define RT_INLINE_ASM_EXTERNAL 0
+#endif
+
+/** @def RT_INLINE_ASM_GNU_STYLE
+ * Defined as 1 if the compiler understands GNU style inline assembly.
+ */
+#if defined(_MSC_VER)
+# define RT_INLINE_ASM_GNU_STYLE 0
+#else
+# define RT_INLINE_ASM_GNU_STYLE 1
+#endif
+
+/** @def RT_INLINE_ASM_USES_INTRIN
+ * Defined as 1 if the compiler have and uses intrin.h. Otherwise it is 0. */
+#ifdef _MSC_VER
+# if _MSC_VER >= 1400
+#  define RT_INLINE_ASM_USES_INTRIN 1
+# endif
+#endif
+#ifndef RT_INLINE_ASM_USES_INTRIN
+# define RT_INLINE_ASM_USES_INTRIN 0
+#endif
 
 /** @} */
 
@@ -2099,7 +2132,7 @@
     inline static void *operator new (size_t); \
     inline static void operator delete (void *);
 
-#endif /* defined(__cplusplus) */
+#endif /* __cplusplus */
 
 /** @} */
 

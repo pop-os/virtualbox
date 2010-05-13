@@ -1,4 +1,4 @@
-/* $Id: Performance.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Performance.cpp 29225 2010-05-07 16:01:34Z vboxsync $ */
 
 /** @file
  *
@@ -163,11 +163,12 @@ int CollectorGuestHAL::preCollect(const CollectorHints& /* hints */, uint64_t iT
     if (    mGuest
         &&  iTick != mLastTick)
     {
-        ULONG ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal;
+        ULONG ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal, ulMemSharedTotal, uMemShared;
 
+        /** todo shared stats. */
         mGuest->InternalGetStatistics(&mCpuUser, &mCpuKernel, &mCpuIdle,
-                                      &mMemTotal, &mMemFree, &mMemBalloon, &mMemCache,
-                                      &mPageTotal, &ulMemAllocTotal, &ulMemFreeTotal, &ulMemBalloonTotal);
+                                      &mMemTotal, &mMemFree, &mMemBalloon, &mMemCache, &uMemShared,
+                                      &mPageTotal, &ulMemAllocTotal, &ulMemFreeTotal, &ulMemBalloonTotal, &ulMemSharedTotal);
 
         if (mHostHAL)
             mHostHAL->setMemHypervisorStats(ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal);

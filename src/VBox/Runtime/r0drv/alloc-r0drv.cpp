@@ -1,4 +1,4 @@
-/* $Id: alloc-r0drv.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: alloc-r0drv.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver.
  */
@@ -31,7 +31,9 @@
 #include <iprt/mem.h>
 #include "internal/iprt.h"
 
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/param.h>
 #include <iprt/string.h>

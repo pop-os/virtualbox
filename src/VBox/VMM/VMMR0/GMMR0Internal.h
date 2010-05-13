@@ -1,4 +1,4 @@
-/* $Id: GMMR0Internal.h 29168 2010-05-06 16:01:48Z vboxsync $ */
+/* $Id: GMMR0Internal.h 29424 2010-05-12 15:11:09Z vboxsync $ */
 /** @file
  * GMM - The Global Memory Manager, Internal Header.
  */
@@ -38,48 +38,6 @@ typedef struct GMMVMSIZES
 typedef GMMVMSIZES *PGMMVMSIZES;
 
 /**
- * Shared region descriptor
- */
-typedef struct GMMSHAREDREGIONDESC
-{
-    /** Region base address. */
-    RTGCPTR64           GCRegionAddr;
-    /** Region size. */
-    uint32_t            cbRegion;
-    /** Alignment. */
-    uint32_t            u32Alignment;
-    /** Pointer to physical page id array. */
-    uint32_t           *paHCPhysPageID;
-} GMMSHAREDREGIONDESC;
-/** Pointer to a GMMSHAREDREGIONDESC. */
-typedef GMMSHAREDREGIONDESC *PGMMSHAREDREGIONDESC;
-
-/**
- * Shared module registration info (global)
- */
-typedef struct GMMSHAREDMODULE
-{
-    /* Tree node. */
-    AVLGCPTRNODECORE            Core;
-    /** Shared module size. */
-    uint32_t                    cbModule;
-    /** Number of included region descriptors */
-    uint32_t                    cRegions;
-    /** Number of users (VMs). */
-    uint32_t                    cUsers;
-    /** Align. */
-    uint32_t                    u32Align;
-    /** Module name */
-    char                        szName[GMM_SHARED_MODULE_MAX_NAME_STRING];
-    /** Module version */
-    char                        szVersion[GMM_SHARED_MODULE_MAX_VERSION_STRING];
-    /** Shared region descriptor(s). */
-    GMMSHAREDREGIONDESC         aRegions[1];
-} GMMSHAREDMODULE;
-/** Pointer to a GMMSHAREDMODULE. */
-typedef GMMSHAREDMODULE *PGMMSHAREDMODULE;
-
-/**
  * Shared module registration info (per VM)
  */
 typedef struct GMMSHAREDMODULEPERVM
@@ -93,12 +51,7 @@ typedef struct GMMSHAREDMODULEPERVM
     /** Set if another VM registered a different shared module at the same base address. */
     bool                        fCollision;
     /** Alignment. */
-    bool                        bAlignment;
-
-    /** Number of regions. */
-    unsigned                    cRegions;
-    /** Shared region descriptor(s). */
-    GMMSHAREDREGIONDESC         aRegions[1];
+    bool                        bAlignment[7];
 } GMMSHAREDMODULEPERVM;
 /** Pointer to a GMMSHAREDMODULEPERVM. */
 typedef GMMSHAREDMODULEPERVM *PGMMSHAREDMODULEPERVM;

@@ -1,4 +1,4 @@
-/* $Id: EMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: EMAll.cpp 29287 2010-05-10 07:53:47Z vboxsync $ */
 /** @file
  * EM - Execution Monitor(/Manager) - All contexts
  */
@@ -893,7 +893,7 @@ static int emInterpretLockOrXorAnd(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCP
     void *pvParam1;
     OP_PARAMVAL param1, param2;
 
-#if HC_ARCH_BITS == 32
+#if HC_ARCH_BITS == 32 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0)
     Assert(pDis->param1.size <= 4);
 #endif
 

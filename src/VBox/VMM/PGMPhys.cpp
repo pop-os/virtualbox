@@ -1,4 +1,4 @@
-/* $Id: PGMPhys.cpp 28974 2010-05-03 13:09:44Z vboxsync $ */
+/* $Id: PGMPhys.cpp 29319 2010-05-11 09:31:01Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Physical Memory Addressing.
  */
@@ -766,6 +766,7 @@ static int pgmR3PhysFreePageRange(PVM pVM, PPGMRAMRANGE pRam, RTGCPHYS GCPhys, R
     return rc;
 }
 
+#if HC_ARCH_BITS == 64 && (defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS) || defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD))
 /**
  * Rendezvous callback used by PGMR3ChangeMemBalloon that changes the memory balloon size
  *
@@ -907,6 +908,7 @@ static DECLCALLBACK(void) pgmR3PhysChangeMemBalloonHelper(PVM pVM, bool fInflate
     /* Made a copy in PGMR3PhysFreeRamPages; free it here. */
     RTMemFree(paPhysPage);
 }
+#endif
 
 /**
  * Inflate or deflate a memory balloon
@@ -919,6 +921,8 @@ static DECLCALLBACK(void) pgmR3PhysChangeMemBalloonHelper(PVM pVM, bool fInflate
  */
 VMMR3DECL(int) PGMR3PhysChangeMemBalloon(PVM pVM, bool fInflate, unsigned cPages, RTGCPHYS *paPhysPage)
 {
+    /* This must match GMMR0Init; currently we only support memory ballooning on all 64-bit hosts except Mac OS X */
+#if HC_ARCH_BITS == 64 && (defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS) || defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD))
     int rc;
 
     /* Older additions (ancient non-functioning balloon code) pass wrong physical addresses. */
@@ -949,6 +953,9 @@ VMMR3DECL(int) PGMR3PhysChangeMemBalloon(PVM pVM, bool fInflate, unsigned cPages
         AssertRC(rc);
     }
     return rc;
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
 }
 
 /**
@@ -1358,6 +1365,12 @@ int pgmR3PhysRamReset(PVM pVM)
     int rc = GMMR3BalloonedPages(pVM, GMMBALLOONACTION_RESET, 0);
     AssertRC(rc);
 
+#ifdef VBOX_WITH_PAGE_SHARING
+    /* Clear all registered shared modules. */
+    rc = GMMR3ResetSharedModules(pVM);
+    AssertRC(rc);
+#endif
+
     /*
      * We batch up pages that should be freed instead of calling GMM for
      * each and every one of them.
@@ -1583,6 +1596,12 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
             pgmUnlock(pVM);
         }
         AssertRCReturn(rc, rc);
+
+        /* Force a PGM pool flush as guest ram references have been changed. */
+        /** todo; not entirely SMP safe; assuming for now the guest takes care of this internally (not touch mapped mmio while changing the mapping). */
+        PVMCPU pVCpu = VMMGetCpu(pVM);
+        pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
     }
     else
     {
@@ -1752,6 +1771,12 @@ VMMR3DECL(int) PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
             pRam = pRam->pNextR3;
         }
     }
+
+    /* Force a PGM pool flush as guest ram references have been changed. */
+    /** todo; not entirely SMP safe; assuming for now the guest takes care of this internally (not touch mapped mmio while changing the mapping). */
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
 
     PGMPhysInvalidatePageMapTLB(pVM);
     return rc;
@@ -2126,6 +2151,9 @@ VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
             PGM_PAGE_SET_HCPHYS(pPageDst, HCPhys);
             PGM_PAGE_SET_TYPE(pPageDst, PGMPAGETYPE_MMIO2);
             PGM_PAGE_SET_STATE(pPageDst, PGM_PAGE_STATE_ALLOCATED);
+            PGM_PAGE_SET_PDE_TYPE(pPageDst, PGM_PAGE_PDE_TYPE_DONTCARE);
+            PGM_PAGE_SET_PTE_INDEX(pPageDst, 0);
+            PGM_PAGE_SET_TRACKING(pPageDst, 0);
 
             pVM->pgm.s.cZeroPages--;
             GCPhys += PAGE_SIZE;
@@ -2142,11 +2170,28 @@ VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
             AssertLogRelRCReturn(rc, rc);
         }
         GMMR3FreePagesCleanup(pReq);
+
+        /* Force a PGM pool flush as guest ram references have been changed. */
+        /** todo; not entirely SMP safe; assuming for now the guest takes care of this internally (not touch mapped mmio while changing the mapping). */
+        PVMCPU pVCpu = VMMGetCpu(pVM);
+        pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
+
         pgmUnlock(pVM);
     }
     else
     {
         RTGCPHYS cb = pCur->RamRange.cb;
+
+        /* Clear the tracking data of pages we're going to reactivate. */
+        PPGMPAGE pPageSrc = &pCur->RamRange.aPages[0];
+        uint32_t cPagesLeft = pCur->RamRange.cb >> PAGE_SHIFT;
+        while (cPagesLeft-- > 0)
+        {
+            PGM_PAGE_SET_TRACKING(pPageSrc, 0);
+            PGM_PAGE_SET_PTE_INDEX(pPageSrc, 0);
+            pPageSrc++;
+        }
 
         /* link in the ram range */
         pgmR3PhysLinkRamRange(pVM, &pCur->RamRange, pRamPrev);
@@ -2203,18 +2248,11 @@ VMMR3DECL(int) PGMR3PhysMMIO2Unmap(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion
         while (pRam->GCPhys > pCur->RamRange.GCPhysLast)
             pRam = pRam->pNextR3;
 
-        RTHCPHYS const HCPhysZeroPg = pVM->pgm.s.HCPhysZeroPg;
-        Assert(HCPhysZeroPg != 0 && HCPhysZeroPg != NIL_RTHCPHYS);
         PPGMPAGE pPageDst = &pRam->aPages[(pCur->RamRange.GCPhys - pRam->GCPhys) >> PAGE_SHIFT];
         uint32_t cPagesLeft = pCur->RamRange.cb >> PAGE_SHIFT;
         while (cPagesLeft-- > 0)
         {
-            PGM_PAGE_SET_HCPHYS(pPageDst, HCPhysZeroPg);
-            PGM_PAGE_SET_TYPE(pPageDst, PGMPAGETYPE_RAM);
-            PGM_PAGE_SET_STATE(pPageDst, PGM_PAGE_STATE_ZERO);
-            PGM_PAGE_SET_PAGEID(pPageDst, NIL_GMM_PAGEID);
-            PGM_PAGE_SET_PDE_TYPE(pPageDst, PGM_PAGE_PDE_TYPE_DONTCARE);
-
+            PGM_PAGE_INIT_ZERO(pPageDst, pVM, PGMPAGETYPE_RAM);
             pVM->pgm.s.cZeroPages++;
             pPageDst++;
         }
@@ -2239,6 +2277,12 @@ VMMR3DECL(int) PGMR3PhysMMIO2Unmap(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion
     pCur->RamRange.GCPhysLast = NIL_RTGCPHYS;
     pCur->fOverlapping = false;
     pCur->fMapped = false;
+
+    /* Force a PGM pool flush as guest ram references have been changed. */
+    /** todo; not entirely SMP safe; assuming for now the guest takes care of this internally (not touch mapped mmio while changing the mapping). */
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    pVCpu->pgm.s.fSyncFlags |= PGM_SYNC_CLEAR_PGM_POOL;
+    VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
 
     PGMPhysInvalidatePageMapTLB(pVM);
     pgmUnlock(pVM);
@@ -2566,6 +2610,9 @@ VMMR3DECL(int) PGMR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys
                     PGM_PAGE_SET_HCPHYS(pPage, pReq->aPages[iPage].HCPhysGCPhys);
                     PGM_PAGE_SET_STATE(pPage,  PGM_PAGE_STATE_ALLOCATED);
                     PGM_PAGE_SET_PAGEID(pPage, pReq->aPages[iPage].idPage);
+                    PGM_PAGE_SET_PDE_TYPE(pPage, PGM_PAGE_PDE_TYPE_DONTCARE);
+                    PGM_PAGE_SET_PTE_INDEX(pPage, 0);
+                    PGM_PAGE_SET_TRACKING(pPage, 0);
 
                     pRomPage->Virgin = *pPage;
                 }
@@ -3380,6 +3427,8 @@ VMMR3DECL(int) PGMR3PhysAllocateLargeHandyPage(PVM pVM, RTGCPHYS GCPhys)
                 PGM_PAGE_SET_PAGEID(pPage, idPage);
                 PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_ALLOCATED);
                 PGM_PAGE_SET_PDE_TYPE(pPage, PGM_PAGE_PDE_TYPE_PDE);
+                PGM_PAGE_SET_PTE_INDEX(pPage, 0);
+                PGM_PAGE_SET_TRACKING(pPage, 0);
 
                 /* Somewhat dirty assumption that page ids are increasing. */
                 idPage++;
@@ -3598,6 +3647,8 @@ static int pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPa
     PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_ZERO);
     PGM_PAGE_SET_PAGEID(pPage, NIL_GMM_PAGEID);
     PGM_PAGE_SET_PDE_TYPE(pPage, PGM_PAGE_PDE_TYPE_DONTCARE);
+    PGM_PAGE_SET_PTE_INDEX(pPage, 0);
+    PGM_PAGE_SET_TRACKING(pPage, 0);
 
     /* Flush physical page map TLB entry. */
     PGMPhysInvalidatePageMapTLBEntry(pVM, GCPhys);

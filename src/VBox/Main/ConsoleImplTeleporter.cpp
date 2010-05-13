@@ -1,4 +1,4 @@
-/* $Id: ConsoleImplTeleporter.cpp 28965 2010-05-03 09:55:57Z vboxsync $ */
+/* $Id: ConsoleImplTeleporter.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VBox Console COM Class implementation, The Teleporter Part.
  */
@@ -26,6 +26,7 @@
 #include "AutoCaller.h"
 #include "Logging.h"
 
+#include <iprt/asm.h>
 #include <iprt/err.h>
 #include <iprt/rand.h>
 #include <iprt/socket.h>

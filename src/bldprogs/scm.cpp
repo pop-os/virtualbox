@@ -1,4 +1,4 @@
-/* $Id: scm.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: scm.cpp 29304 2010-05-10 13:37:01Z vboxsync $ */
 /** @file
  * IPRT Testcase / Tool - Source Code Massager.
  */
@@ -2076,7 +2076,7 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
         case SCMOPT_FILTER_FILES:
         case SCMOPT_FILTER_OUT_FILES:
         {
-            char **ppsz;
+            char **ppsz = NULL;
             switch (rc)
             {
                 case SCMOPT_FILTER_OUT_DIRS:    ppsz = &pSettings->pszFilterOutDirs; break;
@@ -4087,7 +4087,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 28800 $";
+                static const char s_szRev[] = "$Revision: 29304 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

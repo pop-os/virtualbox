@@ -1,4 +1,4 @@
-/* $Id: EMHandleRCTmpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: EMHandleRCTmpl.h 29329 2010-05-11 10:18:30Z vboxsync $ */
 /** @file
  * EM - emR3[Raw|Hwaccm]HandleRC template.
  */
@@ -104,15 +104,6 @@ int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             AssertReleaseMsgFailed(("%Rrc handling is not yet implemented\n", rc));
             break;
 #endif /* EMHANDLERC_WITH_PATM */
-
-#ifdef VBOX_WITH_VMI
-        /*
-         * PARAV function.
-         */
-        case VINF_EM_RESCHEDULE_PARAV:
-            rc = PARAVCallFunction(pVM);
-            break;
-#endif
 
 #ifdef EMHANDLERC_WITH_PATM
         /*

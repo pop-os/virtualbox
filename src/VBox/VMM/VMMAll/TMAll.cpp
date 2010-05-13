@@ -1,4 +1,4 @@
-/* $Id: TMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: TMAll.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * TM - Timeout Manager, all contexts.
  */
@@ -35,6 +35,7 @@
 #include <iprt/time.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
 #ifdef IN_RING3
 # include <iprt/thread.h>
 #endif

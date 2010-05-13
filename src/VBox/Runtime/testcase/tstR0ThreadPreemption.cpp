@@ -1,4 +1,4 @@
-/* $Id: tstR0ThreadPreemption.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstR0ThreadPreemption.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption.
  */
@@ -29,6 +29,7 @@
 *******************************************************************************/
 #include <iprt/thread.h>
 
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/err.h>
 #include <iprt/time.h>
 #include <iprt/string.h>

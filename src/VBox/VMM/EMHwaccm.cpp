@@ -1,4 +1,4 @@
-/* $Id: EMHwaccm.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: EMHwaccm.cpp 29329 2010-05-11 10:18:30Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager - hardware virtualization
  */
@@ -37,9 +37,6 @@
 #define LOG_GROUP LOG_GROUP_EM
 #include <VBox/em.h>
 #include <VBox/vmm.h>
-#ifdef VBOX_WITH_VMI
-# include <VBox/parav.h>
-#endif
 #include <VBox/csam.h>
 #include <VBox/selm.h>
 #include <VBox/trpm.h>
@@ -60,6 +57,8 @@
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
 #include <VBox/dbgf.h>
+
+#include <iprt/asm.h>
 
 
 /*******************************************************************************

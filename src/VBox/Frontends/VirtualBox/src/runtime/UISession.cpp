@@ -1,4 +1,4 @@
-/* $Id: UISession.cpp 29014 2010-05-04 13:17:17Z vboxsync $ */
+/* $Id: UISession.cpp 29219 2010-05-07 14:58:50Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1535,9 +1535,7 @@ void UISession::preparePowerUp()
 UIFrameBuffer* UISession::frameBuffer(ulong screenId) const
 {
     Assert(screenId < (ulong)m_FrameBufferVector.size());
-    if (screenId < (ulong)m_FrameBufferVector.size())
-        return m_FrameBufferVector.at((int)screenId);
-    return NULL;
+    return m_FrameBufferVector.value((int)screenId, NULL);
 }
 
 int UISession::setFrameBuffer(ulong screenId, UIFrameBuffer* pFrameBuffer)

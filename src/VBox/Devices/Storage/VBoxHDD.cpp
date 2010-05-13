@@ -1,4 +1,4 @@
-/* $Id: VBoxHDD.cpp 29048 2010-05-04 23:02:50Z vboxsync $ */
+/* $Id: VBoxHDD.cpp 29413 2010-05-12 12:28:53Z vboxsync $ */
 /** @file
  * VBoxHDD - VBox HDD Container implementation.
  */
@@ -227,6 +227,8 @@ typedef struct VDIOCTX
     RTSGBUF                      SgBuf;
     /** Flag whether the I/O context is blocked because it is in the growing list. */
     bool                         fBlocked;
+    /** Number of data transfers currently pending. */
+    volatile uint32_t            cDataTransfersPending;
     /** How many meta data transfers are pending. */
     volatile uint32_t            cMetaTransfersPending;
     /** Flag whether the request finished */
@@ -595,6 +597,7 @@ DECLINLINE(PVDIOCTX) vdIoCtxAlloc(PVBOXHDD pDisk, VDIOCTXTXDIR enmTxDir,
         pIoCtx->cbTransferLeft        = cbTransfer;
         pIoCtx->uOffset               = uOffset;
         pIoCtx->cbTransfer            = cbTransfer;
+        pIoCtx->cDataTransfersPending = 0;
         pIoCtx->cMetaTransfersPending = 0;
         pIoCtx->fComplete             = false;
         pIoCtx->fBlocked              = false;
@@ -748,7 +751,17 @@ static int vdIoCtxProcess(PVDIOCTX pIoCtx)
 
     if (   !pIoCtx->cbTransferLeft
         && !pIoCtx->cMetaTransfersPending
+        && !pIoCtx->cDataTransfersPending
         && !pIoCtx->pfnIoCtxTransfer)
+        return VINF_VD_ASYNC_IO_FINISHED;
+
+    /*
+     * We complete the I/O context in case of an error
+     * if there is no I/O task pending.
+     */
+    if (   RT_FAILURE(pIoCtx->rcReq)
+        && !pIoCtx->cMetaTransfersPending
+        && !pIoCtx->cDataTransfersPending)
         return VINF_VD_ASYNC_IO_FINISHED;
 
     if (pIoCtx->pfnIoCtxTransfer)
@@ -773,10 +786,24 @@ static int vdIoCtxProcess(PVDIOCTX pIoCtx)
 
     if (   RT_SUCCESS(rc)
         && !pIoCtx->cbTransferLeft
-        && !pIoCtx->cMetaTransfersPending)
+        && !pIoCtx->cMetaTransfersPending
+        && !pIoCtx->cDataTransfersPending)
         rc = VINF_VD_ASYNC_IO_FINISHED;
     else if (RT_SUCCESS(rc))
         rc = VERR_VD_ASYNC_IO_IN_PROGRESS;
+    else if (RT_FAILURE(rc) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
+    {
+        ASMAtomicCmpXchgS32(&pIoCtx->rcReq, rc, VINF_SUCCESS);
+        /*
+         * The I/O context completed if we have an error and there is no data
+         * or meta data transfer pending.
+         */
+        if (   !pIoCtx->cMetaTransfersPending
+            && !pIoCtx->cDataTransfersPending)
+            rc = VINF_VD_ASYNC_IO_FINISHED;
+        else
+            rc = VERR_VD_ASYNC_IO_IN_PROGRESS;
+    }
 
     LogFlowFunc(("pIoCtx=%#p rc=%Rrc cbTransferLeft=%u cMetaTransfersPending=%u fComplete=%RTbool\n",
                  pIoCtx, rc, pIoCtx->cbTransferLeft, pIoCtx->cMetaTransfersPending,
@@ -1256,6 +1283,7 @@ static int vdWriteHelperOptimizedCmpAndWriteAsync(PVDIOCTX pIoCtx)
             /* Block is completely unchanged, so no need to write anything. */
             LogFlowFunc(("Block didn't changed\n"));
             ASMAtomicWriteU32(&pIoCtx->cbTransferLeft, 0);
+            RTSgBufAdvance(&pIoCtxParent->SgBuf, cbThisWrite);
             return VINF_VD_ASYNC_IO_FINISHED;
         }
     }
@@ -1770,7 +1798,10 @@ static int vdIOReqCompleted(void *pvUser, int rcReq)
                  pIoTask, pIoCtx, pDisk));
 
     if (!pIoTask->fMeta)
+    {
         ASMAtomicSubU32(&pIoCtx->cbTransferLeft, pIoTask->Type.User.cbTransfer);
+        ASMAtomicDecU32(&pIoCtx->cDataTransfersPending);
+    }
     else
     {
         if (pIoTask->Type.Meta.pfnMetaComplete)
@@ -1781,6 +1812,9 @@ static int vdIOReqCompleted(void *pvUser, int rcReq)
     }
 
     vdIoTaskFree(pDisk, pIoTask);
+
+    if (RT_FAILURE(rcReq))
+        ASMAtomicCmpXchgS32(&pIoCtx->rcReq, rcReq, VINF_SUCCESS);
 
     if (!pIoCtx->fBlocked)
     {
@@ -1803,6 +1837,9 @@ static int vdIOReqCompleted(void *pvUser, int rcReq)
                 Assert(pIoCtx->enmTxDir == VDIOCTXTXDIR_WRITE);
                 ASMAtomicSubU32(&pIoCtxParent->cbTransferLeft, pIoCtx->Type.Child.cbTransferParent);
 
+                if (RT_FAILURE(pIoCtx->rcReq))
+                    ASMAtomicCmpXchgS32(&pIoCtxParent->rcReq, pIoCtx->rcReq, VINF_SUCCESS);
+ 
                 /*
                  * A completed child write means that we finsihed growing the image.
                  * We have to process any pending writes now.
@@ -2019,6 +2056,8 @@ static int vdIOReadUserAsync(void *pvUser, PVDIOSTORAGE pIoStorage,
         if (!pIoTask)
             return VERR_NO_MEMORY;
 
+        ASMAtomicIncU32(&pIoCtx->cDataTransfersPending);
+
         void *pvTask;
         int rc2 = pDisk->pInterfaceAsyncIOCallbacks->pfnReadAsync(pDisk->pInterfaceAsyncIO->pvUser,
                                                                   pIoStorage->u.pStorage,
@@ -2029,6 +2068,7 @@ static int vdIOReadUserAsync(void *pvUser, PVDIOSTORAGE pIoStorage,
         {
             AssertMsg(cbTaskRead <= pIoCtx->cbTransferLeft, ("Impossible!\n"));
             ASMAtomicSubU32(&pIoCtx->cbTransferLeft, cbTaskRead);
+            ASMAtomicDecU32(&pIoCtx->cDataTransfersPending);
             vdIoTaskFree(pDisk, pIoTask);
         }
         else if (rc2 == VERR_VD_ASYNC_IO_IN_PROGRESS)
@@ -2081,6 +2121,8 @@ static int vdIOWriteUserAsync(void *pvUser, PVDIOSTORAGE pIoStorage,
         if (!pIoTask)
             return VERR_NO_MEMORY;
 
+        ASMAtomicIncU32(&pIoCtx->cDataTransfersPending);
+
         void *pvTask;
         int rc2 = pDisk->pInterfaceAsyncIOCallbacks->pfnWriteAsync(pDisk->pInterfaceAsyncIO->pvUser,
                                                                    pIoStorage->u.pStorage,
@@ -2091,6 +2133,7 @@ static int vdIOWriteUserAsync(void *pvUser, PVDIOSTORAGE pIoStorage,
         {
             AssertMsg(cbTaskWrite <= pIoCtx->cbTransferLeft, ("Impossible!\n"));
             ASMAtomicSubU32(&pIoCtx->cbTransferLeft, cbTaskWrite);
+            ASMAtomicDecU32(&pIoCtx->cDataTransfersPending);
             vdIoTaskFree(pDisk, pIoTask);
         }
         else if (rc2 == VERR_VD_ASYNC_IO_IN_PROGRESS)

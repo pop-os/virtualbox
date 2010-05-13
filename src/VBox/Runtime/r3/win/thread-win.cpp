@@ -1,4 +1,4 @@
-/* $Id: thread-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: thread-win.cpp 29251 2010-05-09 17:57:12Z vboxsync $ */
 /** @file
  * IPRT - Threads, Win32.
  */
@@ -38,7 +38,7 @@
 #include <iprt/log.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/err.h>
 #include "internal/thread.h"
 

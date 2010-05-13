@@ -1,4 +1,4 @@
-/* $Id: tstTSC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstTSC.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT Testcase - SMP TSC testcase.
  */
@@ -27,6 +27,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/asm.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>

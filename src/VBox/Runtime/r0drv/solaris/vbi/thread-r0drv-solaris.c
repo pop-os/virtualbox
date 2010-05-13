@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: thread-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, Solaris.
  */
@@ -32,7 +32,9 @@
 #include "internal/iprt.h"
 #include <iprt/thread.h>
 
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mp.h>
@@ -78,8 +80,10 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
     Assert(hThread == NIL_RTTHREAD);
     if (!vbi_is_preempt_enabled())
         return false;
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     if (!ASMIntAreEnabled())
         return false;
+#endif
     if (getpil() >= DISP_LEVEL)
         return false;
     return true;

@@ -1,4 +1,4 @@
-/* $Id: tstTime.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstTime.cpp 29279 2010-05-09 23:29:11Z vboxsync $ */
 /** @file
  * IPRT Testcase - Simple RTTime tests.
  */
@@ -94,10 +94,12 @@ int main()
         RTPrintf("tstTime: total time difference: u64OSElapsedTS=%#llx u64RTElapsedTS=%#llx delta=%lld\n",
                  u64OSElapsedTS, u64RTElapsedTS, u64OSElapsedTS - u64RTElapsedTS);
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) /** @todo This isn't really x86 or AMD64 specific... */
     RTPrintf("RTTimeDbgSteps   -> %u (%d ppt)\n", RTTimeDbgSteps(),   ((uint64_t)RTTimeDbgSteps() * 1000) / i);
     RTPrintf("RTTimeDbgExpired -> %u (%d ppt)\n", RTTimeDbgExpired(), ((uint64_t)RTTimeDbgExpired() * 1000) / i);
     RTPrintf("RTTimeDbgBad     -> %u (%d ppt)\n", RTTimeDbgBad(),     ((uint64_t)RTTimeDbgBad() * 1000) / i);
     RTPrintf("RTTimeDbgRaces   -> %u (%d ppt)\n", RTTimeDbgRaces(),   ((uint64_t)RTTimeDbgRaces() * 1000) / i);
+#endif
     if (!cErrors)
         RTPrintf("tstTime: SUCCESS\n");
     else

@@ -1,4 +1,4 @@
-/* $Id: DevOHCI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevOHCI.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DevOHCI - Open Host Controller Interface for USB.
  */
@@ -89,6 +89,7 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
 #ifdef IN_RING3
 # include <iprt/alloca.h>
 # include <iprt/mem.h>

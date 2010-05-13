@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.cpp 29085 2010-05-05 14:03:59Z vboxsync $ */
+/* $Id: HostHardwareLinux.cpp 29352 2010-05-11 13:23:15Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for
@@ -1299,8 +1299,9 @@ int inotifyWatch::initInotify(void)
     return rc;
 }
 
-/** The flags we pass to inotify - modify, create, delete */
-#define IN_FLAGS 0x302
+/** The flags we pass to inotify - modify, create, delete, change permissions
+ */
+#define IN_FLAGS 0x306
 
 bool inotifyWatch::handle(const char *pcszPath)
 {

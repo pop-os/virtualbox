@@ -1,4 +1,4 @@
-/* $Id: VBoxVMMDeps.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVMMDeps.cpp 29342 2010-05-11 11:19:12Z vboxsync $ */
 /** @file
  * VBoxVMM link dependencies - drag all we want into the link!
  */
@@ -52,6 +52,9 @@ PFNRT g_apfnDeps[] =
     (PFNRT)VMMDoTest,
 #ifdef VBOX_WITH_DEBUGGER
     (PFNRT)DBGCCreate,
+#endif
+#ifdef VBOX_WITH_PAGE_SHARING
+    (PFNRT)PGMR3SharedModuleRegister,
 #endif
     NULL
 };

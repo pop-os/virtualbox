@@ -1,4 +1,4 @@
-/* $Id: UIFrameBuffer.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIFrameBuffer.cpp 29219 2010-05-07 14:58:50Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -242,6 +242,12 @@ void UIFrameBuffer::doProcessVHWACommand(QEvent *pEvent)
     Q_UNUSED(pEvent);
     /* should never be here */
     AssertBreakpoint();
+}
+
+void UIFrameBuffer::setView(UIMachineView * pView)
+{
+    m_pMachineView = pView;
+    m_uWinId = (m_pMachineView && m_pMachineView->viewport()) ? (ULONG64)m_pMachineView->viewport()->winId() : 0;
 }
 #endif
 

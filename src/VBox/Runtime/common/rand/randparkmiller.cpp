@@ -1,4 +1,4 @@
-/* $Id: randparkmiller.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: randparkmiller.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Random Numbers, Park-Miller Pseudo Random.
  */
@@ -30,7 +30,7 @@
 #include <iprt/rand.h>
 #include "internal/iprt.h"
 
-#include <iprt/asm.h>
+#include <iprt/asm-math.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/err.h>

@@ -1,4 +1,4 @@
-/* $Id: Builtins.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Builtins.cpp 29326 2010-05-11 10:08:13Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1)
  */
@@ -175,6 +175,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
         return rc;
 #ifdef VBOX_WITH_LSILOGIC
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLsiLogicSCSI);
+    if (RT_FAILURE(rc))
+        return rc;
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLsiLogicSAS);
     if (RT_FAILURE(rc))
         return rc;
 #endif

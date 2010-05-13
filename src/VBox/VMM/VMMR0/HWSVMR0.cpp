@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.cpp 28834 2010-04-27 14:44:55Z vboxsync $ */
+/* $Id: HWSVMR0.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * HWACCM SVM - Host Context Ring 0.
  */
@@ -14,7 +14,6 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
 
 /*******************************************************************************
 *   Header Files                                                               *
@@ -38,6 +37,7 @@
 #include <iprt/param.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/cpuset.h>
 #include <iprt/mp.h>
 #include <iprt/time.h>

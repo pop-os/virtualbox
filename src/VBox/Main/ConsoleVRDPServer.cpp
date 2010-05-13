@@ -1,7 +1,5 @@
-/* $Id: ConsoleVRDPServer.cpp 28802 2010-04-27 09:23:16Z vboxsync $ */
-
+/* $Id: ConsoleVRDPServer.cpp 29386 2010-05-11 18:07:09Z vboxsync $ */
 /** @file
- *
  * VBox Console VRDP Helper class
  */
 
@@ -1236,7 +1234,7 @@ int ConsoleVRDPServer::Launch (void)
                 remoteUSBThreadStart ();
 #endif /* VBOX_WITH_USB */
             }
-            else
+            else if (rc != VERR_NET_ADDRESS_IN_USE)
                 AssertMsgFailed(("Could not start VRDP server: rc = %Rrc\n", rc));
         }
         else
@@ -2229,7 +2227,7 @@ void RemoteDisplayInfo::uninit()
         if (FAILED(autoCaller.rc())) return autoCaller.rc();              \
                                                                           \
         /* todo: Not sure if a AutoReadLock would be sufficient. */       \
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                                        \
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                  \
                                                                           \
         uint32_t value;                                                   \
         uint32_t cbOut = 0;                                               \
@@ -2240,7 +2238,8 @@ void RemoteDisplayInfo::uninit()
         *a##_aName = cbOut? !!value: FALSE;                               \
                                                                           \
         return S_OK;                                                      \
-    }
+    }                                                                     \
+    extern void IMPL_GETTER_BOOL_DUMMY(void)
 
 #define IMPL_GETTER_SCALAR(_aType, _aName, _aIndex)                       \
     STDMETHODIMP RemoteDisplayInfo::COMGETTER(_aName) (_aType *a##_aName) \
@@ -2252,7 +2251,7 @@ void RemoteDisplayInfo::uninit()
         if (FAILED(autoCaller.rc())) return autoCaller.rc();              \
                                                                           \
         /* todo: Not sure if a AutoReadLock would be sufficient. */       \
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                                        \
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                  \
                                                                           \
         _aType value;                                                     \
         uint32_t cbOut = 0;                                               \
@@ -2263,7 +2262,8 @@ void RemoteDisplayInfo::uninit()
         *a##_aName = cbOut? value: 0;                                     \
                                                                           \
         return S_OK;                                                      \
-    }
+    }                                                                     \
+    extern void IMPL_GETTER_SCALAR_DUMMY(void)
 
 #define IMPL_GETTER_BSTR(_aType, _aName, _aIndex)                         \
     STDMETHODIMP RemoteDisplayInfo::COMGETTER(_aName) (_aType *a##_aName) \
@@ -2275,7 +2275,7 @@ void RemoteDisplayInfo::uninit()
         if (FAILED(autoCaller.rc())) return autoCaller.rc();              \
                                                                           \
         /* todo: Not sure if a AutoReadLock would be sufficient. */       \
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                                        \
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);                  \
                                                                           \
         uint32_t cbOut = 0;                                               \
                                                                           \
@@ -2309,7 +2309,8 @@ void RemoteDisplayInfo::uninit()
         RTMemTmpFree (pchBuffer);                                         \
                                                                           \
         return S_OK;                                                      \
-    }
+    }                                                                     \
+    extern void IMPL_GETTER_BSTR_DUMMY(void)
 
 IMPL_GETTER_BOOL   (BOOL,    Active,             VRDP_QI_ACTIVE);
 IMPL_GETTER_SCALAR (LONG,    Port,               VRDP_QI_PORT);
@@ -2329,4 +2330,5 @@ IMPL_GETTER_SCALAR (ULONG,   EncryptionStyle,    VRDP_QI_ENCRYPTION_STYLE);
 
 #undef IMPL_GETTER_BSTR
 #undef IMPL_GETTER_SCALAR
+#undef IMPL_GETTER_BOOL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

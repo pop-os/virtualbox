@@ -1,4 +1,4 @@
-/* $Id: VBoxRTDeps.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxRTDeps.cpp 29272 2010-05-09 21:25:43Z vboxsync $ */
 /** @file
  * IPRT - VBoxRT.dll/so dependencies.
  */
@@ -27,19 +27,21 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/sup.h>
+#ifndef RT_NO_GIP
+# include <VBox/sup.h>
+#endif
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/buildconfig.h>
 #include <iprt/system.h>
 
-# include <libxml/xmlmodule.h>
-# include <libxml/globals.h>
-# include <openssl/md5.h>
-# include <openssl/rc4.h>
-# include <openssl/pem.h>
-# include <openssl/x509.h>
-# include <openssl/rsa.h>
+#include <libxml/xmlmodule.h>
+#include <libxml/globals.h>
+#include <openssl/md5.h>
+#include <openssl/rc4.h>
+#include <openssl/pem.h>
+#include <openssl/x509.h>
+#include <openssl/rsa.h>
 
 
 /*******************************************************************************
@@ -47,9 +49,11 @@
 *******************************************************************************/
 PFNRT g_VBoxRTDeps[] =
 {
+#ifndef RT_NO_GIP
     (PFNRT)SUPR3Init,
     (PFNRT)SUPR3PageAllocEx,
     (PFNRT)SUPSemEventCreate,
+#endif
     (PFNRT)xmlModuleOpen,
     (PFNRT)MD5_Init,
     (PFNRT)RC4,

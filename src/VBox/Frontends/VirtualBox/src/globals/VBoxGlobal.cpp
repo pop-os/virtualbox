@@ -1,4 +1,4 @@
-/* $Id: VBoxGlobal.cpp 29174 2010-05-06 20:49:56Z vboxsync $ */
+/* $Id: VBoxGlobal.cpp 29334 2010-05-11 10:29:44Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1471,8 +1471,8 @@ QString VBoxGlobal::toString (StorageSlot aSlot) const
         case KStorageBus_IDE:
         case KStorageBus_SATA:
         case KStorageBus_SCSI:
-        case KStorageBus_Floppy:
         case KStorageBus_SAS:
+        case KStorageBus_Floppy:
             break;
 
         default:
@@ -1507,14 +1507,15 @@ QString VBoxGlobal::toString (StorageSlot aSlot) const
             result = mSlotTemplates [5].arg (aSlot.port);
             break;
         }
-        case KStorageBus_Floppy:
-        {
-            result = mSlotTemplates [6].arg (aSlot.device);
-            break;
-        }
         case KStorageBus_SAS:
         {
+            /* TODO: change this index to 6 after 3.2 */
             result = mSlotTemplates [5].arg (aSlot.port);
+            break;
+        }
+        case KStorageBus_Floppy:
+        {
+            result = mSlotTemplates [7].arg (aSlot.device);
             break;
         }
         default:
@@ -1577,6 +1578,15 @@ StorageSlot VBoxGlobal::toStorageSlot (const QString &aSlot) const
             break;
         }
         case 6:
+        {
+            result.bus = KStorageBus_SAS;
+            int maxPort = virtualBox().GetSystemProperties().GetMaxPortCountForStorageBus (result.bus);
+            result.port = regExp.cap (1).toInt();
+            if (result.port < 0 || result.port > maxPort)
+                AssertMsgFailed (("Invalid port %d\n", result.port));
+            break;
+        }
+        case 7:
         {
             result.bus = KStorageBus_Floppy;
             int maxDevice = virtualBox().GetSystemProperties().GetMaxDevicesPerPortForStorageBus (result.bus);
@@ -2067,30 +2077,52 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
 
         QString item;
 
+        /* Iterate over the all machine controllers: */
         CStorageControllerVector controllers = aMachine.GetStorageControllers();
-        foreach (const CStorageController &controller, controllers)
+        for (int i = 0; i < controllers.size(); ++i)
         {
-            item += QString (sSectionItemTpl3).arg (controller.GetName());
+            /* Get current controller: */
+            const CStorageController &controller = controllers[i];
+            /* Add controller information: */
+            item += QString(sSectionItemTpl3).arg(controller.GetName());
             ++ rows;
 
-            CMediumAttachmentVector attachments = aMachine.GetMediumAttachmentsOfController (controller.GetName());
-            foreach (const CMediumAttachment &attachment, attachments)
+            /* Populate sorted map with attachments information: */
+            QMap<StorageSlot,QString> attachmentsMap;
+            CMediumAttachmentVector attachments = aMachine.GetMediumAttachmentsOfController(controller.GetName());
+            for (int j = 0; j < attachments.size(); ++j)
             {
-                CMedium medium = attachment.GetMedium();
-                if (attachment.isOk())
-                {
-                    /* Append 'device slot name' with 'device type name' for CD/DVD devices only */
-                    QString strDeviceType = attachment.GetType() == KDeviceType_DVD ? tr("(CD/DVD)") : QString();
-                    if (!strDeviceType.isNull()) strDeviceType.prepend(' ');
-                    item += QString (sSectionItemTpl2)
-                            .arg (QString ("&nbsp;&nbsp;") +
-                                  toString (StorageSlot (controller.GetBus(),
-                                                         attachment.GetPort(),
-                                                         attachment.GetDevice())) +
-                                  strDeviceType)
-                            .arg (details (medium, false));
-                    ++ rows;
-                }
+                /* Get current attachment: */
+                const CMediumAttachment &attachment = attachments[j];
+                /* Prepare current storage slot: */
+                StorageSlot attachmentSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice());
+                /* Append 'device slot name' with 'device type name' for CD/DVD devices only: */
+                QString strDeviceType = attachment.GetType() == KDeviceType_DVD ? tr("(CD/DVD)") : QString();
+                if (!strDeviceType.isNull())
+                    strDeviceType.prepend(' ');
+                /* Prepare current medium object: */
+                const CMedium &medium = attachment.GetMedium();
+                /* Prepare information about current medium & attachment: */
+                QString strAttachmentInfo = !attachment.isOk() ? QString() :
+                                            QString(sSectionItemTpl2)
+                                            .arg(QString("&nbsp;&nbsp;") +
+                                                 toString(StorageSlot(controller.GetBus(),
+                                                                      attachment.GetPort(),
+                                                                      attachment.GetDevice())) + strDeviceType)
+                                            .arg(details(medium, false));
+                /* Insert that attachment into map: */
+                if (!strAttachmentInfo.isNull())
+                    attachmentsMap.insert(attachmentSlot, strAttachmentInfo);
+            }
+
+            /* Iterate over the sorted map with attachments information: */
+            QMapIterator<StorageSlot,QString> it(attachmentsMap);
+            while (it.hasNext())
+            {
+                /* Add controller information: */
+                it.next();
+                item += it.value();
+                ++rows;
             }
         }
 
@@ -3057,7 +3089,8 @@ void VBoxGlobal::retranslateUi()
     mSlotTemplates [3] = tr ("IDE Secondary Slave", "New Storage UI : Slot Name");
     mSlotTemplates [4] = tr ("SATA Port %1", "New Storage UI : Slot Name");
     mSlotTemplates [5] = tr ("SCSI Port %1", "New Storage UI : Slot Name");
-    mSlotTemplates [6] = tr ("Floppy Device %1", "New Storage UI : Slot Name");
+    mSlotTemplates [6] = tr ("SAS Port %1", "New Storage UI : Slot Name");
+    mSlotTemplates [7] = tr ("Floppy Device %1", "New Storage UI : Slot Name");
 
     mDiskTypes [KMediumType_Normal] =           tr ("Normal", "DiskType");
     mDiskTypes [KMediumType_Immutable] =        tr ("Immutable", "DiskType");

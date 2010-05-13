@@ -1,4 +1,4 @@
-/* $Id: PGMR0DynMap.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PGMR0DynMap.cpp 29259 2010-05-09 18:48:25Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, ring-0 dynamic mapping cache.
  */
@@ -26,6 +26,7 @@
 #include <VBox/sup.h>
 #include <VBox/err.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/cpuset.h>

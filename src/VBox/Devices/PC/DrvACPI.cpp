@@ -1,4 +1,4 @@
-/* $Id: DrvACPI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvACPI.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DrvACPI - ACPI Host Driver.
  */
@@ -26,6 +26,7 @@
 
 #include <VBox/pdmdrv.h>
 #include <VBox/log.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>

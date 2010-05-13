@@ -79,6 +79,8 @@ public:
     STDMETHOD(COMGETTER(AdditionsVersion)) (BSTR *aAdditionsVersion);
     STDMETHOD(COMGETTER(SupportsSeamless)) (BOOL *aSupportsSeamless);
     STDMETHOD(COMGETTER(SupportsGraphics)) (BOOL *aSupportsGraphics);
+    STDMETHOD(COMGETTER(PageFusionEnabled)) (BOOL *enabled);
+    STDMETHOD(COMSETTER(PageFusionEnabled)) (BOOL enabled);
     STDMETHOD(COMGETTER(MemoryBalloonSize)) (ULONG *aMemoryBalloonSize);
     STDMETHOD(COMSETTER(MemoryBalloonSize)) (ULONG aMemoryBalloonSize);
     STDMETHOD(COMGETTER(StatisticsUpdateInterval)) (ULONG *aUpdateInterval);
@@ -95,8 +97,8 @@ public:
     STDMETHOD(GetProcessOutput)(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, ULONG64 aSize, ComSafeArrayOut(BYTE, aData));
     STDMETHOD(GetProcessStatus)(ULONG aPID, ULONG *aExitCode, ULONG *aFlags, ULONG *aStatus);
     STDMETHOD(InternalGetStatistics)(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
-                                     ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemCache,
-                                     ULONG *aPageTotal, ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal);
+                                     ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemShared, ULONG *aMemCache,
+                                     ULONG *aPageTotal, ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal, ULONG *aMemSharedTotal);
 
     // public methods that are not in IDL
     void setAdditionsVersion (Bstr aVersion, VBOXOSTYPE aOsType);
@@ -150,7 +152,7 @@ private:
     int notifyCtrlExecOut(uint32_t u32Function, PHOSTEXECOUTCALLBACKDATA pData);
     CallbackListIter getCtrlCallbackContextByID(uint32_t u32ContextID);
     GuestProcessIter getProcessByPID(uint32_t u32PID);
-    void removeCtrlCallbackContext(CallbackListIter it);
+    void destroyCtrlCallbackContext(CallbackListIter it);
     uint32_t addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void *pvData, uint32_t cbData, Progress* pProgress);
 # endif
 

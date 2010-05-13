@@ -1,4 +1,4 @@
-/* $Id: HostImpl.cpp 28924 2010-04-30 09:08:17Z vboxsync $ */
+/* $Id: HostImpl.cpp 29385 2010-05-11 18:05:44Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation: Host
  */
@@ -105,7 +105,7 @@ extern "C" char *getfullrawname(char *);
 extern bool is3DAccelerationSupported();
 #endif /* VBOX_WITH_CROGL */
 
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/mp.h>
 #include <iprt/time.h>
@@ -118,7 +118,7 @@ extern bool is3DAccelerationSupported();
 # include <iprt/ctype.h>
 #endif
 #ifdef VBOX_WITH_HOSTNETIF_API
-#include "netif.h"
+# include "netif.h"
 #endif
 
 /* XXX Solaris: definitions in /usr/include/sys/regset.h clash with hwacc_svm.h */
@@ -2316,6 +2316,7 @@ HRESULT Host::checkUSBProxyService()
 #endif /* VBOX_WITH_USB */
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
+
 void Host::registerMetrics(PerformanceCollector *aCollector)
 {
     pm::CollectorHAL *hal = aCollector->getHAL();
@@ -2434,13 +2435,14 @@ void Host::registerMetrics(PerformanceCollector *aCollector)
                                               new pm::AggregateMin()));
     aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMBallooned,
                                               new pm::AggregateMax()));
-};
+}
 
 void Host::unregisterMetrics (PerformanceCollector *aCollector)
 {
     aCollector->unregisterMetricsFor(this);
     aCollector->unregisterBaseMetricsFor(this);
-};
+}
+
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

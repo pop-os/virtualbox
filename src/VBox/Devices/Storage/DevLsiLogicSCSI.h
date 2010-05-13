@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevLsiLogicSCSI.h 29326 2010-05-11 10:08:13Z vboxsync $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller - Defines and structures.
  */
@@ -24,6 +24,7 @@
  * the controller.
  */
 #define LSILOGIC_ISA_IO_PORT 0x340
+#define LSILOGIC_SAS_ISA_IO_PORT 0x350
 
 #define LSILOGICSCSI_REQUEST_QUEUE_DEPTH_DEFAULT 1024
 #define LSILOGICSCSI_REPLY_QUEUE_DEPTH_DEFAULT   128

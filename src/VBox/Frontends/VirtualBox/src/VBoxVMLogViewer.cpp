@@ -1,4 +1,4 @@
-/* $Id: VBoxVMLogViewer.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVMLogViewer.cpp 29381 2010-05-11 17:04:48Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -245,17 +245,9 @@ void VBoxVMLogViewer::save()
     QString newFileName = QFileDialog::getSaveFileName (this,
         tr ("Save VirtualBox Log As"), defaultFullName);
 
-    /* Save new log into the file */
+    /* Copy log into the file */
     if (!newFileName.isEmpty())
-    {
-        /* Reread log data */
-        QFile newFile (newFileName);
-        if (!newFile.open (QIODevice::WriteOnly))
-            return;
-
-        /* Save log data into the new file */
-        newFile.write (mLogFiles.at(mLogList->currentIndex()).second->toPlainText().toUtf8());
-    }
+        QFile::copy(mMachine.QueryLogFilename(mLogList->currentIndex()), newFileName);
 }
 
 void VBoxVMLogViewer::search()

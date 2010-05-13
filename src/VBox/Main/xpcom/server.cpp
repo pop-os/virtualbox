@@ -1,4 +1,4 @@
-/* $Id: server.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: server.cpp 29385 2010-05-11 18:05:44Z vboxsync $ */
 /** @file
  * XPCOM server process (VBoxSVC) start point.
  */
@@ -199,7 +199,7 @@ enum
 {
     /* Delay before shutting down the VirtualBox server after the last
      * VirtualBox instance is released, in ms */
-    VBoxSVC_ShutdownDelay = 5000,
+    VBoxSVC_ShutdownDelay = 5000
 };
 
 static bool gAutoShutdown = false;

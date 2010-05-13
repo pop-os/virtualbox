@@ -1,4 +1,4 @@
-/* $Id: logbackdoor.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: logbackdoor.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VirtualBox Runtime - Guest Backdoor Logging.
  */
@@ -29,7 +29,7 @@
 *******************************************************************************/
 #include <VBox/log.h>
 #include "internal/iprt.h"
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #ifdef IN_GUEST_R3
 # include <VBox/VBoxGuestLib.h>

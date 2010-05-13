@@ -1,4 +1,4 @@
-/* $Revision: 28800 $ */
+/* $Revision: 29360 $ */
 /** @file
  * VBoxGuestLibR0 - Generic VMMDev request management.
  */
@@ -26,6 +26,7 @@
 
 #include "VBGLInternal.h"
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
@@ -78,7 +79,8 @@ DECLVBGL(int) VbglGRVerify (const VMMDevRequestHeader *pReq, size_t cbReq)
 #else
         || pReq->requestType == VMMDevReq_HGCMCall
 #endif /* VBOX_WITH_64_BITS_GUESTS */
-        || pReq->requestType == VMMDevReq_ChangeMemBalloon)
+        || pReq->requestType == VMMDevReq_ChangeMemBalloon
+        || pReq->requestType == VMMDevReq_RegisterSharedModule)
     {
         if (cbReq > VMMDEV_MAX_VMMDEVREQ_SIZE)
         {

@@ -1,4 +1,4 @@
-/* $Id: UINewHDWzd.cpp 29131 2010-05-06 11:07:40Z vboxsync $ */
+/* $Id: UINewHDWzd.cpp 29350 2010-05-11 13:09:21Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -444,9 +444,9 @@ void UINewHDWzdPage4::retranslateUi()
 
     summary += QString
     (
-        "<tr><td><nobr>%1: </nobr></td><td><nobr>%2</nobr></td></tr>"
-        "<tr><td><nobr>%3: </nobr></td><td><nobr>%4</nobr></td></tr>"
-        "<tr><td><nobr>%5: </nobr></td><td><nobr>%6 (%7)</nobr></td></tr>"
+        "<tr><td><nobr>%1 </nobr></td><td><nobr>%2</nobr></td></tr>"
+        "<tr><td><nobr>%3 </nobr></td><td><nobr>%4</nobr></td></tr>"
+        "<tr><td><nobr>%5 </nobr></td><td><nobr>%6 (%7)</nobr></td></tr>"
     )
     .arg (tr("Type", "summary"), type)
     .arg (tr("Location", "summary"), location)

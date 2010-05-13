@@ -1,4 +1,4 @@
-/* $Id: GVMMR0.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: GVMMR0.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * GVMM - Global VM Manager.
  */
@@ -42,7 +42,9 @@
 #include <VBox/vmm.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
-#include <iprt/alloc.h>
+#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
+#include <iprt/mem.h>
 #include <iprt/semaphore.h>
 #include <iprt/time.h>
 #include <VBox/log.h>

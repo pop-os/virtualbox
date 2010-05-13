@@ -1,4 +1,4 @@
-/* $Id: iprt.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: iprt.h 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Internal header for miscellaneous global defs and types.
  */
@@ -169,7 +169,11 @@
 /** @def RT_ASSERT_INTS_ON
  * Asserts that interrupts are disabled when RT_MORE_STRICT is defined.   */
 #ifdef RT_MORE_STRICT
-# define RT_ASSERT_INTS_ON()            Assert(ASMIntAreEnabled())
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#  define RT_ASSERT_INTS_ON()           Assert(ASMIntAreEnabled())
+# else /* PORTME: Add architecture/platform specific test. */
+#  define RT_ASSERT_INTS_ON()           Assert(RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+# endif
 #else
 # define RT_ASSERT_INTS_ON()            do { } while (0)
 #endif

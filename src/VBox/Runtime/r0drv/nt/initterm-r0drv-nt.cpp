@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-nt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: initterm-r0drv-nt.cpp 29253 2010-05-09 18:01:10Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, NT.
  */
@@ -28,6 +28,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-nt-kernel.h"
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mp.h>

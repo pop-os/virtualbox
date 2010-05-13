@@ -1,4 +1,4 @@
-/* $Id: DBGFAddrSpace.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DBGFAddrSpace.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Address Space Management.
  */
@@ -44,6 +44,7 @@
 #include <VBox/err.h>
 #include <VBox/log.h>
 
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/env.h>

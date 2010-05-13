@@ -1,4 +1,4 @@
-/* $Id: ApplianceImplExport.cpp 29088 2010-05-05 14:37:26Z vboxsync $ */
+/* $Id: ApplianceImplExport.cpp 29389 2010-05-11 20:10:16Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -395,6 +395,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
                 break;
 
                 case StorageBus_SCSI:
+                case StorageBus_SAS:
                     lChannelVsys = lChannel;        // should be between 0 and 15
                     lControllerVsys = lSCSIControllerIndex;
                 break;
@@ -1295,7 +1296,8 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
         vsdescThis->m->pMachine->copyMachineDataToSettings(*pConfig);
         // write the machine config to the vbox:Machine element
         pConfig->buildMachineXML(*pelmVBoxMachine,
-                                 settings::MachineConfigFile::BuildMachineXML_WriteVboxVersionAttribute);
+                                   settings::MachineConfigFile::BuildMachineXML_WriteVboxVersionAttribute
+                                 | settings::MachineConfigFile::BuildMachineXML_SkipRemovableMedia);
                                         // but not BuildMachineXML_IncludeSnapshots
         delete pConfig;
     }
@@ -1525,7 +1527,7 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
             diskList.push_back(strTargetFilePath);
 
             // we need the following for the XML
-            uint64_t cbFile = 0;        // actual file size
+            ULONG64 cbFile = 0;        // actual file size
             rc = pTargetDisk->COMGETTER(Size)(&cbFile);
             if (FAILED(rc)) throw rc;
 

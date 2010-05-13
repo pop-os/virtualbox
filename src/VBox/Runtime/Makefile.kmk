@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28912 2010-04-29 16:50:25Z vboxsync $
+# $Id: Makefile.kmk 29279 2010-05-09 23:29:11Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT (IPRT).
 #
@@ -160,6 +160,7 @@ RuntimeWin32ASM_SOURCES = \
 #
 # NoCRT sources (minus math stuff).
 #
+if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
 RuntimeNoCrt_SOURCES = \
 	common/misc/setjmp.asm \
 	common/string/memchr.asm \
@@ -172,6 +173,7 @@ RuntimeNoCrt_SOURCES = \
 	common/string/strcpy.asm \
 	common/string/strcmp.asm \
 	common/string/strlen.asm
+endif
 
 
 #
@@ -398,13 +400,15 @@ RuntimeR3_SOURCES       = \
 #endif
 
 RuntimeR3_SOURCES.x86 += \
-	generic/RTMpGetDescription-generic-stub.cpp
+	generic/RTMpGetDescription-generic.cpp
 RuntimeR3_SOURCES.amd64 += \
-	generic/RTMpGetDescription-generic-stub.cpp
+	generic/RTMpGetDescription-generic.cpp
 RuntimeR3_SOURCES.sparc32 += \
-	generic/RTMpGetDescription-generic.cpp
+	generic/RTMpGetDescription-generic-stub.cpp \
+	common/asm/asm-fake.cpp
 RuntimeR3_SOURCES.sparc64 += \
-	generic/RTMpGetDescription-generic.cpp
+	generic/RTMpGetDescription-generic-stub.cpp \
+	common/asm/asm-fake.cpp
 
 ifdef IPRT_WITH_LZJB
  RuntimeR3_SOURCES += common/misc/lzjb.c
@@ -987,13 +991,16 @@ RuntimeLnxHostR3_INCS          = \
 VBoxRT_TEMPLATE                = VBoxR3Dll
 VBoxRT_SDKS                    = VBOX_OPENSSL VBOX_LIBXML2 VBOX_BOOST
 ifdef VBOX_WITH_LIBCURL
-VBoxRT_SDKS                   += VBOX_LIBCURL
+ VBoxRT_SDKS                  += VBOX_LIBCURL
 endif
 VBoxRT_SDKS.win                = WINPSDK W2K3DDK VBOX_NTDLL
 if1of ($(KBUILD_TARGET)$(VBOX_WITH_HARDENING), darwin win)
 VBoxRT_INST                    = $(INST_DLL) $(INST_TESTCASE)
 endif
 VBoxRT_DEFS                    = $(filter-out RT_NO_GIP,$(RuntimeR3_DEFS)) IN_SUP_R3 IN_SUP_R3
+ifn1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+ VBoxRT_DEFS                  += RT_NO_GIP
+endif
 VBoxRT_DEFS.$(KBUILD_TYPE)     = $(RuntimeR3_DEFS.$(KBUILD_TYPE))
 VBoxRT_SOURCES                 = \
 	VBox/VBoxRTDeps.cpp \
@@ -1031,18 +1038,21 @@ VBoxRT_INCS                    = $(RuntimeR3_INCS)
 VBoxRT_INCS.$(KBUILD_TARGET)   = $(RuntimeR3_INCS.$(KBUILD_TARGET))
 VBoxRT_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH) = $(RuntimeR3_INCS.$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH))
 VBoxRT_LIBS                    = \
-	$(PATH_LIB)/SUPR3$(VBOX_SUFF_LIB) \
 	$(PATH_LIB)/VBox-liblzf$(VBOX_SUFF_LIB) \
 	$(SDK_VBOX_ZLIB_LIBS)
+if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+VBoxRT_LIBS                   += \
+	$(PATH_LIB)/SUPR3$(VBOX_SUFF_LIB)
+endif
 ifdef IPRT_WITH_KSTUFF
  VBoxRT_LIBS                  += \
    	$(PATH_LIB)/VBox-kStuff$(VBOX_SUFF_LIB)
 endif
-ifndef	SDK_VBOX_LIBXML2_LIBS
+ifndef SDK_VBOX_LIBXML2_LIBS
  VBoxRT_LIBS                 += \
 	$(PATH_LIB)/VBox-libxml2$(VBOX_SUFF_LIB)
 endif
-ifndef	SDK_VBOX_OPENSSL_LIBS
+ifndef SDK_VBOX_OPENSSL_LIBS
  VBoxRT_LIBS                 += \
 	$(PATH_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
 endif
@@ -1056,7 +1066,7 @@ VBoxRT_LIBS.freebsd            = \
 	rt
 VBoxRT_LIBS.solaris            = \
 	kstat
-ifn1of ($(KBUILD_TARGET_ARCH),sparc32 sparc64)
+ifn1of ($(KBUILD_TARGET_ARCH), sparc32 sparc64)
  # SMBIOS not available on Solaris SPARC.
  VBoxRT_LIBS.solaris += smbios
 endif
@@ -1121,11 +1131,18 @@ endif # linux
 ## @todo the *_alias.c stuff is busted, remove and use RT_WITH_NOCRT_ALIASES instead.
 RuntimeR3NoCRTGCC_TEMPLATE = VBOXNOCRTGCC
 RuntimeR3NoCRTGCC_LIBSUFF = $(VBOX_SUFF_LIB)
+ifn1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+ RuntimeR3NoCRTGCC_DEFS  += RT_NO_GIP
+endif
 RuntimeR3NoCRTGCC_INCS  = include
 RuntimeR3NoCRTGCC_SOURCES  = \
 	common/misc/sanity-cpp.cpp \
 	common/misc/sanity-c.c \
 	\
+	$(RuntimeNoCrt_SOURCES)
+
+if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+RuntimeR3NoCRTGCC_SOURCES += \
 	common/math/ceill.asm \
 	common/math/cosl.asm \
 	common/math/fabs.asm \
@@ -1151,8 +1168,6 @@ RuntimeR3NoCRTGCC_SOURCES  = \
 	common/math/truncf.asm \
 	common/math/truncl.asm \
 	\
-	$(RuntimeNoCrt_SOURCES) \
-	\
 	common/string/memchr_alias.c \
 	common/string/memcmp_alias.c \
 	common/string/memcpy_alias.c \
@@ -1161,6 +1176,7 @@ RuntimeR3NoCRTGCC_SOURCES  = \
 	common/string/strchr_alias.c \
 	common/string/strcmp_alias.c \
 	common/string/strlen_alias.c
+endif
 
 RuntimeR3NoCRTGCC_SOURCES.x86 = \
 	common/math/x86/fenv-x86.c \
@@ -1192,6 +1208,9 @@ RuntimeR3NoCRTGCC_SOURCES.x86 = \
 #
 RuntimeR0_TEMPLATE      = VBoxR0
 RuntimeR0_DEFS          = IN_RT_R0 RT_WITH_VBOX
+ifn1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+ RuntimeR0_DEFS        += RT_NO_GIP
+endif
 RuntimeR0_INCS          = include
 RuntimeR0_SOURCES       = \
 	common/log/logellipsis.cpp \

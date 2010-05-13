@@ -1,4 +1,4 @@
-/* $Id: DevBusLogic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevBusLogic.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VBox storage devices: BusLogic SCSI host adapter BT-958.
  */
@@ -25,6 +25,7 @@
 #include <VBox/pdmdev.h>
 #include <VBox/pdmifs.h>
 #include <VBox/scsi.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/log.h>

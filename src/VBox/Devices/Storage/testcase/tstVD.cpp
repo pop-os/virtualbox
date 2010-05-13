@@ -1,5 +1,5 @@
+/* $Id: tstVD.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
- *
  * Simple VBox HDD container test utility.
  */
 
@@ -15,10 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include <VBox/VBoxHDD.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/dir.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>

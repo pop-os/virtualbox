@@ -1,4 +1,4 @@
-/* $Id: TRPMGCHandlers.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: TRPMGCHandlers.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * TRPM - Guest Context Trap Handlers, CPP part
  */
@@ -42,6 +42,7 @@
 #include <VBox/log.h>
 #include <VBox/tm.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 
 /*******************************************************************************
