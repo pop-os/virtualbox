@@ -1,7 +1,8 @@
-/* $Id: DevHPET.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevHPET.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * HPET virtual device - high precision event timer emulation
  */
+
 /*
  * Copyright (C) 2009-2010 Oracle Corporation
  *
@@ -13,6 +14,7 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
@@ -21,12 +23,15 @@
 #include <VBox/log.h>
 #include <VBox/stam.h>
 #include <iprt/assert.h>
+#include <iprt/asm-math.h>
 #include <iprt/string.h>
-#include <iprt/asm.h>
 
 #include "../Builtins.h"
 
 
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 /*
  * Current limitations:
  *   - not entirely correct time of interrupt, i.e. never
@@ -102,6 +107,10 @@
 /* Empty saved state */
 #define HPET_SAVED_STATE_VERSION_EMPTY 1
 
+
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
 struct HpetState;
 typedef struct HpetTimer
 {

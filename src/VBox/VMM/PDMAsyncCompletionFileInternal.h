@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileInternal.h 29155 2010-05-06 13:48:39Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFileInternal.h 29323 2010-05-11 10:04:23Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -451,6 +451,9 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSFILE
     uint32_t                            cReqsOutstandingMax;
     /** Bitmask for checking the alignment of a buffer. */
     RTR3UINTPTR                         uBitmaskAlignment;
+#ifdef VBOX_WITH_STATISTICS
+    uint32_t                            u32Alignment;
+#endif
     /** Global cache data. */
     PDMACFILECACHEGLOBAL                Cache;
     /** Flag whether the out of resources warning was printed already. */
@@ -460,6 +463,9 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSFILE
 } PDMASYNCCOMPLETIONEPCLASSFILE;
 /** Pointer to the endpoint class data. */
 typedef PDMASYNCCOMPLETIONEPCLASSFILE *PPDMASYNCCOMPLETIONEPCLASSFILE;
+#ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(PDMASYNCCOMPLETIONEPCLASSFILE, Cache, sizeof(uint64_t));
+#endif
 
 typedef enum PDMACEPFILEBLOCKINGEVENT
 {
@@ -535,6 +541,9 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     /** Number of elements in the cache. */
     volatile uint32_t                      cTasksCached;
 
+#ifdef VBOX_WITH_STATISTICS
+    uint32_t                               u32Alignment;
+#endif
     /** Cache of endpoint data. */
     PDMACFILEENDPOINTCACHE                 DataCache;
     /** Pointer to the associated bandwidth control manager */
@@ -544,8 +553,6 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     PPDMACTASKFILE                         pFlushReq;
 
 #ifdef VBOX_WITH_STATISTICS
-    /** Alignment */
-    uint32_t                               u32Alignment;
     /** Time spend in a read. */
     STAMPROFILEADV                         StatRead;
     /** Time spend in a write. */
@@ -612,6 +619,7 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
 typedef PDMASYNCCOMPLETIONENDPOINTFILE *PPDMASYNCCOMPLETIONENDPOINTFILE;
 #ifdef VBOX_WITH_STATISTICS
 AssertCompileMemberAlignment(PDMASYNCCOMPLETIONENDPOINTFILE, StatRead, sizeof(uint64_t));
+AssertCompileMemberAlignment(PDMASYNCCOMPLETIONENDPOINTFILE, DataCache, sizeof(uint64_t));
 #endif
 
 /** Request completion function */

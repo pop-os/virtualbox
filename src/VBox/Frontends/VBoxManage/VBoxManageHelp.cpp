@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHelp.cpp 29117 2010-05-05 22:59:38Z vboxsync $ */
+/* $Id: VBoxManageHelp.cpp 29364 2010-05-11 15:13:50Z vboxsync $ */
 /** @file
  * VBoxManage - help and other message output.
  */
@@ -302,8 +302,6 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            [--teleporteraddress <address|empty>\n"
                  "                            [--teleporterpassword <password>]\n"
 #if 0
-                 "                            [--iomgr simple|async]\n"
-                 "                            [--iobackend buffered|unbuffered]\n"
                  "                            [--iocache on|off]\n"
                  "                            [--iocachesize <I/O cache size in MB>]\n"
                  "                            [--iobandwidthmax <Maximum I/O bandwidth in MB/s>]\n"
@@ -372,7 +370,8 @@ void printUsage(USAGECATEGORY u64Cmd)
         if (fVRDP)
         {
             RTPrintf("                            vrdp on|off |\n");
-            RTPrintf("                            vrdpport default|<ports> |\n");
+            RTPrintf("                            vrdpport default|<ports> |\n"
+                     "                            vrdpvideochannelquality <percent>\n");
         }
         RTPrintf("                            setvideomodehint <xres> <yres> <bpp> [display] |\n"
                  "                            setcredentials <username> <password> <domain>\n"

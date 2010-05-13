@@ -1,4 +1,4 @@
-/* $Id: TM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: TM.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * TM - Time Manager.
  */
@@ -137,6 +137,8 @@
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>

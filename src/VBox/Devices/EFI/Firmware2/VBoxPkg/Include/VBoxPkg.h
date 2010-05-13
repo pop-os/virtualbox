@@ -1,4 +1,4 @@
-/* $Id: VBoxPkg.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxPkg.h 29252 2010-05-09 17:58:53Z vboxsync $ */
 /** @file
  * VBoxPkg.h - Common header, must be include before IPRT and VBox headers.
  */
@@ -38,6 +38,7 @@
 # pragma warning ( disable : 4244)
 #endif
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #ifdef _MSC_VER
 # pragma warning ( default : 4244)
 # pragma warning ( default : 4245)

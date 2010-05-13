@@ -1,4 +1,4 @@
-/* $Id: semxroads-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: semxroads-generic.cpp 29247 2010-05-09 16:30:58Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTSemXRoads, generic implementation.
  */
@@ -39,8 +39,6 @@
 #include <iprt/thread.h>
 
 #include "internal/magics.h"
-
-#include <stdio.h>//debug
 
 
 /*******************************************************************************

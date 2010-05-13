@@ -1,4 +1,4 @@
-/* $Id: coreaudio.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: coreaudio.c 29256 2010-05-09 18:13:03Z vboxsync $ */
 /** @file
  * VBox audio devices: Mac OS X CoreAudio audio driver
  */
@@ -17,6 +17,7 @@
 
 #define LOG_GROUP LOG_GROUP_DEV_AUDIO
 #include <VBox/log.h>
+#include <iprt/asm.h>
 #include <iprt/mem.h>
 #include <iprt/cdefs.h>
 

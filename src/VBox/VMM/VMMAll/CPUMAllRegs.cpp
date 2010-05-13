@@ -1,4 +1,4 @@
-/* $Id: CPUMAllRegs.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: CPUMAllRegs.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Getters and Setters.
  */
@@ -33,6 +33,7 @@
 #include <VBox/tm.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #ifdef IN_RING3
 #include <iprt/thread.h>
 #endif

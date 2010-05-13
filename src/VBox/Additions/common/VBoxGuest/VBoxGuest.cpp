@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp 29046 2010-05-04 20:42:39Z vboxsync $ */
+/* $Id: VBoxGuest.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VBoxGuest - Guest Additions Driver, Common Code.
  */
@@ -27,6 +27,7 @@
 #include <iprt/time.h>
 #include <iprt/memobj.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/process.h>
 #include <iprt/assert.h>

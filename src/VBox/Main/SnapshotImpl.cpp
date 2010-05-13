@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.cpp 29036 2010-05-04 14:54:12Z vboxsync $ */
+/* $Id: SnapshotImpl.cpp 29421 2010-05-12 13:34:58Z vboxsync $ */
 
 /** @file
  *
@@ -1713,7 +1713,7 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
     HRESULT rc = S_OK;
 
     bool stateRestored = false;
-    bool fNeedsSaveSettings = false;
+    bool fNeedsGlobalSaveSettings = false;
 
     try
     {
@@ -1759,7 +1759,7 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
                                      aTask.pProgress,
                                      1,
                                      false /* aOnline */,
-                                     &fNeedsSaveSettings);
+                                     &fNeedsGlobalSaveSettings);
             if (FAILED(rc))
                 throw rc;
 
@@ -1892,7 +1892,8 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
         }
 
         // save machine settings, reset the modified flag and commit;
-        rc = saveSettings(&fNeedsSaveSettings, SaveS_ResetCurStateModified | saveFlags);
+        rc = saveSettings(&fNeedsGlobalSaveSettings,
+                          SaveS_ResetCurStateModified | saveFlags);
         if (FAILED(rc))
             throw rc;
 
@@ -1909,17 +1910,10 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
 
             HRESULT rc2 = pMedium->deleteStorage(NULL /* aProgress */,
                                                  true /* aWait */,
-                                                 &fNeedsSaveSettings);
+                                                 &fNeedsGlobalSaveSettings);
             // ignore errors here because we cannot roll back after saveSettings() above
             if (SUCCEEDED(rc2))
                 pMedium->uninit();
-        }
-
-        if (fNeedsSaveSettings)
-        {
-            // finally, VirtualBox.xml needs saving too
-            AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-            mParent->saveSettings();
         }
     }
     catch (HRESULT aRC)
@@ -1941,6 +1935,13 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
             setMachineState(aTask.machineStateBackup);
             updateMachineStateOnClient();
         }
+    }
+
+    if (fNeedsGlobalSaveSettings)
+    {
+        // finally, VirtualBox.xml needs saving too
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        mParent->saveSettings();
     }
 
     /* set the result (this will try to fetch current error info on failure) */
@@ -2673,7 +2674,13 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             if (fMachineSettingsChanged)
             {
                 AutoWriteLock machineLock(this COMMA_LOCKVAL_SRC_POS);
-                saveSettings(&fNeedsSaveSettings, SaveS_InformCallbacksAnyway);
+                /// @todo r=klaus the SaveS_Force is right now a workaround,
+                // as something in saveSettings fails to detect deleted
+                // snapshots in some cases (2 child snapshots -> 1 child
+                // snapshot). Should be fixed, but don't drop SaveS_Force
+                // then, as it avoids a rather costly config equality check
+                // when we know that it is changed.
+                saveSettings(&fNeedsSaveSettings, SaveS_Force | SaveS_InformCallbacksAnyway);
             }
 
             if (fNeedsSaveSettings)

@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: mp-r0drv-darwin.cpp 29255 2010-05-09 18:11:24Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, Darwin.
  */
@@ -32,7 +32,9 @@
 #include "internal/iprt.h"
 #include <iprt/mp.h>
 
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/cpuset.h>
 #include <iprt/err.h>
 #include "r0drv/mp-r0drv.h"

@@ -1,10 +1,10 @@
-/* $Id: VBoxServiceStats.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxServiceStats.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
 /** @file
  * VBoxStats - Guest statistics notification
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,11 +117,13 @@ static DECLCALLBACK(int) VBoxServiceVMStatsInit(void)
 
     rc = VbglR3StatQueryInterval(&gCtx.cMsStatInterval);
     if (RT_SUCCESS(rc))
-        VBoxServiceVerbose(3, "VBoxStatsInit: new statistics interval %u seconds\n", gCtx.cMsStatInterval);
+        VBoxServiceVerbose(3, "VBoxStatsInit: New statistics interval %u seconds\n", gCtx.cMsStatInterval);
     else
         VBoxServiceVerbose(3, "VBoxStatsInit: DeviceIoControl failed with %d\n", rc);
 
 #ifdef RT_OS_WINDOWS
+    /** @todo Use RTLdr instead of LoadLibrary/GetProcAddress here! */
+
     /* NtQuerySystemInformation might be dropped in future releases, so load it dynamically as per Microsoft's recommendation */
     HMODULE hMod = LoadLibrary("NTDLL.DLL");
     if (hMod)
@@ -131,8 +133,8 @@ static DECLCALLBACK(int) VBoxServiceVMStatsInit(void)
             VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.pfnNtQuerySystemInformation = %x\n", gCtx.pfnNtQuerySystemInformation);
         else
         {
-            VBoxServiceError("VBoxStatsInit: NTDLL.NtQuerySystemInformation not found!!\n");
-            return VERR_NOT_IMPLEMENTED;
+            VBoxServiceVerbose(3, "VBoxStatsInit: NTDLL.NtQuerySystemInformation not found!\n");
+            return VERR_SERVICE_DISABLED;
         }
     }
 
@@ -145,9 +147,9 @@ static DECLCALLBACK(int) VBoxServiceVMStatsInit(void)
             VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.GlobalMemoryStatusEx = %x\n", gCtx.pfnGlobalMemoryStatusEx);
         else
         {
-            /** @todo now fails in NT4; do we care? */
-            VBoxServiceError("VBoxStatsInit: KERNEL32.GlobalMemoryStatusEx not found!!\n");
-            return VERR_NOT_IMPLEMENTED;
+            /** @todo Now fails in NT4; do we care? */
+            VBoxServiceVerbose(3, "VBoxStatsInit: KERNEL32.GlobalMemoryStatusEx not found!\n");
+            return VERR_SERVICE_DISABLED;
         }
     }
     /* GetPerformanceInfo is xp and up, so load it dynamically */

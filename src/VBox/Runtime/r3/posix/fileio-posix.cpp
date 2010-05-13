@@ -1,4 +1,4 @@
-/* $Id: fileio-posix.cpp 28918 2010-04-29 18:30:09Z vboxsync $ */
+/* $Id: fileio-posix.cpp 29263 2010-05-09 19:52:03Z vboxsync $ */
 /** @file
  * IPRT - File I/O, POSIX.
  */
@@ -270,7 +270,7 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
                 iErr = errno == EAGAIN ? ETXTBSY : 0;
         }
 #endif /* 0 && RT_OS_LINUX */
-#ifdef DEBUG_bird
+#if defined(DEBUG_bird) && !defined(RT_OS_SOLARIS)
         if (iErr == 0)
         {
             /* This emulation is incomplete but useful. */

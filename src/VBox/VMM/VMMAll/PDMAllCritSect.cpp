@@ -1,4 +1,4 @@
-/* $Id: PDMAllCritSect.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PDMAllCritSect.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PDM - Critical Sections, All Contexts.
  */
@@ -30,6 +30,7 @@
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #ifdef IN_RING3
 # include <iprt/lockvalidator.h>

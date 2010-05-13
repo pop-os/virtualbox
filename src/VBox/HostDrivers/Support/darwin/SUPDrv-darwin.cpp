@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: SUPDrv-darwin.cpp 29255 2010-05-09 18:11:24Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - Darwin Specific Code.
  */
@@ -41,6 +41,7 @@
 
 #include "../SUPDrvInternal.h"
 #include <VBox/version.h>
+#include <iprt/asm.h>
 #include <iprt/initterm.h>
 #include <iprt/assert.h>
 #include <iprt/spinlock.h>

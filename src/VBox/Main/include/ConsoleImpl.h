@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h 28959 2010-05-02 19:36:11Z vboxsync $ */
+/* $Id: ConsoleImpl.h 29385 2010-05-11 18:05:44Z vboxsync $ */
 /** @file
  * VBox Console COM Class definition
  */
@@ -174,7 +174,7 @@ public:
     HRESULT onStorageControllerChange();
     HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onCPUChange(ULONG aCPU, BOOL aRemove);
-    HRESULT onVRDPServerChange();
+    HRESULT onVRDPServerChange(BOOL aRestart);
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange(BOOL aGlobal);
     HRESULT onUSBDeviceAttach(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
@@ -437,24 +437,33 @@ private:
 
     static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
 
-    static int configMediumAttachment(PCFGMNODE pCtlInst,
-                                      const char *pcszDevice,
-                                      unsigned uInstance,
-                                      StorageBus_T enmBus,
-                                      IoBackendType_T enmIoBackend,
-                                      bool fSetupMerge, unsigned uMergeSource,
-                                      unsigned uMergeTarget,
-                                      IMediumAttachment *pMediumAtt,
-                                      MachineState_T aMachineState,
-                                      HRESULT *phrc, bool fAttachDetach,
-                                      bool fForceUnmount, PVM pVM,
-                                      DeviceType_T *paLedDevType);
-    static int configMedium(PCFGMNODE pLunL0, bool fPassthrough,
-                            DeviceType_T enmType, IoBackendType_T enmIoBackend,
-                            bool fSetupMerge, unsigned uMergeSource,
-                            unsigned uMergeTarget, IMedium *pMedium,
-                            MachineState_T aMachineState, HRESULT *phrc);
-    static DECLCALLBACK(int) reconfigureMediumAttachment(PVM pVM,
+    int configMediumAttachment(PCFGMNODE pCtlInst,
+                               const char *pcszDevice,
+                               unsigned uInstance,
+                               StorageBus_T enmBus,
+                               IoBackendType_T enmIoBackend,
+                               bool fSetupMerge,
+                               unsigned uMergeSource,
+                               unsigned uMergeTarget,
+                               IMediumAttachment *pMediumAtt,
+                               MachineState_T aMachineState,
+                               HRESULT *phrc,
+                               bool fAttachDetach,
+                               bool fForceUnmount,
+                               PVM pVM,
+                               DeviceType_T *paLedDevType);
+    int configMedium(PCFGMNODE pLunL0,
+                     bool fPassthrough,
+                     DeviceType_T enmType,
+                     IoBackendType_T enmIoBackend,
+                     bool fSetupMerge,
+                     unsigned uMergeSource,
+                     unsigned uMergeTarget,
+                     IMedium *pMedium,
+                     MachineState_T aMachineState,
+                     HRESULT *phrc);
+    static DECLCALLBACK(int) reconfigureMediumAttachment(Console *pConsole,
+                                                         PVM pVM,
                                                          const char *pcszDevice,
                                                          unsigned uInstance,
                                                          StorageBus_T enmBus,
@@ -624,7 +633,7 @@ private:
         cLedScsi    = 16,
         iLedSas     = iLedScsi + cLedScsi,
         cLedSas     = 8,
-        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas,
+        cLedStorage = cLedFloppy + cLedIde + cLedSata + cLedScsi + cLedSas
     };
     DeviceType_T maStorageDevType[cLedStorage];
     PPDMLED      mapStorageLeds[cLedStorage];

@@ -1,4 +1,4 @@
-/* $Id: PGMAllBth.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PGMAllBth.h 29217 2010-05-07 14:38:51Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Shadow+Guest Paging Template - All context code.
  *
@@ -1438,6 +1438,9 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorker)(PVMCPU pVCpu, PSHWPTE pPteDst, GST
 # ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
                          && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
 # endif
+# ifdef VBOX_WITH_PAGE_SHARING
+                         && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_SHARED
+# endif
                         )
                      )
                )
@@ -1832,6 +1835,9 @@ PGM_BTH_DECL(int, SyncPage)(PVMCPU pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsi
                                  && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
 #  ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
                                  && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
+#  endif
+#  ifdef VBOX_WITH_PAGE_SHARING
+                                 && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_SHARED
 #  endif
                                  )
                              )
@@ -2866,6 +2872,9 @@ PGM_BTH_DECL(int, SyncPT)(PVMCPU pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, RTGCPTR 
                                      && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
 #  ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
                                      && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
+#  endif
+#  ifdef VBOX_WITH_PAGE_SHARING
+                                     && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_SHARED
 #  endif
                                      && !PGM_PAGE_IS_BALLOONED(pPage))
                                  )

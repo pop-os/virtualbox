@@ -1,4 +1,4 @@
-/* $Id: DevEFI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevEFI.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DevEFI - EFI <-> VirtualBox Integration Framework.
  */
@@ -28,9 +28,10 @@
 #include <VBox/param.h>
 #include <VBox/dbgf.h>
 
+#include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/alloc.h>
 #include <iprt/file.h>
+#include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 #include <iprt/path.h>

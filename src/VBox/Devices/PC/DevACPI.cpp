@@ -1,4 +1,4 @@
-/* $Id: DevACPI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevACPI.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DevACPI - Advanced Configuration and Power Interface (ACPI) Device.
  */
@@ -25,6 +25,7 @@
 #include <VBox/param.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
 #ifdef IN_RING3
 # include <iprt/alloc.h>
 # include <iprt/string.h>

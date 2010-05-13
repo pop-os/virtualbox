@@ -1,4 +1,4 @@
-/* $Id: DevAHCI.cpp 29137 2010-05-06 11:46:31Z vboxsync $ */
+/* $Id: DevAHCI.cpp 29239 2010-05-08 16:14:56Z vboxsync $ */
 /** @file
  * VBox storage devices: AHCI controller device (disk and cdrom).
  *                       Implements the AHCI standard 1.1
@@ -5183,7 +5183,7 @@ static AHCITXDIR ahciProcessCmd(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE pAhciPor
                         PAHCIPORTTASKSTATE pTaskErr = (PAHCIPORTTASKSTATE)ASMAtomicXchgPtr((void * volatile *)&pAhciPort->pTaskErr, NULL);
                         if (pTaskErr)
                         {
-                            aBuf[0] = pTaskErr->fQueued ? (1 << 7) | pTaskErr->uTag : 0;
+                            aBuf[0] = pTaskErr->fQueued ? pTaskErr->uTag : (1 << 7);
                             aBuf[2] = pTaskErr->uATARegStatus;
                             aBuf[3] = pTaskErr->uATARegError;
                             aBuf[4] = pTaskErr->cmdFis[AHCI_CMDFIS_SECTN];

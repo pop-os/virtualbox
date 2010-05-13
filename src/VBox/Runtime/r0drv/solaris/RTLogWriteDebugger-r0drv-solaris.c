@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-r0drv-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTLogWriteDebugger-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
 /** @file
  * IPRT - Log To Debugger, Ring-0 Driver, Solaris.
  */
@@ -33,6 +33,9 @@
 #include <iprt/log.h>
 
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 
 
@@ -42,7 +45,12 @@ RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
     if (pch[cb] != '\0')
         AssertBreakpoint();
     if (    !g_frtSolarisSplSetsEIF
-        ||  ASMIntAreEnabled())
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+        ||  ASMIntAreEnabled()
+#else
+/* PORTME: Check if interrupts are enabled, if applicable. */
+#endif
+        )
         cmn_err(CE_CONT, pch);
     return;
 }

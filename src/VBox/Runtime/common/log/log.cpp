@@ -1,4 +1,4 @@
-/* $Id: log.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: log.cpp 29263 2010-05-09 19:52:03Z vboxsync $ */
 /** @file
  * Runtime VBox - Logger.
  */
@@ -46,6 +46,9 @@
 #endif
 #include <iprt/time.h>
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/param.h>
@@ -2364,7 +2367,11 @@ static DECLCALLBACK(size_t) rtLogOutputPrefixed(void *pv, const char *pachChars,
                 }
                 if (pLogger->fFlags & RTLOGFLAGS_PREFIX_TSC)
                 {
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
                     uint64_t     u64    = ASMReadTSC();
+#else
+                    uint64_t     u64    = RTTimeNanoTS();
+#endif
                     int          iBase  = 16;
                     unsigned int fFlags = RTSTR_F_ZEROPAD;
                     if (pLogger->fFlags & RTLOGFLAGS_DECIMAL_TS)

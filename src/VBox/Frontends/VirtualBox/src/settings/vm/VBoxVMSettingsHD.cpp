@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsHD.cpp 29010 2010-05-04 12:17:43Z vboxsync $ */
+/* $Id: VBoxVMSettingsHD.cpp 29199 2010-05-07 12:04:23Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -1851,11 +1851,18 @@ void VBoxVMSettingsHD::putBackTo()
             StorageSlot attStorageSlot = mStorageModel->data (attIndex, StorageModel::R_AttSlot).value <StorageSlot>();
             KDeviceType attDeviceType = mStorageModel->data (attIndex, StorageModel::R_AttDevice).value <KDeviceType>();
             QString attMediumId = mStorageModel->data (attIndex, StorageModel::R_AttMediumId).toString();
+            QString attMediumLocation = mStorageModel->data (attIndex, StorageModel::R_AttLocation).toString();
             mMachine.AttachDevice (ctrName, attStorageSlot.port, attStorageSlot.device, attDeviceType, attMediumId);
-            if (attDeviceType == KDeviceType_DVD)
-                mMachine.PassthroughDevice (ctrName, attStorageSlot.port, attStorageSlot.device,
-                                            mStorageModel->data (attIndex, StorageModel::R_AttIsPassthrough).toBool());
-            maxUsedPort = attStorageSlot.port > maxUsedPort ? attStorageSlot.port : maxUsedPort;
+            if (mMachine.isOk())
+            {
+                if (attDeviceType == KDeviceType_DVD)
+                    mMachine.PassthroughDevice (ctrName, attStorageSlot.port, attStorageSlot.device,
+                                                mStorageModel->data (attIndex, StorageModel::R_AttIsPassthrough).toBool());
+                maxUsedPort = attStorageSlot.port > maxUsedPort ? attStorageSlot.port : maxUsedPort;
+            }
+            else
+                vboxProblem().cannotAttachDevice(this, mMachine, VBoxDefs::MediumType_HardDisk, attMediumLocation,
+                                                 attStorageSlot.bus, attStorageSlot.port, attStorageSlot.device);
         }
         if (ctrBusType == KStorageBus_SATA)
         {
@@ -2319,7 +2326,7 @@ void VBoxVMSettingsHD::updateActionsState()
     bool isAttachment = mStorageModel->data (index, StorageModel::R_IsAttachment).toBool();
     bool isAttachmentsPossible = mStorageModel->data (index, StorageModel::R_IsMoreAttachmentsPossible).toBool();
 
-    mAddCtrAction->setEnabled (isIDEPossible || isSATAPossible || isSCSIPossible || isFloppyPossible);
+    mAddCtrAction->setEnabled (isIDEPossible || isSATAPossible || isSCSIPossible || isFloppyPossible || isSASPossible);
     mAddIDECtrAction->setEnabled (isIDEPossible);
     mAddSATACtrAction->setEnabled (isSATAPossible);
     mAddSCSICtrAction->setEnabled (isSCSIPossible);

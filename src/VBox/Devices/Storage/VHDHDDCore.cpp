@@ -1,3 +1,4 @@
+/* $Id: VHDHDDCore.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VHD Disk image, Core Code.
  */
@@ -23,9 +24,9 @@
 
 #include <VBox/log.h>
 #include <VBox/version.h>
-#include <iprt/cdefs.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/alloc.h>
+#include <iprt/mem.h>
 #include <iprt/uuid.h>
 #include <iprt/file.h>
 #include <iprt/path.h>
@@ -1974,7 +1975,7 @@ static int vhdCreate(const char *pszFilename, uint64_t cbSize,
 
 #ifdef VBOX_WITH_NEW_IO_CODE
     /* Try to get I/O interface. */
-    pImage->pInterfaceIO = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_IO);
+    pImage->pInterfaceIO = VDInterfaceGet(pImage->pVDIfsImage, VDINTERFACETYPE_IO);
     AssertPtr(pImage->pInterfaceIO);
     pImage->pInterfaceIOCallbacks = VDGetInterfaceIO(pImage->pInterfaceIO);
     AssertPtr(pImage->pInterfaceIOCallbacks);

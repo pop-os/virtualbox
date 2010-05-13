@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceBalloon.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxServiceBalloon.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
 /** @file
  * VBoxService - Memory Ballooning.
  */
@@ -259,19 +259,37 @@ static DECLCALLBACK(int) VBoxServiceBalloonInit(void)
     rc = VbglR3MemBalloonRefresh(&cNewChunks, &fHandleInR3);
     if (RT_SUCCESS(rc))
     {
-        VBoxServiceVerbose(3, "VBoxMemBalloonInit: new balloon size %d MB (%s memory)\n",
+        VBoxServiceVerbose(3, "MemBalloon: New balloon size %d MB (%s memory)\n",
                            cNewChunks, fHandleInR3 ? "R3" : "R0");
         if (fHandleInR3)
             rc = VBoxServiceBalloonSetUser(cNewChunks);
         else
             g_cMemBalloonChunks = cNewChunks;
     }
-    else
-        VBoxServiceVerbose(3, "VBoxMemBalloonInit: VbglR3MemBalloonRefresh failed with %Rrc\n", rc);
+    if (RT_FAILURE(rc))
+    {
+        /* If the service was not found, we disable this service without
+           causing VBoxService to fail. */
+        if (   rc == VERR_NOT_IMPLEMENTED
+#ifdef RT_OS_WINDOWS /** @todo r=bird: Windows kernel driver should return VERR_NOT_IMPLEMENTED,
+                      *  VERR_INVALID_PARAMETER has too many other uses. */
+            || rc == VERR_INVALID_PARAMETER
+#endif
+            )
+        {
+            VBoxServiceVerbose(0, "MemBalloon: Memory ballooning support is not available\n");
+            rc = VERR_SERVICE_DISABLED;
+        }
+        else
+        {
+            VBoxServiceVerbose(3, "MemBalloon: VbglR3MemBalloonRefresh failed with %Rrc\n", rc);
+            rc = VERR_SERVICE_DISABLED; /** @todo Playing safe for now, figure out the exact status codes here. */
+        }
+        RTSemEventMultiDestroy(g_MemBalloonEvent);
+        g_MemBalloonEvent = NIL_RTSEMEVENTMULTI;
+    }
 
-    /* We shouldn't fail here if ballooning isn't available. This can have several reasons,
-     * for instance, host too old  (which is not that fatal). */
-    return VINF_SUCCESS;
+    return rc;
 }
 
 

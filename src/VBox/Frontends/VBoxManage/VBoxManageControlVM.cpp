@@ -1,4 +1,4 @@
-/* $Id: VBoxManageControlVM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxManageControlVM.cpp 29364 2010-05-11 15:13:50Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -546,6 +546,25 @@ int handleControlVM(HandlerArg *a)
                     vrdpports = a->argv [2];
 
                 CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Ports)(vrdpports));
+            }
+        }
+        else if (!strcmp(a->argv[1], "vrdpvideochannelquality"))
+        {
+            if (a->argc <= 1 + 1)
+            {
+                errorArgument("Missing argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+            /* get the corresponding VRDP server */
+            ComPtr<IVRDPServer> vrdpServer;
+            sessionMachine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+            ASSERT(vrdpServer);
+            if (vrdpServer)
+            {
+                unsigned n = parseNum(a->argv[2], 100, "VRDP video channel quality in percent");
+
+                CHECK_ERROR(vrdpServer, COMSETTER(VideoChannelQuality)(n));
             }
         }
 #endif /* VBOX_WITH_VRDP */

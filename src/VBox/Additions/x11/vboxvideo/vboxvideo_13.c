@@ -1,10 +1,10 @@
+/* $Id: $ */
 /** @file
- *
  * Linux Additions X11 graphics driver
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,6 +71,7 @@
 #include "vgaHW.h"
 
 /* X.org 1.3+ mode setting */
+#define _HAVE_STRING_ARCH_strsep /* bits/string2.h, __strsep_1c. */
 #include "xf86Crtc.h"
 #include "xf86Modes.h"
 

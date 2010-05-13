@@ -1,4 +1,4 @@
-/* $Id: VBoxCocoaSpecialControls.mm 27690 2010-03-25 10:14:17Z vboxsync $ */
+/* $Id: VBoxCocoaSpecialControls.mm 29377 2010-05-11 16:40:49Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* VBox includes */
 #include "VBoxCocoaSpecialControls.h"
+#include <VBox/cdefs.h>
 
 /* System includes */
 #import <AppKit/NSButton.h>
@@ -36,7 +33,7 @@
 #include <QApplication>
 #include <QKeyEvent>
 
-@interface NSButtonTarget: NSObject 
+@interface NSButtonTarget: NSObject
 {
     VBoxCocoaButton *mRealTarget;
 }
@@ -60,7 +57,7 @@
 }
 @end
 
-@interface NSSegmentedButtonTarget: NSObject 
+@interface NSSegmentedButtonTarget: NSObject
 {
     VBoxCocoaSegmentedButton *mRealTarget;
 }
@@ -84,7 +81,7 @@
 }
 @end
 
-@interface VBSearchField: NSSearchField 
+@interface VBSearchField: NSSearchField
 {
     VBoxCocoaSearchField *mRealTarget;
 }
@@ -109,19 +106,19 @@
     unichar ch = 0;
 
     /* Get the pressed character */
-    if ([str length] > 0) 
+    if ([str length] > 0)
         ch = [str characterAtIndex:0];
 
-    if (ch == NSCarriageReturnCharacter || ch == NSEnterCharacter) 
+    if (ch == NSCarriageReturnCharacter || ch == NSEnterCharacter)
     {
         QKeyEvent ke(QEvent::KeyPress, Qt::Key_Enter, Qt::NoModifier);
         QApplication::sendEvent (mRealTarget, &ke);
-    } 
+    }
     else if (ch == 27) /* Escape */
     {
         QKeyEvent ke(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
         QApplication::sendEvent (mRealTarget, &ke);
-    } 
+    }
     else if (ch == NSF3FunctionKey)
     {
         QKeyEvent ke(QEvent::KeyPress, Qt::Key_F3, [theEvent modifierFlags] & NSShiftKeyMask ? Qt::ShiftModifier : Qt::NoModifier);
@@ -151,18 +148,18 @@
 {}
 @end
 @implementation VBSearchFieldDelegate
--(BOOL)control:(NSControl*)control textView:(NSTextView*)textView doCommandBySelector:(SEL)commandSelector 
+-(BOOL)control:(NSControl*)control textView:(NSTextView*)textView doCommandBySelector:(SEL)commandSelector
 {
 //    NSLog (NSStringFromSelector (commandSelector));
     /* Don't execute the selector for Enter & Escape. */
-    if (   commandSelector == @selector(insertNewline:) 
-	    || commandSelector == @selector(cancelOperation:)) 
+    if (   commandSelector == @selector(insertNewline:)
+	    || commandSelector == @selector(cancelOperation:))
 		return YES;
     return NO;
 }
 @end
 
-@interface VBSearchFieldCell: NSSearchFieldCell 
+@interface VBSearchFieldCell: NSSearchFieldCell
 {
     NSColor *mBGColor;
 }
@@ -172,7 +169,7 @@
 @implementation VBSearchFieldCell
 - (void)setBackgroundColor:(NSColor*)aBGColor
 {
-    if (mBGColor != aBGColor) 
+    if (mBGColor != aBGColor)
     {
         [mBGColor release];
         mBGColor = [aBGColor retain];
@@ -187,7 +184,7 @@
         NSRect frame = cellFrame;
         frame.size.height -= 1;
         frame.origin.y += 1;
-        double radius = MIN(frame.size.width, frame.size.height) / 2.0;
+        double radius = RT_MIN(frame.size.width, frame.size.height) / 2.0;
         [[NSBezierPath bezierPathWithRoundedRect:frame xRadius:radius yRadius:radius] fill];
     }
 
@@ -294,7 +291,7 @@ VBoxCocoaSegmentedButton::VBoxCocoaSegmentedButton (int aCount, QWidget *aParent
     [mNativeRef setSegmentCount:aCount];
     [mNativeRef setSegmentStyle:NSSegmentStyleRoundRect];
     [[mNativeRef cell] setTrackingMode: NSSegmentSwitchTrackingMomentary];
-    [mNativeRef setFont: [NSFont controlContentFontOfSize: 
+    [mNativeRef setFont: [NSFont controlContentFontOfSize:
         [NSFont systemFontSizeForControlSize: NSSmallControlSize]]];
     [mNativeRef sizeToFit];
 
@@ -352,7 +349,7 @@ VBoxCocoaSearchField::VBoxCocoaSearchField (QWidget *aParent /* = 0 */)
 {
     mNativeRef = [[VBSearchField alloc] initWithObject2: this];
     [[mNativeRef cell] setControlSize: NSSmallControlSize];
-    [mNativeRef setFont: [NSFont controlContentFontOfSize: 
+    [mNativeRef setFont: [NSFont controlContentFontOfSize:
         [NSFont systemFontSizeForControlSize: NSSmallControlSize]]];
     [mNativeRef sizeToFit];
     NSRect f = [mNativeRef frame];

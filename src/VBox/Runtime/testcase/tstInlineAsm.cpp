@@ -1,4 +1,4 @@
-/* $Id: tstInlineAsm.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstInlineAsm.cpp 29279 2010-05-09 23:29:11Z vboxsync $ */
 /** @file
  * IPRT Testcase - inline assembly.
  */
@@ -28,6 +28,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#else
+# include <iprt/time.h>
+#endif
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/initterm.h>
@@ -62,7 +68,8 @@
     } while (0)
 
 
-#if !defined(PIC) || !defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+
 const char *getCacheAss(unsigned u)
 {
     if (u == 0)
@@ -429,8 +436,8 @@ void tstASMCpuId(void)
                   s.uEBX, s.uEBX);
      }
 }
-#endif /* !PIC || !X86 */
 
+#endif /* AMD64 || X86 */
 
 static void tstASMAtomicXchgU8(void)
 {
@@ -1030,6 +1037,7 @@ void tstASMMath(void)
     uint32_t u32 = ASMDivU64ByU32RetU32(UINT64_C(0x0800000000000000), UINT32_C(0x10000000));
     CHECKVAL(u32, UINT32_C(0x80000000), "%#010RX32");
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0x0000000000000001), UINT32_C(0x00000001), UINT32_C(0x00000001));
     CHECKVAL(u64, UINT64_C(0x0000000000000001), "%#018RX64");
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0x0000000100000000), UINT32_C(0x80000000), UINT32_C(0x00000002));
@@ -1045,7 +1053,7 @@ void tstASMMath(void)
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0x3415934810359583), UINT32_C(0xf8694045), UINT32_C(0x58734981));
     CHECKVAL(u64, UINT64_C(0x924719355cd35a27), "%#018RX64");
 
-#if 0 /* bird: question is whether this should trap or not:
+# if 0 /* bird: question is whether this should trap or not:
        *
        * frank: Of course it must trap:
        *
@@ -1075,7 +1083,8 @@ void tstASMMath(void)
        */
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0xfffffff8c65d6731), UINT32_C(0x77d7daf8), UINT32_C(0x3b9aca00));
     CHECKVAL(u64, UINT64_C(0x02b8f9a2aa74e3dc), "%#018RX64");
-#endif
+# endif
+#endif /* AMD64 || X86 */
 
     u32 = ASMModU64ByU32RetU32(UINT64_C(0x0ffffff8c65d6731), UINT32_C(0x77d7daf8));
     CHECKVAL(u32, UINT32_C(0x3B642451), "%#010RX32");
@@ -1177,13 +1186,27 @@ void tstASMBench(void)
 
     RTPrintf("tstInlineASM: Benchmarking:\n");
 
-#define BENCH(op, str)  \
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# define BENCH(op, str) \
+    do { \
         RTThreadYield(); \
         u64Elapsed = ASMReadTSC(); \
         for (i = cRounds; i > 0; i--) \
             op; \
         u64Elapsed = ASMReadTSC() - u64Elapsed; \
-        RTPrintf(" %-30s %3llu cycles\n", str, u64Elapsed / cRounds);
+        RTPrintf(" %-30s %3llu cycles\n", str, u64Elapsed / cRounds); \
+    } while (0)
+#else
+# define BENCH(op, str) \
+    do { \
+        RTThreadYield(); \
+        u64Elapsed = RTTimeNanoTS(); \
+        for (i = cRounds; i > 0; i--) \
+            op; \
+        u64Elapsed = RTTimeNanoTS() - u64Elapsed; \
+        RTPrintf(" %-30s %3llu ns\n", str, u64Elapsed / cRounds); \
+    } while (0)
+#endif
 
     BENCH(s_u32 = 0,                            "s_u32 = 0:");
     BENCH(ASMAtomicUoReadU8(&s_u8),             "ASMAtomicUoReadU8:");
@@ -1258,7 +1281,7 @@ int main(int argc, char *argv[])
     /*
      * Execute the tests.
      */
-#if !defined(PIC) || !defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     tstASMCpuId();
 #endif
     tstASMAtomicXchgU8();

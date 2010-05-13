@@ -1,4 +1,4 @@
-/* $Id: rand.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: rand.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Random Numbers.
  */
@@ -32,7 +32,9 @@
 #include "internal/iprt.h"
 
 #include <iprt/time.h>
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/err.h>
 #include <iprt/assert.h>
 #include <iprt/thread.h>
@@ -67,7 +69,11 @@ static DECLCALLBACK(int) rtRandInitOnce(void *pvUser1, void *pvUser2)
         rc = RTRandAdvCreateParkMiller(&hRand);
     if (RT_SUCCESS(rc))
     {
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         RTRandAdvSeed(hRand, ASMReadTSC() >> 8);
+#else
+        RTRandAdvSeed(hRand, RTTimeNanoTS() >> 8);
+#endif
         g_hRand = hRand;
     }
     else

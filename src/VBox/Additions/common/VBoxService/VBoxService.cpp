@@ -1,4 +1,4 @@
-/* $Id: VBoxService.cpp 29020 2010-05-04 13:58:07Z vboxsync $ */
+/* $Id: VBoxService.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton.
  */
@@ -87,9 +87,6 @@ static struct
 #ifdef VBOXSERVICE_VMINFO
     { &g_VMInfo,    NIL_RTTHREAD, false, false, false, true },
 #endif
-#ifdef VBOXSERVICE_EXEC
-    { &g_Exec,      NIL_RTTHREAD, false, false, false, true },
-#endif
 #ifdef VBOXSERVICE_CPUHOTPLUG
     { &g_CpuHotPlug, NIL_RTTHREAD, false, false, false, true },
 #endif
@@ -98,6 +95,9 @@ static struct
     { &g_MemBalloon, NIL_RTTHREAD, false, false, false, true },
 # endif
     { &g_VMStatistics, NIL_RTTHREAD, false, false, false, true },
+#endif
+#ifdef VBOX_WITH_PAGE_SHARING
+    { &g_PageSharing, NIL_RTTHREAD, false, false, false, true },
 #endif
 };
 
@@ -309,9 +309,16 @@ int VBoxServiceStartServices(unsigned iMain)
             rc = g_aServices[j].pDesc->pfnInit();
             if (RT_FAILURE(rc))
             {
-                VBoxServiceError("Service '%s' failed to initialize: %Rrc\n",
-                                 g_aServices[j].pDesc->pszName, rc);
-                return rc;
+                if (rc != VERR_SERVICE_DISABLED)
+                {
+                    VBoxServiceError("Service '%s' failed to initialize: %Rrc\n",
+                                     g_aServices[j].pDesc->pszName, rc);
+                    return rc;
+                }
+                g_aServices[j].fEnabled = false;
+                VBoxServiceVerbose(0, "Service '%s' was disabled because of missing functionality\n",
+                                   g_aServices[j].pDesc->pszName);
+
             }
         }
 

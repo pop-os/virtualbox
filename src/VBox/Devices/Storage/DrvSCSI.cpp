@@ -1,4 +1,4 @@
-/* $Id: DrvSCSI.cpp 29049 2010-05-04 23:17:46Z vboxsync $ */
+/* $Id: DrvSCSI.cpp 29330 2010-05-11 10:21:06Z vboxsync $ */
 /** @file
  * VBox storage drivers: Generic SCSI command parser and execution driver
  */
@@ -24,6 +24,7 @@
 #include <VBox/pdmifs.h>
 #include <VBox/pdmthread.h>
 #include <VBox/vscsi.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
 #include <iprt/req.h>
@@ -32,6 +33,9 @@
 #include <iprt/uuid.h>
 
 #include "Builtins.h"
+
+/** The maximum number of release log entries per device. */
+#define MAX_LOG_REL_ERRORS  1024
 
 /**
  * SCSI driver instance data.
@@ -97,6 +101,8 @@ typedef struct DRVSCSI
     STAMCOUNTER             StatBytesRead;
     /** Release statistics: Current I/O depth. */
     volatile uint32_t       StatIoDepth;
+    /** Errors printed in the release log. */
+    unsigned                cErrors;
 } DRVSCSI, *PDRVSCSI;
 
 /** Converts a pointer to DRVSCSI::ISCSIConnector to a PDRVSCSI. */
@@ -230,8 +236,11 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
             case VSCSIIOREQTXDIR_FLUSH:
             {
                 rc = pThis->pDrvBlockAsync->pfnStartFlush(pThis->pDrvBlockAsync, hVScsiIoReq);
-                if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
-                    AssertMsgFailed(("%s: Failed to flush data %Rrc\n", __FUNCTION__, rc));
+                if (   RT_FAILURE(rc)
+                    && rc != VERR_VD_ASYNC_IO_IN_PROGRESS
+                    && pThis->cErrors++ < MAX_LOG_REL_ERRORS)
+                    LogRel(("SCSI#%u: Flush returned rc=%Rrc\n",
+                            pThis->pDrvIns->iInstance, rc));
                 break;
             }
             case VSCSIIOREQTXDIR_READ:
@@ -253,8 +262,6 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
                     rc = pThis->pDrvBlockAsync->pfnStartRead(pThis->pDrvBlockAsync, uOffset,
                                                              paSeg, cSeg, cbTransfer,
                                                              hVScsiIoReq);
-                    if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
-                        AssertMsgFailed(("%s: Failed to read data %Rrc\n", __FUNCTION__, rc));
                     STAM_REL_COUNTER_ADD(&pThis->StatBytesRead, cbTransfer);
                 }
                 else
@@ -263,11 +270,19 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
                     rc = pThis->pDrvBlockAsync->pfnStartWrite(pThis->pDrvBlockAsync, uOffset,
                                                               paSeg, cSeg, cbTransfer,
                                                               hVScsiIoReq);
-                    if (RT_FAILURE(rc) && rc != VERR_VD_ASYNC_IO_IN_PROGRESS)
-                        AssertMsgFailed(("%s: Failed to write data %Rrc\n", __FUNCTION__, rc));
                     STAM_REL_COUNTER_ADD(&pThis->StatBytesWritten, cbTransfer);
                 }
 
+                if (   RT_FAILURE(rc)
+                    && rc != VERR_VD_ASYNC_IO_IN_PROGRESS
+                    && pThis->cErrors++ < MAX_LOG_REL_ERRORS)
+                    LogRel(("SCSI#%u: %s at offset %llu (%u bytes left) returned rc=%Rrc\n",
+                            pThis->pDrvIns->iInstance,
+                            enmTxDir == VSCSIIOREQTXDIR_READ
+                            ? "Read"
+                            : "Write",
+                            uOffset,
+                            cbTransfer, rc));
                 break;
             }
             default:
@@ -299,6 +314,7 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
 
             ASMAtomicDecU32(&pThis->StatIoDepth);
             VSCSIIoReqCompleted(hVScsiIoReq, rc);
+            rc = VINF_SUCCESS;
         }
         else
             AssertMsgFailed(("Invalid return code rc=%Rrc\n", rc));
@@ -318,8 +334,13 @@ static void drvscsiVScsiReqCompleted(VSCSIDEVICE hVScsiDevice, void *pVScsiDevic
 {
     PDRVSCSI pThis = (PDRVSCSI)pVScsiDeviceUser;
 
+    ASMAtomicDecU32(&pThis->StatIoDepth);
+
     pThis->pDevScsiPort->pfnSCSIRequestCompleted(pThis->pDevScsiPort, (PPDMSCSIREQUEST)pVScsiReqUser,
                                                  rcReq);
+
+    if (RT_UNLIKELY(pThis->fDummySignal) && !pThis->StatIoDepth)
+        PDMDrvHlpAsyncNotificationCompleted(pThis->pDrvIns);
 }
 
 /**
@@ -475,29 +496,41 @@ static void drvscsiR3ResetOrSuspendOrPowerOff(PPDMDRVINS pDrvIns, PFNPDMDRVASYNC
 {
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
 
-    if (!pThis->pQueueRequests)
-        return;
-
-    ASMAtomicWriteBool(&pThis->fDummySignal, true);
-    if (drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
+    if (!pThis->pDrvBlockAsync)
     {
-        if (!RTReqIsBusy(pThis->pQueueRequests))
-        {
-            ASMAtomicWriteBool(&pThis->fDummySignal, false);
+        if (!pThis->pQueueRequests)
             return;
-        }
 
-        PRTREQ pReq;
-        int rc = RTReqCall(pThis->pQueueRequests, &pReq, 0 /*ms*/, (PFNRT)drvscsiAsyncIOLoopSyncCallback, 1, pThis);
-        if (RT_SUCCESS(rc))
+        ASMAtomicWriteBool(&pThis->fDummySignal, true);
+        if (drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
         {
-            ASMAtomicWriteBool(&pThis->fDummySignal, false);
-            RTReqFree(pReq);
-            return;
-        }
+            if (!RTReqIsBusy(pThis->pQueueRequests))
+            {
+                ASMAtomicWriteBool(&pThis->fDummySignal, false);
+                return;
+            }
 
-        pThis->pPendingDummyReq = pReq;
+            PRTREQ pReq;
+            int rc = RTReqCall(pThis->pQueueRequests, &pReq, 0 /*ms*/, (PFNRT)drvscsiAsyncIOLoopSyncCallback, 1, pThis);
+            if (RT_SUCCESS(rc))
+            {
+                ASMAtomicWriteBool(&pThis->fDummySignal, false);
+                RTReqFree(pReq);
+                return;
+            }
+
+            pThis->pPendingDummyReq = pReq;
+        }
     }
+    else
+    {
+        if (pThis->StatIoDepth > 0)
+        {
+            ASMAtomicWriteBool(&pThis->fDummySignal, true);
+        }
+        return;
+    }
+
     PDMDrvHlpSetAsyncNotification(pDrvIns, pfnAsyncNotify);
 }
 
@@ -511,11 +544,21 @@ static DECLCALLBACK(bool) drvscsiIsAsyncSuspendOrPowerOffDone(PPDMDRVINS pDrvIns
 {
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
 
-    if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
-        return false;
-    ASMAtomicWriteBool(&pThis->fDummySignal, false);
-    PDMR3ThreadSuspend(pThis->pAsyncIOThread);
-    return true;
+    if (pThis->pDrvBlockAsync)
+    {
+        if (pThis->StatIoDepth > 0)
+            return false;
+        else
+            return true;
+    }
+    else
+    {
+        if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
+            return false;
+        ASMAtomicWriteBool(&pThis->fDummySignal, false);
+        PDMR3ThreadSuspend(pThis->pAsyncIOThread);
+        return true;
+    }
 }
 
 /**
@@ -544,10 +587,20 @@ static DECLCALLBACK(bool) drvscsiIsAsyncResetDone(PPDMDRVINS pDrvIns)
 {
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
 
-    if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
-        return false;
-    ASMAtomicWriteBool(&pThis->fDummySignal, false);
-    return true;
+    if (pThis->pDrvBlockAsync)
+    {
+        if (pThis->StatIoDepth > 0)
+            return false;
+        else
+            return true;
+    }
+    else
+    {
+        if (!drvscsiAsyncIOLoopNoPendingDummy(pThis, 0 /*ms*/))
+            return false;
+        ASMAtomicWriteBool(&pThis->fDummySignal, false);
+        return true;
+    }
 }
 
 /**
@@ -674,10 +727,6 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     rc = VSCSIDeviceLunAttach(pThis->hVScsiDevice, pThis->hVScsiLun, 0);
     AssertMsgReturn(RT_SUCCESS(rc), ("Failed to attached the LUN to the SCSI device\n"), rc);
 
-    /* Create request queue. */
-    rc = RTReqCreateQueue(&pThis->pQueueRequests);
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
-
     /* Register statistics counter. */
     /** @todo aeichner: Find a way to put the instance number of the attached
      * controller device when we support more than one controller of the same type.
@@ -692,11 +741,16 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     PDMDrvHlpSTAMRegisterF(pDrvIns, (void *)&pThis->StatIoDepth, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
                             "Number of active tasks.", "/Devices/SCSI0/%d/IoDepth", pDrvIns->iInstance);
 
-
-    /* Create I/O thread. */
-    rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsiAsyncIOLoop,
-                               drvscsiAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
-    AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
+    if (!pThis->pDrvBlockAsync)
+    {
+        /* Create request queue. */
+        rc = RTReqCreateQueue(&pThis->pQueueRequests);
+        AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create request queue rc=%Rrc\n"), rc);
+        /* Create I/O thread. */
+        rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsiAsyncIOLoop,
+                                   drvscsiAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
+        AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
+    }
 
     return VINF_SUCCESS;
 }

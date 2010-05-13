@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ApplianceImpl.h 29422 2010-05-12 14:08:52Z vboxsync $ */
 
 /** @file
  *
@@ -140,7 +140,7 @@ private:
     void convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
                                      uint32_t ulAddressOnParent,
                                      Bstr &controllerType,
-                                     int32_t &lChannel,
+                                     int32_t &lControllerPort,
                                      int32_t &lDevice);
 
     HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);

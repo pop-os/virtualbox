@@ -1,59 +1,59 @@
 <?xml version="1.0" ?>
 
 <!--
- * :tabSize=2:indentSize=2:noTabs=true:
- * :folding=explicit:collapseFolds=1:
- *
- * Master declaration for VirtualBox's Main API, represented
- * by COM/XPCOM and web service interfaces.
- *
- * From this document, the build system generates several files
- * via XSLT that are then used during the build process.
- *
- * Below is the list of XSL templates that operate on this file and
- * output files they generate. These XSL templates must be updated
- * whenever the schema of this file changes:
- *
- * 1. src/VBox/Main/idl/midl.xsl =>
- *    out/<platform>/bin/sdk/idl/VirtualBox.idl
- *    (MS COM interface definition file for Main API)
- *
- * 2. src/VBox/Main/idl/xpidl.xsl =>
- *    out/<platform>/bin/sdk/idl/VirtualBox_XPCOM.idl
- *    (XPCOM interface definition file for Main API)
- *
- * 3. src/VBox/Main/idl/doxygen.xsl =>
- *    out/<platform>/obj/src/VBox/Main/VirtualBox.idl
- *    (pseudo-IDL for Doxygen to generate the official Main API
- *     documentation)
- *
- * 4. src/VBox/Main/webservice/*.xsl =>
- *    a bunch of WSDL and C++ files
- *    (VirtualBox web service sources and SOAP mappers;
- *     see src/VBox/Main/webservice/Makefile.kmk for details)
- *
- * 5. src/VBox/Frontends/VirtualBox/include/COMWrappers.xsl =>
- *    out/<platform>/obj/src/VBox/Frontends/VirtualBox/VirtualBox/include/COMWrappers.h
- *    (smart Qt-based C++ wrapper classes for COM interfaces
- *     of the Main API)
- *
- * 6. src/VBox/Installer/win32/VirtualBox_TypeLib.xsl =>
- *    out/<platform>/obj/src/VBox/Installer/win32/VirtualBox_TypeLib.wxi
- *    (Main API TypeLib block for the WiX installer)
- *
- * 7. src/VBox/Runtime/common/err/errmsgvboxcom.xsl =>
- *    out/<platform>/obj/Runtime/errmsgvboxcomdata.h
- *    (<result> extraction for the %Rhrc format specifier)
- *
-     Copyright (C) 2006-2010 Oracle Corporation
 
-     This file is part of VirtualBox Open Source Edition (OSE), as
-     available from http://www.virtualbox.org. This file is free software;
-     you can redistribute it and/or modify it under the terms of the GNU
-     General Public License (GPL) as published by the Free Software
-     Foundation, in version 2 as it comes in the "COPYING" file of the
-     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    Copyright (C) 2006-2010 Oracle Corporation
+
+    This file is part of VirtualBox Open Source Edition (OSE), as
+    available from http://www.virtualbox.org. This file is free software;
+    you can redistribute it and/or modify it under the terms of the GNU
+    General Public License (GPL) as published by the Free Software
+    Foundation, in version 2 as it comes in the "COPYING" file of the
+    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+-->
+
+<!--
+   This is the master declaration for VirtualBox's Main API,
+   represented by COM/XPCOM and web service interfaces.
+
+   From this document, the build system generates several files
+   via XSLT that are then used during the build process.
+
+   Below is the list of XSL templates that operate on this file and
+   output files they generate. These XSL templates must be updated
+   whenever the schema of this file changes:
+
+   1. src/VBox/Main/idl/midl.xsl =>
+      out/<platform>/bin/sdk/idl/VirtualBox.idl
+      (MS COM interface definition file for Main API)
+
+   2. src/VBox/Main/idl/xpidl.xsl =>
+      out/<platform>/bin/sdk/idl/VirtualBox_XPCOM.idl
+      (XPCOM interface definition file for Main API)
+
+   3. src/VBox/Main/idl/doxygen.xsl =>
+      out/<platform>/obj/src/VBox/Main/VirtualBox.idl
+      (pseudo-IDL for Doxygen to generate the official Main API
+       documentation)
+
+   4. src/VBox/Main/webservice/*.xsl =>
+      a bunch of WSDL and C++ files
+      (VirtualBox web service sources and SOAP mappers;
+       see src/VBox/Main/webservice/Makefile.kmk for details)
+
+   5. src/VBox/Frontends/VirtualBox/include/COMWrappers.xsl =>
+      out/<platform>/obj/src/VBox/Frontends/VirtualBox/VirtualBox/include/COMWrappers.h
+      (smart Qt-based C++ wrapper classes for COM interfaces
+       of the Main API)
+
+   6. src/VBox/Installer/win32/VirtualBox_TypeLib.xsl =>
+      out/<platform>/obj/src/VBox/Installer/win32/VirtualBox_TypeLib.wxi
+      (Main API TypeLib block for the WiX installer)
+
+   7. src/VBox/Runtime/common/err/errmsgvboxcom.xsl =>
+      out/<platform>/obj/Runtime/errmsgvboxcomdata.h
+      (<result> extraction for the %Rhrc format specifier)
 -->
 
 <idl>
@@ -1118,23 +1118,6 @@
     </const>
   </enum>
 
-  <enum
-   name="IoMgrType"
-   uuid="35567419-4d2a-4256-a74e-efcae33493a2"
-   >
-     <desc>
-       Type of the I/O manager used for the image files in a virtual machine if the backend is
-       set to the "Unbuffered" type.
-     </desc>
-     <const name="Simple" value="1">
-       <desc>Simple manager. Normally only used if the default one runs into an
-       error. </desc>
-     </const>
-     <const name="Async" value="2">
-       <desc>Asynchronous manager using the async I/O API on the host if present.
-       This is the default manager.</desc>
-     </const>
-   </enum>
 
   <!--
   // IVirtualBoxErrorInfo
@@ -3480,7 +3463,7 @@
 
   <enum
     name="VirtualSystemDescriptionType"
-    uuid="aacc58de-5b45-4f82-ae2e-dd9a824fc3b5"
+    uuid="c0f8f135-3a1d-417d-afa6-b38b95a91f90"
   >
     <desc>Used with <link to="IVirtualSystemDescription" /> to describe the type of
     a configuration value.</desc>
@@ -3501,12 +3484,13 @@
     <const name="HardDiskControllerIDE" value="14" />
     <const name="HardDiskControllerSATA" value="15" />
     <const name="HardDiskControllerSCSI" value="16" />
-    <const name="HardDiskImage" value="17" />
-    <const name="Floppy" value="18" />
-    <const name="CDROM" value="19" />
-    <const name="NetworkAdapter" value="20" />
-    <const name="USBController" value="21" />
-    <const name="SoundCard" value="22" />
+    <const name="HardDiskControllerSAS" value="17" />
+    <const name="HardDiskImage" value="18" />
+    <const name="Floppy" value="19" />
+    <const name="CDROM" value="20" />
+    <const name="NetworkAdapter" value="21" />
+    <const name="USBController" value="22" />
+    <const name="SoundCard" value="23" />
 
   </enum>
 
@@ -4231,7 +4215,7 @@
 
   <interface
      name="IMachine" extends="$unknown"
-     uuid="b8a9324a-1042-4c78-aff6-9d1c2bfd8cd0"
+     uuid="6d9212cb-a5c0-48b7-bbc1-3fa2ba2ee6d2"
      wsmap="managed"
      >
     <desc>
@@ -4434,6 +4418,13 @@
 
     <attribute name="memoryBalloonSize" type="unsigned long">
       <desc>Memory balloon size in megabytes.</desc>
+    </attribute>
+
+    <attribute name="PageFusionEnabled" type="boolean">
+      <desc>
+        This setting determines whether VirtualBox allows page
+        fusion for this machine (64 bits host only).
+      </desc>
     </attribute>
 
     <attribute name="VRAMSize" type="unsigned long">
@@ -4766,18 +4757,6 @@
       </desc>
     </attribute>
 
-    <attribute name="ioMgr" type="IoMgrType">
-      <desc>
-        Selects the I/O manager to use for the virtual machine.
-      </desc>
-    </attribute>
-
-    <attribute name="ioBackend" type="IoBackendType">
-      <desc>
-        Selects the I/O backend to use for the virtual machine.
-      </desc>
-    </attribute>
-
     <attribute name="ioCacheEnabled" type="boolean">
       <desc>
         When set to @a true, the builtin I/O cache of the virtual machine
@@ -4875,19 +4854,8 @@
         media (such as DVDs and floppies), you can also use <link to="IMedium::mountMedium"/>
         for changing the media while the machine is running.
 
-        For the IDE bus, the @a controllerPort parameter can be either
-        @c 0 or @c 1, to specify the primary or secondary IDE controller,
-        respectively. For each of these, @a device can then be either @c 0 or @c 1,
-        to specify the master or the slave device, respectively. (In the
-        default configuration of virtual machines, the secondary master is
-        used for a CD/DVD drive.)
-
-        For an SATA controller, @a controllerPort must be a number ranging
-        from @c 0 to @c 29. For a SCSI controller, @a controllerPort must
-        be a number ranging from @c 0 to @c 15.
-
-        For both SCSI and SATA, the @a device parameter is unused and must
-        be @c 0.
+        In a VM's default configuration of virtual machines, the secondary
+        master of the IDE controller is used for a CD/DVD drive.
 
         For fixed media such as hard disks, the given medium identifier cannot
         be a zero UUID. It may be a zero UUID for removable media such as DVDs
@@ -4935,10 +4903,16 @@
         <desc>Name of the storage controller to attach the device to.</desc>
       </param>
       <param name="controllerPort" type="long" dir="in">
-        <desc>Port to attach the device to.</desc>
+        <desc>Port to attach the device to. For an IDE controller, 0 specifies
+        the primary controller and 1 specifies the secondary controller.
+        For a SCSI controller, this must range from 0 to 15; for a SATA controller,
+        from 0 to 29; for an SAS controller, from 0 to 7.</desc>
       </param>
       <param name="device" type="long" dir="in">
-        <desc>Device slot in the given port to attach the device to.</desc>
+        <desc>Device slot in the given port to attach the device to. This is only
+        relevant for IDE controllers, for which 0 specifies the master device and
+        1 specifies the slave device. For all other controller types, this must
+        be 0.</desc>
       </param>
       <param name="type" type="DeviceType" dir="in">
         <desc>Device type of the attached device.</desc>
@@ -5162,7 +5136,7 @@
 
     <method name="addStorageController">
       <desc>
-        Adds a new storage controller (SCSI or SATA controller) to the
+        Adds a new storage controller (SCSI, SAS or SATA controller) to the
         machine and returns it as an instance of
         <link to="IStorageController" />.
 
@@ -5966,6 +5940,11 @@
       <desc>
         Returns size in bytes and dimensions in pixels of a saved thumbnail bitmap from saved state.
       </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+          Saved guest screen to query info from.
+        </desc>
+      </param>
       <param name="size" type="unsigned long" dir="out">
         <desc>
           Size of buffer required to store the bitmap.
@@ -5987,6 +5966,11 @@
       <desc>
         Thumbnail is retrieved to an array of bytes in uncompressed 32-bit BGRA or RGBA format.
       </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+          Saved guest screen to read from.
+        </desc>
+      </param>
       <param name="BGR" type="boolean" dir="in">
         <desc>
           How to order bytes in the pixel. A pixel consists of 4 bytes. If this parameter is true, then
@@ -6014,6 +5998,11 @@
       <desc>
         Returns size in bytes and dimensions of a saved PNG image of screenshot from saved state.
       </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+          Saved guest screen to query info from.
+        </desc>
+      </param>
       <param name="size" type="unsigned long" dir="out">
         <desc>
           Size of buffer required to store the PNG binary data.
@@ -6035,6 +6024,11 @@
       <desc>
         Screenshot in PNG format is retrieved to an array of bytes.
       </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+          Saved guest screen to read from.
+        </desc>
+      </param>
       <param name="width" type="unsigned long" dir="out">
         <desc>
           Image width.
@@ -8527,7 +8521,7 @@
 
   <interface
      name="IGuest" extends="$unknown"
-     uuid="d073545f-9635-489e-b36f-d468a10f8987"
+     uuid="27211d55-8b11-4f07-9519-b7563ea2dc29"
      wsmap="managed"
      >
     <desc>
@@ -8592,6 +8586,13 @@
       <desc>Guest system memory balloon size in megabytes (transient property).</desc>
     </attribute>
 
+    <attribute name="PageFusionEnabled" type="boolean">
+      <desc>
+        Flag whether VirtualBox allows page fusion for this machine
+        (64 bits host only; transient property).
+      </desc>
+    </attribute>
+
     <attribute name="statisticsUpdateInterval" type="unsigned long">
       <desc>Interval to update guest statistics in seconds.</desc>
     </attribute>
@@ -8618,6 +8619,9 @@
       <param name="memBalloon" type="unsigned long" dir="out">
          <desc>Amount of ballooned physical guest RAM</desc>
       </param>
+      <param name="memShared" type="unsigned long" dir="out">
+        <desc>Amount of shared physical guest RAM</desc>
+      </param>
       <param name="memCache" type="unsigned long" dir="out">
          <desc>Total amount of guest (disk) cache memory</desc>
       </param>
@@ -8632,6 +8636,9 @@
       </param>
       <param name="memBalloonTotal" type="unsigned long" dir="out">
          <desc>Total amount of memory ballooned by the hypervisor</desc>
+      </param>
+      <param name="memSharedTotal" type="unsigned long" dir="out">
+        <desc>Total amount of shared memory in the hypervisor</desc>
       </param>
     </method>
 
@@ -9346,11 +9353,15 @@
     </attribute>
 
     <attribute name="port" type="long" readonly="yes">
-      <desc>Port number of this attachment.</desc>
+      <desc>Port number of this attachment.
+        See <link to="IMachine::attachDevice" /> for the meaning of this value for the different controller types.
+      </desc>
     </attribute>
 
     <attribute name="device" type="long" readonly="yes">
-      <desc>Device slot number of this attachment.</desc>
+      <desc>Device slot number of this attachment.
+        See <link to="IMachine::attachDevice" /> for the meaning of this value for the different controller types.
+      </desc>
     </attribute>
 
     <attribute name="type" type="DeviceType" readonly="yes">
@@ -9385,7 +9396,7 @@
 
       <ul>
         <li><link to="IMachine::storageControllers"/> contains an array of
-          storage controllers (IDE, SATA, SCSI or a floppy controller;
+          storage controllers (IDE, SATA, SCSI, SAS or a floppy controller;
           these are instances of <link to="IStorageController"/>).</li>
         <li><link to="IMachine::mediumAttachments"/> contains an array of
           medium attachments (instances of <link to="IMediumAttachment"/>),
@@ -13137,7 +13148,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
      name="IInternalSessionControl" extends="$unknown"
-     uuid="cc8d63a0-568e-45dd-9bf6-6354049ece1e"
+     uuid="ab161f72-e4b3-44e6-a919-2256474bda66"
      internal="yes"
      wsmap="suppress"
      >
@@ -13330,6 +13341,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         </result>
 
       </desc>
+      <param name="restart" type="boolean" dir="in">
+        <desc>Flag whether the server must be restarted</desc>
+      </param>
     </method>
 
     <method name="onUSBControllerChange">
@@ -13694,7 +13708,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     uuid="eee67ab3-668d-4ef5-91e0-7025fe4a0d7a"
   >
     <desc>
-      The bus type of the storage controller (IDE, SATA, SCSI or Floppy);
+      The bus type of the storage controller (IDE, SATA, SCSI, SAS or Floppy);
       see <link to="IStorageController::bus" />.
     </desc>
     <const name="Null"         value="0">
@@ -13760,9 +13774,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         As opposed to physical hardware, VirtualBox has a very generic concept
         of a storage controller, and for purposes of the Main API, all virtual
         storage is attached to virtual machines via instances of this interface.
-        There are four types of such virtual storage controllers: IDE, SCSI, SATA
-        and Floppy (see <link to="#bus" />). Depending on which of these four is
-        used, certain sub-types may be available and can be selected in
+        There are five types of such virtual storage controllers: IDE, SCSI, SATA,
+        SAS and Floppy (see <link to="#bus" />). Depending on which of these four
+        is used, certain sub-types may be available and can be selected in
         <link to="#controllerType" />.
 
         Depending on these settings, the guest operating system might see
@@ -13813,7 +13827,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <attribute name="bus" type="StorageBus" readonly="yes">
       <desc>
-        The bus type of the storage controller (IDE, SATA, SCSI or Floppy).
+        The bus type of the storage controller (IDE, SATA, SCSI, SAS or Floppy).
       </desc>
     </attribute>
 
@@ -13823,8 +13837,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         to the guest.
         Depending on this value, VirtualBox will provide a different
         virtual storage controller hardware to the guest.
-        For SATA and floppy controllers, only one variant is available,
-        but for IDE and SCSI, there are several.
+        For SATA, SAS and floppy controllers, only one variant is
+        available, but for IDE and SCSI, there are several.
 
         For SCSI controllers, the default type is LsiLogic.
       </desc>

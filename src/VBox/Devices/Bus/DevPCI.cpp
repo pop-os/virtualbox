@@ -1,4 +1,4 @@
-/* $Id: DevPCI.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevPCI.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DevPCI - PCI BUS Device.
  */
@@ -48,6 +48,7 @@
 #define PCI_INCLUDE_PRIVATE
 #include <VBox/pci.h>
 #include <VBox/pdmdev.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 

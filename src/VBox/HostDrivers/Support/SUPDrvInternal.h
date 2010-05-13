@@ -1,4 +1,4 @@
-/* $Revision: 28800 $ */
+/* $Revision: 29250 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -34,7 +34,6 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <iprt/assert.h>
-#include <iprt/asm.h>
 #include <VBox/sup.h>
 #include <iprt/memobj.h>
 #include <iprt/time.h>

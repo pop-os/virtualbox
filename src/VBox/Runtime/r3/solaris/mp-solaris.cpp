@@ -1,4 +1,4 @@
-/* $Id: mp-solaris.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: mp-solaris.cpp 29269 2010-05-09 21:24:06Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Solaris.
  */
@@ -184,6 +184,15 @@ RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
 {
     return rtMpSolarisGetFrequency(idCpu, "clock_MHz");
 }
+
+
+#if defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
+RTDECL(RTCPUID) RTMpCpuId(void)
+{
+    /** @todo implement RTMpCpuId on solaris/r3! */
+    return NIL_RTCPUID;
+}
+#endif
 
 
 RTDECL(int) RTMpCpuIdToSetIndex(RTCPUID idCpu)

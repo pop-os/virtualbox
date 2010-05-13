@@ -1,4 +1,4 @@
-/* $Id: VMMTests.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VMMTests.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core, Tests.
  */
@@ -21,6 +21,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VMM
+#include <iprt/asm-amd64-x86.h> /* for SUPGetCpuHzFromGIP */
 #include <VBox/vmm.h>
 #include <VBox/pdmapi.h>
 #include <VBox/cpum.h>

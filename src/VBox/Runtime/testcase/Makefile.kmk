@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: Makefile.kmk 29393 2010-05-12 00:20:38Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT testcases.
 #
@@ -56,8 +56,8 @@ PROGRAMS += \
 	tstEnv \
 	tstErrUnique \
 	tstFile \
-	tstFileAio \
-	tstFileAppend-1 \
+	tstRTFileAio \
+	tstRTFileAppend-1 \
 	tstFileLock \
 	tstFork \
 	tstRTGetOpt \
@@ -75,7 +75,6 @@ PROGRAMS += \
 	tstRTMemEf \
 	tstRTMemCache \
 	tstRTMemPool \
-	tstRTR0MemUserKernelDriver \
 	tstMove \
 	tstMp-1 \
 	tstOnce \
@@ -86,8 +85,6 @@ PROGRAMS += \
 	tstPrfRT \
 	tstRand \
 	tstRTFsQueries \
-	tstRTR0SemMutexDriver \
-	tstR0ThreadPreemptionDriver \
 	tstSemEvent \
 	tstSemMutex \
 	tstSemPingPong \
@@ -113,7 +110,6 @@ PROGRAMS += \
 	tstTimer \
 	tstTimerLR \
 	tstRTTimeSpec \
-	tstTSC \
 	tstUtf8 \
 	tstRTUuid
 # tstSems
@@ -136,12 +132,16 @@ ifdef VBOX_WITH_LIBCURL
  PROGRAMS += \
 	tstRTS3
 endif
-ifn1of ($(KBUILD_TARGET_ARCH), sparc32 sparc64)
+if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
  PROGRAMS += \
  	tstLdr-2 \
  	tstLdr-3 \
  	tstLdr-4 \
- 	tstNoCrt-1
+ 	tstNoCrt-1 \
+	tstRTR0MemUserKernelDriver \
+	tstRTR0SemMutexDriver \
+	tstR0ThreadPreemptionDriver \
+	tstTSC
  SYSMODS += \
  	tstLdrObjR0 \
  	tstRTR0MemUserKernel \
@@ -202,11 +202,13 @@ tstErrUnique.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgdata.h
 
 tstFile_SOURCES = tstFile.cpp
 
-tstFileAppend-1_SOURCES = tstFileAppend-1.cpp
+tstRTFileAio_SOURCES = VBOXR3TSTEXE
+tstRTFileAio_SOURCES = tstRTFileAio.cpp
+
+tstRTFileAppend-1_TEMPLATE = VBOXR3TSTEXE
+tstRTFileAppend-1_SOURCES = tstRTFileAppend-1.cpp
 
 tstFileAppendWin-1_SOURCES = tstFileAppendWin-1.cpp
-
-tstFileAio_SOURCES = tstFileAio.cpp
 
 tstFileLock_SOURCES = tstFileLock.cpp
 

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28807 2010-04-27 10:43:09Z vboxsync $
+# $Id: Makefile.kmk 29332 2010-05-11 10:22:27Z vboxsync $
 ## @file
 # Top-level sub-makefile for the devices, drivers and services.
 #
@@ -188,9 +188,6 @@ endif
 ifdef VBOX_WITH_DRV_DISK_INTEGRITY
  VBoxDD_DEFS           += VBOX_WITH_DRV_DISK_INTEGRITY
 endif
-ifdef VBOX_WITH_PAGE_SHARING
-  VBoxDD_DEFS          += VBOX_WITH_PAGE_SHARING
-endif
 ifdef VBOX_WITH_VDE
  VBoxDD_DEFS           += VBOX_WITH_VDE
 endif
@@ -256,8 +253,7 @@ VBoxDD_LDFLAGS.l4       = -Wl,--no-undefined
 # VBoxDD2 (shared object)
 #
 VBoxDD2_TEMPLATE        = VBOXR3
-VBoxDD2_DEFS            = IN_VBOXDD2 \
-			  $(if $(VBOX_WITH_VMI),VBOX_WITH_VMI,)
+VBoxDD2_DEFS            = IN_VBOXDD2
 VBoxDD2_INCS           := \
 	$(PATH_SUB_CURRENT)
 VBoxDD2_SOURCES         = \
@@ -267,7 +263,6 @@ VBoxDD2_LIBS            = \
 	$(PATH_LIB)/PcBiosBin$(VBOX_SUFF_LIB) \
 	$(PATH_LIB)/VgaBiosBin$(VBOX_SUFF_LIB) \
 	$(PATH_LIB)/NetBiosBin$(VBOX_SUFF_LIB) \
-	$(if $(VBOX_WITH_VMI),$(PATH_LIB)/VmiBiosBin$(VBOX_SUFF_LIB)) \
 	$(LIB_VMM) \
 	$(LIB_RUNTIME)
 ifeq ($(KBUILD_TARGET),l4)
@@ -287,8 +282,8 @@ DevicesR3_TEMPLATE      = VBOXR3
 DevicesR3_SDKS.win      = WINPSDK W2K3DDK
 DevicesR3_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 DevicesR3_DEFS         += VBOX_HGCM_HOST_CODE \
-			  $(if $(VBOX_WITH_VMI),VBOX_WITH_VMI,)
-DevicesR3_DEFS         += VBOX_WITH_HGCM
+			  VBOX_WITH_HGCM \
+			  $(if $(VBOX_WITH_PAGE_SHARING),VBOX_WITH_PAGE_SHARING,)
 DevicesR3_DEFS.linux   += _GNU_SOURCE
 DevicesR3_DEFS.l4      += _GNU_SOURCE
 

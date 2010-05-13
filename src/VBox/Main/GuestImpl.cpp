@@ -1,4 +1,4 @@
-/* $Id: GuestImpl.cpp 29005 2010-05-04 11:30:28Z vboxsync $ */
+/* $Id: GuestImpl.cpp 29309 2010-05-10 15:44:55Z vboxsync $ */
 
 /** @file
  *
@@ -116,7 +116,7 @@ void Guest::uninit()
     /* Clean up callback data. */
     CallbackListIter it;
     for (it = mCallbackList.begin(); it != mCallbackList.end(); it++)
-        removeCtrlCallbackContext(it);
+        destroyCtrlCallbackContext(it);
 
     /* Clear process list. */
     mGuestProcessList.clear();
@@ -207,6 +207,16 @@ STDMETHODIMP Guest::COMGETTER(SupportsGraphics) (BOOL *aSupportsGraphics)
     return S_OK;
 }
 
+STDMETHODIMP Guest::COMGETTER(PageFusionEnabled) (BOOL *enabled)
+{
+    return E_NOTIMPL;
+}
+
+STDMETHODIMP Guest::COMSETTER(PageFusionEnabled) (BOOL enabled)
+{
+    return E_NOTIMPL;
+}
+
 STDMETHODIMP Guest::COMGETTER(MemoryBalloonSize) (ULONG *aMemoryBalloonSize)
 {
     CheckComArgOutPointerValid(aMemoryBalloonSize);
@@ -273,9 +283,9 @@ STDMETHODIMP Guest::COMSETTER(StatisticsUpdateInterval)(ULONG aUpdateInterval)
 }
 
 STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *aCpuIdle,
-                                          ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon,
+                                          ULONG *aMemTotal, ULONG *aMemFree, ULONG *aMemBalloon, ULONG *aMemShared,
                                           ULONG *aMemCache, ULONG *aPageTotal,
-                                          ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal)
+                                          ULONG *aMemAllocTotal, ULONG *aMemFreeTotal, ULONG *aMemBalloonTotal, ULONG *aMemSharedTotal)
 {
     CheckComArgOutPointerValid(aCpuUser);
     CheckComArgOutPointerValid(aCpuKernel);
@@ -283,22 +293,28 @@ STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, UL
     CheckComArgOutPointerValid(aMemTotal);
     CheckComArgOutPointerValid(aMemFree);
     CheckComArgOutPointerValid(aMemBalloon);
+    CheckComArgOutPointerValid(aMemShared);
     CheckComArgOutPointerValid(aMemCache);
     CheckComArgOutPointerValid(aPageTotal);
+    CheckComArgOutPointerValid(aMemAllocTotal);
+    CheckComArgOutPointerValid(aMemFreeTotal);
+    CheckComArgOutPointerValid(aMemBalloonTotal);
+    CheckComArgOutPointerValid(aMemSharedTotal);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aCpuUser = mCurrentGuestStat[GUESTSTATTYPE_CPUUSER];
-    *aCpuKernel = mCurrentGuestStat[GUESTSTATTYPE_CPUKERNEL];
-    *aCpuIdle = mCurrentGuestStat[GUESTSTATTYPE_CPUIDLE];
-    *aMemTotal = mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K);     /* page (4K) -> 1KB units */
-    *aMemFree = mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K);       /* page (4K) -> 1KB units */
+    *aCpuUser    = mCurrentGuestStat[GUESTSTATTYPE_CPUUSER];
+    *aCpuKernel  = mCurrentGuestStat[GUESTSTATTYPE_CPUKERNEL];
+    *aCpuIdle    = mCurrentGuestStat[GUESTSTATTYPE_CPUIDLE];
+    *aMemTotal   = mCurrentGuestStat[GUESTSTATTYPE_MEMTOTAL] * (_4K/_1K);     /* page (4K) -> 1KB units */
+    *aMemFree    = mCurrentGuestStat[GUESTSTATTYPE_MEMFREE] * (_4K/_1K);       /* page (4K) -> 1KB units */
     *aMemBalloon = mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K); /* page (4K) -> 1KB units */
-    *aMemCache = mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K);     /* page (4K) -> 1KB units */
-    *aPageTotal = mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K);   /* page (4K) -> 1KB units */
+    *aMemCache   = mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K);     /* page (4K) -> 1KB units */
+    *aPageTotal  = mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K);   /* page (4K) -> 1KB units */
+    *aMemShared  = 0; /** todo */
 
     Console::SafeVMPtr pVM (mParent);
     if (pVM.isOk())
@@ -312,6 +328,7 @@ STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, UL
             *aMemAllocTotal   = (ULONG)(uAllocTotal / _1K);  /* bytes -> KB */
             *aMemFreeTotal    = (ULONG)(uFreeTotal / _1K);
             *aMemBalloonTotal = (ULONG)(uBalloonedTotal / _1K);
+            *aMemSharedTotal  = 0; /** todo */
         }
     }
     else
@@ -466,14 +483,14 @@ int Guest::notifyCtrlExec(uint32_t              u32Function,
     LogFlowFuncEnter();
     int rc = VINF_SUCCESS;
 
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     AssertPtr(pData);
     CallbackListIter it = getCtrlCallbackContextByID(pData->hdr.u32ContextID);
 
     /* Callback can be called several times. */
     if (it != mCallbackList.end())
     {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
         PHOSTEXECCALLBACKDATA pCBData = (HOSTEXECCALLBACKDATA*)it->pvData;
         AssertPtr(pCBData);
 
@@ -580,6 +597,8 @@ int Guest::notifyCtrlExecOut(uint32_t                 u32Function,
     LogFlowFuncEnter();
     int rc = VINF_SUCCESS;
 
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     AssertPtr(pData);
     CallbackListIter it = getCtrlCallbackContextByID(pData->hdr.u32ContextID);
     if (it != mCallbackList.end())
@@ -587,8 +606,6 @@ int Guest::notifyCtrlExecOut(uint32_t                 u32Function,
         Assert(!it->bCalled);
         PHOSTEXECOUTCALLBACKDATA pCBData = (HOSTEXECOUTCALLBACKDATA*)it->pvData;
         AssertPtr(pCBData);
-
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
         pCBData->u32PID = pData->u32PID;
         pCBData->u32HandleId = pData->u32HandleId;
@@ -600,9 +617,10 @@ int Guest::notifyCtrlExecOut(uint32_t                 u32Function,
         {
             /* Allocate data buffer and copy it */
             pCBData->pvData = RTMemAlloc(pData->cbData);
+            pCBData->cbData = pData->cbData;
+
             AssertReturn(pCBData->pvData, VERR_NO_MEMORY);
             memcpy(pCBData->pvData, pData->pvData, pData->cbData);
-            pCBData->cbData = pData->cbData;
         }
         else
         {
@@ -645,10 +663,10 @@ Guest::GuestProcessIter Guest::getProcessByPID(uint32_t u32PID)
     return it;
 }
 
-void Guest::removeCtrlCallbackContext(Guest::CallbackListIter it)
+/* No locking here; */
+void Guest::destroyCtrlCallbackContext(Guest::CallbackListIter it)
 {
     LogFlowFuncEnter();
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     if (it->pvData)
     {
         RTMemFree(it->pvData);
@@ -677,11 +695,11 @@ void Guest::removeCtrlCallbackContext(Guest::CallbackListIter it)
 uint32_t Guest::addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void *pvData, uint32_t cbData, Progress *pProgress)
 {
     LogFlowFuncEnter();
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     uint32_t uNewContext = ASMAtomicIncU32(&mNextContextID);
     if (uNewContext == UINT32_MAX)
         ASMAtomicUoWriteU32(&mNextContextID, 1000);
 
+    /** @todo Put this stuff into a constructor! */
     CallbackContext context;
     context.mContextID = uNewContext;
     context.mType = enmType;
@@ -690,13 +708,24 @@ uint32_t Guest::addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void 
     context.cbData = cbData;
     context.pProgress = pProgress;
 
-    mCallbackList.push_back(context);
-    if (mCallbackList.size() > 256) /* Don't let the container size get too big! */
+    uint32_t nCallbacks;
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        mCallbackList.push_back(context);
+        nCallbacks = mCallbackList.size();
+    }    
+
+#if 0
+    if (nCallbacks > 256) /* Don't let the container size get too big! */
     {
         Guest::CallbackListIter it = mCallbackList.begin();
-        removeCtrlCallbackContext(it);
-        mCallbackList.erase(it);
+        destroyCtrlCallbackContext(it);
+        {
+            AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            mCallbackList.erase(it);
+        }
     }
+#endif
 
     LogFlowFuncLeave();
     return uNewContext;
@@ -759,7 +788,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
             com::SafeArray<IN_BSTR> args(ComSafeArrayInArg(aArguments));
             uNumArgs = args.size();
             papszArgv = (char**)RTMemAlloc(sizeof(char*) * (uNumArgs + 1));
-            AssertReturn(papszArgv, VERR_NO_MEMORY);
+            AssertReturn(papszArgv, E_OUTOFMEMORY);
             for (unsigned i = 0; RT_SUCCESS(vrc) && i < uNumArgs; i++)
                 vrc = RTStrAPrintf(&papszArgv[i], "%s", Utf8Str(args[i]).raw());
             papszArgv[uNumArgs] = NULL;
@@ -822,12 +851,18 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                     paParms[i++].setPointer((void*)Utf8Password.raw(), (uint32_t)strlen(Utf8Password.raw()) + 1);
                     paParms[i++].setUInt32(aTimeoutMS);
 
-                    /* Make sure mParent is valid, so set a read lock in this scope. */
-                    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+                    VMMDev *vmmDev;
+                    {
+                        /* Make sure mParent is valid, so set the read lock while using. 
+                         * Do not keep this lock while doing the actual call, because in the meanwhile
+                         * another thread could request a write lock which would be a bad idea ... */
+                        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    
+                        /* Forward the information to the VMM device. */
+                        AssertPtr(mParent);
+                        vmmDev = mParent->getVMMDev();
+                    }
 
-                    /* Forward the information to the VMM device. */
-                    AssertPtr(mParent);
-                    VMMDev *vmmDev = mParent->getVMMDev();
                     if (vmmDev)
                     {
                         LogFlowFunc(("hgcmHostCall numParms=%d\n", i));
@@ -1064,12 +1099,18 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
         int vrc = VINF_SUCCESS;
     
         {
-            /* Make sure mParent is valid, so set the read lock while using. */
-            AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
-            /* Forward the information to the VMM device. */
-            AssertPtr(mParent);
-            VMMDev *vmmDev = mParent->getVMMDev();
+            VMMDev *vmmDev;
+            {
+                /* Make sure mParent is valid, so set the read lock while using. 
+                 * Do not keep this lock while doing the actual call, because in the meanwhile
+                 * another thread could request a write lock which would be a bad idea ... */
+                AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        
+                /* Forward the information to the VMM device. */
+                AssertPtr(mParent);
+                vmmDev = mParent->getVMMDev();
+            }
+
             if (vmmDev)
             {
                 LogFlowFunc(("hgcmHostCall numParms=%d\n", i));
@@ -1169,6 +1210,11 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
                         rc = setError(E_UNEXPECTED,
                                       tr("The service call failed with error %Rrc"), vrc);
                     }
+                }
+
+                {
+                    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+                    destroyCtrlCallbackContext(it);
                 }
             }
             else /* PID lookup failed. */

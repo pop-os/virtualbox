@@ -1,4 +1,4 @@
-/* $Id: Builtins.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Builtins.h 29326 2010-05-11 10:08:13Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
@@ -77,6 +77,7 @@ extern const PDMDEVREG g_DeviceBusLogic;
 extern const PDMDEVREG g_DevicePCIBridge;
 #ifdef VBOX_WITH_LSILOGIC
 extern const PDMDEVREG g_DeviceLsiLogicSCSI;
+extern const PDMDEVREG g_DeviceLsiLogicSAS;
 #endif
 #ifdef VBOX_WITH_SMC
 extern const PDMDEVREG g_DeviceSMC;

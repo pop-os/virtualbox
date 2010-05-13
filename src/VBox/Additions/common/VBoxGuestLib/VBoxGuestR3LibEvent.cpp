@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibEvent.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxGuestR3LibEvent.cpp 29291 2010-05-10 10:12:44Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Events.
  */
@@ -63,7 +63,14 @@ VBGLR3DECL(int) VbglR3WaitEvent(uint32_t fMask, uint32_t cMillies, uint32_t *pfE
     int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_WAITEVENT, &waitEvent, sizeof(waitEvent));
     if (RT_SUCCESS(rc))
     {
+        /*
+         * If a guest requests for an event which is not available on the host side
+         * (because of an older host version, a disabled feature or older Guest Additions),
+         * don't trigger an assertion here even in debug builds - would be annoying.
+         */
+#if 0
         AssertMsg(waitEvent.u32Result == VBOXGUEST_WAITEVENT_OK, ("%d rc=%Rrc\n", waitEvent.u32Result, rc));
+#endif
         if (pfEvents)
             *pfEvents = waitEvent.u32EventFlagsOut;
     }

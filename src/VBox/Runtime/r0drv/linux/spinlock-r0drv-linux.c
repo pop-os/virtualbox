@@ -1,4 +1,4 @@
-/* $Id: spinlock-r0drv-linux.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: spinlock-r0drv-linux.c 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, Linux.
  */
@@ -32,8 +32,11 @@
 #include "internal/iprt.h"
 #include <iprt/spinlock.h>
 
-#include <iprt/assert.h>
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
+#include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>

@@ -1,4 +1,4 @@
-/* $Id: VMMDev.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VMMDev.cpp 29425 2010-05-12 15:11:20Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -31,6 +31,7 @@
 #include <VBox/err.h>
 #include <VBox/vm.h> /* for VM_IS_EMT */
 
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/buildconfig.h>
 #include <iprt/string.h>
@@ -1770,8 +1771,8 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             }
             else
             {
-                pRequestHeader->rc = PGMR3SharedModuleRegister(pVM, pReqModule->GCBaseAddr, pReqModule->cbModule,
-                                                               pReqModule->szName, pReqModule->szVersion,
+                pRequestHeader->rc = PGMR3SharedModuleRegister(PDMDevHlpGetVM(pDevIns), pReqModule->enmGuestOS, pReqModule->szName, pReqModule->szVersion,
+                                                               pReqModule->GCBaseAddr, pReqModule->cbModule,                                                               
                                                                pReqModule->cRegions, pReqModule->aRegions);
             }
             break;
@@ -1781,14 +1782,14 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         {
             VMMDevSharedModuleUnregistrationRequest *pReqModule = (VMMDevSharedModuleUnregistrationRequest *)pRequestHeader;
 
-            if (pRequestHeader->size != sizeof(VMMDevSharedModuleUnregistrationRequest)
+            if (pRequestHeader->size != sizeof(VMMDevSharedModuleUnregistrationRequest))
             {
                 pRequestHeader->rc = VERR_INVALID_PARAMETER;
             }
             else
             {
-                pRequestHeader->rc = PGMR3SharedModuleUnregister(pVM, pReqModule->GCBaseAddr, pReqModule->cbModule,
-                                                                 pReqModule->szName, pReqModule->szVersion);
+                pRequestHeader->rc = PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pDevIns), pReqModule->szName, pReqModule->szVersion, 
+                                                                 pReqModule->GCBaseAddr, pReqModule->cbModule);
             }
             break;
         }
@@ -1797,13 +1798,25 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         {
             VMMDevSharedModuleCheckRequest *pReqModule = (VMMDevSharedModuleCheckRequest *)pRequestHeader;
 
-            if (pRequestHeader->size != sizeof(VMMDevSharedModuleCheckRequest)
+            if (pRequestHeader->size != sizeof(VMMDevSharedModuleCheckRequest))
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            else
+                pRequestHeader->rc = PGMR3SharedModuleCheckAll(PDMDevHlpGetVM(pDevIns));
+            break;
+        }
+
+        case VMMDevReq_GetPageSharingStatus:
+        {
+            VMMDevPageSharingStatusRequest *pReqStatus = (VMMDevPageSharingStatusRequest *)pRequestHeader;
+
+            if (pRequestHeader->size != sizeof(VMMDevPageSharingStatusRequest))
             {
                 pRequestHeader->rc = VERR_INVALID_PARAMETER;
             }
             else
             {
-                pRequestHeader->rc = PGMR3SharedModuleCheck(pVM);
+                pReqStatus->fEnabled = pThis->fPageSharingEnabled;
+                pRequestHeader->rc = VINF_SUCCESS;
             }
             break;
         }
@@ -2182,6 +2195,17 @@ static DECLCALLBACK(int) vmmdevSetMemoryBalloon(PPDMIVMMDEVPORT pInterface, uint
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_BALLOON_CHANGE_REQUEST);
     }
 
+    PDMCritSectLeave(&pThis->CritSect);
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) vmmdevEnablePageSharing(PPDMIVMMDEVPORT pInterface, bool fEnabled)
+{
+    VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
+    PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
+
+    Log(("vmmdevEnablePageSharing: old=%d. new=%d\n", pThis->fPageSharingEnabled, fEnabled));
+    pThis->fPageSharingEnabled = fEnabled;
     PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
@@ -2736,6 +2760,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     pThis->IPort.pfnVBVAChange             = vmmdevVBVAChange;
     pThis->IPort.pfnRequestSeamlessChange  = vmmdevRequestSeamlessChange;
     pThis->IPort.pfnSetMemoryBalloon       = vmmdevSetMemoryBalloon;
+    pThis->IPort.pfnEnablePageSharing      = vmmdevEnablePageSharing;
     pThis->IPort.pfnSetStatisticsInterval  = vmmdevSetStatisticsInterval;
     pThis->IPort.pfnVRDPChange             = vmmdevVRDPChange;
     pThis->IPort.pfnCpuHotUnplug           = vmmdevCpuHotUnplug;

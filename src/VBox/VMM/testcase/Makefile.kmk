@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: Makefile.kmk 29329 2010-05-11 10:18:30Z vboxsync $
 ## @file
 # Sub-Makefile for the VMM testcases.
 #
@@ -127,10 +127,6 @@ ifdef VBOX_WITH_RAW_MODE
 endif
 ifdef VBOX_WITH_R0_LOGGING
  tstVMStructSize_DEFS  += VBOX_WITH_R0_LOGGING
-endif
-ifdef VBOX_WITH_VMI
- tstVMStructSize_DEFS  += VBOX_WITH_VMI
- tstVMStructSize_INCS  += $(VBOX_PATH_VMM_SRC)/PARAV
 endif
 
 tstAsmStructs_TEMPLATE  = VBOXR3AUTOTST

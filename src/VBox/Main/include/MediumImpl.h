@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.h 29028 2010-05-04 14:33:45Z vboxsync $ */
+/* $Id: MediumImpl.h 29325 2010-05-11 10:07:04Z vboxsync $ */
 
 /** @file
  *
@@ -187,7 +187,10 @@ public:
 
     HRESULT compareLocationTo(const char *aLocation, int &aResult);
 
-    HRESULT createMediumLockList(bool fMediumWritable, Medium *pToBeParent, MediumLockList &mediumLockList);
+    HRESULT createMediumLockList(bool fFailIfInaccessible,
+                                 bool fMediumLockWrite,
+                                 Medium *pToBeParent,
+                                 MediumLockList &mediumLockList);
 
     HRESULT createDiffStorage(ComObjPtr<Medium> &aTarget,
                               MediumVariant_T aVariant,

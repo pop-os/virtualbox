@@ -1,4 +1,4 @@
-/* $Id: VMMR0.cpp 29091 2010-05-05 16:12:10Z vboxsync $ */
+/* $Id: VMMR0.cpp 29424 2010-05-12 15:11:09Z vboxsync $ */
 /** @file
  * VMM - Host Context Ring 0.
  */
@@ -39,6 +39,7 @@
 #include <VBox/version.h>
 #include <VBox/log.h>
 
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/crc32.h>
 #include <iprt/mp.h>
@@ -876,25 +877,6 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
                 return VERR_INVALID_CPU_ID;
             return PGMR0PhysAllocateLargeHandyPage(pVM, &pVM->aCpus[idCpu]);
 
-#ifdef VBOX_WITH_PAGE_SHARING
-        case VMMR0_DO_PGM_CHECK_SHARED_MODULE:
-        {
-            if (idCpu == NIL_VMCPUID)
-                return VERR_INVALID_CPU_ID;
-
-            PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
-            /* Select a valid VCPU context. */
-            ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
-
-            int rc = PGMR0SharedModuleCheck(pVM, pVCpu, (PGMMREGISTERSHAREDMODULEREQ)pReqHdr);
-
-            /* Clear the VCPU context. */
-            ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
-            return rc;
-        }
-#endif
-
         /*
          * GMM wrappers.
          */
@@ -951,20 +933,48 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
             return GMMR0SeedChunk(pVM, idCpu, (RTR3PTR)u64Arg);
 
         case VMMR0_DO_GMM_REGISTER_SHARED_MODULE:
+            if (idCpu == NIL_VMCPUID)
+                return VERR_INVALID_CPU_ID;
             if (u64Arg)
                 return VERR_INVALID_PARAMETER;
             return GMMR0RegisterSharedModuleReq(pVM, idCpu, (PGMMREGISTERSHAREDMODULEREQ)pReqHdr);
 
         case VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE:
+            if (idCpu == NIL_VMCPUID)
+                return VERR_INVALID_CPU_ID;
             if (u64Arg)
                 return VERR_INVALID_PARAMETER;
             return GMMR0UnregisterSharedModuleReq(pVM, idCpu, (PGMMUNREGISTERSHAREDMODULEREQ)pReqHdr);
 
-        case VMMR0_DO_GMM_CHECK_SHARED_MODULES:
+        case VMMR0_DO_GMM_RESET_SHARED_MODULES:
+            if (idCpu == NIL_VMCPUID)
+                return VERR_INVALID_CPU_ID;
             if (    u64Arg
                 ||  pReqHdr)
                 return VERR_INVALID_PARAMETER;
-            return GMMR0CheckSharedModules(pVM, idCpu);
+            return GMMR0ResetSharedModules(pVM, idCpu);
+
+#ifdef VBOX_WITH_PAGE_SHARING
+        case VMMR0_DO_GMM_CHECK_SHARED_MODULES:
+        {
+            if (idCpu == NIL_VMCPUID)
+                return VERR_INVALID_CPU_ID;
+            if (    u64Arg
+                ||  pReqHdr)
+                return VERR_INVALID_PARAMETER;
+
+            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+            /* Select a valid VCPU context. */
+            ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
+
+            int rc = GMMR0CheckSharedModules(pVM, idCpu);
+
+            /* Clear the VCPU context. */
+            ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
+            return rc;
+        }
+#endif
 
         /*
          * A quick GCFGM mock-up.

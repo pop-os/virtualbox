@@ -1,7 +1,5 @@
-/* $Id: MediumImpl.cpp 29149 2010-05-06 12:55:49Z vboxsync $ */
-
+/* $Id: MediumImpl.cpp 29386 2010-05-11 18:07:09Z vboxsync $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
@@ -2161,10 +2159,18 @@ STDMETHODIMP Medium::DeleteStorage(IProgress **aProgress)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
+    bool fNeedsSaveSettings = false;
     ComObjPtr <Progress> pProgress;
 
-    HRESULT rc = deleteStorage(&pProgress, false /* aWait */,
-                               NULL /* pfNeedsSaveSettings */);
+    HRESULT rc = deleteStorage(&pProgress,
+                               false /* aWait */,
+                               &fNeedsSaveSettings);
+    if (fNeedsSaveSettings)
+    {
+        AutoWriteLock vboxlock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
+        m->pVirtualBox->saveSettings();
+    }
+
     if (SUCCEEDED(rc))
         pProgress.queryInterfaceTo(aProgress);
 
@@ -2192,7 +2198,10 @@ STDMETHODIMP Medium::CreateDiffStorage(IMedium *aTarget,
 
     /* Apply the normal locking logic to the entire chain. */
     MediumLockList *pMediumLockList(new MediumLockList());
-    HRESULT rc = diff->createMediumLockList(true, this, *pMediumLockList);
+    HRESULT rc = diff->createMediumLockList(true /* fFailIfInaccessible */,
+                                            true /* fMediumLockWrite */,
+                                            this,
+                                            *pMediumLockList);
     if (FAILED(rc))
     {
         delete pMediumLockList;
@@ -2280,7 +2289,9 @@ STDMETHODIMP Medium::CloneTo(IMedium *aTarget,
 
         /* Build the source lock list. */
         MediumLockList *pSourceMediumLockList(new MediumLockList());
-        rc = createMediumLockList(false, NULL,
+        rc = createMediumLockList(true /* fFailIfInaccessible */,
+                                  false /* fMediumLockWrite */,
+                                  NULL,
                                   *pSourceMediumLockList);
         if (FAILED(rc))
         {
@@ -2290,7 +2301,9 @@ STDMETHODIMP Medium::CloneTo(IMedium *aTarget,
 
         /* Build the target lock list (including the to-be parent chain). */
         MediumLockList *pTargetMediumLockList(new MediumLockList());
-        rc = pTarget->createMediumLockList(true, pParent,
+        rc = pTarget->createMediumLockList(true /* fFailIfInaccessible */,
+                                           true /* fMediumLockWrite */,
+                                           pParent,
                                            *pTargetMediumLockList);
         if (FAILED(rc))
         {
@@ -2378,7 +2391,9 @@ STDMETHODIMP Medium::Compact(IProgress **aProgress)
 
         /* Build the medium lock list. */
         MediumLockList *pMediumLockList(new MediumLockList());
-        rc = createMediumLockList(true, NULL,
+        rc = createMediumLockList(true /* fFailIfInaccessible */ ,
+                                  true /* fMediumLockWrite */,
+                                  NULL,
                                   *pMediumLockList);
         if (FAILED(rc))
         {
@@ -2471,7 +2486,9 @@ STDMETHODIMP Medium::Reset(IProgress **aProgress)
 
         /* Build the medium lock list. */
         MediumLockList *pMediumLockList(new MediumLockList());
-        rc = createMediumLockList(true, NULL,
+        rc = createMediumLockList(true /* fFailIfInaccessible */,
+                                  true /* fMediumLockWrite */,
+                                  NULL,
                                   *pMediumLockList);
         if (FAILED(rc))
         {
@@ -3091,11 +3108,15 @@ HRESULT Medium::compareLocationTo(const char *aLocation, int &aResult)
  *
  * @note Locks the medium tree for reading.
  *
- * @param fMediumWritable   Whether to associate a write lock with this medium.
+ * @param fFailIfInaccessible If true, this fails with an error if a medium is inaccessible. If false,
+ *          inaccessible media are silently skipped and not locked (i.e. their state remains "Inaccessible");
+ *          this is necessary for a VM's removable images on VM startup for which we do not want to fail.
+ * @param fMediumLockWrite  Whether to associate a write lock with this medium.
  * @param pToBeParent       Medium which will become the parent of this medium.
  * @param mediumLockList    Where to store the resulting list.
  */
-HRESULT Medium::createMediumLockList(bool fMediumWritable,
+HRESULT Medium::createMediumLockList(bool fFailIfInaccessible,
+                                     bool fMediumLockWrite,
                                      Medium *pToBeParent,
                                      MediumLockList &mediumLockList)
 {
@@ -3132,30 +3153,30 @@ HRESULT Medium::createMediumLockList(bool fMediumWritable,
 
             if (mediumState == MediumState_Inaccessible)
             {
+                // ignore inaccessible ISO images and silently return S_OK,
+                // otherwise VM startup (esp. restore) may fail without good reason
+                if (!fFailIfInaccessible)
+                    return S_OK;
+
+                // otherwise report an error
                 Bstr error;
                 rc = pMedium->COMGETTER(LastAccessError)(error.asOutParam());
                 if (FAILED(rc)) return rc;
 
-                Bstr loc;
-                rc = pMedium->COMGETTER(Location)(loc.asOutParam());
-                if (FAILED(rc)) return rc;
-
                 /* collect multiple errors */
                 eik.restore();
-
-                /* be in sync with MediumBase::setStateError() */
                 Assert(!error.isEmpty());
                 mrc = setError(E_FAIL,
-                               tr("Medium '%ls' is not accessible. %ls"),
-                               loc.raw(),
+                               "%ls",
                                error.raw());
-
+                    // error message will be something like
+                    // "Could not open the medium ... VD: error VERR_FILE_NOT_FOUND opening image file ... (VERR_FILE_NOT_FOUND).
                 eik.fetch();
             }
         }
 
         if (pMedium == this)
-            mediumLockList.Prepend(pMedium, fMediumWritable);
+            mediumLockList.Prepend(pMedium, fMediumLockWrite);
         else
             mediumLockList.Prepend(pMedium, false);
 
@@ -3889,7 +3910,9 @@ HRESULT Medium::deleteStorage(ComObjPtr<Progress> *aProgress,
 
         /* Build the medium lock list. */
         MediumLockList *pMediumLockList(new MediumLockList());
-        rc = createMediumLockList(true, NULL,
+        rc = createMediumLockList(true /* fFailIfInaccessible */,
+                                  true /* fMediumLockWrite */,
+                                  NULL,
                                   *pMediumLockList);
         if (FAILED(rc))
         {
@@ -3910,20 +3933,11 @@ HRESULT Medium::deleteStorage(ComObjPtr<Progress> *aProgress,
          * actual deletion (we favor the consistency of the media registry
          * which would have been broken if unregisterWithVirtualBox() failed
          * after we successfully deleted the storage) */
-        bool fNeedsSaveSettings = false;
-        rc = unregisterWithVirtualBox(&fNeedsSaveSettings);
+        rc = unregisterWithVirtualBox(pfNeedsSaveSettings);
         if (FAILED(rc))
             throw rc;
-        // no longer need lock, and below we might need the VirtualBox lock.
+        // no longer need lock
         multilock.release();
-        if (fNeedsSaveSettings)
-        {
-            AutoWriteLock vboxlock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-            m->pVirtualBox->saveSettings();
-        }
-        // always set it to false because the medium registry is up to date
-        if (pfNeedsSaveSettings)
-            *pfNeedsSaveSettings = false;
 
         if (aProgress != NULL)
         {
@@ -4284,9 +4298,15 @@ HRESULT Medium::prepareMergeTo(const ComObjPtr<Medium> &pTarget,
         /* Build the lock list. */
         aMediumLockList = new MediumLockList();
         if (fMergeForward)
-            rc = pTarget->createMediumLockList(true, NULL, *aMediumLockList);
+            rc = pTarget->createMediumLockList(true /* fFailIfInaccessible */,
+                                               true /* fMediumLockWrite */,
+                                               NULL,
+                                               *aMediumLockList);
         else
-            rc = createMediumLockList(false, NULL, *aMediumLockList);
+            rc = createMediumLockList(true /* fFailIfInaccessible */,
+                                      false /* fMediumLockWrite */,
+                                      NULL,
+                                      *aMediumLockList);
         if (FAILED(rc))
             throw rc;
 
@@ -4987,7 +5007,10 @@ HRESULT Medium::startThread(Medium::Task *pTask)
 HRESULT Medium::fixParentUuidOfChildren(const MediaList &childrenToReparent)
 {
     MediumLockList mediumLockList;
-    HRESULT rc = createMediumLockList(false, this, mediumLockList);
+    HRESULT rc = createMediumLockList(true /* fFailIfInaccessible */,
+                                      false /* fMediumLockWrite */,
+                                      this,
+                                      mediumLockList);
     AssertComRCReturnRC(rc);
 
     try
@@ -6069,8 +6092,9 @@ HRESULT Medium::taskResetHandler(Medium::ResetTask &task)
 
                 AutoReadLock alock(pMedium COMMA_LOCKVAL_SRC_POS);
 
-                /* sanity check */
-                Assert(pMedium->m->state == MediumState_LockedRead);
+                /* sanity check, "this" is checked above */
+                Assert(   pMedium == this
+                       || pMedium->m->state == MediumState_LockedRead);
 
                 /* Open all images in appropriate mode. */
                 vrc = VDOpen(hdd,

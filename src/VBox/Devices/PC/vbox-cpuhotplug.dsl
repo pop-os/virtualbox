@@ -1,4 +1,4 @@
-// $Id: vbox-cpuhotplug.dsl 28800 2010-04-27 08:22:32Z vboxsync $
+// $Id: vbox-cpuhotplug.dsl 29243 2010-05-08 16:24:43Z vboxsync $
 /// @file
 //
 // VirtualBox ACPI
@@ -49,15 +49,16 @@ DefinitionBlock ("SSDT-cpuhotplug.aml", "SSDT", 1, "VBOX  ", "VBOXCPUT", 2)
                                                                            \
             Method(_MAT, 0)                                                \
             {                                                              \
+                Name (APIC, Buffer (8) {0x00, 0x08, id, id})               \
                 IF (CPCK(id))                                              \
                 {                                                          \
-                    Name (APIC, Buffer (8) {0x00, 0x08, id, id, 0x01})     \
-                    Return(APIC)                                           \
+                    Store (One, Index (APIC, 4))                           \
                 }                                                          \
                 Else                                                       \
                 {                                                          \
-                    Return (0x00)                                          \
+                    Store (Zero, Index (APIC, 4))                          \
                 }                                                          \
+                Return (APIC)                                              \
             }                                                              \
             Method(_STA) /* Used for device presence detection */          \
             {                                                              \

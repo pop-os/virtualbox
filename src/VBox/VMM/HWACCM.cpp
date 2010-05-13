@@ -1,4 +1,4 @@
-/* $Id: HWACCM.cpp 28812 2010-04-27 12:22:05Z vboxsync $ */
+/* $Id: HWACCM.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */
@@ -42,6 +42,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/env.h>
 #include <iprt/thread.h>

@@ -1,4 +1,4 @@
-/* $Id: UIIndicatorsPool.cpp 29148 2010-05-06 12:29:45Z vboxsync $ */
+/* $Id: UIIndicatorsPool.cpp 29419 2010-05-12 13:04:58Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -267,48 +267,66 @@ public:
     void updateAppearance()
     {
         const CMachine &machine = m_session.GetMachine();
-
-        ulong uMaxCount = vboxGlobal().virtualBox().GetSystemProperties().GetNetworkAdapterCount();
-        ulong uCount = 0;
-        for (ulong uSlot = 0; uSlot < uMaxCount; ++ uSlot)
-            if (machine.GetNetworkAdapter(uSlot).GetEnabled())
-                ++ uCount;
-        setState(uCount > 0 ? KDeviceActivity_Idle : KDeviceActivity_Null);
-        if (!uCount)
-            setHidden(true);
-
-        QString strToolTip = QApplication::translate("VBoxConsoleWnd", "<p style='white-space:pre'><nobr>Indicates the activity of the "
-                                "network interfaces:</nobr>%1</p>", "Network adapters tooltip");
         QString strFullData;
 
-        for (ulong uSlot = 0, uEnabled = 0; uSlot < uMaxCount; ++ uSlot)
+        ulong uMaxCount = vboxGlobal().virtualBox().GetSystemProperties().GetNetworkAdapterCount();
+
+        QString strToolTip = QApplication::translate("VBoxConsoleWnd",
+                                 "<p style='white-space:pre'><nobr>Indicates the activity of the "
+                                 "network interfaces:</nobr>%1</p>", "Network adapters tooltip");
+
+        RTTIMESPEC time;
+        uint64_t u64Now = RTTimeSpecGetNano(RTTimeNow(&time));
+
+        QString strFlags, strCount;
+        ULONG64 uTimestamp;
+        machine.GetGuestProperty("/VirtualBox/GuestInfo/Net/Count", strCount, uTimestamp, strFlags);
+        bool fPropsValid = (u64Now - uTimestamp < UINT64_C(60000000000)); /* timeout beacon */
+
+        QStringList ipList, macList;
+        if (fPropsValid)
+        {
+            int cAdapters = RT_MIN(strCount.toInt(), (int)uMaxCount);
+            for (int i = 0; i < cAdapters; ++i)
+            {
+                ipList << machine.GetGuestPropertyValue(QString("/VirtualBox/GuestInfo/Net/%1/V4/IP").arg(i));
+                macList << machine.GetGuestPropertyValue(QString("/VirtualBox/GuestInfo/Net/%1/MAC").arg(i));
+            }
+        }
+
+        ulong uEnabled = 0;
+        for (ulong uSlot = 0; uSlot < uMaxCount; ++uSlot)
         {
             const CNetworkAdapter &adapter = machine.GetNetworkAdapter(uSlot);
             if (adapter.GetEnabled())
             {
-                QString strFlags;
-                QString strCount;
-                ULONG64 timestamp;
-                machine.GetGuestProperty("/VirtualBox/GuestInfo/Net/Count", strCount, timestamp, strFlags);
-                RTTIMESPEC time;
-                uint64_t u64Now = RTTimeSpecGetNano(RTTimeNow(&time));
-                QString strIP;
-                if (   u64Now - timestamp < UINT64_C(60000000000)
-                    && strCount.toInt() > 0)
-                    strIP = machine.GetGuestPropertyValue(QString("/VirtualBox/GuestInfo/Net/%1/V4/IP").arg(uEnabled));
-                strFullData += QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>Adapter %1 (%2)</b>: %3 cable %4</nobr>", "Network adapters tooltip")
+                QString strGuestIp;
+                if (fPropsValid)
+                {
+                    QString strGuestMac = adapter.GetMACAddress();
+                    int iIp = macList.indexOf(strGuestMac);
+                    if (iIp >= 0)
+                        strGuestIp = ipList[iIp];
+                }
+                strFullData += QApplication::translate("VBoxConsoleWnd",
+                               "<br><nobr><b>Adapter %1 (%2)</b>: %3 cable %4</nobr>", "Network adapters tooltip")
                     .arg(uSlot + 1)
                     .arg(vboxGlobal().toString(adapter.GetAttachmentType()))
-                    .arg(strIP.isEmpty() ? "" : "IP " + strIP + ", ")
+                    .arg(strGuestIp.isEmpty() ? "" : "IP " + strGuestIp + ", ")
                     .arg(adapter.GetCableConnected() ?
-                          QApplication::translate("VBoxConsoleWnd", "connected", "Network adapters tooltip") :
-                          QApplication::translate("VBoxConsoleWnd", "disconnected", "Network adapters tooltip"));
-                uEnabled++;
+                         QApplication::translate("VBoxConsoleWnd", "connected", "Network adapters tooltip") :
+                         QApplication::translate("VBoxConsoleWnd", "disconnected", "Network adapters tooltip"));
+                ++uEnabled;
             }
         }
 
+        setState(uEnabled > 0 ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        if (!uEnabled)
+            setHidden(true);
+
         if (strFullData.isNull())
-            strFullData = QApplication::translate("VBoxConsoleWnd", "<br><nobr><b>All network adapters are disabled</b></nobr>", "Network adapters tooltip");
+            strFullData = QApplication::translate("VBoxConsoleWnd",
+                              "<br><nobr><b>All network adapters are disabled</b></nobr>", "Network adapters tooltip");
 
         setToolTip(strToolTip.arg(strFullData));
     }

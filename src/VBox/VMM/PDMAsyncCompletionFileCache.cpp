@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileCache.cpp 29121 2010-05-06 09:09:33Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFileCache.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * File data cache.
@@ -24,7 +24,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
-#include <iprt/types.h>
+#include <iprt/asm.h>
 #include <iprt/mem.h>
 #include <iprt/path.h>
 #include <VBox/log.h>
