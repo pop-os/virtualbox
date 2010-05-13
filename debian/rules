@@ -174,12 +174,6 @@ endif
 	chrpath -d debian/$(uname)/usr/sbin/VBoxControl
 	chmod 755 debian/$(sname)/usr/share/virtualbox/VBox.sh
 
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
-	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
-
 	# These files have incorrect permissions, fixing it.
 	chmod 755 debian/$(psource)/usr/src/modules/$(sname)/debian/rules
 	chmod 755 debian/$(gsource)/usr/src/modules/$(gname)/debian/rules
@@ -190,6 +184,15 @@ endif
 	cd debian/$(gsource)/usr/src && \
 	    tar -cjf $(gname).tar.bz2 modules && \
 	    rm -rf modules
+
+override_dh_fixperms:
+	dh_fixperms
+
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl
+	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox
 
 override_dh_installudev:
 ifeq ($(INSTALL_X11_UDEV),1)
