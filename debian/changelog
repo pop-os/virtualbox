@@ -2,8 +2,9 @@ virtualbox-ose (3.1.53-dfsg-2) UNRELEASED; urgency=low
 
   * Add 23-remove-invalid-chars-check.patch to remove a check for invalid
     characters in the build path since kBuild is now able to handle those.
+  * Fix FTBFS when building without arch-all packages.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 17 May 2010 14:43:36 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 17 May 2010 15:49:00 +0200
 
 virtualbox-ose (3.1.53-dfsg-1) experimental; urgency=low
 
