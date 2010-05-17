@@ -7,3 +7,4 @@
 16-no-update.patch
 18-system-xorg.patch
 22-no-static-libstdcpp.patch
+23-remove-invalid-chars-check.patch
