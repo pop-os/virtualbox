@@ -6,7 +6,6 @@ Uploaders: Michael Meskes <meskes@debian.org>,
            Felix Geyer <debfx-pkg@fobos.de>
 Build-Depends: bcc,
                bzip2,
-               chrpath,
                debhelper (>= 7.2.7~),
                dkms (>= 2.1.1.1),
                docbook-xml,
