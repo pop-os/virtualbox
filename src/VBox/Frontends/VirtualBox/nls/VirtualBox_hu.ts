@@ -6747,7 +6747,7 @@ to the system default language.&lt;/qt&gt;
     <name>VBoxRegistrationDlg</name>
     <message>
         <source>VirtualBox Registration Dialog</source>
-        <translation>VirtualBox regisztrálása</translation>
+        <translation type="obsolete">VirtualBox regisztrálása</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Please note that innotek will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, innotek will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6759,7 +6759,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>Enter your full name using Latin characters.</source>
-        <translation>Írd be a teljes neved speciális karakterek nélkül.</translation>
+        <translation type="obsolete">Írd be a teljes neved speciális karakterek nélkül.</translation>
     </message>
     <message>
         <source>&amp;E-mail</source>
@@ -6767,7 +6767,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>Enter your e-mail address. Please use a valid address here.</source>
-        <translation>Írd be a használt e-mail címedet.</translation>
+        <translation type="obsolete">Írd be a használt e-mail címedet.</translation>
     </message>
     <message>
         <source>&amp;Please do not use this information to contact me</source>
@@ -6779,7 +6779,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>Welcome to the VirtualBox Registration Form!</source>
-        <translation>A VirtualBox regisztrációs űrlap üdvözöl!</translation>
+        <translation type="obsolete">A VirtualBox regisztrációs űrlap üdvözöl!</translation>
     </message>
     <message>
         <source>&amp;Confirm</source>
@@ -6795,7 +6795,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>Could not perform connection handshake.</source>
-        <translation>A kapcsolódási próbálkozás sikertelen volt.</translation>
+        <translation type="obsolete">A kapcsolódási próbálkozás sikertelen volt.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Enter your full name using Latin characters and your e-mail address to the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
@@ -6811,63 +6811,63 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>Cancel</source>
-        <translation>Mégsem</translation>
+        <translation type="obsolete">Mégsem</translation>
     </message>
     <message>
         <source>Select Country/Territory</source>
-        <translation>Válassz országot/területet</translation>
+        <translation type="obsolete">Válassz országot/területet</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let us know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Kérlek, töltsd ki ezt a regisztrációs űrlapot, hogy tudjuk azt, hogy a felhasználóink táborába tartozol, valamint, hogy informálhassunk téged a különböző hírekről, újdonságokról.&lt;/p&gt;&lt;p&gt;Add meg speciális karakterek nélkül a neved, illetve az e-mail címedet. A Sun Microsystems az adataidat kizárólag statisztikai célokra, és a te informálásodra használja, harmadik fél számára ki nem adja. A személyes adatok felhasználásának és kezelésének részleteiről a kézikönyv &lt;b&gt;Adatvédemi nyilatkozat&lt;/b&gt; részéből vagy a VirtualBox weboldalának &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Adatvédemi nyilatkozat&lt;/a&gt; oldalán tájékozódhatsz.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Kérlek, töltsd ki ezt a regisztrációs űrlapot, hogy tudjuk azt, hogy a felhasználóink táborába tartozol, valamint, hogy informálhassunk téged a különböző hírekről, újdonságokról.&lt;/p&gt;&lt;p&gt;Add meg speciális karakterek nélkül a neved, illetve az e-mail címedet. A Sun Microsystems az adataidat kizárólag statisztikai célokra, és a te informálásodra használja, harmadik fél számára ki nem adja. A személyes adatok felhasználásának és kezelésének részleteiről a kézikönyv &lt;b&gt;Adatvédemi nyilatkozat&lt;/b&gt; részéből vagy a VirtualBox weboldalának &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Adatvédemi nyilatkozat&lt;/a&gt; oldalán tájékozódhatsz.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
-        <translation>A meglevő Sun Online fiókomat &amp;használom:</translation>
+        <translation type="obsolete">A meglevő Sun Online fiókomat &amp;használom:</translation>
     </message>
     <message>
         <source>&amp;E-mail:</source>
-        <translation>&amp;E-mail:</translation>
+        <translation type="obsolete">&amp;E-mail:</translation>
     </message>
     <message>
         <source>&amp;Password:</source>
-        <translation>&amp;Jelszó:</translation>
+        <translation type="obsolete">&amp;Jelszó:</translation>
     </message>
     <message>
         <source>I &amp;would like to create a new Sun Online account:</source>
-        <translation>Szeretnék egy új Sun &amp;Online fiókot regisztrálni:</translation>
+        <translation type="obsolete">Szeretnék egy új Sun &amp;Online fiókot regisztrálni:</translation>
     </message>
     <message>
         <source>&amp;First Name:</source>
-        <translation>&amp;Keresztnév:</translation>
+        <translation type="obsolete">&amp;Keresztnév:</translation>
     </message>
     <message>
         <source>&amp;Last Name:</source>
-        <translation>&amp;Vezetéknév:</translation>
+        <translation type="obsolete">&amp;Vezetéknév:</translation>
     </message>
     <message>
         <source>&amp;Company:</source>
-        <translation>&amp;Cég:</translation>
+        <translation type="obsolete">&amp;Cég:</translation>
     </message>
     <message>
         <source>Co&amp;untry:</source>
-        <translation>Orszá&amp;g:</translation>
+        <translation type="obsolete">Orszá&amp;g:</translation>
     </message>
     <message>
         <source>E-&amp;mail:</source>
-        <translation>E-&amp;mail:</translation>
+        <translation type="obsolete">E-&amp;mail:</translation>
     </message>
     <message>
         <source>P&amp;assword:</source>
-        <translation>J&amp;elszó:</translation>
+        <translation type="obsolete">J&amp;elszó:</translation>
     </message>
     <message>
         <source>Co&amp;nfirm Password:</source>
-        <translation>Jelszó &amp;megerősítése:</translation>
+        <translation type="obsolete">Jelszó &amp;megerősítése:</translation>
     </message>
     <message>
         <source>&amp;Register</source>
-        <translation>&amp;Regisztráció</translation>
+        <translation type="obsolete">&amp;Regisztráció</translation>
     </message>
 </context>
 <context>

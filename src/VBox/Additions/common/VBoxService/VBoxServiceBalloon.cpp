@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceBalloon.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
+/* $Id: VBoxServiceBalloon.cpp 29543 2010-05-17 14:01:31Z vboxsync $ */
 /** @file
  * VBoxService - Memory Ballooning.
  */
@@ -62,9 +62,12 @@ static bool g_fSysMadviseWorks;
 static void VBoxServiceBalloonInitMadvise(void)
 {
 #ifdef RT_OS_LINUX
-    void *pv = RTMemPageAlloc(PAGE_SIZE);
-    g_fSysMadviseWorks = madvise(pv, PAGE_SIZE, MADV_DONTFORK) == 0;
-    RTMemPageFree(pv, PAGE_SIZE);
+    void *pv = (void*)mmap(NULL, PAGE_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (pv != MAP_FAILED)
+    {
+        g_fSysMadviseWorks = madvise(pv, PAGE_SIZE, MADV_DONTFORK) == 0;
+        munmap(pv, PAGE_SIZE);
+    }
 #endif
 }
 

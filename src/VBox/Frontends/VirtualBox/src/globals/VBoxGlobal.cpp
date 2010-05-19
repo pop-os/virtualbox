@@ -1,4 +1,4 @@
-/* $Id: VBoxGlobal.cpp 29334 2010-05-11 10:29:44Z vboxsync $ */
+/* $Id: VBoxGlobal.cpp 29607 2010-05-18 09:44:38Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1770,25 +1770,31 @@ QString VBoxGlobal::details (const CMedium &aMedium, bool aPredictDiff)
 QString VBoxGlobal::details (const CUSBDevice &aDevice) const
 {
     QString sDetails;
-    QString m = aDevice.GetManufacturer().trimmed();
-    QString p = aDevice.GetProduct().trimmed();
-    if (m.isEmpty() && p.isEmpty())
-    {
-        sDetails =
-            tr ("Unknown device %1:%2", "USB device details")
-            .arg (QString().sprintf ("%04hX", aDevice.GetVendorId()))
-            .arg (QString().sprintf ("%04hX", aDevice.GetProductId()));
-    }
+    if (aDevice.isNull())
+        sDetails = tr("Unknown device", "USB device details");
     else
     {
-        if (p.toUpper().startsWith (m.toUpper()))
-            sDetails = p;
+        QString m = aDevice.GetManufacturer().trimmed();
+        QString p = aDevice.GetProduct().trimmed();
+
+        if (m.isEmpty() && p.isEmpty())
+        {
+            sDetails =
+                tr ("Unknown device %1:%2", "USB device details")
+                .arg (QString().sprintf ("%04hX", aDevice.GetVendorId()))
+                .arg (QString().sprintf ("%04hX", aDevice.GetProductId()));
+        }
         else
-            sDetails = m + " " + p;
+        {
+            if (p.toUpper().startsWith (m.toUpper()))
+                sDetails = p;
+            else
+                sDetails = m + " " + p;
+        }
+        ushort r = aDevice.GetRevision();
+        if (r != 0)
+            sDetails += QString().sprintf (" [%04hX]", r);
     }
-    ushort r = aDevice.GetRevision();
-    if (r != 0)
-        sDetails += QString().sprintf (" [%04hX]", r);
 
     return sDetails.trimmed();
 }
@@ -1899,7 +1905,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
     static const char *sSectionItemTpl1 =
         "<tr><td width=40%><nobr><i>%1</i></nobr></td><td/><td/></tr>";
     static const char *sSectionItemTpl2 =
-        "<tr><td width=40%><nobr>%1</nobr></td><td/><td>%2</td></tr>";
+        "<tr><td width=40%><nobr>%1:</nobr></td><td/><td>%2</td></tr>";
     static const char *sSectionItemTpl3 =
         "<tr><td width=40%><nobr>%1</nobr></td><td/><td/></tr>";
 

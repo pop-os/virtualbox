@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 29422 2010-05-12 14:08:52Z vboxsync $ */
+/* $Id: MachineImpl.cpp 29620 2010-05-18 12:15:55Z vboxsync $ */
 /** @file
  * Implementation of IMachine in VBoxSVC.
  */
@@ -69,6 +69,7 @@
 #include <VBox/param.h>
 #include <VBox/settings.h>
 #include <VBox/ssm.h>
+#include <VBox/feature.h>
 
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>
@@ -161,6 +162,7 @@ Machine::HWData::HWData()
     mCPUCount = 1;
     mCPUHotPlugEnabled = false;
     mMemoryBalloonSize = 0;
+    mPageFusionEnabled = false;
     mVRAMSize = 8;
     mAccelerate3DEnabled = false;
     mAccelerate2DVideoEnabled = false;
@@ -1464,14 +1466,34 @@ STDMETHODIMP Machine::COMSETTER(MemoryBalloonSize)(ULONG memoryBalloonSize)
 
 STDMETHODIMP Machine::COMGETTER(PageFusionEnabled) (BOOL *enabled)
 {
-    NOREF(enabled);
-    return E_NOTIMPL;
+    if (!enabled)
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *enabled = mHWData->mPageFusionEnabled;
+    return S_OK;
 }
 
 STDMETHODIMP Machine::COMSETTER(PageFusionEnabled) (BOOL enabled)
 {
+#ifdef VBOX_WITH_PAGE_SHARING
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    setModified(IsModified_MachineData);
+    mHWData.backup();
+    mHWData->mPageFusionEnabled = enabled;
+    return S_OK;
+#else
     NOREF(enabled);
-    return E_NOTIMPL;
+    return setError(E_NOTIMPL, tr("Page fusion is only supported on 64-bit hosts"));
+#endif
 }
 
 STDMETHODIMP Machine::COMGETTER(Accelerate3DEnabled)(BOOL *enabled)
@@ -4966,7 +4988,10 @@ STDMETHODIMP Machine::ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSaf
      * not need the lock and potentially takes a long time. */
     alock.release();
 
-    size_t cbData = (size_t)RT_MIN(aSize, 2048);
+    /* Limit the chunk size to 32K for now, as that gives better performance
+     * over (XP)COM, and keeps the SOAP reply size under 1M for the webservice.
+     * One byte expands to approx. 25 bytes of breathtaking XML. */
+    size_t cbData = (size_t)RT_MIN(aSize, 32768);
     com::SafeArray<BYTE> logData(cbData);
 
     RTFILE LogFile;
@@ -6768,6 +6793,7 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
         }
 
         mHWData->mMemorySize = data.ulMemorySizeMB;
+        mHWData->mPageFusionEnabled = data.fPageFusionEnabled;
 
         // boot order
         for (size_t i = 0;
@@ -6929,7 +6955,7 @@ HRESULT Machine::loadStorageControllers(const settings::Storage &data,
         rc = pCtl->COMSETTER(PortCount)(ctlData.ulPortCount);
         if (FAILED(rc)) return rc;
 
-        rc = pCtl->COMSETTER(IoBackend)(ctlData.ioBackendType);
+        rc = pCtl->COMSETTER(UseHostIOCache)(ctlData.fUseHostIOCache);
         if (FAILED(rc)) return rc;
 
         /* Set IDE emulation settings (only for AHCI controller). */
@@ -7826,6 +7852,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
 
         // memory
         data.ulMemorySizeMB = mHWData->mMemorySize;
+        data.fPageFusionEnabled = mHWData->mPageFusionEnabled;
 
         // firmware
         data.firmwareType = mHWData->mFirmwareType;
@@ -8005,11 +8032,11 @@ HRESULT Machine::saveStorageControllers(settings::Storage &data)
         ComAssertComRCRet(rc, rc);
         ctl.ulPortCount = portCount;
 
-        /* Save I/O backend */
-        IoBackendType_T ioBackendType;
-        rc = pCtl->COMGETTER(IoBackend)(&ioBackendType);
+        /* Save fUseHostIOCache */
+        BOOL fUseHostIOCache;
+        rc = pCtl->COMGETTER(UseHostIOCache)(&fUseHostIOCache);
         ComAssertComRCRet(rc, rc);
-        ctl.ioBackendType = ioBackendType;
+        ctl.fUseHostIOCache = !!fUseHostIOCache;
 
         /* Save IDE emulation settings. */
         if (ctl.controllerType == StorageControllerType_IntelAhci)
@@ -9193,6 +9220,7 @@ void Machine::registerMetrics(PerformanceCollector *aCollector, Machine *aMachin
     pm::SubMetric *guestMemTotal = new pm::SubMetric("Guest/RAM/Usage/Total",      "Total amount of physical guest RAM.");
     pm::SubMetric *guestMemFree = new pm::SubMetric("Guest/RAM/Usage/Free",        "Free amount of physical guest RAM.");
     pm::SubMetric *guestMemBalloon = new pm::SubMetric("Guest/RAM/Usage/Balloon",  "Amount of ballooned physical guest RAM.");
+    pm::SubMetric *guestMemShared = new pm::SubMetric("Guest/RAM/Usage/Shared",  "Amount of shared physical guest RAM.");
     pm::SubMetric *guestMemCache = new pm::SubMetric("Guest/RAM/Usage/Cache",        "Total amount of guest (disk) cache memory.");
 
     pm::SubMetric *guestPagedTotal = new pm::SubMetric("Guest/Pagefile/Usage/Total",    "Total amount of space in the page file.");
@@ -9201,7 +9229,7 @@ void Machine::registerMetrics(PerformanceCollector *aCollector, Machine *aMachin
     pm::BaseMetric *guestCpuLoad = new pm::GuestCpuLoad(mGuestHAL, aMachine, guestLoadUser, guestLoadKernel, guestLoadIdle);
     aCollector->registerBaseMetric(guestCpuLoad);
 
-    pm::BaseMetric *guestCpuMem = new pm::GuestRamUsage(mGuestHAL, aMachine, guestMemTotal, guestMemFree, guestMemBalloon,
+    pm::BaseMetric *guestCpuMem = new pm::GuestRamUsage(mGuestHAL, aMachine, guestMemTotal, guestMemFree, guestMemBalloon, guestMemShared,
                                                         guestMemCache, guestPagedTotal);
     aCollector->registerBaseMetric(guestCpuMem);
 
@@ -9234,6 +9262,11 @@ void Machine::registerMetrics(PerformanceCollector *aCollector, Machine *aMachin
     aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemBalloon, new pm::AggregateAvg()));
     aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemBalloon, new pm::AggregateMin()));
     aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemBalloon, new pm::AggregateMax()));
+
+    aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemShared, 0));
+    aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemShared, new pm::AggregateAvg()));
+    aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemShared, new pm::AggregateMin()));
+    aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemShared, new pm::AggregateMax()));
 
     aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemCache, 0));
     aCollector->registerMetric(new pm::Metric(guestCpuMem, guestMemCache, new pm::AggregateAvg()));

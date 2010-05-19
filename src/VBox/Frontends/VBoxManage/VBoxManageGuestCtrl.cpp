@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestCtrl.cpp 29193 2010-05-07 09:57:16Z vboxsync $ */
+/* $Id: VBoxManageGuestCtrl.cpp 29645 2010-05-18 15:41:46Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestcontrol' command.
  */
@@ -29,6 +29,8 @@
 
 #include <VBox/com/VirtualBox.h>
 #include <VBox/com/EventQueue.h>
+
+#include <VBox/HostServices/GuestControlSvc.h> /* for PROC_STS_XXX */
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
@@ -63,10 +65,11 @@ static volatile bool    g_fExecCanceled = false;
 void usageGuestControl(void)
 {
     RTPrintf("VBoxManage guestcontrol     execute <vmname>|<uuid>\n"
-             "                            <path to program> [--arguments \"<arguments>\"]\n"
+             "                            <path to program> --username <name>\n"
+             "                            [--password <password>]\n"
+             "                            [--arguments \"<arguments>\"]\n"
              "                            [--environment \"<NAME>=<VALUE> [<NAME>=<VALUE>]\"]\n"
-             "                            [--flags <flags>] [--timeout <msec>]\n"
-             "                            [--username <name> [--password <password>]]\n"
+             "                            [--flags <flags>] [--timeout <msec>]\n"             
              "                            [--verbose] [--wait-for exit,stdout,stderr||]\n"
              "\n");
 }
@@ -84,6 +87,31 @@ static void execProcessSignalHandler(int iSignal)
     ASMAtomicWriteBool(&g_fExecCanceled, true);
 }
 
+static const char *getStatus(ULONG uStatus)
+{
+    switch (uStatus)
+    {
+        case guestControl::PROC_STS_STARTED:
+            return "started";
+        case guestControl::PROC_STS_TEN:
+            return "successfully terminated";
+        case guestControl::PROC_STS_TES:
+            return "terminated by signal";
+        case guestControl::PROC_STS_TEA:
+            return "abnormally aborted";
+        case guestControl::PROC_STS_TOK:
+            return "timed out";
+        case guestControl::PROC_STS_TOA:
+            return "timed out, hanging";
+        case guestControl::PROC_STS_DWN:
+            return "killed";
+        case guestControl::PROC_STS_ERROR:
+            return "error";
+        default:
+            return "unknown";
+    }
+}
+
 static int handleExecProgram(HandlerArg *a)
 {
     /*
@@ -97,17 +125,14 @@ static int handleExecProgram(HandlerArg *a)
     uint32_t uFlags = 0;
     com::SafeArray <BSTR> args;
     com::SafeArray <BSTR> env;
-    Utf8Str Utf8StdIn;
-    Utf8Str Utf8StdOut;
-    Utf8Str Utf8StdErr;
     Utf8Str Utf8UserName;
     Utf8Str Utf8Password;
     uint32_t u32TimeoutMS = 0;
-    bool waitForExit = false;
-    bool waitForStdOut = false;
-    bool waitForStdErr = false;
-    bool verbose = false;
-    bool have_timeout = false;
+    bool fWaitForExit = false;
+    bool fWaitForStdOut = false;
+    bool fWaitForStdErr = false;
+    bool fVerbose = false;
+    bool fTimeout = false;
 
     /* Always use the actual command line as argv[0]. */
     args.push_back(Bstr(Utf8Cmd));
@@ -199,7 +224,7 @@ static int handleExecProgram(HandlerArg *a)
             }
             else
             {
-                have_timeout = true;
+                fTimeout = true;
                 ++i;
             }
         }
@@ -210,16 +235,16 @@ static int handleExecProgram(HandlerArg *a)
             else
             {
                 if (!strcmp(a->argv[i + 1], "exit"))
-                    waitForExit = true;
+                    fWaitForExit = true;
                 else if (!strcmp(a->argv[i + 1], "stdout"))
                 {
-                    waitForExit = true;
-                    waitForStdOut = true;
+                    fWaitForExit = true;
+                    fWaitForStdOut = true;
                 }
                 else if (!strcmp(a->argv[i + 1], "stderr"))
                 {
-                    waitForExit = true;
-                    waitForStdErr = true;
+                    fWaitForExit = true;
+                    fWaitForStdErr = true;
                 }
                 else
                     usageOK = false;
@@ -228,7 +253,7 @@ static int handleExecProgram(HandlerArg *a)
         }
         else if (!strcmp(a->argv[i], "--verbose"))
         {
-            verbose = true;
+            fVerbose = true;
         }
         /** @todo Add fancy piping stuff here. */
         else
@@ -241,13 +266,9 @@ static int handleExecProgram(HandlerArg *a)
     if (!usageOK)
         return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
 
-    /* If a password was specified, check if we also got a user name. */
-    if (   !Utf8Password.isEmpty()
-        &&  Utf8UserName.isEmpty())
-    {
+    if (Utf8UserName.isEmpty())
         return errorSyntax(USAGE_GUESTCONTROL,
-                           "No user name for password specified!");
-    }
+                           "No user name specified!");
 
     /* lookup VM. */
     ComPtr<IMachine> machine;
@@ -282,7 +303,7 @@ static int handleExecProgram(HandlerArg *a)
             ComPtr<IProgress> progress;
             ULONG uPID = 0;
 
-            if (verbose)
+            if (fVerbose)
             {
                 if (u32TimeoutMS == 0)
                     RTPrintf("Waiting for guest to start process ...\n");
@@ -294,15 +315,22 @@ static int handleExecProgram(HandlerArg *a)
             uint64_t u64StartMS = RTTimeMilliTS();
 
             /* Execute the process. */
-            CHECK_ERROR_BREAK(guest, ExecuteProcess(Bstr(Utf8Cmd), uFlags,
-                                                    ComSafeArrayAsInParam(args), ComSafeArrayAsInParam(env),
-                                                    Bstr(Utf8StdIn), Bstr(Utf8StdOut), Bstr(Utf8StdErr),
-                                                    Bstr(Utf8UserName), Bstr(Utf8Password), u32TimeoutMS,
-                                                    &uPID, progress.asOutParam()));
-            if (verbose) RTPrintf("Process '%s' (PID: %u) started\n", Utf8Cmd.raw(), uPID);
-            if (waitForExit)
+            rc = guest->ExecuteProcess(Bstr(Utf8Cmd), uFlags,
+                                       ComSafeArrayAsInParam(args), ComSafeArrayAsInParam(env),
+                                       Bstr(Utf8UserName), Bstr(Utf8Password), u32TimeoutMS,
+                                       &uPID, progress.asOutParam());
+            if (FAILED(rc))
             {
-                if (have_timeout)
+                ErrorInfo info(guest);
+                if (info.isFullAvailable())
+                    RTPrintf("ERROR: %ls (%Rhrc).\n", info.getText().raw(), info.getResultCode());
+                break;
+            }
+            if (fVerbose)
+                RTPrintf("Process '%s' (PID: %u) started\n", Utf8Cmd.raw(), uPID);
+            if (fWaitForExit)
+            {
+                if (fTimeout)
                 {
                     /* Calculate timeout value left after process has been started.  */
                     uint64_t u64Diff = RTTimeMilliTS() - u64StartMS;
@@ -310,17 +338,17 @@ static int handleExecProgram(HandlerArg *a)
                     if (u32TimeoutMS > u64Diff) /* Is timeout still bigger than current difference? */
                     {
                         u32TimeoutMS = u32TimeoutMS - u64Diff;
-                        if (verbose)
+                        if (fVerbose)
                             RTPrintf("Waiting for process to exit (%ums left) ...\n", u32TimeoutMS);
                     }
                     else
                     {
-                        if (verbose)
+                        if (fVerbose)
                             RTPrintf("No time left to wait for process!\n");
-                    }                    
+                    }
                 }
-                else if (verbose)
-                    RTPrintf("Waiting for process to exit ...\n");                        
+                else if (fVerbose)
+                    RTPrintf("Waiting for process to exit ...\n");
 
                 /* setup signal handling if cancelable */
                 ASSERT(progress);
@@ -339,33 +367,19 @@ static int handleExecProgram(HandlerArg *a)
 
                 /* Wait for process to exit ... */
                 BOOL fCompleted = false;
-                ULONG cbOutputData = 0;
-                SafeArray<BYTE> aOutputData;
                 while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
                 {
-                    /* 
-                     * because we want to get all the output data even if the process
-                     * already ended, we first need to check whether there is some data
-                     * left to output before checking the actual timeout and is-process-completed
-                     * stuff. 
+                    SafeArray<BYTE> aOutputData;
+                    ULONG cbOutputData = 0;
+
+                    /*
+                     * Some data left to output?
                      */
-                    if (cbOutputData <= 0)
-                    {
-                        if (fCompleted)
-                            break;
 
-                        if (   have_timeout
-                            && RTTimeMilliTS() - u64StartMS > u32TimeoutMS + 5000)
-                        {
-                            progress->Cancel();
-                            break;
-                        }
-                    }
-
-                    if (   waitForStdOut 
-                        || waitForStdErr)
+                    if (   fWaitForStdOut
+                        || fWaitForStdErr)
                     {
-                        CHECK_ERROR_BREAK(guest, GetProcessOutput(uPID, 0 /* aFlags */, 
+                        CHECK_ERROR_BREAK(guest, GetProcessOutput(uPID, 0 /* aFlags */,
                                                                   u32TimeoutMS, _64K, ComSafeArrayAsOutParam(aOutputData)));
                         cbOutputData = aOutputData.size();
                         if (cbOutputData > 0)
@@ -388,6 +402,19 @@ static int handleExecProgram(HandlerArg *a)
                                     *d = *s;
                             }
                             RTStrmWrite(g_pStdOut, aOutputData.raw(), cbOutputDataPrint);
+                        }
+                    }
+
+                    if (cbOutputData <= 0)
+                    {
+                        if (fCompleted)
+                            break;
+
+                        if (   fTimeout
+                            && RTTimeMilliTS() - u64StartMS > u32TimeoutMS + 5000)
+                        {
+                            progress->Cancel();
+                            break;
                         }
                     }
 
@@ -414,36 +441,27 @@ static int handleExecProgram(HandlerArg *a)
                 }
 
                 BOOL fCanceled;
-                CHECK_ERROR_RET(progress, COMGETTER(Canceled)(&fCanceled), rc);
-                if (fCanceled)
+                if (SUCCEEDED(progress->COMGETTER(Canceled)(&fCanceled)) && fCanceled)
+                    if (fVerbose) RTPrintf("Process execution canceled!\n");
+
+                if (fCompleted)
                 {
-                    RTPrintf("Process execution canceled!\n");
-                }
-                else
-                {                   
-                    if (fCompleted)
+                    LONG iRc = false;
+                    CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
+                    if (FAILED(iRc))
                     {
-                        LONG iRc = false;
-                        CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
-                        if (FAILED(iRc))
-                        {
-                            ComPtr<IVirtualBoxErrorInfo> execError;
-                            rc = progress->COMGETTER(ErrorInfo)(execError.asOutParam());
-                            com::ErrorInfo info (execError);
-                            RTPrintf("\n\nProcess error details:\n");
-                            GluePrintErrorInfo(info);
-                            RTPrintf("\n");
-                        }
-                        if (verbose)
-                        {
-                            ULONG uRetStatus, uRetExitCode, uRetFlags;
-                            CHECK_ERROR_BREAK(guest, GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &uRetStatus));
-                            RTPrintf("Exit code=%u (Status=%u, Flags=%u)\n", uRetExitCode, uRetStatus, uRetFlags);
-                        }       
+                        ComPtr<IVirtualBoxErrorInfo> execError;
+                        rc = progress->COMGETTER(ErrorInfo)(execError.asOutParam());
+                        com::ErrorInfo info (execError);
+                        RTPrintf("\n\nProcess error details:\n");
+                        GluePrintErrorInfo(info);
+                        RTPrintf("\n");
                     }
-                    else /* not completed yet? -> timeout */
+                    if (fVerbose)
                     {
-                        RTPrintf("Process timed out!\n");
+                        ULONG uRetStatus, uRetExitCode, uRetFlags;
+                        CHECK_ERROR_BREAK(guest, GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &uRetStatus));
+                        RTPrintf("Exit code=%u (Status=%u [%s], Flags=%u)\n", uRetExitCode, uRetStatus, getStatus(uRetStatus), uRetFlags);
                     }
                 }
             }

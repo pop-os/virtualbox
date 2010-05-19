@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.h 29385 2010-05-11 18:05:44Z vboxsync $ */
+/* $Id: MachineImpl.h 29462 2010-05-14 11:27:59Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -258,6 +258,7 @@ public:
         Guid                 mHardwareUUID;   /**< If Null, use mData.mUuid. */
         ULONG                mMemorySize;
         ULONG                mMemoryBalloonSize;
+        BOOL                 mPageFusionEnabled;
         ULONG                mVRAMSize;
         ULONG                mMonitorCount;
         BOOL                 mHWVirtExEnabled;

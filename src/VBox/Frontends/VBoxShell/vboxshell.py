@@ -37,7 +37,8 @@ class GuestMonitor:
         self.mach = mach
 
     def onMousePointerShapeChange(self, visible, alpha, xHot, yHot, width, height, shape):
-        print  "%s: onMousePointerShapeChange: visible=%d" %(self.mach.name, visible)
+        print  "%s: onMousePointerShapeChange: visible=%d shape=%d bytes" %(self.mach.name, visible,len(shape))
+
     def onMouseCapabilityChange(self, supportsAbsolute, supportsRelative, needsHostCursor):
         print  "%s: onMouseCapabilityChange: supportsAbsolute = %d, supportsRelative = %d, needsHostCursor = %d" %(self.mach.name, supportsAbsolute, supportsRelative, needsHostCursor)
 
@@ -159,6 +160,7 @@ def colored(string,color):
         return string
 
 if g_hasreadline:
+  import string
   class CompleterNG(rlcompleter.Completer):
     def __init__(self, dic, ctx):
         self.ctx = ctx
@@ -169,10 +171,23 @@ if g_hasreadline:
         taken from:
         http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/496812
         """
-        if text == "":
+        if False and text == "":
             return ['\t',None][state]
         else:
             return rlcompleter.Completer.complete(self,text,state)
+
+    def canBeCommand(self, phrase, word):
+        spaceIdx = phrase.find(" ")
+        begIdx = readline.get_begidx()
+        firstWord = (spaceIdx == -1 or begIdx < spaceIdx)
+        if firstWord:
+            return True
+        if phrase.startswith('help'):
+            return True
+        return False
+
+    def canBeMachine(self,phrase,word):
+        return not self.canBeCommand(phrase, word)
 
     def global_matches(self, text):
         """
@@ -183,25 +198,26 @@ if g_hasreadline:
 
         matches = []
         n = len(text)
+        phrase = readline.get_line_buffer()
 
-        for list in [ self.namespace ]:
-            for word in list:
-                if word[:n] == text:
-                    matches.append(word)
-
-
+        if self.canBeCommand(phrase,text):
+            for list in [ self.namespace ]:
+                for word in list:
+                    if word[:n] == text:
+                        matches.append(word)
         try:
-            for m in getMachines(self.ctx, False, True):
-                # although it has autoconversion, we need to cast
-                # explicitly for subscripts to work
-                word = re.sub("(?<!\\\\) ", "\\ ", str(m.name))
-                if word[:n] == text:
-                    matches.append(word)
-                word = str(m.id)
-                if word[0] == '{':
-                    word = word[1:-1]
-                if word[:n] == text:
-                    matches.append(word)
+            if self.canBeMachine(phrase,text):
+                for m in getMachines(self.ctx, False, True):
+                    # although it has autoconversion, we need to cast
+                    # explicitly for subscripts to work
+                    word = re.sub("(?<!\\\\) ", "\\ ", str(m.name))
+                    if word[:n] == text:
+                        matches.append(word)
+                    word = str(m.id)
+                    if word[0] == '{':
+                        word = word[1:-1]
+                    if word[:n] == text:
+                        matches.append(word)
         except Exception,e:
             printErr(e)
             if g_verbose:
@@ -265,9 +281,14 @@ def colCat(ctx,str):
 def colVm(ctx,vm):
     return colored(vm, 'blue')
 
-def colPath(ctx,vm):
-    return colored(vm, 'green')
+def colPath(ctx,p):
+    return colored(p, 'green')
 
+def colSize(ctx,m):
+    return colored(m, 'red')
+
+def colSizeM(ctx,m):
+    return colored(str(m)+'M', 'red')
 
 def createVm(ctx,name,kind,base):
     mgr = ctx['mgr']
@@ -523,8 +544,11 @@ def ginfo(ctx,console, args):
         printSf(ctx,sf)
 
 def cmdExistingVm(ctx,mach,cmd,args):
+    session = None
     try:
-        session = ctx['global'].openMachineSession(mach.id)
+        vb = ctx['vb']
+        session = ctx['mgr'].getSessionObject(vb)
+        vb.openExistingSession(session, mach.id)
     except Exception,e:
         printErr(ctx, "Session to '%s' not open: %s" %(mach.name,str(e)))
         if g_verbose:
@@ -824,7 +848,7 @@ def execInGuest(ctx,console,args,env):
     # shall contain program name as argv[0]
     gargs = args
     print "executing %s with args %s" %(args[0], gargs)
-    (progress, pid) = guest.executeProcess(args[0], 0, gargs, env, "", "", "", user, passwd, tmo)
+    (progress, pid) = guest.executeProcess(args[0], 0, gargs, env, user, passwd, tmo)
     print "executed with pid %d" %(pid)
     if pid != 0:
         try:
@@ -1665,25 +1689,25 @@ def listMediaCmd(ctx,args):
    else:
       verbose = False
    hdds = ctx['global'].getArray(ctx['vb'], 'hardDisks')
-   print "Hard disks:"
+   print colCat(ctx,"Hard disks:")
    for hdd in hdds:
        if hdd.state != ctx['global'].constants.MediumState_Created:
            hdd.refreshState()
-       print "   %s (%s)%s %dM [logical %dM]" %(hdd.location, hdd.format, optId(verbose,hdd.id),asSize(hdd.size, True), asSize(hdd.logicalSize, False))
+       print "   %s (%s)%s %s [logical %s]" %(colPath(ctx,hdd.location), hdd.format, optId(verbose,hdd.id),colSizeM(ctx,asSize(hdd.size, True)), colSizeM(ctx,asSize(hdd.logicalSize, False)))
 
    dvds = ctx['global'].getArray(ctx['vb'], 'DVDImages')
-   print "CD/DVD disks:"
+   print colCat(ctx,"CD/DVD disks:")
    for dvd in dvds:
        if dvd.state != ctx['global'].constants.MediumState_Created:
            dvd.refreshState()
-       print "   %s (%s)%s %dM" %(dvd.location, dvd.format,optId(verbose,hdd.id),asSize(hdd.size, True))
+       print "   %s (%s)%s %s" %(colPath(ctx,dvd.location), dvd.format,optId(verbose,hdd.id),colSizeM(ctx,asSize(hdd.size, True)))
 
    floppys = ctx['global'].getArray(ctx['vb'], 'floppyImages')
-   print "Floopy disks:"
+   print colCat(ctx,"Floppy disks:")
    for floppy in floppys:
        if floppy.state != ctx['global'].constants.MediumState_Created:
            floppy.refreshState()
-       print "   %s (%s)%s %dM" %(floppy.location, floppy.format,optId(verbose,hdd.id), asSize(hdd.size, True))
+       print "   %s (%s)%s %s" %(colPath(ctx,floppy.location), floppy.format,optId(verbose,hdd.id), colSizeM(ctx,asSize(hdd.size, True)))
 
    return 0
 
@@ -2172,12 +2196,12 @@ def snapshotCmd(ctx,args):
     return 0
 
 def natAlias(ctx, mach, nicnum, nat, args=[]):
-    """This command shows/alters NAT's alias settings. 
+    """This command shows/alters NAT's alias settings.
     usage: nat <vm> <nicnum> alias [default|[log] [proxyonly] [sameports]]
     default - set settings to default values
     log - switch on alias loging
     proxyonly - switch proxyonly mode on
-    sameports - enforces NAT using the same ports 
+    sameports - enforces NAT using the same ports
     """
     alias = {
         'log': 0x1,
@@ -2187,12 +2211,12 @@ def natAlias(ctx, mach, nicnum, nat, args=[]):
     if len(args) == 1:
         first = 0
         msg = ''
-        for aliasmode, aliaskey in alias.iteritems(): 
+        for aliasmode, aliaskey in alias.iteritems():
             if first == 0:
                 first = 1
             else:
                 msg += ', '
-            if int(nat.aliasMode) & aliaskey: 
+            if int(nat.aliasMode) & aliaskey:
                 msg += '{0}: {1}'.format(aliasmode, 'on')
             else:
                 msg += '{0}: {1}'.format(aliasmode, 'off')
@@ -2213,7 +2237,7 @@ def natSettings(ctx, mach, nicnum, nat, args):
     """This command shows/alters NAT settings.
     usage: nat <vm> <nicnum> settings [<mtu> [[<socsndbuf> <sockrcvbuf> [<tcpsndwnd> <tcprcvwnd>]]]]
     mtu - set mtu <= 16000
-    socksndbuf/sockrcvbuf - sets amount of kb for socket sending/receiving buffer 
+    socksndbuf/sockrcvbuf - sets amount of kb for socket sending/receiving buffer
     tcpsndwnd/tcprcvwnd - sets size of initial tcp sending/receiving window
     """
     if len(args) == 1:
@@ -2232,13 +2256,13 @@ def natSettings(ctx, mach, nicnum, nat, args):
         for i in range(2, len(args)):
             if not args[i].isdigit() or int(args[i]) < 8 or int(args[i]) > 1024:
                 print 'invalid {0} parameter ({1} not in range [8-1024])'.format(i, args[i])
-                return (1, None) 
+                return (1, None)
         a = [args[1]]
         if len(args) < 6:
-            for i in range(2, len(args)): a.append(args[i]) 
+            for i in range(2, len(args)): a.append(args[i])
             for i in range(len(args), 6): a.append(0)
         else:
-            for i in range(2, len(args)): a.append(args[i]) 
+            for i in range(2, len(args)): a.append(args[i])
         #print a
         nat.setNetworkSettings(int(a[0]), int(a[1]), int(a[2]), int(a[3]), int(a[4]))
     return (0, None)
@@ -2303,9 +2327,9 @@ def natTftp(ctx, mach, nicnum, nat, args):
 
 def natPortForwarding(ctx, mach, nicnum, nat, args):
     """This command shows/manages port-forwarding settings
-    usage: 
+    usage:
         nat <vm> <nicnum> <pf> [ simple tcp|udp <hostport> <guestport>]
-            |[no_name tcp|udp <hostip> <hostport> <guestip> <guestport>] 
+            |[no_name tcp|udp <hostip> <hostport> <guestip> <guestport>]
             |[ex tcp|udp <pf-name> <hostip> <hostport> <guestip> <guestport>]
             |[delete <pf-name>]
     """
@@ -2322,22 +2346,22 @@ def natPortForwarding(ctx, mach, nicnum, nat, args):
         proto = {'udp': 0, 'tcp': 1}
         pfcmd = {
             'simple': {
-                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 5, 
+                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 5,
                 'func':lambda: nat.addRedirect('', proto[args[2]], '', int(args[3]), '', int(args[4]))
             },
-            'no_name': { 
-                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 7, 
+            'no_name': {
+                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 7,
                 'func': lambda: nat.addRedirect('', proto[args[2]], args[3], int(args[4]), args[5], int(args[6]))
             },
-            'ex': { 
-                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 8, 
+            'ex': {
+                'validate': lambda: args[1] in pfcmd.keys() and args[2] in proto.keys() and len(args) == 8,
                 'func': lambda: nat.addRedirect(args[3], proto[args[2]], args[4], int(args[5]), args[6], int(args[7]))
             },
             'delete': {
                 'validate': lambda: len(args) == 3,
                 'func': lambda: nat.removeRedirect(args[2])
             }
-        } 
+        }
 
         if not pfcmd[args[1]]['validate']():
             print 'invalid port-forwarding or args of sub command ', args[1]
@@ -2348,7 +2372,7 @@ def natPortForwarding(ctx, mach, nicnum, nat, args):
     return (0, None)
 
 def natNetwork(ctx, mach, nicnum, nat, args):
-    """This command shows/alters NAT network settings 
+    """This command shows/alters NAT network settings
     usage: nat <vm> <nicnum> network [<network>]
     """
     if len(args) == 1:
@@ -2401,8 +2425,8 @@ def natCmd(ctx, args):
     cmdargs = []
     for i in range(3, len(args)):
         cmdargs.append(args[i])
-        
-    # @todo vvl if nicnum is missed but command is entered 
+
+    # @todo vvl if nicnum is missed but command is entered
     # use NAT func for every adapter on machine.
     func = args[3]
     rosession = 1
@@ -2414,7 +2438,7 @@ def natCmd(ctx, args):
 
     adapter = mach.getNetworkAdapter(nicnum)
     natEngine = adapter.natDriver
-    (rc, report) = natcommands[func](ctx, mach, nicnum, natEngine, cmdargs) 
+    (rc, report) = natcommands[func](ctx, mach, nicnum, natEngine, cmdargs)
     if rosession == 0:
         if rc == 0:
             mach.saveSettings()

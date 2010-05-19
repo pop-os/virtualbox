@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt.c 29150 2010-05-06 13:13:03Z vboxsync $ */
+/* $Id: VBoxNetFlt.c 29635 2010-05-18 13:42:54Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Common Code.
  */
@@ -534,6 +534,68 @@ static DECLCALLBACK(INTNETTRUNKIFSTATE) vboxNetFltPortSetState(PINTNETTRUNKIFPOR
 
 
 /**
+ * @copydoc INTNETTRUNKIFPORT::pfnNotifyMacAddress
+ */
+static DECLCALLBACK(void) vboxNetFltPortNotifyMacAddress(PINTNETTRUNKIFPORT pIfPort, INTNETIFHANDLE hIf, PCRTMAC pMac)
+{
+    PVBOXNETFLTINS pThis = IFPORT_2_VBOXNETFLTINS(pIfPort);
+
+    /*
+     * Input validation.
+     */
+    AssertPtr(pThis);
+    Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
+
+    vboxNetFltRetain(pThis, false /* fBusy */);
+    vboxNetFltPortOsNotifyMacAddress(pThis, hIf, pMac);
+    vboxNetFltRelease(pThis, false /* fBusy */);
+}
+
+
+/**
+ * @copydoc INTNETTRUNKIFPORT::pfnConnectInterface
+ */
+static DECLCALLBACK(int) vboxNetFltPortConnectInterface(PINTNETTRUNKIFPORT pIfPort,  INTNETIFHANDLE hIf)
+{
+    PVBOXNETFLTINS  pThis = IFPORT_2_VBOXNETFLTINS(pIfPort);
+    int             rc;
+
+    /*
+     * Input validation.
+     */
+    AssertPtr(pThis);
+    Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
+
+    vboxNetFltRetain(pThis, false /* fBusy */);
+    rc = vboxNetFltPortOsConnectInterface(pThis, hIf);
+    vboxNetFltRelease(pThis, false /* fBusy */);
+
+    return rc;
+}
+
+
+/**
+ * @copydoc INTNETTRUNKIFPORT::pfnDisconnectInterface
+ */
+static DECLCALLBACK(void) vboxNetFltPortDisconnectInterface(PINTNETTRUNKIFPORT pIfPort, INTNETIFHANDLE hIf)
+{
+    PVBOXNETFLTINS  pThis = IFPORT_2_VBOXNETFLTINS(pIfPort);
+    int             rc;
+
+    /*
+     * Input validation.
+     */
+    AssertPtr(pThis);
+    Assert(pThis->MyPort.u32Version == INTNETTRUNKIFPORT_VERSION);
+
+    vboxNetFltRetain(pThis, false /* fBusy */);
+    rc = vboxNetFltPortOsDisconnectInterface(pThis, hIf);
+    vboxNetFltRelease(pThis, false /* fBusy */);
+    AssertRC(rc); /** @todo fix vboxNetFltPortOsDisconnectInterface. */
+}
+
+
+/**
  * @copydoc INTNETTRUNKIFPORT::pfnDisconnectAndRelease
  */
 static DECLCALLBACK(void) vboxNetFltPortDisconnectAndRelease(PINTNETTRUNKIFPORT pIfPort)
@@ -869,16 +931,10 @@ static int vboxNetFltConnectIt(PVBOXNETFLTINS pThis, PINTNETTRUNKSWPORT pSwitchP
     Assert(!pThis->cBusy);
 #ifdef VBOXNETFLT_STATIC_CONFIG
     Assert(vboxNetFltGetState(pThis) == kVBoxNetFltInsState_Unconnected);
-    /* INTNETTRUNKIFSTATE_DISCONNECTING means "not connected" here
-     * we use the INTNETTRUNKIFSTATE_DISCONNECTING state for consistency of cases when trunk
-     * was never connected and was connected and disconnected.
-     * In the latter case we end up with INTNETTRUNKIFSTATE_DICONNECTING,
-     * so use the same state for the former */
-    Assert(pThis->enmTrunkState == INTNETTRUNKIFSTATE_DISCONNECTING);
 #else
     Assert(vboxNetFltGetState(pThis) == kVBoxNetFltInsState_Initializing);
-    Assert(pThis->enmTrunkState == INTNETTRUNKIFSTATE_INACTIVE);
 #endif
+    Assert(pThis->enmTrunkState == INTNETTRUNKIFSTATE_INACTIVE);
 
     /*
      * Do the job.
@@ -894,16 +950,7 @@ static int vboxNetFltConnectIt(PVBOXNETFLTINS pThis, PINTNETTRUNKSWPORT pSwitchP
     else
         pThis->pSwitchPort = NULL;
 
-#ifdef VBOXNETFLT_STATIC_CONFIG
-    /* INTNETTRUNKIFSTATE_DISCONNECTING means "not connected" here
-     * we use the INTNETTRUNKIFSTATE_DISCONNECTING state for consistency of cases when trunk
-     * was never connected and was connected and disconnected.
-     * In the latter case we end up with INTNETTRUNKIFSTATE_DISCONNECTING,
-     * so use the same state for the former */
-    Assert(pThis->enmTrunkState == INTNETTRUNKIFSTATE_DISCONNECTING);
-#else
     Assert(pThis->enmTrunkState == INTNETTRUNKIFSTATE_INACTIVE);
-#endif
     return rc;
 }
 
@@ -929,6 +976,10 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
 {
     /*
      * Allocate and initialize a new instance before requesting the mutex.
+     * Note! That in a static config we'll initialize the trunk state to
+     *       disconnecting and flip it in vboxNetFltFactoryCreateAndConnect
+     *       later on.  This better reflext the state and it works better with
+     *       assertions in the destruction path.
      */
     int             rc;
     size_t const    cchName = strlen(pszName);
@@ -943,15 +994,15 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
     pNew->MyPort.pfnSetState            = vboxNetFltPortSetState;
     pNew->MyPort.pfnWaitForIdle         = vboxNetFltPortWaitForIdle;
     pNew->MyPort.pfnXmit                = vboxNetFltPortXmit;
+    pNew->MyPort.pfnNotifyMacAddress    = vboxNetFltPortNotifyMacAddress;
+    pNew->MyPort.pfnConnectInterface    = vboxNetFltPortConnectInterface;
+    pNew->MyPort.pfnDisconnectInterface = vboxNetFltPortDisconnectInterface;
     pNew->MyPort.u32VersionEnd          = INTNETTRUNKIFPORT_VERSION;
     pNew->pSwitchPort                   = pSwitchPort;
     pNew->pGlobals                      = pGlobals;
     pNew->hSpinlock                     = NIL_RTSPINLOCK;
     pNew->enmState                      = kVBoxNetFltInsState_Initializing;
 #ifdef VBOXNETFLT_STATIC_CONFIG
-    /* for consistency of cases when trunk was never connected and was connected and disconnected.
-     * In the latter case we end up with INTNETTRUNKIFSTATE_DISCONNECTING,
-     * so use the same state for the former */
     pNew->enmTrunkState                 = INTNETTRUNKIFSTATE_DISCONNECTING;
 #else
     pNew->enmTrunkState                 = INTNETTRUNKIFSTATE_INACTIVE;
@@ -1204,10 +1255,13 @@ static DECLCALLBACK(int) vboxNetFltFactoryCreateAndConnect(PINTNETTRUNKFACTORY p
         {
             if (vboxNetFltGetState(pCur) == kVBoxNetFltInsState_Unconnected)
             {
+                pCur->enmTrunkState = INTNETTRUNKIFSTATE_INACTIVE; /** @todo protect me? */
                 pCur->fDisablePromiscuous = !!(fFlags & INTNETTRUNKFACTORY_FLAG_NO_PROMISC);
                 rc = vboxNetFltConnectIt(pCur, pSwitchPort, ppIfPort);
                 if (RT_SUCCESS(rc))
                     pCur = NULL; /* Don't release it, reference given to the caller. */
+                else
+                    pCur->enmTrunkState = INTNETTRUNKIFSTATE_DISCONNECTING;
             }
             else
                 rc = VERR_INTNET_FLT_IF_BUSY;

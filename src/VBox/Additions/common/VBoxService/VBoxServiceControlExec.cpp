@@ -1,5 +1,5 @@
 
-/* $Id: VBoxServiceControlExec.cpp 29315 2010-05-11 07:53:29Z vboxsync $ */
+/* $Id: VBoxServiceControlExec.cpp 29627 2010-05-18 12:47:35Z vboxsync $ */
 /** @file
  * VBoxServiceControlExec - Utility functions for process execution.
  */
@@ -578,14 +578,14 @@ int VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf
 
     int rc = RTCritSectEnter(&pBuf->CritSect);
     if (RT_SUCCESS(rc))
-    {    
+    {
         Assert(pBuf->cbOffset >= pBuf->cbRead);
         if (*pcbToRead > pBuf->cbOffset - pBuf->cbRead)
             *pcbToRead = pBuf->cbOffset - pBuf->cbRead;
-    
+
         if (*pcbToRead > cbBuffer)
             *pcbToRead = cbBuffer;
-    
+
         if (*pcbToRead > 0)
         {
             memcpy(pbBuffer, pBuf->pbData + pBuf->cbRead, *pcbToRead);
@@ -608,7 +608,7 @@ int VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
 
     int rc = RTCritSectEnter(&pBuf->CritSect);
     if (RT_SUCCESS(rc))
-    {    
+    {
         /** @todo Use RTMemCache or RTMemObj here? */
         uint8_t *pNewBuf;
         while (pBuf->cbSize - pBuf->cbOffset < cbData)
@@ -619,7 +619,7 @@ int VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
             pBuf->cbSize += _4K;
             pBuf->pbData = pNewBuf;
         }
-        
+
         rc = VINF_SUCCESS;
         if (pBuf->pbData)
         {
@@ -642,12 +642,11 @@ int VBoxServiceControlExecAllocateThreadData(PVBOXSERVICECTRLTHREAD pThread,
                                              const char *pszCmd, uint32_t uFlags,
                                              const char *pszArgs, uint32_t uNumArgs,
                                              const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
-                                             const char *pszStdIn, const char *pszStdOut, const char *pszStdErr,
                                              const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS)
 {
     AssertPtr(pThread);
 
-    /* General stuff. */    
+    /* General stuff. */
     pThread->Node.pPrev = NULL;
     pThread->Node.pNext = NULL;
 
@@ -699,9 +698,6 @@ int VBoxServiceControlExecAllocateThreadData(PVBOXSERVICECTRLTHREAD pThread,
             }
         }
 
-        pData->pszStdIn = RTStrDup(pszStdIn);
-        pData->pszStdOut = RTStrDup(pszStdOut);
-        pData->pszStdErr = RTStrDup(pszStdErr);
         pData->pszUser = RTStrDup(pszUser);
         pData->pszPassword = RTStrDup(pszPassword);
         pData->uTimeLimitMS = uTimeLimitMS;
@@ -733,7 +729,7 @@ int VBoxServiceControlExecAllocateThreadData(PVBOXSERVICECTRLTHREAD pThread,
 void VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pData)
 {
     if (pData)
-    {    
+    {
         RTStrFree(pData->pszCmd);
         if (pData->uNumEnvVars)
         {
@@ -742,12 +738,9 @@ void VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pDat
             RTMemFree(pData->papszEnv);
         }
         RTGetOptArgvFree(pData->papszArgs);
-        RTStrFree(pData->pszStdIn);
-        RTStrFree(pData->pszStdOut);
-        RTStrFree(pData->pszStdErr);
         RTStrFree(pData->pszUser);
         RTStrFree(pData->pszPassword);
-    
+
         VBoxServiceControlExecDestroyPipeBuffer(&pData->stdOut);
         VBoxServiceControlExecDestroyPipeBuffer(&pData->stdErr);
 
@@ -908,7 +901,6 @@ static DECLCALLBACK(int) VBoxServiceControlExecThread(RTTHREAD ThreadSelf, void 
 int VBoxServiceControlExecProcess(uint32_t uContextID, const char *pszCmd, uint32_t uFlags,
                                   const char *pszArgs, uint32_t uNumArgs,
                                   const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
-                                  const char *pszStdIn, const char *pszStdOut, const char *pszStdErr,
                                   const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS)
 {
     PVBOXSERVICECTRLTHREAD pThread = (PVBOXSERVICECTRLTHREAD)RTMemAlloc(sizeof(VBOXSERVICECTRLTHREAD));
@@ -921,7 +913,6 @@ int VBoxServiceControlExecProcess(uint32_t uContextID, const char *pszCmd, uint3
                                                       pszCmd, uFlags,
                                                       pszArgs, uNumArgs,
                                                       pszEnv, cbEnv, uNumEnvVars,
-                                                      pszStdIn, pszStdOut, pszStdErr,
                                                       pszUser, pszPassword,
                                                       uTimeLimitMS);
         if (RT_SUCCESS(rc))

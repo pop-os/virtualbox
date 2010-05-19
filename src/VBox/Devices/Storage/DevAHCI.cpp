@@ -1,4 +1,4 @@
-/* $Id: DevAHCI.cpp 29239 2010-05-08 16:14:56Z vboxsync $ */
+/* $Id: DevAHCI.cpp 29504 2010-05-16 13:43:18Z vboxsync $ */
 /** @file
  * VBox storage devices: AHCI controller device (disk and cdrom).
  *                       Implements the AHCI standard 1.1
@@ -4285,9 +4285,17 @@ static int ahciScatterGatherListCreate(PAHCIPort pAhciPort, PAHCIPORTTASKSTATE p
 
     /*
      * Create a safe mapping when doing post processing because the size of the
-     * data to transfer and the amount of guest memory reserved can differ
+     * data to transfer and the amount of guest memory reserved can differ.
+     *
+     * @fixme: Read performance is really bad on OS X hosts because there is no
+     *         S/G support and the I/O manager has to create a newrequest
+     *         for every segment. The default limit of active requests is 16 on OS X
+     *         which causes a the bad read performance (writes are not affected
+     *         because of the writeback cache).
+     *         For now we will always use an intermediate buffer until
+     *         there is support for host S/G operations.
      */
-    if (pAhciPortTaskState->pfnPostProcess)
+    if (pAhciPortTaskState->pfnPostProcess || true)
     {
         ahciLog(("%s: Request with post processing.\n", __FUNCTION__));
 
@@ -5405,12 +5413,20 @@ static DECLCALLBACK(bool) ahciNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEI
                 pAhciPort->fResetDevice = true;
                 ahciSendD2HFis(pAhciPort, pAhciPortTaskState, pAhciPortTaskState->cmdFis, true);
                 pAhciPort->aCachedTasks[pNotifierItem->iTask] = pAhciPortTaskState;
+#ifdef RT_STRICT
+                fXchg = ASMAtomicCmpXchgBool(&pAhciPortTaskState->fActive, false, true);
+                AssertMsg(fXchg, ("Task is not active\n"));
+#endif
                 return true;
             }
             else if (pAhciPort->fResetDevice) /* The bit is not set and we are in a reset state. */
             {
                 ahciFinishStorageDeviceReset(pAhciPort, pAhciPortTaskState);
                 pAhciPort->aCachedTasks[pNotifierItem->iTask] = pAhciPortTaskState;
+#ifdef RT_STRICT
+                fXchg = ASMAtomicCmpXchgBool(&pAhciPortTaskState->fActive, false, true);
+                AssertMsg(fXchg, ("Task is not active\n"));
+#endif
                 return true;
             }
             else /* We are not in a reset state update the control registers. */
@@ -5742,18 +5758,6 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     }
 
                     STAM_PROFILE_STOP(&pAhciPort->StatProfileReadWrite, b);
-
-                    /* Log the error. */
-                    if (   RT_FAILURE(rc)
-                        && pAhciPort->cErrors++ < MAX_LOG_REL_ERRORS)
-                    {
-                        LogRel(("AHCI#%u: %s at offset %llu (%u bytes left) returned rc=%Rrc\n",
-                                pAhciPort->iLUN,
-                                enmTxDir == AHCITXDIR_READ
-                                ? "Read"
-                                : "Write",
-                                uOffset, cbTransfer, rc));
-                    }
 
                     /* Log the error. */
                     if (   RT_FAILURE(rc)

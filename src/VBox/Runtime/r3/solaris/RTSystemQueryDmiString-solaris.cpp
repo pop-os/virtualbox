@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryDmiString-solaris.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTSystemQueryDmiString-solaris.cpp 29560 2010-05-17 15:08:09Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryDmiString, solaris ring-3.
  */
@@ -84,6 +84,7 @@ RTDECL(int) RTSystemQueryDmiString(RTSYSDMISTR enmString, char *pszBuf, size_t c
                     case RTSYSDMISTR_PRODUCT_NAME:      rc = RTStrCopy(pszBuf, cbBuf, hSMBInfo.smbi_product); break;
                     case RTSYSDMISTR_PRODUCT_VERSION:   rc = RTStrCopy(pszBuf, cbBuf, hSMBInfo.smbi_version); break;
                     case RTSYSDMISTR_PRODUCT_SERIAL:    rc = RTStrCopy(pszBuf, cbBuf, hSMBInfo.smbi_serial);  break;
+                    case RTSYSDMISTR_MANUFACTURER:      rc = RTStrCopy(pszBuf, cbBuf, hSMBInfo.smbi_manufacturer);  break;
 
                     default:  /* make gcc happy */
                         rc = VERR_NOT_SUPPORTED;

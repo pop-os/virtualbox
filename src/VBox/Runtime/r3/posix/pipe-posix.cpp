@@ -1,4 +1,4 @@
-/* $Id: pipe-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: pipe-posix.cpp 29559 2010-05-17 15:07:02Z vboxsync $ */
 /** @file
  * IPRT - Anonymous Pipes, POSIX Implementation.
  */
@@ -424,7 +424,7 @@ RTDECL(int) RTPipeReadBlocking(RTPIPE hPipe, void *pvBuf, size_t cbToRead, size_
     int rc = rtPipeTryBlocking(pThis);
     if (RT_SUCCESS(rc))
     {
-        size_t cbTotalRead = 0;;
+        size_t cbTotalRead = 0;
         while (cbToRead > 0)
         {
             ssize_t cbRead = read(pThis->fd, pvBuf, RT_MIN(cbToRead, SSIZE_MAX));
@@ -433,7 +433,7 @@ RTDECL(int) RTPipeReadBlocking(RTPIPE hPipe, void *pvBuf, size_t cbToRead, size_
                 rc = RTErrConvertFromErrno(errno);
                 break;
             }
-            if (!cbRead && cbToRead > 0 && rtPipePosixHasHup(pThis))
+            if (!cbRead && rtPipePosixHasHup(pThis))
             {
                 rc = VERR_BROKEN_PIPE;
                 break;

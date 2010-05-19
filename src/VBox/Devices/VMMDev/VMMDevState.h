@@ -1,4 +1,4 @@
-/* $Id: VMMDevState.h 29307 2010-05-10 15:18:22Z vboxsync $ */
+/* $Id: VMMDevState.h 29590 2010-05-18 07:02:17Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device, internal header.
  */
@@ -169,9 +169,6 @@ typedef struct VMMDevState
 
     /* seamless mode change request */
     bool fLastSeamlessEnabled, fSeamlessEnabled;
-
-    /* shared paging change request. */
-    bool fPageSharingEnabled;
 
     bool fVRDPEnabled;
     uint32_t u32VRDPExperienceLevel;

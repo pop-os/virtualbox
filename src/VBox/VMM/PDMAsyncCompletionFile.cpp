@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFile.cpp 29121 2010-05-06 09:09:33Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFile.cpp 29587 2010-05-17 21:42:26Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -631,11 +631,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
             LogRel(("AIOMgr: Default manager type is \"%s\"\n", pdmacFileMgrTypeToName(pEpClassFile->enmMgrTypeOverride)));
 
             /* Query default backend type */
-#ifndef RT_OS_LINUX
-            rc = CFGMR3QueryStringAllocDef(pCfgNode, "FileBackend", &pszVal, "Buffered");
-#else /* Linux can't use buffered with async */
             rc = CFGMR3QueryStringAllocDef(pCfgNode, "FileBackend", &pszVal, "NonBuffered");
-#endif
             AssertLogRelRCReturn(rc, rc);
 
             rc = pdmacFileBackendTypeFromName(pszVal, &pEpClassFile->enmEpBackendDefault);
@@ -657,12 +653,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
         else
         {
             /* No configuration supplied, set defaults */
-            pEpClassFile->enmMgrTypeOverride = PDMACEPFILEMGRTYPE_ASYNC;
-#ifdef RT_OS_LINUX
             pEpClassFile->enmEpBackendDefault = PDMACFILEEPBACKEND_NON_BUFFERED;
-#else
-            pEpClassFile->enmEpBackendDefault = PDMACFILEEPBACKEND_BUFFERED;
-#endif
         }
     }
 
@@ -671,7 +662,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
     if (RT_SUCCESS(rc))
     {
         /* Check if the cache was disabled by the user. */
-        rc = CFGMR3QueryBoolDef(pCfgNode, "CacheEnabled", &pEpClassFile->fCacheEnabled, false);
+        rc = CFGMR3QueryBoolDef(pCfgNode, "CacheEnabled", &pEpClassFile->fCacheEnabled, true);
         AssertLogRelRCReturn(rc, rc);
 
         if (pEpClassFile->fCacheEnabled)
@@ -920,11 +911,20 @@ static int pdmacFileEpRangesLockedDestroy(PAVLRFOFFNODECORE pNode, void *pvUser)
 
 static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
+    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->pEpClass;
 
+    /* Free the cached data. */
+    if (pEpFile->fCaching)
+    {
+        rc = pdmacFileEpCacheFlush(pEpFile);
+        AssertRC(rc);
+        pdmacFileEpCacheDestroy(pEpFile);
+    }
+
     /* Make sure that all tasks finished for this endpoint. */
-    int rc = pdmacFileAioMgrCloseEndpoint(pEpFile->pAioMgr, pEpFile);
+    rc = pdmacFileAioMgrCloseEndpoint(pEpFile->pAioMgr, pEpFile);
     AssertRC(rc);
 
     /* endpoint and real file size should better be equal now. */
@@ -947,10 +947,6 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
         pTask = pTask->pNext;
         MMR3HeapFree(pTaskFree);
     }
-
-    /* Free the cached data. */
-    if (pEpFile->fCaching)
-        pdmacFileEpCacheDestroy(pEpFile);
 
     /* Remove from the bandwidth manager */
     pdmacFileBwUnref(pEpFile->pBwMgr);
@@ -1040,7 +1036,7 @@ static int pdmacFileEpFlush(PPDMASYNCCOMPLETIONTASK pTask,
 
     if (pEpFile->fCaching)
     {
-        int rc = pdmacFileEpCacheFlush(pEpFile, pTaskFile);
+        int rc = pdmacFileEpCacheFlush(pEpFile);
         AssertRC(rc);
     }
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
+/* $Id: VBoxGuest.cpp 29625 2010-05-18 12:40:24Z vboxsync $ */
 /** @file
  * VBoxGuest - Guest Additions Driver, Common Code.
  */
@@ -245,10 +245,8 @@ static int vboxGuestSetFilterMask(PVBOXGUESTDEVEXT pDevExt, uint32_t fMask)
         pReq->u32OrMask = fMask;
         pReq->u32NotMask = ~fMask;
         rc = VbglGRPerform(&pReq->header);
-        if (    RT_FAILURE(rc)
-            ||  RT_FAILURE(pReq->header.rc))
-            LogRel(("vboxGuestSetFilterMask: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
-                    rc, pReq->header.rc));
+        if (RT_FAILURE(rc))
+            LogRel(("vboxGuestSetFilterMask: failed with rc=%Rrc\n", rc));
         VbglGRFree(&pReq->header);
     }
     return rc;
@@ -271,10 +269,8 @@ static int vboxGuestInitReportGuestInfo(PVBOXGUESTDEVEXT pDevExt, VBOXOSTYPE enm
         pReq->guestInfo.additionsVersion = VMMDEV_VERSION;
         pReq->guestInfo.osType = enmOSType;
         rc = VbglGRPerform(&pReq->header);
-        if (    RT_FAILURE(rc)
-            ||  RT_FAILURE(pReq->header.rc))
-            LogRel(("vboxGuestInitReportGuestInfo: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
-                    rc, pReq->header.rc));
+        if (RT_FAILURE(rc))
+            LogRel(("vboxGuestInitReportGuestInfo: 1st part failed with rc=%Rrc\n", rc));
         VbglGRFree(&pReq->header);
     }
     VMMDevReportGuestInfo2 *pReq2;
@@ -291,10 +287,8 @@ static int vboxGuestInitReportGuestInfo(PVBOXGUESTDEVEXT pDevExt, VBOXOSTYPE enm
         rc = VbglGRPerform(&pReq2->header);
         if (rc == VERR_NOT_IMPLEMENTED) /* compatibility with older hosts */
             rc = VINF_SUCCESS;
-        if (    RT_FAILURE(rc)
-            ||  RT_FAILURE(pReq2->header.rc))
-            LogRel(("vboxGuestInitReportGuestInfo2: failed with rc=%Rrc and VMMDev rc=%Rrc\n",
-                    rc, pReq2->header.rc));
+        if (RT_FAILURE(rc))
+            LogRel(("vboxGuestInitReportGuestInfo: 2nd part failed with rc=%Rrc\n", rc));
         VbglGRFree(&pReq2->header);
     }
     return rc;
@@ -1146,12 +1140,7 @@ int VBoxGuestSetGuestCapabilities(uint32_t fOr, uint32_t fNot)
 
     rc = VbglGRPerform(&pReq->header);
     if (RT_FAILURE(rc))
-        Log(("VBoxGuestSetGuestCapabilities:VbglGRPerform failed, rc=%Rrc!\n", rc));
-    else if (RT_FAILURE(pReq->header.rc))
-    {
-        Log(("VBoxGuestSetGuestCapabilities: The request failed; VMMDev rc=%Rrc!\n", pReq->header.rc));
-        rc = pReq->header.rc;
-    }
+        Log(("VBoxGuestSetGuestCapabilities: VbglGRPerform failed, rc=%Rrc!\n", rc));
 
     VbglGRFree(&pReq->header);
     return rc;
@@ -1495,11 +1484,6 @@ static int VBoxGuestCommonIOCtl_CtlFilterMask(PVBOXGUESTDEVEXT pDevExt, VBoxGues
     rc = VbglGRPerform(&pReq->header);
     if (RT_FAILURE(rc))
         Log(("VBoxGuestCommonIOCtl: CTL_FILTER_MASK: VbglGRPerform failed, rc=%Rrc!\n", rc));
-    else if (RT_FAILURE(pReq->header.rc))
-    {
-        Log(("VBoxGuestCommonIOCtl: CTL_FILTER_MASK: The request failed; VMMDev rc=%Rrc!\n", pReq->header.rc));
-        rc = pReq->header.rc;
-    }
 
     VbglGRFree(&pReq->header);
     return rc;

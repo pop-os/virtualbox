@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibGuestCtrl.cpp 28887 2010-04-29 11:19:17Z vboxsync $ */
+/* $Id: VBoxGuestR3LibGuestCtrl.cpp 29516 2010-05-17 09:55:17Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, guest control.
  */
@@ -102,7 +102,7 @@ VBGLR3DECL(int) VbglR3GuestCtrlDisconnect(uint32_t u32ClientId)
  * @param   puNumParms      Where to store the number  of parameters which will be received
  *                          in a second call to the host.
  */
-VBGLR3DECL(int) VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms, uint32_t u32Timeout)
+VBGLR3DECL(int) VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms)
 {
     AssertPtr(puMsg);
     AssertPtr(puNumParms);
@@ -132,6 +132,32 @@ VBGLR3DECL(int) VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg,
 
 
 /**
+ * Asks the host to cancel (release) all pending waits which were deferred.
+ *
+ * @returns VBox status code.
+ * @param   u32ClientId     The client id returned by VbglR3GuestCtrlConnect().
+ */
+VBGLR3DECL(int) VbglR3GuestCtrlCancelPendingWaits(uint32_t u32ClientId)
+{
+    VBoxGuestCtrlHGCMMsgCancelPendingWaits Msg;
+
+    Msg.hdr.result = VERR_WRONG_ORDER;
+    Msg.hdr.u32ClientID = u32ClientId;
+    Msg.hdr.u32Function = GUEST_CANCEL_PENDING_WAITS;
+    Msg.hdr.cParms = 0;
+
+    int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_CALL(sizeof(Msg)), &Msg, sizeof(Msg));
+    if (RT_SUCCESS(rc))
+    {
+        int rc2 = Msg.hdr.result;
+        if (RT_FAILURE(rc2))
+            rc = rc2;
+    }
+    return rc;
+}
+
+
+/**
  * Allocates and gets host data, based on the message id.
  *
  * This will block until data becomes available.
@@ -147,9 +173,6 @@ VBGLR3DECL(int) VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t
                                               uint32_t *puFlags,
                                               char     *pszArgs,        uint32_t  cbArgs,   uint32_t *puNumArgs,
                                               char     *pszEnv,         uint32_t *pcbEnv,   uint32_t *puNumEnvVars,
-                                              char     *pszStdIn,       uint32_t  cbStdIn,
-                                              char     *pszStdOut,      uint32_t  cbStdOut,
-                                              char     *pszStdErr,      uint32_t  cbStdErr,
                                               char     *pszUser,        uint32_t  cbUser,
                                               char     *pszPassword,    uint32_t  cbPassword,
                                               uint32_t *puTimeLimit)
@@ -162,10 +185,6 @@ VBGLR3DECL(int) VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t
     AssertPtr(pszEnv);
     AssertPtr(pcbEnv);
     AssertPtr(puNumEnvVars);
-    AssertPtr(pszStdIn);
-    AssertPtr(pszStdOut);
-    AssertPtr(pszStdOut);
-    AssertPtr(pszStdErr);
     AssertPtr(pszUser);
     AssertPtr(pszPassword);
     AssertPtr(puTimeLimit);
@@ -185,9 +204,6 @@ VBGLR3DECL(int) VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t
     VbglHGCMParmUInt32Set(&Msg.num_env, 0);
     VbglHGCMParmUInt32Set(&Msg.cb_env, 0);
     VbglHGCMParmPtrSet(&Msg.env, pszEnv, *pcbEnv);
-    VbglHGCMParmPtrSet(&Msg.std_in, pszStdIn, cbStdIn);
-    VbglHGCMParmPtrSet(&Msg.std_out, pszStdOut, cbStdOut);
-    VbglHGCMParmPtrSet(&Msg.std_err, pszStdErr, cbStdErr);
     VbglHGCMParmPtrSet(&Msg.username, pszUser, cbUser);
     VbglHGCMParmPtrSet(&Msg.password, pszPassword, cbPassword);
     VbglHGCMParmUInt32Set(&Msg.timeout, 0);

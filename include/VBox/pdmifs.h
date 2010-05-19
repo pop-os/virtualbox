@@ -1428,16 +1428,6 @@ typedef struct PDMIBLOCKASYNC
      */
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
 
-    /**
-     * Flush everything to disk.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvUser          User argument which is returned in completion callback.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
-
 } PDMIBLOCKASYNC;
 /** PDMIBLOCKASYNC interface ID. */
 #define PDMIBLOCKASYNC_IID                      "78302d0d-4978-498c-be3c-8989cb5ff5c8"
@@ -2044,14 +2034,6 @@ typedef struct PDMIVMMDEVPORT
      */
     DECLR3CALLBACKMEMBER(int, pfnCpuHotPlug, (PPDMIVMMDEVPORT pInterface, uint32_t idCpuCore, uint32_t idCpuPackage));
 
-    /**
-     * Enable or disable page sharing
-     *
-     * @returns VBox status code
-     * @param   fEnabled     New setting
-     */
-    DECLR3CALLBACKMEMBER(int, pfnEnablePageSharing, (PPDMIVMMDEVPORT pInterface, bool fEnabled));
-
 } PDMIVMMDEVPORT;
 /** PDMIVMMDEVPORT interface ID. */
 #define PDMIVMMDEVPORT_IID                      "d7e52035-3b6c-422e-9215-2a75646a945d"
@@ -2267,9 +2249,19 @@ typedef struct PDMIVMMDEVCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnQueryBalloonSize,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcbBalloon));
 
+    /**
+     * Query the current page fusion setting
+     *
+     * @returns VBox status code.
+     * @param   pInterface          Pointer to this interface.
+     * @param   pfPageFusionEnabled Pointer to boolean
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIsPageFusionEnabled,(PPDMIVMMDEVCONNECTOR pInterface, bool *pfPageFusionEnabled));
+
 } PDMIVMMDEVCONNECTOR;
 /** PDMIVMMDEVCONNECTOR interface ID. */
-#define PDMIVMMDEVCONNECTOR_IID                 "1c300d1b-5938-42bb-8acb-46ecfe483db7"
+#define PDMIVMMDEVCONNECTOR_IID                 "aff90240-a443-434e-9132-80c186ab97d4"
 
 
 /** Pointer to a network connector interface */

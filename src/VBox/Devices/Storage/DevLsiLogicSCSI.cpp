@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.cpp 29326 2010-05-11 10:08:13Z vboxsync $ */
+/* $Id: DevLsiLogicSCSI.cpp 29610 2010-05-18 10:16:38Z vboxsync $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller.
  */
@@ -272,8 +272,17 @@ typedef struct LSILOGICSCSI
     PDMILEDPORTS                   ILeds;
     /** Status LUN: Partner of ILeds. */
     R3PTRTYPE(PPDMILEDCONNECTORS)  pLedsConnector;
-
+    /** Pointer to the configuration page area. */
     R3PTRTYPE(PMptConfigurationPagesSupported) pConfigurationPages;
+
+#if HC_ARCH_BITS == 64
+    uint32_t                       Alignment7;
+#endif
+
+    /** Indicates that PDMDevHlpAsyncNotificationCompleted should be called when
+     * a port is entering the idle state. */
+    bool volatile                  fSignalIdle;
+
 } LSILOGISCSI, *PLSILOGICSCSI;
 
 /**
@@ -549,6 +558,9 @@ static void lsilogicConfigurationPagesFree(PLSILOGICSCSI pThis)
 static void lsilogicFinishContextReply(PLSILOGICSCSI pLsiLogic, uint32_t u32MessageContext)
 {
     int rc;
+
+    LogFlowFunc(("pLsiLogic=%#p u32MessageContext=%#x\n", pLsiLogic, u32MessageContext));
+
     AssertMsg(!pLsiLogic->fDoorbellInProgress, ("We are in a doorbell function\n"));
 
     /* Write message context ID into reply post queue. */
@@ -733,6 +745,9 @@ static int lsilogicProcessMessageRequest(PLSILOGICSCSI pLsiLogic, PMptMessageHdr
         case MPT_MESSAGE_HDR_FUNCTION_SCSI_TASK_MGMT:
         {
             PMptSCSITaskManagementRequest pTaskMgmtReq = (PMptSCSITaskManagementRequest)pMessageHdr;
+
+            LogFlow(("u8TaskType=%u\n", pTaskMgmtReq->u8TaskType));
+            LogFlow(("u32TaskMessageContext=%#x\n", pTaskMgmtReq->u32TaskMessageContext));
 
             pReply->SCSITaskManagement.u8MessageLength     = 6;     /* 6 32bit dwords. */
             pReply->SCSITaskManagement.u8TaskType          = pTaskMgmtReq->u8TaskType;
@@ -2024,6 +2039,9 @@ static DECLCALLBACK(int) lsilogicDeviceSCSIRequestCompleted(PPDMISCSIPORT pInter
     }
 
     RTMemCacheFree(pLsiLogic->hTaskCache, pTaskState);
+
+    if (pLsiLogicDevice->cOutstandingRequests == 0 && pLsiLogic->fSignalIdle)
+        PDMDevHlpAsyncNotificationCompleted(pLsiLogic->pDevInsR3);
 
     return VINF_SUCCESS;
 }
@@ -3756,6 +3774,62 @@ static DECLCALLBACK(int) lsilogicMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegio
     return rc;
 }
 
+/**
+ * Allocate the queues.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pThis     The LsiLogic device instance.
+ */
+static int lsilogicQueuesAlloc(PLSILOGICSCSI pThis)
+{
+    PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
+    uint32_t cbQueues;
+
+    Assert(!pThis->pReplyFreeQueueBaseR3);
+
+    cbQueues  = 2*pThis->cReplyQueueEntries * sizeof(uint32_t);
+    cbQueues += pThis->cRequestQueueEntries * sizeof(uint32_t);
+    int rc = MMHyperAlloc(pVM, cbQueues, 1, MM_TAG_PDM_DEVICE_USER,
+                          (void **)&pThis->pReplyFreeQueueBaseR3);
+    if (RT_FAILURE(rc))
+        return VERR_NO_MEMORY;
+    pThis->pReplyFreeQueueBaseR0 = MMHyperR3ToR0(pVM, (void *)pThis->pReplyFreeQueueBaseR3);
+    pThis->pReplyFreeQueueBaseRC = MMHyperR3ToRC(pVM, (void *)pThis->pReplyFreeQueueBaseR3);
+
+    pThis->pReplyPostQueueBaseR3 = pThis->pReplyFreeQueueBaseR3 + pThis->cReplyQueueEntries;
+    pThis->pReplyPostQueueBaseR0 = MMHyperR3ToR0(pVM, (void *)pThis->pReplyPostQueueBaseR3);
+    pThis->pReplyPostQueueBaseRC = MMHyperR3ToRC(pVM, (void *)pThis->pReplyPostQueueBaseR3);
+
+    pThis->pRequestQueueBaseR3   = pThis->pReplyPostQueueBaseR3 + pThis->cReplyQueueEntries;
+    pThis->pRequestQueueBaseR0   = MMHyperR3ToR0(pVM, (void *)pThis->pRequestQueueBaseR3);
+    pThis->pRequestQueueBaseRC   = MMHyperR3ToRC(pVM, (void *)pThis->pRequestQueueBaseR3);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Free the hyper memory used or the queues.
+ *
+ * @returns nothing.
+ *
+ * @param   pThis     The LsiLogic device instance.
+ */
+static void lsilogicQueuesFree(PLSILOGICSCSI pThis)
+{
+    PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
+    int rc = VINF_SUCCESS;
+
+    AssertPtr(pThis->pReplyFreeQueueBaseR3);
+
+    rc = MMHyperFree(pVM, (void *)pThis->pReplyFreeQueueBaseR3);
+    AssertRC(rc);
+
+    pThis->pReplyFreeQueueBaseR3 = NULL;
+    pThis->pReplyPostQueueBaseR3 = NULL;
+    pThis->pRequestQueueBaseR3   = NULL;
+}
+
 static DECLCALLBACK(int) lsilogicLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
@@ -4006,8 +4080,24 @@ static DECLCALLBACK(int) lsilogicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, u
     SSMR3GetU8    (pSSM, &pLsiLogic->cMaxBuses);
     SSMR3GetU16   (pSSM, &pLsiLogic->cbReplyFrame);
     SSMR3GetU32   (pSSM, &pLsiLogic->iDiagnosticAccess);
-    SSMR3GetU32   (pSSM, &pLsiLogic->cReplyQueueEntries);
-    SSMR3GetU32   (pSSM, &pLsiLogic->cRequestQueueEntries);
+
+    uint32_t cReplyQueueEntries, cRequestQueueEntries;
+    SSMR3GetU32   (pSSM, &cReplyQueueEntries);
+    SSMR3GetU32   (pSSM, &cRequestQueueEntries);
+
+    if (   cReplyQueueEntries != pLsiLogic->cReplyQueueEntries
+        || cRequestQueueEntries != pLsiLogic->cRequestQueueEntries)
+    {
+        LogFlow(("Reallocating queues cReplyQueueEntries=%u cRequestQueuEntries=%u\n",
+                 cReplyQueueEntries, cRequestQueueEntries));
+        lsilogicQueuesFree(pLsiLogic);
+        pLsiLogic->cReplyQueueEntries = cReplyQueueEntries;
+        pLsiLogic->cRequestQueueEntries = cRequestQueueEntries;
+        rc = lsilogicQueuesAlloc(pLsiLogic);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
     SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyFreeQueueNextEntryFreeWrite);
     SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyFreeQueueNextAddressRead);
     SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
@@ -4265,6 +4355,74 @@ static DECLCALLBACK(void *) lsilogicStatusQueryInterface(PPDMIBASE pInterface, c
     return NULL;
 }
 
+/* -=-=-=-=- Helper -=-=-=-=- */
+
+/**
+ * Checks if all asynchronous I/O is finished.
+ *
+ * Used by lsilogicReset, lsilogicSuspend and lsilogicPowerOff.
+ *
+ * @returns true if quiesced, false if busy.
+ * @param   pDevIns         The device instance.
+ */
+static bool lsilogicR3AllAsyncIOIsFinished(PPDMDEVINS pDevIns)
+{
+    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+
+    for (uint32_t i = 0; i < pThis->cDeviceStates; i++)
+    {
+        PLSILOGICDEVICE pThisDevice = &pThis->paDeviceStates[i];
+        if (pThisDevice->pDrvBase)
+        {
+            if (pThisDevice->cOutstandingRequests != 0)
+                return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * Callback employed by lsilogicR3Suspend and lsilogicR3PowerOff..
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDevIns     The device instance.
+ */
+static DECLCALLBACK(bool) lsilogicR3IsAsyncSuspendOrPowerOffDone(PPDMDEVINS pDevIns)
+{
+    if (!lsilogicR3AllAsyncIOIsFinished(pDevIns))
+        return false;
+
+    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    ASMAtomicWriteBool(&pThis->fSignalIdle, false);
+    return true;
+}
+
+/**
+ * Common worker for ahciR3Suspend and ahciR3PowerOff.
+ */
+static void lsilogicR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
+{
+    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+
+    ASMAtomicWriteBool(&pThis->fSignalIdle, true);
+    if (!lsilogicR3AllAsyncIOIsFinished(pDevIns))
+        PDMDevHlpSetAsyncNotification(pDevIns, lsilogicR3IsAsyncSuspendOrPowerOffDone);
+    else
+        ASMAtomicWriteBool(&pThis->fSignalIdle, false);
+}
+
+/**
+ * Suspend notification.
+ *
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(void) lsilogicSuspend(PPDMDEVINS pDevIns)
+{
+    Log(("lsilogicSuspend\n"));
+    lsilogicR3SuspendOrPowerOff(pDevIns);
+}
+
 /**
  * Detach notification.
  *
@@ -4346,9 +4504,11 @@ static DECLCALLBACK(int)  lsilogicAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint
 }
 
 /**
- * @copydoc FNPDMDEVRESET
+ * Common reset worker.
+ *
+ * @param   pDevIns     The device instance data.
  */
-static DECLCALLBACK(void) lsilogicReset(PPDMDEVINS pDevIns)
+static void lsilogicR3ResetCommon(PPDMDEVINS pDevIns)
 {
     PLSILOGICSCSI pLsiLogic = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int rc;
@@ -4357,6 +4517,41 @@ static DECLCALLBACK(void) lsilogicReset(PPDMDEVINS pDevIns)
     AssertRC(rc);
 
     vboxscsiInitialize(&pLsiLogic->VBoxSCSI);
+}
+
+/**
+ * Callback employed by lsilogicR3Reset.
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDevIns     The device instance.
+ */
+static DECLCALLBACK(bool) lsilogicR3IsAsyncResetDone(PPDMDEVINS pDevIns)
+{
+    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+
+    if (!lsilogicR3AllAsyncIOIsFinished(pDevIns))
+        return false;
+    ASMAtomicWriteBool(&pThis->fSignalIdle, false);
+
+    lsilogicR3ResetCommon(pDevIns);
+    return true;
+}
+
+/**
+ * @copydoc FNPDMDEVRESET
+ */
+static DECLCALLBACK(void) lsilogicReset(PPDMDEVINS pDevIns)
+{
+    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+
+    ASMAtomicWriteBool(&pThis->fSignalIdle, true);
+    if (!lsilogicR3AllAsyncIOIsFinished(pDevIns))
+        PDMDevHlpSetAsyncNotification(pDevIns, lsilogicR3IsAsyncResetDone);
+    else
+    {
+        ASMAtomicWriteBool(&pThis->fSignalIdle, false);
+        lsilogicR3ResetCommon(pDevIns);
+    }
 }
 
 /**
@@ -4400,6 +4595,17 @@ static DECLCALLBACK(int) lsilogicDestruct(PPDMDEVINS pDevIns)
 }
 
 /**
+ * Poweroff notification.
+ *
+ * @param   pDevIns Pointer to the device instance
+ */
+static DECLCALLBACK(void) lsilogicPowerOff(PPDMDEVINS pDevIns)
+{
+    Log(("lsilogicPowerOff\n"));
+    lsilogicR3SuspendOrPowerOff(pDevIns);
+}
+
+/**
  * @copydoc FNPDMDEVCONSTRUCT
  */
 static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
@@ -4407,7 +4613,6 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int rc = VINF_SUCCESS;
     char *pszCtrlType = NULL;
-    PVM pVM = PDMDevHlpGetVM(pDevIns);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
@@ -4548,24 +4753,9 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     /*
      * Allocate memory for the queues.
      */
-    uint32_t cbQueues;
-
-    cbQueues  = 2*pThis->cReplyQueueEntries * sizeof(uint32_t);
-    cbQueues += pThis->cRequestQueueEntries * sizeof(uint32_t);
-    rc = MMHyperAlloc(pVM, cbQueues, 1, MM_TAG_PDM_DEVICE_USER,
-                      (void **)&pThis->pReplyFreeQueueBaseR3);
+    rc = lsilogicQueuesAlloc(pThis);
     if (RT_FAILURE(rc))
-        return VERR_NO_MEMORY;
-    pThis->pReplyFreeQueueBaseR0 = MMHyperR3ToR0(pVM, (void *)pThis->pReplyFreeQueueBaseR3);
-    pThis->pReplyFreeQueueBaseRC = MMHyperR3ToRC(pVM, (void *)pThis->pReplyFreeQueueBaseR3);
-
-    pThis->pReplyPostQueueBaseR3 = pThis->pReplyFreeQueueBaseR3 + pThis->cReplyQueueEntries;
-    pThis->pReplyPostQueueBaseR0 = MMHyperR3ToR0(pVM, (void *)pThis->pReplyPostQueueBaseR3);
-    pThis->pReplyPostQueueBaseRC = MMHyperR3ToRC(pVM, (void *)pThis->pReplyPostQueueBaseR3);
-
-    pThis->pRequestQueueBaseR3   = pThis->pReplyPostQueueBaseR3 + pThis->cReplyQueueEntries;
-    pThis->pRequestQueueBaseR0   = MMHyperR3ToR0(pVM, (void *)pThis->pRequestQueueBaseR3);
-    pThis->pRequestQueueBaseRC   = MMHyperR3ToRC(pVM, (void *)pThis->pRequestQueueBaseR3);
+        return rc;
 
     /*
      * Create critical sections protecting the reply post and free queues.
@@ -4711,7 +4901,8 @@ const PDMDEVREG g_DeviceLsiLogicSCSI =
     /* pszDescription */
     "LSI Logic 53c1030 SCSI controller.\n",
     /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0,
+    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0 |
+    PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION,
     /* fClass */
     PDM_DEVREG_CLASS_STORAGE,
     /* cMaxInstances */
@@ -4731,7 +4922,7 @@ const PDMDEVREG g_DeviceLsiLogicSCSI =
     /* pfnReset */
     lsilogicReset,
     /* pfnSuspend */
-    NULL,
+    lsilogicSuspend,
     /* pfnResume */
     NULL,
     /* pfnAttach */
@@ -4743,7 +4934,7 @@ const PDMDEVREG g_DeviceLsiLogicSCSI =
     /* pfnInitComplete */
     NULL,
     /* pfnPowerOff */
-    NULL,
+    lsilogicPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32VersionEnd */
@@ -4766,7 +4957,8 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     /* pszDescription */
     "LSI Logic SAS1068 controller.\n",
     /* fFlags */
-    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0,
+    PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0 |
+    PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION,
     /* fClass */
     PDM_DEVREG_CLASS_STORAGE,
     /* cMaxInstances */
@@ -4786,7 +4978,7 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     /* pfnReset */
     lsilogicReset,
     /* pfnSuspend */
-    NULL,
+    lsilogicSuspend,
     /* pfnResume */
     NULL,
     /* pfnAttach */
@@ -4798,7 +4990,7 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     /* pfnInitComplete */
     NULL,
     /* pfnPowerOff */
-    NULL,
+    lsilogicPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32VersionEnd */

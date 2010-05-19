@@ -161,12 +161,12 @@ STDMETHODIMP CallbackWrapper::OnGuestPropertyChange(IN_BSTR aMachineId, IN_BSTR 
 // IConsoleCallback methods
 /////////////////////////////////////////////////////////////////////////////
 STDMETHODIMP CallbackWrapper::OnMousePointerShapeChange(BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
-                                                        ULONG width, ULONG height, BYTE *shape)
+                                                        ULONG width, ULONG height, ComSafeArrayIn(BYTE, shape))
 {
     if (mConsoleCallback.isNull())
         return S_OK;
 
-    return mConsoleCallback->OnMousePointerShapeChange(visible, alpha, xHot, yHot, width, height, shape);
+    return mConsoleCallback->OnMousePointerShapeChange(visible, alpha, xHot, yHot, width, height, ComSafeArrayInArg(shape));
 }
 
 

@@ -1094,31 +1094,6 @@
     </const>
   </enum>
 
-  <enum
-       name="IoBackendType"
-       uuid="2a7e16d1-4e6b-4d5d-b0c9-b9bbe6c5b2ad"
-       >
-    <desc>
-      Type of I/O backend used for the image files in a virtual machine.
-    </desc>
-    <const name="Buffered" value="1">
-      <desc>Image files will use the host cache if possible.
-        The storage controller emulation will use a dedicated I/O thread, enable the host I/O cache and
-        use synchronous file APIs on the host.
-        This type does not work with the Async I/O manager on Linux hosts.
-        This was the only option in the API before VirtualBox 3.2 and is still the default for IDE controllers.</desc>
-    </const>
-    <const name="Unbuffered" value="2">
-      <desc>Image files will not use the host cache.
-        The storage controller emulation will use asynchronous I/O APIs on the host. This makes it possible
-        to turn off the host I/O caches because it can handle unaligned access to the file.
-        This should be used on OS X and Linux hosts if a high I/O load is expected
-        or many virtual machines are running to prevent I/O cache related hangs.
-        This is new with the API of version 3.2 and is now the default for non-IDE storage controllers.</desc>
-    </const>
-  </enum>
-
-
   <!--
   // IVirtualBoxErrorInfo
   /////////////////////////////////////////////////////////////////////////
@@ -6196,9 +6171,9 @@
           Height of the pointer shape in pixels.
         </desc>
       </param>
-      <param name="shape" type="octet" mod="ptr" dir="in">
+      <param name="shape" type="octet" safearray="yes" dir="in">
         <desc>
-          Address of the shape buffer.
+          Shape buffer arrays.
 
           The @a shape buffer contains a 1-bpp (bits per pixel) AND mask
           followed by a 32-bpp XOR (color) mask.
@@ -7620,7 +7595,7 @@
 
   <interface
      name="IHost" extends="$unknown"
-     uuid="e380cbfc-ae65-4fa6-899e-45ded6b3132a"
+     uuid="35b004f4-7806-4009-bfa8-d1308adba7e5"
      wsmap="managed"
      >
     <desc>
@@ -7688,6 +7663,10 @@
 
     <attribute name="processorOnlineCount" type="unsigned long" readonly="yes">
       <desc>Number of (logical) CPUs online in the host system.</desc>
+    </attribute>
+
+    <attribute name="processorCoreCount" type="unsigned long" readonly="yes">
+      <desc>Number of physical processor cores installed in the host system.</desc>
     </attribute>
 
     <method name="getProcessorSpeed">
@@ -8427,7 +8406,7 @@
 
   <interface
     name="IGuestOSType" extends="$unknown"
-    uuid="8aa950f6-668c-4388-b251-3809b404e862"
+    uuid="e3f6727e-a09b-41ea-a824-864a176472f3"
     wsmap="struct"
   >
     <desc>
@@ -8521,7 +8500,7 @@
 
   <interface
      name="IGuest" extends="$unknown"
-     uuid="27211d55-8b11-4f07-9519-b7563ea2dc29"
+     uuid="d915dff1-ed38-495a-91f1-ab6c53932468"
      wsmap="managed"
      >
     <desc>
@@ -8586,11 +8565,8 @@
       <desc>Guest system memory balloon size in megabytes (transient property).</desc>
     </attribute>
 
-    <attribute name="PageFusionEnabled" type="boolean">
-      <desc>
-        Flag whether VirtualBox allows page fusion for this machine
-        (64 bits host only; transient property).
-      </desc>
+    <attribute name="pageFusionEnabled" type="boolean">
+      <desc>Flag whether page fusion is enabled or not.</desc>
     </attribute>
 
     <attribute name="statisticsUpdateInterval" type="unsigned long">
@@ -8704,24 +8680,6 @@
           Environment variables that can be set while the command is being
           executed, in form of "NAME=VALUE"; one pair per entry. To unset a
           variable just set its name ("NAME") without a value.
-        </desc>
-      </param>
-      <param name="stdIn" type="wstring" dir="in">
-        <desc>
-          What to do with the standard input (stdin) of the command being
-          executed. Currently not used and has to be set to an empty value.
-        </desc>
-      </param>
-      <param name="stdOut" type="wstring" dir="in">
-        <desc>
-          What to do with the standard output (stdout) of the command being
-          executed. Currently not used and has to be set to an empty value.
-        </desc>
-      </param>
-      <param name="stdErr" type="wstring" dir="in">
-        <desc>
-          What to do with the standard error (stderr) of the command being
-          executed. Currently not used and has to be set to an empty value.
         </desc>
       </param>
       <param name="userName" type="wstring" dir="in">
@@ -13761,7 +13719,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IStorageController" extends="$unknown"
-    uuid="7635f4ec-8a28-44b5-9223-315a87b710fb"
+    uuid="fd93adc0-bbaa-4256-9e6e-00e29f9151c9"
     wsmap="managed"
   >
     <desc>
@@ -13844,9 +13802,18 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="ioBackend" type="IoBackendType">
+    <attribute name="useHostIOCache" type="boolean">
       <desc>
-        The I/O backend to use for the given storage controller.
+        If true, the storage controller emulation will use a dedicated I/O thread, enable the host I/O
+        caches and use synchronous file APIs on the host. This was the only option in the API before
+        VirtualBox 3.2 and is still the default for IDE controllers.
+
+        If false, the host I/O cache will be disabled for image files attached to this storage controller.
+        Instead, the storage controller emulation will use asynchronous I/O APIs on the host. This makes
+        it possible to turn off the host I/O caches because the emulation can handle unaligned access to
+        the file. This should be used on OS X and Linux hosts if a high I/O load is expected or many
+        virtual machines are running at the same time to prevent I/O cache related hangs.
+        This option new with the API of VirtualBox 3.2 and is now the default for non-IDE storage controllers.
       </desc>
     </attribute>
 

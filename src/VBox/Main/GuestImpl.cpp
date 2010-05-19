@@ -1,4 +1,4 @@
-/* $Id: GuestImpl.cpp 29309 2010-05-10 15:44:55Z vboxsync $ */
+/* $Id: GuestImpl.cpp 29645 2010-05-18 15:41:46Z vboxsync $ */
 
 /** @file
  *
@@ -82,6 +82,13 @@ HRESULT Guest::init (Console *aParent)
         mMemoryBalloonSize = aMemoryBalloonSize;
     else
         mMemoryBalloonSize = 0;                     /* Default is no ballooning */
+
+    BOOL fPageFusionEnabled;
+    ret = mParent->machine()->COMGETTER(PageFusionEnabled)(&fPageFusionEnabled);
+    if (ret == S_OK)
+        mfPageFusionEnabled = fPageFusionEnabled;
+    else
+        mfPageFusionEnabled = false;                /* Default is no page fusion*/
 
     mStatUpdateInterval = 0;                    /* Default is not to report guest statistics at all */
 
@@ -207,13 +214,29 @@ STDMETHODIMP Guest::COMGETTER(SupportsGraphics) (BOOL *aSupportsGraphics)
     return S_OK;
 }
 
-STDMETHODIMP Guest::COMGETTER(PageFusionEnabled) (BOOL *enabled)
+STDMETHODIMP Guest::COMGETTER(PageFusionEnabled) (BOOL *aPageFusionEnabled)
 {
-    return E_NOTIMPL;
+    CheckComArgOutPointerValid(aPageFusionEnabled);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aPageFusionEnabled = mfPageFusionEnabled;
+
+    return S_OK;
 }
 
-STDMETHODIMP Guest::COMSETTER(PageFusionEnabled) (BOOL enabled)
+STDMETHODIMP Guest::COMSETTER(PageFusionEnabled) (BOOL aPageFusionEnabled)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /** todo; API complete, but not implemented */
+
     return E_NOTIMPL;
 }
 
@@ -314,25 +337,36 @@ STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, UL
     *aMemBalloon = mCurrentGuestStat[GUESTSTATTYPE_MEMBALLOON] * (_4K/_1K); /* page (4K) -> 1KB units */
     *aMemCache   = mCurrentGuestStat[GUESTSTATTYPE_MEMCACHE] * (_4K/_1K);     /* page (4K) -> 1KB units */
     *aPageTotal  = mCurrentGuestStat[GUESTSTATTYPE_PAGETOTAL] * (_4K/_1K);   /* page (4K) -> 1KB units */
-    *aMemShared  = 0; /** todo */
 
     Console::SafeVMPtr pVM (mParent);
     if (pVM.isOk())
     {
-        uint64_t uFreeTotal, uAllocTotal, uBalloonedTotal;
+        uint64_t uFreeTotal, uAllocTotal, uBalloonedTotal, uSharedTotal;
         *aMemFreeTotal = 0;
-        int rc = PGMR3QueryVMMMemoryStats(pVM.raw(), &uAllocTotal, &uFreeTotal, &uBalloonedTotal);
+        int rc = PGMR3QueryVMMMemoryStats(pVM.raw(), &uAllocTotal, &uFreeTotal, &uBalloonedTotal, &uSharedTotal);
         AssertRC(rc);
         if (rc == VINF_SUCCESS)
         {
             *aMemAllocTotal   = (ULONG)(uAllocTotal / _1K);  /* bytes -> KB */
             *aMemFreeTotal    = (ULONG)(uFreeTotal / _1K);
             *aMemBalloonTotal = (ULONG)(uBalloonedTotal / _1K);
-            *aMemSharedTotal  = 0; /** todo */
+            *aMemSharedTotal  = (ULONG)(uSharedTotal / _1K);
+        }
+
+        /* Query the missing per-VM memory statistics. */
+        *aMemShared  = 0;
+        uint64_t uTotalMem, uPrivateMem, uSharedMem, uZeroMem;
+        rc = PGMR3QueryMemoryStats(pVM.raw(), &uTotalMem, &uPrivateMem, &uSharedMem, &uZeroMem);
+        if (rc == VINF_SUCCESS)
+        {
+            *aMemShared = (ULONG)(uSharedMem / _1K);
         }
     }
     else
+    {
         *aMemFreeTotal = 0;
+        *aMemShared  = 0;
+    }
 
     return S_OK;
 }
@@ -672,19 +706,19 @@ void Guest::destroyCtrlCallbackContext(Guest::CallbackListIter it)
         RTMemFree(it->pvData);
         it->pvData = NULL;
         it->cbData = 0;
+    }
 
-        /* Notify outstanding waits for progress ... */
-        if (!it->pProgress.isNull())
-        {
-            /* Only cancel if not canceled before! */
-            BOOL fCancelled;
-            if (SUCCEEDED(it->pProgress->COMGETTER(Canceled)(&fCancelled)) && !fCancelled)
-                it->pProgress->Cancel();
-            /* 
-             * Do *not NULL pProgress here, because waiting function like executeProcess() 
-             * will still rely on this object for checking whether they have to give up! 
-             */
-        }
+    /* Notify outstanding waits for progress ... */
+    if (it->pProgress && !it->pProgress.isNull())
+    {
+        /* Only cancel if not canceled before! */
+        BOOL fCancelled;
+        if (SUCCEEDED(it->pProgress->COMGETTER(Canceled)(&fCancelled)) && !fCancelled)
+            it->pProgress->Cancel();
+        /* 
+         * Do *not NULL pProgress here, because waiting function like executeProcess() 
+         * will still rely on this object for checking whether they have to give up! 
+         */
     }
     LogFlowFuncLeave();
 }
@@ -734,7 +768,6 @@ uint32_t Guest::addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void 
 
 STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                                    ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
-                                   IN_BSTR aStdIn, IN_BSTR aStdOut, IN_BSTR aStdErr,
                                    IN_BSTR aUserName, IN_BSTR aPassword,
                                    ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress)
 {
@@ -747,9 +780,13 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
     CheckComArgOutPointerValid(aPID);
     CheckComArgOutPointerValid(aProgress);
 
+    /* Do not allow anonymous executions (with system rights). */
+    if (RT_UNLIKELY((aUserName) == NULL || *(aUserName) == '\0'))
+        return setError(E_INVALIDARG, tr("No user name specified"));
+
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc(); 
-    
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     if (aFlags != 0) /* Flags are not supported at the moment. */
         return E_INVALIDARG;
 
@@ -790,13 +827,15 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
             papszArgv = (char**)RTMemAlloc(sizeof(char*) * (uNumArgs + 1));
             AssertReturn(papszArgv, E_OUTOFMEMORY);
             for (unsigned i = 0; RT_SUCCESS(vrc) && i < uNumArgs; i++)
-                vrc = RTStrAPrintf(&papszArgv[i], "%s", Utf8Str(args[i]).raw());
+            {
+                int cbLen = RTStrAPrintf(&papszArgv[i], "%s", Utf8Str(args[i]).raw());
+                if (cbLen < 0)
+                    vrc = VERR_NO_MEMORY;
+
+            }
             papszArgv[uNumArgs] = NULL;
         }
 
-        Utf8Str Utf8StdIn(aStdIn);
-        Utf8Str Utf8StdOut(aStdOut);
-        Utf8Str Utf8StdErr(aStdErr);
         Utf8Str Utf8UserName(aUserName);
         Utf8Str Utf8Password(aPassword);
         if (RT_SUCCESS(vrc))
@@ -844,9 +883,6 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                     paParms[i++].setUInt32(uNumEnv);
                     paParms[i++].setUInt32(cbEnv);
                     paParms[i++].setPointer((void*)pvEnv, cbEnv);
-                    paParms[i++].setPointer((void*)Utf8StdIn.raw(), (uint32_t)strlen(Utf8StdIn.raw()) + 1);
-                    paParms[i++].setPointer((void*)Utf8StdOut.raw(), (uint32_t)strlen(Utf8StdOut.raw()) + 1);
-                    paParms[i++].setPointer((void*)Utf8StdErr.raw(), (uint32_t)strlen(Utf8StdErr.raw()) + 1);
                     paParms[i++].setPointer((void*)Utf8UserName.raw(), (uint32_t)strlen(Utf8UserName.raw()) + 1);
                     paParms[i++].setPointer((void*)Utf8Password.raw(), (uint32_t)strlen(Utf8Password.raw()) + 1);
                     paParms[i++].setUInt32(aTimeoutMS);
@@ -992,6 +1028,11 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                             rc = setError(VBOX_E_IPRT_ERROR,
                                           tr("The guest reported an unknown process status (%u)"), pData->u32Status);
                         }
+                        else if (vrc == VERR_PERMISSION_DENIED)
+                        {
+                            rc = setError(VBOX_E_IPRT_ERROR,
+                                          tr("Invalid user/password credentials"));
+                        }
                         else
                         {
                             rc = setError(E_UNEXPECTED,
@@ -1007,7 +1048,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                 else /* Operation was canceled. */
                 {
                     rc = setError(VBOX_E_IPRT_ERROR,
-                                  tr("The operation was canceled."));
+                                  tr("The operation was canceled"));
                 }
             }
             else /* HGCM related error codes .*/
@@ -1203,7 +1244,7 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
                     else if (vrc == VERR_CANCELLED)
                     {
                         rc = setError(VBOX_E_IPRT_ERROR,
-                                      tr("The operation was canceled."));
+                                      tr("The operation was canceled"));
                     }
                     else
                     {

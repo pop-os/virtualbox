@@ -1,4 +1,4 @@
-/* $Id: PDMDriver.cpp 28853 2010-04-27 19:20:58Z vboxsync $ */
+/* $Id: PDMDriver.cpp 29521 2010-05-17 10:14:22Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Driver parts.
  */
@@ -32,11 +32,12 @@
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
-#include <iprt/thread.h>
-#include <iprt/string.h>
 #include <iprt/asm.h>
-#include <iprt/alloc.h>
+#include <iprt/ctype.h>
+#include <iprt/mem.h>
+#include <iprt/thread.h>
 #include <iprt/path.h>
+#include <iprt/string.h>
 
 
 /*******************************************************************************
@@ -1318,6 +1319,8 @@ static DECLCALLBACK(int) pdmR3DrvHlp_CallR0(PPDMDRVINS pDrvIns, uint32_t uOperat
         {
             char szSymbol[          sizeof("drvR0") + sizeof(pDrvIns->pReg->szName) + sizeof("ReqHandler")];
             strcat(strcat(strcpy(szSymbol, "drvR0"),         pDrvIns->pReg->szName),         "ReqHandler");
+            szSymbol[sizeof("drvR0") - 1] = RT_C_TO_UPPER(szSymbol[sizeof("drvR0") - 1]);
+
             rc = PDMR3LdrGetSymbolR0Lazy(pVM, pDrvIns->pReg->szR0Mod, szSymbol, &pfnReqHandlerR0);
             if (RT_SUCCESS(rc))
                 pDrvIns->Internal.s.pfnReqHandlerR0 = pfnReqHandlerR0;

@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePageSharing.cpp 29424 2010-05-12 15:11:09Z vboxsync $ */
+/* $Id: VBoxServicePageSharing.cpp 29640 2010-05-18 14:30:50Z vboxsync $ */
 /** @file
  * VBoxService - Guest page sharing.
  */
@@ -21,6 +21,7 @@
 *******************************************************************************/
 #include <iprt/assert.h>
 #include <iprt/avl.h>
+#include <iprt/asm.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
@@ -58,9 +59,9 @@ static PAVLPVNODECORE   pKnownModuleTree = NULL;
 
 /**
  * Registers a new module with the VMM
- * @param   dwProcessId     Process id
+ * @param   pModule     Module ptr
  */
-void VBoxServicePageSharingRegisterModule(HANDLE hProcess, PKNOWN_MODULE pModule)
+void VBoxServicePageSharingRegisterModule(PKNOWN_MODULE pModule)
 {
     VMMDEVSHAREDREGIONDESC   aRegions[VMMDEVSHAREDREGIONDESC_MAX];
     DWORD                    dwModuleSize = pModule->Info.modBaseSize;
@@ -128,9 +129,9 @@ void VBoxServicePageSharingRegisterModule(HANDLE hProcess, PKNOWN_MODULE pModule
     unsigned idxRegion = 0;
     do
     {
-        MEMORY_BASIC_INFORMATION MemInfo[16];
+        MEMORY_BASIC_INFORMATION MemInfo;
 
-        SIZE_T ret = VirtualQueryEx(hProcess, pBaseAddress, &MemInfo[0], sizeof(MemInfo));
+        SIZE_T ret = VirtualQuery(pBaseAddress, &MemInfo, sizeof(MemInfo));
         Assert(ret);
         if (!ret)
         {
@@ -138,42 +139,51 @@ void VBoxServicePageSharingRegisterModule(HANDLE hProcess, PKNOWN_MODULE pModule
             break;
         }
 
-        unsigned cMemInfoBlocks = ret / sizeof(MemInfo[0]);
-
-        for (unsigned i = 0; i < cMemInfoBlocks; i++)
+        if (    MemInfo.State == MEM_COMMIT
+            &&  MemInfo.Type == MEM_IMAGE)
         {
-            if (    MemInfo[i].State == MEM_COMMIT
-                &&  MemInfo[i].Type == MEM_IMAGE)
+            switch (MemInfo.Protect)
             {
-                switch (MemInfo[i].Protect)
+            case PAGE_EXECUTE:
+            case PAGE_EXECUTE_READ:
+            case PAGE_READONLY:
+            {
+                char *pRegion = (char *)MemInfo.BaseAddress;
+
+                /* Skip the first region as it only contains the image file header. */
+                if (pRegion != (char *)pModule->Info.modBaseAddr)
                 {
-                case PAGE_EXECUTE:
-                case PAGE_EXECUTE_READ:
-                case PAGE_READONLY:
-                    aRegions[idxRegion].GCRegionAddr = (RTGCPTR64)MemInfo[i].BaseAddress;
-                    aRegions[idxRegion].cbRegion     = MemInfo[i].RegionSize;
-                    idxRegion++;
-                    break;
-
-                default:
-                    break; /* ignore */
+                    /* Touch all pages. */
+                    while (pRegion < (char *)MemInfo.BaseAddress + MemInfo.RegionSize)
+                    {
+                        /* Try to trick the optimizer to leave the page touching code in place. */
+                        ASMProbeReadByte(pRegion);
+                        pRegion += PAGE_SIZE;
+                    }
                 }
-            }
+                aRegions[idxRegion].GCRegionAddr = (RTGCPTR64)MemInfo.BaseAddress;
+                aRegions[idxRegion].cbRegion     = MemInfo.RegionSize;
+                idxRegion++;
 
-            pBaseAddress = (BYTE *)MemInfo[i].BaseAddress + MemInfo[i].RegionSize;
-            if (dwModuleSize > MemInfo[i].RegionSize)
-            {
-                dwModuleSize -= MemInfo[i].RegionSize;
-            }
-            else
-            {
-                dwModuleSize = 0;
                 break;
             }
 
-            if (idxRegion >= RT_ELEMENTS(aRegions))
-                break;  /* out of room */
+            default:
+                break; /* ignore */
+            }
         }
+
+        pBaseAddress = (BYTE *)MemInfo.BaseAddress + MemInfo.RegionSize;
+        if (dwModuleSize > MemInfo.RegionSize)
+        {
+            dwModuleSize -= MemInfo.RegionSize;
+        }
+        else
+        {
+            dwModuleSize = 0;
+            break;
+        }
+
         if (idxRegion >= RT_ELEMENTS(aRegions))
             break;  /* out of room */
     }
@@ -186,7 +196,6 @@ void VBoxServicePageSharingRegisterModule(HANDLE hProcess, PKNOWN_MODULE pModule
     if (RT_FAILURE(rc))
         VBoxServiceVerbose(3, "VbglR3RegisterSharedModule failed with %d\n", rc);
     
-
 end:
     RTMemFree(pVersionInfo);
     return;
@@ -226,6 +235,12 @@ void VBoxServicePageSharingInspectModules(DWORD dwProcessId, PAVLPVNODECORE *ppN
     bRet = Module32First(hSnapshot, &ModuleInfo);
     do
     {
+        /** todo when changing this make sure VBoxService.exe is excluded! */
+        char *pszDot = strrchr(ModuleInfo.szModule, '.');
+        if (    pszDot 
+            &&  (pszDot[1] == 'e' || pszDot[1] == 'E'))
+            continue;   /* ignore executables for now. */
+
         /* Found it before? */
         PAVLPVNODECORE pRec = RTAvlPVGet(ppNewTree, ModuleInfo.modBaseAddr);
         if (!pRec)
@@ -243,7 +258,7 @@ void VBoxServicePageSharingInspectModules(DWORD dwProcessId, PAVLPVNODECORE *ppN
                 pModule->Core.Key = ModuleInfo.modBaseAddr;
                 pModule->hModule  = LoadLibraryEx(ModuleInfo.szExePath, 0, DONT_RESOLVE_DLL_REFERENCES);
                 if (pModule->hModule)
-                    VBoxServicePageSharingRegisterModule(hProcess, pModule);
+                    VBoxServicePageSharingRegisterModule(pModule);
 
                 pRec = &pModule->Core;
             }
@@ -272,6 +287,7 @@ void VBoxServicePageSharingInspectGuest()
 {
     HANDLE hSnapshot;
     PAVLPVNODECORE pNewTree = NULL;
+    DWORD dwProcessId = GetCurrentProcessId();
 
     VBoxServiceVerbose(3, "VBoxServicePageSharingInspectGuest\n");
 
@@ -290,7 +306,9 @@ void VBoxServicePageSharingInspectGuest()
 
     do
     {
-        VBoxServicePageSharingInspectModules(ProcessInfo.th32ProcessID, &pNewTree);
+        /* Skip our own process. */
+        if (ProcessInfo.th32ProcessID != dwProcessId)
+            VBoxServicePageSharingInspectModules(ProcessInfo.th32ProcessID, &pNewTree);
     }
     while (Process32Next(hSnapshot, &ProcessInfo));
 

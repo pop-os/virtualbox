@@ -1,4 +1,4 @@
-/* $Id: RTMpCpuId-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTMpCpuId-generic.cpp 29500 2010-05-14 21:43:06Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpCpuId.
  */
@@ -32,6 +32,7 @@
 #include "internal/iprt.h"
 
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 
 
 RTDECL(RTCPUID) RTMpCpuId(void)

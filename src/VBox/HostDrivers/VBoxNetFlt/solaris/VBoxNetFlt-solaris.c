@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-solaris.c 28961 2010-05-03 08:22:37Z vboxsync $ */
+/* $Id: VBoxNetFlt-solaris.c 29491 2010-05-14 17:46:22Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Solaris Specific Code.
  */
@@ -3686,7 +3686,6 @@ int vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
     pThis->u.s.fAttaching = false;
     pThis->u.s.fVLAN = false;
     pThis->u.s.hFastMtx = NIL_RTSEMFASTMUTEX;
-    pThis->u.s.fVLAN = false;
 #ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
     pThis->u.s.hPollMtx = NIL_RTSEMFASTMUTEX;
 #endif
@@ -3702,6 +3701,28 @@ bool vboxNetFltOsMaybeRediscovered(PVBOXNETFLTINS pThis)
      * filter is very tightly bound to the stream.
      */
     return false;
+}
+
+
+void vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf, PCRTMAC pMac)
+{
+    NOREF(pThis); NOREF(hIf); NOREF(pMac);
+}
+
+
+int vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+{
+    /* Nothing to do */
+    NOREF(pThis); NOREF(hIf);
+    return VINF_SUCCESS;
+}
+
+
+int vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+{
+    /* Nothing to do */
+    NOREF(pThis); NOREF(hIf);
+    return VINF_SUCCESS;
 }
 
 

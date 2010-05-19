@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp 29350 2010-05-11 13:09:21Z vboxsync $ */
+/* $Id: UINewVMWzd.cpp 29437 2010-05-12 21:40:07Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -574,9 +574,9 @@ void UINewVMWzdPage5::retranslateUi()
 
     summary += QString
     (
-        "<tr><td><nobr>%1 </nobr></td><td>%2</td></tr>"
-        "<tr><td><nobr>%3 </nobr></td><td>%4</td></tr>"
-        "<tr><td><nobr>%5 </nobr></td><td>%6 %7</td></tr>"
+        "<tr><td><nobr>%1: </nobr></td><td>%2</td></tr>"
+        "<tr><td><nobr>%3: </nobr></td><td>%4</td></tr>"
+        "<tr><td><nobr>%5: </nobr></td><td>%6 %7</td></tr>"
     )
     .arg(tr("Name", "summary"), name)
     .arg(tr("OS Type", "summary"), type)
@@ -589,7 +589,7 @@ void UINewVMWzdPage5::retranslateUi()
     if (!field("hardDiskId").toString().isNull())
     {
         summary += QString(
-            "<tr><td><nobr>%8 </nobr></td><td><nobr>%9</nobr></td></tr>")
+            "<tr><td><nobr>%8: </nobr></td><td><nobr>%9</nobr></td></tr>")
             .arg(tr("Boot Hard Disk", "summary"), field("hardDiskName").toString());
         /* Extend summary to 4 lines */
         setSummaryFieldLinesNumber(m_pSummaryText, 4);

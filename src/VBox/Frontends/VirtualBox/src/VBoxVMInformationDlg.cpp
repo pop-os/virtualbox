@@ -1,4 +1,4 @@
-/* $Id: VBoxVMInformationDlg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVMInformationDlg.cpp 29526 2010-05-17 10:59:21Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -48,7 +48,6 @@ void VBoxVMInformationDlg::createInformationDlg(UIMachineWindow *pMachineWindow)
         VBoxVMInformationDlg *id = new VBoxVMInformationDlg(pMachineWindow, Qt::Window);
         id->centerAccording (pMachineWindow->machineWindow());
         // TODO_NEW_CORE: this seems not necessary, cause we set WA_DeleteOnClose.
-        connect (vboxGlobal().mainWindow(), SIGNAL (closing()), id, SLOT (close()));
         id->setAttribute (Qt::WA_DeleteOnClose);
         mSelfArray [machine.GetName()] = id;
     }
@@ -145,7 +144,6 @@ void VBoxVMInformationDlg::createInformationDlg (const CSession &aSession, VBoxC
         /* Creating new information dialog if there is no one existing */
         VBoxVMInformationDlg *id = new VBoxVMInformationDlg (aConsole, aSession, Qt::Window);
         id->centerAccording (aConsole);
-        connect (vboxGlobal().mainWindow(), SIGNAL (closing()), id, SLOT (close()));
         id->setAttribute (Qt::WA_DeleteOnClose);
         mSelfArray [machine.GetName()] = id;
     }

@@ -1,4 +1,4 @@
-/* $Id: UISession.cpp 29219 2010-05-07 14:58:50Z vboxsync $ */
+/* $Id: UISession.cpp 29545 2010-05-17 14:04:53Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -54,21 +54,14 @@ class UIMousePointerShapeChangeEvent : public QEvent
 {
 public:
 
-    UIMousePointerShapeChangeEvent(bool bIsVisible, bool bIsAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight, const uchar *pShape)
+    UIMousePointerShapeChangeEvent(bool bIsVisible, bool bIsAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight, const QVector<uint8_t>& shape)
         : QEvent((QEvent::Type)UIConsoleEventType_MousePointerShapeChange)
-        , m_bIsVisible(bIsVisible), m_bIsAlpha(bIsAlpha), m_uXHot(uXHot), m_uYHot(uYHot), m_uWidth(uWidth), m_uHeight(uHeight), m_pData(0)
+        , m_bIsVisible(bIsVisible), m_bIsAlpha(bIsAlpha), m_uXHot(uXHot), m_uYHot(uYHot), m_uWidth(uWidth), m_uHeight(uHeight), m_shape(shape)
     {
-        uint dataSize = ((((m_uWidth + 7) / 8 * m_uHeight) + 3) & ~3) + m_uWidth * 4 * m_uHeight;
-        if (pShape)
-        {
-            m_pData = new uchar[dataSize];
-            memcpy((void*)m_pData, (void*)pShape, dataSize);
-        }
     }
 
     virtual ~UIMousePointerShapeChangeEvent()
     {
-        if (m_pData) delete[] m_pData;
     }
 
     bool isVisible() const { return m_bIsVisible; }
@@ -77,13 +70,13 @@ public:
     uint yHot() const { return m_uYHot; }
     uint width() const { return m_uWidth; }
     uint height() const { return m_uHeight; }
-    const uchar *shapeData() const { return m_pData; }
+    const uchar *shapeData() const { return m_shape.size() > 0 ? m_shape.data() : NULL; }
 
 private:
 
     bool m_bIsVisible, m_bIsAlpha;
     uint m_uXHot, m_uYHot, m_uWidth, m_uHeight;
-    const uchar *m_pData;
+    QVector<uint8_t> m_shape;
 };
 
 /* Guest mouse absolute positioning capability change event: */
@@ -385,9 +378,13 @@ public:
 
     VBOX_SCRIPTABLE_DISPATCH_IMPL(IConsoleCallback)
 
-    STDMETHOD(OnMousePointerShapeChange)(BOOL bIsVisible, BOOL bAlpha, ULONG uXHot, ULONG uYHot, ULONG uWidth, ULONG uHeight, BYTE *pShape)
+    STDMETHOD(OnMousePointerShapeChange)(BOOL bIsVisible, BOOL bAlpha, ULONG uXHot, ULONG uYHot, ULONG uWidth, ULONG uHeight, ComSafeArrayIn(BYTE, pShape))
     {
-        QApplication::postEvent(m_pEventHandler, new UIMousePointerShapeChangeEvent(bIsVisible, bAlpha, uXHot, uYHot, uWidth, uHeight, pShape));
+        com::SafeArray<BYTE> aShape(ComSafeArrayInArg(pShape));
+        QVector<uint8_t> shapeVec(static_cast<int>(aShape.size()));
+        for (int i = 0; i < shapeVec.size(); ++i)
+            shapeVec[i] = aShape[i];
+        QApplication::postEvent(m_pEventHandler, new UIMousePointerShapeChangeEvent(bIsVisible, bAlpha, uXHot, uYHot, uWidth, uHeight, shapeVec));
         return S_OK;
     }
 
@@ -558,7 +555,7 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
 #endif
     /* Common flags: */
     , m_fIsFirstTimeStarted(false)
-    , m_fIsIgnoreRutimeMediumsChanging(false)
+    , m_fIsIgnoreRuntimeMediumsChanging(false)
     , m_fIsGuestResizeIgnored(false)
     , m_fIsSeamlessModeRequested(false)
     /* Guest additions flags: */
@@ -797,8 +794,10 @@ QMenuBar* UISession::newMenuBar(UIMainMenuType fOptions /* = UIMainMenuType_ALL 
 
 bool UISession::setPause(bool fOn)
 {
-    if (isPaused() == fOn)
-        return true;
+    /* Commenting it out as isPaused() could reflect
+     * quite obsolete state due to synchronization: */
+    //if (isPaused() == fOn)
+    //    return true;
 
     CConsole console = session().GetConsole();
 
@@ -1190,7 +1189,7 @@ void UISession::loadSessionSettings()
         /* Ignore mediums mounted at runtime? */
         strSettings = machine.GetExtraData(VBoxDefs::GUI_SaveMountedAtRuntime);
         if (strSettings == "no")
-            m_fIsIgnoreRutimeMediumsChanging = true;
+            m_fIsIgnoreRuntimeMediumsChanging = true;
 
         /* Should guest autoresize? */
         strSettings = machine.GetExtraData(VBoxDefs::GUI_AutoresizeGuest);

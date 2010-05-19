@@ -1,4 +1,4 @@
-/* $Id: VBoxManageInfo.cpp 29117 2010-05-05 22:59:38Z vboxsync $ */
+/* $Id: VBoxManageInfo.cpp 29465 2010-05-14 11:59:31Z vboxsync $ */
 /** @file
  * VBoxManage - The 'showvminfo' command and helper routines.
  */
@@ -227,6 +227,13 @@ HRESULT showVMInfo (ComPtr<IVirtualBox> virtualBox,
         RTPrintf("memory=%u\n", memorySize);
     else
         RTPrintf("Memory size:     %uMB\n", memorySize);
+
+    BOOL fPageFusionEnabled;
+    rc = machine->COMGETTER(PageFusionEnabled)(&fPageFusionEnabled);
+    if (details == VMINFO_MACHINEREADABLE)
+        RTPrintf("pagefusion=\"%s\"\n", fPageFusionEnabled ? "on" : "off");
+    else
+        RTPrintf("Page Fusion:     %s\n", fPageFusionEnabled ? "on" : "off");
 
     ULONG vramSize;
     rc = machine->COMGETTER(VRAMSize)(&vramSize);

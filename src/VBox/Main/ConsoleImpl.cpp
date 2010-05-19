@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.cpp 29363 2010-05-11 15:12:07Z vboxsync $ */
+/* $Id: ConsoleImpl.cpp 29580 2010-05-17 18:23:00Z vboxsync $ */
 /** @file
  * VBox Console COM Class implementation
  */
@@ -440,7 +440,7 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl)
     unconst(mMachine) = aMachine;
     unconst(mControl) = aControl;
 
-    memset(&mCallbackData, 0, sizeof(mCallbackData));
+    mCallbackData.clear();
 
     /* Cache essential properties and objects */
 
@@ -617,7 +617,7 @@ void Console::uninit()
 
     /* dynamically allocated members of mCallbackData are uninitialized
      * at the end of powerDown() */
-    Assert(!mCallbackData.mpsc.valid && mCallbackData.mpsc.shape == NULL);
+    Assert(!mCallbackData.mpsc.valid && mCallbackData.mpsc.shape.isNull());
     Assert(!mCallbackData.mcc.valid);
     Assert(!mCallbackData.klc.valid);
 
@@ -3025,7 +3025,7 @@ STDMETHODIMP Console::RegisterCallback(IConsoleCallback *aCallback)
                                              mCallbackData.mpsc.yHot,
                                              mCallbackData.mpsc.width,
                                              mCallbackData.mpsc.height,
-                                             mCallbackData.mpsc.shape);
+                                             ComSafeArrayAsInParam(mCallbackData.mpsc.shape));
     if (mCallbackData.mcc.valid)
         aCallback->OnMouseCapabilityChange(mCallbackData.mcc.supportsAbsolute,
                                            mCallbackData.mcc.supportsRelative,
@@ -3214,8 +3214,8 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
     ULONG uInstance;
     rc = ctrl->COMGETTER(Instance)(&uInstance);
     AssertComRC(rc);
-    IoBackendType_T enmIoBackend;
-    rc = ctrl->COMGETTER(IoBackend)(&enmIoBackend);
+    BOOL fUseHostIOCache;
+    rc = ctrl->COMGETTER(UseHostIOCache)(&fUseHostIOCache);
     AssertComRC(rc);
 
     /* protect mpVM */
@@ -3228,10 +3228,20 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCall(mpVM, VMCPUID_ANY, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                          (PFNRT)Console::changeRemovableMedium, 7,
-                          this, pszDevice, uInstance, enmBus, enmIoBackend,
-                          aMediumAttachment, fForce);
+    int vrc = VMR3ReqCall(mpVM,
+                          VMCPUID_ANY,
+                          &pReq,
+                          0 /* no wait! */,
+                          VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT)Console::changeRemovableMedium,
+                          7,
+                          this,
+                          pszDevice,
+                          uInstance,
+                          enmBus,
+                          fUseHostIOCache,
+                          aMediumAttachment,
+                          fForce);
 
     /* leave the lock before waiting for a result (EMT will call us back!) */
     alock.leave();
@@ -3284,7 +3294,7 @@ DECLCALLBACK(int) Console::changeRemovableMedium(Console *pConsole,
                                                  const char *pcszDevice,
                                                  unsigned uInstance,
                                                  StorageBus_T enmBus,
-                                                 IoBackendType_T enmIoBackend,
+                                                 bool fUseHostIOCache,
                                                  IMediumAttachment *aMediumAtt,
                                                  bool fForce)
 {
@@ -3347,7 +3357,7 @@ DECLCALLBACK(int) Console::changeRemovableMedium(Console *pConsole,
                                              pcszDevice,
                                              uInstance,
                                              enmBus,
-                                             enmIoBackend,
+                                             fUseHostIOCache,
                                              false /* fSetupMerge */,
                                              0 /* uMergeSource */,
                                              0 /* uMergeTarget */,
@@ -4460,8 +4470,8 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
     ULONG uInstance;
     rc = ctrl->COMGETTER(Instance)(&uInstance);
     AssertComRC(rc);
-    IoBackendType_T enmIoBackend;
-    rc = ctrl->COMGETTER(IoBackend)(&enmIoBackend);
+    BOOL fUseHostIOCache;
+    rc = ctrl->COMGETTER(UseHostIOCache)(&fUseHostIOCache);
     AssertComRC(rc);
 
     unsigned uLUN;
@@ -4491,7 +4501,7 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
                           pcszDevice,
                           uInstance,
                           enmBus,
-                          enmIoBackend,
+                          fUseHostIOCache,
                           true /* fSetupMerge */,
                           aSourceIdx,
                           aTargetIdx,
@@ -4566,7 +4576,7 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
                           pcszDevice,
                           uInstance,
                           enmBus,
-                          enmIoBackend,
+                          fUseHostIOCache,
                           false /* fSetupMerge */,
                           0 /* uMergeSource */,
                           0 /* uMergeTarget */,
@@ -4631,7 +4641,7 @@ HRESULT Console::updateMachineState(MachineState_T aMachineState)
 void Console::onMousePointerShapeChange(bool fVisible, bool fAlpha,
                                         uint32_t xHot, uint32_t yHot,
                                         uint32_t width, uint32_t height,
-                                        void *pShape)
+                                        ComSafeArrayIn(BYTE,pShape))
 {
 #if 0
     LogFlowThisFuncEnter();
@@ -4657,38 +4667,17 @@ void Console::onMousePointerShapeChange(bool fVisible, bool fAlpha,
     bool wasValid = mCallbackData.mpsc.valid;
     mCallbackData.mpsc.valid = false;
 
-    if (pShape != NULL)
+    com::SafeArray <BYTE> aShape(ComSafeArrayInArg (pShape));
+    if (aShape.size() != 0)
     {
-        size_t cb = (width + 7) / 8 * height; /* size of the AND mask */
-        cb = ((cb + 3) & ~3) + width * 4 * height; /* + gap + size of the XOR mask */
-        /* try to reuse the old shape buffer if the size is the same */
-        if (!wasValid)
-            mCallbackData.mpsc.shape = NULL;
-        else
-        if (mCallbackData.mpsc.shape != NULL && mCallbackData.mpsc.shapeSize != cb)
-        {
-            RTMemFree(mCallbackData.mpsc.shape);
-            mCallbackData.mpsc.shape = NULL;
-        }
-        if (mCallbackData.mpsc.shape == NULL)
-        {
-            mCallbackData.mpsc.shape = (BYTE *) RTMemAllocZ(cb);
-            AssertReturnVoid(mCallbackData.mpsc.shape);
-        }
-        mCallbackData.mpsc.shapeSize = cb;
-        memcpy(mCallbackData.mpsc.shape, pShape, cb);
+        mCallbackData.mpsc.shape.resize(aShape.size());
+        ::memcpy( mCallbackData.mpsc.shape.raw(), aShape.raw(), aShape.size());
     }
     else
-    {
-        if (wasValid && mCallbackData.mpsc.shape != NULL)
-            RTMemFree(mCallbackData.mpsc.shape);
-        mCallbackData.mpsc.shape = NULL;
-        mCallbackData.mpsc.shapeSize = 0;
-    }
-
+        mCallbackData.mpsc.shape.resize(0);
     mCallbackData.mpsc.valid = true;
 
-    CONSOLE_DO_CALLBACKS(OnMousePointerShapeChange,(fVisible, fAlpha, xHot, yHot, width, height, (BYTE *) pShape));
+    CONSOLE_DO_CALLBACKS(OnMousePointerShapeChange,(fVisible, fAlpha, xHot, yHot, width, height, ComSafeArrayInArg(pShape)));
 
 #if 0
     LogFlowThisFuncLeave();
@@ -5652,15 +5641,7 @@ HRESULT Console::powerDown(Progress *aProgress /*= NULL*/)
         mVMDestroying = false;
 
     if (SUCCEEDED(rc))
-    {
-        /* uninit dynamically allocated members of mCallbackData */
-        if (mCallbackData.mpsc.valid)
-        {
-            if (mCallbackData.mpsc.shape != NULL)
-                RTMemFree(mCallbackData.mpsc.shape);
-        }
-        memset(&mCallbackData, 0, sizeof(mCallbackData));
-    }
+        mCallbackData.clear();
 
     /* complete the progress */
     if (aProgress)
@@ -7564,7 +7545,7 @@ DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pConsole,
                                                        const char *pcszDevice,
                                                        unsigned uInstance,
                                                        StorageBus_T enmBus,
-                                                       IoBackendType_T enmIoBackend,
+                                                       bool fUseHostIOCache,
                                                        bool fSetupMerge,
                                                        unsigned uMergeSource,
                                                        unsigned uMergeTarget,
@@ -7598,7 +7579,7 @@ DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pConsole,
                                           pcszDevice,
                                           uInstance,
                                           enmBus,
-                                          enmIoBackend,
+                                          fUseHostIOCache,
                                           fSetupMerge,
                                           uMergeSource,
                                           uMergeTarget,
@@ -7744,7 +7725,7 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                 ULONG lInstance;
                 StorageControllerType_T enmController;
                 StorageBus_T enmBus;
-                IoBackendType_T enmIoBackend;
+                BOOL fUseHostIOCache;
 
                 /*
                 * We can't pass a storage controller object directly
@@ -7768,7 +7749,7 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                 rc = controller->COMGETTER(Bus)(&enmBus);
                 if (FAILED(rc))
                     throw rc;
-                rc = controller->COMGETTER(IoBackend)(&enmIoBackend);
+                rc = controller->COMGETTER(UseHostIOCache)(&fUseHostIOCache);
                 if (FAILED(rc))
                     throw rc;
 
@@ -7787,7 +7768,7 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                                       pcszDevice,
                                       lInstance,
                                       enmBus,
-                                      enmIoBackend,
+                                      fUseHostIOCache,
                                       false /* fSetupMerge */,
                                       0 /* uMergeSource */,
                                       0 /* uMergeTarget */,

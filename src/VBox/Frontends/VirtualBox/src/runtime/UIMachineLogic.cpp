@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogic.cpp 29014 2010-05-04 13:17:17Z vboxsync $ */
+/* $Id: UIMachineLogic.cpp 29445 2010-05-13 11:16:40Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -991,7 +991,12 @@ void UIMachineLogic::sltTakeSnapshot()
 
     /* Restore the running state if needed. */
     if (!fWasPaused)
+    {
+        /* Make sure machine-state-change callback is processed: */
+        QApplication::sendPostedEvents(uisession(), UIConsoleEventType_StateChange);
+        /* Unpause VM: */
         uisession()->unpause();
+    }
 }
 
 void UIMachineLogic::sltShowInformationDialog()

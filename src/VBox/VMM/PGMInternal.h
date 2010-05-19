@@ -1,4 +1,4 @@
-/* $Id: PGMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PGMInternal.h 29646 2010-05-18 15:44:08Z vboxsync $ */
 /** @file
  * PGM - Internal header file.
  */
@@ -2804,6 +2804,7 @@ typedef struct PGM
     uint32_t                        cAllPages;          /**< The total number of pages. (Should be Private + Shared + Zero + Pure MMIO.) */
     uint32_t                        cPrivatePages;      /**< The number of private pages. */
     uint32_t                        cSharedPages;       /**< The number of shared pages. */
+    uint32_t                        cReusedSharedPages; /**< The number of reused shared pages. */
     uint32_t                        cZeroPages;         /**< The number of zero backed pages. */
     uint32_t                        cPureMmioPages;     /**< The number of pure MMIO pages. */
     uint32_t                        cMonitoredPages;    /**< The number of write monitored pages. */
@@ -2811,7 +2812,7 @@ typedef struct PGM
     uint32_t                        cWriteLockedPages;  /**< The number of write locked pages. */
     uint32_t                        cReadLockedPages;   /**< The number of read locked pages. */
     uint32_t                        cBalloonedPages;    /**< The number of ballooned pages. */
-    uint32_t                        aAlignment4[1];
+/*    uint32_t                        aAlignment4[1]; */
 
     /** The number of times we were forced to change the hypervisor region location. */
     STAMCOUNTER                     cRelocations;
@@ -3394,6 +3395,7 @@ int             pgmR3PhysRamPreAllocate(PVM pVM);
 int             pgmR3PhysRamReset(PVM pVM);
 int             pgmR3PhysRomReset(PVM pVM);
 int             pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk);
+int             pgmR3PhysRamTerm(PVM pVM);
 
 int             pgmR3PoolInit(PVM pVM);
 void            pgmR3PoolRelocate(PVM pVM);

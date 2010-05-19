@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceControl.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
+/* $Id: VBoxServiceControl.cpp 29594 2010-05-18 07:45:58Z vboxsync $ */
 /** @file
  * VBoxServiceControl - Host-driven Guest Control.
  */
@@ -114,14 +114,11 @@ static int VBoxServiceControlHandleCmdStartProcess(uint32_t u32ClientId, uint32_
     char szEnv[_64K];
     uint32_t cbEnv = sizeof(szEnv);
     uint32_t uNumEnvVars;
-    char szStdIn[_1K];
-    char szStdOut[_1K];
-    char szStdErr[_1K];
     char szUser[128];
     char szPassword[128];
     uint32_t uTimeLimitMS;
 
-    if (uNumParms != 14)
+    if (uNumParms != 11)
         return VERR_INVALID_PARAMETER;
 
     int rc = VbglR3GuestCtrlExecGetHostCmd(u32ClientId,
@@ -135,10 +132,6 @@ static int VBoxServiceControlHandleCmdStartProcess(uint32_t u32ClientId, uint32_
                                            szArgs,     sizeof(szArgs), &uNumArgs,
                                            /* Environment */
                                            szEnv, &cbEnv, &uNumEnvVars,
-                                           /* Pipes */
-                                           szStdIn,    sizeof(szStdIn),
-                                           szStdOut,   sizeof(szStdOut),
-                                           szStdErr,   sizeof(szStdErr),
                                            /* Credentials */
                                            szUser,     sizeof(szUser),
                                            szPassword, sizeof(szPassword),
@@ -152,7 +145,6 @@ static int VBoxServiceControlHandleCmdStartProcess(uint32_t u32ClientId, uint32_
     {
         rc = VBoxServiceControlExecProcess(uContextID, szCmd, uFlags, szArgs, uNumArgs,
                                            szEnv, cbEnv, uNumEnvVars,
-                                           szStdIn, szStdOut, szStdErr,
                                            szUser, szPassword, uTimeLimitMS);
     }
 
@@ -178,7 +170,7 @@ static int VBoxServiceControlHandleCmdGetOutput(uint32_t u32ClientId, uint32_t u
     {
         /* Let's have a look if we have a running process with PID = uPID ... */
         PVBOXSERVICECTRLTHREAD pNode;
-        bool bFound = false;
+        bool fFound = false;
         RTListForEach(&g_GuestControlExecThreads, pNode, VBOXSERVICECTRLTHREAD, Node)
         {
             if (   pNode->fStarted
@@ -187,18 +179,18 @@ static int VBoxServiceControlHandleCmdGetOutput(uint32_t u32ClientId, uint32_t u
                 PVBOXSERVICECTRLTHREADDATAEXEC pData = (PVBOXSERVICECTRLTHREADDATAEXEC)pNode->pvData;
                 if (pData && pData->uPID == uPID)
                 {
-                    bFound = true;
+                    fFound = true;
                     break;
                 }
             }
         }
 
-        if (bFound)
+        if (fFound)
         {
             PVBOXSERVICECTRLTHREADDATAEXEC pData = (PVBOXSERVICECTRLTHREADDATAEXEC)pNode->pvData;
             AssertPtr(pData);
 
-            uint32_t cbSize = _4K;
+            const uint32_t cbSize = _4K;
             uint32_t cbRead = cbSize;
             uint8_t *pBuf = (uint8_t*)RTMemAlloc(cbSize);
             if (pBuf)
@@ -206,7 +198,6 @@ static int VBoxServiceControlHandleCmdGetOutput(uint32_t u32ClientId, uint32_t u
                 rc = VBoxServiceControlExecReadPipeBufferContent(&pData->stdOut, pBuf, cbSize, &cbRead);
                 if (RT_SUCCESS(rc))
                 {
-                    AssertPtr(pBuf);
                     /* cbRead now contains actual size. */
                     rc = VbglR3GuestCtrlExecSendOut(u32ClientId, uContextID, uPID, 0 /* handle ID */, 0 /* flags */,
                                                     pBuf, cbRead);
@@ -246,12 +237,12 @@ DECLCALLBACK(int) VBoxServiceControlWorker(bool volatile *pfShutdown)
         uint32_t uMsg;
         uint32_t uNumParms;
         VBoxServiceVerbose(3, "Control: Waiting for host msg ...\n");
-        rc = VbglR3GuestCtrlGetHostMsg(g_GuestControlSvcClientID, &uMsg, &uNumParms, 1000 /* 1s timeout */);
+        rc = VbglR3GuestCtrlGetHostMsg(g_GuestControlSvcClientID, &uMsg, &uNumParms);
         if (RT_FAILURE(rc))
         {
             if (rc == VERR_TOO_MUCH_DATA)
             {
-                VBoxServiceVerbose(3, "Control: Message requires %ld parameters, but only 2 supplied -- retrying request ...\n", uNumParms);
+                VBoxServiceVerbose(4, "Control: Message requires %ld parameters, but only 2 supplied -- retrying request (no error!)...\n", uNumParms);
                 rc = VINF_SUCCESS; /* Try to get "real" message in next block below. */
             }
             else
@@ -263,6 +254,10 @@ DECLCALLBACK(int) VBoxServiceControlWorker(bool volatile *pfShutdown)
             VBoxServiceVerbose(3, "Control: Msg=%u (%u parms) retrieved\n", uMsg, uNumParms);
             switch(uMsg)
             {
+                case GETHOSTMSG_EXEC_HOST_CANCEL_WAIT:
+                    VBoxServiceVerbose(3, "Control: Host asked us to quit ...\n");
+                    break;
+
                 case GETHOSTMSG_EXEC_START_PROCESS:
                     rc = VBoxServiceControlHandleCmdStartProcess(g_GuestControlSvcClientID, uNumParms);
                     break;
@@ -282,9 +277,10 @@ DECLCALLBACK(int) VBoxServiceControlWorker(bool volatile *pfShutdown)
         }
 
         /* Do we need to shutdown? */
-        if (*pfShutdown)
+        if (   *pfShutdown
+            || uMsg == GETHOSTMSG_EXEC_HOST_CANCEL_WAIT)
         {
-            rc = 0;
+            rc = VINF_SUCCESS;
             break;
         }
 
@@ -301,15 +297,30 @@ DECLCALLBACK(int) VBoxServiceControlWorker(bool volatile *pfShutdown)
 /** @copydoc VBOXSERVICE::pfnStop */
 static DECLCALLBACK(void) VBoxServiceControlStop(void)
 {
+    VBoxServiceVerbose(3, "Control: Stopping ...\n");
+
     /** @todo Later, figure what to do if we're in RTProcWait(). it's a very
      *        annoying call since doesn't support timeouts in the posix world. */
     RTSemEventMultiSignal(g_hControlEvent);
+
+    /*
+     * Ask the host service to cancel all pending requests so that we can
+     * shutdown properly here. 
+     */
+    if (g_GuestControlSvcClientID)
+    {
+        int rc = VbglR3GuestCtrlCancelPendingWaits(g_GuestControlSvcClientID);
+        if (RT_FAILURE(rc))
+            VBoxServiceError("Control: Cancelling pending waits failed; rc=%Rrc\n", rc);
+    }
 }
 
 
 /** @copydoc VBOXSERVICE::pfnTerm */
 static DECLCALLBACK(void) VBoxServiceControlTerm(void)
 {
+    VBoxServiceVerbose(3, "Control: Terminating ...\n");
+
     /* Signal all threads that we want to shutdown. */
     PVBOXSERVICECTRLTHREAD pNode;
     RTListForEach(&g_GuestControlExecThreads, pNode, VBOXSERVICECTRLTHREAD, Node)
@@ -320,6 +331,7 @@ static DECLCALLBACK(void) VBoxServiceControlTerm(void)
     {
         if (pNode->Thread != NIL_RTTHREAD)
         {
+            /* Wait a bit ... */
             int rc2 = RTThreadWait(pNode->Thread, 30 * 1000 /* Wait 30 seconds max. */, NULL);
             if (RT_FAILURE(rc2))
                 VBoxServiceError("Control: Thread failed to stop; rc2=%Rrc\n", rc2);
@@ -373,11 +385,11 @@ VBOXSERVICE g_Control =
     /* pszDescription. */
     "Host-driven Guest Control",
     /* pszUsage. */
-   "[--control-interval <ms>]"
+   "              [--control-interval <ms>]"
     ,
     /* pszOptions. */
-    "    --control-interval  Specifies the interval at which to check for\n"
-    "                        new control commands. The default is 1000 ms.\n"
+    "    --control-interval      Specifies the interval at which to check for\n"
+    "                            new control commands. The default is 1000 ms.\n"
     ,
     /* methods */
     VBoxServiceControlPreInit,

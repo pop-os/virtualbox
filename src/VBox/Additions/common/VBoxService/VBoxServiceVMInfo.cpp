@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceVMInfo.cpp 29398 2010-05-12 09:45:06Z vboxsync $ */
+/* $Id: VBoxServiceVMInfo.cpp 29594 2010-05-18 07:45:58Z vboxsync $ */
 /** @file
  * VBoxService - Virtual Machine Information for the Host.
  */
@@ -620,11 +620,11 @@ VBOXSERVICE g_VMInfo =
     /* pszDescription. */
     "Virtual Machine Information",
     /* pszUsage. */
-    "[--vminfo-interval <ms>]"
+    "              [--vminfo-interval <ms>]"
     ,
     /* pszOptions. */
-    "    --vminfo-interval   Specifies the interval at which to retrieve the\n"
-    "                        VM information. The default is 10000 ms.\n"
+    "    --vminfo-interval       Specifies the interval at which to retrieve the\n"
+    "                            VM information. The default is 10000 ms.\n"
     ,
     /* methods */
     VBoxServiceVMInfoPreInit,

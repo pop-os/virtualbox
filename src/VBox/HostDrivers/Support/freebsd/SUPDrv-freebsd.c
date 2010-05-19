@@ -1,4 +1,4 @@
-/* $Id: SUPDrv-freebsd.c 25484 2009-12-18 14:04:56Z vboxsync $ */
+/* $Id: SUPDrv-freebsd.c 29501 2010-05-14 21:43:32Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - FreeBSD specifics.
  */
@@ -55,6 +55,7 @@
 #include <VBox/log.h>
 #include <iprt/alloc.h>
 #include <iprt/err.h>
+#include <iprt/asm.h>
 
 #ifdef VBOX_WITH_HARDENING
 # define VBOXDRV_PERM 0600

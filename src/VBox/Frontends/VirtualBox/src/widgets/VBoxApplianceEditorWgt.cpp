@@ -1,4 +1,4 @@
-/* $Id: VBoxApplianceEditorWgt.cpp 29405 2010-05-12 10:20:34Z vboxsync $ */
+/* $Id: VBoxApplianceEditorWgt.cpp 29484 2010-05-14 16:08:20Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -396,7 +396,7 @@ QWidget * HardwareItem::createEditor (QWidget *aParent, const QStyleOptionViewIt
                 {
                     QSpinBox *e = new QSpinBox (aParent);
                     e->setRange (VBoxApplianceEditorWgt::minGuestRAM(), VBoxApplianceEditorWgt::maxGuestRAM());
-                    e->setSuffix (" " + VBoxApplianceEditorWgt::tr ("MB", "size suffix MBytes=1024KBytes"));
+                    e->setSuffix (" " + VBoxApplianceEditorWgt::tr ("MB", "size suffix MBytes=1024 KBytes"));
                     editor = e;
                     break;
                 }

@@ -1,4 +1,4 @@
-/* $Id: PGMSharedPage.cpp 29424 2010-05-12 15:11:09Z vboxsync $ */
+/* $Id: PGMSharedPage.cpp 29603 2010-05-18 09:08:35Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Shared page handling
  */
@@ -19,7 +19,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#define LOG_GROUP LOG_GROUP_PGM_PHYS
+#define LOG_GROUP LOG_GROUP_PGM_SHARED
 #include <VBox/pgm.h>
 #include <VBox/stam.h>
 #include "PGMInternal.h"
@@ -135,11 +135,15 @@ VMMR3DECL(int) PGMR3SharedModuleUnregister(PVM pVM, char *pszModuleName, char *p
  */
 static DECLCALLBACK(VBOXSTRICTRC) pgmR3SharedModuleRegRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
+    /* Flush all pending handy page operations before changing any shared page assignments. */
+    int rc = PGMR3PhysAllocateHandyPages(pVM);
+    AssertRC(rc);
+
     return GMMR3CheckSharedModules(pVM);
 }
 
 /**
- * Shared module unregistration helper (called on the way out).
+ * Shared module check helper (called on the way out).
  *
  * @param   pVM         The VM handle.
  */

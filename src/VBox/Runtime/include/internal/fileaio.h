@@ -1,4 +1,4 @@
-/* $Id: fileaio.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: fileaio.h 29451 2010-05-13 15:38:48Z vboxsync $ */
 /** @file
  * IPRT - Internal RTFileAio header.
  */
@@ -95,6 +95,14 @@ typedef enum RTFILEAIOREQSTATE
     do { \
         if (RT_UNLIKELY(pReq->enmState == RTFILEAIOREQSTATE_##State)) \
             return rc; \
+    } while (0)
+
+/** Checks if a request in the given states and sserts if not. */
+#define RTFIELAIOREQ_ASSERT_STATE(pReq, State) \
+    do { \
+        AssertPtr((pReq)); \
+        Assert((pReq)->u32Magic == RTFILEAIOREQ_MAGIC); \
+        Assert((pReq)->enmState == RTFILEAIOREQSTATE_##State); \
     } while (0)
 
 /** Sets the request into a specific state. */

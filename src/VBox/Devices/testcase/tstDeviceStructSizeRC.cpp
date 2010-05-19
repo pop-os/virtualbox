@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSizeRC.cpp 29033 2010-05-04 14:42:46Z vboxsync $ */
+/* $Id: tstDeviceStructSizeRC.cpp 29614 2010-05-18 11:48:31Z vboxsync $ */
 /** @file
  * tstDeviceStructSizeGC - Generate structure member and size checks from the GC perspective.
  *
@@ -426,12 +426,14 @@ int main()
     GEN_CHECK_OFF(PCNetState, fAm79C973);
     GEN_CHECK_OFF(PCNetState, u32LinkSpeed);
     GEN_CHECK_OFF(PCNetState, StatReceiveBytes);
+    GEN_CHECK_OFF(PCNetState, StatTransmitBytes);
 #ifdef VBOX_WITH_STATISTICS
-    GEN_CHECK_OFF(PCNetState, StatMMIOReadGC);
+    GEN_CHECK_OFF(PCNetState, StatMMIOReadR3);
+    GEN_CHECK_OFF(PCNetState, StatMMIOReadRZ);
     GEN_CHECK_OFF(PCNetState, StatMIIReads);
 # ifdef PCNET_NO_POLLING
     GEN_CHECK_OFF(PCNetState, StatRCVRingWrite);
-    GEN_CHECK_OFF(PCNetState, StatRingWriteOutsideRangeGC);
+    GEN_CHECK_OFF(PCNetState, StatRingWriteOutsideRangeR3);
 # endif
 #endif
 
@@ -1456,6 +1458,7 @@ int main()
     GEN_CHECK_OFF(BUSLOGIC, IBase);
     GEN_CHECK_OFF(BUSLOGIC, ILeds);
     GEN_CHECK_OFF(BUSLOGIC, pLedsConnector);
+    GEN_CHECK_OFF(BUSLOGIC, fSignalIdle);
 #endif /* VBOX_WITH_BUSLOGIC */
 
 #ifdef VBOX_WITH_LSILOGIC
@@ -1522,6 +1525,7 @@ int main()
     GEN_CHECK_OFF(LSILOGICSCSI, ILeds);
     GEN_CHECK_OFF(LSILOGICSCSI, pLedsConnector);
     GEN_CHECK_OFF(LSILOGICSCSI, pConfigurationPages);
+    GEN_CHECK_OFF(LSILOGICSCSI, fSignalIdle);
 #endif /* VBOX_WITH_LSILOGIC */
 
 #ifdef VBOX_WITH_HPET

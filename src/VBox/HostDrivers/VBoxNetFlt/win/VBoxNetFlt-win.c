@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.c 29108 2010-05-05 20:17:42Z vboxsync $ */
+/* $Id: VBoxNetFlt-win.c 29643 2010-05-18 15:26:50Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
@@ -114,10 +114,8 @@ static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
 volatile static bool g_bIdcInitialized;
 INIT_IDC_INFO g_InitIdcInfo;
 
-#ifdef VBOX_LOOPBACK_USEFLAGS
 UINT g_fPacketDontLoopBack;
 UINT g_fPacketIsLoopedBack;
-#endif
 
 #define LIST_ENTRY_2_JOB(pListEntry) \
     ( (PJOB)((uint8_t *)(pListEntry) - RT_OFFSETOF(JOB, ListEntry)) )
@@ -1717,16 +1715,9 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PADAPT pAdapt, PINTNETSG 
         if(bCopyMemory)
         {
             fStatus = vboxNetFltWinMemAlloc(&pvMemBuf, pSG->cbTotal);
+            Assert(fStatus == NDIS_STATUS_SUCCESS);
             if(fStatus == NDIS_STATUS_SUCCESS)
-            {
                 IntNetSgRead(pSG, pvMemBuf);
-            }
-            else
-            {
-                AssertFailed();
-                NdisFreePacket(pPacket);
-                pPacket = NULL;
-            }
         }
         else
         {
@@ -1954,10 +1945,8 @@ DriverEntry(
 {
     NDIS_STATUS                        Status = NDIS_STATUS_SUCCESS;
     int rc;
-#ifdef VBOX_LOOPBACK_USEFLAGS
     ULONG MjVersion;
     ULONG MnVersion;
-#endif
 
     NdisAllocateSpinLock(&g_GlobalLock);
 
@@ -1973,7 +1962,6 @@ DriverEntry(
     AssertRC(rc);
     if(RT_SUCCESS(rc))
     {
-#ifdef VBOX_LOOPBACK_USEFLAGS
         PsGetVersion(&MjVersion, &MnVersion,
           NULL, /* PULONG  BuildNumber  OPTIONAL */
           NULL /* PUNICODE_STRING  CSDVersion  OPTIONAL */
@@ -1988,7 +1976,6 @@ DriverEntry(
         }
 
         g_fPacketIsLoopedBack = NDIS_FLAGS_IS_LOOPBACK_PACKET;
-#endif
 
         Status = vboxNetFltWinJobInitQueue(&g_JobQueue);
         Assert(Status == STATUS_SUCCESS);
@@ -2633,7 +2620,7 @@ DECLHIDDEN(bool) vboxNetFltWinMatchPackets(PNDIS_PACKET pPacket1, PNDIS_PACKET p
             }
 
             ucbLength2Match = MIN(ucbMatch, cbLength1);
-            ucbLength2Match = MIN(ucbMatch, cbLength2);
+            ucbLength2Match = MIN(ucbLength2Match, cbLength2);
 
             if(memcmp((PVOID*)pMemBuf1, (PVOID*)pMemBuf2, ucbLength2Match))
             {
@@ -2735,7 +2722,7 @@ DECLHIDDEN(bool) vboxNetFltWinMatchPacketAndSG(PNDIS_PACKET pPacket, PINTNETSG p
             }
 
             ucbLength2Match = MIN(ucbMatch, cbLength1);
-            ucbLength2Match = MIN(ucbMatch, cbLength2);
+            ucbLength2Match = MIN(ucbLength2Match, cbLength2);
 
             if(memcmp((PVOID*)pMemBuf1, (PVOID*)pMemBuf2, ucbLength2Match))
             {
@@ -2824,7 +2811,7 @@ static bool vboxNetFltWinMatchSGs(PINTNETSG pSG1, PINTNETSG pSG2, const INT cbMa
             }
 
             ucbLength2Match = MIN(ucbMatch, cbLength1);
-            ucbLength2Match = MIN(ucbMatch, cbLength2);
+            ucbLength2Match = MIN(ucbLength2Match, cbLength2);
 
             if(memcmp(pMemBuf1, pMemBuf2, ucbLength2Match))
             {
@@ -3216,6 +3203,32 @@ static bool vboxNetFltWinIsPromiscuous2(PVBOXNETFLTINS pThis)
 #endif
 }
 
+
+/**
+ * Report the MAC address, promiscuous mode setting, GSO capabilities and
+ * no-preempt destinations to the internal network.
+ *
+ * Does nothing if we're not currently connected to an internal network.
+ *
+ * @param   pThis           The instance data.
+ */
+static void vboxNetFltWinReportStuff(PVBOXNETFLTINS pThis)
+{
+    /** @todo Keep these up to date, esp. the promiscuous mode bit. */
+    if (   pThis->pSwitchPort
+        && vboxNetFltTryRetainBusyNotDisconnected(pThis))
+    {
+        pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
+        pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort,
+                                                     vboxNetFltWinIsPromiscuous2(pThis));
+        pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, 0,
+                                                     INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
+        /** @todo We should be able to do pfnXmit at DISPATCH_LEVEL... */
+        pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, 0 /* none */);
+        vboxNetFltRelease(pThis, true /*fBusy*/);
+    }
+}
+
 /**
  * Worker for vboxNetFltWinAttachToInterface.
  *
@@ -3305,19 +3318,8 @@ static void vboxNetFltWinAttachToInterfaceWorker(PATTACH_INFO pAttachInfo)
                             vboxNetFltRelease(pThis, false);
 
                             /* 5. Report MAC address, promiscuousness and GSO capabilities. */
-                            /** @todo Keep these up to date, esp. the promiscuous mode bit. */
-                            if (   pThis->pSwitchPort
-                                && vboxNetFltTryRetainBusyNotDisconnected(pThis))
-                            {
-                                pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
-                                pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort,
-                                                                             vboxNetFltWinIsPromiscuous2(pThis));
-                                pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, 0,
-                                                                             INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
-                                /** @todo We should be able to do pfnXmit at DISPATCH_LEVEL... */
-                                pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, 0 /* none */);
-                                vboxNetFltRelease(pThis, true /*fBusy*/);
-                            }
+                            vboxNetFltWinReportStuff(pThis);
+
                             return;
                         }
                         AssertBreakpoint();
@@ -3469,6 +3471,14 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
         if (pPacket)
         {
             NDIS_STATUS fStatus;
+
+#ifndef VBOX_LOOPBACK_USEFLAGS
+            /* force "don't loopback" flags to prevent loopback branch invocation in any case
+             * to avoid ndis misbehave */
+            NdisGetPacketFlags(pPacket) |= g_fPacketDontLoopBack;
+#else
+            /* this is done by default in vboxNetFltWinNdisPacketFromSG */
+#endif
 
 #if defined(DEBUG_NETFLT_PACKETS) || !defined(VBOX_LOOPBACK_USEFLAGS)
             vboxNetFltWinLbPutSendPacket(pAdapt, pPacket, true /* bFromIntNet */);
@@ -3717,6 +3727,9 @@ static int vboxNetFltWinConnectIt(PVBOXNETFLTINS pThis)
 
     vboxNetFltWinJobSynchExecAtPassive(vboxNetFltWinConnectItWorker, &Info);
 
+    if (RT_SUCCESS(Info.Status))
+        vboxNetFltWinReportStuff(pThis);
+
     return Info.Status;
 }
 
@@ -3755,6 +3768,25 @@ int vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
 #ifndef VBOXNETADP
     vboxNetFltWinSetOpState(&pAdapt->PTState, kVBoxNetDevOpState_Deinitialized);
 #endif
+    return VINF_SUCCESS;
+}
+
+void vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf, PCRTMAC pMac)
+{
+    NOREF(pThis); NOREF(hIf); NOREF(pMac);
+}
+
+int vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+{
+    /* Nothing to do */
+    NOREF(pThis); NOREF(hIf);
+    return VINF_SUCCESS;
+}
+
+int vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+{
+    /* Nothing to do */
+    NOREF(pThis); NOREF(hIf);
     return VINF_SUCCESS;
 }
 

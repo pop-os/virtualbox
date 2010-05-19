@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltCommon-win.h 29108 2010-05-05 20:17:42Z vboxsync $ */
+/* $Id: VBoxNetFltCommon-win.h 29643 2010-05-18 15:26:50Z vboxsync $ */
 /** @file
  * VBoxNetFltCommon.h - Network Filter Driver (Host), Windows Specific Code. Common headeer with commonly used defines and decls
  */
@@ -469,9 +469,7 @@ C_ASSERT(sizeof(TRANSFERDATA_RSVD) <= PROTOCOL_RESERVED_SIZE_IN_PACKET);
 C_ASSERT(sizeof(NDIS_DEVICE_POWER_STATE) == sizeof(uint32_t));
 C_ASSERT(sizeof(UINT) == sizeof(uint32_t));
 
-#ifdef VBOX_LOOPBACK_USEFLAGS
 #define NDIS_FLAGS_SKIP_LOOPBACK_W2K    0x400
-#endif
 
 #include "../VBoxNetFltInternal.h"
 #include "VBoxNetFlt-win.h"

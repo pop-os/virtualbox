@@ -1,4 +1,4 @@
-/* $Id: VBoxService.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
+/* $Id: VBoxService.cpp 29647 2010-05-18 15:59:51Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton.
  */
@@ -109,31 +109,33 @@ static struct
  */
 static int VBoxServiceUsage(void)
 {
-    RTPrintf("usage: %s [-f|--foreground] [-v|--verbose] [-i|--interval <seconds>]\n"
-             "           [--disable-<service>] [--enable-<service>] [-h|-?|--help]\n", g_pszProgName);
+    RTPrintf("Usage:\n"
+             " %-12s [-f|--foreground] [-v|--verbose] [-i|--interval <seconds>]\n"
+             "              [--disable-<service>] [--enable-<service>] [-h|-?|--help]\n", g_pszProgName);
 #ifdef RT_OS_WINDOWS
-    RTPrintf("           [-r|--register] [-u|--unregister]\n");
+    RTPrintf("              [-r|--register] [-u|--unregister]\n");
 #endif
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
-        RTPrintf("           %s\n", g_aServices[j].pDesc->pszUsage);
+        if (g_aServices[j].pDesc->pszUsage)
+            RTPrintf("%s\n", g_aServices[j].pDesc->pszUsage);
     RTPrintf("\n"
              "Options:\n"
-             "    -i | --interval          The default interval.\n"
-             "    -f | --foreground        Don't daemonzie the program. For debugging.\n"
-             "    -v | --verbose           Increment the verbosity level. For debugging.\n"
-             "    -h | -? | --help         Show this message and exit with status 1.\n"
+             "    -i | --interval         The default interval.\n"
+             "    -f | --foreground       Don't daemonzie the program. For debugging.\n"
+             "    -v | --verbose          Increment the verbosity level. For debugging.\n"
+             "    -h | -? | --help        Show this message and exit with status 1.\n"
              );
 #ifdef RT_OS_WINDOWS
-    RTPrintf("    -r | --register          Installs the service.\n"
-             "    -u | --unregister        Uninstall service.\n");
+    RTPrintf("    -r | --register         Installs the service.\n"
+             "    -u | --unregister       Uninstall service.\n");
 #endif
 
     RTPrintf("\n"
-             "Service specific options:\n");
+             "Service-specific options:\n");
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
     {
-        RTPrintf("    --enable-%-10s Enables the %s service. (default)\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
-        RTPrintf("    --disable-%-9s Disables the %s service.\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
+        RTPrintf("    --enable-%-14s Enables the %s service. (default)\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
+        RTPrintf("    --disable-%-13s Disables the %s service.\n", g_aServices[j].pDesc->pszName, g_aServices[j].pDesc->pszName);
         if (g_aServices[j].pDesc->pszOptions)
             RTPrintf("%s", g_aServices[j].pDesc->pszOptions);
     }
@@ -357,10 +359,11 @@ int VBoxServiceStartServices(unsigned iMain)
         /* The final service runs in the main thread. */
         VBoxServiceVerbose(1, "Starting '%s' in the main thread\n", g_aServices[iMain].pDesc->pszName);
         rc = g_aServices[iMain].pDesc->pfnWorker(&g_fShutdown);
-        if (rc != VINF_SUCCESS) /* Only complain if service returned an error. Otherwise the service is a one-timer. */
-        {
+        if (RT_SUCCESS(rc))
+            VBoxServiceVerbose(1, "Main service '%s' successfully stopped.\n", g_aServices[iMain].pDesc->pszName);
+        else /* Only complain if service returned an error. Otherwise the service is a one-timer. */
             VBoxServiceError("Service '%s' stopped unexpected; rc=%Rrc\n", g_aServices[iMain].pDesc->pszName, rc);
-        }
+        g_aServices[iMain].pDesc->pfnTerm();
     }
     return rc;
 }
@@ -375,14 +378,24 @@ int VBoxServiceStartServices(unsigned iMain)
 int VBoxServiceStopServices(void)
 {
     int rc = VINF_SUCCESS;
+    unsigned iMain = VBoxServiceGetStartedServices();
 
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         ASMAtomicXchgBool(&g_aServices[j].fShutdown, true);
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
         if (g_aServices[j].fStarted)
+        {
+            VBoxServiceVerbose(3, "Calling stop function for service '%s' ...\n", g_aServices[j].pDesc->pszName);
             g_aServices[j].pDesc->pfnStop();
+        }
     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
-        if (g_aServices[j].fEnabled)
+
+        if (    !g_aServices[j].fEnabled /* Only stop services which were started before. */
+            ||  j == iMain)              /* Don't call the termination function for main service yet. */
+        {
+            continue;
+        }
+        else
         {
             if (g_aServices[j].Thread != NIL_RTTHREAD)
             {
@@ -404,30 +417,26 @@ int VBoxServiceStopServices(void)
             g_aServices[j].pDesc->pfnTerm();
         }
 
+#ifdef RT_OS_WINDOWS
+    /*
+     * As we're now done terminating all service threads,
+     * we have to stop the main thread as well (if defined). Note that the termination
+     * function will be called in a later context (when the main thread returns from the worker
+     * function).
+     */
+    if (iMain != ~0U)
+    {
+        VBoxServiceVerbose(3, "Stopping main service '%s' (%d) ...\n", g_aServices[iMain].pDesc->pszName, iMain);
+
+        ASMAtomicXchgBool(&g_fShutdown, true);
+        g_aServices[iMain].pDesc->pfnStop();
+    }
+#endif
+
     VBoxServiceVerbose(2, "Stopping services returned: rc=%Rrc\n", rc);
     return rc;
 }
 
-#ifndef RT_OS_WINDOWS
-/*
- * Block all important signals, then explicitly wait until one of these signal arrives.
- */
-static void VBoxServiceWaitSignal(void)
-{
-    sigset_t signalMask;
-    int iSignal;
-    sigemptyset(&signalMask);
-    sigaddset(&signalMask, SIGHUP);
-    sigaddset(&signalMask, SIGINT);
-    sigaddset(&signalMask, SIGQUIT);
-    sigaddset(&signalMask, SIGABRT);
-    sigaddset(&signalMask, SIGTERM);
-    pthread_sigmask(SIG_BLOCK, &signalMask, NULL);
-    sigwait(&signalMask, &iSignal);
-    VBoxServiceVerbose(3, "VBoxServiceWaitSignal: Received signal %d\n", iSignal);
-}
-#endif
-
 
 #ifndef RT_OS_WINDOWS
 /*
@@ -444,8 +453,17 @@ static void VBoxServiceWaitSignal(void)
     sigaddset(&signalMask, SIGABRT);
     sigaddset(&signalMask, SIGTERM);
     pthread_sigmask(SIG_BLOCK, &signalMask, NULL);
-    sigwait(&signalMask, &iSignal);
-    VBoxServiceVerbose(3, "VBoxServiceWaitSignal: Received signal %d\n", iSignal);
+
+    int rc;
+    do
+    {
+        iSignal = -1;
+        rc = sigwait(&signalMask, &iSignal);
+    }
+    while (   rc == EINTR
+           || rc == ERESTART);
+
+    VBoxServiceVerbose(3, "VBoxServiceWaitSignal: Received signal %d (rc=%d)\n", iSignal, rc);
 }
 #endif /* !RT_OS_WINDOWS */
 

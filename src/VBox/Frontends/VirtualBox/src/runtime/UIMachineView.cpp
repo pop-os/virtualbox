@@ -1,4 +1,4 @@
-/* $Id: UIMachineView.cpp 29410 2010-05-12 11:32:52Z vboxsync $ */
+/* $Id: UIMachineView.cpp 29558 2010-05-17 15:05:22Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -614,6 +614,13 @@ void UIMachineView::prepareFrameBuffer()
         /* always perform SetFramebuffer to ensure 3D gets notified */
         display.SetFramebuffer(m_uScreenId, CFramebuffer(m_pFrameBuffer));
     }
+
+#ifdef Q_WS_X11
+    /* Processing pseudo resize-event to synchronize frame-buffer with stored framebuffer size: */
+    QSize size = guestSizeHint();
+    UIResizeEvent event(FramebufferPixelFormat_Opaque, NULL, 0, 0, size.width(), size.height());
+    frameBuffer()->resizeEvent(&event);
+#endif /* Q_WS_X11 */
 }
 
 void UIMachineView::prepareCommon()

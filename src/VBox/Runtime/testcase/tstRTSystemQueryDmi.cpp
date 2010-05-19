@@ -1,4 +1,4 @@
-/* $Id: tstRTSystemQueryDmi.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstRTSystemQueryDmi.cpp 29560 2010-05-17 15:08:09Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTSystemQueryDmi*.
  */
@@ -58,6 +58,9 @@ int main()
 
     rc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_SERIAL, szInfo, sizeof(szInfo));
     RTTestIPrintf(RTTESTLVL_ALWAYS, "PRODUCT_SERIAL: \"%s\", rc=%Rrc\n", szInfo, rc);
+
+    rc = RTSystemQueryDmiString(RTSYSDMISTR_MANUFACTURER, szInfo, sizeof(szInfo));
+    RTTestIPrintf(RTTESTLVL_ALWAYS, "MANUFACTURER: \"%s\", rc=%Rrc\n", szInfo, rc);
 
     /*
      * Check that unsupported stuff is terminated correctly.

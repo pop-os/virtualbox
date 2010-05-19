@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryDmiString-linux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTSystemQueryDmiString-linux.cpp 29642 2010-05-18 14:44:56Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryDmiString, linux ring-3.
  */
@@ -52,6 +52,7 @@ RTDECL(int) RTSystemQueryDmiString(RTSYSDMISTR enmString, char *pszBuf, size_t c
         case RTSYSDMISTR_PRODUCT_VERSION:   pszSysFsName = "id/product_version"; break;
         case RTSYSDMISTR_PRODUCT_UUID:      pszSysFsName = "id/product_uuid"; break;
         case RTSYSDMISTR_PRODUCT_SERIAL:    pszSysFsName = "id/product_serial"; break;
+        case RTSYSDMISTR_MANUFACTURER:      pszSysFsName = "id/sys_vendor"; break;
         default:
             return VERR_NOT_SUPPORTED;
     }

@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-linux.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: semeventmulti-r0drv-linux.c 29648 2010-05-18 16:15:42Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, Linux.
  */
@@ -166,7 +166,7 @@ static int rtSemEventMultiWait(PRTSEMEVENTMULTIINTERNAL pThis, RTMSINTERVAL cMil
     int     rc       = VINF_SUCCESS;
     long    lTimeout = cMillies == RT_INDEFINITE_WAIT ? MAX_SCHEDULE_TIMEOUT : msecs_to_jiffies(cMillies);
 #ifdef IPRT_DEBUG_SEMS
-    snprintf(current->comm, TASK_COMM_LEN, "E%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
+    snprintf(current->comm, sizeof(current->comm), "E%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
 #endif
     for (;;)
     {
@@ -206,7 +206,7 @@ static int rtSemEventMultiWait(PRTSEMEVENTMULTIINTERNAL pThis, RTMSINTERVAL cMil
 
     finish_wait(&pThis->Head, &Wait);
 #ifdef IPRT_DEBUG_SEMS
-    snprintf(current->comm, TASK_COMM_LEN, "E%lx:%d", IPRT_DEBUG_SEMS_ADDRESS(pThis), rc);
+    snprintf(current->comm, sizeof(current->comm), "E%lx:%d", IPRT_DEBUG_SEMS_ADDRESS(pThis), rc);
 #endif
     return rc;
 }

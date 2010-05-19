@@ -1,10 +1,10 @@
-/* $Id: PDMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PDMInternal.h 29521 2010-05-17 10:14:22Z vboxsync $ */
 /** @file
  * PDM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

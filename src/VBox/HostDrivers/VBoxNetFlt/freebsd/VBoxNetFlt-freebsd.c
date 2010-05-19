@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-freebsd.c 28830 2010-04-27 14:05:25Z vboxsync $ */
+/* $Id: VBoxNetFlt-freebsd.c 29491 2010-05-14 17:46:22Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), FreeBSD Specific Code.
  */
@@ -744,3 +744,23 @@ int vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 {
     return VINF_SUCCESS;
 }
+
+void vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf, PCRTMAC pMac)
+{
+    NOREF(pThis); NOREF(hIf); NOREF(pMac);
+}
+
+int vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+{
+    /* Nothing to do */
+    NOREF(pThis); NOREF(hIf);
+    return VINF_SUCCESS;
+}
+
+int vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+{
+    /* Nothing to do */
+    NOREF(pThis); NOREF(hIf);
+    return VINF_SUCCESS;
+}
+
