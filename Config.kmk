@@ -1,4 +1,4 @@
-# $Id: Config.kmk 29429 2010-05-12 15:34:17Z vboxsync $
+# $Id: Config.kmk 29652 2010-05-18 18:04:13Z vboxsync $
 ## @file
 # The global build configuration file for VBox.
 #
@@ -152,7 +152,7 @@ VBOX_VERSION_MINOR = 2
 # will be published, odd numbers are set during development.
 VBOX_VERSION_BUILD = 0
 # Full version string (may include more than just x.y.z, but no spaces or other problematic chars).
-VBOX_VERSION_STRING = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)_BETA3
+VBOX_VERSION_STRING = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
@@ -594,7 +594,8 @@ if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  VBOX_WITH_NETFLT = 1
  VBOX_SOLARIS_NSL_RESOLVED = 1
  ifeq ($(KBUILD_TARGET),solaris)
-  VBOX_WITH_NETFLT_CROSSBOW = 1
+# Disabled until some Nevada version ships the required headers.
+#  VBOX_WITH_NETFLT_CROSSBOW = 1
  endif
  if1of ($(KBUILD_TARGET), darwin freebsd linux solaris)
   VBOX_WITH_NETADP = 1
@@ -2200,12 +2201,12 @@ if1of ($(KBUILD_TARGET), linux)
  endif
  # Since Linux 2.6.15, <linux/autoconf.h> is included like this. It cannot hurt to do the
  # same for older Linux kernels
- ifneq ($(wildcard $(VBOX_LINUX_SRC)/include/linux/autoconf.h),)
-  # Linux < 2.6.33
-  export VBOX_LINUX_INCLUDE := -include $(VBOX_LINUX_SRC)/include/linux/autoconf.h
- else ifneq ($(wildcard $(VBOX_LINUX_SRC)/include/generated/autoconf.h),)
+ ifneq ($(wildcard $(VBOX_LINUX_SRC)/include/generated/autoconf.h),)
   # Linux >= 2.6.33
   export VBOX_LINUX_INCLUDE := -include $(VBOX_LINUX_SRC)/include/generated/autoconf.h
+ else ifneq ($(wildcard $(VBOX_LINUX_SRC)/include/linux/autoconf.h),)
+  # Linux < 2.6.33
+  export VBOX_LINUX_INCLUDE := -include $(VBOX_LINUX_SRC)/include/linux/autoconf.h
  endif
 endif
 
@@ -4210,7 +4211,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 29429 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 29652 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

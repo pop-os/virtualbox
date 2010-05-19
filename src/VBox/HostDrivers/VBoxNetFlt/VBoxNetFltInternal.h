@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltInternal.h 29108 2010-05-05 20:17:42Z vboxsync $ */
+/* $Id: VBoxNetFltInternal.h 29494 2010-05-14 18:35:33Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Internal Header.
  */
@@ -115,7 +115,9 @@ typedef struct VBOXNETFLTINS
     /** Whether we should not attempt to set promiscuous mode at all. */
     bool fDisablePromiscuous;
 #if (ARCH_BITS == 32) && defined(__GNUC__)
+#if 0
     uint32_t u32Padding;    /**< Alignment padding, will assert in ASMAtomicUoWriteU64 otherwise. */
+#endif
 #endif
     /** The timestamp of the last rediscovery. */
     uint64_t volatile NanoTSLastRediscovery;
@@ -377,6 +379,32 @@ DECLHIDDEN(int) vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32
  * @remarks Owns the lock for the out-bound trunk port.
  */
 DECLHIDDEN(void) vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive);
+
+/**
+ * This is called when a network interface has obtained a new MAC address.
+ *
+ * @param   pThis           The instance.
+ * @param   hIf             The handle to the network.
+ * @param   pMac            Pointer to the new MAC address.
+ */
+DECLHIDDEN(void) vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf, PCRTMAC pMac);
+
+/**
+ * This is called when an interface is connected to the network.
+ *
+ * @return IPRT status code.
+ * @param   pThis           The instance.
+ * @param   hIf             The handle to the network.
+ */
+DECLHIDDEN(int) vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf);
+
+/**
+ * This is called when a VM host disconnects from the network.
+ *
+ * @param   pThis           The instance.
+ * @param   hIf             The handle to the network.
+ */
+DECLHIDDEN(int) vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf);
 
 /**
  * This is called to when disconnecting from a network.

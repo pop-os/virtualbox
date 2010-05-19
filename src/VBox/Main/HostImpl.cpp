@@ -1,4 +1,4 @@
-/* $Id: HostImpl.cpp 29385 2010-05-11 18:05:44Z vboxsync $ */
+/* $Id: HostImpl.cpp 29620 2010-05-18 12:15:55Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation: Host
  */
@@ -764,6 +764,20 @@ STDMETHODIMP Host::COMGETTER(ProcessorOnlineCount)(ULONG *aCount)
 
     *aCount = RTMpGetOnlineCount();
     return S_OK;
+}
+
+/**
+ * Returns the number of installed physical processor cores.
+ *
+ * @returns COM status code
+ * @param   count address of result variable
+ */
+STDMETHODIMP Host::COMGETTER(ProcessorCoreCount)(ULONG *aCount)
+{
+    CheckComArgOutPointerValid(aCount);
+    // no locking required
+
+    return E_NOTIMPL;
 }
 
 /**
@@ -2296,7 +2310,7 @@ HRESULT Host::checkUSBProxyService()
         if (m->pUSBProxyService->getLastError() == VINF_SUCCESS)
 #ifdef RT_OS_LINUX
             return setWarning (VBOX_E_HOST_ERROR,
-# ifdef VBOX_USB_WITH_DBUS
+# ifdef VBOX_WITH_DBUS
                 tr ("The USB Proxy Service could not be started, because neither the USB file system (usbfs) nor the hardware information service (hal) is available")
 # else
                 tr ("The USB Proxy Service could not be started, because the USB file system (usbfs) is not available")
@@ -2341,6 +2355,8 @@ void Host::registerMetrics(PerformanceCollector *aCollector)
         "Total physical memory free inside the hypervisor.");
     pm::SubMetric *ramVMMBallooned  = new pm::SubMetric("RAM/VMM/Ballooned",
         "Total physical memory ballooned by the hypervisor.");
+    pm::SubMetric *ramVMMShared = new pm::SubMetric("RAM/VMM/Shared",
+        "Total physical memory shared between VMs.");
 
 
     /* Create and register base metrics */
@@ -2353,7 +2369,7 @@ void Host::registerMetrics(PerformanceCollector *aCollector)
     pm::BaseMetric *cpuMhz = new pm::HostCpuMhz(hal, objptr, cpuMhzSM);
     aCollector->registerBaseMetric (cpuMhz);
     pm::BaseMetric *ramUsage = new pm::HostRamUsage(hal, objptr, ramUsageTotal, ramUsageUsed,
-                                           ramUsageFree, ramVMMUsed, ramVMMFree, ramVMMBallooned);
+                                           ramUsageFree, ramVMMUsed, ramVMMFree, ramVMMBallooned, ramVMMShared);
     aCollector->registerBaseMetric (ramUsage);
 
     aCollector->registerMetric(new pm::Metric(cpuLoad, cpuLoadUser, 0));
@@ -2434,6 +2450,14 @@ void Host::registerMetrics(PerformanceCollector *aCollector)
     aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMBallooned,
                                               new pm::AggregateMin()));
     aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMBallooned,
+                                              new pm::AggregateMax()));
+
+    aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMShared, 0));
+    aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMShared,
+                                              new pm::AggregateAvg()));
+    aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMShared,
+                                              new pm::AggregateMin()));
+    aCollector->registerMetric(new pm::Metric(ramUsage, ramVMMShared,
                                               new pm::AggregateMax()));
 }
 

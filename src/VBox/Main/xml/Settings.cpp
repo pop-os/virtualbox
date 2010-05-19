@@ -1,4 +1,4 @@
-/* $Id: Settings.cpp 29386 2010-05-11 18:07:09Z vboxsync $ */
+/* $Id: Settings.cpp 29593 2010-05-18 07:23:46Z vboxsync $ */
 /** @file
  * Settings File Manipulation API.
  *
@@ -1490,7 +1490,8 @@ Hardware::Hardware()
           pointingHidType(PointingHidType_PS2Mouse),
           keyboardHidType(KeyboardHidType_PS2Keyboard),
           clipboardMode(ClipboardMode_Bidirectional),
-          ulMemoryBalloonSize(0)
+          ulMemoryBalloonSize(0),
+          fPageFusionEnabled(false)
 {
     mapBootOrder[0] = DeviceType_Floppy;
     mapBootOrder[1] = DeviceType_DVD;
@@ -1546,6 +1547,7 @@ bool Hardware::operator==(const Hardware& h) const
                   && (llSharedFolders           == h.llSharedFolders)
                   && (clipboardMode             == h.clipboardMode)
                   && (ulMemoryBalloonSize       == h.ulMemoryBalloonSize)
+                  && (fPageFusionEnabled        == h.fPageFusionEnabled)
                   && (llGuestProperties         == h.llGuestProperties)
                   && (strNotificationPatterns   == h.strNotificationPatterns)
                 )
@@ -1583,7 +1585,7 @@ bool StorageController::operator==(const StorageController &s) const
                   && (controllerType            == s.controllerType)
                   && (ulPortCount               == s.ulPortCount)
                   && (ulInstance                == s.ulInstance)
-                  && (ioBackendType             == s.ioBackendType)
+                  && (fUseHostIOCache           == s.fUseHostIOCache)
                   && (lIDE0MasterEmulationPort  == s.lIDE0MasterEmulationPort)
                   && (lIDE0SlaveEmulationPort   == s.lIDE0SlaveEmulationPort)
                   && (lIDE1MasterEmulationPort  == s.lIDE1MasterEmulationPort)
@@ -2074,19 +2076,7 @@ void MachineConfigFile::readStorageControllerAttributes(const xml::ElementNode &
     elmStorageController.getAttributeValue("IDE1MasterEmulationPort", sctl.lIDE1MasterEmulationPort);
     elmStorageController.getAttributeValue("IDE1SlaveEmulationPort", sctl.lIDE1SlaveEmulationPort);
 
-    Utf8Str strIoBackend;
-    if (elmStorageController.getAttributeValue("IoBackend", strIoBackend))
-    {
-        if (strIoBackend == "Buffered")
-            sctl.ioBackendType = IoBackendType_Buffered;
-        else if (strIoBackend == "Unbuffered")
-            sctl.ioBackendType = IoBackendType_Unbuffered;
-        else
-            throw ConfigFileError(this,
-                                  &elmStorageController,
-                                  N_("Invalid value '%s' in StorageController/@IoBackend"),
-                                  strIoBackend.c_str());
-    }
+    elmStorageController.getAttributeValue("useHostIOCache", sctl.fUseHostIOCache);
 }
 
 /**
@@ -2172,7 +2162,10 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 readCpuIdTree(*pelmCPUChild, hw.llCpuIdLeafs);
         }
         else if (pelmHwChild->nameEquals("Memory"))
+        {
             pelmHwChild->getAttributeValue("RAMSize", hw.ulMemorySizeMB);
+            pelmHwChild->getAttributeValue("PageFusion", hw.fPageFusionEnabled);
+        }
         else if (pelmHwChild->nameEquals("Firmware"))
         {
             Utf8Str strFirmwareType;
@@ -3128,6 +3121,10 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
     xml::ElementNode *pelmMemory = pelmHardware->createChild("Memory");
     pelmMemory->setAttribute("RAMSize", hw.ulMemorySizeMB);
+    if (m->sv >= SettingsVersion_v1_10)
+    {
+        pelmMemory->setAttribute("PageFusion", hw.fPageFusionEnabled);
+    }
 
     if (    (m->sv >= SettingsVersion_v1_9)
          && (hw.firmwareType >= FirmwareType_EFI)
@@ -3711,17 +3708,8 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
             if (sc.ulInstance)
                 pelmController->setAttribute("Instance", sc.ulInstance);
 
-        if (m->sv >= SettingsVersion_v1_9)
-        {
-            const char *pcszIoBackend;
-            switch (sc.ioBackendType)
-            {
-                case IoBackendType_Unbuffered: pcszIoBackend = "Unbuffered"; break;
-                default: /*case IoBackendType_Buffered:*/ pcszIoBackend = "Buffered"; break;
-            }
-
-            pelmController->setAttribute("IoBackend", pcszIoBackend);
-        }
+        if (m->sv >= SettingsVersion_v1_10)
+            pelmController->setAttribute("useHostIOCache", sc.fUseHostIOCache);
 
         if (sc.controllerType == StorageControllerType_IntelAhci)
         {
@@ -3986,8 +3974,8 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
                 else if (att.deviceType == DeviceType_Floppy)
                     ++cFloppies;
 
-                // The I/O backend setting is only supported with v.10
-                if (sctl.ioBackendType != IoBackendType_Buffered)
+                // Disabling the host IO cache requires settings version 1.10
+                if (!sctl.fUseHostIOCache)
                 {
                     m->sv = SettingsVersion_v1_10;
                     break;
@@ -4013,6 +4001,12 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
               || hardwareMachine.keyboardHidType != KeyboardHidType_PS2Keyboard
               || hardwareMachine.fHpetEnabled
             )
+       )
+        m->sv = SettingsVersion_v1_10;
+
+    // VirtualBox 3.2 adds support for page fusion
+    if (    m->sv < SettingsVersion_v1_10
+        &&  hardwareMachine.fPageFusionEnabled
        )
         m->sv = SettingsVersion_v1_10;
 

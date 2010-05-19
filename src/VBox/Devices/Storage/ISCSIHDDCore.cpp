@@ -1,4 +1,4 @@
-/* $Id: ISCSIHDDCore.cpp 28827 2010-04-27 13:55:04Z vboxsync $ */
+/* $Id: ISCSIHDDCore.cpp 29498 2010-05-14 21:05:14Z vboxsync $ */
 /** @file
  * iSCSI initiator driver, VD backend.
  */
@@ -2314,6 +2314,9 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     rc = RTStrToUInt64Full(s_iscsiConfigDefaultHostIPStack, 0, &uHostIPTmp);
     AssertRC(rc);
     fHostIPDef = !!uHostIPTmp;
+
+    if (uOpenFlags & VD_OPEN_FLAGS_ASYNC_IO)
+        return VERR_NOT_SUPPORTED;
 
     pImage->uOpenFlags      = uOpenFlags;
 

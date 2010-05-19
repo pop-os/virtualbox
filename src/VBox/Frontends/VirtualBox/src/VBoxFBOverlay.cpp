@@ -2315,9 +2315,9 @@ int VBoxVHWAImage::vhwaSurfaceCreate (struct _VBOXVHWACMD_SURF_CREATE *pCmd)
                         QRect(0, 0, surfSize.width(), surfSize.height()),
                         mViewport,
                         format,
-                        pSrcBltCKey, pDstBltCKey, pSrcOverlayCKey, pDstOverlayCKey
+                        pSrcBltCKey, pDstBltCKey, pSrcOverlayCKey, pDstOverlayCKey,
 #ifdef VBOXVHWA_USE_TEXGROUP
-                        , 0
+                        0,
 #endif
                         fFlags);
         }

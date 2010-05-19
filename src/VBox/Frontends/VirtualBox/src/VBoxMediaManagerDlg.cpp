@@ -1,4 +1,4 @@
-/* $Id: VBoxMediaManagerDlg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxMediaManagerDlg.cpp 29526 2010-05-17 10:59:21Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -504,9 +504,12 @@ void VBoxMediaManagerDlg::showModeless (QWidget *aCenterWidget /* = 0 */, bool a
     {
         mModelessDialog = new VBoxMediaManagerDlg (0, Qt::Window);
         mModelessDialog->centerAccording (aCenterWidget);
-        connect (vboxGlobal().mainWindow(), SIGNAL (closing()), mModelessDialog, SLOT (close()));
         mModelessDialog->setAttribute (Qt::WA_DeleteOnClose);
         mModelessDialog->setup (VBoxDefs::MediumType_All, false /* aDoSelect */, aRefresh);
+
+        /* Setup 'closing' connection if main window is VBoxSelectorWnd: */
+        if (vboxGlobal().mainWindow() && vboxGlobal().mainWindow()->inherits("VBoxSelectorWnd"))
+            connect(vboxGlobal().mainWindow(), SIGNAL(closing()), mModelessDialog, SLOT(close()));
 
         /* listen to events that may change the media status and refresh
          * the contents of the modeless dialog */

@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-freebsd.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: thread-r0drv-freebsd.c 29500 2010-05-14 21:43:06Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, FreeBSD.
  */
@@ -32,6 +32,7 @@
 #include <iprt/thread.h>
 
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mp.h>

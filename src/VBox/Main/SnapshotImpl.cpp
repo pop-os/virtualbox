@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.cpp 29421 2010-05-12 13:34:58Z vboxsync $ */
+/* $Id: SnapshotImpl.cpp 29540 2010-05-17 12:37:33Z vboxsync $ */
 
 /** @file
  *
@@ -1702,14 +1702,6 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
         return;
     }
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /* discard all current changes to mUserData (name, OSType etc.) (note that
-     * the machine is powered off, so there is no need to inform the direct
-     * session) */
-    if (mData->flModifications)
-        rollback(false /* aNotify */);
-
     HRESULT rc = S_OK;
 
     bool stateRestored = false;
@@ -1717,6 +1709,14 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
 
     try
     {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        /* Discard all current changes to mUserData (name, OSType etc.).
+         * Note that the machine is powered off, so there is no need to inform
+         * the direct session. */
+        if (mData->flModifications)
+            rollback(false /* aNotify */);
+
         /* Delete the saved state file if the machine was Saved prior to this
          * operation */
         if (aTask.machineStateBackup == MachineState_Saved)

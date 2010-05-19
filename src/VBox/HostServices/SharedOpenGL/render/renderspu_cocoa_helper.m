@@ -28,7 +28,6 @@
 #define FBO 1 /* Disable this to see how the output is without the FBO in the middle of the processing chain. */
 //#define SHOW_WINDOW_BACKGROUND 1 /* Define this to see the window background even if the window is clipped */
 //#define DEBUG_VERBOSE /* Define this could get some debug info about the messages flow. */
-//#define DEBUG_poetzsch 1
 
 #ifdef DEBUG_poetzsch
 #define DEBUG_MSG(text) \
@@ -691,6 +690,9 @@ while(0);
         glLoadIdentity();
         glViewport(0, 0, r.size.width, r.size.height);
         glOrtho(0, r.size.width, 0, r.size.height, -1, 1);
+        DEBUG_MSG_1(("frame[%i, %i, %i, %i]\n", (int)r.origin.x, (int)r.origin.x, (int)r.size.width, (int)r.size.height));
+        DEBUG_MSG_1(("m_Pos(%i,%i) m_Size(%i,%i)\n", (int)m_Pos.x, (int)m_Pos.y, (int)m_Size.width, (int)m_Size.height));
+        DEBUG_MSG_1(("m_RootShift(%i, %i)\n", (int)m_RootShift.x, (int)m_RootShift.y));
         glMatrixMode(GL_TEXTURE);
         glLoadIdentity();
         glTranslatef(0.0f, m_RootShift.y, 0.0f);
@@ -766,13 +768,22 @@ while(0);
 
 - (void)createFBO
 {
-    GLuint fboid = m_FBOId;
+    GLint oldTexId;
+    GLint oldFBId;
     
     DEBUG_MSG(("createFBO %p\n", self));
     [self deleteFBO];
 
-if (0&&!fboid)
-    GL_SAVE_STATE;
+    //GL_SAVE_STATE;
+#if 0
+    CHECK_GL_ERROR();
+    glPushAttrib(GL_ACCUM_BUFFER_BIT);
+    glPopAttrib();
+    CHECK_GL_ERROR();
+#endif
+
+    glGetIntegerv(GL_TEXTURE_BINDING_RECTANGLE_ARB, &oldTexId);
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &oldFBId);
 
     /* If not previously setup generate IDs for FBO and its associated texture. */
     if (!m_FBOId)
@@ -802,7 +813,7 @@ if (0&&!fboid)
     /* Bind to FBO */
     glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOId);
 
-    glEnable(GL_TEXTURE_RECTANGLE_ARB);
+    /*glEnable(GL_TEXTURE_RECTANGLE_ARB);*/
     
     GLfloat imageAspectRatio = m_FBOTexSize.width / m_FBOTexSize.height;
 
@@ -837,7 +848,8 @@ if (0&&!fboid)
     /* The GPUs like the GL_BGRA / GL_UNSIGNED_INT_8_8_8_8_REV combination
      * others are also valid, but might incur a costly software translation. */
     glTexImage2D(GL_TEXTURE_RECTANGLE_ARB, 0, GL_RGB, m_FBOTexSize.width, m_FBOTexSize.height, 0, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV, NULL);
-    
+    DEBUG_MSG(("m_FBOTexSize(%i,%i)\n", (int)m_FBOTexSize.width, (int)m_FBOTexSize.height));
+	
     /* Now attach texture to the FBO as its color destination */
     glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_RECTANGLE_ARB, m_FBOTexId, 0);
 
@@ -850,9 +862,8 @@ if (0&&!fboid)
     if (GL_FRAMEBUFFER_COMPLETE_EXT != glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
         DEBUG_MSG(("Framebuffer Object creation or update failed!\n"));
 
-    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
-    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-    glDisable(GL_TEXTURE_RECTANGLE_ARB);
+    glBindTexture(GL_TEXTURE_RECTANGLE_ARB, oldTexId);
+    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, oldFBId ? oldFBId:m_FBOId);
 
     /* Is there a dock tile preview enabled in the GUI? If so setup a
      * additional thumbnail view for the dock tile. */
@@ -884,8 +895,8 @@ if (0&&!fboid)
         if (GL_FRAMEBUFFER_COMPLETE_EXT != glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
             DEBUG_MSG(("Framebuffer Thumb Object creation or update failed!\n"));
 
-        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
-        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, oldTexId);
+        glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, oldFBId ? oldFBId:m_FBOId);
 
         m_DockTileView = [[DockOverlayView alloc] init];
         [self reshapeDockTile];
@@ -901,8 +912,7 @@ if (0&&!fboid)
     m_paClipRects[2] = m_FBOTexSize.width;
     m_paClipRects[3] = m_FBOTexSize.height;
     
-if (0&&!fboid)
-    GL_RESTORE_STATE;
+    //GL_RESTORE_STATE;
 }
 
 - (void)deleteFBO
@@ -930,8 +940,6 @@ if (0&&!fboid)
         }
         if (m_FBOTexId > 0)
         {
-            glEnable(GL_TEXTURE_RECTANGLE_ARB);
-            glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
             glDeleteTextures(1, &m_FBOTexId);
             m_FBOTexId = 0;
         }
@@ -1017,6 +1025,7 @@ if (0&&!fboid)
 //    [m_pGLCtx flushBuffer];
     glFlush();
 //    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    DEBUG_MSG_1(("swapFBO bound:%i, self:%i\n", tmpFB, m_FBOId));
     if (tmpFB == m_FBOId)
     {
         if ([self lockFocusIfCanDraw])
@@ -1093,6 +1102,7 @@ if (0&&!fboid)
     if (m_pSharedGLCtx)
     {
         NSRect r = [self frame];
+        DEBUG_MSG_1(("rF2V frame[%i, %i, %i, %i]\n", (int)r.origin.x, (int)r.origin.y, (int)r.size.width, (int)r.size.height));
 
         if (m_FBOTexId > 0)
         {
@@ -1473,6 +1483,7 @@ void cocoaViewDisplay(NativeViewRef pView)
 {    
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
+    DEBUG_MSG_1(("cocoaViewDisplay %p\n", pView));
     [(OverlayView*)pView swapFBO];
 
     [pPool release];

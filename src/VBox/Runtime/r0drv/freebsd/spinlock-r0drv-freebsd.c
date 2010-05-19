@@ -1,4 +1,4 @@
-/* $Id: spinlock-r0drv-freebsd.c 22677 2009-09-01 15:10:42Z vboxsync $ */
+/* $Id: spinlock-r0drv-freebsd.c 29500 2010-05-14 21:43:06Z vboxsync $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, FreeBSD.
  */
@@ -39,6 +39,7 @@
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/thread.h>
 #include <iprt/mp.h>
 

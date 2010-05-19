@@ -1,4 +1,4 @@
-/* $Id: PGMPhys.cpp 29319 2010-05-11 09:31:01Z vboxsync $ */
+/* $Id: PGMPhys.cpp 29646 2010-05-18 15:44:08Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Physical Memory Addressing.
  */
@@ -966,13 +966,14 @@ VMMR3DECL(int) PGMR3PhysChangeMemBalloon(PVM pVM, bool fInflate, unsigned cPages
  * @param   puTotalAllocSize    Pointer to total allocated  memory inside VMMR0 (in bytes)
  * @param   puTotalFreeSize     Pointer to total free (allocated but not used yet) memory inside VMMR0 (in bytes)
  * @param   puTotalBalloonSize  Pointer to total ballooned memory inside VMMR0 (in bytes)
+ * @param   puTotalSharedSize   Pointer to total shared memory inside VMMR0 (in bytes)
  */
-VMMR3DECL(int) PGMR3QueryVMMMemoryStats(PVM pVM, uint64_t *puTotalAllocSize, uint64_t *puTotalFreeSize, uint64_t *puTotalBalloonSize)
+VMMR3DECL(int) PGMR3QueryVMMMemoryStats(PVM pVM, uint64_t *puTotalAllocSize, uint64_t *puTotalFreeSize, uint64_t *puTotalBalloonSize, uint64_t *puTotalSharedSize)
 {
     int rc;
 
-    uint64_t cAllocPages = 0, cFreePages = 0, cBalloonPages = 0;
-    rc = GMMR3QueryHypervisorMemoryStats(pVM, &cAllocPages, &cFreePages, &cBalloonPages);
+    uint64_t cAllocPages = 0, cFreePages = 0, cBalloonPages = 0, cSharedPages = 0;
+    rc = GMMR3QueryHypervisorMemoryStats(pVM, &cAllocPages, &cFreePages, &cBalloonPages, &cSharedPages);
     AssertRCReturn(rc, rc);
 
     if (puTotalAllocSize)
@@ -984,6 +985,38 @@ VMMR3DECL(int) PGMR3QueryVMMMemoryStats(PVM pVM, uint64_t *puTotalAllocSize, uin
     if (puTotalBalloonSize)
         *puTotalBalloonSize = cBalloonPages * _4K;
 
+    if (puTotalSharedSize)
+        *puTotalSharedSize = cSharedPages * _4K;
+
+    Log(("PGMR3QueryVMMMemoryStats: all=%x free=%x ballooned=%x shared=%x\n", cAllocPages, cFreePages, cBalloonPages, cSharedPages));
+    return VINF_SUCCESS;
+}
+
+/**
+ * Query memory stats for the VM
+ *
+ * @returns VBox status code.
+ * @param   pVM                 The VM handle.
+ * @param   puTotalAllocSize    Pointer to total allocated  memory inside the VM (in bytes)
+ * @param   puTotalFreeSize     Pointer to total free (allocated but not used yet) memory inside the VM (in bytes)
+ * @param   puTotalBalloonSize  Pointer to total ballooned memory inside the VM (in bytes)
+ * @param   puTotalSharedSize   Pointer to total shared memory inside the VM (in bytes)
+ */
+VMMR3DECL(int) PGMR3QueryMemoryStats(PVM pVM, uint64_t *pulTotalMem, uint64_t *pulPrivateMem, uint64_t *puTotalSharedMem, uint64_t *puTotalZeroMem)
+{
+    if (pulTotalMem)
+        *pulTotalMem = (uint64_t)pVM->pgm.s.cAllPages * _4K;
+
+    if (pulPrivateMem)
+        *pulPrivateMem = (uint64_t)pVM->pgm.s.cPrivatePages * _4K;
+
+    if (puTotalSharedMem)
+        *puTotalSharedMem = (uint64_t)pVM->pgm.s.cReusedSharedPages * _4K;
+
+    if (puTotalZeroMem)
+        *puTotalZeroMem = (uint64_t)pVM->pgm.s.cZeroPages * _4K;
+
+    Log(("PGMR3QueryMemoryStats: all=%x private=%x reused=%x zero=%x\n", pVM->pgm.s.cAllPages, pVM->pgm.s.cPrivatePages, pVM->pgm.s.cReusedSharedPages, pVM->pgm.s.cZeroPages));
     return VINF_SUCCESS;
 }
 
@@ -1370,6 +1403,8 @@ int pgmR3PhysRamReset(PVM pVM)
     rc = GMMR3ResetSharedModules(pVM);
     AssertRC(rc);
 #endif
+    /* Reset counter. */
+    pVM->pgm.s.cReusedSharedPages = 0;
 
     /*
      * We batch up pages that should be freed instead of calling GMM for
@@ -1500,6 +1535,83 @@ int pgmR3PhysRamReset(PVM pVM)
     return VINF_SUCCESS;
 }
 
+/**
+ * Frees all RAM during VM termination
+ *
+ * ASSUMES that the caller owns the PGM lock.
+ *
+ * @returns VBox status code.
+ * @param   pVM     Pointer to the shared VM structure.
+ */
+int pgmR3PhysRamTerm(PVM pVM)
+{
+    Assert(PGMIsLockOwner(pVM));
+
+    /* Reset the memory balloon. */
+    int rc = GMMR3BalloonedPages(pVM, GMMBALLOONACTION_RESET, 0);
+    AssertRC(rc);
+
+#ifdef VBOX_WITH_PAGE_SHARING
+    /* Clear all registered shared modules. */
+    rc = GMMR3ResetSharedModules(pVM);
+    AssertRC(rc);
+#endif
+
+    /*
+     * We batch up pages that should be freed instead of calling GMM for
+     * each and every one of them.
+     */
+    uint32_t            cPendingPages = 0;
+    PGMMFREEPAGESREQ    pReq;
+    rc = GMMR3FreePagesPrepare(pVM, &pReq, PGMPHYS_FREE_PAGE_BATCH_SIZE, GMMACCOUNT_BASE);
+    AssertLogRelRCReturn(rc, rc);
+
+    /*
+     * Walk the ram ranges.
+     */
+    for (PPGMRAMRANGE pRam = pVM->pgm.s.pRamRangesR3; pRam; pRam = pRam->pNextR3)
+    {
+        uint32_t iPage = pRam->cb >> PAGE_SHIFT;
+        AssertMsg(((RTGCPHYS)iPage << PAGE_SHIFT) == pRam->cb, ("%RGp %RGp\n", (RTGCPHYS)iPage << PAGE_SHIFT, pRam->cb));
+
+        /* Replace all RAM pages by ZERO pages. */
+        while (iPage-- > 0)
+        {
+            PPGMPAGE pPage = &pRam->aPages[iPage];
+            switch (PGM_PAGE_GET_TYPE(pPage))
+            {
+                case PGMPAGETYPE_RAM:
+                    /* Free all shared pages. Private pages are automatically freed during GMM VM cleanup. */
+                    if (PGM_PAGE_IS_SHARED(pPage))
+                    {
+                        rc = pgmPhysFreePage(pVM, pReq, &cPendingPages, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT));
+                        AssertLogRelRCReturn(rc, rc);
+                    }
+                    break;
+
+                case PGMPAGETYPE_MMIO2_ALIAS_MMIO:
+                case PGMPAGETYPE_MMIO2:
+                case PGMPAGETYPE_ROM_SHADOW: /* handled by pgmR3PhysRomReset. */
+                case PGMPAGETYPE_ROM:
+                case PGMPAGETYPE_MMIO:
+                    break;
+                default:
+                    AssertFailed();
+            }
+        } /* for each page */
+    }
+
+    /*
+     * Finish off any pages pending freeing.
+     */
+    if (cPendingPages)
+    {
+        rc = GMMR3FreePagesPerform(pVM, pReq, cPendingPages);
+        AssertLogRelRCReturn(rc, rc);
+    }
+    GMMR3FreePagesCleanup(pReq);
+    return VINF_SUCCESS;
+}
 
 /**
  * This is the interface IOM is using to register an MMIO region.

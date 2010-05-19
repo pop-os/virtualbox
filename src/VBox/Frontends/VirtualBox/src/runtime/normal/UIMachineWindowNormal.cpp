@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowNormal.cpp 29339 2010-05-11 10:52:38Z vboxsync $ */
+/* $Id: UIMachineWindowNormal.cpp 29558 2010-05-17 15:05:22Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -560,16 +560,15 @@ void UIMachineWindowNormal::loadWindowSettings()
         }
 
         /* Normalize view to the optimal size:
-           Note: Cause of the async behavior of some Linux WM's we have to
-           delay this a little bit. On Mac OS X this is not necessary and
-           create even wrong resize events. So there we set the geometry
-           immediately. */
+         * Note: Cause of the async behavior of X11 (at least GNOME) we have to delay this a little bit.
+         * On Mac OS X and MS Windows this is not necessary and create even wrong resize events.
+         * So there we set the geometry immediately. */
         if (machineView())
-#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
-            machineView()->normalizeGeometry(true);
-#else /* Q_WS_MAC || Q_WS_WIN */
+#ifdef Q_WS_X11
             QTimer::singleShot(0, machineView(), SLOT(sltNormalizeGeometry()));
-#endif /* Q_WS_MAC || Q_WS_WIN */
+#else /* Q_WS_X11 */
+            machineView()->normalizeGeometry(true);
+#endif /* !Q_WS_X11 */
     }
 
     /* Load availability settings: */

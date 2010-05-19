@@ -1246,11 +1246,6 @@ static int rawAsyncFlush(void *pvBackendData, PVDIOCTX pIoCtx)
     return rc;
 }
 
-static int rawAsyncFlush(void *pvBackendData, void *pvUser)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
 VBOXHDDBACKEND g_RawBackend =
 {
     /* pszBackendName */

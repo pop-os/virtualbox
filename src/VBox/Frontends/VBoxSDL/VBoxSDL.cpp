@@ -99,23 +99,22 @@ using namespace com;
 struct PointerShapeChangeData
 {
     PointerShapeChangeData(BOOL aVisible, BOOL aAlpha, ULONG aXHot, ULONG aYHot,
-                           ULONG aWidth, ULONG aHeight, const uint8_t *aShape)
+                           ULONG aWidth, ULONG aHeight, ComSafeArrayIn(BYTE,pShape))
         : visible(aVisible), alpha(aAlpha), xHot(aXHot), yHot(aYHot),
-          width(aWidth), height(aHeight), shape(NULL)
+          width(aWidth), height(aHeight)
     {
         // make a copy of the shape
-        if (aShape)
+        com::SafeArray <BYTE> aShape(ComSafeArrayInArg (pShape));
+        size_t cbShapeSize = aShape.size();
+        if (cbShapeSize > 0)
         {
-            uint32_t shapeSize = ((((aWidth + 7) / 8) * aHeight + 3) & ~3) + aWidth * 4 * aHeight;
-            shape = new uint8_t [shapeSize];
-            if (shape)
-                memcpy((void *)shape, (void *)aShape, shapeSize);
+            shape.resize(cbShapeSize);
+            ::memcpy(shape.raw(), aShape.raw(), cbShapeSize);
         }
     }
 
     ~PointerShapeChangeData()
     {
-        if (shape) delete[] shape;
     }
 
     const BOOL visible;
@@ -124,7 +123,7 @@ struct PointerShapeChangeData
     const ULONG yHot;
     const ULONG width;
     const ULONG height;
-    const uint8_t *shape;
+    com::SafeArray<BYTE> shape;
 };
 
 enum TitlebarMode
@@ -400,11 +399,11 @@ public:
     NS_DECL_ISUPPORTS
 
     STDMETHOD(OnMousePointerShapeChange)(BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
-                                         ULONG width, ULONG height, BYTE *shape)
+                                         ULONG width, ULONG height, ComSafeArrayIn(BYTE, shape))
     {
         PointerShapeChangeData *data;
         data = new PointerShapeChangeData(visible, alpha, xHot, yHot, width, height,
-                                          shape);
+                                          ComSafeArrayInArg(shape));
         Assert(data);
         if (!data)
             return E_FAIL;
@@ -687,12 +686,6 @@ static void show_usage()
              "  --[no]csam               Enable or disable CSAM\n"
              "  --[no]hwvirtex           Permit or deny the usage of VT-x/AMD-V\n"
 #endif
-             "\n"
-             "  --convertSettings        Allow to auto-convert settings files\n"
-             "  --convertSettingsBackup  Allow to auto-convert settings files\n"
-             "                           but create backup copies before\n"
-             "  --convertSettingsIgnore  Allow to auto-convert settings files\n"
-             "                           but don't explicitly save the results\n"
              "\n"
              "Key bindings:\n"
              "  <hostkey> +  f           Switch to full screen / restore to previous view\n"
@@ -4435,15 +4428,16 @@ static void SetPointerShape(const PointerShapeChangeData *data)
     if (gpOffCursor)
         return;
 
-    if (data->shape)
+    if (data->shape.size() > 0)
     {
         bool ok = false;
 
         uint32_t andMaskSize = (data->width + 7) / 8 * data->height;
         uint32_t srcShapePtrScan = data->width * 4;
 
-        const uint8_t *srcAndMaskPtr = data->shape;
-        const uint8_t *srcShapePtr = data->shape + ((andMaskSize + 3) & ~3);
+        const uint8_t* shape = data->shape.raw();
+        const uint8_t *srcAndMaskPtr = shape;
+        const uint8_t *srcShapePtr = shape + ((andMaskSize + 3) & ~3);
 
 #if 0
         /* pointer debugging code */

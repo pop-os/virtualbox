@@ -1204,11 +1204,6 @@ static int parallelsAsyncFlush(void *pvBackendData, PVDIOCTX pIoCtx)
     return rc;
 }
 
-static int parallelsAsyncFlush(void *pvBackendData, void *pvUser)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
 VBOXHDDBACKEND g_ParallelsBackend =
 {
     /* pszBackendName */

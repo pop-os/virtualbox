@@ -1,4 +1,4 @@
-/* $Id: VMMDevInterface.cpp 29404 2010-05-12 10:11:28Z vboxsync $ */
+/* $Id: VMMDevInterface.cpp 29589 2010-05-18 06:55:00Z vboxsync $ */
 /** @file
  * VirtualBox Driver Interface to VMM device.
  */
@@ -283,8 +283,18 @@ DECLCALLBACK(void) vmmdevUpdatePointerShape(PPDMIVMMDEVCONNECTOR pInterface, boo
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
 
     /* tell the console about it */
+    size_t cbShapeSize = 0;
+
+    if (pShape)
+    {
+        cbShapeSize = (width + 7) / 8 * height; /* size of the AND mask */
+        cbShapeSize = ((cbShapeSize + 3) & ~3) + width * 4 * height; /* + gap + size of the XOR mask */
+    }
+    com::SafeArray<BYTE> shapeData(cbShapeSize);
+    if (pShape)
+        ::memcpy(shapeData.raw(), pShape, cbShapeSize);
     pDrv->pVMMDev->getParent()->onMousePointerShapeChange(fVisible, fAlpha,
-                                                          xHot, yHot, width, height, pShape);
+                                                          xHot, yHot, width, height, ComSafeArrayAsInParam(shapeData));
 }
 
 DECLCALLBACK(int) iface_VideoAccelEnable(PPDMIVMMDEVCONNECTOR pInterface, bool fEnable, VBVAMEMORY *pVbvaMemory)
@@ -479,6 +489,33 @@ DECLCALLBACK(int) vmmdevQueryBalloonSize(PPDMIVMMDEVCONNECTOR pInterface, uint32
 
     guest->COMGETTER(MemoryBalloonSize)(&val);
     *pcbBalloon = val;
+    return VINF_SUCCESS;
+}
+
+/**
+ * Query the current page fusion setting
+ *
+ * @returns VBox status code.
+ * @param   pInterface          Pointer to this interface.
+ * @param   pfPageFusionEnabled Pointer to boolean
+ * @thread  The emulation thread.
+ */
+DECLCALLBACK(int) vmmdevIsPageFusionEnabled(PPDMIVMMDEVCONNECTOR pInterface, bool *pfPageFusionEnabled)
+{
+    PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    BOOL           val = 0;
+
+    if (!pfPageFusionEnabled)
+        return VERR_INVALID_POINTER;
+
+    /* store that information in IGuest */
+    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Assert(guest);
+    if (!guest)
+        return VERR_INVALID_PARAMETER; /** @todo wrong error */
+
+    guest->COMGETTER(PageFusionEnabled)(&val);
+    *pfPageFusionEnabled = !!val;
     return VINF_SUCCESS;
 }
 
@@ -738,6 +775,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     pData->Connector.pfnReportStatistics              = vmmdevReportStatistics;
     pData->Connector.pfnQueryStatisticsInterval       = vmmdevQueryStatisticsInterval;
     pData->Connector.pfnQueryBalloonSize              = vmmdevQueryBalloonSize;
+    pData->Connector.pfnIsPageFusionEnabled           = vmmdevIsPageFusionEnabled;
 
 #ifdef VBOX_WITH_HGCM
     pData->HGCMConnector.pfnConnect                   = iface_hgcmConnect;

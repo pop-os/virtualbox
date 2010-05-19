@@ -1,10 +1,10 @@
-/* $Id: VMMR0.cpp 29424 2010-05-12 15:11:09Z vboxsync $ */
+/* $Id: VMMR0.cpp 29561 2010-05-17 15:08:42Z vboxsync $ */
 /** @file
  * VMM - Host Context Ring 0.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
 #include <iprt/assert.h>
 #include <iprt/crc32.h>
 #include <iprt/mp.h>
+#include <iprt/once.h>
 #include <iprt/stdarg.h>
 #include <iprt/string.h>
 #ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
@@ -70,7 +71,8 @@ RT_C_DECLS_END
  * The runtime lives here (in VMMR0.r0) and VBoxDD*R0.r0 links against us. */
 PFNRT g_VMMGCDeps[] =
 {
-    (PFNRT)RTCrc32
+    (PFNRT)RTCrc32,
+    (PFNRT)RTOnce
 };
 
 
@@ -968,7 +970,17 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
             /* Select a valid VCPU context. */
             ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
 
-            int rc = GMMR0CheckSharedModules(pVM, idCpu);
+# ifdef DEBUG_sandervl
+            /* Make sure that log flushes can jump back to ring-3; annoying to get an incomplete log (this is risky though as the code doesn't take this into account). */
+            int rc = GMMR0CheckSharedModulesStart(pVM);
+            if (rc == VINF_SUCCESS)
+            {
+                rc = vmmR0CallRing3SetJmp(&pVCpu->vmm.s.CallRing3JmpBufR0, GMMR0CheckSharedModules, pVM, pVCpu); /* this may resume code. */
+                GMMR0CheckSharedModulesEnd(pVM);
+            }
+# else
+            int rc = GMMR0CheckSharedModules(pVM, pVCpu);
+# endif
 
             /* Clear the VCPU context. */
             ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
@@ -1012,6 +1024,13 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
             if (!pVM || !pReqHdr || u64Arg || idCpu != NIL_VMCPUID)
                 return VERR_INVALID_PARAMETER;
             return PDMR0DriverCallReqHandler(pVM, (PPDMDRIVERCALLREQHANDLERREQ)pReqHdr);
+        }
+
+        case VMMR0_DO_PDM_DEVICE_CALL_REQ_HANDLER:
+        {
+            if (!pVM || !pReqHdr || u64Arg || idCpu != NIL_VMCPUID)
+                return VERR_INVALID_PARAMETER;
+            return PDMR0DeviceCallReqHandler(pVM, (PPDMDEVICECALLREQHANDLERREQ)pReqHdr);
         }
 
         /*

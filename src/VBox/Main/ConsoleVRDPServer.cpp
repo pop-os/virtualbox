@@ -1,4 +1,4 @@
-/* $Id: ConsoleVRDPServer.cpp 29386 2010-05-11 18:07:09Z vboxsync $ */
+/* $Id: ConsoleVRDPServer.cpp 29518 2010-05-17 10:06:22Z vboxsync $ */
 /** @file
  * VBox Console VRDP Helper class
  */
@@ -81,7 +81,7 @@ public:
 
 
     STDMETHOD(OnMousePointerShapeChange)(BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
-                                         ULONG width, ULONG height, BYTE *shape);
+                                         ULONG width, ULONG height, ComSafeArrayIn(BYTE,shape));
 
     STDMETHOD(OnMouseCapabilityChange)(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor)
     {
@@ -430,13 +430,14 @@ STDMETHODIMP VRDPConsoleCallback::OnMousePointerShapeChange(BOOL visible,
                                                             ULONG yHot,
                                                             ULONG width,
                                                             ULONG height,
-                                                            BYTE *shape)
+                                                            ComSafeArrayIn(BYTE,inShape))
 {
     LogSunlover(("VRDPConsoleCallback::OnMousePointerShapeChange: %d, %d, %lux%lu, @%lu,%lu\n", visible, alpha, width, height, xHot, yHot));
 
     if (m_server)
     {
-        if (!shape)
+        com::SafeArray <BYTE> aShape(ComSafeArrayInArg (inShape));
+        if (aShape.size() == 0)
         {
             if (!visible)
             {
@@ -461,6 +462,7 @@ STDMETHODIMP VRDPConsoleCallback::OnMousePointerShapeChange(BOOL visible,
              * So set pointer size to 32x32. This can be done safely
              * because most pointers are 32x32.
              */
+            uint8_t* shape = aShape.raw();
 
             dumpPointer(shape, width, height, true);
 

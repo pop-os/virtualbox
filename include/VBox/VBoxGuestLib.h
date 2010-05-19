@@ -508,16 +508,14 @@ VBGLR3DECL(int)     VbglR3HostVersionLastCheckedStore(uint32_t u32ClientId, cons
  * @{ */
 VBGLR3DECL(int)     VbglR3GuestCtrlConnect(uint32_t *pu32ClientId);
 VBGLR3DECL(int)     VbglR3GuestCtrlDisconnect(uint32_t u32ClientId);
-VBGLR3DECL(int)     VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms, uint32_t u32Timeout);
+VBGLR3DECL(int)     VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms);
+VBGLR3DECL(int)     VbglR3GuestCtrlCancelPendingWaits(uint32_t u32ClientId);
 VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t  uNumParms,
                                                   uint32_t *puContext,
                                                   char     *pszCmd,         uint32_t  cbCmd,
                                                   uint32_t *puFlags,
                                                   char     *pszArgs,        uint32_t  cbArgs,   uint32_t *puNumArgs,
                                                   char     *pszEnv,         uint32_t *pcbEnv,   uint32_t *puNumEnvVars,
-                                                  char     *pszStdIn,       uint32_t  cbStdIn,
-                                                  char     *pszStdOut,      uint32_t  cbStdOut,
-                                                  char     *pszStdErr,      uint32_t  cbStdErr,
                                                   char     *pszUser,        uint32_t  cbUser,
                                                   char     *pszPassword,    uint32_t  cbPassword,
                                                   uint32_t *puTimeLimit);

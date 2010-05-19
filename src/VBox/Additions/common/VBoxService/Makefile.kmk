@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29313 2010-05-11 07:08:01Z vboxsync $
+# $Id: Makefile.kmk 29583 2010-05-17 19:41:27Z vboxsync $
 ## @file
 # Sub-Makefile for the Cross Platform Guest Addition Services.
 #
@@ -43,7 +43,7 @@ endif
 ifdef VBOX_WITH_MEMBALLOON
  VBoxService_DEFS        += VBOX_WITH_MEMBALLOON
 endif
-ifdef VBOX_WITH_PAGE_SHARING
+if1of ($(KBUILD_TARGET), win)
  VBoxService_DEFS        += VBOX_WITH_PAGE_SHARING
 endif
 if1of ($(KBUILD_TARGET), linux)
@@ -64,7 +64,7 @@ ifdef VBOX_WITH_MEMBALLOON
  VBoxService_SOURCES    += \
  	VBoxServiceBalloon.cpp
 endif
-ifdef VBOX_WITH_PAGE_SHARING
+if1of ($(KBUILD_TARGET), win)
  VBoxService_SOURCES    += \
  	VBoxServicePageSharing.cpp
 endif
@@ -91,6 +91,10 @@ VBoxService_LIBS          = \
 	$(VBOX_LIB_IPRT_GUEST_R3) \
 	$(VBOX_LIB_VBGL_R3) \
 	$(VBOX_LIB_IPRT_GUEST_R3)
+if1of ($(KBUILD_TARGET), linux)
+ VBoxService_LIBS        += \
+	crypt
+endif
 ifdef VBOX_WITH_GUEST_PROPS
  VBoxService_LIBS.win    += \
  	Secur32.lib \

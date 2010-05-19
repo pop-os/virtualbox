@@ -507,15 +507,6 @@ typedef struct VBOXHDDBACKEND
      */
     DECLR3CALLBACKMEMBER(int, pfnAsyncFlush, (void *pvBackendData, PVDIOCTX pIoCtx));
 
-    /**
-     * Flush data to disk.
-     *
-     * @returns VBox status code.
-     * @param   pvBackendData   Opaque state data for this image.
-     * @param   pIoCtx          I/O context associated with this request.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnAsyncFlush, (void *pvBackendData, void *pvUser));
-
     /** Returns a human readable hard disk location string given a
      *  set of hard disk configuration keys. The returned string is an
      *  equivalent of the full file path for image-based hard disks.

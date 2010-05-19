@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.h 29108 2010-05-05 20:17:42Z vboxsync $ */
+/* $Id: VBoxNetFlt-win.h 29643 2010-05-18 15:26:50Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
@@ -29,10 +29,8 @@
 /** global lock */
 extern NDIS_SPIN_LOCK     g_GlobalLock;
 
-#ifdef VBOX_LOOPBACK_USEFLAGS
 extern UINT g_fPacketDontLoopBack;
 extern UINT g_fPacketIsLoopedBack;
-#endif
 
 /*
  * Debug Print API
@@ -46,6 +44,11 @@ extern UINT g_fPacketIsLoopedBack;
 #define DBGPRINT(Fmt)
 
 #endif /* if DBG */
+
+/** get the PVBOXNETFLTINS from PADAPT */
+#define PADAPT_2_PVBOXNETFLTINS(_pAdapt)  ( (PVBOXNETFLTINS)((uint8_t *)(_pAdapt) - RT_OFFSETOF(VBOXNETFLTINS, u.s.IfAdaptor)) )
+/** get the PADAPT from PVBOXNETFLTINS */
+#define PVBOXNETFLTINS_2_PADAPT(_pNetFlt) ( &(_pNetFlt)->u.s.IfAdaptor )
 
 
 DECLHIDDEN(NTSTATUS) vboxNetFltWinPtDispatch(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp);
@@ -412,7 +415,12 @@ DECLINLINE(PNDIS_PACKET) vboxNetFltWinLbSearchLoopBackBySG(PADAPT pAdapt, PINTNE
 DECLINLINE(bool) vboxNetFltWinLbRemoveSendPacket(PADAPT pAdapt, PNDIS_PACKET pPacket)
 {
     PSEND_RSVD pSrv = (PSEND_RSVD)pPacket->ProtocolReserved;
-    return vboxNetFltWinInterlockedSearchListEntry(&pAdapt->SendPacketQueue, &pSrv->ListEntry, true);
+    bool bRet = vboxNetFltWinInterlockedSearchListEntry(&pAdapt->SendPacketQueue, &pSrv->ListEntry, true);
+#ifdef DEBUG_misha
+    PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
+    Assert(bRet == (pNetFlt->enmTrunkState == INTNETTRUNKIFSTATE_ACTIVE));
+#endif
+    return bRet;
 }
 
 # endif
@@ -475,11 +483,6 @@ extern RTMAC g_vboxNetFltWinVerifyMACGuest;
 /**************************************************************************
  * PADAPT, PVBOXNETFLTINS reference/dereference (i.e. retain/release) API *
  **************************************************************************/
-
-/** get the PVBOXNETFLTINS from PADAPT */
-#define PADAPT_2_PVBOXNETFLTINS(_pAdapt)  ( (PVBOXNETFLTINS)((uint8_t *)(_pAdapt) - RT_OFFSETOF(VBOXNETFLTINS, u.s.IfAdaptor)) )
-/** get the PADAPT from PVBOXNETFLTINS */
-#define PVBOXNETFLTINS_2_PADAPT(_pNetFlt) ( &(_pNetFlt)->u.s.IfAdaptor )
 
 DECLHIDDEN(void) vboxNetFltWinWaitDereference(PADAPT_DEVICE pState);
 

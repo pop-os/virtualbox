@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: StorageControllerImpl.h 29480 2010-05-14 15:24:19Z vboxsync $ */
 
 /** @file
  *
@@ -72,8 +72,8 @@ public:
     STDMETHOD(COMSETTER(PortCount)) (ULONG aPortCount);
     STDMETHOD(COMGETTER(Instance)) (ULONG *aInstance);
     STDMETHOD(COMSETTER(Instance)) (ULONG aInstance);
-    STDMETHOD(COMGETTER(IoBackend)) (IoBackendType_T *aIoBackend);
-    STDMETHOD(COMSETTER(IoBackend)) (IoBackendType_T aIoBackend);
+    STDMETHOD(COMGETTER(UseHostIOCache)) (BOOL *fUseHostIOCache);
+    STDMETHOD(COMSETTER(UseHostIOCache)) (BOOL fUseHostIOCache);
 
     // StorageController methods
     STDMETHOD(GetIDEEmulationPort) (LONG DevicePosition, LONG *aPortNumber);

@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h 29385 2010-05-11 18:05:44Z vboxsync $ */
+/* $Id: ConsoleImpl.h 29580 2010-05-17 18:23:00Z vboxsync $ */
 /** @file
  * VBox Console COM Class definition
  */
@@ -20,6 +20,7 @@
 
 #include "VirtualBoxBase.h"
 #include "SchemaDefs.h"
+#include "VBox/com/array.h"
 
 class Guest;
 class Keyboard;
@@ -205,7 +206,7 @@ public:
     void onMousePointerShapeChange(bool fVisible, bool fAlpha,
                                    uint32_t xHot, uint32_t yHot,
                                    uint32_t width, uint32_t height,
-                                   void *pShape);
+                                   ComSafeArrayIn(uint8_t, aShape));
     void onMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor);
     void onStateChange(MachineState_T aMachineState);
     void onAdditionsStateChange();
@@ -441,7 +442,7 @@ private:
                                const char *pcszDevice,
                                unsigned uInstance,
                                StorageBus_T enmBus,
-                               IoBackendType_T enmIoBackend,
+                               bool fUseHostIOCache,
                                bool fSetupMerge,
                                unsigned uMergeSource,
                                unsigned uMergeTarget,
@@ -455,7 +456,7 @@ private:
     int configMedium(PCFGMNODE pLunL0,
                      bool fPassthrough,
                      DeviceType_T enmType,
-                     IoBackendType_T enmIoBackend,
+                     bool fUseHostIOCache,
                      bool fSetupMerge,
                      unsigned uMergeSource,
                      unsigned uMergeTarget,
@@ -467,7 +468,7 @@ private:
                                                          const char *pcszDevice,
                                                          unsigned uInstance,
                                                          StorageBus_T enmBus,
-                                                         IoBackendType_T enmIoBackend,
+                                                         bool fUseHostIOCache,
                                                          bool fSetupMerge,
                                                          unsigned uMergeSource,
                                                          unsigned uMergeTarget,
@@ -478,7 +479,7 @@ private:
                                                    const char *pcszDevice,
                                                    unsigned uInstance,
                                                    StorageBus_T enmBus,
-                                                   IoBackendType_T enmIoBackend,
+                                                   bool fUseHostIOCache,
                                                    IMediumAttachment *aMediumAtt,
                                                    bool fForce);
 
@@ -674,8 +675,7 @@ private:
             uint32_t yHot;
             uint32_t width;
             uint32_t height;
-            BYTE *shape;
-            size_t shapeSize;
+            com::SafeArray<BYTE> shape;
         }
         mpsc;
 
@@ -698,6 +698,16 @@ private:
             bool scrollLock;
         }
         klc;
+
+        void clear()
+        {
+            /* We cannot do memset() on mpsc to avoid cleaning shape's vtable */
+            mpsc.shape.setNull();
+            mpsc.valid = mpsc.visible = mpsc.alpha = false;
+            mpsc.xHot = mpsc.yHot = mpsc.width = mpsc.height = 0;
+            ::memset(&mcc, 0, sizeof mcc);
+            ::memset(&klc, 0, sizeof klc);
+        }
     }
     mCallbackData;
 

@@ -79,10 +79,10 @@ public:
     STDMETHOD(COMGETTER(AdditionsVersion)) (BSTR *aAdditionsVersion);
     STDMETHOD(COMGETTER(SupportsSeamless)) (BOOL *aSupportsSeamless);
     STDMETHOD(COMGETTER(SupportsGraphics)) (BOOL *aSupportsGraphics);
-    STDMETHOD(COMGETTER(PageFusionEnabled)) (BOOL *enabled);
-    STDMETHOD(COMSETTER(PageFusionEnabled)) (BOOL enabled);
     STDMETHOD(COMGETTER(MemoryBalloonSize)) (ULONG *aMemoryBalloonSize);
     STDMETHOD(COMSETTER(MemoryBalloonSize)) (ULONG aMemoryBalloonSize);
+    STDMETHOD(COMGETTER(PageFusionEnabled)) (BOOL *aPageFusionEnabled);
+    STDMETHOD(COMSETTER(PageFusionEnabled)) (BOOL aPageFusionEnabled);
     STDMETHOD(COMGETTER(StatisticsUpdateInterval)) (ULONG *aUpdateInterval);
     STDMETHOD(COMSETTER(StatisticsUpdateInterval)) (ULONG aUpdateInterval);
 
@@ -91,7 +91,6 @@ public:
                               IN_BSTR aDomain, BOOL aAllowInteractiveLogon);
     STDMETHOD(ExecuteProcess)(IN_BSTR aCommand, ULONG aFlags,
                               ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
-                              IN_BSTR aStdIn, IN_BSTR aStdOut, IN_BSTR aStdErr,
                               IN_BSTR aUserName, IN_BSTR aPassword,
                               ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress);
     STDMETHOD(GetProcessOutput)(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, ULONG64 aSize, ComSafeArrayOut(BYTE, aData));
@@ -171,6 +170,7 @@ private:
     ULONG mMemoryBalloonSize;
     ULONG mStatUpdateInterval;
     ULONG mCurrentGuestStat[GUESTSTATTYPE_MAX];
+    BOOL  mfPageFusionEnabled;
 
     Console *mParent;
     Data mData;

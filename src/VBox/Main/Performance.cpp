@@ -1,4 +1,4 @@
-/* $Id: Performance.cpp 29225 2010-05-07 16:01:34Z vboxsync $ */
+/* $Id: Performance.cpp 29631 2010-05-18 12:59:09Z vboxsync $ */
 
 /** @file
  *
@@ -163,15 +163,14 @@ int CollectorGuestHAL::preCollect(const CollectorHints& /* hints */, uint64_t iT
     if (    mGuest
         &&  iTick != mLastTick)
     {
-        ULONG ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal, ulMemSharedTotal, uMemShared;
+        ULONG ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal, ulMemSharedTotal;
 
-        /** todo shared stats. */
         mGuest->InternalGetStatistics(&mCpuUser, &mCpuKernel, &mCpuIdle,
-                                      &mMemTotal, &mMemFree, &mMemBalloon, &mMemCache, &uMemShared,
+                                      &mMemTotal, &mMemFree, &mMemBalloon, &mMemShared, &mMemCache,
                                       &mPageTotal, &ulMemAllocTotal, &ulMemFreeTotal, &ulMemBalloonTotal, &ulMemSharedTotal);
 
         if (mHostHAL)
-            mHostHAL->setMemHypervisorStats(ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal);
+            mHostHAL->setMemHypervisorStats(ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal, ulMemSharedTotal);
 
         mLastTick = iTick;
     }
@@ -287,6 +286,7 @@ void HostRamUsage::init(ULONG period, ULONG length)
     mAllocVMM->init(mLength);
     mFreeVMM->init(mLength);
     mBalloonVMM->init(mLength);
+    mSharedVMM->init(mLength);
 }
 
 void HostRamUsage::preCollect(CollectorHints& hints, uint64_t /* iTick */)
@@ -305,12 +305,13 @@ void HostRamUsage::collect()
         mAvailable->put(available);
 
     }
-    ULONG allocVMM, freeVMM, balloonVMM;
+    ULONG allocVMM, freeVMM, balloonVMM, sharedVMM;
 
-    mHAL->getMemHypervisorStats(&allocVMM, &freeVMM, &balloonVMM);
+    mHAL->getMemHypervisorStats(&allocVMM, &freeVMM, &balloonVMM, &sharedVMM);
     mAllocVMM->put(allocVMM);
     mFreeVMM->put(freeVMM);
     mBalloonVMM->put(balloonVMM);
+    mSharedVMM->put(sharedVMM);
 }
 
 
@@ -418,6 +419,7 @@ void GuestRamUsage::init(ULONG period, ULONG length)
     mTotal->init(mLength);
     mFree->init(mLength);
     mBallooned->init(mLength);
+    mShared->init(mLength);
     mCache->init(mLength);
     mPagedTotal->init(mLength);
 }
@@ -429,12 +431,13 @@ void GuestRamUsage::preCollect(CollectorHints& hints,  uint64_t iTick)
 
 void GuestRamUsage::collect()
 {
-    ULONG ulMemTotal = 0, ulMemFree = 0, ulMemBalloon = 0, ulMemCache = 0, ulPageTotal = 0;
+    ULONG ulMemTotal = 0, ulMemFree = 0, ulMemBalloon = 0, ulMemShared = 0, ulMemCache = 0, ulPageTotal = 0;
 
-    mGuestHAL->getGuestMemLoad(&ulMemTotal, &ulMemFree, &ulMemBalloon, &ulMemCache, &ulPageTotal);
+    mGuestHAL->getGuestMemLoad(&ulMemTotal, &ulMemFree, &ulMemBalloon, &ulMemShared, &ulMemCache, &ulPageTotal);
     mTotal->put(ulMemTotal);
     mFree->put(ulMemFree);
     mBallooned->put(ulMemBalloon);
+    mShared->put(ulMemShared);
     mCache->put(ulMemCache);
     mPagedTotal->put(ulPageTotal);
 }

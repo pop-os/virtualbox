@@ -30,6 +30,7 @@
 #include <VBox/gvmm.h>
 #include <VBox/sup.h>
 #include <VBox/VMMDev.h> /* for VMMDEVSHAREDREGIONDESC */
+#include <VBox/feature.h>
 #include <iprt/avl.h>
 RT_C_DECLS_BEGIN
 
@@ -297,9 +298,12 @@ GMMR0DECL(int)  GMMR0SeedChunk(PVM pVM, VMCPUID idCpu, RTR3PTR pvR3);
 GMMR0DECL(int)  GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, VBOXOSFAMILY enmGuestOS, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule, unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
 GMMR0DECL(int)  GMMR0UnregisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule);
 GMMR0DECL(int)  GMMR0UnregisterAllSharedModules(PVM pVM, VMCPUID idCpu);
-GMMR0DECL(int)  GMMR0CheckSharedModules(PVM pVM, VMCPUID idCpu);
+GMMR0DECL(int) GMMR0CheckSharedModules(PVM pVM, PVMCPU pVCpu);
 GMMR0DECL(int)  GMMR0ResetSharedModules(PVM pVM, VMCPUID idCpu);
-
+#ifdef LOG_ENABLED
+GMMR0DECL(int) GMMR0CheckSharedModulesStart(PVM pVM);
+GMMR0DECL(int) GMMR0CheckSharedModulesEnd(PVM pVM);
+#endif
 
 
 /**
@@ -414,6 +418,8 @@ typedef struct GMMMEMSTATSREQ
     uint64_t            cFreePages;
     /** The number of ballooned pages (out). */
     uint64_t            cBalloonedPages;
+    /** The number of shared pages (out). */
+    uint64_t            cSharedPages;
     /** Maximum nr of pages (out). */
     uint64_t            cMaxPages;
 } GMMMEMSTATSREQ;
@@ -481,8 +487,8 @@ typedef struct GMMREGISTERSHAREDMODULEREQ
     RTGCPTR64                   GCBaseAddr;
     /** Guest OS type. */
     VBOXOSFAMILY                enmGuestOS;
-    /** Alignment. */
-    uint32_t                    u32Alignment;
+    /** return code. */
+    uint32_t                    rc;
     /** Module name */
     char                        szName[GMM_SHARED_MODULE_MAX_NAME_STRING];
     /** Module version */
@@ -602,7 +608,7 @@ GMMR3DECL(int)  GMMR3AllocateLargePage(PVM pVM,  uint32_t cbPage);
 GMMR3DECL(int)  GMMR3FreeLargePage(PVM pVM,  uint32_t idPage);
 GMMR3DECL(int)  GMMR3MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChunkUnmap, PRTR3PTR ppvR3);
 GMMR3DECL(int)  GMMR3SeedChunk(PVM pVM, RTR3PTR pvR3);
-GMMR3DECL(int)  GMMR3QueryHypervisorMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, uint64_t *pcTotalFreePages, uint64_t *pcTotalBalloonPages);
+GMMR3DECL(int)  GMMR3QueryHypervisorMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, uint64_t *pcTotalFreePages, uint64_t *pcTotalBalloonPages, uint64_t *puTotalBalloonSize);
 GMMR3DECL(int)  GMMR3QueryMemoryStats(PVM pVM, uint64_t *pcAllocPages, uint64_t *pcMaxPages, uint64_t *pcBalloonPages);
 GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, GMMBALLOONACTION enmAction, uint32_t cBalloonedPages);
 GMMR3DECL(int)  GMMR3RegisterSharedModule(PVM pVM, PGMMREGISTERSHAREDMODULEREQ pReq);

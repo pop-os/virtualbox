@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsHD.cpp 29199 2010-05-07 12:04:23Z vboxsync $ */
+/* $Id: VBoxVMSettingsHD.cpp 29480 2010-05-14 15:24:19Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -1795,9 +1795,7 @@ void VBoxVMSettingsHD::getFrom (const CMachine &aMachine)
         QModelIndex ctrIndex = mStorageModel->addController (controllerName, controller.GetBus(), controller.GetControllerType());
         QUuid ctrId = QUuid (mStorageModel->data (ctrIndex, StorageModel::R_ItemId).toString());
 
-        bool useIoCache = true;
-        if (controller.GetIoBackend() == KIoBackendType_Unbuffered)
-            useIoCache = false;
+        bool useIoCache = controller.GetUseHostIOCache();
 
         mStorageModel->setData (ctrIndex, useIoCache, StorageModel::R_CtrIoCache);
 
@@ -1843,7 +1841,7 @@ void VBoxVMSettingsHD::putBackTo()
         bool useIoCache = mStorageModel->data (ctrIndex, StorageModel::R_CtrIoCache).toBool();
         CStorageController ctr = mMachine.AddStorageController (ctrName, ctrBusType);
         ctr.SetControllerType (ctrType);
-        ctr.SetIoBackend(useIoCache ? KIoBackendType_Buffered : KIoBackendType_Unbuffered);
+        ctr.SetUseHostIOCache(useIoCache);
         int maxUsedPort = -1;
         for (int j = 0; j < mStorageModel->rowCount (ctrIndex); ++ j)
         {

@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileNormal.cpp 29228 2010-05-07 17:08:58Z vboxsync $ */
+/* $Id: PDMAsyncCompletionFileNormal.cpp 29474 2010-05-14 14:56:39Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * Async File I/O manager.
@@ -595,22 +595,8 @@ static int pdmacFileAioMgrNormalReqsEnqueue(PPDMACEPFILEMGR pAioMgr,
 
                     if (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES)
                     {
-                        PPDMACTASKFILE pTasksWaiting;
-
-                        pdmacFileAioMgrNormalRequestFree(pAioMgr, pahReqs[i]);
-
-                        if (pTask->cbBounceBuffer)
-                            RTMemPageFree(pTask->pvBounceBuffer, pTask->cbBounceBuffer);
-
-                        pTask->fPrefetch = false;
-                        pTask->cbBounceBuffer = 0;
-
-                        /* Free the lock and process pending tasks if neccessary */
-                        pTasksWaiting = pdmacFileAioMgrNormalRangeLockFree(pAioMgr, pEndpoint, pTask->pRangeLock);
-
+                        pTask->hReq = pahReqs[i];
                         pdmacFileAioMgrEpAddTask(pEndpoint, pTask);
-                        if (pTasksWaiting)
-                            pdmacFileAioMgrEpAddTaskList(pEndpoint, pTasksWaiting);
                     }
                     else
                     {
@@ -626,6 +612,8 @@ static int pdmacFileAioMgrNormalReqsEnqueue(PPDMACEPFILEMGR pAioMgr,
                 {
                     int rc2 = RTFileAioCtxSubmit(pAioMgr->hAioCtx, ahReqsResubmit, cReqsResubmit);
                     AssertRC(rc2);
+                    pEndpoint->AioMgr.cRequestsActive += cReqsResubmit;
+                    pAioMgr->cRequestsActive += cReqsResubmit;
                     cReqsResubmit = 0;
                 }
             }
@@ -635,6 +623,8 @@ static int pdmacFileAioMgrNormalReqsEnqueue(PPDMACEPFILEMGR pAioMgr,
             {
                 int rc2 = RTFileAioCtxSubmit(pAioMgr->hAioCtx, ahReqsResubmit, cReqsResubmit);
                 AssertRC(rc2);
+                pEndpoint->AioMgr.cRequestsActive += cReqsResubmit;
+                pAioMgr->cRequestsActive += cReqsResubmit;
                 cReqsResubmit = 0;
             }
             else if (    pEndpoint->pFlushReq
@@ -1028,6 +1018,8 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
                     RTFILEAIOREQ hReq = pdmacFileAioMgrNormalRequestAlloc(pAioMgr);
                     AssertMsg(hReq != NIL_RTFILEAIOREQ, ("Out of request handles\n"));
 
+                    LogFlow(("Flush request %#p\n", hReq));
+
                     rc = RTFileAioReqPrepareFlush(hReq, pEndpoint->File, pCurr);
                     if (RT_FAILURE(rc))
                     {
@@ -1061,19 +1053,28 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
             {
                 RTFILEAIOREQ hReq = NIL_RTFILEAIOREQ;
 
-                if (pEndpoint->enmBackendType == PDMACFILEEPBACKEND_BUFFERED)
-                    rc = pdmacFileAioMgrNormalTaskPrepareBuffered(pAioMgr, pEndpoint, pCurr, &hReq);
-                else if (pEndpoint->enmBackendType == PDMACFILEEPBACKEND_NON_BUFFERED)
-                    rc = pdmacFileAioMgrNormalTaskPrepareNonBuffered(pAioMgr, pEndpoint, pCurr, &hReq);
-                else
-                    AssertMsgFailed(("Invalid backend type %d\n", pEndpoint->enmBackendType));
+                if (pCurr->hReq == NIL_RTFILEAIOREQ)
+                {
+                    if (pEndpoint->enmBackendType == PDMACFILEEPBACKEND_BUFFERED)
+                        rc = pdmacFileAioMgrNormalTaskPrepareBuffered(pAioMgr, pEndpoint, pCurr, &hReq);
+                    else if (pEndpoint->enmBackendType == PDMACFILEEPBACKEND_NON_BUFFERED)
+                        rc = pdmacFileAioMgrNormalTaskPrepareNonBuffered(pAioMgr, pEndpoint, pCurr, &hReq);
+                    else
+                        AssertMsgFailed(("Invalid backend type %d\n", pEndpoint->enmBackendType));
 
-                AssertRC(rc);
+                    AssertRC(rc);
+                }
+                else
+                {
+                    LogFlow(("Task %#p has I/O request %#p already\n", pCurr, pCurr->hReq));
+                    hReq = pCurr->hReq;
+                }
+
+                LogFlow(("Read/Write request %#p\n", hReq));
 
                 if (hReq != NIL_RTFILEAIOREQ)
                 {
                     apReqs[cRequests] = hReq;
-                    pEndpoint->AioMgr.cReqsProcessed++;
                     cRequests++;
                 }
                 break;
@@ -1340,7 +1341,15 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
     PPDMACTASKFILE pTask = (PPDMACTASKFILE)RTFileAioReqGetUser(hReq);
     PPDMACTASKFILE pTasksWaiting;
 
+    LogFlowFunc(("pAioMgr=%#p hReq=%#p\n", pAioMgr, hReq));
+
     pEndpoint = pTask->pEndpoint;
+
+    pTask->hReq = NIL_RTFILEAIOREQ;
+
+    pAioMgr->cRequestsActive--;
+    pEndpoint->AioMgr.cRequestsActive--;
+    pEndpoint->AioMgr.cReqsProcessed++;
 
     /*
      * It is possible that the request failed on Linux with kernels < 2.6.23
@@ -1352,10 +1361,6 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
     {
         /* Free bounce buffers and the IPRT request. */
         pdmacFileAioMgrNormalRequestFree(pAioMgr, hReq);
-
-        pAioMgr->cRequestsActive--;
-        pEndpoint->AioMgr.cRequestsActive--;
-        pEndpoint->AioMgr.cReqsProcessed++;
 
         if (pTask->enmTransferType == PDMACTASKFILETRANSFER_FLUSH)
         {
@@ -1431,10 +1436,6 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
             pEndpoint->pFlushReq = NULL;
             pdmacFileAioMgrNormalRequestFree(pAioMgr, hReq);
 
-            pAioMgr->cRequestsActive--;
-            pEndpoint->AioMgr.cRequestsActive--;
-            pEndpoint->AioMgr.cReqsProcessed++;
-
             /* Call completion callback */
             LogFlow(("Flush task=%#p completed with %Rrc\n", pTask, rcReq));
             pTask->pfnCompleted(pTask, pTask->pvUser, rcReq);
@@ -1489,11 +1490,12 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                 }
 
                 AssertRC(rc);
-                rc = RTFileAioCtxSubmit(pAioMgr->hAioCtx, &hReq, 1);
-                AssertRC(rc);
-        }
-        else if (pTask->fPrefetch)
-        {
+                rc = pdmacFileAioMgrNormalReqsEnqueue(pAioMgr, pEndpoint, &hReq, 1);
+                AssertMsg(RT_SUCCESS(rc) || (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES),
+                          ("Unexpected return code rc=%Rrc\n", rc));
+            }
+            else if (pTask->fPrefetch)
+            {
                 Assert(pTask->enmTransferType == PDMACTASKFILETRANSFER_WRITE);
                 Assert(pTask->cbBounceBuffer);
 
@@ -1516,8 +1518,9 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                 rc = RTFileAioReqPrepareWrite(hReq, pEndpoint->File,
                                               offStart, pTask->pvBounceBuffer, cbToTransfer, pTask);
                 AssertRC(rc);
-                rc = RTFileAioCtxSubmit(pAioMgr->hAioCtx, &hReq, 1);
-                AssertRC(rc);
+                rc = pdmacFileAioMgrNormalReqsEnqueue(pAioMgr, pEndpoint, &hReq, 1);
+                AssertMsg(RT_SUCCESS(rc) || (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES),
+                          ("Unexpected return code rc=%Rrc\n", rc));
             }
             else
             {
@@ -1533,14 +1536,13 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
 
                 pdmacFileAioMgrNormalRequestFree(pAioMgr, hReq);
 
-                pAioMgr->cRequestsActive--;
-                pEndpoint->AioMgr.cRequestsActive--;
-                pEndpoint->AioMgr.cReqsProcessed++;
-
                 /* Free the lock and process pending tasks if neccessary */
                 pTasksWaiting = pdmacFileAioMgrNormalRangeLockFree(pAioMgr, pEndpoint, pTask->pRangeLock);
-                rc = pdmacFileAioMgrNormalProcessTaskList(pTasksWaiting, pAioMgr, pEndpoint);
-                AssertRC(rc);
+                if (pTasksWaiting)
+                {
+                    rc = pdmacFileAioMgrNormalProcessTaskList(pTasksWaiting, pAioMgr, pEndpoint);
+                    AssertRC(rc);
+                }
 
                 /* Call completion callback */
                 LogFlow(("Task=%#p completed with %Rrc\n", pTask, rcReq));
@@ -1642,12 +1644,12 @@ int pdmacFileAioMgrNormal(RTTHREAD ThreadSelf, void *pvUser)
                     else
                         cReqsWait = pAioMgr->cRequestsActive;
 
-                    LogFlow(("Waiting for %d of %d tasks to complete\n", pAioMgr->cRequestsActive, cReqsWait));
+                    LogFlow(("Waiting for %d of %d tasks to complete\n", 1, cReqsWait));
 
                     rc = RTFileAioCtxWait(pAioMgr->hAioCtx,
-                                          cReqsWait,
+                                          1,
                                           RT_INDEFINITE_WAIT, apReqs,
-                                          RT_ELEMENTS(apReqs), &cReqsCompleted);
+                                          cReqsWait, &cReqsCompleted);
                     if (RT_FAILURE(rc) && (rc != VERR_INTERRUPTED))
                         CHECK_RC(pAioMgr, rc);
 

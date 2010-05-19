@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h 28973 2010-05-03 12:30:09Z vboxsync $ */
+/* $Id: DisplayImpl.h 29518 2010-05-17 10:06:22Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -149,7 +149,7 @@ public:
 
     // IConsoleCallback methods
     STDMETHOD(OnMousePointerShapeChange)(BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
-                                         ULONG width, ULONG height, BYTE *shape)
+                                         ULONG width, ULONG height, ComSafeArrayIn(BYTE,shape))
     {
         return S_OK;
     }

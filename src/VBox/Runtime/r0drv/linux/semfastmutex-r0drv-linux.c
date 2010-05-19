@@ -1,4 +1,4 @@
-/* $Id: semfastmutex-r0drv-linux.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: semfastmutex-r0drv-linux.c 29648 2010-05-18 16:15:42Z vboxsync $ */
 /** @file
  * IPRT - Fast Mutex Semaphores, Ring-0 Driver, Linux.
  */
@@ -114,11 +114,11 @@ RTDECL(int)  RTSemFastMutexRequest(RTSEMFASTMUTEX hFastMtx)
     AssertMsgReturn(pThis->u32Magic == RTSEMFASTMUTEX_MAGIC, ("u32Magic=%RX32 pThis=%p\n", pThis->u32Magic, pThis), VERR_INVALID_HANDLE);
 
 #ifdef IPRT_DEBUG_SEMS
-    snprintf(current->comm, TASK_COMM_LEN, "d%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
+    snprintf(current->comm, sizeof(current->comm), "d%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
 #endif
     down(&pThis->Semaphore);
 #ifdef IPRT_DEBUG_SEMS
-    snprintf(current->comm, TASK_COMM_LEN, "o%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
+    snprintf(current->comm, sizeof(current->comm), "o%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
     AssertRelease(pThis->Owner == NIL_RTNATIVETHREAD);
     ASMAtomicUoWriteSize(&pThis->Owner, RTThreadNativeSelf());
 #endif
@@ -142,7 +142,7 @@ RTDECL(int)  RTSemFastMutexRelease(RTSEMFASTMUTEX hFastMtx)
 #endif
     up(&pThis->Semaphore);
 #ifdef IPRT_DEBUG_SEMS
-    snprintf(current->comm, TASK_COMM_LEN, "u%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
+    snprintf(current->comm, sizeof(current->comm), "u%lx", IPRT_DEBUG_SEMS_ADDRESS(pThis));
 #endif
     return VINF_SUCCESS;
 }

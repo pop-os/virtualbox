@@ -647,6 +647,38 @@ typedef struct INTNETTRUNKIFPORT
     DECLR0CALLBACKMEMBER(INTNETTRUNKIFSTATE, pfnSetState,(PINTNETTRUNKIFPORT pIfPort, INTNETTRUNKIFSTATE enmState));
 
     /**
+     * Notifies when the MAC address of an interface is set or changes.
+     *
+     * @param   pIfPort     Pointer to this structure.
+     * @param   hIf         The handle of the network interface.
+     * @param   pMac        Pointer to the MAC address of the connecting VM NIC.
+     *
+     * @remarks Only busy references to the trunk and the interface.
+     */
+    DECLR0CALLBACKMEMBER(void, pfnNotifyMacAddress,(PINTNETTRUNKIFPORT pIfPort, INTNETIFHANDLE hIf, PCRTMAC pMac));
+
+    /**
+     * Called when an interface is connected to the network.
+     *
+     * @returns IPRT status code.
+     * @param   pIfPort     Pointer to this structure.
+     * @param   hIf         The handle of the network interface.
+     *
+     * @remarks Owns the big mutex.  No racing pfnDisconnectAndRelease.
+     */
+    DECLR0CALLBACKMEMBER(int, pfnConnectInterface,(PINTNETTRUNKIFPORT pIfPort, INTNETIFHANDLE hIf));
+
+    /**
+     * Called when an interface is disconnected from the network.
+     *
+     * @param   pIfPort     Pointer to this structure.
+     * @param   hIf         The handle of the network interface.
+     *
+     * @remarks Owns the big mutex.  No racing pfnDisconnectAndRelease.
+     */
+    DECLR0CALLBACKMEMBER(void, pfnDisconnectInterface,(PINTNETTRUNKIFPORT pIfPort, INTNETIFHANDLE hIf));
+
+    /**
      * Waits for the interface to become idle.
      *
      * This method must be called before disconnecting and releasing the object in
@@ -734,7 +766,7 @@ typedef struct INTNETTRUNKFACTORY
 typedef INTNETTRUNKFACTORY *PINTNETTRUNKFACTORY;
 
 /** The UUID for the (current) trunk factory. (case sensitive) */
-#define INTNETTRUNKFACTORY_UUID_STR     "1849823d-33ed-4f23-a32f-ef7203ee2b9f"
+#define INTNETTRUNKFACTORY_UUID_STR     "2dbd031b-ef53-4c11-a648-9a319da36aa6"
 
 /** @name INTNETTRUNKFACTORY::pfnCreateAndConnect flags.
  * @{ */

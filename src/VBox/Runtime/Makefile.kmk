@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29279 2010-05-09 23:29:11Z vboxsync $
+# $Id: Makefile.kmk 29582 2010-05-17 19:40:34Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT (IPRT).
 #
@@ -1059,6 +1059,8 @@ endif
 ifdef IPRT_WITH_LZO
  VBoxRT_LIBS                  += lzo2
 endif
+VBoxRT_LIBS.linux              = \
+	crypt
 VBoxRT_LIBS.darwin             = \
 	iconv
 VBoxRT_LIBS.freebsd            = \
@@ -1225,6 +1227,7 @@ RuntimeR0_SOURCES       = \
 	common/misc/RTAssertMsg2Weak.cpp \
 	common/misc/RTAssertMsg2WeakV.cpp \
 	common/misc/buildconfig.cpp \
+	common/misc/once.cpp \
 	common/misc/sanity-c.c \
 	common/misc/sanity-cpp.cpp \
 	common/misc/term.cpp \

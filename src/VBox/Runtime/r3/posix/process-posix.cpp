@@ -1,4 +1,4 @@
-/* $Id: process-posix.cpp 29328 2010-05-11 10:14:47Z vboxsync $ */
+/* $Id: process-posix.cpp 29636 2010-05-18 13:43:55Z vboxsync $ */
 /** @file
  * IPRT - Process, POSIX.
  */
@@ -38,6 +38,11 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <signal.h>
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+# include <crypt.h>
+# include <pwd.h>
+# include <shadow.h>
+#endif
 #if defined(RT_OS_LINUX) || defined(RT_OS_OS2)
 # define HAVE_POSIX_SPAWN 1
 #endif
@@ -58,8 +63,76 @@
 #include <iprt/pipe.h>
 #include <iprt/socket.h>
 #include <iprt/string.h>
+#include <iprt/mem.h>
 #include "internal/process.h"
 
+
+/**
+ * Check the credentials and return the gid/uid of user.
+ *
+ * @param    pszUser     username
+ * @param    pszPasswd   password
+ * @param    gid         where to store the GID of the user
+ * @param    uid         where to store the UID of the user
+ * @returns IPRT status code
+ */
+static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *gid, uid_t *uid)
+{
+#if defined(RT_OS_LINUX)
+    struct passwd *pw;
+
+    pw = getpwnam(pszUser);
+    if (!pw)
+        return VERR_PERMISSION_DENIED;
+
+    if (!pszPasswd)
+        pszPasswd = "";
+
+    struct spwd *spwd;
+    /* works only if /etc/shadow is accessible */
+    spwd = getspnam(pszUser);
+    if (spwd)
+        pw->pw_passwd = spwd->sp_pwdp;
+
+    /* be reentrant */
+    struct crypt_data *data = (struct crypt_data*)RTMemTmpAllocZ(sizeof(*data));
+    char *pszEncPasswd = crypt_r(pszPasswd, pw->pw_passwd, data);
+    if (strcmp(pszEncPasswd, pw->pw_passwd))
+        return VERR_PERMISSION_DENIED;
+    RTMemTmpFree(data);
+
+    *gid = pw->pw_gid;
+    *uid = pw->pw_uid;
+    return VINF_SUCCESS;
+
+#elif defined(RT_OS_SOLARIS)
+    struct passwd *ppw, pw;
+    char szBuf[1024];
+
+    if (getpwnam_r(pszUser, &pw, szBuf, sizeof(szBuf), &ppw) != 0 || ppw == NULL)
+        return VERR_PERMISSION_DENIED;
+
+    if (!pszPasswd)
+        pszPasswd = "";
+
+    struct spwd spwd;
+    char szPwdBuf[1024];
+    /* works only if /etc/shadow is accessible */
+    if (getspnam_r(pszUser, &spwd, szPwdBuf, sizeof(szPwdBuf)) != NULL)
+        ppw->pw_passwd = spwd.sp_pwdp;
+
+    char *pszEncPasswd = crypt(pszPasswd, ppw->pw_passwd);
+    if (strcmp(pszEncPasswd, ppw->pw_passwd))
+        return VERR_PERMISSION_DENIED;
+
+    *gid = ppw->pw_gid;
+    *uid = ppw->pw_uid;
+    return VINF_SUCCESS;
+
+#else
+    return VERR_PERMISSION_DENIED;
+#endif
+}
 
 
 RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs, RTENV Env, unsigned fFlags, PRTPROCESS pProcess)
@@ -147,8 +220,9 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     gid_t gid = ~(gid_t)0;
     if (pszAsUser)
     {
-        AssertMsgFailed(("Implement get uid by name lookup\n"));
-        return VERR_NOT_IMPLEMENTED;
+        rc = rtCheckCredentials(pszAsUser, pszPassword, &gid, &uid);
+        if (RT_FAILURE(rc))
+            return rc;
     }
 
     /*
