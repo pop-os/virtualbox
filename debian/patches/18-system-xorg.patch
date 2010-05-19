@@ -1,14 +1,12 @@
-#! /bin/sh /usr/share/dpatch/dpatch-run
-# Description: Build the X.Org driver only for the selected system X Server version.
-# Author: Michael Meskes <meskes@debian.org>, Felix Geyer <debfx-pkg@fobos.de>
+Description: Build the X.Org driver only for the selected system X Server version.
+Author: Michael Meskes <meskes@debian.org>, Felix Geyer <debfx-pkg@fobos.de>
 
-@DPATCH@
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 13:44:19.145463290 +0200
 @@ -63,16 +63,11 @@
  VBoxOGL_INCS           = .
- if1of ($(KBUILD_TARGET),linux solaris)
+ if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_INCS     += \
 -	$(VBOX_PATH_X11_ROOT)/libXdamage-1.1 \
 -	$(VBOX_PATH_X11_ROOT)/libXcomposite-0.4.0 \
@@ -25,6 +23,19 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefi
 -	$(PATH_ROOT)/src/VBox/Additions/x11/x11include/libdrm-2.4.13
 +	/usr/include/drm
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
+ endif
+ 
+--- virtualbox-ose-3.1.51-dfsg.orig/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
++++ virtualbox-ose-3.1.51-dfsg/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
+@@ -40,8 +40,8 @@
+ 	VBoxGuestR3LibShared
+ ifndef VBOX_ONLY_TESTSUITE
+  if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
+-  LIBRARIES += \
+-  	VBoxGuestR3LibXFree86
++#  LIBRARIES += \
++#  	VBoxGuestR3LibXFree86
+  endif
  endif
  
 diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/Makefile.kmk virtualbox-ose-3.1.4-dfsg/src/VBox/Additions/x11/Makefile.kmk
@@ -206,7 +217,7 @@ diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile.k
  vboxvideo_drv_18_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxvideo_drv_18_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
  vboxvideo_drv_18_DEFS := $(vboxvideo_drv_15_DEFS)
-@@ -261,6 +252,16 @@
+@@ -261,6 +252,21 @@
  vboxvideo_drv_18_SOURCES := $(vboxvideo_drv_15_SOURCES)
  
  
@@ -218,6 +229,11 @@ diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile.k
 +	/usr/include/X11/dri \
 +	/usr/include/drm
 +DLLS += vboxvideo_drv_$(XSERVER_VERSION)
++
++# required for lenny backports
++ifeq ($(XSERVER_VERSION),14)
++	vboxvideo_drv_$(XSERVER_VERSION)_INCS += $(VBOX_PATH_X11_XORG_1_4)/xorg
++endif
 +
 +
  # Check the undefined symbols in the X.Org modules against lists of allowed

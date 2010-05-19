@@ -6,11 +6,10 @@ Uploaders: Michael Meskes <meskes@debian.org>,
            Felix Geyer <debfx-pkg@fobos.de>
 Build-Depends: bcc,
                bzip2,
-               chrpath,
-               debhelper (>= 6.0.7~),
+               debhelper (>= 7.2.7~),
+               dkms (>= 2.1.1.1),
                docbook-xml,
                docbook-xsl,
-               dpatch,
                g++-multilib [amd64],
                gsoap,
                iasl,
@@ -23,6 +22,7 @@ Build-Depends: bcc,
                libgl1-mesa-dev,
                libglu1-mesa-dev,
                libidl-dev,
+               libpam0g-dev,
                libpixman-1-dev,
                libpng12-dev,
                libpulse-dev,
@@ -30,23 +30,26 @@ Build-Depends: bcc,
                libqt4-opengl-dev (>= 4.4.0),
                libsdl1.2-dev,
                libssl-dev,
+               libvncserver-dev,
                libx11-dev,
                libxcomposite-dev,
                libxcursor-dev,
                libxdamage-dev,
                libxext-dev,
                libxi-dev,
+               libxinerama-dev,
                libxmu-dev,
                libxrandr-dev,
                libxrender-dev,
                libxslt1-dev,
                lynx-cur,
-               python-central,
+               python-central (>= 0.6.7~),
                python-dev (>= 2.4),
+               quilt (>= 0.46-7~),
                uuid-dev,
                x11proto-gl-dev,
                x11proto-xf86dri-dev,
-               xserver-xorg-dev (>= 2:1.7.6.901),
+               xserver-xorg-dev,
                xsltproc,
                yasm (>= 0.7.0),
                zlib1g-dev
@@ -80,7 +83,8 @@ Recommends: virtualbox-ose-dkms (= ${source:Version}) | virtualbox-ose-source (=
             virtualbox-ose-qt (= ${binary:Version}),
             ${shlibs:Recommends}
 Suggests: virtualbox-guest-additions,
-          libasound2, libpulse0
+          libasound2, libpulse0,
+          vde2
 Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
 XB-Python-Version: ${python:Versions}
 Description: x86 virtualization solution - base binaries
@@ -110,9 +114,10 @@ Description: x86 virtualization solution - debugging symbols
 
 Package: virtualbox-ose-dkms
 Replaces: virtualbox-ose-source (<< 3.1.0-dfsg-1)
+Conflicts: virtualbox-ose-guest-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, dkms (>= 2.1.0.1)
+Depends: ${misc:Depends}
 Description: x86 virtualization solution - kernel module sources for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -143,9 +148,10 @@ Description: x86 virtualization solution - kernel module source
 
 Package: virtualbox-ose-guest-dkms
 Replaces: virtualbox-ose-guest-source (<< 3.1.0-dfsg-1)
+Conflicts: virtualbox-ose-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, dkms (>= 2.1.0.1)
+Depends: ${misc:Depends}
 Description: x86 virtualization solution - guest addition module source for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a

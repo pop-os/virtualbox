@@ -1,11 +1,11 @@
 Debian patch system
 ===================
 
-This package uses dpatch to manage all modifications to the upstream
-source. Changes are stored in the source package as diffs in
+This package uses quilt to manage all modifications to the upstream
+source.  Changes are stored in the source package as diffs in
 debian/patches and applied during the build.
 
-See /usr/share/doc/dpatch/README.source.gz for a detailed explanation.
+See /usr/share/doc/quilt/README.source for a detailed explanation.
 
 
 Source repackaging

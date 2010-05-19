@@ -26,11 +26,6 @@ in_virtual_machine()
 	return 0
 }
 
-running()
-{
-    lsmod | grep -q "$1[^_-]"
-}
-
 case "$1" in
   start)
 	in_virtual_machine || exit 0
@@ -63,14 +58,12 @@ case "$1" in
 	;;
 
   status)
-	status=0
-
 	if ! pgrep -x VBoxService > /dev/null; then
 		echo "VBoxService daemon isn't running"
-		status=3
+		exit 3
 	fi
 
-	exit $status
+	exit 0
 	;;
 
   *)

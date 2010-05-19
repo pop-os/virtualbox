@@ -1,3 +1,33 @@
+virtualbox-ose (3.1.53-dfsg-2) UNRELEASED; urgency=low
+
+  * Add 23-remove-invalid-chars-check.patch to remove a check for invalid
+    characters in the build path since kBuild is now able to handle those.
+  * Fix FTBFS when building without arch-all packages.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 17 May 2010 15:49:00 +0200
+
+virtualbox-ose (3.1.53-dfsg-1) experimental; urgency=low
+
+  * New upstream release 3.2.0 Beta 3.
+  * Add build-dependencies required by new upstream version.
+  * Adapt 18-system-xorg.dpatch to new upstream version.
+  * Update to new upstream release of vdfuse.
+  * Build vdfuse with -Wl,--as-needed.
+  * Install vbox PAM module.
+  * Drop 17-disable-help-contents.dpatch and 20-hide-help-buttons.dpatch
+    as VirtualBox can download the manual.
+  * Enable VDE networking.
+  * Enable VNC server in VBoxHeadless.
+  * Don't build VBoxBFE as it's not installed anyway.
+  * Hide the update menu item and settings page instead of disabling them.
+  * Make both dkms packages conflict with each other as the kernel modules
+    export the same symbol. (LP: #571574)
+  * Switch from dpatch to quilt patching system.
+  * Convert debian/rules to dh7.
+  * Use dkms debhelper script.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 13 May 2010 18:20:43 +0200
+
 virtualbox-ose (3.1.8-dfsg-1) unstable; urgency=low
 
   * New upstream version (LP: #578723).

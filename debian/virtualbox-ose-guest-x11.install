@@ -4,4 +4,3 @@ src/VBox/Additions/x11/Installer/98vboxadd-xclient /etc/X11/Xsession.d
 out/bin/additions/vboxmouse_drv.so /usr/lib/xorg/modules/input
 out/bin/additions/vboxvideo_drv.so /usr/lib/xorg/modules/drivers
 out/bin/additions/VBoxOGL*.so /usr/lib
-src/VBox/Additions/x11/Installer/50-vboxmouse.conf /usr/share/X11/xorg.conf.d
