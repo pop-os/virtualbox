@@ -1,10 +1,10 @@
-/* $Id: DBGFSym.cpp $ */
+/* $Id: DBGFSym.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Symbol Management.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -32,14 +28,14 @@
 #endif
 /** @todo Only use DBGHELP for reading modules since it doesn't do all we want (relocations), or is way to slow in some cases (add symbol)! */
 #include <VBox/dbgf.h>
+#include <VBox/mm.h>
+#include <VBox/pdmapi.h>
 #include "DBGFInternal.h"
 #include <VBox/vm.h>
-#include <VBox/mm.h>
-#include <VBox/pdm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <iprt/assert.h>
 
+#include <iprt/assert.h>
 #include <iprt/path.h>
 #include <iprt/ctype.h>
 #include <iprt/env.h>
@@ -583,9 +579,8 @@ int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, 
     /*
      * Walk the search path.
      */
-    const char *psz = RTEnvGet("VBOXDBG_IMAGE_PATH");
-    if (!psz)
-        psz = ".";                      /* default */
+    char *pszFreeMe = RTEnvDupEx(RTENV_DEFAULT, "VBOXDBG_IMAGE_PATH");
+    const char *psz = pszFreeMe ? pszFreeMe : ".";
     while (*psz)
     {
         /* Skip leading blanks - no directories with leading spaces, thank you. */
@@ -611,7 +606,10 @@ int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, 
                 memcpy(pszFound + cch + 1, pszName, cchName + 1);
                 *ppFile = pFile = fopen(pszFound, "rb");
                 if (pFile)
+                {
+                    RTStrFree(pszFreeMe);
                     return VINF_SUCCESS;
+                }
             }
 
             /** @todo do a depth search using the specified path. */
@@ -622,6 +620,7 @@ int dbgfR3ModuleLocateAndOpen(PVM pVM, const char *pszFilename, char *pszFound, 
     }
 
     /* not found */
+    RTStrFree(pszFreeMe);
     return VERR_OPEN_FAILED;
 }
 

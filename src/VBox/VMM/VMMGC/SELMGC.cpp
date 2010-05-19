@@ -1,10 +1,10 @@
-/* $Id: SELMGC.cpp $ */
+/* $Id: SELMGC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * SELM - The Selector Manager, Guest Context.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -67,7 +63,7 @@ static int selmGCSyncGDTEntry(PVM pVM, PCPUMCTXCORE pRegFrame, unsigned iGDTEntr
      * Read the guest descriptor.
      */
     X86DESC Desc;
-    int rc = MMGCRamRead(pVM, &Desc, (uint8_t *)GdtrGuest.pGdt + offEntry, sizeof(X86DESC));
+    int rc = MMGCRamRead(pVM, &Desc, (uint8_t *)(uintptr_t)GdtrGuest.pGdt + offEntry, sizeof(X86DESC));
     if (RT_FAILURE(rc))
         return VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT;
 
@@ -316,7 +312,7 @@ VMMRCDECL(int) selmRCGuestTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
          * If it's on the same page as the esp0 and ss0 fields or actually one of them,
          * then check if any of these has changed.
          */
-        PCVBOXTSS pGuestTss = (PVBOXTSS)pVM->selm.s.GCPtrGuestTss;
+        PCVBOXTSS pGuestTss = (PVBOXTSS)(uintptr_t)pVM->selm.s.GCPtrGuestTss;
         if (    PAGE_ADDRESS(&pGuestTss->esp0) == PAGE_ADDRESS(&pGuestTss->padding_ss0)
             &&  PAGE_ADDRESS(&pGuestTss->esp0) == PAGE_ADDRESS((uint8_t *)pGuestTss + offRange)
             &&  (    pGuestTss->esp0 !=  pVM->selm.s.Tss.esp1
@@ -454,7 +450,7 @@ VMMRCDECL(int) selmRCShadowGDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCT
 VMMRCDECL(int) selmRCShadowLDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange)
 {
     LogRel(("FATAL ERROR: selmRCShadowLDTWriteHandler: eip=%08X pvFault=%RGv pvRange=%RGv\r\n", pRegFrame->eip, pvFault, pvRange));
-    Assert((RTRCPTR)pvFault >= pVM->selm.s.pvLdtRC && (RTRCUINTPTR)pvFault < (RTRCUINTPTR)pVM->selm.s.pvLdtRC + 65536 + PAGE_SIZE);
+    Assert(pvFault - (uintptr_t)pVM->selm.s.pvLdtRC < (unsigned)(65536U + PAGE_SIZE));
     return VERR_SELM_SHADOW_LDT_WRITE;
 }
 

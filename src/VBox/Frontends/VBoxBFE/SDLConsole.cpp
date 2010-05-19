@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -53,10 +49,12 @@
 #include <iprt/alloca.h>
 
 #ifdef VBOXBFE_WITH_X11
+# define Display Display_
 # include <X11/Xlib.h>
 # ifndef VBOXBFE_WITHOUT_XCURSOR
 #  include <X11/Xcursor/Xcursor.h>
 # endif
+# undef Display
 #endif
 
 #include "VBoxBFE.h"
@@ -66,7 +64,7 @@
 #include "DisplayImpl.h"
 #include "MouseImpl.h"
 #include "KeyboardImpl.h"
-#include "VMMDevInterface.h"
+#include "VMMDev.h"
 #include "Framebuffer.h"
 #include "MachineDebuggerImpl.h"
 #include "VMControl.h"
@@ -134,6 +132,16 @@ SDLConsole::SDLConsole() : Console()
      * Enable keyboard repeats
      */
     SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
+
+    /*
+     * Initialise "children" (so far only Mouse)
+     */
+    if (FAILED(gMouse->init(this)))
+    {
+        RTPrintf("VBoxBFE: failed to initialise the mouse device\n");
+        return;
+    }
+
     mfInitialized = true;
 }
 
@@ -141,6 +149,12 @@ SDLConsole::~SDLConsole()
 {
     if (mfInputGrab)
         inputGrabEnd();
+
+    /*
+     * Uninitialise "children" (so far only Mouse)
+     */
+    gMouse->uninit();
+
     if (mWMIcon)
     {
         SDL_FreeSurface(mWMIcon);
@@ -180,7 +194,7 @@ CONEVENT SDLConsole::eventWait()
                         &&  ev->key.keysym.sym == gHostKeySym
                         &&  (SDL_GetModState() & ~(KMOD_MODE | KMOD_NUM | KMOD_RESERVED)) == gHostKey)
                     {
-		        EvHKeyDown = *ev;
+                        EvHKeyDown = *ev;
                         enmHKeyState = HKEYSTATE_DOWN;
                         break;
                     }
@@ -276,7 +290,9 @@ CONEVENT SDLConsole::eventWait()
          */
         case SDL_MOUSEMOTION:
         {
-            if (mfInputGrab || gMouse->getAbsoluteCoordinates())
+            BOOL fMouseAbsolute;
+            gMouse->COMGETTER(AbsoluteSupported)(&fMouseAbsolute);
+            if (mfInputGrab || fMouseAbsolute)
                 mouseSendEvent(0);
             break;
         }
@@ -287,8 +303,10 @@ CONEVENT SDLConsole::eventWait()
         case SDL_MOUSEBUTTONDOWN:
         case SDL_MOUSEBUTTONUP:
         {
+            BOOL fMouseAbsolute;
+            gMouse->COMGETTER(AbsoluteSupported)(&fMouseAbsolute);
             SDL_MouseButtonEvent *bev = &ev->button;
-            if (!mfInputGrab && !gMouse->getAbsoluteCoordinates())
+            if (!mfInputGrab && !fMouseAbsolute)
             {
                 if (ev->type == SDL_MOUSEBUTTONDOWN && (bev->state & SDL_BUTTON_LMASK))
                 {
@@ -414,7 +432,7 @@ CONEVENT SDLConsole::eventWait()
 
         default:
         {
-	  printf("%s:%d unknown SDL event %d\n",__FILE__,__LINE__,ev->type);
+            printf("%s:%d unknown SDL event %d\n",__FILE__,__LINE__,ev->type);
             LogBird(("unknown SDL event %d\n", ev->type));
             break;
         }
@@ -587,12 +605,12 @@ static uint8_t Keyevent2KeycodeFallback(const SDL_KeyboardEvent *ev)
 #if 0
         case SDLK_CLEAR:            return 0x;
         case SDLK_KP_EQUALS:        return 0x;
-        case SDLK_COMPOSE:	    return 0x;
+        case SDLK_COMPOSE:          return 0x;
         case SDLK_HELP:             return 0x;
         case SDLK_BREAK:            return 0x;
-        case SDLK_POWER:	    return 0x;
-        case SDLK_EURO:		    return 0x;
-        case SDLK_UNDO:		    return 0x;
+        case SDLK_POWER:            return 0x;
+        case SDLK_EURO:             return 0x;
+        case SDLK_UNDO:             return 0x;
 #endif
         default:
             Log(("Unhandled sdl key event: sym=%d scancode=%#x unicode=%#x\n",
@@ -906,6 +924,16 @@ void SDLConsole::resetKeys(void)
     }
 }
 
+VMMDev *SDLConsole::getVMMDev()
+{
+    return gVMMDev;
+}
+
+Display *SDLConsole::getDisplay()
+{
+    return gDisplay;
+}
+
 /**
  * Keyboard event handler.
  *
@@ -1136,10 +1164,12 @@ static void DisableGlobalHotKeys(bool fDisable)
  */
 void SDLConsole::inputGrabStart()
 {
+    BOOL fNeedsHostCursor;
+    gMouse->COMGETTER(NeedsHostCursor)(&fNeedsHostCursor);
 #ifdef RT_OS_DARWIN
     DisableGlobalHotKeys(true);
 #endif
-    if (!gMouse->getNeedsHostCursor())
+    if (!fNeedsHostCursor)
         SDL_ShowCursor(SDL_DISABLE);
     SDL_WM_GrabInput(SDL_GRAB_ON);
     // dummy read to avoid moving the mouse
@@ -1153,8 +1183,10 @@ void SDLConsole::inputGrabStart()
  */
 void SDLConsole::inputGrabEnd()
 {
+    BOOL fNeedsHostCursor;
+    gMouse->COMGETTER(NeedsHostCursor)(&fNeedsHostCursor);
     SDL_WM_GrabInput(SDL_GRAB_OFF);
-    if (!gMouse->getNeedsHostCursor())
+    if (!fNeedsHostCursor)
         SDL_ShowCursor(SDL_ENABLE);
 #ifdef RT_OS_DARWIN
     DisableGlobalHotKeys(false);
@@ -1176,8 +1208,12 @@ void SDLConsole::mouseSendEvent(int dz)
 {
     int x, y, state, buttons;
     bool abs;
+    BOOL fMouseAbsolute;
+    BOOL fNeedsHostCursor;
 
-    abs = (gMouse->getAbsoluteCoordinates() && !mfInputGrab) || gMouse->getNeedsHostCursor();
+    gMouse->COMGETTER(AbsoluteSupported)(&fMouseAbsolute);
+    gMouse->COMGETTER(NeedsHostCursor)(&fNeedsHostCursor);
+    abs = (fMouseAbsolute && !mfInputGrab) || fNeedsHostCursor;
 
     state = abs ? SDL_GetMouseState(&x, &y) : SDL_GetRelativeMouseState(&x, &y);
 
@@ -1189,6 +1225,14 @@ void SDLConsole::mouseSendEvent(int dz)
         buttons |= PDMIMOUSEPORT_BUTTON_RIGHT;
     if (state & SDL_BUTTON(SDL_BUTTON_MIDDLE))
         buttons |= PDMIMOUSEPORT_BUTTON_MIDDLE;
+#ifdef SDL_BUTTON_X1
+    if (state & SDL_BUTTON(SDL_BUTTON_X1))
+        buttons |= PDMIMOUSEPORT_BUTTON_X1;
+#endif
+#ifdef SDL_BUTTON_X2
+    if (state & SDL_BUTTON(SDL_BUTTON_X2))
+        buttons |= PDMIMOUSEPORT_BUTTON_X2;
+#endif
 
     // now send the mouse event
     if (abs)
@@ -1201,11 +1245,11 @@ void SDLConsole::mouseSendEvent(int dz)
          */
         /* only send if outside the extra offset area */
         if (y >= gFramebuffer->getYOffset())
-            gMouse->PutMouseEventAbsolute(x + 1, y + 1 - gFramebuffer->getYOffset(), dz, buttons);
+            gMouse->PutMouseEventAbsolute(x + 1, y + 1 - gFramebuffer->getYOffset(), dz, 0, buttons);
     }
     else
     {
-        gMouse->PutMouseEvent(x, y, dz, buttons);
+        gMouse->PutMouseEvent(x, y, dz, 0, buttons);
     }
 }
 
@@ -1324,7 +1368,9 @@ void SDLConsole::setPointerShape (const PointerShapeChangeData *data)
     /*
      * don't do anything if there are no guest additions loaded (anymore)
      */
-    if (!gMouse->getAbsoluteCoordinates())
+    BOOL fMouseAbsolute;
+    gMouse->COMGETTER(AbsoluteSupported)(&fMouseAbsolute);
+    if (!fMouseAbsolute)
         return;
 
     if (data->shape)
@@ -1630,5 +1676,4 @@ int SDLConsole::handleHostKey(const SDL_KeyboardEvent *pEv)
 
     return VINF_SUCCESS;
 }
-
 

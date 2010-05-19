@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29162 2010-05-06 15:15:40Z vboxsync $
 ## @file
 # Makefile for the VBox Main module.
 #
 
 #
-# Copyright (C) 2006-2009 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../..
@@ -64,7 +60,9 @@ VBOX_MAIN_DEFS += \
 	$(if $(VBOX_WITH_CROGL),VBOX_WITH_CROGL,) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
 	$(if $(VBOX_WITH_GUEST_PROPS_RDONLY_GUEST),VBOX_WITH_GUEST_PROPS_RDONLY_GUEST,) \
-	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,)
+	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL,) \
+	$(if $(VBOX_WITH_HOSTNETIF_API),VBOX_WITH_HOSTNETIF_API,) \
+	$(if $(VBOX_WITH_VDE),VBOX_WITH_VDE,)
 
 # Unconditionally enable the new semaphore key generation code
 VBOX_MAIN_DEFS += VBOX_WITH_NEW_SYS_V_KEYGEN
@@ -222,7 +220,8 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_WITH_DBUS),$(if $(VBOX_USB_WITH_DBUS),VBOX_USB_WITH_DBUS,),) \
 	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,) \
 	$(if $(VBOX_USB_WITH_INOTIFY),VBOX_USB_WITH_INOTIFY,) \
-	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,)
+	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,) \
+	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,)
 ifdef VBOX_WITH_USB
  VBoxSVC_DEFS += \
  	VBOX_WITH_USB \
@@ -264,7 +263,9 @@ VBoxSVC_LIBS += \
 	$(LIB_DDU)
 VBoxSVC_LIBS.solaris = \
 	adm \
-	nsl
+	nsl \
+	socket
+
 ifdef VBOX_WITH_NETFLT
  ifdef VBOX_SOLARIS_NSL_RESOLVED
   VBoxSVC_LIBS.solaris += devinfo
@@ -283,18 +284,20 @@ VBoxSVC_INTERMEDIATES = \
 VBoxSVC_SOURCES = \
 	Global.cpp \
 	Logging.cpp \
-	AutoLock.cpp \
 	Matching.cpp \
 	xml/Settings.cpp \
 	VirtualBoxBase.cpp \
 	VirtualBoxErrorInfoImpl.cpp \
 	VirtualBoxImpl.cpp \
 	ApplianceImpl.cpp \
+	ApplianceImplExport.cpp \
+	ApplianceImplImport.cpp \
 	xml/ovfreader.cpp \
 	VFSExplorerImpl.cpp \
 	MachineImpl.cpp \
 	SnapshotImpl.cpp \
 	MediumImpl.cpp \
+	MediumLock.cpp \
 	MediumAttachmentImpl.cpp \
 	MediumFormatImpl.cpp \
 	ProgressImpl.cpp \
@@ -303,6 +306,7 @@ VBoxSVC_SOURCES = \
 	DHCPServerImpl.cpp \
 	DHCPServerRunner.cpp \
 	GuestOSTypeImpl.cpp \
+	NATEngineImpl.cpp \
 	NetworkAdapterImpl.cpp \
 	SerialPortImpl.cpp \
 	ParallelPortImpl.cpp \
@@ -474,14 +478,14 @@ if (   defined(VBOX_WITH_QTGUI) \
   VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE),VBOXMAINEXE)
   VBoxTestOGL_SOURCES = generic/OpenGLTestApp.cpp
   VBoxTestOGL_LIBS = \
-    $(if $(VBOX_WITH_CROGL), \
+	$(if $(VBOX_WITH_CROGL), \
   	  $(PATH_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
   	  $(VBOX_LIB_OGL_HOSTCRUTIL),) \
-  	$(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
-  	$(LIB_RUNTIME)
+	$(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
+	$(LIB_RUNTIME)
   VBoxTestOGL_DEFS += \
-    $(if $(VBOX_WITH_CROGL), VBOX_WITH_CROGL,) \
-    $(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,) \
+	$(if $(VBOX_WITH_CROGL), VBOX_WITH_CROGL,) \
+	$(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,) \
 	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
 	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
   ifdef VBOX_WITH_VIDEOHWACCEL
@@ -540,6 +544,7 @@ VBoxC_DEFS = \
 	$(VBOX_MAIN_DEFS) \
 	VBOX_COM_INPROC \
 	$(if $(VBOX_WITH_VRDP),VBOX_WITH_VRDP,) \
+	$(if $(VBOX_WITH_VRDP_VIDEO_CHANNEL),VBOX_WITH_VRDP_VIDEO_CHANNEL,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
 	$(if $(VBOX_MAIN_RELEASE_LOG),VBOX_MAIN_RELEASE_LOG LOG_ENABLED,) \
 	$(if $(VBOX_WITH_ALSA),VBOX_WITH_ALSA,) \
@@ -554,7 +559,8 @@ VBoxC_DEFS = \
 	$(if $(VBOX_WITH_SMC),VBOX_WITH_SMC,) \
 	$(if $(VBOX_WITH_LPC),VBOX_WITH_LPC,) \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
-	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,)
+	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,) \
+	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,)
 ifdef VBOX_WITH_USB
 VBoxC_DEFS += \
 	VBOX_WITH_USB \
@@ -578,6 +584,9 @@ VBoxC_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 VBoxC_DEFS.win.x86 += _WIN32_WINNT=0x0500
 VBoxC_DEFS.win.amd64 += _WIN32_WINNT=0x0510
 
+#temporary define
+VBoxC_DEFS += MMSEAMLESS
+
 VBoxC_INCS          = \
 	include \
 	$(PATH_VBoxC) \
@@ -588,7 +597,8 @@ VBoxC_INCS.win      = \
 
 VBoxC_LDFLAGS.darwin = \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/components/VBoxC.dylib \
-	-exported_symbols_list $(PATH_VBoxC)/VBoxC.def
+	-exported_symbols_list $(PATH_VBoxC)/VBoxC.def \
+	-framework IOKit
 ifdef VBOX_USE_VCC80
  VBoxC_LDFLAGS.win = /MANIFEST
 endif
@@ -610,7 +620,6 @@ VBoxC_INTERMEDIATES = \
 VBoxC_SOURCES = \
 	Global.cpp \
 	Logging.cpp \
-	AutoLock.cpp \
 	VBoxDll.cpp \
 	USBDeviceImpl.cpp \
 	RemoteUSBDeviceImpl.cpp \
@@ -687,6 +696,7 @@ VBoxCOM_SOURCES         = \
 	glue/com.cpp \
 	glue/initterm.cpp \
 	glue/string.cpp \
+	glue/AutoLock.cpp \
 	glue/EventQueue.cpp \
 	glue/ErrorInfo.cpp \
 	glue/errorprint.cpp \

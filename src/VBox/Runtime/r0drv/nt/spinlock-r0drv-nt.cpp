@@ -1,10 +1,10 @@
-/* $Id: spinlock-r0drv-nt.cpp $ */
+/* $Id: spinlock-r0drv-nt.cpp 29254 2010-05-09 18:11:22Z vboxsync $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, NT.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -35,10 +31,14 @@
 #include "the-nt-kernel.h"
 
 #include <iprt/spinlock.h>
-#include <iprt/err.h>
-#include <iprt/alloc.h>
-#include <iprt/assert.h>
+
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
+#include <iprt/assert.h>
+#include <iprt/err.h>
+#include <iprt/mem.h>
 
 #include "internal/magics.h"
 
@@ -104,7 +104,7 @@ RTDECL(int)  RTSpinlockDestroy(RTSPINLOCK Spinlock)
 RTDECL(void) RTSpinlockAcquireNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
     PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
-    Assert(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC, ("magic=%#x\n", pSpinlockInt->u32Magic));
 
     KeAcquireSpinLock(&pSpinlockInt->Spinlock, &pTmp->uchIrqL);
     pTmp->uFlags = ASMGetFlags();
@@ -115,7 +115,7 @@ RTDECL(void) RTSpinlockAcquireNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
     PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
-    Assert(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC, ("magic=%#x\n", pSpinlockInt->u32Magic));
 
     ASMSetFlags(pTmp->uFlags);
     KeReleaseSpinLock(&pSpinlockInt->Spinlock, pTmp->uchIrqL);
@@ -125,7 +125,7 @@ RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
     PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
-    Assert(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC, ("magic=%#x\n", pSpinlockInt->u32Magic));
 
     KeAcquireSpinLock(&pSpinlockInt->Spinlock, &pTmp->uchIrqL);
 }
@@ -134,8 +134,7 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
     PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
-    Assert(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC, ("magic=%#x\n", pSpinlockInt->u32Magic));
 
     KeReleaseSpinLock(&pSpinlockInt->Spinlock, pTmp->uchIrqL);
 }
-

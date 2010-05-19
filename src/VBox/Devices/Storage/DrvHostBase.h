@@ -1,10 +1,10 @@
-/* $Id: DrvHostBase.h $ */
+/* $Id: DrvHostBase.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __HostDrvBase_h__
@@ -31,6 +27,10 @@ RT_C_DECLS_BEGIN
 typedef struct DRVHOSTBASE *PDRVHOSTBASE;
 /**
  * Host base drive access driver instance data.
+ *
+ * @implements PDMIMOUNT
+ * @implements PDMIBLOCKBIOS
+ * @implements PDMIBLOCK
  */
 typedef struct DRVHOSTBASE
 {
@@ -96,7 +96,7 @@ typedef struct DRVHOSTBASE
     RTSEMEVENT              EventPoller;
 #endif
     /** The poller interval. */
-    unsigned                cMilliesPoller;
+    RTMSINTERVAL            cMilliesPoller;
     /** The shutdown indicator. */
     bool volatile           fShutdownPoller;
 
@@ -180,7 +180,7 @@ typedef struct DRVHOSTBASE
 } DRVHOSTBASE;
 
 
-int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, PDMBLOCKTYPE enmType);
+int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, PDMBLOCKTYPE enmType);
 int DRVHostBaseInitFinish(PDRVHOSTBASE pThis);
 int DRVHostBaseMediaPresent(PDRVHOSTBASE pThis);
 void DRVHostBaseMediaNotPresent(PDRVHOSTBASE pThis);

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxConsoleView_h___
@@ -96,12 +92,13 @@ public:
 
     void setMouseIntegrationEnabled (bool enabled);
 
-    bool isMouseAbsolute() const { return mMouseAbsolute; }
+    bool mouseCanAbsolute() const { return mMouseCanAbsolute; }
+    bool mouseCanRelative() const { return mMouseCanRelative; }
+    bool mouseNeedsHostCursor() const { return mMouseNeedsHostCursor; }
 
-    bool shouldHideHostPointer() const
-    { return mMouseCaptured || (mMouseAbsolute && mHideHostPointer); }
+    void updateHostCursor();
 
-    void setAutoresizeGuest (bool on);
+    void setAutoresizeGuest (bool on, bool doHint);
 
     void onFullscreenChange (bool on);
 
@@ -209,7 +206,7 @@ private:
 
     void emitMouseStateChanged() {
         emit mouseStateChanged ((mMouseCaptured ? MouseCaptured : 0) |
-                                (mMouseAbsolute ? MouseAbsolute : 0) |
+                                (mMouseCanAbsolute ? MouseAbsolute : 0) |
                                 (!mMouseIntegration ? MouseAbsoluteDisabled : 0));
     }
 
@@ -274,7 +271,9 @@ private:
     bool mAttached : 1;
     bool mKbdCaptured : 1;
     bool mMouseCaptured : 1;
-    bool mMouseAbsolute : 1;
+    bool mMouseCanAbsolute : 1;
+    bool mMouseCanRelative : 1;
+    bool mMouseNeedsHostCursor : 1;
     bool mMouseIntegration : 1;
     QPoint mLastPos;
     QPoint mCapturedPos;
@@ -326,10 +325,10 @@ private:
 #endif
 
 #if defined(Q_WS_MAC)
-# if !defined (VBOX_WITH_HACKED_QT) && !defined (QT_MAC_USE_COCOA)
+# ifndef QT_MAC_USE_COCOA
     /** Event handler reference. NULL if the handler isn't installed. */
     EventHandlerRef mDarwinEventHandlerRef;
-# endif
+# endif /* !QT_MAC_USE_COCOA */
     /** The current modifier key mask. Used to figure out which modifier
      *  key was pressed when we get a kEventRawKeyModifiersChanged event. */
     UInt32 mDarwinKeyModifiers;
@@ -345,15 +344,13 @@ private:
     static LRESULT CALLBACK lowLevelKeyboardProc (int nCode,
                                                   WPARAM wParam, LPARAM lParam);
 #elif defined (Q_WS_MAC)
-# if defined (QT_MAC_USE_COCOA)
+# ifdef QT_MAC_USE_COCOA
     static bool darwinEventHandlerProc (const void *pvCocoaEvent, const
                                         void *pvCarbonEvent, void *pvUser);
-# elif !defined (VBOX_WITH_HACKED_QT)
+# else /* QT_MAC_USE_COCOA */
     static pascal OSStatus darwinEventHandlerProc (EventHandlerCallRef inHandlerCallRef,
                                                    EventRef inEvent, void *inUserData);
-# else  /* VBOX_WITH_HACKED_QT */
-    static bool macEventFilter (EventRef inEvent, void *inUserData);
-# endif /* VBOX_WITH_HACKED_QT */
+# endif /* !QT_MAC_USE_COCOA */
 #endif
 
     QPixmap mPausedShot;

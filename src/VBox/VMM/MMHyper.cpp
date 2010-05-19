@@ -1,10 +1,10 @@
-/* $Id: MMHyper.cpp $ */
+/* $Id: MMHyper.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Hypervisor Memory Area.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -175,7 +171,7 @@ VMMR3DECL(int) MMR3HyperInitFinalize(PVM pVM)
     /*
      * Initialize the hyper heap critical section.
      */
-    int rc = PDMR3CritSectInit(pVM, &pVM->mm.s.pHyperHeapR3->Lock, "MM-HYPER");
+    int rc = PDMR3CritSectInit(pVM, &pVM->mm.s.pHyperHeapR3->Lock, RT_SRC_POS, "MM-HYPER");
     AssertRC(rc);
 
     /*
@@ -1089,6 +1085,7 @@ VMMR3DECL(int) MMR3HyperSetGuard(PVM pVM, void *pvStart, size_t cb, bool fSet)
      */
     AssertReturn(!((uintptr_t)pvStart & PAGE_OFFSET_MASK), VERR_INVALID_POINTER);
     AssertReturn(!(cb & PAGE_OFFSET_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(cb <= UINT32_MAX, VERR_INVALID_PARAMETER);
     PMMLOOKUPHYPER pLookup = mmR3HyperLookupR3(pVM, pvStart);
     AssertReturn(pLookup, VERR_INVALID_PARAMETER);
     AssertReturn(pLookup->enmType == MMLOOKUPHYPERTYPE_LOCKED, VERR_INVALID_PARAMETER);
@@ -1107,12 +1104,12 @@ VMMR3DECL(int) MMR3HyperSetGuard(PVM pVM, void *pvStart, size_t cb, bool fSet)
     if (fSet)
     {
         rc = PGMMapSetPage(pVM, MMHyperR3ToRC(pVM, pvStart), cb, 0);
-        SUPR3PageProtect(pbR3, R0Ptr, off, cb, RTMEM_PROT_NONE);
+        SUPR3PageProtect(pbR3, R0Ptr, off, (uint32_t)cb, RTMEM_PROT_NONE);
     }
     else
     {
         rc = PGMMapSetPage(pVM, MMHyperR3ToRC(pVM, pvStart), cb, X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
-        SUPR3PageProtect(pbR3, R0Ptr, off, cb, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
+        SUPR3PageProtect(pbR3, R0Ptr, off, (uint32_t)cb, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
     }
     return rc;
 }

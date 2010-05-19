@@ -1,10 +1,10 @@
-/* $Id: spinlock-r0drv-linux.c $ */
+/* $Id: spinlock-r0drv-linux.c 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, Linux.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -36,8 +32,11 @@
 #include "internal/iprt.h"
 #include <iprt/spinlock.h>
 
-#include <iprt/assert.h>
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
+#include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
@@ -67,6 +66,11 @@ typedef struct RTSPINLOCKINTERNAL
     /** A placeholder on Uni systems so we won't piss off RTMemAlloc(). */
     void                *pvUniDummy;
 #endif
+#ifdef RT_STRICT
+    /** Set if we've seen any fNoIrqs usage.
+     * This must be consistent or it won't work you know. */
+    bool                fNoIrqs;
+#endif
 } RTSPINLOCKINTERNAL, *PRTSPINLOCKINTERNAL;
 
 
@@ -88,6 +92,9 @@ RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock)
 #ifdef RT_MORE_STRICT
     pThis->idCpuOwner  = NIL_RTCPUID;
     pThis->idAssertCpu = NIL_RTCPUID;
+#endif
+#ifdef RT_STRICT
+    pThis->fNoIrqs     = false;
 #endif
     spin_lock_init(&pThis->Spinlock);
 
@@ -128,6 +135,9 @@ RTDECL(void) RTSpinlockAcquireNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     spin_lock_irqsave(&pThis->Spinlock, pTmp->flFlags);
 
     RT_ASSERT_PREEMPT_CPUID_SPIN_ACQUIRED(pThis);
+#ifdef RT_STRICT
+    pThis->fNoIrqs = true;
+#endif
 }
 RT_EXPORT_SYMBOL(RTSpinlockAcquireNoInts);
 
@@ -140,7 +150,7 @@ RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE(pThis);
-    NOREF(pTmp);
+    Assert(pThis->fNoIrqs);
 
     spin_unlock_irqrestore(&pThis->Spinlock, pTmp->flFlags);
 
@@ -156,6 +166,7 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
     NOREF(pTmp);
+    Assert(!pThis->fNoIrqs || !ASMIntAreEnabled());
 
     spin_lock(&pThis->Spinlock);
 
@@ -172,6 +183,7 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
               ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
     NOREF(pTmp);
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE(pThis);
+    Assert(!pThis->fNoIrqs || !ASMIntAreEnabled());
 
     spin_unlock(&pThis->Spinlock);
 

@@ -1,4 +1,4 @@
-/* $Id: ovfreader.cpp $ */
+/* $Id: ovfreader.cpp 29422 2010-05-12 14:08:52Z vboxsync $ */
 /** @file
  *
  * OVF reader declarations. Depends only on IPRT, including the iprt::MiniString
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,13 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "ovfreader.h"
 
 using namespace std;
 using namespace iprt;
+using namespace ovf;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -32,16 +29,22 @@ using namespace iprt;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * Constructor. This opens the given XML file and parses it. Throws lots of exceptions
+ * on XML or OVF invalidity.
+ * @param path
+ */
 OVFReader::OVFReader(const MiniString &path)
     : m_strPath(path)
 {
     xml::XmlFileParser parser;
-    xml::Document doc;
     parser.read(m_strPath,
-                doc);
+                m_doc);
 
-    const xml::ElementNode *pRootElem = doc.getRootElement();
-    if (pRootElem && strcmp(pRootElem->getName(), "Envelope"))
+    const xml::ElementNode *pRootElem = m_doc.getRootElement();
+    if (    !pRootElem
+         || strcmp(pRootElem->getName(), "Envelope")
+       )
         throw OVFLogicError(N_("Root element in OVF file must be \"Envelope\"."));
 
     // OVF has the following rough layout:
@@ -61,10 +64,6 @@ OVFReader::OVFReader(const MiniString &path)
 
     // now go though the sections
     LoopThruSections(pReferencesElem, pRootElem);
-}
-
-OVFReader::~OVFReader()
-{
 }
 
 /**
@@ -179,6 +178,9 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
                 // optional
                 d.iPopulatedSize = -1;
 
+            // optional vbox:uuid attribute (if OVF was exported by VirtualBox != 3.2)
+            pelmDisk->getAttributeValue("vbox:uuid", d.uuidVbox);
+
             const char *pcszFileRef;
             if (pelmDisk->getAttributeValue("fileRef", pcszFileRef)) // optional
             {
@@ -224,6 +226,17 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
                                 pcszBad,
                                 pelmDisk->getLineNumber());
 
+        // suggest a size in megabytes to help callers with progress reports
+        d.ulSuggestedSizeMB = 0;
+        if (d.iCapacity != -1)
+            d.ulSuggestedSizeMB = d.iCapacity / _1M;
+        else if (d.iPopulatedSize != -1)
+            d.ulSuggestedSizeMB = d.iPopulatedSize / _1M;
+        else if (d.iSize != -1)
+            d.ulSuggestedSizeMB = d.iSize / _1M;
+        if (d.ulSuggestedSizeMB == 0)
+            d.ulSuggestedSizeMB = 10000;         // assume 10 GB, this is for the progress bar only anyway
+
         m_mapDisks[d.strDiskId] = d;
     }
 }
@@ -267,6 +280,11 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
 {
     VirtualSystem vsys;
 
+    // peek under the <VirtualSystem> node whether we have a <vbox:Machine> node;
+    // that case case, the caller can completely ignore the OVF but only load the VBox machine XML
+    vsys.pelmVboxMachine = pelmVirtualSystem->findChildElement("vbox", "Machine");
+
+    // now look for real OVF
     const xml::AttributeNode *pIdAttr = pelmVirtualSystem->findAttribute("id");
     if (pIdAttr)
         vsys.strName = pIdAttr->getValue();
@@ -367,7 +385,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                     {
                         uint32_t ulType;
                         pelmItemChild->copyValue(ulType);
-                        i.resourceType = (OVFResourceType_T)ulType;
+                        i.resourceType = (ResourceType_T)ulType;
                     }
                     else if (!strcmp(pcszItemChildName, "OtherResourceType"))
                         i.strOtherResourceType = pelmItemChild->getValue();
@@ -382,7 +400,10 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                     else if (!strcmp(pcszItemChildName, "Connection"))
                         i.strConnection = pelmItemChild->getValue();
                     else if (!strcmp(pcszItemChildName, "Address"))
+                    {
                         i.strAddress = pelmItemChild->getValue();
+                        pelmItemChild->copyValue(i.lAddress);
+                    }
                     else if (!strcmp(pcszItemChildName, "AddressOnParent"))
                         i.strAddressOnParent = pelmItemChild->getValue();
                     else if (!strcmp(pcszItemChildName, "AllocationUnits"))
@@ -401,7 +422,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         i.strMappingBehavior = pelmItemChild->getValue();
                     else if (!strcmp(pcszItemChildName, "PoolID"))
                         i.strPoolID = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "BusNumber"))
+                    else if (!strcmp(pcszItemChildName, "BusNumber"))       // seen in some old OVF, but it's not listed in the OVF specs
                         pelmItemChild->copyValue(i.ulBusNumber);
                     else
                         throw OVFLogicError(N_("Error reading \"%s\": unknown element \"%s\" under Item element, line %d"),
@@ -413,6 +434,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                 // store!
                 vsys.mapHardwareItems[i.ulInstanceID] = i;
             }
+
+            HardDiskController *pPrimaryIDEController = NULL;       // will be set once found
 
             // now go thru all hardware items and handle them according to their type;
             // in this first loop we handle all items _except_ hard disk images,
@@ -427,7 +450,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                 // do some analysis
                 switch (i.resourceType)
                 {
-                    case OVFResourceType_Processor:     // 3
+                    case ResourceType_Processor:     // 3
                         /*  <rasd:Caption>1 virtual CPU</rasd:Caption>
                             <rasd:Description>Number of virtual CPUs</rasd:Description>
                             <rasd:ElementName>virtual CPU</rasd:ElementName>
@@ -444,7 +467,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                                                 i.ulLineNumber);
                     break;
 
-                    case OVFResourceType_Memory:        // 4
+                    case ResourceType_Memory:        // 4
                         if (    (i.strAllocationUnits == "MegaBytes")           // found in OVF created by OVF toolkit
                              || (i.strAllocationUnits == "MB")                  // found in MS docs
                              || (i.strAllocationUnits == "byte * 2^20")         // suggested by OVF spec DSP0243 page 21
@@ -457,7 +480,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                                                 i.ulLineNumber);
                     break;
 
-                    case OVFResourceType_IDEController:          // 5
+                    case ResourceType_IDEController:          // 5
                     {
                         /*  <Item>
                                 <rasd:Caption>ideController0</rasd:Caption>
@@ -471,14 +494,43 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         hdc.system = HardDiskController::IDE;
                         hdc.idController = i.ulInstanceID;
                         hdc.strControllerType = i.strResourceSubType;
-                        hdc.strAddress = i.strAddress;
-                        hdc.ulBusNumber = i.ulBusNumber;
+
+                        hdc.lAddress = i.lAddress;
+
+                        if (!pPrimaryIDEController)
+                            // this is the first IDE controller found: then mark it as "primary"
+                            hdc.fPrimary = true;
+                        else
+                        {
+                            // this is the second IDE controller found: If VMware exports two
+                            // IDE controllers, it seems that they are given an "Address" of 0
+                            // an 1, respectively, so assume address=0 means primary controller
+                            if (    pPrimaryIDEController->lAddress == 0
+                                 && hdc.lAddress == 1
+                               )
+                            {
+                                pPrimaryIDEController->fPrimary = true;
+                                hdc.fPrimary = false;
+                            }
+                            else if (    pPrimaryIDEController->lAddress == 1
+                                      && hdc.lAddress == 0
+                                    )
+                            {
+                                pPrimaryIDEController->fPrimary = false;
+                                hdc.fPrimary = false;
+                            }
+                            else
+                                // then we really can't tell, just hope for the best
+                                hdc.fPrimary = false;
+                        }
 
                         vsys.mapControllers[i.ulInstanceID] = hdc;
+                        if (!pPrimaryIDEController)
+                            pPrimaryIDEController = &vsys.mapControllers[i.ulInstanceID];
                     }
                     break;
 
-                    case OVFResourceType_ParallelSCSIHBA:        // 6       SCSI controller
+                    case ResourceType_ParallelSCSIHBA:        // 6       SCSI controller
                     {
                         /*  <Item>
                                 <rasd:Caption>SCSI Controller 0 - LSI Logic</rasd:Caption>
@@ -497,7 +549,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                     }
                     break;
 
-                    case OVFResourceType_EthernetAdapter: // 10
+                    case ResourceType_EthernetAdapter: // 10
                     {
                         /*  <Item>
                             <rasd:Caption>Ethernet adapter on 'Bridged'</rasd:Caption>
@@ -523,11 +575,11 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                     }
                     break;
 
-                    case OVFResourceType_FloppyDrive: // 14
+                    case ResourceType_FloppyDrive: // 14
                         vsys.fHasFloppyDrive = true;           // we have no additional information
                     break;
 
-                    case OVFResourceType_CDDrive:       // 15
+                    case ResourceType_CDDrive:       // 15
                         /*  <Item ovf:required="false">
                                 <rasd:Caption>cdrom1</rasd:Caption>
                                 <rasd:InstanceId>7</rasd:InstanceId>
@@ -542,11 +594,11 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         vsys.fHasCdromDrive = true;           // we have no additional information
                     break;
 
-                    case OVFResourceType_HardDisk: // 17
+                    case ResourceType_HardDisk: // 17
                         // handled separately in second loop below
                     break;
 
-                    case OVFResourceType_OtherStorageDevice:        // 20       SATA controller
+                    case ResourceType_OtherStorageDevice:        // 20       SATA controller
                     {
                         /* <Item>
                             <rasd:Description>SATA Controller</rasd:Description>
@@ -571,12 +623,12 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         else
                             throw OVFLogicError(N_("Error reading \"%s\": Host resource of type \"Other Storage Device (%d)\" is supported with SATA AHCI controllers only, line %d"),
                                                 m_strPath.c_str(),
-                                                OVFResourceType_OtherStorageDevice,
+                                                ResourceType_OtherStorageDevice,
                                                 i.ulLineNumber);
                     }
                     break;
 
-                    case OVFResourceType_USBController: // 23
+                    case ResourceType_USBController: // 23
                         /*  <Item ovf:required="false">
                                 <rasd:Caption>usb</rasd:Caption>
                                 <rasd:Description>USB Controller</rasd:Description>
@@ -588,7 +640,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         vsys.fHasUsbController = true;           // we have no additional information
                     break;
 
-                    case OVFResourceType_SoundCard: // 35
+                    case ResourceType_SoundCard: // 35
                         /*  <Item ovf:required="false">
                                 <rasd:Caption>sound</rasd:Caption>
                                 <rasd:Description>Sound Card</rasd:Description>
@@ -621,7 +673,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                 // do some analysis
                 switch (i.resourceType)
                 {
-                    case OVFResourceType_HardDisk: // 17
+                    case ResourceType_HardDisk: // 17
                     {
                         /*  <Item>
                                 <rasd:Caption>Harddisk 1</rasd:Caption>

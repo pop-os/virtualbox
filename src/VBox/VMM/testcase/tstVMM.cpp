@@ -1,10 +1,10 @@
-/* $Id: tstVMM.cpp $ */
+/* $Id: tstVMM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VMM Testcase.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -26,17 +22,19 @@
 #include <VBox/vm.h>
 #include <VBox/vmm.h>
 #include <VBox/cpum.h>
-#include <VBox/pdm.h>
+#include <VBox/tm.h>
+#include <VBox/pdmapi.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
+#include <iprt/ctype.h>
+#include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/semaphore.h>
 #include <iprt/stream.h>
-#include <iprt/test.h>
-#include <iprt/getopt.h>
-#include <iprt/ctype.h>
 #include <iprt/string.h>
+#include <iprt/test.h>
+#include <iprt/thread.h>
 
 
 /*******************************************************************************
@@ -86,8 +84,8 @@ DECLCALLBACK(int) tstTMWorker(PVM pVM, RTTEST hTest)
     PTMTIMER apTimers[5];
     for (size_t i = 0; i < RT_ELEMENTS(apTimers); i++)
     {
-        int rc = TMR3TimerCreateInternal(pVM, i & 1 ? TMCLOCK_VIRTUAL :  TMCLOCK_VIRTUAL_SYNC,
-                                         tstTMDummyCallback, NULL, "test timer",  &apTimers[i]);
+        rc = TMR3TimerCreateInternal(pVM, i & 1 ? TMCLOCK_VIRTUAL :  TMCLOCK_VIRTUAL_SYNC,
+                                     tstTMDummyCallback, NULL, "test timer",  &apTimers[i]);
         RTTEST_CHECK_RET(hTest, RT_SUCCESS(rc), rc);
     }
 
@@ -202,7 +200,6 @@ int main(int argc, char **argv)
     {
         { "--cpus",          'c', RTGETOPT_REQ_UINT8 },
         { "--test",          't', RTGETOPT_REQ_STRING },
-        { "--help",          'h', 0 },
     };
     enum
     {
@@ -238,25 +235,12 @@ int main(int argc, char **argv)
                 RTPrintf("usage: tstVMM [--cpus|-c cpus] [--test <vmm|tm>]\n");
                 return 1;
 
-            case VINF_GETOPT_NOT_OPTION:
-                RTPrintf("tstVMM: syntax error: non option '%s'\n", ValueUnion.psz);
-                break;
+            case 'V':
+                RTPrintf("$Revision: $\n");
+                return 0;
 
             default:
-                if (ch > 0)
-                {
-                    if (RT_C_IS_GRAPH(ch))
-                        RTPrintf("tstVMM: unhandled option: -%c\n", ch);
-                    else
-                        RTPrintf("tstVMM: unhandled option: %i\n", ch);
-                }
-                else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
-                    RTPrintf("tstVMM: unknown option: %s\n", ValueUnion.psz);
-                else if (ValueUnion.pDef)
-                    RTPrintf("tstVMM: %s: %Rrs\n", ValueUnion.pDef->pszLong, ch);
-                else
-                    RTPrintf("tstVMM: %Rrs\n", ch);
-                return 1;
+                return RTGetOptPrintError(ch, &ValueUnion);
         }
     }
 

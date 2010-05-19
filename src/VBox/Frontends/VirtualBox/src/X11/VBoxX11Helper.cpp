@@ -1,3 +1,4 @@
+/* $Id: VBoxX11Helper.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VBoxX11Helper.h"
@@ -101,7 +98,7 @@ bool X11IsWindowManagerKWin()
     Display *display = QX11Info::display();
     Atom propNameAtom;
     Window WMWindow = None;
-    
+
     propNameAtom = XInternAtom(display, "_NET_SUPPORTING_WM_CHECK", True);
     if (XGetWindowProperty(display, QX11Info::appRootWindow(), propNameAtom,
                            0, 512, False, XA_WINDOW, &typeReturned,
@@ -130,3 +127,4 @@ bool X11IsWindowManagerKWin()
     }
     return fIsKWinManaged;
 }
+

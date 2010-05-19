@@ -1,10 +1,10 @@
-/* $Id: EMAll.cpp $ */
+/* $Id: EMAll.cpp 29287 2010-05-10 07:53:47Z vboxsync $ */
 /** @file
  * EM - Execution Monitor(/Manager) - All contexts
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -78,7 +74,7 @@ typedef struct
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-DECLINLINE(int) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize);
+DECLINLINE(int) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize, EMCODETYPE enmCodeType = EMCODETYPE_SUPERVISOR);
 
 
 
@@ -105,8 +101,6 @@ VMMDECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState)
     pVCpu->em.s.enmState = enmNewState;
 }
 
-
-#ifndef IN_RC
 
 /**
  * Read callback for disassembly function; supports reading bytes that cross a page boundary
@@ -144,26 +138,35 @@ DECLCALLBACK(int) EMReadBytes(RTUINTPTR pSrc, uint8_t *pDest, unsigned cb, void 
 
     rc = PGMPhysSimpleReadGCPtr(pVCpu, pDest, pSrc, cb);
     AssertMsgRC(rc, ("PGMPhysSimpleReadGCPtr failed for pSrc=%RGv cb=%x rc=%d\n", pSrc, cb, rc));
-# else /* IN_RING3 */
+# elif defined(IN_RING3)
     if (!PATMIsPatchGCAddr(pVM, pSrc))
     {
         int rc = PGMPhysSimpleReadGCPtr(pVCpu, pDest, pSrc, cb);
         AssertRC(rc);
     }
     else
-    {
-        for (unsigned i = 0; i < cb; i++)
-        {
-            uint8_t opcode;
-            if (RT_SUCCESS(PATMR3QueryOpcode(pVM, (RTGCPTR)pSrc + i, &opcode)))
-                *(pDest+i) = opcode;
+        memcpy(pDest, PATMR3GCPtrToHCPtr(pVM, pSrc), cb);
 
+# elif defined(IN_RC)
+    if (!PATMIsPatchGCAddr(pVM, pSrc))
+    {
+        int rc = MMGCRamRead(pVM, pDest, (void *)(uintptr_t)pSrc, cb);
+        if (rc == VERR_ACCESS_DENIED)
+        {
+            /* Recently flushed; access the data manually. */
+            rc = PGMPhysSimpleReadGCPtr(pVCpu, pDest, pSrc, cb);
+            AssertRC(rc);
         }
     }
+    else /* the hypervisor region is always present. */
+        memcpy(pDest, (RTRCPTR)(uintptr_t)pSrc, cb);
+
 # endif /* IN_RING3 */
     return VINF_SUCCESS;
 }
 
+
+#ifndef IN_RC
 DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTPTR InstrGC, uint32_t *pOpsize)
 {
     EMDISSTATE State;
@@ -183,7 +186,7 @@ DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTP
               HWACCMInvalidatePage(pVCpu, InstrGC);
 
            Log(("emDisCoreOne: read failed with %d\n", rc));
-           return rc; 
+           return rc;
         }
         State.GCPtr = NIL_RTGCPTR;
     }
@@ -194,9 +197,13 @@ DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTP
 
 DECLINLINE(int) emDisCoreOne(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, RTGCUINTPTR InstrGC, uint32_t *pOpsize)
 {
-    NOREF(pVCpu);
-    NOREF(pVM);
-    return DISCoreOne(pDis, InstrGC, pOpsize);
+    EMDISSTATE State;
+
+    State.pVM   = pVM;
+    State.pVCpu = pVCpu;
+    State.GCPtr = InstrGC;
+
+    return DISCoreOneEx(InstrGC, pDis->mode, EMReadBytes, &State, pDis, pOpsize);
 }
 
 #endif /* IN_RC */
@@ -246,14 +253,15 @@ VMMDECL(int) EMInterpretDisasOne(PVM pVM, PVMCPU pVCpu, PCCPUMCTXCORE pCtxCore, 
  */
 VMMDECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore, PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
-    int rc;
-
-#ifndef IN_RC
+    int        rc;
     EMDISSTATE State;
 
     State.pVM   = pVM;
     State.pVCpu = pVCpu;
 
+#ifdef IN_RC
+    State.GCPtr = GCPtrInstr;
+#else /* ring 0/3 */
     rc = PGMPhysSimpleReadGCPtr(pVCpu, &State.aOpcode, GCPtrInstr, sizeof(State.aOpcode));
     if (RT_SUCCESS(rc))
     {
@@ -267,19 +275,15 @@ VMMDECL(int) EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr
               HWACCMInvalidatePage(pVCpu, GCPtrInstr);
 
            Log(("EMInterpretDisasOneEx: read failed with %d\n", rc));
-           return rc; 
+           return rc;
         }
         State.GCPtr = NIL_RTGCPTR;
     }
 #endif
 
     rc = DISCoreOneEx(GCPtrInstr, SELMGetCpuModeFromSelector(pVM, pCtxCore->eflags, pCtxCore->cs, (PCPUMSELREGHID)&pCtxCore->csHid),
-#ifdef IN_RC
-                          NULL, NULL,
-#else
-                          EMReadBytes, &State,
-#endif
-                          pDis, pcbInstr);
+                      EMReadBytes, &State,
+                      pDis, pcbInstr);
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
     AssertMsgFailed(("DISCoreOne failed to GCPtrInstr=%RGv rc=%Rrc\n", GCPtrInstr, rc));
@@ -351,6 +355,7 @@ VMMDECL(int) EMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
  * @param   pRegFrame   The register frame. EIP is *NOT* changed!
  * @param   pvFault     The fault address (CR2).
  * @param   pcbSize     Size of the write (if applicable).
+ * @param   enmCodeType Code type (user/supervisor)
  *
  * @remark  Invalid opcode exceptions have a higher priority than GP (see Intel
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
@@ -359,10 +364,10 @@ VMMDECL(int) EMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
  * @todo    At this time we do NOT check if the instruction overwrites vital information.
  *          Make sure this can't happen!! (will add some assertions/checks later)
  */
-VMMDECL(int) EMInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
+VMMDECL(int) EMInterpretInstructionCPUEx(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize, EMCODETYPE enmCodeType)
 {
     STAM_PROFILE_START(&pVCpu->em.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,Emulate), a);
-    int rc = emInterpretInstructionCPU(pVM, pVCpu, pDis, pRegFrame, pvFault, pcbSize);
+    int rc = emInterpretInstructionCPU(pVM, pVCpu, pDis, pRegFrame, pvFault, pcbSize, enmCodeType);
     STAM_PROFILE_STOP(&pVCpu->em.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,Emulate), a);
     if (RT_SUCCESS(rc))
         STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InterpretSucceeded));
@@ -403,7 +408,7 @@ VMMDECL(VBOXSTRICTRC) EMInterpretPortIO(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtx
 DECLINLINE(int) emRamRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCPTR GCPtrSrc, uint32_t cb)
 {
 #ifdef IN_RC
-    int rc = MMGCRamRead(pVM, pvDst, (void *)GCPtrSrc, cb);
+    int rc = MMGCRamRead(pVM, pvDst, (void *)(uintptr_t)GCPtrSrc, cb);
     if (RT_LIKELY(rc != VERR_ACCESS_DENIED))
         return rc;
     /*
@@ -466,7 +471,7 @@ static const char *emGetMnemonic(PDISCPUSTATE pDis)
         case OP_MOV_DR:     return "MovDRx";
         case OP_LLDT:       return "LLdt";
         case OP_LGDT:       return "LGdt";
-        case OP_LIDT:       return "LGdt";
+        case OP_LIDT:       return "LIdt";
         case OP_CLTS:       return "Clts";
         case OP_MONITOR:    return "Monitor";
         case OP_MWAIT:      return "MWait";
@@ -888,7 +893,7 @@ static int emInterpretLockOrXorAnd(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCP
     void *pvParam1;
     OP_PARAMVAL param1, param2;
 
-#if HC_ARCH_BITS == 32
+#if HC_ARCH_BITS == 32 && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R0)
     Assert(pDis->param1.size <= 4);
 #endif
 
@@ -928,7 +933,7 @@ static int emInterpretLockOrXorAnd(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCP
     RTGCPTR GCPtrPar1 = param1.val.val64;
     GCPtrPar1 = emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, GCPtrPar1);
 #ifdef IN_RC
-    pvParam1  = (void *)GCPtrPar1;
+    pvParam1  = (void *)(uintptr_t)GCPtrPar1;
 #else
     PGMPAGEMAPLOCK Lock;
     rc = PGMPhysGCPtr2CCPtr(pVCpu, GCPtrPar1, &pvParam1, &Lock);
@@ -1184,7 +1189,7 @@ static int emInterpretLockBitTest(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPU
 #endif
 
 #ifdef IN_RC
-    pvParam1  = (void *)GCPtrPar1;
+    pvParam1  = (void *)(uintptr_t)GCPtrPar1;
 #else
     PGMPAGEMAPLOCK Lock;
     rc = PGMPhysGCPtr2CCPtr(pVCpu, GCPtrPar1, &pvParam1, &Lock);
@@ -1661,8 +1666,7 @@ static int emInterpretCmpXchg(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTX
             switch(param1.type)
             {
             case PARMTYPE_ADDRESS:
-                pParam1 = (RTRCPTR)param1.val.val64;
-                pParam1 = (RTRCPTR)emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, (RTGCPTR)(RTRCUINTPTR)pParam1);
+                pParam1 = (RTRCPTR)(uintptr_t)emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, (RTRCUINTPTR)param1.val.val64);
                 EM_ASSERT_FAULT_RETURN(pParam1 == (RTRCPTR)pvFault, VERR_EM_INTERPRETER);
                 break;
 
@@ -1733,8 +1737,7 @@ static int emInterpretCmpXchg8b(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMC
             switch(param1.type)
             {
             case PARMTYPE_ADDRESS:
-                pParam1 = (RTRCPTR)param1.val.val64;
-                pParam1 = (RTRCPTR)emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, (RTGCPTR)(RTRCUINTPTR)pParam1);
+                pParam1 = (RTRCPTR)(uintptr_t)emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, (RTRCUINTPTR)param1.val.val64);
                 EM_ASSERT_FAULT_RETURN(pParam1 == (RTRCPTR)pvFault, VERR_EM_INTERPRETER);
                 break;
 
@@ -1804,8 +1807,7 @@ static int emInterpretXAdd(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
             switch(param1.type)
             {
             case PARMTYPE_ADDRESS:
-                pParam1 = (RTRCPTR)param1.val.val64;
-                pParam1 = (RTRCPTR)emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, (RTGCPTR)(RTRCUINTPTR)pParam1);
+                pParam1 = (RTRCPTR)(uintptr_t)emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, (RTRCUINTPTR)param1.val.val64);
                 EM_ASSERT_FAULT_RETURN(pParam1 == (RTRCPTR)pvFault, VERR_EM_INTERPRETER);
                 break;
 
@@ -2181,7 +2183,7 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
         {
             /* flush */
             rc = PGMFlushTLB(pVCpu, val, !(CPUMGetGuestCR4(pVCpu) & X86_CR4_PGE));
-            AssertRCReturn(rc, rc);
+            AssertRC(rc);
         }
         return rc;
 
@@ -2349,7 +2351,7 @@ static int emInterpretSmsw(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCOR
 
         pParam1 = (RTGCPTR)param1.val.val64;
         pParam1 = emConvertToFlatAddr(pVM, pRegFrame, pDis, &pDis->param1, pParam1);
-        LogFlow(("emInterpretSmsw %VGv <- cr0 (%x)\n", pParam1, cr0));
+        LogFlow(("emInterpretSmsw %RGv <- cr0 (%x)\n", pParam1, cr0));
 
         rc = emRamWrite(pVM, pVCpu, pRegFrame, pParam1, &cr0, sizeof(uint16_t));
         if (RT_FAILURE(rc))
@@ -2711,13 +2713,15 @@ static int emInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCO
 /**
  * MONITOR Emulation.
  */
-static int emInterpretMonitor(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
+VMMDECL(int) EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
     uint32_t u32Dummy, u32ExtFeatures, cpl;
 
-    Assert(pDis->mode != CPUMODE_64BIT);    /** @todo check */
     if (pRegFrame->ecx != 0)
+    {
+        Log(("emInterpretMonitor: unexpected ecx=%x -> recompiler!!\n", pRegFrame->ecx));
         return VERR_EM_INTERPRETER; /* illegal value. */
+    }
 
     /* Get the current privilege level. */
     cpl = CPUMGetGuestCPL(pVCpu, pRegFrame);
@@ -2728,7 +2732,16 @@ static int emInterpretMonitor(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTX
     if (!(u32ExtFeatures & X86_CPUID_FEATURE_ECX_MONITOR))
         return VERR_EM_INTERPRETER; /* not supported */
 
+    pVCpu->em.s.mwait.uMonitorEAX = pRegFrame->rax;
+    pVCpu->em.s.mwait.uMonitorECX = pRegFrame->rcx;
+    pVCpu->em.s.mwait.uMonitorEDX = pRegFrame->rdx;
+    pVCpu->em.s.mwait.fWait |= EMMWAIT_FLAG_MONITOR_ACTIVE;
     return VINF_SUCCESS;
+}
+
+static int emInterpretMonitor(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
+{
+    return EMInterpretMonitor(pVM, pVCpu, pRegFrame);
 }
 
 
@@ -2737,14 +2750,7 @@ static int emInterpretMonitor(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTX
  */
 VMMDECL(int) EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
-    uint32_t u32Dummy, u32ExtFeatures, cpl;
-
-    /* @todo bit 1 is supposed to tell the cpu to wake us up on interrupts even if IF is cleared.
-     * Not sure which models. Intel docs say ecx and eax must be zero for Pentium 4 CPUs
-     * CPUID.05H.ECX[0] defines support for power management extensions (eax)
-     */
-    if (pRegFrame->ecx != 0)
-        return VERR_EM_INTERPRETER; /* illegal value. */
+    uint32_t u32Dummy, u32ExtFeatures, cpl, u32MWaitFeatures;
 
     /* Get the current privilege level. */
     cpl = CPUMGetGuestCPL(pVCpu, pRegFrame);
@@ -2755,14 +2761,39 @@ VMMDECL(int) EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
     if (!(u32ExtFeatures & X86_CPUID_FEATURE_ECX_MONITOR))
         return VERR_EM_INTERPRETER; /* not supported */
 
+    /*
+     * CPUID.05H.ECX[0] defines support for power management extensions (eax)
+     * CPUID.05H.ECX[1] defines support for interrupts as break events for mwait even when IF=0
+     */
+    CPUMGetGuestCpuId(pVCpu, 5, &u32Dummy, &u32Dummy, &u32MWaitFeatures, &u32Dummy);
+    if (pRegFrame->ecx > 1)
+    {
+        Log(("EMInterpretMWait: unexpected ecx value %x -> recompiler\n", pRegFrame->ecx));
+        return VERR_EM_INTERPRETER; /* illegal value. */
+    }
+
+    if (pRegFrame->ecx)
+    {
+        if (!(u32MWaitFeatures & X86_CPUID_MWAIT_ECX_BREAKIRQIF0))
+        {
+            Log(("EMInterpretMWait: unsupported X86_CPUID_MWAIT_ECX_BREAKIRQIF0 -> recompiler\n"));
+            return VERR_EM_INTERPRETER; /* illegal value. */
+        }
+
+        pVCpu->em.s.mwait.fWait = EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0;
+    }
+    else
+        pVCpu->em.s.mwait.fWait = EMMWAIT_FLAG_ACTIVE;
+
+    pVCpu->em.s.mwait.uMWaitEAX = pRegFrame->rax;
+    pVCpu->em.s.mwait.uMWaitECX = pRegFrame->rcx;
+
     /** @todo not completely correct */
     return VINF_EM_HALT;
 }
 
 static int emInterpretMWait(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
 {
-    Assert(pDis->mode != CPUMODE_64BIT);    /** @todo check */
-
     return EMInterpretMWait(pVM, pVCpu, pRegFrame);
 }
 
@@ -2808,6 +2839,8 @@ static const char *emMSRtoString(uint32_t uMsr)
         return "Unsupported MSR_IA32_BIOS_UPDT_TRIG";
     case MSR_IA32_TSC:
         return "MSR_IA32_TSC";
+    case MSR_IA32_MISC_ENABLE:
+        return "Unsupported MSR_IA32_MISC_ENABLE";
     case MSR_IA32_MTRR_CAP:
         return "Unsupported MSR_IA32_MTRR_CAP";
     case MSR_IA32_MCP_CAP:
@@ -2836,6 +2869,8 @@ static const char *emMSRtoString(uint32_t uMsr)
         return "Unsupported MSR_IA32_PERFEVTSEL1";
     case MSR_IA32_PERF_STATUS:
         return "MSR_IA32_PERF_STATUS";
+    case MSR_IA32_PLATFORM_INFO:
+        return "MSR_IA32_PLATFORM_INFO";
     case MSR_IA32_PERF_CTL:
         return "Unsupported MSR_IA32_PERF_CTL";
     case MSR_K7_PERFCTR0:
@@ -2846,6 +2881,14 @@ static const char *emMSRtoString(uint32_t uMsr)
         return "Unsupported MSR_K7_PERFCTR2";
     case MSR_K7_PERFCTR3:
         return "Unsupported MSR_K7_PERFCTR3";
+    case MSR_IA32_PMC0:
+        return "Unsupported MSR_IA32_PMC0";
+    case MSR_IA32_PMC1:
+        return "Unsupported MSR_IA32_PMC1";
+    case MSR_IA32_PMC2:
+        return "Unsupported MSR_IA32_PMC2";
+    case MSR_IA32_PMC3:
+        return "Unsupported MSR_IA32_PMC3";
     }
     return "Unknown MSR";
 }
@@ -2945,9 +2988,13 @@ VMMDECL(int) EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
         break;
 
     case MSR_IA32_PERF_STATUS:
-        val = CPUMGetGuestMsr(pVCpu, MSR_IA32_PERF_STATUS);
+    case MSR_IA32_PLATFORM_INFO:
+    case MSR_IA32_MISC_ENABLE:
+    case MSR_IA32_FSB_CLOCK_STS:
+    case MSR_IA32_THERM_STATUS:
+        val = CPUMGetGuestMsr(pVCpu, pRegFrame->ecx);
         break;
-        
+
 #if 0 /*def IN_RING0 */
     case MSR_IA32_PLATFORM_ID:
     case MSR_IA32_BIOS_SIGN_ID:
@@ -3115,7 +3162,8 @@ VMMDECL(int) EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
         break;
 
     case MSR_K8_TSC_AUX:
-        CPUMSetGuestMsr(pVCpu, MSR_K8_TSC_AUX, val);
+    case MSR_IA32_MISC_ENABLE:
+        CPUMSetGuestMsr(pVCpu, pRegFrame->ecx, val);
         break;
 
     default:
@@ -3144,24 +3192,30 @@ static int emInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCO
  * Internal worker.
  * @copydoc EMInterpretInstructionCPU
  */
-DECLINLINE(int) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
+DECLINLINE(int) emInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize, EMCODETYPE enmCodeType)
 {
+    Assert(enmCodeType == EMCODETYPE_SUPERVISOR || enmCodeType == EMCODETYPE_ALL);
     Assert(pcbSize);
     *pcbSize = 0;
 
-    /*
-     * Only supervisor guest code!!
-     * And no complicated prefixes.
-     */
-    /* Get the current privilege level. */
-    uint32_t cpl = CPUMGetGuestCPL(pVCpu, pRegFrame);
-    if (    cpl != 0
-        &&  pDis->pCurInstr->opcode != OP_RDTSC)    /* rdtsc requires emulation in ring 3 as well */
+    if (enmCodeType == EMCODETYPE_SUPERVISOR)
     {
-        Log(("WARNING: refusing instruction emulation for user-mode code!!\n"));
-        STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,FailedUserMode));
-        return VERR_EM_INTERPRETER;
+        /*
+         * Only supervisor guest code!!
+         * And no complicated prefixes.
+         */
+        /* Get the current privilege level. */
+        uint32_t cpl = CPUMGetGuestCPL(pVCpu, pRegFrame);
+        if (    cpl != 0
+            &&  pDis->pCurInstr->opcode != OP_RDTSC)    /* rdtsc requires emulation in ring 3 as well */
+        {
+            Log(("WARNING: refusing instruction emulation for user-mode code!!\n"));
+            STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,FailedUserMode));
+            return VERR_EM_INTERPRETER;
+        }
     }
+    else
+        Log2(("emInterpretInstructionCPU allowed to interpret user-level code!!\n"));
 
 #ifdef IN_RC
     if (    (pDis->prefix & (PREFIX_REPNE | PREFIX_REP))
@@ -3482,5 +3536,24 @@ VMMDECL(bool) EMRemIsLockOwner(PVM pVM)
 VMMDECL(int) EMTryEnterRemLock(PVM pVM)
 {
     return PDMCritSectTryEnter(&pVM->em.s.CritSectREM);
+}
+
+/**
+ * Determine if we should continue after encountering a hlt or mwait instruction
+ *
+ * @returns boolean
+ * @param   pVCpu           The VMCPU to operate on.
+ * @param   pCtx            Current CPU context
+ */
+VMMDECL(bool) EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx)
+{
+    if (    pCtx->eflags.Bits.u1IF
+        ||  ((pVCpu->em.s.mwait.fWait & (EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0)) == (EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0)))
+    {
+        pVCpu->em.s.mwait.fWait &= ~(EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0);
+        return !!VMCPU_FF_ISPENDING(pVCpu, (VMCPU_FF_INTERRUPT_APIC|VMCPU_FF_INTERRUPT_PIC));
+    }
+
+    return false;
 }
 

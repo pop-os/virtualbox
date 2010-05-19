@@ -1,10 +1,10 @@
-/* $Id: strict.h $ */
+/* $Id: strict.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Internal Header Defining Strictness Indicators.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_strict_h
@@ -37,21 +33,36 @@
 /** @def RTCRITSECT_STRICT
  * Enables strictness checks and lock accounting of the RTCritSect API.
  */
-#if defined(DOXYGEN_RUNNING) || (!defined(RTCRITSECT_STRICT) && (defined(RT_STRICT) || defined(RT_LOCK_STRICT)))
+#if (!defined(RTCRITSECT_STRICT)      && defined(IN_RING3) && defined(RT_LOCK_STRICT)) || defined(DOXYGEN_RUNNING)
 # define RTCRITSECT_STRICT
+#endif
+
+/** @def RTSEMEVENT_STRICT
+ * Enables strictness checks and lock accounting of the RTSemEvent API.
+ */
+#if (!defined(RTSEMEVENT_STRICT)      && defined(IN_RING3) && defined(RT_LOCK_STRICT)) || defined(DOXYGEN_RUNNING)
+# define RTSEMEVENT_STRICT
+#endif
+
+/** @def RTSEMEVENTMULTI_STRICT
+ * Enables strictness checks and lock accounting of the RTSemEventMulti API.
+ */
+#if (!defined(RTSEMEVENTMULTI_STRICT) && defined(IN_RING3) && defined(RT_LOCK_STRICT)) || defined(DOXYGEN_RUNNING)
+# define RTSEMEVENTMULTI_STRICT
 #endif
 
 /** @def RTSEMMUTEX_STRICT
  * Enables strictness checks and lock accounting of the RTSemMutex API.
  */
-#if defined(DOXYGEN_RUNNING) || (!defined(RTSEMMUTEX_STRICT) && (defined(RT_STRICT) || defined(RT_LOCK_STRICT) || defined(RTSEM_STRICT)))
+#if (!defined(RTSEMMUTEX_STRICT)      && defined(IN_RING3) && defined(RT_LOCK_STRICT)) || defined(DOXYGEN_RUNNING)
 # define RTSEMMUTEX_STRICT
 #endif
+
 
 /** @def RTSEMRW_STRICT
  * Enables strictness checks and lock accounting of the RTSemRW API.
  */
-#if defined(DOXYGEN_RUNNING) || (!defined(RTSEMRW_STRICT) && (defined(RT_STRICT) || defined(RT_LOCK_STRICT) || defined(RTSEM_STRICT)))
+#if (!defined(RTSEMRW_STRICT)         && defined(IN_RING3) && defined(RT_LOCK_STRICT)) || defined(DOXYGEN_RUNNING)
 # define RTSEMRW_STRICT
 #endif
 

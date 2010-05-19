@@ -1,10 +1,10 @@
-/* $Id: DevDMA.cpp $ */
+/* $Id: DevDMA.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevDMA - DMA Controller Device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -874,21 +870,11 @@ static DECLCALLBACK(int) dmaLoadExec (PPDMDEVINS pDevIns,
 }
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns,
                                       int iInstance,
-                                      PCFGMNODE pCfgHandle)
+                                      PCFGMNODE pCfg)
 {
     DMAState *s = PDMINS_2_DATA (pDevIns, DMAState *);
     bool high_page_enable = 0;
@@ -900,11 +886,11 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns,
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "\0")) /* "HighPageEnable\0")) */
+    if (!CFGMR3AreValuesValid(pCfg, "\0")) /* "HighPageEnable\0")) */
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
 #if 0
-    rc = CFGMR3QueryBool (pCfgHandle, "HighPageEnable", &high_page_enable);
+    rc = CFGMR3QueryBool (pCfg, "HighPageEnable", &high_page_enable);
     if (RT_FAILURE (rc)) {
         return rc;
     }
@@ -923,8 +909,7 @@ static DECLCALLBACK(int) dmaConstruct(PPDMDEVINS pDevIns,
     reg.pfnSetDREQ        = set_DREQ_wrapper;
     reg.pfnGetChannelMode = get_mode_wrapper;
 
-    Assert(pDevIns->pDevHlpR3->pfnDMARegister);
-    rc = pDevIns->pDevHlpR3->pfnDMACRegister (pDevIns, &reg, &s->pHlp);
+    rc = PDMDevHlpDMACRegister (pDevIns, &reg, &s->pHlp);
     if (RT_FAILURE (rc)) {
         return rc;
     }
@@ -943,7 +928,7 @@ const PDMDEVREG g_DeviceDMA =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "8237A",
     /* szRCMod */
     "",

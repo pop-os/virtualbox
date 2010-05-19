@@ -1,4 +1,23 @@
+/* $Id: socket.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - socket handling (declarations/defines).
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1995 Danny Gasparovski.
  *
  * Please read the file COPYRIGHT for the
@@ -51,7 +70,6 @@ struct socket
     struct in_addr  so_hladdr;    /* local host addr */
 
     u_int8_t        so_iptos;    /* Type of service */
-    u_int8_t        so_emu;      /* Is the socket emulated? */
 
     u_char          so_type;     /* Type of socket, UDP or TCP */
     int             so_state;    /* internal state flags SS_*, below */
@@ -72,12 +90,11 @@ struct socket
 #endif
 #ifndef RT_OS_WINDOWS
     int so_poll_index;
-#else /* !RT_OS_WINDOWS */
+#endif /* !RT_OS_WINDOWS */
     /*
-     * FD_CLOSE event has been occurred on socket
+     * FD_CLOSE/POLLHUP event has been occurred on socket
      */
     int so_close;
-#endif /* RT_OS_WINDOWS */
 
     void (* so_timeout)(PNATState pData, struct socket *so, void *arg);
     void *so_timeout_arg;

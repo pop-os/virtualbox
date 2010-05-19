@@ -1,3 +1,4 @@
+/* $Id: VBoxSnapshotDetailsDlg.cpp 29354 2010-05-11 13:44:25Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Global includes */
 #include <QDateTime>
 #include <QPushButton>
@@ -30,6 +30,7 @@
 #include <VBoxProblemReporter.h>
 #include <VBoxSnapshotDetailsDlg.h>
 #include <VBoxUtils.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxSnapshotDetailsDlg::VBoxSnapshotDetailsDlg (QWidget *aParent)
     : QIWithRetranslateUI <QDialog> (aParent)
@@ -68,9 +69,9 @@ void VBoxSnapshotDetailsDlg::getFromSnapshot (const CSnapshot &aSnapshot)
 
     /* Get thumbnail if present */
     ULONG width = 0, height = 0;
-    QVector <BYTE> thumbData = machine.ReadSavedThumbnailToArray (true, width, height);
+    QVector <BYTE> thumbData = machine.ReadSavedThumbnailToArray (0, true, width, height);
     mThumbnail = thumbData.size() != 0 ? QPixmap::fromImage (QImage (thumbData.data(), width, height, QImage::Format_RGB32).copy()) : QPixmap();
-    QVector <BYTE> screenData = machine.ReadSavedScreenshotPNGToArray (width, height);
+    QVector <BYTE> screenData = machine.ReadSavedScreenshotPNGToArray (0, width, height);
     mScreenshot = screenData.size() != 0 ? QPixmap::fromImage (QImage::fromData (screenData.data(), screenData.size(), "PNG")) : QPixmap();
 
     QGridLayout *lt = qobject_cast <QGridLayout*> (layout());
@@ -174,7 +175,7 @@ VBoxScreenshotViewer::VBoxScreenshotViewer (QWidget *aParent, const QPixmap &aSc
 
     double aspectRatio = (double) aScreenshot.height() / aScreenshot.width();
     QSize maxSize = aScreenshot.size() + QSize (mArea->frameWidth() * 2, mArea->frameWidth() * 2);
-    QSize initSize = QSize (640, 640 * aspectRatio).boundedTo (maxSize);
+    QSize initSize = QSize (640, (int)(640 * aspectRatio)).boundedTo (maxSize);
 
     setMaximumSize (maxSize);
 

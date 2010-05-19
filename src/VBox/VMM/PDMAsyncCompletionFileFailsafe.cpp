@@ -1,11 +1,11 @@
-/* $Id: PDMAsyncCompletionFileFailsafe.cpp $ */
+/* $Id: PDMAsyncCompletionFileFailsafe.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * Simple File I/O manager.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,17 +14,18 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
+
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
-#include <iprt/types.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>
 
 #include "PDMAsyncCompletionFileInternal.h"
+
 
 static int pdmacFileAioMgrFailsafeProcessEndpointTaskList(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint,
                                                           PPDMACTASKFILE pTasks)

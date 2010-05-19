@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29313 2010-05-11 07:08:01Z vboxsync $
 ## @file
 # Sub-Makefile for the Cross Platform Guest Addition Services.
 #
 
 #
-# Copyright (C) 2007 Sun Microsystems, Inc.
+# Copyright (C) 2007-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../../..
@@ -32,56 +28,85 @@ PROGRAMS.win.x86 += VBoxServiceNT
 # VBoxService
 #
 VBoxService_TEMPLATE      = VBOXGUESTR3EXE
-VBoxService_DEFS          = VBOXSERVICE_TIMESYNC
+VBoxService_DEFS          = VBOX_WITH_HGCM VBOXSERVICE_TIMESYNC VBOXSERVICE_MANAGEMENT
 VBoxService_DEFS.win     += _WIN32_WINNT=0x0501
 VBoxService_DEFS.os2      = VBOX_WITH_HGCM VBOXSERVICE_CLIPBOARD
 ifdef VBOX_WITH_GUEST_PROPS
  VBoxService_DEFS        += VBOX_WITH_GUEST_PROPS VBOXSERVICE_VMINFO
  if1of ($(KBUILD_TARGET), win)
-  VBoxService_DEFS       += VBOX_WITH_HGCM VBOXSERVICE_EXEC
+  VBoxService_DEFS       += VBOXSERVICE_EXEC
  endif
 endif
+ifdef VBOX_WITH_GUEST_CONTROL
+ VBoxService_DEFS        += VBOX_WITH_GUEST_CONTROL VBOXSERVICE_CONTROL
+endif
+ifdef VBOX_WITH_MEMBALLOON
+ VBoxService_DEFS        += VBOX_WITH_MEMBALLOON
+endif
+ifdef VBOX_WITH_PAGE_SHARING
+ VBoxService_DEFS        += VBOX_WITH_PAGE_SHARING
+endif
+if1of ($(KBUILD_TARGET), linux)
+ VBoxService_DEFS        += VBOXSERVICE_CPUHOTPLUG
+endif
+
 VBoxService_SOURCES       = \
 	VBoxService.cpp \
 	VBoxServiceTimeSync.cpp \
-	VBoxServiceUtils.cpp
+	VBoxServiceUtils.cpp \
+	VBoxServiceStats.cpp
+ifdef VBOX_WITH_GUEST_CONTROL
+ VBoxService_SOURCES    += \
+ 	VBoxServiceControl.cpp \
+ 	VBoxServiceControlExec.cpp
+endif
+ifdef VBOX_WITH_MEMBALLOON
+ VBoxService_SOURCES    += \
+ 	VBoxServiceBalloon.cpp
+endif
+ifdef VBOX_WITH_PAGE_SHARING
+ VBoxService_SOURCES    += \
+ 	VBoxServicePageSharing.cpp
+endif
 ifdef VBOX_WITH_GUEST_PROPS
  VBoxService_SOURCES.win  = \
  	VBoxServiceVMInfo-win.cpp
  VBoxService_SOURCES     += \
- 	VBoxServiceVMInfo.cpp
- if1of ($(KBUILD_TARGET), win)
-  VBoxService_SOURCES    += \
-	VBoxServiceExec.cpp
- endif
+ 	VBoxServiceVMInfo.cpp \
+ 	VBoxServicePropCache.cpp
+endif
+if1of ($(KBUILD_TARGET), linux)
+ VBoxService_SOURCES     += \
+	VBoxServiceCpuHotPlug.cpp
 endif
 VBoxService_SOURCES.win  += \
 	VBoxService-win.rc \
 	VBoxService-win.cpp
+
 VBoxService_SOURCES.os2   = \
 	VBoxService-os2.def \
 	VBoxServiceClipboard-os2.cpp
+
 VBoxService_LIBS          = \
 	$(VBOX_LIB_IPRT_GUEST_R3) \
 	$(VBOX_LIB_VBGL_R3) \
 	$(VBOX_LIB_IPRT_GUEST_R3)
 ifdef VBOX_WITH_GUEST_PROPS
  VBoxService_LIBS.win    += \
-	Secur32.lib \
-	WtsApi32.lib \
-	Psapi.lib
+ 	Secur32.lib \
+ 	WtsApi32.lib \
+ 	Psapi.lib
  VBoxService_LIBS.solaris += \
-	nsl
+ 	nsl kstat
 endif
 
 #
 # VBoxServiceNT - NT4 version of VBoxService.
 #
-VBoxServiceNT_TEMPLATE    = VBOXGUESTR3EXE
-VBoxServiceNT_EXTENDS     = VBoxService
-VBoxServiceNT_DEFS.win    = _WIN32_WINNT=0x0400 TARGET_NT4
+VBoxServiceNT_TEMPLATE = VBOXGUESTR3EXE
+VBoxServiceNT_EXTENDS  = VBoxService
+VBoxServiceNT_DEFS.win = _WIN32_WINNT=0x0400 TARGET_NT4 VBOXSERVICE_MANAGEMENT
 
-#VBoxServiceVMInfo.cpp uses VBOX_SVN_REV.
 VBoxServiceVMInfo.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
 VBoxServiceVMInfo.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 

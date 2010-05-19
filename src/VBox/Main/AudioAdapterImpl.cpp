@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,24 +13,30 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "AudioAdapterImpl.h"
 #include "MachineImpl.h"
-#include "Logging.h"
 
-#include <iprt/cpputils.h>
+#include <iprt/cpp/utils.h>
 
 #include <VBox/settings.h>
+
+#include "AutoStateDep.h"
+#include "AutoCaller.h"
+#include "Logging.h"
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (AudioAdapter)
+AudioAdapter::AudioAdapter()
+    : mParent(NULL)
+{
+}
+
+AudioAdapter::~AudioAdapter()
+{
+}
 
 HRESULT AudioAdapter::FinalConstruct()
 {
@@ -39,7 +45,7 @@ HRESULT AudioAdapter::FinalConstruct()
 
 void AudioAdapter::FinalRelease()
 {
-    uninit ();
+    uninit();
 }
 
 // public initializer/uninitializer for internal purposes only
@@ -54,7 +60,7 @@ HRESULT AudioAdapter::init (Machine *aParent)
 {
     LogFlowThisFunc(("aParent=%p\n", aParent));
 
-    ComAssertRet (aParent, E_INVALIDARG);
+    ComAssertRet(aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -97,7 +103,7 @@ HRESULT AudioAdapter::init (Machine *aParent, AudioAdapter *aThat)
 {
     LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
-    ComAssertRet (aParent && aThat, E_INVALIDARG);
+    ComAssertRet(aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -109,7 +115,7 @@ HRESULT AudioAdapter::init (Machine *aParent, AudioAdapter *aThat)
     AutoCaller thatCaller (aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
-    AutoReadLock thatLock (aThat);
+    AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
     mData.share (aThat->mData);
 
     /* Confirm a successful initialization */
@@ -129,7 +135,7 @@ HRESULT AudioAdapter::initCopy (Machine *aParent, AudioAdapter *aThat)
 {
     LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
-    ComAssertRet (aParent && aThat, E_INVALIDARG);
+    ComAssertRet(aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -141,7 +147,7 @@ HRESULT AudioAdapter::initCopy (Machine *aParent, AudioAdapter *aThat)
     AutoCaller thatCaller (aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
-    AutoReadLock thatLock (aThat);
+    AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
     mData.attachCopy (aThat->mData);
 
     /* Confirm a successful initialization */
@@ -165,8 +171,8 @@ void AudioAdapter::uninit()
 
     mData.free();
 
-    unconst(mPeer).setNull();
-    unconst(mParent).setNull();
+    unconst(mPeer) = NULL;
+    unconst(mParent) = NULL;
 }
 
 // IAudioAdapter properties
@@ -177,9 +183,9 @@ STDMETHODIMP AudioAdapter::COMGETTER(Enabled)(BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aEnabled = mData->mEnabled;
 
@@ -189,18 +195,22 @@ STDMETHODIMP AudioAdapter::COMGETTER(Enabled)(BOOL *aEnabled)
 STDMETHODIMP AudioAdapter::COMSETTER(Enabled)(BOOL aEnabled)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
-    Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC(adep.rc());
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mData->mEnabled != aEnabled)
     {
         mData.backup();
         mData->mEnabled = aEnabled;
+
+        alock.release();
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
+        mParent->setModified(Machine::IsModified_AudioAdapter);
     }
 
     return S_OK;
@@ -211,9 +221,9 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioDriver)(AudioDriverType_T *aAudioDrive
     CheckComArgOutPointerValid(aAudioDriver);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aAudioDriver = mData->mAudioDriver;
 
@@ -223,13 +233,13 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioDriver)(AudioDriverType_T *aAudioDrive
 STDMETHODIMP AudioAdapter::COMSETTER(AudioDriver)(AudioDriverType_T aAudioDriver)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
-    Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC(adep.rc());
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -261,6 +271,11 @@ STDMETHODIMP AudioAdapter::COMSETTER(AudioDriver)(AudioDriverType_T aAudioDriver
 #if defined (RT_OS_LINUX) || defined (RT_OS_FREEBSD) || defined(VBOX_WITH_SOLARIS_OSS)
             case AudioDriverType_OSS:
 #endif
+#ifdef RT_OS_FREEBSD
+# ifdef VBOX_WITH_PULSE
+            case AudioDriverType_Pulse:
+# endif
+#endif
 #ifdef RT_OS_DARWIN
             case AudioDriverType_CoreAudio:
 #endif
@@ -270,6 +285,10 @@ STDMETHODIMP AudioAdapter::COMSETTER(AudioDriver)(AudioDriverType_T aAudioDriver
             {
                 mData.backup();
                 mData->mAudioDriver = aAudioDriver;
+
+                alock.release();
+                AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
+                mParent->setModified(Machine::IsModified_AudioAdapter);
                 break;
             }
 
@@ -290,9 +309,9 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioController)(AudioControllerType_T *aAu
     CheckComArgOutPointerValid(aAudioController);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aAudioController = mData->mAudioController;
 
@@ -302,13 +321,13 @@ STDMETHODIMP AudioAdapter::COMGETTER(AudioController)(AudioControllerType_T *aAu
 STDMETHODIMP AudioAdapter::COMSETTER(AudioController)(AudioControllerType_T aAudioController)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine needs to be mutable */
-    Machine::AutoMutableStateDependency adep (mParent);
-    CheckComRCReturnRC(adep.rc());
+    AutoMutableStateDependency adep(mParent);
+    if (FAILED(adep.rc())) return adep.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -321,16 +340,20 @@ STDMETHODIMP AudioAdapter::COMSETTER(AudioController)(AudioControllerType_T aAud
         {
             case AudioControllerType_AC97:
             case AudioControllerType_SB16:
+            {
                 mData.backup();
                 mData->mAudioController = aAudioController;
+
+                alock.release();
+                AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
+                mParent->setModified(Machine::IsModified_AudioAdapter);
                 break;
+            }
 
             default:
-            {
                 AssertMsgFailed (("Wrong audio controller type %d\n",
                                   aAudioController));
                 rc = E_FAIL;
-            }
         }
     }
 
@@ -365,7 +388,7 @@ HRESULT AudioAdapter::loadSettings(const settings::AudioAdapter &data)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Note: we assume that the default values for attributes of optional
      * nodes are assigned in the Data::Data() constructor and don't do it
@@ -397,7 +420,7 @@ HRESULT AudioAdapter::saveSettings(settings::AudioAdapter &data)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     data.fEnabled = !!mData->mEnabled;
     data.controllerType = mData->mAudioController;
@@ -408,25 +431,15 @@ HRESULT AudioAdapter::saveSettings(settings::AudioAdapter &data)
 /**
  *  @note Locks this object for writing.
  */
-bool AudioAdapter::rollback()
+void AudioAdapter::rollback()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturn (autoCaller.rc(), false);
+    AssertComRCReturnVoid(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    bool changed = false;
-
-    if (mData.isBackedUp())
-    {
-        /* we need to check all data to see whether anything will be changed
-         * after rollback */
-        changed = mData.hasActualChanges();
-        mData.rollback();
-    }
-
-    return changed;
+    mData.rollback();
 }
 
 /**
@@ -445,7 +458,7 @@ void AudioAdapter::commit()
 
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
-    AutoMultiWriteLock2 alock (mPeer, this);
+    AutoMultiWriteLock2 alock(mPeer, this COMMA_LOCKVAL_SRC_POS);
 
     if (mData.isBackedUp())
     {
@@ -462,7 +475,7 @@ void AudioAdapter::commit()
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void AudioAdapter::copyFrom (AudioAdapter *aThat)
+void AudioAdapter::copyFrom(AudioAdapter *aThat)
 {
     AssertReturnVoid (aThat != NULL);
 
@@ -476,9 +489,10 @@ void AudioAdapter::copyFrom (AudioAdapter *aThat)
 
     /* peer is not modified, lock it for reading (aThat is "master" so locked
      * first) */
-    AutoMultiLock2 alock (aThat->rlock(), this->wlock());
+    AutoReadLock rl(aThat COMMA_LOCKVAL_SRC_POS);
+    AutoWriteLock wl(this COMMA_LOCKVAL_SRC_POS);
 
     /* this will back up current data */
-    mData.assignCopy (aThat->mData);
+    mData.assignCopy(aThat->mData);
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

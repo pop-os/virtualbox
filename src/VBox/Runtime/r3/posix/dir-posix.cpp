@@ -1,10 +1,10 @@
-/* $Id: dir-posix.cpp $ */
+/* $Id: dir-posix.cpp 28918 2010-04-29 18:30:09Z vboxsync $ */
 /** @file
  * IPRT - Directory manipulation, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -37,17 +33,22 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <dirent.h>
 #include <stdio.h>
 
 #include <iprt/dir.h>
-#include <iprt/path.h>
-#include <iprt/alloc.h>
+#include "internal/iprt.h"
+
 #include <iprt/alloca.h>
-#include <iprt/string.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
+#include <iprt/mem.h>
+#include <iprt/param.h>
+#include <iprt/path.h>
+#include <iprt/string.h>
 #include "internal/dir.h"
 #include "internal/fs.h"
 #include "internal/path.h"
@@ -60,15 +61,15 @@
 RTDECL(bool) RTDirExists(const char *pszPath)
 {
     bool fRc = false;
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat s;
         fRc = !stat(pszNativePath, &s)
             && S_ISDIR(s.st_mode);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTDirExists(%p={%s}): returns %RTbool\n", pszPath, pszPath, fRc));
@@ -82,8 +83,8 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
     fMode = rtFsModeNormalize(fMode, pszPath, 0);
     if (rtFsModeIsValidPermissions(fMode))
     {
-        char *pszNativePath;
-        rc = rtPathToNative(&pszNativePath, pszPath);
+        char const *pszNativePath;
+        rc = rtPathToNative(&pszNativePath, pszPath, NULL);
         if (RT_SUCCESS(rc))
         {
             if (mkdir(pszNativePath, fMode & RTFS_UNIX_MASK))
@@ -108,7 +109,7 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
             }
         }
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
     else
     {
@@ -122,14 +123,14 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode)
 
 RTDECL(int) RTDirRemove(const char *pszPath)
 {
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         if (rmdir(pszNativePath))
             rc = RTErrConvertFromErrno(errno);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTDirRemove(%p={%s}): returns %Rrc\n", pszPath, pszPath, rc));
@@ -137,13 +138,48 @@ RTDECL(int) RTDirRemove(const char *pszPath)
 }
 
 
-int rtOpenDirNative(PRTDIR pDir, char *pszPathBuf)
+RTDECL(int) RTDirFlush(const char *pszPath)
+{
+    /*
+     * Linux: The fsync() man page hints at this being required for ensuring
+     * consistency between directory and file in case of a crash.
+     *
+     * Solaris: No mentioned is made of directories on the fsync man page.
+     * While rename+fsync will do what we want on ZFS, the code needs more
+     * careful studying wrt whether the directory entry of a new file is
+     * implicitly synced when the file is synced (it's very likely for ZFS).
+     *
+     * FreeBSD: The FFS fsync code seems to flush the directory entry as well
+     * in some cases.  Don't know exactly what's up with rename, but from the
+     * look of things fsync(dir) should work.
+     */
+    int rc;
+#ifdef O_DIRECTORY
+    int fd = open(pszPath, O_RDONLY | O_DIRECTORY, 0);
+#else
+    int fd = open(pszPath, O_RDONLY, 0);
+#endif
+    if (fd >= 0)
+    {
+        if (fsync(fd) == 0)
+            rc = VINF_SUCCESS;
+        else
+            rc = RTErrConvertFromErrno(errno);
+        close(fd);
+    }
+    else
+        rc = RTErrConvertFromErrno(errno);
+    return rc;
+}
+
+
+int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
 {
     /*
      * Convert to a native path and try opendir.
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pDir->pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pDir->pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         pDir->pDir = opendir(pszNativePath);
@@ -159,7 +195,7 @@ int rtOpenDirNative(PRTDIR pDir, char *pszPathBuf)
         else
             rc = RTErrConvertFromErrno(errno);
 
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pDir->pszPath);
     }
 
     return rc;
@@ -224,13 +260,12 @@ static int rtDirReadMore(PRTDIR pDir)
                 return VERR_NO_MORE_FILES;
         }
 
-#ifndef RT_DONT_CONVERT_FILENAMES
         /*
          * Convert the filename to UTF-8.
          */
         if (!pDir->pszName)
         {
-            int rc = rtPathFromNativeEx(&pDir->pszName, pDir->Data.d_name, pDir->pszPath);
+            int rc = rtPathFromNative(&pDir->pszName, pDir->Data.d_name, pDir->pszPath);
             if (RT_FAILURE(rc))
             {
                 pDir->pszName = NULL;
@@ -241,13 +276,8 @@ static int rtDirReadMore(PRTDIR pDir)
         if (    !pDir->pfnFilter
             ||  pDir->pfnFilter(pDir, pDir->pszName))
             break;
-        RTStrFree(pDir->pszName);
-        pDir->pszName = NULL;
-#else
-        if (   !pDir->pfnFilter
-            || pDir->pfnFilter(pDir, pDir->Data.d_name))
-            break;
-#endif
+        rtPathFreeIprt(pDir->pszName, pDir->Data.d_name);
+        pDir->pszName     = NULL;
         pDir->fDataUnread = false;
     }
 
@@ -312,13 +342,8 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry)
         /*
          * Check if we've got enough space to return the data.
          */
-#ifdef RT_DONT_CONVERT_FILENAMES
-        const char  *pszName    = pDir->Data.d_name;
-        const size_t cchName    = strlen(pszName);
-#else
         const char  *pszName    = pDir->pszName;
         const size_t cchName    = pDir->cchName;
-#endif
         const size_t cbRequired = RT_OFFSETOF(RTDIRENTRY, szName[1]) + cchName;
         if (pcbDirEntry)
             *pcbDirEntry = cbRequired;
@@ -339,10 +364,8 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry)
 
             /* free cached data */
             pDir->fDataUnread  = false;
-#ifndef RT_DONT_CONVERT_FILENAMES
-            RTStrFree(pDir->pszName);
+            rtPathFreeIprt(pDir->pszName, pDir->Data.d_name);
             pDir->pszName = NULL;
-#endif
         }
         else
             rc = VERR_BUFFER_OVERFLOW;
@@ -420,13 +443,8 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
         /*
          * Check if we've got enough space to return the data.
          */
-#ifdef RT_DONT_CONVERT_FILENAMES
-        const char  *pszName    = pDir->Data.d_name;
-        const size_t cchName    = strlen(pszName);
-#else
         const char  *pszName    = pDir->pszName;
         const size_t cchName    = pDir->cchName;
-#endif
         const size_t cbRequired = RT_OFFSETOF(RTDIRENTRYEX, szName[1]) + cchName;
         if (pcbDirEntry)
             *pcbDirEntry = cbRequired;
@@ -464,10 +482,8 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
 
             /* free cached data */
             pDir->fDataUnread  = false;
-#ifndef RT_DONT_CONVERT_FILENAMES
-            RTStrFree(pDir->pszName);
+            rtPathFreeIprt(pDir->pszName, pDir->Data.d_name);
             pDir->pszName = NULL;
-#endif
         }
         else
             rc = VERR_BUFFER_OVERFLOW;

@@ -1,11 +1,11 @@
+/* $Id: StatusImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of VMStatus class
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef VBOXBFE_WITHOUT_COM
@@ -31,6 +27,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/uuid.h>
 #include "StatusImpl.h"
 
 // defines
@@ -83,26 +80,16 @@ DECLCALLBACK(void) VMStatus::drvUnitChanged(PPDMILEDCONNECTORS pInterface, unsig
 
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-DECLCALLBACK(void *)  VMStatus::drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+DECLCALLBACK(void *)  VMStatus::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVMAINSTATUS pDrv = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_LED_CONNECTORS:
-            return &pDrv->ILedConnectors;
-        default:
-            return NULL;
-    }
+    if (RTUuidCompare2Strs(pszIID, PDMIBASE_IID) == 0)
+        return &pDrvIns->IBase;
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDCONNECTORS, &pDrv->ILedConnectors);
+    return NULL;
 }
 
 
@@ -130,7 +117,7 @@ DECLCALLBACK(void) VMStatus::drvDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) VMStatus::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+DECLCALLBACK(int) VMStatus::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVMAINSTATUS pData = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
     LogFlow(("VMStatus::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
@@ -138,9 +125,9 @@ DECLCALLBACK(int) VMStatus::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "papLeds\0First\0Last\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "papLeds\0First\0Last\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
-    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER, 
+    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
                     VERR_PDM_DRVINS_NO_ATTACH);
 
@@ -153,14 +140,14 @@ DECLCALLBACK(int) VMStatus::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Read config.
      */
-    int rc = CFGMR3QueryPtr(pCfgHandle, "papLeds", (void **)&pData->papLeds);
+    int rc = CFGMR3QueryPtr(pCfg, "papLeds", (void **)&pData->papLeds);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Failed to query the \"papLeds\" value! rc=%Rrc\n", rc));
         return rc;
     }
 
-    rc = CFGMR3QueryU32(pCfgHandle, "First", &pData->iFirstLUN);
+    rc = CFGMR3QueryU32(pCfg, "First", &pData->iFirstLUN);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         pData->iFirstLUN = 0;
     else if (RT_FAILURE(rc))
@@ -169,7 +156,7 @@ DECLCALLBACK(int) VMStatus::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
         return rc;
     }
 
-    rc = CFGMR3QueryU32(pCfgHandle, "Last", &pData->iLastLUN);
+    rc = CFGMR3QueryU32(pCfg, "Last", &pData->iLastLUN);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         pData->iLastLUN = 0;
     else if (RT_FAILURE(rc))
@@ -187,12 +174,9 @@ DECLCALLBACK(int) VMStatus::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
      * Get the ILedPorts interface of the above driver/device and
      * query the LEDs we want.
      */
-    pData->pLedPorts = (PPDMILEDPORTS)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_LED_PORTS);
-    if (!pData->pLedPorts)
-    {
-        AssertMsgFailed(("Configuration error: No led ports interface above!\n"));
-        return VERR_PDM_MISSING_INTERFACE_ABOVE;
-    }
+    pData->pLedPorts = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMILEDPORTS);
+    AssertMsgReturn(pData->pLedPorts, ("Configuration error: No led ports interface above!\n"),
+                    VERR_PDM_MISSING_INTERFACE_ABOVE);
 
     for (unsigned i = pData->iFirstLUN; i <= pData->iLastLUN; i++)
         VMStatus::drvUnitChanged(&pData->ILedConnectors, i);
@@ -208,8 +192,12 @@ const PDMDRVREG VMStatus::DrvReg =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "MainStatus",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Main status driver (Main as in the API).",
     /* fFlags */
@@ -224,6 +212,8 @@ const PDMDRVREG VMStatus::DrvReg =
     VMStatus::drvConstruct,
     /* pfnDestruct */
     VMStatus::drvDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
@@ -237,9 +227,9 @@ const PDMDRVREG VMStatus::DrvReg =
     /* pfnAttach */
     NULL,
     /* pfnDetach */
-    NULL, 
+    NULL,
     /* pfnPowerOff */
-    NULL, 
+    NULL,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP_MAIN_OVERRIDE LOG_GROUP_HGCM
@@ -1185,7 +1181,7 @@ void HGCMService::ReleaseService (void)
         rc = SSMR3GetStrZ(pSSM, pszServiceName, u32);
         AssertRCReturn(rc, rc);
 
-        LogFlowFunc(("Restoring service [%s]\n", pszServiceName));
+        LogRel(("HGCM: restoring [%s]\n", pszServiceName));
 
         /* Resolve the service instance. */
         HGCMService *pSvc;
@@ -1900,7 +1896,8 @@ int HGCMHostLoad (const char *pszServiceLibrary,
  *
  * @param pHandle            Returned handle for the registered extension.
  * @param pszServiceName     The name of the service.
- * @param pfnExtension       The extension callback.
+ * @param pfnExtension       The extension entry point (callback).
+ * @param pvExtension        The extension pointer.
  * @return VBox rc.
  */
 int HGCMHostRegisterServiceExtension (HGCMSVCEXTHANDLE *pHandle,

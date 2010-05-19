@@ -1,4 +1,23 @@
+/* $Id: ip_input.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - IP input.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -76,10 +95,8 @@ static struct libalias *select_alias(PNATState pData, struct mbuf* m)
         return m->m_la;
 #else
     struct m_tag *t;
-    if (t = m_tag_find(m, PACKET_TAG_ALIAS, NULL) != 0)
-    {
+    if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
         return (struct libalias *)&t[1];
-    }
 #endif
 
     return la;
@@ -101,20 +118,18 @@ ip_input(PNATState pData, struct mbuf *m)
     DEBUG_CALL("ip_input");
     DEBUG_ARG("m = %lx", (long)m);
     ip = mtod(m, struct ip *);
-    Log2(("ip_dst=%R[IP4](len:%d) m_len = %d", &ip->ip_dst, ntohs(ip->ip_len), m->m_len));
-    Log2(("ip_dst=%R[IP4](len:%d) m_len = %d\n", &ip->ip_dst, ntohs(ip->ip_len), m->m_len));
+    Log2(("ip_dst=%R[IP4](len:%d) m_len = %d", &ip->ip_dst, RT_N2H_U16(ip->ip_len), m->m_len));
+    Log2(("ip_dst=%R[IP4](len:%d) m_len = %d\n", &ip->ip_dst, RT_N2H_U16(ip->ip_len), m->m_len));
 
     ipstat.ips_total++;
     {
         int rc;
-        STAM_PROFILE_START(&pData->StatALIAS_input, a);
+        STAM_PROFILE_START(&pData->StatALIAS_input, b);
         rc = LibAliasIn(select_alias(pData, m), mtod(m, char *), m->m_len);
-        STAM_PROFILE_STOP(&pData->StatALIAS_input, a);
+        STAM_PROFILE_STOP(&pData->StatALIAS_input, b);
         Log2(("NAT: LibAlias return %d\n", rc));
-        if (m->m_len != ntohs(ip->ip_len))
-        {
-            m->m_len = ntohs(ip->ip_len);
-        }
+        if (m->m_len != RT_N2H_U16(ip->ip_len))
+            m->m_len = RT_N2H_U16(ip->ip_len);
     }
 
     mlen = m->m_len;
@@ -228,7 +243,7 @@ ip_input(PNATState pData, struct mbuf *m)
             break;
         default:
             ipstat.ips_noproto++;
-            m_free(pData, m);
+            m_freem(pData, m);
     }
     STAM_PROFILE_STOP(&pData->StatIP_input, a);
     return;
@@ -290,25 +305,25 @@ ip_reass(PNATState pData, struct mbuf* m)
          * drop something from the tail of the current queue
          * before proceeding further
          */
-        struct ipq_t *q = TAILQ_LAST(head, ipqhead);
-        if (q == NULL)
+        struct ipq_t *pHead = TAILQ_LAST(head, ipqhead);
+        if (pHead == NULL)
         {
             /* gak */
             for (i = 0; i < IPREASS_NHASH; i++)
             {
-                struct ipq_t *r = TAILQ_LAST(&ipq[i], ipqhead);
-                if (r)
+                struct ipq_t *pTail = TAILQ_LAST(&ipq[i], ipqhead);
+                if (pTail)
                 {
-                    ipstat.ips_fragtimeout += r->ipq_nfrags;
-                    ip_freef(pData, &ipq[i], r);
+                    ipstat.ips_fragtimeout += pTail->ipq_nfrags;
+                    ip_freef(pData, &ipq[i], pTail);
                     break;
                 }
             }
         }
         else
         {
-            ipstat.ips_fragtimeout += q->ipq_nfrags;
-            ip_freef(pData, head, q);
+            ipstat.ips_fragtimeout += pHead->ipq_nfrags;
+            ip_freef(pData, head, pHead);
         }
     }
 

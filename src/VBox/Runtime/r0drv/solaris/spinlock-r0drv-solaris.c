@@ -1,10 +1,10 @@
-/* $Id: spinlock-r0drv-solaris.c $ */
+/* $Id: spinlock-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -37,6 +33,9 @@
 #include <iprt/spinlock.h>
 
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
@@ -120,10 +119,16 @@ RTDECL(void) RTSpinlockAcquireNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     AssertPtr(pThis);
     Assert(pThis->u32Magic == RTSPINLOCK_MAGIC);
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     pTmp->uFlags = ASMIntDisableFlags();
+#else
+    pTmp->uFlags = 0;
+#endif
     mutex_enter(&pThis->Mtx);
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     Assert(!ASMIntAreEnabled());
+#endif
     RT_ASSERT_PREEMPT_CPUID_SPIN_ACQUIRED(pThis);
 }
 
@@ -139,7 +144,9 @@ RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     NOREF(pTmp);
 
     mutex_exit(&pThis->Mtx);
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     ASMSetFlags(pTmp->uFlags);
+#endif
 
     RT_ASSERT_PREEMPT_CPUID();
 }
@@ -152,13 +159,15 @@ RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     AssertPtr(pThis);
     Assert(pThis->u32Magic == RTSPINLOCK_MAGIC);
     NOREF(pTmp);
-#ifdef RT_STRICT
+#if defined(RT_STRICT) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     bool fIntsOn = ASMIntAreEnabled();
 #endif
 
     mutex_enter(&pThis->Mtx);
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     AssertMsg(fIntsOn == ASMIntAreEnabled(), ("fIntsOn=%RTbool\n", fIntsOn));
+#endif
 
     RT_ASSERT_PREEMPT_CPUID_SPIN_ACQUIRED(pThis);
 }
@@ -173,13 +182,15 @@ RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
     Assert(pThis->u32Magic == RTSPINLOCK_MAGIC);
     RT_ASSERT_PREEMPT_CPUID_SPIN_RELEASE(pThis);
     NOREF(pTmp);
-#ifdef RT_STRICT
+#if defined(RT_STRICT) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     bool fIntsOn = ASMIntAreEnabled();
 #endif
 
     mutex_exit(&pThis->Mtx);
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     AssertMsg(fIntsOn == ASMIntAreEnabled(), ("fIntsOn=%RTbool\n", fIntsOn));
+#endif
     RT_ASSERT_PREEMPT_CPUID();
 }
 

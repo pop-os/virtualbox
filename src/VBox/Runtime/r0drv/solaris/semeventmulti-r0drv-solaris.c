@@ -1,10 +1,10 @@
-/* $Id: semeventmulti-r0drv-solaris.c $ */
+/* $Id: semeventmulti-r0drv-solaris.c 29284 2010-05-10 00:22:16Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -38,6 +34,9 @@
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
@@ -69,12 +68,20 @@ typedef struct RTSEMEVENTMULTIINTERNAL
 
 
 
-RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem)
+RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI phEventMultiSem)
 {
-    Assert(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
-    AssertPtrReturn(pEventMultiSem, VERR_INVALID_POINTER);
+    return RTSemEventMultiCreateEx(phEventMultiSem, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, NULL);
+}
+
+
+RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
+                                     const char *pszNameFmt, ...)
+{
+    AssertReturn(!(fFlags & ~RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(phEventMultiSem, VERR_INVALID_POINTER);
     RT_ASSERT_PREEMPTIBLE();
 
+    AssertCompile(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)RTMemAlloc(sizeof(*pThis));
     if (pThis)
     {
@@ -84,22 +91,21 @@ RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem)
         pThis->fSignaled = 0;
         mutex_init(&pThis->Mtx, "IPRT Multiple Release Event Semaphore", MUTEX_DRIVER, (void *)ipltospl(DISP_LEVEL));
         cv_init(&pThis->Cnd, "IPRT CV", CV_DRIVER, NULL);
-        *pEventMultiSem = pThis;
+
+        *phEventMultiSem = pThis;
         return VINF_SUCCESS;
     }
     return VERR_NO_MEMORY;
 }
 
 
-RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
 {
-    if (EventMultiSem == NIL_RTSEMEVENTMULTI)     /* don't bitch */
-        return VERR_INVALID_HANDLE;
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
+    if (pThis == NIL_RTSEMEVENTMULTI)
+        return VINF_SUCCESS;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
-                    ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
-                    VERR_INVALID_HANDLE);
+    AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
     RT_ASSERT_INTS_ON();
 
     mutex_enter(&pThis->Mtx);
@@ -126,9 +132,9 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
 {
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     RT_ASSERT_PREEMPT_CPUID_VAR();
 
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
@@ -171,9 +177,9 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 {
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     RT_ASSERT_PREEMPT_CPUID_VAR();
 
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
@@ -209,10 +215,10 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies, bool fInterruptible)
+static int rtSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies, bool fInterruptible)
 {
     int rc;
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
                     ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
@@ -236,12 +242,12 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
         if (cMillies != RT_INDEFINITE_WAIT)
         {
             clock_t cTicks = drv_usectohz((clock_t)(cMillies * 1000L));
-            clock_t timeout = ddi_get_lbolt();
-            timeout += cTicks;
+            clock_t cTimeout = ddi_get_lbolt();
+            cTimeout += cTicks;
             if (fInterruptible)
-                rc = cv_timedwait_sig(&pThis->Cnd, &pThis->Mtx, timeout);
+                rc = cv_timedwait_sig(&pThis->Cnd, &pThis->Mtx, cTimeout);
             else
-                rc = cv_timedwait(&pThis->Cnd, &pThis->Mtx, timeout);
+                rc = cv_timedwait(&pThis->Cnd, &pThis->Mtx, cTimeout);
         }
         else
         {
@@ -257,7 +263,10 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
         {
             /* Retured due to call to cv_signal() or cv_broadcast() */
             if (RT_LIKELY(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC))
+            {
                 rc = VINF_SUCCESS;
+                ASMAtomicDecU32(&pThis->cWaking);
+            }
             else
             {
                 rc = VERR_SEM_DESTROYED;
@@ -270,7 +279,6 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
                     return rc;
                 }
             }
-            ASMAtomicDecU32(&pThis->cWaking);
         }
         else if (rc == -1)
         {
@@ -293,14 +301,14 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
 }
 
 
-RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
+RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, false /* not interruptible */);
+    return rtSemEventMultiWait(hEventMultiSem, cMillies, false /* not interruptible */);
 }
 
 
-RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
+RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, true /* interruptible */);
+    return rtSemEventMultiWait(hEventMultiSem, cMillies, true /* interruptible */);
 }
 

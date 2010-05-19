@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_vmm_h
@@ -94,6 +90,8 @@ typedef enum VMMCALLRING3
     VMMCALLRING3_PGM_MAP_CHUNK,
     /** Allocates more handy pages. */
     VMMCALLRING3_PGM_ALLOCATE_HANDY_PAGES,
+    /** Allocates a large (2MB) page. */
+    VMMCALLRING3_PGM_ALLOCATE_LARGE_HANDY_PAGE,
     /** Acquire the MM hypervisor heap lock. */
     VMMCALLRING3_MMHYPER_LOCK,
     /** Replay the REM handler notifications. */
@@ -284,6 +282,8 @@ typedef enum VMMR0OPERATION
 
     /** Call PGMR0PhysAllocateHandyPages(). */
     VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES,
+    /** Call PGMR0AllocateLargePage(). */
+    VMMR0_DO_PGM_ALLOCATE_LARGE_HANDY_PAGE,
 
     /** Call GMMR0InitialReservation(). */
     VMMR0_DO_GMM_INITIAL_RESERVATION,
@@ -293,37 +293,52 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_GMM_ALLOCATE_PAGES,
     /** Call GMMR0FreePages(). */
     VMMR0_DO_GMM_FREE_PAGES,
+    /** Call GMMR0FreeLargePage(). */
+    VMMR0_DO_GMM_FREE_LARGE_PAGE,
+    /** Call GMMR0QueryHypervisorMemoryStatsReq(). */
+    VMMR0_DO_GMM_QUERY_HYPERVISOR_MEM_STATS,
+    /** Call GMMR0QueryMemoryStatsReq(). */
+    VMMR0_DO_GMM_QUERY_MEM_STATS,
     /** Call GMMR0BalloonedPages(). */
     VMMR0_DO_GMM_BALLOONED_PAGES,
-    /** Call GMMR0DeflatedBalloon(). */
-    VMMR0_DO_GMM_DEFLATED_BALLOON,
     /** Call GMMR0MapUnmapChunk(). */
     VMMR0_DO_GMM_MAP_UNMAP_CHUNK,
     /** Call GMMR0SeedChunk(). */
     VMMR0_DO_GMM_SEED_CHUNK,
+    /** Call GMMR0RegisterSharedModule. */
+    VMMR0_DO_GMM_REGISTER_SHARED_MODULE,
+    /** Call GMMR0UnregisterSharedModule. */
+    VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE,
+    /** Call GMMR0ResetSharedModules. */
+    VMMR0_DO_GMM_RESET_SHARED_MODULES,
+    /** Call GMMR0CheckSharedModules. */
+    VMMR0_DO_GMM_CHECK_SHARED_MODULES,
 
     /** Set a GVMM or GMM configuration value. */
     VMMR0_DO_GCFGM_SET_VALUE,
     /** Query a GVMM or GMM configuration value. */
     VMMR0_DO_GCFGM_QUERY_VALUE,
 
+    /** Call PDMR0DriverCallReqHandler. */
+    VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER,
+
     /** The start of the R0 service operations. */
     VMMR0_DO_SRV_START,
-    /** Call INTNETR0Open(). */
+    /** Call IntNetR0Open(). */
     VMMR0_DO_INTNET_OPEN,
-    /** Call INTNETR0IfClose(). */
+    /** Call IntNetR0IfClose(). */
     VMMR0_DO_INTNET_IF_CLOSE,
-    /** Call INTNETR0IfGetRing3Buffer(). */
-    VMMR0_DO_INTNET_IF_GET_RING3_BUFFER,
-    /** Call INTNETR0IfSetPromiscuousMode(). */
+    /** Call IntNetR0IfGetBufferPtrs(). */
+    VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS,
+    /** Call IntNetR0IfSetPromiscuousMode(). */
     VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE,
-    /** Call INTNETR0IfSetMacAddress(). */
+    /** Call IntNetR0IfSetMacAddress(). */
     VMMR0_DO_INTNET_IF_SET_MAC_ADDRESS,
-    /** Call INTNETR0IfSetActive(). */
+    /** Call IntNetR0IfSetActive(). */
     VMMR0_DO_INTNET_IF_SET_ACTIVE,
-    /** Call INTNETR0IfSend(). */
+    /** Call IntNetR0IfSend(). */
     VMMR0_DO_INTNET_IF_SEND,
-    /** Call INTNETR0IfWait(). */
+    /** Call IntNetR0IfWait(). */
     VMMR0_DO_INTNET_IF_WAIT,
     /** The end of the R0 service operations. */
     VMMR0_DO_SRV_END,

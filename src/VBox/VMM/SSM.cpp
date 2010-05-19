@@ -1,10 +1,10 @@
-/* $Id: SSM.cpp $ */
+/* $Id: SSM.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * SSM - Saved State Manager.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -157,10 +153,11 @@
 #include <VBox/log.h>
 #include <VBox/version.h>
 
-#include <iprt/alloc.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/crc32.h>
 #include <iprt/file.h>
+#include <iprt/mem.h>
 #include <iprt/param.h>
 #include <iprt/thread.h>
 #include <iprt/semaphore.h>
@@ -558,7 +555,7 @@ typedef struct SSMHANDLE
             /** @name Header info (set by ssmR3ValidateFile)
              * @{ */
             /** The size of the file header. */
-            size_t          cbFileHdr;
+            uint32_t        cbFileHdr;
             /** The major version number. */
             uint16_t        u16VerMajor;
             /** The minor version number. */
@@ -1674,7 +1671,7 @@ static void ssmR3StrmDestroyBufList(PSSMSTRMBUF pHead)
         PSSMSTRMBUF pCur = pHead;
         pHead = pCur->pNext;
         pCur->pNext = NULL;
-        RTMemPageFree(pCur);
+        RTMemPageFree(pCur, sizeof(*pCur));
     }
 }
 
@@ -1687,7 +1684,7 @@ static void ssmR3StrmDestroyBufList(PSSMSTRMBUF pHead)
  */
 static void ssmR3StrmDelete(PSSMSTRM pStrm)
 {
-    RTMemPageFree(pStrm->pCur);
+    RTMemPageFree(pStrm->pCur, sizeof(*pStrm->pCur));
     pStrm->pCur = NULL;
     ssmR3StrmDestroyBufList(pStrm->pHead);
     pStrm->pHead = NULL;
@@ -2131,7 +2128,7 @@ static int ssmR3StrmWriteBuffers(PSSMSTRM pStrm)
         pHead = pCur->pNext;
 
         /* flush */
-        int rc = pStrm->pOps->pfnIsOk(pStrm->pvUser);
+        rc = pStrm->pOps->pfnIsOk(pStrm->pvUser);
         if (RT_SUCCESS(rc))
             rc = pStrm->pOps->pfnWrite(pStrm->pvUser, pCur->offStream, &pCur->abData[0], pCur->cb);
         if (    RT_FAILURE(rc)
@@ -2345,7 +2342,7 @@ static int ssmR3StrmCommitWriteBufferSpace(PSSMSTRM pStrm, size_t cb)
 {
     Assert(pStrm->pCur);
     Assert(pStrm->off + cb <= RT_SIZEOFMEMB(SSMSTRMBUF, abData));
-    pStrm->off += cb;
+    pStrm->off += (uint32_t)cb;
     return VINF_SUCCESS;
 }
 
@@ -2502,7 +2499,7 @@ static int ssmR3StrmRead(PSSMSTRM pStrm, void *pvBuf, size_t cbToRead)
          * Flush the current buffer and get the next one.
          */
         ssmR3StrmFlushCurBuf(pStrm);
-        PSSMSTRMBUF pBuf = ssmR3StrmGetBuf(pStrm);
+        pBuf = ssmR3StrmGetBuf(pStrm);
         if (!pBuf)
         {
             rc = pStrm->rc;
@@ -3407,7 +3404,7 @@ static int ssmR3PutZeros(PSSMHANDLE pSSM, uint32_t cbToFill)
 {
     while (cbToFill > 0)
     {
-        size_t cb = RT_MIN(sizeof(g_abZero), cbToFill);
+        uint32_t cb = RT_MIN(sizeof(g_abZero), cbToFill);
         int rc = ssmR3DataWrite(pSSM, g_abZero, cb);
         if (RT_FAILURE(rc))
             return rc;
@@ -5571,7 +5568,7 @@ static int ssmR3DataReadRecHdrV2(PSSMHANDLE pSSM)
         /* get the rest */
         uint32_t    u32StreamCRC = ssmR3StrmFinalCRC(&pSSM->Strm);
         SSMRECTERM  TermRec;
-        int rc = ssmR3DataReadV2Raw(pSSM, (uint8_t *)&TermRec + 2, sizeof(SSMRECTERM) - 2);
+        rc = ssmR3DataReadV2Raw(pSSM, (uint8_t *)&TermRec + 2, sizeof(SSMRECTERM) - 2);
         if (RT_FAILURE(rc))
             return rc;
 
@@ -5797,7 +5794,7 @@ static int ssmR3DataReadUnbufferedV2(PSSMHANDLE pSSM, void *pvBuf, size_t cbBuf)
                 {
                     /* Spill the remainer into the data buffer. */
                     memset(&pSSM->u.Read.abDataBuffer[0], 0, cbToRead - cbBuf);
-                    pSSM->u.Read.cbDataBuffer  = cbToRead - cbBuf;
+                    pSSM->u.Read.cbDataBuffer  = cbToRead - (uint32_t)cbBuf;
                     pSSM->u.Read.offDataBuffer = 0;
                     cbToRead = (uint32_t)cbBuf;
                 }
@@ -6901,8 +6898,8 @@ VMMR3DECL(int) SSMR3SkipToEndOfUnit(PSSMHANDLE pSSM)
                 /* read the rest of the current record */
                 while (pSSM->u.Read.cbRecLeft)
                 {
-                    uint8_t abBuf[8192];
-                    size_t  cbToRead = RT_MIN(pSSM->u.Read.cbRecLeft, sizeof(abBuf));
+                    uint8_t  abBuf[8192];
+                    uint32_t cbToRead = RT_MIN(pSSM->u.Read.cbRecLeft, sizeof(abBuf));
                     int rc = ssmR3DataReadV2Raw(pSSM, abBuf, cbToRead);
                     if (RT_FAILURE(rc))
                         return pSSM->rc = rc;
@@ -7141,7 +7138,7 @@ static int ssmR3HeaderAndValidate(PSSMHANDLE pSSM, bool fChecksumIt, bool fCheck
     static const struct
     {
         char        szMagic[sizeof(SSMFILEHDR_MAGIC_V2_0)];
-        size_t      cbHdr;
+        uint32_t    cbHdr;
         unsigned    uFmtVerMajor;
         unsigned    uFmtVerMinor;
     }   s_aVers[] =
@@ -8464,7 +8461,7 @@ static int ssmR3FileSeekSubV2(PSSMHANDLE pSSM, PSSMFILEDIR pDir, size_t cbDir, u
      */
     int rc = ssmR3StrmPeekAt(&pSSM->Strm, offDir, pDir, cbDir, NULL);
     AssertLogRelRCReturn(rc, rc);
-    rc = ssmR3ValidateDirectory(pDir, cbDir, offDir, cDirEntries, pSSM->u.Read.cbFileHdr, pSSM->u.Read.u32SvnRev);
+    rc = ssmR3ValidateDirectory(pDir, (uint32_t)cbDir, offDir, cDirEntries, pSSM->u.Read.cbFileHdr, pSSM->u.Read.u32SvnRev);
     if (RT_FAILURE(rc))
         return rc;
 

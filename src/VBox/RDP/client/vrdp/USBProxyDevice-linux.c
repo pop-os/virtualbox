@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -1164,7 +1160,7 @@ static int usbProxyLinuxUrbQueueSplit(PUSBPROXYDEV pProxyDev, PUSBPROXYURBLNX pU
     }
     if (!fFailed)
     {
-        pUrb->Dev.pvProxyUrb = pUrbLnx;
+        pUrb->Dev.pvPrivate = pUrbLnx;
         LogFlow(("usbProxyLinuxUrbQueueSplit: ok\n"));
         return true;
     }
@@ -1324,7 +1320,7 @@ l_err:
     pUrbLnx->u64SubmitTS = RTTimeMilliTS();
 
     LogFlow(("usbProxyLinuxUrbQueue: ok\n"));
-    pUrb->Dev.pvProxyUrb = pUrbLnx;
+    pUrb->Dev.pvPrivate = pUrbLnx;
     return true;
 }
 
@@ -1590,7 +1586,7 @@ static PVUSBURB usbProxyLinuxUrbReap(PUSBPROXYDEV pProxyDev, unsigned cMillies)
             pUrb->cbData = pUrbLnx->KUrb.actual_length;
             usbProxyLinuxUrbFree(pProxyDev, pUrbLnx);
         }
-        pUrb->Dev.pvProxyUrb = NULL;
+        pUrb->Dev.pvPrivate = NULL;
 
         /* some adjustments for message transfers. */
         if (pUrb->enmType == VUSBXFERTYPE_MSG)
@@ -1617,7 +1613,7 @@ static PVUSBURB usbProxyLinuxUrbReap(PUSBPROXYDEV pProxyDev, unsigned cMillies)
 static void usbProxyLinuxUrbCancel(PVUSBURB pUrb)
 {
     PUSBPROXYDEV pProxyDev = (PUSBPROXYDEV)pUrb->pDev;
-    PUSBPROXYURBLNX pUrbLnx = (PUSBPROXYURBLNX)pUrb->Dev.pvProxyUrb;
+    PUSBPROXYURBLNX pUrbLnx = (PUSBPROXYURBLNX)pUrb->Dev.pvPrivate;
     if (pUrbLnx->pSplitHead)
     {
         /* split */

@@ -1,10 +1,10 @@
-/* $Id: VBoxUtils-darwin.cpp $ */
+/* $Id: VBoxUtils-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Qt GUI - Utility Classes and Functions specific to Darwin.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VBoxUtils-darwin.h"
@@ -106,6 +102,17 @@ void darwinSetShowsResizeIndicator (QWidget *aWidget, bool aEnabled)
     ::darwinSetShowsResizeIndicatorImpl (::darwinToNativeWindow (aWidget), aEnabled);
 }
 
+bool darwinIsWindowMaximized(QWidget *aWidget)
+{
+#ifdef QT_MAC_USE_COCOA
+    /* Currently only necessary in the Cocoa version */
+    return ::darwinIsWindowMaximized(::darwinToNativeWindow(aWidget));
+#else /* QT_MAC_USE_COCOA */
+    NOREF (aWidget);
+    return false;
+#endif /* !QT_MAC_USE_COCOA */
+}
+
 QString darwinSystemLanguage (void)
 {
     /* Get the locales supported by our bundle */
@@ -147,6 +154,21 @@ int darwinWindowToolBarHeight (QWidget *aWidget)
     NOREF (aWidget);
     return 0;
 #endif /* QT_MAC_USE_COCOA */
+}
+
+bool darwinSetFrontMostProcess()
+{
+    ProcessSerialNumber psn = { 0, kCurrentProcess };
+    return ::SetFrontProcess(&psn) == 0;
+}
+
+uint64_t darwinGetCurrentProcessId()
+{
+    uint64_t processId = 0;
+    ProcessSerialNumber psn = { 0, kCurrentProcess };
+    if (::GetCurrentProcess(&psn) == 0)
+        processId = RT_MAKE_U64(psn.lowLongOfPSN, psn.highLongOfPSN);
+    return processId;
 }
 
 CGContextRef darwinToCGContextRef (QWidget *aWidget)

@@ -1,10 +1,10 @@
-/* $Id: tstUtf8.cpp $ */
+/* $Id: tstUtf8.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - UTF-8 and UTF-16 string conversions.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -41,7 +37,7 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/test.h>
-#include <iprt/ministring_cpp.h>
+#include <iprt/cpp/ministring.h>
 
 #include <stdlib.h> /** @todo use our random. */
 

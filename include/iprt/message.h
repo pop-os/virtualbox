@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_msg_h
@@ -68,6 +64,122 @@ RTDECL(int)  RTMsgError(const char *pszFormat, ...);
  * @param   va              Format arguments.
  */
 RTDECL(int)  RTMsgErrorV(const char *pszFormat, va_list va);
+
+/**
+ * Same as RTMsgError() except for the return value.
+ *
+ * @returns @a enmExitCode
+ * @param   enmExitCode     What to exit code to return.  This is mainly for
+ *                          saving some vertical space in the source file.
+ * @param   pszFormat       The message format string.
+ * @param   ...             Format arguments.
+ */
+RTDECL(RTEXITCODE) RTMsgErrorExit(RTEXITCODE enmExitcode, const char *pszFormat, ...);
+
+/**
+ * Same as RTMsgErrorV() except for the return value.
+ *
+ * @returns @a enmExitCode
+ * @param   enmExitCode     What to exit code to return.  This is mainly for
+ *                          saving some vertical space in the source file.
+ * @param   pszFormat       The message format string.
+ * @param   va              Format arguments.
+ */
+RTDECL(RTEXITCODE) RTMsgErrorExitV(RTEXITCODE enmExitCode, const char *pszFormat, va_list va);
+
+/**
+ * Same as RTMsgError() except for the return value.
+ *
+ * @returns @a rcRet
+ * @param   rcRet           What IPRT status to return. This is mainly for
+ *                          saving some vertical space in the source file.
+ * @param   pszFormat       The message format string.
+ * @param   ...             Format arguments.
+ */
+RTDECL(int) RTMsgErrorRc(int rc, const char *pszFormat, ...);
+
+/**
+ * Same as RTMsgErrorV() except for the return value.
+ *
+ * @returns @a rcRet
+ * @param   rcRet           What IPRT status to return. This is mainly for
+ *                          saving some vertical space in the source file.
+ * @param   pszFormat       The message format string.
+ * @param   va              Format arguments.
+ */
+RTDECL(int) RTMsgErrorRcV(int rc, const char *pszFormat, va_list va);
+
+/**
+ * Print an error message for a RTR3Init failure and suggest an exit code.
+ *
+ * @code
+ *
+ * int rc = RTR3Init();
+ * if (RT_FAILURE(rc))
+ *     return RTMsgInitFailure(rc);
+ *
+ * @endcode
+ *
+ * @returns Appropriate exit code.
+ * @param   rcRTR3Init      The status code returned by RTR3Init.
+ */
+RTDECL(RTEXITCODE) RTMsgInitFailure(int rcRTR3Init);
+
+/**
+ * Print informational message to standard error.
+ *
+ * The message will be prefixed with the file name part of process image name
+ * (i.e. no path) and "warning: ".  If the message doesn't end with a new line,
+ * one will be added.  The caller should call this with an empty string if
+ * unsure whether the cursor is currently position at the start of a new line.
+ *
+ * @returns IPRT status code.
+ * @param   pszFormat       The message format string.
+ * @param   ...             Format arguments.
+ */
+RTDECL(int)  RTMsgWarning(const char *pszFormat, ...);
+
+/**
+ * Print informational message to standard error.
+ *
+ * The message will be prefixed with the file name part of process image name
+ * (i.e. no path) and "warning: ".  If the message doesn't end with a new line,
+ * one will be added.  The caller should call this with an empty string if
+ * unsure whether the cursor is currently position at the start of a new line.
+ *
+ * @returns IPRT status code.
+ * @param   pszFormat       The message format string.
+ * @param   va              Format arguments.
+ */
+RTDECL(int)  RTMsgWarningV(const char *pszFormat, va_list va);
+
+/**
+ * Print informational message to standard output.
+ *
+ * The message will be prefixed with the file name part of process image name
+ * (i.e. no path) and "info: ".  If the message doesn't end with a new line,
+ * one will be added.  The caller should call this with an empty string if
+ * unsure whether the cursor is currently position at the start of a new line.
+ *
+ * @returns IPRT status code.
+ * @param   pszFormat       The message format string.
+ * @param   ...             Format arguments.
+ */
+RTDECL(int)  RTMsgInfo(const char *pszFormat, ...);
+
+/**
+ * Print informational message to standard output.
+ *
+ * The message will be prefixed with the file name part of process image name
+ * (i.e. no path) and "info: ".  If the message doesn't end with a new line,
+ * one will be added.  The caller should call this with an empty string if
+ * unsure whether the cursor is currently position at the start of a new line.
+ *
+ * @returns IPRT status code.
+ * @param   pszFormat       The message format string.
+ * @param   va              Format arguments.
+ */
+RTDECL(int)  RTMsgInfoV(const char *pszFormat, va_list va);
 
 /** @} */
 

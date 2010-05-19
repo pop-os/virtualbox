@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 #include <stdio.h>
 #include <iprt/assert.h>
@@ -51,7 +47,7 @@ public:
         conn = dbus_bus_get (DBUS_BUS_SESSON, NULL);
         if (conn == NULL)
         {
-            LogRelFlow(("Could not retrieve D-BUS session bus!\n"));
+            LogRelFlowFunc(("Could not retrieve D-BUS session bus!\n"));
             rc = VERR_INVALID_HANDLE;
         }
         else
@@ -65,8 +61,8 @@ public:
                 LogRel(("Could not create D-BUS message!\n"));
                 rc = VERR_INVALID_HANDLE;
             }
-	    else
-		rc = VINF_SUCCESS;
+        else
+        rc = VINF_SUCCESS;
         }
         if (RT_SUCCESS(rc))
         {
@@ -116,7 +112,7 @@ public:
                 dbus_message_unref(reply);
             }
             if (dbus_error_is_set(&err))
-        	dbus_error_free(&err);
+            dbus_error_free(&err);
         }
         if (msg != NULL)
             dbus_message_unref(msg);

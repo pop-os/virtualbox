@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2009 Sun Microsystems, Inc.
+# Copyright (C) 2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -9,12 +9,10 @@
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
-#
 import sys,os
 import traceback
+
+# To set Python bitness on OSX use 'export VERSIONER_PYTHON_PREFER_32_BIT=yes'
 
 VboxBinDir = os.environ.get("VBOX_PROGRAM_PATH", None)
 VboxSdkDir = os.environ.get("VBOX_SDK_PATH", None)
@@ -24,7 +22,8 @@ if VboxBinDir is None:
     VboxBinDir = "%VBOX_INSTALL_PATH%"
 
 if VboxSdkDir is None:
-    VboxSdkDir = os.path.join(VboxBinDir,"sdk")
+    # Will be set by the installer
+    VboxSdkDir = "%VBOX_SDK_PATH%"
 
 os.environ["VBOX_PROGRAM_PATH"] = VboxBinDir
 os.environ["VBOX_SDK_PATH"] = VboxSdkDir
@@ -511,11 +510,15 @@ class VirtualBoxManager:
 
     def openMachineSession(self, machineId):
          session = self.mgr.getSessionObject(self.vbox)
-         self.vbox.openSession(session, machineId)
+         try:
+             self.vbox.openExistingSession(session, machineId)
+         except:
+             self.vbox.openSession(session, machineId)
          return session
 
     def closeMachineSession(self, session):
-        session.close()
+        if session is not None:
+            session.close()
 
     def deinitPerThread(self):
         self.platform.deinitPerThread()
@@ -531,3 +534,11 @@ class VirtualBoxManager:
 
     def getPerfCollector(self, vbox):
         return PerfCollector(self, vbox)
+
+    def getBinDir(self):
+        global VboxBinDir
+        return VboxBinDir
+
+    def getSdkDir(self):
+        global VboxSdkDir
+        return VboxSdkDir

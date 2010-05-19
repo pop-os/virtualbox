@@ -1,11 +1,10 @@
+/* $Id: service.cpp 29394 2010-05-12 01:27:04Z vboxsync $ */
 /** @file
- *
- * Guest Property Service:
- * Host service entry points.
+ * Guest Property Service: Host service entry points.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_svc_guest_properties   Guest Property HGCM Service
@@ -48,8 +43,8 @@
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/autores.h>
-#include <iprt/cpputils.h>
+#include <iprt/cpp/autores.h>
+#include <iprt/cpp/utils.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/req.h>
@@ -101,13 +96,17 @@ struct Property
     }
 
     /** Are two properties equal? */
-    bool operator== (const Property &prop)
+    bool operator==(const Property &prop)
     {
-        return (   mName == prop.mName
-                && mValue == prop.mValue
-                && mTimestamp == prop.mTimestamp
-                && mFlags == prop.mFlags
-               );
+        if (mTimestamp != prop.mTimestamp)
+            return false;
+        if (mFlags != prop.mFlags)
+            return false;
+        if (mName != prop.mName)
+            return false;
+        if (mValue != prop.mValue)
+            return false;
+        return true;
     }
 
     /* Is the property nil? */
@@ -163,19 +162,19 @@ private:
     /** The list of outstanding guest notification calls */
     CallList mGuestWaiters;
     /** @todo we should have classes for thread and request handler thread */
-    /** Queue of outstanding property change notifications */
-    RTREQQUEUE *mReqQueue;
-    /** Request that we've left pending in a call to flushNotifications. */
-    PRTREQ mPendingDummyReq;
-    /** Thread for processing the request queue */
-    RTTHREAD mReqThread;
-    /** Tell the thread that it should exit */
-    bool volatile mfExitThread;
     /** Callback function supplied by the host for notification of updates
      * to properties */
     PFNHGCMSVCEXT mpfnHostCallback;
     /** User data pointer to be supplied to the host callback function */
     void *mpvHostData;
+    /** The previous timestamp.
+     * This is used by getCurrentTimestamp() to decrease the chance of
+     * generating duplicate timestamps.  */
+    uint64_t mPrevTimestamp;
+    /** The number of consecutive timestamp adjustments that we've made.
+     * Together with mPrevTimestamp, this defines a set of obsolete timestamp
+     * values: {(mPrevTimestamp - mcTimestampAdjustments), ..., mPrevTimestamp} */
+    uint64_t mcTimestampAdjustments;
 
     /**
      * Get the next property change notification from the queue of saved
@@ -205,9 +204,12 @@ private:
          *  - Appears later than u64Timestamp
          *  - Matches the pszPatterns
          */
+        /** @todo r=bird: This incorrectly ASSUMES that mTimestamp is unique.
+         *  The timestamp resolution can be very coarse on windows for instance. */
         PropertyList::const_iterator it = mGuestNotifications.begin();
         for (;    it != mGuestNotifications.end()
-               && it->mTimestamp != u64Timestamp; ++it) {}
+               && it->mTimestamp != u64Timestamp; ++it)
+            {}
         if (it == mGuestNotifications.end())  /* Not found */
             it = mGuestNotifications.begin();
         else
@@ -249,21 +251,11 @@ public:
     explicit Service(PVBOXHGCMSVCHELPERS pHelpers)
         : mpHelpers(pHelpers)
         , meGlobalFlags(NILFLAG)
-        , mPendingDummyReq(NULL)
-        , mfExitThread(false)
         , mpfnHostCallback(NULL)
         , mpvHostData(NULL)
-    {
-        int rc = RTReqCreateQueue(&mReqQueue);
-#ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
-        if (RT_SUCCESS(rc))
-            rc = RTThreadCreate(&mReqThread, reqThreadFn, this, 0,
-                                RTTHREADTYPE_MSG_PUMP, RTTHREADFLAGS_WAITABLE,
-                                "GuestPropReq");
-#endif
-        if (RT_FAILURE(rc))
-            throw rc;
-    }
+        , mPrevTimestamp(0)
+        , mcTimestampAdjustments(0)
+    { }
 
     /**
      * @copydoc VBOXHGCMSVCHELPERS::pfnUnload
@@ -343,6 +335,7 @@ public:
     }
 private:
     static DECLCALLBACK(int) reqThreadFn(RTTHREAD ThreadSelf, void *pvUser);
+    uint64_t getCurrentTimestamp(void);
     int validateName(const char *pszName, uint32_t cbName);
     int validateValue(const char *pszValue, uint32_t cbValue);
     int setPropertyBlock(uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
@@ -350,23 +343,14 @@ private:
     int setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
-    int flushNotifications(uint32_t cMsTimeout);
     int getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
                         VBOXHGCMSVCPARM paParms[]);
     int getOldNotificationInternal(const char *pszPattern,
                                    uint64_t u64Timestamp, Property *pProp);
     int getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop);
     void doNotifications(const char *pszProperty, uint64_t u64Timestamp);
-    static DECLCALLBACK(int) reqNotify(PFNHGCMSVCEXT pfnCallback,
-                                       void *pvData, char *pszName,
-                                       char *pszValue, uint32_t u32TimeHigh,
-                                       uint32_t u32TimeLow, char *pszFlags);
-    /**
-     * Empty request function for terminating the request thread.
-     * @returns VINF_EOF to cause the request processing function to return
-     * @todo    return something more appropriate
-     */
-    static DECLCALLBACK(int) reqVoid() { return VINF_EOF; }
+    int notifyHost(const char *pszName, const char *pszValue,
+                   uint64_t u64Timestamp, const char *pszFlags);
 
     void call (VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
                void *pvClient, uint32_t eFunction, uint32_t cParms,
@@ -377,18 +361,29 @@ private:
 
 
 /**
- * Thread function for processing the request queue
- * @copydoc FNRTTHREAD
+ * Gets the current timestamp.
+ *
+ * Since the RTTimeNow resolution can be very coarse, this method takes some
+ * simple steps to try avoid returning the same timestamp for two consecutive
+ * calls.  Code like getOldNotification() more or less assumes unique
+ * timestamps.
+ *
+ * @returns Nanosecond timestamp.
  */
-/* static */
-DECLCALLBACK(int) Service::reqThreadFn(RTTHREAD ThreadSelf, void *pvUser)
+uint64_t Service::getCurrentTimestamp(void)
 {
-    SELF *pSelf = reinterpret_cast<SELF *>(pvUser);
-    while (!pSelf->mfExitThread)
-        RTReqProcess(pSelf->mReqQueue, RT_INDEFINITE_WAIT);
-    return VINF_SUCCESS;
+    RTTIMESPEC time;
+    uint64_t u64NanoTS = RTTimeSpecGetNano(RTTimeNow(&time));
+    if (mPrevTimestamp - u64NanoTS > mcTimestampAdjustments)
+        mcTimestampAdjustments = 0;
+    else
+    {
+        mcTimestampAdjustments++;
+        u64NanoTS = mPrevTimestamp + 1;
+    }
+    this->mPrevTimestamp = u64NanoTS;
+    return u64NanoTS;
 }
-
 
 /**
  * Check that a string fits our criteria for a property name.
@@ -615,10 +610,11 @@ int Service::setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
     const char *pcszName = NULL;        /* shut up gcc */
     const char *pcszValue = NULL;       /* ditto */
     const char *pcszFlags = NULL;
-    uint32_t cchName, cchValue, cchFlags = 0;
+    uint32_t cchName = 0;               /* ditto */
+    uint32_t cchValue = 0;              /* ditto */
+    uint32_t cchFlags = 0;
     uint32_t fFlags = NILFLAG;
-    RTTIMESPEC time;
-    uint64_t u64TimeNano = RTTimeSpecGetNano(RTTimeNow(&time));
+    uint64_t u64TimeNano = getCurrentTimestamp();
 
     LogFlowThisFunc(("\n"));
     /*
@@ -747,8 +743,7 @@ int Service::delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
          */
         if (rc == VINF_SUCCESS && found)
         {
-            RTTIMESPEC time;
-            uint64_t u64Timestamp = RTTimeSpecGetNano(RTTimeNow(&time));
+            uint64_t u64Timestamp = getCurrentTimestamp();
             mProperties.erase(it);
             // if (isGuest)  /* Notify the host even for properties that the host
             //                * changed.  Less efficient, but ensures consistency. */
@@ -791,12 +786,15 @@ int Service::enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
      * First repack the patterns into the format expected by RTStrSimplePatternMatch()
      */
     char pszPatterns[MAX_PATTERN_LEN];
-    for (unsigned i = 0; i < cchPatterns - 1; ++i)
-        if (pcchPatterns[i] != '\0')
-            pszPatterns[i] = pcchPatterns[i];
-        else
-            pszPatterns[i] = '|';
-    pszPatterns[cchPatterns - 1] = '\0';
+    if (RT_SUCCESS(rc))
+    {
+        for (unsigned i = 0; i < cchPatterns - 1; ++i)
+            if (pcchPatterns[i] != '\0')
+                pszPatterns[i] = pcchPatterns[i];
+            else
+                pszPatterns[i] = '|';
+        pszPatterns[cchPatterns - 1] = '\0';
+    }
 
     /*
      * Next enumerate into a temporary buffer.  This can throw, but this is
@@ -825,7 +823,8 @@ int Service::enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
             buffer += '\0';
         }
     }
-    buffer.append(4, '\0');  /* The final terminators */
+    if (RT_SUCCESS(rc))
+        buffer.append(4, '\0');  /* The final terminators */
 
     /*
      * Finally write out the temporary buffer to the real one if it is not too
@@ -843,75 +842,36 @@ int Service::enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
     return rc;
 }
 
-/**
- * Flushes the notifications.
- *
- * @returns iprt status value
- * @param   cMsTimeout  The timeout in milliseconds.
- * @thread  HGCM
- */
-int Service::flushNotifications(uint32_t cMsTimeout)
-{
-    LogFlowThisFunc(("cMsTimeout=%RU32\n", cMsTimeout));
-    int rc;
-
-#ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
-    /*
-     * Wait for the thread to finish processing all current requests.
-     */
-    if (!mPendingDummyReq && !RTReqIsBusy(mReqQueue))
-        rc = VINF_SUCCESS;
-    else
-    {
-        if (!mPendingDummyReq)
-            rc = RTReqCallEx(mReqQueue, &mPendingDummyReq, 0 /*cMillies*/, RTREQFLAGS_VOID, (PFNRT)reqVoid, 0);
-        else
-            rc = VERR_TIMEOUT;
-        if (rc == VERR_TIMEOUT)
-            rc = RTReqWait(mPendingDummyReq, cMsTimeout);
-        if (RT_SUCCESS(rc))
-        {
-            RTReqFree(mPendingDummyReq);
-            mPendingDummyReq = NULL;
-        }
-    }
-#else
-    NOREF(cMsTimeout);
-    rc = VINF_SUCCESS;
-#endif /* VBOX_GUEST_PROP_TEST_NOTHREAD not defined */
-
-    return rc;
-}
 
 /** Helper query used by getOldNotification */
 int Service::getOldNotificationInternal(const char *pszPatterns,
                                         uint64_t u64Timestamp,
                                         Property *pProp)
 {
-    int rc = VINF_SUCCESS;
-    bool warn = false;
-
     /* We count backwards, as the guest should normally be querying the
      * most recent events. */
+    int rc = VWRN_NOT_FOUND;
     PropertyList::reverse_iterator it = mGuestNotifications.rbegin();
-    for (; it->mTimestamp != u64Timestamp && it != mGuestNotifications.rend();
-         ++it) {}
-    /* Warn if the timestamp was not found. */
-    if (it->mTimestamp != u64Timestamp)
-        warn = true;
+    for (; it != mGuestNotifications.rend(); ++it)
+        if (it->mTimestamp == u64Timestamp)
+        {
+            rc = VINF_SUCCESS;
+            break;
+        }
+
     /* Now look for an event matching the patterns supplied.  The base()
      * member conveniently points to the following element. */
     PropertyList::iterator base = it.base();
-    for (; !base->Matches(pszPatterns) && base != mGuestNotifications.end();
-         ++base) {}
-    if (RT_SUCCESS(rc) && base != mGuestNotifications.end())
-        *pProp = *base;
-    else if (RT_SUCCESS(rc))
-        *pProp = Property();
-    if (warn)
-        rc = VWRN_NOT_FOUND;
+    for (; base != mGuestNotifications.end(); ++base)
+        if (base->Matches(pszPatterns))
+        {
+            *pProp = *base;
+            return rc;
+        }
+    *pProp = Property();
     return rc;
 }
+
 
 /** Helper query used by getNotification */
 int Service::getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop)
@@ -950,6 +910,7 @@ int Service::getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop)
     }
     return rc;
 }
+
 
 /**
  * Get the next guest notification.
@@ -1009,13 +970,12 @@ int Service::getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
     return rc;
 }
 
+
 /**
  * Notify the service owner and the guest that a property has been
  * added/deleted/changed
  * @param pszProperty  the name of the property which has changed
  * @param u64Timestamp the time at which the change took place
- * @note this call allocates memory which the reqNotify request is expected to
- *       free again, using RTStrFree().
  *
  * @thread  HGCM service
  */
@@ -1085,35 +1045,19 @@ void Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
     if (mGuestNotifications.size() > MAX_GUEST_NOTIFICATIONS)
         mGuestNotifications.pop_front();
 
-#ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
     /*
      * Host notifications - first case: if the property exists then send its
      * current value
      */
-    char *pszName = NULL, *pszValue = NULL, *pszFlags = NULL;
-
     if (found && mpfnHostCallback != NULL)
     {
         char szFlags[MAX_FLAGS_LEN];
         /* Send out a host notification */
-        rc = writeFlags(prop.mFlags, szFlags);
+        const char *pszValue = prop.mValue.c_str();
         if (RT_SUCCESS(rc))
-            rc = RTStrDupEx(&pszName, pszProperty);
+            rc = writeFlags(prop.mFlags, szFlags);
         if (RT_SUCCESS(rc))
-            rc = RTStrDupEx(&pszValue, prop.mValue.c_str());
-        if (RT_SUCCESS(rc))
-            rc = RTStrDupEx(&pszFlags, szFlags);
-        if (RT_SUCCESS(rc))
-        {
-            LogFlowThisFunc (("pszName=%p (%s)\n", pszName, pszName));
-            LogFlowThisFunc (("pszValue=%p (%s)\n", pszValue, pszValue));
-            LogFlowThisFunc (("pszFlags=%p (%s)\n", pszFlags, pszFlags));
-            rc = RTReqCallEx(mReqQueue, NULL, 0, RTREQFLAGS_NO_WAIT,
-                             (PFNRT)Service::reqNotify, 7, mpfnHostCallback,
-                             mpvHostData, pszName, pszValue,
-                             (uint32_t) RT_HIDWORD(u64Timestamp),
-                             (uint32_t) RT_LODWORD(u64Timestamp), pszFlags);
-        }
+            rc = notifyHost(pszProperty, pszValue, u64Timestamp, szFlags);
     }
 
     /*
@@ -1123,63 +1067,36 @@ void Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
     if (!found && mpfnHostCallback != NULL)
     {
         /* Send out a host notification */
-        rc = RTStrDupEx(&pszName, pszProperty);
         if (RT_SUCCESS(rc))
-        {
-            LogFlowThisFunc (("pszName=%p (%s)\n", pszName, pszName));
-            rc = RTReqCallEx(mReqQueue, NULL, 0, RTREQFLAGS_NO_WAIT,
-                             (PFNRT)Service::reqNotify, 7, mpfnHostCallback,
-                             mpvHostData, pszName, (uintptr_t) NULL,
-                             (uint32_t) RT_HIDWORD(u64Timestamp),
-                             (uint32_t) RT_LODWORD(u64Timestamp),
-                             (uintptr_t) NULL);
-       }
-    }
-    if (RT_FAILURE(rc)) /* clean up if we failed somewhere */
-    {
-        LogThisFunc (("Failed, freeing allocated strings.\n"));
-        RTStrFree(pszName);
-        RTStrFree(pszValue);
-        RTStrFree(pszFlags);
+            rc = notifyHost(pszProperty, NULL, u64Timestamp, NULL);
     }
     LogFlowThisFunc (("returning\n"));
-#endif /* VBOX_GUEST_PROP_TEST_NOTHREAD not defined */
 }
 
 /**
  * Notify the service owner that a property has been added/deleted/changed.
- * asynchronous part.
- * @param pszProperty the name of the property which has changed
- * @note this call allocates memory which the reqNotify request is expected to
- *       free again, using RTStrFree().
- *
- * @thread  request thread
+ * @returns  IPRT status value
+ * @param    pszName       the property name
+ * @param    pszValue      the new value, or NULL if the property was deleted
+ * @param    u64Timestamp  the time of the change
+ * @param    pszFlags      the new flags string
  */
-/* static */
-DECLCALLBACK(int) Service::reqNotify(PFNHGCMSVCEXT pfnCallback, void *pvData,
-                                     char *pszName, char *pszValue, uint32_t u32TimeHigh,
-                                     uint32_t u32TimeLow, char *pszFlags)
+int Service::notifyHost(const char *pszName, const char *pszValue,
+                        uint64_t u64Timestamp, const char *pszFlags)
 {
-    LogFlowFunc (("pfnCallback=%p, pvData=%p, pszName=%p, pszValue=%p, u32TimeHigh=%u, u32TimeLow=%u, pszFlags=%p\n", pfnCallback, pvData, pszName, pszValue, u32TimeHigh, u32TimeLow, pszFlags));
-    LogFlowFunc (("pszName=%s\n", pszName));
-    LogFlowFunc (("pszValue=%s\n", pszValue));
-    LogFlowFunc (("pszFlags=%s\n", pszFlags));
-    /* LogFlowFunc (("pfnCallback=%p, pvData=%p, pszName=%s, pszValue=%s, u32TimeHigh=%u, u32TimeLow=%u, pszFlags=%s\n", pfnCallback, pvData, pszName, pszValue, u32TimeHigh, u32TimeLow, pszFlags)); */
+    LogFlowFunc (("pszName=%s, pszValue=%s, u64Timestamp=%llu, pszFlags=%s\n",
+                  pszName, pszValue, u64Timestamp, pszFlags));
     HOSTCALLBACKDATA HostCallbackData;
     HostCallbackData.u32Magic     = HOSTCALLBACKMAGIC;
     HostCallbackData.pcszName     = pszName;
     HostCallbackData.pcszValue    = pszValue;
-    HostCallbackData.u64Timestamp = RT_MAKE_U64(u32TimeLow, u32TimeHigh);
+    HostCallbackData.u64Timestamp = u64Timestamp;
     HostCallbackData.pcszFlags    = pszFlags;
-    int rc = pfnCallback(pvData, 0 /*u32Function*/, (void *)(&HostCallbackData),
-                         sizeof(HostCallbackData));
-    AssertRC(rc);
-    LogFlowFunc (("Freeing strings\n"));
-    RTStrFree(pszName);
-    RTStrFree(pszValue);
-    RTStrFree(pszFlags);
-    LogFlowFunc (("returning success\n"));
-    return VINF_SUCCESS;
+    int rc = mpfnHostCallback (mpvHostData, 0 /*u32Function*/,
+                           (void *)(&HostCallbackData),
+                           sizeof(HostCallbackData));
+    LogFlowFunc (("returning %Rrc\n", rc));
+    return rc;
 }
 
 
@@ -1308,7 +1225,7 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
                 rc = enumProps(cParms, paParms);
                 break;
 
-            /* The host wishes to flush all pending notification */
+            /* The host wishes to set global flags for the service */
             case SET_GLOBAL_FLAGS_HOST:
                 LogFlowFunc(("SET_GLOBAL_FLAGS_HOST\n"));
                 if (cParms == 1)
@@ -1317,20 +1234,6 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
                     rc = paParms[0].getUInt32(&eFlags);
                     if (RT_SUCCESS(rc))
                         meGlobalFlags = (ePropFlags)eFlags;
-                }
-                else
-                    rc = VERR_INVALID_PARAMETER;
-                break;
-
-            /* The host wishes to flush all pending notification */
-            case FLUSH_NOTIFICATIONS_HOST:
-                LogFlowFunc(("FLUSH_NOTIFICATIONS_HOST\n"));
-                if (cParms == 1)
-                {
-                    uint32_t cMsTimeout;
-                    rc = paParms[0].getUInt32(&cMsTimeout);
-                    if (RT_SUCCESS(rc))
-                        rc = flushNotifications(cMsTimeout);
                 }
                 else
                     rc = VERR_INVALID_PARAMETER;
@@ -1352,33 +1255,7 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
 
 int Service::uninit()
 {
-    int rc = VINF_SUCCESS;
-
-    ASMAtomicWriteBool(&mfExitThread, true);
-
-#ifndef VBOX_GUEST_PROP_TEST_NOTHREAD
-    /*
-     * Send a dummy request to the thread so it is forced out of the loop and
-     * notice that the exit flag is set.  Give up waiting after 5 mins.
-     * We call flushNotifications first to try clean up any pending request.
-     */
-    flushNotifications(120*1000);
-
-    rc = RTReqCallEx(mReqQueue, NULL, 0, RTREQFLAGS_NO_WAIT, (PFNRT)reqVoid, 0);
-    if (RT_SUCCESS(rc))
-    {
-        unsigned count = 0;
-        do
-        {
-            rc = RTThreadWait(mReqThread, 1000, NULL);
-            ++count;
-            Assert(RT_SUCCESS(rc) || ((VERR_TIMEOUT == rc) && (count != 5)));
-        } while ((VERR_TIMEOUT == rc) && (count < 300));
-    }
-#endif /* VBOX_GUEST_PROP_TEST_NOTHREAD not defined */
-    if (RT_SUCCESS(rc))
-        RTReqDestroyQueue(mReqQueue);
-    return rc;
+    return VINF_SUCCESS;
 }
 
 } /* namespace guestProp */

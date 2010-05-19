@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_err_h
@@ -608,6 +604,20 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_AUTHENTICATION_FAILURE         (-89)
 /** Not a power of two. */
 #define VERR_NOT_POWER_OF_TWO               (-90)
+/** Status code, typically given as a parameter, that isn't supposed to be used. */
+#define VERR_IGNORED                        (-91)
+/** Concurrent access to the object is not allowed. */
+#define VERR_CONCURRENT_ACCESS              (-92)
+/** The caller does not have a reference to the object.
+ * This status is used when two threads is caught sharing the same object
+ * reference. */
+#define VERR_CALLER_NO_REFERENCE            (-93)
+/** Invalid login data given. */
+#define VERR_LOGON_FAILURE                  (-94)
+/** Generic no change error. */
+#define VERR_NO_CHANGE                      (-95)
+/** Generic no change info. */
+#define VINF_NO_CHANGE                      95
 /** @} */
 
 
@@ -842,6 +852,27 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_SEM_BAD_CONTEXT                (-367)
 /** Don't spin for the semaphore, but it is safe to try grab it. */
 #define VINF_SEM_BAD_CONTEXT                (367)
+/** Wrong locking order detected. */
+#define VERR_SEM_LV_WRONG_ORDER             (-368)
+/** Wrong release order detected. */
+#define VERR_SEM_LV_WRONG_RELEASE_ORDER     (-369)
+/** Attempt to recursively enter a non-recurisve lock. */
+#define VERR_SEM_LV_NESTED                  (-370)
+/** Invalid parameters passed to the lock validator. */
+#define VERR_SEM_LV_INVALID_PARAMETER       (-371)
+/** The lock validator detected a deadlock. */
+#define VERR_SEM_LV_DEADLOCK                (-372)
+/** The lock validator detected an existing deadlock.
+ * The deadlock was not caused by the current operation, but existed already. */
+#define VERR_SEM_LV_EXISTING_DEADLOCK       (-373)
+/** Not the lock owner according our records. */
+#define VERR_SEM_LV_NOT_OWNER               (-374)
+/** An illegal lock upgrade was attempted. */
+#define VERR_SEM_LV_ILLEGAL_UPGRADE         (-375)
+/** The thread is not a valid signaller of the event. */
+#define VERR_SEM_LV_NOT_SIGNALLER           (-376)
+/** Internal error in the lock validator or related components. */
+#define VERR_SEM_LV_INTERNAL_ERROR          (-377)
 /** @} */
 
 
@@ -1017,20 +1048,30 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_IMAGE_BASE_TOO_HIGH                (-614)
 /** Mismatching architecture. */
 #define VERR_LDR_ARCH_MISMATCH                  (-615)
+/** Mismatch between IPRT and native loader. */
+#define VERR_LDR_MISMATCH_NATIVE                (-616)
+/** Failed to resolve an imported (external) symbol. */
+#define VERR_LDR_IMPORTED_SYMBOL_NOT_FOUND      (-617)
+/** Generic loader failure. */
+#define VERR_LDR_GENERAL_FAILURE                (-618)
+/** Code signing error.  */
+#define VERR_LDR_IMAGE_HASH                     (-619)
 /** The PE loader encountered delayed imports, a feature which hasn't been implemented yet. */
 #define VERR_LDRPE_DELAY_IMPORT                 (-620)
-/** The PE loader doesn't have a clue what the security data directory entry is all about. */
-#define VERR_LDRPE_SECURITY                     (-621)
+/** The PE loader encountered a malformed certificate. */
+#define VERR_LDRPE_CERT_MALFORMED               (-621)
+/** The PE loader encountered a certificate with an unsupported type or structure revision. */
+#define VERR_LDRPE_CERT_UNSUPPORTED             (-622)
 /** The PE loader doesn't know how to deal with the global pointer data directory entry yet. */
-#define VERR_LDRPE_GLOBALPTR                    (-622)
+#define VERR_LDRPE_GLOBALPTR                    (-623)
 /** The PE loader doesn't support the TLS data directory yet. */
-#define VERR_LDRPE_TLS                          (-623)
+#define VERR_LDRPE_TLS                          (-624)
 /** The PE loader doesn't grok the COM descriptor data directory entry. */
-#define VERR_LDRPE_COM_DESCRIPTOR               (-624)
+#define VERR_LDRPE_COM_DESCRIPTOR               (-625)
 /** The PE loader encountered an unknown load config directory/header size. */
-#define VERR_LDRPE_LOAD_CONFIG_SIZE             (-625)
+#define VERR_LDRPE_LOAD_CONFIG_SIZE             (-626)
 /** The PE loader encountered a lock prefix table, a feature which hasn't been implemented yet. */
-#define VERR_LDRPE_LOCK_PREFIX_TABLE            (-626)
+#define VERR_LDRPE_LOCK_PREFIX_TABLE            (-627)
 /** The ELF loader doesn't handle foreign endianness. */
 #define VERR_LDRELF_ODD_ENDIAN                  (-630)
 /** The ELF image is 'dynamic', the ELF loader can only deal with 'relocatable' images at present. */
@@ -1179,34 +1220,46 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 
 /** @name RTS3 status codes
  * @{ */
-/** Access denied error */
+/** Access denied error. */
 #define VERR_S3_ACCESS_DENIED                   (-875)
-/** The bucket/key wasn't found */
+/** The bucket/key wasn't found. */
 #define VERR_S3_NOT_FOUND                       (-876)
 /** Bucket already exists. */
 #define VERR_S3_BUCKET_ALREADY_EXISTS           (-877)
 /** Can't delete bucket with keys. */
 #define VERR_S3_BUCKET_NOT_EMPTY                (-878)
-/** The current operation was canceled */
+/** The current operation was canceled. */
 #define VERR_S3_CANCELED                        (-879)
 /** @} */
 
 /** @name RTManifest status codes
  * @{ */
-/** A digest type used in the manifest file isn't supported */
+/** A digest type used in the manifest file isn't supported. */
 #define VERR_MANIFEST_UNSUPPORTED_DIGEST_TYPE   (-900)
-/** An entry in the manifest file couldn't be interpreted correctly */
+/** An entry in the manifest file couldn't be interpreted correctly. */
 #define VERR_MANIFEST_WRONG_FILE_FORMAT         (-901)
-/** A digest doesn't match the corresponding file */
+/** A digest doesn't match the corresponding file. */
 #define VERR_MANIFEST_DIGEST_MISMATCH           (-902)
-/** The file list doesn't match to the content of the manifest file */
+/** The file list doesn't match to the content of the manifest file. */
 #define VERR_MANIFEST_FILE_MISMATCH             (-903)
 /** @} */
 
 /** @name RTTar status codes
  * @{ */
-/** The checksum of a tar header record doesn't match */
+/** The checksum of a tar header record doesn't match. */
 #define VERR_TAR_CHKSUM_MISMATCH                (-925)
+/** @} */
+
+/** @name RTPoll status codes
+ * @{ */
+/** The handle is not pollable. */
+#define VERR_POLL_HANDLE_NOT_POLLABLE           (-950)
+/** The handle ID is already present in the poll set. */
+#define VERR_POLL_HANDLE_ID_EXISTS              (-951)
+/** The handle ID was not found in the set. */
+#define VERR_POLL_HANDLE_ID_NOT_FOUND           (-952)
+/** The poll set is full. */
+#define VERR_POLL_SET_IS_FULL                   (-953)
 /** @} */
 
 /* SED-END */

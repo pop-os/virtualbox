@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxProblemReporter.h"
 #include "VBoxSelectorWnd.h"
 #include "VBoxVMListView.h"
@@ -27,14 +26,16 @@
 #include "VBoxToolBar.h"
 
 #include "VBoxSnapshotsWgt.h"
-#include "VBoxNewVMWzd.h"
+#include "UINewVMWzd.h"
 #include "VBoxMediaManagerDlg.h"
-#include "VBoxImportApplianceWzd.h"
-#include "VBoxExportApplianceWzd.h"
+#include "UIImportApplianceWzd.h"
+#include "UIExportApplianceWzd.h"
 #include "VBoxSettingsDialogSpecific.h"
 #include "VBoxVMLogViewer.h"
 #include "VBoxGlobal.h"
 #include "VBoxUtils.h"
+
+#include "UIDownloaderUserManual.h"
 
 #ifdef Q_WS_X11
 #include <iprt/env.h>
@@ -50,6 +51,8 @@
 #include <QToolButton>
 
 #include <iprt/buildconfig.h>
+#include <VBox/version.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 // VBoxVMDetailsView class
 ////////////////////////////////////////////////////////////////////////////////
@@ -584,6 +587,11 @@ VBoxSelectorWnd (VBoxSelectorWnd **aSelf, QWidget* aParent,
     mVMCtxtMenu->addAction (mVmRefreshAction);
     mVMCtxtMenu->addAction (mVmShowLogsAction);
 
+    /* Make sure every status bar hint from the context menu is cleared when
+     * the menu is closed. */
+    connect (mVMCtxtMenu, SIGNAL(aboutToHide()),
+             statusBar(), SLOT(clearMessage()));
+
     mHelpMenu = menuBar()->addMenu (QString::null);
     mHelpActions.addTo (mHelpMenu);
 
@@ -708,6 +716,9 @@ VBoxSelectorWnd (VBoxSelectorWnd **aSelf, QWidget* aParent,
              this, SLOT (trayIconChanged (const VBoxChangeTrayIconEvent &)));
 #endif
 
+    /* Listen to potential downloaders signals: */
+    connect(&vboxProblem(), SIGNAL(sigDownloaderUserManualCreated()), this, SLOT(sltDownloaderUserManualEmbed()));
+
     /* bring the VM list to the focus */
     mVMListView->setFocus();
 }
@@ -729,7 +740,11 @@ VBoxSelectorWnd::~VBoxSelectorWnd()
         QString winPos = QString ("%1,%2,%3,%4")
             .arg (mNormalGeo.x()).arg (y)
             .arg (mNormalGeo.width()).arg (mNormalGeo.height());
+#ifdef Q_WS_MAC
+        if (::darwinIsWindowMaximized(this))
+#else /* Q_WS_MAC */
         if (isMaximized())
+#endif /* !Q_WS_MAC */
             winPos += QString (",%1").arg (VBoxDefs::GUI_LastWindowPosition_Max);
 
         vbox.SetExtraData (VBoxDefs::GUI_LastWindowPosition, winPos);
@@ -765,7 +780,7 @@ void VBoxSelectorWnd::fileMediaMgr()
 
 void VBoxSelectorWnd::fileImportAppliance()
 {
-    VBoxImportApplianceWzd wzd (this);
+    UIImportApplianceWzd wzd (this);
 
     wzd.exec();
 }
@@ -778,7 +793,7 @@ void VBoxSelectorWnd::fileExportAppliance()
     if (item)
         name = item->name();
 
-    VBoxExportApplianceWzd wzd (this, name);
+    UIExportApplianceWzd wzd (this, name);
 
     wzd.exec();
 }
@@ -815,7 +830,7 @@ void VBoxSelectorWnd::fileExit()
 
 void VBoxSelectorWnd::vmNew()
 {
-    VBoxNewVMWzd wzd (this);
+    UINewVMWzd wzd (this);
     if (wzd.exec() == QDialog::Accepted)
     {
         CMachine m = wzd.machine();
@@ -1021,11 +1036,12 @@ void VBoxSelectorWnd::vmStart (const QString &aUuid /*= QUuid_null*/)
         return;
     }
 
-    /* show the "VM spawning" progress dialog */
-    vboxProblem().showModalProgressDialog (progress, item->name(), this);
-
+    /* Hide the "VM spawning" progress dialog */
+    /* I hope 1 minute will be enough to spawn any running VM silently, isn't it? */
+    int iSpawningDuration = 60000;
+    vboxProblem().showModalProgressDialog(progress, item->name(), this, iSpawningDuration);
     if (progress.GetResultCode() != 0)
-        vboxProblem().cannotOpenSession (vbox, item->machine(), progress);
+        vboxProblem().cannotOpenSession(vbox, item->machine(), progress);
 
     session.Close();
 
@@ -1237,7 +1253,13 @@ bool VBoxSelectorWnd::event (QEvent *e)
                 mNormalGeo.moveTo (geometry().x(), geometry().y());
             break;
         }
-
+        case QEvent::WindowDeactivate:
+        {
+            /* Make sure every status bar hint is cleared when the window lost
+             * focus. */
+            statusBar()->clearMessage();
+            break;
+        }
         default:
             break;
     }
@@ -1293,7 +1315,7 @@ void VBoxSelectorWnd::retranslateUi()
 #ifdef VBOX_OSE
     QString title (tr ("VirtualBox OSE"));
 #else
-    QString title (tr ("Sun VirtualBox"));
+    QString title (VBOX_PRODUCT);
 #endif
 
 #ifdef VBOX_BLEEDING_EDGE
@@ -2140,5 +2162,12 @@ void VBoxTrayIcon::vmShowLogs()
 }
 
 #endif // VBOX_GUI_WITH_SYSTRAY
+
+void VBoxSelectorWnd::sltDownloaderUserManualEmbed()
+{
+    /* If there is User Manual downloader created => show the process bar: */
+    if (UIDownloaderUserManual *pDl = UIDownloaderUserManual::current())
+        statusBar()->addWidget(pDl->processWidget(this), 0);
+}
 
 #include "VBoxSelectorWnd.moc"

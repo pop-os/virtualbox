@@ -1,10 +1,10 @@
-/* $Id: VBoxService.cpp $ */
+/* $Id: VBoxService.cpp 29345 2010-05-11 12:22:48Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton.
  */
 
 /*
- * Copyright (C) 2007-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -91,8 +87,17 @@ static struct
 #ifdef VBOXSERVICE_VMINFO
     { &g_VMInfo,    NIL_RTTHREAD, false, false, false, true },
 #endif
-#ifdef VBOXSERVICE_EXEC
-    { &g_Exec,      NIL_RTTHREAD, false, false, false, true },
+#ifdef VBOXSERVICE_CPUHOTPLUG
+    { &g_CpuHotPlug, NIL_RTTHREAD, false, false, false, true },
+#endif
+#ifdef VBOXSERVICE_MANAGEMENT
+# ifdef VBOX_WITH_MEMBALLOON
+    { &g_MemBalloon, NIL_RTTHREAD, false, false, false, true },
+# endif
+    { &g_VMStatistics, NIL_RTTHREAD, false, false, false, true },
+#endif
+#ifdef VBOX_WITH_PAGE_SHARING
+    { &g_PageSharing, NIL_RTTHREAD, false, false, false, true },
 #endif
 };
 
@@ -253,7 +258,7 @@ static DECLCALLBACK(int) VBoxServiceThread(RTTHREAD ThreadSelf, void *pvUser)
     const unsigned i = (uintptr_t)pvUser;
 
 #ifndef RT_OS_WINDOWS
-    /* 
+    /*
      * Block all signals for this thread. Only the main thread will handle signals.
      */
     sigset_t signalMask;
@@ -281,6 +286,7 @@ unsigned VBoxServiceGetStartedServices(void)
    return iMain; /* Return the index of the main service (must always come last!). */
 }
 
+
 /**
  * Starts the service.
  *
@@ -303,9 +309,16 @@ int VBoxServiceStartServices(unsigned iMain)
             rc = g_aServices[j].pDesc->pfnInit();
             if (RT_FAILURE(rc))
             {
-                VBoxServiceError("Service '%s' failed to initialize: %Rrc\n",
-                                 g_aServices[j].pDesc->pszName, rc);
-                return rc;
+                if (rc != VERR_SERVICE_DISABLED)
+                {
+                    VBoxServiceError("Service '%s' failed to initialize: %Rrc\n",
+                                     g_aServices[j].pDesc->pszName, rc);
+                    return rc;
+                }
+                g_aServices[j].fEnabled = false;
+                VBoxServiceVerbose(0, "Service '%s' was disabled because of missing functionality\n",
+                                   g_aServices[j].pDesc->pszName);
+
             }
         }
 
@@ -414,6 +427,27 @@ static void VBoxServiceWaitSignal(void)
     VBoxServiceVerbose(3, "VBoxServiceWaitSignal: Received signal %d\n", iSignal);
 }
 #endif
+
+
+#ifndef RT_OS_WINDOWS
+/*
+ * Block all important signals, then explicitly wait until one of these signal arrives.
+ */
+static void VBoxServiceWaitSignal(void)
+{
+    sigset_t signalMask;
+    int iSignal;
+    sigemptyset(&signalMask);
+    sigaddset(&signalMask, SIGHUP);
+    sigaddset(&signalMask, SIGINT);
+    sigaddset(&signalMask, SIGQUIT);
+    sigaddset(&signalMask, SIGABRT);
+    sigaddset(&signalMask, SIGTERM);
+    pthread_sigmask(SIG_BLOCK, &signalMask, NULL);
+    sigwait(&signalMask, &iSignal);
+    VBoxServiceVerbose(3, "VBoxServiceWaitSignal: Received signal %d\n", iSignal);
+}
+#endif /* !RT_OS_WINDOWS */
 
 
 int main(int argc, char **argv)
@@ -588,14 +622,14 @@ int main(int argc, char **argv)
         return VBoxServiceSyntax("At least one service must be enabled.\n");
 
 #ifndef RT_OS_WINDOWS
-    /* 
+    /*
      * POSIX: No main service thread.
      */
     iMain = ~0U;
 #endif
 
     VBoxServiceVerbose(0, "%s r%s started. Verbose level = %d\n",
-        RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbosity);
+                       RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbosity);
 
     /*
      * Daemonize if requested.
@@ -630,14 +664,15 @@ int main(int argc, char **argv)
     }
 #ifdef RT_OS_WINDOWS
     else
-    {
-        /* Run the app just like a console one if not daemonized. */
 #endif
+    {
         /*
-         * Windows: Start the services, enter the main threads' run loop and stop them
-         * again when it returns.
+         * Windows: We're running the service as a console application now. Start the
+         *          services, enter the main thread's run loop and stop them again
+         *          when it returns.
          *
-         * POSIX: Start all services and return immediately.
+         * POSIX:   This is used for both daemons and console runs. Start all services
+         *          and return immediately.
          */
         rc = VBoxServiceStartServices(iMain);
 #ifndef RT_OS_WINDOWS
@@ -645,9 +680,7 @@ int main(int argc, char **argv)
             VBoxServiceWaitSignal();
 #endif
         VBoxServiceStopServices();
-#ifdef RT_OS_WINDOWS
     }
-#endif
 
 #ifdef RT_OS_WINDOWS
     /*

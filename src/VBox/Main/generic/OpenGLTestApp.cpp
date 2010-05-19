@@ -1,10 +1,10 @@
-/* $Id: OpenGLTestApp.cpp $ */
+/* $Id: OpenGLTestApp.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox host opengl support test application.
  */
 
 /*
- * Copyright (C) 2009-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <iprt/assert.h>
@@ -231,7 +227,6 @@ int main(int argc, char **argv)
 #ifdef VBOXGLTEST_WITH_LOGGING
             { "--log",            'l',   RTGETOPT_REQ_STRING },
 #endif
-            { "--help",           'h',   RTGETOPT_REQ_NOTHING },
         };
 
         RTGETOPTSTATE State;
@@ -306,15 +301,20 @@ int main(int argc, char **argv)
                             RTBldCfgVersionMajor(), RTBldCfgVersionMinor(), RTBldCfgVersionBuild());
                     break;
 
+                case 'V':
+                    RTPrintf("$Revision: $\n");
+                    return 0;
+
                 case VERR_GETOPT_UNKNOWN_OPTION:
                 case VINF_GETOPT_NOT_OPTION:
                     rc = 1;
 
                 default:
+                    /* complain? RTGetOptPrintError(rc, &Val); */
                     break;
             }
 
-            if(rc)
+            if (rc)
                 break;
         }
 

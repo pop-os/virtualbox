@@ -1,10 +1,10 @@
-/* $Id: CSAMAll.cpp $ */
+/* $Id: CSAMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * CSAM - Guest OS Code Scanning and Analysis Manager - Any Context
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -108,13 +104,13 @@ VMMDECL(bool) CSAMIsPageScanned(PVM pVM, RTRCPTR pPage)
  * @param   fScanned    Mark as scanned or not scanned
  *
  */
-VMMDECL(int) CSAMMarkPage(PVM pVM, RTRCPTR pPage, bool fScanned)
+VMMDECL(int) CSAMMarkPage(PVM pVM, RTRCUINTPTR pPage, bool fScanned)
 {
     int pgdir, bit;
     uintptr_t page;
 
 #ifdef LOG_ENABLED
-    if (fScanned && !CSAMIsPageScanned(pVM, pPage))
+    if (fScanned && !CSAMIsPageScanned(pVM, (RTRCPTR)pPage))
        Log(("CSAMMarkPage %RRv\n", pPage));
 #endif
 
@@ -177,12 +173,12 @@ VMMDECL(int) CSAMMarkPage(PVM pVM, RTRCPTR pPage, bool fScanned)
  * @param   pVM         The VM to operate on.
  * @param   GCPtr       GC pointer of page
  */
-VMMDECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCPTR GCPtr)
+VMMDECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCUINTPTR GCPtr)
 {
     if(!CSAMIsEnabled(pVM))
         return false;
 
-    if(CSAMIsPageScanned(pVM, GCPtr))
+    if(CSAMIsPageScanned(pVM, (RTRCPTR)GCPtr))
     {
         /* Already checked! */
         STAM_COUNTER_ADD(&CTXSUFF(pVM->csam.s.StatNrKnownPages), 1);
@@ -247,7 +243,7 @@ VMMDECL(int) CSAMDisableScanning(PVM pVM)
  * @param   pVM         The VM to operate on.
  * @param   GCPtr       GC pointer of page table entry
  */
-VMMDECL(bool) CSAMIsKnownDangerousInstr(PVM pVM, RTRCPTR GCPtr)
+VMMDECL(bool) CSAMIsKnownDangerousInstr(PVM pVM, RTRCUINTPTR GCPtr)
 {
     for (uint32_t i=0;i<pVM->csam.s.cDangerousInstr;i++)
     {

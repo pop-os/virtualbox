@@ -1,10 +1,10 @@
-/* $Id: SUPLib-solaris.cpp $ */
+/* $Id: SUPLib-solaris.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Solaris specific parts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -86,12 +82,12 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
      */
     for (int i = 0; i < SUPLIB_FLT_DUMMYFILES; i++)
     {
-        pThis->hDummy[i] = -1;
+        pThis->ahDummy[i] = -1;
         int hDummy = open("/dev/null", O_RDWR, 0);
         if (hDummy >= 0)
         {
             if (fcntl(hDummy, F_SETFD, FD_CLOEXEC) == 0)
-                pThis->hDummy[i] = hDummy;
+                pThis->ahDummy[i] = hDummy;
             else
             {
                 close(hDummy);
@@ -151,10 +147,10 @@ int suplibOsTerm(PSUPLIBDATA pThis)
      */
     for (int i = 0; i < SUPLIB_FLT_DUMMYFILES; i++)
     {
-        if (pThis->hDummy[i] != -1)
+        if (pThis->ahDummy[i] != -1)
         {
-            close(pThis->hDummy[i]);
-            pThis->hDummy[i] = -1;
+            close(pThis->ahDummy[i]);
+            pThis->ahDummy[i] = -1;
         }
     }
 

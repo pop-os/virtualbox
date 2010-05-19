@@ -22,8 +22,8 @@
 *    This code is using nuts and bolts from throughout etherboot.
 *    It is a fresh implementation according to the DNS RFC, #1035
 *    
-*    $Revision: 35885 $
-*    $Author: umoeller $
+*    $Revision: 11982 $
+*    $Author: vboxsync $
 *    $Date: 2008-09-02 15:09:44 +0200 (Tue, 02 Sep 2008) $
 *
 *    REVISION HISTORY:

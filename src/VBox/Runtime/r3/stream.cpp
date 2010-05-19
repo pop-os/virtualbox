@@ -1,10 +1,10 @@
-/* $Id: stream.cpp $ */
+/* $Id: stream.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - I/O Stream.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -34,8 +30,11 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/stream.h>
-#include <iprt/string.h>
+#include "internal/iprt.h"
+
 #include <iprt/asm.h>
+#include <iprt/critsect.h>
+#include <iprt/string.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/err.h>
@@ -66,7 +65,11 @@ typedef struct RTSTREAM
     /** File stream error. */
     int32_t volatile    i32Error;
     /** Pointer to the LIBC file stream. */
-    FILE                *pFile;
+    FILE               *pFile;
+#ifndef HAVE_FWRITE_UNLOCKED
+    /** Critical section for serializing access to the stream. */
+    PRTCRITSECT         pCritSect;
+#endif
 } RTSTREAM;
 
 
@@ -79,6 +82,9 @@ static RTSTREAM    g_StdIn =
     RTSTREAM_MAGIC,
     0,
     stdin
+#ifndef HAVE_FWRITE_UNLOCKED
+    , NULL
+#endif
 };
 
 /** The standard error stream. */
@@ -87,6 +93,9 @@ static RTSTREAM    g_StdErr =
     RTSTREAM_MAGIC,
     0,
     stderr
+#ifndef HAVE_FWRITE_UNLOCKED
+    , NULL
+#endif
 };
 
 /** The standard output stream. */
@@ -95,6 +104,9 @@ static RTSTREAM    g_StdOut =
     RTSTREAM_MAGIC,
     0,
     stdout
+#ifndef HAVE_FWRITE_UNLOCKED
+    , NULL
+#endif
 };
 
 /** Pointer to the standard input stream. */
@@ -105,6 +117,82 @@ RTDATADECL(PRTSTREAM)   g_pStdErr = &g_StdErr;
 
 /** Pointer to the standard output stream. */
 RTDATADECL(PRTSTREAM)   g_pStdOut = &g_StdOut;
+
+
+#ifndef HAVE_FWRITE_UNLOCKED
+/**
+ * Allocates and acquires the lock for the stream.
+ *
+ * @returns IPRT status.
+ * @param   pStream     The stream (valid).
+ */
+static int rtStrmAllocLock(PRTSTREAM pStream)
+{
+    Assert(pStream->pCritSect == NULL);
+
+    PRTCRITSECT pCritSect = (PRTCRITSECT)RTMemAlloc(sizeof(*pCritSect));
+    if (!pCritSect)
+        return VERR_NO_MEMORY;
+
+    /* The native stream lock are normally not recursive. */
+    int rc = RTCritSectInitEx(pCritSect, RTCRITSECT_FLAGS_NO_NESTING,
+                              NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "RTSemSpinMutex");
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTCritSectEnter(pCritSect);
+        if (RT_SUCCESS(rc))
+        {
+            if (RT_LIKELY(ASMAtomicCmpXchgPtr((void * volatile *)&pStream->pCritSect, pCritSect, NULL)))
+                return VINF_SUCCESS;
+
+            RTCritSectLeave(pCritSect);
+        }
+        RTCritSectDelete(pCritSect);
+    }
+    RTMemFree(pCritSect);
+
+    /* Handle the lost race case... */
+    pCritSect = (PRTCRITSECT)ASMAtomicReadPtr((void * volatile *)&pStream->pCritSect);
+    if (pCritSect)
+        return RTCritSectEnter(pCritSect);
+
+    return rc;
+}
+#endif /* !HAVE_FWRITE_UNLOCKED */
+
+
+/**
+ * Locks the stream.  May have to allocate the lock as well.
+ *
+ * @param   pStream     The stream (valid).
+ */
+DECLINLINE(void) rtStrmLock(PRTSTREAM pStream)
+{
+#ifdef HAVE_FWRITE_UNLOCKED
+    flockfile(pStream->pFile);
+#else
+    if (RT_LIKELY(pStream->pCritSect))
+        RTCritSectEnter(pStream->pCritSect);
+    else
+        rtStrmAllocLock(pStream);
+#endif
+}
+
+
+/**
+ * Unlocks the stream.
+ *
+ * @param   pStream     The stream (valid).
+ */
+DECLINLINE(void) rtStrmUnlock(PRTSTREAM pStream)
+{
+#ifdef HAVE_FWRITE_UNLOCKED
+    funlockfile(pStream->pFile);
+#else
+    if (RT_LIKELY(pStream->pCritSect))
+        RTCritSectLeave(pStream->pCritSect);
+#endif
+}
 
 
 /**
@@ -179,6 +267,9 @@ RTR3DECL(int) RTStrmOpen(const char *pszFilename, const char *pszMode, PRTSTREAM
     {
         pStream->u32Magic = RTSTREAM_MAGIC;
         pStream->i32Error = VINF_SUCCESS;
+#ifndef HAVE_FWRITE_UNLOCKED
+        pStream->pCritSect = NULL;
+#endif /* HAVE_FWRITE_UNLOCKED */
         pStream->pFile = fopen(pszFilename, pszMode);
         if (pStream->pFile)
         {
@@ -251,9 +342,20 @@ RTR3DECL(int) RTStrmClose(PRTSTREAM pStream)
         {
             pStream->u32Magic = 0xdeaddead;
             pStream->pFile = NULL;
+#ifndef HAVE_FWRITE_UNLOCKED
+            if (pStream->pCritSect)
+            {
+                RTCritSectEnter(pStream->pCritSect);
+                RTCritSectLeave(pStream->pCritSect);
+                RTCritSectDelete(pStream->pCritSect);
+                RTMemFree(pStream->pCritSect);
+                pStream->pCritSect = NULL;
+            }
+#endif
             RTMemFree(pStream);
             return VINF_SUCCESS;
         }
+
         return RTErrConvertFromErrno(errno);
     }
     else
@@ -542,12 +644,10 @@ RTR3DECL(int) RTStrmGetLine(PRTSTREAM pStream, char *pszString, size_t cchString
             if (RT_SUCCESS(rc))
             {
                 cchString--;            /* save space for the terminator. */
-#ifdef HAVE_FWRITE_UNLOCKED
-                flockfile(pStream->pFile);
-#endif
+                rtStrmLock(pStream);
                 for (;;)
                 {
-#ifdef HAVE_FWRITE_UNLOCKED
+#ifdef HAVE_FWRITE_UNLOCKED /** @todo darwin + freebsd(?) has fgetc_unlocked but not fwrite_unlocked, optimize... */
                     int ch = fgetc_unlocked(pStream->pFile);
 #else
                     int ch = fgetc(pStream->pFile);
@@ -585,9 +685,7 @@ RTR3DECL(int) RTStrmGetLine(PRTSTREAM pStream, char *pszString, size_t cchString
                         break;
                     }
                 }
-#ifdef HAVE_FWRITE_UNLOCKED
-                funlockfile(pStream->pFile);
-#endif
+                rtStrmUnlock(pStream);
 
                 *pszString = '\0';
                 if (RT_FAILURE(rc))
@@ -670,14 +768,9 @@ RTR3DECL(int) RTStrmPrintfV(PRTSTREAM pStream, const char *pszFormat, va_list ar
         rc = pStream->i32Error;
         if (RT_SUCCESS(rc))
         {
-            /** @todo consider making this thread safe... */
-#ifdef HAVE_FWRITE_UNLOCKED
-            flockfile(pStream->pFile);
+            rtStrmLock(pStream);
             rc = (int)RTStrFormatV(rtstrmOutput, pStream, NULL, NULL, pszFormat, args);
-            funlockfile(pStream->pFile);
-#else
-            rc = (int)RTStrFormatV(rtstrmOutput, pStream, NULL, NULL, pszFormat, args);
-#endif
+            rtStrmUnlock(pStream);
             Assert(rc >= 0);
         }
         else

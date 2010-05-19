@@ -1,10 +1,10 @@
-/* $Id: rtProcInitExePath-freebsd.cpp $ */
+/* $Id: rtProcInitExePath-freebsd.cpp 28929 2010-04-30 11:26:46Z vboxsync $ */
 /** @file
  * IPRT - rtProcInitName, FreeBSD.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -59,18 +55,15 @@ DECLHIDDEN(int) rtProcInitExePath(char *pszPath, size_t cchPath)
     size_t cchExePath = cchPath;
     if (sysctl(aiName, RT_ELEMENTS(aiName), pszPath, &cchExePath, NULL, 0) == 0)
     {
-
-        char *pszTmp = NULL;
-        int rc = rtPathFromNative(&pszTmp, pszPath);
-        AssertMsgRCReturn(rc, ("rc=%Rrc pszPath=\"%s\"\nhex: %.*Rhsx\n", rc, pszPath, cchExePath, pszPath), rc);
-
-        size_t cch = strlen(pszTmp);
-        AssertReturn(cch <= cchPath, VERR_BUFFER_OVERFLOW);
-
-        memcpy(pszPath, pszTmp, cch + 1);
-        RTStrFree(pszTmp);
-
-        return VINF_SUCCESS;
+        const char *pszTmp;
+        int rc = rtPathFromNative(&pszTmp, pszPath, NULL);
+        AssertMsgRCReturn(rc, ("rc=%Rrc pszPath=\"%s\"\nhex: %.*Rhxs\n", rc, pszPath, cchExePath, pszPath), rc);
+        if (pszTmp != pszPath)
+        {
+            rc = RTStrCopy(pszPath, cchPath, pszTmp);
+            rtPathFreeIprt(pszTmp, pszPath);
+        }
+        return rc;
     }
 
     int rc = RTErrConvertFromErrno(errno);
@@ -87,17 +80,15 @@ DECLHIDDEN(int) rtProcInitExePath(char *pszPath, size_t cchPath)
     {
         pszPath[cchLink] = '\0';
 
-        char *pszTmp = NULL;
+        char const *pszTmp;
         int rc = rtPathFromNative(&pszTmp, pszPath);
-        AssertMsgRCReturn(rc, ("rc=%Rrc pszLink=\"%s\"\nhex: %.*Rhsx\n", rc, pszPath, cchLink, pszPath), rc);
-
-        size_t cch = strlen(pszTmp);
-        AssertReturn(cch <= cchPath, VERR_BUFFER_OVERFLOW);
-
-        memcpy(pszPath, pszTmp, cch + 1);
-        RTStrFree(pszTmp);
-
-        return VINF_SUCCESS;
+        AssertMsgRCReturn(rc, ("rc=%Rrc pszLink=\"%s\"\nhex: %.*Rhxs\n", rc, pszPath, cchLink, pszPath), rc);
+        if (pszTmp != pszPath)
+        {
+            rc = RTStrCopy(pszPath, cchPath, pszTmp);
+            rtPathFreeIprt(pszTmp);
+        }
+        return rc;
     }
 
     int err = errno;
@@ -114,17 +105,15 @@ DECLHIDDEN(int) rtProcInitExePath(char *pszPath, size_t cchPath)
             const char *pszImageName = pLinkMap->l_name;
             if (*pszImageName == '/') /* this may not always be absolute, despite the docs. :-( */
             {
-                char *pszTmp = NULL;
-                int rc = rtPathFromNative(&pszTmp, pszImageName);
+                char const *pszTmp;
+                int rc = rtPathFromNative(&pszTmp, pszImageName, NULL);
                 AssertMsgRCReturn(rc, ("rc=%Rrc pszImageName=\"%s\"\n", rc, pszImageName), rc);
-
-                size_t cch = strlen(pszTmp);
-                AssertReturn(cch <= cchPath, VERR_BUFFER_OVERFLOW);
-
-                memcpy(pszPath, pszTmp, cch + 1);
-                RTStrFree(pszTmp);
-
-                return VINF_SUCCESS;
+                if (pszTmp != pszPath)
+                {
+                    rc = RTStrCopy(pszPath, cchPath, pszTmp);
+                    rtPathFreeIprt(pszTmp, pszPath);
+                }
+                return rc;
             }
             /** @todo Try search the PATH for the file name or append the current
              *        directory, which ever makes sense... */

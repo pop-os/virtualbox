@@ -1,10 +1,10 @@
-/* $Id: alignmentchecks.h $ */
+/* $Id: alignmentchecks.h 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT - Internal header for hacking alignment checks on x86 and AMD64.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -52,8 +48,10 @@
  * them for the first time.
  */
 
-#ifdef IPRT_WITH_ALIGNMENT_CHECKS
-# include <iprt/asm.h>
+#if defined(IPRT_WITH_ALIGNMENT_CHECKS) \
+ && (   defined(RT_ARCH_AMD64) \
+     || defined(RT_ARCH_X86) )
+# include <iprt/asm-amd64-x86.h>
 
 RT_C_DECLS_BEGIN
 extern RTDATADECL(bool) g_fRTAlignmentChecks;

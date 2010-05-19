@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_log_h
@@ -323,8 +319,10 @@ typedef enum RTLOGFLAGS
     RTLOGFLAGS_REL_TS               = 0x00000040,
     /** Show decimal timestamps with PREFIX_TSC and PREFIX_TS */
     RTLOGFLAGS_DECIMAL_TS           = 0x00000080,
-    /** Log flushing disabled. */
-    RTLOGFLAGS_NO_FLUSH             = 0x00000100,
+    /** Open the file in write through mode. */
+    RTLOGFLAGS_WRITE_THROUGH        = 0x00000100,
+    /** Flush the file to disk when flushing the buffer. */
+    RTLOGFLAGS_FLUSH                = 0x00000200,
     /** New lines should be prefixed with the write and read lock counts. */
     RTLOGFLAGS_PREFIX_LOCK_COUNTS   = 0x00008000,
     /** New lines should be prefixed with the CPU id (ApicID on intel/amd). */
@@ -474,7 +472,7 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
  * Governs the use of variadic macros.
  */
 #ifndef LOG_USE_C99
-# if defined(RT_ARCH_AMD64) || defined(RT_OS_DARWIN)
+# if defined(RT_ARCH_AMD64) || defined(RT_OS_DARWIN) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
 #  define LOG_USE_C99
 # endif
 #endif

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmcritsect_h
@@ -47,16 +43,18 @@ RT_C_DECLS_BEGIN
 typedef union PDMCRITSECT
 {
     /** Padding. */
-    uint8_t padding[HC_ARCH_BITS == 64 ? 0xb8 : 0xa8];
+    uint8_t padding[HC_ARCH_BITS == 32 ? 0x80 : 0xc0];
 #ifdef PDMCRITSECTINT_DECLARED
     /** The internal structure (not normally visible). */
     struct PDMCRITSECTINT s;
 #endif
 } PDMCRITSECT;
 
-VMMR3DECL(int)      PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, const char *pszName);
+VMMR3DECL(int)      PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, ...);
 VMMDECL(int)        PDMCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy);
+VMMDECL(int)        PDMCritSectEnterDebug(PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 VMMDECL(int)        PDMCritSectTryEnter(PPDMCRITSECT pCritSect);
+VMMDECL(int)        PDMCritSectTryEnterDebug(PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 VMMR3DECL(int)      PDMR3CritSectEnterEx(PPDMCRITSECT pCritSect, bool fCallRing3);
 VMMDECL(void)       PDMCritSectLeave(PPDMCRITSECT pCritSect);
 VMMDECL(bool)       PDMCritSectIsOwner(PCPDMCRITSECT pCritSect);
@@ -73,6 +71,17 @@ VMMDECL(int)        PDMR3CritSectTerm(PVM pVM);
 VMMDECL(void)       PDMCritSectFF(PVMCPU pVCpu);
 VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNames);
 VMMR3DECL(void)     PDMR3CritSectLeaveAll(PVM pVM);
+
+/* Strict build: Remap the two enter calls to the debug versions. */
+#ifdef VBOX_STRICT
+# ifdef ___iprt_asm_h
+#  define PDMCritSectEnter(pCritSect, rcBusy)   PDMCritSectEnterDebug((pCritSect), (rcBusy), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+#  define PDMCritSectTryEnter(pCritSect)        PDMCritSectTryEnterDebug((pCritSect), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+# else
+#  define PDMCritSectEnter(pCritSect, rcBusy)   PDMCritSectEnterDebug((pCritSect), (rcBusy), 0, RT_SRC_POS)
+#  define PDMCritSectTryEnter(pCritSect)        PDMCritSectTryEnterDebug((pCritSect), 0, RT_SRC_POS)
+# endif
+#endif
 
 /** @} */
 

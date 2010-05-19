@@ -1,10 +1,10 @@
-/* $Id: VBoxManageMisc.cpp $ */
+/* $Id: VBoxManageMisc.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -114,7 +110,8 @@ int handleUnregisterVM(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aUnregisterVMOptions, RT_ELEMENTS(g_aUnregisterVMOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aUnregisterVMOptions, RT_ELEMENTS(g_aUnregisterVMOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -236,16 +233,16 @@ int handleCreateVM(HandlerArg *a)
     if (!name)
         return errorSyntax(USAGE_CREATEVM, "Parameter --name is required");
 
-    if (!!baseFolder && !!settingsFile)
-        return errorSyntax(USAGE_CREATEVM, "Either --basefolder or --settingsfile must be specified");
+    if (!baseFolder.isEmpty() && !settingsFile.isEmpty())
+        return errorSyntax(USAGE_CREATEVM, "Cannot specify both --basefolder and --settingsfile together");
 
     do
     {
         ComPtr<IMachine> machine;
 
-        if (!settingsFile)
+        if (settingsFile.isEmpty())
             CHECK_ERROR_BREAK(a->virtualBox,
-                CreateMachine(name, osTypeId, baseFolder, Guid(id).toUtf16(), machine.asOutParam()));
+                CreateMachine(name, osTypeId, baseFolder, Guid(id).toUtf16(), FALSE, machine.asOutParam()));
         else
             CHECK_ERROR_BREAK(a->virtualBox,
                 CreateLegacyMachine(name, osTypeId, settingsFile, Guid(id).toUtf16(), machine.asOutParam()));
@@ -284,7 +281,8 @@ int handleStartVM(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, s_aStartVMOptions, RT_ELEMENTS(s_aStartVMOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aStartVMOptions, RT_ELEMENTS(s_aStartVMOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -377,8 +375,8 @@ int handleStartVM(HandlerArg *a)
         ComPtr<IProgress> progress;
         CHECK_ERROR_RET(a->virtualBox, OpenRemoteSession(a->session, uuid, sessionType,
                                                          env, progress.asOutParam()), rc);
-        RTPrintf("Waiting for the remote session to open...\n");
-        CHECK_ERROR_RET(progress, WaitForCompletion (-1), 1);
+        RTPrintf("Waiting for the VM to power on...\n");
+        CHECK_ERROR_RET(progress, WaitForCompletion(-1), 1);
 
         BOOL completed;
         CHECK_ERROR_RET(progress, COMGETTER(Completed)(&completed), rc);
@@ -395,7 +393,7 @@ int handleStartVM(HandlerArg *a)
         }
         else
         {
-            RTPrintf("Remote session has been successfully opened.\n");
+            RTPrintf("VM has been successfully started.\n");
         }
     }
 
@@ -441,7 +439,7 @@ int handleDiscardState(HandlerArg *a)
     return SUCCEEDED(rc) ? 0 : 1;
 }
 
-int handleAdoptdState(HandlerArg *a)
+int handleAdoptState(HandlerArg *a)
 {
     HRESULT rc;
 

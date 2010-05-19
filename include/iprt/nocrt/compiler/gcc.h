@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,12 +25,8 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
-   
+
 #ifndef ___iprt_nocrt_compiler_gcc_h
 #define ___iprt_nocrt_compiler_gcc_h
 
@@ -48,20 +44,20 @@ typedef int64_t ptrdiff_t;
 #define _PTRDIFF_T_DECLARED
 
 #ifdef __SIZE_TYPE__
-typedef __SIZE_TYPE__ size_t;  
+typedef __SIZE_TYPE__ size_t;
 #elif ARCH_BITS == 32
 typedef uint32_t size_t;
 #elif ARCH_BITS == 64
 typedef uint64_t size_t;
 #else
 # error "ARCH_BITS is undefined or incorrect."
-#endif 
+#endif
 #define _SIZE_T_DECLARED
 
 #ifndef __cplusplus
 # ifdef __WCHAR_TYPE__
 typedef __WCHAR_TYPE__ wchar_t;
-# elif defined(RT_OS_OS2) || defined(RT_OS_WINDOWS) 
+# elif defined(RT_OS_OS2) || defined(RT_OS_WINDOWS)
 typedef uint16_t wchar_t;
 # else
 typedef int wchar_t;
@@ -82,22 +78,22 @@ typedef unsigned int wint_t;
 # else
 #  define NULL  ((void *)0)
 # endif
-#endif 
+#endif
 
 
 #ifndef offsetof
-# if defined(__cplusplus) && defined(__offsetof__) 
-#  define offsetof(type, memb) 
+# if defined(__cplusplus) && defined(__offsetof__)
+#  define offsetof(type, memb)
     (__offsetof__ (reinterpret_cast<size_t>(&reinterpret_cast<const volatile char &>(static_cast<type *>(0)->memb))) )
 # else
 #  define offsetof(type, memb) ((size_t)&((type *)0)->memb)
-# endif                                        
-#endif                                        
+# endif
+#endif
 
 
 /* sys/types.h */
 #ifdef __SSIZE_TYPE__
-typedef __SSIZE_TYPE__ ssize_t;  
+typedef __SSIZE_TYPE__ ssize_t;
 #elif ARCH_BITS == 32
 typedef int32_t ssize_t;
 #elif ARCH_BITS == 64
@@ -105,13 +101,18 @@ typedef int64_t ssize_t;
 #else
 # define ARCH_BITS 123123
 # error "ARCH_BITS is undefined or incorrect."
-#endif 
+#endif
 #define _SSIZE_T_DECLARED
 
 
 /* stdarg.h */
 typedef __builtin_va_list   va_list;
-#define va_start(va, arg)   __builtin_va_start(va, arg)
+#if __GNUC__       == 3 \
+ && __GNUC_MINOR__ == 2
+# define va_start(va, arg)  __builtin_stdarg_start(va, arg)
+#else
+# define va_start(va, arg)  __builtin_va_start(va, arg)
+#endif
 #define va_end(va)          __builtin_va_end(va)
 #define va_arg(va, type)    __builtin_va_arg(va, type)
 #define va_copy(dst, src)   __builtin_va_copy(dst, src)

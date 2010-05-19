@@ -1,10 +1,10 @@
-/* $Id: thread2-r0drv-darwin.cpp $ */
+/* $Id: thread2-r0drv-darwin.cpp 29255 2010-05-09 18:11:24Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Darwin.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -36,7 +32,9 @@
 #include "internal/iprt.h"
 #include <iprt/thread.h>
 
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include "internal/thread.h"

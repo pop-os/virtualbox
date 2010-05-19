@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <iprt/stream.h>
@@ -61,7 +57,7 @@ VMCtrlPause(void)
     if (gConsole->inputGrabbed())
         gConsole->inputGrabEnd();
 
-    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMR3Suspend, 1, pVM);
+    int rcVBox = VMR3ReqCallWait(gpVM, VMCPUID_ANY, (PFNRT)VMR3Suspend, 1, gpVM);
     AssertRC(rcVBox);
     return VINF_SUCCESS;
 }
@@ -75,7 +71,7 @@ VMCtrlResume(void)
     if (machineState != VMSTATE_SUSPENDED)
         return VERR_VM_INVALID_VM_STATE;
 
-    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMR3Resume, 1, pVM);
+    int rcVBox = VMR3ReqCallWait(gpVM, VMCPUID_ANY, (PFNRT)VMR3Resume, 1, gpVM);
     AssertRC(rcVBox);
     return VINF_SUCCESS;
 }
@@ -86,7 +82,7 @@ VMCtrlResume(void)
 int
 VMCtrlReset(void)
 {
-    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMR3Reset, 1, pVM);
+    int rcVBox = VMR3ReqCallWait(gpVM, VMCPUID_ANY, (PFNRT)VMR3Reset, 1, gpVM);
     AssertRC(rcVBox);
     return VINF_SUCCESS;
 }
@@ -98,12 +94,11 @@ int
 VMCtrlACPIPowerButton(void)
 {
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun (pVM, "acpi", 0, 0, &pBase);
+    int vrc = PDMR3QueryDeviceLun (gpVM, "acpi", 0, 0, &pBase);
     if (RT_SUCCESS (vrc))
     {
         Assert (pBase);
-        PPDMIACPIPORT pPort =
-            (PPDMIACPIPORT) pBase->pfnQueryInterface(pBase, PDMINTERFACE_ACPI_PORT);
+        PPDMIACPIPORT pPort = PDMIBASE_QUERY_INTERFACE(pBase, PDMIACPIPORT);
         vrc = pPort ? pPort->pfnPowerButtonPress(pPort) : VERR_INVALID_POINTER;
     }
     return VINF_SUCCESS;
@@ -116,12 +111,11 @@ int
 VMCtrlACPISleepButton(void)
 {
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun (pVM, "acpi", 0, 0, &pBase);
+    int vrc = PDMR3QueryDeviceLun (gpVM, "acpi", 0, 0, &pBase);
     if (RT_SUCCESS (vrc))
     {
         Assert (pBase);
-        PPDMIACPIPORT pPort =
-            (PPDMIACPIPORT) pBase->pfnQueryInterface(pBase, PDMINTERFACE_ACPI_PORT);
+        PPDMIACPIPORT pPort = PDMIBASE_QUERY_INTERFACE(pBase, PDMIACPIPORT);
         vrc = pPort ? pPort->pfnSleepButtonPress(pPort) : VERR_INVALID_POINTER;
     }
     return VINF_SUCCESS;
@@ -136,8 +130,8 @@ DECLCALLBACK(int) VMSaveThread(RTTHREAD Thread, void *pvUser)
     int rc;
 
     startProgressInfo("Saving");
-    rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, 
-                         (PFNRT)VMR3Save, 5, pVM, g_pszStateFile, false /*fContinueAftewards*/, &callProgressInfo, (uintptr_t)NULL);
+    rc = VMR3ReqCallWait(gpVM, VMCPUID_ANY,
+                         (PFNRT)VMR3Save, 5, gpVM, g_pszStateFile, false /*fContinueAftewards*/, &callProgressInfo, (uintptr_t)NULL);
     AssertRC(rc);
     endProgressInfo();
     pfnQuit();
@@ -164,7 +158,7 @@ VMCtrlSave(void (*pfnQuit)(void))
 
     if (machineState == VMSTATE_RUNNING)
     {
-        rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMR3Suspend, 1, pVM);
+        rc = VMR3ReqCallWait(gpVM, VMCPUID_ANY, (PFNRT)VMR3Suspend, 1, gpVM);
         AssertRC(rc);
     }
 

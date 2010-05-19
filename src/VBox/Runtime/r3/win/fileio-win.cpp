@@ -1,10 +1,10 @@
-/* $Id: fileio-win.cpp $ */
+/* $Id: fileio-win.cpp 28918 2010-04-29 18:30:09Z vboxsync $ */
 /** @file
  * IPRT - File I/O, native implementation for the Windows host platform.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -49,11 +45,6 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** @def RT_DONT_CONVERT_FILENAMES
- * Define this to pass UTF-8 unconverted to the kernel. */
-#ifdef __DOXYGEN__
-# define RT_DONT_CONVERT_FILENAMES 1
-#endif
 
 
 /**
@@ -283,15 +274,6 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
     /*
      * Open/Create the file.
      */
-#ifdef RT_DONT_CONVERT_FILENAMES
-    HANDLE hFile = CreateFile(pszFilename,
-                              dwDesiredAccess,
-                              dwShareMode,
-                              pSecurityAttributes,
-                              dwCreationDisposition,
-                              dwFlagsAndAttributes,
-                              NULL);
-#else
     PRTUTF16 pwszFilename;
     rc = RTStrToUtf16(pszFilename, &pwszFilename);
     if (RT_FAILURE(rc))
@@ -304,7 +286,6 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
                                dwCreationDisposition,
                                dwFlagsAndAttributes,
                                NULL);
-#endif
     if (hFile != INVALID_HANDLE_VALUE)
     {
         bool fCreated = dwCreationDisposition == CREATE_ALWAYS
@@ -317,11 +298,7 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
         if (    fCreated
             &&  (fOpen & RTFILE_O_NOT_CONTENT_INDEXED))
         {
-#ifdef RT_DONT_CONVERT_FILENAMES
-            if (!SetFileAttributes(pszFilename, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED))
-#else
             if (!SetFileAttributesW(pwszFilename, FILE_ATTRIBUTE_NOT_CONTENT_INDEXED))
-#endif
                 rc = RTErrConvertFromWin32(GetLastError());
         }
         /*
@@ -338,9 +315,7 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
         {
             *pFile = (RTFILE)hFile;
             Assert((HANDLE)*pFile == hFile);
-#ifndef RT_DONT_CONVERT_FILENAMES
             RTUtf16Free(pwszFilename);
-#endif
             return VINF_SUCCESS;
         }
 
@@ -348,10 +323,18 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint32_t fOpen)
     }
     else
         rc = RTErrConvertFromWin32(GetLastError());
-#ifndef RT_DONT_CONVERT_FILENAMES
     RTUtf16Free(pwszFilename);
-#endif
     return rc;
+}
+
+
+RTR3DECL(int)  RTFileOpenBitBucket(PRTFILE phFile, uint32_t fAccess)
+{
+    AssertReturn(   fAccess == RTFILE_O_READ
+                 || fAccess == RTFILE_O_WRITE
+                 || fAccess == RTFILE_O_READWRITE,
+                 VERR_INVALID_PARAMETER);
+    return RTFileOpen(phFile, "NUL", fAccess | RTFILE_O_DENY_NONE | RTFILE_O_OPEN);
 }
 
 
@@ -467,11 +450,9 @@ RTR3DECL(int)  RTFileWrite(RTFILE File, const void *pvBuf, size_t cbToWrite, siz
 
 RTR3DECL(int)  RTFileFlush(RTFILE File)
 {
-    int rc;
-
-    if (FlushFileBuffers((HANDLE)File) == FALSE)
+    if (!FlushFileBuffers((HANDLE)File))
     {
-        rc = GetLastError();
+        int rc = GetLastError();
         Log(("FlushFileBuffers failed with %d\n", rc));
         return RTErrConvertFromWin32(rc);
     }
@@ -800,12 +781,6 @@ RTR3DECL(int) RTFileQueryFsSizes(RTFILE hFile, PRTFOFF pcbTotal, RTFOFF *pcbFree
 
 RTR3DECL(int)  RTFileDelete(const char *pszFilename)
 {
-#ifdef RT_DONT_CONVERT_FILENAMES
-    if (DeleteFile(pszFilename))
-        return VINF_SUCCESS;
-    return RTErrConvertFromWin32(GetLastError());
-
-#else
     PRTUTF16 pwszFilename;
     int rc = RTStrToUtf16(pszFilename, &pwszFilename);
     if (RT_SUCCESS(rc))
@@ -816,7 +791,6 @@ RTR3DECL(int)  RTFileDelete(const char *pszFilename)
     }
 
     return rc;
-#endif
 }
 
 

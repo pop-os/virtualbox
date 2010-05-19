@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,16 +25,13 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmapi_h
 #define ___VBox_pdmapi_h
 
 #include <VBox/types.h>
+#include <VBox/sup.h>
 
 RT_C_DECLS_BEGIN
 
@@ -54,8 +51,9 @@ VMMDECL(int)    PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending);
 VMMDECL(int)    PDMApicWriteMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t u64Value);
 VMMDECL(int)    PDMApicReadMSR(PVM pVM, VMCPUID iCpu, uint32_t u32Reg, uint64_t *pu64Value);
 VMMDECL(int)    PDMVMMDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys);
+VMMDECL(bool)   PDMVMMDevHeapIsEnabled(PVM pVM);
 
-#ifdef IN_RING3
+
 /** @defgroup grp_pdm_r3    The PDM Host Context Ring-3 API
  * @ingroup grp_pdm
  * @{
@@ -65,6 +63,7 @@ VMMR3DECL(int)  PDMR3InitUVM(PUVM pUVM);
 VMMR3DECL(int)  PDMR3LdrLoadVMMR0U(PUVM pUVM);
 VMMR3DECL(int)  PDMR3Init(PVM pVM);
 VMMR3DECL(void) PDMR3PowerOn(PVM pVM);
+VMMR3DECL(void) PDMR3ResetCpu(PVMCPU pVCpu);
 VMMR3DECL(void) PDMR3Reset(PVM pVM);
 VMMR3DECL(void) PDMR3Suspend(PVM pVM);
 VMMR3DECL(void) PDMR3Resume(PVM pVM);
@@ -87,7 +86,8 @@ VMMR3DECL(void) PDMR3TermUVM(PUVM pUVM);
  * @param   fRC             Set if raw-mode context, clear if host context.
  * @param   pvArg           User argument.
  */
-typedef DECLCALLBACK(int) FNPDMR3ENUM(PVM pVM, const char *pszFilename, const char *pszName, RTUINTPTR ImageBase, size_t cbImage, bool fRC, void *pvArg);
+typedef DECLCALLBACK(int) FNPDMR3ENUM(PVM pVM, const char *pszFilename, const char *pszName,
+                                      RTUINTPTR ImageBase, size_t cbImage, bool fRC, void *pvArg);
 /** Pointer to a FNPDMR3ENUM() function. */
 typedef FNPDMR3ENUM *PFNPDMR3ENUM;
 VMMR3DECL(int)  PDMR3LdrEnumModules(PVM pVM, PFNPDMR3ENUM pfnCallback, void *pvArg);
@@ -102,10 +102,15 @@ VMMR3DECL(int)  PDMR3LdrQueryRCModFromPC(PVM pVM, RTRCPTR uPC,
                                          char *pszModName,  size_t cchModName,  PRTRCPTR pMod,
                                          char *pszNearSym1, size_t cchNearSym1, PRTRCPTR pNearSym1,
                                          char *pszNearSym2, size_t cchNearSym2, PRTRCPTR pNearSym2);
+VMMR3DECL(int)  PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cbInterface,
+                                            const char *pszModule, const char *pszSymPrefix,
+                                            const char *pszSymList, bool fRing0OrRC);
 
 VMMR3DECL(int)  PDMR3QueryDevice(PVM pVM, const char *pszDevice, unsigned iInstance, PPPDMIBASE ppBase);
 VMMR3DECL(int)  PDMR3QueryDeviceLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPPDMIBASE ppBase);
 VMMR3DECL(int)  PDMR3QueryLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPPDMIBASE ppBase);
+VMMR3DECL(int)  PDMR3QueryDriverOnLun(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, const char *pszDriver,
+                                      PPPDMIBASE ppBase);
 VMMR3DECL(int)  PDMR3DeviceAttach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, uint32_t fFlags, PPDMIBASE *ppBase);
 VMMR3DECL(int)  PDMR3DeviceDetach(PVM pVM, const char *pszDevice, unsigned iInstance, unsigned iLun, uint32_t fFlags);
 VMMR3DECL(int)  PDMR3DriverAttach(PVM pVM, const char *pszDevice, unsigned iDevIns, unsigned iLun, uint32_t fFlags, PPPDMIBASE ppBase);
@@ -122,20 +127,49 @@ VMMR3DECL(int)  PDMR3UnregisterVMMDevHeap(PVM pVM, RTGCPHYS GCPhys);
 
 VMMR3DECL(void) PDMR3ReleaseOwnedLocks(PVM pVM);
 /** @} */
-#endif
 
 
-#ifdef IN_RC
-/** @defgroup grp_pdm_gc    The PDM Guest Context API
+
+/** @defgroup grp_pdm_rc    The PDM Raw-Mode Context API
  * @ingroup grp_pdm
  * @{
  */
 /** @} */
-#endif
+
+
+
+/** @defgroup grp_pdm_r0    The PDM Ring-0 Context API
+ * @ingroup grp_pdm
+ * @{
+ */
+
+/**
+ * Request buffer for PDMR0DriverCallReqHandler / VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER.
+ * @see PDMR0DriverCallReqHandler.
+ */
+typedef struct PDMDRIVERCALLREQHANDLERREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR      Hdr;
+    /** The driver instance. */
+    PPDMDRVINSR0        pDrvInsR0;
+    /** The operation. */
+    uint32_t            uOperation;
+    /** Explicit alignment padding. */
+    uint32_t            u32Alignment;
+    /** Optional 64-bit integer argument. */
+    uint64_t            u64Arg;
+} PDMDRIVERCALLREQHANDLERREQ;
+/** Pointer to a PDMR0DriverCallReqHandler / VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER
+ * request buffer. */
+typedef PDMDRIVERCALLREQHANDLERREQ *PPDMDRIVERCALLREQHANDLERREQ;
+
+VMMR0_INT_DECL(int) PDMR0DriverCallReqHandler(PVM pVM, PPDMDRIVERCALLREQHANDLERREQ pReq);
+
+/** @} */
 
 RT_C_DECLS_END
 
 /** @} */
 
 #endif
-

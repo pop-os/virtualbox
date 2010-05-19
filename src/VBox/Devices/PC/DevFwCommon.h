@@ -1,10 +1,10 @@
-/* $Id: DevFwCommon.h $ */
+/* $Id: DevFwCommon.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * FwCommon - Shared firmware code, header.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___PC_FwCommon_h
@@ -31,10 +27,11 @@
 #define VBOX_MPS_TABLE_BASE          (VBOX_DMI_TABLE_BASE+VBOX_DMI_TABLE_SIZE)
 
 /* Plant DMI table */
-int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, PCRTUUID pUuid,
-                          PCFGMNODE pCfgHandle, bool fPutSmbiosHeaders);
+int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, PCRTUUID pUuid, PCFGMNODE pCfg);
+void FwCommonPlantSmbiosAndDmiHdrs(PPDMDEVINS pDevIns);
 
 /* Plant MPS table */
 void FwCommonPlantMpsTable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, uint16_t cCpus);
+void FwCommonPlantMpsFloatPtr(PPDMDEVINS pDevIns);
 
 #endif

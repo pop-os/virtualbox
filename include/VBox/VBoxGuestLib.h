@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_VBoxGuestLib_h
@@ -32,8 +28,8 @@
 
 #include <VBox/types.h>
 #include <VBox/VMMDev2.h>
+#include <VBox/VMMDev.h>     /* grumble */
 #ifdef IN_RING0
-# include <VBox/VMMDev.h>     /* grumble */
 # include <VBox/VBoxGuest2.h>
 #endif
 
@@ -408,7 +404,7 @@ VBGLR3DECL(void)    VbglR3Term(void);
 VBGLR3DECL(int)     VbglR3GetHostTime(PRTTIMESPEC pTime);
 # endif
 VBGLR3DECL(int)     VbglR3InterruptEventWaits(void);
-VBGLR3DECL(int)     VbglR3WriteLog(const char *pch, size_t cb);
+VBGLR3DECL(int)     VbglR3WriteLog(const char *pch, size_t cch);
 VBGLR3DECL(int)     VbglR3CtlFilterMask(uint32_t fOr, uint32_t fNot);
 VBGLR3DECL(int)     VbglR3Daemonize(bool fNoChDir, bool fNoClose);
 VBGLR3DECL(int)     VbglR3PidFile(const char *pszPath, PRTFILE phFile);
@@ -434,6 +430,8 @@ VBGLR3DECL(int)     VbglR3ClipboardWriteData(uint32_t u32ClientId, uint32_t fFor
 VBGLR3DECL(int)     VbglR3SeamlessSetCap(bool fState);
 VBGLR3DECL(int)     VbglR3SeamlessWaitEvent(VMMDevSeamlessMode *pMode);
 VBGLR3DECL(int)     VbglR3SeamlessSendRects(uint32_t cRects, PRTRECT pRects);
+VBGLR3DECL(int)     VbglR3SeamlessGetLastEvent(VMMDevSeamlessMode *pMode);
+
 /** @}  */
 
 /** @name Mouse
@@ -456,6 +454,18 @@ VBGLR3DECL(int)     VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy, 
 VBGLR3DECL(bool)    VbglR3HostLikesVideoMode(uint32_t cx, uint32_t cy, uint32_t cBits);
 VBGLR3DECL(int)     VbglR3SaveVideoMode(const char *pszName, uint32_t cx, uint32_t cy, uint32_t cBits);
 VBGLR3DECL(int)     VbglR3RetrieveVideoMode(const char *pszName, uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits);
+/** @}  */
+
+/** @name VM Statistics
+ * @{ */
+VBGLR3DECL(int)     VbglR3StatQueryInterval(uint32_t *pu32Interval);
+VBGLR3DECL(int)     VbglR3StatReport(VMMDevReportGuestStats *pReq);
+/** @}  */
+
+/** @name Memory ballooning
+ * @{ */
+VBGLR3DECL(int)     VbglR3MemBalloonRefresh(uint32_t *pcChunks, bool *pfHandleInR3);
+VBGLR3DECL(int)     VbglR3MemBalloonChange(void *pv, bool fInflate);
 /** @}  */
 
 # ifdef VBOX_WITH_GUEST_PROPS
@@ -493,11 +503,65 @@ VBGLR3DECL(int)     VbglR3HostVersionLastCheckedStore(uint32_t u32ClientId, cons
 /** @}  */
 # endif /* VBOX_WITH_GUEST_PROPS defined */
 
+# ifdef VBOX_WITH_GUEST_CONTROL
+/** @name Guest control
+ * @{ */
+VBGLR3DECL(int)     VbglR3GuestCtrlConnect(uint32_t *pu32ClientId);
+VBGLR3DECL(int)     VbglR3GuestCtrlDisconnect(uint32_t u32ClientId);
+VBGLR3DECL(int)     VbglR3GuestCtrlGetHostMsg(uint32_t u32ClientId, uint32_t *puMsg, uint32_t *puNumParms, uint32_t u32Timeout);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint32_t  uNumParms,
+                                                  uint32_t *puContext,
+                                                  char     *pszCmd,         uint32_t  cbCmd,
+                                                  uint32_t *puFlags,
+                                                  char     *pszArgs,        uint32_t  cbArgs,   uint32_t *puNumArgs,
+                                                  char     *pszEnv,         uint32_t *pcbEnv,   uint32_t *puNumEnvVars,
+                                                  char     *pszStdIn,       uint32_t  cbStdIn,
+                                                  char     *pszStdOut,      uint32_t  cbStdOut,
+                                                  char     *pszStdErr,      uint32_t  cbStdErr,
+                                                  char     *pszUser,        uint32_t  cbUser,
+                                                  char     *pszPassword,    uint32_t  cbPassword,
+                                                  uint32_t *puTimeLimit);
+VBGLR3DECL(int) VbglR3GuestCtrlExecGetHostCmdOutput(uint32_t  u32ClientId,    uint32_t  uNumParms,
+                                                    uint32_t *puContext,      uint32_t *puPID,
+                                                    uint32_t *puHandle,       uint32_t *puFlags);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecReportStatus(uint32_t  u32ClientId,
+                                                    uint32_t  u32Context,
+                                                    uint32_t  u32PID,
+                                                    uint32_t  u32Status,
+                                                    uint32_t  u32Flags,
+                                                    void     *pvData,
+                                                    uint32_t  cbData);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecSendOut(uint32_t     u32ClientId,
+                                               uint32_t     u32Context,
+                                               uint32_t     u32PID,
+                                               uint32_t     u32Handle,
+                                               uint32_t     u32Flags,
+                                               void        *pvData,
+                                               uint32_t     cbData);
+/** @}  */
+# endif /* VBOX_WITH_GUEST_CONTROL defined */
+
 /** @name User credentials handling
  * @{ */
-VBGLR3DECL(bool)    VbglR3CredentialsAreAvailable(void);
+VBGLR3DECL(int)     VbglR3CredentialsQueryAvailability(void);
 VBGLR3DECL(int)     VbglR3CredentialsRetrieve(char **ppszUser, char **ppszPassword, char **ppszDomain);
+VBGLR3DECL(void)    VbglR3CredentialsDestroy(char *pszUser, char *pszPassword, char *pszDomain, uint32_t cPasses);
 /** @}  */
+
+/** @name CPU hotplug monitor
+ * @{ */
+VBGLR3DECL(int)     VbglR3CpuHotPlugInit(void);
+VBGLR3DECL(int)     VbglR3CpuHotPlugTerm(void);
+VBGLR3DECL(int)     VbglR3CpuHotPlugWaitForEvent(VMMDevCpuEventType *penmEventType, uint32_t *pidCpuCore, uint32_t *pidCpuPackage);
+/** @} */
+
+/** @name Page sharing
+ * @{ */
+VBGLR3DECL(int)     VbglR3RegisterSharedModule(char *pszModuleName, char *pszVersion, RTGCPTR64  GCBaseAddr, uint32_t cbModule, unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
+VBGLR3DECL(int)     VbglR3UnregisterSharedModule(char *pszModuleName, char *pszVersion, RTGCPTR64  GCBaseAddr, uint32_t cbModule);
+VBGLR3DECL(int)     VbglR3CheckSharedModules(void);
+VBGLR3DECL(bool)    VbglR3PageSharingIsEnabled(void);
+/** @} */
 
 #endif /* IN_RING3 */
 /** @} */

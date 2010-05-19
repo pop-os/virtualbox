@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*
@@ -294,7 +290,7 @@ sfnode_make_stale(sfnode_t *node)
 	 */
 	if (!node->sf_is_stale && node->sf_type == VDIR) {
 		len = strlen(node->sf_path);
-		
+
 		n = node;
 		while ((n = AVL_NEXT(&sfnodes, node)) != NULL) {
 			ASSERT(!n->sf_is_stale);
@@ -473,7 +469,7 @@ sfnode_lookup(sfnode_t *dir, char *name, vtype_t create)
 		return (dir->sf_parent);
 
 	/*
-	 * Look for an existing node. 
+	 * Look for an existing node.
 	 */
 	fullpath = sfnode_construct_path(dir, name);
 	template.sf_sffs = dir->sf_sffs;
@@ -629,7 +625,7 @@ sffs_readdir(
 		goto done;
 	}
 	names = (void *)prov_buff;
-	
+
 	/*
 	 * Lookup each of the names, so that we have ino's.
 	 */

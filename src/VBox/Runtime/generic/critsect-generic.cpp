@@ -1,10 +1,10 @@
-/* $Id: critsect-generic.cpp $ */
+/* $Id: critsect-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Critical Section, Generic.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -44,31 +40,19 @@
 #include "internal/strict.h"
 
 
-/* in strict mode we're redefining this, so undefine it now for the implementation. */
-#undef RTCritSectEnter
-#undef RTCritSectTryEnter
-#undef RTCritSectEnterMultiple
-
-
-/**
- * Initialize a critical section.
- */
+#undef RTCritSectInit
 RTDECL(int) RTCritSectInit(PRTCRITSECT pCritSect)
 {
-    return RTCritSectInitEx(pCritSect, 0);
+    return RTCritSectInitEx(pCritSect, 0, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "RTCritSect");
 }
 RT_EXPORT_SYMBOL(RTCritSectInit);
 
 
-/**
- * Initialize a critical section.
- *
- * @returns iprt status code.
- * @param   pCritSect   Pointer to the critical section structure.
- * @param   fFlags      Flags, any combination of the RTCRITSECT_FLAGS \#defines.
- */
-RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags)
+RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags, RTLOCKVALCLASS hClass, uint32_t uSubClass,
+                             const char *pszNameFmt, ...)
 {
+    AssertReturn(fFlags <= (RTCRITSECT_FLAGS_NO_NESTING | RTCRITSECT_FLAGS_NO_LOCK_VAL), VERR_INVALID_PARAMETER);
+
     /*
      * Initialize the structure and
      */
@@ -77,13 +61,32 @@ RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags)
     pCritSect->cNestings            = 0;
     pCritSect->cLockers             = -1;
     pCritSect->NativeThreadOwner    = NIL_RTNATIVETHREAD;
-    pCritSect->Strict.ThreadOwner   = NIL_RTTHREAD;
-    pCritSect->Strict.pszEnterFile  = NULL;
-    pCritSect->Strict.u32EnterLine  = 0;
-    pCritSect->Strict.uEnterId      = 0;
-    int rc = RTSemEventCreate(&pCritSect->EventSem);
+    pCritSect->pValidatorRec        = NULL;
+    int rc = VINF_SUCCESS;
+#ifdef RTCRITSECT_STRICT
+    if (!pszNameFmt)
+    {
+        static uint32_t volatile s_iCritSectAnon = 0;
+        rc = RTLockValidatorRecExclCreate(&pCritSect->pValidatorRec, hClass, uSubClass, pCritSect,
+                                          !(fFlags & RTCRITSECT_FLAGS_NO_LOCK_VAL),
+                                          "RTCritSect-%u", ASMAtomicIncU32(&s_iCritSectAnon) - 1);
+    }
+    else
+    {
+        va_list va;
+        va_start(va, pszNameFmt);
+        rc = RTLockValidatorRecExclCreateV(&pCritSect->pValidatorRec, hClass, uSubClass, pCritSect,
+                                           !(fFlags & RTCRITSECT_FLAGS_NO_LOCK_VAL), pszNameFmt, va);
+        va_end(va);
+    }
+#endif
     if (RT_SUCCESS(rc))
-        return VINF_SUCCESS;
+    {
+        rc = RTSemEventCreate(&pCritSect->EventSem);
+        if (RT_SUCCESS(rc))
+            return VINF_SUCCESS;
+        RTLockValidatorRecExclDestroy(&pCritSect->pValidatorRec);
+    }
 
     AssertRC(rc);
     pCritSect->EventSem = NULL;
@@ -93,44 +96,255 @@ RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags)
 RT_EXPORT_SYMBOL(RTCritSectInitEx);
 
 
-/**
- * Enter multiple critical sections.
- *
- * This function will enter ALL the specified critical sections before returning.
- *
- * @returns VINF_SUCCESS on success.
- * @returns VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
- * @param   cCritSects      Number of critical sections in the array.
- * @param   papCritSects    Array of critical section pointers.
- *
- * @remark  Please note that this function will not necessarily come out favourable in a
- *          fight with other threads which are using the normal RTCritSectEnter() function.
- *          Therefore, avoid having to enter multiple critical sections!
- */
-RTDECL(int) RTCritSectEnterMultiple(unsigned cCritSects, PRTCRITSECT *papCritSects)
-#ifdef RTCRITSECT_STRICT
+RTDECL(uint32_t) RTCritSectSetSubClass(PRTCRITSECT pCritSect, uint32_t uSubClass)
 {
-    return RTCritSectEnterMultipleDebug(cCritSects, papCritSects, __FILE__, __LINE__, 0);
+#ifdef RTCRITSECT_STRICT
+    AssertPtrReturn(pCritSect, RTLOCKVAL_SUB_CLASS_INVALID);
+    AssertReturn(pCritSect->u32Magic == RTCRITSECT_MAGIC, RTLOCKVAL_SUB_CLASS_INVALID);
+    return RTLockValidatorRecExclSetSubClass(pCritSect->pValidatorRec, uSubClass);
+#else
+    return RTLOCKVAL_SUB_CLASS_INVALID;
+#endif
 }
-RTDECL(int) RTCritSectEnterMultipleDebug(unsigned cCritSects, PRTCRITSECT *papCritSects, const char *pszFile, unsigned uLine, RTUINTPTR uId)
-#endif /* RTCRITSECT_STRICT */
+
+
+DECL_FORCE_INLINE(int) rtCritSectTryEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCPOS pSrcPos)
+{
+    Assert(pCritSect);
+    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
+    RTNATIVETHREAD  NativeThreadSelf = RTThreadNativeSelf();
+
+    /*
+     * Try take the lock. (cLockers is -1 if it's free)
+     */
+    if (!ASMAtomicCmpXchgS32(&pCritSect->cLockers, 0, -1))
+    {
+        /*
+         * Somebody is owning it (or will be soon). Perhaps it's us?
+         */
+        if (pCritSect->NativeThreadOwner == NativeThreadSelf)
+        {
+            if (!(pCritSect->fFlags & RTCRITSECT_FLAGS_NO_NESTING))
+            {
+#ifdef RTCRITSECT_STRICT
+                int rc9 = RTLockValidatorRecExclRecursion(pCritSect->pValidatorRec, pSrcPos);
+                if (RT_FAILURE(rc9))
+                    return rc9;
+#endif
+                ASMAtomicIncS32(&pCritSect->cLockers);
+                pCritSect->cNestings++;
+                return VINF_SUCCESS;
+            }
+            AssertMsgFailed(("Nested entry of critsect %p\n", pCritSect));
+            return VERR_SEM_NESTED;
+        }
+        return VERR_SEM_BUSY;
+    }
+
+    /*
+     * First time
+     */
+    pCritSect->cNestings = 1;
+    ASMAtomicWriteHandle(&pCritSect->NativeThreadOwner, NativeThreadSelf);
+#ifdef RTCRITSECT_STRICT
+    RTLockValidatorRecExclSetOwner(pCritSect->pValidatorRec, NIL_RTTHREAD, pSrcPos, true);
+#endif
+
+    return VINF_SUCCESS;
+}
+
+
+#undef RTCritSectTryEnter
+RTDECL(int) RTCritSectTryEnter(PRTCRITSECT pCritSect)
+{
+#ifndef RTCRTISECT_STRICT
+    return rtCritSectTryEnter(pCritSect, NULL);
+#else
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_NORMAL_API();
+    return rtCritSectTryEnter(pCritSect, &SrcPos);
+#endif
+}
+RT_EXPORT_SYMBOL(RTCritSectTryEnter);
+
+
+RTDECL(int) RTCritSectTryEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_DEBUG_API();
+    return rtCritSectTryEnter(pCritSect, &SrcPos);
+}
+RT_EXPORT_SYMBOL(RTCritSectTryEnterDebug);
+
+
+DECL_FORCE_INLINE(int) rtCritSectEnter(PRTCRITSECT pCritSect, PCRTLOCKVALSRCPOS pSrcPos)
+{
+    Assert(pCritSect);
+    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
+    RTNATIVETHREAD  NativeThreadSelf = RTThreadNativeSelf();
+
+    /* If the critical section has already been destroyed, then inform the caller. */
+    if (pCritSect->u32Magic != RTCRITSECT_MAGIC)
+        return VERR_SEM_DESTROYED;
+
+#ifdef RTCRITSECT_STRICT
+    RTTHREAD        hThreadSelf = RTThreadSelfAutoAdopt();
+    int rc9 = RTLockValidatorRecExclCheckOrder(pCritSect->pValidatorRec, hThreadSelf, pSrcPos, RT_INDEFINITE_WAIT);
+    if (RT_FAILURE(rc9))
+        return rc9;
+#endif
+
+    /*
+     * Increment the waiter counter.
+     * This becomes 0 when the section is free.
+     */
+    if (ASMAtomicIncS32(&pCritSect->cLockers) > 0)
+    {
+        /*
+         * Nested?
+         */
+        if (pCritSect->NativeThreadOwner == NativeThreadSelf)
+        {
+            if (!(pCritSect->fFlags & RTCRITSECT_FLAGS_NO_NESTING))
+            {
+#ifdef RTCRITSECT_STRICT
+                rc9 = RTLockValidatorRecExclRecursion(pCritSect->pValidatorRec, pSrcPos);
+                if (RT_FAILURE(rc9))
+                {
+                    ASMAtomicDecS32(&pCritSect->cLockers);
+                    return rc9;
+                }
+#endif
+                pCritSect->cNestings++;
+                return VINF_SUCCESS;
+            }
+
+            AssertBreakpoint(); /* don't do normal assertion here, the logger uses this code too. */
+            ASMAtomicDecS32(&pCritSect->cLockers);
+            return VERR_SEM_NESTED;
+        }
+
+        /*
+         * Wait for the current owner to release it.
+         */
+#ifndef RTCRITSECT_STRICT
+        RTTHREAD hThreadSelf = RTThreadSelf();
+#endif
+        for (;;)
+        {
+#ifdef RTCRITSECT_STRICT
+            rc9 = RTLockValidatorRecExclCheckBlocking(pCritSect->pValidatorRec, hThreadSelf, pSrcPos,
+                                                      !(pCritSect->fFlags & RTCRITSECT_FLAGS_NO_NESTING),
+                                                      RT_INDEFINITE_WAIT, RTTHREADSTATE_CRITSECT, false);
+            if (RT_FAILURE(rc9))
+            {
+                ASMAtomicDecS32(&pCritSect->cLockers);
+                return rc9;
+            }
+#else
+            RTThreadBlocking(hThreadSelf, RTTHREADSTATE_CRITSECT, false);
+#endif
+            int rc = RTSemEventWait(pCritSect->EventSem, RT_INDEFINITE_WAIT);
+            RTThreadUnblocked(hThreadSelf, RTTHREADSTATE_CRITSECT);
+
+            if (pCritSect->u32Magic != RTCRITSECT_MAGIC)
+                return VERR_SEM_DESTROYED;
+            if (rc == VINF_SUCCESS)
+                break;
+            AssertMsg(rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED, ("rc=%Rrc\n", rc));
+        }
+        AssertMsg(pCritSect->NativeThreadOwner == NIL_RTNATIVETHREAD, ("pCritSect->NativeThreadOwner=%p\n", pCritSect->NativeThreadOwner));
+    }
+
+    /*
+     * First time
+     */
+    pCritSect->cNestings = 1;
+    ASMAtomicWriteHandle(&pCritSect->NativeThreadOwner, NativeThreadSelf);
+#ifdef RTCRITSECT_STRICT
+    RTLockValidatorRecExclSetOwner(pCritSect->pValidatorRec, hThreadSelf, pSrcPos, true);
+#endif
+
+    return VINF_SUCCESS;
+}
+
+
+#undef RTCritSectEnter
+RTDECL(int) RTCritSectEnter(PRTCRITSECT pCritSect)
+{
+#ifndef RTCRITSECT_STRICT
+    return rtCritSectEnter(pCritSect, NULL);
+#else
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_NORMAL_API();
+    return rtCritSectEnter(pCritSect, &SrcPos);
+#endif
+}
+RT_EXPORT_SYMBOL(RTCritSectEnter);
+
+
+RTDECL(int) RTCritSectEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_DEBUG_API();
+    return rtCritSectEnter(pCritSect, &SrcPos);
+}
+RT_EXPORT_SYMBOL(RTCritSectEnterDebug);
+
+
+RTDECL(int) RTCritSectLeave(PRTCRITSECT pCritSect)
+{
+    /*
+     * Assert ownership and so on.
+     */
+    Assert(pCritSect);
+    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
+    Assert(pCritSect->cNestings > 0);
+    Assert(pCritSect->cLockers >= 0);
+    Assert(pCritSect->NativeThreadOwner == RTThreadNativeSelf());
+
+#ifdef RTCRITSECT_STRICT
+    int rc9 = RTLockValidatorRecExclReleaseOwner(pCritSect->pValidatorRec, pCritSect->cNestings == 1);
+    if (RT_FAILURE(rc9))
+        return rc9;
+#endif
+
+    /*
+     * Decrement nestings, if <= 0 when we'll release the critsec.
+     */
+    pCritSect->cNestings--;
+    if (pCritSect->cNestings > 0)
+        ASMAtomicDecS32(&pCritSect->cLockers);
+    else
+    {
+        /*
+         * Set owner to zero.
+         * Decrement waiters, if >= 0 then we have to wake one of them up.
+         */
+        ASMAtomicWriteHandle(&pCritSect->NativeThreadOwner, NIL_RTNATIVETHREAD);
+        if (ASMAtomicDecS32(&pCritSect->cLockers) >= 0)
+        {
+            int rc = RTSemEventSignal(pCritSect->EventSem);
+            AssertReleaseMsg(RT_SUCCESS(rc), ("RTSemEventSignal -> %Rrc\n", rc));
+        }
+    }
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTCritSectLeave);
+
+
+
+
+
+static int rtCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects, PCRTLOCKVALSRCPOS pSrcPos)
 {
     Assert(cCritSects > 0);
-    Assert(VALID_PTR(papCritSects));
+    AssertPtr(papCritSects);
 
     /*
      * Try get them all.
      */
     int rc = VERR_INVALID_PARAMETER;
-    unsigned i;
+    size_t i;
     for (i = 0; i < cCritSects; i++)
     {
-#ifdef RTCRITSECT_STRICT
-        rc = RTCritSectTryEnterDebug(papCritSects[i], pszFile, uLine, uId);
-#else
-        rc = RTCritSectTryEnter(papCritSects[i]);
-#endif
+        rc = rtCritSectTryEnter(papCritSects[i], pSrcPos);
         if (RT_FAILURE(rc))
             break;
     }
@@ -145,7 +359,7 @@ RTDECL(int) RTCritSectEnterMultipleDebug(unsigned cCritSects, PRTCRITSECT *papCr
         /*
          * We've failed, release any locks we might have gotten. ('i' is the lock that failed btw.)
          */
-        unsigned j = i;
+        size_t j = i;
         while (j-- > 0)
         {
             int rc2 = RTCritSectLeave(papCritSects[j]);
@@ -164,11 +378,7 @@ RTDECL(int) RTCritSectEnterMultipleDebug(unsigned cCritSects, PRTCRITSECT *papCr
         /*
          * Wait on the one we failed to get.
          */
-#ifdef RTCRITSECT_STRICT
-        rc = RTCritSectEnterDebug(papCritSects[i], pszFile, uLine, uId);
-#else
-        rc = RTCritSectEnter(papCritSects[i]);
-#endif
+        rc = rtCritSectEnter(papCritSects[i], pSrcPos);
         if (RT_FAILURE(rc))
             return rc;
 
@@ -179,11 +389,7 @@ RTDECL(int) RTCritSectEnterMultipleDebug(unsigned cCritSects, PRTCRITSECT *papCr
         {
             if (j != i)
             {
-#ifdef RTCRITSECT_STRICT
-                rc = RTCritSectTryEnterDebug(papCritSects[j], pszFile, uLine, uId);
-#else
-                rc = RTCritSectTryEnter(papCritSects[j]);
-#endif
+                rc = rtCritSectTryEnter(papCritSects[j], pSrcPos);
                 if (RT_FAILURE(rc))
                     break;
             }
@@ -202,217 +408,34 @@ RTDECL(int) RTCritSectEnterMultipleDebug(unsigned cCritSects, PRTCRITSECT *papCr
         i = j;
     }
 }
+
+
+#undef RTCritSectEnterMultiple
+RTDECL(int) RTCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects)
+{
+#ifndef RTCRITSECT_STRICT
+    return rtCritSectEnterMultiple(cCritSects, papCritSects, NULL);
+#else
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_NORMAL_API();
+    return rtCritSectEnterMultiple(cCritSects, papCritSects, &SrcPos);
+#endif
+}
 RT_EXPORT_SYMBOL(RTCritSectEnterMultiple);
 
 
-/**
- * Try enter a critical section.
- *
- * @returns VINF_SUCCESS on success.
- * @returns VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
- * @param   pCritSect   The critical section.
- */
-RTDECL(int) RTCritSectTryEnter(PRTCRITSECT pCritSect)
-#ifdef RTCRITSECT_STRICT
+RTDECL(int) RTCritSectEnterMultipleDebug(size_t cCritSects, PRTCRITSECT *papCritSects, RTUINTPTR uId, RT_SRC_POS_DECL)
 {
-    return RTCritSectTryEnterDebug(pCritSect, __FILE__, __LINE__, 0);
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_DEBUG_API();
+    return rtCritSectEnterMultiple(cCritSects, papCritSects, &SrcPos);
 }
-RTDECL(int) RTCritSectTryEnterDebug(PRTCRITSECT pCritSect, const char *pszFile, unsigned uLine, RTUINTPTR uId)
-#endif /* RTCRITSECT_STRICT */
-{
-    Assert(pCritSect);
-    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
-    RTNATIVETHREAD  NativeThreadSelf = RTThreadNativeSelf();
-#ifdef RTCRITSECT_STRICT
-    RTTHREAD        ThreadSelf = RTThreadSelf();
-    if (ThreadSelf == NIL_RTTHREAD)
-        RTThreadAdopt(RTTHREADTYPE_DEFAULT, 0, NULL, &ThreadSelf);
-#endif
-
-    /*
-     * Try take the lock. (cLockers is -1 if it's free)
-     */
-    if (!ASMAtomicCmpXchgS32(&pCritSect->cLockers, 0, -1))
-    {
-        /*
-         * Somebody is owning it (or will be soon). Perhaps it's us?
-         */
-        if (pCritSect->NativeThreadOwner == NativeThreadSelf)
-        {
-            if (!(pCritSect->fFlags & RTCRITSECT_FLAGS_NO_NESTING))
-            {
-                ASMAtomicIncS32(&pCritSect->cLockers);
-                pCritSect->cNestings++;
-                return VINF_SUCCESS;
-            }
-            AssertMsgFailed(("Nested entry of critsect %p\n", pCritSect));
-            return VERR_SEM_NESTED;
-        }
-        return VERR_SEM_BUSY;
-    }
-
-    /*
-     * First time
-     */
-    pCritSect->cNestings = 1;
-    ASMAtomicWriteHandle(&pCritSect->NativeThreadOwner, NativeThreadSelf);
-#ifdef RTCRITSECT_STRICT
-    pCritSect->Strict.pszEnterFile = pszFile;
-    pCritSect->Strict.u32EnterLine = uLine;
-    pCritSect->Strict.uEnterId     = uId;
-    ASMAtomicWriteHandle(&pCritSect->Strict.ThreadOwner, ThreadSelf);
-#endif
-
-    return VINF_SUCCESS;
-}
-RT_EXPORT_SYMBOL(RTCritSectTryEnter);
+RT_EXPORT_SYMBOL(RTCritSectEnterMultipleDebug);
 
 
-/**
- * Enter a critical section.
- *
- * @returns VINF_SUCCESS on success.
- * @returns VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
- * @param   pCritSect   The critical section.
- */
-RTDECL(int) RTCritSectEnter(PRTCRITSECT pCritSect)
-#ifdef RTCRITSECT_STRICT
-{
-    return RTCritSectEnterDebug(pCritSect, __FILE__, __LINE__, 0);
-}
-RTDECL(int) RTCritSectEnterDebug(PRTCRITSECT pCritSect, const char *pszFile, unsigned uLine, RTUINTPTR uId)
-#endif /* RTCRITSECT_STRICT */
-{
-    Assert(pCritSect);
-    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
-    RTNATIVETHREAD  NativeThreadSelf = RTThreadNativeSelf();
-#ifdef RTCRITSECT_STRICT
-    RTTHREAD        ThreadSelf = RTThreadSelf();
-    if (ThreadSelf == NIL_RTTHREAD)
-        RTThreadAdopt(RTTHREADTYPE_DEFAULT, 0, NULL, &ThreadSelf);
-#endif
 
-    /** If the critical section has already been destroyed, then inform the caller. */
-    if (pCritSect->u32Magic != RTCRITSECT_MAGIC)
-        return VERR_SEM_DESTROYED;
-
-    /*
-     * Increment the waiter counter.
-     * This becomes 0 when the section is free.
-     */
-    if (ASMAtomicIncS32(&pCritSect->cLockers) > 0)
-    {
-        /*
-         * Nested?
-         */
-        if (pCritSect->NativeThreadOwner == NativeThreadSelf)
-        {
-            if (!(pCritSect->fFlags & RTCRITSECT_FLAGS_NO_NESTING))
-            {
-                pCritSect->cNestings++;
-                return VINF_SUCCESS;
-            }
-
-            AssertBreakpoint(); /* don't do normal assertion here, the logger uses this code too. */
-            ASMAtomicDecS32(&pCritSect->cLockers);
-            return VERR_SEM_NESTED;
-        }
-
-        for (;;)
-        {
-#ifdef RTCRITSECT_STRICT
-            RTThreadBlocking(ThreadSelf, RTTHREADSTATE_CRITSECT, (uintptr_t)pCritSect, pszFile, uLine, uId);
-#endif
-            int rc = RTSemEventWait(pCritSect->EventSem, RT_INDEFINITE_WAIT);
-#ifdef RTCRITSECT_STRICT
-            RTThreadUnblocked(ThreadSelf, RTTHREADSTATE_CRITSECT);
-#endif
-            if (pCritSect->u32Magic != RTCRITSECT_MAGIC)
-                return VERR_SEM_DESTROYED;
-            if (rc == VINF_SUCCESS)
-                break;
-            AssertMsg(rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED, ("rc=%Rrc\n", rc));
-        }
-        AssertMsg(pCritSect->NativeThreadOwner == NIL_RTNATIVETHREAD, ("pCritSect->NativeThreadOwner=%p\n", pCritSect->NativeThreadOwner));
-    }
-
-    /*
-     * First time
-     */
-    pCritSect->cNestings = 1;
-    ASMAtomicWriteHandle(&pCritSect->NativeThreadOwner, NativeThreadSelf);
-#ifdef RTCRITSECT_STRICT
-    pCritSect->Strict.pszEnterFile = pszFile;
-    pCritSect->Strict.u32EnterLine = uLine;
-    pCritSect->Strict.uEnterId     = uId;
-    ASMAtomicWriteHandle(&pCritSect->Strict.ThreadOwner, ThreadSelf);
-    RTThreadWriteLockInc(ThreadSelf);
-#endif
-
-    return VINF_SUCCESS;
-}
-RT_EXPORT_SYMBOL(RTCritSectEnter);
-
-
-/**
- * Leave a critical section.
- *
- * @returns VINF_SUCCESS.
- * @param   pCritSect   The critical section.
- */
-RTDECL(int) RTCritSectLeave(PRTCRITSECT pCritSect)
-{
-    /*
-     * Assert ownership and so on.
-     */
-    Assert(pCritSect);
-    Assert(pCritSect->u32Magic == RTCRITSECT_MAGIC);
-    Assert(pCritSect->cNestings > 0);
-    Assert(pCritSect->cLockers >= 0);
-    Assert(pCritSect->NativeThreadOwner == RTThreadNativeSelf());
-
-    /*
-     * Decrement nestings, if <= 0 when we'll release the critsec.
-     */
-    pCritSect->cNestings--;
-    if (pCritSect->cNestings > 0)
-        ASMAtomicDecS32(&pCritSect->cLockers);
-    else
-    {
-        /*
-         * Set owner to zero.
-         * Decrement waiters, if >= 0 then we have to wake one of them up.
-         */
-#ifdef RTCRITSECT_STRICT
-        if (pCritSect->Strict.ThreadOwner != NIL_RTTHREAD) /* May happen for PDMCritSects when entering GC/R0. */
-            RTThreadWriteLockDec(pCritSect->Strict.ThreadOwner);
-        ASMAtomicWriteHandle(&pCritSect->Strict.ThreadOwner, NIL_RTTHREAD);
-#endif
-        ASMAtomicWriteHandle(&pCritSect->NativeThreadOwner, NIL_RTNATIVETHREAD);
-        if (ASMAtomicDecS32(&pCritSect->cLockers) >= 0)
-        {
-            int rc = RTSemEventSignal(pCritSect->EventSem);
-            AssertReleaseMsg(RT_SUCCESS(rc), ("RTSemEventSignal -> %Rrc\n", rc));
-        }
-    }
-    return VINF_SUCCESS;
-}
-RT_EXPORT_SYMBOL(RTCritSectLeave);
-
-
-/**
- * Leave multiple critical sections.
- *
- * @returns VINF_SUCCESS.
- * @param   cCritSects      Number of critical sections in the array.
- * @param   papCritSects    Array of critical section pointers.
- */
-RTDECL(int) RTCritSectLeaveMultiple(unsigned cCritSects, PRTCRITSECT *papCritSects)
+RTDECL(int) RTCritSectLeaveMultiple(size_t cCritSects, PRTCRITSECT *papCritSects)
 {
     int rc = VINF_SUCCESS;
-    for (unsigned i = 0; i < cCritSects; i++)
+    for (size_t i = 0; i < cCritSects; i++)
     {
         int rc2 = RTCritSectLeave(papCritSects[i]);
         if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
@@ -423,33 +446,6 @@ RTDECL(int) RTCritSectLeaveMultiple(unsigned cCritSects, PRTCRITSECT *papCritSec
 RT_EXPORT_SYMBOL(RTCritSectLeaveMultiple);
 
 
-#ifndef RTCRITSECT_STRICT
-RTDECL(int) RTCritSectEnterDebug(PRTCRITSECT pCritSect, const char *pszFile, unsigned uLine, RTUINTPTR uId)
-{
-    return RTCritSectEnter(pCritSect);
-}
-
-RTDECL(int) RTCritSectTryEnterDebug(PRTCRITSECT pCritSect, const char *pszFile, unsigned uLine, RTUINTPTR uId)
-{
-    return RTCritSectTryEnter(pCritSect);
-}
-
-RTDECL(int) RTCritSectEnterMultipleDebug(unsigned cCritSects, PRTCRITSECT *papCritSects, const char *pszFile, unsigned uLine, RTUINTPTR uId)
-{
-    return RTCritSectEnterMultiple(cCritSects, papCritSects);
-}
-#endif /* RT_STRICT */
-RT_EXPORT_SYMBOL(RTCritSectEnterDebug);
-RT_EXPORT_SYMBOL(RTCritSectTryEnterDebug);
-RT_EXPORT_SYMBOL(RTCritSectEnterMultipleDebug);
-
-
-/**
- * Deletes a critical section.
- *
- * @returns VINF_SUCCESS.
- * @param   pCritSect   The critical section.
- */
 RTDECL(int) RTCritSectDelete(PRTCRITSECT pCritSect)
 {
     /*
@@ -471,11 +467,14 @@ RTDECL(int) RTCritSectDelete(PRTCRITSECT pCritSect)
     pCritSect->NativeThreadOwner= NIL_RTNATIVETHREAD;
     RTSEMEVENT EventSem = pCritSect->EventSem;
     pCritSect->EventSem         = NIL_RTSEMEVENT;
+
     while (pCritSect->cLockers-- >= 0)
         RTSemEventSignal(EventSem);
     ASMAtomicWriteS32(&pCritSect->cLockers, -1);
     int rc = RTSemEventDestroy(EventSem);
     AssertRC(rc);
+
+    RTLockValidatorRecExclDestroy(&pCritSect->pValidatorRec);
 
     return rc;
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_semaphore_h
@@ -32,59 +28,104 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+#if defined(RT_LOCK_STRICT_ORDER) && defined(IN_RING3)
+# include <iprt/lockvalidator.h>
+#endif
 
 
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_sems    RTSem - Semaphores
+ *
+ * This module implements all kinds of event and mutex semaphores; in addition
+ * to these, IPRT implements "critical sections", which are fast recursive
+ * mutexes (see @ref grp_rt_critsect ).  C++ users may find @ref grp_rt_lock
+ * interesting.
+ *
  * @ingroup grp_rt
  * @{
  */
 
 
 /** @defgroup grp_rt_sems_event    RTSemEvent - Single Release Event Semaphores
+ *
+ * Event semaphores can be used for inter-thread communication when one thread
+ * wants to notify another thread that something happened.  A thread can block
+ * ("wait") on an event semaphore until it is signalled by another thread; see
+ * RTSemEventCreate, RTSemEventSignal and RTSemEventWait.
+ *
  * @{ */
 
 /**
- * Create a event semaphore.
+ * Create an event semaphore.
  *
  * @returns iprt status code.
- * @param   pEventSem    Where to store the event semaphore handle.
+ * @param   phEventSem          Where to store the handle to the newly created
+ *                              event semaphore.
  */
-RTDECL(int)  RTSemEventCreate(PRTSEMEVENT pEventSem);
+RTDECL(int)  RTSemEventCreate(PRTSEMEVENT phEventSem);
+
+/**
+ * Create an event semaphore.
+ *
+ * @returns iprt status code.
+ * @param   phEventSem          Where to store the handle to the newly created
+ *                              event semaphore.
+ * @param   fFlags              Flags, any combination of the
+ *                              RTSEMEVENT_FLAGS_XXX \#defines.
+ * @param   hClass              The class (no reference consumed).  Since we
+ *                              don't do order checks on event semaphores, the
+ *                              use of the class is limited to controlling the
+ *                              timeout threshold for deadlock detection.
+ * @param   pszNameFmt          Name format string for the lock validator,
+ *                              optional (NULL).  Max length is 32 bytes.
+ * @param   ...                 Format string arguments.
+ */
+RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKVALCLASS hClass, const char *pszNameFmt, ...);
+
+/** @name RTSemMutexCreateEx flags
+ * @{ */
+/** Disables lock validation. */
+#define RTSEMEVENT_FLAGS_NO_LOCK_VAL    UINT32_C(0x00000001)
+/** @} */
 
 /**
  * Destroy an event semaphore.
  *
  * @returns iprt status code.
- * @param   EventSem    Handle of the
+ * @param   hEventSem           Handle of the event sempahore.  NIL_RTSEMEVENT
+ *                              is quitely ignored (VINF_SUCCESS).
  */
-RTDECL(int)  RTSemEventDestroy(RTSEMEVENT EventSem);
+RTDECL(int)  RTSemEventDestroy(RTSEMEVENT hEventSem);
 
 /**
  * Signal an event semaphore.
  *
- * The event semaphore will be signaled and automatically reset
- * after exactly one thread have successfully returned from
- * RTSemEventWait() after waiting/polling on that semaphore.
+ * The event semaphore will be signaled and automatically reset after exactly
+ * one thread have successfully returned from RTSemEventWait() after
+ * waiting/polling on that semaphore.
  *
  * @returns iprt status code.
- * @param   EventSem    The event semaphore to signal.
+ * @param   hEventSem           The event semaphore to signal.
+ *
+ * @remarks ring-0: This works when preemption is disabled.  However it is
+ *          system specific whether it works in interrupt context or with
+ *          interrupts disabled.
  */
-RTDECL(int)  RTSemEventSignal(RTSEMEVENT EventSem);
+RTDECL(int)  RTSemEventSignal(RTSEMEVENT hEventSem);
 
 /**
  * Wait for the event semaphore to be signaled, resume on interruption.
  *
- * This function will resume if the wait is interrupted by an async
- * system event (like a unix signal) or similar.
+ * This function will resume if the wait is interrupted by an async system event
+ * (like a unix signal) or similar.
  *
  * @returns iprt status code.
  *          Will not return VERR_INTERRUPTED.
- * @param   EventSem    The event semaphore to wait on.
- * @param   cMillies    Number of milliseconds to wait.
+ * @param   hEventSem           The event semaphore to wait on.
+ * @param   cMillies            Number of milliseconds to wait.
  */
-RTDECL(int)  RTSemEventWait(RTSEMEVENT EventSem, unsigned cMillies);
+RTDECL(int)  RTSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies);
 
 /**
  * Wait for the event semaphore to be signaled, return on interruption.
@@ -92,48 +133,118 @@ RTDECL(int)  RTSemEventWait(RTSEMEVENT EventSem, unsigned cMillies);
  * This function will not resume the wait if interrupted.
  *
  * @returns iprt status code.
- * @param   EventSem    The event semaphore to wait on.
- * @param   cMillies    Number of milliseconds to wait.
+ * @param   hEventSem           The event semaphore to wait on.
+ * @param   cMillies            Number of milliseconds to wait.
  */
-RTDECL(int)  RTSemEventWaitNoResume(RTSEMEVENT EventSem, unsigned cMillies);
+RTDECL(int)  RTSemEventWaitNoResume(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies);
+
+/**
+ * Sets the signaller thread to one specific thread.
+ *
+ * This is only used for validating usage and deadlock detection.  When used
+ * after calls to RTSemEventAddSignaller, the specified thread will be the only
+ * signalling thread.
+ *
+ * @param   hEventSem           The event semaphore.
+ * @param   hThread             The thread that will signal it.  Pass
+ *                              NIL_RTTHREAD to indicate that there is no
+ *                              special signalling thread.
+ */
+RTDECL(void) RTSemEventSetSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread);
+
+/**
+ * To add more signalling threads.
+ *
+ * First call RTSemEventSetSignaller then add further threads with this.
+ *
+ * @param   hEventSem           The event semaphore.
+ * @param   hThread             The thread that will signal it. NIL_RTTHREAD is
+ *                              not accepted.
+ */
+RTDECL(void) RTSemEventAddSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread);
+
+/**
+ * To remove a signalling thread.
+ *
+ * Reverts work done by RTSemEventAddSignaller and RTSemEventSetSignaller.
+ *
+ * @param   hEventSem           The event semaphore.
+ * @param   hThread             A previously added thread.
+ */
+RTDECL(void) RTSemEventRemoveSignaller(RTSEMEVENT hEventSem, RTTHREAD hThread);
 
 /** @} */
 
 
 /** @defgroup grp_rt_sems_event_multi   RTSemEventMulti - Multiple Release Event Semaphores
+ *
+ * A variant of @ref  grp_rt_sems_event where all threads will be unblocked when
+ * signalling the semaphore.
+ *
  * @{ */
 
 /**
- * Create a event multi semaphore.
+ * Creates a multiple release event semaphore.
  *
  * @returns iprt status code.
- * @param   pEventMultiSem  Where to store the event multi semaphore handle.
+ * @param   phEventMultiSem     Where to store the handle to the newly created
+ *                              multiple release event semaphore.
  */
-RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventMultiSem);
+RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI phEventMultiSem);
+
+/**
+ * Creates a multiple release event semaphore.
+ *
+ * @returns iprt status code.
+ * @param   phEventMultiSem     Where to store the handle to the newly created
+ *                              multiple release event semaphore.
+ * @param   fFlags              Flags, any combination of the
+ *                              RTSEMEVENTMULTI_FLAGS_XXX \#defines.
+ * @param   hClass              The class (no reference consumed).  Since we
+ *                              don't do order checks on event semaphores, the
+ *                              use of the class is limited to controlling the
+ *                              timeout threshold for deadlock detection.
+ * @param   pszNameFmt          Name format string for the lock validator,
+ *                              optional (NULL).  Max length is 32 bytes.
+ * @param   ...                 Format string arguments.
+ */
+RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
+                                     const char *pszNameFmt, ...);
+
+/** @name RTSemMutexCreateEx flags
+ * @{ */
+/** Disables lock validation. */
+#define RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL   UINT32_C(0x00000001)
+/** @} */
 
 /**
  * Destroy an event multi semaphore.
  *
  * @returns iprt status code.
- * @param   EventMultiSem   The event multi sempahore to destroy.
+ * @param   hEventMultiSem      The multiple release event sempahore.  NIL is
+ *                              quietly ignored (VINF_SUCCESS).
  */
-RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem);
+RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem);
 
 /**
  * Signal an event multi semaphore.
  *
  * @returns iprt status code.
- * @param   EventMultiSem   The event multi semaphore to signal.
+ * @param   hEventMultiSem      The multiple release event sempahore.
+ *
+ * @remarks ring-0: This works when preemption is disabled.  However it is
+ *          system specific whether it works in interrupt context or with
+ *          interrupts disabled.
  */
-RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem);
+RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem);
 
 /**
  * Resets an event multi semaphore to non-signaled state.
  *
  * @returns iprt status code.
- * @param   EventMultiSem   The event multi semaphore to reset.
+ * @param   hEventMultiSem      The multiple release event sempahore.
  */
-RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem);
+RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem);
 
 /**
  * Wait for the event multi semaphore to be signaled, resume on interruption.
@@ -143,10 +254,10 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem);
  *
  * @returns iprt status code.
  *          Will not return VERR_INTERRUPTED.
- * @param   EventMultiSem   The event multi semaphore to wait on.
- * @param   cMillies        Number of milliseconds to wait.
+ * @param   hEventMultiSem      The multiple release event sempahore.
+ * @param   cMillies            Number of milliseconds to wait.
  */
-RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies);
+RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies);
 
 
 /**
@@ -155,18 +266,58 @@ RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillie
  * This function will not resume the wait if interrupted.
  *
  * @returns iprt status code.
- * @param   EventMultiSem   The event multi semaphore to wait on.
- * @param   cMillies        Number of milliseconds to wait.
+ * @param   hEventMultiSem      The multiple release event sempahore.
+ * @param   cMillies            Number of milliseconds to wait.
  */
-RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies);
+RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies);
+
+/**
+ * Sets the signaller thread to one specific thread.
+ *
+ * This is only used for validating usage and deadlock detection.  When used
+ * after calls to RTSemEventAddSignaller, the specified thread will be the only
+ * signalling thread.
+ *
+ * @param   hEventMultiSem      The multiple release event semaphore.
+ * @param   hThread             The thread that will signal it.  Pass
+ *                              NIL_RTTHREAD to indicate that there is no
+ *                              special signalling thread.
+ */
+RTDECL(void) RTSemEventMultiSetSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREAD hThread);
+
+/**
+ * To add more signalling threads.
+ *
+ * First call RTSemEventSetSignaller then add further threads with this.
+ *
+ * @param   hEventMultiSem      The multiple release event semaphore.
+ * @param   hThread             The thread that will signal it. NIL_RTTHREAD is
+ *                              not accepted.
+ */
+RTDECL(void) RTSemEventMultiAddSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREAD hThread);
+
+/**
+ * To remove a signalling thread.
+ *
+ * Reverts work done by RTSemEventAddSignaller and RTSemEventSetSignaller.
+ *
+ * @param   hEventMultiSem      The multiple release event semaphore.
+ * @param   hThread             A previously added thread.
+ */
+RTDECL(void) RTSemEventMultiRemoveSignaller(RTSEMEVENTMULTI hEventMultiSem, RTTHREAD hThread);
 
 /** @} */
 
 
-/** @defgroup grp_rt_sems_mutex     RTMutex - Mutex semaphores.
+/** @defgroup grp_rt_sems_mutex     RTSemMutex - Mutex semaphores.
  *
- * @remarks These can be pretty heavy handed. Fast mutexes or critical sections
- *          is usually what you need.
+ * Mutex semaphores protect a section of code or data to which access must be
+ * exclusive.  Only one thread can hold access to a critical section at one
+ * time.  See RTSemMutexCreate, RTSemMutexRequest and RTSemMutexRelease.
+ *
+ * @remarks These are less efficient than "fast mutexes" and "critical
+ *          sections", which IPRT implements as well; see @ref
+ *          grp_rt_sems_fast_mutex and @ref grp_rt_critsect .
  *
  * @{ */
 
@@ -174,17 +325,60 @@ RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned
  * Create a mutex semaphore.
  *
  * @returns iprt status code.
- * @param   pMutexSem   Where to store the mutex semaphore handle.
+ * @param   phMutexSem      Where to store the mutex semaphore handle.
  */
-RTDECL(int)  RTSemMutexCreate(PRTSEMMUTEX pMutexSem);
+RTDECL(int)  RTSemMutexCreate(PRTSEMMUTEX phMutexSem);
+
+/**
+ * Creates a read/write semaphore.
+ *
+ * @returns iprt status code.
+ * @param   phRWSem             Where to store the handle to the newly created
+ *                              RW semaphore.
+ * @param   fFlags              Flags, any combination of the
+ *                              RTSEMMUTEX_FLAGS_XXX \#defines.
+ * @param   hClass              The class (no reference consumed).  If NIL, no
+ *                              lock order validation will be performed on this
+ *                              lock.
+ * @param   uSubClass           The sub-class.  This is used to define lock
+ *                              order within a class.  RTLOCKVAL_SUB_CLASS_NONE
+ *                              is the recommended value here.
+ * @param   pszNameFmt          Name format string for the lock validator,
+ *                              optional (NULL).  Max length is 32 bytes.
+ * @param   ...                 Format string arguments.
+ */
+RTDECL(int) RTSemMutexCreateEx(PRTSEMMUTEX phMutexSem, uint32_t fFlags,
+                               RTLOCKVALCLASS hClass, uint32_t uSubClass, const char *pszNameFmt, ...);
+
+/** @name RTSemMutexCreateEx flags
+ * @{ */
+/** Disables lock validation. */
+#define RTSEMMUTEX_FLAGS_NO_LOCK_VAL    UINT32_C(0x00000001)
+/** @} */
+
 
 /**
  * Destroy a mutex semaphore.
  *
  * @returns iprt status code.
- * @param   MutexSem    The mutex semaphore to destroy.
+ * @param   hMutexSem           The mutex semaphore to destroy.  NIL is quitely
+ *                              ignored (VINF_SUCCESS).
  */
-RTDECL(int)  RTSemMutexDestroy(RTSEMMUTEX MutexSem);
+RTDECL(int)  RTSemMutexDestroy(RTSEMMUTEX hMutexSem);
+
+/**
+ * Changes the lock validator sub-class of the mutex semaphore.
+ *
+ * It is recommended to try make sure that nobody is using this sempahore while
+ * changing the value.
+ *
+ * @returns The old sub-class.  RTLOCKVAL_SUB_CLASS_INVALID is returns if the
+ *          lock validator isn't compiled in or either of the parameters are
+ *          invalid.
+ * @param   hMutexSem           The handle to the mutex semaphore.
+ * @param   uSubClass           The new sub-class value.
+ */
+RTDECL(uint32_t) RTSemMutexSetSubClass(RTSEMMUTEX hMutexSem, uint32_t uSubClass);
 
 /**
  * Request ownership of a mutex semaphore, resume on interruption.
@@ -198,10 +392,10 @@ RTDECL(int)  RTSemMutexDestroy(RTSEMMUTEX MutexSem);
  *
  * @returns iprt status code.
  *          Will not return VERR_INTERRUPTED.
- * @param   MutexSem    The mutex semaphore to request ownership over.
- * @param   cMillies    The number of milliseconds to wait.
+ * @param   hMutexSem           The mutex semaphore to request ownership over.
+ * @param   cMillies            The number of milliseconds to wait.
  */
-RTDECL(int)  RTSemMutexRequest(RTSEMMUTEX MutexSem, unsigned cMillies);
+RTDECL(int)  RTSemMutexRequest(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies);
 
 /**
  * Request ownership of a mutex semaphore, return on interruption.
@@ -213,43 +407,112 @@ RTDECL(int)  RTSemMutexRequest(RTSEMMUTEX MutexSem, unsigned cMillies);
  * RTSemMutexRelease() call.
  *
  * @returns iprt status code.
- * @param   MutexSem    The mutex semaphore to request ownership over.
- * @param   cMillies    The number of milliseconds to wait.
+ * @param   hMutexSem           The mutex semaphore to request ownership over.
+ * @param   cMillies            The number of milliseconds to wait.
  */
-RTDECL(int)  RTSemMutexRequestNoResume(RTSEMMUTEX MutexSem, unsigned cMillies);
+RTDECL(int)  RTSemMutexRequestNoResume(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies);
+
+/**
+ * Debug version of RTSemMutexRequest that tracks the location.
+ *
+ * @returns iprt status code.
+ *          Will not return VERR_INTERRUPTED.
+ * @param   hMutexSem           The mutex semaphore to request ownership over.
+ * @param   cMillies            The number of milliseconds to wait.
+ * @param   uId                 Some kind of locking location ID.  Typically a
+ *                              return address up the stack.  Optional (0).
+ * @param   pszFile             The file where the lock is being acquired from.
+ *                              Optional.
+ * @param   iLine               The line number in that file.  Optional (0).
+ * @param   pszFunction         The functionn where the lock is being acquired
+ *                              from.  Optional.
+ */
+RTDECL(int)  RTSemMutexRequestDebug(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL);
+
+/**
+ * Debug version of RTSemMutexRequestNoResume that tracks the location.
+ *
+ * @returns iprt status code.
+ * @param   hMutexSem           The mutex semaphore to request ownership over.
+ * @param   cMillies            The number of milliseconds to wait.
+ * @param   uId                 Some kind of locking location ID.  Typically a
+ *                              return address up the stack.  Optional (0).
+ * @param   pszFile             The file where the lock is being acquired from.
+ *                              Optional.
+ * @param   iLine               The line number in that file.  Optional (0).
+ * @param   pszFunction         The functionn where the lock is being acquired
+ *                              from.  Optional.
+ */
+RTDECL(int)  RTSemMutexRequestNoResumeDebug(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
 /**
  * Release the ownership of a mutex semaphore.
  *
  * @returns iprt status code.
- * @param   MutexSem    The mutex to release the ownership of.
- *                      It goes without saying the the calling thread must own it.
+ * @param   hMutexSem           The mutex to release the ownership of.  It goes
+ *                              without saying the the calling thread must own
+ *                              it.
  */
-RTDECL(int)  RTSemMutexRelease(RTSEMMUTEX MutexSem);
+RTDECL(int)  RTSemMutexRelease(RTSEMMUTEX hMutexSem);
+
+/**
+ * Checks if the mutex semaphore is owned or not.
+ *
+ * @returns true if owned, false if not.
+ * @param   hMutexSem           The mutex semaphore.
+ */
+RTDECL(bool) RTSemMutexIsOwned(RTSEMMUTEX hMutexSem);
+
+/* Strict build: Remap the two request calls to the debug versions. */
+#ifdef RT_STRICT
+# ifdef ___iprt_asm_h
+#  define RTSemMutexRequest(pCritSect, cMillies)            RTSemMutexRequestDebug((pCritSect), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+#  define RTSemMutexRequestNoResume(pCritSect, cMillies)    RTSemMutexRequestNoResumeDebug((pCritSect), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+# else
+#  define RTSemMutexRequest(pCritSect, cMillies)            RTSemMutexRequestDebug((pCritSect), (cMillies), 0, RT_SRC_POS)
+#  define RTSemMutexRequestNoResume(pCritSect, cMillies)    RTSemMutexRequestNoResumeDebug((pCritSect), (cMillies), 0, RT_SRC_POS)
+# endif
+#endif
+
+/* Strict lock order: Automatically classify locks by init location. */
+#if defined(RT_LOCK_STRICT_ORDER) && defined(IN_RING3)
+# define RTSemMutexCreate(phMutexSem) \
+    RTSemMutexCreateEx((phMutexSem), 0 /*fFlags*/, \
+                       RTLockValidatorClassForSrcPos(RT_SRC_POS, NULL), \
+                       RTLOCKVAL_SUB_CLASS_NONE, NULL)
+#endif
 
 /** @} */
 
 
 /** @defgroup grp_rt_sems_fast_mutex    RTSemFastMutex - Fast Mutex Semaphores
+ *
+ * Fast mutexes work like regular mutexes in that they allow only a single
+ * thread access to a critical piece of code or data.  As opposed to mutexes,
+ * they require no syscall if the fast mutex is not held (like critical
+ * sections).  Unlike critical sections however, they are *not* recursive.
+ *
  * @{ */
 
 /**
  * Create a fast mutex semaphore.
  *
  * @returns iprt status code.
- * @param   pMutexSem   Where to store the mutex semaphore handle.
+ * @param   phFastMtx           Where to store the handle to the newly created
+ *                              fast mutex semaphore.
  *
  * @remarks Fast mutex semaphores are not recursive.
  */
-RTDECL(int)  RTSemFastMutexCreate(PRTSEMFASTMUTEX pMutexSem);
+RTDECL(int)  RTSemFastMutexCreate(PRTSEMFASTMUTEX phFastMtx);
 
 /**
  * Destroy a fast mutex semaphore.
  *
  * @returns iprt status code.
- * @param   MutexSem    The mutex semaphore to destroy.
+ * @param   hFastMtx            Handle to the fast mutex semaphore.  NIL is
+ *                              quietly ignored (VINF_SUCCESS).
  */
-RTDECL(int)  RTSemFastMutexDestroy(RTSEMFASTMUTEX MutexSem);
+RTDECL(int)  RTSemFastMutexDestroy(RTSEMFASTMUTEX hFastMtx);
 
 /**
  * Request ownership of a fast mutex semaphore.
@@ -259,25 +522,27 @@ RTDECL(int)  RTSemFastMutexDestroy(RTSEMFASTMUTEX MutexSem);
  * RTSemMutexRelease() call.
  *
  * @returns iprt status code.
- * @param   MutexSem    The mutex semaphore to request ownership over.
+ * @param   hFastMtx            Handle to the fast mutex semaphore.
  */
-RTDECL(int)  RTSemFastMutexRequest(RTSEMFASTMUTEX MutexSem);
+RTDECL(int)  RTSemFastMutexRequest(RTSEMFASTMUTEX hFastMtx);
 
 /**
  * Release the ownership of a fast mutex semaphore.
  *
  * @returns iprt status code.
- * @param   MutexSem    The mutex to release the ownership of.
- *                      It goes without saying the the calling thread must own it.
+ * @param   hFastMtx            Handle to the fast mutex semaphore.  It goes
+ *                              without saying the the calling thread must own
+ *                              it.
  */
-RTDECL(int)  RTSemFastMutexRelease(RTSEMFASTMUTEX MutexSem);
+RTDECL(int)  RTSemFastMutexRelease(RTSEMFASTMUTEX hFastMtx);
 
 /** @} */
 
 
 /** @defgroup grp_rt_sems_spin_mutex RTSemSpinMutex - Spinning Mutex Semaphores
  *
- * Very adaptive kind of mutex semaphore tailored for the ring-0 logger.
+ * A very adaptive variant of mutex semaphore that is tailored for the ring-0
+ * logger.
  *
  * @{ */
 
@@ -369,23 +634,72 @@ RTDECL(int) RTSemSpinMutexRelease(RTSEMSPINMUTEX hSpinMtx);
 
 
 /** @defgroup grp_rt_sem_rw             RTSemRW - Read / Write Semaphores
+ *
+ * Read/write semaphores are a fancier version of mutexes in that they grant
+ * read access to the protected data to several threads at the same time but
+ * allow only one writer at a time.  This can make code scale better at the
+ * expense of slightly more overhead in mutex management.
+ *
  * @{ */
 
 /**
  * Creates a read/write semaphore.
  *
  * @returns iprt status code.
- * @param   pRWSem      Where to store the handle to the created RW semaphore.
+ * @param   phRWSem             Where to store the handle to the newly created
+ *                              RW semaphore.
  */
-RTDECL(int)   RTSemRWCreate(PRTSEMRW pRWSem);
+RTDECL(int)   RTSemRWCreate(PRTSEMRW phRWSem);
+
+/**
+ * Creates a read/write semaphore.
+ *
+ * @returns iprt status code.
+ * @param   phRWSem             Where to store the handle to the newly created
+ *                              RW semaphore.
+ * @param   fFlags              Flags, any combination of the RTSEMRW_FLAGS_XXX
+ *                              \#defines.
+ * @param   hClass              The class (no reference consumed).  If NIL, no
+ *                              lock order validation will be performed on this
+ *                              lock.
+ * @param   uSubClass           The sub-class.  This is used to define lock
+ *                              order within a class.  RTLOCKVAL_SUB_CLASS_NONE
+ *                              is the recommended value here.
+ * @param   pszNameFmt          Name format string for the lock validator,
+ *                              optional (NULL).  Max length is 32 bytes.
+ * @param   ...                 Format string arguments.
+ */
+RTDECL(int)   RTSemRWCreateEx(PRTSEMRW phRWSem, uint32_t fFlags,
+                              RTLOCKVALCLASS hClass, uint32_t uSubClass, const char *pszNameFmt, ...);
+
+/** @name RTSemRWCreateEx flags
+ * @{ */
+/** Disables lock validation. */
+#define RTSEMRW_FLAGS_NO_LOCK_VAL   UINT32_C(0x00000001)
+/** @} */
 
 /**
  * Destroys a read/write semaphore.
  *
  * @returns iprt status code.
- * @param   RWSem       The Read/Write semaphore to destroy.
+ * @param   hRWSem              Handle to the read/write semaphore.  NIL is
+ *                              quitly ignored (VINF_SUCCESS).
  */
-RTDECL(int)   RTSemRWDestroy(RTSEMRW RWSem);
+RTDECL(int)   RTSemRWDestroy(RTSEMRW hRWSem);
+
+/**
+ * Changes the lock validator sub-class of the read/write semaphore.
+ *
+ * It is recommended to try make sure that nobody is using this sempahore while
+ * changing the value.
+ *
+ * @returns The old sub-class.  RTLOCKVAL_SUB_CLASS_INVALID is returns if the
+ *          lock validator isn't compiled in or either of the parameters are
+ *          invalid.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   uSubClass           The new sub-class value.
+ */
+RTDECL(uint32_t) RTSemRWSetSubClass(RTSEMRW hRWSem, uint32_t uSubClass);
 
 /**
  * Request read access to a read/write semaphore, resume on interruption
@@ -393,12 +707,12 @@ RTDECL(int)   RTSemRWDestroy(RTSEMRW RWSem);
  * @returns iprt status code.
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_INTERRUPT if the wait was interrupted.
- * @retval  VERR_INVALID_HANDLE if RWSem is invalid.
+ * @retval  VERR_INVALID_HANDLE if hRWSem is invalid.
  *
- * @param   RWSem       The Read/Write semaphore to request read access to.
- * @param   cMillies    The number of milliseconds to wait.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
  */
-RTDECL(int)   RTSemRWRequestRead(RTSEMRW RWSem, unsigned cMillies);
+RTDECL(int)   RTSemRWRequestRead(RTSEMRW hRWSem, RTMSINTERVAL cMillies);
 
 /**
  * Request read access to a read/write semaphore, return on interruption
@@ -406,21 +720,62 @@ RTDECL(int)   RTSemRWRequestRead(RTSEMRW RWSem, unsigned cMillies);
  * @returns iprt status code.
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_INTERRUPT if the wait was interrupted.
- * @retval  VERR_INVALID_HANDLE if RWSem is invalid.
+ * @retval  VERR_INVALID_HANDLE if hRWSem is invalid.
  *
- * @param   RWSem       The Read/Write semaphore to request read access to.
- * @param   cMillies    The number of milliseconds to wait.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
  */
-RTDECL(int)   RTSemRWRequestReadNoResume(RTSEMRW RWSem, unsigned cMillies);
+RTDECL(int)   RTSemRWRequestReadNoResume(RTSEMRW hRWSem, RTMSINTERVAL cMillies);
+
+/**
+ * Debug version of RTSemRWRequestRead that tracks the location.
+ *
+ * @returns iprt status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_INTERRUPT if the wait was interrupted.
+ * @retval  VERR_INVALID_HANDLE if hRWSem is invalid.
+ *
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
+ * @param   uId                 Some kind of locking location ID.  Typically a
+ *                              return address up the stack.  Optional (0).
+ * @param   pszFile             The file where the lock is being acquired from.
+ *                              Optional.
+ * @param   iLine               The line number in that file.  Optional (0).
+ * @param   pszFunction         The functionn where the lock is being acquired
+ *                              from.  Optional.
+ */
+RTDECL(int)   RTSemRWRequestReadDebug(RTSEMRW hRWSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL);
+
+/**
+ * Debug version of RTSemRWRequestWriteNoResume that tracks the location.
+ *
+ * @returns iprt status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_INTERRUPT if the wait was interrupted.
+ * @retval  VERR_INVALID_HANDLE if hRWSem is invalid.
+ *
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
+ * @param   uId                 Some kind of locking location ID.  Typically a
+ *                              return address up the stack.  Optional (0).
+ * @param   pszFile             The file where the lock is being acquired from.
+ *                              Optional.
+ * @param   iLine               The line number in that file.  Optional (0).
+ * @param   pszFunction         The functionn where the lock is being acquired
+ *                              from.  Optional.
+ */
+RTDECL(int)   RTSemRWRequestReadNoResumeDebug(RTSEMRW hRWSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
 /**
  * Release read access to a read/write semaphore.
  *
  * @returns iprt status code.
- * @param   RWSem       The Read/Write sempahore to release read access to.
- *                      Goes without saying that caller must have read access to the sem.
+ * @param   hRWSem              Handle to the read/write semaphore.  It goes
+ *                              without saying that caller must own read
+ *                              privileges to the semaphore.
  */
-RTDECL(int)   RTSemRWReleaseRead(RTSEMRW RWSem);
+RTDECL(int)   RTSemRWReleaseRead(RTSEMRW hRWSem);
 
 /**
  * Request write access to a read/write semaphore, resume on interruption.
@@ -428,12 +783,12 @@ RTDECL(int)   RTSemRWReleaseRead(RTSEMRW RWSem);
  * @returns iprt status code.
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_DEADLOCK if the caller owned the read lock.
- * @retval  VERR_INVALID_HANDLE if RWSem is invalid.
+ * @retval  VERR_INVALID_HANDLE if hRWSem is invalid.
  *
- * @param   RWSem       The Read/Write semaphore to request write access to.
- * @param   cMillies    The number of milliseconds to wait.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
  */
-RTDECL(int)   RTSemRWRequestWrite(RTSEMRW RWSem, unsigned cMillies);
+RTDECL(int)   RTSemRWRequestWrite(RTSEMRW hRWSem, RTMSINTERVAL cMillies);
 
 /**
  * Request write access to a read/write semaphore, return on interruption.
@@ -442,50 +797,141 @@ RTDECL(int)   RTSemRWRequestWrite(RTSEMRW RWSem, unsigned cMillies);
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_INTERRUPT if the wait was interrupted.
  * @retval  VERR_DEADLOCK if the caller owned the read lock.
- * @retval  VERR_INVALID_HANDLE if RWSem is invalid.
+ * @retval  VERR_INVALID_HANDLE if hRWSem is invalid.
  *
- * @param   RWSem       The Read/Write semaphore to request write access to.
- * @param   cMillies    The number of milliseconds to wait.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
  */
-RTDECL(int)   RTSemRWRequestWriteNoResume(RTSEMRW RWSem, unsigned cMillies);
+RTDECL(int)   RTSemRWRequestWriteNoResume(RTSEMRW hRWSem, RTMSINTERVAL cMillies);
+
+/**
+ * Debug version of RTSemRWRequestWrite that tracks the location.
+ *
+ * @returns IPRT status code, see RTSemRWRequestWrite.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
+ * @param   uId                 Some kind of locking location ID.  Typically a
+ *                              return address up the stack.  Optional (0).
+ * @param   pszFile             The file where the lock is being acquired from.
+ *                              Optional.
+ * @param   iLine               The line number in that file.  Optional (0).
+ * @param   pszFunction         The functionn where the lock is being acquired
+ *                              from.  Optional.
+ */
+RTDECL(int)  RTSemRWRequestWriteDebug(RTSEMRW hRWSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL);
+
+/**
+ * Debug version of RTSemRWRequestWriteNoResume that tracks the location.
+ *
+ * @returns IPRT status code, see RTSemRWRequestWriteNoResume.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   cMillies            The number of milliseconds to wait.
+ * @param   uId                 Some kind of locking location ID.  Typically a
+ *                              return address up the stack.  Optional (0).
+ * @param   pszFile             The file where the lock is being acquired from.
+ *                              Optional.
+ * @param   iLine               The line number in that file.  Optional (0).
+ * @param   pszFunction         The functionn where the lock is being acquired
+ *                              from.  Optional.
+ */
+RTDECL(int)  RTSemRWRequestWriteNoResumeDebug(RTSEMRW hRWSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
 /**
  * Release write access to a read/write semaphore.
  *
  * @returns iprt status code.
- * @param   RWSem       The Read/Write sempahore to release read access to.
- *                      Goes without saying that caller must have write access to the sem.
+ * @param   hRWSem              Handle to the read/write semaphore.  Goes
+ *                              without saying that caller must have write
+ *                              access to the semaphore.
  */
-RTDECL(int)   RTSemRWReleaseWrite(RTSEMRW RWSem);
+RTDECL(int)   RTSemRWReleaseWrite(RTSEMRW hRWSem);
 
 /**
  * Checks if the caller is the exclusive semaphore owner.
  *
  * @returns true / false accoringly.
- * @param   RWSem       The Read/Write semaphore in question.
+ * @param   hRWSem              Handle to the read/write semaphore.
  */
-RTDECL(bool)  RTSemRWIsWriteOwner(RTSEMRW RWSem);
+RTDECL(bool)  RTSemRWIsWriteOwner(RTSEMRW hRWSem);
+
+/**
+ * Checks if the caller is one of the read owners of the sempahore.
+ *
+ * @note    !CAUTION!  This API doesn't work reliably if lock validation isn't
+ *          enabled. Meaning, the answer is not trustworhty unless
+ *          RT_LOCK_STRICT or RTSEMRW_STRICT was defined at build time.  Also,
+ *          make sure you do not use RTSEMRW_FLAGS_NO_LOCK_VAL when creating
+ *          the semaphore.  And finally, if you used a locking class, don't
+ *          disable deadlock detection by setting cMsMinDeadlock to
+ *          RT_INDEFINITE_WAIT.
+ *
+ *          In short, only use this for assertions.
+ *
+ * @returns true if reader, false if not.
+ * @param   hRWSem              Handle to the read/write semaphore.
+ * @param   fWannaHear          What you'd like to hear when lock validation is
+ *                              not available.  (For avoiding asserting all over
+ *                              the place.)
+ */
+RTDECL(bool)  RTSemRWIsReadOwner(RTSEMRW hRWSem, bool fWannaHear);
 
 /**
  * Gets the write recursion count.
  *
  * @returns The write recursion count (0 if bad semaphore handle).
- * @param   RWSem       The Read/Write semaphore in question.
+ * @param   hRWSem              Handle to the read/write semaphore.
  */
-RTDECL(uint32_t) RTSemRWGetWriteRecursion(RTSEMRW RWSem);
+RTDECL(uint32_t) RTSemRWGetWriteRecursion(RTSEMRW hRWSem);
 
 /**
  * Gets the read recursion count of the current writer.
  *
  * @returns The read recursion count (0 if bad semaphore handle).
- * @param   RWSem       The Read/Write semaphore in question.
+ * @param   hRWSem              Handle to the read/write semaphore.
  */
-RTDECL(uint32_t) RTSemRWGetWriterReadRecursion(RTSEMRW RWSem);
+RTDECL(uint32_t) RTSemRWGetWriterReadRecursion(RTSEMRW hRWSem);
+
+/**
+ * Gets the current number of reads.
+ *
+ * This includes all read recursions, so it might be higher than the number of
+ * read owners.  It does not include reads done by the current writer.
+ *
+ * @returns The read count (0 if bad semaphore handle).
+ * @param   hRWSem              Handle to the read/write semaphore.
+ */
+RTDECL(uint32_t) RTSemRWGetReadCount(RTSEMRW hRWSem);
+
+/* Strict build: Remap the four request calls to the debug versions. */
+#ifdef RT_STRICT
+# ifdef ___iprt_asm_h
+#  define RTSemRWRequestRead(pCritSect, cMillies)           RTSemRWRequestReadDebug((pCritSect), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+#  define RTSemRWRequestReadNoResume(pCritSect, cMillies)   RTSemRWRequestReadNoResumeDebug((pCritSect), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+#  define RTSemRWRequestWrite(pCritSect, cMillies)          RTSemRWRequestWriteDebug((pCritSect), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+#  define RTSemRWRequestWriteNoResume(pCritSect, cMillies)  RTSemRWRequestWriteNoResumeDebug((pCritSect), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+# else
+#  define RTSemRWRequestRead(pCritSect, cMillies)           RTSemRWRequestReadDebug((pCritSect), (cMillies), 0, RT_SRC_POS)
+#  define RTSemRWRequestReadNoResume(pCritSect, cMillies)   RTSemRWRequestReadNoResumeDebug((pCritSect), (cMillies), 0, RT_SRC_POS)
+#  define RTSemRWRequestWrite(pCritSect, cMillies)          RTSemRWRequestWriteDebug((pCritSect), (cMillies), 0, RT_SRC_POS)
+#  define RTSemRWRequestWriteNoResume(pCritSect, cMillies)  RTSemRWRequestWriteNoResumeDebug((pCritSect), (cMillies), 0, RT_SRC_POS)
+# endif
+#endif
+
+/* Strict lock order: Automatically classify locks by init location. */
+#if defined(RT_LOCK_STRICT_ORDER) && defined(IN_RING3)
+# define RTSemRWCreate(phSemRW) \
+    RTSemRWCreateEx((phSemRW), 0 /*fFlags*/, \
+                    RTLockValidatorClassForSrcPos(RT_SRC_POS, NULL), \
+                    RTLOCKVAL_SUB_CLASS_NONE, NULL)
+#endif
 
 /** @} */
 
 
 /** @defgroup grp_rt_sems_pingpong      RTSemPingPong - Ping-Pong Construct
+ *
+ * Serialization of a two way communication.
+ *
  * @{ */
 
 /**
@@ -573,7 +1019,7 @@ RTDECL(int) RTSemPong(PRTPINGPONG pPP);
  * @param   pPP         Pointer to the ping-pong structure to wait on.
  * @param   cMillies    Number of milliseconds to wait.
  */
-RTDECL(int) RTSemPingWait(PRTPINGPONG pPP, unsigned cMillies);
+RTDECL(int) RTSemPingWait(PRTPINGPONG pPP, RTMSINTERVAL cMillies);
 
 /**
  * Wait function for the pong thread.
@@ -583,7 +1029,7 @@ RTDECL(int) RTSemPingWait(PRTPINGPONG pPP, unsigned cMillies);
  * @param   pPP         Pointer to the ping-pong structure to wait on.
  * @param   cMillies    Number of milliseconds to wait.
  */
-RTDECL(int) RTSemPongWait(PRTPINGPONG pPP, unsigned cMillies);
+RTDECL(int) RTSemPongWait(PRTPINGPONG pPP, RTMSINTERVAL cMillies);
 
 
 /**
@@ -644,6 +1090,85 @@ DECLINLINE(bool) RTSemPongShouldWait(PRTPINGPONG pPP)
         || enmSpeaker == RTPINGPONGSPEAKER_PING_SIGNALED
         || enmSpeaker == RTPINGPONGSPEAKER_PONG_SIGNALED;
 }
+
+/** @} */
+
+
+/** @defgroup grp_rt_sems_xroads    RTSemXRoads - Crossroads
+ *
+ * The crossroads semaphore is intended to prevent two classes of incompatible
+ * events from occuring simultaneously, like south/north bound traffic and
+ * west/east bound traffic at a 4-way junction.
+ *
+ * @remarks In order to simplify the implementation, the current flow is always
+ *          given priority.  So, it won't work at all well when busy!
+ *
+ * @remarks "XRoads" is used as a name because it is briefer than "crossroads"
+ *          and it slightly stresses that is a 4 way crossing to the users of
+ *          American English.
+ * @{
+ */
+
+/**
+ * Creates a crossroads semaphore.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   phXRoads            Where to return the handle to the newly created
+ *                              crossroads semaphore.
+ */
+RTDECL(int) RTSemXRoadsCreate(PRTSEMXROADS phXRoads);
+
+/**
+ * Destroys a crossroads semaphore.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hXRoads             Handle to the crossroads semaphore that is to be
+ *                              destroyed.  NIL_RTSEMXROADS is quitetly ignored
+ *                              (VINF_SUCCESS).
+ */
+RTDECL(int) RTSemXRoadsDestroy(RTSEMXROADS hXRoads);
+
+/**
+ * Enter the crossroads from the south or north.
+ *
+ * (Coupled with RTSemXRoadsNSLeave.)
+ *
+ * @returns IPRT status code.
+ * @param   hXRoads             Handle to the crossroads semaphore.
+ */
+RTDECL(int) RTSemXRoadsNSEnter(RTSEMXROADS hXRoads);
+
+/**
+ * Leave the crossroads to the north or south.
+ *
+ * (Coupled with RTSemXRoadsNSEnter.)
+ *
+ * @returns IPRT status code.
+ * @param   hXRoads             Handle to the crossroads semaphore.
+ */
+RTDECL(int) RTSemXRoadsNSLeave(RTSEMXROADS hXRoads);
+
+/**
+ * Leave the crossroads from the east or west.
+ *
+ * (Coupled with RTSemXRoadsEWLeave.)
+ *
+ * @returns IPRT status code.
+ * @param   hXRoads             Handle to the crossroads semaphore.
+ */
+RTDECL(int) RTSemXRoadsEWEnter(RTSEMXROADS hXRoads);
+
+/**
+ * Leave the crossroads to the west or east.
+ *
+ * (Coupled with RTSemXRoadsEWEnter.)
+ *
+ * @returns IPRT status code.
+ * @param   hXRoads             Handle to the crossroads semaphore.
+ */
+RTDECL(int) RTSemXRoadsEWLeave(RTSEMXROADS hXRoads);
 
 /** @} */
 

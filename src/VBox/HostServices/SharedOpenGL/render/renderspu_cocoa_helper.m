@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "renderspu_cocoa_helper.h"
@@ -25,11 +21,14 @@
 
 #include <iprt/thread.h>
 #include <iprt/string.h>
+#include <iprt/mem.h>
+#include <iprt/time.h>
 
 /* Debug macros */
 #define FBO 1 /* Disable this to see how the output is without the FBO in the middle of the processing chain. */
 //#define SHOW_WINDOW_BACKGROUND 1 /* Define this to see the window background even if the window is clipped */
 //#define DEBUG_VERBOSE /* Define this could get some debug info about the messages flow. */
+//#define DEBUG_poetzsch 1
 
 #ifdef DEBUG_poetzsch
 #define DEBUG_MSG(text) \
@@ -57,7 +56,7 @@
     static void checkGLError(char *file, int line)
     {
         GLenum g = glGetError();
-	    if (g != GL_NO_ERROR)
+        if (g != GL_NO_ERROR)
         {
             char *errStr;
             switch (g)
@@ -137,6 +136,7 @@ while(0);
 {
 @private
     NSView          *m_pParentView;
+    NSWindow        *m_pOverlayWin;
 
     NSOpenGLContext *m_pGLCtx;
     NSOpenGLContext *m_pSharedGLCtx;
@@ -171,6 +171,11 @@ while(0);
 - (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView;
 - (void)setGLCtx:(NSOpenGLContext*)pCtx;
 - (NSOpenGLContext*)glCtx;
+
+- (void)setParentView: (NSView*)view;
+- (NSView*)parentView;
+- (void)setOverlayWin: (NSWindow*)win;
+- (NSWindow*)overlayWin;
 
 - (void)setPos:(NSPoint)pos;
 - (NSPoint)pos;
@@ -298,19 +303,23 @@ while(0);
     [self lock];
     [self cleanup];
 
-    /* Create a buffer for our thumbnail image. Its in the size of this view. */
-    m_ThumbBitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-        pixelsWide:frame.size.width
-        pixelsHigh:frame.size.height
-        bitsPerSample:8
-        samplesPerPixel:4
-        hasAlpha:YES
-        isPlanar:NO
-        colorSpaceName:NSDeviceRGBColorSpace
-        bytesPerRow:frame.size.width * 4
-        bitsPerPixel:8 * 4];
-    m_ThumbImage = [[NSImage alloc] initWithSize:[m_ThumbBitmap size]];
-    [m_ThumbImage addRepresentation:m_ThumbBitmap];
+    if (   frame.size.width > 0
+        && frame.size.height > 0)
+    {
+        /* Create a buffer for our thumbnail image. Its in the size of this view. */
+        m_ThumbBitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+            pixelsWide:frame.size.width
+            pixelsHigh:frame.size.height
+            bitsPerSample:8
+            samplesPerPixel:4
+            hasAlpha:YES
+            isPlanar:NO
+            colorSpaceName:NSDeviceRGBColorSpace
+            bytesPerRow:frame.size.width * 4
+            bitsPerPixel:8 * 4];
+        m_ThumbImage = [[NSImage alloc] initWithSize:[m_ThumbBitmap size]];
+        [m_ThumbImage addRepresentation:m_ThumbBitmap];
+    }
     [self unlock];
 }
 
@@ -447,6 +456,8 @@ while(0);
         m_pOverlayView = pOverlayView;
         m_Thread = [NSThread currentThread];
 
+        [m_pOverlayView setOverlayWin: self];
+
         m_pOverlayHelperView = [[OverlayHelperView alloc] initWithOverlayWindow:self];
         /* Add the helper view as a child of the parent view to get notifications */
         [pParentView addSubview:m_pOverlayHelperView];
@@ -498,12 +509,14 @@ while(0);
     /* Reposition this window with the help of the OverlayView. Perform the
      * call in the OpenGL thread. */
 //    [m_pOverlayView performSelector:@selector(reshape) onThread:m_Thread withObject:nil waitUntilDone:YES];
+    DEBUG_MSG(("parentWindowFrameChanged\n"));
     [m_pOverlayView reshape];
 }
 
 - (void)parentWindowChanged:(NSWindow*)pWindow
 {
     [[NSNotificationCenter defaultCenter] removeObserver:self];
+    DEBUG_MSG(("parentWindowChanged\n"));
     if(pWindow != nil)
     {
         /* Ask to get notifications when our parent window frame changes. */
@@ -519,7 +532,6 @@ while(0);
 //        [m_pOverlayView performSelector:@selector(reshape) withObject:nil afterDelay:0.2];
 //        [NSTimer scheduledTimerWithTimeInterval:0.2 target:m_pOverlayView selector:@selector(reshape) userInfo:nil repeats:NO];
         [m_pOverlayView reshape];
-
     }
 }
 
@@ -543,6 +555,8 @@ while(0);
     m_FBOTexId = 0;
     m_FBOTexSize = NSZeroSize;
     m_FBODepthStencilPackedId = 0;
+    m_FBOThumbId = 0;
+    m_FBOThumbTexId = 0;
     m_cClipRects = 0;
     m_paClipRects = NULL;
     m_Pos = NSZeroPoint;
@@ -605,6 +619,26 @@ while(0);
     return m_pGLCtx;
 }
 
+- (NSView*)parentView
+{
+    return m_pParentView;
+}
+
+- (void)setParentView: (NSView*)view
+{
+    m_pParentView = view;
+}
+
+- (void)setOverlayWin: (NSWindow*)win
+{
+    m_pOverlayWin = win;
+}
+
+- (NSWindow*)overlayWin
+{
+    return m_pOverlayWin;
+}
+
 - (void)setPos:(NSPoint)pos
 {
     m_Pos = pos;
@@ -619,8 +653,21 @@ while(0);
 - (void)setSize:(NSSize)size
 {
     m_Size = size;
-    [self reshape];
-    [self updateFBO];
+    
+    if (!m_FBOId)
+    {
+        DEBUG_MSG(("Set size (no fbo) %p\n", self));
+        [self reshape];
+        [self updateFBO];
+    }
+    else
+    {
+        DEBUG_MSG(("Set size FBO %p\n", self));
+        [self reshape];
+        [self updateFBO];
+        /* have to rebind GL_TEXTURE_RECTANGLE_ARB as m_FBOTexId could be changed in updateFBO call */
+        [self updateViewport];
+    }
 }
 
 - (NSSize)size
@@ -630,9 +677,11 @@ while(0);
 
 - (void)updateViewport
 {
+    DEBUG_MSG(("updateViewport %p\n", self));
     if (m_pSharedGLCtx)
     {
         /* Update the viewport for our OpenGL view */
+        DEBUG_MSG(("MakeCurrent (shared) %X\n", m_pSharedGLCtx));
         [m_pSharedGLCtx makeCurrentContext];
         [m_pSharedGLCtx update];
 
@@ -655,12 +704,14 @@ while(0);
         glEnable(GL_TEXTURE_RECTANGLE_ARB);
         glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOTexId);
 
+        DEBUG_MSG(("MakeCurrent %X\n", m_pGLCtx));
         [m_pGLCtx makeCurrentContext];
     }
 }
 
 - (void)reshape
 {
+    DEBUG_MSG(("(%p)reshape %p\n", RTThreadSelf(), self));
     /* Getting the right screen coordinates of the parents frame is a little bit
      * complicated. */
     NSRect parentFrame = [m_pParentView frame];
@@ -714,9 +765,13 @@ while(0);
 }
 
 - (void)createFBO
-{    
+{
+    GLuint fboid = m_FBOId;
+    
+    DEBUG_MSG(("createFBO %p\n", self));
     [self deleteFBO];
 
+if (0&&!fboid)
     GL_SAVE_STATE;
 
     /* If not previously setup generate IDs for FBO and its associated texture. */
@@ -738,7 +793,7 @@ while(0);
         glGenFramebuffersEXT(1, &m_FBOId);
         /* & the texture as well the depth/stencil render buffer */
         glGenTextures(1, &m_FBOTexId);
-        DEBUG_MSG_1(("Create FBO %d %d\n", m_FBOId, m_FBOTexId));
+        DEBUG_MSG(("Create FBO %d %d\n", m_FBOId, m_FBOTexId));
 
         glGenRenderbuffersEXT(1, &m_FBODepthStencilPackedId);
     }
@@ -759,7 +814,7 @@ while(0);
     GLint filter = GL_NEAREST;
     if (m_FBOTexSize.width > maxTexSize || m_FBOTexSize.height > maxTexSize) 
     {
-        filter = GL_NICEST;
+        filter = GL_LINEAR;
         if (imageAspectRatio > 1)
         {
             m_FBOTexSize.width = maxTexSize; 
@@ -797,6 +852,7 @@ while(0);
 
     glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
     glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+    glDisable(GL_TEXTURE_RECTANGLE_ARB);
 
     /* Is there a dock tile preview enabled in the GUI? If so setup a
      * additional thumbnail view for the dock tile. */
@@ -812,8 +868,8 @@ while(0);
         glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, m_FBOThumbId);
         /* Initialize FBO Texture */
         glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOThumbTexId);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_NICEST);
-        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_NICEST);
+        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_S, GL_CLAMP);
         glTexParameteri(GL_TEXTURE_RECTANGLE_ARB, GL_TEXTURE_WRAP_T, GL_CLAMP);
     
@@ -844,15 +900,28 @@ while(0);
     m_paClipRects[1] = 0;
     m_paClipRects[2] = m_FBOTexSize.width;
     m_paClipRects[3] = m_FBOTexSize.height;
-
+    
+if (0&&!fboid)
     GL_RESTORE_STATE;
 }
 
 - (void)deleteFBO
 {
-    if ([NSOpenGLContext currentContext] != nil)
+    DEBUG_MSG(("deleteFBO %p\n", self));
+    if (m_pSharedGLCtx)
     {
-        GL_SAVE_STATE;
+        DEBUG_MSG(("MakeCurrent (shared) %X\n", m_pSharedGLCtx));
+        [m_pSharedGLCtx makeCurrentContext];
+        [m_pSharedGLCtx update];
+
+        glEnable(GL_TEXTURE_RECTANGLE_ARB);
+        glBindTexture(GL_TEXTURE_RECTANGLE_ARB, 0);
+    }
+
+    if (m_pGLCtx)
+    {
+        DEBUG_MSG(("MakeCurrent %X\n", m_pGLCtx));
+        [m_pGLCtx makeCurrentContext];
 
         if (m_FBODepthStencilPackedId > 0)
         {
@@ -868,14 +937,19 @@ while(0);
         }
         if (m_FBOId > 0)
         {
-            glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+            GLint tmpFB;
+            glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &tmpFB);
 
+            if (tmpFB == m_FBOId)
+            {
+                glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
+            }
+            
             glDeleteFramebuffersEXT(1, &m_FBOId);
             m_FBOId = 0;
         }
-
-        GL_RESTORE_STATE;
     }
+
     if (m_DockTileView != nil)
     {
         [m_DockTileView removeFromSuperview];
@@ -886,6 +960,7 @@ while(0);
 
 - (void)updateFBO
 {
+    DEBUG_MSG(("updateFBO %p\n", self));
     [self makeCurrentFBO];
     
     if (m_pGLCtx)
@@ -919,6 +994,7 @@ while(0);
         }
 //        if ([NSOpenGLContext currentContext] != m_pGLCtx)
         {
+            DEBUG_MSG(("MakeCurrent %X\n", m_pGLCtx));
             [m_pGLCtx makeCurrentContext];
             CHECK_GL_ERROR();
 //            [m_pGLCtx update];
@@ -941,7 +1017,7 @@ while(0);
 //    [m_pGLCtx flushBuffer];
     glFlush();
 //    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
-	if (tmpFB == m_FBOId)
+    if (tmpFB == m_FBOId)
     {
         if ([self lockFocusIfCanDraw])
         {
@@ -962,7 +1038,7 @@ while(0);
     glFlush();
 //    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
     DEBUG_MSG_1 (("Flush GetINT %d\n", tmpFB));
-	if (tmpFB == m_FBOId)
+    if (tmpFB == m_FBOId)
     {
         if ([self lockFocusIfCanDraw])
         {
@@ -980,7 +1056,7 @@ while(0);
     glFinish();
         //    glBindFramebufferEXT(GL_FRAMEBUFFER_EXT, 0);
     DEBUG_MSG_1 (("Finish GetINT %d\n", tmpFB));
-	if (tmpFB == m_FBOId)
+    if (tmpFB == m_FBOId)
     {
         if ([self lockFocusIfCanDraw])
         {
@@ -1020,12 +1096,20 @@ while(0);
 
         if (m_FBOTexId > 0)
         {
+            if ([m_pSharedGLCtx view] != self)
+            {
+                DEBUG_MSG(("renderFBOToView: not currect view of shared ctx!"));
+                [m_pSharedGLCtx setView: self];
+                [self updateViewport];
+            }
+
+            //DEBUG_MSG(("MakeCurrent (shared) %X\n", m_pSharedGLCtx));
             [m_pSharedGLCtx makeCurrentContext];
-        
+       
             if (m_FBOThumbTexId > 0 &&
                 [m_DockTileView thumbBitmap] != nil)
             {
-                /* Only update after atleast 200 ms, cause glReadPixels is
+                /* Only update after at least 200 ms, cause glReadPixels is
                  * heavy performance wise. */
                 uint64_t uiNewTime = RTTimeMilliTS();
                 if (uiNewTime - m_uiDockUpdateTime > 200)
@@ -1115,6 +1199,9 @@ while(0);
             /* Clear background to transparent */
             glClear(GL_COLOR_BUFFER_BIT);
 
+            glEnable(GL_TEXTURE_RECTANGLE_ARB);
+            glBindTexture(GL_TEXTURE_RECTANGLE_ARB, m_FBOTexId);
+
             /* Blit the content of the FBO to the screen. todo: check for
              * optimization with display lists. */
             GLint i;
@@ -1135,6 +1222,7 @@ while(0);
             }
             glFinish();
             [m_pSharedGLCtx flushBuffer];
+            //DEBUG_MSG(("MakeCurrent %X\n", m_pGLCtx));
             [m_pGLCtx makeCurrentContext];
         }
     }
@@ -1168,23 +1256,32 @@ while(0);
 {
     NSView *contentView = [[[NSApplication sharedApplication] dockTile] contentView];
     NSView *screenContent = nil;
-    if ([contentView respondsToSelector:@selector(screenContent)])
+    /* First try the new variant which checks if this window is within the
+       screen which is previewed in the dock. */
+    if ([contentView respondsToSelector:@selector(screenContentWithParentView:)])
+         screenContent = [contentView performSelector:@selector(screenContentWithParentView:) withObject:(id)m_pParentView];
+    /* If it fails, fall back to the old variant (VBox...) */
+    else if ([contentView respondsToSelector:@selector(screenContent)])
          screenContent = [contentView performSelector:@selector(screenContent)];
     return screenContent;
 }
 
 - (void)reshapeDockTile
 {
-    NSRect dockFrame = [[self dockTileScreen] frame];
-    NSRect parentFrame = [m_pParentView frame];
+    NSView *pView = [self dockTileScreen];
+    if (pView != nil)
+    {
+        NSRect dockFrame = [pView frame];
+        NSRect parentFrame = [m_pParentView frame];
 
-    m_FBOThumbScaleX = (float)dockFrame.size.width / parentFrame.size.width;
-    m_FBOThumbScaleY = (float)dockFrame.size.height / parentFrame.size.height;
-    NSRect newFrame = NSMakeRect ((int)(m_Pos.x * m_FBOThumbScaleX), (int)(dockFrame.size.height - (m_Pos.y + m_Size.height - m_RootShift.y) * m_FBOThumbScaleY), (int)(m_Size.width * m_FBOThumbScaleX), (int)(m_Size.height * m_FBOThumbScaleY));
+        m_FBOThumbScaleX = (float)dockFrame.size.width / parentFrame.size.width;
+        m_FBOThumbScaleY = (float)dockFrame.size.height / parentFrame.size.height;
+        NSRect newFrame = NSMakeRect ((int)(m_Pos.x * m_FBOThumbScaleX), (int)(dockFrame.size.height - (m_Pos.y + m_Size.height - m_RootShift.y) * m_FBOThumbScaleY), (int)(m_Size.width * m_FBOThumbScaleX), (int)(m_Size.height * m_FBOThumbScaleY));
 //    NSRect newFrame = NSMakeRect ((int)roundf(m_Pos.x * m_FBOThumbScaleX), (int)roundf(dockFrame.size.height - (m_Pos.y + m_Size.height) * m_FBOThumbScaleY), (int)roundf(m_Size.width * m_FBOThumbScaleX), (int)roundf(m_Size.height * m_FBOThumbScaleY));
 //      NSRect newFrame = NSMakeRect ((m_Pos.x * m_FBOThumbScaleX), (dockFrame.size.height - (m_Pos.y + m_Size.height) * m_FBOThumbScaleY), (m_Size.width * m_FBOThumbScaleX), (m_Size.height * m_FBOThumbScaleY));
 //    printf ("%f %f %f %f - %f %f\n", newFrame.origin.x, newFrame.origin.y, newFrame.size.width, newFrame.size.height, m_Size.height, m_FBOThumbScaleY);
-    [m_DockTileView setFrame: newFrame];
+        [m_DockTileView setFrame: newFrame];
+    }
 }
 
 @end
@@ -1306,6 +1403,34 @@ void cocoaViewCreate(NativeViewRef *ppView, NativeViewRef pParentView, GLbitfiel
     [pPool release];
 }
 
+void cocoaViewReparent(NativeViewRef pView, NativeViewRef pParentView)
+{
+    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
+
+    OverlayView* pOView = (OverlayView*)pView;
+
+    if (pOView)
+    {
+        /* Make sure the window is removed from any previous parent window. */
+        if ([[pOView overlayWin] parentWindow] != nil)
+        {
+            [[[pOView overlayWin] parentWindow] removeChildWindow:[pOView overlayWin]];
+        }
+
+        /* Set the new parent view */
+        [pOView setParentView: pParentView];
+
+        /* Add the overlay window as a child to the new parent window */
+        if (pParentView != nil)
+        {
+            [[pParentView window] addChildWindow:[pOView overlayWin] ordered:NSWindowAbove];
+            [pOView createFBO];
+        }
+    }
+
+    [pPool release];
+}
+
 void cocoaViewDestroy(NativeViewRef pView)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
@@ -1389,6 +1514,8 @@ void cocoaViewMakeCurrentContext(NativeViewRef pView, NativeGLCtxRef pCtx)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
+    DEBUG_MSG(("cocoaViewMakeCurrentContext(%p, %p)\n", pView, pCtx));
+    
     [(OverlayView*)pView setGLCtx:pCtx];
     [(OverlayView*)pView makeCurrentFBO];
 
@@ -1464,7 +1591,7 @@ void cocoaBindFramebufferEXT(GLenum target, GLuint framebuffer)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    DEBUG_MSG_1(("glRenderspuBindFramebufferEXT called %d\n", framebuffer));
+    DEBUG_MSG(("glRenderspuBindFramebufferEXT called %d\n", framebuffer));
 
 #ifdef FBO
     if (framebuffer != 0)

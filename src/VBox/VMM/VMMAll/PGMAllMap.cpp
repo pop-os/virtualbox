@@ -1,10 +1,10 @@
-/* $Id: PGMAllMap.cpp $ */
+/* $Id: PGMAllMap.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor - All context code.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -24,11 +20,12 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
 #include <VBox/pgm.h>
-#include "PGMInternal.h"
+#include "../PGMInternal.h"
 #include <VBox/vm.h>
-#include <iprt/assert.h>
-#include <iprt/asm.h>
+#include "../PGMInline.h"
 #include <VBox/err.h>
+#include <iprt/asm-amd64-x86.h>
+#include <iprt/assert.h>
 
 
 /**

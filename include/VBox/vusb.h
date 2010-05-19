@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_vusb_h
@@ -197,7 +193,7 @@ typedef struct VUSBDESCCONFIGEX
     void *pvMore;
     /** Pointer to an array of the interfaces referenced in the configuration.
      * Core.bNumInterfaces in size. */
-    const struct VUSBINTERFACE *iface;
+    const struct VUSBINTERFACE *paIfs;
 } VUSBDESCCONFIGEX;
 /** Pointer to a parsed USB configuration descriptor. */
 typedef VUSBDESCCONFIGEX *PVUSBDESCCONFIGEX;
@@ -211,9 +207,9 @@ typedef const VUSBDESCCONFIGEX *PCVUSBDESCCONFIGEX;
 typedef struct VUSBINTERFACE
 {
     /** Pointer to an array of interfaces. */
-    const struct VUSBDESCINTERFACEEX *setting;
+    const struct VUSBDESCINTERFACEEX *paSettings;
     /** The number of entries in the array. */
-    unsigned int num_settings;
+    uint32_t cSettings;
 } VUSBINTERFACE;
 /** Pointer to a VUSBINTERFACE. */
 typedef VUSBINTERFACE *PVUSBINTERFACE;
@@ -229,10 +225,14 @@ typedef struct VUSBDESCINTERFACEEX
     /** The USB descriptor data. */
     VUSBDESCINTERFACE Core;
     /** Pointer to additional descriptor bytes following what's covered by VUSBDESCINTERFACE. */
-    void *pvMore;
+    const void *pvMore;
+    /** Pointer to additional class- or vendor-specific interface descriptors. */
+    const void *pvClass;
+    /** Size of class- or vendor-specific descriptors. */
+    uint16_t cbClass;
     /** Pointer to an array of the endpoints referenced by the interface.
      * Core.bNumEndpoints in size. */
-    const struct VUSBDESCENDPOINTEX *endpoint;
+    const struct VUSBDESCENDPOINTEX *paEndpoints;
 } VUSBDESCINTERFACEEX;
 /** Pointer to an prased USB interface descriptor. */
 typedef VUSBDESCINTERFACEEX *PVUSBDESCINTERFACEEX;
@@ -249,7 +249,11 @@ typedef struct VUSBDESCENDPOINTEX
      * @remark The wMaxPacketSize member is converted to native endian. */
     VUSBDESCENDPOINT Core;
     /** Pointer to additional descriptor bytes following what's covered by VUSBDESCENDPOINT. */
-    void *pvMore;
+    const void *pvMore;
+    /** Pointer to additional class- or vendor-specific interface descriptors. */
+    const void *pvClass;
+    /** Size of class- or vendor-specific descriptors. */
+    uint16_t cbClass;
 } VUSBDESCENDPOINTEX;
 /** Pointer to a parsed USB endpoint descriptor. */
 typedef VUSBDESCENDPOINTEX *PVUSBDESCENDPOINTEX;
@@ -278,7 +282,7 @@ typedef const VUSBDESCENDPOINTEX *PCVUSBDESCENDPOINTEX;
 
 #define VUSB_DIR_TO_DEVICE      0x00
 #define VUSB_DIR_TO_HOST        0x80
-#define	VUSB_DIR_MASK           0x80
+#define VUSB_DIR_MASK           0x80
 
 /**
  * USB Setup request (from spec)
@@ -351,7 +355,8 @@ typedef VUSBPORTBITMAP *PVUSBPORTBITMAP;
 
 
 /**
- * The VUSB RootHub port interface provided by the HCI.
+ * The VUSB RootHub port interface provided by the HCI (down).
+ * Pair with VUSBIROOTCONNECTOR
  */
 typedef struct VUSBIROOTHUBPORT
 {
@@ -426,13 +431,16 @@ typedef struct VUSBIROOTHUBPORT
     RTR3PTR Alignment;
 
 } VUSBIROOTHUBPORT;
+/** VUSBIROOTHUBPORT interface ID. */
+#define VUSBIROOTHUBPORT_IID                    "e38e2978-7aa2-4860-94b6-9ef4a066d8a0"
 
 
 /** Pointer to a VUSB RootHub connector interface. */
 typedef struct VUSBIROOTHUBCONNECTOR *PVUSBIROOTHUBCONNECTOR;
-
 /**
- * The VUSB RootHub connector interface provided by the VBox USB RootHub driver.
+ * The VUSB RootHub connector interface provided by the VBox USB RootHub driver
+ * (up).
+ * Pair with VUSBIROOTHUBPORT.
  */
 typedef struct VUSBIROOTHUBCONNECTOR
 {
@@ -478,7 +486,7 @@ typedef struct VUSBIROOTHUBCONNECTOR
      * @param   pInterface  Pointer to this struct.
      * @param   cMillies    Number of milliseconds to poll for completion.
      */
-    DECLR3CALLBACKMEMBER(void, pfnReapAsyncUrbs,(PVUSBIROOTHUBCONNECTOR pInterface, unsigned cMillies));
+    DECLR3CALLBACKMEMBER(void, pfnReapAsyncUrbs,(PVUSBIROOTHUBCONNECTOR pInterface, RTMSINTERVAL cMillies));
 
     /**
      * Cancels and completes - with CRC failure - all in-flight async URBs.
@@ -509,6 +517,8 @@ typedef struct VUSBIROOTHUBCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnDetachDevice,(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice));
 
 } VUSBIROOTHUBCONNECTOR;
+/** VUSBIROOTHUBCONNECTOR interface ID. */
+#define VUSBIROOTHUBCONNECTOR_IID               "d9a90c59-e3ff-4dff-9754-844557c3f7a0"
 
 
 #ifdef IN_RING3
@@ -525,7 +535,7 @@ DECLINLINE(int) VUSBIRhSubmitUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUr
 }
 
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnReapAsyncUrbs */
-DECLINLINE(void) VUSBIRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, unsigned cMillies)
+DECLINLINE(void) VUSBIRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, RTMSINTERVAL cMillies)
 {
     pInterface->pfnReapAsyncUrbs(pInterface, cMillies);
 }
@@ -553,9 +563,9 @@ DECLINLINE(int) VUSBIRhDetachDevice(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEV
 
 /** Pointer to a Root Hub Configuration Interface. */
 typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
-
 /**
  * Root Hub Configuration Interface (intended for MAIN).
+ * No interface pair.
  */
 typedef struct VUSBIRHCONFIG
 {
@@ -582,6 +592,9 @@ typedef struct VUSBIRHCONFIG
     DECLR3CALLBACKMEMBER(int, pfnDestroyProxyDevice,(PVUSBIRHCONFIG pInterface, PCRTUUID pUuid));
 
 } VUSBIRHCONFIG;
+/** VUSBIRHCONFIG interface ID. */
+#define VUSBIRHCONFIG_IID                       "c354cd97-e85f-465e-bc12-b58798465f52"
+
 
 #ifdef IN_RING3
 /** @copydoc  VUSBIRHCONFIG::pfnCreateProxyDevice */
@@ -640,7 +653,8 @@ typedef enum VUSBDEVICESTATE
 
 
 /**
- * USB Device Interface.
+ * USB Device Interface (up).
+ * No interface pair.
  */
 typedef struct VUSBIDEVICE
 {
@@ -697,6 +711,8 @@ typedef struct VUSBIDEVICE
     DECLR3CALLBACKMEMBER(VUSBDEVICESTATE, pfnGetState,(PVUSBIDEVICE pInterface));
 
 } VUSBIDEVICE;
+/** VUSBIDEVICE interface ID. */
+#define VUSBIDEVICE_IID                         "88732dd3-0ccd-4625-b040-48804ac7a217"
 
 
 #ifdef IN_RING3
@@ -949,8 +965,10 @@ typedef struct VUSBURB
     /** The device data. */
     struct VUSBURBDEV
     {
-        /** Pointer to the proxy URB.  */
-        void           *pvProxyUrb;
+        /** Pointer to private device specific data.  */
+        void           *pvPrivate;
+        /** Used by the device when linking the URB in some list of its own.   */
+        PVUSBURB        pNext;
     } Dev;
 
     /** The USB device instance this belongs to.
@@ -995,7 +1013,7 @@ typedef struct VUSBURB
 } VUSBURB;
 
 /** The magic value of a valid VUSBURB. (Murakami Haruki) */
-#define VUSBURB_MAGIC   0x19490112
+#define VUSBURB_MAGIC       UINT32_C(0x19490112)
 
 /** @} */
 

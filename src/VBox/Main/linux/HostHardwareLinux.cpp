@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.cpp $ */
+/* $Id: HostHardwareLinux.cpp 29352 2010-05-11 13:23:15Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -191,11 +187,7 @@ static bool floppyGetName(const char *pcszNode, unsigned Number,
     if (RT_SUCCESS(rc))
     {
         int rcIoCtl;
-        /* The typecast in the next line is to avoid a warning, as the ioctl
-         * request field is defined as signed, but the Linux ioctl definition
-         * macros produce unsigned constants. This is fixed properly in
-         * post-3.1 versions of the code. */
-        rc = RTFileIoCtl(File, (int) FDGETDRVTYP, pszName, 0, &rcIoCtl);
+        rc = RTFileIoCtl(File, FDGETDRVTYP, pszName, 0, &rcIoCtl);
         RTFileClose(File);
         if (RT_SUCCESS(rc) && rcIoCtl >= 0)
             return true;
@@ -353,40 +345,41 @@ static int cdromDoInquiry(const char *pcszNode, uint8_t *pu8Type,
     AssertPtrNullReturn(pchVendor, VERR_INVALID_POINTER);
     AssertPtrNullReturn(pchModel, VERR_INVALID_POINTER);
 
-    unsigned char u8Response[96] = { 0 };
-    struct cdrom_generic_command CdromCommandReq =
-    { { INQUIRY, 0, 0, 0, sizeof(u8Response), 0 }  /* INQUIRY */ };
-    int rc, rcIoCtl = 0;
-    RTFILE file;
-    rc = RTFileOpen(&file, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
+    RTFILE hFile;
+    int rc = RTFileOpen(&hFile, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
     if (RT_SUCCESS(rc))
     {
-        CdromCommandReq.buffer = u8Response;
-        CdromCommandReq.buflen = sizeof(u8Response);
+        int                             rcIoCtl        = 0;
+        unsigned char                   u8Response[96] = { 0 };
+        struct cdrom_generic_command    CdromCommandReq;
+        RT_ZERO(CdromCommandReq);
+        CdromCommandReq.cmd[0]         = INQUIRY;
+        CdromCommandReq.cmd[4]         = sizeof(u8Response);
+        CdromCommandReq.buffer         = u8Response;
+        CdromCommandReq.buflen         = sizeof(u8Response);
         CdromCommandReq.data_direction = CGC_DATA_READ;
-        CdromCommandReq.timeout = 5000;  /* ms */
-        rc = RTFileIoCtl(file, CDROM_SEND_PACKET, &CdromCommandReq, 0,
-                         &rcIoCtl);
+        CdromCommandReq.timeout        = 5000;  /* ms */
+        rc = RTFileIoCtl(hFile, CDROM_SEND_PACKET, &CdromCommandReq, 0, &rcIoCtl);
         if (RT_SUCCESS(rc) && rcIoCtl < 0)
             rc = RTErrConvertFromErrno(-CdromCommandReq.stat);
-        RTFileClose(file);
-    }
-    if (RT_SUCCESS(rc))
-    {
-        if (pu8Type)
-            *pu8Type = u8Response[0] & 0x1f;
-        if (pchVendor)
-            RTStrPrintf(pchVendor, cchVendor, "%.8s",
-                        (char *) &u8Response[8] /* vendor id string */);
-        if (pchModel)
-            RTStrPrintf(pchModel, cchModel, "%.16s",
-                        (char *) &u8Response[16] /* product id string */);
+        RTFileClose(hFile);
+
+        if (RT_SUCCESS(rc))
+        {
+            if (pu8Type)
+                *pu8Type = u8Response[0] & 0x1f;
+            if (pchVendor)
+                RTStrPrintf(pchVendor, cchVendor, "%.8s",
+                            &u8Response[8] /* vendor id string */);
+            if (pchModel)
+                RTStrPrintf(pchModel, cchModel, "%.16s",
+                            &u8Response[16] /* product id string */);
+            LogRelFlowFunc(("returning success: type=%u, vendor=%.8s, product=%.16s\n",
+                            u8Response[0] & 0x1f, &u8Response[8], &u8Response[16]));
+            return VINF_SUCCESS;
+        }
     }
     LogRelFlowFunc(("returning %Rrc\n", rc));
-    if (RT_SUCCESS(rc))
-        LogRelFlowFunc(("    type=%u, vendor=%.8s, product=%.16s\n",
-                        u8Response[0] & 0x1f, (char *) &u8Response[8],
-                        (char *) &u8Response[16]));
     return rc;
 }
 
@@ -609,10 +602,11 @@ int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList,
                  pList, isDVD, pfSuccess));
     int rc = VINF_SUCCESS;
     bool success = false;
+    char *pszFreeMe = RTEnvDupEx(RTENV_DEFAULT, pcszVar);
 
     try
     {
-        const char *pcszCurrent = RTEnvGet (pcszVar);
+        const char *pcszCurrent = pszFreeMe;
         while (pcszCurrent && *pcszCurrent != '\0')
         {
             const char *pcszNext = strchr(pcszCurrent, ':');
@@ -639,7 +633,8 @@ int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList,
     {
         rc = VERR_NO_MEMORY;
     }
-    LogFlowFunc (("rc=%Rrc, success=%d\n", rc, success));
+    RTStrFree(pszFreeMe);
+    LogFlowFunc(("rc=%Rrc, success=%d\n", rc, success));
     return rc;
 }
 
@@ -827,7 +822,6 @@ int getDriveInfoFromSysfs(DriveInfoList *pList, bool isDVD, bool *pfSuccess)
     LogFlowFunc (("pList=%p, isDVD=%u, pfSuccess=%p\n",
                   pList, (unsigned) isDVD, pfSuccess));
     PRTDIR pDir = NULL;
-    RTDIRENTRY entry = {0};
     int rc;
     bool fSuccess = false;
     unsigned cFound = 0;
@@ -839,8 +833,9 @@ int getDriveInfoFromSysfs(DriveInfoList *pList, bool isDVD, bool *pfSuccess)
     AssertReturn(rc != VERR_FILE_NOT_FOUND, VINF_SUCCESS);
     fSuccess = true;
     if (RT_SUCCESS(rc))
-        while (true)
+        for (;;)
         {
+            RTDIRENTRY entry;
             rc = RTDirRead(pDir, &entry, NULL);
             Assert(rc != VERR_BUFFER_OVERFLOW);  /* Should never happen... */
             if (RT_FAILURE(rc))  /* Including overflow and no more files */
@@ -1015,8 +1010,9 @@ int getDriveInfoFromDev(DriveInfoList *pList, bool isDVD, bool *pfSuccess)
     int rc = VINF_SUCCESS;
     bool success = false;
 
-    deviceNodeArray aDevices = { { 0 } };
     char szPath[RTPATH_MAX] = "/dev";
+    deviceNodeArray aDevices;
+    RT_ZERO(aDevices);
     devFindDeviceRecursive(szPath, sizeof(szPath), aDevices, isDVD);
     try
     {
@@ -1109,7 +1105,7 @@ public:
     hotplugDBusImpl (void);
     virtual ~hotplugDBusImpl (void);
     /** @copydoc VBoxMainHotplugWaiter::Wait */
-    virtual int Wait (unsigned cMillies);
+    virtual int Wait (RTMSINTERVAL cMillies);
     /** @copydoc VBoxMainHotplugWaiter::Interrupt */
     virtual void Interrupt (void);
     /** @copydoc VBoxMainHotplugWaiter::getStatus */
@@ -1161,7 +1157,7 @@ hotplugDBusImpl::~hotplugDBusImpl ()
 /* Currently this is implemented using a timed out wait on our private DBus
  * connection.  Because the connection is private we don't have to worry about
  * blocking other users. */
-int hotplugDBusImpl::Wait(unsigned cMillies)
+int hotplugDBusImpl::Wait(RTMSINTERVAL cMillies)
 {
     int rc = VINF_SUCCESS;
     if (!mConnection)
@@ -1203,7 +1199,7 @@ public:
     hotplugNullImpl (void) {}
     virtual ~hotplugNullImpl (void) {}
     /** @copydoc VBoxMainHotplugWaiter::Wait */
-    virtual int Wait (unsigned)
+    virtual int Wait (RTMSINTERVAL)
     {
         return VERR_NOT_SUPPORTED;
     }
@@ -1272,10 +1268,10 @@ int inotifyWatch::initInotify(void)
     errno = 0;
     *(void **)(&inotify_init) = dlsym(RTLD_DEFAULT, "inotify_init");
     if (!inotify_init)
-        return VERR_SYMBOL_NOT_FOUND;
+        return VERR_LDR_IMPORTED_SYMBOL_NOT_FOUND;
     *(void **)(&inotify_add_watch) = dlsym(RTLD_DEFAULT, "inotify_add_watch");
     if (!inotify_add_watch)
-        return VERR_SYMBOL_NOT_FOUND;
+        return VERR_LDR_IMPORTED_SYMBOL_NOT_FOUND;
     fd = inotify_init();
     if (fd < 0)
     {
@@ -1303,8 +1299,9 @@ int inotifyWatch::initInotify(void)
     return rc;
 }
 
-/** The flags we pass to inotify - modify, create, delete */
-#define IN_FLAGS 0x302
+/** The flags we pass to inotify - modify, create, delete, change permissions
+ */
+#define IN_FLAGS 0x306
 
 bool inotifyWatch::handle(const char *pcszPath)
 {
@@ -1378,7 +1375,7 @@ public:
     }
 
     /** @copydoc VBoxMainHotplugWaiter::Wait */
-    virtual int Wait(unsigned);
+    virtual int Wait(RTMSINTERVAL);
     /** @copydoc VBoxMainHotplugWaiter::Interrupt */
     virtual void Interrupt(void);
 };
@@ -1482,7 +1479,7 @@ int hotplugInotifyImpl::drainWakeupPipe(void)
     return VINF_SUCCESS;
 }
 
-int hotplugInotifyImpl::Wait(unsigned aMillies)
+int hotplugInotifyImpl::Wait(RTMSINTERVAL aMillies)
 {
     int rc;
 
@@ -1546,13 +1543,13 @@ VBoxMainHotplugWaiter::VBoxMainHotplugWaiter(void)
     try
     {
 #ifdef VBOX_USB_WITH_SYSFS
-# ifdef VBOX_USB_WITH_DBUS
+# ifdef VBOX_WITH_DBUS
         if (hotplugDBusImpl::Available())
         {
             mImpl = new hotplugDBusImpl;
             return;
         }
-# endif  /* VBOX_USB_WITH_DBUS */
+# endif  /* VBOX_WITH_DBUS */
 # ifdef VBOX_USB_WITH_INOTIFY
         if (hotplugInotifyImpl::Available())
         {
@@ -1832,12 +1829,12 @@ public:
     DBusError &get () { return mError; }
     bool IsSet ()
     {
-        Assert ((mError.name == NULL) == (mError.message == NULL));
+        Assert((mError.name == NULL) == (mError.message == NULL));
         return (mError.name != NULL);
     }
     bool HasName (const char *pcszName)
     {
-        Assert ((mError.name == NULL) == (mError.message == NULL));
+        Assert((mError.name == NULL) == (mError.message == NULL));
         return (RTStrCmp (mError.name, pcszName) == 0);
     }
     void FlowLog ()
@@ -2290,10 +2287,10 @@ int halGetPropertyStringsVector (DBusConnection *pConnection,
         *pfSuccess = halSuccess;
     if (RT_SUCCESS(rc) && halSuccess)
     {
-        Assert (pMatches->size() == cProps);
-        AssertForEach (j, size_t, 0, cProps,    (pfMatches == NULL)
-                                             || (pfMatches[j] == true)
-                                             || ((pfMatches[j] == false) && (pMatches[j].size() == 0)));
+        Assert(pMatches->size() == cProps);
+        AssertForEach(j, size_t, 0, cProps,    (pfMatches == NULL)
+                                            || (pfMatches[j] == true)
+                                            || ((pfMatches[j] == false) && (pMatches[j].size() == 0)));
     }
     LogFlowFunc (("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
     return rc;
@@ -2320,8 +2317,8 @@ int getUSBDeviceInfoFromHal(USBDeviceInfoList *pList, bool *pfSuccess)
     bool halSuccess = true;  /* We set this to false to abort the operation. */
     autoDBusError dbusError;
 
-    RTMemAutoPtr <DBusMessage, VBoxDBusMessageUnref> message, replyFind, replyGet;
-    RTMemAutoPtr <DBusConnection, VBoxHalShutdown> dbusConnection;
+    RTMemAutoPtr<DBusMessage, VBoxDBusMessageUnref> message, replyFind, replyGet;
+    RTMemAutoPtr<DBusConnection, VBoxHalShutdown> dbusConnection;
     DBusMessageIter iterFind, iterUdis;
 
     /* Connect to hal */
@@ -2331,44 +2328,44 @@ int getUSBDeviceInfoFromHal(USBDeviceInfoList *pList, bool *pfSuccess)
     /* Get an array of all devices in the usb_device subsystem */
     if (halSuccess && RT_SUCCESS(rc))
     {
-        rc = halFindDeviceStringMatch (dbusConnection.get(), "info.subsystem",
-                                       "usb_device", &replyFind);
+        rc = halFindDeviceStringMatch(dbusConnection.get(), "info.subsystem",
+                                      "usb_device", &replyFind);
         if (!replyFind)
             halSuccess = false;
     }
     if (halSuccess && RT_SUCCESS(rc))
     {
-        dbus_message_iter_init (replyFind.get(), &iterFind);
+        dbus_message_iter_init(replyFind.get(), &iterFind);
         if (dbus_message_iter_get_arg_type (&iterFind) != DBUS_TYPE_ARRAY)
             halSuccess = false;
     }
     /* Recurse down into the array and query interesting information about the
      * entries. */
     if (halSuccess && RT_SUCCESS(rc))
-        dbus_message_iter_recurse (&iterFind, &iterUdis);
+        dbus_message_iter_recurse(&iterFind, &iterUdis);
     for (;    halSuccess && RT_SUCCESS(rc)
-           && dbus_message_iter_get_arg_type (&iterUdis) == DBUS_TYPE_STRING;
+           && dbus_message_iter_get_arg_type(&iterUdis) == DBUS_TYPE_STRING;
          dbus_message_iter_next(&iterUdis))
     {
         /* Get the device node and the sysfs path for the current entry. */
         const char *pszUdi;
         dbus_message_iter_get_basic (&iterUdis, &pszUdi);
         static const char *papszKeys[] = { "linux.device_file", "linux.sysfs_path" };
-        char *papszValues[RT_ELEMENTS (papszKeys)];
-        rc = halGetPropertyStrings (dbusConnection.get(), pszUdi, RT_ELEMENTS (papszKeys),
-                                    papszKeys, papszValues, &replyGet);
+        char *papszValues[RT_ELEMENTS(papszKeys)];
+        rc = halGetPropertyStrings(dbusConnection.get(), pszUdi, RT_ELEMENTS(papszKeys),
+                                   papszKeys, papszValues, &replyGet);
         const char *pszDevice = papszValues[0], *pszSysfsPath = papszValues[1];
         /* Get the interfaces. */
         if (!!replyGet && pszDevice && pszSysfsPath)
         {
-            USBDeviceInfo info (pszDevice, pszSysfsPath);
+            USBDeviceInfo info(pszDevice, pszSysfsPath);
             bool ifaceSuccess = true;  /* If we can't get the interfaces, just
                                         * skip this one device. */
-            rc = getUSBInterfacesFromHal (&info.mInterfaces, pszUdi, &ifaceSuccess);
+            rc = getUSBInterfacesFromHal(&info.mInterfaces, pszUdi, &ifaceSuccess);
             if (RT_SUCCESS(rc) && halSuccess && ifaceSuccess)
                 try
                 {
-                    pList->push_back (info);
+                    pList->push_back(info);
                 }
                 catch(std::bad_alloc &e)
                 {
@@ -2380,7 +2377,7 @@ int getUSBDeviceInfoFromHal(USBDeviceInfoList *pList, bool *pfSuccess)
         rc = VERR_NO_MEMORY;
     if (pfSuccess != NULL)
         *pfSuccess = halSuccess;
-    LogFlow (("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
+    LogFlow(("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
     dbusError.FlowLog();
     return rc;
 }
@@ -2405,56 +2402,56 @@ int getOldUSBDeviceInfoFromHal(USBDeviceInfoList *pList, bool *pfSuccess)
     bool halSuccess = true;  /* We set this to false to abort the operation. */
     autoDBusError dbusError;
 
-    RTMemAutoPtr <DBusMessage, VBoxDBusMessageUnref> message, replyFind, replyGet;
-    RTMemAutoPtr <DBusConnection, VBoxHalShutdown> dbusConnection;
+    RTMemAutoPtr<DBusMessage, VBoxDBusMessageUnref> message, replyFind, replyGet;
+    RTMemAutoPtr<DBusConnection, VBoxHalShutdown> dbusConnection;
     DBusMessageIter iterFind, iterUdis;
 
     /* Connect to hal */
-    rc = halInit (&dbusConnection);
+    rc = halInit(&dbusConnection);
     if (!dbusConnection)
         halSuccess = false;
     /* Get an array of all devices in the usb_device subsystem */
     if (halSuccess && RT_SUCCESS(rc))
     {
-        rc = halFindDeviceStringMatch (dbusConnection.get(), "info.category",
+        rc = halFindDeviceStringMatch(dbusConnection.get(), "info.category",
                                        "usbraw", &replyFind);
         if (!replyFind)
             halSuccess = false;
     }
     if (halSuccess && RT_SUCCESS(rc))
     {
-        dbus_message_iter_init (replyFind.get(), &iterFind);
-        if (dbus_message_iter_get_arg_type (&iterFind) != DBUS_TYPE_ARRAY)
+        dbus_message_iter_init(replyFind.get(), &iterFind);
+        if (dbus_message_iter_get_arg_type(&iterFind) != DBUS_TYPE_ARRAY)
             halSuccess = false;
     }
     /* Recurse down into the array and query interesting information about the
      * entries. */
     if (halSuccess && RT_SUCCESS(rc))
-        dbus_message_iter_recurse (&iterFind, &iterUdis);
+        dbus_message_iter_recurse(&iterFind, &iterUdis);
     for (;    halSuccess && RT_SUCCESS(rc)
-           && dbus_message_iter_get_arg_type (&iterUdis) == DBUS_TYPE_STRING;
+           && dbus_message_iter_get_arg_type(&iterUdis) == DBUS_TYPE_STRING;
          dbus_message_iter_next(&iterUdis))
     {
         /* Get the device node and the sysfs path for the current entry. */
         const char *pszUdi;
-        dbus_message_iter_get_basic (&iterUdis, &pszUdi);
+        dbus_message_iter_get_basic(&iterUdis, &pszUdi);
         static const char *papszKeys[] = { "linux.device_file", "info.parent" };
-        char *papszValues[RT_ELEMENTS (papszKeys)];
-        rc = halGetPropertyStrings (dbusConnection.get(), pszUdi, RT_ELEMENTS (papszKeys),
-                                    papszKeys, papszValues, &replyGet);
+        char *papszValues[RT_ELEMENTS(papszKeys)];
+        rc = halGetPropertyStrings(dbusConnection.get(), pszUdi, RT_ELEMENTS(papszKeys),
+                                   papszKeys, papszValues, &replyGet);
         const char *pszDevice = papszValues[0], *pszSysfsPath = papszValues[1];
         /* Get the interfaces. */
         if (!!replyGet && pszDevice && pszSysfsPath)
         {
-            USBDeviceInfo info (pszDevice, pszSysfsPath);
+            USBDeviceInfo info(pszDevice, pszSysfsPath);
             bool ifaceSuccess = false;  /* If we can't get the interfaces, just
                                          * skip this one device. */
-            rc = getUSBInterfacesFromHal (&info.mInterfaces, pszSysfsPath,
-                                          &ifaceSuccess);
+            rc = getUSBInterfacesFromHal(&info.mInterfaces, pszSysfsPath,
+                                         &ifaceSuccess);
             if (RT_SUCCESS(rc) && halSuccess && ifaceSuccess)
                 try
                 {
-                    pList->push_back (info);
+                    pList->push_back(info);
                 }
                 catch(std::bad_alloc &e)
                 {
@@ -2462,11 +2459,11 @@ int getOldUSBDeviceInfoFromHal(USBDeviceInfoList *pList, bool *pfSuccess)
                 }
         }
     }
-    if (dbusError.HasName (DBUS_ERROR_NO_MEMORY))
+    if (dbusError.HasName(DBUS_ERROR_NO_MEMORY))
         rc = VERR_NO_MEMORY;
     if (pfSuccess != NULL)
         *pfSuccess = halSuccess;
-    LogFlow (("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
+    LogFlow(("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
     dbusError.FlowLog();
     return rc;
 }
@@ -2489,11 +2486,11 @@ int getOldUSBDeviceInfoFromHal(USBDeviceInfoList *pList, bool *pfSuccess)
 int getUSBInterfacesFromHal(std::vector<iprt::MiniString> *pList,
                             const char *pcszUdi, bool *pfSuccess)
 {
-    AssertReturn(VALID_PTR (pList) && VALID_PTR (pcszUdi) &&
+    AssertReturn(VALID_PTR(pList) && VALID_PTR(pcszUdi) &&
                  (pfSuccess == NULL || VALID_PTR (pfSuccess)),
                  VERR_INVALID_POINTER);
-    LogFlowFunc (("pList=%p, pcszUdi=%s, pfSuccess=%p\n", pList, pcszUdi,
-                  pfSuccess));
+    LogFlowFunc(("pList=%p, pcszUdi=%s, pfSuccess=%p\n", pList, pcszUdi,
+                 pfSuccess));
     int rc = VINF_SUCCESS;  /* We set this to failure on fatal errors. */
     bool halSuccess = true;  /* We set this to false to abort the operation. */
     autoDBusError dbusError;
@@ -2502,37 +2499,37 @@ int getUSBInterfacesFromHal(std::vector<iprt::MiniString> *pList,
     RTMemAutoPtr <DBusConnection, VBoxHalShutdown> dbusConnection;
     DBusMessageIter iterFind, iterUdis;
 
-    rc = halInit (&dbusConnection);
+    rc = halInit(&dbusConnection);
     if (!dbusConnection)
         halSuccess = false;
     if (halSuccess && RT_SUCCESS(rc))
     {
         /* Look for children of the current UDI. */
-        rc = halFindDeviceStringMatch (dbusConnection.get(), "info.parent",
-                                       pcszUdi, &replyFind);
+        rc = halFindDeviceStringMatch(dbusConnection.get(), "info.parent",
+                                      pcszUdi, &replyFind);
         if (!replyFind)
             halSuccess = false;
     }
     if (halSuccess && RT_SUCCESS(rc))
     {
-        dbus_message_iter_init (replyFind.get(), &iterFind);
-        if (dbus_message_iter_get_arg_type (&iterFind) != DBUS_TYPE_ARRAY)
+        dbus_message_iter_init(replyFind.get(), &iterFind);
+        if (dbus_message_iter_get_arg_type(&iterFind) != DBUS_TYPE_ARRAY)
             halSuccess = false;
     }
     if (halSuccess && RT_SUCCESS(rc))
-        dbus_message_iter_recurse (&iterFind, &iterUdis);
+        dbus_message_iter_recurse(&iterFind, &iterUdis);
     for (;    halSuccess && RT_SUCCESS(rc)
-           && dbus_message_iter_get_arg_type (&iterUdis) == DBUS_TYPE_STRING;
+           && dbus_message_iter_get_arg_type(&iterUdis) == DBUS_TYPE_STRING;
          dbus_message_iter_next(&iterUdis))
     {
         /* Now get the sysfs path and the subsystem from the iterator */
         const char *pszUdi;
-        dbus_message_iter_get_basic (&iterUdis, &pszUdi);
+        dbus_message_iter_get_basic(&iterUdis, &pszUdi);
         static const char *papszKeys[] = { "linux.sysfs_path", "info.subsystem",
                                            "linux.subsystem" };
-        char *papszValues[RT_ELEMENTS (papszKeys)];
-        rc = halGetPropertyStrings (dbusConnection.get(), pszUdi, RT_ELEMENTS (papszKeys),
-                                    papszKeys, papszValues, &replyGet);
+        char *papszValues[RT_ELEMENTS(papszKeys)];
+        rc = halGetPropertyStrings(dbusConnection.get(), pszUdi, RT_ELEMENTS(papszKeys),
+                                   papszKeys, papszValues, &replyGet);
         const char *pszSysfsPath = papszValues[0], *pszInfoSubsystem = papszValues[1],
                    *pszLinuxSubsystem = papszValues[2];
         if (!replyGet)
@@ -2544,18 +2541,18 @@ int getUSBInterfacesFromHal(std::vector<iprt::MiniString> *pList,
             && RTStrCmp (pszLinuxSubsystem, "usb_device") != 0)
             try
             {
-                pList->push_back (pszSysfsPath);
+                pList->push_back(pszSysfsPath);
             }
             catch(std::bad_alloc &e)
             {
                rc = VERR_NO_MEMORY;
             }
     }
-    if (dbusError.HasName (DBUS_ERROR_NO_MEMORY))
+    if (dbusError.HasName(DBUS_ERROR_NO_MEMORY))
         rc = VERR_NO_MEMORY;
     if (pfSuccess != NULL)
         *pfSuccess = halSuccess;
-    LogFlow (("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
+    LogFlow(("rc=%Rrc, halSuccess=%d\n", rc, halSuccess));
     dbusError.FlowLog();
     return rc;
 }
@@ -2573,14 +2570,14 @@ int getUSBInterfacesFromHal(std::vector<iprt::MiniString> *pList,
  * @param   pvUser      A pointer to the flag variable we are to set.
  */
 /* static */
-DBusHandlerResult dbusFilterFunction (DBusConnection * /* pConnection */,
-                                      DBusMessage *pMessage, void *pvUser)
+DBusHandlerResult dbusFilterFunction(DBusConnection * /* pConnection */,
+                                     DBusMessage *pMessage, void *pvUser)
 {
-    volatile bool *pTriggered = reinterpret_cast<volatile bool *> (pvUser);
-    if (   dbus_message_is_signal (pMessage, "org.freedesktop.Hal.Manager",
-                                   "DeviceAdded")
-        || dbus_message_is_signal (pMessage, "org.freedesktop.Hal.Manager",
-                                   "DeviceRemoved"))
+    volatile bool *pTriggered = reinterpret_cast<volatile bool *>(pvUser);
+    if (   dbus_message_is_signal(pMessage, "org.freedesktop.Hal.Manager",
+                                  "DeviceAdded")
+        || dbus_message_is_signal(pMessage, "org.freedesktop.Hal.Manager",
+                                  "DeviceRemoved"))
     {
         *pTriggered = true;
     }

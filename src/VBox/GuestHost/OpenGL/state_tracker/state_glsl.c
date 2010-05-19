@@ -1,11 +1,11 @@
-/* $Id: state_glsl.c $ */
+/* $Id: state_glsl.c 28861 2010-04-28 11:27:18Z vboxsync $ */
 
 /** @file
  * VBox OpenGL: GLSL state tracking
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "state.h"
@@ -31,12 +27,22 @@ static CRGLSLShader* crStateGetShaderObj(GLuint id)
 {
     CRContext *g = GetCurrentContext();
 
+    if (!g)
+    {
+        crWarning("crStateGetShaderObj called without current ctx");
+    }
+
     return !g ? NULL : (CRGLSLShader *) crHashtableSearch(g->glsl.shaders, id);
 }
 
 static CRGLSLProgram* crStateGetProgramObj(GLuint id)
 {
     CRContext *g = GetCurrentContext();
+
+    if (!g)
+    {
+        crWarning("crStateGetProgramObj called without current ctx");
+    }
 
     return !g ? NULL : (CRGLSLProgram *) crHashtableSearch(g->glsl.programs, id);
 }
@@ -195,10 +201,6 @@ DECLEXPORT(GLuint) STATE_APIENTRY crStateGetProgramHWID(GLuint id)
     return pProgram ? pProgram->hwid : 0;
 }
 
-typedef struct _crCheckIDHWID {
-    GLuint id, hwid;
-} crCheckIDHWID_t;
-
 static void crStateCheckShaderHWIDCB(unsigned long key, void *data1, void *data2)
 {
     CRGLSLShader *pShader = (CRGLSLShader *) data1;
@@ -274,7 +276,7 @@ DECLEXPORT(void) STATE_APIENTRY crStateCreateProgram(GLuint id)
     CRContext *g = GetCurrentContext();
 
     pProgram = crStateGetProgramObj(id);
-    if (!pProgram)
+    if (pProgram)
     {
         crWarning("Program object %d already exists!", id);
         crStateDeleteProgram(id);

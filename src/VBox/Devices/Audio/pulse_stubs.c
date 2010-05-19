@@ -1,10 +1,10 @@
-/* $Id: pulse_stubs.c $ */
+/* $Id: pulse_stubs.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Stubs for libpulse.
  */
 
 /*
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <iprt/assert.h>
@@ -32,14 +28,20 @@
 #define VBOX_PULSE_LIB "libpulse.so.0"
 
 #define PROXY_STUB(function, rettype, signature, shortsig) \
-void (*function ## _fn)(void); \
-rettype function signature \
-{ return ( (rettype (*) signature) function ## _fn ) shortsig; }
+    static rettype (*g_pfn_ ## function) signature; \
+    \
+    rettype function signature \
+    { \
+        return g_pfn_ ## function shortsig; \
+    }
 
 #define PROXY_STUB_VOID(function, signature, shortsig) \
-void (*function ## _fn)(void); \
-void function signature \
-{ ( (void (*) signature) function ## _fn ) shortsig; }
+    static void (*g_pfn_ ## function) signature; \
+    \
+    void function signature \
+    { \
+        g_pfn_ ## function shortsig; \
+    }
 
 #if PA_PROTOCOL_VERSION >= 16
 PROXY_STUB     (pa_stream_connect_playback, int,
@@ -193,7 +195,7 @@ typedef struct
     void (**fn)(void);
 } SHARED_FUNC;
 
-#define ELEMENT(s) { #s , & s ## _fn }
+#define ELEMENT(function) { #function , (void (**)(void)) & g_pfn_ ## function }
 static SHARED_FUNC SharedFuncs[] =
 {
     ELEMENT(pa_stream_connect_playback),
@@ -281,3 +283,4 @@ int audioLoadPulseLib(void)
     isLibLoaded = YES;
     return rc;
 }
+

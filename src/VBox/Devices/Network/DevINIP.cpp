@@ -1,10 +1,10 @@
-/* $Id: DevINIP.cpp $ */
+/* $Id: DevINIP.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevINIP - Internal Network IP stack device/service.
  */
 
 /*
- * Copyright (C) 2007-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -45,9 +41,11 @@ RT_C_DECLS_BEGIN
 #include "netif/etharp.h"
 RT_C_DECLS_END
 #include <VBox/pdmdev.h>
+#include <VBox/pdmnetifs.h>
 #include <VBox/tm.h>
-#include <iprt/string.h>
 #include <iprt/assert.h>
+#include <iprt/string.h>
+#include <iprt/uuid.h>
 
 #include "../Builtins.h"
 
@@ -66,17 +64,20 @@ RT_C_DECLS_END
 
 /**
  * Internal Network IP stack device instance data.
+ *
+ * @implements PDMIBASE
+ * @implements PDMINETWORKDOWN
  */
 typedef struct DEVINTNETIP
 {
-    /** The base interface. */
+    /** The base interface for LUN\#0. */
     PDMIBASE                IBase;
-    /** The network port this device provides. */
-    PDMINETWORKPORT         INetworkPort;
+    /** The network port this device provides (LUN\#0). */
+    PDMINETWORKDOWN         INetworkDown;
     /** The base interface of the network driver below us. */
     PPDMIBASE               pDrvBase;
     /** The connector of the network driver below us. */
-    PPDMINETWORKCONNECTOR   pDrv;
+    PPDMINETWORKUP   pDrv;
     /** Pointer to the device instance. */
     PPDMDEVINSR3            pDevIns;
     /** MAC adress. */
@@ -214,9 +215,6 @@ static DECLCALLBACK(err_t) devINIPOutput(struct netif *netif, struct pbuf *p,
 static DECLCALLBACK(err_t) devINIPOutputRaw(struct netif *netif,
                                             struct pbuf *p)
 {
-    uint8_t aFrame[DEVINIP_MAX_FRAME], *pbBuf;
-    size_t cbBuf;
-    struct pbuf *q;
     int rc = VINF_SUCCESS;
 
     LogFlow(("%s: netif=%p p=%p\n", __FUNCTION__, netif, p));
@@ -224,38 +222,46 @@ static DECLCALLBACK(err_t) devINIPOutputRaw(struct netif *netif,
     Assert(g_pDevINIPData->pDrv);
 
     /* Silently ignore packets being sent while lwIP isn't set up. */
-    if (!g_pDevINIPData)
-        goto out;
-
+    if (g_pDevINIPData)
+    {
+        PPDMSCATTERGATHER pSgBuf;
+        rc = g_pDevINIPData->pDrv->pfnAllocBuf(g_pDevINIPData->pDrv, DEVINIP_MAX_FRAME, NULL /*pGso*/, &pSgBuf);
+        if (RT_SUCCESS(rc))
+        {
 #if ETH_PAD_SIZE
-    lwip_pbuf_header(p, -ETH_PAD_SIZE);      /* drop the padding word */
+            lwip_pbuf_header(p, -ETH_PAD_SIZE);      /* drop the padding word */
 #endif
 
-    pbBuf = &aFrame[0];
-    cbBuf = 0;
-    for (q = p; q != NULL; q = q->next)
-    {
-        if (cbBuf + q->len <= DEVINIP_MAX_FRAME)
-        {
-            memcpy(pbBuf, q->payload, q->len);
-            pbBuf += q->len;
-            cbBuf += q->len;
-        }
-        else
-        {
-            LogRel(("INIP: exceeded frame size\n"));
-            break;
+            uint8_t *pbBuf = pSgBuf ? (uint8_t *)pSgBuf->aSegs[0].pvSeg : NULL;
+            size_t   cbBuf = 0;
+            for (struct pbuf *q = p; q != NULL; q = q->next)
+            {
+                if (cbBuf + q->len <= DEVINIP_MAX_FRAME)
+                {
+                    if (RT_LIKELY(pbBuf))
+                    {
+                        memcpy(pbBuf, q->payload, q->len);
+                        pbBuf += q->len;
+                    }
+                    cbBuf += q->len;
+                }
+                else
+                {
+                    LogRel(("INIP: exceeded frame size\n"));
+                    break;
+                }
+            }
+            if (cbBuf)
+                rc = g_pDevINIPData->pDrv->pfnSendBuf(g_pDevINIPData->pDrv, pSgBuf, false);
+            else
+                rc = g_pDevINIPData->pDrv->pfnFreeBuf(g_pDevINIPData->pDrv, pSgBuf);
+
+#if ETH_PAD_SIZE
+            lwip_pbuf_header(p, ETH_PAD_SIZE);       /* reclaim the padding word */
+#endif
         }
     }
-    if (cbBuf)
-        rc = g_pDevINIPData->pDrv->pfnSend(g_pDevINIPData->pDrv,
-                                                 &aFrame[0], cbBuf);
 
-#if ETH_PAD_SIZE
-    lwip_pbuf_header(p, ETH_PAD_SIZE);       /* reclaim the padding word */
-#endif
-
-out:
     err_t lrc = ERR_OK;
     if (RT_FAILURE(rc))
         lrc = ERR_IF;
@@ -294,7 +300,7 @@ static DECLCALLBACK(err_t) devINIPInterface(struct netif *netif)
  * @param   pInterface  PDM network port interface pointer.
  * @param   cMillies    Number of milliseconds to wait. 0 means return immediately.
  */
-static DECLCALLBACK(int) devINIPWaitInputAvail(PPDMINETWORKPORT pInterface, unsigned cMillies)
+static DECLCALLBACK(int) devINIPNetworkDown_WaitInputAvail(PPDMINETWORKDOWN pInterface, RTMSINTERVAL cMillies)
 {
     LogFlow(("%s: pInterface=%p\n", __FUNCTION__, pInterface));
     LogFlow(("%s: return VINF_SUCCESS\n", __FUNCTION__));
@@ -309,8 +315,8 @@ static DECLCALLBACK(int) devINIPWaitInputAvail(PPDMINETWORKPORT pInterface, unsi
  * @param   pvBuf       Pointer to frame data.
  * @param   cb          Frame size.
  */
-static DECLCALLBACK(int) devINIPInput(PPDMINETWORKPORT pInterface,
-                                      const void *pvBuf, size_t cb)
+static DECLCALLBACK(int) devINIPNetworkDown_Input(PPDMINETWORKDOWN pInterface,
+                                                  const void *pvBuf, size_t cb)
 {
     const uint8_t *pbBuf = (const uint8_t *)pvBuf;
     size_t len = cb;
@@ -374,6 +380,15 @@ out:
 }
 
 /**
+ * @interface_method_impl{PDMINETWORKDOWN,pfnXmitPending}
+ */
+static DECLCALLBACK(void) devINIPNetworkDown_XmitPending(PPDMINETWORKDOWN pInterface)
+{
+    NOREF(pInterface);
+}
+
+
+/**
  * Signals the end of lwIP TCPIP initialization.
  *
  * @param   arg     opaque argument, here the pointer to the semaphore.
@@ -384,60 +399,77 @@ static DECLCALLBACK(void) devINIPTcpipInitDone(void *arg)
     lwip_sys_sem_signal(*sem);
 }
 
+/* -=-=-=-=- PDMIBASE -=-=-=-=- */
 
 /**
- * Queries an interface to the device.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
 static DECLCALLBACK(void *) devINIPQueryInterface(PPDMIBASE pInterface,
-                                                  PDMINTERFACE enmInterface)
+                                                  const char *pszIID)
 {
-    PDEVINTNETIP pThis = (PDEVINTNETIP)((uintptr_t)pInterface - RT_OFFSETOF(DEVINTNETIP, IBase));
-    switch (enmInterface)
+    PDEVINTNETIP pThis = RT_FROM_MEMBER(pInterface, DEVINTNETIP, IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKDOWN, &pThis->INetworkDown);
+    return NULL;
+}
+
+/* -=-=-=-=- PDMDEVREG -=-=-=-=- */
+
+/**
+ * Destruct a device instance.
+ *
+ * Most VM resources are freed by the VM. This callback is provided so that any non-VM
+ * resources can be freed correctly.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(int) devINIPDestruct(PPDMDEVINS pDevIns)
+{
+    PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
+
+    LogFlow(("%s: pDevIns=%p\n", __FUNCTION__, pDevIns));
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+
+    if (g_pDevINIPData != NULL)
     {
-        case PDMINTERFACE_BASE:
-            return &pThis->IBase;
-        case PDMINTERFACE_NETWORK_PORT:
-            return &pThis->INetworkPort;
-        default:
-            return NULL;
+        netif_set_down(&pThis->IntNetIF);
+        netif_remove(&pThis->IntNetIF);
+        tcpip_terminate();
+        lwip_sys_sem_wait(pThis->LWIPTcpInitSem);
+        lwip_sys_sem_free(pThis->LWIPTcpInitSem);
     }
+
+    if (pThis->pszIP)
+        MMR3HeapFree(pThis->pszIP);
+    if (pThis->pszNetmask)
+        MMR3HeapFree(pThis->pszNetmask);
+    if (pThis->pszGateway)
+        MMR3HeapFree(pThis->pszGateway);
+
+    LogFlow(("%s: success\n", __FUNCTION__));
+    return VINF_SUCCESS;
 }
 
 
 /**
- * Construct an internal networking IP stack device instance.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers
- * and such to use.
- *                      he device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance,
-                                          PCFGMNODE pCfgHandle)
+                                          PCFGMNODE pCfg)
 {
     PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
     int rc = VINF_SUCCESS;
-    LogFlow(("%s: pDevIns=%p iInstance=%d pCfgHandle=%p\n", __FUNCTION__,
-             pDevIns, iInstance, pCfgHandle));
+    LogFlow(("%s: pDevIns=%p iInstance=%d pCfg=%p\n", __FUNCTION__,
+             pDevIns, iInstance, pCfg));
 
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "MAC\0IP\0Netmask\0Gateway\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "MAC\0IP\0Netmask\0Gateway\0"))
     {
         rc = PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                               N_("Unknown Internal Networking IP configuration option"));
@@ -454,18 +486,19 @@ static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance,
     pThis->pDevIns                          = pDevIns;
     /* IBase */
     pThis->IBase.pfnQueryInterface          = devINIPQueryInterface;
-    /* INetworkPort */
-    pThis->INetworkPort.pfnWaitReceiveAvail = devINIPWaitInputAvail;
-    pThis->INetworkPort.pfnReceive          = devINIPInput;
+    /* INetworkDown */
+    pThis->INetworkDown.pfnWaitReceiveAvail = devINIPNetworkDown_WaitInputAvail;
+    pThis->INetworkDown.pfnReceive          = devINIPNetworkDown_Input;
+    pThis->INetworkDown.pfnXmitPending      = devINIPNetworkDown_XmitPending;
 
     /*
      * Get the configuration settings.
      */
-    rc = CFGMR3QueryBytes(pCfgHandle, "MAC", &pThis->MAC, sizeof(pThis->MAC));
+    rc = CFGMR3QueryBytes(pCfg, "MAC", &pThis->MAC, sizeof(pThis->MAC));
     if (rc == VERR_CFGM_NOT_BYTES)
     {
         char szMAC[64];
-        rc = CFGMR3QueryString(pCfgHandle, "MAC", &szMAC[0], sizeof(szMAC));
+        rc = CFGMR3QueryString(pCfg, "MAC", &szMAC[0], sizeof(szMAC));
         if (RT_SUCCESS(rc))
         {
             char *macStr = &szMAC[0];
@@ -498,21 +531,21 @@ static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance,
                          N_("Configuration error: Failed to get the \"MAC\" value"));
         goto out;
     }
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "IP", &pThis->pszIP);
+    rc = CFGMR3QueryStringAlloc(pCfg, "IP", &pThis->pszIP);
     if (RT_FAILURE(rc))
     {
         PDMDEV_SET_ERROR(pDevIns, rc,
                          N_("Configuration error: Failed to get the \"IP\" value"));
         goto out;
     }
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "Netmask", &pThis->pszNetmask);
+    rc = CFGMR3QueryStringAlloc(pCfg, "Netmask", &pThis->pszNetmask);
     if (RT_FAILURE(rc))
     {
         PDMDEV_SET_ERROR(pDevIns, rc,
                          N_("Configuration error: Failed to get the \"Netmask\" value"));
         goto out;
     }
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "Gateway", &pThis->pszGateway);
+    rc = CFGMR3QueryStringAlloc(pCfg, "Gateway", &pThis->pszGateway);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         rc = VINF_SUCCESS;
     if (RT_FAILURE(rc))
@@ -535,10 +568,10 @@ static DECLCALLBACK(int) devINIPConstruct(PPDMDEVINS pDevIns, int iInstance,
     }
     else
     {
-        pThis->pDrv = (PPDMINETWORKCONNECTOR)pThis->pDrvBase->pfnQueryInterface(pThis->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
+        pThis->pDrv = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMINETWORKUP);
         if (!pThis->pDrv)
         {
-            AssertMsgFailed(("Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
+            AssertMsgFailed(("Failed to obtain the PDMINETWORKUP interface!\n"));
             rc = VERR_PDM_MISSING_INTERFACE_BELOW;
             goto out;
         }
@@ -638,42 +671,6 @@ out:
 
 
 /**
- * Destruct a device instance.
- *
- * Most VM resources are freed by the VM. This callback is provided so that any non-VM
- * resources can be freed correctly.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(int) devINIPDestruct(PPDMDEVINS pDevIns)
-{
-    PDEVINTNETIP pThis = PDMINS_2_DATA(pDevIns, PDEVINTNETIP);
-
-    LogFlow(("%s: pDevIns=%p\n", __FUNCTION__, pDevIns));
-
-    if (g_pDevINIPData != NULL)
-    {
-        netif_set_down(&pThis->IntNetIF);
-        netif_remove(&pThis->IntNetIF);
-        tcpip_terminate();
-        lwip_sys_sem_wait(pThis->LWIPTcpInitSem);
-        lwip_sys_sem_free(pThis->LWIPTcpInitSem);
-    }
-
-    if (pThis->pszIP)
-        MMR3HeapFree(pThis->pszIP);
-    if (pThis->pszNetmask)
-        MMR3HeapFree(pThis->pszNetmask);
-    if (pThis->pszGateway)
-        MMR3HeapFree(pThis->pszGateway);
-
-    LogFlow(("%s: success\n", __FUNCTION__));
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Query whether lwIP is initialized or not. Since there is only a single
  * instance of this device ever for a VM, it can be a global function.
  *
@@ -692,7 +689,7 @@ const PDMDEVREG g_DeviceINIP =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "IntNetIP",
     /* szRCMod/szR0Mod */
     "",

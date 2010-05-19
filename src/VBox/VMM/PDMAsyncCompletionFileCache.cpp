@@ -1,11 +1,11 @@
-/* $Id: PDMAsyncCompletionFileCache.cpp $ */
+/* $Id: PDMAsyncCompletionFileCache.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * File data cache.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_pdm_async_completion_cache     PDM Async Completion Cache - The file I/O cache
@@ -28,7 +24,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
-#include <iprt/types.h>
+#include <iprt/asm.h>
 #include <iprt/mem.h>
 #include <iprt/path.h>
 #include <VBox/log.h>
@@ -42,7 +38,7 @@
 typedef struct PDMIOMEMCTX
 {
     /** Pointer to the scatter/gather list. */
-    PCPDMDATASEG   paDataSeg;
+    PCRTSGSEG      paDataSeg;
     /** Number of segments. */
     size_t         cSegments;
     /** Current segment we are in. */
@@ -117,7 +113,7 @@ DECLINLINE(void) pdmacFileEpCacheEntryRef(PPDMACFILECACHEENTRY pEntry)
  * @param   paDataSeg    Pointer to the S/G list.
  * @param   cSegments    Number of segments in the S/G list.
  */
-DECLINLINE(void) pdmIoMemCtxInit(PPDMIOMEMCTX pIoMemCtx, PCPDMDATASEG paDataSeg, size_t cSegments)
+DECLINLINE(void) pdmIoMemCtxInit(PPDMIOMEMCTX pIoMemCtx, PCRTSGSEG paDataSeg, size_t cSegments)
 {
     AssertMsg((cSegments > 0) && paDataSeg, ("Trying to initialize a I/O memory context without a S/G list\n"));
 
@@ -367,7 +363,7 @@ static void pdmacFileCacheDestroyList(PPDMACFILELRULIST pList)
         AssertMsg(!(pEntry->fFlags & (PDMACFILECACHE_ENTRY_IO_IN_PROGRESS | PDMACFILECACHE_ENTRY_IS_DIRTY)),
                   ("Entry is dirty and/or still in progress fFlags=%#x\n", pEntry->fFlags));
 
-        RTMemPageFree(pEntry->pbData);
+        RTMemPageFree(pEntry->pbData, pEntry->cbData);
         RTMemFree(pEntry);
     }
 }
@@ -438,7 +434,7 @@ static size_t pdmacFileCacheEvictPagesFrom(PPDMACFILECACHEGLOBAL pCache, size_t 
                     *ppbBuffer = pCurr->pbData;
                 }
                 else if (pCurr->pbData)
-                    RTMemPageFree(pCurr->pbData);
+                    RTMemPageFree(pCurr->pbData, pCurr->cbData);
 
                 pCurr->pbData = NULL;
                 cbEvicted += pCurr->cbData;
@@ -675,7 +671,7 @@ static void pdmacFileCacheEndpointCommit(PPDMACFILEENDPOINTCACHE pEndpointCache)
     RTSemRWReleaseWrite(pEndpointCache->SemRWEntries);
     AssertMsg(pEndpointCache->pCache->cbDirty >= cbCommitted,
               ("Number of committed bytes exceeds number of dirty bytes\n"));
-    ASMAtomicAddU32(&pEndpointCache->pCache->cbDirty, (uint32_t)-(int32_t)cbCommitted);
+    ASMAtomicSubU32(&pEndpointCache->pCache->cbDirty, cbCommitted);
 }
 
 /**
@@ -1163,7 +1159,7 @@ static int pdmacFileEpCacheEntryDestroy(PAVLRFOFFNODECORE pNode, void *pvUser)
     if (fUpdateCache)
         pdmacFileCacheSub(pCache, pEntry->cbData);
 
-    RTMemPageFree(pEntry->pbData);
+    RTMemPageFree(pEntry->pbData, pEntry->cbData);
     RTMemFree(pEntry);
 
     return VINF_SUCCESS;
@@ -1702,7 +1698,7 @@ static PPDMACFILECACHEENTRY pdmacFileEpCacheEntryCreate(PPDMASYNCCOMPLETIONENDPO
  * @param    cbRead        Number of bytes to read.
  */
 int pdmacFileEpCacheRead(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOMPLETIONTASKFILE pTask,
-                         RTFOFF off, PCPDMDATASEG paSegments, size_t cSegments,
+                         RTFOFF off, PCRTSGSEG paSegments, size_t cSegments,
                          size_t cbRead)
 {
     int rc = VINF_SUCCESS;
@@ -1934,7 +1930,7 @@ int pdmacFileEpCacheRead(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOM
  * @param    cbWrite       Number of bytes to write.
  */
 int pdmacFileEpCacheWrite(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOMPLETIONTASKFILE pTask,
-                          RTFOFF off, PCPDMDATASEG paSegments, size_t cSegments,
+                          RTFOFF off, PCRTSGSEG paSegments, size_t cSegments,
                           size_t cbWrite)
 {
     int rc = VINF_SUCCESS;

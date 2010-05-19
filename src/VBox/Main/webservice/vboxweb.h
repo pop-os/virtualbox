@@ -2,7 +2,7 @@
  * vboxweb.h:
  *      header file for "real" web server code.
  *
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -11,10 +11,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /****************************************************************************
@@ -32,10 +28,9 @@ void WebLog(const char *pszFormat, ...);
 
 #include <VBox/com/VirtualBox.h>
 #include <VBox/com/Guid.h>
+#include <VBox/com/AutoLock.h>
 
 #include <VBox/err.h>
-
-#include "iprt/lock.h"
 
 #include <iprt/stream.h>
 
@@ -52,9 +47,9 @@ extern bool g_fVerbose;
 
 extern PRTSTREAM g_pstrLog;
 
-extern RTLockMtx *g_pAuthLibLockHandle;
+extern util::RWLockHandle  *g_pAuthLibLockHandle;
 
-extern RTLockMtx *g_pSessionsLockHandle;
+extern util::RWLockHandle  *g_pSessionsLockHandle;
 
 /****************************************************************************
  *
@@ -230,7 +225,7 @@ int findComPtrFromId(struct soap *soap,
 {
     // we're only reading the MOR maps, not modifying them, so a readlock is good enough
     // (allow concurrency, this code gets called from everywhere in methodmaps.cpp)
-    RTLock lock(*g_pSessionsLockHandle);
+    util::AutoReadLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
     int rc;
     ManagedObjectRef *pRef;
@@ -279,7 +274,7 @@ WSDLT_ID createOrFindRefFromComPtr(const WSDLT_ID &idParent,
     }
 
     // we might be modifying the MOR maps below, so request write lock now
-    RTLock lock(*g_pSessionsLockHandle);
+    util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
     WebServiceSession *pSession;
     if ((pSession = WebServiceSession::findSessionFromRef(idParent)))
     {

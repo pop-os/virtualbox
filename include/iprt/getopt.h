@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_getopt_h
@@ -141,10 +137,6 @@ typedef union RTGETOPTUNION
     /** A RTGETOPT_REQ_STRING option argument. */
     const char     *psz;
 
-#if !defined(RT_ARCH_AMD64) && !defined(RT_ARCH_X86)
-# error "PORTME: big-endian systems will need to fix the layout here to get the next two fields working right"
-#endif
-
     /** A RTGETOPT_REQ_INT8 option argument. */
     int8_t          i8;
     /** A RTGETOPT_REQ_UINT8 option argument . */
@@ -169,10 +161,6 @@ typedef union RTGETOPTUNION
     RTMAC           MacAddr;
     /** A RTGETOPT_REQ_UUID option argument. */
     RTUUID          Uuid;
-    /** A signed integer value. */
-    int64_t         i;
-    /** An unsigned integer value. */
-    uint64_t        u;
     /** A boolean flag. */
     bool            f;
 } RTGETOPTUNION;
@@ -202,10 +190,16 @@ typedef struct RTGETOPTSTATE
     const char     *pszNextShort;
     /** The option definition which matched. NULL otherwise. */
     PCRTGETOPTDEF   pDef;
-    /** The index of an index option, otherwise UINT64_MAX. */
-    uint64_t        uIndex;
-    /* More members will be added later for dealing with initial
-       call, optional sorting, '--' and so on. */
+    /** The index of an index option, otherwise UINT32_MAX. */
+    uint32_t        uIndex;
+    /** The flags passed to RTGetOptInit.  */
+    uint32_t        fFlags;
+    /** Number of non-options that we're skipping during a sorted get.  The value
+     * INT32_MAX is used to indicate that there are no more options.  This is used
+     * to implement '--'.   */
+    int32_t         cNonOptions;
+
+    /* More members may be added later for dealing with new features. */
 } RTGETOPTSTATE;
 /** Pointer to RTGetOpt state. */
 typedef RTGETOPTSTATE *PRTGETOPTSTATE;
@@ -234,6 +228,17 @@ typedef RTGETOPTSTATE *PRTGETOPTSTATE;
 RTDECL(int) RTGetOptInit(PRTGETOPTSTATE pState, int argc, char **argv,
                          PCRTGETOPTDEF paOptions, size_t cOptions,
                          int iFirst, uint32_t fFlags);
+
+/** @name RTGetOptInit flags.
+ * @{ */
+/** Sort the arguments so that options comes first, then non-options. */
+#define RTGETOPTINIT_FLAGS_OPTS_FIRST   RT_BIT_32(0)
+/** Prevent add the standard version and help options:
+ *     - "--help", "-h" and "-?" returns 'h'.
+ *     - "--version" and "-V" return 'V'.
+ */
+#define RTGETOPTINIT_FLAGS_NO_STD_OPTS  RT_BIT_32(1)
+/** @} */
 
 /**
  * Command line argument parser, handling both long and short options and checking
@@ -291,20 +296,7 @@ int main(int argc, char **argv)
                  break;
 
              default:
-                 if (ch > 0)
-                 {
-                     if (RT_C_IS_GRAPH(ch))
-                         Error("unhandled option: -%c\n", ch);
-                     else
-                         Error("unhandled option: %i\n", ch);
-                 }
-                 else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
-                     Error("unknown option: %s\n", ValueUnion.psz);
-                 else if (ValueUnion.pDef)
-                     Error("%s: %Rrs\n", ValueUnion.pDef->pszLong, ch);
-                 else
-                     Error("%Rrs\n", ch);
-                 return 1;
+                 return RTGetOptPrintError(ch, &ValueUnion);
          }
      }
 
@@ -368,7 +360,73 @@ RTDECL(int) RTGetOptFetchValue(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion
  * @param   ch          The RTGetOpt return value.
  * @param   pValueUnion The value union returned by RTGetOpt.
  */
-RTDECL(int) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion);
+RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion);
+
+/**
+ * Parses the @a pszCmdLine string into an argv array.
+ *
+ * This is useful for converting a response file or similar to an argument
+ * vector that can be used with RTGetOptInit().
+ *
+ * This function aims at following the bourn shell string quoting rules.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   ppapszArgv      Where to return the argument vector.  This must be
+ *                          freed by calling RTGetOptArgvFree.
+ * @param   pcArgs          Where to return the argument count.
+ * @param   pszCmdLine      The string to parse.
+ * @param   pszSeparators   String containing the argument separators. If NULL,
+ *                          then space, tab, line feed (\\n) and return (\\r)
+ *                          are used.
+ */
+RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *pszCmdLine, const char *pszSeparators);
+
+/**
+ * Frees and argument vector returned by RTGetOptStringToArgv.
+ *
+ * @param   papszArgv       Argument vector.  NULL is fine.
+ */
+RTDECL(void) RTGetOptArgvFree(char **paArgv);
+
+/**
+ * Turns an argv array into a command line string.
+ *
+ * This is useful for calling CreateProcess on Windows, but can also be used for
+ * displaying an argv array.
+ *
+ * This function aims at following the bourn shell string quoting rules.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   ppszCmdLine     Where to return the command line string.  This must
+ *                          be freed by calling RTStrFree.
+ * @param   papszArgs       The argument vector to convert.
+ * @param   fFlags          A combination of the RTGETOPTARGV_CNV_XXX flags.
+ */
+RTDECL(int) RTGetOptArgvToString(char **ppszCmdLine, const char * const *papszArgv, uint32_t fFlags);
+
+/** @name RTGetOptArgvToString and RTGetOptArgvToUtf16String flags
+ * @{ */
+/** Quote strings according to the Microsoft CRT rules. */
+#define RTGETOPTARGV_CNV_QUOTE_MS_CRT       UINT32_C(0)
+/** Quote strings according to the Unix Bourne Shell. */
+#define RTGETOPTARGV_CNV_QUOTE_BOURNE_SH    UINT32_C(1)
+/** Mask for the quoting style. */
+#define RTGETOPTARGV_CNV_QUOTE_MASK         UINT32_C(1)
+/** @} */
+
+/**
+ * Convenience wrapper around RTGetOpArgvToString and RTStrToUtf16.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   ppwszCmdLine    Where to return the command line string.  This must
+ *                          be freed by calling RTUtf16Free.
+ * @param   papszArgs       The argument vector to convert.
+ * @param   fFlags          A combination of the RTGETOPTARGV_CNV_XXX flags.
+ */
+RTDECL(int) RTGetOptArgvToUtf16String(PRTUTF16 *ppwszCmdLine, const char * const *papszArgv, uint32_t fFlags);
 
 /** @} */
 

@@ -1,10 +1,10 @@
-/* $Id: kHlpAssert-iprt.cpp $ */
+/* $Id: kHlpAssert-iprt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * kHlpEnv - Assertions, IPRT based implementation.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -31,7 +27,7 @@
 
 KHLP_DECL(void) kHlpAssertMsg1(const char *pszExpr, const char *pszFile, unsigned iLine, const char *pszFunction)
 {
-    /*RT*/AssertMsg1(pszExpr, iLine, pszFile, pszFunction);
+    RTAssertMsg1Weak(pszExpr, iLine, pszFile, pszFunction);
 }
 
 
@@ -39,13 +35,7 @@ KHLP_DECL(void) kHlpAssertMsg2(const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
-#if 0
-    RTAssertMsg2V(pszFormat, va);
-#else
-    char szBuf[512];
-    RTStrPrintfV(szBuf, sizeof(szBuf), pszFormat, va);
-    AssertMsg2("%s", szBuf);
-#endif
+    RTAssertMsg2WeakV(pszFormat, va);
     va_end(va);
 }
 

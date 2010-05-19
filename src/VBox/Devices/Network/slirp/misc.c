@@ -1,4 +1,23 @@
+/* $Id: misc.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - helpers.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1995 Danny Gasparovski.
  *
  * Please read the file COPYRIGHT for the
@@ -56,28 +75,6 @@ remque(PNATState pData, void *a)
     /*  element->qh_link = NULL;  TCP FIN1 crashes if you do this.  Why ? */
 }
 
-int
-add_exec(struct ex_list **ex_ptr, int do_pty, char *exec, int addr, int port)
-{
-    struct ex_list *tmp_ptr;
-
-    /* First, check if the port is "bound" */
-    for (tmp_ptr = *ex_ptr; tmp_ptr; tmp_ptr = tmp_ptr->ex_next)
-    {
-        if (port == tmp_ptr->ex_fport && addr == tmp_ptr->ex_addr)
-            return -1;
-    }
-
-    tmp_ptr = *ex_ptr;
-    *ex_ptr = (struct ex_list *)RTMemAlloc(sizeof(struct ex_list));
-    (*ex_ptr)->ex_fport = port;
-    (*ex_ptr)->ex_addr = addr;
-    (*ex_ptr)->ex_pty = do_pty;
-    (*ex_ptr)->ex_exec = RTStrDup(exec);
-    (*ex_ptr)->ex_next = tmp_ptr;
-    return 0;
-}
-
 
 /*
  * Set fd blocking and non-blocking
@@ -98,21 +95,6 @@ fd_nonblock(int fd)
 #endif
 }
 
-void
-fd_block(int fd)
-{
-#ifdef FIONBIO
-    int opt = 0;
-
-    ioctlsocket(fd, FIONBIO, &opt);
-#else
-    int opt;
-
-    opt = fcntl(fd, F_GETFL, 0);
-    opt &= ~O_NONBLOCK;
-    fcntl(fd, F_SETFL, opt);
-#endif
-}
 
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
 #define ITEM_MAGIC 0xdead0001
@@ -129,6 +111,7 @@ struct uma_zone
 {
     uint32_t magic;
     PNATState pData; /* to minimize changes in the rest of UMA emulation code */
+    RTCRITSECT csZone;
     const char *name;
     size_t size; /* item size */
     ctor_t pfCtor;
@@ -142,64 +125,111 @@ struct uma_zone
     LIST_HEAD(RT_NOTHING, item) used_items;
     LIST_HEAD(RT_NOTHING, item) free_items;
     uma_zone_t master_zone;
+    void *area;
 };
 
 
 static void *slirp_uma_alloc(uma_zone_t zone,
-    int size, uint8_t *pflags, int wait)
+                             int size, uint8_t *pflags, int fWait)
 {
     struct item *it;
-    if (    (zone->max_items != 0 && zone->cur_items >= zone->max_items)
-        || (zone->max_items == 0 && !LIST_EMPTY(&zone->free_items))
-    )
-    {
-        /*
-         * @todo (r=vvl) here should be some
-         * accounting of extra items in case
-         * breakthrough barrier
-         */
-        if (LIST_EMPTY(&zone->free_items))
-            return NULL;
-        it = LIST_FIRST(&zone->free_items);
-        LIST_REMOVE(it, list);
-        LIST_INSERT_HEAD(&zone->used_items, it, list);
-        goto allocated;
-    }
-    /*@todo 'Z' should be depend on flag */
-    it = RTMemAllocZ(sizeof(struct item) + zone->size);
-    if (it == NULL)
-    {
-        Log(("NAT: uma no memory"));
-        return NULL;
-    }
-    it->magic = ITEM_MAGIC;
-    LIST_INSERT_HEAD(&zone->used_items, it, list);
-    zone->cur_items++;
-    it->zone = zone;
+    uint8_t *sub_area;
+    void *ret = NULL;
+    int rc;
 
-    allocated:
-    if (zone->pfInit)
-        zone->pfInit(zone->pData, (void *)&it[1], zone->size, M_DONTWAIT);
-    return (void *)&it[1];
+    RTCritSectEnter(&zone->csZone);
+    for (;;)
+    {
+        if (!LIST_EMPTY(&zone->free_items))
+        {
+            it = LIST_FIRST(&zone->free_items);
+            rc = 0;
+            if (zone->pfInit)
+                rc = zone->pfInit(zone->pData, (void *)&it[1], zone->size, M_DONTWAIT);
+            if (rc == 0)
+            {
+                zone->cur_items++;
+                LIST_REMOVE(it, list);
+                LIST_INSERT_HEAD(&zone->used_items, it, list);
+                ret = (void *)&it[1];
+            }
+            else
+            {
+                ret = NULL;
+            }
+            break;
+        }
+
+        if (!zone->master_zone)
+        {
+            /* We're on master zone and we cant allocate more */
+            Log2(("NAT: no room on %s zone\n", zone->name));
+            break;
+        }
+
+        /* we're on sub-zone we need get chunk of master zone and split
+         * it for sub-zone conforming chunks.
+         */
+        sub_area = slirp_uma_alloc(zone->master_zone, zone->master_zone->size, NULL, 0);
+        if (!sub_area)
+        {
+            /* No room on master */
+            Log2(("NAT: no room on %s zone for %s zone\n", zone->master_zone->name, zone->name));
+            break;
+        }
+        zone->max_items++;
+        it = &((struct item *)sub_area)[-1];
+        /* it's chunk descriptor of master zone we should remove it
+         *  from the master list first
+         */
+        Assert((it->zone && it->zone->magic == ZONE_MAGIC));
+        RTCritSectEnter(&it->zone->csZone);
+        /* @todo should we alter count of master counters? */
+        LIST_REMOVE(it, list);
+        RTCritSectLeave(&it->zone->csZone);
+        /* @todo '+ zone->size' should be depend on flag */
+        memset(it, 0, sizeof(struct item));
+        it->zone = zone;
+        it->magic = ITEM_MAGIC;
+        LIST_INSERT_HEAD(&zone->free_items, it, list);
+        if (zone->cur_items >= zone->max_items)
+            LogRel(("NAT: zone(%s) has reached it maximum\n", zone->name));
+    }
+    RTCritSectLeave(&zone->csZone);
+    return ret;
 }
 
 static void slirp_uma_free(void *item, int size, uint8_t flags)
 {
     struct item *it;
     uma_zone_t zone;
+    uma_zone_t master_zone;
     Assert(item);
     it = &((struct item *)item)[-1];
     Assert(it->magic == ITEM_MAGIC);
     zone = it->zone;
+    /* check bourder magic */
+    Assert((*(uint32_t *)(((uint8_t *)&it[1]) + zone->size) == 0xabadbabe));
+    RTCritSectEnter(&zone->csZone);
     Assert(zone->magic == ZONE_MAGIC);
     LIST_REMOVE(it, list);
+    if (zone->pfFini)
+    {
+        zone->pfFini(zone->pData, item, zone->size);
+    }
+    if (zone->pfDtor)
+    {
+        zone->pfDtor(zone->pData, item, zone->size, NULL);
+    }
     LIST_INSERT_HEAD(&zone->free_items, it, list);
+    zone->cur_items--;
+    RTCritSectLeave(&zone->csZone);
 }
 
 uma_zone_t uma_zcreate(PNATState pData, char *name, size_t size,
-    ctor_t ctor, dtor_t dtor, zinit_t init, zfini_t fini, int flags1, int flags2)
+                       ctor_t ctor, dtor_t dtor, zinit_t init, zfini_t fini, int flags1, int flags2)
 {
-    uma_zone_t zone = RTMemAllocZ(sizeof(struct uma_zone) + size);
+    uma_zone_t zone = RTMemAllocZ(sizeof(struct uma_zone));
     Assert((pData));
     zone->magic = ZONE_MAGIC;
     zone->pData = pData;
@@ -211,6 +241,7 @@ uma_zone_t uma_zcreate(PNATState pData, char *name, size_t size,
     zone->pfFini = fini;
     zone->pfAlloc = slirp_uma_alloc;
     zone->pfFree = slirp_uma_free;
+    RTCritSectInit(&zone->csZone);
     return zone;
 
 }
@@ -218,15 +249,11 @@ uma_zone_t uma_zsecond_create(char *name, ctor_t ctor,
     dtor_t dtor, zinit_t init, zfini_t fini, uma_zone_t master)
 {
     uma_zone_t zone;
-#if 0
-    if (master->pfAlloc != NULL)
-        zone = (uma_zone_t)master->pfAlloc(master, sizeof(struct uma_zone), NULL, 0);
-#endif
+    Assert(master);
     zone = RTMemAllocZ(sizeof(struct uma_zone));
     if (zone == NULL)
-    {
         return NULL;
-    }
+
     Assert((master && master->pData));
     zone->magic = ZONE_MAGIC;
     zone->pData = master->pData;
@@ -238,16 +265,33 @@ uma_zone_t uma_zsecond_create(char *name, ctor_t ctor,
     zone->pfAlloc = slirp_uma_alloc;
     zone->pfFree = slirp_uma_free;
     zone->size = master->size;
+    zone->master_zone = master;
+    RTCritSectInit(&zone->csZone);
     return zone;
 }
+
 void uma_zone_set_max(uma_zone_t zone, int max)
 {
+    int i = 0;
+    struct item *it;
     zone->max_items = max;
+    zone->area = RTMemAllocZ(max * (sizeof(struct item) + zone->size + sizeof(uint32_t)));
+    for (; i < max; ++i)
+    {
+        it = (struct item *)(((uint8_t *)zone->area) + i*(sizeof(struct item) + zone->size + sizeof(uint32_t)));
+        it->magic = ITEM_MAGIC;
+        it->zone = zone;
+        *(uint32_t *)(((uint8_t *)&it[1]) + zone->size) = 0xabadbabe;
+        LIST_INSERT_HEAD(&zone->free_items, it, list);
+    }
+
 }
+
 void uma_zone_set_allocf(uma_zone_t zone, uma_alloc_t pfAlloc)
 {
    zone->pfAlloc = pfAlloc;
 }
+
 void uma_zone_set_freef(uma_zone_t zone, uma_free_t pfFree)
 {
    zone->pfFree = pfFree;
@@ -255,23 +299,30 @@ void uma_zone_set_freef(uma_zone_t zone, uma_free_t pfFree)
 
 uint32_t *uma_find_refcnt(uma_zone_t zone, void *mem)
 {
-    /*@todo (r-vvl) this function supposed to work with special zone storing
+    /*@todo (vvl) this function supposed to work with special zone storing
     reference counters */
     struct item *it = (struct item *)mem; /* 1st element */
+    Assert(mem != NULL);
     Assert(zone->magic == ZONE_MAGIC);
     /* for returning pointer to counter we need get 0 elemnt */
     Assert(it[-1].magic == ITEM_MAGIC);
     return &it[-1].ref_count;
 }
+
 void *uma_zalloc_arg(uma_zone_t zone, void *args, int how)
 {
     void *mem;
     Assert(zone->magic == ZONE_MAGIC);
     if (zone->pfAlloc == NULL)
         return NULL;
+    RTCritSectEnter(&zone->csZone);
     mem = zone->pfAlloc(zone, zone->size, NULL, 0);
-    if (zone->pfCtor)
-        zone->pfCtor(zone->pData, mem, zone->size, args, M_DONTWAIT);
+    if (mem != NULL)
+    {
+        if (zone->pfCtor)
+            zone->pfCtor(zone->pData, mem, zone->size, args, M_DONTWAIT);
+    }
+    RTCritSectLeave(&zone->csZone);
     return mem;
 }
 
@@ -284,28 +335,47 @@ void uma_zfree_arg(uma_zone_t zone, void *mem, void *flags)
 {
     struct item *it;
     Assert(zone->magic == ZONE_MAGIC);
-    if (zone->pfFree == NULL)
-        return;
+    Assert((zone->pfFree));
     Assert((mem));
+
+    RTCritSectEnter(&zone->csZone);
     it = &((struct item *)mem)[-1];
-    if (it->magic != ITEM_MAGIC)
-    {
-        Log(("NAT:UMA: %p seems to be allocated on heap ... freeing\n", mem));
-        RTMemFree(mem);
-        return;
-    }
+    Assert((it->magic == ITEM_MAGIC));
     Assert((zone->magic == ZONE_MAGIC && zone == it->zone));
 
-    if (zone->pfDtor)
-        zone->pfDtor(zone->pData, mem, zone->size, flags);
     zone->pfFree(mem,  0, 0);
+    RTCritSectLeave(&zone->csZone);
 }
+
 int uma_zone_exhausted_nolock(uma_zone_t zone)
 {
-    return 0;
+    int fExhausted;
+    RTCritSectEnter(&zone->csZone);
+    fExhausted = (zone->cur_items == zone->max_items); 
+    RTCritSectLeave(&zone->csZone);
+    return fExhausted;
 }
+
 void zone_drain(uma_zone_t zone)
 {
+    struct item *it;
+    uma_zone_t master_zone;
+    /* vvl: Huh? What to do with zone which hasn't got backstore ? */
+    Assert((zone->master_zone));
+    master_zone = zone->master_zone;
+    while(!LIST_EMPTY(&zone->free_items))
+    {
+        it = LIST_FIRST(&zone->free_items);
+        RTCritSectEnter(&zone->csZone);
+        LIST_REMOVE(it, list);
+        zone->max_items--;
+        RTCritSectLeave(&zone->csZone);
+        it->zone = master_zone;
+        RTCritSectEnter(&master_zone->csZone);
+        LIST_INSERT_HEAD(&master_zone->free_items, it, list);
+        master_zone->cur_items--;
+        RTCritSectLeave(&master_zone->csZone);
+    }
 }
 
 void slirp_null_arg_free(void *mem, void *arg)
@@ -319,4 +389,59 @@ void *uma_zalloc(uma_zone_t zone, int len)
 {
     return NULL;
 }
-#endif
+
+struct mbuf *slirp_ext_m_get(PNATState pData, size_t cbMin, void **ppvBuf, size_t *pcbBuf)
+{
+    struct mbuf *m;
+    size_t size = MCLBYTES;
+    if (cbMin < MSIZE)
+        size = MCLBYTES;
+    else if (cbMin < MCLBYTES)
+        size = MCLBYTES;
+    else if (cbMin < MJUM9BYTES)
+        size = MJUM9BYTES;
+    else if (cbMin < MJUM16BYTES)
+        size = MJUM16BYTES;
+    else
+        AssertMsgFailed(("Unsupported size"));
+
+    m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
+    if (m == NULL)
+    {
+        *ppvBuf = NULL;
+        *pcbBuf = 0;
+        return NULL;
+    }
+    m->m_len = size;
+    *ppvBuf = mtod(m, void *);
+    *pcbBuf = size;
+    return m;
+}
+
+void slirp_ext_m_free(PNATState pData, struct mbuf *m)
+{
+    m_freem(pData, m);
+}
+
+static void zone_destroy(uma_zone_t zone)
+{
+    RTCritSectEnter(&zone->csZone);
+    LogRel(("NAT: zone(nm:%s, used:%d)\n", zone->name, zone->cur_items));
+    if (zone->master_zone)
+        RTMemFree(zone->area);
+    RTCritSectLeave(&zone->csZone);
+    RTCritSectDelete(&zone->csZone);
+    RTMemFree(zone);
+}
+
+void m_fini(PNATState pData)
+{
+    zone_destroy(pData->zone_mbuf);
+    zone_destroy(pData->zone_clust);
+    zone_destroy(pData->zone_pack);
+    zone_destroy(pData->zone_jumbop);
+    zone_destroy(pData->zone_jumbo9);
+    zone_destroy(pData->zone_jumbo16);
+    /*@todo do finalize here.*/
+}
+#endif /* VBOX_WITH_SLIRP_BSD_MBUF */

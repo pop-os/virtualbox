@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29167 2010-05-06 15:58:14Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox C Binding.
 #
 
 #
-# Copyright (C) 2009 Sun Microsystems, Inc.
+# Copyright (C) 2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -50,13 +46,15 @@ XpComCHeaders_INST = $(INST_SDK)bindings/xpcom/include/
 XpComCHeaders_SOURCES = \
 	VBoxCAPI_v2_2.h \
 	VBoxCAPI_v3_0.h \
-	$(XpComCHeaders_0_OUTDIR)/VBoxCAPI_v3_1.h
+	VBoxCAPI_v3_1.h \
+	$(XpComCHeaders_0_OUTDIR)/VBoxCAPI_v3_2.h
 
-$$(XpComCHeaders_0_OUTDIR)/VBoxCAPI_v3_1.h: \
+$$(XpComCHeaders_0_OUTDIR)/VBoxCAPI_v3_2.h: \
 		$(PATH_SUB_CURRENT)/xpcidl.xsl \
 		$(VBOX_XIDL_FILE) \
 		| $$(dir $$@)
-	$(VBOX_XSLTPROC) -o $@ $^
+	$(call MSG_TOOL,xsltproc,XpComCHeaders,$<,$@)
+	$(QUIET)$(VBOX_XSLTPROC) -o $@ $^
 
 endif # VBOX_WITH_XPCOM || SDK
 if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
@@ -71,7 +69,7 @@ if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
  VBoxXPCOMC_SOURCES = \
  	VBoxXPCOMC.cpp
  VBoxXPCOMC_INTERMEDIATES = \
- 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_1.h
+ 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_2.h
  endif
 
  #
@@ -83,7 +81,7 @@ if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
  VBoxXPCOMCGlue_SOURCES = \
  	VBoxXPCOMCGlue.c
  VBoxXPCOMCGlue_INTERMEDIATES = \
- 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_1.h
+ 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_2.h
 
  if defined(VBOX_WITH_TESTCASES) && "$(KBUILD_TARGET)" != "darwin"
   #
@@ -95,7 +93,7 @@ if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
   tstXPCOMCGlue_INCS = \
   	$(VBOX_PATH_SDK)/bindings/xpcom/include
   tstXPCOMCGlue_INTERMEDIATES = \
-  	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_1.h
+  	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_2.h
   tstXPCOMCGlue_SOURCES = \
   	tstXPCOMCGlue.c
   tstXPCOMCGlue_LIBS = \
@@ -110,7 +108,7 @@ if !defined(VBOX_ONLY_SDK) && defined(VBOX_WITH_XPCOM)
    tstXPCOMCCall_INCS = \
    	$(VBOX_PATH_SDK)/bindings/xpcom/include
    tstXPCOMCCall_INTERMEDIATES = \
-   	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_1.h
+   	$(VBOX_PATH_SDK)/bindings/xpcom/include/VBoxCAPI_v3_2.h
    tstXPCOMCCall_SOURCES = \
    	tstXPCOMCCall.c
    tstXPCOMCCall_LIBS = \

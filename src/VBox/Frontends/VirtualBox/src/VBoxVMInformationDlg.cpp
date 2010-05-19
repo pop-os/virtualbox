@@ -1,3 +1,4 @@
+/* $Id: VBoxVMInformationDlg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Global Includes */
 #include <QTimer>
 
@@ -27,17 +27,27 @@
 #include <VBoxVMInformationDlg.h>
 #include <VBoxGlobal.h>
 #include <VBoxConsoleView.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#ifdef VBOX_WITH_NEW_RUNTIME_CORE
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMachineView.h"
+#include "UISession.h"
+#endif /* VBOX_WITH_NEW_RUNTIME_CORE */
 
 VBoxVMInformationDlg::InfoDlgMap VBoxVMInformationDlg::mSelfArray = InfoDlgMap();
 
-void VBoxVMInformationDlg::createInformationDlg (const CSession &aSession, VBoxConsoleView *aConsole)
+#ifdef VBOX_WITH_NEW_RUNTIME_CORE
+void VBoxVMInformationDlg::createInformationDlg(UIMachineWindow *pMachineWindow)
 {
-    CMachine machine = aSession.GetMachine();
+    CMachine machine = pMachineWindow->machineLogic()->uisession()->session().GetMachine();
     if (mSelfArray.find (machine.GetName()) == mSelfArray.end())
     {
         /* Creating new information dialog if there is no one existing */
-        VBoxVMInformationDlg *id = new VBoxVMInformationDlg (aConsole, aSession, Qt::Window);
-        id->centerAccording (aConsole);
+        VBoxVMInformationDlg *id = new VBoxVMInformationDlg(pMachineWindow, Qt::Window);
+        id->centerAccording (pMachineWindow->machineWindow());
+        // TODO_NEW_CORE: this seems not necessary, cause we set WA_DeleteOnClose.
         connect (vboxGlobal().mainWindow(), SIGNAL (closing()), id, SLOT (close()));
         id->setAttribute (Qt::WA_DeleteOnClose);
         mSelfArray [machine.GetName()] = id;
@@ -50,15 +60,14 @@ void VBoxVMInformationDlg::createInformationDlg (const CSession &aSession, VBoxC
     info->activateWindow();
 }
 
-VBoxVMInformationDlg::VBoxVMInformationDlg (VBoxConsoleView *aConsole, const CSession &aSession, Qt::WindowFlags aFlags)
-#ifdef Q_WS_MAC
-    : QIWithRetranslateUI2 <QIMainDialog> (aConsole, aFlags)
-#else /* Q_WS_MAC */
+VBoxVMInformationDlg::VBoxVMInformationDlg (UIMachineWindow *pMachineWindow, Qt::WindowFlags aFlags)
+# ifdef Q_WS_MAC
+    : QIWithRetranslateUI2 <QIMainDialog> (pMachineWindow->machineWindow(), aFlags)
+# else /* Q_WS_MAC */
     : QIWithRetranslateUI2 <QIMainDialog> (0, aFlags)
-#endif /* Q_WS_MAC */
+# endif /* Q_WS_MAC */
+    , mSession (pMachineWindow->session())
     , mIsPolished (false)
-    , mConsole (aConsole)
-    , mSession (aSession)
     , mStatTimer (new QTimer (this))
 {
     /* Apply UI decorations */
@@ -89,12 +98,111 @@ VBoxVMInformationDlg::VBoxVMInformationDlg (VBoxConsoleView *aConsole, const CSe
     mStatisticText->setViewportMargins (5, 5, 5, 5);
 
     /* Setup handlers */
+    connect (pMachineWindow->uisession(), SIGNAL (sigMediumChange(const CMediumAttachment&)), this, SLOT (updateDetails()));
+    connect (pMachineWindow->uisession(), SIGNAL (sigSharedFolderChange()), this, SLOT (updateDetails()));
+    /* TODO_NEW_CORE: this is ofc not really right in the mm sense. There are
+     * more than one screens. */
+    connect (pMachineWindow->machineView(), SIGNAL (resizeHintDone()), this, SLOT (processStatistics()));
     connect (mInfoStack, SIGNAL (currentChanged (int)), this, SLOT (onPageChanged (int)));
     connect (&vboxGlobal(), SIGNAL (mediumEnumFinished (const VBoxMediaList &)), this, SLOT (updateDetails()));
+    connect (mStatTimer, SIGNAL (timeout()), this, SLOT (processStatistics()));
+
+    /* Loading language constants */
+    retranslateUi();
+
+    /* Details page update */
+    updateDetails();
+
+    /* Statistics page update */
+    processStatistics();
+    mStatTimer->start (5000);
+
+    /* Preload dialog attributes for this vm */
+    QString dlgsize = mSession.GetMachine().GetExtraData (VBoxDefs::GUI_InfoDlgState);
+    if (dlgsize.isEmpty())
+    {
+        mWidth = 400;
+        mHeight = 450;
+        mMax = false;
+    }
+    else
+    {
+        QStringList list = dlgsize.split (',');
+        mWidth = list [0].toInt(), mHeight = list [1].toInt();
+        mMax = list [2] == "max";
+    }
+
+    /* Make statistics page the default one */
+    mInfoStack->setCurrentIndex (1);
+}
+#endif /* VBOX_WITH_NEW_RUNTIME_CORE */
+
+void VBoxVMInformationDlg::createInformationDlg (const CSession &aSession, VBoxConsoleView *aConsole)
+{
+    CMachine machine = aSession.GetMachine();
+    if (mSelfArray.find (machine.GetName()) == mSelfArray.end())
+    {
+        /* Creating new information dialog if there is no one existing */
+        VBoxVMInformationDlg *id = new VBoxVMInformationDlg (aConsole, aSession, Qt::Window);
+        id->centerAccording (aConsole);
+        connect (vboxGlobal().mainWindow(), SIGNAL (closing()), id, SLOT (close()));
+        id->setAttribute (Qt::WA_DeleteOnClose);
+        mSelfArray [machine.GetName()] = id;
+    }
+
+    VBoxVMInformationDlg *info = mSelfArray [machine.GetName()];
+    info->show();
+    info->raise();
+    info->setWindowState (info->windowState() & ~Qt::WindowMinimized);
+    info->activateWindow();
+}
+
+VBoxVMInformationDlg::VBoxVMInformationDlg (VBoxConsoleView *aConsole, const CSession &aSession, Qt::WindowFlags aFlags)
+# ifdef Q_WS_MAC
+    : QIWithRetranslateUI2 <QIMainDialog> (aConsole, aFlags)
+# else /* Q_WS_MAC */
+    : QIWithRetranslateUI2 <QIMainDialog> (0, aFlags)
+# endif /* Q_WS_MAC */
+    , mConsole (aConsole)
+    , mSession (aSession)
+    , mIsPolished (false)
+    , mStatTimer (new QTimer (this))
+{
+    /* Apply UI decorations */
+    Ui::VBoxVMInformationDlg::setupUi (this);
+
+#ifdef Q_WS_MAC
+    /* No icon for this window on the mac, cause this would act as proxy icon which isn't necessary here. */
+    setWindowIcon (QIcon());
+#else
+    /* Apply window icons */
+    setWindowIcon (vboxGlobal().iconSetFull (QSize (32, 32), QSize (16, 16),
+                                             ":/session_info_32px.png", ":/session_info_16px.png"));
+#endif
+
+    /* Enable size grip without using a status bar. */
+    setSizeGripEnabled (true);
+
+    /* Setup focus-proxy for pages */
+    mPage1->setFocusProxy (mDetailsText);
+    mPage2->setFocusProxy (mStatisticText);
+
+    /* Setup browsers */
+    mDetailsText->viewport()->setAutoFillBackground (false);
+    mStatisticText->viewport()->setAutoFillBackground (false);
+
+    /* Setup margins */
+    mDetailsText->setViewportMargins (5, 5, 5, 5);
+    mStatisticText->setViewportMargins (5, 5, 5, 5);
+
+    /* Setup handlers */
+    /* Setup handlers */
     connect (mConsole, SIGNAL (mediaDriveChanged (VBoxDefs::MediumType)), this, SLOT (updateDetails()));
     connect (mConsole, SIGNAL (sharedFoldersChanged()), this, SLOT (updateDetails()));
-    connect (mStatTimer, SIGNAL (timeout()), this, SLOT (processStatistics()));
     connect (mConsole, SIGNAL (resizeHintDone()), this, SLOT (processStatistics()));
+    connect (mInfoStack, SIGNAL (currentChanged (int)), this, SLOT (onPageChanged (int)));
+    connect (&vboxGlobal(), SIGNAL (mediumEnumFinished (const VBoxMediaList &)), this, SLOT (updateDetails()));
+    connect (mStatTimer, SIGNAL (timeout()), this, SLOT (processStatistics()));
 
     /* Loading language constants */
     retranslateUi();
@@ -442,10 +550,13 @@ void VBoxVMInformationDlg::refreshStatistics()
     /* Runtime Information */
     {
         CConsole console = mSession.GetConsole();
-        ULONG bpp = console.GetDisplay().GetBitsPerPixel();
+        ULONG width = 0;
+        ULONG height = 0;
+        ULONG bpp = 0;
+        console.GetDisplay().GetScreenResolution(0, width, height, bpp);
         QString resolution = QString ("%1x%2")
-            .arg (console.GetDisplay().GetWidth())
-            .arg (console.GetDisplay().GetHeight());
+            .arg (width)
+            .arg (height);
         if (bpp)
             resolution += QString ("x%1").arg (bpp);
         QString virtualization = console.GetDebugger().GetHWVirtExEnabled() ?

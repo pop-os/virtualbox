@@ -1,4 +1,23 @@
+/* $Id: tftp.c 29050 2010-05-05 02:26:10Z vboxsync $ */
+/** @file
+ * NAT - TFTP server.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * tftp.c - a simple, read-only tftp server for qemu
  *
  * Copyright (c) 2004 Magnus Damm <damm@opensource.se>
@@ -125,19 +144,32 @@ static int tftp_send_oack(PNATState pData,
     struct tftp_t *tp;
     int n = 0;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m = m_get(pData);
+#else
+    m = m_getcl(pData, M_DONTWAIT, MT_HEADER, M_PKTHDR);
+#endif
     if (!m)
         return -1;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     memset(m->m_data, 0, m->m_size);
-
     m->m_data += if_maxlinkhdr;
+#else
+    m->m_data += if_maxlinkhdr;
+    m->m_pkthdr.header = mtod(m, void *);
+#endif
     tp = (void *)m->m_data;
     m->m_data += sizeof(struct udpiphdr);
 
-    tp->tp_op = htons(TFTP_OACK);
+    tp->tp_op = RT_H2N_U16_C(TFTP_OACK);
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     n += RTStrPrintf((char *)tp->x.tp_buf + n, M_FREEROOM(m), "%s", key) + 1;
     n += RTStrPrintf((char *)tp->x.tp_buf + n, M_FREEROOM(m), "%u", value) + 1;
+#else
+    n += RTStrPrintf((char *)tp->x.tp_buf + n, M_TRAILINGSPACE(m), "%s", key) + 1;
+    n += RTStrPrintf((char *)tp->x.tp_buf + n, M_TRAILINGSPACE(m), "%u", value) + 1;
+#endif
 
     saddr.sin_addr = recv_tp->ip.ip_dst;
     saddr.sin_port = recv_tp->udp.uh_dport;
@@ -152,8 +184,6 @@ static int tftp_send_oack(PNATState pData,
     return 0;
 }
 
-
-
 static int tftp_send_error(PNATState pData,
                            struct tftp_session *spt,
                            u_int16_t errorcode, const char *msg,
@@ -164,18 +194,26 @@ static int tftp_send_error(PNATState pData,
     struct tftp_t *tp;
     int nobytes;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m = m_get(pData);
+#else
+    if ((m = m_getcl(pData, M_DONTWAIT, MT_HEADER, M_PKTHDR)) == NULL)
+#endif
     if (!m)
         return -1;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     memset(m->m_data, 0, m->m_size);
-
     m->m_data += if_maxlinkhdr;
+#else
+    m->m_data += if_maxlinkhdr;
+    m->m_pkthdr.header = mtod(m, void *);
+#endif
     tp = (void *)m->m_data;
     m->m_data += sizeof(struct udpiphdr);
 
-    tp->tp_op = htons(TFTP_ERROR);
-    tp->x.tp_error.tp_error_code = htons(errorcode);
+    tp->tp_op = RT_H2N_U16_C(TFTP_ERROR);
+    tp->x.tp_error.tp_error_code = RT_H2N_U16(errorcode);
     strcpy((char *)tp->x.tp_error.tp_msg, msg);
 
     saddr.sin_addr = recv_tp->ip.ip_dst;
@@ -213,18 +251,26 @@ static int tftp_send_data(PNATState pData,
     if (block_nr < 1)
         return -1;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     m = m_get(pData);
+#else
+    if ((m = m_getcl(pData, M_DONTWAIT, MT_HEADER, M_PKTHDR)) == NULL)
+#endif
     if (!m)
         return -1;
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     memset(m->m_data, 0, m->m_size);
-
     m->m_data += if_maxlinkhdr;
-    tp = (void *)m->m_data;
+#else
+    m->m_data += if_maxlinkhdr;
+    m->m_pkthdr.header = mtod(m, void *);
+#endif
+    tp = mtod(m, void *);
     m->m_data += sizeof(struct udpiphdr);
 
-    tp->tp_op = htons(TFTP_DATA);
-    tp->x.tp_data.tp_block_nr = htons(block_nr);
+    tp->tp_op = RT_H2N_U16_C(TFTP_DATA);
+    tp->x.tp_data.tp_block_nr = RT_H2N_U16(block_nr);
 
     saddr.sin_addr = recv_tp->ip.ip_dst;
     saddr.sin_port = recv_tp->udp.uh_dport;
@@ -235,7 +281,7 @@ static int tftp_send_data(PNATState pData,
     nobytes = tftp_read_data(pData, spt, block_nr - 1, tp->x.tp_data.tp_buf, 512);
     if (nobytes < 0)
     {
-        m_free(pData, m);
+        m_freem(pData, m);
         /* send "file not found" error back */
         tftp_send_error(pData, spt, 1, "File not found", tp);
         return -1;
@@ -384,7 +430,7 @@ static void tftp_handle_ack(PNATState pData, struct tftp_t *tp, int pktlen)
         return;
 
     if (tftp_send_data(pData, &tftp_sessions[s],
-                       ntohs(tp->x.tp_data.tp_block_nr) + 1, tp) < 0)
+                       RT_N2H_U16(tp->x.tp_data.tp_block_nr) + 1, tp) < 0)
     {
         /* XXX */
     }
@@ -394,7 +440,7 @@ void tftp_input(PNATState pData, struct mbuf *m)
 {
     struct tftp_t *tp = (struct tftp_t *)m->m_data;
 
-    switch(ntohs(tp->tp_op))
+    switch(RT_N2H_U16(tp->tp_op))
     {
         case TFTP_RRQ:
             tftp_handle_rrq(pData, tp, m->m_len);

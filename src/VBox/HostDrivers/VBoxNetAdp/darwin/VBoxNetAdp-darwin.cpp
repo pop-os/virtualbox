@@ -1,10 +1,10 @@
-/* $Id: VBoxNetAdp-darwin.cpp $ */
+/* $Id: VBoxNetAdp-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Darwin Specific Code.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -74,23 +70,6 @@ RT_C_DECLS_END
 #define VBOXNETADP_DARWIN_DETACH_TIMEOUT 500
 
 #define VBOXNETADP_FROM_IFACE(iface) ((PVBOXNETADP) ifnet_softc(iface))
-
-/* debug printf */
-#if defined(RT_OS_WINDOWS)
-# define OSDBGPRINT(a) DbgPrint a
-#elif defined(RT_OS_LINUX)
-# define OSDBGPRINT(a) printk a
-#elif defined(RT_OS_DARWIN)
-# define OSDBGPRINT(a) printf a
-#elif defined(RT_OS_OS2)
-# define OSDBGPRINT(a) SUPR0Printf a
-#elif defined(RT_OS_FREEBSD)
-# define OSDBGPRINT(a) printf a
-#elif defined(RT_OS_SOLARIS)
-# define OSDBGPRINT(a) SUPR0Printf a
-#else
-# define OSDBGPRINT(a)
-#endif
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -224,7 +203,7 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
     rc = RTSemEventCreate(&pThis->u.s.hEvtDetached);
     if (RT_FAILURE(rc))
     {
-        OSDBGPRINT(("vboxNetAdpOsCreate: failed to create semaphore (rc=%d).\n", rc));
+        printf("vboxNetAdpOsCreate: failed to create semaphore (rc=%d).\n", rc);
         return rc;
     }
 
@@ -400,7 +379,7 @@ static int VBoxNetAdpDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFla
         }
 
         default:
-            OSDBGPRINT(("VBoxNetAdpDarwinIOCtl: unknown command %lx.\n", IOCBASECMD(iCmd)));
+            printf("VBoxNetAdpDarwinIOCtl: unknown command %lx.\n", IOCBASECMD(iCmd));
             return EINVAL;
     }
 

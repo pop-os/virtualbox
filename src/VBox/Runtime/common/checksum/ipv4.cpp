@@ -1,10 +1,10 @@
-/* $Id: ipv4.cpp $ */
+/* $Id: ipv4.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - IPv4 Checksum calculation and validation.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -98,8 +94,9 @@ RT_EXPORT_SYMBOL(RTNetIPv4HdrChecksum);
  *                      to if you like. Note that an IPv4 header can be up to 60 bytes.
  * @param   cbPktMax    The max IP packet size, IP header and payload. This doesn't have
  *                      to be mapped following pIpHdr.
+ * @param   fChecksum   Whether to validate the checksum (GSO).
  */
-RTDECL(bool) RTNetIPv4IsHdrValid(PCRTNETIPV4 pIpHdr, size_t cbHdrMax, size_t cbPktMax)
+RTDECL(bool) RTNetIPv4IsHdrValid(PCRTNETIPV4 pIpHdr, size_t cbHdrMax, size_t cbPktMax, bool fChecksum)
 {
     /*
      * The header fields.
@@ -120,11 +117,14 @@ RTDECL(bool) RTNetIPv4IsHdrValid(PCRTNETIPV4 pIpHdr, size_t cbHdrMax, size_t cbP
         return false;
 
     /*
-     * The header checksum.
+     * The header checksum if requested.
      */
-    uint16_t u16Sum = RTNetIPv4HdrChecksum(pIpHdr);
-    if (RT_UNLIKELY(pIpHdr->ip_sum != u16Sum))
-        return false;
+    if (fChecksum)
+    {
+        uint16_t u16Sum = RTNetIPv4HdrChecksum(pIpHdr);
+        if (RT_UNLIKELY(pIpHdr->ip_sum != u16Sum))
+            return false;
+    }
     return true;
 }
 RT_EXPORT_SYMBOL(RTNetIPv4IsHdrValid);
@@ -227,9 +227,9 @@ RT_EXPORT_SYMBOL(RTNetIPv4AddUDPChecksum);
  * Adds the checksum of the TCP header to the intermediate checksum value [inlined].
  *
  * @returns 32-bit intermediary checksum value.
- * @param   pUdpHdr         Pointer to the TCP header to checksum, network endian (big).
- *                          Assums the caller has already validate it and made sure the
- *                          entire header is present.
+ * @param   pTcpHdr         Pointer to the TCP header to checksum, network
+ *                          endian (big). Assums the caller has already validate
+ *                          it and made sure the entire header is present.
  * @param   u32Sum          The 32-bit intermediate checksum value.
  */
 DECLINLINE(uint32_t) rtNetIPv4AddTCPChecksum(PCRTNETTCP pTcpHdr, uint32_t u32Sum)
@@ -273,9 +273,9 @@ DECLINLINE(uint32_t) rtNetIPv4AddTCPChecksum(PCRTNETTCP pTcpHdr, uint32_t u32Sum
  * Adds the checksum of the TCP header to the intermediate checksum value.
  *
  * @returns 32-bit intermediary checksum value.
- * @param   pUdpHdr         Pointer to the TCP header to checksum, network endian (big).
- *                          Assums the caller has already validate it and made sure the
- *                          entire header is present.
+ * @param   pTcpHdr         Pointer to the TCP header to checksum, network
+ *                          endian (big). Assums the caller has already validate
+ *                          it and made sure the entire header is present.
  * @param   u32Sum          The 32-bit intermediate checksum value.
  */
 RTDECL(uint32_t) RTNetIPv4AddTCPChecksum(PCRTNETTCP pTcpHdr, uint32_t u32Sum)
@@ -289,7 +289,8 @@ RT_EXPORT_SYMBOL(RTNetIPv4AddTCPChecksum);
  * Adds the checksum of the specified data segment to the intermediate checksum value [inlined].
  *
  * @returns 32-bit intermediary checksum value.
- * @param   pUdpHdr         Pointer to the UDP header to checksum, network endian (big).
+ * @param   pvData          Pointer to the data that should be checksummed.
+ * @param   cbData          The number of bytes to checksum.
  * @param   u32Sum          The 32-bit intermediate checksum value.
  * @param   pfOdd           This is used to keep track of odd bits, initialize to false
  *                          when starting to checksum the data (aka text) after a TCP
@@ -341,7 +342,8 @@ DECLINLINE(uint32_t) rtNetIPv4AddDataChecksum(void const *pvData, size_t cbData,
  * Adds the checksum of the specified data segment to the intermediate checksum value.
  *
  * @returns 32-bit intermediary checksum value.
- * @param   pUdpHdr         Pointer to the UDP header to checksum, network endian (big).
+ * @param   pvData          The data bits to checksum.
+ * @param   cbData          The number of bytes to checksum.
  * @param   u32Sum          The 32-bit intermediate checksum value.
  * @param   pfOdd           This is used to keep track of odd bits, initialize to false
  *                          when starting to checksum the data (aka text) after a TCP
@@ -380,6 +382,27 @@ RTDECL(uint16_t) RTNetIPv4FinalizeChecksum(uint32_t u32Sum)
     return rtNetIPv4FinalizeChecksum(u32Sum);
 }
 RT_EXPORT_SYMBOL(RTNetIPv4FinalizeChecksum);
+
+
+/**
+ * Calculates the checksum for the UDP header given the UDP header w/ payload
+ * and the checksum of the pseudo header.
+ *
+ * @returns The checksum (network endian).
+ * @param   u32Sum          The checksum of the pseudo header. See
+ *                          RTNetIPv4PseudoChecksum and RTNetIPv6PseudoChecksum.
+ * @param   pUdpHdr         Pointer to the UDP header and the payload, in
+ *                          network endian (big).  We use the uh_ulen field to
+ *                          figure out how much to checksum.
+ */
+RTDECL(uint16_t) RTNetUDPChecksum(uint32_t u32Sum, PCRTNETUDP pUdpHdr)
+{
+    u32Sum = rtNetIPv4AddUDPChecksum(pUdpHdr, u32Sum);
+    bool fOdd = false;
+    u32Sum = rtNetIPv4AddDataChecksum(pUdpHdr + 1, RT_BE2H_U16(pUdpHdr->uh_ulen) - sizeof(*pUdpHdr), u32Sum, &fOdd);
+    return rtNetIPv4FinalizeChecksum(u32Sum);
+}
+RT_EXPORT_SYMBOL(RTNetUDPChecksum);
 
 
 /**
@@ -455,12 +478,13 @@ RT_EXPORT_SYMBOL(RTNetIPv4IsUDPSizeValid);
  * @param   pvData          Pointer to the data, assuming it's one single segment
  *                          and that cbPktMax - sizeof(RTNETUDP) is mapped here.
  * @param   cbPktMax        The max UDP packet size, UDP header and payload (data).
+ * @param   fChecksum       Whether to validate the checksum (GSO).
  */
-RTDECL(bool) RTNetIPv4IsUDPValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData, size_t cbPktMax)
+RTDECL(bool) RTNetIPv4IsUDPValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData, size_t cbPktMax, bool fChecksum)
 {
     if (RT_UNLIKELY(!rtNetIPv4IsUDPSizeValid(pIpHdr, pUdpHdr, cbPktMax)))
         return false;
-    if (pUdpHdr->uh_sum)
+    if (fChecksum && pUdpHdr->uh_sum)
     {
         uint16_t u16Sum = RTNetIPv4UDPChecksum(pIpHdr, pUdpHdr, pvData);
         if (RT_UNLIKELY(pUdpHdr->uh_sum != u16Sum))
@@ -478,11 +502,10 @@ RT_EXPORT_SYMBOL(RTNetIPv4IsUDPValid);
  * @returns The checksum (network endian).
  * @param   pIpHdr          Pointer to the IPv4 header, in network endian (big).
  * @param   pTcpHdr         Pointer to the TCP header, in network endian (big).
- * @param   pvData          Pointer to the TCP payload. The size is taken from the
- *                          TCP header and the caller is supposed to have validated
- *                          this before calling.
- *                          If NULL then we assume the data follows immediately after
- *                          the TCP header.
+ * @param   pvData          Pointer to the TCP payload. The size is derived from
+ *                          the two headers and the caller is supposed to have
+ *                          validated this before calling.  If NULL, we assume
+ *                          the data follows immediately after the TCP header.
  */
 RTDECL(uint16_t) RTNetIPv4TCPChecksum(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, void const *pvData)
 {
@@ -495,6 +518,29 @@ RTDECL(uint16_t) RTNetIPv4TCPChecksum(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, vo
     return rtNetIPv4FinalizeChecksum(u32Sum);
 }
 RT_EXPORT_SYMBOL(RTNetIPv4TCPChecksum);
+
+
+/**
+ * Calculates the checksum for the TCP header given the TCP header, payload and
+ * the checksum of the pseudo header.
+ *
+ * This is not specific to IPv4.
+ *
+ * @returns The checksum (network endian).
+ * @param   u32Sum          The checksum of the pseudo header. See
+ *                          RTNetIPv4PseudoChecksum and RTNetIPv6PseudoChecksum.
+ * @param   pTcpHdr         Pointer to the TCP header, in network endian (big).
+ * @param   pvData          Pointer to the TCP payload.
+ * @param   cbData          The size of the TCP payload.
+ */
+RTDECL(uint16_t) RTNetTCPChecksum(uint32_t u32Sum, PCRTNETTCP pTcpHdr, void const *pvData, size_t cbData)
+{
+    u32Sum = rtNetIPv4AddTCPChecksum(pTcpHdr, u32Sum);
+    bool fOdd = false;
+    u32Sum = rtNetIPv4AddDataChecksum(pvData, cbData, u32Sum, &fOdd);
+    return rtNetIPv4FinalizeChecksum(u32Sum);
+}
+RT_EXPORT_SYMBOL(RTNetTCPChecksum);
 
 
 /**
@@ -556,14 +602,19 @@ RT_EXPORT_SYMBOL(RTNetIPv4IsTCPSizeValid);
  *                          If NULL then we assume the data follows immediately after
  *                          the TCP header.
  * @param   cbPktMax        The max TCP packet size, TCP header and payload (data).
+ * @param   fChecksum       Whether to validate the checksum (GSO).
  */
-RTDECL(bool) RTNetIPv4IsTCPValid(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, size_t cbHdrMax, void const *pvData, size_t cbPktMax)
+RTDECL(bool) RTNetIPv4IsTCPValid(PCRTNETIPV4 pIpHdr, PCRTNETTCP pTcpHdr, size_t cbHdrMax, void const *pvData, size_t cbPktMax,
+                                 bool fChecksum)
 {
     if (RT_UNLIKELY(!rtNetIPv4IsTCPSizeValid(pIpHdr, pTcpHdr, cbHdrMax, cbPktMax)))
         return false;
-    uint16_t u16Sum = RTNetIPv4TCPChecksum(pIpHdr, pTcpHdr, pvData);
-    if (RT_UNLIKELY(pTcpHdr->th_sum != u16Sum))
-        return false;
+    if (fChecksum)
+    {
+        uint16_t u16Sum = RTNetIPv4TCPChecksum(pIpHdr, pTcpHdr, pvData);
+        if (RT_UNLIKELY(pTcpHdr->th_sum != u16Sum))
+            return false;
+    }
     return true;
 }
 RT_EXPORT_SYMBOL(RTNetIPv4IsTCPValid);

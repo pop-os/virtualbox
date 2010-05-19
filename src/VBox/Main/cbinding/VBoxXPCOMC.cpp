@@ -1,10 +1,10 @@
-/* $Id: VBoxXPCOMC.cpp $ */
+/* $Id: VBoxXPCOMC.cpp 29167 2010-05-06 15:58:14Z vboxsync $ */
 /** @file VBoxXPCOMC.cpp
  * Utility functions to use with the C binding for XPCOM.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -28,7 +24,7 @@
 #include <iprt/env.h>
 #include <VBox/log.h>
 
-#include "VBoxCAPI_v3_1.h"
+#include "VBoxCAPI_v3_2.h"
 #include "VBox/com/com.h"
 #include "VBox/version.h"
 

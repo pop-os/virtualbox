@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: SerialPortImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_SERIALPORTIMPL
@@ -26,7 +22,6 @@
 
 #include "VirtualBoxBase.h"
 
-class Machine;
 class GuestOSType;
 
 namespace settings
@@ -41,39 +36,6 @@ class ATL_NO_VTABLE SerialPort :
     VBOX_SCRIPTABLE_IMPL(ISerialPort)
 {
 public:
-
-    struct Data
-    {
-        Data()
-            : mSlot (0)
-            , mEnabled (FALSE)
-            , mIRQ (4)
-            , mIOBase (0x3f8)
-            , mHostMode (PortMode_Disconnected)
-            , mServer (FALSE)
-        {}
-
-        bool operator== (const Data &that) const
-        {
-            return this == &that ||
-                   (mSlot     == that.mSlot     &&
-                    mEnabled  == that.mEnabled  &&
-                    mIRQ      == that.mIRQ      &&
-                    mIOBase   == that.mIOBase   &&
-                    mHostMode == that.mHostMode &&
-                    mPath     == that.mPath     &&
-                    mServer   == that.mServer);
-        }
-
-        ULONG mSlot;
-        BOOL  mEnabled;
-        ULONG mIRQ;
-        ULONG mIOBase;
-        PortMode_T mHostMode;
-        Bstr  mPath;
-        BOOL  mServer;
-    };
-
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (SerialPort)
 
     DECLARE_NOT_AGGREGATABLE(SerialPort)
@@ -117,11 +79,11 @@ public:
     HRESULT loadSettings(const settings::SerialPort &data);
     HRESULT saveSettings(settings::SerialPort &data);
 
-    bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
-    bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
-    bool rollback();
+    bool isModified();
+    void rollback();
     void commit();
-    void copyFrom (SerialPort *aThat);
+    void copyFrom(SerialPort *aThat);
+
     void applyDefaults (GuestOSType *aOsType);
 
     // public methods for internal purposes only
@@ -131,13 +93,10 @@ public:
     static const wchar_t *getComponentName() { return L"SerialPort"; }
 
 private:
+    HRESULT checkSetPath(const Utf8Str &str);
 
-    HRESULT checkSetPath (CBSTR aPath);
-
-    const ComObjPtr<Machine, ComWeakRef> mParent;
-    const ComObjPtr<SerialPort> mPeer;
-
-    Backupable<Data> mData;
+    struct Data;
+    Data *m;
 };
 
 #endif // ____H_FLOPPYDRIVEIMPL

@@ -1,4 +1,4 @@
-/* $Id: PATM.cpp $ */
+/* $Id: PATM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PATM - Dynamic Guest OS Patching Manager
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -31,10 +27,8 @@
 #include <VBox/cpum.h>
 #include <VBox/cpumdis.h>
 #include <VBox/iom.h>
-#include <VBox/sup.h>
 #include <VBox/mm.h>
 #include <VBox/ssm.h>
-#include <VBox/pdm.h>
 #include <VBox/trpm.h>
 #include <VBox/cfgm.h>
 #include <VBox/param.h>
@@ -185,12 +179,12 @@ VMMR3DECL(int) PATMR3Init(PVM pVM)
     /*
      * Debugger commands.
      */
-    static bool fRegisteredCmds = false;
-    if (!fRegisteredCmds)
+    static bool s_fRegisteredCmds = false;
+    if (!s_fRegisteredCmds)
     {
-        int rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
-        if (RT_SUCCESS(rc))
-            fRegisteredCmds = true;
+        int rc2 = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
+        if (RT_SUCCESS(rc2))
+            s_fRegisteredCmds = true;
     }
 #endif
 
@@ -343,7 +337,7 @@ static int patmReinit(PVM pVM)
     AssertReleaseMsg(pVM->patm.s.pStatsGC, ("Impossible! MMHyperHC2GC(%p) failed!\n", pVM->patm.s.pStatsGC));
 
     Assert(pVM->patm.s.pPatchMemHC);
-    Assert(pVM->patm.s.pPatchMemGC = MMHyperR3ToRC(pVM, pVM->patm.s.pPatchMemHC));
+    Assert(pVM->patm.s.pPatchMemGC == MMHyperR3ToRC(pVM, pVM->patm.s.pPatchMemHC));
     memset(pVM->patm.s.pPatchMemHC, 0, PATCH_MEMORY_SIZE);
     AssertReleaseMsg(pVM->patm.s.pPatchMemGC, ("Impossible! MMHyperHC2GC(%p) failed!\n", pVM->patm.s.pPatchMemHC));
 
@@ -805,7 +799,7 @@ static DECLCALLBACK(int) RelocatePatches(PAVLOU32NODECORE pNode, void *pParam)
 }
 
 /**
- * #PF Handler callback for virtual access handler ranges.
+ * \#PF Handler callback for virtual access handler ranges.
  *
  * Important to realize that a physical page in a range can have aliases, and
  * for ALL and WRITE handlers these will also trigger.
@@ -1702,7 +1696,7 @@ static int patmRecompileCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
     {
         RTRCPTR pNextInstrGC = 0;   /* by default no inhibit irq */
 
-        /** In a sequence of instructions that inhibit irqs, only the first one actually inhibits irqs. */
+        /* In a sequence of instructions that inhibit irqs, only the first one actually inhibits irqs. */
         if (!(pPatch->flags & PATMFL_INHIBIT_IRQS))
         {
             pPatch->flags   |= PATMFL_INHIBIT_IRQS | PATMFL_GENERATE_JUMPTOGUEST;
@@ -1717,7 +1711,7 @@ static int patmRecompileCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *
             DISCPUSTATE cpu = *pCpu;
             unsigned    opsize;
             int         disret;
-            RCPTRTYPE(uint8_t *) pNextInstrGC, pReturnInstrGC;
+            RCPTRTYPE(uint8_t *) pReturnInstrGC;
             R3PTRTYPE(uint8_t *) pNextInstrHC;
 
             pPatch->flags |= PATMFL_FOUND_PATCHEND;
@@ -2573,11 +2567,7 @@ static int patmRemoveJumpToPatch(PVM pVM, PPATCHINFO pPatch)
 #ifdef DEBUG
     if (rc == VINF_SUCCESS)
     {
-        DISCPUSTATE cpu;
-        char szOutput[256];
-        uint32_t opsize, i = 0;
-        bool disret;
-
+        i = 0;
         while(i < pPatch->cbPrivInstr)
         {
             cpu.mode = (pPatch->flags & PATMFL_CODE32) ? CPUMODE_32BIT : CPUMODE_16BIT;
@@ -3266,22 +3256,22 @@ static int patmCreateTrampoline(PVM pVM, RTRCPTR pInstrGC, PPATMPATCHREC pPatchR
         {
             if (pPatchPage->aPatch[i])
             {
-                PPATCHINFO pPatch = pPatchPage->aPatch[i];
+                PPATCHINFO pPatch2 = pPatchPage->aPatch[i];
 
-                if (    (pPatch->flags & PATMFL_DUPLICATE_FUNCTION)
-                    &&  pPatch->uState == PATCH_ENABLED)
+                if (    (pPatch2->flags & PATMFL_DUPLICATE_FUNCTION)
+                    &&  pPatch2->uState == PATCH_ENABLED)
                 {
-                    pPatchTargetGC = patmGuestGCPtrToPatchGCPtr(pVM, pPatch, pInstrGC);
+                    pPatchTargetGC = patmGuestGCPtrToPatchGCPtr(pVM, pPatch2, pInstrGC);
                     if (pPatchTargetGC)
                     {
                         uint32_t         offsetPatch      = pPatchTargetGC - pVM->patm.s.pPatchMemGC;
-                        PRECPATCHTOGUEST pPatchToGuestRec = (PRECPATCHTOGUEST)RTAvlU32GetBestFit(&pPatch->Patch2GuestAddrTree, offsetPatch, false);
+                        PRECPATCHTOGUEST pPatchToGuestRec = (PRECPATCHTOGUEST)RTAvlU32GetBestFit(&pPatch2->Patch2GuestAddrTree, offsetPatch, false);
                         Assert(pPatchToGuestRec);
 
                         pPatchToGuestRec->fJumpTarget = true;
-                        Assert(pPatchTargetGC != pPatch->pPrivInstrGC);
-                        Log(("patmCreateTrampoline: generating jump to code inside patch at %RRv\n", pPatch->pPrivInstrGC));
-                        pPatch->flags |= PATMFL_EXTERNAL_JUMP_INSIDE;
+                        Assert(pPatchTargetGC != pPatch2->pPrivInstrGC);
+                        Log(("patmCreateTrampoline: generating jump to code inside patch at %RRv\n", pPatch2->pPrivInstrGC));
+                        pPatch2->flags |= PATMFL_EXTERNAL_JUMP_INSIDE;
                         break;
                     }
                 }
@@ -5107,13 +5097,14 @@ VMMR3DECL(int) PATMR3DisablePatch(PVM pVM, RTRCPTR pInstrGC)
 static int patmDisableUnusablePatch(PVM pVM, RTRCPTR pInstrGC, RTRCPTR pConflictAddr, PPATCHINFO pConflictPatch)
 {
 #ifdef PATM_RESOLVE_CONFLICTS_WITH_JUMP_PATCHES
-    PATCHINFO            patch = {0};
+    PATCHINFO            patch;
     DISCPUSTATE          cpu;
     R3PTRTYPE(uint8_t *) pInstrHC;
     uint32_t             opsize;
     bool                 disret;
     int                  rc;
 
+    RT_ZERO(patch);
     pInstrHC = PATMGCVirtToHCVirt(pVM, &patch, pInstrGC);
     cpu.mode = (pConflictPatch->flags & PATMFL_CODE32) ? CPUMODE_32BIT : CPUMODE_16BIT;
     disret = PATMR3DISInstr(pVM, &patch, &cpu, pInstrGC, pInstrHC, &opsize, NULL);
@@ -5234,8 +5225,8 @@ VMMR3DECL(int) PATMR3EnablePatch(PVM pVM, RTRCPTR pInstrGC)
                     Assert(pPatch->cbPatchJump < sizeof(temp));
 
                     // let's first check if the guest code is still the same
-                    int rc = PGMPhysSimpleReadGCPtr(VMMGetCpu0(pVM), temp, pPatch->pPrivInstrGC, pPatch->cbPatchJump);
-                    AssertRC(rc);
+                    int rc2 = PGMPhysSimpleReadGCPtr(VMMGetCpu0(pVM), temp, pPatch->pPrivInstrGC, pPatch->cbPatchJump);
+                    AssertRC(rc2);
 
                     if (memcmp(temp, pPatch->aPrivInstr, pPatch->cbPatchJump))
                     {
@@ -5247,10 +5238,10 @@ VMMR3DECL(int) PATMR3EnablePatch(PVM pVM, RTRCPTR pInstrGC)
                         return VERR_PATCH_NOT_FOUND;
                     }
 
-                    rc = patmGenJumpToPatch(pVM, pPatch, false);
-                    AssertRC(rc);
-                    if (RT_FAILURE(rc))
-                        return rc;
+                    rc2 = patmGenJumpToPatch(pVM, pPatch, false);
+                    AssertRC(rc2);
+                    if (RT_FAILURE(rc2))
+                        return rc2;
 
 #ifdef DEBUG
                     bool disret;
@@ -5273,8 +5264,8 @@ VMMR3DECL(int) PATMR3EnablePatch(PVM pVM, RTRCPTR pInstrGC)
                 Assert(pPatch->cbPatchJump < sizeof(temp));
 
                 /* Let's first check if the guest code is still the same. */
-                int rc = PGMPhysSimpleReadGCPtr(VMMGetCpu0(pVM), temp, pPatch->pPrivInstrGC, pPatch->cbPatchJump);
-                AssertRC(rc);
+                int rc2 = PGMPhysSimpleReadGCPtr(VMMGetCpu0(pVM), temp, pPatch->pPrivInstrGC, pPatch->cbPatchJump);
+                AssertRC(rc2);
 
                 if (memcmp(temp, pPatch->aPrivInstr, pPatch->cbPatchJump))
                 {
@@ -5285,9 +5276,9 @@ VMMR3DECL(int) PATMR3EnablePatch(PVM pVM, RTRCPTR pInstrGC)
                     return VERR_PATCH_NOT_FOUND;
                 }
 
-                rc = patmActivateInt3Patch(pVM, pPatch);
-                if (RT_FAILURE(rc))
-                    return rc;
+                rc2 = patmActivateInt3Patch(pVM, pPatch);
+                if (RT_FAILURE(rc2))
+                    return rc2;
             }
 
             pPatch->uState = pPatch->uOldState; //restore state
@@ -5630,7 +5621,7 @@ VMMR3DECL(int) PATMR3MarkDirtyPatch(PVM pVM, PPATCHINFO pPatch)
     /* The patch pages are no longer marked for self-modifying code detection */
     if (pPatch->flags & PATMFL_CODE_MONITORED)
     {
-        int rc = patmRemovePatchPages(pVM, pPatch);
+        rc = patmRemovePatchPages(pVM, pPatch);
         AssertRCReturn(rc, rc);
     }
     pPatch->uState = PATCH_DIRTY;
@@ -5987,7 +5978,7 @@ static int patmR3HandleDirtyInstr(PVM pVM, PCPUMCTX pCtx, PPATMPATCHREC pPatch, 
 #ifdef DEBUG
                                 char szBuf[256];
                                 szBuf[0] = '\0';
-                                DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCurPatchInstrGC, 0, szBuf, sizeof(szBuf), NULL);
+                                DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCurPatchInstrGC + i, 0, szBuf, sizeof(szBuf), NULL);
                                 Log(("FILL:  %s\n", szBuf));
 #endif
                             }
@@ -6239,11 +6230,11 @@ VMMR3DECL(int) PATMR3HandleTrap(PVM pVM, PCPUMCTX pCtx, RTRCPTR pEip, RTGCPTR *p
         if (disret && cpu.pCurInstr->opcode == OP_RETN)
         {
             RTRCPTR retaddr;
-            PCPUMCTX pCtx;
+            PCPUMCTX pCtx2;
 
-            pCtx = CPUMQueryGuestCtxPtr(pVCpu);
+            pCtx2 = CPUMQueryGuestCtxPtr(pVCpu);
 
-            rc = PGMPhysSimpleReadGCPtr(pVCpu,  &retaddr, pCtx->esp, sizeof(retaddr));
+            rc = PGMPhysSimpleReadGCPtr(pVCpu,  &retaddr, pCtx2->esp, sizeof(retaddr));
             AssertRC(rc);
 
             Log(("Return failed at %RRv (%RRv)\n", pEip, pNewEip));

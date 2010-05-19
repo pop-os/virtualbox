@@ -1,4 +1,23 @@
+/* $Id: ip_output.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - IP output.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1990, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -127,7 +146,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
      */
     ip->ip_v = IPVERSION;
     ip->ip_off &= IP_DF;
-    ip->ip_id = htons(ip_currid++);
+    ip->ip_id = RT_H2N_U16(ip_currid++);
     ip->ip_hl = hlen >> 2;
     ipstat.ips_localout++;
 
@@ -174,21 +193,21 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
      */
     if ((u_int16_t)ip->ip_len <= if_mtu)
     {
-        ip->ip_len = htons((u_int16_t)ip->ip_len);
-        ip->ip_off = htons((u_int16_t)ip->ip_off);
+        ip->ip_len = RT_H2N_U16((u_int16_t)ip->ip_len);
+        ip->ip_off = RT_H2N_U16((u_int16_t)ip->ip_off);
         ip->ip_sum = 0;
         ip->ip_sum = cksum(m, hlen);
 
         {
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
-            STAM_PROFILE_START(&pData->StatALIAS_output, a);
+            STAM_PROFILE_START(&pData->StatALIAS_output, b);
             rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias),
                 mtod(m, char *), m->m_len);
             Log2(("NAT: LibAlias return %d\n", rc));
 #else
             struct m_tag *t;
-            STAM_PROFILE_START(&pData->StatALIAS_output, a);
-            if (t = m_tag_find(m, PACKET_TAG_ALIAS, NULL) != 0)
+            STAM_PROFILE_START(&pData->StatALIAS_output, b);
+            if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
                 rc = LibAliasOut((struct libalias *)&t[1], mtod(m, char *),
                                  m_length(m, NULL));
             else
@@ -201,16 +220,12 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
                 goto exit_drop_package;
             }
 #endif
-            STAM_PROFILE_STOP(&pData->StatALIAS_output, a);
+            STAM_PROFILE_STOP(&pData->StatALIAS_output, b);
         }
 
         memcpy(eh->h_source, eth_dst, ETH_ALEN);
 
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-        if_output(pData, so, m);
-#else
         if_encap(pData, ETH_P_IP, m, urg? ETH_ENCAP_URG : 0);
-#endif
         goto done;
      }
 
@@ -236,7 +251,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
         int mhlen, firstlen = len;
         struct mbuf **mnext = &m->m_nextpkt;
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
-        uint8_t *buf; /* intermediate buffer we'll use for copy from orriginal packet*/
+        char *buf; /* intermediate buffer we'll use for copy from orriginal packet */
 #endif
         {
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
@@ -244,14 +259,14 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
             char *tmpbuf = NULL;
             int tmplen = 0;
 #endif
-            int rc;
+            int rcLa;
             HTONS(ip->ip_len);
             HTONS(ip->ip_off);
             ip->ip_sum = 0;
             ip->ip_sum = cksum(m, hlen);
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
-            rc = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias),
-                              mtod(m, char *), m->m_len);
+            rcLa = LibAliasOut((m->m_la ? m->m_la : pData->proxy_alias),
+                                mtod(m, char *), m->m_len);
 #else
             if (m->m_next != NULL)
             {
@@ -268,22 +283,22 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
 
             }
 
-            if (t = m_tag_find(m, PACKET_TAG_ALIAS, NULL) != 0)
-                rc = LibAliasOut((struct libalias *)&t[1], tmpbuf, tmplen);
+            if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
+                rcLa = LibAliasOut((struct libalias *)&t[1], tmpbuf, tmplen);
             else
-                rc = LibAliasOut(pData->proxy_alias, tmpbuf, tmplen);
+                rcLa = LibAliasOut(pData->proxy_alias, tmpbuf, tmplen);
 
             if (m->m_next != NULL)
             {
-                if (rc != PKT_ALIAS_IGNORED)
+                if (rcLa != PKT_ALIAS_IGNORED)
                 {
                     struct ip *tmpip = (struct ip *)tmpbuf;
-                    m_copyback(pData, m, 0, ntohs(tmpip->ip_len) + (tmpip->ip_hl << 2), tmpbuf);
+                    m_copyback(pData, m, 0, RT_N2H_U16(tmpip->ip_len) + (tmpip->ip_hl << 2), tmpbuf);
                 }
                 if (tmpbuf != NULL)
                     RTMemFree(tmpbuf);
             }
-            if (rc == PKT_ALIAS_IGNORED)
+            if (rcLa == PKT_ALIAS_IGNORED)
             {
                 Log(("NAT: packet was droppped\n"));
                 goto exit_drop_package;
@@ -291,7 +306,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
 #endif
             NTOHS(ip->ip_len);
             NTOHS(ip->ip_off);
-            Log2(("NAT: LibAlias return %d\n", rc));
+            Log2(("NAT: LibAlias return %d\n", rcLa));
         }
 
         /*
@@ -336,7 +351,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
                 len = (u_int16_t)ip->ip_len - off;
             else
                 mhip->ip_off |= IP_MF;
-            mhip->ip_len = htons((u_int16_t)(len + mhlen));
+            mhip->ip_len = RT_H2N_U16((u_int16_t)(len + mhlen));
 
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
             if (m_copy(m, m0, off, len) < 0)
@@ -352,10 +367,10 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
             m->m_data -= mhlen;
             m->m_len += mhlen;
             RTMemFree(buf);
-            m->m_len += ntohs(mhip->ip_len);
+            m->m_len += RT_N2H_U16(mhip->ip_len);
 #endif
 
-            mhip->ip_off = htons((u_int16_t)mhip->ip_off);
+            mhip->ip_off = RT_H2N_U16((u_int16_t)mhip->ip_off);
             mhip->ip_sum = 0;
             mhip->ip_sum = cksum(m, mhlen);
             *mnext = m;
@@ -368,8 +383,8 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
          */
         m = m0;
         m_adj(m, hlen + firstlen - (u_int16_t)ip->ip_len);
-        ip->ip_len = htons((u_int16_t)m->m_len);
-        ip->ip_off = htons((u_int16_t)(ip->ip_off | IP_MF));
+        ip->ip_len = RT_H2N_U16((u_int16_t)m->m_len);
+        ip->ip_off = RT_H2N_U16((u_int16_t)(ip->ip_off | IP_MF));
         ip->ip_sum = 0;
         ip->ip_sum = cksum(m, hlen);
 
@@ -389,11 +404,7 @@ sendorfree:
 #endif
                 memcpy(eh->h_source, eth_dst, ETH_ALEN);
 
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-                if_output(pData, so, m);
-#else
                 if_encap(pData, ETH_P_IP, m, 0);
-#endif
             }
             else
             {

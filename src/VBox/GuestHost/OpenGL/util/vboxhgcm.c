@@ -1,11 +1,11 @@
-/* $Id: vboxhgcm.c $ */
+/* $Id: vboxhgcm.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * VBox HGCM connection
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef RT_OS_WINDOWS
@@ -171,7 +167,7 @@ static int crVBoxHGCMCall(void *pvData, unsigned cbData)
     return VERR_NOT_SUPPORTED;
 # else
     int rc;
-#  ifdef RT_OS_SOLARIS
+#  if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     VBGLBIGREQ Hdr;
     Hdr.u32Magic = VBGLBIGREQ_MAGIC;
     Hdr.cbData = cbData;
@@ -766,7 +762,7 @@ static int crVBoxHGCMDoConnect( CRConnection *conn )
                         &info, sizeof (info),
                         &cbReturned,
                         NULL))
-#elif defined(RT_OS_SOLARIS)
+#elif defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     VBGLBIGREQ Hdr;
     Hdr.u32Magic = VBGLBIGREQ_MAGIC;
     Hdr.cbData = sizeof(info);
@@ -866,7 +862,7 @@ static void crVBoxHGCMDoDisconnect( CRConnection *conn )
         {
             crDebug("Disconnect failed with %x\n", GetLastError());
         }
-# elif defined(RT_OS_SOLARIS)
+# elif defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
         VBGLBIGREQ Hdr;
         Hdr.u32Magic = VBGLBIGREQ_MAGIC;
         Hdr.cbData = sizeof(info);

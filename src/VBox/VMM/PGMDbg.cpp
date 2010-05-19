@@ -1,10 +1,10 @@
-/* $Id: PGMDbg.cpp $ */
+/* $Id: PGMDbg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor - Debugger & Debugging APIs.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -27,6 +23,7 @@
 #include <VBox/stam.h>
 #include "PGMInternal.h"
 #include <VBox/vm.h>
+#include "PGMInline.h"
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
@@ -34,6 +31,10 @@
 #include <VBox/param.h>
 #include <VBox/err.h>
 
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 /** The max needle size that we will bother searching for
  * This must not be more than half a page! */
 #define MAX_NEEDLE_SIZE     256
@@ -601,6 +602,7 @@ VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, 
                 PPGMPAGE pPage = &pRam->aPages[iPage];
                 if (    (   !PGM_PAGE_IS_ZERO(pPage)
                          || fAllZero)
+                    &&  !PGM_PAGE_IS_BALLOONED(pPage)
                     &&  !PGM_PAGE_IS_MMIO(pPage))
                 {
                     void const     *pvPage;
@@ -741,6 +743,7 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
             if (    pPage
                 &&  (   !PGM_PAGE_IS_ZERO(pPage)
                      || fAllZero)
+                &&  !PGM_PAGE_IS_BALLOONED(pPage)
                 &&  !PGM_PAGE_IS_MMIO(pPage))
             {
                 void const *pvPage;

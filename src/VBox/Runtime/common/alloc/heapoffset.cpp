@@ -1,10 +1,10 @@
-/* $Id: heapoffset.cpp $ */
+/* $Id: heapoffset.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - An Offset Based Heap.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -374,6 +370,7 @@ RTDECL(int) RTHeapOffsetInit(PRTHEAPOFFSET phHeap, void *pvMemory, size_t cbMemo
      * Validate input. The imposed minimum heap size is just a convenient value.
      */
     AssertReturn(cbMemory >= PAGE_SIZE, VERR_INVALID_PARAMETER);
+    AssertReturn(cbMemory < UINT32_MAX, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pvMemory, VERR_INVALID_POINTER);
     AssertReturn((uintptr_t)pvMemory + (cbMemory - 1) > (uintptr_t)cbMemory, VERR_INVALID_PARAMETER);
 
@@ -393,8 +390,8 @@ RTDECL(int) RTHeapOffsetInit(PRTHEAPOFFSET phHeap, void *pvMemory, size_t cbMemo
 
     /* Init the heap anchor block. */
     pHeapInt->u32Magic = RTHEAPOFFSET_MAGIC;
-    pHeapInt->cbHeap = cbMemory;
-    pHeapInt->cbFree = cbMemory
+    pHeapInt->cbHeap = (uint32_t)cbMemory;
+    pHeapInt->cbFree = (uint32_t)cbMemory
                      - sizeof(RTHEAPOFFSETBLOCK)
                      - sizeof(RTHEAPOFFSETINTERNAL);
     pHeapInt->offFreeTail = pHeapInt->offFreeHead = sizeof(*pHeapInt);
@@ -505,7 +502,7 @@ RT_EXPORT_SYMBOL(RTHeapOffsetAllocZ);
  * @returns NULL on failure.
  *
  * @param   pHeapInt    The heap.
- * @param   cb     	Size of the memory block to allocate.
+ * @param   cb          Size of the memory block to allocate.
  * @param   uAlignment  The alignment specifications for the allocated block.
  */
 static PRTHEAPOFFSETBLOCK rtHeapOffsetAllocBlock(PRTHEAPOFFSETINTERNAL pHeapInt, size_t cb, size_t uAlignment)

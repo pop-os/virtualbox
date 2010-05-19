@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_nocrt_limits_h
@@ -54,18 +50,18 @@
 #define INT_MAX         0x7fffffff
 #define INT_MIN         (-0x7fffffff - 1)
 
-#if defined(RT_ARCH_X86) || defined(RT_OS_WINDOWS)
+#if defined(RT_ARCH_X86) || defined(RT_OS_WINDOWS) || defined(RT_ARCH_SPARC)
 # define LONG_BIT       32
 # define ULONG_MAX      0xffffffffU
 # define LONG_MAX       0x7fffffff
 # define LONG_MIN       (-0x7fffffff - 1)
-#elif defined(RT_ARCH_AMD64)
+#elif defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC64)
 # define LONG_BIT       64
 # define ULONG_MAX      UINT64_C(0xffffffffffffffff)
 # define LONG_MAX       INT64_C(0x7fffffffffffffff)
 # define LONG_MIN       (INT64_C(-0x7fffffffffffffff) - 1)
 #else
-# error "huh?"
+# error "PORTME"
 #endif
 
 #define LLONG_BIT       64

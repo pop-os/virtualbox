@@ -1,10 +1,10 @@
-/* $Id: PGMAllShw.h $ */
+/* $Id: PGMAllShw.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Shadow Paging Template - All context code.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -151,7 +147,6 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
      * Get the PDE.
      */
 # if PGM_SHW_TYPE == PGM_TYPE_AMD64
-    bool            fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_NXE);
     X86PDEPAE Pde;
 
     /* PML4 */
@@ -184,7 +179,6 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     Pde.n.u1NoExecute &= Pml4e.n.u1NoExecute & Pdpe.lm.u1NoExecute;
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
-    bool            fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_NXE);
     X86PDEPAE       Pde = pgmShwGetPaePDE(&pVCpu->pgm.s, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
@@ -215,9 +209,9 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     PSHWPT          pPT;
     if (!(Pde.u & PGM_PDFLAGS_MAPPING))
     {
-        int rc = PGM_HCPHYS_2_PTR(pVM, Pde.u & SHW_PDE_PG_MASK, &pPT);
-        if (RT_FAILURE(rc))
-            return rc;
+        int rc2 = PGM_HCPHYS_2_PTR(pVM, Pde.u & SHW_PDE_PG_MASK, &pPT);
+        if (RT_FAILURE(rc2))
+            return rc2;
     }
     else /* mapping: */
     {
@@ -252,8 +246,8 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
                  & ((Pde.u & (X86_PTE_RW | X86_PTE_US)) | ~(uint64_t)(X86_PTE_RW | X86_PTE_US));
 # if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE)
         /* The NX bit is determined by a bitwise OR between the PT and PD */
-        if (fNoExecuteBitValid)
-            *pfFlags |= (Pte.u & Pde.u & X86_PTE_PAE_NX);
+        if ((Pte.u & Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu)) /** @todo the code is ANDing not ORing NX like the comment says... */
+            *pfFlags |= X86_PTE_PAE_NX;
 # endif
     }
 

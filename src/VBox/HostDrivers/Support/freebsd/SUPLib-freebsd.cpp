@@ -1,10 +1,10 @@
-/* $Id: SUPLib-freebsd.cpp $ */
+/* $Id: SUPLib-freebsd.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - FreeBSD specific parts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -185,10 +181,10 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 }
 
 
-int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
+int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
 {
     NOREF(pThis);
-    RTMemPageFree(pvPages);
+    RTMemPageFree(pvPages, cPages * PAGE_SIZE);
     return VINF_SUCCESS;
 }
 

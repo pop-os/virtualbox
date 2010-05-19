@@ -1,10 +1,10 @@
-/* $Id: kHlpPage-iprt.cpp $ */
+/* $Id: kHlpPage-iprt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * kHlpPage - Page Memory Allocation, IPRT based implementation.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -59,7 +55,7 @@ KHLP_DECL(int) kHlpPageAlloc(void **ppv, KSIZE cb, KPROT enmProt, KBOOL fFixed)
         if (RT_SUCCESS(rc))
             *ppv = pv;
         else
-            RTMemPageFree(pv);
+            RTMemPageFree(pv, cb);
     }
     return rc;
 }
@@ -77,7 +73,7 @@ KHLP_DECL(int) kHlpPageProtect(void *pv, KSIZE cb, KPROT enmProt)
 
 KHLP_DECL(int) kHlpPageFree(void *pv, KSIZE cb)
 {
-    RTMemPageFree(pv);
+    RTMemPageFree(pv, cb);
     return 0;
 }
 

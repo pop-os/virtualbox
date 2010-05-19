@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmdrv_h
@@ -36,6 +32,7 @@
 #include <VBox/pdmifs.h>
 #include <VBox/pdmins.h>
 #include <VBox/pdmcommon.h>
+#include <VBox/pdmasynccompletion.h>
 #include <VBox/tm.h>
 #include <VBox/ssm.h>
 #include <VBox/cfgm.h>
@@ -44,10 +41,6 @@
 #include <VBox/err.h>
 #include <iprt/stdarg.h>
 
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
-# include <VBox/pdmasynccompletion.h>
-#endif
-
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_pdm_driver    The PDM Drivers API
@@ -55,18 +48,27 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
+/** Pointer const PDM Driver API, ring-3. */
+typedef R3PTRTYPE(struct PDMDRVHLPR3 const *) PCPDMDRVHLPR3;
+/** Pointer const PDM Driver API, ring-0. */
+typedef R0PTRTYPE(struct PDMDRVHLPR0 const *) PCPDMDRVHLPR0;
+/** Pointer const PDM Driver API, raw-mode context. */
+typedef RCPTRTYPE(struct PDMDRVHLPRC const *) PCPDMDRVHLPRC;
+
+
 /**
  * Construct a driver instance for a VM.
  *
  * @returns VBox status.
- * @param   pDrvIns     The driver instance data.
- *                      If the registration structure is needed, pDrvIns->pDrvReg points to it.
- * @param   pCfgHandle  Configuration node handle for the driver. Use this to obtain the configuration
- *                      of the driver instance. It's also found in pDrvIns->pCfgHandle as it's expected
- *                      to be used frequently in this function.
+ * @param   pDrvIns     The driver instance data. If the registration structure
+ *                      is needed, it can be accessed thru pDrvIns->pReg.
+ * @param   pCfg        Configuration node handle for the driver.  This is
+ *                      expected to be in high demand in the constructor and is
+ *                      therefore passed as an argument.  When using it at other
+ *                      times, it can be accessed via pDrvIns->pCfg.
  * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  */
-typedef DECLCALLBACK(int)   FNPDMDRVCONSTRUCT(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
+typedef DECLCALLBACK(int)   FNPDMDRVCONSTRUCT(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
 /** Pointer to a FNPDMDRVCONSTRUCT() function. */
 typedef FNPDMDRVCONSTRUCT *PFNPDMDRVCONSTRUCT;
 
@@ -81,6 +83,26 @@ typedef FNPDMDRVCONSTRUCT *PFNPDMDRVCONSTRUCT;
 typedef DECLCALLBACK(void)   FNPDMDRVDESTRUCT(PPDMDRVINS pDrvIns);
 /** Pointer to a FNPDMDRVDESTRUCT() function. */
 typedef FNPDMDRVDESTRUCT *PFNPDMDRVDESTRUCT;
+
+/**
+ * Driver relocation callback.
+ *
+ * This is called when the instance data has been relocated in raw-mode context
+ * (RC).  It is also called when the RC hypervisor selects changes.  The driver
+ * must fixup all necessary pointers and re-query all interfaces to other RC
+ * devices and drivers.
+ *
+ * Before the RC code is executed the first time, this function will be called
+ * with a 0 delta so RC pointer calculations can be one in one place.
+ *
+ * @param   pDrvIns     Pointer to the driver instance.
+ * @param   offDelta    The relocation delta relative to the old location.
+ *
+ * @remark  A relocation CANNOT fail.
+ */
+typedef DECLCALLBACK(void) FNPDMDRVRELOCATE(PPDMDRVINS pDrvIns, RTGCINTPTR offDelta);
+/** Pointer to a FNPDMDRVRELOCATE() function. */
+typedef FNPDMDRVRELOCATE *PFNPDMDRVRELOCATE;
 
 /**
  * Driver I/O Control interface.
@@ -98,9 +120,9 @@ typedef FNPDMDRVDESTRUCT *PFNPDMDRVDESTRUCT;
  * @param   cbOut       Size of output data.
  * @param   pcbOut      Where to store the actual size of the output data.
  */
-typedef DECLCALLBACK(int) FNPDMDRVIOCTL(PPDMDRVINS pDrvIns, RTUINT uFunction,
-                                        void *pvIn, RTUINT cbIn,
-                                        void *pvOut, RTUINT cbOut, PRTUINT pcbOut);
+typedef DECLCALLBACK(int) FNPDMDRVIOCTL(PPDMDRVINS pDrvIns, uint32_t uFunction,
+                                        void *pvIn, uint32_t cbIn,
+                                        void *pvOut, uint32_t cbOut, uint32_t *pcbOut);
 /** Pointer to a FNPDMDRVIOCTL() function. */
 typedef FNPDMDRVIOCTL *PFNPDMDRVIOCTL;
 
@@ -191,34 +213,43 @@ typedef FNPDMDRVDETACH *PFNPDMDRVDETACH;
 
 
 
-/** PDM Driver Registration Structure,
- * This structure is used when registering a driver from
- * VBoxInitDrivers() (HC Ring-3). PDM will continue use till
- * the VM is terminated.
+/**
+ * PDM Driver Registration Structure.
+ *
+ * This structure is used when registering a driver from VBoxInitDrivers() (in
+ * host ring-3 context).  PDM will continue use till the VM is terminated.
  */
 typedef struct PDMDRVREG
 {
     /** Structure version. PDM_DRVREG_VERSION defines the current version. */
     uint32_t            u32Version;
     /** Driver name. */
-    char                szDriverName[32];
+    char                szName[32];
+    /** Name of the raw-mode context module (no path).
+     * Only evalutated if PDM_DRVREG_FLAGS_RC is set. */
+    char                szRCMod[32];
+    /** Name of the ring-0 module (no path).
+     * Only evalutated if PDM_DRVREG_FLAGS_R0 is set. */
+    char                szR0Mod[32];
     /** The description of the driver. The UTF-8 string pointed to shall, like this structure,
      * remain unchanged from registration till VM destruction. */
     const char         *pszDescription;
 
     /** Flags, combination of the PDM_DRVREG_FLAGS_* \#defines. */
-    RTUINT              fFlags;
+    uint32_t            fFlags;
     /** Driver class(es), combination of the PDM_DRVREG_CLASS_* \#defines. */
-    RTUINT              fClass;
+    uint32_t            fClass;
     /** Maximum number of instances (per VM). */
-    RTUINT              cMaxInstances;
+    uint32_t            cMaxInstances;
     /** Size of the instance data. */
-    RTUINT              cbInstance;
+    uint32_t            cbInstance;
 
     /** Construct instance - required. */
     PFNPDMDRVCONSTRUCT  pfnConstruct;
     /** Destruct instance - optional. */
     PFNPDMDRVDESTRUCT   pfnDestruct;
+    /** Relocation command - optional. */
+    PFNPDMDRVRELOCATE   pfnRelocate;
     /** I/O control - optional. */
     PFNPDMDRVIOCTL      pfnIOCtl;
     /** Power on notification - optional. */
@@ -246,21 +277,25 @@ typedef PDMDRVREG *PPDMDRVREG;
 typedef PDMDRVREG const *PCPDMDRVREG;
 
 /** Current DRVREG version number. */
-#define PDM_DRVREG_VERSION  0x80020000
+#define PDM_DRVREG_VERSION                      PDM_VERSION_MAKE(0xf0ff, 1, 0)
 
 /** PDM Driver Flags.
  * @{ */
 /** @def PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT
  * The bit count for the current host. */
 #if HC_ARCH_BITS == 32
-# define PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT     0x000000001
+# define PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT     UINT32_C(0x00000001)
 #elif HC_ARCH_BITS == 64
-# define PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT     0x000000002
+# define PDM_DRVREG_FLAGS_HOST_BITS_DEFAULT     UINT32_C(0x00000002)
 #else
 # error Unsupported HC_ARCH_BITS value.
 #endif
 /** The host bit count mask. */
-#define PDM_DRVREG_FLAGS_HOST_BITS_MASK         0x000000003
+#define PDM_DRVREG_FLAGS_HOST_BITS_MASK         UINT32_C(0x00000003)
+/** This flag is used to indicate that the driver has a RC component. */
+#define PDM_DRVREG_FLAGS_RC                     UINT32_C(0x00000010)
+/** This flag is used to indicate that the driver has a R0 component. */
+#define PDM_DRVREG_FLAGS_R0                     UINT32_C(0x00000020)
 
 /** @} */
 
@@ -300,6 +335,149 @@ typedef PDMDRVREG const *PCPDMDRVREG;
 /** SCSI driver. */
 #define PDM_DRVREG_CLASS_SCSI           RT_BIT(15)
 /** @} */
+
+
+/**
+ * PDM Driver Instance.
+ *
+ * @implements  PDMIBASE
+ */
+typedef struct PDMDRVINS
+{
+    /** Structure version. PDM_DRVINS_VERSION defines the current version. */
+    uint32_t                    u32Version;
+    /** Driver instance number. */
+    uint32_t                    iInstance;
+
+    /** Pointer the PDM Driver API. */
+    RCPTRTYPE(PCPDMDRVHLPRC)    pHlpRC;
+    /** Pointer to driver instance data. */
+    RCPTRTYPE(void *)           pvInstanceDataRC;
+
+    /** Pointer the PDM Driver API. */
+    R0PTRTYPE(PCPDMDRVHLPR0)    pHlpR0;
+    /** Pointer to driver instance data. */
+    R0PTRTYPE(void *)           pvInstanceDataR0;
+
+    /** Pointer the PDM Driver API. */
+    R3PTRTYPE(PCPDMDRVHLPR3)    pHlpR3;
+    /** Pointer to driver instance data. */
+    R3PTRTYPE(void *)           pvInstanceDataR3;
+
+    /** Pointer to driver registration structure.  */
+    R3PTRTYPE(PCPDMDRVREG)      pReg;
+    /** Configuration handle. */
+    R3PTRTYPE(PCFGMNODE)        pCfg;
+
+    /** Pointer to the base interface of the device/driver instance above. */
+    R3PTRTYPE(PPDMIBASE)        pUpBase;
+    /** Pointer to the base interface of the driver instance below. */
+    R3PTRTYPE(PPDMIBASE)        pDownBase;
+
+    /** The base interface of the driver.
+     * The driver constructor initializes this. */
+    PDMIBASE                    IBase;
+    /** Align the internal data more naturally. */
+    RTR3PTR                     R3PtrPadding;
+
+    /** Internal data. */
+    union
+    {
+#ifdef PDMDRVINSINT_DECLARED
+        PDMDRVINSINT            s;
+#endif
+        uint8_t                 padding[HC_ARCH_BITS == 32 ? 40 + 32 : 72 + 24];
+    } Internal;
+
+    /** Driver instance data. The size of this area is defined
+     * in the PDMDRVREG::cbInstanceData field. */
+    char                        achInstanceData[4];
+} PDMDRVINS;
+
+/** Current DRVREG version number. */
+#define PDM_DRVINS_VERSION                      PDM_VERSION_MAKE(0xf0fe, 1, 0)
+
+/** Converts a pointer to the PDMDRVINS::IBase to a pointer to PDMDRVINS. */
+#define PDMIBASE_2_PDMDRV(pInterface)   ( (PPDMDRVINS)((char *)(pInterface) - RT_OFFSETOF(PDMDRVINS, IBase)) )
+
+/** @def PDMDRVINS_2_RCPTR
+ * Converts a PDM Driver instance pointer a RC PDM Driver instance pointer.
+ */
+#define PDMDRVINS_2_RCPTR(pDrvIns)      ( (RCPTRTYPE(PPDMDRVINS))((RTGCUINTPTR)(pDrvIns)->pvInstanceDataRC - RT_OFFSETOF(PDMDRVINS, achInstanceData)) )
+
+/** @def PDMDRVINS_2_R3PTR
+ * Converts a PDM Driver instance pointer a R3 PDM Driver instance pointer.
+ */
+#define PDMDRVINS_2_R3PTR(pDrvIns)      ( (R3PTRTYPE(PPDMDRVINS))((RTHCUINTPTR)(pDrvIns)->pvInstanceDataR3 - RT_OFFSETOF(PDMDRVINS, achInstanceData)) )
+
+/** @def PDMDRVINS_2_R0PTR
+ * Converts a PDM Driver instance pointer a R0 PDM Driver instance pointer.
+ */
+#define PDMDRVINS_2_R0PTR(pDrvIns)      ( (R0PTRTYPE(PPDMDRVINS))((RTR0UINTPTR)(pDrvIns)->pvInstanceDataR0 - RT_OFFSETOF(PDMDRVINS, achInstanceData)) )
+
+
+
+/**
+ * Checks the structure versions of the drive instance and driver helpers,
+ * returning if they are incompatible.
+ *
+ * Intended for the constructor.
+ *
+ * @param   pDrvIns             Pointer to the PDM driver instance.
+ */
+#define PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns) \
+    do \
+    { \
+        PPDMDRVINS pDrvInsTypeCheck = (pDrvIns); NOREF(pDrvInsTypeCheck); \
+        AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION), \
+                              ("DrvIns=%#x  mine=%#x\n", (pDrvIns)->u32Version, PDM_DRVINS_VERSION), \
+                              VERR_VERSION_MISMATCH); \
+        AssertLogRelMsgReturn(PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION), \
+                              ("DrvHlp=%#x  mine=%#x\n", (pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION), \
+                              VERR_VERSION_MISMATCH); \
+    } while (0)
+
+/**
+ * Quietly checks the structure versions of the drive instance and driver
+ * helpers, returning if they are incompatible.
+ *
+ * Intended for the destructor.
+ *
+ * @param   pDrvIns             Pointer to the PDM driver instance.
+ */
+#define PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns) \
+    do \
+    { \
+        PPDMDRVINS pDrvInsTypeCheck = (pDrvIns); NOREF(pDrvInsTypeCheck); \
+        if (RT_UNLIKELY(   !PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->u32Version, PDM_DRVINS_VERSION) \
+                        || !PDM_VERSION_ARE_COMPATIBLE((pDrvIns)->pHlpR3->u32Version, PDM_DRVHLPR3_VERSION)) ) \
+            return; \
+    } while (0)
+
+/**
+ * Wrapper around CFGMR3ValidateConfig for the root config for use in the
+ * constructor - returns on failure.
+ *
+ * This should be invoked after having initialized the instance data
+ * sufficiently for the correct operation of the destructor.  The destructor is
+ * always called!
+ *
+ * @param   pDrvIns             Pointer to the PDM driver instance.
+ * @param   pszValidValues      Patterns describing the valid value names.  See
+ *                              RTStrSimplePatternMultiMatch for details on the
+ *                              pattern syntax.
+ * @param   pszValidNodes       Patterns describing the valid node (key) names.
+ *                              Pass empty string if no valid nodess.
+ */
+#define PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, pszValidValues, pszValidNodes) \
+    do \
+    { \
+        int rcValCfg = CFGMR3ValidateConfig((pDrvIns)->pCfg, "/", pszValidValues, pszValidNodes, \
+                                            (pDrvIns)->pReg->szName, (pDrvIns)->iInstance); \
+        if (RT_FAILURE(rcValCfg)) \
+            return rcValCfg; \
+    } while (0)
+
 
 
 /**
@@ -343,7 +521,7 @@ typedef struct PDMUSBHUBREG
 typedef const PDMUSBHUBREG *PCPDMUSBHUBREG;
 
 /** Current PDMUSBHUBREG version number. */
-#define PDM_USBHUBREG_VERSION       0xeb010000
+#define PDM_USBHUBREG_VERSION                   PDM_VERSION_MAKE(0xf0fd, 1, 0)
 
 
 /**
@@ -366,26 +544,191 @@ typedef const PDMUSBHUBHLP *PCPDMUSBHUBHLP;
 typedef PCPDMUSBHUBHLP *PPCPDMUSBHUBHLP;
 
 /** Current PDMUSBHUBHLP version number. */
-#define PDM_USBHUBHLP_VERSION       0xea010000
-
+#define PDM_USBHUBHLP_VERSION                   PDM_VERSION_MAKE(0xf0fc, 1, 0)
 
 
 /**
- * Poller callback.
- *
- * @param   pDrvIns     The driver instance.
+ * PDM Driver API - raw-mode context variant.
  */
-typedef DECLCALLBACK(void) FNPDMDRVPOLLER(PPDMDRVINS pDrvIns);
-/** Pointer to a FNPDMDRVPOLLER function. */
-typedef FNPDMDRVPOLLER *PFNPDMDRVPOLLER;
+typedef struct PDMDRVHLPRC
+{
+    /** Structure version. PDM_DRVHLPRC_VERSION defines the current version. */
+    uint32_t                    u32Version;
+
+    /**
+     * Set the VM error message
+     *
+     * @returns rc.
+     * @param   pDrvIns         Driver instance.
+     * @param   rc              VBox status code.
+     * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+     * @param   pszFormat       Error message format string.
+     * @param   ...             Error message arguments.
+     */
+    DECLRCCALLBACKMEMBER(int, pfnVMSetError,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...));
+
+    /**
+     * Set the VM error message
+     *
+     * @returns rc.
+     * @param   pDrvIns         Driver instance.
+     * @param   rc              VBox status code.
+     * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+     * @param   pszFormat       Error message format string.
+     * @param   va              Error message arguments.
+     */
+    DECLRCCALLBACKMEMBER(int, pfnVMSetErrorV,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va));
+
+    /**
+     * Set the VM runtime error message
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
+     * @param   pszErrorId      Error ID string.
+     * @param   pszFormat       Error message format string.
+     * @param   ...             Error message arguments.
+     */
+    DECLRCCALLBACKMEMBER(int, pfnVMSetRuntimeError,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...));
+
+    /**
+     * Set the VM runtime error message
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
+     * @param   pszErrorId      Error ID string.
+     * @param   pszFormat       Error message format string.
+     * @param   va              Error message arguments.
+     */
+    DECLRCCALLBACKMEMBER(int, pfnVMSetRuntimeErrorV,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va));
+
+    /**
+     * Assert that the current thread is the emulation thread.
+     *
+     * @returns True if correct.
+     * @returns False if wrong.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszFile         Filename of the assertion location.
+     * @param   iLine           Linenumber of the assertion location.
+     * @param   pszFunction     Function of the assertion location.
+     */
+    DECLRCCALLBACKMEMBER(bool, pfnAssertEMT,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
+
+    /**
+     * Assert that the current thread is NOT the emulation thread.
+     *
+     * @returns True if correct.
+     * @returns False if wrong.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszFile         Filename of the assertion location.
+     * @param   iLine           Linenumber of the assertion location.
+     * @param   pszFunction     Function of the assertion location.
+     */
+    DECLRCCALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
+
+    /** Just a safety precaution. */
+    uint32_t                        u32TheEnd;
+} PDMDRVHLPRC;
+/** Current PDMDRVHLPRC version number. */
+#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 1, 0)
+
+
+/**
+ * PDM Driver API, ring-0 context.
+ */
+typedef struct PDMDRVHLPR0
+{
+    /** Structure version. PDM_DRVHLPR0_VERSION defines the current version. */
+    uint32_t                    u32Version;
+
+    /**
+     * Set the VM error message
+     *
+     * @returns rc.
+     * @param   pDrvIns         Driver instance.
+     * @param   rc              VBox status code.
+     * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+     * @param   pszFormat       Error message format string.
+     * @param   ...             Error message arguments.
+     */
+    DECLR0CALLBACKMEMBER(int, pfnVMSetError,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...));
+
+    /**
+     * Set the VM error message
+     *
+     * @returns rc.
+     * @param   pDrvIns         Driver instance.
+     * @param   rc              VBox status code.
+     * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+     * @param   pszFormat       Error message format string.
+     * @param   va              Error message arguments.
+     */
+    DECLR0CALLBACKMEMBER(int, pfnVMSetErrorV,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va));
+
+    /**
+     * Set the VM runtime error message
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
+     * @param   pszErrorId      Error ID string.
+     * @param   pszFormat       Error message format string.
+     * @param   ...             Error message arguments.
+     */
+    DECLR0CALLBACKMEMBER(int, pfnVMSetRuntimeError,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...));
+
+    /**
+     * Set the VM runtime error message
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
+     * @param   pszErrorId      Error ID string.
+     * @param   pszFormat       Error message format string.
+     * @param   va              Error message arguments.
+     */
+    DECLR0CALLBACKMEMBER(int, pfnVMSetRuntimeErrorV,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va));
+
+    /**
+     * Assert that the current thread is the emulation thread.
+     *
+     * @returns True if correct.
+     * @returns False if wrong.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszFile         Filename of the assertion location.
+     * @param   iLine           Linenumber of the assertion location.
+     * @param   pszFunction     Function of the assertion location.
+     */
+    DECLR0CALLBACKMEMBER(bool, pfnAssertEMT,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
+
+    /**
+     * Assert that the current thread is NOT the emulation thread.
+     *
+     * @returns True if correct.
+     * @returns False if wrong.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszFile         Filename of the assertion location.
+     * @param   iLine           Linenumber of the assertion location.
+     * @param   pszFunction     Function of the assertion location.
+     */
+    DECLR0CALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
+
+    /** Just a safety precaution. */
+    uint32_t                        u32TheEnd;
+} PDMDRVHLPR0;
+/** Current DRVHLP version number. */
+#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 1, 0)
+
 
 #ifdef IN_RING3
+
 /**
  * PDM Driver API.
  */
-typedef struct PDMDRVHLP
+typedef struct PDMDRVHLPR3
 {
-    /** Structure version. PDM_DRVHLP_VERSION defines the current version. */
+    /** Structure version. PDM_DRVHLPR3_VERSION defines the current version. */
     uint32_t                    u32Version;
 
     /**
@@ -523,6 +866,16 @@ typedef struct PDMDRVHLP
     DECLR3CALLBACKMEMBER(bool, pfnVMTeleportedAndNotFullyResumedYet,(PPDMDRVINS pDrvIns));
 
     /**
+     * Gets the support driver session.
+     *
+     * This is intended for working using the semaphore API.
+     *
+     * @returns Support driver session handle.
+     * @param   pDrvIns         The driver instance.
+     */
+    DECLR3CALLBACKMEMBER(PSUPDRVSESSION, pfnGetSupDrvSession,(PPDMDRVINS pDrvIns));
+
+    /**
      * Create a queue.
      *
      * @returns VBox status code.
@@ -537,8 +890,8 @@ typedef struct PDMDRVHLP
      * @param   ppQueue             Where to store the queue handle on success.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPDMQueueCreate,(PPDMDRVINS pDrvIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
-                                                 PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue));
+    DECLR3CALLBACKMEMBER(int, pfnQueueCreate,(PPDMDRVINS pDrvIns, uint32_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
+                                              PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue));
 
     /**
      * Query the virtual timer frequency.
@@ -742,10 +1095,9 @@ typedef struct PDMDRVHLP
      * @param   enmType     See RTThreadCreate.
      * @param   pszName     See RTThreadCreate.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPDMThreadCreate,(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
-                                                  PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
+    DECLR3CALLBACKMEMBER(int, pfnThreadCreate,(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
+                                               PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
 
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
     /**
      * Creates a async completion template for a driver instance.
      *
@@ -758,70 +1110,98 @@ typedef struct PDMDRVHLP
      * @param   pvTemplateUser  Template user argument.
      * @param   pszDesc         Description.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPDMAsyncCompletionTemplateCreate,(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
-                                                                   PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
-                                                                   const char *pszDesc));
-#endif
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionTemplateCreate,(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
+                                                                PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
+                                                                const char *pszDesc));
+
+
+    /**
+     * Resolves the symbol for a raw-mode context interface.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         The driver instance.
+     * @param   pvInterface     The interface structure.
+     * @param   cbInterface     The size of the interface structure.
+     * @param   pszSymPrefix    What to prefix the symbols in the list with before
+     *                          resolving them.  This must start with 'drv' and
+     *                          contain the driver name.
+     * @param   pszSymList      List of symbols corresponding to the interface.
+     *                          There is generally a there is generally a define
+     *                          holding this list associated with the interface
+     *                          definition (INTERFACE_SYM_LIST).  For more details
+     *                          see PDMR3LdrGetInterfaceSymbols.
+     * @thread  EMT
+     */
+    DECLR3CALLBACKMEMBER(int, pfnLdrGetRCInterfaceSymbols,(PPDMDRVINS pDrvIns, void *pvInterface, size_t cbInterface,
+                                                           const char *pszSymPrefix, const char *pszSymList));
+
+    /**
+     * Resolves the symbol for a ring-0 context interface.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         The driver instance.
+     * @param   pvInterface     The interface structure.
+     * @param   cbInterface     The size of the interface structure.
+     * @param   pszSymPrefix    What to prefix the symbols in the list with before
+     *                          resolving them.  This must start with 'drv' and
+     *                          contain the driver name.
+     * @param   pszSymList      List of symbols corresponding to the interface.
+     *                          There is generally a there is generally a define
+     *                          holding this list associated with the interface
+     *                          definition (INTERFACE_SYM_LIST).  For more details
+     *                          see PDMR3LdrGetInterfaceSymbols.
+     * @thread  EMT
+     */
+    DECLR3CALLBACKMEMBER(int, pfnLdrGetR0InterfaceSymbols,(PPDMDRVINS pDrvIns, void *pvInterface, size_t cbInterface,
+                                                           const char *pszSymPrefix, const char *pszSymList));
+    /**
+     * Initializes a PDM critical section.
+     *
+     * The PDM critical sections are derived from the IPRT critical sections, but
+     * works in both RC and R0 as well as R3.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns             The device instance.
+     * @param   pCritSect           Pointer to the critical section.
+     * @param   RT_SRC_POS_DECL     Use RT_SRC_POS.
+     * @param   pszName             The base name of the critical section.  Will be
+     *                              mangeled with the instance number.  For
+     *                              statistics and lock validation.
+     * @param   va                  Arguments for the format string.
+     * @thread  EMT
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCritSectInit,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect,
+                                               RT_SRC_POS_DECL, const char *pszName));
+
+    /**
+     * Call the ring-0 request handler routine of the driver.
+     *
+     * For this to work, the driver must be ring-0 enabled and export a request
+     * handler function.  The name of the function must be the driver name in the
+     * PDMDRVREG struct prefixed with 'drvR0' and suffixed with 'ReqHandler'.  It
+     * shall take the exact same arguments as this function and be declared using
+     * PDMBOTHCBDECL.  See FNPDMDRVREQHANDLERR0.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_SYMBOL_NOT_FOUND if the driver doesn't export the required
+     *          handler function.
+     * @retval  VERR_ACCESS_DENIED if the driver isn't ring-0 capable.
+     *
+     * @param   pDevIns             The device instance.
+     * @param   uOperation          The operation to perform.
+     * @param   u64Arg              64-bit integer argument.
+     * @thread  Any
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCallR0,(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg));
 
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
-} PDMDRVHLP;
-/** Pointer PDM Driver API. */
-typedef PDMDRVHLP *PPDMDRVHLP;
-/** Pointer const PDM Driver API. */
-typedef const PDMDRVHLP *PCPDMDRVHLP;
-
+} PDMDRVHLPR3;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLP_VERSION  0x90050000
+#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 1, 0)
 
+#endif /* IN_RING3 */
 
-
-/**
- * PDM Driver Instance.
- */
-typedef struct PDMDRVINS
-{
-    /** Structure version. PDM_DRVINS_VERSION defines the current version. */
-    uint32_t                    u32Version;
-
-    /** Internal data. */
-    union
-    {
-#ifdef PDMDRVINSINT_DECLARED
-        PDMDRVINSINT            s;
-#endif
-        uint8_t                 padding[HC_ARCH_BITS == 32 ? 32 : 64];
-    } Internal;
-
-    /** Pointer the PDM Driver API. */
-    R3PTRTYPE(PCPDMDRVHLP)      pDrvHlp;
-    /** Pointer to driver registration structure.  */
-    R3PTRTYPE(PCPDMDRVREG)      pDrvReg;
-    /** Configuration handle. */
-    R3PTRTYPE(PCFGMNODE)        pCfgHandle;
-    /** Driver instance number. */
-    RTUINT                      iInstance;
-    /** Pointer to the base interface of the device/driver instance above. */
-    R3PTRTYPE(PPDMIBASE)        pUpBase;
-    /** Pointer to the base interface of the driver instance below. */
-    R3PTRTYPE(PPDMIBASE)        pDownBase;
-    /** The base interface of the driver.
-     * The driver constructor initializes this. */
-    PDMIBASE                    IBase;
-    /* padding to make achInstanceData aligned at 16 byte boundrary. */
-    uint32_t                    au32Padding[HC_ARCH_BITS == 32 ? 3 : 1];
-    /** Pointer to driver instance data. */
-    R3PTRTYPE(void *)           pvInstanceData;
-    /** Driver instance data. The size of this area is defined
-     * in the PDMDRVREG::cbInstanceData field. */
-    char                        achInstanceData[4];
-} PDMDRVINS;
-
-/** Current DRVREG version number. */
-#define PDM_DRVINS_VERSION  0xa0010000
-
-/** Converts a pointer to the PDMDRVINS::IBase to a pointer to PDMDRVINS. */
-#define PDMIBASE_2_PDMDRV(pInterface) ( (PPDMDRVINS)((char *)(pInterface) - RT_OFFSETOF(PDMDRVINS, IBase)) )
 
 /**
  * @copydoc PDMDRVHLP::pfnVMSetError
@@ -830,7 +1210,7 @@ DECLINLINE(int) PDMDrvHlpVMSetError(PPDMDRVINS pDrvIns, const int rc, RT_SRC_POS
 {
     va_list va;
     va_start(va, pszFormat);
-    pDrvIns->pDrvHlp->pfnVMSetErrorV(pDrvIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
+    pDrvIns->CTX_SUFF(pHlp)->pfnVMSetErrorV(pDrvIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
     va_end(va);
     return rc;
 }
@@ -842,6 +1222,15 @@ DECLINLINE(int) PDMDrvHlpVMSetError(PPDMDRVINS pDrvIns, const int rc, RT_SRC_POS
     PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, "%s", pszError)
 
 /**
+ * @copydoc PDMDRVHLP::pfnVMSetErrorV
+ */
+DECLINLINE(int) PDMDrvHlpVMSetErrorV(PPDMDRVINS pDrvIns, const int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnVMSetErrorV(pDrvIns, rc, RT_SRC_POS_ARGS, pszFormat, va);
+}
+
+
+/**
  * @copydoc PDMDRVHLP::pfnVMSetRuntimeError
  */
 DECLINLINE(int) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
@@ -849,7 +1238,7 @@ DECLINLINE(int) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, 
     va_list va;
     int rc;
     va_start(va, pszFormat);
-    rc = pDrvIns->pDrvHlp->pfnVMSetRuntimeErrorV(pDrvIns, fFlags, pszErrorId, pszFormat, va);
+    rc = pDrvIns->CTX_SUFF(pHlp)->pfnVMSetRuntimeErrorV(pDrvIns, fFlags, pszErrorId, pszFormat, va);
     va_end(va);
     return rc;
 }
@@ -860,14 +1249,21 @@ DECLINLINE(int) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, 
 #define PDMDRV_SET_RUNTIME_ERROR(pDrvIns, fFlags, pszErrorId, pszError)  \
     PDMDrvHlpVMSetRuntimeError(pDrvIns, fFlags, pszErrorId, "%s", pszError)
 
-#endif /* IN_RING3 */
+/**
+ * @copydoc PDMDRVHLP::pfnVMSetRuntimeErrorV
+ */
+DECLINLINE(int) PDMDrvHlpVMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnVMSetRuntimeErrorV(pDrvIns, fFlags, pszErrorId, pszFormat, va);
+}
+
 
 
 /** @def PDMDRV_ASSERT_EMT
  * Assert that the current thread is the emulation thread.
  */
 #ifdef VBOX_STRICT
-# define PDMDRV_ASSERT_EMT(pDrvIns)  pDrvIns->pDrvHlp->pfnAssertEMT(pDrvIns, __FILE__, __LINE__, __FUNCTION__)
+# define PDMDRV_ASSERT_EMT(pDrvIns)  pDrvIns->CTX_SUFF(pHlp)->pfnAssertEMT(pDrvIns, __FILE__, __LINE__, __FUNCTION__)
 #else
 # define PDMDRV_ASSERT_EMT(pDrvIns)  do { } while (0)
 #endif
@@ -876,7 +1272,7 @@ DECLINLINE(int) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, 
  * Assert that the current thread is NOT the emulation thread.
  */
 #ifdef VBOX_STRICT
-# define PDMDRV_ASSERT_OTHER(pDrvIns)  pDrvIns->pDrvHlp->pfnAssertOther(pDrvIns, __FILE__, __LINE__, __FUNCTION__)
+# define PDMDRV_ASSERT_OTHER(pDrvIns)  pDrvIns->CTX_SUFF(pHlp)->pfnAssertOther(pDrvIns, __FILE__, __LINE__, __FUNCTION__)
 #else
 # define PDMDRV_ASSERT_OTHER(pDrvIns)  do { } while (0)
 #endif
@@ -889,7 +1285,7 @@ DECLINLINE(int) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, 
  */
 DECLINLINE(int) PDMDrvHlpAttach(PPDMDRVINS pDrvIns, uint32_t fFlags, PPDMIBASE *ppBaseInterface)
 {
-    return pDrvIns->pDrvHlp->pfnAttach(pDrvIns, fFlags, ppBaseInterface);
+    return pDrvIns->pHlpR3->pfnAttach(pDrvIns, fFlags, ppBaseInterface);
 }
 
 /**
@@ -900,7 +1296,7 @@ DECLINLINE(int) PDMDrvHlpAttach(PPDMDRVINS pDrvIns, uint32_t fFlags, PPDMIBASE *
  */
 DECLINLINE(int) PDMDrvHlpNoAttach(PPDMDRVINS pDrvIns)
 {
-    return pDrvIns->pDrvHlp->pfnAttach(pDrvIns, 0, NULL);
+    return pDrvIns->pHlpR3->pfnAttach(pDrvIns, 0, NULL);
 }
 
 /**
@@ -908,7 +1304,7 @@ DECLINLINE(int) PDMDrvHlpNoAttach(PPDMDRVINS pDrvIns)
  */
 DECLINLINE(int) PDMDrvHlpDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
 {
-    return pDrvIns->pDrvHlp->pfnDetach(pDrvIns, fFlags);
+    return pDrvIns->pHlpR3->pfnDetach(pDrvIns, fFlags);
 }
 
 /**
@@ -916,7 +1312,15 @@ DECLINLINE(int) PDMDrvHlpDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
  */
 DECLINLINE(int) PDMDrvHlpDetachSelf(PPDMDRVINS pDrvIns, uint32_t fFlags)
 {
-    return pDrvIns->pDrvHlp->pfnDetachSelf(pDrvIns, fFlags);
+    return pDrvIns->pHlpR3->pfnDetachSelf(pDrvIns, fFlags);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnMountPrepare
+ */
+DECLINLINE(int) PDMDrvHlpMountPrepare(PPDMDRVINS pDrvIns, const char *pszFilename, const char *pszCoreDriver)
+{
+    return pDrvIns->pHlpR3->pfnMountPrepare(pDrvIns, pszFilename, pszCoreDriver);
 }
 
 /**
@@ -924,7 +1328,7 @@ DECLINLINE(int) PDMDrvHlpDetachSelf(PPDMDRVINS pDrvIns, uint32_t fFlags)
  */
 DECLINLINE(VMSTATE) PDMDrvHlpVMState(PPDMDRVINS pDrvIns)
 {
-    return pDrvIns->pDrvHlp->pfnVMState(pDrvIns);
+    return pDrvIns->CTX_SUFF(pHlp)->pfnVMState(pDrvIns);
 }
 
 /**
@@ -932,24 +1336,32 @@ DECLINLINE(VMSTATE) PDMDrvHlpVMState(PPDMDRVINS pDrvIns)
  */
 DECLINLINE(bool) PDMDrvHlpVMTeleportedAndNotFullyResumedYet(PPDMDRVINS pDrvIns)
 {
-    return pDrvIns->pDrvHlp->pfnVMTeleportedAndNotFullyResumedYet(pDrvIns);
+    return pDrvIns->pHlpR3->pfnVMTeleportedAndNotFullyResumedYet(pDrvIns);
 }
 
 /**
- * @copydoc PDMDRVHLP::pfnPDMQueueCreate
+ * @copydoc PDMDRVHLP::pfnGetSupDrvSession
  */
-DECLINLINE(int) PDMDrvHlpPDMQueueCreate(PPDMDRVINS pDrvIns, RTUINT cbItem, RTUINT cItems, uint32_t cMilliesInterval,
+DECLINLINE(PSUPDRVSESSION) PDMDrvHlpGetSupDrvSession(PPDMDRVINS pDrvIns)
+{
+    return pDrvIns->pHlpR3->pfnGetSupDrvSession(pDrvIns);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnQueueCreate
+ */
+DECLINLINE(int) PDMDrvHlpQueueCreate(PPDMDRVINS pDrvIns, uint32_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
                                         PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue)
 {
-    return pDrvIns->pDrvHlp->pfnPDMQueueCreate(pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, ppQueue);
+    return pDrvIns->pHlpR3->pfnQueueCreate(pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, ppQueue);
 }
 
 /**
- * @copydoc PDMDRVHLP::pfnGetVirtualFreq
+ * @copydoc PDMDRVHLP::pfnTMGetVirtualFreq
  */
 DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualFreq(PPDMDRVINS pDrvIns)
 {
-    return pDrvIns->pDrvHlp->pfnTMGetVirtualFreq(pDrvIns);
+    return pDrvIns->pHlpR3->pfnTMGetVirtualFreq(pDrvIns);
 }
 
 /**
@@ -957,7 +1369,7 @@ DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualFreq(PPDMDRVINS pDrvIns)
  */
 DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualTime(PPDMDRVINS pDrvIns)
 {
-    return pDrvIns->pDrvHlp->pfnTMGetVirtualTime(pDrvIns);
+    return pDrvIns->pHlpR3->pfnTMGetVirtualTime(pDrvIns);
 }
 
 /**
@@ -965,7 +1377,7 @@ DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualTime(PPDMDRVINS pDrvIns)
  */
 DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
 {
-    return pDrvIns->pDrvHlp->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
+    return pDrvIns->pHlpR3->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
 }
 
 /**
@@ -982,10 +1394,10 @@ DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFN
 DECLINLINE(int) PDMDrvHlpSSMRegister(PPDMDRVINS pDrvIns, uint32_t uVersion, size_t cbGuess,
                                      PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVLOADEXEC pfnLoadExec)
 {
-    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, uVersion, cbGuess,
-                                            NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
-                                            NULL /*pfnSavePrep*/, pfnSaveExec,          NULL /*pfnSaveDone*/,
-                                            NULL /*pfnLoadPrep*/, pfnLoadExec,          NULL /*pfnLoadDone*/);
+    return pDrvIns->pHlpR3->pfnSSMRegister(pDrvIns, uVersion, cbGuess,
+                                              NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
+                                              NULL /*pfnSavePrep*/, pfnSaveExec,          NULL /*pfnSaveDone*/,
+                                              NULL /*pfnLoadPrep*/, pfnLoadExec,          NULL /*pfnLoadDone*/);
 }
 
 /**
@@ -996,10 +1408,10 @@ DECLINLINE(int) PDMDrvHlpSSMRegisterEx(PPDMDRVINS pDrvIns, uint32_t uVersion, si
                                        PFNSSMDRVSAVEPREP pfnSavePrep, PFNSSMDRVSAVEEXEC pfnSaveExec, PFNSSMDRVSAVEDONE pfnSaveDone,
                                        PFNSSMDRVLOADPREP pfnLoadPrep, PFNSSMDRVLOADEXEC pfnLoadExec, PFNSSMDRVLOADDONE pfnLoadDone)
 {
-    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, uVersion, cbGuess,
-                                            pfnLivePrep, pfnLiveExec, pfnLiveVote,
-                                            pfnSavePrep, pfnSaveExec, pfnSaveDone,
-                                            pfnLoadPrep, pfnLoadExec, pfnLoadDone);
+    return pDrvIns->pHlpR3->pfnSSMRegister(pDrvIns, uVersion, cbGuess,
+                                              pfnLivePrep, pfnLiveExec, pfnLiveVote,
+                                              pfnSavePrep, pfnSaveExec, pfnSaveDone,
+                                              pfnLoadPrep, pfnLoadExec, pfnLoadDone);
 }
 
 /**
@@ -1011,10 +1423,10 @@ DECLINLINE(int) PDMDrvHlpSSMRegisterEx(PPDMDRVINS pDrvIns, uint32_t uVersion, si
  */
 DECLINLINE(int) PDMDrvHlpSSMRegisterLoadDone(PPDMDRVINS pDrvIns, PFNSSMDRVLOADDONE pfnLoadDone)
 {
-    return pDrvIns->pDrvHlp->pfnSSMRegister(pDrvIns, 0 /*uVersion*/, 0 /*cbGuess*/,
-                                            NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
-                                            NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/, NULL /*pfnSaveDone*/,
-                                            NULL /*pfnLoadPrep*/, NULL /*pfnLoadExec*/, pfnLoadDone);
+    return pDrvIns->pHlpR3->pfnSSMRegister(pDrvIns, 0 /*uVersion*/, 0 /*cbGuess*/,
+                                              NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
+                                              NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/, NULL /*pfnSaveDone*/,
+                                              NULL /*pfnLoadPrep*/, NULL /*pfnLoadExec*/, pfnLoadDone);
 }
 
 /**
@@ -1022,7 +1434,7 @@ DECLINLINE(int) PDMDrvHlpSSMRegisterLoadDone(PPDMDRVINS pDrvIns, PFNSSMDRVLOADDO
  */
 DECLINLINE(void) PDMDrvHlpSTAMRegister(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
 {
-    pDrvIns->pDrvHlp->pfnSTAMRegister(pDrvIns, pvSample, enmType, pszName, enmUnit, pszDesc);
+    pDrvIns->pHlpR3->pfnSTAMRegister(pDrvIns, pvSample, enmType, pszName, enmUnit, pszDesc);
 }
 
 /**
@@ -1033,8 +1445,51 @@ DECLINLINE(void) PDMDrvHlpSTAMRegisterF(PPDMDRVINS pDrvIns, void *pvSample, STAM
 {
     va_list va;
     va_start(va, pszName);
-    pDrvIns->pDrvHlp->pfnSTAMRegisterV(pDrvIns, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
+    pDrvIns->pHlpR3->pfnSTAMRegisterV(pDrvIns, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
     va_end(va);
+}
+
+/**
+ * Convenience wrapper that registers counter which is always visible.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pCounter            Pointer to the counter variable.
+ * @param   pszName             The name of the sample.  This is prefixed with
+ *                              "/Drivers/<drivername>-<instance no>/".
+ */
+DECLINLINE(void) PDMDrvHlpSTAMRegCounter(PPDMDRVINS pDrvIns, PSTAMCOUNTER pCounter, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+{
+    pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pCounter, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
+                                      "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
+}
+
+/**
+ * Convenience wrapper that registers profiling sample which is always visible.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pProfile            Pointer to the profiling variable.
+ * @param   pszName             The name of the sample.  This is prefixed with
+ *                              "/Drivers/<drivername>-<instance no>/".
+ */
+DECLINLINE(void) PDMDrvHlpSTAMRegProfile(PPDMDRVINS pDrvIns, PSTAMPROFILE pProfile, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+{
+    pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pProfile, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
+                                      "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
+}
+
+/**
+ * Convenience wrapper that registers an advanced profiling sample which is
+ * always visible.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pProfile            Pointer to the profiling variable.
+ * @param   pszName             The name of the sample.  This is prefixed with
+ *                              "/Drivers/<drivername>-<instance no>/".
+ */
+DECLINLINE(void) PDMDrvHlpSTAMRegProfileAdv(PPDMDRVINS pDrvIns, PSTAMPROFILEADV pProfile, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+{
+    pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pProfile, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
+                                      "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
 }
 
 /**
@@ -1042,7 +1497,15 @@ DECLINLINE(void) PDMDrvHlpSTAMRegisterF(PPDMDRVINS pDrvIns, void *pvSample, STAM
  */
 DECLINLINE(int) PDMDrvHlpSTAMDeregister(PPDMDRVINS pDrvIns, void *pvSample)
 {
-    return pDrvIns->pDrvHlp->pfnSTAMDeregister(pDrvIns, pvSample);
+    return pDrvIns->pHlpR3->pfnSTAMDeregister(pDrvIns, pvSample);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnSUPCallVMMR0Ex
+ */
+DECLINLINE(int) PDMDrvHlpSUPCallVMMR0Ex(PPDMDRVINS pDrvIns, unsigned uOperation, void *pvArg, unsigned cbArg)
+{
+    return pDrvIns->pHlpR3->pfnSUPCallVMMR0Ex(pDrvIns, uOperation, pvArg, cbArg);
 }
 
 /**
@@ -1050,7 +1513,7 @@ DECLINLINE(int) PDMDrvHlpSTAMDeregister(PPDMDRVINS pDrvIns, void *pvSample)
  */
 DECLINLINE(int) PDMDrvHlpUSBRegisterHub(PPDMDRVINS pDrvIns, uint32_t fVersions, uint32_t cPorts, PCPDMUSBHUBREG pUsbHubReg, PPCPDMUSBHUBHLP ppUsbHubHlp)
 {
-    return pDrvIns->pDrvHlp->pfnUSBRegisterHub(pDrvIns, fVersions, cPorts, pUsbHubReg, ppUsbHubHlp);
+    return pDrvIns->pHlpR3->pfnUSBRegisterHub(pDrvIns, fVersions, cPorts, pUsbHubReg, ppUsbHubHlp);
 }
 
 /**
@@ -1058,7 +1521,7 @@ DECLINLINE(int) PDMDrvHlpUSBRegisterHub(PPDMDRVINS pDrvIns, uint32_t fVersions, 
  */
 DECLINLINE(int) PDMDrvHlpSetAsyncNotification(PPDMDRVINS pDrvIns, PFNPDMDRVASYNCNOTIFY pfnAsyncNotify)
 {
-    return pDrvIns->pDrvHlp->pfnSetAsyncNotification(pDrvIns, pfnAsyncNotify);
+    return pDrvIns->pHlpR3->pfnSetAsyncNotification(pDrvIns, pfnAsyncNotify);
 }
 
 /**
@@ -1066,31 +1529,44 @@ DECLINLINE(int) PDMDrvHlpSetAsyncNotification(PPDMDRVINS pDrvIns, PFNPDMDRVASYNC
  */
 DECLINLINE(void) PDMDrvHlpAsyncNotificationCompleted(PPDMDRVINS pDrvIns)
 {
-    pDrvIns->pDrvHlp->pfnAsyncNotificationCompleted(pDrvIns);
+    pDrvIns->pHlpR3->pfnAsyncNotificationCompleted(pDrvIns);
 }
 
 /**
- * @copydoc PDMDRVHLP::pfnPDMThreadCreate
+ * @copydoc PDMDRVHLP::pfnThreadCreate
  */
-DECLINLINE(int) PDMDrvHlpPDMThreadCreate(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
-                                         PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName)
+DECLINLINE(int) PDMDrvHlpThreadCreate(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
+                                      PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName)
 {
-    return pDrvIns->pDrvHlp->pfnPDMThreadCreate(pDrvIns, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName);
+    return pDrvIns->pHlpR3->pfnThreadCreate(pDrvIns, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName);
 }
 
-#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+# ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 /**
- * @copydoc PDMDRVHLP::pfnPDMAsyncCompletionTemplateCreate
+ * @copydoc PDMDRVHLP::pfnAsyncCompletionTemplateCreate
  */
-DECLINLINE(int) PDMDrvHlpPDMAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
-                                                          PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser, const char *pszDesc)
+DECLINLINE(int) PDMDrvHlpAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONTEMPLATE ppTemplate,
+                                                       PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser, const char *pszDesc)
 {
-    return pDrvIns->pDrvHlp->pfnPDMAsyncCompletionTemplateCreate(pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
+    return pDrvIns->pHlpR3->pfnAsyncCompletionTemplateCreate(pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
 }
-#endif
+# endif
 
-#endif /* IN_RING3 */
+/**
+ * @copydoc PDMDRVHLP::pfnCritSectInit
+ */
+DECLINLINE(int) PDMDrvHlpCritSectInit(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszName)
+{
+    return pDrvIns->pHlpR3->pfnCritSectInit(pDrvIns, pCritSect, RT_SRC_POS_ARGS, pszName);
+}
 
+/**
+ * @copydoc PDMDRVHLP::pfnCallR0
+ */
+DECLINLINE(int) PDMDrvHlpCallR0(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg)
+{
+    return pDrvIns->pHlpR3->pfnCallR0(pDrvIns, uOperation, u64Arg);
+}
 
 
 /** Pointer to callbacks provided to the VBoxDriverRegister() call. */
@@ -1112,14 +1588,14 @@ typedef struct PDMDRVREGCB
      *
      * @returns VBox status code.
      * @param   pCallbacks      Pointer to the callback table.
-     * @param   pDrvReg         Pointer to the driver registration record.
+     * @param   pReg            Pointer to the driver registration record.
      *                          This data must be permanent and readonly.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRegister,(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG pDrvReg));
+    DECLR3CALLBACKMEMBER(int, pfnRegister,(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG pReg));
 } PDMDRVREGCB;
 
 /** Current version of the PDMDRVREGCB structure.  */
-#define PDM_DRVREG_CB_VERSION 0xb0010000
+#define PDM_DRVREG_CB_VERSION                   PDM_VERSION_MAKE(0xf0fa, 1, 0)
 
 
 /**
@@ -1135,6 +1611,8 @@ typedef struct PDMDRVREGCB
 typedef DECLCALLBACK(int) FNPDMVBOXDRIVERSREGISTER(PCPDMDRVREGCB pCallbacks, uint32_t u32Version);
 
 VMMR3DECL(int) PDMR3RegisterDrivers(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnCallback);
+
+#endif /* IN_RING3 */
 
 /** @} */
 

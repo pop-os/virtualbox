@@ -1,10 +1,10 @@
-/* $Id: VBoxManage.cpp $ */
+/* $Id: VBoxManage.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -365,7 +361,7 @@ int main(int argc, char *argv[])
         { "startvm",          handleStartVM },
         { "controlvm",        handleControlVM },
         { "discardstate",     handleDiscardState },
-        { "adoptstate",       handleAdoptdState },
+        { "adoptstate",       handleAdoptState },
         { "snapshot",         handleSnapshot },
         { "openmedium",       handleOpenMedium },
         { "registerimage",    handleOpenMedium }, /* backward compatiblity */
@@ -383,6 +379,9 @@ int main(int argc, char *argv[])
         { "vmstatistics",     handleVMStatistics },
 #ifdef VBOX_WITH_GUEST_PROPS
         { "guestproperty",    handleGuestProperty },
+#endif
+#ifdef VBOX_WITH_GUEST_CONTROL
+        { "guestcontrol",     handleGuestControl },
 #endif
         { "metrics",          handleMetrics },
         { "import",           handleImportAppliance },
@@ -434,4 +433,3 @@ int main(int argc, char *argv[])
 
     return rc != 0;
 }
-

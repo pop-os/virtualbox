@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP_MAIN_OVERRIDE LOG_GROUP_HGCM
@@ -193,7 +189,7 @@ static DECLCALLBACK(int) hgcmWorkerThreadFunc (RTTHREAD ThreadSelf, void *pvUser
     pThread->m_thread = ThreadSelf;
     pThread->m_fu32ThreadFlags &= ~HGCMMSG_TF_INITIALIZING;
     rc = RTThreadUserSignal (ThreadSelf);
-    AssertRC (rc);
+    AssertRC(rc);
 
     pThread->m_pfnThread (pThread->Handle (), pThread->m_pvUser);
 
@@ -299,8 +295,8 @@ int HGCMThread::Initialize (HGCMTHREADHANDLE handle, const char *pszThreadName, 
                 {
                     /* Wait until the thread is ready. */
                     rc = RTThreadUserWait (thread, 30000);
-                    AssertRC (rc);
-                    Assert (!(m_fu32ThreadFlags & HGCMMSG_TF_INITIALIZING) || RT_FAILURE(rc));
+                    AssertRC(rc);
+                    Assert(!(m_fu32ThreadFlags & HGCMMSG_TF_INITIALIZING) || RT_FAILURE(rc));
                 }
                 else
                 {
@@ -483,7 +479,7 @@ int HGCMThread::MsgGet (HGCMMsgCore **ppMsg)
             HGCMMsgCore *pMsg = m_pMsgInputQueueHead;
 
             /* Remove the message from the head of Queue list. */
-            Assert (m_pMsgInputQueueHead->m_pPrev == NULL);
+            Assert(m_pMsgInputQueueHead->m_pPrev == NULL);
 
             if (m_pMsgInputQueueHead->m_pNext)
             {
@@ -492,7 +488,7 @@ int HGCMThread::MsgGet (HGCMMsgCore **ppMsg)
             }
             else
             {
-                Assert (m_pMsgInputQueueHead == m_pMsgInputQueueTail);
+                Assert(m_pMsgInputQueueHead == m_pMsgInputQueueTail);
 
                 m_pMsgInputQueueHead = NULL;
                 m_pMsgInputQueueTail = NULL;

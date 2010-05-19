@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Makefile for the Solaris guest additions base directory.
 #
 
 #
-# Copyright (C) 2008 Sun Microsystems, Inc.
+# Copyright (C) 2008 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -89,7 +85,7 @@ endif
 INSTALLS          += solaris-addcommon solaris-addcommonbins
 PROGRAMS          += VBoxAddISAExec
 PACKING           += $(PATH_BIN)/additions/$(PKGFILENAME)
-OTHER_CLEAN       += $(PACKING)
+OTHER_CLEAN       += $(PACKING) $(SOLARIS_ADDINST_OUT_DIR)/$(PKGFILENAME)
 
 #
 # VBoxAddISAExec
@@ -152,6 +148,7 @@ SOLARIS_ADD_STRIP_BINS = \
 	VBoxControl \
 	vboxfsmount	\
 	vboxfs \
+	$(if ($VBOX_WITH_PAM),pam_vbox.so,) \
 	$(if $(VBOX_OSE),,vboxfs_s10)
 
 SOLARIS_ADD_SYSLIBS = \
@@ -269,6 +266,8 @@ $(PATH_BIN)/additions/$(PKGFILENAME): \
 		$(SOLARIS_ARCH_ADD_DEPFILES)
 	$(call MSG_L1,Installing guest additions)
 	$(QUIET)$(SED) \
+		-e "s/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g" \
+		-e "s/@VBOX_VENDOR@/$(VBOX_VENDOR)/g" \
 		-e "s/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g" \
 		-e "s/@VBOX_SVN_REV@/$(VBOX_SVN_REV)/g" \
 		-e "s/@VBOX_VERSION_REVSTAMP@/$(PKGINFO_REVSTAMP)/g" \
@@ -292,12 +291,13 @@ ifdef VBOX_WITH_COMBINED_SOLARIS_GUEST_PACKAGE
 	$(QUIET)$(LN_SYMLINK) -f ../../..$(SOLARIS_VBOXADDINST_SUBDIR)/$(SOLARIS_ADDDIR_NAME_32)/vboxfsmount  $(SOLARIS_ADD_ETCFS_DIR)/mount
 else # !VBOX_WITH_COMBINED_SOLARIS_GUEST_PACKAGE
  ifdef VBOX_COMPRESS
-	$(QUIET)$(VBOX_COMPRESS) $(addprefix $(SOLARIS_VBOXADDINST_DIR_ISA)/,$(SOLARIS_ADD_COMPRESS_FILES)) 
+	$(QUIET)$(VBOX_COMPRESS) $(addprefix $(SOLARIS_VBOXADDINST_DIR_ISA)/,$(SOLARIS_ADD_COMPRESS_FILES))
  endif
 	$(LN_SYMLINK) -f ../../..$(SOLARIS_VBOXADDINST_SUBDIR)/$(SOLARIS_ADDDIR_NAME_ISA)/vboxfsmount         $(SOLARIS_ADD_ETCFS_DIR)/mount
 endif
 	$(QUIET)$(SOLARIS_ADDINST_OUT_DIR)/makepackage.sh $(SOLARIS_ADDINST_OUT_DIR) $(PKGFILENAME) $(VBOX_SVN_REV)
 	$(QUIET)$(INSTALL) -m 0644 $(SOLARIS_ADDINST_OUT_DIR)/$(PKGFILENAME) $(PATH_BIN)/additions/$(PKGFILENAME)
+	$(QUIET)$(RM) -f $(SOLARIS_ADDINST_OUT_DIR)/$(PKGFILENAME)
 
 
 
@@ -515,6 +515,8 @@ $(PATH_BIN)/additions/VBoxSolarisAdditions.pkg: \
 	$(QUIET)$(if $(VBOX_WITH_COMBINED_SOLARIS_GUEST_PACKAGE),$(MKDIR) -p $(SOLARIS_ADD_INST_DIR_64),$(MKDIR) -p $(SOLARIS_ADD_INST_DIR_ISA))
 	$(QUIET)$(MKDIR) -p $(SOLARIS_ADD_INST_DIR)/etc
 	$(QUIET)$(SED) \
+		-e "s/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g" \
+		-e "s/@VBOX_VENDOR@/$(VBOX_VENDOR)/g" \
 		-e "s/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g" \
 		-e "s/@VBOX_SVN_REV@/$(VBOX_SVN_REV)/g" \
 		-e "s/@VBOX_VERSION_REVSTAMP@/$(PKGINFO_REVSTAMP)/g" \

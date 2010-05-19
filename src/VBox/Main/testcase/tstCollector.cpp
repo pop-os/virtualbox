@@ -1,4 +1,4 @@
-/* $Id: tstCollector.cpp $ */
+/* $Id: tstCollector.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef RT_OS_DARWIN
@@ -109,7 +105,7 @@ void measurePerformance(pm::CollectorHAL *collector, const char *pszName, int cV
     uint64_t start;
     unsigned int nCalls;
     /* Pre-collect */
-    CALLS_PER_SECOND(preCollect(hints));
+    CALLS_PER_SECOND(preCollect(hints, 0));
     /* Host CPU load */
     CALLS_PER_SECOND(getRawHostCpuLoad(&tmp64, &tmp64, &tmp64));
     /* Process CPU load */
@@ -127,7 +123,7 @@ void measurePerformance(pm::CollectorHAL *collector, const char *pszName, int cV
     for (times = 0; times < 100; times++)
     {
         /* Pre-collect */
-        N_CALLS(1, preCollect(hints));
+        N_CALLS(1, preCollect(hints, 0));
         /* Host CPU load */
         N_CALLS(1, getRawHostCpuLoad(&tmp64, &tmp64, &tmp64));
         /* Host CPU speed */
@@ -201,7 +197,7 @@ int main(int argc, char *argv[])
 
     RTPrintf("tstCollector: TESTING - CPU load, sleeping for 5 sec\n");
 
-    rc = collector->preCollect(hints);
+    rc = collector->preCollect(hints, 0);
     if (RT_FAILURE(rc))
     {
         RTPrintf("tstCollector: preCollect() -> %Rrc\n", rc);
@@ -222,7 +218,7 @@ int main(int argc, char *argv[])
 
     RTThreadSleep(5000); // Sleep for 5 seconds
 
-    rc = collector->preCollect(hints);
+    rc = collector->preCollect(hints, 0);
     if (RT_FAILURE(rc))
     {
         RTPrintf("tstCollector: preCollect() -> %Rrc\n", rc);
@@ -254,7 +250,7 @@ int main(int argc, char *argv[])
     RTPrintf("tstCollector: process cpu kernel = %llu %%\n\n", (processKernelStop - processKernelStart) * 100 / (processTotalStop - processTotalStart));
 
     RTPrintf("tstCollector: TESTING - CPU load, looping for 5 sec\n");
-    rc = collector->preCollect(hints);
+    rc = collector->preCollect(hints, 0);
     if (RT_FAILURE(rc))
     {
         RTPrintf("tstCollector: preCollect() -> %Rrc\n", rc);
@@ -275,7 +271,7 @@ int main(int argc, char *argv[])
     start = RTTimeMilliTS();
     while(RTTimeMilliTS() - start < 5000)
         ; // Loop for 5 seconds
-    rc = collector->preCollect(hints);
+    rc = collector->preCollect(hints, 0);
     if (RT_FAILURE(rc))
     {
         RTPrintf("tstCollector: preCollect() -> %Rrc\n", rc);

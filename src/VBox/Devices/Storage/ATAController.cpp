@@ -1,4 +1,4 @@
-/* $Id: ATAController.cpp $ */
+/* $Id: ATAController.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller code (disk and cdrom).
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -646,6 +642,19 @@ DECLINLINE(uint32_t) ataMSF2LBA(const uint8_t *pbBuf)
     return (pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2];
 }
 
+static uint32_t ataChecksum(void *ptr, size_t count)
+{
+    uint8_t u8Sum = 0xa5;
+    uint8_t *p = (uint8_t*)ptr;
+    size_t i;
+
+    for (i = 0; i < count; i++)
+    {
+        u8Sum += *p++;
+    }
+
+    return (uint8_t)-(int32_t)u8Sum;
+}
 
 static void ataCmdOK(AHCIATADevState *s, uint8_t status)
 {
@@ -764,6 +773,9 @@ static bool ataIdentifySS(AHCIATADevState *s)
         p[102] = RT_H2LE_U16(s->cTotalSectors >> 32);
         p[103] = RT_H2LE_U16(s->cTotalSectors >> 48);
     }
+    uint32_t uCsum = ataChecksum(p, 510);
+    p[255] = RT_H2LE_U16(0xa5 | (uCsum << 8)); /* Integrity word */
+
     s->iSourceSink = ATAFN_SS_NULL;
     ataCmdOK(s, ATA_STAT_SEEK);
     return false;
@@ -847,6 +859,8 @@ static bool atapiIdentifySS(AHCIATADevState *s)
     p[87] = RT_H2LE_U16(1 << 14);
     p[88] = RT_H2LE_U16(ATA_TRANSFER_ID(ATA_MODE_UDMA, ATA_UDMA_MODE_MAX, s->uATATransferMode)); /* UDMA modes supported / mode enabled */
     p[93] = RT_H2LE_U16((1 | 1 << 1) << ((s->iLUN & 1) == 0 ? 0 : 8) | 1 << 13 | 1 << 14);
+    uint32_t uCsum = ataChecksum(p, 510);
+    p[255] = RT_H2LE_U16(0xa5 | (uCsum << 8)); /* Integrity word */
     s->iSourceSink = ATAFN_SS_NULL;
     ataCmdOK(s, ATA_STAT_SEEK);
     return false;
@@ -1666,12 +1680,12 @@ static bool atapiGetEventStatusNotificationSS(AHCIATADevState *s)
         switch (OldStatus)
         {
             case ATA_EVENT_STATUS_MEDIA_NEW:
-            /* mount */
+                /* mount */
                 ataH2BE_U16(pbBuf + 0, 6);
-                pbBuf[2] = 0x04;
-                pbBuf[3] = 0x5e;
-                pbBuf[4] = 0x02;
-                pbBuf[5] = 0x02;
+                pbBuf[2] = 0x04; /* media */
+                pbBuf[3] = 0x5e; /* suppored = busy|media|external|power|operational */
+                pbBuf[4] = 0x02; /* new medium */
+                pbBuf[5] = 0x02; /* medium present / door closed */
                 pbBuf[6] = 0x00;
                 pbBuf[7] = 0x00;
                 break;
@@ -1680,21 +1694,31 @@ static bool atapiGetEventStatusNotificationSS(AHCIATADevState *s)
             case ATA_EVENT_STATUS_MEDIA_REMOVED:
                 /* umount */
                 ataH2BE_U16(pbBuf + 0, 6);
-                pbBuf[2] = 0x04;
-                pbBuf[3] = 0x5e;
-                pbBuf[4] = 0x03;
-                pbBuf[5] = 0x00;
+                pbBuf[2] = 0x04; /* media */
+                pbBuf[3] = 0x5e; /* suppored = busy|media|external|power|operational */
+                pbBuf[4] = 0x03; /* media removal */
+                pbBuf[5] = 0x00; /* medium absent / door closed */
                 pbBuf[6] = 0x00;
                 pbBuf[7] = 0x00;
                 if (OldStatus == ATA_EVENT_STATUS_MEDIA_CHANGED)
                     NewStatus = ATA_EVENT_STATUS_MEDIA_NEW;
                 break;
 
+            case ATA_EVENT_STATUS_MEDIA_EJECT_REQUESTED: /* currently unused */
+                ataH2BE_U16(pbBuf + 0, 6);
+                pbBuf[2] = 0x04; /* media */
+                pbBuf[3] = 0x5e; /* supported = busy|media|external|power|operational */
+                pbBuf[4] = 0x01; /* eject requested (eject button pressed) */
+                pbBuf[5] = 0x02; /* medium present / door closed */
+                pbBuf[6] = 0x00;
+                pbBuf[7] = 0x00;
+                break;
+
             case ATA_EVENT_STATUS_UNCHANGED:
             default:
                 ataH2BE_U16(pbBuf + 0, 6);
-                pbBuf[2] = 0x01;
-                pbBuf[3] = 0x5e;
+                pbBuf[2] = 0x01; /* operational change request / notification */
+                pbBuf[3] = 0x5e; /* suppored = busy|media|external|power|operational */
                 pbBuf[4] = 0x00;
                 pbBuf[5] = 0x00;
                 pbBuf[6] = 0x00;
@@ -3077,7 +3101,7 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
  * @param   pThis       Pointer to the controller data.
  * @param   cMillies    How long to wait (total).
  */
-static bool ataWaitForAsyncIOIsIdle(PAHCIATACONTROLLER pCtl, unsigned cMillies)
+static bool ataWaitForAsyncIOIsIdle(PAHCIATACONTROLLER pCtl, RTMSINTERVAL cMillies)
 {
     uint64_t        u64Start;
     bool            fRc;
@@ -4589,27 +4613,15 @@ void  ataControllerReset(PAHCIATACONTROLLER pCtl)
 /* -=-=-=-=-=- AHCIATADevState::IBase   -=-=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to AHCIATADevState::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *)  ataQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *)  ataQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    AHCIATADevState *pIf = PDMIBASE_2_ATASTATE(pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pIf->IBase;
-        case PDMINTERFACE_BLOCK_PORT:
-            return &pIf->IPort;
-        case PDMINTERFACE_MOUNT_NOTIFY:
-            return &pIf->IMountNotify;
-        default:
-            return NULL;
-    }
+    ATADevState *pIf = PDMIBASE_2_ATASTATE(pInterface);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pIf->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKPORT, &pIf->IPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNTNOTIFY, &pIf->IMountNotify);
+    return NULL;
 }
 #endif
 #endif /* IN_RING3 */
@@ -4827,7 +4839,7 @@ int ataControllerIOPortRead2(PAHCIATACONTROLLER pCtl, RTIOPORT Port, uint32_t *p
  * @param   pThis       Pointer to the instance data.
  * @param   cMillies    How long to wait (total).
  */
-static bool ataWaitForAllAsyncIOIsIdle(PAHCIATACONTROLLER pCtl, unsigned cMillies)
+static bool ataWaitForAllAsyncIOIsIdle(PAHCIATACONTROLLER pCtl, RTMSINTERVAL cMillies)
 {
     uint64_t        u64Start;
     PPDMDEVINS      pDevIns = pCtl->CTXALLSUFF(pDevIns);
@@ -5012,7 +5024,7 @@ static int ataConfigLun(PPDMDEVINS pDevIns, AHCIATADevState *pIf)
     /*
      * Query Block, Bios and Mount interfaces.
      */
-    pIf->pDrvBlock = (PDMIBLOCK *)pIf->pDrvBase->pfnQueryInterface(pIf->pDrvBase, PDMINTERFACE_BLOCK);
+    pIf->pDrvBlock = PDMIBASE_QUERY_INTERFACE(pIf->pDrvBase, PDMIBLOCK);
     if (!pIf->pDrvBlock)
     {
         AssertMsgFailed(("Configuration error: LUN#%d hasn't a block interface!\n", pIf->iLUN));
@@ -5020,13 +5032,13 @@ static int ataConfigLun(PPDMDEVINS pDevIns, AHCIATADevState *pIf)
     }
 
     /** @todo implement the BIOS invisible code path. */
-    pIf->pDrvBlockBios = (PDMIBLOCKBIOS *)pIf->pDrvBase->pfnQueryInterface(pIf->pDrvBase, PDMINTERFACE_BLOCK_BIOS);
+    pIf->pDrvBlockBios = PDMIBASE_QUERY_INTERFACE(pIf->pDrvBase, PDMIBLOCKBIOS);
     if (!pIf->pDrvBlockBios)
     {
         AssertMsgFailed(("Configuration error: LUN#%d hasn't a block BIOS interface!\n", pIf->iLUN));
         return VERR_PDM_MISSING_INTERFACE;
     }
-    pIf->pDrvMount = (PDMIMOUNT *)pIf->pDrvBase->pfnQueryInterface(pIf->pDrvBase, PDMINTERFACE_MOUNT);
+    pIf->pDrvMount = PDMIBASE_QUERY_INTERFACE(pIf->pDrvBase, PDMIMOUNT);
 
     /*
      * Validate type.
@@ -5484,7 +5496,7 @@ DECLCALLBACK(int) ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
     }
 
     /* Initialize per-controller critical section */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pCtl->lock, szName);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pCtl->lock, RT_SRC_POS, "%s", szName);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("AHCI ATA: cannot initialize critical section"));
 
@@ -5550,4 +5562,3 @@ DECLCALLBACK(int) ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
 }
 #endif /* IN_RING3 */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
-

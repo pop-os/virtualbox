@@ -1,10 +1,10 @@
-/* $Id: PDMCritSect.cpp $ */
+/* $Id: PDMCritSect.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PDM - Critical Sections, Ring-3.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -28,12 +24,14 @@
 #include <VBox/pdmcritsect.h>
 #include <VBox/mm.h>
 #include <VBox/vm.h>
+#include <VBox/uvm.h>
 
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/sup.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/lockvalidator.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
 
@@ -41,19 +39,17 @@
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-static int pdmR3CritSectDeleteOne(PVM pVM, PPDMCRITSECTINT pCritSect, PPDMCRITSECTINT pPrev, bool fFinal);
+static int pdmR3CritSectDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTINT pCritSect, PPDMCRITSECTINT pPrev, bool fFinal);
 
 
 
 /**
- * Initializes the critical section subcomponent.
+ * Register statistics related to the critical sections.
  *
  * @returns VBox status code.
  * @param   pVM         The VM handle.
- * @remark  Not to be confused with PDMR3CritSectInit and pdmR3CritSectInitDevice which are
- *          for initializing a critical section.
  */
-int pdmR3CritSectInit(PVM pVM)
+int pdmR3CritSectInitStats(PVM pVM)
 {
     STAM_REG(pVM, &pVM->pdm.s.StatQueuedCritSectLeaves, STAMTYPE_COUNTER, "/PDM/QueuedCritSectLeaves", STAMUNIT_OCCURENCES,
              "Number of times a critical section leave requesed needed to be queued for ring-3 execution.");
@@ -68,41 +64,49 @@ int pdmR3CritSectInit(PVM pVM)
  */
 void pdmR3CritSectRelocate(PVM pVM)
 {
-    RTCritSectEnter(&pVM->pdm.s.MiscCritSect);
-    for (PPDMCRITSECTINT pCur = pVM->pdm.s.pCritSects;
+    PUVM pUVM = pVM->pUVM;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+
+    for (PPDMCRITSECTINT pCur = pUVM->pdm.s.pCritSects;
          pCur;
          pCur = pCur->pNext)
         pCur->pVMRC = pVM->pVMRC;
-    RTCritSectLeave(&pVM->pdm.s.MiscCritSect);
+
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 }
 
 
 /**
  * Deletes all remaining critical sections.
  *
- * This is called at the end of the termination process.
+ * This is called at the very end of the termination process.  It is also called
+ * at the end of vmR3CreateU failure cleanup, which may cause it to be called
+ * twice depending on hwere vmR3CreateU actually failed.  We have to do the
+ * latter call because other components expect the critical sections to be
+ * automatically deleted.
  *
  * @returns VBox status.
  *          First error code, rest is lost.
- * @param   pVM         The VM handle.
+ * @param   pVMU        The user mode VM handle.
  * @remark  Don't confuse this with PDMR3CritSectDelete.
  */
 VMMDECL(int) PDMR3CritSectTerm(PVM pVM)
 {
-    int rc = VINF_SUCCESS;
-    RTCritSectEnter(&pVM->pdm.s.MiscCritSect);
-    while (pVM->pdm.s.pCritSects)
+    PUVM    pUVM = pVM->pUVM;
+    int     rc   = VINF_SUCCESS;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+
+    while (pUVM->pdm.s.pCritSects)
     {
-        int rc2 = pdmR3CritSectDeleteOne(pVM, pVM->pdm.s.pCritSects, NULL, true /* final */);
+        int rc2 = pdmR3CritSectDeleteOne(pVM, pUVM, pUVM->pdm.s.pCritSects, NULL, true /* final */);
         AssertRC(rc2);
         if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
             rc = rc2;
     }
-    RTCritSectLeave(&pVM->pdm.s.MiscCritSect);
-    RTCritSectDelete(&pVM->pdm.s.MiscCritSect);
+
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     return rc;
 }
-
 
 
 /**
@@ -112,9 +116,13 @@ VMMDECL(int) PDMR3CritSectTerm(PVM pVM)
  * @param   pVM             The Vm handle.
  * @param   pCritSect       The critical section.
  * @param   pvKey           The owner key.
+ * @param   RT_SRC_POS_DECL The source position.
  * @param   pszName         The name of the critical section (for statistics).
+ * @param   pszNameFmt      Format string for namging the critical section.  For
+ *                          statistics and lock validation.
+ * @param   va              Arguments for the format string.
  */
-static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey, const char *pszName)
+static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey, RT_SRC_POS_DECL, const char *pszNameFmt, va_list va)
 {
     VM_ASSERT_EMT(pVM);
 
@@ -125,32 +133,54 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
     int rc = SUPSemEventCreate(pVM->pSession, (PSUPSEMEVENT)&pCritSect->Core.EventSem);
     if (RT_SUCCESS(rc))
     {
-        /*
-         * Initialize the structure (first bit is c&p from RTCritSectInitEx).
-         */
-        pCritSect->Core.u32Magic             = RTCRITSECT_MAGIC;
-        pCritSect->Core.fFlags               = 0;
-        pCritSect->Core.cNestings            = 0;
-        pCritSect->Core.cLockers             = -1;
-        pCritSect->Core.NativeThreadOwner    = NIL_RTNATIVETHREAD;
-        pCritSect->Core.Strict.ThreadOwner   = NIL_RTTHREAD;
-        pCritSect->Core.Strict.pszEnterFile  = NULL;
-        pCritSect->Core.Strict.u32EnterLine  = 0;
-        pCritSect->Core.Strict.uEnterId      = 0;
-        pCritSect->pVMR3                     = pVM;
-        pCritSect->pVMR0                     = pVM->pVMR0;
-        pCritSect->pVMRC                     = pVM->pVMRC;
-        pCritSect->pvKey                     = pvKey;
-        pCritSect->EventToSignal             = NIL_RTSEMEVENT;
-        pCritSect->pNext                     = pVM->pdm.s.pCritSects;
-        pCritSect->pszName                   = RTStrDup(pszName);
-        pVM->pdm.s.pCritSects = pCritSect;
-        STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLock,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZLock", pszName);
-        STAMR3RegisterF(pVM, &pCritSect->StatContentionRZUnlock,STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZUnlock", pszName);
-        STAMR3RegisterF(pVM, &pCritSect->StatContentionR3,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionR3", pszName);
-#ifdef VBOX_WITH_STATISTICS
-        STAMR3RegisterF(pVM, &pCritSect->StatLocked,        STAMTYPE_PROFILE_ADV, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSects/%s/Locked", pszName);
+        /* Only format the name once. */
+        char *pszName = RTStrAPrintf2V(pszNameFmt, va); /** @todo plug the "leak"... */
+        if (pszName)
+        {
+#ifndef PDMCRITSECT_STRICT
+            pCritSect->Core.pValidatorRec = NULL;
+#else
+            rc = RTLockValidatorRecExclCreate(&pCritSect->Core.pValidatorRec,
+# ifdef RT_LOCK_STRICT_ORDER
+                                              RTLockValidatorClassForSrcPos(RT_SRC_POS_ARGS, "%s", pszName),
+# else
+                                              NIL_RTLOCKVALCLASS,
+# endif
+                                              RTLOCKVAL_SUB_CLASS_NONE,
+                                              pCritSect, true, "%s", pszName);
 #endif
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Initialize the structure (first bit is c&p from RTCritSectInitEx).
+                 */
+                pCritSect->Core.u32Magic             = RTCRITSECT_MAGIC;
+                pCritSect->Core.fFlags               = 0;
+                pCritSect->Core.cNestings            = 0;
+                pCritSect->Core.cLockers             = -1;
+                pCritSect->Core.NativeThreadOwner    = NIL_RTNATIVETHREAD;
+                pCritSect->pVMR3                     = pVM;
+                pCritSect->pVMR0                     = pVM->pVMR0;
+                pCritSect->pVMRC                     = pVM->pVMRC;
+                pCritSect->pvKey                     = pvKey;
+                pCritSect->EventToSignal             = NIL_RTSEMEVENT;
+                pCritSect->pNext                     = pVM->pUVM->pdm.s.pCritSects;
+                pCritSect->pszName                   = pszName;
+                pVM->pUVM->pdm.s.pCritSects = pCritSect;
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLock,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZLock", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZUnlock,STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZUnlock", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionR3,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionR3", pCritSect->pszName);
+#ifdef VBOX_WITH_STATISTICS
+                STAMR3RegisterF(pVM, &pCritSect->StatLocked,        STAMTYPE_PROFILE_ADV, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSects/%s/Locked", pCritSect->pszName);
+#endif
+                return VINF_SUCCESS;
+            }
+
+            RTStrFree(pszName);
+        }
+        else
+            rc = VERR_NO_STR_MEMORY;
+        SUPSemEventClose(pVM->pSession, (SUPSEMEVENT)pCritSect->Core.EventSem);
     }
     return rc;
 }
@@ -166,21 +196,28 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
  * @param   pVM             The VM handle.
  * @param   pDevIns         Device instance.
  * @param   pCritSect       Pointer to the critical section.
- * @param   pszName         The name of the critical section (for statistics).
+ * @param   RT_SRC_POS_DECL Use RT_SRC_POS.
+ * @param   pszNameFmt      Format string for namging the critical section.  For
+ *                          statistics and lock validation.
+ * @param   ...             Arguments for the format string.
  * @thread  EMT(0)
  */
-VMMR3DECL(int) PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, const char *pszName)
+VMMR3DECL(int) PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, ...)
 {
 #if HC_ARCH_BITS == 64 && GC_ARCH_BITS == 32
     AssertCompile(sizeof(pCritSect->padding) >= sizeof(pCritSect->s));
 #endif
     Assert(RT_ALIGN_P(pCritSect, sizeof(uintptr_t)) == pCritSect);
-    return pdmR3CritSectInitOne(pVM, &pCritSect->s, pCritSect, pszName);
+    va_list va;
+    va_start(va, pszNameFmt);
+    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pCritSect, RT_SRC_POS_ARGS, pszNameFmt, va);
+    va_end(va);
+    return rc;
 }
 
 
 /**
- * Initializes a PDM critical section.
+ * Initializes a PDM critical section for a device.
  *
  * The PDM critical sections are derived from the IPRT critical sections, but
  * works in GC as well.
@@ -189,11 +226,36 @@ VMMR3DECL(int) PDMR3CritSectInit(PVM pVM, PPDMCRITSECT pCritSect, const char *ps
  * @param   pVM             The VM handle.
  * @param   pDevIns         Device instance.
  * @param   pCritSect       Pointer to the critical section.
- * @param   pszName         The name of the critical section (for statistics).
+ * @param   pszNameFmt      Format string for naming the critical section.  For
+ *                          statistics and lock validation.
+ * @param   va              Arguments for the format string.
  */
-int pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, const char *pszName)
+int pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL,
+                            const char *pszNameFmt, va_list va)
 {
-    return pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, pszName);
+    return pdmR3CritSectInitOne(pVM, &pCritSect->s, pDevIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+}
+
+
+/**
+ * Initializes a PDM critical section for a driver.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The VM handle.
+ * @param   pDrvIns         Driver instance.
+ * @param   pCritSect       Pointer to the critical section.
+ * @param   pszNameFmt      Format string for naming the critical section.  For
+ *                          statistics and lock validation.
+ * @param   ...             Arguments for the format string.
+ */
+int pdmR3CritSectInitDriver(PVM pVM, PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL,
+                            const char *pszNameFmt, ...)
+{
+    va_list va;
+    va_start(va, pszNameFmt);
+    int rc = pdmR3CritSectInitOne(pVM, &pCritSect->s, pDrvIns, RT_SRC_POS_ARGS, pszNameFmt, va);
+    va_end(va);
+    return rc;
 }
 
 
@@ -207,9 +269,9 @@ int pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect,
  * @param   pPrev       The previous critical section in the list.
  * @param   fFinal      Set if this is the final call and statistics shouldn't be deregistered.
  *
- * @remarks Caller must've entered the MiscCritSect.
+ * @remarks Caller must've entered the ListCritSect.
  */
-static int pdmR3CritSectDeleteOne(PVM pVM, PPDMCRITSECTINT pCritSect, PPDMCRITSECTINT pPrev, bool fFinal)
+static int pdmR3CritSectDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTINT pCritSect, PPDMCRITSECTINT pPrev, bool fFinal)
 {
     /*
      * Assert free waiters and so on (c&p from RTCritSectDelete).
@@ -218,7 +280,7 @@ static int pdmR3CritSectDeleteOne(PVM pVM, PPDMCRITSECTINT pCritSect, PPDMCRITSE
     Assert(pCritSect->Core.cNestings == 0);
     Assert(pCritSect->Core.cLockers == -1);
     Assert(pCritSect->Core.NativeThreadOwner == NIL_RTNATIVETHREAD);
-    Assert(RTCritSectIsOwner(&pVM->pdm.s.MiscCritSect));
+    Assert(RTCritSectIsOwner(&pUVM->pdm.s.ListCritSect));
 
     /*
      * Unlink it.
@@ -226,7 +288,7 @@ static int pdmR3CritSectDeleteOne(PVM pVM, PPDMCRITSECTINT pCritSect, PPDMCRITSE
     if (pPrev)
         pPrev->pNext = pCritSect->pNext;
     else
-        pVM->pdm.s.pCritSects = pCritSect->pNext;
+        pUVM->pdm.s.pCritSects = pCritSect->pNext;
 
     /*
      * Delete it (parts taken from RTCritSectDelete).
@@ -240,6 +302,7 @@ static int pdmR3CritSectDeleteOne(PVM pVM, PPDMCRITSECTINT pCritSect, PPDMCRITSE
     ASMAtomicWriteS32(&pCritSect->Core.cLockers, -1);
     int rc = SUPSemEventClose(pVM->pSession, hEvent);
     AssertRC(rc);
+    RTLockValidatorRecExclDestroy(&pCritSect->Core.pValidatorRec);
     pCritSect->pNext   = NULL;
     pCritSect->pvKey   = NULL;
     pCritSect->pVMR3   = NULL;
@@ -275,15 +338,16 @@ static int pdmR3CritSectDeleteByKey(PVM pVM, void *pvKey)
     /*
      * Iterate the list and match key.
      */
+    PUVM            pUVM  = pVM->pUVM;
     int             rc    = VINF_SUCCESS;
     PPDMCRITSECTINT pPrev = NULL;
-    RTCritSectEnter(&pVM->pdm.s.MiscCritSect);
-    PPDMCRITSECTINT pCur  = pVM->pdm.s.pCritSects;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    PPDMCRITSECTINT pCur  = pUVM->pdm.s.pCritSects;
     while (pCur)
     {
         if (pCur->pvKey == pvKey)
         {
-            int rc2 = pdmR3CritSectDeleteOne(pVM, pCur, pPrev, false /* not final */);
+            int rc2 = pdmR3CritSectDeleteOne(pVM, pUVM, pCur, pPrev, false /* not final */);
             AssertRC(rc2);
             if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
                 rc = rc2;
@@ -293,7 +357,7 @@ static int pdmR3CritSectDeleteByKey(PVM pVM, void *pvKey)
         pPrev = pCur;
         pCur = pCur->pNext;
     }
-    RTCritSectLeave(&pVM->pdm.s.MiscCritSect);
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     return rc;
 }
 
@@ -312,6 +376,19 @@ int pdmR3CritSectDeleteDevice(PVM pVM, PPDMDEVINS pDevIns)
 
 
 /**
+ * Deletes all undeleted critical sections initalized by a given driver.
+ *
+ * @returns VBox status code.
+ * @param   pVM         The VM handle.
+ * @param   pDrvIns     The driver handle.
+ */
+int pdmR3CritSectDeleteDriver(PVM pVM, PPDMDRVINS pDrvIns)
+{
+    return pdmR3CritSectDeleteByKey(pVM, pDrvIns);
+}
+
+
+/**
  * Deletes the critical section.
  *
  * @returns VBox status code.
@@ -326,16 +403,17 @@ VMMR3DECL(int) PDMR3CritSectDelete(PPDMCRITSECT pCritSect)
      * Find and unlink it.
      */
     PVM             pVM   = pCritSect->s.pVMR3;
+    PUVM            pUVM  = pVM->pUVM;
     AssertReleaseReturn(pVM, VERR_INTERNAL_ERROR);
     PPDMCRITSECTINT pPrev = NULL;
-    RTCritSectEnter(&pVM->pdm.s.MiscCritSect);
-    PPDMCRITSECTINT pCur  = pVM->pdm.s.pCritSects;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    PPDMCRITSECTINT pCur  = pUVM->pdm.s.pCritSects;
     while (pCur)
     {
         if (pCur == &pCritSect->s)
         {
-            int rc = pdmR3CritSectDeleteOne(pVM, pCur, pPrev, false /* not final */);
-            RTCritSectLeave(&pVM->pdm.s.MiscCritSect);
+            int rc = pdmR3CritSectDeleteOne(pVM, pUVM, pCur, pPrev, false /* not final */);
+            RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
             return rc;
         }
 
@@ -343,7 +421,7 @@ VMMR3DECL(int) PDMR3CritSectDelete(PPDMCRITSECT pCritSect)
         pPrev = pCur;
         pCur = pCur->pNext;
     }
-    RTCritSectLeave(&pVM->pdm.s.MiscCritSect);
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     AssertReleaseMsgFailed(("pCritSect=%p wasn't found!\n", pCritSect));
     return VERR_INTERNAL_ERROR;
 }
@@ -389,6 +467,9 @@ VMMR3DECL(bool) PDMR3CritSectYield(PPDMCRITSECT pCritSect)
     if (cLockers < cNestings)
         return false;
 
+#ifdef PDMCRITSECT_STRICT
+    RTLOCKVALSRCPOS const SrcPos = pCritSect->s.Core.pValidatorRec->SrcPos;
+#endif
     PDMCritSectLeave(pCritSect);
 
     /*
@@ -410,7 +491,12 @@ VMMR3DECL(bool) PDMR3CritSectYield(PPDMCRITSECT pCritSect)
             RTThreadYield();
     }
 
+#ifdef PDMCRITSECT_STRICT
+    int rc = PDMCritSectEnterDebug(pCritSect, VERR_INTERNAL_ERROR,
+                                   SrcPos.uId, SrcPos.pszFile, SrcPos.uLine, SrcPos.pszFunction);
+#else
     int rc = PDMCritSectEnter(pCritSect, VERR_INTERNAL_ERROR);
+#endif
     AssertLogRelRC(rc);
     return true;
 }
@@ -472,7 +558,7 @@ VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNa
     /* This is unsafe, but wtf. */
     RTNATIVETHREAD const    hNativeThread = RTThreadNativeSelf();
     uint32_t                cCritSects = 0;
-    for (PPDMCRITSECTINT pCur = pVM->pdm.s.pCritSects;
+    for (PPDMCRITSECTINT pCur = pVM->pUVM->pdm.s.pCritSects;
          pCur;
          pCur = pCur->pNext)
     {
@@ -536,9 +622,10 @@ VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNa
 void PDMR3CritSectLeaveAll(PVM pVM)
 {
     RTNATIVETHREAD const hNativeSelf = RTThreadNativeSelf();
+    PUVM                 pUVM        = pVM->pUVM;
 
-    RTCritSectEnter(&pVM->pdm.s.MiscCritSect);
-    for (PPDMCRITSECTINT pCur = pVM->pdm.s.pCritSects;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+    for (PPDMCRITSECTINT pCur = pUVM->pdm.s.pCritSects;
          pCur;
          pCur = pCur->pNext)
     {
@@ -546,6 +633,6 @@ void PDMR3CritSectLeaveAll(PVM pVM)
                &&   pCur->Core.cNestings > 0)
             PDMCritSectLeave((PPDMCRITSECT)pCur);
     }
-    RTCritSectLeave(&pVM->pdm.s.MiscCritSect);
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 }
 

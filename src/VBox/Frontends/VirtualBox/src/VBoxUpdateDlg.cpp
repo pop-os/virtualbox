@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,21 +14,19 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
-/* Common includes */
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+#include "precomp.h"
+#else /* !VBOX_WITH_PRECOMPILED_HEADERS */
+/* Global includes */
+#include <QTimer>
+/* Local includes */
 #include "QIHttp.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 #include "VBoxUpdateDlg.h"
-
-/* Qt includes */
-#include <QTimer>
-
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* VBoxVersion stuff */
 class VBoxVersion
@@ -65,7 +63,6 @@ private:
     int y;
     int z;
 };
-
 
 /* VBoxUpdateData stuff */
 QList <UpdateDay> VBoxUpdateData::mDayList = QList <UpdateDay>();
@@ -188,7 +185,7 @@ void VBoxUpdateData::decode()
             QDate date = QDate::fromString (parser [1], Qt::ISODate);
             mDate = date.isValid() ? date : QDate::currentDate();
         }
-            
+
         /* Parse 'branch' value */
         if (parser.size() > 2)
         {
@@ -232,7 +229,6 @@ void VBoxUpdateData::encode()
     }
 }
 
-
 /* VBoxUpdateDlg stuff */
 bool VBoxUpdateDlg::isNecessary()
 {
@@ -243,7 +239,7 @@ bool VBoxUpdateDlg::isNecessary()
 }
 
 VBoxUpdateDlg::VBoxUpdateDlg (VBoxUpdateDlg **aSelf, bool aForceRun, QWidget *aParent)
-    : QIWithRetranslateUI <QIAbstractWizard> (aParent)
+    : QIWithRetranslateUI <QDialog> (aParent)
     , mSelf (aSelf)
     , mUrl ("http://update.virtualbox.org/query.php")
     , mHttp (new QIHttp (this, mUrl.host()))
@@ -259,14 +255,8 @@ VBoxUpdateDlg::VBoxUpdateDlg (VBoxUpdateDlg **aSelf, bool aForceRun, QWidget *aP
     setWindowIcon (vboxGlobal().iconSetFull (QSize (32, 32), QSize (16, 16),
                                              ":/refresh_32px.png", ":/refresh_16px.png"));
 
-    /* Initialize wizard hdr */
-    initializeWizardHdr();
-
     /* Setup other connections */
     connect (mBtnCheck, SIGNAL (clicked()), this, SLOT (search()));
-
-    /* Initialize wizard hdr */
-    initializeWizardFtr();
 
     /* Setup initial condition */
     mPbCheck->setMinimumWidth (mLogoUpdate->width() + mLogoUpdate->frameWidth() * 2);
@@ -334,7 +324,7 @@ void VBoxUpdateDlg::accept()
     vboxGlobal().virtualBox().SetExtraData (VBoxDefs::GUI_UpdateDate,
                                             newData.data());
 
-    QIAbstractWizard::accept();
+    QDialog::accept();
 }
 
 void VBoxUpdateDlg::search()
@@ -351,11 +341,11 @@ void VBoxUpdateDlg::search()
 
     /* Compose query */
     QUrl url (mUrl);
-    url.addQueryItem ("platform", vboxGlobal().virtualBox().GetPackageType());   
+    url.addQueryItem ("platform", vboxGlobal().virtualBox().GetPackageType());
     /* Branding: Check whether we have a local branding file which tells us our version suffix "FOO"
                      (e.g. 3.06.54321_FOO) to identify this installation */
     if (vboxGlobal().brandingIsActive())
-    {        
+    {
         url.addQueryItem ("version", QString ("%1_%2_%3").arg (vboxGlobal().virtualBox().GetVersion())
                                                          .arg (vboxGlobal().virtualBox().GetRevision())
                                                          .arg (vboxGlobal().brandingGetKey("VerSuffix")));
@@ -447,14 +437,6 @@ void VBoxUpdateDlg::searchResponse (bool aError)
         count = sc.toLongLong (&ok);
     vboxGlobal().virtualBox().SetExtraData (VBoxDefs::GUI_UpdateCheckCount,
                                             QString ("%1").arg ((qulonglong) count + 1));
-}
-
-void VBoxUpdateDlg::onPageShow()
-{
-    if (mPageStack->currentWidget() == mPageUpdate)
-        mBtnCheck->setFocus();
-    else
-        mBtnFinish->setFocus();
 }
 
 void VBoxUpdateDlg::abortRequest (const QString &aReason)

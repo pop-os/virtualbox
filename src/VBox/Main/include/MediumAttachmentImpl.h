@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,21 +13,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_MEDIUMATTACHMENTIMPL
 #define ____H_MEDIUMATTACHMENTIMPL
 
 #include "VirtualBoxBase.h"
-
-#include "MediumImpl.h"
-
-class Machine;
-class Medium;
 
 class ATL_NO_VTABLE MediumAttachment :
     public VirtualBoxBase,
@@ -47,7 +38,8 @@ public:
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR(MediumAttachment)
+    MediumAttachment() { };
+    ~MediumAttachment() { };
 
     // public initializer/uninitializer for internal purposes only
     HRESULT init(Machine *aParent,
@@ -62,9 +54,6 @@ public:
     HRESULT FinalConstruct();
     void FinalRelease();
 
-    bool rollback();
-    void commit();
-
     // IMediumAttachment properties
     STDMETHOD(COMGETTER(Medium))(IMedium **aMedium);
     STDMETHOD(COMGETTER(Controller))(BSTR *aController);
@@ -73,40 +62,29 @@ public:
     STDMETHOD(COMGETTER(Type))(DeviceType_T *aType);
     STDMETHOD(COMGETTER(Passthrough))(BOOL *aPassthrough);
 
-    // unsafe inline public methods for internal purposes only (ensure there is
+    // public internal methods
+    void rollback();
+    void commit();
+
+    // unsafe public methods for internal purposes only (ensure there is
     // a caller and a read lock before calling them!)
+    bool isImplicit() const;
+    void setImplicit(bool aImplicit);
 
-    bool isImplicit() const { return m->implicit; }
-    void setImplicit(bool aImplicit) { m->implicit = aImplicit; }
+    const ComObjPtr<Medium>& getMedium() const;
+    Bstr getControllerName() const;
+    LONG getPort() const;
+    LONG getDevice() const;
+    DeviceType_T getType() const;
+    bool getPassthrough() const;
 
-    const ComObjPtr<Medium>& getMedium() const { return m->medium; }
-    Bstr getControllerName() const { return m->controllerName; }
-    LONG getPort() const { return m->port; }
-    LONG getDevice() const { return m->device; }
-    DeviceType_T getType() const { return m->type; }
-    bool getPassthrough() const { AutoReadLock lock(this); return m->passthrough; }
-
-    bool matches(CBSTR aControllerName, LONG aPort, LONG aDevice)
-    {
-        return (    aControllerName == m->controllerName
-                 && aPort == m->port
-                 && aDevice == m->device);
-    }
+    bool matches(CBSTR aControllerName, LONG aPort, LONG aDevice);
 
     /** Must be called from under this object's write lock. */
-    void updateMedium(const ComObjPtr<Medium> &aMedium, bool aImplicit)
-    {
-        m.backup();
-        m->medium = aMedium;
-        m->implicit = aImplicit;
-    }
+    void updateMedium(const ComObjPtr<Medium> &aMedium, bool aImplicit);
 
     /** Must be called from under this object's write lock. */
-    void updatePassthrough(bool aPassthrough)
-    {
-        m.backup();
-        m->passthrough = aPassthrough;
-    }
+    void updatePassthrough(bool aPassthrough);
 
     /** Get a unique and somewhat descriptive name for logging. */
     const char* getLogName(void) const { return mLogName.c_str(); }
@@ -115,37 +93,8 @@ public:
     static const char *ComponentName() { return "MediumAttachment"; }
 
 private:
-
-    /** Reference to Machine object, for checking mutable state. */
-    const ComObjPtr<Machine, ComWeakRef> mParent;
-    /* later: const ComObjPtr<MediumAttachment> mPeer; */
-
-    struct Data
-    {
-        Data() : port(0), device(0), type(DeviceType_Null),
-                 passthrough(false), implicit(false) {}
-
-        bool operator== (const Data &that) const
-        {
-            return   this == &that
-                   || (passthrough == that.passthrough);
-        }
-
-        ComObjPtr<Medium> medium;
-        /* Since MediumAttachment is not a first class citizen when it
-         * comes to managing settings, having a reference to the storage
-         * controller will not work - when settings are changed it will point
-         * to the old, uninitialized instance. Changing this requires
-         * substantial changes to MediumImpl.cpp. */
-        const Bstr controllerName;
-        const LONG port;
-        const LONG device;
-        const DeviceType_T type;
-        bool passthrough : 1;
-        bool implicit : 1;
-    };
-
-    Backupable<Data> m;
+    struct Data;
+    Data *m;
 
     Utf8Str mLogName;                   /**< For logging purposes */
 };

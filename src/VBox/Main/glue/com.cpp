@@ -1,11 +1,10 @@
-/* $Id: com.cpp $ */
-
+/* $Id: com.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,25 +13,21 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #if !defined (VBOX_WITH_XPCOM)
 
-#include <objbase.h>
+# include <objbase.h>
 
 #else /* !defined (VBOX_WITH_XPCOM) */
 
-#include <stdlib.h>
+# include <stdlib.h>
 
-#include <nsCOMPtr.h>
-#include <nsIServiceManagerUtils.h>
+# include <nsCOMPtr.h>
+# include <nsIServiceManagerUtils.h>
 
-#include <nsIInterfaceInfo.h>
-#include <nsIInterfaceInfoManager.h>
+# include <nsIInterfaceInfo.h>
+# include <nsIInterfaceInfoManager.h>
 
 #endif /* !defined (VBOX_WITH_XPCOM) */
 
@@ -51,9 +46,9 @@
 #include <VBox/err.h>
 
 #ifdef RT_OS_DARWIN
-#define VBOX_USER_HOME_SUFFIX   "Library/VirtualBox"
+# define VBOX_USER_HOME_SUFFIX   "Library/VirtualBox"
 #else
-#define VBOX_USER_HOME_SUFFIX   ".VirtualBox"
+# define VBOX_USER_HOME_SUFFIX   ".VirtualBox"
 #endif
 
 #include "Logging.h"
@@ -61,75 +56,73 @@
 namespace com
 {
 
-void GetInterfaceNameByIID (const GUID &aIID, BSTR *aName)
+void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName)
 {
-    Assert (aName);
+    Assert(aName);
     if (!aName)
         return;
 
     *aName = NULL;
 
-#if !defined (VBOX_WITH_XPCOM)
+#if !defined(VBOX_WITH_XPCOM)
 
     LONG rc;
     LPOLESTR iidStr = NULL;
-    if (StringFromIID (aIID, &iidStr) == S_OK)
+    if (StringFromIID(aIID, &iidStr) == S_OK)
     {
         HKEY ifaceKey;
-        rc = RegOpenKeyExW (HKEY_CLASSES_ROOT, L"Interface",
-                            0, KEY_QUERY_VALUE, &ifaceKey);
+        rc = RegOpenKeyExW(HKEY_CLASSES_ROOT, L"Interface",
+                           0, KEY_QUERY_VALUE, &ifaceKey);
         if (rc == ERROR_SUCCESS)
         {
             HKEY iidKey;
-            rc = RegOpenKeyExW (ifaceKey, iidStr, 0, KEY_QUERY_VALUE, &iidKey);
+            rc = RegOpenKeyExW(ifaceKey, iidStr, 0, KEY_QUERY_VALUE, &iidKey);
             if (rc == ERROR_SUCCESS)
             {
                 /* determine the size and type */
                 DWORD sz, type;
-                rc = RegQueryValueExW (iidKey, NULL, NULL, &type, NULL, &sz);
+                rc = RegQueryValueExW(iidKey, NULL, NULL, &type, NULL, &sz);
                 if (rc == ERROR_SUCCESS && type == REG_SZ)
                 {
                     /* query the value to BSTR */
-                    *aName = SysAllocStringLen (NULL, (sz + 1) /
-                                                      sizeof (TCHAR) + 1);
-                    rc = RegQueryValueExW (iidKey, NULL, NULL, NULL,
-                                           (LPBYTE) *aName, &sz);
+                    *aName = SysAllocStringLen(NULL, (sz + 1) / sizeof(TCHAR) + 1);
+                    rc = RegQueryValueExW(iidKey, NULL, NULL, NULL, (LPBYTE) *aName, &sz);
                     if (rc != ERROR_SUCCESS)
                     {
-                        SysFreeString (*aName);
+                        SysFreeString(*aName);
                         aName = NULL;
                     }
                 }
-                RegCloseKey (iidKey);
+                RegCloseKey(iidKey);
             }
-            RegCloseKey (ifaceKey);
+            RegCloseKey(ifaceKey);
         }
-        CoTaskMemFree (iidStr);
+        CoTaskMemFree(iidStr);
     }
 
 #else /* !defined (VBOX_WITH_XPCOM) */
 
     nsresult rv;
-    nsCOMPtr <nsIInterfaceInfoManager> iim =
-        do_GetService (NS_INTERFACEINFOMANAGER_SERVICE_CONTRACTID, &rv);
+    nsCOMPtr<nsIInterfaceInfoManager> iim =
+        do_GetService(NS_INTERFACEINFOMANAGER_SERVICE_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv))
     {
-        nsCOMPtr <nsIInterfaceInfo> iinfo;
-        rv = iim->GetInfoForIID (&aIID, getter_AddRefs (iinfo));
+        nsCOMPtr<nsIInterfaceInfo> iinfo;
+        rv = iim->GetInfoForIID(&aIID, getter_AddRefs(iinfo));
         if (NS_SUCCEEDED(rv))
         {
             const char *iname = NULL;
-            iinfo->GetNameShared (&iname);
+            iinfo->GetNameShared(&iname);
             char *utf8IName = NULL;
-            if (RT_SUCCESS(RTStrCurrentCPToUtf8 (&utf8IName, iname)))
+            if (RT_SUCCESS(RTStrCurrentCPToUtf8(&utf8IName, iname)))
             {
                 PRTUTF16 utf16IName = NULL;
-                if (RT_SUCCESS(RTStrToUtf16 (utf8IName, &utf16IName)))
+                if (RT_SUCCESS(RTStrToUtf16(utf8IName, &utf16IName)))
                 {
-                    *aName = SysAllocString ((OLECHAR *) utf16IName);
-                    RTUtf16Free (utf16IName);
+                    *aName = SysAllocString((OLECHAR *) utf16IName);
+                    RTUtf16Free(utf16IName);
                 }
-                RTStrFree (utf8IName);
+                RTStrFree(utf8IName);
             }
         }
     }
@@ -137,7 +130,7 @@ void GetInterfaceNameByIID (const GUID &aIID, BSTR *aName)
 #endif /* !defined (VBOX_WITH_XPCOM) */
 }
 
-int GetVBoxUserHomeDirectory (char *aDir, size_t aDirLen)
+int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen)
 {
     AssertReturn(aDir, VERR_INVALID_POINTER);
     AssertReturn(aDirLen > 0, VERR_BUFFER_OVERFLOW);
@@ -145,47 +138,30 @@ int GetVBoxUserHomeDirectory (char *aDir, size_t aDirLen)
     /* start with null */
     *aDir = 0;
 
-    const char *VBoxUserHome = RTEnvGet ("VBOX_USER_HOME");
-
-    char path [RTPATH_MAX];
-    int vrc = VINF_SUCCESS;
-
-    if (VBoxUserHome)
+    char szTmp[RTPATH_MAX];
+    int vrc = RTEnvGetEx(RTENV_DEFAULT, "VBOX_USER_HOME", szTmp, sizeof(szTmp), NULL);
+    if (RT_SUCCESS(vrc) || vrc == VERR_ENV_VAR_NOT_FOUND)
     {
-        /* get the full path name */
-        char *VBoxUserHomeUtf8 = NULL;
-        vrc = RTStrCurrentCPToUtf8 (&VBoxUserHomeUtf8, VBoxUserHome);
         if (RT_SUCCESS(vrc))
         {
-            vrc = RTPathAbs (VBoxUserHomeUtf8, path, sizeof (path));
+            /* get the full path name */
+            vrc = RTPathAbs(szTmp, aDir, aDirLen);
+        }
+        else
+        {
+            /* compose the config directory (full path) */
+            /** @todo r=bird: RTPathUserHome doesn't necessarily return a full (abs) path
+             *        like the comment above seems to indicate. */
+            vrc = RTPathUserHome(aDir, aDirLen);
             if (RT_SUCCESS(vrc))
-            {
-                if (aDirLen < strlen (path) + 1)
-                    vrc = VERR_BUFFER_OVERFLOW;
-                else
-                    strcpy (aDir, path);
-            }
-            RTStrFree (VBoxUserHomeUtf8);
+                vrc = RTPathAppend(aDir, aDirLen, VBOX_USER_HOME_SUFFIX);
         }
-    }
-    else
-    {
-        /* compose the config directory (full path) */
-        vrc = RTPathUserHome (path, sizeof (path));
-        if (RT_SUCCESS(vrc))
-        {
-            size_t len =
-                RTStrPrintf (aDir, aDirLen, "%s%c%s",
-                             path, RTPATH_DELIMITER, VBOX_USER_HOME_SUFFIX);
-            if (len != strlen (path) + 1 + strlen (VBOX_USER_HOME_SUFFIX))
-                vrc = VERR_BUFFER_OVERFLOW;
-        }
-    }
 
-    /* ensure the home directory exists */
-    if (RT_SUCCESS(vrc))
-        if (!RTDirExists (aDir))
-            vrc = RTDirCreateFullPath (aDir, 0777);
+        /* ensure the home directory exists */
+        if (RT_SUCCESS(vrc))
+            if (!RTDirExists(aDir))
+                vrc = RTDirCreateFullPath(aDir, 0777);
+    }
 
     return vrc;
 }
@@ -196,7 +172,7 @@ const Guid Guid::Empty; /* default ctor is OK */
 #if defined (VBOX_WITH_XPCOM)
 
 /* static */
-const nsID *SafeGUIDArray::nsIDRef::Empty = (const nsID *) Guid::Empty.raw();
+const nsID *SafeGUIDArray::nsIDRef::Empty = (const nsID *)Guid::Empty.raw();
 
 #endif /* (VBOX_WITH_XPCOM) */
 

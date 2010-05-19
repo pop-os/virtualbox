@@ -1,10 +1,10 @@
-/** $Id: VBoxServiceClipboard-os2.cpp $ */
+/** $Id: VBoxServiceClipboard-os2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Clipboard Service, OS/2.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -422,21 +418,22 @@ static void VBoxServiceClipboardOS2RenderFormat(USHORT usFmt)
          * This might require two iterations because of buffer guessing.
          */
         uint32_t cb = _4K;
-        int rc = VERR_NO_MEMORY;
-        void *pv = RTMemPageAllocZ(cb);
+        uint32_t cbAllocated = cb;
+        int      rc = VERR_NO_MEMORY;
+        void    *pv = RTMemPageAllocZ(cbAllocated);
         if (pv)
         {
             VBoxServiceVerbose(4, "clipboard: reading host data (%#x)\n", fFormat);
             rc = VbglR3ClipboardReadData(g_u32ClientId, fFormat, pv, cb, &cb);
             if (rc == VINF_BUFFER_OVERFLOW)
             {
-                RTMemPageFree(pv);
-                cb = RT_ALIGN_32(cb, PAGE_SIZE);
-                pv = RTMemPageAllocZ(cb);
+                RTMemPageFree(pv, cbAllocated);
+                cbAllocated = cb = RT_ALIGN_32(cb, PAGE_SIZE);
+                pv = RTMemPageAllocZ(cbAllocated);
                 rc = VbglR3ClipboardReadData(g_u32ClientId, fFormat, pv, cb, &cb);
             }
             if (RT_FAILURE(rc))
-                RTMemPageFree(pv);
+                RTMemPageFree(pv, cbAllocated);
         }
         if (RT_SUCCESS(rc))
         {
@@ -457,7 +454,7 @@ static void VBoxServiceClipboardOS2RenderFormat(USHORT usFmt)
                     DosFreeMem(pvPM);
                 }
             }
-            RTMemPageFree(pv);
+            RTMemPageFree(pv, cbAllocated);
         }
         else
             VBoxServiceError("VBoxServiceClipboardOS2RenderFormat: Failed to query / allocate data. rc=%Rrc cb=%#RX32\n", rc, cb);

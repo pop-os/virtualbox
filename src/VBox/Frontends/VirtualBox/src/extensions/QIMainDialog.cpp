@@ -1,3 +1,4 @@
+/* $Id: QIMainDialog.cpp 29008 2010-05-04 11:54:44Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "QIMainDialog.h"
@@ -43,6 +40,7 @@ QIMainDialog::QIMainDialog (QWidget *aParent /* = 0 */,
     : QMainWindow (aParent, aFlags)
     , mRescode (QDialog::Rejected)
     , mPolished (false)
+    , mIsAutoCentering (true)
     , mCenterWidget (aParent)
 {
     qApp->installEventFilter (this);
@@ -124,6 +122,10 @@ QPushButton* QIMainDialog::defaultButton() const
     return mDefaultButton;
 }
 
+void QIMainDialog::setAutoCenteringEnabled(bool fIsAutoCentering)
+{
+    mIsAutoCentering = fIsAutoCentering;
+}
 
 void QIMainDialog::setVisible (bool aVisible)
 {
@@ -225,7 +227,8 @@ void QIMainDialog::showEvent (QShowEvent *aEvent)
 
     /* Explicit widget centering relatively to it's centering
      * widget if any or desktop if centering widget is missed. */
-    VBoxGlobal::centerWidget (this, mCenterWidget, false);
+    if (mIsAutoCentering)
+        VBoxGlobal::centerWidget (this, mCenterWidget, false);
 }
 
 void QIMainDialog::resizeEvent (QResizeEvent *aEvent)

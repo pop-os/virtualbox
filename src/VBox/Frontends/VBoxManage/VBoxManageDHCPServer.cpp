@@ -1,10 +1,10 @@
-/* $Id: VBoxManageDHCPServer.cpp $ */
+/* $Id: VBoxManageDHCPServer.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of dhcpserver command.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -106,9 +102,9 @@ static int handleOp(HandlerArg *a, OPCODE enmCode, int iStart, int *pcProcessed)
                  a->argc,
                  a->argv,
                  g_aDHCPIPOptions,
-                 enmCode != OP_REMOVE ? RT_ELEMENTS(g_aDHCPIPOptions): 4, /* we use only --netname and --ifname for remove*/
+                 enmCode != OP_REMOVE ? RT_ELEMENTS(g_aDHCPIPOptions) : 4, /* we use only --netname and --ifname for remove*/
                  index,
-                 0 /* fFlags */);
+                 RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)

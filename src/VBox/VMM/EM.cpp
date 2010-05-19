@@ -1,10 +1,10 @@
-/* $Id: EM.cpp $ */
+/* $Id: EM.cpp 29329 2010-05-11 10:18:30Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_em         EM - The Execution Monitor / Manager
@@ -41,9 +37,6 @@
 #define LOG_GROUP LOG_GROUP_EM
 #include <VBox/em.h>
 #include <VBox/vmm.h>
-#ifdef VBOX_WITH_VMI
-# include <VBox/parav.h>
-#endif
 #include <VBox/patm.h>
 #include <VBox/csam.h>
 #include <VBox/selm.h>
@@ -67,6 +60,7 @@
 #include <VBox/disopcode.h>
 #include <VBox/dbgf.h>
 
+#include <iprt/asm.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
 
@@ -123,7 +117,7 @@ VMMR3DECL(int) EMR3Init(PVM pVM)
     /*
      * Initialize the REM critical section.
      */
-    rc = PDMR3CritSectInit(pVM, &pVM->em.s.CritSectREM, "EM-REM");
+    rc = PDMR3CritSectInit(pVM, &pVM->em.s.CritSectREM, RT_SRC_POS, "EM-REM");
     AssertRCReturn(rc, rc);
 
     /*
@@ -299,8 +293,8 @@ VMMR3DECL(int) EMR3Init(PVM pVM)
         EM_REG_COUNTER_USED(&pStats->StatR3FailedXor,            "/EM/CPU%d/R3/Interpret/Failed/Xor",        "The number of times XOR was not interpreted.");
         EM_REG_COUNTER_USED(&pStats->StatRZFailedMonitor,        "/EM/CPU%d/RZ/Interpret/Failed/Monitor",    "The number of times MONITOR was not interpreted.");
         EM_REG_COUNTER_USED(&pStats->StatR3FailedMonitor,        "/EM/CPU%d/R3/Interpret/Failed/Monitor",    "The number of times MONITOR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMWait,          "/EM/CPU%d/RZ/Interpret/Failed/MWait",      "The number of times MONITOR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMWait,          "/EM/CPU%d/R3/Interpret/Failed/MWait",      "The number of times MONITOR was not interpreted.");
+        EM_REG_COUNTER_USED(&pStats->StatRZFailedMWait,          "/EM/CPU%d/RZ/Interpret/Failed/MWait",      "The number of times MWAIT was not interpreted.");
+        EM_REG_COUNTER_USED(&pStats->StatR3FailedMWait,          "/EM/CPU%d/R3/Interpret/Failed/MWait",      "The number of times MWAIT was not interpreted.");
         EM_REG_COUNTER_USED(&pStats->StatRZFailedRdtsc,          "/EM/CPU%d/RZ/Interpret/Failed/Rdtsc",      "The number of times RDTSC was not interpreted.");
         EM_REG_COUNTER_USED(&pStats->StatR3FailedRdtsc,          "/EM/CPU%d/R3/Interpret/Failed/Rdtsc",      "The number of times RDTSC was not interpreted.");
         EM_REG_COUNTER_USED(&pStats->StatRZFailedRdpmc,          "/EM/CPU%d/RZ/Interpret/Failed/Rdpmc",      "The number of times RDPMC was not interpreted.");
@@ -436,27 +430,37 @@ VMMR3DECL(void) EMR3Relocate(PVM pVM)
 
 
 /**
+ * Reset the EM state for a CPU.
+ *
+ * Called by EMR3Reset and hot plugging.
+ *
+ * @param   pVCpu               The virtual CPU.
+ */
+VMMR3DECL(void) EMR3ResetCpu(PVMCPU pVCpu)
+{
+    pVCpu->em.s.fForceRAW = false;
+
+    /* VMR3Reset may return VINF_EM_RESET or VINF_EM_SUSPEND, so transition
+       out of the HALTED state here so that enmPrevState doesn't end up as
+       HALTED when EMR3Execute returns. */
+    if (pVCpu->em.s.enmState == EMSTATE_HALTED)
+    {
+        Log(("EMR3ResetCpu: Cpu#%u %s -> %s\n", pVCpu->idCpu, emR3GetStateName(pVCpu->em.s.enmState), pVCpu->idCpu == 0 ? "EMSTATE_NONE" : "EMSTATE_WAIT_SIPI"));
+        pVCpu->em.s.enmState = pVCpu->idCpu == 0 ? EMSTATE_NONE : EMSTATE_WAIT_SIPI;
+    }
+}
+
+
+/**
  * Reset notification.
  *
- * @param   pVM
+ * @param   pVM                 The VM handle.
  */
 VMMR3DECL(void) EMR3Reset(PVM pVM)
 {
     Log(("EMR3Reset: \n"));
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
-    {
-        PVMCPU pVCpu = &pVM->aCpus[i];
-        pVCpu->em.s.fForceRAW = false;
-
-        /* VMR3Reset may return VINF_EM_RESET or VINF_EM_SUSPEND, so transition
-           out of the HALTED state here so that enmPrevState doesn't end up as
-           HALTED when EMR3Execute returns. */
-        if (pVCpu->em.s.enmState == EMSTATE_HALTED)
-        {
-            Log(("EMR3Reset: Cpu#%u %s -> %s\n", i, emR3GetStateName(pVCpu->em.s.enmState), i == 0 ? "EMSTATE_NONE" : "EMSTATE_WAIT_SIPI"));
-            pVCpu->em.s.enmState = i == 0 ? EMSTATE_NONE : EMSTATE_WAIT_SIPI;
-        }
-    }
+        EMR3ResetCpu(&pVM->aCpus[i]);
 }
 
 
@@ -511,6 +515,20 @@ static DECLCALLBACK(int) emR3Save(PVM pVM, PSSMHANDLE pSSM)
         Assert(pVCpu->em.s.enmPrevState != EMSTATE_SUSPENDED);
         rc = SSMR3PutU32(pSSM, pVCpu->em.s.enmPrevState);
         AssertRCReturn(rc, rc);
+
+        /* Save mwait state. */
+        rc = SSMR3PutU32(pSSM, pVCpu->em.s.mwait.fWait);
+        AssertRCReturn(rc, rc);
+        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.mwait.uMWaitEAX);
+        AssertRCReturn(rc, rc);
+        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.mwait.uMWaitECX);
+        AssertRCReturn(rc, rc);
+        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.mwait.uMonitorEAX);
+        AssertRCReturn(rc, rc);
+        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.mwait.uMonitorECX);
+        AssertRCReturn(rc, rc);
+        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.mwait.uMonitorEDX);
+        AssertRCReturn(rc, rc);
     }
     return VINF_SUCCESS;
 }
@@ -531,6 +549,7 @@ static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
      * Validate version.
      */
     if (    uVersion != EM_SAVED_STATE_VERSION
+        &&  uVersion != EM_SAVED_STATE_VERSION_PRE_MWAIT
         &&  uVersion != EM_SAVED_STATE_VERSION_PRE_SMP)
     {
         AssertMsgFailed(("emR3Load: Invalid version uVersion=%d (current %d)!\n", uVersion, EM_SAVED_STATE_VERSION));
@@ -559,6 +578,23 @@ static DECLCALLBACK(int) emR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
 
             pVCpu->em.s.enmState = EMSTATE_SUSPENDED;
         }
+        if (uVersion > EM_SAVED_STATE_VERSION_PRE_MWAIT)
+        {
+            /* Load mwait state. */
+            rc = SSMR3GetU32(pSSM, &pVCpu->em.s.mwait.fWait);
+            AssertRCReturn(rc, rc);
+            rc = SSMR3GetGCPtr(pSSM, &pVCpu->em.s.mwait.uMWaitEAX);
+            AssertRCReturn(rc, rc);
+            rc = SSMR3GetGCPtr(pSSM, &pVCpu->em.s.mwait.uMWaitECX);
+            AssertRCReturn(rc, rc);
+            rc = SSMR3GetGCPtr(pSSM, &pVCpu->em.s.mwait.uMonitorEAX);
+            AssertRCReturn(rc, rc);
+            rc = SSMR3GetGCPtr(pSSM, &pVCpu->em.s.mwait.uMonitorECX);
+            AssertRCReturn(rc, rc);
+            rc = SSMR3GetGCPtr(pSSM, &pVCpu->em.s.mwait.uMonitorEDX);
+            AssertRCReturn(rc, rc);
+        }
+
         Assert(!pVCpu->em.s.pCliStatTree);
     }
     return VINF_SUCCESS;
@@ -608,40 +644,6 @@ static const char *emR3GetStateName(EMSTATE enmState)
         default:                        return "Unknown!";
     }
 }
-
-
-#ifdef VBOX_WITH_STATISTICS
-/**
- * Just a braindead function to keep track of cli addresses.
- * @param   pVM         VM handle.
- * @param   pVMCPU      VMCPU handle.
- * @param   GCPtrInstr  The EIP of the cli instruction.
- */
-static void emR3RecordCli(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtrInstr)
-{
-    PCLISTAT pRec;
-
-    pRec = (PCLISTAT)RTAvlPVGet(&pVCpu->em.s.pCliStatTree, (AVLPVKEY)GCPtrInstr);
-    if (!pRec)
-    {
-        /* New cli instruction; insert into the tree. */
-        pRec = (PCLISTAT)MMR3HeapAllocZ(pVM, MM_TAG_EM, sizeof(*pRec));
-        Assert(pRec);
-        if (!pRec)
-            return;
-        pRec->Core.Key = (AVLPVKEY)GCPtrInstr;
-
-        char szCliStatName[32];
-        RTStrPrintf(szCliStatName, sizeof(szCliStatName), "/EM/Cli/0x%RGv", GCPtrInstr);
-        STAM_REG(pVM, &pRec->Counter, STAMTYPE_COUNTER, szCliStatName, STAMUNIT_OCCURENCES, "Number of times cli was executed.");
-
-        bool fRc = RTAvlPVInsert(&pVCpu->em.s.pCliStatTree, &pRec->Core);
-        Assert(fRc); NOREF(fRc);
-    }
-    STAM_COUNTER_INC(&pRec->Counter);
-    STAM_COUNTER_INC(&pVCpu->em.s.StatTotalClis);
-}
-#endif /* VBOX_WITH_STATISTICS */
 
 
 /**
@@ -1761,16 +1763,6 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     pVCpu->em.s.enmState = EMSTATE_REM;
                     break;
 
-#ifdef VBOX_WITH_VMI
-                /*
-                 * Reschedule - parav call.
-                 */
-                case VINF_EM_RESCHEDULE_PARAV:
-                    Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_PARAV: %d -> %d (EMSTATE_PARAV)\n", pVCpu->em.s.enmState, EMSTATE_PARAV));
-                    pVCpu->em.s.enmState = EMSTATE_PARAV;
-                    break;
-#endif
-
                 /*
                  * Resume.
                  */
@@ -1971,16 +1963,6 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                     Log2(("EMR3ExecuteVM: emR3RemExecute -> %Rrc\n", rc));
                     break;
 
-#ifdef VBOX_WITH_VMI
-                /*
-                 * Execute PARAV function.
-                 */
-                case EMSTATE_PARAV:
-                    rc = PARAVCallFunction(pVM);
-                    pVCpu->em.s.enmState = EMSTATE_REM;
-                    break;
-#endif
-
                 /*
                  * Application processor execution halted until SIPI.
                  */
@@ -1992,7 +1974,15 @@ VMMR3DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 case EMSTATE_HALTED:
                 {
                     STAM_REL_PROFILE_START(&pVCpu->em.s.StatHalted, y);
-                    rc = VMR3WaitHalted(pVM, pVCpu, !(CPUMGetGuestEFlags(pVCpu) & X86_EFL_IF));
+                    if (pVCpu->em.s.mwait.fWait & EMMWAIT_FLAG_ACTIVE)
+                    {
+                        /* mwait has a special extension where it's woken up when an interrupt is pending even when IF=0. */
+                        rc = VMR3WaitHalted(pVM, pVCpu, !(pVCpu->em.s.mwait.fWait & EMMWAIT_FLAG_BREAKIRQIF0) && !(CPUMGetGuestEFlags(pVCpu) & X86_EFL_IF));
+                        pVCpu->em.s.mwait.fWait &= ~(EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0);
+                    }
+                    else
+                        rc = VMR3WaitHalted(pVM, pVCpu, !(CPUMGetGuestEFlags(pVCpu) & X86_EFL_IF));
+
                     STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatHalted, y);
                     break;
                 }

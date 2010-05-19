@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <sys/types.h>
@@ -33,6 +29,7 @@
 #include <iprt/env.h>
 #include <iprt/initterm.h>
 #include <iprt/path.h>
+#include <iprt/param.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <VBox/VBoxGuestLib.h>
@@ -49,7 +46,7 @@ static int (*gpfnOldIOErrorHandler)(Display *) = NULL;
 VBoxClient::Service *g_pService;
 /** The name of our pidfile.  It is global for the benefit of the cleanup
  * routine. */
-static char *g_pszPidFile;
+static char g_szPidFile[RTPATH_MAX];
 /** The file handle of our pidfile.  It is global for the benefit of the
  * cleanup routine. */
 static RTFILE g_hPidFile;
@@ -63,8 +60,8 @@ void VBoxClient::CleanUp()
         g_pService->cleanup();
         delete g_pService;
     }
-    if (g_pszPidFile && g_hPidFile)
-        VbglR3ClosePidFile(g_pszPidFile, g_hPidFile);
+    if (g_szPidFile[0] && g_hPidFile)
+        VbglR3ClosePidFile(g_szPidFile, g_hPidFile);
     VbglR3Term();
     exit(0);
 }
@@ -135,13 +132,13 @@ void vboxClientUsage(const char *pcszFileName)
     RTPrintf("Usage: %s --clipboard|--display|--checkhostversion|--seamless [-d|--nodaemon]\n", pcszFileName);
     RTPrintf("Start the VirtualBox X Window System guest services.\n\n");
     RTPrintf("Options:\n");
-    RTPrintf("  --clipboard      start the shared clipboard service\n");
-    RTPrintf("  --display     start the display management service\n");
+    RTPrintf("  --clipboard        start the shared clipboard service\n");
+    RTPrintf("  --display          start the display management service\n");
 # ifdef VBOX_WITH_GUEST_PROPS
-    RTPrintf("  --checkhostversion      start the host version notifier service\n");
+    RTPrintf("  --checkhostversion start the host version notifier service\n");
 # endif
-    RTPrintf("  --seamless       start the seamless windows service\n");
-    RTPrintf("  -d, --nodaemon   continue running as a system service\n");
+    RTPrintf("  --seamless         start the seamless windows service\n");
+    RTPrintf("  -d, --nodaemon     continue running as a system service\n");
     RTPrintf("\n");
     exit(0);
 }
@@ -229,20 +226,23 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
-    const char *pszHome = RTEnvGet("HOME");
-    if (pszHome == NULL)
+    /** @todo explain why we aren't using RTPathUserHome here so it doesn't get
+     *        changed accidentally during some cleanup effort. */
+    rc = RTEnvGetEx(RTENV_DEFAULT, "HOME", g_szPidFile, sizeof(g_szPidFile), NULL);
+    if (RT_FAILURE(rc))
     {
-        RTPrintf("VBoxClient: failed to get home directory.  Exiting.\n");
-        LogRel(("VBoxClient: failed to get home directory.  Exiting.\n"));
+        RTPrintf("VBoxClient: failed to get home directory, rc=%Rrc.  Exiting.\n", rc);
+        LogRel(("VBoxClient: failed to get home directory, rc=%Rrc.  Exiting.\n", rc));
         return 1;
     }
-    if (RTStrAPrintf(&g_pszPidFile, "%s/%s", pszHome, g_pService->getPidFilePath()) == -1)
-    if (pszHome == NULL)
+    rc = RTPathAppend(g_szPidFile, sizeof(g_szPidFile), g_pService->getPidFilePath());
+    if (RT_FAILURE(rc))
     {
-        RTPrintf("VBoxClient: out of memory.  Exiting.\n");
-        LogRel(("VBoxClient: out of memory.  Exiting.\n"));
+        RTPrintf("VBoxClient: RTPathAppend failed with rc=%Rrc.  Exiting.\n", rc);
+        LogRel(("VBoxClient: RTPathAppend failed with rc=%Rrc.  Exiting.\n", rc));
         return 1;
     }
+
     /* Initialise the guest library. */
     if (RT_FAILURE(VbglR3InitUser()))
     {
@@ -250,7 +250,7 @@ int main(int argc, char *argv[])
         LogRel(("Failed to connect to the VirtualBox kernel service\n"));
         return 1;
     }
-    if (g_pszPidFile && RT_FAILURE(VbglR3PidFile(g_pszPidFile, &g_hPidFile)))
+    if (g_szPidFile[0] && RT_FAILURE(VbglR3PidFile(g_szPidFile, &g_hPidFile)))
     {
         RTPrintf("Failed to create a pidfile.  Exiting.\n");
         LogRel(("Failed to create a pidfile.  Exiting.\n"));

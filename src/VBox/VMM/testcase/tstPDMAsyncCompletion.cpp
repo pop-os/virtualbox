@@ -1,4 +1,4 @@
-/* $Id: tstPDMAsyncCompletion.cpp $ */
+/* $Id: tstPDMAsyncCompletion.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PDM Asynchronous Completion Testcase.
  *
@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,10 +18,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -62,7 +58,7 @@ PPDMASYNCCOMPLETIONTASK g_AsyncCompletionTasks[NR_TASKS];
 volatile uint32_t       g_cTasksLeft;
 RTSEMEVENT              g_FinishedEventSem;
 
-void pfnAsyncTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rcReq)
+void pfnAsyncTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rc)
 {
     LogFlow((TESTCASE ": %s: pVM=%p pvUser=%p pvUser2=%p\n", __FUNCTION__, pVM, pvUser, pvUser2));
 
@@ -121,16 +117,13 @@ int main(int argc, char *argv[])
         /*
          * Create the temporary buffers.
          */
-        int i;
-
-        for (i=0; i < NR_TASKS; i++)
+        for (unsigned i=0; i < NR_TASKS; i++)
         {
             g_AsyncCompletionTasksBuffer[i] = (uint8_t *)RTMemAllocZ(BUFFER_SIZE);
             if (!g_AsyncCompletionTasksBuffer[i])
             {
                 RTPrintf(TESTCASE ": out of memory!\n");
-                rcRet++;
-                return rcRet;
+                return ++rcRet;
             }
         }
 
@@ -140,9 +133,7 @@ int main(int argc, char *argv[])
         if (RT_FAILURE(rc))
         {
             RTPrintf(TESTCASE ": Error while creating the destination!! rc=%d\n", rc);
-            return 1;
-            rcRet++;
-            return rcRet;
+            return ++rcRet;
         }
         RTFileClose(FileTmp);
 
@@ -159,7 +150,7 @@ int main(int argc, char *argv[])
                 RTThreadSleep(100);
 
                 int fReadPass = true;
-                uint64_t cbSrc, cbLeft;
+                uint64_t cbSrc;
                 size_t   offSrc = 0;
                 size_t   offDst = 0;
                 uint32_t cTasksUsed = 0;
@@ -184,7 +175,7 @@ int main(int argc, char *argv[])
                             for (uint32_t i = 0; i < cTasksUsed; i++)
                             {
                                 size_t cbRead = ((size_t)offSrc + BUFFER_SIZE) <= cbSrc ? BUFFER_SIZE : cbSrc - offSrc;
-                                PDMDATASEG DataSeg;
+                                RTSGSEG DataSeg;
 
                                 DataSeg.pvSeg = g_AsyncCompletionTasksBuffer[i];
                                 DataSeg.cbSeg = cbRead;
@@ -204,7 +195,7 @@ int main(int argc, char *argv[])
                             for (uint32_t i = 0; i < cTasksUsed; i++)
                             {
                                 size_t cbWrite = (offDst + BUFFER_SIZE) <= cbSrc ? BUFFER_SIZE : cbSrc - offDst;
-                                PDMDATASEG DataSeg;
+                                RTSGSEG DataSeg;
 
                                 DataSeg.pvSeg = g_AsyncCompletionTasksBuffer[i];
                                 DataSeg.cbSeg = cbWrite;

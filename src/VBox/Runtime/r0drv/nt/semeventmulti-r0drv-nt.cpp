@@ -1,10 +1,10 @@
-/* $Id: semeventmulti-r0drv-nt.cpp $ */
+/* $Id: semeventmulti-r0drv-nt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT -  Multiple Release Event Semaphores, Ring-0 Driver, NT.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -57,29 +53,39 @@ typedef struct RTSEMEVENTMULTIINTERNAL
 } RTSEMEVENTMULTIINTERNAL, *PRTSEMEVENTMULTIINTERNAL;
 
 
-RTDECL(int) RTSemEventMultiCreate(PRTSEMEVENTMULTI pEventSem)
+RTDECL(int)  RTSemEventMultiCreate(PRTSEMEVENTMULTI phEventMultiSem)
 {
-    Assert(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
+    return RTSemEventMultiCreateEx(phEventMultiSem, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, NULL);
+}
+
+
+RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t fFlags, RTLOCKVALCLASS hClass,
+                                     const char *pszNameFmt, ...)
+{
+    AssertReturn(!(fFlags & ~RTSEMEVENTMULTI_FLAGS_NO_LOCK_VAL), VERR_INVALID_PARAMETER);
+
+    AssertCompile(sizeof(RTSEMEVENTMULTIINTERNAL) > sizeof(void *));
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)RTMemAlloc(sizeof(*pThis));
     if (pThis)
     {
         pThis->u32Magic = RTSEMEVENTMULTI_MAGIC;
         KeInitializeEvent(&pThis->Event, NotificationEvent, FALSE /* not signalled */);
-        *pEventSem = pThis;
+
+        *phEventMultiSem = pThis;
         return VINF_SUCCESS;
     }
     return VERR_NO_MEMORY;
 }
 
 
-RTDECL(int) RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int) RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
 {
     /*
      * Validate input.
      */
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
-    if (!pThis)
-        return VERR_INVALID_PARAMETER;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
+    if (pThis == NIL_RTSEMEVENTMULTI)
+        return VINF_SUCCESS;
     AssertPtrReturn(pThis, VERR_INVALID_PARAMETER);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("%p u32Magic=%RX32\n", pThis, pThis->u32Magic), VERR_INVALID_PARAMETER);
 
@@ -93,12 +99,12 @@ RTDECL(int) RTSemEventMultiDestroy(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
 {
     /*
      * Validate input.
      */
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     if (!pThis)
         return VERR_INVALID_PARAMETER;
     AssertPtrReturn(pThis, VERR_INVALID_PARAMETER);
@@ -112,12 +118,12 @@ RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
+RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 {
     /*
      * Validate input.
      */
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     if (!pThis)
         return VERR_INVALID_PARAMETER;
     AssertPtrReturn(pThis, VERR_INVALID_PARAMETER);
@@ -131,12 +137,12 @@ RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI EventMultiSem)
 }
 
 
-static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies, bool fInterruptible)
+static int rtSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies, bool fInterruptible)
 {
     /*
      * Validate input.
      */
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)EventMultiSem;
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     if (!pThis)
         return VERR_INVALID_PARAMETER;
     AssertPtrReturn(pThis, VERR_INVALID_PARAMETER);
@@ -176,14 +182,14 @@ static int rtSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies,
 }
 
 
-RTDECL(int) RTSemEventMultiWait(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
+RTDECL(int) RTSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, false /* fInterruptible */);
+    return rtSemEventMultiWait(hEventMultiSem, cMillies, false /* fInterruptible */);
 }
 
 
-RTDECL(int) RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI EventMultiSem, unsigned cMillies)
+RTDECL(int) RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
-    return rtSemEventMultiWait(EventMultiSem, cMillies, true /* fInterruptible */);
+    return rtSemEventMultiWait(hEventMultiSem, cMillies, true /* fInterruptible */);
 }
 

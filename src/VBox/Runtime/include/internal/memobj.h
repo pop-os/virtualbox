@@ -1,10 +1,10 @@
-/* $Revision: 53284 $ */
+/* $Revision: 29027 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_memobj_h
@@ -111,7 +107,7 @@ typedef struct RTR0MEMOBJINTERNAL **PPRTR0MEMOBJINTERNAL;
  */
 typedef struct RTR0MEMOBJINTERNAL
 {
-    /** Magic number (RTR0MEM_MAGIC). */
+    /** Magic number (RTR0MEMOBJ_MAGIC). */
     uint32_t        u32Magic;
     /** The size of this structure. */
     uint32_t        cbSelf;
@@ -190,6 +186,8 @@ typedef struct RTR0MEMOBJINTERNAL
             /** If set this object was created by RTR0MemPhysAlloc, otherwise it was
              * created by RTR0MemPhysEnter. */
             bool        fAllocated;
+            /** See RTMEM_CACHE_POLICY_XXX constants */
+            uint32_t    uCachePolicy;
         } Phys;
 
         /** RTR0MEMTYPE_PHYS_NC. */
@@ -353,15 +351,18 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
 int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess);
 
 /**
- * Allocates contiguous page aligned physical memory without (necessarily) any kernel mapping.
+ * Allocates contiguous page aligned physical memory without (necessarily) any
+ * kernel mapping.
  *
  * @returns IPRT status code.
  * @param   ppMem           Where to store the ring-0 memory object handle.
  * @param   cb              Number of bytes to allocate, page aligned.
  * @param   PhysHighest     The highest permittable address (inclusive).
  *                          NIL_RTHCPHYS if any address is acceptable.
+ * @param   uAlignment      The alignment of the reserved memory.
+ *                          Supported values are PAGE_SIZE, _2M, _4M and _1G.
  */
-int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest);
+int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment);
 
 /**
  * Allocates non-contiguous page aligned physical memory without (necessarily) any kernel mapping.
@@ -383,8 +384,9 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
  * @param   ppMem           Where to store the ring-0 memory object handle.
  * @param   Phys            The physical address to start at, page aligned.
  * @param   cb              The size of the object in bytes, page aligned.
+ * @param   uCachePolicy    One of the RTMEM_CACHE_XXX modes.
  */
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb);
+int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy);
 
 /**
  * Reserves kernel virtual address space.

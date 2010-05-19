@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFlt-win.c $ */
+/* $Id: VBoxNetFlt-win.c 29108 2010-05-05 20:17:42Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Based in part on Microsoft DDK sample code for Ndis Intermediate Miniport passthru driver sample.
@@ -24,6 +20,7 @@
  */
 
 #include "VBoxNetFltCommon-win.h"
+#include <VBox/intnetinline.h>
 #include <iprt/thread.h>
 
 /** represents the job element of the job queue
@@ -157,7 +154,7 @@ DECLHIDDEN(void) vboxNetFltWinWaitDereference(PADAPT_DEVICE pState)
         if(CurNanoTS - StartNanoTS > 20000000)
         {
             DBGPRINT(("device not idle"));
-            Assert(0);
+            AssertFailed();
 //            break;
         }
 #endif
@@ -179,9 +176,9 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMemAlloc(PVOID* ppMemBuf, UINT cbLength)
 }
 
 /* frees memory allocated with vboxNetFltWinMemAlloc */
-DECLHIDDEN(void) vboxNetFltWinMemFree(PVOID pMemBuf)
+DECLHIDDEN(void) vboxNetFltWinMemFree(PVOID pvMemBuf)
 {
-    NdisFreeMemory(pMemBuf, 0, 0);
+    NdisFreeMemory(pvMemBuf, 0, 0);
 }
 
 /* frees ndis buffers used on send/receive */
@@ -262,7 +259,7 @@ static NDIS_STATUS vboxNetFltWinPpAllocatePacketInfoPool(PPACKET_INFO_POOL pPool
     }
     else
     {
-        Assert(0);
+        AssertFailed();
     }
 
     return fStatus;
@@ -288,7 +285,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinCopyString(PNDIS_STRING pDst, PNDIS_STRING 
     {
         if(pDst->MaximumLength < pSrc->Length)
         {
-            Assert(0);
+            AssertFailed();
             Status = NDIS_STATUS_RESOURCES;
         }
         else
@@ -307,35 +304,13 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinCopyString(PNDIS_STRING pDst, PNDIS_STRING 
 /************************************************************************************
  * PINTNETSG pSG manipulation functions
  ************************************************************************************/
-static void vboxNetFltWinReinitSG(PINTNETSG pSG)
-{
-    pSG->pvOwnerData = NULL;
-    pSG->pvUserData = NULL;
-    pSG->pvUserData2 = NULL;
-    pSG->cUsers = 1;
-    pSG->fFlags = INTNETSG_FLAGS_TEMP;
-    pSG->cSegsUsed = 0;
-    pSG->cbTotal = 0;
-}
-
-static void vboxNetFltWinInitSG(PINTNETSG pSG, UINT cBufferCount)
-{
-    pSG->pvOwnerData = NULL;
-    pSG->pvUserData = NULL;
-    pSG->pvUserData2 = NULL;
-    pSG->cUsers = 1;
-    pSG->fFlags = INTNETSG_FLAGS_TEMP;
-    pSG->cSegsAlloc = cBufferCount;
-    pSG->cSegsUsed = 0;
-    pSG->cbTotal = 0;
-}
 
 /* moves the contents of the given NDIS_BUFFER and all other buffers chained to it to the PINTNETSG
  * the PINTNETSG is expected to contain one segment whose bugger is large enough to maintain
  * the contents of the given NDIS_BUFFER and all other buffers chained to it */
 static NDIS_STATUS vboxNetFltWinNdisBufferMoveToSG0(PNDIS_BUFFER pBuffer, PINTNETSG pSG)
 {
-    UINT cbSeg = 0;
+    UINT cSegs = 0;
     PINTNETSEG paSeg;
     uint8_t * ptr;
     PVOID pVirtualAddress;
@@ -388,7 +363,7 @@ static NDIS_STATUS vboxNetFltWinNdisBufferMoveToSG0(PNDIS_BUFFER pBuffer, PINTNE
  * ndis buffer(s) point to (as opposed to vboxNetFltWinNdisBufferMoveToSG0 which copies the memory from ndis buffers(s) to PINTNETSG) */
 static NDIS_STATUS vboxNetFltWinNdisBuffersToSG(PNDIS_BUFFER pBuffer, PINTNETSG pSG)
 {
-    UINT cbSeg = 0;
+    UINT cSegs = 0;
     NDIS_STATUS fStatus = NDIS_STATUS_SUCCESS;
     PVOID pVirtualAddress;
     UINT cbCurrentLength;
@@ -407,21 +382,21 @@ static NDIS_STATUS vboxNetFltWinNdisBuffersToSG(PNDIS_BUFFER pBuffer, PINTNETSG 
         }
 
         pSG->cbTotal += cbCurrentLength;
-        pSG->aSegs[cbSeg].cb = cbCurrentLength;
-        pSG->aSegs[cbSeg].pv = pVirtualAddress;
-        pSG->aSegs[cbSeg].Phys = NIL_RTHCPHYS;
-        cbSeg++;
+        pSG->aSegs[cSegs].cb = cbCurrentLength;
+        pSG->aSegs[cSegs].pv = pVirtualAddress;
+        pSG->aSegs[cSegs].Phys = NIL_RTHCPHYS;
+        cSegs++;
 
         NdisGetNextBuffer(
                 pBuffer,
                 &pBuffer);
     }
 
-    AssertFatal(cbSeg <= pSG->cSegsAlloc);
+    AssertFatal(cSegs <= pSG->cSegsAlloc);
 
     if(fStatus == NDIS_STATUS_SUCCESS)
     {
-        pSG->cSegsUsed = cbSeg;
+        pSG->cSegsUsed = cSegs;
     }
 
     return fStatus;
@@ -432,13 +407,13 @@ static void vboxNetFltWinDeleteSG(PINTNETSG pSG)
     vboxNetFltWinMemFree(pSG);
 }
 
-static PINTNETSG vboxNetFltWinCreateSG(uint32_t cSize)
+static PINTNETSG vboxNetFltWinCreateSG(uint32_t cSegs)
 {
     PINTNETSG pSG;
-    NTSTATUS Status = vboxNetFltWinMemAlloc((PVOID*)&pSG, RT_OFFSETOF(INTNETSG, aSegs[cSize]));
+    NTSTATUS Status = vboxNetFltWinMemAlloc((PVOID*)&pSG, RT_OFFSETOF(INTNETSG, aSegs[cSegs]));
     if(Status == STATUS_SUCCESS)
     {
-        vboxNetFltWinInitSG(pSG, cSize);
+        IntNetSgInitTempSegs(pSG, 0 /*cbTotal*/, cSegs, 0 /*cSegsUsed*/);
         return pSG;
     }
 
@@ -448,7 +423,7 @@ static PINTNETSG vboxNetFltWinCreateSG(uint32_t cSize)
 /************************************************************************************
  * packet queue functions
  ************************************************************************************/
-
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
 #if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
 static NDIS_STATUS vboxNetFltWinQuPostPacket(PADAPT pAdapt, PNDIS_PACKET pPacket, PINTNETSG pSG, uint32_t fFlags
 # ifdef DEBUG_NETFLT_PACKETS
@@ -548,7 +523,7 @@ static NDIS_STATUS vboxNetFltWinQuPostPacket(PADAPT pAdapt, PNDIS_PACKET pPacket
                     /* should never be here since the PINTNETSG is stored only when the underlying miniport
                      * indicates NDIS_STATUS_RESOURCES, we should never have this when processing
                      * the "from-host" packets */
-                    Assert(0);
+                    AssertFailed();
                     LogFlow(("status is not pending, freeing myPacket (%p)\n", pMyPacket));
                     vboxNetFltWinFreeSGNdisPacket(pMyPacket, false);
                 }
@@ -565,7 +540,7 @@ static NDIS_STATUS vboxNetFltWinQuPostPacket(PADAPT pAdapt, PNDIS_PACKET pPacket
     else
     {
         /*we failed to create our packet */
-        Assert(0);
+        AssertFailed();
         fStatus = NDIS_STATUS_FAILURE;
     }
 
@@ -573,24 +548,30 @@ static NDIS_STATUS vboxNetFltWinQuPostPacket(PADAPT pAdapt, PNDIS_PACKET pPacket
 }
 #endif
 
-static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_WORKER pWorker, PPACKET_INFO pInfo)
+static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_WORKER pWorker, PVOID pvPacket, const UINT fFlags)
+#else
+DECLHIDDEN(bool) vboxNetFltWinPostIntnet(PVBOXNETFLTINS pNetFltIf, PVOID pvPacket, const UINT fFlags)
+#endif
 {
     PNDIS_PACKET pPacket = NULL;
     PINTNETSG pSG = NULL;
     PADAPT pAdapt = PVBOXNETFLTINS_2_PADAPT(pNetFltIf);
-    UINT fFlags;
     NDIS_STATUS Status;
 #ifndef VBOXNETADP
     bool bSrcHost;
-    bool bPending;
     bool bDropIt;
+# ifndef VBOXNETFLT_NO_PACKET_QUEUE
+    bool bPending;
+# endif
+#endif
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+    bool bDeleteSG = false;
 #endif
 #ifdef DEBUG_NETFLT_PACKETS
     /* packet used for matching */
     PNDIS_PACKET pTmpPacket = NULL;
 #endif
 
-    fFlags = GET_FLAGS_FROM_INFO(pInfo);
 #ifndef VBOXNETADP
     bSrcHost = (fFlags & PACKET_SRC_HOST) != 0;
 #endif
@@ -618,7 +599,8 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
         UINT           uBytesCopied = 0;
         UINT           cbPacketLength;
 
-        pPacket = (PNDIS_PACKET)GET_PACKET_FROM_INFO(pInfo);
+        pPacket = (PNDIS_PACKET)pvPacket;
+
         LogFlow(("ndis packet info, packet (%p)\n", pPacket));
 
         LogFlow(("preparing pSG"));
@@ -631,6 +613,9 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
 
         Assert(cBufferCount);
 
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+        pSG = vboxNetFltWinCreateSG(cBufferCount);
+#else
         /* we can not allocate the INTNETSG on stack since in this case we may get stack overflow
          * somewhere outside of our driver (3 pages of system thread stack does not seem to be enough)
          *
@@ -651,11 +636,15 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
                 LogRel(("Failed to reallocate the pSG\n"));
             }
         }
+#endif
 
         if(pSG)
         {
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+            bDeleteSG = true;
+#endif
             /* reinitialize */
-            vboxNetFltWinReinitSG(pSG);
+            IntNetSgInitTempSegs(pSG, 0 /*cbTotal*/, pSG->cSegsAlloc, 0 /*cSegsUsed*/);
 
             /* convert the ndis buffers to INTNETSG */
             Status = vboxNetFltWinNdisBuffersToSG(pCurrentBuffer, pSG);
@@ -683,7 +672,7 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
 #else
         /* we have both host and wire in ProtocolReceive */
 #endif
-        pSG = (PINTNETSG)GET_PACKET_FROM_INFO(pInfo);
+        pSG = (PINTNETSG)pvPacket;
 
         LogFlow(("not ndis packet info, pSG (%p)\n", pSG));
     }
@@ -728,13 +717,15 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
         }
 #endif
 
-#if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
+
+# if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
         if(!bDropIt)
         {
             Status = vboxNetFltWinQuPostPacket(pAdapt, pPacket, pSG, fFlags
-# ifdef DEBUG_NETFLT_PACKETS
+#  ifdef DEBUG_NETFLT_PACKETS
                                , pTmpPacket
-# endif
+#  endif
             );
 
             if(Status == NDIS_STATUS_PENDING)
@@ -745,7 +736,7 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
             }
         }
         else
-#endif
+# endif
         {
             Status = NDIS_STATUS_SUCCESS;
         }
@@ -755,32 +746,32 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
         {
             if(!(fFlags & PACKET_MINE))
             {
-#if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
+# if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
                 /* complete the packets */
                 if(fFlags & PACKET_SRC_HOST)
                 {
-#endif
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
+# endif
+# ifndef VBOX_NETFLT_ONDEMAND_BIND
 /*                    NDIS_SET_PACKET_STATUS(pPacket, Status); */
                     NdisMSendComplete(pAdapt->hMiniportHandle, pPacket, Status);
-#endif
-#if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
+# endif
+# if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
                 }
                 else
                 {
-#endif
-#ifndef VBOXNETADP
+# endif
+# ifndef VBOXNETADP
                     NdisReturnPackets(&pPacket, 1);
-#endif
-#if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
+# endif
+# if !defined(VBOX_NETFLT_ONDEMAND_BIND) && !defined(VBOXNETADP)
                 }
-#endif
+# endif
             }
             else
             {
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
+# ifndef VBOX_NETFLT_ONDEMAND_BIND
                 Assert(!(fFlags & PACKET_SRC_HOST));
-#endif
+# endif
                 vboxNetFltWinFreeSGNdisPacket(pPacket, true);
             }
         }
@@ -789,9 +780,9 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
             Assert(pSG);
             vboxNetFltWinMemFree(pSG);
         }
-#ifndef VBOXNETADP
+# ifndef VBOXNETADP
         bPending = false;
-#endif
+# endif
     } while(0);
 
 #ifdef DEBUG_NETFLT_PACKETS
@@ -806,7 +797,17 @@ static bool vboxNetFltWinQuProcessInfo(PVBOXNETFLTINS pNetFltIf, PPACKET_QUEUE_W
 #else
     return false;
 #endif
+#else /* #ifdef VBOXNETFLT_NO_PACKET_QUEUE */
+    } while(0);
+# ifndef VBOXNETADP
+    return bDropIt;
+# else
+    return true;
+# endif
+#endif
 }
+
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
 /*
  * thread start function for the thread which processes the packets enqueued in our send and receive callbacks called by ndis
  *
@@ -870,7 +871,7 @@ static VOID vboxNetFltWinQuPacketQueueWorkerThreadProc(PVBOXNETFLTINS pNetFltIf)
 
             LogFlow(("==> found info (%p)\n", pInfo));
 
-            if(vboxNetFltWinQuProcessInfo(pNetFltIf, pWorker, pInfo))
+            if(vboxNetFltWinQuProcessInfo(pNetFltIf, pWorker, pInfo->pPacket, pInfo->fFlags))
             {
                 cNumPostedToHostWire++;
             }
@@ -895,7 +896,7 @@ static VOID vboxNetFltWinQuPacketQueueWorkerThreadProc(PVBOXNETFLTINS pNetFltIf)
 
     PsTerminateSystemThread(STATUS_SUCCESS);
 }
-
+#endif
 /**
  * thread start function for the job processing thread
  *
@@ -1077,6 +1078,8 @@ static void vboxNetFltWinJobFiniQueue(PJOB_QUEUE pQueue)
     }
 }
 
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
+
 /**
  * initializes the packet queue
  * */
@@ -1136,12 +1139,12 @@ DECLHIDDEN(void) vboxNetFltWinQuFiniPacketQueue(PVBOXNETFLTINS pInstance)
 //    Assert(pAdapt->pPacketQueueSG);
 
     /* using the pPacketQueueSG as an indicator that the packet queue is initialized */
-    RTSpinlockAcquire((pInstance)->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts((pInstance)->hSpinlock, &Tmp);
     if(pWorker->pSG)
     {
         pSG = pWorker->pSG;
         pWorker->pSG = NULL;
-        RTSpinlockRelease((pInstance)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pInstance)->hSpinlock, &Tmp);
         KeSetEvent(&pWorker->KillEvent, 0, FALSE);
 
         KeWaitForSingleObject(pWorker->pThread, Executive,
@@ -1155,50 +1158,36 @@ DECLHIDDEN(void) vboxNetFltWinQuFiniPacketQueue(PVBOXNETFLTINS pInstance)
     }
     else
     {
-        RTSpinlockRelease((pInstance)->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts((pInstance)->hSpinlock, &Tmp);
     }
 }
+
+#endif
 
 /*
  * creates the INTNETSG containing one segment pointing to the buffer of size cbBufSize
  * the INTNETSG created should be cleaned with vboxNetFltWinMemFree
  */
-DECLHIDDEN(NDIS_STATUS) vboxNetFltWinAllocSG(UINT cbBufSize, PINTNETSG *ppSG)
+DECLHIDDEN(NDIS_STATUS) vboxNetFltWinAllocSG(UINT cbPacket, PINTNETSG *ppSG)
 {
-    UINT cbBufferOffset;
-    UINT cbMemSize;
     NDIS_STATUS Status;
     PINTNETSG pSG;
 
     /* allocation:
      * 1. SG_PACKET - with one aSegs pointing to
-     * 2. buffer of cbPacketLength containing the entire packet */
-    cbBufferOffset = sizeof(INTNETSG);
-    /* make sure the buffer is aligned */
-    if((cbBufferOffset & (sizeof(PVOID) - 1)) != 0)
-    {
-        cbBufferOffset += sizeof(PVOID);
-        cbBufferOffset &= ~(sizeof(PVOID) - 1);
-    }
-
-    cbMemSize = cbBufferOffset + cbBufSize;
-    Status = vboxNetFltWinMemAlloc((PVOID*)&pSG, cbMemSize);
+     * 2. buffer of cbPacket containing the entire packet */
+    AssertCompileSizeAlignment(INTNETSG, sizeof(PVOID));
+    Status = vboxNetFltWinMemAlloc((PVOID*)&pSG, cbPacket + sizeof(INTNETSG));
     if(Status == NDIS_STATUS_SUCCESS)
     {
-        vboxNetFltWinInitSG(pSG, 1);
-        pSG->aSegs[0].pv = (uint8_t *)pSG + cbBufferOffset;
-        pSG->aSegs[0].Phys = NIL_RTHCPHYS;
-        pSG->aSegs[0].cb = cbBufSize;
-        pSG->cbTotal = cbBufSize;
-        pSG->cSegsUsed = 1;
-
+        IntNetSgInitTemp(pSG, pSG + 1, cbPacket);
         LogFlow(("pSG created  (%p)\n", pSG));
-
         *ppSG = pSG;
     }
     return Status;
 }
 
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
 /**
  * put the packet info to the queue
  */
@@ -1208,7 +1197,6 @@ DECLINLINE(void) vboxNetFltWinQuEnqueueInfo(PPACKET_QUEUE_WORKER pWorker, PPACKE
 
     KeSetEvent(&pWorker->NotifyEvent, IO_NETWORK_INCREMENT, FALSE);
 }
-
 
 /**
  * puts the packet to the queue
@@ -1251,7 +1239,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQuEnqueuePacket(PVBOXNETFLTINS pInstance, P
             fStatus = vboxNetFltWinAllocSG(cbPacketLength, &pSG);
             if(fStatus != NDIS_STATUS_SUCCESS)
             {
-                Assert(0);
+                AssertFailed();
                 break;
             }
 
@@ -1259,7 +1247,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQuEnqueuePacket(PVBOXNETFLTINS pInstance, P
 
             if(!pInfo)
             {
-                Assert(0);
+                AssertFailed();
                 /* TODO: what status to set? */
                 fStatus = NDIS_STATUS_FAILURE;
                 vboxNetFltWinMemFree(pSG);
@@ -1275,7 +1263,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQuEnqueuePacket(PVBOXNETFLTINS pInstance, P
             fStatus = vboxNetFltWinNdisBufferMoveToSG0(pBuffer, pSG);
             if(fStatus != NDIS_STATUS_SUCCESS)
             {
-                Assert(0);
+                AssertFailed();
                 vboxNetFltWinPpFreePacketInfo(pInfo);
                 vboxNetFltWinMemFree(pSG);
                 break;
@@ -1289,7 +1277,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQuEnqueuePacket(PVBOXNETFLTINS pInstance, P
 
             if(!pInfo)
             {
-                Assert(0);
+                AssertFailed();
                 /* TODO: what status to set? */
                 fStatus = NDIS_STATUS_FAILURE;
                 break;
@@ -1307,6 +1295,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQuEnqueuePacket(PVBOXNETFLTINS pInstance, P
 
     return fStatus;
 }
+#endif
 
 #ifndef VBOX_NETFLT_ONDEMAND_BIND
 /*
@@ -1471,7 +1460,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinGetMacAddress(PADAPT pAdapt, PRTMAC pMac)
     if(status != NDIS_STATUS_SUCCESS)
     {
         /* TODO */
-        Assert(0);
+        AssertFailed();
     }
 
     return status;
@@ -1496,7 +1485,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinQueryPhysicalMedium(PADAPT pAdapt, NDIS_PHY
         else
         {
             LogRel(("OID_GEN_PHYSICAL_MEDIUM failed: Status (0x%x)", Status));
-            Assert(0);
+            AssertFailed();
         }
     }
     return Status;
@@ -1519,7 +1508,7 @@ DECLHIDDEN(bool) vboxNetFltWinIsPromiscuous(PADAPT pAdapt)
     if(status != NDIS_STATUS_SUCCESS)
     {
         /* TODO */
-        Assert(0);
+        AssertFailed();
         return false;
     }
     return (filter & NDIS_PACKET_TYPE_PROMISCUOUS) != 0;
@@ -1527,6 +1516,9 @@ DECLHIDDEN(bool) vboxNetFltWinIsPromiscuous(PADAPT pAdapt)
 
 DECLHIDDEN(NDIS_STATUS) vboxNetFltWinSetPromiscuous(PADAPT pAdapt, bool bYes)
 {
+/** @todo Need to report changes to the switch via:
+ *  pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort, fPromisc);
+ */
     Assert(VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt));
     if(VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt))
     {
@@ -1543,7 +1535,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinSetPromiscuous(PADAPT pAdapt, bool bYes)
         if(fStatus != NDIS_STATUS_SUCCESS)
         {
             /* TODO: */
-            Assert(0);
+            AssertFailed();
             return fStatus;
         }
 
@@ -1576,7 +1568,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinSetPromiscuous(PADAPT pAdapt, bool bYes)
             if(fStatus != NDIS_STATUS_SUCCESS)
             {
                 /* TODO */
-                Assert(0);
+                AssertFailed();
                 return fStatus;
             }
         }
@@ -1698,10 +1690,12 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PADAPT pAdapt, PINTNETSG 
     NDIS_STATUS fStatus;
     PNDIS_PACKET pPacket;
 
-    Assert(pSG->cSegsUsed == 1);
-    Assert(pSG->cbTotal == pSG->aSegs[0].cb);
     Assert(pSG->aSegs[0].pv);
     Assert(pSG->cbTotal >= sizeof(ETH_HEADER_SIZE));
+
+/** @todo Hrmpf, how can we fix this assumption?  I fear this'll cause data
+ *        corruption and maybe even BSODs ... */
+    AssertReturn(pSG->cSegsUsed == 1 || bCopyMemory, NULL);
 
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
     NdisAllocatePacket(&fStatus, &pPacket, pAdapt->hSendPacketPoolHandle);
@@ -1713,7 +1707,7 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PADAPT pAdapt, PINTNETSG 
     if(fStatus == NDIS_STATUS_SUCCESS)
     {
         PNDIS_BUFFER pBuffer;
-        PVOID pMemBuf;
+        PVOID pvMemBuf;
 
         /* @todo: generally we do not always need to zero-initialize the complete OOB data here, reinitialize only when/what we need,
          * however we DO need to reset the status for the packets we indicate via NdisMIndicateReceivePacket to avoid packet loss
@@ -1722,38 +1716,38 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PADAPT pAdapt, PINTNETSG 
 
         if(bCopyMemory)
         {
-            fStatus = vboxNetFltWinMemAlloc(&pMemBuf, pSG->cbTotal);
+            fStatus = vboxNetFltWinMemAlloc(&pvMemBuf, pSG->cbTotal);
             if(fStatus == NDIS_STATUS_SUCCESS)
             {
-                NdisMoveMemory(pMemBuf, pSG->aSegs[0].pv, pSG->cbTotal);
+                IntNetSgRead(pSG, pvMemBuf);
             }
             else
             {
-                Assert(0);
+                AssertFailed();
                 NdisFreePacket(pPacket);
                 pPacket = NULL;
             }
         }
         else
         {
-            pMemBuf = pSG->aSegs[0].pv;
+            pvMemBuf = pSG->aSegs[0].pv;
         }
         if(fStatus == NDIS_STATUS_SUCCESS)
         {
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
             NdisAllocateBuffer(&fStatus, &pBuffer,
                     pAdapt->hSendBufferPoolHandle,
-                    pMemBuf,
+                    pvMemBuf,
                     pSG->cbTotal);
 #elif defined(VBOXNETADP)
             NdisAllocateBuffer(&fStatus, &pBuffer,
                     pAdapt->hRecvBufferPoolHandle,
-                    pMemBuf,
+                    pvMemBuf,
                     pSG->cbTotal);
 #else
             NdisAllocateBuffer(&fStatus, &pBuffer,
                     bToWire ? pAdapt->hSendBufferPoolHandle : pAdapt->hRecvBufferPoolHandle,
-                    pMemBuf,
+                    pvMemBuf,
                     pSG->cbTotal);
 #endif
 
@@ -1795,10 +1789,10 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PADAPT pAdapt, PINTNETSG 
             }
             else
             {
-                Assert(0);
+                AssertFailed();
                 if(bCopyMemory)
                 {
-                    vboxNetFltWinMemFree(pMemBuf);
+                    vboxNetFltWinMemFree(pvMemBuf);
                 }
                 NdisFreePacket(pPacket);
                 pPacket = NULL;
@@ -1806,7 +1800,7 @@ DECLHIDDEN(PNDIS_PACKET) vboxNetFltWinNdisPacketFromSG(PADAPT pAdapt, PINTNETSG 
         }
         else
         {
-            Assert(0);
+            AssertFailed();
             NdisFreePacket(pPacket);
             pPacket = NULL;
         }
@@ -1840,14 +1834,14 @@ DECLHIDDEN(void) vboxNetFltWinFreeSGNdisPacket(PNDIS_PACKET pPacket, bool bFreeM
         NdisUnchainBufferAtBack(pPacket, &pBuffer);
         if(pBuffer != NULL)
         {
-            PVOID pMemBuf;
+            PVOID pvMemBuf;
             UINT cbLength;
 
-            NdisQueryBufferSafe(pBuffer, &pMemBuf, &cbLength, NormalPagePriority);
+            NdisQueryBufferSafe(pBuffer, &pvMemBuf, &cbLength, NormalPagePriority);
             NdisFreeBuffer(pBuffer);
             if(bFreeMem)
             {
-                vboxNetFltWinMemFree(pMemBuf);
+                vboxNetFltWinMemFree(pvMemBuf);
             }
         }
         else
@@ -1918,7 +1912,7 @@ vboxNetFltWinUnload(
     if (RT_FAILURE(rc))
     {
         /* TODO: we can not prevent driver unload here */
-        Assert(0);
+        AssertFailed();
 
         Log(("vboxNetFltWinTryFiniIdc - failed, busy.\n"));
     }
@@ -2187,8 +2181,8 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitBind(PADAPT *ppAdapt, PNDIS_STRING pO
         RtlFreeAnsiString(&AnsiString);
         if(RT_FAILURE(rc))
         {
-        	Assert(0);
-      		Status = Context.Status != NDIS_STATUS_SUCCESS ? Context.Status : NDIS_STATUS_FAILURE;
+            AssertFailed();
+            Status = Context.Status != NDIS_STATUS_SUCCESS ? Context.Status : NDIS_STATUS_FAILURE;
             break;
         }
 
@@ -2204,8 +2198,8 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitBind(PADAPT *ppAdapt, PNDIS_STRING pO
             rc = vboxNetFltWinAttachToInterface(pInstance, &Context, true);
             if(RT_FAILURE(rc))
             {
-                Assert(0);
-          		Status = Context.Status != NDIS_STATUS_SUCCESS ? Context.Status : NDIS_STATUS_FAILURE;
+                AssertFailed();
+                Status = Context.Status != NDIS_STATUS_SUCCESS ? Context.Status : NDIS_STATUS_FAILURE;
                 /* release netflt */
                 vboxNetFltRelease(pInstance, false);
 
@@ -2270,7 +2264,7 @@ static NDIS_STATUS vboxNetFltWinPtFiniUnbind(PADAPT pAdapt)
         Status = vboxNetFltWinPtDoUnbinding(pAdapt, true);
         if(Status != NDIS_STATUS_SUCCESS)
         {
-            Assert(0);
+            AssertFailed();
             /* TODO: should we break ? */
             /* break; */
         }
@@ -2311,7 +2305,9 @@ DECLHIDDEN(VOID) vboxNetFltWinPtFiniPADAPT(PADAPT pAdapt)
 #ifndef VBOX_NETFLT_ONDEMAND_BIND
     /* moved to vboxNetFltWinDetachFromInterfaceWorker */
 #else
+# ifndef VBOXNETFLT_NO_PACKET_QUEUE
     vboxNetFltWinQuFiniPacketQueue(pAdapt);
+# endif
 #endif
 
     vboxNetFltWinFiniBuffers(pAdapt);
@@ -2392,7 +2388,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitPADAPT(IN  PADAPT pAdapt)
         Status = vboxNetFltWinMemAlloc((PVOID*)&pAdapt->DeviceName.Buffer, pOurDeviceName->Length);
         if(Status != NDIS_STATUS_SUCCESS)
         {
-            Assert(0);
+            AssertFailed();
             pAdapt->DeviceName.Buffer = NULL;
             break;
         }
@@ -2401,7 +2397,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitPADAPT(IN  PADAPT pAdapt)
         Status = vboxNetFltWinCopyString(&pAdapt->DeviceName, pOurDeviceName);
         if(Status != NDIS_STATUS_SUCCESS)
         {
-            Assert(0);
+            AssertFailed();
             break;
         }
 # endif
@@ -2445,7 +2441,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtInitPADAPT(IN  PADAPT pAdapt)
             rc = vboxNetFltWinConnectIt(pNetFlt);
             if(RT_FAILURE(rc))
             {
-                Assert(0);
+                AssertFailed();
                 Status = NDIS_STATUS_FAILURE;
                 break;
             }
@@ -2691,7 +2687,7 @@ DECLHIDDEN(bool) vboxNetFltWinMatchPacketAndSG(PNDIS_PACKET pPacket, PINTNETSG p
 
     if(uTotalPacketLength1 != uTotalPacketLength2)
     {
-        Assert(0);
+        AssertFailed();
         bMatch = false;
     }
     else
@@ -2744,7 +2740,7 @@ DECLHIDDEN(bool) vboxNetFltWinMatchPacketAndSG(PNDIS_PACKET pPacket, PINTNETSG p
             if(memcmp((PVOID*)pMemBuf1, (PVOID*)pMemBuf2, ucbLength2Match))
             {
                 bMatch = false;
-                Assert(0);
+                AssertFailed();
                 break;
             }
 
@@ -2791,7 +2787,7 @@ static bool vboxNetFltWinMatchSGs(PINTNETSG pSG1, PINTNETSG pSG2, const INT cbMa
 
     if(uTotalPacketLength1 != uTotalPacketLength2)
     {
-        Assert(0);
+        AssertFailed();
         bMatch = false;
     }
     else
@@ -2833,7 +2829,7 @@ static bool vboxNetFltWinMatchSGs(PINTNETSG pSG1, PINTNETSG pSG2, const INT cbMa
             if(memcmp(pMemBuf1, pMemBuf2, ucbLength2Match))
             {
                 bMatch = false;
-                Assert(0);
+                AssertFailed();
                 break;
             }
             ucbMatch -= ucbLength2Match;
@@ -2944,7 +2940,7 @@ static int vboxNetFltWinInitIdc()
         if(g_bIdcInitialized)
         {
 #ifdef VBOX_NETFLT_ONDEMAND_BIND
-            Assert(0);
+            AssertFailed();
 #endif
             rc = VINF_ALREADY_INITIALIZED;
             break;
@@ -3024,7 +3020,7 @@ static int vboxNetFltWinInitNetFlt()
         rc = vboxNetFltWinInitNetFltBase();
         if(RT_FAILURE(rc))
         {
-            Assert(0);
+            AssertFailed();
             break;
         }
 
@@ -3037,7 +3033,7 @@ static int vboxNetFltWinInitNetFlt()
         rc = vboxNetFltWinInitIdc();
         if (RT_FAILURE(rc))
         {
-            Assert(0);
+            AssertFailed();
             vboxNetFltWinFiniNetFltBase();
             break;
         }
@@ -3059,13 +3055,15 @@ static int vboxNetFltWinDeleteInstance(PVBOXNETFLTINS pThis)
     Assert(pThis);
     Assert(pThis->fDisconnectedFromHost);
     Assert(!pThis->fRediscoveryPending);
-    Assert(!pThis->fActive);
+    Assert(pThis->enmTrunkState != INTNETTRUNKIFSTATE_ACTIVE);
 #ifndef VBOXNETADP
     Assert(pAdapt->PTState.OpState == kVBoxNetDevOpState_Deinitialized);
     Assert(!pAdapt->hBindingHandle);
 #endif
     Assert(pAdapt->MPState.OpState == kVBoxNetDevOpState_Deinitialized);
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
     Assert(!pThis->u.s.PacketQueueWorker.pSG);
+#endif
 //    Assert(!pAdapt->hMiniportHandle);
 
 #ifndef VBOX_NETFLT_ONDEMAND_BIND
@@ -3075,7 +3073,7 @@ static int vboxNetFltWinDeleteInstance(PVBOXNETFLTINS pThis)
     Status = vboxNetFltWinPtFiniUnbind(pAdapt);
     if(Status != NDIS_STATUS_SUCCESS)
     {
-        Assert(0);
+        AssertFailed();
         /* pDetachInfo->Status = VERR_GENERAL_FAILURE; */
     }
 #endif
@@ -3087,7 +3085,9 @@ static int vboxNetFltWinDeleteInstance(PVBOXNETFLTINS pThis)
 
 static NDIS_STATUS vboxNetFltWinDisconnectIt(PVBOXNETFLTINS pInstance)
 {
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
     vboxNetFltWinQuFiniPacketQueue(pInstance);
+#endif
     return NDIS_STATUS_SUCCESS;
 }
 
@@ -3156,7 +3156,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinDetachFromInterface(PADAPT pAdapt, bool bOn
             Status = vboxNetFltWinPtFiniUnbind(pAdapt);
             if(Status != NDIS_STATUS_SUCCESS)
             {
-                Assert(0);
+                AssertFailed();
                 /* pDetachInfo->Status = VERR_GENERAL_FAILURE; */
             }
 #endif
@@ -3185,6 +3185,35 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinDetachFromInterface(PADAPT pAdapt, bool bOn
     vboxNetFltRelease(pThis, false);
 
     return Status;
+}
+
+
+/**
+ * Checks if the host (not us) has put the adapter in promiscuous mode.
+ *
+ * @returns true if promiscuous, false if not.
+ * @param   pThis               The instance.
+ */
+static bool vboxNetFltWinIsPromiscuous2(PVBOXNETFLTINS pThis)
+{
+#ifndef VBOXNETADP
+    PADAPT pAdapt = PVBOXNETFLTINS_2_PADAPT(pThis);
+    if(VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt))
+    {
+        bool bPromiscuous;
+        if(!vboxNetFltWinReferenceAdapt(pAdapt))
+            return false;
+
+        bPromiscuous = (pAdapt->fUpperProtocolSetFilter & NDIS_PACKET_TYPE_PROMISCUOUS) == NDIS_PACKET_TYPE_PROMISCUOUS;
+            /*vboxNetFltWinIsPromiscuous(pAdapt);*/
+
+        vboxNetFltWinDereferenceAdapt(pAdapt);
+        return bPromiscuous;
+    }
+    return false;
+#else
+    return true;
+#endif
 }
 
 /**
@@ -3262,12 +3291,11 @@ static void vboxNetFltWinAttachToInterfaceWorker(PATTACH_INFO pAttachInfo)
 //                            vboxNetFltWinSetOpState(&pAdapt->PTState, kVBoxNetDevOpState_Initialized);
 //#endif
 
-                            RTSpinlockAcquire(pThis->hSpinlock, &Tmp);
 
                             /* 4. mark as connected */
+                            RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
                             ASMAtomicUoWriteBool(&pThis->fDisconnectedFromHost, false);
-
-                            RTSpinlockRelease(pThis->hSpinlock, &Tmp);
+                            RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
                             pAttachInfo->Status = VINF_SUCCESS;
                             pAttachInfo->pCreateContext->Status = NDIS_STATUS_SUCCESS;
@@ -3276,6 +3304,20 @@ static void vboxNetFltWinAttachToInterfaceWorker(PATTACH_INFO pAttachInfo)
 
                             vboxNetFltRelease(pThis, false);
 
+                            /* 5. Report MAC address, promiscuousness and GSO capabilities. */
+                            /** @todo Keep these up to date, esp. the promiscuous mode bit. */
+                            if (   pThis->pSwitchPort
+                                && vboxNetFltTryRetainBusyNotDisconnected(pThis))
+                            {
+                                pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
+                                pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort,
+                                                                             vboxNetFltWinIsPromiscuous2(pThis));
+                                pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, 0,
+                                                                             INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
+                                /** @todo We should be able to do pfnXmit at DISPATCH_LEVEL... */
+                                pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, 0 /* none */);
+                                vboxNetFltRelease(pThis, true /*fBusy*/);
+                            }
                             return;
                         }
                         AssertBreakpoint();
@@ -3319,7 +3361,7 @@ static void vboxNetFltWinAttachToInterfaceWorker(PATTACH_INFO pAttachInfo)
                 break;
             }
 
-            Status = vboxNetFltWinGetMacAddress(pAdapt, &pThis->u.s.Mac);
+            Status = vboxNetFltWinGetMacAddress(pAdapt, &pThis->u.s.MacAddr);
             if (Status != NDIS_STATUS_SUCCESS)
             {
                 vboxNetFltWinPtFiniUnbind(pAdapt);
@@ -3455,7 +3497,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
         }
         else
         {
-            Assert(0);
+            AssertFailed();
             rc = VERR_NO_MEMORY;
         }
     }
@@ -3479,7 +3521,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
         }
         else
         {
-            Assert(0);
+            AssertFailed();
 #ifdef VBOXNETADP
             STATISTIC_INCREASE(pAdapt->cRxError);
 #endif
@@ -3498,41 +3540,6 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
     return rc;
 }
 
-bool vboxNetFltPortOsIsPromiscuous(PVBOXNETFLTINS pThis)
-{
-#ifndef VBOXNETADP
-    PADAPT pAdapt = PVBOXNETFLTINS_2_PADAPT(pThis);
-    if(VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt))
-    {
-        bool bPromiscuous;
-        if(!vboxNetFltWinReferenceAdapt(pAdapt))
-            return false;
-
-        bPromiscuous = (pAdapt->fUpperProtocolSetFilter & NDIS_PACKET_TYPE_PROMISCUOUS) == NDIS_PACKET_TYPE_PROMISCUOUS;
-            /*vboxNetFltWinIsPromiscuous(pAdapt);*/
-
-        vboxNetFltWinDereferenceAdapt(pAdapt);
-        return bPromiscuous;
-    }
-    return false;
-#else
-    return true;
-#endif
-}
-
-void vboxNetFltPortOsGetMacAddress(PVBOXNETFLTINS pThis, PRTMAC pMac)
-{
-    *pMac = pThis->u.s.Mac;
-}
-
-bool vboxNetFltPortOsIsHostMac(PVBOXNETFLTINS pThis, PCRTMAC pMac)
-{
-    /* ASSUMES that the MAC address never changes. */
-    return pThis->u.s.Mac.au16[0] == pMac->au16[0]
-        && pThis->u.s.Mac.au16[1] == pMac->au16[1]
-        && pThis->u.s.Mac.au16[2] == pMac->au16[2];
-}
-
 void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
 {
 #ifndef VBOXNETADP
@@ -3544,25 +3551,25 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
      * this might include all packets queued for processing */
     for(;;)
     {
-    	if(fActive)
-    	{
-    		if(!pThis->u.s.cModePassThruRefs)
-    		{
-    			break;
-    		}
-    	}
-    	else
-    	{
-    		if(!pThis->u.s.cModeNetFltRefs)
-    		{
-    			break;
-    		}
-    	}
-		vboxNetFltWinSleep(2);
+        if(fActive)
+        {
+            if(!pThis->u.s.cModePassThruRefs)
+            {
+                break;
+            }
+        }
+        else
+        {
+            if(!pThis->u.s.cModeNetFltRefs)
+            {
+                break;
+            }
+        }
+        vboxNetFltWinSleep(2);
     }
 
     if(!vboxNetFltWinReferenceAdapt(pAdapt))
-    	return;
+        return;
 #ifndef VBOXNETADP
 
     /* the packets put to ReceiveQueue Array are currently not holding the references,
@@ -3609,7 +3616,7 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
         if(Status != NDIS_STATUS_SUCCESS)
         {
             DBGPRINT(("vboxNetFltWinSetPromiscuous failed, Status (0x%x), fActive (%d)\n", Status, fActive));
-            Assert(0);
+            AssertFailed();
             LogRel(("vboxNetFltWinSetPromiscuous failed, Status (0x%x), fActive (%d)\n", Status, fActive));
         }
     }
@@ -3658,7 +3665,9 @@ int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
 
 static void vboxNetFltWinConnectItWorker(PWORKER_INFO pInfo)
 {
+#if !defined(VBOXNETADP) || !defined(VBOXNETFLT_NO_PACKET_QUEUE)
     NDIS_STATUS Status;
+#endif
     PVBOXNETFLTINS pInstance = pInfo->pNetFltIf;
     PADAPT pAdapt = PVBOXNETFLTINS_2_PADAPT(pInstance);
 
@@ -3668,10 +3677,13 @@ static void vboxNetFltWinConnectItWorker(PWORKER_INFO pInfo)
     if(vboxNetFltWinReferenceAdapt(pAdapt))
     {
 #ifndef VBOXNETADP
-        Status = vboxNetFltWinGetMacAddress(pAdapt, &pInstance->u.s.Mac);
+        Status = vboxNetFltWinGetMacAddress(pAdapt, &pInstance->u.s.MacAddr);
         if (Status == NDIS_STATUS_SUCCESS)
 #endif
         {
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+            pInfo->Status = VINF_SUCCESS;
+#else
             Status = vboxNetFltWinQuInitPacketQueue(pInstance);
             if(Status == NDIS_STATUS_SUCCESS)
             {
@@ -3681,6 +3693,7 @@ static void vboxNetFltWinConnectItWorker(PWORKER_INFO pInfo)
             {
                 pInfo->Status = VERR_GENERAL_FAILURE;
             }
+#endif
         }
 #ifndef VBOXNETADP
         else

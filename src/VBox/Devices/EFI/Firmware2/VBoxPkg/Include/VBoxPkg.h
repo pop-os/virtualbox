@@ -1,10 +1,10 @@
-/* $Id: VBoxPkg.h $ */
+/* $Id: VBoxPkg.h 29252 2010-05-09 17:58:53Z vboxsync $ */
 /** @file
  * VBoxPkg.h - Common header, must be include before IPRT and VBox headers.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxPkg_h
@@ -42,6 +38,7 @@
 # pragma warning ( disable : 4244)
 #endif
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #ifdef _MSC_VER
 # pragma warning ( default : 4244)
 # pragma warning ( default : 4245)

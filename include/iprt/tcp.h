@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_tcp_h
@@ -125,12 +121,39 @@ RTR3DECL(int) RTTcpServerDestroy(PRTTCPSERVER pServer);
 RTR3DECL(int) RTTcpServerListen(PRTTCPSERVER pServer, PFNRTTCPSERVE pfnServe, void *pvUser);
 
 /**
+ * Listen and accept one incomming connection.
+ *
+ * This is an alternative to RTTcpServerListen for the use the callbacks are not
+ * possible.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_TCP_SERVER_SHUTDOWN if shut down by RTTcpServerShutdown.
+ * @retval  VERR_INTERRUPTED if the listening was interrupted.
+ *
+ * @param   pServer         The server handle as returned from RTTcpServerCreateEx().
+ * @param   phClientSocket  Where to return the socket handle to the client
+ *                          connection (on success only).  This must be closed
+ *                          by calling RTTcpServerDisconnectClient2().
+ */
+RTR3DECL(int) RTTcpServerListen2(PRTTCPSERVER pServer, PRTSOCKET phClientSocket);
+
+/**
  * Terminate the open connection to the server.
  *
  * @returns iprt status code.
  * @param   pServer         Handle to the server.
  */
 RTR3DECL(int) RTTcpServerDisconnectClient(PRTTCPSERVER pServer);
+
+/**
+ * Terminates an open client connect when using RTTcpListen2
+ *
+ * @returns IPRT status code.
+ * @param   hClientSocket   The client socket handle.  This will be invalid upon
+ *                          return, whether successful or not.  NIL is quietly
+ *                          ignored (VINF_SUCCESS).
+ */
+RTR3DECL(int) RTTcpServerDisconnectClient2(RTSOCKET hClientSocket);
 
 /**
  * Shuts down the server, leaving client connections open.
@@ -172,9 +195,11 @@ RTR3DECL(int) RTTcpClientClose(RTSOCKET Sock);
 RTR3DECL(int)  RTTcpRead(RTSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead);
 
 /**
- * Send data from a socket.
+ * Send data to a socket.
  *
  * @returns iprt status code.
+ * @retval  VERR_INTERRUPTED if interrupted before anything was written.
+ *
  * @param   Sock        Socket descriptor.
  * @param   pvBuffer    Buffer to write data to socket.
  * @param   cbBuffer    How much to write.
@@ -190,6 +215,17 @@ RTR3DECL(int)  RTTcpWrite(RTSOCKET Sock, const void *pvBuffer, size_t cbBuffer);
 RTR3DECL(int)  RTTcpFlush(RTSOCKET Sock);
 
 /**
+ * Enables or disable delaying sends to coalesce packets.
+ *
+ * The TCP/IP stack usually uses the Nagle algorithm (RFC 896) to implement the
+ * coalescing.
+ *
+ * @returns iprt status code.
+ * @param   Sock        Socket descriptor.
+ */
+RTR3DECL(int)  RTTcpSetSendCoalescing(RTSOCKET Sock, bool fEnable);
+
+/**
  * Socket I/O multiplexing.
  * Checks if the socket is ready for reading.
  *
@@ -198,7 +234,7 @@ RTR3DECL(int)  RTTcpFlush(RTSOCKET Sock);
  * @param   cMillies    Number of milliseconds to wait for the socket.
  *                      Use RT_INDEFINITE_WAIT to wait for ever.
  */
-RTR3DECL(int)  RTTcpSelectOne(RTSOCKET Sock, unsigned cMillies);
+RTR3DECL(int)  RTTcpSelectOne(RTSOCKET Sock, RTMSINTERVAL cMillies);
 
 
 #if 0 /* skipping these for now - RTTcpServer* handles this. */

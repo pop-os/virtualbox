@@ -110,13 +110,15 @@ typedef struct vbi_cpuset {
 /*
  * module linkage stuff
  */
+#if 0
 static struct modlmisc vbi_modlmisc = {
-	&mod_miscops, "VirtualBox Interfaces V6"
+	&mod_miscops, "VirtualBox Interfaces V8"
 };
 
 static struct modlinkage vbi_modlinkage = {
-	MODREV_1, (void *)&vbi_modlmisc, NULL
+	MODREV_1, { (void *)&vbi_modlmisc, NULL }
 };
+#endif
 
 extern uintptr_t kernelbase;
 #define	IS_KERNEL(v)	((uintptr_t)(v) >= kernelbase)
@@ -190,9 +192,9 @@ static int off_t_preempt        = -1;
 int
 _init(void)
 {
-    int err = vbi_init();
-    if (!err)
-        err = mod_install(&vbi_modlinkage);
+	int err = vbi_init();
+	if (!err)
+		err = mod_install(&vbi_modlinkage);
 	return (err);
 }
 #endif
@@ -200,8 +202,6 @@ _init(void)
 int
 vbi_init(void)
 {
-	int err;
-
 	/*
 	 * Check to see if this version of virtualbox interface module will work
 	 * with the kernel.
@@ -226,7 +226,7 @@ vbi_init(void)
 	 */
 	if (p_contig_free == NULL) {
 		p_contig_free = (void (*)(void *, size_t))
-		    kobj_getsymvalue("contig_free", 1);
+			kobj_getsymvalue("contig_free", 1);
 		if (p_contig_free == NULL) {
 			cmn_err(CE_NOTE, " contig_free() not found in kernel");
 			return (EINVAL);
@@ -313,7 +313,7 @@ static ddi_dma_attr_t base_attr = {
 };
 
 static void *
-vbi_internal_alloc(uint64_t *phys, size_t size, int contig)
+vbi_internal_alloc(uint64_t *phys, size_t size, uint64_t alignment, int contig)
 {
 	ddi_dma_attr_t attr;
 	pfn_t pfn;
@@ -322,12 +322,13 @@ vbi_internal_alloc(uint64_t *phys, size_t size, int contig)
 
 	if ((size & PAGEOFFSET) != 0)
 		return (NULL);
-	npages = size >> PAGESHIFT;
+	npages = (size + PAGESIZE - 1) >> PAGESHIFT;
 	if (npages == 0)
 		return (NULL);
 
 	attr = base_attr;
 	attr.dma_attr_addr_hi = *phys;
+	attr.dma_attr_align   = alignment;
 	if (!contig)
 		attr.dma_attr_sgllen = npages;
 	ptr = contig_alloc(size, &attr, PAGESIZE, 1);
@@ -347,12 +348,14 @@ vbi_internal_alloc(uint64_t *phys, size_t size, int contig)
 void *
 vbi_contig_alloc(uint64_t *phys, size_t size)
 {
-	return (vbi_internal_alloc(phys, size, 1));
+	/* Obsolete */
+	return (vbi_internal_alloc(phys, size, PAGESIZE /* alignment */, 1 /* contiguous */));
 }
 
 void
 vbi_contig_free(void *va, size_t size)
 {
+	/* Obsolete */
 	p_contig_free(va, size);
 }
 
@@ -369,7 +372,7 @@ vbi_kernel_map(uint64_t pa, size_t size, uint_t prot)
 	va = vmem_alloc(heap_arena, size, VM_SLEEP);
 
 	hat_devload(kas.a_hat, va, size, (pfn_t)(pa >> PAGESHIFT),
-	    prot, HAT_LOAD | HAT_LOAD_LOCK | HAT_UNORDERED_OK);
+		prot, HAT_LOAD | HAT_LOAD_LOCK | HAT_UNORDERED_OK);
 
 	return (va);
 }
@@ -531,7 +534,7 @@ vbi_thread_create(void *func, void *arg, size_t len, int priority)
 	kthread_t *t;
 
 	t = thread_create(NULL, NULL, (void (*)())func, arg, len,
-	    VBIPROC(), TS_RUN, priority);
+		VBIPROC(), TS_RUN, priority);
 	return (t);
 }
 
@@ -611,10 +614,10 @@ vbi_execute_on_all(void *func, void *arg)
 	if (use_old) {
 		if (use_old_with_ulong) {
 			p_xc_call((xc_arg_t)arg, 0, 0, X_CALL_HIPRI,
-			    set.words[0], (xc_func_t)func);
+				set.words[0], (xc_func_t)func);
 		} else {
 			p_xc_call((xc_arg_t)arg, 0, 0, X_CALL_HIPRI,
-			    set, (xc_func_t)func);
+				set, (xc_func_t)func);
 		}
 	} else {
 		xc_call((xc_arg_t)arg, 0, 0, &set.words[0], (xc_func_t)func);
@@ -633,10 +636,10 @@ vbi_execute_on_others(void *func, void *arg)
 	if (use_old) {
 		if (use_old_with_ulong) {
 			p_xc_call((xc_arg_t)arg, 0, 0, X_CALL_HIPRI,
-			    set.words[0], (xc_func_t)func);
+				set.words[0], (xc_func_t)func);
 		} else {
 			p_xc_call((xc_arg_t)arg, 0, 0, X_CALL_HIPRI,
-			    set, (xc_func_t)func);
+				set, (xc_func_t)func);
 		}
 	} else {
 		xc_call((xc_arg_t)arg, 0, 0, &set.words[0], (xc_func_t)func);
@@ -655,10 +658,10 @@ vbi_execute_on_one(void *func, void *arg, int c)
 	if (use_old) {
 		if (use_old_with_ulong) {
 			p_xc_call((xc_arg_t)arg, 0, 0, X_CALL_HIPRI,
-			    set.words[0], (xc_func_t)func);
+				set.words[0], (xc_func_t)func);
 		} else {
 			p_xc_call((xc_arg_t)arg, 0, 0, X_CALL_HIPRI,
-			    set, (xc_func_t)func);
+				set, (xc_func_t)func);
 		}
 	} else {
 		xc_call((xc_arg_t)arg, 0, 0, &set.words[0], (xc_func_t)func);
@@ -676,7 +679,7 @@ vbi_lock_va(void *addr, size_t len, int access, void **handle)
 	*handle = NULL;
 	if (!IS_KERNEL(addr)) {
 		err = as_fault(VBIPROC()->p_as->a_hat, VBIPROC()->p_as,
-		    (caddr_t)addr, len, F_SOFTLOCK, access);
+			(caddr_t)addr, len, F_SOFTLOCK, access);
 		if (err != 0) {
 			VBI_VERBOSE("vbi_lock_va() failed to lock");
 			return (-1);
@@ -691,7 +694,7 @@ vbi_unlock_va(void *addr, size_t len, int access, void *handle)
 {
 	if (!IS_KERNEL(addr))
 		as_fault(VBIPROC()->p_as->a_hat, VBIPROC()->p_as,
-		    (caddr_t)addr, len, F_SOFTUNLOCK, access);
+			(caddr_t)addr, len, F_SOFTUNLOCK, access);
 }
 
 uint64_t
@@ -745,11 +748,11 @@ segvbi_create(struct seg *seg, void *args)
 	 * now load locked mappings to the pages
 	 */
 	va = seg->s_base;
-	pgcnt = seg->s_size >> PAGESHIFT;
+	pgcnt = (seg->s_size + PAGESIZE - 1) >> PAGESHIFT;
 	for (p = 0; p < pgcnt; ++p, va += PAGESIZE) {
 		hat_devload(as->a_hat, va,
-		    PAGESIZE, a->palist[p] >> PAGESHIFT,
-		    data->prot | HAT_UNORDERED_OK, HAT_LOAD | HAT_LOAD_LOCK);
+			PAGESIZE, a->palist[p] >> PAGESHIFT,
+			data->prot | HAT_UNORDERED_OK, HAT_LOAD | HAT_LOAD_LOCK);
 	}
 
 	return (error);
@@ -776,14 +779,14 @@ static int
 segvbi_unmap(struct seg *seg, caddr_t addr, size_t len)
 {
 	if (addr < seg->s_base || addr + len > seg->s_base + seg->s_size ||
-	    (len & PAGEOFFSET) || ((uintptr_t)addr & PAGEOFFSET))
+		(len & PAGEOFFSET) || ((uintptr_t)addr & PAGEOFFSET))
 		panic("segvbi_unmap");
 
 	if (addr != seg->s_base || len != seg->s_size)
 		return (ENOTSUP);
 
 	hat_unload(seg->s_as->a_hat, addr, len,
-	    HAT_UNLOAD_UNMAP | HAT_UNLOAD_UNLOCK);
+		HAT_UNLOAD_UNMAP | HAT_UNLOAD_UNLOCK);
 
 	seg_free(seg);
 	return (0);
@@ -801,7 +804,7 @@ segvbi_free(struct seg *seg)
  */
 static int
 segvbi_fault(struct hat *hat, struct seg *seg, caddr_t addr, size_t len,
-    enum fault_type type, enum seg_rw rw)
+	enum fault_type type, enum seg_rw rw)
 {
 	return (FC_MAKE_ERR(EFAULT));
 }
@@ -842,14 +845,14 @@ segvbi_incore(struct seg *seg, caddr_t addr, size_t len, char *vec)
 	size_t v;
 
 	for (v = 0, len = (len + PAGEOFFSET) & PAGEMASK; len;
-	    len -= PAGESIZE, v += PAGESIZE)
+		len -= PAGESIZE, v += PAGESIZE)
 		*vec++ = 1;
 	return (v);
 }
 
 static int
 segvbi_lockop(struct seg *seg, caddr_t addr,
-    size_t len, int attr, int op, ulong_t *lockmap, size_t pos)
+	size_t len, int attr, int op, ulong_t *lockmap, size_t pos)
 {
 	return (0);
 }
@@ -894,7 +897,7 @@ segvbi_dump(struct seg *seg)
 
 static int
 segvbi_pagelock(struct seg *seg, caddr_t addr, size_t len,
-    struct page ***ppp, enum lock_type type, enum seg_rw rw)
+	struct page ***ppp, enum lock_type type, enum seg_rw rw)
 {
 	return (ENOTSUP);
 }
@@ -967,7 +970,9 @@ vbi_user_map(caddr_t *va, uint_t prot, uint64_t *palist, size_t len)
 	as_rangelock(as);
 	map_addr(va, len, 0, 0, MAP_SHARED);
 	if (*va != NULL)
+	{
 		error = as_map(as, *va, len, segvbi_create, &args);
+	}
 	else
 		error = ENOMEM;
 	if (error)
@@ -987,7 +992,7 @@ struct vbi_cpu_watch {
 };
 
 static int
-vbi_watcher(cpu_setup_t state, int cpu, void *arg)
+vbi_watcher(cpu_setup_t state, int icpu, void *arg)
 {
 	vbi_cpu_watch_t *w = arg;
 	int online;
@@ -998,7 +1003,7 @@ vbi_watcher(cpu_setup_t state, int cpu, void *arg)
 		online = 0;
 	else
 		return (0);
-	w->vbi_cpu_func(w->vbi_cpu_arg, cpu, online);
+	w->vbi_cpu_func(w->vbi_cpu_arg, icpu, online);
 	return (0);
 }
 
@@ -1121,12 +1126,12 @@ vbi_gtimer_func(void *arg)
  * Whenever a cpu is onlined, need to reset the g_counters[] for it to zero.
  */
 static void
-vbi_gtimer_online(void *arg, cpu_t *cpu, cyc_handler_t *h, cyc_time_t *ct)
+vbi_gtimer_online(void *arg, cpu_t *pcpu, cyc_handler_t *h, cyc_time_t *ct)
 {
 	vbi_gtimer_t *t = arg;
 	hrtime_t now;
 
-	t->g_counters[cpu->cpu_id] = 0;
+	t->g_counters[pcpu->cpu_id] = 0;
 	h->cyh_func = vbi_gtimer_func;
 	h->cyh_arg = t;
 	h->cyh_level = CY_LOCK_LEVEL;
@@ -1198,16 +1203,13 @@ vbi_poke_cpu(int c)
 }
 
 /*
- * This is revision 5 of the interface. As more functions are added,
- * they should go after this point in the file and the revision level
- * increased. Also change vbi_modlmisc at the top of the file.
+ * This is revision 5 of the interface.
  */
-uint_t vbi_revision_level = 6;
 
 void *
 vbi_lowmem_alloc(uint64_t phys, size_t size)
 {
-	return (vbi_internal_alloc(&phys, size, 0));
+	return (vbi_internal_alloc(&phys, size, PAGESIZE /* alignment */, 0 /* non-contiguous */));
 }
 
 void
@@ -1227,4 +1229,168 @@ vbi_is_preempt_pending(void)
 	char krr = VBI_CPU_KPRUNRUN;
 	return crr != 0 || krr != 0;
 }
+
+/*
+ * This is revision 7 of the interface.
+ */
+
+void *
+vbi_phys_alloc(uint64_t *phys, size_t size, uint64_t alignment, int contig)
+{
+	return (vbi_internal_alloc(phys, size, alignment, contig));
+}
+
+void
+vbi_phys_free(void *va, size_t size)
+{
+	p_contig_free(va, size);
+}
+
+
+/*
+ * This is revision 8 of the interface.
+ */
+static vnode_t vbipagevp;
+
+page_t **
+vbi_pages_alloc(uint64_t *phys, size_t size)
+{
+	/*
+	 * the page freelist and cachelist both hold pages that are not mapped into any address space.
+	 * the cachelist is not really free pages but when memory is exhausted they'll be moved to the
+	 * free lists.
+	 * it's the total of the free+cache list that we see on the 'free' column in vmstat.
+	 */
+	page_t **pp_pages = NULL;
+	pgcnt_t npages = (size + PAGESIZE - 1) >> PAGESHIFT;
+
+	/* reserve available memory for pages */
+	int rc = page_resv(npages, KM_NOSLEEP);
+	if (rc)
+	{
+		/* create the pages */
+		rc = page_create_wait(npages, 0 /* flags */);
+		if (rc)
+		{
+			/* alloc space for page_t pointer array */
+			size_t pp_size = npages * sizeof(page_t *);
+			pp_pages = kmem_zalloc(pp_size, KM_SLEEP);
+			if (pp_pages)
+			{
+				/*
+				 * get pages from kseg, the 'virtAddr' here is only for colouring but unforuntately
+				 * we dont' have the 'virtAddr' to which this memory may be mapped.
+				 */
+				seg_t kernseg;
+				kernseg.s_as = &kas;
+				caddr_t virtAddr = NULL;
+				for (int64_t i = 0; i < npages; i++, virtAddr += PAGESIZE)
+				{
+					/* get a page from the freelist */
+					page_t *ppage = page_get_freelist(&vbipagevp, 0 /* offset */, &kernseg, virtAddr,
+										PAGESIZE, 0 /* flags */, NULL /* local group */);
+					if (!ppage)
+					{
+						/* try from the cachelist */
+						ppage = page_get_cachelist(&vbipagevp, 0 /* offset */, &kernseg, virtAddr,
+										0 /* flags */, NULL /* local group */);
+						if (!ppage)
+						{
+							/* damn */
+							page_create_putback(npages - i);
+							while (--i >= 0)
+								page_free(pp_pages[i], 0 /* don't need, move to tail */);
+							kmem_free(pp_pages, pp_size);
+							page_unresv(npages);
+							return NULL;
+						}
+
+						/* remove association with the vnode for pages from the cachelist */
+						if (!PP_ISAGED(ppage))
+							page_hashout(ppage, NULL /* mutex */);
+					}
+
+					PP_CLRFREE(ppage);		/* Page is not free */
+					PP_CLRAGED(ppage);		/* Page is not hashed in */
+					pp_pages[i] = ppage;
+				}
+
+				/*
+				 * we now have the pages locked exclusively, before they are mapped in
+				 * we must downgrade the lock.
+				 */
+				*phys = (uint64_t)page_pptonum(pp_pages[0]) << PAGESHIFT;
+				return pp_pages;
+			}
+
+			page_create_putback(npages);
+		}
+
+		page_unresv(npages);
+	}
+
+	return NULL;
+}
+
+
+void
+vbi_pages_free(page_t **pp_pages, size_t size)
+{
+	pgcnt_t npages = (size + PAGESIZE - 1) >> PAGESHIFT;
+	size_t pp_size = npages * sizeof(page_t *);
+	for (pgcnt_t i = 0; i < npages; i++)
+	{
+		/* we need to exclusive lock the pages before freeing them */
+		int rc = page_tryupgrade(pp_pages[i]);
+		if (!rc)
+		{
+			page_unlock(pp_pages[i]);
+			while (!page_lock(pp_pages[i], SE_EXCL, NULL /* mutex */, P_RECLAIM))
+				;
+		}
+
+		page_free(pp_pages[i], 0 /* don't need, move to tail */);
+	}
+
+	kmem_free(pp_pages, pp_size);
+	page_unresv(npages);
+}
+
+
+int
+vbi_pages_premap(page_t **pp_pages, size_t size, uint64_t *pphysaddrs)
+{
+	if (!pphysaddrs)
+		return -1;
+
+	pgcnt_t npages = (size + PAGESIZE - 1) >> PAGESHIFT;
+	for (pgcnt_t i = 0; i < npages; i++)
+	{
+		/*
+		 * prepare pages for mapping into kernel/user space, we need to
+		 * downgrade the exclusive page lock to a shared lock.
+		 */
+		page_downgrade(pp_pages[i]);
+		pphysaddrs[i] = vbi_page_to_pa(pp_pages, i);
+	}
+
+	return 0;
+}
+
+
+uint64_t
+vbi_page_to_pa(page_t **pp_pages, pgcnt_t i)
+{
+	pfn_t pfn = page_pptonum(pp_pages[i]);
+	if (pfn == PFN_INVALID)
+		panic("vbi_page_to_pa: page_pptonum() failed\n");
+	return (uint64_t)pfn << PAGESHIFT;
+}
+
+/*
+ * As more functions are added, they should start with a comment indicating
+ * the revision and above this point in the file and the revision level should
+ * be increased. Also change vbi_modlmisc at the top of the file.
+ */
+uint_t vbi_revision_level = 8;
 

@@ -1,3 +1,4 @@
+/* $Id: VBoxSettingsDialogSpecific.cpp 28940 2010-04-30 14:41:10Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 // #define ENABLE_GLOBAL_USB
@@ -415,6 +412,16 @@ void VBoxVMSettingsDlg::putBackTo()
     }
 #endif
 
+#ifndef VBOX_OSE
+    /* Enable OHCI controller if HID is enabled */
+    if (systemPage && systemPage->isHIDEnabled())
+    {
+        CUSBController ctl = mMachine.GetUSBController();
+        if (!ctl.isNull())
+            ctl.SetEnabled(true);
+    }
+#endif /* VBOX_OSE */
+
     /* Clear the "GUI_FirstRun" extra data key in case if the boot order
      * and/or disk configuration were changed */
     if (mResetFirstRunFlag)
@@ -558,6 +565,27 @@ bool VBoxVMSettingsDlg::correlate (QWidget *aPage, QString &aWarning)
     }
 #endif
 
+#ifndef VBOX_OSE
+    if (aPage == mSelector->idToPage (SystemId) ||
+        aPage == mSelector->idToPage (USBId))
+    {
+        VBoxVMSettingsSystem *systemPage =
+            qobject_cast <VBoxVMSettingsSystem*> (mSelector->idToPage (SystemId));
+        VBoxVMSettingsUSB *usbPage =
+            qobject_cast <VBoxVMSettingsUSB*> (mSelector->idToPage (USBId));
+        if (systemPage && usbPage &&
+            systemPage->isHIDEnabled() && !usbPage->isOHCIEnabled())
+        {
+            aWarning = tr (
+                "you have enabled a USB HID (Human Interface Device). "
+                "This will not work unless USB emulation is also enabled. "
+                "This will be done automatically when you accept the VM Settings "
+                "by pressing the OK button.");
+            return true;
+        }
+    }
+#endif /* VBOX_OSE */
+
     return true;
 }
 
@@ -595,7 +623,8 @@ bool VBoxVMSettingsDlg::isAvailable (VMSettingsPageIds aId)
                 vboxProblem().cannotAccessUSB (mMachine);
 
             /* Check if USB is implemented */
-            if (ctl.isNull())
+            if (   ctl.isNull()
+                || !ctl.GetProxyAvailable())
                 return false;
 
             /* Break to common result */

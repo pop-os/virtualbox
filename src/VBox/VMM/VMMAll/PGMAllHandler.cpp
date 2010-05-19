@@ -1,10 +1,10 @@
-/* $Id: PGMAllHandler.cpp $ */
+/* $Id: PGMAllHandler.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PGM - Page Manager / Monitor, Access Handlers.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -33,12 +29,13 @@
 #include <VBox/rem.h>
 #include <VBox/dbgf.h>
 #include <VBox/rem.h>
-#include "PGMInternal.h"
+#include "../PGMInternal.h"
 #include <VBox/vm.h>
+#include "../PGMInline.h"
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
@@ -167,7 +164,6 @@ VMMDECL(int) PGMHandlerPhysicalRegisterEx(PVM pVM, PGMPHYSHANDLERTYPE enmType, R
         if (rc == VINF_PGM_SYNC_CR3)
             rc = VINF_PGM_GCPHYS_ALIASED;
         pgmUnlock(pVM);
-        PGM_INVL_ALL_VCPU_TLBS(pVM);
 #ifndef IN_RING3
         REMNotifyHandlerPhysicalRegister(pVM, enmType, GCPhys, GCPhysLast - GCPhys + 1, !!pfnHandlerR3);
 #else
@@ -222,7 +218,7 @@ static int pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVM pVM, PPGMPHYSHANDL
         {
             PGM_PAGE_SET_HNDL_PHYS_STATE(pPage, uState);
 
-            int rc2 = pgmPoolTrackUpdateGCPhys(pVM, pPage, false /* allow updates of PTEs (instead of flushing) */, &fFlushTLBs);
+            int rc2 = pgmPoolTrackUpdateGCPhys(pVM, pRam->GCPhys + (i << PAGE_SHIFT), pPage, false /* allow updates of PTEs (instead of flushing) */, &fFlushTLBs);
             if (rc2 != VINF_SUCCESS && rc == VINF_SUCCESS)
                 rc = rc2;
         }
@@ -233,15 +229,14 @@ static int pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(PVM pVM, PPGMPHYSHANDL
         i++;
     }
 
-    if (fFlushTLBs && rc == VINF_SUCCESS)
+    if (fFlushTLBs)
     {
         PGM_INVL_ALL_VCPU_TLBS(pVM);
-        Log(("pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs: flushing guest TLBs\n"));
+        Log(("pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs: flushing guest TLBs; rc=%d\n", rc));
     }
     else
-    {
-        Log(("pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs: doesn't flush guest TLBs. rc=%Rrc\n", rc));
-    }
+        Log(("pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs: doesn't flush guest TLBs. rc=%Rrc; sync flags=%x VMCPU_FF_PGM_SYNC_CR3=%d\n", rc, VMMGetCpu(pVM)->pgm.s.fSyncFlags, VMCPU_FF_ISSET(VMMGetCpu(pVM), VMCPU_FF_PGM_SYNC_CR3)));
+
     return rc;
 }
 
@@ -272,7 +267,6 @@ VMMDECL(int)  PGMHandlerPhysicalDeregister(PVM pVM, RTGCPHYS GCPhys)
         pgmHandlerPhysicalDeregisterNotifyREM(pVM, pCur);
         MMHyperFree(pVM, pCur);
         pgmUnlock(pVM);
-        PGM_INVL_ALL_VCPU_TLBS(pVM);
         return VINF_SUCCESS;
     }
     pgmUnlock(pVM);
@@ -411,7 +405,7 @@ void pgmHandlerPhysicalResetAliasedPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
      * Flush any shadow page table references *first*.
      */
     bool fFlushTLBs = false;
-    int rc = pgmPoolTrackFlushGCPhys(pVM, pPage, &fFlushTLBs);
+    int rc = pgmPoolTrackFlushGCPhys(pVM, GCPhysPage, pPage, &fFlushTLBs);
     AssertLogRelRCReturnVoid(rc);
 # ifdef IN_RC
     if (fFlushTLBs && rc != VINF_PGM_SYNC_CR3)
@@ -541,8 +535,8 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
 
                 if (RTAvlroGCPhysInsert(&pVM->pgm.s.CTX_SUFF(pTrees)->PhysHandlers, &pCur->Core))
                 {
-                    PGMPHYSHANDLERTYPE  enmType = pCur->enmType;
-                    RTGCPHYS            GCPhysLast = pCur->Core.KeyLast - GCPhys + 1;
+                    PGMPHYSHANDLERTYPE  enmType       = pCur->enmType;
+                    RTGCPHYS            cb            = GCPhysLast - GCPhys + 1;
                     bool                fHasHCHandler = !!pCur->pfnHandlerR3;
 
                     /*
@@ -552,11 +546,11 @@ VMMDECL(int) PGMHandlerPhysicalModify(PVM pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS 
                     pgmUnlock(pVM);
 
 #ifndef IN_RING3
-                    REMNotifyHandlerPhysicalModify(pVM, enmType, GCPhysCurrent, GCPhys,
-                                                   GCPhysLast - GCPhys + 1, fHasHCHandler, fRestoreAsRAM);
+                    REMNotifyHandlerPhysicalModify(pVM, enmType, GCPhysCurrent, GCPhys, cb,
+                                                   fHasHCHandler, fRestoreAsRAM);
 #else
-                    REMR3NotifyHandlerPhysicalModify(pVM, enmType, GCPhysCurrent, GCPhys,
-                                                     GCPhysLast, fHasHCHandler, fRestoreAsRAM);
+                    REMR3NotifyHandlerPhysicalModify(pVM, enmType, GCPhysCurrent, GCPhys, cb,
+                                                     fHasHCHandler, fRestoreAsRAM);
 #endif
                     PGM_INVL_ALL_VCPU_TLBS(pVM);
                     Log(("PGMHandlerPhysicalModify: GCPhysCurrent=%RGp -> GCPhys=%RGp GCPhysLast=%RGp\n",
@@ -853,7 +847,6 @@ VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
                      * Set the flags and flush shadow PT entries.
                      */
                     rc = pgmHandlerPhysicalSetRamFlagsAndFlushShadowPTs(pVM, pCur, pRam);
-                    PGM_INVL_ALL_VCPU_TLBS(pVM);
                 }
 
                 rc = VINF_SUCCESS;
@@ -901,7 +894,7 @@ VMMDECL(int)  PGMHandlerPhysicalReset(PVM pVM, RTGCPHYS GCPhys)
  */
 VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage)
 {
-    LogFlow(("PGMHandlerPhysicalPageTempOff GCPhys=%RGp\n", GCPhys));
+    LogFlow(("PGMHandlerPhysicalPageTempOff GCPhysPage=%RGp\n", GCPhysPage));
 
     pgmLock(pVM);
     /*
@@ -917,8 +910,8 @@ VMMDECL(int)  PGMHandlerPhysicalPageTempOff(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
             Assert((pCur->Core.KeyLast & PAGE_OFFSET_MASK) == PAGE_OFFSET_MASK);
 
             AssertReturnStmt(   pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_WRITE
-                         || pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_ALL,
-                         pgmUnlock(pVM), VERR_ACCESS_DENIED);
+                             || pCur->enmType == PGMPHYSHANDLERTYPE_PHYSICAL_ALL,
+                             pgmUnlock(pVM), VERR_ACCESS_DENIED);
 
             /*
              * Change the page status.
@@ -1150,7 +1143,6 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
 
             /* Flush its TLB entry. */
             PGMPhysInvalidatePageMapTLBEntry(pVM, GCPhysPage);
-
             LogFlow(("PGMHandlerPhysicalPageAliasHC: => %R[pgmpage]\n", pPage));
             pgmUnlock(pVM);
             return VINF_SUCCESS;
@@ -1174,7 +1166,7 @@ VMMDECL(int)  PGMHandlerPhysicalPageAliasHC(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS G
  * @param   pVM         VM Handle.
  * @param   GCPhys      Start physical address earlier passed to PGMR3HandlerPhysicalRegister().
  * @remarks Caller must take the PGM lock...
- * @threads EMT.
+ * @thread  EMT.
  */
 VMMDECL(bool) PGMHandlerPhysicalIsRegistered(PVM pVM, RTGCPHYS GCPhys)
 {
@@ -1238,7 +1230,7 @@ bool pgmHandlerPhysicalIsAll(PVM pVM, RTGCPHYS GCPhys)
  * @param   pVM             VM handle.
  * @param   GCPtr           Virtual address.
  * @remarks Will acquire the PGM lock.
- * @threads Any.
+ * @thread  Any.
  */
 VMMDECL(bool) PGMHandlerVirtualIsRegistered(PVM pVM, RTGCPTR GCPtr)
 {

@@ -1,10 +1,9 @@
 /** @file
- *
  * VirtualBox Driver interface to VMM device
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_VMMDEV
@@ -24,6 +19,7 @@
 
 #include "VirtualBoxBase.h"
 #include <VBox/pdmdrv.h>
+#include <iprt/asm.h>
 
 class Console;
 
@@ -59,20 +55,20 @@ public:
     bool hgcmIsActive (void) { return ASMAtomicReadBool(&m_fHGCMActive); }
 
 private:
-    static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
+    static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
     static DECLCALLBACK(void)   drvReset(PPDMDRVINS pDrvIns);
 
-    ComObjPtr<Console, ComWeakRef> mParent;
+    Console * const         mParent;
 
     RTSEMEVENT mCredentialsEvent;
     uint32_t mu32CredentialsFlags;
 
 #ifdef VBOX_WITH_HGCM
-    bool m_fHGCMActive;
+    bool volatile m_fHGCMActive;
 #endif /* VBOX_WITH_HGCM */
 };
 
-#endif // ____H_VMMDEV
+#endif // !____H_VMMDEV
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

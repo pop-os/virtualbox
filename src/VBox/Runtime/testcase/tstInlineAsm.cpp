@@ -1,10 +1,10 @@
-/* $Id: tstInlineAsm.cpp $ */
+/* $Id: tstInlineAsm.cpp 29279 2010-05-09 23:29:11Z vboxsync $ */
 /** @file
  * IPRT Testcase - inline assembly.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,16 +22,18 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#else
+# include <iprt/time.h>
+#endif
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/initterm.h>
@@ -66,7 +68,8 @@
     } while (0)
 
 
-#if !defined(PIC) || !defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+
 const char *getCacheAss(unsigned u)
 {
     if (u == 0)
@@ -433,8 +436,8 @@ void tstASMCpuId(void)
                   s.uEBX, s.uEBX);
      }
 }
-#endif /* !PIC || !X86 */
 
+#endif /* AMD64 || X86 */
 
 static void tstASMAtomicXchgU8(void)
 {
@@ -563,6 +566,29 @@ static void tstASMAtomicXchgPtr(void)
 }
 
 
+static void tstASMAtomicCmpXchgU8(void)
+{
+    struct
+    {
+        uint8_t u8Before;
+        uint8_t u8;
+        uint8_t u8After;
+    } u = { 0xcc, 0xff, 0xaa };
+
+    CHECKOP(ASMAtomicCmpXchgU8(&u.u8, 0, 0), false, "%d", bool);
+    CHECKVAL(u.u8, 0xff, "%x"); CHECKVAL(u.u8Before, 0xcc, "%x"); CHECKVAL(u.u8After, 0xaa, "%x");
+
+    CHECKOP(ASMAtomicCmpXchgU8(&u.u8, 0, 0xff), true, "%d", bool);
+    CHECKVAL(u.u8, 0, "%x");    CHECKVAL(u.u8Before, 0xcc, "%x"); CHECKVAL(u.u8After, 0xaa, "%x");
+
+    CHECKOP(ASMAtomicCmpXchgU8(&u.u8, 0x79, 0xff), false, "%d", bool);
+    CHECKVAL(u.u8, 0, "%x");    CHECKVAL(u.u8Before, 0xcc, "%x"); CHECKVAL(u.u8After, 0xaa, "%x");
+
+    CHECKOP(ASMAtomicCmpXchgU8(&u.u8, 0x97, 0), true, "%d", bool);
+    CHECKVAL(u.u8, 0x97, "%x"); CHECKVAL(u.u8Before, 0xcc, "%x"); CHECKVAL(u.u8After, 0xaa, "%x");
+}
+
+
 static void tstASMAtomicCmpXchgU32(void)
 {
     uint32_t u32 = 0xffffffff;
@@ -673,6 +699,23 @@ static void tstASMAtomicReadU64(void)
 
     u64 = 0xfedcba0987654321ULL;
     CHECKOP(ASMAtomicReadU64(&u64), 0xfedcba0987654321ULL, "%#llx", uint64_t);
+    CHECKVAL(u64, 0xfedcba0987654321ULL, "%#llx");
+}
+
+
+static void tstASMAtomicUoReadU64(void)
+{
+    uint64_t u64 = 0;
+
+    CHECKOP(ASMAtomicUoReadU64(&u64), 0ULL, "%#llx", uint64_t);
+    CHECKVAL(u64, 0ULL, "%#llx");
+
+    u64 = ~0ULL;
+    CHECKOP(ASMAtomicUoReadU64(&u64), ~0ULL, "%#llx", uint64_t);
+    CHECKVAL(u64, ~0ULL, "%#llx");
+
+    u64 = 0xfedcba0987654321ULL;
+    CHECKOP(ASMAtomicUoReadU64(&u64), 0xfedcba0987654321ULL, "%#llx", uint64_t);
     CHECKVAL(u64, 0xfedcba0987654321ULL, "%#llx");
 }
 
@@ -994,6 +1037,7 @@ void tstASMMath(void)
     uint32_t u32 = ASMDivU64ByU32RetU32(UINT64_C(0x0800000000000000), UINT32_C(0x10000000));
     CHECKVAL(u32, UINT32_C(0x80000000), "%#010RX32");
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0x0000000000000001), UINT32_C(0x00000001), UINT32_C(0x00000001));
     CHECKVAL(u64, UINT64_C(0x0000000000000001), "%#018RX64");
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0x0000000100000000), UINT32_C(0x80000000), UINT32_C(0x00000002));
@@ -1009,7 +1053,7 @@ void tstASMMath(void)
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0x3415934810359583), UINT32_C(0xf8694045), UINT32_C(0x58734981));
     CHECKVAL(u64, UINT64_C(0x924719355cd35a27), "%#018RX64");
 
-#if 0 /* bird: question is whether this should trap or not:
+# if 0 /* bird: question is whether this should trap or not:
        *
        * frank: Of course it must trap:
        *
@@ -1039,7 +1083,8 @@ void tstASMMath(void)
        */
     u64 = ASMMultU64ByU32DivByU32(UINT64_C(0xfffffff8c65d6731), UINT32_C(0x77d7daf8), UINT32_C(0x3b9aca00));
     CHECKVAL(u64, UINT64_C(0x02b8f9a2aa74e3dc), "%#018RX64");
-#endif
+# endif
+#endif /* AMD64 || X86 */
 
     u32 = ASMModU64ByU32RetU32(UINT64_C(0x0ffffff8c65d6731), UINT32_C(0x77d7daf8));
     CHECKVAL(u32, UINT32_C(0x3B642451), "%#010RX32");
@@ -1136,20 +1181,50 @@ void tstASMBench(void)
     static uint64_t volatile s_u64;
     static int64_t  volatile s_i64;
     register unsigned i;
-    const unsigned cRounds = 1000000;
+    const unsigned cRounds = 2000000;
     register uint64_t u64Elapsed;
 
     RTPrintf("tstInlineASM: Benchmarking:\n");
 
-#define BENCH(op, str)  \
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# define BENCH(op, str) \
+    do { \
         RTThreadYield(); \
         u64Elapsed = ASMReadTSC(); \
         for (i = cRounds; i > 0; i--) \
             op; \
         u64Elapsed = ASMReadTSC() - u64Elapsed; \
-        RTPrintf(" %-30s %3llu cycles\n", str, u64Elapsed / cRounds);
+        RTPrintf(" %-30s %3llu cycles\n", str, u64Elapsed / cRounds); \
+    } while (0)
+#else
+# define BENCH(op, str) \
+    do { \
+        RTThreadYield(); \
+        u64Elapsed = RTTimeNanoTS(); \
+        for (i = cRounds; i > 0; i--) \
+            op; \
+        u64Elapsed = RTTimeNanoTS() - u64Elapsed; \
+        RTPrintf(" %-30s %3llu ns\n", str, u64Elapsed / cRounds); \
+    } while (0)
+#endif
 
     BENCH(s_u32 = 0,                            "s_u32 = 0:");
+    BENCH(ASMAtomicUoReadU8(&s_u8),             "ASMAtomicUoReadU8:");
+    BENCH(ASMAtomicUoReadS8(&s_i8),             "ASMAtomicUoReadS8:");
+    BENCH(ASMAtomicUoReadU16(&s_u16),           "ASMAtomicUoReadU16:");
+    BENCH(ASMAtomicUoReadS16(&s_i16),           "ASMAtomicUoReadS16:");
+    BENCH(ASMAtomicUoReadU32(&s_u32),           "ASMAtomicUoReadU32:");
+    BENCH(ASMAtomicUoReadS32(&s_i32),           "ASMAtomicUoReadS32:");
+    BENCH(ASMAtomicUoReadU64(&s_u64),           "ASMAtomicUoReadU64:");
+    BENCH(ASMAtomicUoReadS64(&s_i64),           "ASMAtomicUoReadS64:");
+    BENCH(ASMAtomicReadU8(&s_u8),               "ASMAtomicReadU8:");
+    BENCH(ASMAtomicReadS8(&s_i8),               "ASMAtomicReadS8:");
+    BENCH(ASMAtomicReadU16(&s_u16),             "ASMAtomicReadU16:");
+    BENCH(ASMAtomicReadS16(&s_i16),             "ASMAtomicReadS16:");
+    BENCH(ASMAtomicReadU32(&s_u32),             "ASMAtomicReadU32:");
+    BENCH(ASMAtomicReadS32(&s_i32),             "ASMAtomicReadS32:");
+    BENCH(ASMAtomicReadU64(&s_u64),             "ASMAtomicReadU64:");
+    BENCH(ASMAtomicReadS64(&s_i64),             "ASMAtomicReadS64:");
     BENCH(ASMAtomicUoWriteU8(&s_u8, 0),         "ASMAtomicUoWriteU8:");
     BENCH(ASMAtomicUoWriteS8(&s_i8, 0),         "ASMAtomicUoWriteS8:");
     BENCH(ASMAtomicUoWriteU16(&s_u16, 0),       "ASMAtomicUoWriteU16:");
@@ -1206,7 +1281,7 @@ int main(int argc, char *argv[])
     /*
      * Execute the tests.
      */
-#if !defined(PIC) || !defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     tstASMCpuId();
 #endif
     tstASMAtomicXchgU8();
@@ -1214,11 +1289,13 @@ int main(int argc, char *argv[])
     tstASMAtomicXchgU32();
     tstASMAtomicXchgU64();
     tstASMAtomicXchgPtr();
+    tstASMAtomicCmpXchgU8();
     tstASMAtomicCmpXchgU32();
     tstASMAtomicCmpXchgU64();
     tstASMAtomicCmpXchgExU32();
     tstASMAtomicCmpXchgExU64();
     tstASMAtomicReadU64();
+    tstASMAtomicUoReadU64();
     tstASMAtomicAddS32();
     tstASMAtomicDecIncS32();
     tstASMAtomicAndOrU32();

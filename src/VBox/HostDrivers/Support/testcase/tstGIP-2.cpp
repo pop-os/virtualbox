@@ -1,10 +1,10 @@
-/* $Id: tstGIP-2.cpp $ */
+/* $Id: tstGIP-2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * SUP Testcase - Global Info Page interface (ring 3).
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -65,7 +61,7 @@ int main(int argc, char **argv)
     int ch;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, 0 /* fFlags */);
+    RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((ch = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (ch)
@@ -86,16 +82,8 @@ int main(int argc, char **argv)
                 fSpin = true;
                 break;
 
-            case VINF_GETOPT_NOT_OPTION:
-                RTPrintf("tstGIP-2: syntax error: %s\n", ValueUnion.psz);
-                return 1;
-
             default:
-                if (ch < 0)
-                    RTPrintf("tstGIP-2: %Rrc: %s\n", ch, ValueUnion.psz);
-                else
-                    RTPrintf("tstGIP-2: syntax error: %s\n", ValueUnion.psz);
-                return 1;
+                return RTGetOptPrintError(ch, &ValueUnion);
         }
     }
 

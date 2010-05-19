@@ -1,10 +1,10 @@
-/* $Id: timer-r0drv-nt.cpp $ */
+/* $Id: timer-r0drv-nt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Timers, Ring-0 Driver, NT.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -106,7 +102,10 @@ typedef struct RTTIMER
  * Timer callback function for the non-omni timers.
  *
  * @returns HRTIMER_NORESTART or HRTIMER_RESTART depending on whether it's a one-shot or interval timer.
- * @param   pHrTimer    Pointer to the timer structure.
+ * @param   pDpc                Pointer to the the DPC.
+ * @param   pvUser              Pointer to our internal timer structure.
+ * @param   SystemArgument1     Some system argument.
+ * @param   SystemArgument2     Some system argument.
  */
 static void _stdcall rtTimerNtSimpleCallback(IN PKDPC pDpc, IN PVOID pvUser, IN PVOID SystemArgument1, IN PVOID SystemArgument2)
 {
@@ -114,7 +113,7 @@ static void _stdcall rtTimerNtSimpleCallback(IN PKDPC pDpc, IN PVOID pvUser, IN 
     AssertPtr(pTimer);
 #ifdef RT_STRICT
     if (KeGetCurrentIrql() < DISPATCH_LEVEL)
-        AssertMsg2("rtTimerNtSimpleCallback: Irql=%d expected >=%d\n", KeGetCurrentIrql(), DISPATCH_LEVEL);
+        RTAssertMsg2Weak("rtTimerNtSimpleCallback: Irql=%d expected >=%d\n", KeGetCurrentIrql(), DISPATCH_LEVEL);
 #endif
 
     /*
@@ -144,10 +143,10 @@ static void _stdcall rtTimerNtOmniSlaveCallback(IN PKDPC pDpc, IN PVOID pvUser, 
     AssertPtr(pTimer);
 #ifdef RT_STRICT
     if (KeGetCurrentIrql() < DISPATCH_LEVEL)
-        AssertMsg2("rtTimerNtOmniSlaveCallback: Irql=%d expected >=%d\n", KeGetCurrentIrql(), DISPATCH_LEVEL);
+        RTAssertMsg2Weak("rtTimerNtOmniSlaveCallback: Irql=%d expected >=%d\n", KeGetCurrentIrql(), DISPATCH_LEVEL);
     int iCpuSelf = RTMpCpuIdToSetIndex(RTMpCpuId());
     if (pSubTimer - &pTimer->aSubTimers[0] != iCpuSelf)
-        AssertMsg2("rtTimerNtOmniSlaveCallback: iCpuSelf=%d pSubTimer=%p / %d\n", iCpuSelf, pSubTimer, pSubTimer - &pTimer->aSubTimers[0]);
+        RTAssertMsg2Weak("rtTimerNtOmniSlaveCallback: iCpuSelf=%d pSubTimer=%p / %d\n", iCpuSelf, pSubTimer, pSubTimer - &pTimer->aSubTimers[0]);
 #endif
 
     /*
@@ -181,9 +180,9 @@ static void _stdcall rtTimerNtOmniMasterCallback(IN PKDPC pDpc, IN PVOID pvUser,
     AssertPtr(pTimer);
 #ifdef RT_STRICT
     if (KeGetCurrentIrql() < DISPATCH_LEVEL)
-        AssertMsg2("rtTimerNtOmniMasterCallback: Irql=%d expected >=%d\n", KeGetCurrentIrql(), DISPATCH_LEVEL);
+        RTAssertMsg2Weak("rtTimerNtOmniMasterCallback: Irql=%d expected >=%d\n", KeGetCurrentIrql(), DISPATCH_LEVEL);
     if (pSubTimer - &pTimer->aSubTimers[0] != iCpuSelf)
-        AssertMsg2("rtTimerNtOmniMasterCallback: iCpuSelf=%d pSubTimer=%p / %d\n", iCpuSelf, pSubTimer, pSubTimer - &pTimer->aSubTimers[0]);
+        RTAssertMsg2Weak("rtTimerNtOmniMasterCallback: iCpuSelf=%d pSubTimer=%p / %d\n", iCpuSelf, pSubTimer, pSubTimer - &pTimer->aSubTimers[0]);
 #endif
 
     /*
@@ -444,5 +443,4 @@ RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
     NOREF(u32Granted);
     return VINF_SUCCESS;
 }
-
 

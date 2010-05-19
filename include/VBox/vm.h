@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_vm_h
@@ -783,6 +779,8 @@ typedef struct VM
     bool                        fHwVirtExtForced;
     /** PARAV enabled flag. */
     bool                        fPARAVEnabled;
+    /** Large page enabled flag. */
+    bool                        fUseLargePages;
     /** @} */
 
 
@@ -960,11 +958,7 @@ typedef struct VM
 #ifdef ___REMInternal_h
         struct REM  s;
 #endif
-
-/** @def VM_REM_SIZE
- * Must be multiple of 32 and coherent with REM_ENV_SIZE from REMInternal.h. */
-# define VM_REM_SIZE        0x11100
-        uint8_t     padding[VM_REM_SIZE];   /* multiple of 32 */
+        uint8_t     padding[0x11100];   /* multiple of 64 */
     } rem;
 
     /* ---- begin small stuff ---- */

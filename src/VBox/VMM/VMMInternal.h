@@ -1,10 +1,10 @@
-/* $Id: VMMInternal.h $ */
+/* $Id: VMMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VMM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VMMInternal_h
@@ -49,9 +45,6 @@
  * Ring-0 logging isn't 100% safe yet (thread id reuse / process exit cleanup),
  * so you have to sign up here by adding your defined(DEBUG_<userid>) to the
  * #if, or by adding VBOX_WITH_R0_LOGGING to your LocalConfig.kmk.
- *
- * You might also wish to enable the AssertMsg1/2 overrides in VMMR0.cpp when
- * enabling this.
  */
 #if defined(DEBUG_sandervl) || defined(DEBUG_frank) || defined(DOXYGEN_RUNNING)
 # define VBOX_WITH_R0_LOGGING

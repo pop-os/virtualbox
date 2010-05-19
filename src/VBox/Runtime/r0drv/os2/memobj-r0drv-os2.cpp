@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-os2.cpp $ */
+/* $Id: memobj-r0drv-os2.cpp 29027 2010-05-04 14:33:41Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, OS/2.
  */
@@ -194,9 +194,13 @@ int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
 }
 
 
-int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
+int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
 {
     AssertMsgReturn(PhysHighest >= 16 *_1M, ("PhysHigest=%RHp\n", PhysHighest), VERR_NOT_IMPLEMENTED);
+
+    /** @todo alignment  */
+    if (uAlignment != PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
 
     /* create the object. */
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_OFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_PHYS, NULL, cb);
@@ -222,12 +226,14 @@ int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS Ph
 int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
 {
     /** @todo rtR0MemObjNativeAllocPhys / darwin. */
-    return rtR0MemObjNativeAllocPhys(ppMem, cb, PhysHighest);
+    return rtR0MemObjNativeAllocPhys(ppMem, cb, PhysHighest, PAGE_SIZE);
 }
 
 
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb)
+int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
+    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_IMPLEMENTED);
+
     /* create the object. */
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_OFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_PHYS, NULL, cb);
     if (!pMemOs2)
@@ -236,6 +242,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
     /* there is no allocation here, right? it needs to be mapped somewhere first. */
     pMemOs2->Core.u.Phys.fAllocated = false;
     pMemOs2->Core.u.Phys.PhysBase = Phys;
+    pMemOs2->Core.u.Phys.uCachePolicy = uCachePolicy;
     *ppMem = &pMemOs2->Core;
     return VINF_SUCCESS;
 }

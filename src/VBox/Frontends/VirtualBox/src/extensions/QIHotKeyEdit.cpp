@@ -1,3 +1,4 @@
+/* $Id: QIHotKeyEdit.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "QIHotKeyEdit.h"
@@ -112,7 +109,7 @@ int qi_distinguish_modifier_vkey (WPARAM wParam)
  *  The QIHotKeyEdit widget is a hot key editor.
  */
 
-const char *QIHotKeyEdit::kNoneSymbName = "<none>";
+const char *QIHotKeyEdit::kNoneSymbName = "None";
 
 QIHotKeyEdit::QIHotKeyEdit (QWidget *aParent) :
     QLabel (aParent)
@@ -492,6 +489,9 @@ QString QIHotKeyEdit::keyName (int aKeyVal)
 /* static */
 bool QIHotKeyEdit::isValidKey (int aKeyVal)
 {
+    /* Empty value is correct: */
+    if (aKeyVal == 0)
+        return true;
 #if defined(Q_WS_WIN32)
     return (
         (aKeyVal >= VK_SHIFT && aKeyVal <= VK_CAPITAL) ||

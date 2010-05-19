@@ -1,10 +1,10 @@
-/* $Id: PDMAsyncCompletionFileInternal.h $ */
+/* $Id: PDMAsyncCompletionFileInternal.h 29323 2010-05-11 10:04:23Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___PDMAsyncCompletionFileInternal_h
@@ -363,6 +359,8 @@ typedef struct PDMACFILECACHEGLOBAL
     /** List of all endpoints using this cache. */
     RTLISTNODE        ListEndpoints;
 #ifdef VBOX_WITH_STATISTICS
+    /** Alignment */
+    uint32_t         u32Alignment;
     /** Hit counter. */
     STAMCOUNTER      cHits;
     /** Partial hit counter. */
@@ -383,6 +381,9 @@ typedef struct PDMACFILECACHEGLOBAL
     STAMCOUNTER      StatBuffersReused;
 #endif
 } PDMACFILECACHEGLOBAL;
+#ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(PDMACFILECACHEGLOBAL, cHits, sizeof(uint64_t));
+#endif
 
 /**
  * Per endpoint cache data.
@@ -408,6 +409,24 @@ typedef struct PDMACFILEENDPOINTCACHE
     STAMCOUNTER                          StatWriteDeferred;
 #endif
 } PDMACFILEENDPOINTCACHE, *PPDMACFILEENDPOINTCACHE;
+#ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(PDMACFILEENDPOINTCACHE, StatWriteDeferred, sizeof(uint64_t));
+#endif
+
+/**
+ * Backend type for the endpoint.
+ */
+typedef enum PDMACFILEEPBACKEND
+{
+    /** Non buffered. */
+    PDMACFILEEPBACKEND_NON_BUFFERED = 0,
+    /** Buffered (i.e host cache enabled) */
+    PDMACFILEEPBACKEND_BUFFERED,
+    /** 32bit hack */
+    PDMACFILEEPBACKEND_32BIT_HACK = 0x7fffffff
+} PDMACFILEEPBACKEND;
+/** Pointer to a backend type. */
+typedef PDMACFILEEPBACKEND *PPDMACFILEEPBACKEND;
 
 /**
  * Backend type for the endpoint.
@@ -449,6 +468,9 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSFILE
     uint32_t                            cReqsOutstandingMax;
     /** Bitmask for checking the alignment of a buffer. */
     RTR3UINTPTR                         uBitmaskAlignment;
+#ifdef VBOX_WITH_STATISTICS
+    uint32_t                            u32Alignment;
+#endif
     /** Global cache data. */
     PDMACFILECACHEGLOBAL                Cache;
     /** Flag whether the out of resources warning was printed already. */
@@ -458,6 +480,9 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSFILE
 } PDMASYNCCOMPLETIONEPCLASSFILE;
 /** Pointer to the endpoint class data. */
 typedef PDMASYNCCOMPLETIONEPCLASSFILE *PPDMASYNCCOMPLETIONEPCLASSFILE;
+#ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(PDMASYNCCOMPLETIONEPCLASSFILE, Cache, sizeof(uint64_t));
+#endif
 
 typedef enum PDMACEPFILEBLOCKINGEVENT
 {
@@ -533,6 +558,9 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     /** Number of elements in the cache. */
     volatile uint32_t                      cTasksCached;
 
+#ifdef VBOX_WITH_STATISTICS
+    uint32_t                               u32Alignment;
+#endif
     /** Cache of endpoint data. */
     PDMACFILEENDPOINTCACHE                 DataCache;
     /** Pointer to the associated bandwidth control manager */
@@ -606,6 +634,10 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
 } PDMASYNCCOMPLETIONENDPOINTFILE;
 /** Pointer to the endpoint class data. */
 typedef PDMASYNCCOMPLETIONENDPOINTFILE *PPDMASYNCCOMPLETIONENDPOINTFILE;
+#ifdef VBOX_WITH_STATISTICS
+AssertCompileMemberAlignment(PDMASYNCCOMPLETIONENDPOINTFILE, StatRead, sizeof(uint64_t));
+AssertCompileMemberAlignment(PDMASYNCCOMPLETIONENDPOINTFILE, DataCache, sizeof(uint64_t));
+#endif
 
 /** Request completion function */
 typedef DECLCALLBACK(void)   FNPDMACTASKCOMPLETED(PPDMACTASKFILE pTask, void *pvUser, int rc);
@@ -643,7 +675,7 @@ typedef struct PDMACTASKFILE
     /** Start offset */
     RTFOFF                               Off;
     /** Data segment. */
-    PDMDATASEG                           DataSeg;
+    RTSGSEG                              DataSeg;
     /** When non-zero the segment uses a bounce buffer because the provided buffer
      * doesn't meet host requirements. */
     size_t                               cbBounceBuffer;
@@ -701,10 +733,10 @@ int pdmacFileEpCacheInit(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOM
 void pdmacFileEpCacheDestroy(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint);
 
 int pdmacFileEpCacheRead(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOMPLETIONTASKFILE pTask,
-                         RTFOFF off, PCPDMDATASEG paSegments, size_t cSegments,
+                         RTFOFF off, PCRTSGSEG paSegments, size_t cSegments,
                          size_t cbRead);
 int pdmacFileEpCacheWrite(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOMPLETIONTASKFILE pTask,
-                          RTFOFF off, PCPDMDATASEG paSegments, size_t cSegments,
+                          RTFOFF off, PCRTSGSEG paSegments, size_t cSegments,
                           size_t cbWrite);
 int pdmacFileEpCacheFlush(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMASYNCCOMPLETIONTASKFILE pTask);
 

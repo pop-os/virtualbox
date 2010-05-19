@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2009 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 LC_ALL=C
@@ -77,6 +73,7 @@ TARGET_MACHINE=""
 TARGET_CPU=""
 WITH_XPCOM=1
 WITH_PYTHON=1
+WITH_VMMRAW=1
 WITH_LIBIDL=1
 WITH_GSOAP=0
 WITH_QT4=1
@@ -89,10 +86,12 @@ WITH_DBUS=1
 WITH_KMODS=1
 WITH_OPENGL=1
 WITH_HARDENING=1
+WITH_VDE=0
 BUILD_LIBXML2=
 BUILD_LIBXSLT=
 BUILD_LIBCURL=
 BUILD_LIBSSL=
+PASSIVE_MESA=0
 CC="gcc"
 CC32=""
 CC64=""
@@ -116,6 +115,8 @@ INCX11="/usr/local/include"
 LIBX11="-L/usr/X11R6/lib -L/usr/X11R6/lib64 -L/usr/local/lib -lXext -lX11"
 LIBXCURSOR="-lXcursor"
 LIBXMU="-lXmu"
+LIBXINERAMA="-lXinerama"
+LIBXRANDR="-lXrandr"
 MESA="-lGL"
 INCZ=""
 LIBZ="-lz"
@@ -125,6 +126,8 @@ CXX_FLAGS=""
 if [ "$OS" = "freebsd" ]; then
   INCCURL="-I/usr/local/include"
   LIBCURL="-L/usr/local/lib -lcurl"
+  INCPULSE="-I/usr/local/include"
+  LIBPULSE="-L/usr/local/lib"
 else
   INCCURL=""
   LIBCURL="-lcurl"
@@ -356,12 +359,18 @@ check_environment()
   DEVDIR_BIN="$DEVDIR/$OS.$BUILD_MACHINE/bin"
   log_success "Determined build machine: $OS.$BUILD_MACHINE, target machine: $OS.$TARGET_MACHINE"
 
-  echo "export BUILD_PLATFORM=\"$OS\"" >> $ENV
-  echo "export BUILD_PLATFORM_ARCH=\"$BUILD_MACHINE\"" >> $ENV
-  echo "export BUILD_TARGET=\"$OS\"" >> $ENV
-  echo "export BUILD_TARGET_ARCH=\"$TARGET_MACHINE\"" >> $ENV
-  echo "export BUILD_TARGET_CPU=\"$TARGET_CPU\"" >> $ENV
-  echo "export BUILD_TYPE=\"$BUILD_TYPE\"" >> $ENV
+  echo "BUILD_PLATFORM=\"$OS\"" >> $ENV
+  echo "export BUILD_PLATFORM" >> $ENV
+  echo "BUILD_PLATFORM_ARCH=\"$BUILD_MACHINE\"" >> $ENV
+  echo "export BUILD_PLATFORM_ARCH" >> $ENV
+  echo "BUILD_TARGET=\"$OS\"" >> $ENV
+  echo "export BUILD_TARGET" >> $ENV
+  echo "BUILD_TARGET_ARCH=\"$TARGET_MACHINE\"" >> $ENV
+  echo "export BUILD_TARGET_ARCH" >> $ENV
+  echo "BUILD_TARGET_CPU=\"$TARGET_CPU\"" >> $ENV
+  echo "export BUILD_TARGET_CPU" >> $ENV
+  echo "BUILD_TYPE=\"$BUILD_TYPE\"" >> $ENV
+  echo "export BUILD_TYPE" >> $ENV
 }
 
 #
@@ -394,9 +403,9 @@ check_gcc()
       elif [ $cc_maj -lt 3 \
              -o \( $cc_maj -eq 3 -a $cc_min -lt 2 \) \
              -o \( $cc_maj -eq 4 -a $cc_min -lt 1 -a "$OS" != "darwin" \) \
-             -o \( $cc_maj -eq 4 -a $cc_min -gt 4 \) \
+             -o \( $cc_maj -eq 4 -a $cc_min -gt 5 \) \
              -o $cc_maj -gt 4 ]; then
-        log_failure "gcc version $cc_ver found, expected gcc 3.x with x>1 or gcc 4.x with 0<x<4"
+        log_failure "gcc version $cc_ver found, expected gcc 3.x with x>1 or gcc 4.x with 0<x<5"
         fail really
       else
         log_success "found version $cc_ver"
@@ -412,6 +421,10 @@ check_gcc()
         [ -z "$CC64"  ] && CC64="$CC -m64"
         [ -z "$CXX64" ] && CXX64="$CXX -m64"
       fi
+      if [ "$TARGET_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 0 ]; then
+        CC32="undefined"
+        CXX32="undefined"
+      fi
       if [ "$CC" != "gcc" ]; then
         cnf_append "TOOL_GCC3_CC"   "$CC"
         cnf_append "TOOL_GCC3_AS"   "$CC"
@@ -424,14 +437,14 @@ check_gcc()
         cnf_append "TOOL_GXX3_CXX"  "$CXX"
         cnf_append "TOOL_GXX3_LD"   "$CXX"
       fi
-      if [ "$CC32" != "gcc -m32" ]; then
+      if [ "$CC32" != "gcc -m32" -a "$CC32" != "undefined" ]; then
         cnf_append "TOOL_GCC32_CC"  "$CC32"
         cnf_append "TOOL_GCC32_AS"  "$CC32"
         cnf_append "TOOL_GCC32_LD"  "$CC32"
         cnf_append "TOOL_GXX32_CC"  "$CC32"
         cnf_append "TOOL_GXX32_AS"  "$CC32"
       fi
-      if [ "$CXX32" != "g++ -m32" ]; then
+      if [ "$CXX32" != "g++ -m32" -a "$CXX32" != "undefined" ]; then
         cnf_append "TOOL_GCC32_CXX" "$CXX32"
         cnf_append "TOOL_GXX32_CXX" "$CXX32"
         cnf_append "TOOL_GXX32_LD"  "$CXX32"
@@ -1181,7 +1194,7 @@ extern "C" int main(void)
 #endif
 }
 EOF
-  if test_compile "-lpulse" pulse pulse; then
+  if test_compile "$INCPULSE $LIBPULSE -lpulse" pulse pulse; then
     test_execute
   fi
 }
@@ -1209,6 +1222,7 @@ extern "C" int main(void)
   win      = XCreateWindow(dpy, RootWindowOfScreen(scrn), 0, 0, 100, 100,
                            0, 16, InputOutput, CopyFromParent, 0, NULL);
   XDestroyWindow(dpy, win);
+  XCloseDisplay(dpy);
 }
 EOF
   [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
@@ -1241,6 +1255,64 @@ EOF
     cnf_append "VBOX_XCURSOR_LIBS" "`strip_l "$LIBXCURSOR"`"
   fi
 }
+
+
+#
+# Check for the Xinerama library, needed by the Qt GUI
+#
+check_xinerama()
+{
+  test_header Xinerama
+  cat > $ODIR.tmp_src.cc << EOF
+#include <X11/Xlib.h>
+#include <X11/extensions/Xinerama.h>
+extern "C" int main(void)
+{
+  Display *dpy;
+  Bool flag;
+  dpy = XOpenDisplay(NULL);
+  if (dpy)
+  {
+    flag = XineramaIsActive(dpy);
+    XCloseDisplay(dpy);
+  }
+}
+EOF
+  [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
+  if test_compile "$LIBX11 $LIBXINERAMA $I_INCX11" Xinerama Xinerama; then
+    log_success "found"
+  fi
+}
+
+
+#
+# Check for the Xinerama library, needed by the Qt GUI
+#
+check_xrandr()
+{
+  test_header Xrandr
+  cat > $ODIR.tmp_src.cc << EOF
+#include <X11/Xlib.h>
+#include <X11/extensions/Xrandr.h>
+extern "C" int main(void)
+{
+  Display *dpy;
+  Bool flag;
+  int major, minor;
+  dpy = XOpenDisplay(NULL);
+  if (dpy)
+  {
+    flag = XRRQueryVersion(dpy, &major, &minor);
+    XCloseDisplay(dpy);
+  }
+}
+EOF
+  [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
+  if test_compile "$LIBX11 $LIBXRANDR $I_INCX11" Xrandr Xrandr; then
+    log_success "found"
+  fi
+}
+
 
 #
 # Check for OpenGL
@@ -1285,6 +1357,7 @@ extern "C" int main(void)
     Status status = XmuLookupStandardColormap(dpy, RootWindowOfScreen(scrn), 0,
                     24, XA_RGB_DEFAULT_MAP, False, True);
     printf("Status = %x\n", status);
+    XCloseDisplay(dpy);
   }
   return 0;
 }
@@ -1320,6 +1393,7 @@ extern "C" int main(void)
       printf("found version %u.%u, OK.\n", major, minor);
       return 0;
     }
+    XCloseDisplay(dpy);
   }
   printf("found (inactive), OK.\n");
   return 0;
@@ -1327,6 +1401,7 @@ extern "C" int main(void)
 EOF
   [ -n "$INCX11" ] && I_INCX11=`prefix_I "$INCX11"`
   if test_compile "$LIBX11 $MESA $I_INCX11" Mesa Mesa; then
+    [ $PASSIVE_MESA -eq 1 ] && unset DISPLAY
     test_execute
   fi
 }
@@ -1613,10 +1688,12 @@ check_kbuild()
   test_header kBuild
   if which_wrapper "$KBUILDDIR/bin/$OS.$BUILD_MACHINE/kmk" > /dev/null; then
     KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.$BUILD_MACHINE"
-    echo "export PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
-    echo "export PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
+    echo "PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
+    echo "export PATH_KBUILD" >> $ENV
+    echo "PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
+    echo "export PATH_DEVTOOLS" >> $ENV
     echo "path_kbuild_bin=\"\$PATH_KBUILD/bin/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"" >> $ENV
-    echo "export PATH_KBUILD_BIN=\"\$path_kbuild_bin\"" >> $ENV
+    echo "export PATH_KBUILD_BIN" >> $ENV
     echo "path_dev_bin=\"\$PATH_DEVTOOLS/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"/bin" >> $ENV
     if [ "$OS" = "solaris" ]; then
       # Because of sh being non-default shell in Solaris we need to export PATH again when
@@ -1634,10 +1711,13 @@ check_kbuild()
   elif [ "$OS.$BUILD_MACHINE" = "darwin.amd64" ]; then
     # Currently there are no amd64 kBuild bins. So use the x86 variant in any case.
     KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.x86"
-    echo "export PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
-    echo "export PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
+    echo "PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
+    echo "export PATH_KBUILD" >> $ENV
+    echo "PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
+    echo "export PATH_DEVTOOLS" >> $ENV
     echo "path_kbuild_bin=\"\$PATH_KBUILD/bin/\$BUILD_TARGET.x86\"" >> $ENV
-    echo "export PATH_KBUILD_BIN=\"\$path_kbuild_bin\"" >> $ENV
+    echo "PATH_KBUILD_BIN=\"\$path_kbuild_bin\"" >> $ENV
+    echo "export PATH_KBUILD_BIN" >> $ENV
     echo "path_dev_bin=\"\$PATH_DEVTOOLS/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"/bin" >> $ENV
     echo "echo \"\$PATH\" | grep -q \"\$path_kbuild_bin\" || PATH=\"\$path_kbuild_bin:\$PATH\"" >> $ENV
     echo "echo \"\$PATH\" | grep -q \"\$path_dev_bin\" || PATH=\"\$path_dev_bin:\$PATH\"" >> $ENV
@@ -1814,7 +1894,8 @@ setup_wine()
     fail
   fi
   export WINEPREFIX="${ODIR}wine.$BUILD_MACHINE"
-  echo "export WINEPREFIX=\"${ODIR}wine.$BUILD_MACHINE\"" >> $ENV
+  echo "WINEPREFIX=\"${ODIR}wine.$BUILD_MACHINE\"" >> $ENV
+  echo "export WINEPREFIX" >> $ENV
   rm -rf $WINEPREFIX
   mkdir -p $WINEPREFIX
   touch $WINEPREFIX/.no_prelaunch_window_flag
@@ -1909,6 +1990,7 @@ check_darwinversion()
       CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
 #      test "$CC" = "gcc" && CC="gcc-4.0"
 #      test "$CXX" = "g++" && CXX="g++-4.0"
+      cnf_append "VBOX_MACOS_10_5_WORKAROUND" "1"
       ;;
     9\.*)
       darwin_ver="10.5"
@@ -1917,10 +1999,11 @@ check_darwinversion()
 #      test "$CC" = "gcc" && CC="gcc-4.0"
 #      test "$CXX" = "g++" && CXX="g++-4.0"
       cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
+      cnf_append "VBOX_MACOS_10_5_WORKAROUND" "1"
       ;;
     8\.*)
       darwin_ver="10.4"
-      sdk=/Developer/SDKs/MacOSX10.4u.sdk 
+      sdk=/Developer/SDKs/MacOSX10.4u.sdk
       CXX_FLAGS="-mmacosx-version-min=10.4 -isysroot $sdk -Wl,-syslibroot,$sdk"
 #      test "$CC" = "gcc" && CC="gcc-4.0"
 #      test "$CXX" = "g++" && CXX="g++-4.0"
@@ -1971,13 +2054,15 @@ Configuration:
 EOF
 [ $WITH_XPCOM   -eq 1 ] && echo "  --disable-xpcom          disable XPCOM and related stuff"
 [ $WITH_PYTHON  -eq 1 ] && echo "  --disable-python         disable python bindings"
+[ $WITH_VMMRAW  -eq 1 ] && echo "  --disable-vmmraw         disable VMM raw mode (VT-x/AMD-V mandatory!)"
 [ $WITH_SDL_TTF -eq 1 ] && echo "  --disable-sdl-ttf        disable SDL_ttf detection"
 [ $WITH_ALSA    -eq 1 ] && echo "  --disable-alsa           disable the ALSA sound backend"
 [ $WITH_PULSE   -eq 1 ] && echo "  --disable-pulse          disable the PulseAudio backend"
 [ $WITH_DBUS    -eq 1 ] && echo "  --disable-dbus           don't use DBus and hal for hardware detection"
 [ $WITH_KMODS   -eq 1 ] && echo "  --disable-kmods          don't build Linux kernel modules (host and guest)"
-[ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support"
+[ $WITH_OPENGL  -eq 1 ] && echo "  --disable-opengl         disable OpenGL support (2D & 3D)"
 [ $WITH_GSOAP   -eq 0 ] && echo "  --enable-webservice      enable the webservice stuff"
+[ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
   --disable-hardening      don't be strict about /dev/vboxdrv access
   --build-libxml2          build libxml2 from sources
@@ -2021,10 +2106,11 @@ EOF
 #
 
 # test if we are OSE
-if [ $OSE -eq 1 -a -d "`cd \`dirname $0\`; pwd`/src/VBox/Devices/USB" ]; then
-  echo "Found USB devices, assuming VBOX_OSE = FALSE" >> $LOG
-  echo >> $LOG
+if [ $OSE -eq 1 -a -r "`cd \`dirname $0\`; pwd`/src/VBox/Devices/USB/USBProxyDevice.cpp" ]; then
   OSE=0
+  # Set this as a reminder to print a log message once we know the path of the
+  # log file
+  NOT_OSE=1
 fi
 
 # Change OS specific defaults; must be before all other stuff
@@ -2101,6 +2187,9 @@ for option in $*; do
     --disable-python)
       [ $WITH_PYTHON -eq 1 ] && WITH_PYTHON=0
       ;;
+    --disable-vmmraw)
+      [ $WITH_VMMRAW -eq 1 ] && WITH_VMMRAW=0
+      ;;
     --disable-sdl-ttf)
       [ $WITH_SDL_TTF -eq 1 ] && WITH_SDL_TTF=0
       ;;
@@ -2109,6 +2198,9 @@ for option in $*; do
       ;;
     --disable-qt4)
       [ $WITH_QT4 -eq 1 ] && WITH_QT4=0
+      ;;
+    --passive-mesa)
+      PASSIVE_MESA=1
       ;;
     --disable-alsa)
       [ $WITH_ALSA -eq 1 ] && WITH_ALSA=0
@@ -2136,6 +2228,9 @@ for option in $*; do
       ;;
     --enable-hardening)
       WITH_HARDENING=2
+      ;;
+    --enable-vde)
+      WITH_VDE=1
       ;;
     --build-debug|-d)
       BUILD_TYPE=debug
@@ -2235,6 +2330,13 @@ cat > $ENV << EOF
 
 EOF
 
+# Print log warning about OSE if necessary
+if [ -n "$NOT_OSE" ]; then
+  echo "Found USB devices, assuming VBOX_OSE = FALSE" >> $LOG
+  echo >> $LOG
+fi
+
+
 if [ "$BUILD_TYPE" = "debug" ]; then
   echo "Creating DEBUG build!" >> $LOG
 elif [ "$BUILD_TYPE" = "profile" ]; then
@@ -2253,9 +2355,12 @@ export PATH
 
 # if we will be writing to a different out directory then set this up now
 if [ $OUT_PATH_OVERRIDE -eq 1 ]; then
-  echo "export AUTOCFG=$OUT_PATH/AutoConfig.kmk" >> $ENV
-  echo "export LOCALCFG=$OUT_PATH/LocalConfig.kmk" >> $ENV
-  echo "export PATH_OUT_BASE=$OUT_PATH" >> $ENV
+  echo "AUTOCFG=$OUT_PATH/AutoConfig.kmk" >> $ENV
+  echo "export AUTOCFG" >> $ENV
+  echo "LOCALCFG=$OUT_PATH/LocalConfig.kmk" >> $ENV
+  echo "export LOCALCFG" >> $ENV
+  echo "PATH_OUT_BASE=$OUT_PATH" >> $ENV
+  echo "export PATH_OUT_BASE" >> $ENV
 fi
 
 # some things are not available in for OSE
@@ -2278,13 +2383,18 @@ if [ -n "$HEADLESS" ]; then
 fi
 
 # emit disable directives corresponding to any --disable-xxx options.
-[ $WITH_OPENGL -eq 0 ]    && cnf_append "VBOX_WITH_CROGL" ""
+if [ $WITH_OPENGL -eq 0 ]; then
+  cnf_append "VBOX_WITH_CROGL" ""
+  cnf_append "VBOX_WITH_VIDEOHWACCEL" ""
+  cnf_append "VBOX_GUI_USE_QGL" ""
+fi
 [ $WITH_XPCOM -eq 0 ]     && cnf_append "VBOX_WITH_MAIN" ""
 [ $WITH_QT4 -eq 0   ]     && cnf_append "VBOX_WITH_QTGUI" ""
 [ $WITH_SDL_TTF -eq 0 ]   && cnf_append "VBOX_WITH_SECURELABEL" ""
 [ $WITH_PYTHON -eq 0 ]    && cnf_append "VBOX_WITH_PYTHON" ""
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
+[ $WITH_VMMRAW -eq 0 ]    && cnf_append "VBOX_WITH_RAW_MODE" ""
 
 # Darwin-specific
 if [ "$OS" = "darwin" ]; then
@@ -2316,9 +2426,20 @@ check_curl
 # TODO check for xcomposite-dev (X11/extensions/Xcomposite.h, additions only)
 # TODO check for libxdamange-dev (X11/extensions/Xdamage.h, additions only)
 [ $WITH_X11    -eq 1 ] && check_xcursor
+[ $WITH_X11    -eq 1 ] && check_xinerama
+[ $WITH_X11    -eq 1 ] && check_xrandr
 [ $WITH_OPENGL -eq 1 ] && check_opengl
 [ $WITH_QT4    -eq 1 ] && check_qt4
 [ $WITH_PYTHON -eq 1 ] && check_python
+
+# PulseAudio
+if [ "$OS" = "linux" -o "$OS" = "freebsd" ]; then
+  if [ $WITH_PULSE -eq 1 ]; then
+    check_pulse
+  elif [ $WITH_PULSE -eq 0 ]; then
+    cnf_append "VBOX_WITH_PULSE" ""
+  fi
+fi
 
 # Linux-specific
 if [ "$OS" = "linux" ]; then
@@ -2337,17 +2458,12 @@ if [ "$OS" = "linux" ]; then
   else
     cnf_append "VBOX_WITH_ALSA" ""
   fi
-  if [ $WITH_PULSE -eq 1 ]; then
-    check_pulse
-  elif [ $WITH_PULSE -eq 0 ]; then
-    cnf_append "VBOX_WITH_PULSE" ""
-  fi
   if [ $WITH_DBUS -eq 0 ]; then
     cnf_append "VBOX_WITH_DBUS" ""
   fi
   check_libcap
   check_compiler_h
-  [ "$BUILD_MACHINE" = "amd64" ] && check_32bit
+  [ "$BUILD_MACHINE" = "amd64" -a $WITH_VMMRAW -eq 1 ] && check_32bit
 fi
 
 [ -n "$SETUP_WINE" ] && setup_wine
@@ -2357,6 +2473,13 @@ if [ $OSE -ge 1 ]; then
     check_gsoap
   else
     cnf_append "VBOX_WITH_WEBSERVICES" ""
+  fi
+fi
+
+# VDE
+if [ "$OS" = "linux" -o "$OS" = "freebsd" ]; then
+  if [ $WITH_VDE -eq 1 ]; then
+    cnf_append "VBOX_WITH_VDE" "1"
   fi
 fi
 

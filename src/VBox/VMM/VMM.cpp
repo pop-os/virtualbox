@@ -1,10 +1,10 @@
-/* $Id: VMM.cpp $ */
+/* $Id: VMM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 //#define NO_SUPCALLR0VMM
@@ -887,7 +883,7 @@ VMMR3DECL(int)  VMMR3UpdateLoggers(PVM pVM)
 
 
 /**
- * Gets the pointer to a buffer containing the R0/RC AssertMsg1 output.
+ * Gets the pointer to a buffer containing the R0/RC RTAssertMsg1Weak output.
  *
  * @returns Pointer to the buffer.
  * @param   pVM         The VM handle.
@@ -907,7 +903,7 @@ VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM)
 
 
 /**
- * Gets the pointer to a buffer containing the R0/RC AssertMsg2 output.
+ * Gets the pointer to a buffer containing the R0/RC RTAssertMsg2Weak output.
  *
  * @returns Pointer to the buffer.
  * @param   pVM         The VM handle.
@@ -1938,7 +1934,7 @@ VMMR3DECL(int) VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVM
         /* Resume R0 */
     }
 
-    AssertLogRelMsgReturn(rc == VINF_SUCCESS || VBOX_FAILURE(rc),
+    AssertLogRelMsgReturn(rc == VINF_SUCCESS || RT_FAILURE(rc),
                           ("uOperation=%u rc=%Rrc\n", uOperation, rc),
                           VERR_INTERNAL_ERROR);
     return rc;
@@ -2066,6 +2062,15 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
         case VMMCALLRING3_PGM_ALLOCATE_HANDY_PAGES:
         {
             pVCpu->vmm.s.rcCallRing3 = PGMR3PhysAllocateHandyPages(pVM);
+            break;
+        }
+
+        /*
+         * Allocates a large page.
+         */
+        case VMMCALLRING3_PGM_ALLOCATE_LARGE_HANDY_PAGE:
+        {
+            pVCpu->vmm.s.rcCallRing3 = PGMR3PhysAllocateLargeHandyPage(pVM, pVCpu->vmm.s.u64CallRing3Arg);
             break;
         }
 

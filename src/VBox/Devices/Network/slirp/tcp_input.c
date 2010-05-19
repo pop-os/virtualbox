@@ -1,4 +1,23 @@
+/* $Id: tcp_input.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - TCP input.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1990, 1993, 1994
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -242,15 +261,7 @@ present:
         if (so->so_state & SS_FCANTSENDMORE)
             m_freem(pData, q->tqe_m);
         else
-        {
-            if (so->so_emu)
-            {
-                if (tcp_emu(pData, so, q->tqe_m))
-                    sbappend(pData, so, q->tqe_m);
-            }
-            else
-                sbappend(pData, so, q->tqe_m);
-        }
+            sbappend(pData, so, q->tqe_m);
         RTMemFree(q);
         tp->t_segqlen--;
         tcp_reass_qsize--;
@@ -343,6 +354,15 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
      * for sending an ICMP error message in response.
      */
     ip = mtod(m, struct ip *);
+    /*
+     * (vvl) ip_input substracts IP header length from ip->ip_len value.
+     * here we do the test the same as input method of UDP protocol.
+     */
+#ifdef VBOX_WITH_SLIRP_BSD_MBUF
+    Assert((ip->ip_len + iphlen == m_length(m, NULL)));
+#else
+    Assert((ip->ip_len  + iphlen == m->m_len));
+#endif
     save_ip = *ip;
     save_ip.ip_len+= iphlen;
 
@@ -351,7 +371,7 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
      */
     tlen = ((struct ip *)ti)->ip_len;
     memset(ti->ti_x1, 0, 9);
-    ti->ti_len = htons((u_int16_t)tlen);
+    ti->ti_len = RT_H2N_U16((u_int16_t)tlen);
     len = sizeof(struct ip ) + tlen;
     /* keep checksum for ICMP reply
      * ti->ti_sum = cksum(m, len);
@@ -391,12 +411,12 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
         if ((   optlen == TCPOLEN_TSTAMP_APPA
              || (   optlen  > TCPOLEN_TSTAMP_APPA
                  && optp[TCPOLEN_TSTAMP_APPA] == TCPOPT_EOL)) &&
-                *(u_int32_t *)optp == htonl(TCPOPT_TSTAMP_HDR) &&
+                *(u_int32_t *)optp == RT_H2N_U32_C(TCPOPT_TSTAMP_HDR) &&
                 (ti->ti_flags & TH_SYN) == 0)
         {
             ts_present = 1;
-            ts_val = ntohl(*(u_int32_t *)(optp + 4));
-            ts_ecr = ntohl(*(u_int32_t *)(optp + 8));
+            ts_val = RT_N2H_U32(*(u_int32_t *)(optp + 4));
+            ts_ecr = RT_N2H_U32(*(u_int32_t *)(optp + 8));
             optp = NULL;   / * we have parsed the options * /
         }
 #endif
@@ -430,7 +450,9 @@ findso:
         || so->so_laddr.s_addr != ti->ti_src.s_addr
         || so->so_faddr.s_addr != ti->ti_dst.s_addr)
     {
+#ifdef VBOX_WITH_SLIRP_MT
         struct socket *sonxt;
+#endif
         QSOCKET_UNLOCK(tcb);
         /* @todo fix SOLOOKUP macrodefinition to be usable here */
 #ifndef VBOX_WITH_SLIRP_MT
@@ -503,8 +525,7 @@ findso:
         so->so_faddr = ti->ti_dst;
         so->so_fport = ti->ti_dport;
 
-        if ((so->so_iptos = tcp_tos(so)) == 0)
-            so->so_iptos = ((struct ip *)ti)->ip_tos;
+        so->so_iptos = ((struct ip *)ti)->ip_tos;
 
         tp = sototcpcb(so);
         tp->t_state = TCPS_LISTEN;
@@ -670,13 +691,7 @@ findso:
             /*
              * Add data to socket buffer.
              */
-            if (so->so_emu)
-            {
-                if (tcp_emu(pData, so, m))
-                    sbappend(pData, so, m);
-            }
-            else
-                sbappend(pData, so, m);
+            sbappend(pData, so, m);
 
             /*
              * XXX This is called when data arrives.  Later, check
@@ -745,13 +760,6 @@ findso:
              * This has way too many gotos...
              * But a bit of spaghetti code never hurt anybody :)
              */
-
-            if (so->so_emu & EMU_NOCONNECT)
-            {
-                so->so_emu &= ~EMU_NOCONNECT;
-                goto cont_input;
-            }
-
             if (   (tcp_fconnect(pData, so) == -1)
                 && errno != EINPROGRESS
                 && errno != EWOULDBLOCK)
@@ -780,7 +788,7 @@ findso:
                     tp->t_socket->so_m = NULL;
                 }
                 tp = tcp_close(pData, tp);
-                m_free(pData, m);
+                m_freem(pData, m);
             }
             else
             {
@@ -1522,15 +1530,7 @@ dodata:
             if (so->so_state & SS_FCANTRCVMORE)
                 m_freem(pData, m);
             else
-            {
-                if (so->so_emu)
-                {
-                    if (tcp_emu(pData, so, m))
-                        sbappend(pData, so, m);
-                }
-                else
-                    sbappend(pData, so, m);
-            }
+                sbappend(pData, so, m);
         }
         else
         {
@@ -1546,7 +1546,7 @@ dodata:
     }
     else
     {
-        m_free(pData, m);
+        m_freem(pData, m);
         tiflags &= ~TH_FIN;
     }
 
@@ -1581,10 +1581,7 @@ dodata:
              */
             case TCPS_SYN_RECEIVED:
             case TCPS_ESTABLISHED:
-                if(so->so_emu == EMU_CTL)        /* no shutdown on socket */
-                    tp->t_state = TCPS_LAST_ACK;
-                else
-                    tp->t_state = TCPS_CLOSE_WAIT;
+                tp->t_state = TCPS_CLOSE_WAIT;
                 break;
 
             /*
@@ -1661,7 +1658,7 @@ drop:
     /*
      * Drop space held by incoming segment and return.
      */
-    m_free(pData, m);
+    m_freem(pData, m);
 
 #ifdef VBOX_WITH_SLIRP_MT
     if (RTCritSectIsOwned(&so->so_mutex))

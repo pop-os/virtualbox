@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010 Sun Microsystems, Inc.
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_list_h
@@ -140,6 +136,23 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
 #define RTListNodeIsFirst(pList, pNode) ((pNode)->pPrev == (pList))
 
 /**
+ * Checks if a type converted node is actually the dummy element (@a pList).
+ *
+ * @retval  @c true if the node is the dummy element in the list.
+ * @retval  @c false otherwise.
+ *
+ * @param   pList               The list.
+ * @param   pNodeStruct         The node structure to check.  Typically
+ *                              something obtained from RTListNodeGetNext() or
+ *                              RTListNodeGetPrev().  This is NOT a PRTLISTNODE
+ *                              but something that contains a RTLISTNODE member!
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member.
+ */
+#define RTListNodeIsDummy(pList, pNode, Type, Member) \
+         ( (pNode) == RT_FROM_MEMBER((pList), Type, Member) )
+
+/**
  * Checks if a list is empty.
  *
  * @retval  @c true if the list is empty.
@@ -198,6 +211,34 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListNodeGetLast(pList, Type, Member) \
     (!RTListIsEmpty(pList) ? RTListNodeGetPrev(pList, Type, Member) : NULL)
+
+/**
+ * Enumerate the list in head to tail order.
+ *
+ * @param   pList               List to enumerate.
+ * @param   pIterator           The iterator variable name.
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member name.
+ */
+#define RTListForEach(pList, pIterator, Type, Member) \
+    for (pIterator = RTListNodeGetNext(pList, Type, Member); \
+         !RTListNodeIsDummy(pList, pIterator, Type, Member); \
+         pIterator = RT_FROM_MEMBER((pIterator)->Member.pNext, Type, Member) )
+
+
+/**
+ * Enumerate the list in reverse order (tail to head).
+ *
+ * @param   pList               List to enumerate.
+ * @param   pIterator           The iterator variable name.
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member name.
+ */
+#define RTListForEachReverse(pList, pIterator, Type, Member) \
+    for (pIterator = RTListNodeGetPrev(pList, Type, Member); \
+         !RTListNodeIsDummy(pList, pIterator, Type, Member); \
+         pIterator = RT_FROM_MEMBER((pIterator)->Member.pPrev, Type, Member) )
+
 
 /**
  * Move the given list to a new list header.

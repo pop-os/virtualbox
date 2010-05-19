@@ -1,10 +1,10 @@
-/* $Id: VBoxGuestR3LibSeamless.cpp $ */
+/* $Id: VBoxGuestR3LibSeamless.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Seamless mode.
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -57,9 +53,9 @@ VBGLR3DECL(int) VbglR3SeamlessSetCap(bool fState)
 /**
  * Wait for a seamless mode change event.
  *
- * @returns IPRT status value
- * @retval  pMode on success, the seamless mode to switch into (i.e. disabled, visible region
- *                or host window)
+ * @returns IPRT status value.
+ * @param[out] pMode    On success, the seamless mode to switch into (i.e.
+ *                      disabled, visible region or host window).
  */
 VBGLR3DECL(int) VbglR3SeamlessWaitEvent(VMMDevSeamlessMode *pMode)
 {
@@ -81,6 +77,7 @@ VBGLR3DECL(int) VbglR3SeamlessWaitEvent(VMMDevSeamlessMode *pMode)
 
             /* get the seamless change request */
             vmmdevInitRequest(&seamlessChangeRequest.header, VMMDevReq_GetSeamlessChangeRequest);
+            seamlessChangeRequest.mode = (VMMDevSeamlessMode)-1;
             seamlessChangeRequest.eventAck = VMMDEV_EVENT_SEAMLESS_MODE_CHANGE_REQUEST;
             rc = vbglR3GRPerform(&seamlessChangeRequest.header);
             if (RT_SUCCESS(rc))
@@ -91,6 +88,33 @@ VBGLR3DECL(int) VbglR3SeamlessWaitEvent(VMMDevSeamlessMode *pMode)
         }
         else
             rc = VERR_TRY_AGAIN;
+    }
+    return rc;
+}
+
+/**
+ * Request the last seamless mode switch from the host again.
+ *
+ * @returns IPRT status value.
+ * @param[out] pMode    On success, the seamless mode that was switched
+ *                      into (i.e. disabled, visible region or host window).
+ */
+VBGLR3DECL(int) VbglR3SeamlessGetLastEvent(VMMDevSeamlessMode *pMode)
+{
+    VMMDevSeamlessChangeRequest seamlessChangeRequest;
+    int rc;
+
+    AssertPtrReturn(pMode, VERR_INVALID_PARAMETER);
+
+    /* get the seamless change request */
+    vmmdevInitRequest(&seamlessChangeRequest.header, VMMDevReq_GetSeamlessChangeRequest);
+    seamlessChangeRequest.mode = (VMMDevSeamlessMode)-1;
+    seamlessChangeRequest.eventAck = VMMDEV_EVENT_SEAMLESS_MODE_CHANGE_REQUEST;
+    rc = vbglR3GRPerform(&seamlessChangeRequest.header);
+    if (RT_SUCCESS(rc))
+    {
+        *pMode = seamlessChangeRequest.mode;
+        return VINF_SUCCESS;
     }
     return rc;
 }

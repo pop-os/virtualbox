@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 TEMPLATE	= app
@@ -30,7 +26,6 @@ FORMS = \
     src/VBoxMediaManagerDlg.ui \
     src/VBoxSnapshotDetailsDlg.ui \
     src/VBoxSnapshotsWgt.ui \
-    src/VBoxRegistrationDlg.ui \
     src/VBoxTakeSnapshotDlg.ui \
     src/VBoxUpdateDlg.ui \
     src/VBoxVMLogViewer.ui \
@@ -53,11 +48,25 @@ FORMS = \
     src/settings/global/VBoxGLSettingsLanguage.ui \
     src/settings/global/VBoxGLSettingsNetwork.ui \
     src/settings/global/VBoxGLSettingsNetworkDetails.ui \
-    src/wizards/newvm/VBoxNewVMWzd.ui \
-    src/wizards/newhd/VBoxNewHDWzd.ui \
-    src/wizards/firstrun/VBoxVMFirstRunWzd.ui \
-    src/wizards/exportappliance/VBoxExportApplianceWzd.ui \
-    src/wizards/importappliance/VBoxImportApplianceWzd.ui \
+    src/wizards/newvm/UINewVMWzdPage1.ui \
+    src/wizards/newvm/UINewVMWzdPage2.ui \
+    src/wizards/newvm/UINewVMWzdPage3.ui \
+    src/wizards/newvm/UINewVMWzdPage4.ui \
+    src/wizards/newvm/UINewVMWzdPage5.ui \
+    src/wizards/newhd/UINewHDWzdPage1.ui \
+    src/wizards/newhd/UINewHDWzdPage2.ui \
+    src/wizards/newhd/UINewHDWzdPage3.ui \
+    src/wizards/newhd/UINewHDWzdPage4.ui \
+    src/wizards/firstrun/UIFirstRunWzdPage1.ui \
+    src/wizards/firstrun/UIFirstRunWzdPage2.ui \
+    src/wizards/firstrun/UIFirstRunWzdPage3.ui \
+    src/wizards/exportappliance/UIExportApplianceWzdPage1.ui \
+    src/wizards/exportappliance/UIExportApplianceWzdPage2.ui \
+    src/wizards/exportappliance/UIExportApplianceWzdPage3.ui \
+    src/wizards/exportappliance/UIExportApplianceWzdPage4.ui \
+    src/wizards/importappliance/UIImportApplianceWzdPage1.ui \
+    src/wizards/importappliance/UIImportApplianceWzdPage2.ui \
+    src/wizards/registration/UIRegistrationWzdPage1.ui \
     src/widgets/VBoxApplianceEditorWgt.ui
 
 TRANSLATIONS = \

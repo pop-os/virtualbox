@@ -1,4 +1,4 @@
-/* $Id: Performance.cpp $ */
+/* $Id: Performance.cpp 29225 2010-05-07 16:01:34Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*
@@ -27,6 +23,10 @@
  * 1) Detection of erroneous metric names
  */
 
+#ifndef VBOX_COLLECTOR_TEST_CASE
+#include "VirtualBoxImpl.h"
+#include "MachineImpl.h"
+#endif
 #include "Performance.h"
 
 #include <VBox/com/array.h>
@@ -65,6 +65,26 @@ int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* u
     return E_NOTIMPL;
 }
 
+int CollectorHAL::getHostMemoryUsage(ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
+{
+    return E_NOTIMPL;
+}
+
+int CollectorHAL::getProcessMemoryUsage(RTPROCESS /* process */, ULONG * /* used */)
+{
+    return E_NOTIMPL;
+}
+
+int CollectorHAL::enable()
+{
+    return E_NOTIMPL;
+}
+
+int  CollectorHAL::disable()
+{
+    return E_NOTIMPL;
+}
+
 /* Generic implementations */
 
 int CollectorHAL::getHostCpuMHz(ULONG *mhz)
@@ -92,13 +112,73 @@ int CollectorHAL::getHostCpuMHz(ULONG *mhz)
         }
     }
 
-    // @todo Replace 'if' with 'AssertReturn' when done debugging
-    //AssertReturn(cCpus, VERR_NOT_IMPLEMENTED);
-    if (cCpus == 0) return VERR_NOT_IMPLEMENTED;
+    AssertReturn(cCpus, VERR_NOT_IMPLEMENTED);
     *mhz = (ULONG)(u64TotalMHz / cCpus);
 
     return VINF_SUCCESS;
 }
+
+#ifndef VBOX_COLLECTOR_TEST_CASE
+CollectorGuestHAL::~CollectorGuestHAL()
+{
+    Assert(!cEnabled);
+}
+
+int CollectorGuestHAL::enable()
+{
+    HRESULT ret = S_OK;
+
+    if (ASMAtomicIncU32(&cEnabled) == 1)
+    {
+        ComPtr<IInternalSessionControl> directControl;
+
+        ret = mMachine->getDirectControl(&directControl);
+        if (ret != S_OK)
+            return ret;
+
+        /* get the associated console; this is a remote call (!) */
+        ret = directControl->GetRemoteConsole(mConsole.asOutParam());
+        if (ret != S_OK)
+            return ret;
+
+        ret = mConsole->COMGETTER(Guest)(mGuest.asOutParam());
+        if (ret == S_OK)
+            mGuest->COMSETTER(StatisticsUpdateInterval)(1 /* 1 sec */);
+    }
+    return ret;
+}
+
+int CollectorGuestHAL::disable()
+{
+    if (ASMAtomicDecU32(&cEnabled) == 0)
+    {
+        Assert(mGuest && mConsole);
+        mGuest->COMSETTER(StatisticsUpdateInterval)(0 /* off */);
+    }
+    return S_OK;
+}
+
+int CollectorGuestHAL::preCollect(const CollectorHints& /* hints */, uint64_t iTick)
+{
+    if (    mGuest
+        &&  iTick != mLastTick)
+    {
+        ULONG ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal, ulMemSharedTotal, uMemShared;
+
+        /** todo shared stats. */
+        mGuest->InternalGetStatistics(&mCpuUser, &mCpuKernel, &mCpuIdle,
+                                      &mMemTotal, &mMemFree, &mMemBalloon, &mMemCache, &uMemShared,
+                                      &mPageTotal, &ulMemAllocTotal, &ulMemFreeTotal, &ulMemBalloonTotal, &ulMemSharedTotal);
+
+        if (mHostHAL)
+            mHostHAL->setMemHypervisorStats(ulMemAllocTotal, ulMemFreeTotal, ulMemBalloonTotal);
+
+        mLastTick = iTick;
+    }
+    return S_OK;
+}
+
+#endif /* !VBOX_COLLECTOR_TEST_CASE */
 
 bool BaseMetric::collectorBeat(uint64_t nowAt)
 {
@@ -142,7 +222,7 @@ void HostCpuLoad::collect()
     }
 }
 
-void HostCpuLoadRaw::preCollect(CollectorHints& hints)
+void HostCpuLoadRaw::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 {
     hints.collectHostCpuLoad();
 }
@@ -204,9 +284,12 @@ void HostRamUsage::init(ULONG period, ULONG length)
     mTotal->init(mLength);
     mUsed->init(mLength);
     mAvailable->init(mLength);
+    mAllocVMM->init(mLength);
+    mFreeVMM->init(mLength);
+    mBalloonVMM->init(mLength);
 }
 
-void HostRamUsage::preCollect(CollectorHints& hints)
+void HostRamUsage::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 {
     hints.collectHostRamUsage();
 }
@@ -220,7 +303,14 @@ void HostRamUsage::collect()
         mTotal->put(total);
         mUsed->put(used);
         mAvailable->put(available);
+
     }
+    ULONG allocVMM, freeVMM, balloonVMM;
+
+    mHAL->getMemHypervisorStats(&allocVMM, &freeVMM, &balloonVMM);
+    mAllocVMM->put(allocVMM);
+    mFreeVMM->put(freeVMM);
+    mBalloonVMM->put(balloonVMM);
 }
 
 
@@ -244,7 +334,7 @@ void MachineCpuLoad::collect()
     }
 }
 
-void MachineCpuLoadRaw::preCollect(CollectorHints& hints)
+void MachineCpuLoadRaw::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 {
     hints.collectProcessCpuLoad(mProcess);
 }
@@ -281,7 +371,7 @@ void MachineRamUsage::init(ULONG period, ULONG length)
     mUsed->init(mLength);
 }
 
-void MachineRamUsage::preCollect(CollectorHints& hints)
+void MachineRamUsage::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 {
     hints.collectProcessRamUsage(mProcess);
 }
@@ -294,13 +384,68 @@ void MachineRamUsage::collect()
         mUsed->put(used);
 }
 
-void CircularBuffer::init(ULONG length)
+
+void GuestCpuLoad::init(ULONG period, ULONG length)
+{
+    mPeriod = period;
+    mLength = length;
+
+    mUser->init(mLength);
+    mKernel->init(mLength);
+    mIdle->init(mLength);
+}
+
+void GuestCpuLoad::preCollect(CollectorHints& hints, uint64_t iTick)
+{
+    mHAL->preCollect(hints, iTick);
+}
+
+void GuestCpuLoad::collect()
+{
+    ULONG CpuUser = 0, CpuKernel = 0, CpuIdle = 0;
+
+    mGuestHAL->getGuestCpuLoad(&CpuUser, &CpuKernel, &CpuIdle);
+    mUser->put((ULONG)(PM_CPU_LOAD_MULTIPLIER * CpuUser) / 100);
+    mKernel->put((ULONG)(PM_CPU_LOAD_MULTIPLIER * CpuKernel) / 100);
+    mIdle->put((ULONG)(PM_CPU_LOAD_MULTIPLIER * CpuIdle) / 100);
+}
+
+void GuestRamUsage::init(ULONG period, ULONG length)
+{
+    mPeriod = period;
+    mLength = length;
+
+    mTotal->init(mLength);
+    mFree->init(mLength);
+    mBallooned->init(mLength);
+    mCache->init(mLength);
+    mPagedTotal->init(mLength);
+}
+
+void GuestRamUsage::preCollect(CollectorHints& hints,  uint64_t iTick)
+{
+    mHAL->preCollect(hints, iTick);
+}
+
+void GuestRamUsage::collect()
+{
+    ULONG ulMemTotal = 0, ulMemFree = 0, ulMemBalloon = 0, ulMemCache = 0, ulPageTotal = 0;
+
+    mGuestHAL->getGuestMemLoad(&ulMemTotal, &ulMemFree, &ulMemBalloon, &ulMemCache, &ulPageTotal);
+    mTotal->put(ulMemTotal);
+    mFree->put(ulMemFree);
+    mBallooned->put(ulMemBalloon);
+    mCache->put(ulMemCache);
+    mPagedTotal->put(ulPageTotal);
+}
+
+void CircularBuffer::init(ULONG ulLength)
 {
     if (mData)
         RTMemFree(mData);
-    mLength = length;
+    mLength = ulLength;
     if (mLength)
-        mData = (ULONG *)RTMemAllocZ(length * sizeof(ULONG));
+        mData = (ULONG*)RTMemAllocZ(ulLength * sizeof(ULONG));
     else
         mData = NULL;
     mWrapped = false;
@@ -504,13 +649,13 @@ void Filter::processMetricList(const com::Utf8Str &name, const ComPtr<IUnknown> 
     size_t startPos = 0;
 
     for (size_t pos = name.find(",");
-         pos != std::string::npos;
+         pos != com::Utf8Str::npos;
          pos = name.find(",", startPos))
     {
-        mElements.push_back(std::make_pair(object, std::string(name.substr(startPos, pos - startPos).c_str())));
+        mElements.push_back(std::make_pair(object, iprt::MiniString(name.substr(startPos, pos - startPos).c_str())));
         startPos = pos + 1;
     }
-    mElements.push_back(std::make_pair(object, std::string(name.substr(startPos).c_str())));
+    mElements.push_back(std::make_pair(object, iprt::MiniString(name.substr(startPos).c_str())));
 }
 
 /**
@@ -586,7 +731,7 @@ bool Filter::patternMatch(const char *pszPat, const char *pszName,
     return true;
 }
 
-bool Filter::match(const ComPtr<IUnknown> object, const std::string &name) const
+bool Filter::match(const ComPtr<IUnknown> object, const iprt::MiniString &name) const
 {
     ElementList::const_iterator it;
 

@@ -1,11 +1,10 @@
+/* $Id: DrvMediaISO.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
- * VBox storage devices:
- * ISO image media driver
+ * VBox storage devices: ISO image media driver
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -27,15 +22,15 @@
 #include <VBox/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
-
-#include <string.h>
+#include <iprt/string.h>
+#include <iprt/uuid.h>
 
 #include "Builtins.h"
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-
 /** Converts a pointer to MEDIAISO::IMedia to a PRDVMEDIAISO. */
 #define PDMIMEDIA_2_DRVMEDIAISO(pInterface) ( (PDRVMEDIAISO)((uintptr_t)pInterface - RT_OFFSETOF(DRVMEDIAISO, IMedia)) )
 
@@ -52,6 +47,8 @@
 *******************************************************************************/
 /**
  * Block driver instance data.
+ *
+ * @implements PDMIMEDIA
  */
 typedef struct DRVMEDIAISO
 {
@@ -67,106 +64,7 @@ typedef struct DRVMEDIAISO
 
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
-static DECLCALLBACK(int) drvMediaISORead(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead);
-static DECLCALLBACK(int) drvMediaISOWrite(PPDMIMEDIA pInterface, uint64_t off, const void *pvBuf, size_t cbWrite);
-static DECLCALLBACK(int) drvMediaISOFlush(PPDMIMEDIA pInterface);
-static DECLCALLBACK(bool) drvMediaISOIsReadOnly(PPDMIMEDIA pInterface);
-static DECLCALLBACK(uint64_t) drvMediaISOGetSize(PPDMIMEDIA pInterface);
-static DECLCALLBACK(int) drvMediaISOGetUuid(PPDMIMEDIA pInterface, PRTUUID pUuid);
-static DECLCALLBACK(int) drvMediaISOBiosGetPCHSGeometry(PPDMIMEDIA pInterface, PPDMMEDIAGEOMETRY pPCHSGeometry);
-static DECLCALLBACK(int) drvMediaISOBiosSetPCHSGeometry(PPDMIMEDIA pInterface, PCPDMMEDIAGEOMETRY pPCHSGeometry);
-static DECLCALLBACK(int) drvMediaISOBiosGetLCHSGeometry(PPDMIMEDIA pInterface, PPDMMEDIAGEOMETRY pLCHSGeometry);
-static DECLCALLBACK(int) drvMediaISOBiosSetLCHSGeometry(PPDMIMEDIA pInterface, PCPDMMEDIAGEOMETRY pLCHSGeometry);
-
-static DECLCALLBACK(void *) drvMediaISOQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-
-
-
-
-/**
- * Construct a ISO media driver instance.
- *
- * @copydoc FNPDMDRVCONSTRUCT
- */
-static DECLCALLBACK(int) drvMediaISOConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
-{
-    PDRVMEDIAISO pThis = PDMINS_2_DATA(pDrvIns, PDRVMEDIAISO);
-
-    /*
-     * Init the static parts.
-     */
-    pThis->pDrvIns                      = pDrvIns;
-    pThis->File                         = NIL_RTFILE;
-    /* IBase */
-    pDrvIns->IBase.pfnQueryInterface    = drvMediaISOQueryInterface;
-    /* IMedia */
-    pThis->IMedia.pfnRead               = drvMediaISORead;
-    pThis->IMedia.pfnWrite              = drvMediaISOWrite;
-    pThis->IMedia.pfnFlush              = drvMediaISOFlush;
-    pThis->IMedia.pfnGetSize            = drvMediaISOGetSize;
-    pThis->IMedia.pfnGetUuid            = drvMediaISOGetUuid;
-    pThis->IMedia.pfnIsReadOnly         = drvMediaISOIsReadOnly;
-    pThis->IMedia.pfnBiosGetPCHSGeometry = drvMediaISOBiosGetPCHSGeometry;
-    pThis->IMedia.pfnBiosSetPCHSGeometry = drvMediaISOBiosSetPCHSGeometry;
-    pThis->IMedia.pfnBiosGetLCHSGeometry = drvMediaISOBiosGetLCHSGeometry;
-    pThis->IMedia.pfnBiosSetLCHSGeometry = drvMediaISOBiosSetLCHSGeometry;
-
-    /*
-     * Read the configuration.
-     */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Path\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
-
-    char *pszName;
-    int rc = CFGMR3QueryStringAlloc(pCfgHandle, "Path", &pszName);
-    if (RT_FAILURE(rc))
-        return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Path\" from the config"));
-
-    /*
-     * Open the image.
-     */
-    rc = RTFileOpen(&pThis->File, pszName,
-                    RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
-    if (RT_SUCCESS(rc))
-    {
-        LogFlow(("drvMediaISOConstruct: ISO image '%s' opened successfully.\n", pszName));
-        pThis->pszFilename = pszName;
-    }
-    else
-    {
-        PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Failed to open ISO file \"%s\""), pszName);
-        MMR3HeapFree(pszName);
-    }
-
-    return rc;
-}
-
-
-/**
- * Destruct a driver instance.
- *
- * Most VM resources are freed by the VM. This callback is provided so that any non-VM
- * resources can be freed correctly.
- *
- * @param   pDrvIns     The driver instance data.
- */
-static DECLCALLBACK(void) drvMediaISODestruct(PPDMDRVINS pDrvIns)
-{
-    PDRVMEDIAISO pThis = PDMINS_2_DATA(pDrvIns, PDRVMEDIAISO);
-    LogFlow(("drvMediaISODestruct: '%s'\n", pThis->pszFilename));
-
-    if (pThis->File != NIL_RTFILE)
-    {
-        RTFileClose(pThis->File);
-        pThis->File = NIL_RTFILE;
-    }
-    if (pThis->pszFilename)
-        MMR3HeapFree(pThis->pszFilename);
-}
-
+/* -=-=-=-=- PDMIMEDIA -=-=-=-=- */
 
 /** @copydoc PDMIMEDIA::pfnGetSize */
 static DECLCALLBACK(uint64_t) drvMediaISOGetSize(PPDMIMEDIA pInterface)
@@ -283,29 +181,103 @@ static DECLCALLBACK(bool) drvMediaISOIsReadOnly(PPDMIMEDIA pInterface)
     return true;
 }
 
+/* -=-=-=-=- PDMIBASE -=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) drvMediaISOQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) drvMediaISOQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_DRVINS(pInterface);
     PDRVMEDIAISO pThis = PDMINS_2_DATA(pDrvIns, PDRVMEDIAISO);
-    switch (enmInterface)
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIA, &pThis->IMedia);
+    return NULL;
+}
+
+/* -=-=-=-=- PDMDRVREG -=-=-=-=- */
+
+/**
+ * Destruct a driver instance.
+ *
+ * Most VM resources are freed by the VM. This callback is provided so that any non-VM
+ * resources can be freed correctly.
+ *
+ * @param   pDrvIns     The driver instance data.
+ */
+static DECLCALLBACK(void) drvMediaISODestruct(PPDMDRVINS pDrvIns)
+{
+    PDRVMEDIAISO pThis = PDMINS_2_DATA(pDrvIns, PDRVMEDIAISO);
+    LogFlow(("drvMediaISODestruct: '%s'\n", pThis->pszFilename));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+
+    if (pThis->File != NIL_RTFILE)
     {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_MEDIA:
-            return &pThis->IMedia;
-        default:
-            return NULL;
+        RTFileClose(pThis->File);
+        pThis->File = NIL_RTFILE;
     }
+    if (pThis->pszFilename)
+        MMR3HeapFree(pThis->pszFilename);
+}
+
+
+/**
+ * Construct a ISO media driver instance.
+ *
+ * @copydoc FNPDMDRVCONSTRUCT
+ */
+static DECLCALLBACK(int) drvMediaISOConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
+{
+    PDRVMEDIAISO pThis = PDMINS_2_DATA(pDrvIns, PDRVMEDIAISO);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+
+    /*
+     * Init the static parts.
+     */
+    pThis->pDrvIns                      = pDrvIns;
+    pThis->File                         = NIL_RTFILE;
+    /* IBase */
+    pDrvIns->IBase.pfnQueryInterface    = drvMediaISOQueryInterface;
+    /* IMedia */
+    pThis->IMedia.pfnRead               = drvMediaISORead;
+    pThis->IMedia.pfnWrite              = drvMediaISOWrite;
+    pThis->IMedia.pfnFlush              = drvMediaISOFlush;
+    pThis->IMedia.pfnGetSize            = drvMediaISOGetSize;
+    pThis->IMedia.pfnGetUuid            = drvMediaISOGetUuid;
+    pThis->IMedia.pfnIsReadOnly         = drvMediaISOIsReadOnly;
+    pThis->IMedia.pfnBiosGetPCHSGeometry = drvMediaISOBiosGetPCHSGeometry;
+    pThis->IMedia.pfnBiosSetPCHSGeometry = drvMediaISOBiosSetPCHSGeometry;
+    pThis->IMedia.pfnBiosGetLCHSGeometry = drvMediaISOBiosGetLCHSGeometry;
+    pThis->IMedia.pfnBiosSetLCHSGeometry = drvMediaISOBiosSetLCHSGeometry;
+
+    /*
+     * Read the configuration.
+     */
+    if (!CFGMR3AreValuesValid(pCfg, "Path\0"))
+        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+
+    char *pszName;
+    int rc = CFGMR3QueryStringAlloc(pCfg, "Path", &pszName);
+    if (RT_FAILURE(rc))
+        return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Path\" from the config"));
+
+    /*
+     * Open the image.
+     */
+    rc = RTFileOpen(&pThis->File, pszName,
+                    RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
+    if (RT_SUCCESS(rc))
+    {
+        LogFlow(("drvMediaISOConstruct: ISO image '%s' opened successfully.\n", pszName));
+        pThis->pszFilename = pszName;
+    }
+    else
+    {
+        PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Failed to open ISO file \"%s\""), pszName);
+        MMR3HeapFree(pszName);
+    }
+
+    return rc;
 }
 
 
@@ -316,8 +288,12 @@ const PDMDRVREG g_DrvMediaISO =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "MediaISO",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "ISO media access driver.",
     /* fFlags */
@@ -332,6 +308,8 @@ const PDMDRVREG g_DrvMediaISO =
     drvMediaISOConstruct,
     /* pfnDestruct */
     drvMediaISODestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
@@ -345,9 +323,9 @@ const PDMDRVREG g_DrvMediaISO =
     /* pfnAttach */
     NULL,
     /* pfnDetach */
-    NULL, 
+    NULL,
     /* pfnPowerOff */
-    NULL, 
+    NULL,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

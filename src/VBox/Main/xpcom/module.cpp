@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* Make sure all the stdint.h macros are included - must come first! */
@@ -36,12 +32,14 @@
 #include "KeyboardImpl.h"
 #include "MouseImpl.h"
 #include "DisplayImpl.h"
+#include "ProgressCombinedImpl.h"
 #include "MachineDebuggerImpl.h"
 #include "USBDeviceImpl.h"
 #include "RemoteUSBDeviceImpl.h"
 #include "SharedFolderImpl.h"
 #include "ProgressImpl.h"
 #include "NetworkAdapterImpl.h"
+#include "NATEngineImpl.h"
 
 #include "SessionImpl.h"
 #include "ConsoleImpl.h"
@@ -59,7 +57,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Keyboard, IKeyboard)
 NS_DECL_CLASSINFO(Mouse)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Mouse, IMouse)
 NS_DECL_CLASSINFO(Display)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Display, IDisplay)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(Display, IDisplay, IConsoleCallback)
 NS_DECL_CLASSINFO(MachineDebugger)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MachineDebugger, IMachineDebugger)
 NS_DECL_CLASSINFO(Progress)

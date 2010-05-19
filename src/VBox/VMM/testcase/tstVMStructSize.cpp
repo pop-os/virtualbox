@@ -1,4 +1,4 @@
-/* $Id: tstVMStructSize.cpp $ */
+/* $Id: tstVMStructSize.cpp 29329 2010-05-11 10:18:30Z vboxsync $ */
 /** @file
  * tstVMStructSize - testcase for check structure sizes/alignment
  *                   and to verify that HC and GC uses the same
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -46,9 +42,6 @@
 #include "SSMInternal.h"
 #include "HWACCMInternal.h"
 #include "PATMInternal.h"
-#ifdef VBOX_WITH_VMI
-# include "PARAVInternal.h"
-#endif
 #include "VMMInternal.h"
 #include "DBGFInternal.h"
 #include "STAMInternal.h"
@@ -56,8 +49,11 @@
 #include "CSAMInternal.h"
 #include "EMInternal.h"
 #include "REMInternal.h"
+#include "VMMR0/GMMR0Internal.h"
+#include "VMMR0/GVMMR0Internal.h"
 #include <VBox/vm.h>
 #include <VBox/uvm.h>
+#include <VBox/gvm.h>
 #include <VBox/param.h>
 #include <VBox/x86.h>
 
@@ -71,7 +67,7 @@ int main()
     int rc = 0;
     printf("tstVMStructSize: TESTING\n");
 
-    printf("struct VM: %d bytes\n", (int)sizeof(VM));
+    printf("info: struct VM: %d bytes\n", (int)sizeof(VM));
 
 #define CHECK_PADDING_VM(align, member) \
     do \
@@ -104,7 +100,7 @@ int main()
     do { \
         if (RT_OFFSETOF(CPUMCTX, member) - RT_OFFSETOF(CPUMCTX, edi) != RT_OFFSETOF(CPUMCTXCORE, member)) \
         { \
-            printf("CPUMCTX/CORE:: %s!\n", #member); \
+            printf("error! CPUMCTX/CORE:: %s!\n", #member); \
             rc++; \
         } \
     } while (0)
@@ -130,6 +126,32 @@ int main()
         UVMCPU *p; \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
             printf("warning: UVMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+    } while (0)
+
+#define CHECK_PADDING_GVM(align, member) \
+    do \
+    { \
+        CHECK_PADDING(GVM, member, align); \
+        CHECK_MEMBER_ALIGNMENT(GVM, member, align); \
+        GVM *p; \
+        if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
+            printf("warning: GVM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+    } while (0)
+
+#define CHECK_PADDING_GVMCPU(align, member) \
+    do \
+    { \
+        CHECK_PADDING(GVMCPU, member, align); \
+        CHECK_MEMBER_ALIGNMENT(GVMCPU, member, align); \
+        GVMCPU *p; \
+        if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
+            printf("warning: GVMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
                    #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
                    (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
                    (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
@@ -194,9 +216,6 @@ int main()
     CHECK_PADDING_VM(64, rem);
     CHECK_PADDING_VM(8, vm);
     CHECK_PADDING_VM(8, cfgm);
-#ifdef VBOX_WITH_VMI
-    CHECK_PADDING_VM(8, parav);
-#endif
 
     PRINT_OFFSET(VMCPU, cpum);
     CHECK_PADDING_VMCPU(64, cpum);
@@ -218,13 +237,13 @@ int main()
     PVM pVM;
     if ((RT_OFFSETOF(VM, selm.s.Tss) & PAGE_OFFSET_MASK) > PAGE_SIZE - sizeof(pVM->selm.s.Tss))
     {
-        printf("SELM:Tss is crossing a page!\n");
+        printf("error! SELM:Tss is crossing a page!\n");
         rc++;
     }
     PRINT_OFFSET(VM, selm.s.TssTrap08);
     if ((RT_OFFSETOF(VM, selm.s.TssTrap08) & PAGE_OFFSET_MASK) > PAGE_SIZE - sizeof(pVM->selm.s.TssTrap08))
     {
-        printf("SELM:TssTrap08 is crossing a page!\n");
+        printf("error! SELM:TssTrap08 is crossing a page!\n");
         rc++;
     }
     CHECK_MEMBER_ALIGNMENT(VM, trpm.s.aIdt, 16);
@@ -248,7 +267,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VM, StatTotalQemuToGC, 8);
     CHECK_MEMBER_ALIGNMENT(VM, rem.s.uPendingExcptCR2, 8);
     CHECK_MEMBER_ALIGNMENT(VM, rem.s.StatsInQEMU, 8);
-    CHECK_MEMBER_ALIGNMENT(VM, rem.s.Env, 32);
+    CHECK_MEMBER_ALIGNMENT(VM, rem.s.Env, 64);
 
     /* the VMCPUs are page aligned TLB hit reassons. */
     CHECK_MEMBER_ALIGNMENT(VM, aCpus, 4096);
@@ -294,7 +313,7 @@ int main()
     /* CPUMHOSTCTX - lss pair */
     if (RT_OFFSETOF(CPUMHOSTCTX, esp) + 4 != RT_OFFSETOF(CPUMHOSTCTX, ss))
     {
-        printf("error: CPUMHOSTCTX lss has been split up!\n");
+        printf("error! CPUMHOSTCTX lss has been split up!\n");
         rc++;
     }
 #endif
@@ -378,18 +397,18 @@ int main()
     CHECK_SIZE(VMCPUSET, 32);
     if (sizeof(VMCPUSET) * 8 < VMM_MAX_CPU_COUNT)
     {
-        printf("error: VMCPUSET is too small for VMM_MAX_CPU_COUNT=%u!\n", VMM_MAX_CPU_COUNT);
+        printf("error! VMCPUSET is too small for VMM_MAX_CPU_COUNT=%u!\n", VMM_MAX_CPU_COUNT);
         rc++;
     }
 
-    printf("struct UVM: %d bytes\n", (int)sizeof(UVM));
+    printf("info: struct UVM: %d bytes\n", (int)sizeof(UVM));
 
     CHECK_PADDING_UVM(32, vm);
     CHECK_PADDING_UVM(32, mm);
     CHECK_PADDING_UVM(32, pdm);
     CHECK_PADDING_UVM(32, stam);
 
-    printf("struct UVMCPU: %d bytes\n", (int)sizeof(UVMCPU));
+    printf("info: struct UVMCPU: %d bytes\n", (int)sizeof(UVMCPU));
     CHECK_PADDING_UVMCPU(32, vm);
 
 #ifdef VBOX_WITH_RAW_MODE
@@ -399,6 +418,10 @@ int main()
     printf("tstVMStructSize: Comparing HC and RC...\n");
 # include "tstVMStructRC.h"
 #endif /* VBOX_WITH_RAW_MODE */
+
+    CHECK_PADDING_GVM(4, gvmm);
+    CHECK_PADDING_GVM(4, gmm);
+    CHECK_PADDING_GVMCPU(4, gvmm);
 
     /*
      * Report result.

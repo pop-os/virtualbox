@@ -1,10 +1,10 @@
-/* $Id: PATMAll.cpp $ */
+/* $Id: PATMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PATM - The Patch Manager, all contexts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -52,7 +48,7 @@
  */
 VMMDECL(void) PATMRawEnter(PVM pVM, PCPUMCTXCORE pCtxCore)
 {
-    bool fPatchCode = PATMIsPatchGCAddr(pVM, (RTRCPTR)pCtxCore->eip);
+    bool fPatchCode = PATMIsPatchGCAddr(pVM, pCtxCore->eip);
 
     /*
      * Currently we don't bother to check whether PATM is enabled or not.
@@ -123,7 +119,7 @@ VMMDECL(void) PATMRawEnter(PVM pVM, PCPUMCTXCORE pCtxCore)
  */
 VMMDECL(void) PATMRawLeave(PVM pVM, PCPUMCTXCORE pCtxCore, int rawRC)
 {
-    bool fPatchCode = PATMIsPatchGCAddr(pVM, (RTRCPTR)pCtxCore->eip);
+    bool fPatchCode = PATMIsPatchGCAddr(pVM, pCtxCore->eip);
     /*
      * We will only be called if PATMRawEnter was previously called.
      */
@@ -267,9 +263,9 @@ VMMDECL(RCPTRTYPE(PPATMGCSTATE)) PATMQueryGCState(PVM pVM)
  * @param   pVM         The VM to operate on.
  * @param   pAddrGC     Guest context address
  */
-VMMDECL(bool) PATMIsPatchGCAddr(PVM pVM, RTRCPTR pAddrGC)
+VMMDECL(bool) PATMIsPatchGCAddr(PVM pVM, RTRCUINTPTR pAddrGC)
 {
-    return (PATMIsEnabled(pVM) && pAddrGC >= pVM->patm.s.pPatchMemGC && pAddrGC < (RTRCPTR)((RTRCUINTPTR)pVM->patm.s.pPatchMemGC + pVM->patm.s.cbPatchMem)) ? true : false;
+    return (PATMIsEnabled(pVM) && pAddrGC - (RTRCUINTPTR)pVM->patm.s.pPatchMemGC < pVM->patm.s.cbPatchMem) ? true : false;
 }
 
 /**
@@ -316,7 +312,7 @@ VMMDECL(bool) PATMAreInterruptsEnabledByCtxCore(PVM pVM, PCPUMCTXCORE pCtxCore)
 {
     if (PATMIsEnabled(pVM))
     {
-        if (PATMIsPatchGCAddr(pVM, (RTRCPTR)pCtxCore->eip))
+        if (PATMIsPatchGCAddr(pVM, pCtxCore->eip))
             return false;
     }
     return !!(pCtxCore->eflags.u32 & X86_EFL_IF);
@@ -390,7 +386,7 @@ VMMDECL(int) PATMSysCall(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu)
             ||  pRegFrame->eflags.Bits.u1VM
             ||  (pRegFrame->cs & X86_SEL_RPL) != 3
             ||  pVM->patm.s.pfnSysEnterPatchGC == 0
-            ||  pVM->patm.s.pfnSysEnterGC != (RTRCPTR)pCtx->SysEnter.eip
+            ||  pVM->patm.s.pfnSysEnterGC != (RTRCPTR)(RTRCUINTPTR)pCtx->SysEnter.eip
             ||  !(PATMRawGetEFlags(pVM, pRegFrame) & X86_EFL_IF))
             goto end;
 
@@ -461,7 +457,7 @@ VMMDECL(int) PATMAddBranchToLookupCache(PVM pVM, RTRCPTR pJumpTableGC, RTRCPTR p
 
     Log(("PATMAddBranchToLookupCache: Adding (%RRv->%RRv (%RRv)) to table %RRv\n", pBranchTarget, pRelBranchPatch + pVM->patm.s.pPatchMemGC, pRelBranchPatch, pJumpTableGC));
 
-    AssertReturn(PATMIsPatchGCAddr(pVM, pJumpTableGC), VERR_INVALID_PARAMETER);
+    AssertReturn(PATMIsPatchGCAddr(pVM, (RTRCUINTPTR)pJumpTableGC), VERR_INVALID_PARAMETER);
 
 #ifdef IN_RC
     pJumpTable = (PPATCHJUMPTABLE) pJumpTableGC;

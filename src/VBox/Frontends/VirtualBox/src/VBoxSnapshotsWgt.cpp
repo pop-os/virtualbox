@@ -1,3 +1,4 @@
+/* $Id: VBoxSnapshotsWgt.cpp 29031 2010-05-04 14:40:21Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Global includes */
 #include <QDateTime>
 #include <QHeaderView>
@@ -32,6 +32,7 @@
 #include <VBoxSnapshotDetailsDlg.h>
 #include <VBoxTakeSnapshotDlg.h>
 #include <VBoxToolBar.h>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /**
  *  QTreeWidgetItem subclass for snapshots items
@@ -161,6 +162,14 @@ public:
         }
         adjustText();
         recacheToolTip();
+    }
+
+    KMachineState getCurrentState()
+    {
+        if (mMachine.isNull())
+            return KMachineState_Null;
+
+        return mMachineState;
     }
 
     void updateCurrentState (KMachineState aState)
@@ -433,15 +442,33 @@ void VBoxSnapshotsWgt::onCurrentChanged (QTreeWidgetItem *aItem)
     /* Whether another direct session is open or not */
     bool busy = mSessionState != KSessionState_Closed;
 
-    /* Enable/disable snapshot actions */
-    mSnapshotActionGroup->setEnabled (!busy && mCurSnapshotItem && item && !item->isCurrentStateItem());
+    /* Machine state of the current state item */
+    KMachineState s = KMachineState_Null;
+    if (curStateItem())
+        s = curStateItem()->getCurrentState();
+
+    /* Whether taking or deleting snapshots is possible right now */
+    bool canTakeDeleteSnapshot =    !busy
+                                 || s == KMachineState_PoweredOff
+                                 || s == KMachineState_Saved
+                                 || s == KMachineState_Aborted
+                                 || s == KMachineState_Running
+                                 || s == KMachineState_Paused;
+
+    /* Enable/disable restoring snapshot */
+    mRestoreSnapshotAction->setEnabled (!busy && mCurSnapshotItem && item && !item->isCurrentStateItem());
+
+    /* Enable/disable deleting snapshot */
+    mDeleteSnapshotAction->setEnabled (   canTakeDeleteSnapshot
+                                       && mCurSnapshotItem && item && !item->isCurrentStateItem());
 
     /* Enable/disable the details action regardles of the session state */
     mShowSnapshotDetailsAction->setEnabled (mCurSnapshotItem && item && !item->isCurrentStateItem());
 
-    /* Enable/disable current state actions */
-    mCurStateActionGroup->setEnabled ((!busy && mCurSnapshotItem && item && item->isCurrentStateItem()) ||
-                                      (item && !mCurSnapshotItem));
+    /* Enable/disable taking snapshots */
+    mTakeSnapshotAction->setEnabled (   (   canTakeDeleteSnapshot
+                                         && mCurSnapshotItem && item && item->isCurrentStateItem())
+                                     || (item && !mCurSnapshotItem));
 }
 
 void VBoxSnapshotsWgt::onContextMenuRequested (const QPoint &aPoint)
@@ -529,8 +556,19 @@ void VBoxSnapshotsWgt::deleteSnapshot()
     if (!vboxProblem().askAboutSnapshotDeleting (snapshot.GetName()))
         return;
 
+    /** @todo check available space on the target filesystem etc etc. */
+#if 0
+    if (!vboxProblem().askAboutSnapshotDeletingFreeSpace (snapshot.GetName(),
+                                                          "/home/juser/.VirtualBox/Machines/SampleVM/Snapshots/{01020304-0102-0102-0102-010203040506}.vdi",
+                                                          "59 GiB",
+                                                          "15 GiB"))
+        return;
+#endif
+
+
     /* Open a direct session (this call will handle all errors) */
-    CSession session = vboxGlobal().openSession (mMachineId);
+    bool busy = mSessionState != KSessionState_Closed;
+    CSession session = vboxGlobal().openSession (mMachineId, busy /* aExisting */);
     if (session.isNull())
         return;
 
@@ -599,7 +637,8 @@ void VBoxSnapshotsWgt::takeSnapshot()
     if (dlg.exec() == QDialog::Accepted)
     {
         /* Open a direct session (this call will handle all errors) */
-        CSession session = vboxGlobal().openSession (mMachineId);
+        bool busy = mSessionState != KSessionState_Closed;
+        CSession session = vboxGlobal().openSession (mMachineId, busy /* aExisting */);
         if (session.isNull())
             return;
 
@@ -793,7 +832,6 @@ SnapshotWgtItem *VBoxSnapshotsWgt::curStateItem()
     QTreeWidgetItem *csi = mCurSnapshotItem ?
                            mCurSnapshotItem->child (mCurSnapshotItem->childCount() - 1) :
                            mTreeWidget->invisibleRootItem()->child (0);
-    Assert (csi);
     return static_cast <SnapshotWgtItem*> (csi);
 }
 

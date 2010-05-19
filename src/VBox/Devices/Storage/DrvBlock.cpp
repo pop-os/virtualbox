@@ -1,11 +1,10 @@
+/* $Id: DrvBlock.cpp 29341 2010-05-11 11:15:22Z vboxsync $ */
 /** @file
- *
- * VBox storage devices:
- * Generic block driver
+ * VBox storage devices: Generic block driver
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -27,9 +22,8 @@
 #define LOG_GROUP LOG_GROUP_DRV_BLOCK
 #include <VBox/pdmdrv.h>
 #include <iprt/assert.h>
+#include <iprt/string.h>
 #include <iprt/uuid.h>
-
-#include <string.h>
 
 #include "Builtins.h"
 
@@ -56,11 +50,18 @@
  * is to ignore flushes, i.e. true. */
 #define VBOX_IGNORE_FLUSH
 
+
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /**
  * Block driver instance data.
+ *
+ * @implements  PDMIBLOCK
+ * @implements  PDMIBLOCKBIOS
+ * @implements  PDMIMOUNT
+ * @implements  PDMIMEDIAASYNCPORT
+ * @implements  PDMIBLOCKASYNC
  */
 typedef struct DRVBLOCK
 {
@@ -83,6 +84,8 @@ typedef struct DRVBLOCK
 #ifdef VBOX_IGNORE_FLUSH
     /** HACK: Disable flushes for this drive. */
     bool                    fIgnoreFlush;
+    /** Disable async flushes for this drive. */
+    bool                    fIgnoreFlushAsync;
 #endif /* VBOX_IGNORE_FLUSH */
     /** Pointer to the media driver below us.
      * This is NULL if the media is not mounted. */
@@ -199,6 +202,30 @@ static DECLCALLBACK(int) drvblockFlush(PPDMIBLOCK pInterface)
 }
 
 
+/** @copydoc PDMIBLOCK::pfnMerge */
+static DECLCALLBACK(int) drvblockMerge(PPDMIBLOCK pInterface,
+                                       PFNSIMPLEPROGRESS pfnProgress,
+                                       void *pvUser)
+{
+    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDrvMedia)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
+    if (!pThis->pDrvMedia->pfnMerge)
+        return VERR_NOT_SUPPORTED;
+
+    int rc = pThis->pDrvMedia->pfnMerge(pThis->pDrvMedia, pfnProgress, pvUser);
+    return rc;
+}
+
+
 /** @copydoc PDMIBLOCK::pfnIsReadOnly */
 static DECLCALLBACK(bool) drvblockIsReadOnly(PPDMIBLOCK pInterface)
 {
@@ -259,7 +286,7 @@ static DECLCALLBACK(int) drvblockGetUuid(PPDMIBLOCK pInterface, PRTUUID pUuid)
 #define PDMIBLOCKASYNC_2_DRVBLOCK(pInterface)        ( (PDRVBLOCK)((uintptr_t)pInterface - RT_OFFSETOF(DRVBLOCK, IBlockAsync)) )
 
 /** @copydoc PDMIBLOCKASYNC::pfnStartRead */
-static DECLCALLBACK(int) drvblockAsyncReadStart(PPDMIBLOCKASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbRead, void *pvUser)
+static DECLCALLBACK(int) drvblockAsyncReadStart(PPDMIBLOCKASYNC pInterface, uint64_t off, PCRTSGSEG pSeg, unsigned cSeg, size_t cbRead, void *pvUser)
 {
     PDRVBLOCK pThis = PDMIBLOCKASYNC_2_DRVBLOCK(pInterface);
 
@@ -278,7 +305,7 @@ static DECLCALLBACK(int) drvblockAsyncReadStart(PPDMIBLOCKASYNC pInterface, uint
 
 
 /** @copydoc PDMIBLOCKASYNC::pfnStartWrite */
-static DECLCALLBACK(int) drvblockAsyncWriteStart(PPDMIBLOCKASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser)
+static DECLCALLBACK(int) drvblockAsyncWriteStart(PPDMIBLOCKASYNC pInterface, uint64_t off, PCRTSGSEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser)
 {
     PDRVBLOCK pThis = PDMIBLOCKASYNC_2_DRVBLOCK(pInterface);
 
@@ -312,7 +339,7 @@ static DECLCALLBACK(int) drvblockAsyncFlushStart(PPDMIBLOCKASYNC pInterface, voi
     }
 
 #ifdef VBOX_IGNORE_FLUSH
-    if (pThis->fIgnoreFlush)
+    if (pThis->fIgnoreFlushAsync)
         return VINF_VD_ASYNC_IO_FINISHED;
 #endif /* VBOX_IGNORE_FLUSH */
 
@@ -320,7 +347,6 @@ static DECLCALLBACK(int) drvblockAsyncFlushStart(PPDMIBLOCKASYNC pInterface, voi
 
     return rc;
 }
-
 
 /* -=-=-=-=- IMediaAsyncPort -=-=-=-=- */
 
@@ -529,7 +555,7 @@ static DECLCALLBACK(int) drvblockMount(PPDMIMOUNT pInterface, const char *pszFil
      */
     if (pszFilename)
     {
-        int rc = pThis->pDrvIns->pDrvHlp->pfnMountPrepare(pThis->pDrvIns, pszFilename, pszCoreDriver);
+        int rc = PDMDrvHlpMountPrepare(pThis->pDrvIns, pszFilename, pszCoreDriver);
         if (RT_FAILURE(rc))
         {
             Log(("drvblockMount: Prepare failed for \"%s\" rc=%Rrc\n", pszFilename, rc));
@@ -549,7 +575,7 @@ static DECLCALLBACK(int) drvblockMount(PPDMIMOUNT pInterface, const char *pszFil
         return rc;
     }
 
-    pThis->pDrvMedia = (PPDMIMEDIA)pBase->pfnQueryInterface(pBase, PDMINTERFACE_MEDIA);
+    pThis->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pBase, PDMIMEDIA);
     if (pThis->pDrvMedia)
     {
         /** @todo r=klaus missing async handling, this is just a band aid to
@@ -585,7 +611,7 @@ static DECLCALLBACK(int) drvblockMount(PPDMIMOUNT pInterface, const char *pszFil
      * Failed, detatch the media driver.
      */
     AssertMsgFailed(("No media interface!\n"));
-    int rc2 = pThis->pDrvIns->pDrvHlp->pfnDetach(pThis->pDrvIns, fTachFlags);
+    int rc2 = PDMDrvHlpDetach(pThis->pDrvIns, fTachFlags);
     AssertRC(rc2);
     pThis->pDrvMedia = NULL;
     return rc;
@@ -617,7 +643,7 @@ static DECLCALLBACK(int) drvblockUnmount(PPDMIMOUNT pInterface, bool fForce)
     /*
      * Detach the media driver and query it's interface.
      */
-    int rc = pThis->pDrvIns->pDrvHlp->pfnDetach(pThis->pDrvIns, 0 /*fFlags*/);
+    int rc = PDMDrvHlpDetach(pThis->pDrvIns, 0 /*fFlags*/);
     if (RT_FAILURE(rc))
     {
         Log(("drvblockUnmount: Detach failed rc=%Rrc\n", rc));
@@ -670,28 +696,21 @@ static DECLCALLBACK(bool) drvblockIsLocked(PPDMIMOUNT pInterface)
 
 /* -=-=-=-=- IBase -=-=-=-=- */
 
-/** @copydoc PDMIBASE::pfnQueryInterface. */
-static DECLCALLBACK(void *)  drvblockQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+/**
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *)  drvblockQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS  pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVBLOCK   pThis = PDMINS_2_DATA(pDrvIns, PDRVBLOCK);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_BLOCK:
-            return &pThis->IBlock;
-        case PDMINTERFACE_BLOCK_BIOS:
-            return pThis->fBiosVisible ? &pThis->IBlockBios : NULL;
-        case PDMINTERFACE_MOUNT:
-            return pThis->fMountable ? &pThis->IMount : NULL;
-        case PDMINTERFACE_BLOCK_ASYNC:
-            return pThis->pDrvMediaAsync ? &pThis->IBlockAsync : NULL;
-        case PDMINTERFACE_MEDIA_ASYNC_PORT:
-            return pThis->pDrvBlockAsyncPort ? &pThis->IMediaAsyncPort : NULL;
-        default:
-            return NULL;
-    }
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCK, &pThis->IBlock);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKBIOS, pThis->fBiosVisible ? &pThis->IBlockBios : NULL);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNT, pThis->fMountable ? &pThis->IMount : NULL);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKASYNC, pThis->pDrvMediaAsync ? &pThis->IBlockAsync : NULL);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAASYNCPORT, pThis->pDrvBlockAsyncPort ? &pThis->IMediaAsyncPort : NULL);
+    return NULL;
 }
 
 
@@ -724,18 +743,19 @@ static DECLCALLBACK(void)  drvblockReset(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVBLOCK pThis = PDMINS_2_DATA(pDrvIns, PDRVBLOCK);
     LogFlow(("drvblockConstruct: iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate configuration.
      */
 #if defined(VBOX_PERIODIC_FLUSH) || defined(VBOX_IGNORE_FLUSH)
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Type\0Locked\0BIOSVisible\0AttachFailError\0Cylinders\0Heads\0Sectors\0Mountable\0FlushInterval\0IgnoreFlush\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Type\0Locked\0BIOSVisible\0AttachFailError\0Cylinders\0Heads\0Sectors\0Mountable\0FlushInterval\0IgnoreFlush\0IgnoreFlushAsync\0"))
 #else /* !(VBOX_PERIODIC_FLUSH || VBOX_IGNORE_FLUSH) */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Type\0Locked\0BIOSVisible\0AttachFailError\0Cylinders\0Heads\0Sectors\0Mountable\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Type\0Locked\0BIOSVisible\0AttachFailError\0Cylinders\0Heads\0Sectors\0Mountable\0"))
 #endif /* !(VBOX_PERIODIC_FLUSH || VBOX_IGNORE_FLUSH) */
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
 
@@ -751,6 +771,7 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
     pThis->IBlock.pfnRead                   = drvblockRead;
     pThis->IBlock.pfnWrite                  = drvblockWrite;
     pThis->IBlock.pfnFlush                  = drvblockFlush;
+    pThis->IBlock.pfnMerge                  = drvblockMerge;
     pThis->IBlock.pfnIsReadOnly             = drvblockIsReadOnly;
     pThis->IBlock.pfnGetSize                = drvblockGetSize;
     pThis->IBlock.pfnGetType                = drvblockGetType;
@@ -783,22 +804,21 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
     /*
      * Get the IBlockPort & IMountNotify interfaces of the above driver/device.
      */
-    pThis->pDrvBlockPort = (PPDMIBLOCKPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_BLOCK_PORT);
+    pThis->pDrvBlockPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIBLOCKPORT);
     if (!pThis->pDrvBlockPort)
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_MISSING_INTERFACE_ABOVE,
                                 N_("No block port interface above"));
 
     /* Try to get the optional async block port interface above. */
-    pThis->pDrvBlockAsyncPort = (PPDMIBLOCKASYNCPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_BLOCK_ASYNC_PORT);
-
-    pThis->pDrvMountNotify = (PPDMIMOUNTNOTIFY)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_MOUNT_NOTIFY);
+    pThis->pDrvBlockAsyncPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIBLOCKASYNCPORT);
+    pThis->pDrvMountNotify    = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMOUNTNOTIFY);
 
     /*
      * Query configuration.
      */
     /* type */
     char *psz;
-    int rc = CFGMR3QueryStringAlloc(pCfgHandle, "Type", &psz);
+    int rc = CFGMR3QueryStringAlloc(pCfg, "Type", &psz);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_BLOCK_NO_TYPE, N_("Failed to obtain the type"));
     if (!strcmp(psz, "HardDisk"))
@@ -828,39 +848,39 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
     MMR3HeapFree(psz); psz = NULL;
 
     /* Mountable */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "Mountable", &pThis->fMountable, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "Mountable", &pThis->fMountable, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Mountable\" from the config"));
 
     /* Locked */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "Locked", &pThis->fLocked, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "Locked", &pThis->fLocked, false);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Locked\" from the config"));
 
     /* BIOS visible */
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "BIOSVisible", &pThis->fBiosVisible, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "BIOSVisible", &pThis->fBiosVisible, true);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"BIOSVisible\" from the config"));
 
     /** @todo AttachFailError is currently completely ignored. */
 
     /* Cylinders */
-    rc = CFGMR3QueryU32Def(pCfgHandle, "Cylinders", &pThis->LCHSGeometry.cCylinders, 0);
+    rc = CFGMR3QueryU32Def(pCfg, "Cylinders", &pThis->LCHSGeometry.cCylinders, 0);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Cylinders\" from the config"));
 
     /* Heads */
-    rc = CFGMR3QueryU32Def(pCfgHandle, "Heads", &pThis->LCHSGeometry.cHeads, 0);
+    rc = CFGMR3QueryU32Def(pCfg, "Heads", &pThis->LCHSGeometry.cHeads, 0);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Heads\" from the config"));
 
     /* Sectors */
-    rc = CFGMR3QueryU32Def(pCfgHandle, "Sectors", &pThis->LCHSGeometry.cSectors, 0);
+    rc = CFGMR3QueryU32Def(pCfg, "Sectors", &pThis->LCHSGeometry.cSectors, 0);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Sectors\" from the config"));
 
     /* Uuid */
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "Uuid", &psz);
+    rc = CFGMR3QueryStringAlloc(pCfg, "Uuid", &psz);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         RTUuidClear(&pThis->Uuid);
     else if (RT_SUCCESS(rc))
@@ -879,15 +899,29 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"Uuid\" from the config"));
 
 #ifdef VBOX_PERIODIC_FLUSH
-    rc = CFGMR3QueryU32Def(pCfgHandle, "FlushInterval", &pThis->cbFlushInterval, 0);
+    rc = CFGMR3QueryU32Def(pCfg, "FlushInterval", &pThis->cbFlushInterval, 0);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"FlushInterval\" from the config"));
 #endif /* VBOX_PERIODIC_FLUSH */
 
 #ifdef VBOX_IGNORE_FLUSH
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IgnoreFlush", &pThis->fIgnoreFlush, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreFlush", &pThis->fIgnoreFlush, true);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"IgnoreFlush\" from the config"));
+
+    if (pThis->fIgnoreFlush)
+        LogRel(("DrvBlock: Flushes will be ignored\n"));
+    else
+        LogRel(("DrvBlock: Flushes will be passed to the disk\n"));
+
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreFlushAsync", &pThis->fIgnoreFlushAsync, false);
+    if (RT_FAILURE(rc))
+        return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Failed to query \"IgnoreFlushAsync\" from the config"));
+
+    if (pThis->fIgnoreFlushAsync)
+        LogRel(("DrvBlock: Async flushes will be ignored\n"));
+    else
+        LogRel(("DrvBlock: Async flushes will be passed to the disk\n"));
 #endif /* VBOX_IGNORE_FLUSH */
 
     /*
@@ -902,13 +936,13 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
                                    N_("Failed to attach driver below us! %Rrf"), rc);
 
-    pThis->pDrvMedia = (PPDMIMEDIA)pBase->pfnQueryInterface(pBase, PDMINTERFACE_MEDIA);
+    pThis->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pBase, PDMIMEDIA);
     if (!pThis->pDrvMedia)
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_MISSING_INTERFACE_BELOW,
                                 N_("No media or async media interface below"));
 
     /* Try to get the optional async interface. */
-    pThis->pDrvMediaAsync = (PPDMIMEDIAASYNC)pBase->pfnQueryInterface(pBase, PDMINTERFACE_MEDIA_ASYNC);
+    pThis->pDrvMediaAsync = PDMIBASE_QUERY_INTERFACE(pBase, PDMIMEDIAASYNC);
 
     if (RTUuidIsNull(&pThis->Uuid))
     {
@@ -927,8 +961,12 @@ const PDMDRVREG g_DrvBlock =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "Block",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Generic block driver.",
     /* fFlags */
@@ -942,6 +980,8 @@ const PDMDRVREG g_DrvBlock =
     /* pfnConstruct */
     drvblockConstruct,
     /* pfnDestruct */
+    NULL,
+    /* pfnRelocate */
     NULL,
     /* pfnIOCtl */
     NULL,

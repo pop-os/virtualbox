@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,14 +21,12 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmcommon_h
 #define ___VBox_pdmcommon_h
+
+#include <VBox/types.h>
 
 /** @defgroup grp_pdm_common    Common Definitions & Types
  * @ingroup grp_pdm
@@ -39,6 +37,39 @@
  * @{
  */
 
+/** Makes a PDM structure version out of an unique magic value and major &
+ * minor version numbers.
+ *
+ * @returns 32-bit structure version number.
+ *
+ * @param   uMagic      16-bit magic value.  This must be unique.
+ * @param   uMajor      12-bit major version number.  Structures with different
+ *                      major numbers are not compatible.
+ * @param   uMinor      4-bit minor version number.  When only the minor version
+ *                      differs, the structures will be 100% backwards
+ *                      compatible.
+ */
+#define PDM_VERSION_MAKE(uMagic, uMajor, uMinor) \
+    ( ((uint32_t)(uMagic) << 16) | ((uint32_t)((uMajor) & 0xff) << 4) | ((uint32_t)((uMinor) & 0xf) << 0) )
+
+/** Checks if @a uVerMagic1 is compatible with @a uVerMagic2.
+ *
+ * @returns true / false.
+ * @param   uVerMagic1  Typically the runtime version of the struct.  This must
+ *                      have the same magic and major version as @a uVerMagic2
+ *                      and the minor version must be greater or equal to that
+ *                      of @a uVerMagic2.
+ * @param   uVerMagic2  Typically the version the code was compiled against.
+ *
+ * @remarks The parameters will be referenced more than once.
+ */
+#define PDM_VERSION_ARE_COMPATIBLE(uVerMagic1, uVerMagic2) \
+    (    (uVerMagic1) == (uVerMagic2) \
+      || (   (uVerMagic1) >= (uVerMagic2) \
+          && ((uVerMagic1) & UINT32_C(0xfffffff0)) == ((uVerMagic2) & UINT32_C(0xfffffff0)) ) \
+    )
+
+
 /** PDM Attach/Detach Callback Flags.
  * Used by PDMDeviceAttach, PDMDeviceDetach, PDMDriverAttach, PDMDriverDetach,
  * FNPDMDEVATTACH, FNPDMDEVDETACH, FNPDMDRVATTACH, FNPDMDRVDETACH and
@@ -46,6 +77,9 @@
  @{ */
 /** The attach/detach command is not a hotplug event. */
 #define PDM_TACH_FLAGS_NOT_HOT_PLUG     RT_BIT_32(0)
+/** Indicates that no attach or detach callbacks should be made.
+ * This is mostly for internal use.  */
+#define PDM_TACH_FLAGS_NO_CALLBACKS     RT_BIT_32(1)
 /* @} */
 
 
@@ -96,6 +130,18 @@ typedef FNPDMDEVASYNCNOTIFY *PFNPDMDEVASYNCNOTIFY;
 typedef DECLCALLBACK(bool) FNPDMDRVASYNCNOTIFY(PPDMDRVINS pDrvIns);
 /** Pointer to a FNPDMDRVASYNCNOTIFY. */
 typedef FNPDMDRVASYNCNOTIFY *PFNPDMDRVASYNCNOTIFY;
+
+/**
+ * The ring-0 driver request handle.
+ *
+ * @returns VBox status code. PDMDrvHlpCallR0 will return this.
+ * @param   pDrvIns     The driver instance (the ring-0 mapping).
+ * @param   uOperation  The operation.
+ * @param   u64Arg      Optional integer argument for the operation.
+ */
+typedef DECLCALLBACK(int) FNPDMDRVREQHANDLERR0(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg);
+/** Ring-0 pointer to a FNPDMDRVREQHANDLERR0. */
+typedef R0PTRTYPE(FNPDMDRVREQHANDLERR0 *) PFNPDMDRVREQHANDLERR0;
 
 /** @} */
 

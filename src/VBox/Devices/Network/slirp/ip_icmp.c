@@ -1,4 +1,23 @@
+/* $Id: ip_icmp.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - IP/ICMP handling.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -187,6 +206,18 @@ icmp_find_original_mbuf(PNATState pData, struct ip *ip)
                     continue;
                 }
                 icp0 = (struct icmp *)((char *)ip0 + (ip0->ip_hl << 2));
+                /*
+                 * IP could pointer to ICMP_REPLY datagram (1)
+                 * or pointer IP header in ICMP payload in case of
+                 * ICMP_TIMXCEED or ICMP_UNREACH (2)
+                 *
+                 * if (1) and then ICMP (type should be ICMP_ECHOREPLY) and we need check that
+                 * IP.IP_SRC == IP0.IP_DST received datagramm comes from destination.
+                 *
+                 * if (2) then check that payload ICMP has got type ICMP_ECHO and
+                 * IP.IP_DST == IP0.IP_DST destination of returned datagram is the same as
+                 * one was sent.
+                 */
                 if (  (   (icp->icmp_type != ICMP_ECHO && ip->ip_src.s_addr == ip0->ip_dst.s_addr)
                        || (icp->icmp_type == ICMP_ECHO && ip->ip_dst.s_addr == ip0->ip_dst.s_addr))
                     && icp->icmp_id == icp0->icmp_id
@@ -375,10 +406,10 @@ freeit:
                 int error;
 #endif
                 addr.sin_family = AF_INET;
-                if ((ip->ip_dst.s_addr & htonl(pData->netmask)) == pData->special_addr.s_addr)
+                if ((ip->ip_dst.s_addr & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr)
                 {
                     /* It's an alias */
-                    switch (ntohl(ip->ip_dst.s_addr) & ~pData->netmask)
+                    switch (RT_N2H_U32(ip->ip_dst.s_addr) & ~pData->netmask)
                     {
                         case CTL_DNS:
                         case CTL_ALIAS:
@@ -392,6 +423,7 @@ freeit:
 #ifndef RT_OS_WINDOWS
                 if (pData->icmp_socket.s != -1)
                 {
+                    ssize_t rc;
                     m->m_so = &pData->icmp_socket;
                     icmp_attach(pData, m);
                     ttl = ip->ip_ttl;
@@ -401,8 +433,9 @@ freeit:
                     if (status < 0)
                         LogRel(("NAT: Error (%s) occurred while setting TTL attribute of IP packet\n",
                                 strerror(errno)));
-                    if (sendto(pData->icmp_socket.s, icp, icmplen, 0,
-                              (struct sockaddr *)&addr, sizeof(addr)) == -1)
+                    rc = sendto(pData->icmp_socket.s, icp, icmplen, 0,
+                              (struct sockaddr *)&addr, sizeof(addr));
+                    if (rc < 0)
                     {
                         LogRel((dfd,"icmp_input udp sendto tx errno = %d-%s\n",
                                     errno, strerror(errno)));
@@ -584,9 +617,13 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
     m->m_pkthdr.header = mtod(m, void *);
 #else
-    new_m_size = sizeof(struct ip) + ICMP_MINLEN + msrc->m_len + ICMP_MAXDATALEN;
+    new_m_size = if_maxlinkhdr + sizeof(struct ip) + ICMP_MINLEN + msrc->m_len + ICMP_MAXDATALEN;
     if (new_m_size > m->m_size)
+    {
         m_inc(m, new_m_size);
+        if (new_m_size > m->m_size)
+            goto end_error_free_m;
+    }
 #endif
 
     memcpy(m->m_data, msrc->m_data, msrc->m_len);
@@ -666,6 +703,8 @@ void icmp_error(PNATState pData, struct mbuf *msrc, u_char type, u_char code, in
 
     return;
 
+end_error_free_m:
+    m_freem(pData, m);
 end_error:
     LogRel(("NAT: error occurred while sending ICMP error message \n"));
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_vrdpapi_h
@@ -958,6 +954,10 @@ typedef struct _VRDPENTRYPOINTS_2
 #define VRDP_QP_NETWORK_ADDRESS   (2)
 #define VRDP_QP_NUMBER_MONITORS   (3)
 #define VRDP_QP_NETWORK_PORT_RANGE (4)
+#ifdef VBOX_WITH_VRDP_VIDEO_CHANNEL
+#define VRDP_QP_VIDEO_CHANNEL         (5)
+#define VRDP_QP_VIDEO_CHANNEL_QUALITY (6)
+#endif /* VBOX_WITH_VRDP_VIDEO_CHANNEL */
 
 #define VRDP_SP_BASE 0x1000
 #define VRDP_SP_NETWORK_BIND_PORT (VRDP_SP_BASE + 1)
@@ -1017,7 +1017,7 @@ typedef struct _VRDPCALLBACKS_1
 
     /**
      * Query or set various information, on how the VRDP server operates, from or to the application.
-     * 
+     *
      *
      * @param pvCallback  The callback specific pointer.
      * @param index       VRDP_QP_* identifier of information to be returned.

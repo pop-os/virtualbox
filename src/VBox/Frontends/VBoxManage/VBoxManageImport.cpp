@@ -1,10 +1,10 @@
-/* $Id: VBoxManageImport.cpp $ */
+/* $Id: VBoxManageImport.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - The appliance-related commands.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef VBOX_ONLY_DOCS
@@ -46,6 +42,7 @@
 #include <iprt/file.h>
 
 #include <VBox/log.h>
+#include <VBox/param.h>
 
 #include "VBoxManage.h"
 using namespace com;
@@ -127,7 +124,8 @@ int handleImportAppliance(HandlerArg *arg)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, arg->argc, arg->argv, g_aImportApplianceOptions, RT_ELEMENTS(g_aImportApplianceOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, arg->argc, arg->argv, g_aImportApplianceOptions, RT_ELEMENTS(g_aImportApplianceOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -464,9 +462,9 @@ int handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "cpus"))
                             {
                                 uint32_t cCPUs;
-                                if (    (VINF_SUCCESS == strOverride.toInt(cCPUs))
-                                     && (cCPUs > 0)
-                                     && (cCPUs < 33)
+                                if (    strOverride.toInt(cCPUs) == VINF_SUCCESS
+                                     && cCPUs >= VMM_MIN_CPU_COUNT
+                                     && cCPUs <= VMM_MAX_CPU_COUNT
                                    )
                                 {
                                     bstrFinalValue = strOverride;
@@ -475,7 +473,8 @@ int handleImportAppliance(HandlerArg *arg)
                                 }
                                 else
                                     return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                       "Argument to --cpus option must be a number greater than 0 and less than 33.");
+                                                       "Argument to --cpus option must be a number greater than %d and less than %d.",
+                                                       VMM_MIN_CPU_COUNT - 1, VMM_MAX_CPU_COUNT + 1);
                             }
                             else
                                 RTPrintf("%2u: Number of CPUs: %ls\n    (change with \"--vsys %u --cpus <n>\")\n",
@@ -739,7 +738,7 @@ int handleExportAppliance(HandlerArg *a)
         RTGETOPTSTATE GetState;
         // start at 0 because main() has hacked both the argc and argv given to us
         RTGetOptInit(&GetState, a->argc, a->argv, g_aExportOptions,
-                     RT_ELEMENTS(g_aExportOptions), 0, 0 /* fFlags */);
+                     RT_ELEMENTS(g_aExportOptions), 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
         Utf8Str strProductUrl;
         while ((c = RTGetOpt(&GetState, &ValueUnion)))

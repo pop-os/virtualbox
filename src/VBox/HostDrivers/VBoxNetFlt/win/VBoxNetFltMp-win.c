@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFltMp-win.c $ */
+/* $Id: VBoxNetFltMp-win.c 29108 2010-05-05 20:17:42Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Miniport edge of ndis filter driver
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Based in part on Microsoft DDK sample code for Ndis Intermediate Miniport passthru driver sample.
@@ -30,17 +26,17 @@
 #else
 
 /** driver handle */
-static NDIS_HANDLE         g_hDriverHandle = NULL;
+static NDIS_HANDLE      g_hDriverHandle            = NULL;
 /** Ndis wrapper handle */
-static NDIS_HANDLE        g_hNdisWrapperHandle;
+static NDIS_HANDLE      g_hNdisWrapperHandle;
 /** device handle for ioctl interface this is not used currently and should be removed soon */
-static NDIS_HANDLE     g_hNdisDeviceHandle = NULL;
+static NDIS_HANDLE      g_hNdisDeviceHandle        = NULL;
 /** device object used for ioctl interface this is not used currently and should be removed soon */
-static PDEVICE_OBJECT  g_pControlDeviceObject = NULL;
+static PDEVICE_OBJECT   g_pControlDeviceObject     = NULL;
 /** ioctl device ref count */
-static LONG               g_cControlDeviceRefs = 0;
+static LONG             g_cControlDeviceRefs       = 0;
 /** true if control device needs to be dereferenced before destroying */
-static bool g_bControlDeviceReferenced = false;
+static bool             g_bControlDeviceReferenced = false;
 
 enum _DEVICE_STATE
 {
@@ -489,7 +485,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoDeinitialization(PADAPT pAdapt)
      * Set the flag that the miniport below is unbinding, so the request handlers will
      * fail any request comming later
      */
-    RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 
     ASMAtomicUoWriteBool(&pNetFlt->fDisconnectedFromHost, true);
     ASMAtomicUoWriteBool(&pNetFlt->fRediscoveryPending, false);
@@ -497,7 +493,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMpDoDeinitialization(PADAPT pAdapt)
 
     vboxNetFltWinSetOpState(&pAdapt->MPState, kVBoxNetDevOpState_Deinitializing);
 
-    RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
 
     vboxNetFltWinWaitDereference(&pAdapt->MPState);
 
@@ -551,7 +547,7 @@ static NDIS_STATUS vboxNetFltWinMpReadApplyConfig(PADAPT pAdapt, NDIS_HANDLE hMi
             {
 
                 rc = vboxNetFltWinMACFromNdisString(&mac, &pParameterValue->ParameterData.StringData);
-                Assert(RT_SUCCESS(rc));
+                AssertRC(rc);
                 if(RT_SUCCESS(rc))
                 {
                     break;
@@ -587,7 +583,7 @@ static NDIS_STATUS vboxNetFltWinMpReadApplyConfig(PADAPT pAdapt, NDIS_HANDLE hMi
         vboxNetFltWinGenerateMACAddress(&mac);
     }
 
-    pThis->u.s.Mac = mac;
+    pThis->u.s.MacAddr = mac;
 
     return NDIS_STATUS_SUCCESS;
 }
@@ -803,7 +799,7 @@ vboxNetFltWinMpSendPackets(
     )
 {
     PADAPT pAdapt = (PADAPT)fMiniportAdapterContext;
-    NDIS_STATUS         fStatus;
+    NDIS_STATUS         fStatus = NDIS_STATUS_SUCCESS;
     UINT                i;
     PVBOXNETFLTINS pNetFlt = PADAPT_2_PVBOXNETFLTINS(pAdapt);
     bool bNetFltActive;
@@ -817,13 +813,13 @@ vboxNetFltWinMpSendPackets(
         uint32_t cPassThruRefs;
         if(bNetFltActive)
         {
-        	cNetFltRefs = cNumberOfPackets;
-        	cPassThruRefs = 0;
+            cNetFltRefs = cNumberOfPackets;
+            cPassThruRefs = 0;
         }
         else
         {
-        	cPassThruRefs = cNumberOfPackets;
-        	cNetFltRefs = 0;
+            cPassThruRefs = cNumberOfPackets;
+            cNetFltRefs = 0;
         }
 
         for (i = 0; i < cNumberOfPackets; i++)
@@ -833,7 +829,12 @@ vboxNetFltWinMpSendPackets(
             pPacket = pPacketArray[i];
 
             if(!cNetFltRefs
-                    || (fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_SRC_HOST)) != NDIS_STATUS_SUCCESS)
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+                    || !vboxNetFltWinPostIntnet(pNetFlt, pPacket, PACKET_SRC_HOST)
+#else
+                    || (fStatus = vboxNetFltWinQuEnqueuePacket(pNetFlt, pPacket, PACKET_SRC_HOST)) != NDIS_STATUS_SUCCESS
+#endif
+                    )
             {
 #ifndef VBOXNETADP
                 fStatus = vboxNetFltWinSendPassThru(pAdapt, pPacket);
@@ -862,8 +863,14 @@ vboxNetFltWinMpSendPackets(
             }
             else
             {
+#ifdef VBOXNETFLT_NO_PACKET_QUEUE
+                NdisMSendComplete(pAdapt->hMiniportHandle,
+                                  pPacket,
+                                  NDIS_STATUS_SUCCESS);
+#else
                 cAdaptRefs--;
                 cNetFltRefs--;
+#endif
             }
         }
 
@@ -1004,11 +1011,11 @@ vboxNetFltWinMpQueryInformation(
         /*
          * If the miniport below is binding, fail the request
          */
-        RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 
         if (vboxNetFltWinGetOpState(&pAdapt->PTState) > kVBoxNetDevOpState_Initialized)
         {
-            RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
             Status = NDIS_STATUS_FAILURE;
             break;
         }
@@ -1020,7 +1027,7 @@ vboxNetFltWinMpQueryInformation(
                 && (pAdapt->bStandingBy == FALSE))
         {
             pAdapt->bQueuedRequest = TRUE;
-            RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
             Status = NDIS_STATUS_PENDING;
             break;
         }
@@ -1029,13 +1036,13 @@ vboxNetFltWinMpQueryInformation(
          */
         if (pAdapt->bStandingBy == TRUE)
         {
-            RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
             Status = NDIS_STATUS_FAILURE;
             break;
         }
         pAdapt->bOutstandingRequests = TRUE;
 
-        RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         if(Oid == OID_GEN_CURRENT_PACKET_FILTER && VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt))
         {
             bool fNetFltActive;
@@ -1053,14 +1060,14 @@ vboxNetFltWinMpQueryInformation(
                 vboxNetFltWinDereferenceNetFlt(pNetFlt);
                 vboxNetFltWinDereferenceAdapt(pAdapt);
 
-                RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+                RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
                 pAdapt->bOutstandingRequests = FALSE;
-                RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+                RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
                 break;
             }
             else if(fAdaptActive)
             {
-            	pAdapt->fProcessingPacketFilter = VBOXNETFLT_PFP_PASSTHRU;
+                pAdapt->fProcessingPacketFilter = VBOXNETFLT_PFP_PASSTHRU;
                 /* we're cleaning it in RequestComplete */
             }
         }
@@ -1349,10 +1356,10 @@ vboxNetFltWinMpSetInformation(
         /*
          * If the miniport below is unbinding, fail the request
          */
-        RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
         if (vboxNetFltWinGetOpState(&pAdapt->PTState) > kVBoxNetDevOpState_Initialized)
         {
-            RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
             Status = NDIS_STATUS_FAILURE;
             break;
         }
@@ -1365,7 +1372,7 @@ vboxNetFltWinMpSetInformation(
                 && (pAdapt->bStandingBy == FALSE))
         {
             pAdapt->bQueuedRequest = TRUE;
-            RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
             Status = NDIS_STATUS_PENDING;
             break;
         }
@@ -1374,18 +1381,18 @@ vboxNetFltWinMpSetInformation(
          */
         if (pAdapt->bStandingBy == TRUE)
         {
-            RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
             Status = NDIS_STATUS_FAILURE;
             break;
         }
         pAdapt->bOutstandingRequests = TRUE;
 
-        RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
 
         if(Oid == OID_GEN_CURRENT_PACKET_FILTER && VBOXNETFLT_PROMISCUOUS_SUPPORTED(pAdapt))
         {
             /* need to disable cleaning promiscuous here ?? */
-        	bool fNetFltActive;
+            bool fNetFltActive;
             const bool fAdaptActive = vboxNetFltWinReferenceAdaptNetFlt(pNetFlt, pAdapt, &fNetFltActive);
 
             Assert(InformationBuffer);
@@ -1416,9 +1423,9 @@ vboxNetFltWinMpSetInformation(
                     vboxNetFltWinDereferenceNetFlt(pNetFlt);
                     vboxNetFltWinDereferenceAdapt(pAdapt);
 
-                    RTSpinlockAcquire(pNetFlt->hSpinlock, &Tmp);
+                    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
                     pAdapt->bOutstandingRequests = FALSE;
-                    RTSpinlockRelease(pNetFlt->hSpinlock, &Tmp);
+                    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
                     break;
                 }
             }
@@ -1862,7 +1869,7 @@ Notes: Read "Minimizing Miniport Driver Initialization Time" in the DDK
             //
             {
                 PVBOXNETFLTINS pNetFlt = (PADAPT_2_PVBOXNETFLTINS(pAdapt));
-                pInfo = &pNetFlt->u.s.Mac;
+                pInfo = &pNetFlt->u.s.MacAddr;
                 ulInfoLen = VBOXNETADP_ETH_ADDRESS_LENGTH;
             }
             break;
@@ -1876,7 +1883,7 @@ Notes: Read "Minimizing Miniport Driver Initialization Time" in the DDK
             //
             {
                 PVBOXNETFLTINS pNetFlt = (PADAPT_2_PVBOXNETFLTINS(pAdapt));
-                pInfo = &pNetFlt->u.s.Mac;
+                pInfo = &pNetFlt->u.s.MacAddr;
                 ulInfoLen = VBOXNETADP_ETH_ADDRESS_LENGTH;
             }
             break;

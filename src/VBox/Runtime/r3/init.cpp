@@ -1,10 +1,10 @@
-/* $Id: init.cpp $ */
+/* $Id: init.cpp 28903 2010-04-29 14:58:12Z vboxsync $ */
 /** @file
  * IPRT - Init Ring-3.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -237,6 +233,12 @@ static void rtR3SigChildHandler(int iSignal)
 static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
 {
     /*
+     * Init C runtime locale before we do anything that may end up converting
+     * paths or we'll end up using the "C" locale for path conversion.
+     */
+    setlocale(LC_CTYPE, "");
+
+    /*
      * The Process ID.
      */
 #ifdef _MSC_VER
@@ -312,9 +314,6 @@ static int rtR3InitBody(bool fInitSUPLib, const char *pszProgramPath)
     /*
      * The remainder cannot easily be undone, so it has to go last.
      */
-
-    /* Init C runtime locale. */
-    setlocale(LC_CTYPE, "");
 
     /* Fork and exit callbacks. */
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)

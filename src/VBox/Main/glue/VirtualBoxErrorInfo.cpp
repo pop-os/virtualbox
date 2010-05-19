@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxErrorInfo.cpp $ */
+/* $Id: VirtualBoxErrorInfo.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VBox/com/VirtualBoxErrorInfo.h"
@@ -106,7 +102,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Next) (IVirtualBoxErrorInfo **aNext)
     return mNext.queryInterfaceTo(aNext);
 }
 
-#if !defined (VBOX_WITH_XPCOM)
+#if !defined(VBOX_WITH_XPCOM)
 
 /**
  *  Initializes itself by fetching error information from the given error info
@@ -165,13 +161,13 @@ STDMETHODIMP VirtualBoxErrorInfo::GetSource (BSTR *source)
     return COMGETTER(Component) (source);
 }
 
-#else // !defined (VBOX_WITH_XPCOM)
+#else // !defined(VBOX_WITH_XPCOM)
 
 /**
  *  Initializes itself by fetching error information from the given error info
  *  object.
  */
-HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
+HRESULT VirtualBoxErrorInfo::init(nsIException *aInfo)
 {
     AssertReturn(aInfo, E_FAIL);
 
@@ -181,13 +177,19 @@ HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
      * protect ourselves from bad nsIException implementations (the
      * corresponding fields will simply remain null in this case). */
 
-    rc = aInfo->GetResult (&mResultCode);
-    AssertComRC (rc);
-    Utf8Str message;
-    rc = aInfo->GetMessage(message.asOutParam());
-    message.jolt();
-    AssertComRC (rc);
-    mText = message;
+    rc = aInfo->GetResult(&mResultCode);
+    AssertComRC(rc);
+
+    char *pszMsg;
+    rc = aInfo->GetMessage(&pszMsg);
+    AssertComRC(rc);
+    if (NS_SUCCEEDED(rc))
+    {
+        mText = Bstr(pszMsg);
+        nsMemory::Free(pszMsg);
+    }
+    else
+        mText.setNull();
 
     return S_OK;
 }
@@ -201,7 +203,7 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetMessage (char **aMessage)
     if (!aMessage)
         return NS_ERROR_INVALID_POINTER;
 
-    Utf8Str (mText).cloneTo(aMessage);
+    Utf8Str(mText).cloneTo(aMessage);
     return S_OK;
 }
 
@@ -253,7 +255,7 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetInner (nsIException **aInner)
 {
     ComPtr<IVirtualBoxErrorInfo> info;
     nsresult rv = COMGETTER(Next) (info.asOutParam());
-    CheckComRCReturnRC(rv);
+    if (FAILED(rv)) return rv;
     return info.queryInterfaceTo(aInner);
 }
 
@@ -272,7 +274,7 @@ NS_IMETHODIMP VirtualBoxErrorInfo::ToString (char **_retval)
 NS_IMPL_THREADSAFE_ISUPPORTS2 (VirtualBoxErrorInfo,
                                nsIException, IVirtualBoxErrorInfo)
 
-#endif /* !defined (VBOX_WITH_XPCOM) */
+#endif /* !defined(VBOX_WITH_XPCOM) */
 
 ////////////////////////////////////////////////////////////////////////////////
 // VirtualBoxErrorInfoGlue class
@@ -304,7 +306,7 @@ HRESULT VirtualBoxErrorInfoGlue::init (IVirtualBoxErrorInfo *aHead,
     {
         ComPtr<IVirtualBoxErrorInfo> next;
         rc = cur->COMGETTER(Next) (next.asOutParam());
-        CheckComRCReturnRC(rc);
+        if (FAILED(rc)) return rc;
 
         if (next.isNull())
             break;
@@ -326,7 +328,7 @@ HRESULT VirtualBoxErrorInfoGlue::init (IVirtualBoxErrorInfo *aHead,
     {
         ComObjPtr<VirtualBoxErrorInfoGlue> wrapper;
         rc = wrapper.createObject();
-        CheckComRCBreakRC (rc);
+        if (FAILED(rc)) break;
 
         -- prev;
 
@@ -337,7 +339,7 @@ HRESULT VirtualBoxErrorInfoGlue::init (IVirtualBoxErrorInfo *aHead,
 
         *prev = wrapper;
 
-        CheckComRCBreakRC (rc);
+        if (FAILED(rc)) break;
     }
 
     mReal = aHead;

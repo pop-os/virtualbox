@@ -1,10 +1,10 @@
-/* $Id: VBoxManageGuestProp.cpp $ */
+/* $Id: VBoxManageGuestProp.cpp 28931 2010-04-30 12:04:06Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestproperty' command.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -92,12 +88,12 @@ public:
     STDMETHOD(OnMachineStateChange)(IN_BSTR machineId,
                                     MachineState_T state)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnMachineDataChange)(IN_BSTR machineId)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnExtraDataCanChange)(IN_BSTR machineId, IN_BSTR key,
@@ -108,13 +104,13 @@ public:
         if (!changeAllowed)
             return E_INVALIDARG;
         *changeAllowed = TRUE;
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnExtraDataChange)(IN_BSTR machineId, IN_BSTR key,
                                  IN_BSTR value)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnMediumRegistered)(IN_BSTR mediaId,
@@ -123,36 +119,36 @@ public:
         NOREF(mediaId);
         NOREF(mediaType);
         NOREF(registered);
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnMachineRegistered)(IN_BSTR machineId, BOOL registered)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
      STDMETHOD(OnSessionStateChange)(IN_BSTR machineId,
                                     SessionState_T state)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnSnapshotTaken)(IN_BSTR aMachineId,
                                IN_BSTR aSnapshotId)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
-    STDMETHOD(OnSnapshotDiscarded)(IN_BSTR aMachineId,
-                                   IN_BSTR aSnapshotId)
+    STDMETHOD(OnSnapshotDeleted)(IN_BSTR aMachineId,
+                                 IN_BSTR aSnapshotId)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnSnapshotChange)(IN_BSTR aMachineId,
                                 IN_BSTR aSnapshotId)
     {
-        return S_OK;
+        return VBOX_E_DONT_CALL_AGAIN;
     }
 
     STDMETHOD(OnGuestPropertyChange)(IN_BSTR machineId,

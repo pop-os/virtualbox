@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_time_h
@@ -392,7 +388,7 @@ DECLINLINE(struct timespec *) RTTimeSpecGetTimespec(PCRTTIMESPEC pTime, struct t
     if (i32Nano < 0)
     {
         i32Nano += 1000000000;
-        i64++;
+        i64--;
     }
     pTimespec->tv_sec = (time_t)i64;
     pTimespec->tv_nsec = i32Nano;
@@ -488,7 +484,7 @@ DECLINLINE(PRTTIMESPEC) RTTimeSpecSetNtFileTime(PRTTIMESPEC pTime, const FILETIM
  */
 DECLINLINE(int64_t) RTTimeSpecGetDosSeconds(PCRTTIMESPEC pTime)
 {
-    return (pTime->i64NanosecondsRelativeToUnixEpoch + RTTIME_OFFSET_DOS_TIME)
+    return (pTime->i64NanosecondsRelativeToUnixEpoch - RTTIME_OFFSET_DOS_TIME)
         / 1000000000;
 }
 
@@ -503,7 +499,7 @@ DECLINLINE(int64_t) RTTimeSpecGetDosSeconds(PCRTTIMESPEC pTime)
 DECLINLINE(PRTTIMESPEC) RTTimeSpecSetDosSeconds(PRTTIMESPEC pTime, int64_t i64Seconds)
 {
     pTime->i64NanosecondsRelativeToUnixEpoch = i64Seconds * 1000000000
-        - RTTIME_NT_TIME_OFFSET_UNIX;
+        + RTTIME_OFFSET_DOS_TIME;
     return pTime;
 }
 
@@ -601,9 +597,20 @@ typedef const RTTIME *PCRTTIME;
  * Gets the current system time (UTC).
  *
  * @returns pTime.
- * @param   pTime   Where to store the time.
+ * @param   pTime       Where to store the time.
  */
 RTDECL(PRTTIMESPEC) RTTimeNow(PRTTIMESPEC pTime);
+
+/**
+ * Sets the system time.
+ *
+ * @returns IPRT status code
+ * @param   pTime       The new system time (UTC).
+ *
+ * @remarks This will usually fail because changing the wall time is usually
+ *          requires extra privileges.
+ */
+RTDECL(int) RTTimeSet(PCRTTIMESPEC pTime);
 
 /**
  * Explodes a time spec (UTC).

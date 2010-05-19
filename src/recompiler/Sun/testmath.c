@@ -1,4 +1,4 @@
-/* $Id: testmath.c $ */
+/* $Id: testmath.c 25528 2009-12-20 23:24:59Z vboxsync $ */
 /** @file
  * Testcase for the no-crt math stuff.
  */
@@ -11,7 +11,7 @@
 # include <iprt/assert.h>
 # include <math.h>
 # undef printf
-# define printf AssertMsg2
+# define printf RTAssertMsg2Weak
 #else
 # include <stdio.h>
 # include <math.h>

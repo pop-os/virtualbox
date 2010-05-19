@@ -1,10 +1,12 @@
+/* $Id: SnapshotImpl.h 28835 2010-04-27 14:46:23Z vboxsync $ */
+
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_SNAPSHOTIMPL
@@ -27,7 +25,6 @@
 #include <iprt/time.h>
 
 class SnapshotMachine;
-class VirtualBox;
 
 namespace settings
 {
@@ -70,7 +67,9 @@ public:
                  Snapshot *aParent);
     void uninit();
 
-    void beginDiscard();
+    void beginSnapshotDelete();
+
+    void deparent();
 
     // ISnapshot properties
     STDMETHOD(COMGETTER(Id)) (BSTR *aId);
@@ -88,18 +87,36 @@ public:
 
     // public methods only for internal purposes
 
-    const Utf8Str& stateFilePath() const;
-
-    ComObjPtr<Snapshot> parent() const
+    /**
+     * Simple run-time type identification without having to enable C++ RTTI.
+     * The class IDs are defined in VirtualBoxBase.h.
+     * @return
+     */
+    virtual VBoxClsID getClassID() const
     {
-        return (Snapshot*)mParent;
+        return clsidSnapshot;
     }
+
+    /**
+     * Override of the default locking class to be used for validating lock
+     * order with the standard member lock handle.
+     */
+    virtual VBoxLockingClass getLockingClass() const
+    {
+        return LOCKCLASS_SNAPSHOTOBJECT;
+    }
+
+    const ComObjPtr<Snapshot>& getParent() const;
+    const ComObjPtr<Snapshot> getFirstChild() const;
+
+    const Utf8Str& stateFilePath() const;
+    HRESULT deleteStateFile();
 
     ULONG getChildrenCount();
     ULONG getAllChildrenCount();
     ULONG getAllChildrenCountImpl();
 
-    ComPtr<SnapshotMachine> getSnapshotMachine();
+    const ComObjPtr<SnapshotMachine>& getSnapshotMachine() const;
 
     Guid getId() const;
     const Utf8Str& getName() const;
@@ -123,12 +140,6 @@ public:
     }
 
 private:
-
-    /** weak VirtualBox parent */
-    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
-
-    ComObjPtr<Snapshot, ComWeakRef> mParent;
-
     struct Data;            // opaque, defined in SnapshotImpl.cpp
     Data *m;
 };

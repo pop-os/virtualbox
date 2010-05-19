@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on evdev.c from X.Org with the following copyright
@@ -58,6 +54,8 @@
 
 #include <errno.h>
 #include <fcntl.h>
+
+#include "product-generated.h"
 
 static void
 VBoxReadInput(InputInfoPtr pInfo)
@@ -103,7 +101,7 @@ VBoxInit(DeviceIntPtr device)
                                  miPointerGetMotionEvents, VBoxPtrCtrlProc,
                                  miPointerGetMotionBufferSize()
 #elif GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 3
-                                 GetMotionHistory, VBoxPtrCtrlProc, 
+                                 GetMotionHistory, VBoxPtrCtrlProc,
                                  GetMotionHistorySize(), 2 /* Number of axes */
 
 #elif GET_ABI_MAJOR(ABI_XINPUT_VERSION) >= 3
@@ -300,7 +298,7 @@ VBoxPlug(pointer module,
 static XF86ModuleVersionInfo VBoxVersionRec =
 {
     "vboxmouse",
-    "Sun Microsystems Inc.",
+    VBOX_VENDOR,
     MODINFOSTRING1,
     MODINFOSTRING2,
     0, /* Missing from SDK: XORG_VERSION_CURRENT, */

@@ -1,4 +1,4 @@
-/* $Id: DevEFI.h $ */
+/* $Id: DevEFI.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * EFI for VirtualBox Common Definitions.
  *
@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___EFI_VBoxEFI_h
@@ -53,6 +49,14 @@ typedef enum
     EFI_INFO_INDEX_TEMPMEM_SIZE,
     EFI_INFO_INDEX_STACK_BASE,
     EFI_INFO_INDEX_STACK_SIZE,
+    EFI_INFO_INDEX_BOOT_ARGS,
+    EFI_INFO_INDEX_DEVICE_PROPS,
+    EFI_INFO_INDEX_FSB_FREQUENCY,
+    EFI_INFO_INDEX_CPU_FREQUENCY,
+    EFI_INFO_INDEX_TSC_FREQUENCY,
+    EFI_INFO_INDEX_GOP_MODE,
+    EFI_INFO_INDEX_UGA_HORISONTAL_RESOLUTION,
+    EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION,
     EFI_INFO_INDEX_END
 } EfiInfoIndex;
 
@@ -142,4 +146,3 @@ typedef DEVEFIINFO const *PCDEVEFIINFO;
 #define MB(x) ((KB(x)) * 1024)
 
 #endif
-

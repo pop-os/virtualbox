@@ -1,6 +1,6 @@
-/* $Id: tstVMStructRC.cpp $ */
+/* $Id: tstVMStructRC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- * tstVMMStructGC - Generate structure member and size checks from the
+ * tstVMMStructRC - Generate structure member and size checks from the
  *                  RC perspective.
  *
  * This is built using the VBOXRC template but linked into a host
@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -96,7 +92,7 @@ int main()
 {
     GEN_CHECK_SIZE(CFGM);
 
-    GEN_CHECK_SIZE(CPUM); // has .mac
+    GEN_CHECK_SIZE(CPUM);    // has .mac
     GEN_CHECK_SIZE(CPUMCPU); // has .mac
     GEN_CHECK_SIZE(CPUMHOSTCTX);
     GEN_CHECK_SIZE(CPUMCTX);
@@ -273,7 +269,6 @@ int main()
     GEN_CHECK_OFF(PDM, pUsbDevs);
     GEN_CHECK_OFF(PDM, pUsbInstances);
     GEN_CHECK_OFF(PDM, pDrvs);
-    GEN_CHECK_OFF(PDM, pCritSects);
     GEN_CHECK_OFF(PDM, aPciBuses);
     GEN_CHECK_OFF(PDM, aPciBuses[0].iBus);
     GEN_CHECK_OFF(PDM, aPciBuses[0].pDevInsR3);
@@ -340,14 +335,11 @@ int main()
     GEN_CHECK_OFF(PDM, pDevHlpQueueRC);
     GEN_CHECK_OFF(PDMCPU, cQueuedCritSectLeaves);
     GEN_CHECK_OFF(PDMCPU, apQueuedCritSectsLeaves);
-    GEN_CHECK_OFF(PDM, pQueuesTimer);
-    GEN_CHECK_OFF(PDM, pQueuesForced);
     GEN_CHECK_OFF(PDM, pQueueFlushR0);
     GEN_CHECK_OFF(PDM, pQueueFlushRC);
-    GEN_CHECK_OFF(PDM, pThreads);
-    GEN_CHECK_OFF(PDM, pThreadsTail);
     GEN_CHECK_OFF(PDM, CritSect);
     GEN_CHECK_OFF(PDM, StatQueuedCritSectLeaves);
+
     GEN_CHECK_SIZE(PDMDEVINSINT);
     GEN_CHECK_OFF(PDMDEVINSINT, pNextR3);
     GEN_CHECK_OFF(PDMDEVINSINT, pPerDeviceNextR3);
@@ -367,17 +359,45 @@ int main()
     GEN_CHECK_OFF(PDMDEVINSINT, fIntFlags);
     GEN_CHECK_OFF(PDMDEVINS, u32Version);
     GEN_CHECK_OFF(PDMDEVINS, iInstance);
-    GEN_CHECK_OFF(PDMDEVINS, pDevHlpRC);
+    GEN_CHECK_OFF(PDMDEVINS, pHlpRC);
     GEN_CHECK_OFF(PDMDEVINS, pvInstanceDataRC);
-    GEN_CHECK_OFF(PDMDEVINS, pDevHlpR0);
+    GEN_CHECK_OFF(PDMDEVINS, pHlpR0);
     GEN_CHECK_OFF(PDMDEVINS, pvInstanceDataR0);
-    GEN_CHECK_OFF(PDMDEVINS, pDevHlpR3);
+    GEN_CHECK_OFF(PDMDEVINS, pHlpR3);
     GEN_CHECK_OFF(PDMDEVINS, pvInstanceDataR3);
-    GEN_CHECK_OFF(PDMDEVINS, pDevReg);
-    GEN_CHECK_OFF(PDMDEVINS, pCfgHandle);
+    GEN_CHECK_OFF(PDMDEVINS, pReg);
+    GEN_CHECK_OFF(PDMDEVINS, pCfg);
     GEN_CHECK_OFF(PDMDEVINS, IBase);
     GEN_CHECK_OFF(PDMDEVINS, Internal);
     GEN_CHECK_OFF(PDMDEVINS, achInstanceData);
+
+    GEN_CHECK_SIZE(PDMDRVINSINT);
+    GEN_CHECK_OFF(PDMDRVINSINT, pUp);
+    GEN_CHECK_OFF(PDMDRVINSINT, pDown);
+    GEN_CHECK_OFF(PDMDRVINSINT, pLun);
+    GEN_CHECK_OFF(PDMDRVINSINT, pDrv);
+    GEN_CHECK_OFF(PDMDRVINSINT, pVMR3);
+    GEN_CHECK_OFF(PDMDRVINSINT, pVMR0);
+    GEN_CHECK_OFF(PDMDRVINSINT, pVMRC);
+    GEN_CHECK_OFF(PDMDRVINSINT, fDetaching);
+    GEN_CHECK_OFF(PDMDRVINSINT, fVMSuspended);
+    GEN_CHECK_OFF(PDMDRVINSINT, fVMReset);
+    GEN_CHECK_OFF(PDMDRVINSINT, pfnAsyncNotify);
+    GEN_CHECK_OFF(PDMDRVINSINT, pCfgHandle);
+    GEN_CHECK_OFF(PDMDRVINS, u32Version);
+    GEN_CHECK_OFF(PDMDRVINS, iInstance);
+    GEN_CHECK_OFF(PDMDRVINS, pHlpRC);
+    GEN_CHECK_OFF(PDMDRVINS, pvInstanceDataRC);
+    GEN_CHECK_OFF(PDMDRVINS, pHlpR0);
+    GEN_CHECK_OFF(PDMDRVINS, pvInstanceDataR0);
+    GEN_CHECK_OFF(PDMDRVINS, pHlpR3);
+    GEN_CHECK_OFF(PDMDRVINS, pvInstanceDataR3);
+    GEN_CHECK_OFF(PDMDRVINS, pReg);
+    GEN_CHECK_OFF(PDMDRVINS, pCfg);
+    GEN_CHECK_OFF(PDMDRVINS, IBase);
+    GEN_CHECK_OFF(PDMDRVINS, Internal);
+    GEN_CHECK_OFF(PDMDRVINS, achInstanceData);
+
     GEN_CHECK_SIZE(PDMCRITSECTINT);
     GEN_CHECK_OFF(PDMCRITSECTINT, Core);
     GEN_CHECK_OFF(PDMCRITSECTINT, pNext);
@@ -584,6 +604,12 @@ int main()
     GEN_CHECK_OFF(PGM, cPrivatePages);
     GEN_CHECK_OFF(PGM, cSharedPages);
     GEN_CHECK_OFF(PGM, cZeroPages);
+    GEN_CHECK_OFF(PGM, cPureMmioPages);
+    GEN_CHECK_OFF(PGM, cMonitoredPages);
+    GEN_CHECK_OFF(PGM, cWrittenToPages);
+    GEN_CHECK_OFF(PGM, cWriteLockedPages);
+    GEN_CHECK_OFF(PGM, cReadLockedPages);
+    GEN_CHECK_OFF(PGM, cRelocations);
 
     GEN_CHECK_SIZE(PGMMAPPING);
     GEN_CHECK_OFF(PGMMAPPING, pNextR3);
@@ -978,11 +1004,7 @@ int main()
     GEN_CHECK_OFF(RTCRITSECT, cNestings);
     GEN_CHECK_OFF(RTCRITSECT, fFlags);
     GEN_CHECK_OFF(RTCRITSECT, EventSem);
-    GEN_CHECK_OFF(RTCRITSECT, Strict.ThreadOwner);
-    GEN_CHECK_OFF(RTCRITSECT, Strict.pszEnterFile);
-    GEN_CHECK_OFF(RTCRITSECT, Strict.u32EnterLine);
-    GEN_CHECK_OFF(RTCRITSECT, Strict.uEnterId);
-
+    GEN_CHECK_OFF(RTCRITSECT, pValidatorRec);
 
     GEN_CHECK_SIZE(CSAM);
     GEN_CHECK_OFF(CSAM, offVM);

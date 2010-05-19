@@ -1,11 +1,11 @@
-/* $Id: VFSExplorerImpl.cpp $ */
+/* $Id: VFSExplorerImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * IVFSExplorer COM class implementations.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <iprt/dir.h>
@@ -34,6 +30,7 @@
 #include "VirtualBoxImpl.h"
 #include "ProgressImpl.h"
 
+#include "AutoCaller.h"
 #include "Logging.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,7 +62,15 @@ struct VFSExplorer::Data
     std::list<DirEntry> entryList;
 };
 
-DEFINE_EMPTY_CTOR_DTOR(VFSExplorer)
+VFSExplorer::VFSExplorer()
+    : mVirtualBox(NULL)
+{
+}
+
+VFSExplorer::~VFSExplorer()
+{
+}
+
 
 /**
  * VFSExplorer COM initializer.
@@ -127,9 +132,9 @@ STDMETHODIMP VFSExplorer::COMGETTER(Path)(BSTR *aPath)
         return E_POINTER;
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Bstr bstrPath(m->strPath);
     bstrPath.cloneTo(aPath);
@@ -143,9 +148,9 @@ STDMETHODIMP VFSExplorer::COMGETTER(Type)(VFSType_T *aType)
         return E_POINTER;
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aType = m->storageType;
 
@@ -273,9 +278,9 @@ HRESULT VFSExplorer::updateFS(TaskVFSExplorer *aTask)
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock appLock(this);
+    AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -290,7 +295,7 @@ HRESULT VFSExplorer::updateFS(TaskVFSExplorer *aTask)
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR, tr ("Can't open directory '%s' (%Rrc)"), pszPath, vrc);
 
-        if(aTask->progress)
+        if (aTask->progress)
             aTask->progress->SetCurrentOperationProgress(33);
         RTDIRENTRY entry;
         while (RT_SUCCESS(vrc))
@@ -304,7 +309,7 @@ HRESULT VFSExplorer::updateFS(TaskVFSExplorer *aTask)
                     fileList.push_back(VFSExplorer::Data::DirEntry(name, RTToVFSFileType(entry.enmType)));
             }
         }
-        if(aTask->progress)
+        if (aTask->progress)
             aTask->progress->SetCurrentOperationProgress(66);
     }
     catch(HRESULT aRC)
@@ -318,7 +323,7 @@ HRESULT VFSExplorer::updateFS(TaskVFSExplorer *aTask)
     if (pDir)
         RTDirClose(pDir);
 
-    if(aTask->progress)
+    if (aTask->progress)
         aTask->progress->SetCurrentOperationProgress(99);
 
     /* Assign the result on success (this clears the old list) */
@@ -341,9 +346,9 @@ HRESULT VFSExplorer::deleteFS(TaskVFSExplorer *aTask)
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock appLock(this);
+    AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -363,7 +368,7 @@ HRESULT VFSExplorer::deleteFS(TaskVFSExplorer *aTask)
             int vrc = RTFileDelete(szPath);
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR, tr ("Can't delete file '%s' (%Rrc)"), szPath, vrc);
-            if(aTask->progress)
+            if (aTask->progress)
                 aTask->progress->SetCurrentOperationProgress((ULONG)(fPercentStep * i));
         }
     }
@@ -388,9 +393,9 @@ HRESULT VFSExplorer::updateS3(TaskVFSExplorer *aTask)
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock appLock(this);
+    AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -464,9 +469,9 @@ HRESULT VFSExplorer::deleteS3(TaskVFSExplorer *aTask)
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock appLock(this);
+    AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -489,7 +494,7 @@ HRESULT VFSExplorer::deleteS3(TaskVFSExplorer *aTask)
             vrc = RTS3DeleteKey(hS3, m->strBucket.c_str(), (*it).c_str());
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_FILE_ERROR, tr ("Can't delete file '%s' (%Rrc)"), (*it).c_str(), vrc);
-            if(aTask->progress)
+            if (aTask->progress)
                 aTask->progress->SetCurrentOperationProgress((ULONG)(fPercentStep * i));
         }
     }
@@ -517,9 +522,9 @@ STDMETHODIMP VFSExplorer::Update(IProgress **aProgress)
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -559,7 +564,7 @@ STDMETHODIMP VFSExplorer::Update(IProgress **aProgress)
 
 STDMETHODIMP VFSExplorer::Cd(IN_BSTR aDir, IProgress **aProgress)
 {
-    CheckComArgNotNull(aDir);
+    CheckComArgStrNotEmptyOrNull(aDir);
     CheckComArgOutPointerValid(aProgress);
 
     return E_NOTIMPL;
@@ -579,9 +584,9 @@ STDMETHODIMP VFSExplorer::EntryList(ComSafeArrayOut(BSTR, aNames), ComSafeArrayO
         return E_POINTER;
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     com::SafeArray<BSTR> sfaNames((ULONG)m->entryList.size());
     com::SafeArray<ULONG> sfaTypes((VFSFileType_T)m->entryList.size());
@@ -609,9 +614,9 @@ STDMETHODIMP VFSExplorer::Exists(ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayOu
     CheckComArgSafeArrayNotNull(aNames);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     com::SafeArray<IN_BSTR> sfaNames(ComSafeArrayInArg(aNames));
     std::list<BSTR> listExists;
@@ -646,9 +651,9 @@ STDMETHODIMP VFSExplorer::Remove(ComSafeArrayIn(IN_BSTR, aNames), IProgress **aP
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 

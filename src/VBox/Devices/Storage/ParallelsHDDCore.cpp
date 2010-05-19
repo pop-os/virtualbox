@@ -1,11 +1,11 @@
-/* $Id: ParallelsHDDCore.cpp $ */
+/* $Id: ParallelsHDDCore.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * Parallels hdd disk image, core code.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_VD_VMDK /** @todo: Logging group */
@@ -64,16 +60,18 @@ typedef struct ParallelsHeader
 typedef struct PARALLELSIMAGE
 {
     /** Pointer to the per-disk VD interface list. */
-    PVDINTERFACE         pVDIfsDisk;
+    PVDINTERFACE        pVDIfsDisk;
+    /** Pointer to the per-image VD interface list. */
+    PVDINTERFACE        pVDIfsImage;
     /** Error interface. */
     PVDINTERFACE        pInterfaceError;
     /** Error interface callbacks. */
     PVDINTERFACEERROR   pInterfaceErrorCallbacks;
 #ifdef VBOX_WITH_NEW_IO_CODE
     /** Async I/O interface. */
-    PVDINTERFACE        pInterfaceAsyncIO;
+    PVDINTERFACE        pInterfaceIO;
     /** Async I/O interface callbacks. */
-    PVDINTERFACEASYNCIO pInterfaceAsyncIOCallbacks;
+    PVDINTERFACEIO      pInterfaceIOCallbacks;
 #endif
 
     /** Image file name. */
@@ -83,7 +81,7 @@ typedef struct PARALLELSIMAGE
     RTFILE              File;
 #else
     /** Opaque storage handle. */
-    void               *pvStorage;
+    PVDIOSTORAGE        pStorage;
 #endif
     /** Open flags passed by VBoxHD layer. */
     unsigned            uOpenFlags;
@@ -152,16 +150,15 @@ static int parallelsFileOpen(PPARALLELSIMAGE pImage, bool fReadonly, bool fCreat
 
     rc = RTFileOpen(&pImage->File, pImage->pszFilename, fOpen);
 #else
-
     unsigned uOpenFlags = fReadonly ? VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY : 0;
 
     if (fCreate)
         uOpenFlags |= VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE;
 
-    rc = pImage->pInterfaceAsyncIOCallbacks->pfnOpen(pImage->pInterfaceAsyncIO->pvUser,
-                                                     pImage->pszFilename,
-                                                     uOpenFlags,
-                                                     NULL, &pImage->pvStorage);
+    rc = pImage->pInterfaceIOCallbacks->pfnOpen(pImage->pInterfaceIO->pvUser,
+                                                pImage->pszFilename,
+                                                uOpenFlags,
+                                                &pImage->pStorage);
 #endif
 
     return rc;
@@ -177,11 +174,10 @@ static int parallelsFileClose(PPARALLELSIMAGE pImage)
 
     pImage->File = NIL_RTFILE;
 #else
-    if (pImage->pvStorage)
-        rc = pImage->pInterfaceAsyncIOCallbacks->pfnClose(pImage->pInterfaceAsyncIO->pvUser,
-                                                          pImage->pvStorage);
+    rc = pImage->pInterfaceIOCallbacks->pfnClose(pImage->pInterfaceIO->pvUser,
+                                                 pImage->pStorage);
 
-    pImage->pvStorage = NULL;
+    pImage->pStorage = NULL;
 #endif
 
     return rc;
@@ -194,9 +190,8 @@ static int parallelsFileFlushSync(PPARALLELSIMAGE pImage)
 #ifndef VBOX_WITH_NEW_IO_CODE
     rc = RTFileFlush(pImage->File);
 #else
-    if (pImage->pvStorage)
-        rc = pImage->pInterfaceAsyncIOCallbacks->pfnFlushSync(pImage->pInterfaceAsyncIO->pvUser,
-                                                              pImage->pvStorage);
+    rc = pImage->pInterfaceIOCallbacks->pfnFlushSync(pImage->pInterfaceIO->pvUser,
+                                                     pImage->pStorage);
 #endif
 
     return rc;
@@ -209,10 +204,8 @@ static int parallelsFileGetSize(PPARALLELSIMAGE pImage, uint64_t *pcbSize)
 #ifndef VBOX_WITH_NEW_IO_CODE
     rc = RTFileGetSize(pImage->File, pcbSize);
 #else
-    if (pImage->pvStorage)
-        rc = pImage->pInterfaceAsyncIOCallbacks->pfnGetSize(pImage->pInterfaceAsyncIO->pvUser,
-                                                            pImage->pvStorage,
-                                                            pcbSize);
+    rc = pImage->pInterfaceIOCallbacks->pfnGetSize(pImage->pInterfaceIO->pvUser,
+                                                   pImage->pStorage, pcbSize);
 #endif
 
     return rc;
@@ -226,10 +219,9 @@ static int parallelsFileSetSize(PPARALLELSIMAGE pImage, uint64_t cbSize)
 #ifndef VBOX_WITH_NEW_IO_CODE
     rc = RTFileSetSize(pImage->File, cbSize);
 #else
-    if (pImage->pvStorage)
-        rc = pImage->pInterfaceAsyncIOCallbacks->pfnSetSize(pImage->pInterfaceAsyncIO->pvUser,
-                                                            pImage->pvStorage,
-                                                            cbSize);
+    rc = pImage->pInterfaceIOCallbacks->pfnSetSize(pImage->pInterfaceIO->pvUser,
+                                                   pImage->pStorage,
+                                                   cbSize);
 #endif
 
     return rc;
@@ -243,11 +235,10 @@ static int parallelsFileWriteSync(PPARALLELSIMAGE pImage, uint64_t off, const vo
 #ifndef VBOX_WITH_NEW_IO_CODE
     rc = RTFileWriteAt(pImage->File, off, pcvBuf, cbWrite, pcbWritten);
 #else
-    if (pImage->pvStorage)
-        rc = pImage->pInterfaceAsyncIOCallbacks->pfnWriteSync(pImage->pInterfaceAsyncIO->pvUser,
-                                                              pImage->pvStorage,
-                                                              off, cbWrite, pcvBuf,
-                                                              pcbWritten);
+    rc = pImage->pInterfaceIOCallbacks->pfnWriteSync(pImage->pInterfaceIO->pvUser,
+                                                     pImage->pStorage,
+                                                     off, cbWrite, pcvBuf,
+                                                     pcbWritten);
 #endif
 
     return rc;
@@ -260,11 +251,10 @@ static int parallelsFileReadSync(PPARALLELSIMAGE pImage, uint64_t off, void *pvB
 #ifndef VBOX_WITH_NEW_IO_CODE
     rc = RTFileReadAt(pImage->File, off, pvBuf, cbRead, pcbRead);
 #else
-    if (pImage->pvStorage)
-        rc = pImage->pInterfaceAsyncIOCallbacks->pfnReadSync(pImage->pInterfaceAsyncIO->pvUser,
-                                                             pImage->pvStorage,
-                                                             off, cbRead, pvBuf,
-                                                             pcbRead);
+    rc = pImage->pInterfaceIOCallbacks->pfnReadSync(pImage->pInterfaceIO->pvUser,
+                                                    pImage->pStorage,
+                                                    off, cbRead, pvBuf,
+                                                    pcbRead);
 #endif
 
     return rc;
@@ -275,7 +265,7 @@ static bool parallelsFileOpened(PPARALLELSIMAGE pImage)
 #ifndef VBOX_WITH_NEW_IO_CODE
     return pImage->File != NIL_RTFILE;
 #else
-    return pImage->pvStorage != NULL;
+    return pImage->pStorage != NULL;
 #endif
 }
 
@@ -291,10 +281,10 @@ static int parallelsOpenImage(PPARALLELSIMAGE pImage, unsigned uOpenFlags)
 
 #ifdef VBOX_WITH_NEW_IO_CODE
     /* Try to get async I/O interface. */
-    pImage->pInterfaceAsyncIO = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_ASYNCIO);
-    AssertPtr(pImage->pInterfaceAsyncIO);
-    pImage->pInterfaceAsyncIOCallbacks = VDGetInterfaceAsyncIO(pImage->pInterfaceAsyncIO);
-    AssertPtr(pImage->pInterfaceAsyncIOCallbacks);
+    pImage->pInterfaceIO = VDInterfaceGet(pImage->pVDIfsImage, VDINTERFACETYPE_IO);
+    AssertPtr(pImage->pInterfaceIO);
+    pImage->pInterfaceIOCallbacks = VDGetInterfaceIO(pImage->pInterfaceIO);
+    AssertPtr(pImage->pInterfaceIOCallbacks);
 #endif
 
     rc = parallelsFileOpen(pImage, !!(uOpenFlags & VD_OPEN_FLAGS_READONLY), false);
@@ -501,11 +491,12 @@ static int parallelsOpen(const char *pszFilename, unsigned uOpenFlags,
 #ifndef VBOX_WITH_NEW_IO_CODE
     pImage->File = NIL_RTFILE;
 #else
-    pImage->pvStorage = NULL;
+    pImage->pStorage = NULL;
 #endif
     pImage->fAllocationBitmapChanged = false;
     pImage->pszFilename = pszFilename;
     pImage->pVDIfsDisk = pVDIfsDisk;
+    pImage->pVDIfsImage = pVDIfsImage;
 
     rc = parallelsOpenImage(pImage, uOpenFlags);
     if (RT_SUCCESS(rc))
@@ -1189,15 +1180,28 @@ static bool parallelsIsAsyncIOSupported(void *pvBackendData)
 }
 
 static int parallelsAsyncRead(void *pvBackendData, uint64_t uOffset, size_t cbRead,
-                              PPDMDATASEG paSeg, unsigned cSeg, void *pvUser)
+                              PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
 {
-    return VERR_NOT_SUPPORTED;
+    int rc = VERR_NOT_IMPLEMENTED;
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
 }
 
 static int parallelsAsyncWrite(void *pvBackendData, uint64_t uOffset, size_t cbWrite,
-                               PPDMDATASEG paSeg, unsigned cSeg, void *pvUser)
+                               PVDIOCTX pIoCtx,
+                               size_t *pcbWriteProcess, size_t *pcbPreRead,
+                               size_t *pcbPostRead, unsigned fWrite)
 {
-    return VERR_NOT_SUPPORTED;
+    int rc = VERR_NOT_IMPLEMENTED;
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+static int parallelsAsyncFlush(void *pvBackendData, PVDIOCTX pIoCtx)
+{
+    int rc = VERR_NOT_IMPLEMENTED;
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
 }
 
 static int parallelsAsyncFlush(void *pvBackendData, void *pvUser)
@@ -1298,6 +1302,8 @@ VBOXHDDBACKEND g_ParallelsBackend =
     /* pfnComposeLocation */
     genericFileComposeLocation,
     /* pfnComposeName */
-    genericFileComposeName
+    genericFileComposeName,
+    /* pfnCompact */
+    NULL
 };
 

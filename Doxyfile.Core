@@ -31,6 +31,13 @@ ALIASES                = \
     "vmstate=@par VM State In:\n" \
     "vmstateto=@par VM State Out:\n"
 
+# Interface method implementation macros.
+ALIASES                += \
+    interface_method_impl{2}="Implements \1 method \link \1::\2 \2 \endlink @copydoc \1::\2 "
+    interface_method_impl{3}="\3. \
+\
+Implements \1 method \link \1::\2 \2 \endlink @copydoc \1::\2 "
+
 # The following is for Global Configuration options.
 ALIASES                += \
 	gcfgm{6}="\xrefitem lst_gcfgm \"Global VM Config: \1\" \"Global Configuration Values\" \
@@ -422,13 +429,26 @@ EXPAND_ONLY_PREDEF     = YES
 SEARCH_INCLUDES        = YES
 # INCLUDE_PATH           = later
 # INCLUDE_FILE_PATTERNS  = later
-PREDEFINED             =  DOXYGEN_RUNNING __DOXYGEN__ RT_C_DECLS_END RT_C_DECLS_BEGIN VBOX
+PREDEFINED             =  \
+    DOXYGEN_RUNNING \
+    RT_C_DECLS_END \
+    RT_C_DECLS_BEGIN \
+    VBOX
 # context hacks.
 PREDEFINED            += RCPTRTYPE(RCType)=RCType
 PREDEFINED            += R3PTRTYPE(R3Type)=R3Type
 PREDEFINED            += R0PTRTYPE(R0Type)=R0Type
 PREDEFINED            += HCPTRTYPE(HCType)=HCType
 PREDEFINED            += R3R0PTRTYPE(R3R0Type)=R3R0Type
+# Compile assertion hacks.
+PREDEFINED            += \
+    AssertCompile(expr) \
+    AssertCompileSize(a,b) \
+    AssertCompileSizeAlignment(a,b) \
+    AssertCompileMemberSizeAlignment(a,b,c) \
+    AssertCompileMemberAlignment(a,b,c) \
+    AssertCompileMemberOffset(a,b,c) \
+    AssertCompile2MemberOffsets(a,b,c)
 # COM/XPCOM hacks.
 PREDEFINED            += STDMETHODIMP=HRESULT
 PREDEFINED            += "COMGETTER(n)=get_##n"
@@ -514,6 +534,8 @@ EXPAND_AS_DEFINED      = \
     DECLR3CALLBACKMEMBER \
     DECLR0CALLBACKMEMBER \
     DECLINLINE \
+    DECL_FORCE_INLINE \
+    DECLHIDDEN \
     CTXSUFF \
     OTHERCTXSUFF \
     CTXMID \
@@ -526,117 +548,37 @@ EXPAND_AS_DEFINED      = \
     STDMETHOD_ \
     STDMETHODIMP \
     \
-    CFGMDECL \
-    CFGMGCDECL \
-    CFGMR0DECL \
-    CFGMR3DECL \
-    CPUMDECL \
-    CPUMGCDECL \
-    CPUMR0DECL \
-    CPUMR3DECL \
-    CSAMDECL \
-    CSAMGCDECL \
-    CSAMR0DECL \
-    CSAMR3DECL \
-    DBGCR3DECL \
     DBGDECL \
-    DBGFDECL \
-    DBGFGCDECL \
-    DBGFR0DECL \
-    DBGFR3DECL \
-    DBGGCDECL \
-    DBGR0DECL \
     DISDECL \
-    EMDECL \
-    EMGCDECL \
-    EMR0DECL \
-    EMR3DECL \
     GMMR0DECL \
     GVMMR0DECL \
-    HWACCMDECL \
-    HWACCMGCDECL \
-    HWACCMR0DECL \
-    HWACCMR3DECL \
-    IDEDECL \
-    IDEGCDECL \
-    IDER0DECL \
-    IDER3DECL \
     INTNETDECL \
-    INTNETGCDECL \
+    INTNETRCDECL \
     INTNETR0DECL \
     INTNETR3DECL \
-    IOMDECL \
-    IOMGCDECL \
-    IOMR0DECL \
-    IOMR3DECL \
-    MMDECL \
-    MMGCDECL \
-    MMR0DECL \
-    MMR3DECL \
-    PATMDECL \
-    PATMGCDECL \
-    PATMR0DECL \
-    PATMR3DECL \
     PDMBOTHCBDECL \
-    PDMDECL \
-    PDMGCDECL \
-    PDMR0DECL \
-    PDMR3DECL \
     PGM_BTH_DECL \
     PGM_GST_DECL \
     PGM_SHW_DECL \
-    PGMDECL \
-    PGMGCDECL \
-    PGMR0DECL \
-    PGMR3DECL \
     REMDECL \
-    REMGCDECL \
+    REMRCDECL \
     REMR0DECL \
     REMR3DECL \
     RTDECL \
-    RTGCDECL \
+    RTRCDECL \
     RTR0DECL \
     RTR3DECL \
     RTDATADECL \
-    SELMDECL \
-    SELMGCDECL \
-    SELMR0DECL \
-    SELMR3DECL \
-    SSMDECL \
-    SSMGCDECL \
-    SSMR3DECL \
-    SSMR0DECL \
-    STAMDECL \
-    STAMGCDECL \
-    STAMR0DECL \
-    STAMR3DECL \
     SUPDECL \
     SUPR0DECL \
     SUPR3DECL \
-    TMDECL \
-    TMGCDECL \
-    TMR0DECL \
-    TMR3DECL \
-    TRPMDECL \
-    TRPMGCDECL \
-    TRPMR0DECL \
-    TRPMR3DECL \
-    USBR3DECL \
     VBGLR3DECL \
     VBOXDDU_DECL \
-    VGADECL \
-    VGAGCDECL \
-    VGAR0DECL \
-    VGAR3DECL \
-    VMDECL \
-    VMDECL \
-    VMGCDECL \
     VMMDECL \
-    VMMGCDECL \
+    VMMRCDECL \
     VMMR0DECL \
     VMMR3DECL \
-    VMR0DECL \
-    VMR3DECL \
+    VMM_INT_DECL
 
 SKIP_FUNCTION_MACROS   = NO
 

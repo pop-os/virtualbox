@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_thread_h
@@ -33,11 +29,6 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
-
-#ifdef IN_RC
-# error "There are no threading APIs available Guest Context!"
-#endif
-
 
 
 RT_C_DECLS_BEGIN
@@ -60,80 +51,32 @@ typedef enum RTTHREADSTATE
     RTTHREADSTATE_TERMINATED,
     /** Probably running. */
     RTTHREADSTATE_RUNNING,
+
     /** Waiting on a critical section. */
     RTTHREADSTATE_CRITSECT,
-    /** Waiting on a mutex. */
-    RTTHREADSTATE_MUTEX,
     /** Waiting on a event semaphore. */
     RTTHREADSTATE_EVENT,
     /** Waiting on a event multiple wakeup semaphore. */
-    RTTHREADSTATE_EVENTMULTI,
+    RTTHREADSTATE_EVENT_MULTI,
+    /** Waiting on a fast mutex. */
+    RTTHREADSTATE_FAST_MUTEX,
+    /** Waiting on a mutex. */
+    RTTHREADSTATE_MUTEX,
     /** Waiting on a read write semaphore, read (shared) access. */
     RTTHREADSTATE_RW_READ,
     /** Waiting on a read write semaphore, write (exclusive) access. */
     RTTHREADSTATE_RW_WRITE,
     /** The thread is sleeping. */
     RTTHREADSTATE_SLEEP,
+    /** Waiting on a spin mutex. */
+    RTTHREADSTATE_SPIN_MUTEX,
+
     /** The usual 32-bit size hack. */
     RTTHREADSTATE_32BIT_HACK = 0x7fffffff
 } RTTHREADSTATE;
 
 /** Checks if a thread state indicates that the thread is sleeping. */
-#define RTTHREAD_IS_SLEEPING(enmState) (    (enmState) == RTTHREADSTATE_CRITSECT \
-                                        ||  (enmState) == RTTHREADSTATE_MUTEX \
-                                        ||  (enmState) == RTTHREADSTATE_EVENT \
-                                        ||  (enmState) == RTTHREADSTATE_EVENTMULTI \
-                                        ||  (enmState) == RTTHREADSTATE_RW_READ \
-                                        ||  (enmState) == RTTHREADSTATE_RW_WRITE \
-                                        ||  (enmState) == RTTHREADSTATE_SLEEP \
-                                       )
-
-/**
- * Get the thread handle of the current thread.
- *
- * @returns Thread handle.
- */
-RTDECL(RTTHREAD) RTThreadSelf(void);
-
-/**
- * Get the native thread handle of the current thread.
- *
- * @returns Native thread handle.
- */
-RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void);
-
-/**
- * Millisecond granular sleep function.
- *
- * @returns VINF_SUCCESS on success.
- * @returns VERR_INTERRUPTED if a signal or other asynchronous stuff happend
- *          which interrupt the peaceful sleep.
- * @param   cMillies    Number of milliseconds to sleep.
- *                      0 milliseconds means yielding the timeslice - deprecated!
- * @remark  See RTThreadNanoSleep() for sleeping for smaller periods of time.
- */
-RTDECL(int) RTThreadSleep(unsigned cMillies);
-
-/**
- * Yields the CPU.
- *
- * @returns true if we yielded.
- * @returns false if it's probable that we didn't yield.
- */
-RTDECL(bool) RTThreadYield(void);
-
-
-
-/**
- * Thread function.
- *
- * @returns 0 on success.
- * @param   ThreadSelf  Thread handle to this thread.
- * @param   pvUser      User argument.
- */
-typedef DECLCALLBACK(int) FNRTTHREAD(RTTHREAD ThreadSelf, void *pvUser);
-/** Pointer to a FNRTTHREAD(). */
-typedef FNRTTHREAD *PFNRTTHREAD;
+#define RTTHREAD_IS_SLEEPING(enmState) ((enmState) >= RTTHREADSTATE_CRITSECT)
 
 /**
  * Thread types.
@@ -217,6 +160,63 @@ typedef enum RTTHREADTYPE
     RTTHREADTYPE_END
 } RTTHREADTYPE;
 
+
+#ifndef IN_RC
+
+/**
+ * Get the thread handle of the current thread.
+ *
+ * @returns Thread handle.
+ */
+RTDECL(RTTHREAD) RTThreadSelf(void);
+
+/**
+ * Get the thread handle of the current thread, automatically adopting alien
+ * threads.
+ *
+ * @returns Thread handle.
+ */
+RTDECL(RTTHREAD) RTThreadSelfAutoAdopt(void);
+
+/**
+ * Get the native thread handle of the current thread.
+ *
+ * @returns Native thread handle.
+ */
+RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void);
+
+/**
+ * Millisecond granular sleep function.
+ *
+ * @returns VINF_SUCCESS on success.
+ * @returns VERR_INTERRUPTED if a signal or other asynchronous stuff happend
+ *          which interrupt the peaceful sleep.
+ * @param   cMillies    Number of milliseconds to sleep.
+ *                      0 milliseconds means yielding the timeslice - deprecated!
+ * @remark  See RTThreadNanoSleep() for sleeping for smaller periods of time.
+ */
+RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies);
+
+/**
+ * Yields the CPU.
+ *
+ * @returns true if we yielded.
+ * @returns false if it's probable that we didn't yield.
+ */
+RTDECL(bool) RTThreadYield(void);
+
+
+
+/**
+ * Thread function.
+ *
+ * @returns 0 on success.
+ * @param   ThreadSelf  Thread handle to this thread.
+ * @param   pvUser      User argument.
+ */
+typedef DECLCALLBACK(int) FNRTTHREAD(RTTHREAD ThreadSelf, void *pvUser);
+/** Pointer to a FNRTTHREAD(). */
+typedef FNRTTHREAD *PFNRTTHREAD;
 
 /**
  * Thread creation flags.
@@ -329,7 +329,7 @@ RTDECL(int) RTThreadSetType(RTTHREAD Thread, RTTHREADTYPE enmType);
  *                              an indefinite wait.
  * @param       prc             Where to store the return code of the thread. Optional.
  */
-RTDECL(int) RTThreadWait(RTTHREAD Thread, unsigned cMillies, int *prc);
+RTDECL(int) RTThreadWait(RTTHREAD Thread, RTMSINTERVAL cMillies, int *prc);
 
 /**
  * Wait for the thread to terminate, return on interruption.
@@ -340,7 +340,7 @@ RTDECL(int) RTThreadWait(RTTHREAD Thread, unsigned cMillies, int *prc);
  *                              an indefinite wait.
  * @param       prc             Where to store the return code of the thread. Optional.
  */
-RTDECL(int) RTThreadWaitNoResume(RTTHREAD Thread, unsigned cMillies, int *prc);
+RTDECL(int) RTThreadWaitNoResume(RTTHREAD Thread, RTMSINTERVAL cMillies, int *prc);
 
 /**
  * Gets the name of the current thread thread.
@@ -401,7 +401,7 @@ RTDECL(int) RTThreadUserSignal(RTTHREAD Thread);
  * @param       cMillies        The number of milliseconds to wait. Use RT_INDEFINITE_WAIT for
  *                              an indefinite wait.
  */
-RTDECL(int) RTThreadUserWait(RTTHREAD Thread, unsigned cMillies);
+RTDECL(int) RTThreadUserWait(RTTHREAD Thread, RTMSINTERVAL cMillies);
 
 /**
  * Wait for the user event, return on interruption.
@@ -411,7 +411,7 @@ RTDECL(int) RTThreadUserWait(RTTHREAD Thread, unsigned cMillies);
  * @param       cMillies        The number of milliseconds to wait. Use RT_INDEFINITE_WAIT for
  *                              an indefinite wait.
  */
-RTDECL(int) RTThreadUserWaitNoResume(RTTHREAD Thread, unsigned cMillies);
+RTDECL(int) RTThreadUserWaitNoResume(RTTHREAD Thread, RTMSINTERVAL cMillies);
 
 /**
  * Reset the user event.
@@ -435,7 +435,7 @@ RTDECL(int) RTThreadUserReset(RTTHREAD Thread);
  */
 RTDECL(int) RTThreadPoke(RTTHREAD hThread);
 
-#ifdef IN_RING0
+# ifdef IN_RING0
 
 /**
  * Check if preemption is currently enabled or not for the current thread.
@@ -482,7 +482,7 @@ typedef struct RTTHREADPREEMPTSTATE
 {
     /** In debug builds this will be used to check for cpu migration. */
     RTCPUID         idCpu;
-#ifdef RT_OS_WINDOWS
+#  ifdef RT_OS_WINDOWS
     /** The old IRQL. Don't touch! */
     unsigned char   uchOldIrql;
     /** Reserved, MBZ. */
@@ -491,16 +491,16 @@ typedef struct RTTHREADPREEMPTSTATE
     uint8_t         bReserved2;
     /** Reserved, MBZ. */
     uint8_t         bReserved3;
-# define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 255, 0, 0, 0 }
-#elif defined(RT_OS_SOLARIS)
+#   define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 255, 0, 0, 0 }
+#  elif defined(RT_OS_SOLARIS)
     /** The Old PIL. Don't touch! */
     uint32_t        uOldPil;
-# define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, UINT32_MAX }
-#else
+#   define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, UINT32_MAX }
+#  else
     /** Reserved, MBZ. */
     uint32_t        u32Reserved;
-# define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 0 }
-#endif
+#   define RTTHREADPREEMPTSTATE_INITIALIZER { NIL_RTCPUID, 0 }
+#  endif
 } RTTHREADPREEMPTSTATE;
 /** Pointer to a preemption state. */
 typedef RTTHREADPREEMPTSTATE *PRTTHREADPREEMPTSTATE;
@@ -534,10 +534,10 @@ RTDECL(void) RTThreadPreemptRestore(PRTTHREADPREEMPTSTATE pState);
  */
 RTDECL(bool) RTThreadIsInInterrupt(RTTHREAD hThread);
 
-#endif /* IN_RING0 */
+# endif /* IN_RING0 */
 
 
-#ifdef IN_RING3
+# ifdef IN_RING3
 
 /**
  * Adopts a non-IPRT thread.
@@ -566,65 +566,9 @@ RTR3DECL(uint64_t) RTThreadGetAffinity(void);
 RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask);
 
 /**
- * Gets the number of write locks and critical sections the specified
- * thread owns.
- *
- * This number does not include any nested lock/critect entries.
- *
- * Note that it probably will return 0 for non-strict builds since
- * release builds doesn't do unnecessary diagnostic counting like this.
- *
- * @returns Number of locks on success (0+) and VERR_INVALID_HANDLER on failure
- * @param   Thread          The thread we're inquiring about.
- * @remarks Will only work for strict builds.
- */
-RTDECL(int32_t) RTThreadGetWriteLockCount(RTTHREAD Thread);
-
-/**
- * Works the THREADINT::cWriteLocks member, mostly internal.
- *
- * @param   Thread      The current thread.
- */
-RTDECL(void) RTThreadWriteLockInc(RTTHREAD Thread);
-
-/**
- * Works the THREADINT::cWriteLocks member, mostly internal.
- *
- * @param   Thread      The current thread.
- */
-RTDECL(void) RTThreadWriteLockDec(RTTHREAD Thread);
-
-/**
- * Gets the number of read locks the specified thread owns.
- *
- * Note that nesting read lock entry will be included in the
- * total sum. And that it probably will return 0 for non-strict
- * builds since release builds doesn't do unnecessary diagnostic
- * counting like this.
- *
- * @returns Number of read locks on success (0+) and VERR_INVALID_HANDLER on failure
- * @param   Thread          The thread we're inquiring about.
- */
-RTDECL(int32_t) RTThreadGetReadLockCount(RTTHREAD Thread);
-
-/**
- * Works the THREADINT::cReadLocks member.
- *
- * @param   Thread      The current thread.
- */
-RTDECL(void) RTThreadReadLockInc(RTTHREAD Thread);
-
-/**
- * Works the THREADINT::cReadLocks member.
- *
- * @param   Thread      The current thread.
- */
-RTDECL(void) RTThreadReadLockDec(RTTHREAD Thread);
-
-/**
  * Unblocks a thread.
  *
- * This function is paired with rtThreadBlocking.
+ * This function is paired with RTThreadBlocking and RTThreadBlockingDebug.
  *
  * @param   hThread     The current thread.
  * @param   enmCurState The current state, used to check for nested blocking.
@@ -633,19 +577,77 @@ RTDECL(void) RTThreadReadLockDec(RTTHREAD Thread);
 RTDECL(void) RTThreadUnblocked(RTTHREAD hThread, RTTHREADSTATE enmCurState);
 
 /**
- * Change the thread state to blocking and do deadlock detection.
+ * Change the thread state to blocking.
  *
- * This is a RT_STRICT method for debugging locks and detecting deadlocks.
- *
- * @param   hThread     The current thread.
- * @param   enmState    The sleep state.
- * @param   u64Block    The block data. A pointer or handle.
- * @param   pszFile     Where we are blocking.
- * @param   uLine       Where we are blocking.
- * @param   uId         Where we are blocking.
+ * @param   hThread         The current thread.
+ * @param   enmState        The sleep state.
+ * @param   fReallySleeping Really going to sleep now.  Use false before calls
+ *                          to other IPRT synchronization methods.
  */
-RTDECL(void) RTThreadBlocking(RTTHREAD hThread, RTTHREADSTATE enmState, uint64_t u64Block,
-                              const char *pszFile, unsigned uLine, RTUINTPTR uId);
+RTDECL(void) RTThreadBlocking(RTTHREAD hThread, RTTHREADSTATE enmState, bool fReallySleeping);
+
+/**
+ * Get the current thread state.
+ *
+ * A thread that is reported as sleeping may actually still be running inside
+ * the lock validator or/and in the code of some other IPRT synchronization
+ * primitive.  Use RTThreadGetReallySleeping
+ *
+ * @returns The thread state.
+ * @param   hThread         The thread.
+ */
+RTDECL(RTTHREADSTATE) RTThreadGetState(RTTHREAD hThread);
+
+/**
+ * Checks if the thread is really sleeping or not.
+ *
+ * @returns RTTHREADSTATE_RUNNING if not really sleeping, otherwise the state it
+ *          is sleeping in.
+ * @param   hThread         The thread.
+ */
+RTDECL(RTTHREADSTATE) RTThreadGetReallySleeping(RTTHREAD hThread);
+
+/**
+ * Translate a thread state into a string.
+ *
+ * @returns Pointer to a read-only string containing the state name.
+ * @param   enmState            The state.
+ */
+RTDECL(const char *) RTThreadStateName(RTTHREADSTATE enmState);
+
+
+/**
+ * Native thread states returned by RTThreadNativeState.
+ */
+typedef enum RTTHREADNATIVESTATE
+{
+    /** Invalid thread handle. */
+    RTTHREADNATIVESTATE_INVALID = 0,
+    /** Unable to determine the thread state. */
+    RTTHREADNATIVESTATE_UNKNOWN,
+    /** The thread is running. */
+    RTTHREADNATIVESTATE_RUNNING,
+    /** The thread is blocked. */
+    RTTHREADNATIVESTATE_BLOCKED,
+    /** The thread is suspended / stopped. */
+    RTTHREADNATIVESTATE_SUSPENDED,
+    /** The thread has terminated. */
+    RTTHREADNATIVESTATE_TERMINATED,
+    /** Make sure it's a 32-bit type. */
+    RTTHREADNATIVESTATE_32BIT_HACK = 0x7fffffff
+} RTTHREADNATIVESTATE;
+
+
+/**
+ * Get the native state of a thread.
+ *
+ * @returns Native state.
+ * @param   hThread             The thread handle.
+ *
+ * @remarks Not yet implemented on all systems, so have a backup plan for
+ *          RTTHREADNATIVESTATE_UNKNOWN.
+ */
+RTDECL(RTTHREADNATIVESTATE) RTThreadGetNativeState(RTTHREAD hThread);
 
 
 
@@ -665,7 +667,27 @@ typedef DECLCALLBACK(void) FNRTTLSDTOR(void *pvValue);
 typedef FNRTTLSDTOR *PFNRTTLSDTOR;
 
 /**
- * Allocates a TLS entry.
+ * Allocates a TLS entry (index).
+ *
+ * Example code:
+ * @code
+    RTTLS g_iTls = NIL_RTTLS;
+
+    ...
+
+    // once for the process, allocate the TLS index
+    if (g_iTls == NIL_RTTLS)
+         g_iTls = RTTlsAlloc();
+
+    // set the thread-local value.
+    RTTlsSet(g_iTls, pMyData);
+
+    ...
+
+    // get the thread-local value
+    PMYDATA pMyData = (PMYDATA)RTTlsGet(g_iTls);
+
+   @endcode
  *
  * @returns the index of the allocated TLS entry.
  * @returns NIL_RTTLS on failure.
@@ -673,7 +695,7 @@ typedef FNRTTLSDTOR *PFNRTTLSDTOR;
 RTR3DECL(RTTLS) RTTlsAlloc(void);
 
 /**
- * Allocates a TLS entry (with status code).
+ * Variant of RTTlsAlloc that returns a status code.
  *
  * @returns IPRT status code.
  * @retval  VERR_NOT_SUPPORTED if pfnDestructor is non-NULL and the platform
@@ -696,10 +718,12 @@ RTR3DECL(int) RTTlsAllocEx(PRTTLS piTls, PFNRTTLSDTOR pfnDestructor);
 RTR3DECL(int) RTTlsFree(RTTLS iTls);
 
 /**
- * Get the value stored in a TLS entry.
+ * Get the (thread-local) value stored in a TLS entry.
  *
  * @returns value in given TLS entry.
- * @returns NULL on failure.
+ * @retval  NULL if RTTlsSet() has not yet been called on this thread, or if the
+ *          TLS index is invalid.
+ *
  * @param   iTls        The index of the TLS entry.
  */
 RTR3DECL(void *) RTTlsGet(RTTLS iTls);
@@ -709,7 +733,8 @@ RTR3DECL(void *) RTTlsGet(RTTLS iTls);
  *
  * @returns IPRT status code.
  * @param   iTls        The index of the TLS entry.
- * @param   ppvValue    Where to store the value.
+ * @param   ppvValue    Where to store the value.  The value will be NULL if
+ *                      RTTlsSet has not yet been called on this thread.
  */
 RTR3DECL(int) RTTlsGetEx(RTTLS iTls, void **ppvValue);
 
@@ -720,13 +745,14 @@ RTR3DECL(int) RTTlsGetEx(RTTLS iTls, void **ppvValue);
  * @param   iTls        The index of the TLS entry.
  * @param   pvValue     The value to store.
  *
- * @remarks Note that NULL is considered to special value.
+ * @remarks Note that NULL is considered a special value.
  */
 RTR3DECL(int) RTTlsSet(RTTLS iTls, void *pvValue);
 
 /** @} */
 
-#endif /* IN_RING3 */
+# endif /* IN_RING3 */
+# endif /* !IN_RC */
 
 /** @} */
 

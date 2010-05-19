@@ -1,11 +1,11 @@
+/* $Id: KeyboardImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Keyboard class and related things
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef VBOXBFE_WITHOUT_COM
@@ -32,6 +28,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/uuid.h>
 #include "KeyboardImpl.h"
 
 // defines
@@ -156,26 +153,17 @@ STDMETHODIMP Keyboard::PutCAD()
 //
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-DECLCALLBACK(void *)  Keyboard::drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+DECLCALLBACK(void *)  Keyboard::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVMAINKEYBOARD pDrv = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_KEYBOARD_CONNECTOR:
-            return &pDrv->Connector;
-        default:
-            return NULL;
-    }
+    if (RTUuidCompare2Strs(pszIID, PDMIBASE_IID) == 0)
+        return &pDrvIns->IBase;
+    if (RTUuidCompare2Strs(pszIID, PDMIKEYBOARDCONNECTOR_IID) == 0)
+        return &pDrv->Connector;
+    return NULL;
 }
 
 
@@ -209,7 +197,7 @@ DECLCALLBACK(void) keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PD
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVMAINKEYBOARD pData = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
     LogFlow(("Keyboard::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
@@ -217,9 +205,9 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Object\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Object\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
-    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER, 
+    AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
                     VERR_PDM_DRVINS_NO_ATTACH);
 
@@ -233,7 +221,7 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Get the IKeyboardPort interface of the above driver/device.
      */
-    pData->pUpPort = (PPDMIKEYBOARDPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_KEYBOARD_PORT);
+    pData->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIKEYBOARDPORT);
     if (!pData->pUpPort)
     {
         AssertMsgFailed(("Configuration error: No keyboard port interface above!\n"));
@@ -244,7 +232,7 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
      * Get the Keyboard object pointer and update the mpDrv member.
      */
     void *pv;
-    int rc = CFGMR3QueryPtr(pCfgHandle, "Object", &pv);
+    int rc = CFGMR3QueryPtr(pCfg, "Object", &pv);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc));
@@ -264,8 +252,12 @@ const PDMDRVREG Keyboard::DrvReg =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "MainKeyboard",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Main keyboard driver (Main as in the API).",
     /* fFlags */
@@ -280,6 +272,8 @@ const PDMDRVREG Keyboard::DrvReg =
     Keyboard::drvConstruct,
     /* pfnDestruct */
     Keyboard::drvDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
@@ -293,9 +287,9 @@ const PDMDRVREG Keyboard::DrvReg =
     /* pfnAttach */
     NULL,
     /* pfnDetach */
-    NULL, 
+    NULL,
     /* pfnPowerOff */
-    NULL, 
+    NULL,
     /* pfnSoftReset */
     NULL,
     /* u32EndVersion */

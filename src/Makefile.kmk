@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29263 2010-05-09 19:52:03Z vboxsync $
 ## @file
 # Top-level makefile for the src directory.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -14,29 +14,31 @@
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
-#
 
 SUB_DEPTH = ..
 include $(KBUILD_PATH)/subheader.kmk
 
 ifdef VBOX_SINGLE_MAKEFILE
 
-ifdef VBOX_ONLY_ADDITIONS
+if defined(VBOX_ONLY_ADDITIONS)
  include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+
+else if defined(VBOX_ONLY_TESTSUITE)
+ include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/tests/Makefile.kmk
 
 else if defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK)
  include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
  include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
  include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
 
-else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
+else  # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
  include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
  include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
  include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
- include $(PATH_SUB_CURRENT)/recompiler/Makefile.kmk
+ if1of ($(KBUILD_TARGET_ARCH), x86 amd64)
+  include $(PATH_SUB_CURRENT)/recompiler/Makefile.kmk
+ endif
  ifneq ($(wildcard $(PATH_SUB_CURRENT)/apps),)
   include $(PATH_SUB_CURRENT)/apps/Makefile.kmk
  endif
@@ -46,7 +48,7 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
  ifdef VBOX_WITH_TESTCASES
   include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
  endif
-endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
+endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
 
 else  # !VBOX_SINGLE_MAKEFILE
 DEPTH  = ..

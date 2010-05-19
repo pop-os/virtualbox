@@ -1,10 +1,10 @@
-/** $Id: DrvTAP.cpp $ */
+/* $Id: DrvTAP.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- * Universial TAP network transport driver.
+ * DrvTAP - Universial TAP network transport driver.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -25,15 +21,19 @@
 #define LOG_GROUP LOG_GROUP_DRV_TUN
 #include <VBox/log.h>
 #include <VBox/pdmdrv.h>
+#include <VBox/pdmnetifs.h>
+#include <VBox/pdmnetinline.h>
 
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/file.h>
-#include <iprt/string.h>
+#include <iprt/mem.h>
 #include <iprt/path.h>
-#include <iprt/thread.h>
-#include <iprt/asm.h>
 #include <iprt/semaphore.h>
+#include <iprt/string.h>
+#include <iprt/thread.h>
+#include <iprt/uuid.h>
 #ifdef RT_OS_SOLARIS
 # include <iprt/process.h>
 # include <iprt/env.h>
@@ -79,14 +79,16 @@
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /**
- * Block driver instance data.
+ * TAP driver instance data.
+ *
+ * @implements PDMINETWORKUP
  */
 typedef struct DRVTAP
 {
     /** The network interface. */
-    PDMINETWORKCONNECTOR    INetworkConnector;
+    PDMINETWORKUP           INetworkUp;
     /** The network interface. */
-    PPDMINETWORKPORT        pPort;
+    PPDMINETWORKDOWN        pIAboveNet;
     /** Pointer to the driver instance. */
     PPDMDRVINS              pDrvIns;
     /** TAP device file handle. */
@@ -117,6 +119,10 @@ typedef struct DRVTAP
     /** Reader thread. */
     PPDMTHREAD              pThread;
 
+    /** @todo The transmit thread. */
+    /** Transmit lock used by drvTAPNetworkUp_BeginXmit. */
+    RTCRITSECT              XmitLock;
+
 #ifdef VBOX_WITH_STATISTICS
     /** Number of sent packets. */
     STAMCOUNTER             StatPktSent;
@@ -141,8 +147,8 @@ typedef struct DRVTAP
 } DRVTAP, *PDRVTAP;
 
 
-/** Converts a pointer to TAP::INetworkConnector to a PRDVTAP. */
-#define PDMINETWORKCONNECTOR_2_DRVTAP(pInterface) ( (PDRVTAP)((uintptr_t)pInterface - RT_OFFSETOF(DRVTAP, INetworkConnector)) )
+/** Converts a pointer to TAP::INetworkUp to a PRDVTAP. */
+#define PDMINETWORKUP_2_DRVTAP(pInterface) ( (PDRVTAP)((uintptr_t)pInterface - RT_OFFSETOF(DRVTAP, INetworkUp)) )
 
 
 /*******************************************************************************
@@ -158,53 +164,159 @@ static int              SolarisTAPAttach(PDRVTAP pThis);
 #endif
 
 
+
 /**
- * Send data to the network.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   pvBuf           Data to send.
- * @param   cb              Number of bytes to send.
- * @thread  EMT
+ * @interface_method_impl{PDMINETWORKUP,pfnBeginXmit}
  */
-static DECLCALLBACK(int) drvTAPSend(PPDMINETWORKCONNECTOR pInterface, const void *pvBuf, size_t cb)
+static DECLCALLBACK(int) drvTAPNetworkUp_BeginXmit(PPDMINETWORKUP pInterface, bool fOnWorkerThread)
 {
-    PDRVTAP pThis = PDMINETWORKCONNECTOR_2_DRVTAP(pInterface);
-    STAM_COUNTER_INC(&pThis->StatPktSent);
-    STAM_COUNTER_ADD(&pThis->StatPktSentBytes, cb);
-    STAM_PROFILE_START(&pThis->StatTransmit, a);
-
-#ifdef LOG_ENABLED
-    uint64_t u64Now = RTTimeProgramNanoTS();
-    LogFlow(("drvTAPSend: %-4d bytes at %llu ns  deltas: r=%llu t=%llu\n",
-             cb, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS));
-    pThis->u64LastTransferTS = u64Now;
-#endif
-    Log2(("drvTAPSend: pvBuf=%p cb=%#x\n"
-          "%.*Rhxd\n",
-          pvBuf, cb, cb, pvBuf));
-
-    int rc = RTFileWrite(pThis->FileDevice, pvBuf, cb, NULL);
-
-    STAM_PROFILE_STOP(&pThis->StatTransmit, a);
-    AssertRC(rc);
+    PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
+    int rc = RTCritSectTryEnter(&pThis->XmitLock);
+    if (RT_FAILURE(rc))
+    {
+        /** @todo XMIT thread */
+        rc = VERR_TRY_AGAIN;
+    }
     return rc;
 }
 
 
 /**
- * Set promiscuous mode.
- *
- * This is called when the promiscuous mode is set. This means that there doesn't have
- * to be a mode change when it's called.
- *
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   fPromiscuous    Set if the adaptor is now in promiscuous mode. Clear if it is not.
- * @thread  EMT
+ * @interface_method_impl{PDMINETWORKUP,pfnAllocBuf}
  */
-static DECLCALLBACK(void) drvTAPSetPromiscuousMode(PPDMINETWORKCONNECTOR pInterface, bool fPromiscuous)
+static DECLCALLBACK(int) drvTAPNetworkUp_AllocBuf(PPDMINETWORKUP pInterface, size_t cbMin,
+                                                  PCPDMNETWORKGSO pGso, PPPDMSCATTERGATHER ppSgBuf)
 {
-    LogFlow(("drvTAPSetPromiscuousMode: fPromiscuous=%d\n", fPromiscuous));
+    PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
+    Assert(RTCritSectIsOwner(&pThis->XmitLock));
+
+    /*
+     * Allocate a scatter / gather buffer descriptor that is immediately
+     * followed by the buffer space of its single segment.  The GSO context
+     * comes after that again.
+     */
+    PPDMSCATTERGATHER pSgBuf = (PPDMSCATTERGATHER)RTMemAlloc(  RT_ALIGN_Z(sizeof(*pSgBuf), 16)
+                                                             + RT_ALIGN_Z(cbMin, 16)
+                                                             + (pGso ? RT_ALIGN_Z(sizeof(*pGso), 16) : 0));
+    if (!pSgBuf)
+        return VERR_NO_MEMORY;
+
+    /*
+     * Initialize the S/G buffer and return.
+     */
+    pSgBuf->fFlags         = PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_1;
+    pSgBuf->cbUsed         = 0;
+    pSgBuf->cbAvailable    = RT_ALIGN_Z(cbMin, 16);
+    pSgBuf->pvAllocator    = NULL;
+    if (!pGso)
+        pSgBuf->pvUser     = NULL;
+    else
+    {
+        pSgBuf->pvUser     = (uint8_t *)(pSgBuf + 1) + pSgBuf->cbAvailable;
+        *(PPDMNETWORKGSO)pSgBuf->pvUser = *pGso;
+    }
+    pSgBuf->cSegs          = 1;
+    pSgBuf->aSegs[0].cbSeg = pSgBuf->cbAvailable;
+    pSgBuf->aSegs[0].pvSeg = pSgBuf + 1;
+
+#if 0 /* poison */
+    memset(pSgBuf->aSegs[0].pvSeg, 'F', pSgBuf->aSegs[0].cbSeg);
+#endif
+    *ppSgBuf = pSgBuf;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnFreeBuf}
+ */
+static DECLCALLBACK(int) drvTAPNetworkUp_FreeBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf)
+{
+    PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
+    Assert(RTCritSectIsOwner(&pThis->XmitLock));
+    if (pSgBuf)
+    {
+        Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC);
+        pSgBuf->fFlags = 0;
+        RTMemFree(pSgBuf);
+    }
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnSendBuf}
+ */
+static DECLCALLBACK(int) drvTAPNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGATHER pSgBuf, bool fOnWorkerThread)
+{
+    PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
+    STAM_COUNTER_INC(&pThis->StatPktSent);
+    STAM_COUNTER_ADD(&pThis->StatPktSentBytes, pSgBuf->cbUsed);
+    STAM_PROFILE_START(&pThis->StatTransmit, a);
+
+    AssertPtr(pSgBuf);
+    Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC);
+    Assert(RTCritSectIsOwner(&pThis->XmitLock));
+
+    int rc;
+    if (!pSgBuf->pvUser)
+    {
+#ifdef LOG_ENABLED
+        uint64_t u64Now = RTTimeProgramNanoTS();
+        LogFlow(("drvTAPSend: %-4d bytes at %llu ns  deltas: r=%llu t=%llu\n",
+                 pSgBuf->cbUsed, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS));
+        pThis->u64LastTransferTS = u64Now;
+#endif
+        Log2(("drvTAPSend: pSgBuf->aSegs[0].pvSeg=%p pSgBuf->cbUsed=%#x\n"
+              "%.*Rhxd\n",
+              pSgBuf->aSegs[0].pvSeg, pSgBuf->cbUsed, pSgBuf->cbUsed, pSgBuf->aSegs[0].pvSeg));
+
+        rc = RTFileWrite(pThis->FileDevice, pSgBuf->aSegs[0].pvSeg, pSgBuf->cbUsed, NULL);
+    }
+    else
+    {
+        uint8_t         abHdrScratch[256];
+        uint8_t const  *pbFrame = (uint8_t const *)pSgBuf->aSegs[0].pvSeg;
+        PCPDMNETWORKGSO pGso    = (PCPDMNETWORKGSO)pSgBuf->pvUser;
+        uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, pSgBuf->cbUsed);  Assert(cSegs > 1);
+        for (size_t iSeg = 0; iSeg < cSegs; iSeg++)
+        {
+            uint32_t cbSegFrame;
+            void *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)pbFrame, pSgBuf->cbUsed, abHdrScratch,
+                                                       iSeg, cSegs, &cbSegFrame);
+            rc = RTFileWrite(pThis->FileDevice, pvSegFrame, cbSegFrame, NULL);
+            if (RT_FAILURE(rc))
+                break;
+        }
+    }
+
+    pSgBuf->fFlags = 0;
+    RTMemFree(pSgBuf);
+
+    STAM_PROFILE_STOP(&pThis->StatTransmit, a);
+    AssertRC(rc);
+    if (RT_FAILURE(rc))
+        rc = rc == VERR_NO_MEMORY ? VERR_NET_NO_BUFFER_SPACE : VERR_NET_DOWN;
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnEndXmit}
+ */
+static DECLCALLBACK(void) drvTAPNetworkUp_EndXmit(PPDMINETWORKUP pInterface)
+{
+    PDRVTAP pThis = PDMINETWORKUP_2_DRVTAP(pInterface);
+    RTCritSectLeave(&pThis->XmitLock);
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKUP,pfnSetPromiscuousMode}
+ */
+static DECLCALLBACK(void) drvTAPNetworkUp_SetPromiscuousMode(PPDMINETWORKUP pInterface, bool fPromiscuous)
+{
+    LogFlow(("drvTAPNetworkUp_SetPromiscuousMode: fPromiscuous=%d\n", fPromiscuous));
     /* nothing to do */
 }
 
@@ -216,9 +328,9 @@ static DECLCALLBACK(void) drvTAPSetPromiscuousMode(PPDMINETWORKCONNECTOR pInterf
  * @param   enmLinkState    The new link state.
  * @thread  EMT
  */
-static DECLCALLBACK(void) drvTAPNotifyLinkChanged(PPDMINETWORKCONNECTOR pInterface, PDMNETWORKLINKSTATE enmLinkState)
+static DECLCALLBACK(void) drvTAPNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInterface, PDMNETWORKLINKSTATE enmLinkState)
 {
-    LogFlow(("drvNATNotifyLinkChanged: enmLinkState=%d\n", enmLinkState));
+    LogFlow(("drvTAPNetworkUp_NotifyLinkChanged: enmLinkState=%d\n", enmLinkState));
     /** @todo take action on link down and up. Stop the polling and such like. */
 }
 
@@ -299,14 +411,14 @@ static DECLCALLBACK(int) drvTAPAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
                  *    overflow error to allocate more receive buffers
                  */
                 STAM_PROFILE_ADV_STOP(&pThis->StatReceive, a);
-                int rc = pThis->pPort->pfnWaitReceiveAvail(pThis->pPort, RT_INDEFINITE_WAIT);
+                int rc1 = pThis->pIAboveNet->pfnWaitReceiveAvail(pThis->pIAboveNet, RT_INDEFINITE_WAIT);
                 STAM_PROFILE_ADV_START(&pThis->StatReceive, a);
 
                 /*
                  * A return code != VINF_SUCCESS means that we were woken up during a VM
                  * state transistion. Drop the packet and wait for the next one.
                  */
-                if (RT_FAILURE(rc))
+                if (RT_FAILURE(rc1))
                     continue;
 
                 /*
@@ -321,8 +433,8 @@ static DECLCALLBACK(int) drvTAPAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
                 Log2(("drvTAPAsyncIoThread: cbRead=%#x\n" "%.*Rhxd\n", cbRead, cbRead, achBuf));
                 STAM_COUNTER_INC(&pThis->StatPktRecv);
                 STAM_COUNTER_ADD(&pThis->StatPktRecvBytes, cbRead);
-                rc = pThis->pPort->pfnReceive(pThis->pPort, achBuf, cbRead);
-                AssertRC(rc);
+                rc1 = pThis->pIAboveNet->pfnReceive(pThis->pIAboveNet, achBuf, cbRead);
+                AssertRC(rc1);
             }
             else
             {
@@ -771,31 +883,22 @@ static DECLCALLBACK(int) SolarisTAPAttach(PDRVTAP pThis)
 # endif /* VBOX_WITH_CROSSBOW */
 #endif  /* RT_OS_SOLARIS */
 
+/* -=-=-=-=- PDMIBASE -=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) drvTAPQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) drvTAPQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_NETWORK_CONNECTOR:
-            return &pThis->INetworkConnector;
-        default:
-            return NULL;
-    }
+    PPDMDRVINS  pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVTAP     pThis   = PDMINS_2_DATA(pDrvIns, PDRVTAP);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKUP, &pThis->INetworkUp);
+    return NULL;
 }
 
+/* -=-=-=-=- PDMDRVREG -=-=-=-=- */
 
 /**
  * Destruct a driver instance.
@@ -809,6 +912,7 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvTAPDestruct\n"));
     PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
     /*
      * Terminate the control pipe.
@@ -864,6 +968,12 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
     MMR3HeapFree(pThis->pszSetupApplication);
     MMR3HeapFree(pThis->pszTerminateApplication);
 
+    /*
+     * Kill the xmit lock.
+     */
+    if (RTCritSectIsInitialized(&pThis->XmitLock))
+        RTCritSectDelete(&pThis->XmitLock);
+
 #ifdef VBOX_WITH_STATISTICS
     /*
      * Deregister statistics.
@@ -883,9 +993,10 @@ static DECLCALLBACK(void) drvTAPDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVTAP pThis = PDMINS_2_DATA(pDrvIns, PDRVTAP);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Init the static parts.
@@ -907,14 +1018,30 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /* IBase */
     pDrvIns->IBase.pfnQueryInterface    = drvTAPQueryInterface;
     /* INetwork */
-    pThis->INetworkConnector.pfnSend                = drvTAPSend;
-    pThis->INetworkConnector.pfnSetPromiscuousMode  = drvTAPSetPromiscuousMode;
-    pThis->INetworkConnector.pfnNotifyLinkChanged   = drvTAPNotifyLinkChanged;
+    pThis->INetworkUp.pfnBeginXmit              = drvTAPNetworkUp_BeginXmit;
+    pThis->INetworkUp.pfnAllocBuf               = drvTAPNetworkUp_AllocBuf;
+    pThis->INetworkUp.pfnFreeBuf                = drvTAPNetworkUp_FreeBuf;
+    pThis->INetworkUp.pfnSendBuf                = drvTAPNetworkUp_SendBuf;
+    pThis->INetworkUp.pfnEndXmit                = drvTAPNetworkUp_EndXmit;
+    pThis->INetworkUp.pfnSetPromiscuousMode     = drvTAPNetworkUp_SetPromiscuousMode;
+    pThis->INetworkUp.pfnNotifyLinkChanged      = drvTAPNetworkUp_NotifyLinkChanged;
+
+#ifdef VBOX_WITH_STATISTICS
+    /*
+     * Statistics.
+     */
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktSent,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,        "Number of sent packets.",          "/Drivers/TAP%d/Packets/Sent", pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktSentBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,             "Number of sent bytes.",            "/Drivers/TAP%d/Bytes/Sent", pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktRecv,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,        "Number of received packets.",      "/Drivers/TAP%d/Packets/Received", pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktRecvBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,             "Number of received bytes.",        "/Drivers/TAP%d/Bytes/Received", pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatTransmit,      STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,    "Profiling packet transmit runs.",  "/Drivers/TAP%d/Transmit", pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReceive,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,    "Profiling packet receive runs.",   "/Drivers/TAP%d/Receive", pDrvIns->iInstance);
+#endif /* VBOX_WITH_STATISTICS */
 
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Device\0InitProg\0TermProg\0FileHandle\0TAPSetupApplication\0TAPTerminateApplication\0MAC"))
+    if (!CFGMR3AreValuesValid(pCfg, "Device\0InitProg\0TermProg\0FileHandle\0TAPSetupApplication\0TAPTerminateApplication\0MAC"))
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES, "");
 
     /*
@@ -927,8 +1054,8 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Query the network port interface.
      */
-    pThis->pPort = (PPDMINETWORKPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_NETWORK_PORT);
-    if (!pThis->pPort)
+    pThis->pIAboveNet = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMINETWORKDOWN);
+    if (!pThis->pIAboveNet)
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_MISSING_INTERFACE_ABOVE,
                                 N_("Configuration error: The above device/driver didn't export the network port interface"));
 
@@ -937,7 +1064,7 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
      */
     int rc;
 #if defined(RT_OS_SOLARIS)   /** @todo Other platforms' TAP code should be moved here from ConsoleImpl & VBoxBFE. */
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "TAPSetupApplication", &pThis->pszSetupApplication);
+    rc = CFGMR3QueryStringAlloc(pCfg, "TAPSetupApplication", &pThis->pszSetupApplication);
     if (RT_SUCCESS(rc))
     {
         if (!RTPathExists(pThis->pszSetupApplication))
@@ -947,7 +1074,7 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     else if (rc != VERR_CFGM_VALUE_NOT_FOUND)
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Configuration error: failed to query \"TAPTerminateApplication\""));
 
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "TAPTerminateApplication", &pThis->pszTerminateApplication);
+    rc = CFGMR3QueryStringAlloc(pCfg, "TAPTerminateApplication", &pThis->pszTerminateApplication);
     if (RT_SUCCESS(rc))
     {
         if (!RTPathExists(pThis->pszTerminateApplication))
@@ -958,12 +1085,12 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Configuration error: failed to query \"TAPTerminateApplication\""));
 
 # ifdef VBOX_WITH_CROSSBOW
-    rc = CFGMR3QueryBytes(pCfgHandle, "MAC", &pThis->MacAddress, sizeof(pThis->MacAddress));
+    rc = CFGMR3QueryBytes(pCfg, "MAC", &pThis->MacAddress, sizeof(pThis->MacAddress));
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Configuration error: Failed to query \"MAC\""));
 # endif
 
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, "Device", &pThis->pszDeviceName);
+    rc = CFGMR3QueryStringAlloc(pCfg, "Device", &pThis->pszDeviceName);
     if (RT_FAILURE(rc))
         pThis->fStatic = false;
 
@@ -975,6 +1102,12 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
             return PDMDrvHlpVMSetError(pDrvIns, VERR_HOSTIF_INIT_FAILED, RT_SRC_POS,
                                        N_("Error running TAP setup application. rc=%d"), rc);
     }
+
+    /*
+     * Create the transmit lock.
+     */
+    rc = RTCritSectInit(&pThis->XmitLock);
+    AssertRCReturn(rc, rc);
 
     /*
      * Do the setup.
@@ -995,7 +1128,7 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
 #else /* !RT_OS_SOLARIS */
 
     int32_t iFile;
-    rc = CFGMR3QueryS32(pCfgHandle, "FileHandle", &iFile);
+    rc = CFGMR3QueryS32(pCfg, "FileHandle", &iFile);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Query for \"FileHandle\" 32-bit signed integer failed"));
@@ -1028,7 +1161,7 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
 #endif
     if (pipe(&fds[0]) != 0) /** @todo RTPipeCreate() or something... */
     {
-        int rc = RTErrConvertFromErrno(errno);
+        rc = RTErrConvertFromErrno(errno);
         AssertRC(rc);
         return rc;
     }
@@ -1038,20 +1171,8 @@ static DECLCALLBACK(int) drvTAPConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandl
     /*
      * Create the async I/O thread.
      */
-    rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pThread, pThis, drvTAPAsyncIoThread, drvTapAsyncIoWakeup, 128 * _1K, RTTHREADTYPE_IO, "TAP");
+    rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pThread, pThis, drvTAPAsyncIoThread, drvTapAsyncIoWakeup, 128 * _1K, RTTHREADTYPE_IO, "TAP");
     AssertRCReturn(rc, rc);
-
-#ifdef VBOX_WITH_STATISTICS
-    /*
-     * Statistics.
-     */
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktSent,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,        "Number of sent packets.",          "/Drivers/TAP%d/Packets/Sent", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktSentBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,             "Number of sent bytes.",            "/Drivers/TAP%d/Bytes/Sent", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktRecv,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,        "Number of received packets.",      "/Drivers/TAP%d/Packets/Received", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatPktRecvBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES,             "Number of received bytes.",        "/Drivers/TAP%d/Bytes/Received", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatTransmit,      STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,    "Profiling packet transmit runs.",  "/Drivers/TAP%d/Transmit", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReceive,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL,    "Profiling packet receive runs.",   "/Drivers/TAP%d/Receive", pDrvIns->iInstance);
-#endif /* VBOX_WITH_STATISTICS */
 
     return rc;
 }
@@ -1064,8 +1185,12 @@ const PDMDRVREG g_DrvHostInterface =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "HostInterface",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "TAP Network Transport Driver",
     /* fFlags */
@@ -1080,6 +1205,8 @@ const PDMDRVREG g_DrvHostInterface =
     drvTAPConstruct,
     /* pfnDestruct */
     drvTAPDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

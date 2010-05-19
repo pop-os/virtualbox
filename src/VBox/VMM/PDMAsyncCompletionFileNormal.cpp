@@ -1,11 +1,11 @@
-/* $Id: PDMAsyncCompletionFileNormal.cpp $ */
+/* $Id: PDMAsyncCompletionFileNormal.cpp 29228 2010-05-07 17:08:58Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * Async File I/O manager.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
 #include <iprt/types.h>
@@ -604,7 +600,7 @@ static int pdmacFileAioMgrNormalReqsEnqueue(PPDMACEPFILEMGR pAioMgr,
                         pdmacFileAioMgrNormalRequestFree(pAioMgr, pahReqs[i]);
 
                         if (pTask->cbBounceBuffer)
-                            RTMemPageFree(pTask->pvBounceBuffer);
+                            RTMemPageFree(pTask->pvBounceBuffer, pTask->cbBounceBuffer);
 
                         pTask->fPrefetch = false;
                         pTask->cbBounceBuffer = 0;
@@ -978,7 +974,7 @@ static int pdmacFileAioMgrNormalTaskPrepareNonBuffered(PPDMACEPFILEMGR pAioMgr,
             {
                 /* Cleanup */
                 if (pTask->cbBounceBuffer)
-                    RTMemPageFree(pTask->pvBounceBuffer);
+                    RTMemPageFree(pTask->pvBounceBuffer, pTask->cbBounceBuffer);
             }
         }
     }
@@ -1037,6 +1033,7 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
                     {
                         pEndpoint->fAsyncFlushSupported = false;
                         pdmacFileAioMgrNormalRequestFree(pAioMgr, hReq);
+                        rc = VINF_SUCCESS; /* Fake success */
                     }
                     else
                     {
@@ -1375,7 +1372,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
             AssertRC(rc);
 
             if (pTask->cbBounceBuffer)
-                RTMemPageFree(pTask->pvBounceBuffer);
+                RTMemPageFree(pTask->pvBounceBuffer, pTask->cbBounceBuffer);
 
             /*
              * Fatal errors are reported to the guest and non-fatal errors
@@ -1531,7 +1528,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                                ((uint8_t *)pTask->pvBounceBuffer) + pTask->offBounceBuffer,
                                pTask->DataSeg.cbSeg);
 
-                    RTMemPageFree(pTask->pvBounceBuffer);
+                    RTMemPageFree(pTask->pvBounceBuffer, pTask->cbBounceBuffer);
                 }
 
                 pdmacFileAioMgrNormalRequestFree(pAioMgr, hReq);

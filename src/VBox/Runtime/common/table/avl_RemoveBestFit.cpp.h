@@ -1,4 +1,4 @@
-/* $Id: avl_RemoveBestFit.cpp.h $ */
+/* $Id: avl_RemoveBestFit.cpp.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * kAVLRemoveBestFit - Remove Best Fit routine for AVL trees.
  *                     Intended specially on heaps. The tree should allow duplicate keys.
@@ -24,10 +24,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef _kAVLRemoveBestFit_h_

@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29108 2010-05-05 20:17:42Z vboxsync $
 ## @file
 # Sub-Makefile for the Network Filter Driver (VBoxNetFlt).
 #
 
 #
-# Copyright (C) 2008 Sun Microsystems, Inc.
+# Copyright (C) 2008 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -48,6 +44,9 @@ ifdef VBOX_NETFLT_ONDEMAND_BIND
  VBoxNetFlt_DEFS.win += VBOX_NETFLT_ONDEMAND_BIND
 else
  VBoxNetFlt_DEFS.win += VBOXNETFLT_STATIC_CONFIG
+ VBoxNetFlt_DEFS.win += VBOXNETFLT_NO_PACKET_QUEUE
+ VBoxNetFlt_DEFS.win += NDIS_MINIPORT_DRIVER NDIS_WDM=1 BINARY_COMPATIBLE=0
+ VBoxNetFlt_DEFS.win += NDIS50_MINIPORT=1 NDIS50=1
  VBoxNetFlt_SOURCES.win += win/VBoxNetFltMp-win.c
 endif
 ifdef VBOX_LOOPBACK_USEFLAGS
@@ -57,8 +56,6 @@ VBoxNetFlt_SOURCES = VBoxNetFlt.c
 #VBoxNetFlt_LDFLAGS.darwin = -v -Wl,-whyload -Wl,-v -Wl,-whatsloaded
 VBoxNetFlt_LDFLAGS.win.x86 = -Entry:DriverEntry@8
 VBoxNetFlt_LDFLAGS.win.amd64 = -Entry:DriverEntry
-VBoxNetFlt_SOURCES.win.amd64 += win/VBoxNetFltA-win.asm
-VBoxNetFlt_DEFS.win.amd64    += RT_WITH_W64_UNWIND_HACK
 VBoxNetFlt_LIBS.win = \
 	$(PATH_SDK_W2K3DDK_LIB)/ntoskrnl.lib \
 	$(PATH_SDK_W2K3DDK_LIB)/hal.lib \
@@ -201,6 +198,9 @@ NetAdpUninstall_LIBS     = $(TARGET_WinNetConfig) \
 # VBoxNetFltNotify
 #
 DLLS.win += VBoxNetFltNotify
+if defined(VBOX_SIGNING_MODE)
+VBoxNetFltNotify_NOINST = true
+endif
 VBoxNetFltNotify_TEMPLATE   = VBOXR3STATIC
 VBoxNetFltNotify_SDKS       = WINPSDK W2K3DDK VBOX_NTDLL
 VBoxNetFltNotify_DEFS       = _WIN32_WINNT=0x0500 WIN32 _ATL_STATIC_REGISTRY
@@ -258,10 +258,11 @@ VBoxNetAdp_SOURCES = \
 	win/VBoxNetFltMp-win.c \
 	win/VBoxNetFlt-win.rc
 VBoxNetAdp_DEFS += VBOXNETFLT_STATIC_CONFIG VBOXNETADP
+VBoxNetAdp_DEFS.win += VBOXNETFLT_NO_PACKET_QUEUE
+VBoxNetAdp_DEFS += NDIS_MINIPORT_DRIVER NDIS_WDM=1 BINARY_COMPATIBLE=0
+VBoxNetAdp_DEFS += NDIS50_MINIPORT=1 NDIS50=1
 VBoxNetAdp_LDFLAGS.win.x86 = -Entry:DriverEntry@8
 VBoxNetAdp_LDFLAGS.win.amd64 = -Entry:DriverEntry
-VBoxNetAdp_SOURCES.win.amd64 += win/VBoxNetFltA-win.asm
-VBoxNetAdp_DEFS.win.amd64    += RT_WITH_W64_UNWIND_HACK
 VBoxNetAdp_LIBS.win = \
 	$(PATH_SDK_W2K3DDK_LIB)/ntoskrnl.lib \
 	$(PATH_SDK_W2K3DDK_LIB)/hal.lib \
@@ -332,9 +333,22 @@ vboxnetflt_SOURCES.linux = linux/VBoxNetFlt-linux.c
 vboxnetflt_SOURCES.solaris = solaris/VBoxNetFlt-solaris.c
 vboxnetflt_SOURCES.freebsd = freebsd/VBoxNetFlt-freebsd.c
 vboxnetflt_SOURCES = VBoxNetFlt.c
- endif
-
 solaris/VBoxNetFlt-solaris.c_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
+  ifdef VBOX_WITH_NETFLT_CROSSBOW
+SYSMODS += vboxnetbow
+vboxnetbow_TEMPLATE      = VBOXR0DRV
+vboxnetbow_NAME          = vboxbow
+vboxnetbow_DEFS          = vboxnetflt_DEFS VBOX_WITH_NETFLT_CROSSBOW
+vboxnetbow_DEPS         += $(VBOX_SVN_REV_KMK)
+vboxnetbow_INCS         := $(PATH_SUB_CURRENT)
+vboxnetbow_LDFLAGS      += -N drv/vboxdrv -N drv/vnic -N misc/mac -N misc/dls
+vboxnetbow_LIBS = \
+	$(PATH_LIB)/SUPR0IdcClient$(VBOX_SUFF_LIB)
+vboxnetbow_SOURCES.solaris = solaris/VBoxNetFltBow-solaris.c
+vboxnetbow_SOURCES         = VBoxNetFlt.c
+solaris/VBoxNetFltBow-solaris.c_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
+  endif  # VBOX_WITH_NETFLT_CROSSBOW
+ endif # VBOX_WITH_VBOXDRV
 endif # to be removed.
 
 
@@ -384,7 +398,7 @@ ifeq ($(KBUILD_TARGET),linux)
 		$(VBOX_VERSION_STAMP) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxnetflt;g" --output $@ $<
+	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxnetflt;g; s;_BUILDTYPE_;${KBUILD_TYPE};g" --output $@ $<
 	$(QUIET)chmod 0755 $@
 
  # Script needed for building the kernel module
@@ -430,5 +444,4 @@ $(PATH_OUT)/opt_netgraph.h:
 endif # freebsd
 
 include	$(KBUILD_PATH)/subfooter.kmk
-
 

@@ -1,10 +1,10 @@
-/* $Id: TMAll.cpp $ */
+/* $Id: TMAll.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * TM - Timeout Manager, all contexts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -39,6 +35,7 @@
 #include <iprt/time.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
 #ifdef IN_RING3
 # include <iprt/thread.h>
 #endif
@@ -860,15 +857,15 @@ VMMDECL(int) TMTimerSet(PTMTIMER pTimer, uint64_t u64Expire)
      * The second most common case is starting a timer at some other time.
      */
 #if 1
-    TMTIMERSTATE enmState = pTimer->enmState;
-    if (    enmState == TMTIMERSTATE_EXPIRED_DELIVER
-        ||  (   enmState == TMTIMERSTATE_STOPPED
+    TMTIMERSTATE enmState1 = pTimer->enmState;
+    if (    enmState1 == TMTIMERSTATE_EXPIRED_DELIVER
+        ||  (   enmState1 == TMTIMERSTATE_STOPPED
              && pTimer->pCritSect))
     {
         /* Try take the TM lock and check the state again. */
         if (RT_SUCCESS_NP(tmTimerTryLock(pVM)))
         {
-            if (RT_LIKELY(tmTimerTry(pTimer, TMTIMERSTATE_ACTIVE, enmState)))
+            if (RT_LIKELY(tmTimerTry(pTimer, TMTIMERSTATE_ACTIVE, enmState1)))
             {
                 tmTimerSetOptimizedStart(pVM, pTimer, u64Expire);
                 STAM_PROFILE_STOP(&pTimer->CTX_SUFF(pVM)->tm.s.CTX_SUFF_Z(StatTimerSetRelative), a);
@@ -888,7 +885,7 @@ VMMDECL(int) TMTimerSet(PTMTIMER pTimer, uint64_t u64Expire)
         /*
          * Change to any of the SET_EXPIRE states if valid and then to SCHEDULE or RESCHEDULE.
          */
-        TMTIMERSTATE    enmState = pTimer->enmState;
+        TMTIMERSTATE enmState = pTimer->enmState;
         Log2(("TMTimerSet: %p:{.enmState=%s, .pszDesc='%s'} cRetries=%d u64Expire=%'RU64\n",
               pTimer, tmTimerState(enmState), R3STRING(pTimer->pszDesc), cRetries, u64Expire));
         switch (enmState)

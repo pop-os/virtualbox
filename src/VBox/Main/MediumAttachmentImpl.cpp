@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,22 +13,61 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "MediumAttachmentImpl.h"
 #include "MachineImpl.h"
+#include "MediumImpl.h"
 #include "Global.h"
 
+#include "AutoCaller.h"
 #include "Logging.h"
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// private member data definition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct BackupableMediumAttachmentData
+{
+    BackupableMediumAttachmentData()
+        : lPort(0),
+          lDevice(0),
+          type(DeviceType_Null),
+          fPassthrough(false),
+          fImplicit(false)
+    { }
+
+    ComObjPtr<Medium>   pMedium;
+    /* Since MediumAttachment is not a first class citizen when it
+     * comes to managing settings, having a reference to the storage
+     * controller will not work - when settings are changed it will point
+     * to the old, uninitialized instance. Changing this requires
+     * substantial changes to MediumImpl.cpp. */
+    const Bstr          bstrControllerName;
+    const LONG          lPort;
+    const LONG          lDevice;
+    const DeviceType_T  type;
+    bool                fPassthrough : 1;
+    bool                fImplicit : 1;
+};
+
+struct MediumAttachment::Data
+{
+    Data()
+        : pMachine(NULL)
+    { }
+
+    /** Reference to Machine object, for checking mutable state. */
+    Machine * const pMachine;
+    /* later: const ComObjPtr<MediumAttachment> mPeer; */
+
+    Backupable<BackupableMediumAttachmentData> bd;
+};
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
-
-DEFINE_EMPTY_CTOR_DTOR(MediumAttachment)
 
 HRESULT MediumAttachment::FinalConstruct()
 {
@@ -74,19 +113,21 @@ HRESULT MediumAttachment::init(Machine *aParent,
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst(mParent) = aParent;
+    m = new Data();
 
-    m.allocate();
-    m->medium = aMedium;
-    unconst(m->controllerName) = aControllerName;
-    unconst(m->port)   = aPort;
-    unconst(m->device) = aDevice;
-    unconst(m->type)   = aType;
+    unconst(m->pMachine) = aParent;
 
-    m->passthrough = aPassthrough;
+    m->bd.allocate();
+    m->bd->pMedium = aMedium;
+    unconst(m->bd->bstrControllerName) = aControllerName;
+    unconst(m->bd->lPort)   = aPort;
+    unconst(m->bd->lDevice) = aDevice;
+    unconst(m->bd->type)    = aType;
+
+    m->bd->fPassthrough = aPassthrough;
     /* Newly created attachments never have an implicitly created medium
      * associated with them. Implicit diff image creation happens later. */
-    m->implicit = false;
+    m->bd->fImplicit = false;
 
     /* Confirm a successful initialization when it's the case */
     autoInitSpan.setSucceeded();
@@ -98,7 +139,7 @@ HRESULT MediumAttachment::init(Machine *aParent,
                           this,
                           psz ? psz - ctlName.c_str() : 4, ctlName.c_str(),
                           aPort, aDevice, Global::stringifyDeviceType(aType),
-                          m->implicit ? ":I" : "");
+                          m->bd->fImplicit ? ":I" : "");
 
     LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
     return S_OK;
@@ -117,38 +158,133 @@ void MediumAttachment::uninit()
     if (autoUninitSpan.uninitDone())
         return;
 
-    m.free();
+    m->bd.free();
 
-    unconst(mParent).setNull();
+    unconst(m->pMachine) = NULL;
+
+    delete m;
+    m = NULL;
 
     LogFlowThisFuncLeave();
+}
+
+// IHardDiskAttachment properties
+/////////////////////////////////////////////////////////////////////////////
+
+STDMETHODIMP MediumAttachment::COMGETTER(Medium)(IMedium **aHardDisk)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aHardDisk);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    m->bd->pMedium.queryInterfaceTo(aHardDisk);
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(Controller)(BSTR *aController)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aController);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* m->controller is constant during life time, no need to lock */
+    m->bd->bstrControllerName.cloneTo(aController);
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(Port)(LONG *aPort)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aPort);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* m->bd->port is constant during life time, no need to lock */
+    *aPort = m->bd->lPort;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(Device)(LONG *aDevice)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aDevice);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* m->bd->device is constant during life time, no need to lock */
+    *aDevice = m->bd->lDevice;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(Type)(DeviceType_T *aType)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aType);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* m->bd->type is constant during life time, no need to lock */
+    *aType = m->bd->type;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
+}
+
+STDMETHODIMP MediumAttachment::COMGETTER(Passthrough)(BOOL *aPassthrough)
+{
+    LogFlowThisFuncEnter();
+
+    CheckComArgOutPointerValid(aPassthrough);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aPassthrough = m->bd->fPassthrough;
+
+    LogFlowThisFuncLeave();
+    return S_OK;
 }
 
 /**
  *  @note Locks this object for writing.
  */
-bool MediumAttachment::rollback()
+void MediumAttachment::rollback()
 {
     LogFlowThisFunc(("ENTER - %s\n", getLogName()));
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturn (autoCaller.rc(), false);
+    AssertComRCReturnVoid(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    bool changed = false;
+    m->bd.rollback();
 
-    if (m.isBackedUp())
-    {
-        /* we need to check all data to see whether anything will be changed
-         * after rollback */
-        changed = m.hasActualChanges();
-        m.rollback();
-    }
-
-    LogFlowThisFunc(("LEAVE - %s - returning %RTbool\n", getLogName(), changed));
-    return changed;
+    LogFlowThisFunc(("LEAVE - %s\n", getLogName()));
 }
 
 /**
@@ -162,113 +298,78 @@ void MediumAttachment::commit()
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (m.isBackedUp())
-        m.commit();
+    if (m->bd.isBackedUp())
+        m->bd.commit();
 
     LogFlowThisFuncLeave();
 }
 
-
-// IHardDiskAttachment properties
-/////////////////////////////////////////////////////////////////////////////
-
-STDMETHODIMP MediumAttachment::COMGETTER(Medium)(IMedium **aHardDisk)
+bool MediumAttachment::isImplicit() const
 {
-    LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aHardDisk);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoReadLock alock(this);
-
-    m->medium.queryInterfaceTo(aHardDisk);
-
-    LogFlowThisFuncLeave();
-    return S_OK;
+    return m->bd->fImplicit;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Controller)(BSTR *aController)
+void MediumAttachment::setImplicit(bool aImplicit)
 {
-    LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aController);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    /* m->controller is constant during life time, no need to lock */
-    m->controllerName.cloneTo(aController);
-
-    LogFlowThisFuncLeave();
-    return S_OK;
+    m->bd->fImplicit = aImplicit;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Port)(LONG *aPort)
+const ComObjPtr<Medium>& MediumAttachment::getMedium() const
 {
-    LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aPort);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    /* m->port is constant during life time, no need to lock */
-    *aPort = m->port;
-
-    LogFlowThisFuncLeave();
-    return S_OK;
+    return m->bd->pMedium;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Device)(LONG *aDevice)
+Bstr MediumAttachment::getControllerName() const
 {
-    LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aDevice);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    /* m->device is constant during life time, no need to lock */
-    *aDevice = m->device;
-
-    LogFlowThisFuncLeave();
-    return S_OK;
+    return m->bd->bstrControllerName;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Type)(DeviceType_T *aType)
+LONG MediumAttachment::getPort() const
 {
-    LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aType);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    /* m->type is constant during life time, no need to lock */
-    *aType = m->type;
-
-    LogFlowThisFuncLeave();
-    return S_OK;
+    return m->bd->lPort;
 }
 
-STDMETHODIMP MediumAttachment::COMGETTER(Passthrough)(BOOL *aPassthrough)
+LONG MediumAttachment::getDevice() const
 {
-    LogFlowThisFuncEnter();
+    return m->bd->lDevice;
+}
 
-    CheckComArgOutPointerValid(aPassthrough);
+DeviceType_T MediumAttachment::getType() const
+{
+    return m->bd->type;
+}
 
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+bool MediumAttachment::getPassthrough() const
+{
+    AutoReadLock lock(this COMMA_LOCKVAL_SRC_POS);
+    return m->bd->fPassthrough;
+}
 
-    AutoReadLock lock(this);
+bool MediumAttachment::matches(CBSTR aControllerName, LONG aPort, LONG aDevice)
+{
+    return (    aControllerName == m->bd->bstrControllerName
+             && aPort == m->bd->lPort
+             && aDevice == m->bd->lDevice);
+}
 
-    *aPassthrough = m->passthrough;
+/** Must be called from under this object's write lock. */
+void MediumAttachment::updateMedium(const ComObjPtr<Medium> &aMedium, bool aImplicit)
+{
+    Assert(isWriteLockOnCurrentThread());
 
-    LogFlowThisFuncLeave();
-    return S_OK;
+    m->bd.backup();
+    m->bd->pMedium = aMedium;
+    m->bd->fImplicit = aImplicit;
+}
+
+/** Must be called from under this object's write lock. */
+void MediumAttachment::updatePassthrough(bool aPassthrough)
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    m->bd.backup();
+    m->bd->fPassthrough = aPassthrough;
 }
 

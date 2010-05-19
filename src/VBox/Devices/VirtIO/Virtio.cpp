@@ -1,11 +1,10 @@
-/* $Id: Virtio.cpp $ */
+/* $Id: Virtio.cpp 28907 2010-04-29 16:09:43Z vboxsync $ */
 /** @file
  * Virtio - Virtio Common Functions (VRing, VQueue, Virtio PCI)
- *
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,23 +13,20 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
 #define LOG_GROUP LOG_GROUP_DEV_VIRTIO
 
 #include <iprt/param.h>
+#include <iprt/uuid.h>
 #include <VBox/pdmdev.h>
 #include "Virtio.h"
 
 #define INSTANCE(pState) pState->szInstance
 #define IFACE_TO_STATE(pIface, ifaceName) ((VPCISTATE *)((char*)pIface - RT_OFFSETOF(VPCISTATE, ifaceName)))
 
-#ifdef DEBUG
+#ifdef LOG_ENABLED
 #define QUEUENAME(s, q) (q->pcszName)
 #endif /* DEBUG */
 
@@ -219,7 +215,7 @@ void vqueueNotify(PVPCISTATE pState, PVQUEUE pQueue)
     {
         int rc = vpciRaiseInterrupt(pState, VERR_INTERNAL_ERROR, VPCI_ISR_QUEUE);
         if (RT_FAILURE(rc))
-            Log(("%s vqueueNotify: Failed to raise an interrupt (%Vrc).\n", INSTANCE(pState), rc));
+            Log(("%s vqueueNotify: Failed to raise an interrupt (%Rrc).\n", INSTANCE(pState), rc));
     }
     else
     {
@@ -377,7 +373,7 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
             else
             {
                 *pu32 = 0xFFFFFFFF;
-                rc = PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortIn: "
+                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortIn: "
                                        "no valid port at offset port=%RTiop "
                                        "cb=%08x\n", szInst, port, cb);
             }
@@ -479,12 +475,12 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             if (u32 < pState->nQueues)
                 if (pState->Queues[u32].VRing.addrDescriptors)
                 {
-                    rc = vpciCsEnter(pState, VERR_SEM_BUSY);
-                    if (RT_LIKELY(rc == VINF_SUCCESS))
-                    {
+                    // rc = vpciCsEnter(pState, VERR_SEM_BUSY);
+                    // if (RT_LIKELY(rc == VINF_SUCCESS))
+                    // {
                         pState->Queues[u32].pfnCallback(pState, &pState->Queues[u32]);
-                        vpciCsLeave(pState);
-                    }
+                    //     vpciCsLeave(pState);
+                    // }
                 }
                 else
                     Log(("%s The queue (#%d) being notified has not been initialized.\n",
@@ -512,7 +508,7 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             if (port >= VPCI_CONFIG)
                 rc = pfnSetConfig(pState, port - VPCI_CONFIG, cb, &u32);
             else
-                rc = PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortOut: no valid port at offset port=%RTiop cb=%08x\n", szInst, port, cb);
+                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortOut: no valid port at offset port=%RTiop cb=%08x\n", szInst, port, cb);
             break;
     }
 
@@ -521,27 +517,18 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
 }
 
 #ifdef IN_RING3
+
 /**
- * Provides interfaces to the driver.
- *
- * @returns Pointer to interface. NULL if the interface is not supported.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  EMT
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-void *vpciQueryInterface(struct PDMIBASE *pInterface, PDMINTERFACE enmInterface)
+void *vpciQueryInterface(struct PDMIBASE *pInterface, const char *pszIID)
 {
-    VPCISTATE *pState = IFACE_TO_STATE(pInterface, IBase);
-    Assert(&pState->IBase == pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pState->IBase;
-        case PDMINTERFACE_LED_PORTS:
-            return &pState->ILeds;
-        default:
-            return NULL;
-    }
+    VPCISTATE *pThis = IFACE_TO_STATE(pInterface, IBase);
+    Assert(&pThis->IBase == pInterface);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
+    return NULL;
 }
 
 /**
@@ -827,7 +814,7 @@ DECLCALLBACK(int) vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
     pState->ILeds.pfnQueryStatusLed = vpciQueryStatusLed;
 
     /* Initialize critical section. */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pState->cs, pState->szInstance);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pState->cs, RT_SRC_POS, "%s", pState->szInstance);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -843,7 +830,7 @@ DECLCALLBACK(int) vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
     rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pState->IBase, &pBase, "Status Port");
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the status LUN"));
-    pState->pLedsConnector = (PPDMILEDCONNECTORS)pBase->pfnQueryInterface(pBase, PDMINTERFACE_LED_CONNECTORS);
+    pState->pLedsConnector = PDMIBASE_QUERY_INTERFACE(pBase, PDMILEDCONNECTORS);
 
     pState->nQueues = nQueues;
 
@@ -875,7 +862,7 @@ int vpciDestruct(VPCISTATE* pState)
 
     if (PDMCritSectIsInitialized(&pState->cs))
         PDMR3CritSectDelete(&pState->cs);
-    
+
     return VINF_SUCCESS;
 }
 
@@ -932,7 +919,6 @@ PVQUEUE vpciAddQueue(VPCISTATE* pState, unsigned uSize,
 
     return pQueue;
 }
-
 
 #endif /* IN_RING3 */
 

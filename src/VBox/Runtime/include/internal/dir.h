@@ -1,10 +1,10 @@
-/* $Id: dir.h $ */
+/* $Id: dir.h 28918 2010-04-29 18:30:09Z vboxsync $ */
 /** @file
  * IPRT - Internal Header for RTDir.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_dir_h
@@ -78,24 +74,22 @@ typedef struct RTDIR
     size_t              cchPath;
     /** Set to indicate that the Data member contains unread data. */
     bool                fDataUnread;
-#ifndef RT_DONT_CONVERT_FILENAMES
     /** Pointer to the converted filename.
      * This can be NULL. */
+#ifdef RT_OS_WINDOWS
     char               *pszName;
+#else
+    char const         *pszName;
+#endif
     /** The length of the converted filename. */
     size_t              cchName;
-#endif
 
 #ifdef RT_OS_WINDOWS
     /** Handle to the opened directory search. */
     HANDLE              hDir;
     /** Find data buffer.
      * fDataUnread indicates valid data. */
-# ifdef RT_DONT_CONVERT_FILENAMES
-    WIN32_FIND_DATAA    Data;
-# else
     WIN32_FIND_DATAW    Data;
-# endif
 
 #else /* 'POSIX': */
     /** What opendir() returned. */
@@ -134,6 +128,6 @@ DECLINLINE(bool) rtDirValidHandle(PRTDIR pDir)
  *                      Find-first style systems can use this to setup the
  *                      wildcard expression.
  */
-int rtOpenDirNative(PRTDIR pDir, char *pszPathBuf);
+int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf);
 
 #endif

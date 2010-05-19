@@ -1,10 +1,10 @@
-/* $Id: DevPCI.cpp $ */
+/* $Id: DevPCI.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DevPCI - PCI BUS Device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -52,6 +48,7 @@
 #define PCI_INCLUDE_PRIVATE
 #include <VBox/pci.h>
 #include <VBox/pdmdev.h>
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
@@ -306,10 +303,10 @@ static void pci_update_mappings(PCIDevice *d)
                            only one byte must be mapped. */
                         devclass = d->config[0x0a] | (d->config[0x0b] << 8);
                         if (devclass == 0x0101 && r->size == 4) {
-                            int rc = d->pDevIns->pDevHlpR3->pfnIOPortDeregister(d->pDevIns, r->addr + 2, 1);
+                            int rc = PDMDevHlpIOPortDeregister(d->pDevIns, r->addr + 2, 1);
                             AssertRC(rc);
                         } else {
-                            int rc = d->pDevIns->pDevHlpR3->pfnIOPortDeregister(d->pDevIns, r->addr, r->size);
+                            int rc = PDMDevHlpIOPortDeregister(d->pDevIns, r->addr, r->size);
                             AssertRC(rc);
                         }
                     } else {
@@ -323,7 +320,7 @@ static void pci_update_mappings(PCIDevice *d)
                             rc = PDMDevHlpMMIO2Unmap(d->pDevIns, i, GCPhysBase);
                         }
                         else
-                            rc = d->pDevIns->pDevHlpR3->pfnMMIODeregister(d->pDevIns, GCPhysBase, r->size);
+                            rc = PDMDevHlpMMIODeregister(d->pDevIns, GCPhysBase, r->size);
                         AssertMsgRC(rc, ("rc=%Rrc d=%s i=%d GCPhysBase=%RGp size=%#x\n", rc, d->name, i, GCPhysBase, r->size));
                     }
                 }
@@ -652,6 +649,10 @@ static void pciSetIrqInternal(PPCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE p
     PPCIBUS     pBus =     &pGlobals->PciBus;
     uint8_t    *pbCfg = pGlobals->PIIX3State.dev.config;
     const bool  fIsAcpiDevice = pPciDev->config[2] == 0x13 && pPciDev->config[3] == 0x71;
+    /* If the two configuration space bytes at 0xde, 0xad are set to 0xbe, 0xef, a back door
+     * is opened to route PCI interrupts directly to the I/O APIC and bypass the PIC.
+     * See the \_SB_.PCI0._PRT method in vbox.dsl.
+     */
     const bool  fIsApicEnabled = pGlobals->fUseIoApic && pbCfg[0xde] == 0xbe && pbCfg[0xad] == 0xef;
     int pic_irq, pic_level;
 
@@ -660,7 +661,7 @@ static void pciSetIrqInternal(PPCIGLOBALS pGlobals, uint8_t uDevFn, PPCIDEVICE p
     {
         pPciDev->Int.s.uIrqPinState = (iLevel & PDM_IRQ_LEVEL_HIGH);
 
-        /* apic only */
+        /* Send interrupt to I/O APIC only. */
         if (fIsApicEnabled)
         {
             if (fIsAcpiDevice)
@@ -997,8 +998,8 @@ static void pci_bios_init_device(PPCIGLOBALS pGlobals, uint8_t uBus, uint8_t uDe
                 uint32_t u32MMIOAddressBase = pGlobals->pci_bios_mem_addr;
 
                 /* Init devices behind the bridge and possibly other bridges as well. */
-                for (int i = 0; i <= 255; i++)
-                    pci_bios_init_device(pGlobals, uBus + 1, i, cBridgeDepth + 1, paBridgePositions);
+                for (int iDev = 0; iDev <= 255; iDev++)
+                    pci_bios_init_device(pGlobals, uBus + 1, iDev, cBridgeDepth + 1, paBridgePositions);
 
                 /* The number of bridges behind the this one is now available. */
                 pci_config_writeb(pGlobals, uBus, uDevFn, VBOX_PCI_SUBORDINATE_BUS, pGlobals->uBus);
@@ -1133,7 +1134,7 @@ PDMBOTHCBDECL(int) pciIOPortAddressWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     {
         PPCIGLOBALS pThis = PDMINS_2_DATA(pDevIns, PPCIGLOBALS);
         PCI_LOCK(pDevIns, VINF_IOM_HC_IOPORT_WRITE);
-        pThis->uConfigReg = u32;
+        pThis->uConfigReg = u32 & ~3; /* Bits 0-1 are reserved and we silently clear them */
         PCI_UNLOCK(pDevIns);
     }
     /* else: 440FX does "pass through to the bus" for other writes, what ever that means.
@@ -1515,7 +1516,7 @@ static DECLCALLBACK(int) pciR3CommonLoadExec(PPCIBUS pBus, PSSMHANDLE pSSM, uint
      * The register value is restored afterwards so we can do proper
      * LogRels in pciR3CommonRestoreConfig.
      */
-    for (uint32_t i = 0; i < RT_ELEMENTS(pBus->devices); i++)
+    for (i = 0; i < RT_ELEMENTS(pBus->devices); i++)
     {
         PPCIDEVICE pDev = pBus->devices[i];
         if (pDev)
@@ -1976,19 +1977,9 @@ static DECLCALLBACK(void) pciRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 
 
 /**
- * Construct a host to PCI Bus device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     int rc;
     Assert(iInstance == 0);
@@ -1996,26 +1987,26 @@ static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     /*
      * Validate and read configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "IOAPIC\0" "GCEnabled\0" "R0Enabled\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "IOAPIC\0" "GCEnabled\0" "R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
     /* query whether we got an IOAPIC */
     bool fUseIoApic;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "IOAPIC", &fUseIoApic, false);
+    rc = CFGMR3QueryBoolDef(pCfg, "IOAPIC", &fUseIoApic, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"IOAPIC\""));
 
     /* check if RC code is enabled. */
     bool fGCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
 
     /* check if R0 code is enabled. */
     bool fR0Enabled;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"R0Enabled\""));
@@ -2052,7 +2043,7 @@ static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     PciBusReg.pfnFakePCIBIOSR3        = pciFakePCIBIOS;
     PciBusReg.pszSetIrqRC             = fGCEnabled ? "pciSetIrq" : NULL;
     PciBusReg.pszSetIrqR0             = fR0Enabled ? "pciSetIrq" : NULL;
-    rc = pDevIns->pDevHlpR3->pfnPCIBusRegister(pDevIns, &PciBusReg, &pBus->pPciHlpR3);
+    rc = PDMDevHlpPCIBusRegister(pDevIns, &PciBusReg, &pBus->pPciHlpR3);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Failed to register ourselves as a PCI Bus"));
@@ -2104,10 +2095,10 @@ static DECLCALLBACK(int)   pciConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGM
         return rc;
     if (fGCEnabled)
     {
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, 0x0cf8, 1, NIL_RTGCPTR, "pciIOPortAddressWrite", "pciIOPortAddressRead", NULL, NULL, "i440FX (PCI)");
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x0cf8, 1, NIL_RTGCPTR, "pciIOPortAddressWrite", "pciIOPortAddressRead", NULL, NULL, "i440FX (PCI)");
         if (RT_FAILURE(rc))
             return rc;
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, 0x0cfc, 4, NIL_RTGCPTR, "pciIOPortDataWrite", "pciIOPortDataRead", NULL, NULL, "i440FX (PCI)");
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x0cfc, 4, NIL_RTGCPTR, "pciIOPortDataWrite", "pciIOPortDataRead", NULL, NULL, "i440FX (PCI)");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -2139,7 +2130,7 @@ const PDMDEVREG g_DevicePCI =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "pci",
     /* szRCMod */
     "VBoxDDGC.gc",
@@ -2376,38 +2367,28 @@ static DECLCALLBACK(void) pcibridgeRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDe
 
 
 /**
- * Construct a PCI bridge device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int)   pcibridgeConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int)   pcibridgeConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     int rc;
 
     /*
      * Validate and read configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "GCEnabled\0" "R0Enabled\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "GCEnabled\0" "R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
     /* check if RC code is enabled. */
     bool fGCEnabled;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"GCEnabled\""));
 
     /* check if R0 code is enabled. */
     bool fR0Enabled;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to query boolean value \"R0Enabled\""));
@@ -2433,7 +2414,7 @@ static DECLCALLBACK(int)   pcibridgeConstruct(PPDMDEVINS pDevIns, int iInstance,
     PciBusReg.pfnFakePCIBIOSR3        = NULL; /* Only needed for the first bus. */
     PciBusReg.pszSetIrqRC             = fGCEnabled ? "pcibridgeSetIrq" : NULL;
     PciBusReg.pszSetIrqR0             = fR0Enabled ? "pcibridgeSetIrq" : NULL;
-    rc = pDevIns->pDevHlpR3->pfnPCIBusRegister(pDevIns, &PciBusReg, &pBus->pPciHlpR3);
+    rc = PDMDevHlpPCIBusRegister(pDevIns, &PciBusReg, &pBus->pPciHlpR3);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Failed to register ourselves as a PCI Bus"));
@@ -2511,7 +2492,7 @@ const PDMDEVREG g_DevicePCIBridge =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "pcibridge",
     /* szRCMod */
     "VBoxDDGC.gc",

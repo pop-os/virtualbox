@@ -1,12 +1,10 @@
-/* $Id: KeyboardImpl.h $ */
-
+/* $Id: KeyboardImpl.h 28909 2010-04-29 16:34:17Z vboxsync $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_KEYBOARDIMPL
@@ -28,6 +22,9 @@
 #include "ConsoleEvents.h"
 
 #include <VBox/pdmdrv.h>
+
+/** Limit of simultaneously attached devices (just USB and/or PS/2). */
+enum { KEYBOARD_MAX_DEVICES = 2 };
 
 /** Simple keyboard event class. */
 class KeyboardEvent
@@ -93,18 +90,19 @@ public:
 
 private:
 
-    static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface);
-    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags);
+    static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(void)   keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);
+    static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
 
-    const ComObjPtr<Console, ComWeakRef> mParent;
-    /** Pointer to the associated keyboard driver. */
-    struct DRVMAINKEYBOARD *mpDrv;
+    Console * const         mParent;
+    /** Pointer to the associated keyboard driver(s). */
+    struct DRVMAINKEYBOARD *mpDrv[KEYBOARD_MAX_DEVICES];
     /** Pointer to the device instance for the VMM Device. */
     PPDMDEVINS              mpVMMDev;
     /** Set after the first attempt to find the VMM Device. */
     bool                    mfVMMDevInited;
 };
 
-#endif // ____H_KEYBOARDIMPL
+#endif // !____H_KEYBOARDIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

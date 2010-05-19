@@ -1,10 +1,10 @@
-/* $Id: DBGFAddrSpace.cpp $ */
+/* $Id: DBGFAddrSpace.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Address Space Management.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -48,6 +44,7 @@
 #include <VBox/err.h>
 #include <VBox/log.h>
 
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
 #include <iprt/env.h>
@@ -642,10 +639,16 @@ static int dbgfR3AsSearchPath(const char *pszFilename, const char *pszPath, PFND
  */
 static int dbgfR3AsSearchEnvPath(const char *pszFilename, const char *pszEnvVar, PFNDBGFR3ASSEARCHOPEN pfnOpen, void *pvUser)
 {
-    const char *pszPath = RTEnvGet(pszEnvVar);
-    if (!pszPath)
-        pszPath = ".";
-    return dbgfR3AsSearchPath(pszFilename, pszPath, pfnOpen, pvUser);
+    int     rc;
+    char   *pszPath = RTEnvDupEx(RTENV_DEFAULT, pszEnvVar);
+    if (pszPath)
+    {
+        rc = dbgfR3AsSearchPath(pszFilename, pszPath, pfnOpen, pvUser);
+        RTStrFree(pszPath);
+    }
+    else
+        rc = dbgfR3AsSearchPath(pszFilename, ".", pfnOpen, pvUser);
+    return rc;
 }
 
 

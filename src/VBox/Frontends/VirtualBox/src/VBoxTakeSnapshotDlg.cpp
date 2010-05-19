@@ -1,3 +1,4 @@
+/* $Id: VBoxTakeSnapshotDlg.cpp 28935 2010-04-30 13:14:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Global includes */
 #include <QPushButton>
 
@@ -27,10 +27,37 @@
 #include "VBoxTakeSnapshotDlg.h"
 #include "VBoxProblemReporter.h"
 #include "VBoxUtils.h"
+# ifdef Q_WS_MAC
+#  ifdef VBOX_WITH_NEW_RUNTIME_CORE
+#   include "UIMachineWindowNormal.h"
+#   include "VBoxSnapshotsWgt.h"
+#  endif /* !VBOX_WITH_NEW_RUNTIME_CORE */
+# endif /* !VBOX_WITH_NEW_RUNTIME_CORE */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxTakeSnapshotDlg::VBoxTakeSnapshotDlg(QWidget *pParent, const CMachine &machine)
-    : QIWithRetranslateUI<QDialog>(pParent)
+    : QIWithRetranslateUI<QIDialog>(pParent)
 {
+#ifdef Q_WS_MAC
+# ifdef VBOX_WITH_NEW_RUNTIME_CORE
+    /* No sheets in another mode than normal for now. Firstly it looks ugly and
+     * secondly in some cases it is broken. */
+    if (   qobject_cast<UIMachineWindowNormal*>(pParent)
+        || qobject_cast<VBoxSnapshotsWgt*>(pParent))
+        setWindowFlags (Qt::Sheet);
+# endif /* !VBOX_WITH_NEW_RUNTIME_CORE */
+# ifndef VBOX_FORCE_NEW_RUNTIME_CORE_ALWAYS
+    /* Sheets are broken if the window is in fullscreen mode. So make it a
+     * normal window in that case. */
+    VBoxConsoleWnd *cwnd = qobject_cast<VBoxConsoleWnd*> (pParent);
+    if (cwnd == NULL ||
+        (!cwnd->isTrueFullscreen() &&
+         !cwnd->isTrueSeamless()))
+        setWindowFlags (Qt::Sheet);
+# endif /* VBOX_FORCE_NEW_RUNTIME_CORE_ALWAYS */
+#endif /* Q_WS_MAC */
+
     /* Apply UI decorations */
     Ui::VBoxTakeSnapshotDlg::setupUi(this);
 

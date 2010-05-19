@@ -1,10 +1,10 @@
-/* $Id: mp-linux.cpp $ */
+/* $Id: mp-linux.cpp 28863 2010-04-28 12:24:32Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Linux.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -120,7 +116,7 @@ static uint32_t rtMpLinuxGetFrequency(RTCPUID idCpu)
 
 RTDECL(int) RTMpCpuIdToSetIndex(RTCPUID idCpu)
 {
-    return idCpu < rtMpLinuxMaxCpus() ? idCpu : -1;
+    return idCpu < rtMpLinuxMaxCpus() ? (int)idCpu : -1;
 }
 
 
@@ -143,11 +139,14 @@ RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
     if (    i == -1
         &&  RTLinuxSysFsExists("devices/system/cpu/cpu%d", (int)idCpu))
     {
-        Assert(!RTLinuxSysFsExists("devices/system/cpu/cpu%d/online", (int)idCpu));
+        /** @todo Assert(!RTLinuxSysFsExists("devices/system/cpu/cpu%d/online",
+         *               (int)idCpu));
+         * Unfortunately, the online file wasn't always world readable (centos
+         * 2.6.18-164). */
         i = 1;
     }
 
-    Assert(i == 0 || i == -1 || i == 1);
+    AssertMsg(i == 0 || i == -1 || i == 1, ("i=%d\n", i));
     return i != 0 && i != -1;
 }
 

@@ -1,10 +1,10 @@
-/* $Id: RTAssertMsg1Weak.cpp $ */
+/* $Id: RTAssertMsg1Weak.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - RTAssertMsg1Weak.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -38,9 +34,9 @@
 #include <iprt/stdarg.h>
 
 
-RTDECL(void) AssertMsg1(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
+RTDECL(void) RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
 {
     RTAssertMsg1(pszExpr, uLine, pszFile, pszFunction);
 }
-RT_EXPORT_SYMBOL(AssertMsg1);
+RT_EXPORT_SYMBOL(RTAssertMsg1Weak);
 
