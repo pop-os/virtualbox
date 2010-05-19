@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <VBox/VMMDev.h>
@@ -133,12 +129,18 @@ vbox_host_uses_hwcursor(ScrnInfoPtr pScrn)
      * to draw the pointer. */
     if (rc)
     {
-        if (fFeatures & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
+        if (   (fFeatures & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 5
+                /* As of this version (server 1.6) all major Linux releases
+                 * are known to handle USB tablets correctly. */
+            || (fFeatures & VMMDEV_MOUSE_HOST_HAS_ABS_DEV)
+#endif
+            )
             /* Assume this will never be unloaded as long as the X session is
              * running. */
-            pVBox->mouseDriverLoaded = TRUE;
+            pVBox->guestCanAbsolute = TRUE;
         if (   (fFeatures & VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER)
-            || !pVBox->mouseDriverLoaded
+            || !pVBox->guestCanAbsolute
             || !(fFeatures & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE)
            )
             rc = FALSE;
@@ -201,7 +203,6 @@ vboxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
     int i;
 
     pVBox = pScrn->driverPrivate;
-    TRACE_ENTRY();
     if (pVBox->useVbva == FALSE)
         return;
     pMem = pVBox->pVbvaMemory;
@@ -337,32 +338,32 @@ vboxInitVbva(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
         }
     }
 #else
-    PCITAG pciTag;
-    ADDRESS pciAddress;
+    PCITAG pciTagDev;
+    ADDRESS pciAddrDev;
 
     TRACE_ENTRY();
     /* Locate the device.  It should already have been enabled by
        the kernel driver. */
-    pciTag = pciFindFirst((unsigned) VMMDEV_DEVICEID << 16 | VMMDEV_VENDORID,
-                          (CARD32) ~0);
-    if (pciTag == PCI_NOT_FOUND)
+    pciTagDev = pciFindFirst((unsigned) VMMDEV_DEVICEID << 16 | VMMDEV_VENDORID,
+                             (CARD32) ~0);
+    if (pciTagDev == PCI_NOT_FOUND)
     {
         xf86DrvMsg(scrnIndex, X_ERROR,
                    "Could not find the VirtualBox base device on the PCI bus.\n");
         return FALSE;
     }
     /* Read the address and size of the second I/O region. */
-    pciAddress = pciReadLong(pciTag, PCI_MAP_REG_START + 4);
-    if (pciAddress == 0 || pciAddress == (CARD32) ~0)
+    pciAddrDev = pciReadLong(pciTagDev, PCI_MAP_REG_START + 4);
+    if (pciAddrDev == 0 || pciAddrDev == (CARD32) ~0)
         RETERROR(scrnIndex, FALSE,
                  "The VirtualBox base device contains an invalid memory address.\n");
-    if (PCI_MAP_IS64BITMEM(pciAddress))
+    if (PCI_MAP_IS64BITMEM(pciAddrDev))
         RETERROR(scrnIndex, FALSE,
                  "The VirtualBox base device has a 64bit mapping address.  "
                  "This is currently not supported.\n");
     /* Map it.  We hardcode the size as X does not export the
        function needed to determine it. */
-    pVBox->pVMMDevMemory = xf86MapPciMem(scrnIndex, 0, pciTag, pciAddress,
+    pVBox->pVMMDevMemory = xf86MapPciMem(scrnIndex, 0, pciTagDev, pciAddrDev,
                                          sizeof(VMMDevMemory));
 #endif
     if (pVBox->pVMMDevMemory == NULL)
@@ -1004,6 +1005,27 @@ vboxHostLikesVideoMode(ScrnInfoPtr pScrn, uint32_t cx, uint32_t cy, uint32_t cBi
 }
 
 /**
+ * Check if any seamless mode is enabled.
+ * Seamless is only relevant for the newer Xorg modules.
+ *
+ * @returns the result of the query
+ * (true = seamless enabled, false = seamless not enabled)
+ * @param   pScrn  Screen info pointer.
+ */
+Bool
+vboxGuestIsSeamless(ScrnInfoPtr pScrn)
+{
+    VMMDevSeamlessMode mode;
+    VBOXPtr pVBox = pScrn->driverPrivate;
+    TRACE_ENTRY();
+    if (!pVBox->useDevice)
+        return FALSE;
+    if (RT_FAILURE(VbglR3SeamlessGetLastEvent(&mode)))
+        return FALSE;
+    return (mode != VMMDev_Seamless_Disabled);
+}
+
+/**
  * Save video mode parameters to the registry.
  *
  * @returns iprt status value
@@ -1080,7 +1102,7 @@ struct
     /** mode width */
     uint32_t cx;
     /** mode height */
-    uint32_t cy;    
+    uint32_t cy;
 } vboxStandardModes[] =
 {
     { 1600, 1200 },
@@ -1221,7 +1243,7 @@ static DisplayModePtr vboxMoveModeToFront(ScrnInfoPtr pScrn,
 /**
  * Rewrites the first dynamic mode found which is not the current screen mode
  * to contain the host's currently preferred screen size, then moves that
- * mode to the front of the screen information structure's mode list. 
+ * mode to the front of the screen information structure's mode list.
  * Additionally, if the current mode is not dynamic, the second dynamic mode
  * will be set to match the current mode and also added to the front.  This
  * ensures that the user can always reset the current size to kick the driver

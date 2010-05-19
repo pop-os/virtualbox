@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #define LOG_GROUP LOG_GROUP_DEV_VGA
@@ -33,13 +29,6 @@
 #ifdef VBOX_WITH_VIDEOHWACCEL
 #include <iprt/semaphore.h>
 #endif
-
-/** The default amount of VRAM. */
-#define VGA_VRAM_DEFAULT    (_4M)
-/** The maximum amount of VRAM. */
-#define VGA_VRAM_MAX        (128 * _1M)
-/** The minimum amount of VRAM. */
-#define VGA_VRAM_MIN        (_1M)
 
 #include "DevVGA.h"
 
@@ -533,6 +522,25 @@ static int vbvaDisable (unsigned uScreenId, PVGASTATE pVGAState, VBVACONTEXT *pC
     return VINF_SUCCESS;
 }
 
+bool VBVAIsEnabled(PVGASTATE pVGAState)
+{
+    PHGSMIINSTANCE pHGSMI = pVGAState->pHGSMI;
+    if (pHGSMI)
+    {
+        VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext(pHGSMI);
+        if (pCtx)
+        {
+            if (pCtx->cViews)
+            {
+                VBVAVIEW * pView = &pCtx->aViews[0];
+                if (pView->pVBVA)
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+
 #ifdef DEBUG_sunlover
 void dumpMouseShapeInfo(const VBVAMOUSESHAPEINFO *pMouseShapeInfo)
 {
@@ -1007,18 +1015,22 @@ int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-static VBOXVHWACMD* vbvaVHWAHHCommandCreate (PVGASTATE pVGAState, VBOXVHWACMD_TYPE enmCmd, VBOXVHWACMD_LENGTH cbCmd)
+static void vbvaVHWAHHCommandReinit(VBOXVHWACMD* pHdr, VBOXVHWACMD_TYPE enmCmd, int32_t iDisplay)
+{
+    memset(pHdr, 0, VBOXVHWACMD_HEADSIZE());
+    pHdr->cRefs = 1;
+    pHdr->iDisplay = iDisplay;
+    pHdr->rc = VERR_NOT_IMPLEMENTED;
+    pHdr->enmCmd = enmCmd;
+    pHdr->Flags = VBOXVHWACMD_FLAG_HH_CMD;
+}
+
+static VBOXVHWACMD* vbvaVHWAHHCommandCreate (PVGASTATE pVGAState, VBOXVHWACMD_TYPE enmCmd, int32_t iDisplay, VBOXVHWACMD_LENGTH cbCmd)
 {
     VBOXVHWACMD* pHdr = (VBOXVHWACMD*)RTMemAlloc(cbCmd + VBOXVHWACMD_HEADSIZE());
     Assert(pHdr);
     if (pHdr)
-    {
-        memset(pHdr, 0, VBOXVHWACMD_HEADSIZE());
-        pHdr->cRefs = 1;
-        pHdr->rc = VERR_GENERAL_FAILURE;
-        pHdr->enmCmd = enmCmd;
-        pHdr->Flags = VBOXVHWACMD_FLAG_HH_CMD;
-    }
+        vbvaVHWAHHCommandReinit(pHdr, enmCmd, iDisplay);
 
     return pHdr;
 }
@@ -1041,8 +1053,10 @@ static unsigned vbvaVHWAHandleCommand (PVGASTATE pVGAState, VBVACONTEXT *pCtx, P
 {
     if (pVGAState->pDrv->pfnVHWACommandProcess)
         pVGAState->pDrv->pfnVHWACommandProcess(pVGAState->pDrv, pCmd);
+#ifdef DEBUG_misha
     else
         AssertFailed();
+#endif
     return 0;
 }
 
@@ -1083,31 +1097,49 @@ static int vbvaVHWAHHCommandPost(PVGASTATE pVGAState, VBOXVHWACMD* pCmd)
 
 int vbvaVHWAConstruct (PVGASTATE pVGAState)
 {
-    VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_HH_CONSTRUCT, sizeof(VBOXVHWACMD_HH_CONSTRUCT));
+    VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_HH_CONSTRUCT, 0, sizeof(VBOXVHWACMD_HH_CONSTRUCT));
     Assert(pCmd);
     if(pCmd)
     {
+        uint32_t iDisplay = 0;
+        int rc = VINF_SUCCESS;
         VBOXVHWACMD_HH_CONSTRUCT * pBody = VBOXVHWACMD_BODY(pCmd, VBOXVHWACMD_HH_CONSTRUCT);
-        memset(pBody, 0, sizeof(VBOXVHWACMD_HH_CONSTRUCT));
 
-        PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
-        PVM pVM = PDMDevHlpGetVM(pDevIns);
-
-        pBody->pVM = pVM;
-
-        int rc = vbvaVHWAHHCommandPost(pVGAState, pCmd);
-        AssertRC(rc);
-        if(RT_SUCCESS(rc))
+        do
         {
-            rc = pCmd->rc;
-            AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
-            if(rc == VERR_NOT_IMPLEMENTED)
+            memset(pBody, 0, sizeof(VBOXVHWACMD_HH_CONSTRUCT));
+
+            PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
+            PVM pVM = PDMDevHlpGetVM(pDevIns);
+
+            pBody->pVM = pVM;
+            pBody->pvVRAM = pVGAState->vram_ptrR3;
+            pBody->cbVRAM = pVGAState->vram_size;
+
+            rc = vbvaVHWAHHCommandPost(pVGAState, pCmd);
+            AssertRC(rc);
+            if(RT_SUCCESS(rc))
             {
-                /* @todo: set some flag in pVGAState indicating VHWA is not supported */
-                /* VERR_NOT_IMPLEMENTED is not a failure, we just do not support it */
-                rc = VINF_SUCCESS;
+                rc = pCmd->rc;
+                AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
+                if(rc == VERR_NOT_IMPLEMENTED)
+                {
+                    /* @todo: set some flag in pVGAState indicating VHWA is not supported */
+                    /* VERR_NOT_IMPLEMENTED is not a failure, we just do not support it */
+                    rc = VINF_SUCCESS;
+                }
+
+                if (!RT_SUCCESS(rc))
+                    break;
             }
-        }
+            else
+                break;
+
+            ++iDisplay;
+            if (iDisplay >= pVGAState->cMonitors)
+                break;
+            vbvaVHWAHHCommandReinit(pCmd, VBOXVHWACMD_TYPE_HH_CONSTRUCT, (int32_t)iDisplay);
+        } while (true);
 
         vbvaVHWAHHCommandRelease(pCmd);
 
@@ -1119,19 +1151,34 @@ int vbvaVHWAConstruct (PVGASTATE pVGAState)
 int vbvaVHWAReset (PVGASTATE pVGAState)
 {
     /* ensure we have all pending cmds processed and h->g cmds disabled */
-    VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_HH_RESET, 0);
+    VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_HH_RESET, 0, 0);
     Assert(pCmd);
     if(pCmd)
     {
-        int rc = vbvaVHWAHHCommandPost(pVGAState, pCmd);
-        AssertRC(rc);
-        if(RT_SUCCESS(rc))
+        int rc = VINF_SUCCESS;
+        uint32_t iDisplay = 0;
+
+        do
         {
-            rc = pCmd->rc;
-            AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
-            if (rc == VERR_NOT_IMPLEMENTED)
-                rc = VINF_SUCCESS;
-        }
+            rc =vbvaVHWAHHCommandPost(pVGAState, pCmd);
+            AssertRC(rc);
+            if(RT_SUCCESS(rc))
+            {
+                rc = pCmd->rc;
+                AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
+                if (rc == VERR_NOT_IMPLEMENTED)
+                    rc = VINF_SUCCESS;
+            }
+
+            if (!RT_SUCCESS(rc))
+                break;
+
+            ++iDisplay;
+            if (iDisplay >= pVGAState->cMonitors)
+                break;
+            vbvaVHWAHHCommandReinit(pCmd, VBOXVHWACMD_TYPE_HH_RESET, (int32_t)iDisplay);
+
+        } while (true);
 
         vbvaVHWAHHCommandRelease(pCmd);
 
@@ -1143,25 +1190,36 @@ int vbvaVHWAReset (PVGASTATE pVGAState)
 /* @todo call this also on reset? */
 int vbvaVHWADisable (PVGASTATE pVGAState)
 {
-    VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_DISABLE, 0);
+    VBOXVHWACMD *pCmd = vbvaVHWAHHCommandCreate(pVGAState, VBOXVHWACMD_TYPE_DISABLE, 0, 0);
     Assert(pCmd);
     if(pCmd)
     {
-        int rc = vbvaVHWAHHCommandPost(pVGAState, pCmd);
-        AssertRC(rc);
-        if(RT_SUCCESS(rc))
+        int rc = VINF_SUCCESS;
+        uint32_t iDisplay = 0;
+
+        do
         {
-            rc = pCmd->rc;
-#ifdef DEBUG_misha
-            AssertMsg(RT_SUCCESS(rc), ("%Rrc\n", rc));
-#else
-            AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
-#endif
-            if(rc == VERR_NOT_IMPLEMENTED)
+            rc = vbvaVHWAHHCommandPost(pVGAState, pCmd);
+            AssertRC(rc);
+            if(RT_SUCCESS(rc))
             {
-                rc = VINF_SUCCESS;
+                rc = pCmd->rc;
+                AssertMsg(RT_SUCCESS(rc) || rc == VERR_NOT_IMPLEMENTED, ("%Rrc\n", rc));
+                if(rc == VERR_NOT_IMPLEMENTED)
+                {
+                    rc = VINF_SUCCESS;
+                }
             }
-        }
+
+            if (!RT_SUCCESS(rc))
+                break;
+
+            ++iDisplay;
+            if (iDisplay >= pVGAState->cMonitors)
+                break;
+            vbvaVHWAHHCommandReinit(pCmd, VBOXVHWACMD_TYPE_DISABLE, (int32_t)iDisplay);
+
+        } while (true);
 
         vbvaVHWAHHCommandRelease(pCmd);
 
@@ -1176,14 +1234,14 @@ int vboxVBVASaveStatePrep (PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return vbvaVHWADisable(PDMINS_2_DATA(pDevIns, PVGASTATE));
 }
 
-#define PPDMDDISPLAYVBVACALLBACKS_2_PVGASTATE(_pcb) ( (PVGASTATE)((uint8_t *)(_pcb) - RT_OFFSETOF(VGASTATE, VBVACallbacks)) )
+#define PPDMIDISPLAYVBVACALLBACKS_2_PVGASTATE(_pcb) ( (PVGASTATE)((uint8_t *)(_pcb) - RT_OFFSETOF(VGASTATE, IVBVACallbacks)) )
 
-int vbvaVHWACommandCompleteAsynch(PPDMDDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd)
+int vbvaVHWACommandCompleteAsynch(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd)
 {
     int rc;
     if((pCmd->Flags & VBOXVHWACMD_FLAG_HH_CMD) == 0)
     {
-        PVGASTATE pVGAState = PPDMDDISPLAYVBVACALLBACKS_2_PVGASTATE(pInterface);
+        PVGASTATE pVGAState = PPDMIDISPLAYVBVACALLBACKS_2_PVGASTATE(pInterface);
         PHGSMIINSTANCE pIns = pVGAState->pHGSMI;
         VBVAHOSTCMD *pHostCmd;
     //    Assert(0);
@@ -1272,7 +1330,7 @@ int vbvaVHWACommandCompleteAsynch(PPDMDDISPLAYVBVACALLBACKS pInterface, PVBOXVHW
 
 static DECLCALLBACK(void) vbvaNotifyGuest (void *pvCallback)
 {
-#if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
+#if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOXVDMA))
     PVGASTATE pVGAState = (PVGASTATE)pvCallback;
     PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
     PDMCritSectEnter(&pVGAState->lock, VERR_SEM_BUSY);
@@ -1299,6 +1357,22 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
 
     switch (u16ChannelInfo)
     {
+#ifdef VBOXVDMA
+        case VBVA_VDMA_CMD:
+        {
+            PVBOXVDMACBUF_DR pCmd = (PVBOXVDMACBUF_DR)VBoxSHGSMIBufferData ((PVBOXSHGSMIHEADER)pvBuffer);
+            vboxVDMACommand(pVGAState->pVdma, pCmd);
+            rc = VINF_SUCCESS;
+            break;
+        }
+        case VBVA_VDMA_CTL:
+        {
+            PVBOXVDMA_CTL pCmd = (PVBOXVDMA_CTL)VBoxSHGSMIBufferData ((PVBOXSHGSMIHEADER)pvBuffer);
+            vboxVDMAControl(pVGAState->pVdma, pCmd);
+            rc = VINF_SUCCESS;
+            break;
+        }
+#endif
         case VBVA_QUERY_CONF32:
         {
             if (cbBuffer < sizeof (VBVACONF32))
@@ -1451,7 +1525,25 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
                 break;
             }
 
-            unsigned uScreenId = vbvaViewFromOffset (pIns, pCtx, pvBuffer);
+            VBVAENABLE *pEnable = (VBVAENABLE *)pvBuffer;
+            unsigned uScreenId;
+#ifdef VBOXWDDM_WITH_VBVA
+            if (pEnable->u32Flags & VBVA_F_EXTENDED)
+            {
+                if (cbBuffer < sizeof (VBVAENABLE_EX))
+                {
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+
+                VBVAENABLE_EX *pEnableEx = (VBVAENABLE_EX *)pvBuffer;
+                uScreenId = pEnableEx->u32ScreenId;
+            }
+            else
+#endif
+            {
+                uScreenId = vbvaViewFromOffset (pIns, pCtx, pvBuffer);
+            }
 
             if (uScreenId == ~0U)
             {
@@ -1459,7 +1551,6 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
                 break;
             }
 
-            VBVAENABLE *pEnable = (VBVAENABLE *)pvBuffer;
             LogFlowFunc(("VBVA_ENABLE[%d]: u32Flags 0x%x u32Offset 0x%x\n",
                          uScreenId, pEnable->u32Flags, pEnable->u32Offset));
 

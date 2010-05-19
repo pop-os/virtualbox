@@ -1,10 +1,10 @@
-/* $Id: VBoxVMMDeps.cpp $ */
+/* $Id: VBoxVMMDeps.cpp 29342 2010-05-11 11:19:12Z vboxsync $ */
 /** @file
  * VBoxVMM link dependencies - drag all we want into the link!
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -24,7 +20,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/pgm.h>
-#include <VBox/pdm.h>
+#include <VBox/pdmapi.h>
+#include <VBox/pdmcritsect.h>
+#include <VBox/pdmqueue.h>
 #include <VBox/vm.h>
 #include <VBox/em.h>
 #include <VBox/iom.h>
@@ -54,6 +52,9 @@ PFNRT g_apfnDeps[] =
     (PFNRT)VMMDoTest,
 #ifdef VBOX_WITH_DEBUGGER
     (PFNRT)DBGCCreate,
+#endif
+#ifdef VBOX_WITH_PAGE_SHARING
+    (PFNRT)PGMR3SharedModuleRegister,
 #endif
     NULL
 };

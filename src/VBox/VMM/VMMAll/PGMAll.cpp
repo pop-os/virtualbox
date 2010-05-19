@@ -1,10 +1,10 @@
-/* $Id: PGMAll.cpp $ */
+/* $Id: PGMAll.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor - All context code.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -37,10 +33,11 @@
 #include <VBox/em.h>
 #include <VBox/hwaccm.h>
 #include <VBox/hwacc_vmx.h>
-#include "PGMInternal.h"
+#include "../PGMInternal.h"
 #include <VBox/vm.h>
+#include "../PGMInline.h"
 #include <iprt/assert.h>
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
@@ -402,7 +399,7 @@ VMMDECL(int) PGMTrap0eHandler(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFram
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
-    Log(("PGMTrap0eHandler: uErr=%RGu pvFault=%RGv eip=%04x:%RGv\n", uErr, pvFault, pRegFrame->cs, (RTGCPTR)pRegFrame->rip));
+    Log(("PGMTrap0eHandler: uErr=%RGx pvFault=%RGv eip=%04x:%RGv\n", uErr, pvFault, pRegFrame->cs, (RTGCPTR)pRegFrame->rip));
     STAM_PROFILE_START(&pVCpu->pgm.s.StatRZTrap0e, a);
     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = NULL; } );
 
@@ -450,10 +447,13 @@ VMMDECL(int) PGMTrap0eHandler(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFram
     /*
      * Call the worker.
      */
-    pgmLock(pVM);
-    int rc = PGM_BTH_PFN(Trap0eHandler, pVCpu)(pVCpu, uErr, pRegFrame, pvFault);
-    Assert(PGMIsLockOwner(pVM));
-    pgmUnlock(pVM);
+    bool fLockTaken = false;
+    int rc = PGM_BTH_PFN(Trap0eHandler, pVCpu)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
+    if (fLockTaken)
+    {
+        Assert(PGMIsLockOwner(pVM));
+        pgmUnlock(pVM);
+    }
     if (rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
         rc = VINF_SUCCESS;
 
@@ -710,11 +710,8 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
 #ifndef IN_RING3
     /*
      * Notify the recompiler so it can record this instruction.
-     * Failure happens when it's out of space. We'll return to HC in that case.
      */
-    rc = REMNotifyInvalidatePage(pVM, GCPtrPage);
-    if (rc != VINF_SUCCESS)
-        return rc;
+    REMNotifyInvalidatePage(pVM, GCPtrPage);
 #endif /* !IN_RING3 */
 
 
@@ -775,10 +772,10 @@ VMMDECL(int) PGMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCPtrPage)
 #endif /* IN_RING3 */
 
     /* Ignore all irrelevant error codes. */
-    if (    rc == VERR_PAGE_NOT_PRESENT                 
-        ||  rc == VERR_PAGE_TABLE_NOT_PRESENT           
-        ||  rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT   
-        ||  rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT)     
+    if (    rc == VERR_PAGE_NOT_PRESENT
+        ||  rc == VERR_PAGE_TABLE_NOT_PRESENT
+        ||  rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT
+        ||  rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT)
         rc = VINF_SUCCESS;
 
     return rc;
@@ -903,8 +900,6 @@ int pgmShwSyncPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDPE pGstPdpe, PX86PDPAE
     if (    !pPdpe->n.u1Present
         &&  !(pPdpe->u & X86_PDPE_PG_MASK))
     {
-        bool        fNestedPaging = HWACCMIsNestedPagingActive(pVM);
-        bool        fPaging       = !!(CPUMGetGuestCR0(pVCpu) & X86_CR0_PG);
         RTGCPTR64   GCPdPt;
         PGMPOOLKIND enmKind;
 
@@ -913,7 +908,7 @@ int pgmShwSyncPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDPE pGstPdpe, PX86PDPAE
         PGMDynLockHCPage(pVM, (uint8_t *)pPdpe);
 # endif
 
-        if (fNestedPaging || !fPaging)
+        if (HWACCMIsNestedPagingActive(pVM) || !CPUMIsGuestPagingEnabled(pVCpu))
         {
             /* AMD-V nested paging or real/protected mode without paging */
             GCPdPt  = (RTGCPTR64)iPdPt << X86_PDPT_SHIFT;
@@ -1033,8 +1028,7 @@ int pgmShwSyncLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86PML4E pGstPml4e, 
     PPGMPOOL       pPool         = pVM->pgm.s.CTX_SUFF(pPool);
     const unsigned iPml4         = (GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK;
     PX86PML4E      pPml4e        = pgmShwGetLongModePML4EPtr(pPGM, iPml4);
-    bool           fNestedPaging = HWACCMIsNestedPagingActive(pVM);
-    bool           fPaging       = !!(CPUMGetGuestCR0(pVCpu) & X86_CR0_PG);
+    bool           fNestedPagingOrNoGstPaging = HWACCMIsNestedPagingActive(pVM) || !CPUMIsGuestPagingEnabled(pVCpu);
     PPGMPOOLPAGE   pShwPage;
     int            rc;
 
@@ -1049,7 +1043,7 @@ int pgmShwSyncLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86PML4E pGstPml4e, 
 
         Assert(pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
 
-        if (fNestedPaging || !fPaging)
+        if (fNestedPagingOrNoGstPaging)
         {
             /* AMD-V nested paging or real/protected mode without paging */
             GCPml4  = (RTGCPTR64)iPml4 << X86_PML4_SHIFT;
@@ -1089,7 +1083,7 @@ int pgmShwSyncLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86PML4E pGstPml4e, 
         RTGCPTR64   GCPdPt;
         PGMPOOLKIND enmKind;
 
-        if (fNestedPaging || !fPaging)
+        if (fNestedPagingOrNoGstPaging)
         {
             /* AMD-V nested paging or real/protected mode without paging */
             GCPdPt  = (RTGCPTR64)iPdPt << X86_PDPT_SHIFT;
@@ -1144,7 +1138,7 @@ DECLINLINE(int) pgmShwGetLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86PML4E 
     if (ppPml4e)
         *ppPml4e = (PX86PML4E)pPml4e;
 
-    Log4(("pgmShwGetLongModePDPtr %VGv (%VHv) %RX64\n", GCPtr, pPml4e, pPml4e->u));
+    Log4(("pgmShwGetLongModePDPtr %RGv (%RHv) %RX64\n", GCPtr, pPml4e, pPml4e->u));
 
     if (!pPml4e->n.u1Present)
         return VERR_PAGE_MAP_LEVEL4_NOT_PRESENT;
@@ -1816,7 +1810,6 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     int rc;
 
-#ifdef PGMPOOL_WITH_MONITORING
     /*
      * The pool may have pending stuff and even require a return to ring-3 to
      * clear the whole thing.
@@ -1824,7 +1817,6 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
     rc = pgmPoolSyncCR3(pVCpu);
     if (rc != VINF_SUCCESS)
         return rc;
-#endif
 
     /*
      * We might be called when we shouldn't.
@@ -1837,6 +1829,7 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
     if (pVCpu->pgm.s.enmGuestMode <= PGMMODE_PROTECTED)
     {
         Assert((cr0 & (X86_CR0_PG | X86_CR0_PE)) != (X86_CR0_PG | X86_CR0_PE));
+        Assert(!(pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL));
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL);
         return VINF_SUCCESS;
@@ -1912,6 +1905,7 @@ VMMDECL(int) PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, 
 
         if (!(pVCpu->pgm.s.fSyncFlags & PGM_SYNC_ALWAYS))
         {
+            Assert(!(pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL));
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL);
         }
@@ -2120,6 +2114,17 @@ VMMDECL(bool) PGMIsLockOwner(PVM pVM)
 
 
 /**
+ * Enable or disable large page usage
+ *
+ * @param   pVM             The VM to operate on.
+ * @param   fUseLargePages  Use/not use large pages
+ */
+VMMDECL(void) PGMSetLargePageUsage(PVM pVM, bool fUseLargePages)
+{
+      pVM->fUseLargePages = fUseLargePages;
+}
+
+/**
  * Acquire the PGM lock.
  *
  * @returns VBox status code
@@ -2230,7 +2235,7 @@ VMMDECL(int) PGMDynMapGCPageOff(PVM pVM, RTGCPHYS GCPhys, void **ppv)
 #else
     PGMDynMapHCPage(pVM, HCPhys, ppv);
 #endif
-    *ppv = (void *)((uintptr_t)*ppv | (GCPhys & PAGE_OFFSET_MASK));
+    *ppv = (void *)((uintptr_t)*ppv | (uintptr_t)(GCPhys & PAGE_OFFSET_MASK));
     return VINF_SUCCESS;
 }
 

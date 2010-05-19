@@ -1,10 +1,10 @@
-/* $Id: memobj-r0drv-nt.cpp $ */
+/* $Id: memobj-r0drv-nt.cpp 29027 2010-05-04 14:33:41Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, NT.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -336,17 +332,31 @@ int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecut
  * @param   cb              The size.
  * @param   fExecutable     Whether the mapping should be executable or not.
  * @param   PhysHighest     The highest physical address for the pages in allocation.
+ * @param   uAlignment      The alignment of the physical memory to allocate.
+ *                          Supported values are PAGE_SIZE, _2M, _4M and _1G.
  */
-static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, RTHCPHYS PhysHighest)
+static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, RTHCPHYS PhysHighest,
+                                       size_t uAlignment)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
+#ifdef TARGET_NT4
+    if (uAlignment != PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
+#endif
 
     /*
      * Allocate the memory and create an MDL for it.
      */
     PHYSICAL_ADDRESS PhysAddrHighest;
-    PhysAddrHighest.QuadPart = PhysHighest;
+    PhysAddrHighest.QuadPart  = PhysHighest;
+#ifndef TARGET_NT4
+    PHYSICAL_ADDRESS PhysAddrLowest, PhysAddrBoundary;
+    PhysAddrLowest.QuadPart   = 0;
+    PhysAddrBoundary.QuadPart = (uAlignment == PAGE_SIZE) ? 0 : uAlignment;
+    void *pv = MmAllocateContiguousMemorySpecifyCache(cb, PhysAddrLowest, PhysAddrHighest, PhysAddrBoundary, MmCached);
+#else
     void *pv = MmAllocateContiguousMemory(cb, PhysAddrHighest);
+#endif
     if (!pv)
         return VERR_NO_MEMORY;
 
@@ -377,11 +387,11 @@ static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bo
 
 int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
-    return rtR0MemObjNativeAllocContEx(ppMem, cb, fExecutable, _4G-1);
+    return rtR0MemObjNativeAllocContEx(ppMem, cb, fExecutable, _4G-1, PAGE_SIZE /* alignment */);
 }
 
 
-int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
+int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
 {
 #ifndef IPRT_TARGET_NT4
     /*
@@ -396,7 +406,9 @@ int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS Ph
      * If the allocation is big, the chances are *probably* not very good. The
      * current limit is kind of random...
      */
-    if (cb < _128K)
+    if (   cb < _128K
+        && uAlignment == PAGE_SIZE)
+
     {
         PHYSICAL_ADDRESS Zero;
         Zero.QuadPart = 0;
@@ -435,7 +447,7 @@ int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS Ph
     }
 #endif /* !IPRT_TARGET_NT4 */
 
-    return rtR0MemObjNativeAllocContEx(ppMem, cb, false, PhysHighest);
+    return rtR0MemObjNativeAllocContEx(ppMem, cb, false, PhysHighest, uAlignment);
 }
 
 
@@ -471,8 +483,10 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
 }
 
 
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb)
+int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
+    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_IMPLEMENTED);
+
     /*
      * Validate the address range and create a descriptor for it.
      */
@@ -488,6 +502,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
     {
         pMemNt->Core.u.Phys.PhysBase = Phys;
         pMemNt->Core.u.Phys.fAllocated = false;
+        pMemNt->Core.u.Phys.uCachePolicy = uCachePolicy;
         *ppMem = &pMemNt->Core;
         return VINF_SUCCESS;
     }

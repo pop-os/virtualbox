@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pgm_h
@@ -36,6 +32,8 @@
 #include <VBox/vmapi.h>
 #include <VBox/x86.h>
 #include <VBox/hwacc_vmx.h>
+#include <VBox/VMMDev.h> /* for VMMDEVSHAREDREGIONDESC */
+#include <VBox/gmm.h> /* for PGMMREGISTERSHAREDMODULEREQ */
 
 RT_C_DECLS_BEGIN
 
@@ -283,6 +281,8 @@ typedef enum PGMMODE
     (    (enmProt) == PGMROMPROT_READ_ROM_WRITE_IGNORE \
       || (enmProt) == PGMROMPROT_READ_ROM_WRITE_RAM )
 
+
+
 VMMDECL(bool)       PGMIsLocked(PVM pVM);
 VMMDECL(bool)       PGMIsLockOwner(PVM pVM);
 
@@ -405,6 +405,17 @@ VMMDECL(void)       PGMDynMapPopAutoSubset(PVMCPU pVCpu, uint32_t iPrevSubset);
 #endif
 
 
+VMMDECL(void) PGMSetLargePageUsage(PVM pVM, bool fUseLargePages);
+
+/**
+ * Query large page usage state
+ *
+ * @returns 0 - disabled, 1 - enabled
+ * @param   pVM         The VM to operate on.
+ */
+#define PGMIsUsingLargePages(pVM) (pVM->fUseLargePages)
+
+
 #ifdef IN_RC
 /** @defgroup grp_pgm_gc  The PGM Guest Context API
  * @ingroup grp_pgm
@@ -420,6 +431,8 @@ VMMDECL(void)       PGMDynMapPopAutoSubset(PVMCPU pVCpu, uint32_t iPrevSubset);
  * @{
  */
 VMMR0DECL(int)      PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu);
+VMMR0DECL(int)      PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu);
+VMMR0DECL(int)      PGMR0SharedModuleCheckRegion(PVM pVM, VMCPUID idCpu, PGMMSHAREDMODULE pModule, PGVM pGVM);
 VMMR0DECL(int)      PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPHYS pvFault);
 # ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
 VMMR0DECL(int)      PGMR0DynMapInit(void);
@@ -443,6 +456,7 @@ VMMR3DECL(int)      PGMR3InitCPU(PVM pVM);
 VMMR3DECL(int)      PGMR3InitDynMap(PVM pVM);
 VMMR3DECL(int)      PGMR3InitFinalize(PVM pVM);
 VMMR3DECL(void)     PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
+VMMR3DECL(void)     PGMR3ResetUnpluggedCpu(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(void)     PGMR3Reset(PVM pVM);
 VMMR3DECL(int)      PGMR3Term(PVM pVM);
 VMMR3DECL(int)      PGMR3TermCPU(PVM pVM);
@@ -450,6 +464,8 @@ VMMR3DECL(int)      PGMR3LockCall(PVM pVM);
 VMMR3DECL(int)      PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode);
 
 VMMR3DECL(int)      PGMR3PhysRegisterRam(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, const char *pszDesc);
+VMMR3DECL(int)      PGMR3PhysChangeMemBalloon(PVM pVM, bool fInflate, unsigned cPages, RTGCPHYS *paPhysPage);
+VMMR3DECL(int)      PGMR3QueryVMMMemoryStats(PVM pVM, uint64_t *puTotalAllocSize, uint64_t *puTotalFreeSize, uint64_t *puTotalBalloonSize);
 VMMR3DECL(int)      PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
                                           R3PTRTYPE(PFNPGMR3PHYSHANDLER) pfnHandlerR3, RTR3PTR pvUserR3,
                                           R0PTRTYPE(PFNPGMR0PHYSHANDLER) pfnHandlerR0, RTR0PTR pvUserR0,
@@ -464,7 +480,7 @@ VMMR3DECL(bool)     PGMR3PhysMMIO2IsBase(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS G
 VMMR3DECL(int)      PGMR3PhysMMIO2GetHCPhys(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS off, PRTHCPHYS pHCPhys);
 VMMR3DECL(int)      PGMR3PhysMMIO2MapKernel(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS off, RTGCPHYS cb, const char *pszDesc, PRTR0PTR pR0Ptr);
 
-/** @group PGMR3PhysRegisterRom flags.
+/** @name PGMR3PhysRegisterRom flags.
  * @{ */
 /** Inidicates that ROM shadowing should be enabled. */
 #define PGMPHYS_ROM_FLAGS_SHADOWED          RT_BIT_32(0)
@@ -531,7 +547,7 @@ VMMR3DECL(int)      PGMR3PhysGCPhys2CCPtrReadOnlyExternal(PVM pVM, RTGCPHYS GCPh
 VMMR3DECL(int)      PGMR3PhysChunkMap(PVM pVM, uint32_t idChunk);
 VMMR3DECL(void)     PGMR3PhysChunkInvalidateTLB(PVM pVM);
 VMMR3DECL(int)      PGMR3PhysAllocateHandyPages(PVM pVM);
-
+VMMR3DECL(int)      PGMR3PhysAllocateLargeHandyPage(PVM pVM, RTGCPHYS GCPhys);
 
 VMMR3DECL(void)     PGMR3ReleaseOwnedLocks(PVM pVM);
 
@@ -546,6 +562,15 @@ VMMR3DECL(int)      PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, si
 VMMR3DECL(int)      PGMR3DbgWriteGCPtr(PVM pVM, RTGCPTR GCPtrDst, void const *pvSrc, size_t cb, uint32_t fFlags, size_t *pcbWritten);
 VMMR3DECL(int)      PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, RTGCPHYS GCPhysAlign, const uint8_t *pabNeedle, size_t cbNeedle, PRTGCPHYS pGCPhysHit);
 VMMR3DECL(int)      PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR cbRange, RTGCPTR GCPtrAlign, const uint8_t *pabNeedle, size_t cbNeedle, PRTGCUINTPTR pGCPhysHit);
+
+
+/** @name Page sharing
+ * @{ */
+VMMR3DECL(int)     PGMR3SharedModuleRegister(PVM pVM, VBOXOSFAMILY enmGuestOS, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule, unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
+VMMR3DECL(int)     PGMR3SharedModuleUnregister(PVM pVM, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule);
+VMMR3DECL(int)     PGMR3SharedModuleCheckAll(PVM pVM);
+/** @} */
+
 /** @} */
 #endif /* IN_RING3 */
 

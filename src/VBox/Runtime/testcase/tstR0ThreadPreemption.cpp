@@ -1,10 +1,10 @@
-/* $Id: tstR0ThreadPreemption.cpp $ */
+/* $Id: tstR0ThreadPreemption.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -33,6 +29,7 @@
 *******************************************************************************/
 #include <iprt/thread.h>
 
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/err.h>
 #include <iprt/time.h>
 #include <iprt/string.h>

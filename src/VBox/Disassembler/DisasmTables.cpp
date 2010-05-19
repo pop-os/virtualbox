@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -79,7 +75,7 @@ static char SZINVALID_OPCODE[] = "Invalid Opcode";
     INVALID_OPCODE,
 
 /* Invalid opcode */
-const OPCODE g_InvalidOpcode[1] = 
+const OPCODE g_InvalidOpcode[1] =
 {
     INVALID_OPCODE
 };
@@ -1505,7 +1501,7 @@ const OPCODE *g_apThreeByteMapX86_F20F38[16] =
 
 /** Three byte opcode map with prefix 0x66 (0xF 0x3A) */
 /** @todo remainder missing (too lazy now) */
-const OPCODE *g_apThreeByteMapX86_660F3A[16] = 
+const OPCODE *g_apThreeByteMapX86_660F3A[16] =
 {
     /* 0 */
     NULL,

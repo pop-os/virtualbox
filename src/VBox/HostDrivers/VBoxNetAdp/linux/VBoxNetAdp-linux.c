@@ -1,10 +1,10 @@
-/* $Id: VBoxNetAdp-linux.c $ */
+/* $Id: VBoxNetAdp-linux.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Linux Specific Code.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -24,6 +20,7 @@
 *******************************************************************************/
 #include "the-linux-kernel.h"
 #include "version-generated.h"
+#include "product-generated.h"
 #include <linux/netdevice.h>
 #include <linux/etherdevice.h>
 #include <linux/miscdevice.h>
@@ -53,9 +50,6 @@
 #define VBOXNETADP_LINUX_NAME      "vboxnet%d"
 #define VBOXNETADP_CTL_DEV_NAME    "vboxnetctl"
 
-/* debug printf */
-#define OSDBGPRINT(a) printk a
-
 #define VBOXNETADP_FROM_IFACE(iface) ((PVBOXNETADP) ifnet_softc(iface))
 
 /*******************************************************************************
@@ -74,8 +68,8 @@ static int VBoxNetAdpLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsign
 module_init(VBoxNetAdpLinuxInit);
 module_exit(VBoxNetAdpLinuxUnload);
 
-MODULE_AUTHOR("Sun Microsystems, Inc.");
-MODULE_DESCRIPTION("VirtualBox Network Adapter Driver");
+MODULE_AUTHOR(VBOX_VENDOR);
+MODULE_DESCRIPTION(VBOX_PRODUCT " Network Adapter Driver");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
 MODULE_VERSION(VBOX_VERSION_STRING " (" RT_XSTR(INTNETTRUNKIFPORT_VERSION) ")");
@@ -114,7 +108,6 @@ typedef VBOXNETADPPRIV *PVBOXNETADPPRIV;
 static int vboxNetAdpLinuxOpen(struct net_device *pNetDev)
 {
     netif_start_queue(pNetDev);
-    printk("vboxNetAdpOpen returns 0\n");
     return 0;
 }
 

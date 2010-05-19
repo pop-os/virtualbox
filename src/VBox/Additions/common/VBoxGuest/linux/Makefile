@@ -1,10 +1,10 @@
-# $Revision: 57025 $
+# $Revision: 29056 $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
 
 #
-# Copyright (C) 2006-2009 Sun Microsystems, Inc.
+# Copyright (C) 2006-2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 #
@@ -94,6 +90,7 @@ OBJS   = \
 	r0drv/linux/time-r0drv-linux.o \
 	r0drv/linux/RTLogWriteDebugger-r0drv-linux.o \
 	r0drv/generic/semspinmutex-r0drv-generic.o \
+	common/alloc/alloc.o \
 	common/err/RTErrConvertFromErrno.o \
 	common/err/RTErrConvertToErrno.o \
 	common/log/log.o \
@@ -102,6 +99,15 @@ OBJS   = \
         common/log/logrelellipsis.o \
         common/log/logcom.o \
 	common/log/logformat.o \
+	common/misc/RTAssertMsg1Weak.o \
+	common/misc/RTAssertMsg2.o \
+	common/misc/RTAssertMsg2Add.o \
+	common/misc/RTAssertMsg2AddWeak.o \
+	common/misc/RTAssertMsg2AddWeakV.o \
+	common/misc/RTAssertMsg2Weak.o \
+	common/misc/RTAssertMsg2WeakV.o \
+	common/misc/assert.o \
+	common/string/RTStrCopy.o \
 	common/string/strformat.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
@@ -111,8 +117,7 @@ OBJS   = \
         generic/RTLogWriteStdErr-stub-generic.o \
         generic/RTLogWriteStdOut-stub-generic.o \
 	VBox/log-vbox.o \
-	VBox/logbackdoor.o \
-	VBox/strformat-vbox.o
+	VBox/logbackdoor.o
 ifeq ($(BUILD_TARGET_ARCH),x86)
 OBJS += \
 	common/math/gcc/divdi3.o \

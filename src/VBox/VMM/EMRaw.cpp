@@ -1,10 +1,10 @@
-/* $Id: EMRaw.cpp $ */
+/* $Id: EMRaw.cpp 29329 2010-05-11 10:18:30Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager - software virtualization
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_em         EM - The Execution Monitor / Manager
@@ -41,9 +37,6 @@
 #define LOG_GROUP LOG_GROUP_EM
 #include <VBox/em.h>
 #include <VBox/vmm.h>
-#ifdef VBOX_WITH_VMI
-# include <VBox/parav.h>
-#endif
 #include <VBox/patm.h>
 #include <VBox/csam.h>
 #include <VBox/selm.h>
@@ -67,8 +60,10 @@
 #include <VBox/dbgf.h>
 
 #include <VBox/log.h>
+#include <iprt/asm.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -143,7 +138,7 @@ static void emR3RecordCli(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtrInstr)
 {
     PCLISTAT pRec;
 
-    pRec = (PCLISTAT)RTAvlPVGet(&pVCpu->em.s.pCliStatTree, (AVLPVKEY)GCPtrInstr);
+    pRec = (PCLISTAT)RTAvlGCPtrGet(&pVCpu->em.s.pCliStatTree, GCPtrInstr);
     if (!pRec)
     {
         /* New cli instruction; insert into the tree. */
@@ -151,13 +146,13 @@ static void emR3RecordCli(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtrInstr)
         Assert(pRec);
         if (!pRec)
             return;
-        pRec->Core.Key = (AVLPVKEY)GCPtrInstr;
+        pRec->Core.Key = GCPtrInstr;
 
         char szCliStatName[32];
         RTStrPrintf(szCliStatName, sizeof(szCliStatName), "/EM/Cli/0x%RGv", GCPtrInstr);
         STAM_REG(pVM, &pRec->Counter, STAMTYPE_COUNTER, szCliStatName, STAMUNIT_OCCURENCES, "Number of times cli was executed.");
 
-        bool fRc = RTAvlPVInsert(&pVCpu->em.s.pCliStatTree, &pRec->Core);
+        bool fRc = RTAvlGCPtrInsert(&pVCpu->em.s.pCliStatTree, &pRec->Core);
         Assert(fRc); NOREF(fRc);
     }
     STAM_COUNTER_INC(&pRec->Counter);
@@ -624,7 +619,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
      */
     uint32_t uCpl = CPUMGetGuestCPL(pVCpu, CPUMCTX2CORE(pCtx));
     if (    uCpl == 0
-        &&  PATMIsPatchGCAddr(pVM, (RTGCPTR)pCtx->eip))
+        &&  PATMIsPatchGCAddr(pVM, pCtx->eip))
     {
         LogFlow(("emR3RawGuestTrap: trap %#x in patch code; eip=%08x\n", u8TrapNo, pCtx->eip));
         return emR3PatchTrap(pVM, pVCpu, pCtx, rc);
@@ -1156,7 +1151,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                     return VINF_SUCCESS;
 
                 case OP_HLT:
-                    if (PATMIsPatchGCAddr(pVM, (RTGCPTR)pCtx->eip))
+                    if (PATMIsPatchGCAddr(pVM, pCtx->eip))
                     {
                         PATMTRANSSTATE  enmState;
                         RTGCPTR         pOrgInstrGC = PATMR3PatchToGCPtr(pVM, pCtx->eip, &enmState);

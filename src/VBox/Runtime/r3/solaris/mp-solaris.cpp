@@ -1,10 +1,10 @@
-/* $Id: mp-solaris.cpp $ */
+/* $Id: mp-solaris.cpp 29269 2010-05-09 21:24:06Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Solaris.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -188,6 +184,15 @@ RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
 {
     return rtMpSolarisGetFrequency(idCpu, "clock_MHz");
 }
+
+
+#if defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
+RTDECL(RTCPUID) RTMpCpuId(void)
+{
+    /** @todo implement RTMpCpuId on solaris/r3! */
+    return NIL_RTCPUID;
+}
+#endif
 
 
 RTDECL(int) RTMpCpuIdToSetIndex(RTCPUID idCpu)

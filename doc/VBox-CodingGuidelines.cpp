@@ -1,10 +1,10 @@
-/* $Id: VBox-CodingGuidelines.cpp $ */
+/* $Id: VBox-CodingGuidelines.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox - Coding Guidelines.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,17 +13,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_vbox_guideline                 VBox Coding Guidelines
  *
  * The VBox Coding guidelines are followed by all of VBox with the exception of
- * the GUI and qemu. The GUI is using something close to the Qt style. Qemu is
- * using whatever the frenchman does.
+ * qemu. Qemu is using whatever the frenchman does.
  *
  * There are a few compulsory rules and a bunch of optional ones. The following
  * sections will describe these in details. In addition there is a section of
@@ -236,6 +231,29 @@
  *     Write a destructor that calls delete.
  *
  *
+ * @subsection sec_vbox_guideline_compulsory_cppqtgui   C++ guidelines for the Qt GUI
+ *
+ * The Qt GUI is currently (2010) on its way to become more compatible to the
+ * rest of VirtualBox coding style wise. From now on, all the coding style
+ * rules described in this file are also mandatory for the Qt GUI. Additionally
+ * the following rules should be respected:
+ *
+ * - GUI classes which correspond to GUI tasks should be prefixed by UI (no VBox anymore)
+ *
+ * - Classes which extents some of the Qt classes should be prefix by QI
+ *
+ * - General task classes should be prefixed by C
+ *
+ * - Slots are prefixed by slt -> sltName
+ *
+ * - Signals are prefixed by sig -> sigName
+ *
+ * - Use Qt classes for lists, strings and so on, the use of STL classes should
+ *   be avoided
+ *
+ * - All files like .cpp, .h, .ui, which belong together are located in the
+ *   same directory and named the same
+ *
  *
  * @section sec_vbox_guideline_optional         Optional
  *
@@ -330,6 +348,13 @@
  *
  *      - The 'm_' (or 'm') prefix means a class data member.
  *
+ *        In new code in Main, use "m_" (and common sense). As an exception, in Main,
+ *        if a class encapsulates its member variables in an anonymous
+ *        structure which is declared in the class, but defined only in the
+ *        implementation (like this: "class X { struct Data; Data *m; }"), then
+ *        the pointer to that struct is called "m" itself and its members then need no prefix,
+ *        because the members are accessed with "m->member" already which is clear enough.
+ *
  *      - The 'p' prefix means pointer. For instance 'pVM' is pointer to VM.
  *
  *      - The 'a' prefix means array. For instance 'aPages' could be read as array
@@ -368,6 +393,11 @@
  *
  *      - The 'usz' prefix means zero terminated Unicode string (array of RTUNICP).
  *
+ *      - The 'str' prefix means C++ string; either a std::string or, in Main,
+ *        a Utf8Str or, in Qt, a QString
+ *
+ *      - The 'bstr' prefix, in Main, means a UTF-16 Bstr.
+ *
  *      - The 'pfn' prefix means pointer to function. Common usage is 'pfnCallback'
  *        and such like.
  *
@@ -376,7 +406,7 @@
  *
  *      - When writing code think as the reader.
  *
- *      - When writing code think as the compiler.
+ *      - When writing code think as the compiler. (2)
  *
  *      - When reading code think as if it's full of bugs - find them and fix them.
  *
@@ -403,6 +433,10 @@
  * (1)  Important, be very careful with the casting. In particular, note that
  *      a compiler might treat pointers as signed (IIRC).
  *
+ * (2)  "A really advanced hacker comes to understand the true inner workings of
+ *      the machine - he sees through the language he's working in and glimpses
+ *      the secret functioning of the binary code - becomes a Ba'al Shem of
+ *      sorts."   (Neal Stephenson "Snow Crash")
  *
  *
  *

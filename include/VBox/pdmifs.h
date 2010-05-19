@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,15 +21,12 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmifs_h
 #define ___VBox_pdmifs_h
 
+#include <iprt/sg.h>
 #include <VBox/types.h>
 #include <VBox/hgcmsvc.h>
 
@@ -37,138 +34,41 @@ RT_C_DECLS_BEGIN
 
 /** @defgroup grp_pdm_interfaces    The PDM Interface Definitions
  * @ingroup grp_pdm
+ *
+ * For historical reasons (the PDMINTERFACE enum) a lot of interface was stuffed
+ * together in this group instead, dragging stuff into global space that didn't
+ * need to be there and making this file huge (>2500 lines).  Since we're using
+ * UUIDs as interface identifiers (IIDs) now, no only generic PDM interface will
+ * be added to this file.  Component specific interface should be defined in the
+ * header file of that component.
+ *
+ * Interfaces consists of a method table (typedef'ed struct) and an interface
+ * ID.  The typename of the method table should have an 'I' in it, be all
+ * capitals and according to the rules, no underscores.  The interface ID is a
+ * \#define constructed by appending '_IID' to the typename. The IID value is a
+ * UUID string on the form "a2299c0d-b709-4551-aa5a-73f59ffbed74".  If you stick
+ * to these rules, you can make use of the PDMIBASE_QUERY_INTERFACE and
+ * PDMIBASE_RETURN_INTERFACE when querying interface and implementing
+ * PDMIBASE::pfnQueryInterface respectively.
+ *
+ * In most interface descriptions the orientation of the interface is given as
+ * 'down' or 'up'.  This refers to a model with the device on the top and the
+ * drivers stacked below it.  Sometimes there is mention of 'main' or 'external'
+ * which normally means the same, i.e. the Main or VBoxBFE API.  Picture the
+ * orientation of 'main' as horizontal.
+ *
+ * @{
+ */
+
+
+/** @name PDMIBASE
  * @{
  */
 
 /**
- * Driver interface identficators.
+ * PDM Base Interface.
  *
- * @remark  All interfaces have to be declared here. There is no such thing as
- *          private interface identifiers since they must be unique.
- *
- *          That said, interface structures and other stuff can be put elsewhere,
- *          actually, it is best if this file is not flooded with structures that
- *          could be put closer to home.
- */
-typedef enum PDMINTERFACE
-{
-    /** PDMIBASE                - The interface everyone supports. */
-    PDMINTERFACE_BASE = 1,
-    /** PDMIMOUSEPORT           - The mouse port interface.             (Down)  Coupled with PDMINTERFACE_MOUSE_CONNECTOR. */
-    PDMINTERFACE_MOUSE_PORT,
-    /** PDMIMOUSECONNECTOR      - The mouse connector interface.        (Up)    Coupled with PDMINTERFACE_MOUSE_PORT. */
-    PDMINTERFACE_MOUSE_CONNECTOR,
-    /** PDMIKEYBOARDPORT        - The keyboard port interface.          (Down)  Coupled with PDMINTERFACE_KEYBOARD_CONNECTOR. */
-    PDMINTERFACE_KEYBOARD_PORT,
-    /** PDMIKEYBOARDCONNECTOR   - The keyboard connector interface.     (Up)    Coupled with PDMINTERFACE_KEYBOARD_PORT. */
-    PDMINTERFACE_KEYBOARD_CONNECTOR,
-    /** PDMIDISPLAYPORT         - The display port interface.           (Down)  Coupled with PDMINTERFACE_DISPLAY_CONNECTOR. */
-    PDMINTERFACE_DISPLAY_PORT,
-    /** PDMIDISPLAYCONNECTOR    - The display connector interface.      (Up)    Coupled with PDMINTERFACE_DISPLAY_PORT. */
-    PDMINTERFACE_DISPLAY_CONNECTOR,
-    /** PDMICHARPORT            - The char notify interface.            (Down)  Coupled with PDMINTERFACE_CHAR. */
-    PDMINTERFACE_CHAR_PORT,
-    /** PDMICHAR                - The char driver interface.            (Up)    Coupled with PDMINTERFACE_CHAR_PORT. */
-    PDMINTERFACE_CHAR,
-    /** PDMISTREAM              - The stream driver interface           (Up)    No coupling.
-     * Used by a char driver to implement PDMINTERFACE_CHAR. */
-    PDMINTERFACE_STREAM,
-    /** PDMIBLOCKPORT           - The block notify interface            (Down)  Coupled with PDMINTERFACE_BLOCK. */
-    PDMINTERFACE_BLOCK_PORT,
-    /** PDMIBLOCK               - The block driver interface            (Up)    Coupled with PDMINTERFACE_BLOCK_PORT. */
-    PDMINTERFACE_BLOCK,
-    /** PDMIBLOCKBIOS           - The block bios interface.             (External) */
-    PDMINTERFACE_BLOCK_BIOS,
-    /** PDMIMOUNTNOTIFY         - The mountable notification interface. (Down)  Coupled with PDMINTERFACE_MOUNT. */
-    PDMINTERFACE_MOUNT_NOTIFY,
-    /** PDMIMOUNT               - The mountable interface.              (Up)    Coupled with PDMINTERFACE_MOUNT_NOTIFY. */
-    PDMINTERFACE_MOUNT,
-    /** PDMIMEDIA               - The media interface.                  (Up)    No coupling.
-     * Used by a block unit driver to implement PDMINTERFACE_BLOCK and PDMINTERFACE_BLOCK_BIOS. */
-    PDMINTERFACE_MEDIA,
-    /** PDMIISCSITRANSPORT      - The iSCSI transport interface         (Up)    No coupling.
-     * used by the iSCSI media driver.  */
-    PDMINTERFACE_ISCSITRANSPORT,
-    /** PDMIISCSITRANSPORTASYNC - The asynchronous iSCSI interface      (Up)    Couple with PDMINTERFACE_ISCSITRANSPORT.
-     * extension used by the iSCSI media driver.  */
-    PDMINTERFACE_ISCSITRANSPORTASYNC,
-    /** PDMIISCSITRANSPORTASYNCPORT - The asynchronous iSCSI interface  (Down)  Couple with PDMINTERFACE_ISCSITRANSPORTASYNC.
-     * notify port used by the iSCSI media driver.  */
-    PDMINTERFACE_ISCSITRANSPORTASYNCPORT,
-    /** PDMIMEDIAASYNC          - Async version of the media interface  (Down)  Coupled with PDMINTERFACE_MEDIA_ASYNC_PORT. */
-    PDMINTERFACE_MEDIA_ASYNC,
-    /** PDMIMEDIAASYNCPORT      - Async version of the media interface  (Up)    Coupled with PDMINTERFACE_MEDIA_ASYNC. */
-    PDMINTERFACE_MEDIA_ASYNC_PORT,
-    /** PDMIBLOCKASYNC          - Async version of the block interface  (Down)  Coupled with PDMINTERFACE_BLOCK_ASYNC_PORT. */
-    PDMINTERFACE_BLOCK_ASYNC,
-    /** PDMIBLOCKASYNCPORT      - Async version of the block interface  (Up)    Coupled with PDMINTERFACE_BLOCK_ASYNC. */
-    PDMINTERFACE_BLOCK_ASYNC_PORT,
-
-
-    /** PDMINETWORKPORT         - The network port interface.           (Down)  Coupled with PDMINTERFACE_NETWORK_CONNECTOR. */
-    PDMINTERFACE_NETWORK_PORT,
-    /** PDMINETWORKPORT         - The network connector interface.      (Up)    Coupled with PDMINTERFACE_NETWORK_PORT. */
-    PDMINTERFACE_NETWORK_CONNECTOR,
-    /** PDMINETWORKCONFIG       - The network configuartion interface.  (Main)  Used by the managment api. */
-    PDMINTERFACE_NETWORK_CONFIG,
-
-    /** PDMIAUDIOCONNECTOR      - The audio driver interface.           (Up)    No coupling. */
-    PDMINTERFACE_AUDIO_CONNECTOR,
-
-    /** PDMIAUDIOSNIFFERPORT    - The Audio Sniffer Device port interface. */
-    PDMINTERFACE_AUDIO_SNIFFER_PORT,
-    /** PDMIAUDIOSNIFFERCONNECTOR - The Audio Sniffer Driver connector interface. */
-    PDMINTERFACE_AUDIO_SNIFFER_CONNECTOR,
-
-    /** PDMIVMMDEVPORT          - The VMM Device port interface. */
-    PDMINTERFACE_VMMDEV_PORT,
-    /** PDMIVMMDEVCONNECTOR     - The VMM Device connector interface. */
-    PDMINTERFACE_VMMDEV_CONNECTOR,
-
-    /** PDMILEDPORTS            - The generic LED port interface.       (Down)  Coupled with PDMINTERFACE_LED_CONNECTORS. */
-    PDMINTERFACE_LED_PORTS,
-    /** PDMILEDCONNECTORS       - The generic LED connector interface.  (Up)    Coupled with PDMINTERFACE_LED_PORTS.  */
-    PDMINTERFACE_LED_CONNECTORS,
-
-    /** PDMIACPIPORT            - ACPI port interface.                  (Down)   Coupled with PDMINTERFACE_ACPI_CONNECTOR. */
-    PDMINTERFACE_ACPI_PORT,
-    /** PDMIACPICONNECTOR       - ACPI connector interface.             (Up)     Coupled with PDMINTERFACE_ACPI_PORT. */
-    PDMINTERFACE_ACPI_CONNECTOR,
-
-    /** PDMIHGCMPORT            - The Host-Guest communication manager port interface. Normally implemented by VMMDev. */
-    PDMINTERFACE_HGCM_PORT,
-    /** PDMIHGCMCONNECTOR       - The Host-Guest communication manager connector interface. Normally implemented by Main::VMMDevInterface. */
-    PDMINTERFACE_HGCM_CONNECTOR,
-
-    /** VUSBIROOTHUBPORT        - VUSB RootHub port interface.          (Down)   Coupled with PDMINTERFACE_USB_RH_CONNECTOR. */
-    PDMINTERFACE_VUSB_RH_PORT,
-    /** VUSBIROOTHUBCONNECTOR   - VUSB RootHub connector interface.     (Up)     Coupled with PDMINTERFACE_USB_RH_PORT. */
-    PDMINTERFACE_VUSB_RH_CONNECTOR,
-    /** VUSBIRHCONFIG           - VUSB RootHub configuration interface. (Main)   Used by the managment api. */
-    PDMINTERFACE_VUSB_RH_CONFIG,
-
-    /** VUSBIDEVICE             - VUSB Device interface.                (Up)     No coupling. */
-    PDMINTERFACE_VUSB_DEVICE,
-
-    /** PDMIHOSTPARALLELPORT    - The Host Parallel port interface.     (Down)   Coupled with PDMINTERFACE_HOST_PARALLEL_CONNECTOR. */
-    PDMINTERFACE_HOST_PARALLEL_PORT,
-    /** PDMIHOSTPARALLELCONNECTOR - The Host Parallel connector interface (Up)   Coupled with PDMINTERFACE_HOST_PARALLEL_PORT. */
-    PDMINTERFACE_HOST_PARALLEL_CONNECTOR,
-
-    /** PDMISCSIPORT            - The SCSI command execution port interface (Down) Coupled with PDMINTERFACE_SCSI_CONNECTOR. */
-    PDMINTERFACE_SCSI_PORT,
-    /** PDMISCSICONNECTOR       - The SCSI command execution connector interface (Up) Coupled with PDMINTERFACE_SCSI_PORT. */
-    PDMINTERFACE_SCSI_CONNECTOR,
-    /** PDMDDISPLAYVBVACALLBACKS - The Display VBVA callbacks. */
-    PDMINTERFACE_DISPLAY_VBVA_CALLBACKS,
-
-    /** Maximum interface number. */
-    PDMINTERFACE_MAX
-} PDMINTERFACE;
-
-
-/**
- * PDM Driver Base Interface.
+ * Everyone implements this.
  */
 typedef struct PDMIBASE
 {
@@ -178,11 +78,191 @@ typedef struct PDMIBASE
      * @returns Pointer to interface.
      * @returns NULL if the interface was not supported by the driver.
      * @param   pInterface          Pointer to this interface structure.
-     * @param   enmInterface        The requested interface identification.
+     * @param   pszIID              The interface ID, a UUID string.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(void *, pfnQueryInterface,(struct PDMIBASE *pInterface, PDMINTERFACE enmInterface));
+    DECLR3CALLBACKMEMBER(void *, pfnQueryInterface,(struct PDMIBASE *pInterface, const char *pszIID));
 } PDMIBASE;
+/** PDMIBASE interface ID. */
+#define PDMIBASE_IID                            "a2299c0d-b709-4551-aa5a-73f59ffbed74"
+
+/**
+ * Helper macro for quering an interface from PDMIBASE.
+ *
+ * @returns Correctly typed PDMIBASE::pfnQueryInterface return value.
+ *
+ * @param   pIBase          Pointer to the base interface.
+ * @param   InterfaceType   The interface type name.  The interface ID is
+ *                          derived from this by appending _IID.
+ */
+#define PDMIBASE_QUERY_INTERFACE(pIBase, InterfaceType)  \
+    ( (InterfaceType *)(pIBase)->pfnQueryInterface(pIBase, InterfaceType##_IID ) )
+
+/**
+ * Helper macro for implementing PDMIBASE::pfnQueryInterface.
+ *
+ * Return @a pInterface if @a pszIID matches the @a InterfaceType.  This will
+ * perform basic type checking.
+ *
+ * @param   pszIID          The ID of the interface that is being queried.
+ * @param   InterfaceType   The interface type name.  The interface ID is
+ *                          derived from this by appending _IID.
+ * @param   pInterface      The interface address expression.
+ */
+#define PDMIBASE_RETURN_INTERFACE(pszIID, InterfaceType, pInterface)  \
+    do { \
+        if (RTUuidCompare2Strs((pszIID), InterfaceType##_IID) == 0) \
+        { \
+            P##InterfaceType pReturnInterfaceTypeCheck = (pInterface); \
+            return pReturnInterfaceTypeCheck; \
+        } \
+    } while (0)
+
+/** @} */
+
+
+/** @name PDMIBASERC
+ * @{
+ */
+
+/**
+ * PDM Base Interface for querying ring-mode context interfaces in
+ * ring-3.
+ *
+ * This is mandatory for drivers present in raw-mode context.
+ */
+typedef struct PDMIBASERC
+{
+    /**
+     * Queries an ring-mode context interface to the driver.
+     *
+     * @returns Pointer to interface.
+     * @returns NULL if the interface was not supported by the driver.
+     * @param   pInterface          Pointer to this interface structure.
+     * @param   pszIID              The interface ID, a UUID string.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(RTRCPTR, pfnQueryInterface,(struct PDMIBASERC *pInterface, const char *pszIID));
+} PDMIBASERC;
+/** Pointer to a PDM Base Interface for query ring-mode context interfaces. */
+typedef PDMIBASERC *PPDMIBASERC;
+/** PDMIBASERC interface ID. */
+#define PDMIBASERC_IID                          "f6a6c649-6cb3-493f-9737-4653f221aeca"
+
+/**
+ * Helper macro for quering an interface from PDMIBASERC.
+ *
+ * @returns PDMIBASERC::pfnQueryInterface return value.
+ *
+ * @param   pIBaseRC        Pointer to the base raw-mode context interface.  Can
+ *                          be NULL.
+ * @param   InterfaceType   The interface type base name, no trailing RC.  The
+ *                          interface ID is derived from this by appending _IID.
+ *
+ * @remarks Unlike PDMIBASE_QUERY_INTERFACE, this macro is not able to do any
+ *          implicit type checking for you.
+ */
+#define PDMIBASERC_QUERY_INTERFACE(pIBaseRC, InterfaceType)  \
+    ( (P##InterfaceType##RC)((pIBaseRC) ? (pIBaseRC)->pfnQueryInterface(pIBaseRC, InterfaceType##_IID) : NIL_RTRCPTR) )
+
+/**
+ * Helper macro for implementing PDMIBASERC::pfnQueryInterface.
+ *
+ * Return @a pInterface if @a pszIID matches the @a InterfaceType.  This will
+ * perform basic type checking.
+ *
+ * @param   pIns            Pointer to the instance data.
+ * @param   pszIID          The ID of the interface that is being queried.
+ * @param   InterfaceType   The interface type base name, no trailing RC.  The
+ *                          interface ID is derived from this by appending _IID.
+ * @param   pInterface      The interface address expression.  This must resolve
+ *                          to some address within the instance data.
+ * @remarks Don't use with PDMIBASE.
+ */
+#define PDMIBASERC_RETURN_INTERFACE(pIns, pszIID, InterfaceType, pInterface)  \
+    do { \
+        Assert((uintptr_t)pInterface - PDMINS_2_DATA(pIns, uintptr_t) < _4M); \
+        if (RTUuidCompare2Strs((pszIID), InterfaceType##_IID) == 0) \
+        { \
+            InterfaceType##RC *pReturnInterfaceTypeCheck = (pInterface); \
+            return (uintptr_t)pReturnInterfaceTypeCheck \
+                 - PDMINS_2_DATA(pIns, uintptr_t) \
+                 + PDMINS_2_DATA_RCPTR(pIns); \
+        } \
+    } while (0)
+
+/** @} */
+
+
+/** @name PDMIBASER0
+ * @{
+ */
+
+/**
+ * PDM Base Interface for querying ring-0 interfaces in ring-3.
+ *
+ * This is mandatory for drivers present in ring-0 context.
+ */
+typedef struct PDMIBASER0
+{
+    /**
+     * Queries an ring-0 interface to the driver.
+     *
+     * @returns Pointer to interface.
+     * @returns NULL if the interface was not supported by the driver.
+     * @param   pInterface          Pointer to this interface structure.
+     * @param   pszIID              The interface ID, a UUID string.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(RTR0PTR, pfnQueryInterface,(struct PDMIBASER0 *pInterface, const char *pszIID));
+} PDMIBASER0;
+/** Pointer to a PDM Base Interface for query ring-0 context interfaces. */
+typedef PDMIBASER0 *PPDMIBASER0;
+/** PDMIBASER0 interface ID. */
+#define PDMIBASER0_IID                          "9c9b99b8-7f53-4f59-a3c2-5bc9659c7944"
+
+/**
+ * Helper macro for quering an interface from PDMIBASER0.
+ *
+ * @returns PDMIBASER0::pfnQueryInterface return value.
+ *
+ * @param   pIBaseR0        Pointer to the base ring-0 interface.  Can be NULL.
+ * @param   InterfaceType   The interface type base name, no trailing R0.  The
+ *                          interface ID is derived from this by appending _IID.
+ *
+ * @remarks Unlike PDMIBASE_QUERY_INTERFACE, this macro is not able to do any
+ *          implicit type checking for you.
+ */
+#define PDMIBASER0_QUERY_INTERFACE(pIBaseR0, InterfaceType)  \
+    ( (P##InterfaceType##R0)((pIBaseR0) ? (pIBaseR0)->pfnQueryInterface(pIBaseR0, InterfaceType##_IID) : NIL_RTR0PTR) )
+
+/**
+ * Helper macro for implementing PDMIBASER0::pfnQueryInterface.
+ *
+ * Return @a pInterface if @a pszIID matches the @a InterfaceType.  This will
+ * perform basic type checking.
+ *
+ * @param   pIns            Pointer to the instance data.
+ * @param   pszIID          The ID of the interface that is being queried.
+ * @param   InterfaceType   The interface type base name, no trailing R0.  The
+ *                          interface ID is derived from this by appending _IID.
+ * @param   pInterface      The interface address expression.  This must resolve
+ *                          to some address within the instance data.
+ * @remarks Don't use with PDMIBASE.
+ */
+#define PDMIBASER0_RETURN_INTERFACE(pIns, pszIID, InterfaceType, pInterface)  \
+    do { \
+        Assert((uintptr_t)pInterface - PDMINS_2_DATA(pIns, uintptr_t) < _4M); \
+        if (RTUuidCompare2Strs((pszIID), InterfaceType##_IID) == 0) \
+        { \
+            InterfaceType##R0 *pReturnInterfaceTypeCheck = (pInterface); \
+            return (uintptr_t)pReturnInterfaceTypeCheck \
+                 - PDMINS_2_DATA(pIns, uintptr_t) \
+                 + PDMINS_2_DATA_R0PTR(pIns); \
+        } \
+    } while (0)
+
+/** @} */
 
 
 /**
@@ -201,27 +281,48 @@ typedef struct PDMIDUMMY
 /** Pointer to a mouse port interface. */
 typedef struct PDMIMOUSEPORT *PPDMIMOUSEPORT;
 /**
- * Mouse port interface.
+ * Mouse port interface (down).
  * Pair with PDMIMOUSECONNECTOR.
  */
 typedef struct PDMIMOUSEPORT
 {
     /**
      * Puts a mouse event.
-     * This is called by the source of mouse events. The event will be passed up until the
-     * topmost driver, which then calls the registered event handler.
      *
-     * @returns VBox status code.
+     * This is called by the source of mouse events.  The event will be passed up
+     * until the topmost driver, which then calls the registered event handler.
+     *
+     * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
+     *          event now and want it to be repeated at a later point.
+     *
      * @param   pInterface          Pointer to this interface structure.
-     * @param   i32DeltaX       The X delta.
-     * @param   i32DeltaY       The Y delta.
-     * @param   i32DeltaZ       The Z delta.
-     * @param   i32DeltaW       The W (horizontal scroll button) delta.
-     * @param   fButtonStates   The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
-     * @thread  The emulation thread.
+     * @param   iDeltaX             The X delta.
+     * @param   iDeltaY             The Y delta.
+     * @param   iDeltaZ             The Z delta.
+     * @param   iDeltaW             The W (horizontal scroll button) delta.
+     * @param   fButtonStates       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, int32_t i32DeltaW, uint32_t fButtonStates));
+    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface, int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates));
+    /**
+     * Puts an absolute mouse event.
+     *
+     * This is called by the source of mouse events.  The event will be passed up
+     * until the topmost driver, which then calls the registered event handler.
+     *
+     * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
+     *          event now and want it to be repeated at a later point.
+     *
+     * @param   pInterface          Pointer to this interface structure.
+     * @param   uX                  The X value, in the range 0 to 0xffff.
+     * @param   uY                  The Y value, in the range 0 to 0xffff.
+     * @param   iDeltaZ             The Z delta.
+     * @param   iDeltaW             The W (horizontal scroll button) delta.
+     * @param   fButtonStates       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPutEventAbs,(PPDMIMOUSEPORT pInterface, uint32_t uX, uint32_t uY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates));
 } PDMIMOUSEPORT;
+/** PDMIMOUSEPORT interface ID. */
+#define PDMIMOUSEPORT_IID                       "442136fe-6f3c-49ec-9964-259b378ffa64"
 
 /** Mouse button defines for PDMIMOUSEPORT::pfnPutEvent.
  * @{ */
@@ -233,35 +334,54 @@ typedef struct PDMIMOUSEPORT
 /** @} */
 
 
+/** Pointer to a mouse connector interface. */
+typedef struct PDMIMOUSECONNECTOR *PPDMIMOUSECONNECTOR;
 /**
- * Mouse connector interface.
+ * Mouse connector interface (up).
  * Pair with PDMIMOUSEPORT.
  */
-typedef PDMIDUMMY PDMIMOUSECONNECTOR;
- /** Pointer to a mouse connector interface. */
-typedef PDMIMOUSECONNECTOR *PPDMIMOUSECONNECTOR;
+typedef struct PDMIMOUSECONNECTOR
+{
+    /**
+     * Notifies the the downstream driver of changes to the reporting modes
+     * supported by the driver
+     *
+     * @param   pInterface      Pointer to the this interface.
+     * @param   fRelative       Whether relative mode is currently supported.
+     * @param   fAbsolute       Whether absolute mode is currently supported.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute));
+
+} PDMIMOUSECONNECTOR;
+/** PDMIMOUSECONNECTOR interface ID.  */
+#define PDMIMOUSECONNECTOR_IID                  "ce64d7bd-fa8f-41d1-a6fb-d102a2d6bffe"
 
 
 /** Pointer to a keyboard port interface. */
 typedef struct PDMIKEYBOARDPORT *PPDMIKEYBOARDPORT;
 /**
- * Keyboard port interface.
+ * Keyboard port interface (down).
  * Pair with PDMIKEYBOARDCONNECTOR.
  */
 typedef struct PDMIKEYBOARDPORT
 {
     /**
      * Puts a keyboard event.
-     * This is called by the source of keyboard events. The event will be passed up until the
-     * topmost driver, which then calls the registered event handler.
      *
-     * @returns VBox status code.
+     * This is called by the source of keyboard events. The event will be passed up
+     * until the topmost driver, which then calls the registered event handler.
+     *
+     * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
+     *          event now and want it to be repeated at a later point.
+     *
      * @param   pInterface          Pointer to this interface structure.
      * @param   u8KeyCode           The keycode to queue.
-     * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIKEYBOARDPORT pInterface, uint8_t u8KeyCode));
 } PDMIKEYBOARDPORT;
+/** PDMIKEYBOARDPORT interface ID. */
+#define PDMIKEYBOARDPORT_IID                    "2a0844f0-410b-40ab-a6ed-6575f3aa3e29"
+
 
 /**
  * Keyboard LEDs.
@@ -280,10 +400,8 @@ typedef enum PDMKEYBLEDS
 
 /** Pointer to keyboard connector interface. */
 typedef struct PDMIKEYBOARDCONNECTOR *PPDMIKEYBOARDCONNECTOR;
-
-
 /**
- * Keyboard connector interface.
+ * Keyboard connector interface (up).
  * Pair with PDMIKEYBOARDPORT
  */
 typedef struct PDMIKEYBOARDCONNECTOR
@@ -296,14 +414,24 @@ typedef struct PDMIKEYBOARDCONNECTOR
      */
     DECLR3CALLBACKMEMBER(void, pfnLedStatusChange,(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds));
 
+    /**
+     * Notifies the the downstream driver of changes in driver state.
+     *
+     * @param   pInterface      Pointer to the this interface.
+     * @param   fActive         Whether interface wishes to get "focus".
+     */
+    DECLR3CALLBACKMEMBER(void, pfnSetActive,(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive));
+
 } PDMIKEYBOARDCONNECTOR;
+/** PDMIKEYBOARDCONNECTOR interface ID. */
+#define PDMIKEYBOARDCONNECTOR_IID               "db3f7bd5-953e-436f-9f8e-077905a92d82"
 
 
 
 /** Pointer to a display port interface. */
 typedef struct PDMIDISPLAYPORT *PPDMIDISPLAYPORT;
 /**
- * Display port interface.
+ * Display port interface (down).
  * Pair with PDMIDISPLAYCONNECTOR.
  */
 typedef struct PDMIDISPLAYPORT
@@ -430,7 +558,35 @@ typedef struct PDMIDISPLAYPORT
      */
     DECLR3CALLBACKMEMBER(void, pfnSetRenderVRAM,(PPDMIDISPLAYPORT pInterface, bool fRender));
 
+    /**
+     * Render a bitmap rectangle from source to target buffer.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   cx                  The width of the rectangle to be copied.
+     * @param   cy                  The height of the rectangle to be copied.
+     * @param   pbSrc               Source frame buffer 0,0.
+     * @param   xSrc                The upper left corner x coordinate of the source rectangle.
+     * @param   ySrc                The upper left corner y coordinate of the source rectangle.
+     * @param   cxSrc               The width of the source frame buffer.
+     * @param   cySrc               The height of the source frame buffer.
+     * @param   cbSrcLine           The line length of the source frame buffer.
+     * @param   cSrcBitsPerPixel    The pixel depth of the source.
+     * @param   pbDst               Destination frame buffer 0,0.
+     * @param   xDst                The upper left corner x coordinate of the destination rectangle.
+     * @param   yDst                The upper left corner y coordinate of the destination rectangle.
+     * @param   cxDst               The width of the destination frame buffer.
+     * @param   cyDst               The height of the destination frame buffer.
+     * @param   cbDstLine           The line length of the destination frame buffer.
+     * @param   cDstBitsPerPixel    The pixel depth of the destination.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCopyRect,(PPDMIDISPLAYPORT pInterface, uint32_t cx, uint32_t cy,
+        const uint8_t *pbSrc, int32_t xSrc, int32_t ySrc, uint32_t cxSrc, uint32_t cySrc, uint32_t cbSrcLine, uint32_t cSrcBitsPerPixel,
+        uint8_t       *pbDst, int32_t xDst, int32_t yDst, uint32_t cxDst, uint32_t cyDst, uint32_t cbDstLine, uint32_t cDstBitsPerPixel));
+
 } PDMIDISPLAYPORT;
+/** PDMIDISPLAYPORT interface ID. */
+#define PDMIDISPLAYPORT_IID                     "22d3d93d-3407-487a-8308-85367eae00bb"
 
 
 typedef struct _VBOXVHWACMD *PVBOXVHWACMD; /**< @todo r=bird: _VBOXVHWACMD -> VBOXVHWACMD; avoid using 1 or 2 leading underscores. Also, a line what it is to make doxygen happy. */
@@ -442,7 +598,7 @@ typedef struct VBVAHOSTFLAGS *PVBVAHOSTFLAGS;
 /** Pointer to a display connector interface. */
 typedef struct PDMIDISPLAYCONNECTOR *PPDMIDISPLAYCONNECTOR;
 /**
- * Display connector interface.
+ * Display connector interface (up).
  * Pair with PDMIDISPLAYPORT.
  */
 typedef struct PDMIDISPLAYCONNECTOR
@@ -656,7 +812,31 @@ typedef struct PDMIDISPLAYCONNECTOR
     uint32_t        cy;
     /** @} */
 } PDMIDISPLAYCONNECTOR;
+/** PDMIDISPLAYCONNECTOR interface ID. */
+#define PDMIDISPLAYCONNECTOR_IID                "c7a1b36d-8dfc-421d-b71f-3a0eeaf733e6"
 
+
+/**
+ * Block notify interface (down).
+ * Pair with PDMIBLOCK.
+ */
+typedef PDMIDUMMY PDMIBLOCKPORT;
+/** PDMIBLOCKPORT interface ID. */
+#define PDMIBLOCKPORT_IID                 "e87fa1ab-92d5-4100-8712-fe2a0c042faf"
+/** Pointer to a block notify interface (dummy). */
+typedef PDMIBLOCKPORT *PPDMIBLOCKPORT;
+
+
+/**
+ * Callback which provides progress information.
+ *
+ * @return  VBox status code.
+ * @param   pvUser          Opaque user data.
+ * @param   uPercent        Completion percentage.
+ */
+typedef DECLCALLBACK(int) FNSIMPLEPROGRESS(void *pvUser, unsigned uPercentage);
+/** Pointer to FNSIMPLEPROGRESS() */
+typedef FNSIMPLEPROGRESS *PFNSIMPLEPROGRESS;
 
 
 /**
@@ -695,18 +875,11 @@ typedef enum PDMBLOCKTXDIR
     PDMBLOCKTXDIR_TO_DEVICE
 } PDMBLOCKTXDIR;
 
-/**
- * Block notify interface.
- * Pair with PDMIBLOCK.
- */
-typedef PDMIDUMMY PDMIBLOCKPORT;
-/** Pointer to a block notify interface (dummy). */
-typedef PDMIBLOCKPORT *PPDMIBLOCKPORT;
 
 /** Pointer to a block interface. */
 typedef struct PDMIBLOCK *PPDMIBLOCK;
 /**
- * Block interface.
+ * Block interface (up).
  * Pair with PDMIBLOCKPORT.
  */
 typedef struct PDMIBLOCK
@@ -761,6 +934,17 @@ typedef struct PDMIBLOCK
     DECLR3CALLBACKMEMBER(int, pfnSendCmd,(PPDMIBLOCK pInterface, const uint8_t *pbCmd, PDMBLOCKTXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf, uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies));
 
     /**
+     * Merge medium contents during a live snapshot deletion.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pfnProgress     Function pointer for progress notification.
+     * @param   pvUser          Opaque user data for progress notification.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMerge,(PPDMIBLOCK pInterface, PFNSIMPLEPROGRESS pfnProgress, void *pvUser));
+
+    /**
      * Check if the media is readonly or not.
      *
      * @returns true if readonly.
@@ -799,12 +983,14 @@ typedef struct PDMIBLOCK
      */
     DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIBLOCK pInterface, PRTUUID pUuid));
 } PDMIBLOCK;
+/** PDMIBLOCK interface ID. */
+#define PDMIBLOCK_IID                           "0a5f3156-8b21-4cf5-83fd-e097281d2900"
 
 
 /** Pointer to a mount interface. */
 typedef struct PDMIMOUNTNOTIFY *PPDMIMOUNTNOTIFY;
 /**
- * Block interface.
+ * Block interface (up).
  * Pair with PDMIMOUNT.
  */
 typedef struct PDMIMOUNTNOTIFY
@@ -824,12 +1010,14 @@ typedef struct PDMIMOUNTNOTIFY
      */
     DECLR3CALLBACKMEMBER(void, pfnUnmountNotify,(PPDMIMOUNTNOTIFY pInterface));
 } PDMIMOUNTNOTIFY;
+/** PDMIMOUNTNOTIFY interface ID. */
+#define PDMIMOUNTNOTIFY_IID                     "fa143ac9-9fc6-498e-997f-945380a558f9"
 
 
-/* Pointer to mount interface. */
+/** Pointer to mount interface. */
 typedef struct PDMIMOUNT *PPDMIMOUNT;
 /**
- * Mount interface.
+ * Mount interface (down).
  * Pair with PDMIMOUNTNOTIFY.
  */
 typedef struct PDMIMOUNT
@@ -898,7 +1086,10 @@ typedef struct PDMIMOUNT
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(bool, pfnIsLocked,(PPDMIMOUNT pInterface));
-} PDMIBLOCKMOUNT;
+} PDMIMOUNT;
+/** PDMIMOUNT interface ID. */
+#define PDMIMOUNT_IID                           "8e5a009a-6032-4ca1-9d86-a388d8eaf926"
+
 
 /**
  * Media geometry structure.
@@ -921,8 +1112,8 @@ typedef const PDMMEDIAGEOMETRY *PCPDMMEDIAGEOMETRY;
 /** Pointer to a media interface. */
 typedef struct PDMIMEDIA *PPDMIMEDIA;
 /**
- * Media interface.
- * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.
+ * Media interface (up).
+ * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.  No interface pair.
  */
 typedef struct PDMIMEDIA
 {
@@ -958,6 +1149,19 @@ typedef struct PDMIMEDIA
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnFlush,(PPDMIMEDIA pInterface));
+
+    /**
+     * Merge medium contents during a live snapshot deletion. All details
+     * must have been configured through CFGM or this will fail.
+     * This method is optional (i.e. the function pointer may be NULL).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pfnProgress     Function pointer for progress notification.
+     * @param   pvUser          Opaque user data for progress notification.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMerge,(PPDMIMEDIA pInterface, PFNSIMPLEPROGRESS pfnProgress, void *pvUser));
 
     /**
      * Get the media size in bytes.
@@ -1043,12 +1247,14 @@ typedef struct PDMIMEDIA
     DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIMEDIA pInterface, PRTUUID pUuid));
 
 } PDMIMEDIA;
+/** PDMIMEDIA interface ID. */
+#define PDMIMEDIA_IID                           "f5bb07c9-2843-46f8-a56f-cc090b6e5bac"
 
 
 /** Pointer to a block BIOS interface. */
 typedef struct PDMIBLOCKBIOS *PPDMIBLOCKBIOS;
 /**
- * Media BIOS interface.
+ * Media BIOS interface (Up / External).
  * The interface the getting and setting properties which the BIOS/CMOS care about.
  */
 typedef struct PDMIBLOCKBIOS
@@ -1127,6 +1333,8 @@ typedef struct PDMIBLOCKBIOS
     DECLR3CALLBACKMEMBER(PDMBLOCKTYPE, pfnGetType,(PPDMIBLOCKBIOS pInterface));
 
 } PDMIBLOCKBIOS;
+/** PDMIBLOCKBIOS interface ID. */
+#define PDMIBLOCKBIOS_IID                       "477c3eee-a48d-48a9-82fd-2a54de16b2e9"
 
 
 /** Pointer to a static block core driver interface. */
@@ -1147,166 +1355,13 @@ typedef struct PDMIMEDIASTATIC
 } PDMIMEDIASTATIC;
 
 
-/**
- * iSCSI Request PDU buffer (gather).
- */
-typedef struct ISCSIREQ
-{
-    /** Length of PDU segment in bytes. */
-    size_t cbSeg;
-    /** Pointer to PDU segment. */
-    const void *pcvSeg;
-} ISCSIREQ;
-/** Pointer to an iSCSI Request PDU buffer. */
-typedef ISCSIREQ *PISCSIREQ;
-/** Pointer to a const iSCSI Request PDU buffer. */
-typedef ISCSIREQ const *PCISCSIREQ;
 
-
-/**
- * iSCSI Response PDU buffer (scatter).
- */
-typedef struct ISCSIRES
-{
-    /** Length of PDU segment. */
-    size_t cbSeg;
-    /** Pointer to PDU segment. */
-    void *pvSeg;
-} ISCSIRES;
-/** Pointer to an iSCSI Response PDU buffer. */
-typedef ISCSIRES *PISCSIRES;
-/** Pointer to a const iSCSI Response PDU buffer. */
-typedef ISCSIRES const *PCISCSIRES;
-
-
-/** Pointer to an iSCSI transport driver interface. */
-typedef struct PDMIISCSITRANSPORT *PPDMIISCSITRANSPORT;
-/**
- * iSCSI transport driver interface.
- */
-typedef struct PDMIISCSITRANSPORT
-{
-    /**
-     * Read bytes from an iSCSI transport stream. If the connection fails, it is automatically
-     * reopened on the next call after the error is signalled. Error recovery in this case is
-     * the duty of the caller.
-     *
-     * @returns VBox status code.
-     * @param   pTransport      Pointer to the interface structure containing the called function pointer.
-     * @param   paResponses     Array of scatter segments.
-     * @param   cResponses      The number of segments.
-     * @thread  Any thread.
-     * @todo    Correct the docs.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIISCSITRANSPORT pTransport, PISCSIRES paResponses, unsigned cResponses));
-
-    /**
-     * Write bytes to an iSCSI transport stream. Padding is performed when necessary. If the connection
-     * fails, it is automatically reopened on the next call after the error is signalled. Error recovery
-     * in this case is the duty of the caller.
-     *
-     * @returns VBox status code.
-     * @param   pTransport      Pointer to the interface structure containing the called function pointer.
-     * @param   paRequests      Array of gather segments.
-     * @param   cRequests       The number of segments.
-     * @thread  Any thread.
-     * @todo    Correct the docs.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIISCSITRANSPORT pTransport, PISCSIREQ paRequests, unsigned cRequests));
-
-    /**
-     * Open the iSCSI transport stream.
-     *
-     * @returns VBox status code.
-     * @param   pTransport       Pointer to the interface structure containing the called function pointer.
-     * @param   pszTargetAddress Pointer to string of the format address:port.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnOpen,(PPDMIISCSITRANSPORT pTransport, const char *pszTargetAddress));
-
-    /**
-     * Close the iSCSI transport stream.
-     *
-     * @returns VBox status code.
-     * @param   pTransport      Pointer to the interface structure containing the called function pointer.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnClose,(PPDMIISCSITRANSPORT pTransport));
-} PDMIISCSITRANSPORT;
-
-
-/** Pointer to an asynchronous iSCSI transport driver interface. */
-typedef struct PDMIISCSITRANSPORTASYNC *PPDMIISCSITRANSPORTASYNC;
-/**
- * Asynchronous iSCSI transport driver interface.
- */
-typedef struct PDMIISCSITRANSPORTASYNC
-{
-    /**
-     * Start an asynchronous read request from an iSCSI transport stream. Padding is performed when necessary.
-     *
-     * @returns VBox status code.
-     * @param   pTransport      Pointer to the interface structure containing the called function pointer.
-     * @param   paResponses     Pointer to a array of scatter segments.
-     * @param   cResponses      Number of segments in the array.
-     * @param   pvUser          User argument which is returned in completion callback.
-     * @thread  EMT thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIISCSITRANSPORTASYNC pTransport, PISCSIRES paResponses, unsigned cResponses, void *pvUser));
-
-    /**
-     * Start an asychronous write to an iSCSI transport stream. Padding is performed when necessary.
-     *
-     * @returns VBox status code.
-     * @param   pTransport      Pointer to the interface structure containing the called function pointer.
-     * @param   paRequests      Pointer to a array of gather segments.
-     * @param   cRequests       Number of segments in the array.
-     * @param   pvUser          User argument which is returned in completion callback.
-     * @thread  EMT thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIISCSITRANSPORTASYNC pTransport, PISCSIREQ pRequests, unsigned cRequests, void *pvUser));
-
-} PDMIISCSITRANSPORTASYNC;
-
-
-/** Pointer to a asynchronous iSCSI transport notify interface. */
-typedef struct PDMIISCSITRANSPORTASYNCPORT *PPDMIISCSITRANSPORTASYNCPORT;
-/**
- * Asynchronous iSCSI transport notify interface.
- * Pair with PDMIISCSITRANSPORTASYNC.
- */
-typedef struct PDMIISCSITRANSPORTASYNCPORT
-{
-    /**
-     * Notify completion of a read task.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   paResponses     Pointer to a array of scatter segments.
-     * @param   cResponses      Number of segments in the array.
-     * @param   pvUser          The user argument given in pfnStartRead.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnReadCompleteNotify, (PPDMIISCSITRANSPORTASYNCPORT pInterface, PISCSIRES paResponses, unsigned cResponse, void *pvUser));
-
-    /**
-     * Notify completion of a write task.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   paRequests      Pointer to a array of gather segments.
-     * @param   cRequests       Number of segments in the array.
-     * @param   pvUser          The user argument given in pfnStartWrite.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnWriteCompleteNotify, (PPDMIISCSITRANSPORTASYNCPORT pTransport, PISCSIREQ paRequests, unsigned cRequests, void *pvUser));
-} PDMIISCSITRANSPORTASYNCPORT;
 
 
 /** Pointer to a asynchronous block notify interface. */
 typedef struct PDMIBLOCKASYNCPORT *PPDMIBLOCKASYNCPORT;
 /**
- * Asynchronous block notify interface.
+ * Asynchronous block notify interface (up).
  * Pair with PDMIBLOCKASYNC.
  */
 typedef struct PDMIBLOCKASYNCPORT
@@ -1322,12 +1377,15 @@ typedef struct PDMIBLOCKASYNCPORT
      */
     DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIBLOCKASYNCPORT pInterface, void *pvUser, int rcReq));
 } PDMIBLOCKASYNCPORT;
+/** PDMIBLOCKASYNCPORT interface ID. */
+#define PDMIBLOCKASYNCPORT_IID                  "e3bdc0cb-9d99-41dd-8eec-0dc8cf5b2a92"
+
 
 
 /** Pointer to a asynchronous block interface. */
 typedef struct PDMIBLOCKASYNC *PPDMIBLOCKASYNC;
 /**
- * Asynchronous block interface.
+ * Asynchronous block interface (down).
  * Pair with PDMIBLOCKASYNCPORT.
  */
 typedef struct PDMIBLOCKASYNC
@@ -1344,7 +1402,7 @@ typedef struct PDMIBLOCKASYNC
      * @param   pvUser          User argument which is returned in completion callback.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIBLOCKASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbRead, void *pvUser));
+    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIBLOCKASYNC pInterface, uint64_t off, PCRTSGSEG pSeg, unsigned cSeg, size_t cbRead, void *pvUser));
 
     /**
      * Write bits.
@@ -1358,7 +1416,17 @@ typedef struct PDMIBLOCKASYNC
      * @param   pvUser          User argument which is returned in completion callback.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIBLOCKASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser));
+    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIBLOCKASYNC pInterface, uint64_t off, PCRTSGSEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser));
+
+    /**
+     * Flush everything to disk.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
 
     /**
      * Flush everything to disk.
@@ -1371,13 +1439,15 @@ typedef struct PDMIBLOCKASYNC
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
 
 } PDMIBLOCKASYNC;
+/** PDMIBLOCKASYNC interface ID. */
+#define PDMIBLOCKASYNC_IID                      "78302d0d-4978-498c-be3c-8989cb5ff5c8"
 
 
 /** Pointer to a asynchronous notification interface. */
 typedef struct PDMIMEDIAASYNCPORT *PPDMIMEDIAASYNCPORT;
 /**
- * Asynchronous media interface.
- * Makes up the fundation for PDMIBLOCKASYNC and PDMIBLOCKBIOS.
+ * Asynchronous version of the media interface (up).
+ * Pair with PDMIMEDIAASYNC.
  */
 typedef struct PDMIMEDIAASYNCPORT
 {
@@ -1392,13 +1462,15 @@ typedef struct PDMIMEDIAASYNCPORT
      */
     DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIMEDIAASYNCPORT pInterface, void *pvUser, int rcReq));
 } PDMIMEDIAASYNCPORT;
+/** PDMIMEDIAASYNCPORT interface ID. */
+#define PDMIMEDIAASYNCPORT_IID                  "22d38853-901f-4a71-9670-4d9da6e82317"
 
 
 /** Pointer to a asynchronous media interface. */
 typedef struct PDMIMEDIAASYNC *PPDMIMEDIAASYNC;
 /**
- * Asynchronous media interface.
- * Makes up the fundation for PDMIBLOCKASYNC and PDMIBLOCKBIOS.
+ * Asynchronous version of PDMIMEDIA (down).
+ * Pair with PDMIMEDIAASYNCPORT.
  */
 typedef struct PDMIMEDIAASYNC
 {
@@ -1414,7 +1486,7 @@ typedef struct PDMIMEDIAASYNC
      * @param   pvUser          User data.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIMEDIAASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbRead, void *pvUser));
+    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIMEDIAASYNC pInterface, uint64_t off, PCRTSGSEG pSeg, unsigned cSeg, size_t cbRead, void *pvUser));
 
     /**
      * Start writing task.
@@ -1428,7 +1500,7 @@ typedef struct PDMIMEDIAASYNC
      * @param   pvUser          User data.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIMEDIAASYNC pInterface, uint64_t off, PPDMDATASEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser));
+    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIMEDIAASYNC pInterface, uint64_t off, PCRTSGSEG pSeg, unsigned cSeg, size_t cbWrite, void *pvUser));
 
     /**
      * Flush everything to disk.
@@ -1441,21 +1513,15 @@ typedef struct PDMIMEDIAASYNC
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIMEDIAASYNC pInterface, void *pvUser));
 
 } PDMIMEDIAASYNC;
+/** PDMIMEDIAASYNC interface ID. */
+#define PDMIMEDIAASYNC_IID                      "3553227d-714d-4d28-b993-59f4e671588e"
 
-
-/** @name Bit mask definitions for status line type
- * @{ */
-#define PDM_ICHAR_STATUS_LINES_DCD  RT_BIT(0)
-#define PDM_ICHAR_STATUS_LINES_RI   RT_BIT(1)
-#define PDM_ICHAR_STATUS_LINES_DSR  RT_BIT(2)
-#define PDM_ICHAR_STATUS_LINES_CTS  RT_BIT(3)
-/** @} */
 
 /** Pointer to a char port interface. */
 typedef struct PDMICHARPORT *PPDMICHARPORT;
 /**
- * Char port interface.
- * Pair with PDMICHAR.
+ * Char port interface (down).
+ * Pair with PDMICHARCONNECTOR.
  */
 typedef struct PDMICHARPORT
 {
@@ -1481,6 +1547,16 @@ typedef struct PDMICHARPORT
     DECLR3CALLBACKMEMBER(int, pfnNotifyStatusLinesChanged,(PPDMICHARPORT pInterface, uint32_t fNewStatusLines));
 
     /**
+     * Notify the device when the driver buffer is full.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   fFull           Buffer full.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnNotifyBufferFull,(PPDMICHARPORT pInterface, bool fFull));
+
+    /**
      * Notify the device/driver that a break occurred.
      *
      * @returns VBox statsus code.
@@ -1489,15 +1565,25 @@ typedef struct PDMICHARPORT
      */
     DECLR3CALLBACKMEMBER(int, pfnNotifyBreak,(PPDMICHARPORT pInterface));
 } PDMICHARPORT;
+/** PDMICHARPORT interface ID. */
+#define PDMICHARPORT_IID                        "22769834-ea8b-4a6d-ade1-213dcdbd1228"
+
+/** @name Bit mask definitions for status line type.
+ * @{ */
+#define PDMICHARPORT_STATUS_LINES_DCD   RT_BIT(0)
+#define PDMICHARPORT_STATUS_LINES_RI    RT_BIT(1)
+#define PDMICHARPORT_STATUS_LINES_DSR   RT_BIT(2)
+#define PDMICHARPORT_STATUS_LINES_CTS   RT_BIT(3)
+/** @} */
 
 
 /** Pointer to a char interface. */
-typedef struct PDMICHAR *PPDMICHAR;
+typedef struct PDMICHARCONNECTOR *PPDMICHARCONNECTOR;
 /**
- * Char interface.
+ * Char connector interface (up).
  * Pair with PDMICHARPORT.
  */
-typedef struct PDMICHAR
+typedef struct PDMICHARCONNECTOR
 {
     /**
      * Write bits.
@@ -1508,7 +1594,7 @@ typedef struct PDMICHAR
      * @param   cbWrite         Number of bytes to write.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMICHAR pInterface, const void *pvBuf, size_t cbWrite));
+    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMICHARCONNECTOR pInterface, const void *pvBuf, size_t cbWrite));
 
     /**
      * Set device parameters.
@@ -1521,7 +1607,7 @@ typedef struct PDMICHAR
      * @param   cStopBits       Number of stop bits.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetParameters,(PPDMICHAR pInterface, unsigned Bps, char chParity, unsigned cDataBits, unsigned cStopBits));
+    DECLR3CALLBACKMEMBER(int, pfnSetParameters,(PPDMICHARCONNECTOR pInterface, unsigned Bps, char chParity, unsigned cDataBits, unsigned cStopBits));
 
     /**
      * Set the state of the modem lines.
@@ -1532,7 +1618,7 @@ typedef struct PDMICHAR
      * @param   fDataTerminalReady  Set to true to make the Data Terminal Ready line active otherwise 0.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetModemLines,(PPDMICHAR pInterface, bool fRequestToSend, bool fDataTerminalReady));
+    DECLR3CALLBACKMEMBER(int, pfnSetModemLines,(PPDMICHARCONNECTOR pInterface, bool fRequestToSend, bool fDataTerminalReady));
 
     /**
      * Sets the TD line into break condition.
@@ -1542,15 +1628,17 @@ typedef struct PDMICHAR
      * @param   fBreak      Set to true to let the device send a break false to put into normal operation.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetBreak,(PPDMICHAR pInterface, bool fBreak));
-} PDMICHAR;
+    DECLR3CALLBACKMEMBER(int, pfnSetBreak,(PPDMICHARCONNECTOR pInterface, bool fBreak));
+} PDMICHARCONNECTOR;
+/** PDMICHARCONNECTOR interface ID. */
+#define PDMICHARCONNECTOR_IID                   "4ad5c190-b408-4cef-926f-fbffce0dc5cc"
 
 
 /** Pointer to a stream interface. */
 typedef struct PDMISTREAM *PPDMISTREAM;
 /**
- * Stream interface.
- * Makes up the foundation for PDMICHAR.
+ * Stream interface (up).
+ * Makes up the foundation for PDMICHARCONNECTOR.  No pair interface.
  */
 typedef struct PDMISTREAM
 {
@@ -1576,6 +1664,8 @@ typedef struct PDMISTREAM
      */
     DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMISTREAM pInterface, const void *pvBuf, size_t *cbWrite));
 } PDMISTREAM;
+/** PDMISTREAM interface ID. */
+#define PDMISTREAM_IID                          "d1a5bf5e-3d2c-449a-bde9-addd7920b71f"
 
 
 /** Mode of the parallel port */
@@ -1589,7 +1679,7 @@ typedef enum PDMPARALLELPORTMODE
 /** Pointer to a host parallel port interface. */
 typedef struct PDMIHOSTPARALLELPORT *PPDMIHOSTPARALLELPORT;
 /**
- * Host parallel port interface.
+ * Host parallel port interface (down).
  * Pair with PDMIHOSTPARALLELCONNECTOR.
  */
 typedef struct PDMIHOSTPARALLELPORT
@@ -1614,13 +1704,15 @@ typedef struct PDMIHOSTPARALLELPORT
      */
     DECLR3CALLBACKMEMBER(int, pfnNotifyInterrupt,(PPDMIHOSTPARALLELPORT pInterface));
 } PDMIHOSTPARALLELPORT;
+/** PDMIHOSTPARALLELPORT interface ID. */
+#define PDMIHOSTPARALLELPORT_IID                "ac13e437-cd30-47ac-a271-6120571f3a22"
 
 
 
 /** Pointer to a Host Parallel connector interface. */
 typedef struct PDMIHOSTPARALLELCONNECTOR *PPDMIHOSTPARALLELCONNECTOR;
 /**
- * Host parallel connector interface
+ * Host parallel connector interface (up).
  * Pair with PDMIHOSTPARALLELPORT.
  */
 typedef struct PDMIHOSTPARALLELCONNECTOR
@@ -1687,6 +1779,8 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnSetMode,(PPDMIHOSTPARALLELCONNECTOR pInterface, PDMPARALLELPORTMODE enmMode));
 } PDMIHOSTPARALLELCONNECTOR;
+/** PDMIHOSTPARALLELCONNECTOR interface ID. */
+#define PDMIHOSTPARALLELCONNECTOR_IID           "a03567ca-b29e-4a1b-b2f3-a12435fa2982"
 
 
 /** ACPI power source identifier */
@@ -1723,7 +1817,8 @@ typedef PDMACPIBATSTATE *PPDMACPIBATSTATE;
 /** Pointer to an ACPI port interface. */
 typedef struct PDMIACPIPORT *PPDMIACPIPORT;
 /**
- * ACPI port interface.
+ * ACPI port interface (down). Used by both the ACPI driver and (grumble) main.
+ * Pair with PDMIACPICONNECTOR.
  */
 typedef struct PDMIACPIPORT
 {
@@ -1760,12 +1855,26 @@ typedef struct PDMIACPIPORT
      * @param   pfEnabled       Is set to true if the guest entered the ACPI mode, false otherwise.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetGuestEnteredACPIMode,(PPDMIACPIPORT pInterface, bool *pfEntered));
+
+    /**
+     * Check if the given CPU is still locked by the guest.
+     *
+     * @returns VBox status code
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   uCpu            The CPU to check for.
+     * @param   pfLocked        Is set to true if the CPU is still locked by the guest, false otherwise.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnGetCpuStatus,(PPDMIACPIPORT pInterface, unsigned uCpu, bool *pfLocked));
 } PDMIACPIPORT;
+/** PDMIACPIPORT interface ID. */
+#define PDMIACPIPORT_IID                        "30d3dc4c-6a73-40c8-80e9-34309deacbb3"
+
 
 /** Pointer to an ACPI connector interface. */
 typedef struct PDMIACPICONNECTOR *PPDMIACPICONNECTOR;
 /**
- * ACPI connector interface.
+ * ACPI connector interface (up).
+ * Pair with PDMIACPIPORT.
  */
 typedef struct PDMIACPICONNECTOR
 {
@@ -1791,12 +1900,15 @@ typedef struct PDMIACPICONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnQueryBatteryStatus,(PPDMIACPICONNECTOR, bool *pfPresent, PPDMACPIBATCAPACITY penmRemainingCapacity,
                                                      PPDMACPIBATSTATE penmBatteryState, uint32_t *pu32PresentRate));
 } PDMIACPICONNECTOR;
+/** PDMIACPICONNECTOR interface ID. */
+#define PDMIACPICONNECTOR_IID                   "5f14bf8d-1edf-4e3a-a1e1-cca9fd08e359"
 
 
 /** Pointer to a VMMDevice port interface. */
 typedef struct PDMIVMMDEVPORT *PPDMIVMMDEVPORT;
 /**
- * VMMDevice port interface.
+ * VMMDevice port interface (down).
+ * Pair with PDMIVMMDEVCONNECTOR.
  */
 typedef struct PDMIVMMDEVPORT
 {
@@ -1914,7 +2026,57 @@ typedef struct PDMIVMMDEVPORT
      */
     DECLR3CALLBACKMEMBER(int, pfnVRDPChange, (PPDMIVMMDEVPORT pInterface, bool fVRDPEnabled, uint32_t u32VRDPExperienceLevel));
 
+    /**
+     * Notify the guest of CPU hot-unplug event.
+     *
+     * @returns VBox status code
+     * @param   idCpuCore    The core id of the CPU to remove.
+     * @param   idCpuPackage The package id of the CPU to remove.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCpuHotUnplug, (PPDMIVMMDEVPORT pInterface, uint32_t idCpuCore, uint32_t idCpuPackage));
+
+    /**
+     * Notify the guest of CPU hot-plug event.
+     *
+     * @returns VBox status code
+     * @param   idCpuCore    The core id of the CPU to add.
+     * @param   idCpuPackage The package id of the CPU to add.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCpuHotPlug, (PPDMIVMMDEVPORT pInterface, uint32_t idCpuCore, uint32_t idCpuPackage));
+
+    /**
+     * Enable or disable page sharing
+     *
+     * @returns VBox status code
+     * @param   fEnabled     New setting
+     */
+    DECLR3CALLBACKMEMBER(int, pfnEnablePageSharing, (PPDMIVMMDEVPORT pInterface, bool fEnabled));
+
 } PDMIVMMDEVPORT;
+/** PDMIVMMDEVPORT interface ID. */
+#define PDMIVMMDEVPORT_IID                      "d7e52035-3b6c-422e-9215-2a75646a945d"
+
+
+/** Pointer to a HPET legacy notifcation interface. */
+typedef struct PDMIHPETLEGACYNOTIFY *PPDMIHPETLEGACYNOTIFY;
+/**
+ * HPET legacy notifcation interface.
+ */
+typedef struct PDMIHPETLEGACYNOTIFY
+{
+    /**
+     * Notify about change of HPET legacy mode.
+     *
+     * @param   pInterface      Pointer to the interface structure containing the
+     *                          called function pointer.
+     * @param   fActivated      If HPET legacy mode is activated (@c true) or
+     *                          deactivated (@c false).
+     */
+    DECLR3CALLBACKMEMBER(void, pfnModeChanged,(PPDMIHPETLEGACYNOTIFY pInterface, bool fActivated));
+} PDMIHPETLEGACYNOTIFY;
+/** PDMIHPETLEGACYNOTIFY interface ID. */
+#define PDMIHPETLEGACYNOTIFY_IID                "c9ada595-4b65-4311-8b21-b10498997774"
+
 
 /** @name Flags for PDMIVMMDEVPORT::pfnSetCredentials.
  * @{ */
@@ -1939,7 +2101,7 @@ typedef struct VBVAMEMORY *PVBVAMEMORY;
 /** Pointer to a VMMDev connector interface. */
 typedef struct PDMIVMMDEVCONNECTOR *PPDMIVMMDEVCONNECTOR;
 /**
- * VMMDev connector interface.
+ * VMMDev connector interface (up).
  * Pair with PDMIVMMDEVPORT.
  */
 typedef struct PDMIVMMDEVCONNECTOR
@@ -2024,13 +2186,14 @@ typedef struct PDMIVMMDEVCONNECTOR
      *
      * @returns VBox status code
      * @param   pInterface      Pointer to this interface.
+     * @param   display         The guest monitor, 0 for primary.
      * @param   cy              Video mode horizontal resolution in pixels.
      * @param   cx              Video mode vertical resolution in pixels.
      * @param   cBits           Video mode bits per pixel.
      * @param   pfSupported     Where to put the indicator for whether this mode is supported. (output)
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnVideoModeSupported,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t cx, uint32_t cy, uint32_t cBits, bool *pfSupported));
+    DECLR3CALLBACKMEMBER(int, pfnVideoModeSupported,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t display, uint32_t cx, uint32_t cy, uint32_t cBits, bool *pfSupported));
 
     /**
      * Queries by how many pixels the height should be reduced when calculating video modes
@@ -2095,156 +2258,25 @@ typedef struct PDMIVMMDEVCONNECTOR
     DECLR3CALLBACKMEMBER(int, pfnReportStatistics,(PPDMIVMMDEVCONNECTOR pInterface, struct VBoxGuestStatistics *pGuestStats));
 
     /**
-     * Inflate or deflate the memory balloon
+     * Query the current balloon size
      *
      * @returns VBox status code.
      * @param   pInterface          Pointer to this interface.
-     * @param   fInflate            Inflate or deflate
-     * @param   cPages              Number of physical pages (must be 256 as we allocate in 1 MB chunks)
-     * @param   aPhysPage           Array of physical page addresses
+     * @param   pcbBalloon          Balloon size
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnChangeMemoryBalloon, (PPDMIVMMDEVCONNECTOR pInterface, bool fInflate, uint32_t cPages, RTGCPHYS *aPhysPage));
+    DECLR3CALLBACKMEMBER(int, pfnQueryBalloonSize,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcbBalloon));
 
 } PDMIVMMDEVCONNECTOR;
-
-
-/** Pointer to a network port interface */
-typedef struct PDMINETWORKPORT *PPDMINETWORKPORT;
-/**
- * Network port interface.
- */
-typedef struct PDMINETWORKPORT
-{
-    /**
-     * Wait until there is space for receiving data. We do not care how much space is available
-     * because pfnReceive() will re-check and notify the guest if necessary.
-     *
-     * This function must be called before the pfnRecieve() method is called.
-     *
-     * @returns VBox status code. VINF_SUCCESS means there is at least one receive descriptor available.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   cMillies        Number of milliseconds to wait. 0 means return immediately.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnWaitReceiveAvail,(PPDMINETWORKPORT pInterface, unsigned cMillies));
-
-    /**
-     * Receive data from the network.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvBuf           The available data.
-     * @param   cb              Number of bytes available in the buffer.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(int, pfnReceive,(PPDMINETWORKPORT pInterface, const void *pvBuf, size_t cb));
-
-} PDMINETWORKPORT;
-
-
-/**
- * Network link state.
- */
-typedef enum PDMNETWORKLINKSTATE
-{
-    /** Invalid state. */
-    PDMNETWORKLINKSTATE_INVALID = 0,
-    /** The link is up. */
-    PDMNETWORKLINKSTATE_UP,
-    /** The link is down. */
-    PDMNETWORKLINKSTATE_DOWN,
-    /** The link is temporarily down while resuming. */
-    PDMNETWORKLINKSTATE_DOWN_RESUME
-} PDMNETWORKLINKSTATE;
-
-
-/** Pointer to a network connector interface */
-typedef struct PDMINETWORKCONNECTOR *PPDMINETWORKCONNECTOR;
-/**
- * Network connector interface.
- */
-typedef struct PDMINETWORKCONNECTOR
-{
-    /**
-     * Send data to the network.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvBuf           Data to send.
-     * @param   cb              Number of bytes to send.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSend,(PPDMINETWORKCONNECTOR pInterface, const void *pvBuf, size_t cb));
-
-    /**
-     * Set promiscuous mode.
-     *
-     * This is called when the promiscuous mode is set. This means that there doesn't have
-     * to be a mode change when it's called.
-     *
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   fPromiscuous    Set if the adaptor is now in promiscuous mode. Clear if it is not.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(void, pfnSetPromiscuousMode,(PPDMINETWORKCONNECTOR pInterface, bool fPromiscuous));
-
-    /**
-     * Notification on link status changes.
-     *
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   enmLinkState    The new link state.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(void, pfnNotifyLinkChanged,(PPDMINETWORKCONNECTOR pInterface, PDMNETWORKLINKSTATE enmLinkState));
-
-    /** @todo Add a callback that informs the driver chain about MAC address changes if we ever implement that.  */
-
-} PDMINETWORKCONNECTOR;
-
-
-/** Pointer to a network config port interface */
-typedef struct PDMINETWORKCONFIG *PPDMINETWORKCONFIG;
-/**
- * Network config port interface.
- */
-typedef struct PDMINETWORKCONFIG
-{
-    /**
-     * Gets the current Media Access Control (MAC) address.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pMac            Where to store the MAC address.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(int, pfnGetMac,(PPDMINETWORKCONFIG pInterface, PRTMAC pMac));
-
-    /**
-     * Gets the new link state.
-     *
-     * @returns The current link state.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(PDMNETWORKLINKSTATE, pfnGetLinkState,(PPDMINETWORKCONFIG pInterface));
-
-    /**
-     * Sets the new link state.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   enmState        The new link state
-     * @thread  EMT
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSetLinkState,(PPDMINETWORKCONFIG pInterface, PDMNETWORKLINKSTATE enmState));
-
-} PDMINETWORKCONFIG;
+/** PDMIVMMDEVCONNECTOR interface ID. */
+#define PDMIVMMDEVCONNECTOR_IID                 "1c300d1b-5938-42bb-8acb-46ecfe483db7"
 
 
 /** Pointer to a network connector interface */
 typedef struct PDMIAUDIOCONNECTOR *PPDMIAUDIOCONNECTOR;
 /**
- * Audio connector interface.
+ * Audio connector interface (up).
+ * No interface pair yet.
  */
 typedef struct PDMIAUDIOCONNECTOR
 {
@@ -2253,6 +2285,8 @@ typedef struct PDMIAUDIOCONNECTOR
 /*    DECLR3CALLBACKMEMBER(int,  pfnSetRecordSource,(PPDMIAUDIOINCONNECTOR pInterface, AUDIORECSOURCE)); */
 
 } PDMIAUDIOCONNECTOR;
+/** PDMIAUDIOCONNECTOR interface ID. */
+#define PDMIAUDIOCONNECTOR_IID                  "85d52af5-b3aa-4b3e-b176-4b5ebfc52f47"
 
 
 /** @todo r=bird: the two following interfaces are hacks to work around the missing audio driver
@@ -2260,15 +2294,17 @@ typedef struct PDMIAUDIOCONNECTOR
 
 /** Pointer to a Audio Sniffer Device port interface. */
 typedef struct PDMIAUDIOSNIFFERPORT *PPDMIAUDIOSNIFFERPORT;
-
 /**
- * Audio Sniffer port interface.
+ * Audio Sniffer port interface (down).
+ * Pair with PDMIAUDIOSNIFFERCONNECTOR.
  */
 typedef struct PDMIAUDIOSNIFFERPORT
 {
     /**
-     * Enables or disables sniffing. If sniffing is being enabled also sets a flag
-     * whether the audio must be also left on the host.
+     * Enables or disables sniffing.
+     *
+     * If sniffing is being enabled also sets a flag whether the audio must be also
+     * left on the host.
      *
      * @returns VBox status code
      * @param pInterface      Pointer to this interface.
@@ -2280,12 +2316,15 @@ typedef struct PDMIAUDIOSNIFFERPORT
     DECLR3CALLBACKMEMBER(int, pfnSetup,(PPDMIAUDIOSNIFFERPORT pInterface, bool fEnable, bool fKeepHostAudio));
 
 } PDMIAUDIOSNIFFERPORT;
+/** PDMIAUDIOSNIFFERPORT interface ID. */
+#define PDMIAUDIOSNIFFERPORT_IID                "83b95e02-68cb-470d-9dfc-25a0f8efe197"
+
 
 /** Pointer to a Audio Sniffer connector interface. */
 typedef struct PDMIAUDIOSNIFFERCONNECTOR *PPDMIAUDIOSNIFFERCONNECTOR;
 
 /**
- * Audio Sniffer connector interface.
+ * Audio Sniffer connector interface (up).
  * Pair with PDMIAUDIOSNIFFERPORT.
  */
 typedef struct PDMIAUDIOSNIFFERCONNECTOR
@@ -2317,6 +2356,8 @@ typedef struct PDMIAUDIOSNIFFERCONNECTOR
     DECLR3CALLBACKMEMBER(void, pfnAudioVolumeOut,(PPDMIAUDIOSNIFFERCONNECTOR pInterface, uint16_t u16LeftVolume, uint16_t u16RightVolume));
 
 } PDMIAUDIOSNIFFERCONNECTOR;
+/** PDMIAUDIOSNIFFERCONNECTOR - The Audio Sniffer Driver connector interface. */
+#define PDMIAUDIOSNIFFERCONNECTOR_IID           "433b64ab-e603-4933-bc97-8fe79b2bd0e0"
 
 
 /**
@@ -2377,12 +2418,14 @@ typedef PDMLED *PPDMLED;
 /** Pointer to a const LED. */
 typedef const PDMLED *PCPDMLED;
 
-#define PDMLED_MAGIC ( 0x11335577 )
+/** Magic value for PDMLED::u32Magic. */
+#define PDMLED_MAGIC    UINT32_C(0x11335577)
 
 /** Pointer to an LED ports interface. */
 typedef struct PDMILEDPORTS      *PPDMILEDPORTS;
 /**
- * Interface for exporting LEDs.
+ * Interface for exporting LEDs (down).
+ * Pair with PDMILEDCONNECTORS.
  */
 typedef struct PDMILEDPORTS
 {
@@ -2397,12 +2440,15 @@ typedef struct PDMILEDPORTS
     DECLR3CALLBACKMEMBER(int, pfnQueryStatusLed,(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed));
 
 } PDMILEDPORTS;
+/** PDMILEDPORTS interface ID. */
+#define PDMILEDPORTS_IID                        "435e0cec-8549-4ca0-8c0d-98e52f1dc038"
 
 
 /** Pointer to an LED connectors interface. */
 typedef struct PDMILEDCONNECTORS *PPDMILEDCONNECTORS;
 /**
- * Interface for reading LEDs.
+ * Interface for reading LEDs (up).
+ * Pair with PDMILEDPORTS.
  */
 typedef struct PDMILEDCONNECTORS
 {
@@ -2417,6 +2463,8 @@ typedef struct PDMILEDCONNECTORS
      */
     DECLR3CALLBACKMEMBER(void, pfnUnitChanged,(PPDMILEDCONNECTORS pInterface, unsigned iLUN));
 } PDMILEDCONNECTORS;
+/** PDMILEDCONNECTORS interface ID. */
+#define PDMILEDCONNECTORS_IID                   "8ed63568-82a7-4193-b57b-db8085ac4495"
 
 
 /** The special status unit number */
@@ -2436,9 +2484,10 @@ typedef struct VBOXHGCMCMD *PVBOXHGCMCMD;
 
 /** Pointer to a HGCM port interface. */
 typedef struct PDMIHGCMPORT *PPDMIHGCMPORT;
-
 /**
- * HGCM port interface. Normally implemented by VMMDev.
+ * Host-Guest communication manager port interface (down). Normally implemented
+ * by VMMDev.
+ * Pair with PDMIHGCMCONNECTOR.
  */
 typedef struct PDMIHGCMPORT
 {
@@ -2454,16 +2503,18 @@ typedef struct PDMIHGCMPORT
     DECLR3CALLBACKMEMBER(void, pfnCompleted,(PPDMIHGCMPORT pInterface, int32_t rc, PVBOXHGCMCMD pCmd));
 
 } PDMIHGCMPORT;
+/** PDMIHGCMPORT interface ID. */
+# define PDMIHGCMPORT_IID                       "e00a0cbf-b75a-45c3-87f4-41cddbc5ae0b"
 
-
-/** Pointer to a HGCM connector interface. */
-typedef struct PDMIHGCMCONNECTOR *PPDMIHGCMCONNECTOR;
 
 /** Pointer to a HGCM service location structure. */
 typedef struct HGCMSERVICELOCATION *PHGCMSERVICELOCATION;
 
+/** Pointer to a HGCM connector interface. */
+typedef struct PDMIHGCMCONNECTOR *PPDMIHGCMCONNECTOR;
 /**
- * HGCM connector interface.
+ * The Host-Guest communication manager connector interface (up). Normally
+ * implemented by Main::VMMDevInterface.
  * Pair with PDMIHGCMPORT.
  */
 typedef struct PDMIHGCMCONNECTOR
@@ -2507,8 +2558,10 @@ typedef struct PDMIHGCMCONNECTOR
                                        uint32_t cParms, PVBOXHGCMSVCPARM paParms));
 
 } PDMIHGCMCONNECTOR;
+/** PDMIHGCMCONNECTOR interface ID. */
+# define PDMIHGCMCONNECTOR_IID                  "a1104758-c888-4437-8f2a-7bac17865b5c"
 
-#endif
+#endif /* VBOX_WITH_HGCM */
 
 /**
  * Data direction.
@@ -2541,7 +2594,7 @@ typedef struct PDMSCSIREQUEST
     /** Number of elements in the scatter gather list. */
     uint32_t               cScatterGatherEntries;
     /** Pointer to the head of the scatter gather list. */
-    PPDMDATASEG            paScatterGatherHead;
+    PRTSGSEG               paScatterGatherHead;
     /** Size of the sense buffer. */
     uint32_t               cbSenseBuffer;
     /** Pointer to the sense buffer. *
@@ -2555,9 +2608,8 @@ typedef const PDMSCSIREQUEST *PCSCSIREQUEST;
 
 /** Pointer to a SCSI port interface. */
 typedef struct PDMISCSIPORT *PPDMISCSIPORT;
-
 /**
- * SCSI port interface.
+ * SCSI command execution port interface (down).
  * Pair with PDMISCSICONNECTOR.
  */
 typedef struct PDMISCSIPORT
@@ -2574,12 +2626,14 @@ typedef struct PDMISCSIPORT
      DECLR3CALLBACKMEMBER(int, pfnSCSIRequestCompleted, (PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest, int rcCompletion));
 
 } PDMISCSIPORT;
+/** PDMISCSIPORT interface ID. */
+#define PDMISCSIPORT_IID                        "0f894add-714d-4a77-818e-a32fe3586ba4"
+
 
 /** Pointer to a SCSI connector interface. */
 typedef struct PDMISCSICONNECTOR *PPDMISCSICONNECTOR;
-
 /**
- * SCSI connector interface.
+ * SCSI command execution connector interface (up).
  * Pair with PDMISCSIPORT.
  */
 typedef struct PDMISCSICONNECTOR
@@ -2595,12 +2649,16 @@ typedef struct PDMISCSICONNECTOR
      DECLR3CALLBACKMEMBER(int, pfnSCSIRequestSend, (PPDMISCSICONNECTOR pInterface, PPDMSCSIREQUEST pSCSIRequest));
 
 } PDMISCSICONNECTOR;
+/** PDMISCSICONNECTOR interface ID. */
+#define PDMISCSICONNECTOR_IID                   "94465fbd-a2f2-447e-88c9-7366421bfbfe"
 
-typedef struct PDMDDISPLAYVBVACALLBACKS *PPDMDDISPLAYVBVACALLBACKS;
+
+/** Pointer to a display VBVA callbacks interface. */
+typedef struct PDMIDISPLAYVBVACALLBACKS *PPDMIDISPLAYVBVACALLBACKS;
 /**
- * Display VBVA callbacks.
+ * Display VBVA callbacks interface (up).
  */
-typedef struct PDMDDISPLAYVBVACALLBACKS
+typedef struct PDMIDISPLAYVBVACALLBACKS
 {
 
     /**
@@ -2611,13 +2669,15 @@ typedef struct PDMDDISPLAYVBVACALLBACKS
      * @param   pInterface          Pointer to this interface.
      * @param   pCmd                The Video HW Acceleration Command that was
      *                              completed.
-     * @todo r=bird: if asynch mean asyncronous; then
+     * @todo r=bird: if asynch means asyncronous; then
      *                   s/pfnVHWACommandCompleteAsynch/pfnVHWACommandCompleteAsync/;
      *               fi
      */
-    DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsynch, (PPDMDDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd));
+    DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsynch, (PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd));
 
-} PDMDDISPLAYVBVACALLBACKS;
+} PDMIDISPLAYVBVACALLBACKS;
+/** PDMIDISPLAYVBVACALLBACKS  */
+#define PDMIDISPLAYVBVACALLBACKS_IID     "b78b81d2-c821-4e66-96ff-dbafa76343a5"
 
 /** @} */
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___darwin_VBoxCocoaSpecialControls_h__
@@ -36,13 +32,14 @@ ADD_COCOA_NATIVE_REF (NSSearchField);
 
 class VBoxCocoaButton: public QMacCocoaViewContainer
 {
-    Q_OBJECT;
+    Q_OBJECT
 
 public:
     enum CocoaButtonType
     {
         HelpButton,
-        CancelButton
+        CancelButton,
+        ResetButton
     };
 
     VBoxCocoaButton (CocoaButtonType aType, QWidget *aParent = 0);
@@ -56,6 +53,9 @@ public:
 signals:
     void clicked (bool checked = false);
 
+protected:
+    void resizeEvent(QResizeEvent *pEvent);
+
 private:
     /* Private member vars */
     NativeNSButtonRef mNativeRef;
@@ -63,7 +63,7 @@ private:
 
 class VBoxCocoaSegmentedButton: public QMacCocoaViewContainer
 {
-    Q_OBJECT;
+    Q_OBJECT
 
 public:
     VBoxCocoaSegmentedButton (int aCount, QWidget *aParent = 0);
@@ -89,7 +89,7 @@ private:
 
 class VBoxCocoaSearchField: public QMacCocoaViewContainer
 {
-    Q_OBJECT;
+    Q_OBJECT
 
 public:
     VBoxCocoaSearchField (QWidget* aParent = 0);

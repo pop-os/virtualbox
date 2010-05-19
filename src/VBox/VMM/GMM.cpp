@@ -1,10 +1,10 @@
-/* $Id: GMM.cpp $ */
+/* $Id: GMM.cpp 29424 2010-05-12 15:11:09Z vboxsync $ */
 /** @file
  * GMM - Global Memory Manager, ring-3 request wrappers.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -34,6 +30,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/mem.h>
+#include <iprt/string.h>
 
 
 /**
@@ -275,26 +272,72 @@ GMMR3DECL(void) GMMR3FreeAllocatedPages(PVM pVM, GMMALLOCATEPAGESREQ const *pAll
 }
 
 
-#if 0 /* impractical */
-GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, uint32_t cBalloonedPages, uint32_t cPagesToFree, PGMMFREEPAGEDESC paPages, bool fCompleted)
+/**
+ * @see GMMR0BalloonedPages
+ */
+GMMR3DECL(int)  GMMR3BalloonedPages(PVM pVM, GMMBALLOONACTION enmAction, uint32_t cBalloonedPages)
 {
     GMMBALLOONEDPAGESREQ Req;
     Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     Req.Hdr.cbReq = sizeof(Req);
+    Req.enmAction = enmAction;
+    Req.cBalloonedPages = cBalloonedPages;
 
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_BALLOONED_PAGES, 0, &Req.Hdr);
 }
-#endif
-
 
 /**
- * @see GMMR0DeflatedBalloon
+ * @see GMMR0QueryVMMMemoryStatsReq
  */
-GMMR3DECL(int)  GMMR3DeflatedBalloon(PVM pVM, uint32_t cPages)
+GMMR3DECL(int)  GMMR3QueryHypervisorMemoryStats(PVM pVM, uint64_t *pcTotalAllocPages, uint64_t *pcTotalFreePages, uint64_t *pcTotalBalloonPages)
 {
-    return VMMR3CallR0(pVM, VMMR0_DO_GMM_DEFLATED_BALLOON, cPages, NULL);
+    GMMMEMSTATSREQ Req;
+    Req.Hdr.u32Magic     = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq        = sizeof(Req);
+    Req.cAllocPages      = 0;
+    Req.cFreePages       = 0;
+    Req.cBalloonedPages  = 0;
+
+    *pcTotalAllocPages   = 0;
+    *pcTotalFreePages    = 0;
+    *pcTotalBalloonPages = 0;
+
+    /* Must be callable from any thread, so can't use VMMR3CallR0. */
+    int rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0, VMMR0_DO_GMM_QUERY_HYPERVISOR_MEM_STATS, 0, &Req.Hdr);
+    if (rc == VINF_SUCCESS)
+    {
+        *pcTotalAllocPages   = Req.cAllocPages;
+        *pcTotalFreePages    = Req.cFreePages;
+        *pcTotalBalloonPages = Req.cBalloonedPages;
+    }
+    return rc;
 }
 
+/**
+ * @see GMMR0QueryMemoryStatsReq
+ */
+GMMR3DECL(int)  GMMR3QueryMemoryStats(PVM pVM, uint64_t *pcAllocPages, uint64_t *pcMaxPages, uint64_t *pcBalloonPages)
+{
+    GMMMEMSTATSREQ Req;
+    Req.Hdr.u32Magic    = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq       = sizeof(Req);
+    Req.cAllocPages     = 0;
+    Req.cFreePages      = 0;
+    Req.cBalloonedPages = 0;
+
+    *pcAllocPages      = 0;
+    *pcMaxPages         = 0;
+    *pcBalloonPages     = 0;
+
+    int rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_QUERY_MEM_STATS, 0, &Req.Hdr);
+    if (rc == VINF_SUCCESS)
+    {
+        *pcAllocPages   = Req.cAllocPages;
+        *pcMaxPages     = Req.cMaxPages;
+        *pcBalloonPages = Req.cBalloonedPages;
+    }
+    return rc;
+}
 
 /**
  * @see GMMR0MapUnmapChunk
@@ -313,6 +356,17 @@ GMMR3DECL(int)  GMMR3MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChun
     return rc;
 }
 
+/**
+ * @see GMMR0FreeLargePage
+ */
+GMMR3DECL(int)  GMMR3FreeLargePage(PVM pVM,  uint32_t idPage)
+{
+    GMMFREELARGEPAGEREQ Req;
+    Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq = sizeof(Req);
+    Req.idPage = idPage;
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_FREE_LARGE_PAGE, 0, &Req.Hdr);
+}
 
 /**
  * @see GMMR0SeedChunk
@@ -322,3 +376,39 @@ GMMR3DECL(int)  GMMR3SeedChunk(PVM pVM, RTR3PTR pvR3)
     return VMMR3CallR0(pVM, VMMR0_DO_GMM_SEED_CHUNK, (uintptr_t)pvR3, NULL);
 }
 
+
+/**
+ * @see GMMR0RegisterSharedModule
+ */
+GMMR3DECL(int) GMMR3RegisterSharedModule(PVM pVM, PGMMREGISTERSHAREDMODULEREQ pReq)
+{
+    pReq->Hdr.u32Magic  = SUPVMMR0REQHDR_MAGIC;
+    pReq->Hdr.cbReq     = RT_OFFSETOF(GMMREGISTERSHAREDMODULEREQ, aRegions[pReq->cRegions]);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_REGISTER_SHARED_MODULE, 0, &pReq->Hdr);
+}
+
+/**
+ * @see GMMR0RegisterSharedModule
+ */
+GMMR3DECL(int) GMMR3UnregisterSharedModule(PVM pVM, PGMMUNREGISTERSHAREDMODULEREQ pReq)
+{
+    pReq->Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    pReq->Hdr.cbReq = sizeof(*pReq);
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE, 0, &pReq->Hdr);
+}
+
+/**
+ * @see GMMR0ResetSharedModules
+ */
+GMMR3DECL(int) GMMR3ResetSharedModules(PVM pVM)
+{
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_RESET_SHARED_MODULES, 0, NULL);
+}
+
+/**
+ * @see GMMR0CheckSharedModules
+ */
+GMMR3DECL(int)  GMMR3CheckSharedModules(PVM pVM)
+{
+    return VMMR3CallR0(pVM, VMMR0_DO_GMM_CHECK_SHARED_MODULES, 0, NULL);
+}

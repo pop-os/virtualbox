@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __VBoxProblemReporter_h__
@@ -74,6 +70,10 @@ public:
     bool isValid() const;
 
     // helpers
+
+    bool isAlreadyShown(const QString &strGuardBlockName) const;
+    void setShownStatus(const QString &strGuardBlockName);
+    void clearShownStatus(const QString &strGuardBlockName);
 
     int message (QWidget *aParent, Type aType, const QString &aMessage,
                  const QString &aDetails = QString::null,
@@ -142,7 +142,8 @@ public:
     bool showModalProgressDialog (CProgress &aProgress, const QString &aTitle,
                                   QWidget *aParent, int aMinDuration = 2000);
 
-    QWidget *mainWindowShown() const;
+    QWidget* mainWindowShown() const;
+    QWidget* mainMachineWindowShown() const;
 
     /* Generic problem handlers */
     bool askForOverridingFile (const QString& aPath, QWidget *aParent  = NULL) const;
@@ -206,13 +207,17 @@ public:
     void cannotDiscardSavedState (const CConsole &console);
 
     void cannotSendACPIToMachine();
-    bool warnAboutVirtNotEnabled64BitsGuest();
-    bool warnAboutVirtNotEnabledGuestRequired();
+    bool warnAboutVirtNotEnabled64BitsGuest(bool fHWVirtExSupported);
+    bool warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSupported);
 
     void cannotSetSnapshotFolder (const CMachine &aMachine, const QString &aPath);
 
     bool askAboutSnapshotRestoring (const QString &aSnapshotName);
     bool askAboutSnapshotDeleting (const QString &aSnapshotName);
+    bool askAboutSnapshotDeletingFreeSpace (const QString &aSnapshotName,
+                                            const QString &aTargetImageName,
+                                            const QString &aTargetImageMaxSize,
+                                            const QString &aTargetFilesystemFree);
     void cannotRestoreSnapshot (const CConsole &aConsole, const QString &aSnapshotName);
     void cannotRestoreSnapshot (const CProgress &aProgress, const QString &aSnapshotName);
     void cannotDeleteSnapshot (const CConsole &aConsole, const QString &aSnapshotName);
@@ -224,6 +229,11 @@ public:
                                   ULONG aBpp, ULONG64 aMinVRAM);
     int cannotEnterFullscreenMode (ULONG aWidth, ULONG aHeight,
                                    ULONG aBpp, ULONG64 aMinVRAM);
+    void cannotSwitchScreenInSeamless(quint64 minVRAM);
+    int cannotSwitchScreenInFullscreen(quint64 minVRAM);
+
+    int cannotEnterFullscreenMode();
+    int cannotEnterSeamlessMode();
 
     bool confirmMachineDeletion (const CMachine &machine);
     bool confirmDiscardSavedState (const CMachine &machine);
@@ -305,6 +315,12 @@ public:
     void warnAboutOldAdditions (QWidget *, const QString &, const QString &);
     void warnAboutNewAdditions (QWidget *, const QString &, const QString &);
 
+    bool askAboutUserManualDownload(const QString &strMissedLocation);
+    bool confirmUserManualDownload(const QString &strURL, ulong uSize);
+    void warnAboutUserManualCantBeDownloaded(const QString &strURL, const QString &strReason);
+    void warnAboutUserManualDownloaded(const QString &strURL, const QString &strTarget);
+    void warnAboutUserManualCantBeSaved(const QString &strURL, const QString &strTarget);
+
     void cannotConnectRegister (QWidget *aParent,
                                 const QString &aURL,
                                 const QString &aReason);
@@ -380,12 +396,17 @@ public:
         return formatErrorInfo (aRC.errorInfo(), aRC.rc());
     }
 
+signals:
+
+    void sigDownloaderUserManualCreated();
+
 public slots:
 
     void showHelpWebDialog();
     void showHelpAboutDialog();
     void showHelpHelpDialog();
     void resetSuppressedMessages();
+    void sltShowUserManual(const QString &strLocation);
 
 private:
 
@@ -393,6 +414,8 @@ private:
 
     static QString doFormatErrorInfo (const COMErrorInfo &aInfo,
                                       HRESULT aWrapperRC = S_OK);
+
+    QStringList m_shownWarnings;
 };
 
 /**
@@ -402,3 +425,4 @@ private:
 inline VBoxProblemReporter &vboxProblem() { return VBoxProblemReporter::instance(); }
 
 #endif // __VBoxProblemReporter_h__
+

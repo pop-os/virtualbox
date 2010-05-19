@@ -1,9 +1,10 @@
+/* $Id: VMMDevInterface.cpp 29404 2010-05-12 10:11:28Z vboxsync $ */
 /** @file
  * VirtualBox Driver Interface to VMM device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,16 +13,13 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VMMDev.h"
 #include "ConsoleImpl.h"
 #include "DisplayImpl.h"
 #include "GuestImpl.h"
+#include "MouseImpl.h"
 
 #include "Logging.h"
 
@@ -86,9 +84,10 @@ typedef struct DRVMAINVMMDEV
 //
 // constructor / destructor
 //
-VMMDev::VMMDev(Console *console) : mpDrv(NULL)
+VMMDev::VMMDev(Console *console)
+    : mpDrv(NULL),
+      mParent(console)
 {
-    mParent = console;
     int rc = RTSemEventCreate(&mCredentialsEvent);
     AssertRC(rc);
 #ifdef VBOX_WITH_HGCM
@@ -116,7 +115,7 @@ VMMDev::~VMMDev()
 
 PPDMIVMMDEVPORT VMMDev::getVMMDevPort()
 {
-    Assert(mpDrv);
+    AssertReturn(mpDrv, NULL);
     return mpDrv->pUpPort;
 }
 
@@ -251,8 +250,12 @@ DECLCALLBACK(void) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface
      * Tell the console interface about the event
      * so that it can notify its consumers.
      */
-    pDrv->pVMMDev->getParent()->onMouseCapabilityChange(BOOL (newCapabilities & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE),
-                                                        BOOL (newCapabilities & VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR));
+    Mouse *pMouse = pDrv->pVMMDev->getParent()->getMouse();
+    if (pMouse)  /** @todo and if not?  Can that actually happen? */
+    {
+        pMouse->onVMMDevCanAbsChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE));
+        pMouse->onVMMDevNeedsHostChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR));
+    }
 }
 
 
@@ -311,18 +314,32 @@ DECLCALLBACK(void) iface_VideoAccelFlush(PPDMIVMMDEVCONNECTOR pInterface)
     }
 }
 
-DECLCALLBACK(int) vmmdevVideoModeSupported(PPDMIVMMDEVCONNECTOR pInterface, uint32_t width, uint32_t height,
+DECLCALLBACK(int) vmmdevVideoModeSupported(PPDMIVMMDEVCONNECTOR pInterface, uint32_t display, uint32_t width, uint32_t height,
                                            uint32_t bpp, bool *fSupported)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
 
     if (!fSupported)
         return VERR_INVALID_PARAMETER;
-    IFramebuffer *framebuffer = pDrv->pVMMDev->getParent()->getDisplay()->getFramebuffer();
-    if (framebuffer)
+#ifdef DEBUG_sunlover
+    Log(("vmmdevVideoModeSupported: [%d]: %dx%dx%d\n", display, width, height, bpp));
+#endif
+    IFramebuffer *framebuffer = NULL;
+    LONG xOrigin = 0;
+    LONG yOrigin = 0;
+    HRESULT hrc = pDrv->pVMMDev->getParent()->getDisplay()->GetFramebuffer(display, &framebuffer, &xOrigin, &yOrigin);
+    if (SUCCEEDED(hrc) && framebuffer)
+    {
         framebuffer->VideoModeSupported(width, height, bpp, (BOOL*)fSupported);
+        framebuffer->Release();
+    }
     else
+    {
+#ifdef DEBUG_sunlover
+        Log(("vmmdevVideoModeSupported: hrc %x, framebuffer %p!!!\n", hrc, framebuffer));
+#endif
         *fSupported = true;
+    }
     return VINF_SUCCESS;
 }
 
@@ -355,6 +372,10 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
 
     if (!cRect)
         return VERR_INVALID_PARAMETER;
+#ifdef MMSEAMLESS
+    /* Forward to Display, which calls corresponding framebuffers. */
+    pDrv->pVMMDev->getParent()->getDisplay()->handleSetVisibleRegion(cRect, pRect);
+#else
     IFramebuffer *framebuffer = pDrv->pVMMDev->getParent()->getDisplay()->getFramebuffer();
     if (framebuffer)
     {
@@ -381,6 +402,7 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
         }
 #endif
     }
+#endif
 
     return VINF_SUCCESS;
 }
@@ -389,6 +411,10 @@ DECLCALLBACK(int) vmmdevQueryVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
 
+#ifdef MMSEAMLESS
+    /* Forward to Display, which calls corresponding framebuffers. */
+    pDrv->pVMMDev->getParent()->getDisplay()->handleQueryVisibleRegion(pcRect, pRect);
+#else
     IFramebuffer *framebuffer = pDrv->pVMMDev->getParent()->getDisplay()->getFramebuffer();
     if (framebuffer)
     {
@@ -397,6 +423,7 @@ DECLCALLBACK(int) vmmdevQueryVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint
 
         *pcRect = cRect;
     }
+#endif
 
     return VINF_SUCCESS;
 }
@@ -429,6 +456,33 @@ DECLCALLBACK(int) vmmdevQueryStatisticsInterval(PPDMIVMMDEVCONNECTOR pInterface,
 }
 
 /**
+ * Query the current balloon size
+ *
+ * @returns VBox status code.
+ * @param   pInterface          Pointer to this interface.
+ * @param   pcbBalloon          Balloon size
+ * @thread  The emulation thread.
+ */
+DECLCALLBACK(int) vmmdevQueryBalloonSize(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcbBalloon)
+{
+    PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    ULONG          val = 0;
+
+    if (!pcbBalloon)
+        return VERR_INVALID_POINTER;
+
+    /* store that information in IGuest */
+    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Assert(guest);
+    if (!guest)
+        return VERR_INVALID_PARAMETER; /** @todo wrong error */
+
+    guest->COMGETTER(MemoryBalloonSize)(&val);
+    *pcbBalloon = val;
+    return VINF_SUCCESS;
+}
+
+/**
  * Report new guest statistics
  *
  * @returns VBox status code.
@@ -451,85 +505,33 @@ DECLCALLBACK(int) vmmdevReportStatistics(PPDMIVMMDEVCONNECTOR pInterface, VBoxGu
         return VERR_INVALID_PARAMETER; /** @todo wrong error */
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_CPU_LOAD_IDLE)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_CPULoad_Idle, pGuestStats->u32CpuLoad_Idle);
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_CPUIDLE, pGuestStats->u32CpuLoad_Idle);
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_CPU_LOAD_KERNEL)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_CPULoad_Kernel, pGuestStats->u32CpuLoad_Kernel);
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_CPUKERNEL, pGuestStats->u32CpuLoad_Kernel);
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_CPU_LOAD_USER)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_CPULoad_User, pGuestStats->u32CpuLoad_User);
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_CPUUSER, pGuestStats->u32CpuLoad_User);
 
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_THREADS)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_Threads, pGuestStats->u32Threads);
 
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_PROCESSES)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_Processes, pGuestStats->u32Processes);
-
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_HANDLES)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_Handles, pGuestStats->u32Handles);
-
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_MEMORY_LOAD)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_MemoryLoad, pGuestStats->u32MemoryLoad);
-
-    /* Note that reported values are in pages; upper layers expect them in megabytes */
-    Assert(pGuestStats->u32PageSize == 4096);
-    if (pGuestStats->u32PageSize != 4096)
-        pGuestStats->u32PageSize = 4096;
-
+    /** @todo r=bird: Convert from 4KB to 1KB units?
+     *        CollectorGuestHAL::getGuestMemLoad says it returns KB units to
+     *        preCollect().  I might be wrong ofc, this is convoluted code... */
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_PHYS_MEM_TOTAL)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_PhysMemTotal, (pGuestStats->u32PhysMemTotal + (_1M/pGuestStats->u32PageSize)-1) / (_1M/pGuestStats->u32PageSize));
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_MEMTOTAL, pGuestStats->u32PhysMemTotal);
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_PHYS_MEM_AVAIL)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_PhysMemAvailable, pGuestStats->u32PhysMemAvail / (_1M/pGuestStats->u32PageSize));
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_MEMFREE, pGuestStats->u32PhysMemAvail);
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_PHYS_MEM_BALLOON)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_PhysMemBalloon, pGuestStats->u32PhysMemBalloon / (_1M/pGuestStats->u32PageSize));
-
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_MEM_COMMIT_TOTAL)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_MemCommitTotal, pGuestStats->u32MemCommitTotal / (_1M/pGuestStats->u32PageSize));
-
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_MEM_KERNEL_TOTAL)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_MemKernelTotal, pGuestStats->u32MemKernelTotal / (_1M/pGuestStats->u32PageSize));
-
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_MEM_KERNEL_PAGED)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_MemKernelPaged, pGuestStats->u32MemKernelPaged / (_1M/pGuestStats->u32PageSize));
-
-    if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_MEM_KERNEL_NONPAGED)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_MemKernelNonpaged, pGuestStats->u32MemKernelNonPaged / (_1M/pGuestStats->u32PageSize));
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_MEMBALLOON, pGuestStats->u32PhysMemBalloon);
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_MEM_SYSTEM_CACHE)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_MemSystemCache, pGuestStats->u32MemSystemCache / (_1M/pGuestStats->u32PageSize));
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_MEMCACHE, pGuestStats->u32MemSystemCache);
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_PAGE_FILE_SIZE)
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_PageFileSize, pGuestStats->u32PageFileSize / (_1M/pGuestStats->u32PageSize));
+        guest->SetStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_PAGETOTAL, pGuestStats->u32PageFileSize);
 
-    /* increase sample number */
-    ULONG sample;
-
-    int rc = guest->GetStatistic(0, GuestStatisticType_SampleNumber, &sample);
-    if (SUCCEEDED(rc))
-        guest->SetStatistic(pGuestStats->u32CpuId, GuestStatisticType_SampleNumber, sample+1);
-
-    return VINF_SUCCESS;
-}
-
-/**
- * Inflate or deflate the memory balloon
- *
- * @returns VBox status code.
- * @param   pInterface          Pointer to this interface.
- * @param   fInflate            Inflate or deflate
- * @param   cPages              Number of physical pages (must be 256 as we allocate in 1 MB chunks)
- * @param   aPhysPage           Array of physical page addresses
- * @thread  The emulation thread.
- */
-DECLCALLBACK(int) vmmdevChangeMemoryBalloon(PPDMIVMMDEVCONNECTOR pInterface, bool fInflate, uint32_t cPages, RTGCPHYS *aPhysPage)
-{
-    if (    cPages != VMMDEV_MEMORY_BALLOON_CHUNK_PAGES
-        ||  !aPhysPage)
-        return VERR_INVALID_PARAMETER;
-
-    Log(("vmmdevChangeMemoryBalloon @todo\n"));
     return VINF_SUCCESS;
 }
 
@@ -650,30 +652,19 @@ void VMMDev::hgcmShutdown (void)
 
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-DECLCALLBACK(void *) VMMDev::drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+DECLCALLBACK(void *) VMMDev::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVMAINVMMDEV pDrv = PDMINS_2_DATA(pDrvIns, PDRVMAINVMMDEV);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_VMMDEV_CONNECTOR:
-            return &pDrv->Connector;
+    PPDMDRVINS      pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVMAINVMMDEV  pDrv    = PDMINS_2_DATA(pDrvIns, PDRVMAINVMMDEV);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIVMMDEVCONNECTOR, &pDrv->Connector);
 #ifdef VBOX_WITH_HGCM
-        case PDMINTERFACE_HGCM_CONNECTOR:
-            return &pDrv->HGCMConnector;
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHGCMCONNECTOR, &pDrv->HGCMConnector);
 #endif
-        default:
-            return NULL;
-    }
+    return NULL;
 }
 
 /**
@@ -746,7 +737,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     pData->Connector.pfnQueryVisibleRegion            = vmmdevQueryVisibleRegion;
     pData->Connector.pfnReportStatistics              = vmmdevReportStatistics;
     pData->Connector.pfnQueryStatisticsInterval       = vmmdevQueryStatisticsInterval;
-    pData->Connector.pfnChangeMemoryBalloon           = vmmdevChangeMemoryBalloon;
+    pData->Connector.pfnQueryBalloonSize              = vmmdevQueryBalloonSize;
 
 #ifdef VBOX_WITH_HGCM
     pData->HGCMConnector.pfnConnect                   = iface_hgcmConnect;
@@ -757,20 +748,12 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     /*
      * Get the IVMMDevPort interface of the above driver/device.
      */
-    pData->pUpPort = (PPDMIVMMDEVPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_VMMDEV_PORT);
-    if (!pData->pUpPort)
-    {
-        AssertMsgFailed(("Configuration error: No VMMDev port interface above!\n"));
-        return VERR_PDM_MISSING_INTERFACE_ABOVE;
-    }
+    pData->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIVMMDEVPORT);
+    AssertMsgReturn(pData->pUpPort, ("Configuration error: No VMMDev port interface above!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
 
 #ifdef VBOX_WITH_HGCM
-    pData->pHGCMPort = (PPDMIHGCMPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_HGCM_PORT);
-    if (!pData->pHGCMPort)
-    {
-        AssertMsgFailed(("Configuration error: No HGCM port interface above!\n"));
-        return VERR_PDM_MISSING_INTERFACE_ABOVE;
-    }
+    pData->pHGCMPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIHGCMPORT);
+    AssertMsgReturn(pData->pHGCMPort, ("Configuration error: No HGCM port interface above!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
 #endif
 
     /*
@@ -797,12 +780,8 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
         PPDMILEDPORTS pLedPort;
 
         LogRel(("Shared Folders service loaded.\n"));
-        pLedPort = (PPDMILEDPORTS)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_LED_PORTS);
-        if (!pLedPort)
-        {
-            AssertMsgFailed(("Configuration error: No LED port interface above!\n"));
-            return VERR_PDM_MISSING_INTERFACE_ABOVE;
-        }
+        pLedPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMILEDPORTS);
+        AssertMsgReturn(pLedPort, ("Configuration error: No LED port interface above!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
         rc = pLedPort->pfnQueryStatusLed(pLedPort, 0, &pLed);
         if (RT_SUCCESS(rc) && pLed)
         {
@@ -840,8 +819,12 @@ const PDMDRVREG VMMDev::DrvReg =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "HGCM",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Main VMMDev driver (Main as in the API).",
     /* fFlags */
@@ -856,6 +839,8 @@ const PDMDRVREG VMMDev::DrvReg =
     VMMDev::drvConstruct,
     /* pfnDestruct */
     VMMDev::drvDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

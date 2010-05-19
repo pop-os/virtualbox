@@ -1,11 +1,11 @@
-# $Revision: 55459 $
+# $Revision: 28800 $
 ## @file
 # Makefile for the VirtualBox Linux Host Driver.
 #
 
 #
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,6 @@
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 #
@@ -76,7 +72,7 @@ override MODULE = vboxdrv
 OBJS   = \
 	linux/SUPDrv-linux.o \
 	SUPDrv.o \
-	SUPDrvAgnostic.o \
+	SUPDrvSem.o \
 	r0drv/alloc-r0drv.o \
 	r0drv/initterm-r0drv.o \
 	r0drv/memobj-r0drv.o \
@@ -93,12 +89,16 @@ OBJS   = \
 	r0drv/linux/semevent-r0drv-linux.o \
 	r0drv/linux/semeventmulti-r0drv-linux.o \
 	r0drv/linux/semfastmutex-r0drv-linux.o \
+	r0drv/linux/semmutex-r0drv-linux.o \
 	r0drv/linux/spinlock-r0drv-linux.o \
 	r0drv/linux/thread-r0drv-linux.o \
 	r0drv/linux/thread2-r0drv-linux.o \
 	r0drv/linux/time-r0drv-linux.o \
 	r0drv/linux/timer-r0drv-linux.o \
 	r0drv/generic/semspinmutex-r0drv-generic.o \
+	common/alloc/alloc.o \
+	common/checksum/ipv4.o \
+	common/checksum/ipv6.o \
 	common/err/RTErrConvertFromErrno.o \
 	common/err/RTErrConvertToErrno.o \
 	common/log/log.o \
@@ -107,6 +107,14 @@ OBJS   = \
 	common/log/logrelellipsis.o \
 	common/log/logcom.o \
 	common/log/logformat.o \
+	common/misc/RTAssertMsg1Weak.o \
+	common/misc/RTAssertMsg2.o \
+	common/misc/RTAssertMsg2Add.o \
+	common/misc/RTAssertMsg2AddWeak.o \
+	common/misc/RTAssertMsg2AddWeakV.o \
+	common/misc/RTAssertMsg2Weak.o \
+	common/misc/RTAssertMsg2WeakV.o \
+	common/misc/assert.o \
 	common/misc/handletable.o \
 	common/misc/handletablectx.o \
 	common/string/strformat.o \
@@ -120,8 +128,7 @@ OBJS   = \
 	generic/RTLogWriteStdOut-stub-generic.o \
 	generic/RTLogWriteUser-generic.o \
 	generic/uuid-generic.o \
-	VBox/log-vbox.o \
-	VBox/strformat-vbox.o
+	VBox/log-vbox.o
 ifeq ($(BUILD_TARGET_ARCH),x86)
 OBJS += math/gcc/divdi3.o \
 	math/gcc/moddi3.o \
@@ -131,7 +138,7 @@ OBJS += math/gcc/divdi3.o \
 	math/gcc/umoddi3.o
 endif
 ifeq ($(BUILD_TARGET_ARCH),amd64)
-OBJS += alloc/heapsimple.o
+OBJS += common/alloc/heapsimple.o
 endif
 
 ifneq ($(MAKECMDGOALS),clean)

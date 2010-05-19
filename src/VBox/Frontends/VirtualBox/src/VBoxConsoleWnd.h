@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __VBoxConsoleWnd_h__
@@ -41,6 +37,7 @@
 # include <VBox/dbggui.h>
 #endif
 #ifdef Q_WS_MAC
+# include "VBoxUtils.h"
 # include <ApplicationServices/ApplicationServices.h>
 # ifndef QT_MAC_USE_COCOA
 #  include <Carbon/Carbon.h>
@@ -73,13 +70,13 @@ public:
     VBoxConsoleWnd (VBoxConsoleWnd **aSelf, QWidget* aParent = 0, Qt::WindowFlags aFlags = Qt::Window);
     virtual ~VBoxConsoleWnd();
 
-    bool isWindowMaximized() const
+    bool isWindowMaximized()
     {
 #ifdef Q_WS_MAC
         /* On Mac OS X we didn't really jump to the fullscreen mode but
          * maximize the window. This situation has to be considered when
          * checking for maximized or fullscreen mode. */
-        return !isTrueSeamless() && QMainWindow::isMaximized();
+        return !isTrueSeamless() && ::darwinIsWindowMaximized(this);
 #else /* Q_WS_MAC */
         return QMainWindow::isMaximized();
 #endif /* Q_WS_MAC */
@@ -106,14 +103,14 @@ public:
 
     void popupMainMenu (bool aCenter);
 
-    void installGuestAdditionsFrom (const QString &aSource);
-
     void setMask (const QRegion &aRegion);
     void clearMask();
 
     /* informs that the guest display is resized */
     void onDisplayResize (ulong aWidth, ulong aHeight);
 
+    /* used for obtaining the extradata settings */
+    CSession &session() { return mSession; }
 signals:
 
     void closing();
@@ -164,6 +161,7 @@ private slots:
     void showIndicatorContextMenu (QIStateIndicator *aInd, QContextMenuEvent *aEvent);
 
     void updateDeviceLights();
+    void updateNetworkIPs();
     void updateMachineState (KMachineState aState);
     void updateMouseState (int aState);
     void updateAdditionsState (const QString &aVersion, bool aActive,
@@ -183,6 +181,14 @@ private slots:
     void changeDockIconUpdate (const VBoxChangeDockIconUpdateEvent &aEvent);
     void changePresentationMode (const VBoxChangePresentationModeEvent &aEvent);
     void processGlobalSettingChange (const char *aPublicName, const char *aName);
+
+    void installGuestAdditionsFrom (const QString &aSource);
+
+    void sltDownloaderUserManualEmbed();
+
+#ifdef RT_OS_DARWIN /* Stupid moc doesn't recognize Q_WS_MAC */
+    void sltDockPreviewModeChanged(QAction *pAction);
+#endif /* RT_OS_DARWIN */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     void dbgPrepareDebugMenu();
@@ -303,8 +309,16 @@ private:
     PCDBGGUIVT mDbgGuiVT;
 #endif
 
+#ifdef Q_WS_MAC
+    QMenu *m_pDockMenu;
+    QMenu *m_pDockSettingsMenu;
+    QAction *m_pDockDisablePreview;
+    QAction *m_pDockEnablePreviewMonitor;
+#endif /* Q_WS_MAC */
+
     /* Timer to update LEDs */
     QTimer *mIdleTimer;
+    QTimer *mNetworkTimer;
 
     /* LEDs */
     QIStateIndicator *mHDLed;
@@ -437,3 +451,4 @@ private:
 };
 
 #endif // __VBoxConsoleWnd_h__
+

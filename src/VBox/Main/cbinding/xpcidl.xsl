@@ -1,11 +1,11 @@
 <?xml version="1.0"?>
-<!-- $Id: xpidl.xsl $ -->
+<!-- $Id: xpidl.xsl 39869 2008-11-25 13:37:40Z dmik $ -->
 
 <!--
  *  A template to generate a XPCOM IDL compatible interface definition file
  *  from the generic interface definition expressed in XML.
 
-     Copyright (C) 2008-2009 Sun Microsystems, Inc.
+     Copyright (C) 2008-2010 Oracle Corporation
 
      This file is part of VirtualBox Open Source Edition (OSE), as
      available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
      Foundation, in version 2 as it comes in the "COPYING" file of the
      VirtualBox OSE distribution. VirtualBox OSE is distributed in the
      hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-
-     Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-     Clara, CA 95054 USA or visit http://www.sun.com if you need
-     additional information or have any questions.
 -->
 
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -124,7 +120,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of a free software library; you can redistribute
  * it and/or modify it under the terms of the GNU Lesser General
@@ -133,18 +129,14 @@
  * The library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY of any kind.
  *
- * Sun LGPL Disclaimer: For the avoidance of doubt, except that if
+ * Oracle LGPL Disclaimer: For the avoidance of doubt, except that if
  * any license choice other than GPL or LGPL is available it will
- * apply instead, Sun elects to use only the Lesser General Public
+ * apply instead, Oracle elects to use only the Lesser General Public
  * License version 2.1 (LGPLv2) at this time for any software where
  * a choice of LGPL license versions is made available with the
  * language indicating that LGPLv2 or any later version may be used,
  * or where a choice of which version of the LGPL is applied is
  * otherwise unspecified.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VirtualBox_CXPCOM_h

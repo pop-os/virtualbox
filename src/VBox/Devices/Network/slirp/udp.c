@@ -1,4 +1,23 @@
+/* $Id: udp.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - UDP protocol.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1990, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -105,9 +124,13 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
      * Make mbuf data length reflect UDP length.
      * If not enough data to reflect UDP length, drop.
      */
-    len = ntohs((u_int16_t)uh->uh_ulen);
+    len = RT_N2H_U16((u_int16_t)uh->uh_ulen);
     Assert((ip->ip_len == len));
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     Assert((ip->ip_len + iphlen == m->m_len));
+#else
+    Assert((ip->ip_len + iphlen == m_length(m, NULL)));
+#endif
 
     if (ip->ip_len != len)
     {
@@ -155,15 +178,15 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     /*
      *  handle DHCP/BOOTP
      */
-    if (ntohs(uh->uh_dport) == BOOTP_SERVER)
+    if (uh->uh_dport == RT_H2N_U16_C(BOOTP_SERVER))
     {
         bootp_input(pData, m);
         goto done;
     }
 
-    if (   pData->use_host_resolver
-        && ntohs(uh->uh_dport) == 53
-        && CTL_CHECK(ntohl(ip->ip_dst.s_addr), CTL_DNS))
+    if (   pData->fUseHostResolver
+        && uh->uh_dport == RT_H2N_U16_C(53)
+        && CTL_CHECK(RT_N2H_U32(ip->ip_dst.s_addr), CTL_DNS))
     {
         struct sockaddr_in dst, src;
         src.sin_addr.s_addr = ip->ip_dst.s_addr;
@@ -180,14 +203,12 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     /*
      *  handle TFTP
      */
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
-    if (   ntohs(uh->uh_dport) == TFTP_SERVER
-        && CTL_CHECK(ntohl(ip->ip_dst.s_addr), CTL_TFTP))
+    if (   uh->uh_dport == RT_H2N_U16_C(TFTP_SERVER)
+        && CTL_CHECK(RT_N2H_U32(ip->ip_dst.s_addr), CTL_TFTP))
     {
         tftp_input(pData, m);
         goto done;
     }
-#endif
 
     /*
      * Locate pcb for datagram.
@@ -224,12 +245,12 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
          */
         if ((so = socreate()) == NULL)
         {
-            Log3(("NAT: IP(id: %hd) failed to create socket\n", ip->ip_id));
+            Log2(("NAT: IP(id: %hd) failed to create socket\n", ip->ip_id));
             goto bad;
         }
         if (udp_attach(pData, so, 0) == -1)
         {
-            Log3(("NAT: IP(id: %hd) udp_attach errno = %d-%s\n",
+            Log2(("NAT: IP(id: %hd) udp_attach errno = %d-%s\n",
                         ip->ip_id, errno, strerror(errno)));
             sofree(pData, so);
             goto bad;
@@ -242,8 +263,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         so->so_laddr = ip->ip_src;
         so->so_lport = uh->uh_sport;
 
-        if ((so->so_iptos = udp_tos(so)) == 0)
-            so->so_iptos = ip->ip_tos;
+        so->so_iptos = ip->ip_tos;
 
         /*
          * XXXXX Here, check if it's in udpexec_list,
@@ -257,9 +277,9 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     /*
      * DNS proxy
      */
-    if (   pData->use_dns_proxy
-        && (ip->ip_dst.s_addr == htonl(ntohl(pData->special_addr.s_addr) | CTL_DNS))
-        && (ntohs(uh->uh_dport) == 53))
+    if (   pData->fUseDnsProxy
+        && (ip->ip_dst.s_addr == RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_DNS))
+        && (uh->uh_dport == RT_H2N_U16_C(53)))
     {
         dnsproxy_query(pData, so, m, iphlen);
         goto done;
@@ -268,12 +288,6 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     iphlen += sizeof(struct udphdr);
     m->m_len -= iphlen;
     m->m_data += iphlen;
-
-    /*
-     * Now we sendto() the packet.
-     */
-    if (so->so_emu)
-        udp_emu(pData, so, m);
 
     ttl = ip->ip_ttl = save_ip.ip_ttl;
     ret = setsockopt(so->s, IPPROTO_IP, IP_TTL, (const char*)&ttl, sizeof(ttl));
@@ -294,7 +308,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     }
 
     if (so->so_m)
-        m_free(pData, so->so_m);   /* used for ICMP if error on sorecvfrom */
+        m_freem(pData, so->so_m);   /* used for ICMP if error on sorecvfrom */
 
     /* restore the orig mbuf packet */
     m->m_len += iphlen;
@@ -342,7 +356,7 @@ int udp_output2(PNATState pData, struct socket *so, struct mbuf *m,
     ui = mtod(m, struct udpiphdr *);
     memset(ui->ui_x1, 0, 9);
     ui->ui_pr = IPPROTO_UDP;
-    ui->ui_len = htons(m->m_len - sizeof(struct ip));
+    ui->ui_len = RT_H2N_U16(m->m_len - sizeof(struct ip));
     /* XXXXX Check for from-one-location sockets, or from-any-location sockets */
     ui->ui_src = saddr->sin_addr;
     ui->ui_dst = daddr->sin_addr;
@@ -376,17 +390,17 @@ int udp_output(PNATState pData, struct socket *so, struct mbuf *m,
     struct sockaddr_in saddr, daddr;
 
     saddr = *addr;
-    if ((so->so_faddr.s_addr & htonl(pData->netmask)) == pData->special_addr.s_addr)
+    if ((so->so_faddr.s_addr & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr)
     {
         saddr.sin_addr.s_addr = so->so_faddr.s_addr;
-        if ((so->so_faddr.s_addr & htonl(~pData->netmask)) == htonl(~pData->netmask))
+        if ((so->so_faddr.s_addr & RT_H2N_U32(~pData->netmask)) == RT_H2N_U32(~pData->netmask))
             saddr.sin_addr.s_addr = alias_addr.s_addr;
     }
 
     /* Any UDP packet to the loopback address must be translated to be from
      * the forwarding address, i.e. 10.0.2.2. */
-    if (   (saddr.sin_addr.s_addr & htonl(IN_CLASSA_NET))
-        == htonl(INADDR_LOOPBACK & IN_CLASSA_NET))
+    if (   (saddr.sin_addr.s_addr & RT_H2N_U32_C(IN_CLASSA_NET))
+        == RT_H2N_U32_C(INADDR_LOOPBACK & IN_CLASSA_NET))
         saddr.sin_addr.s_addr = alias_addr.s_addr;
 
     daddr.sin_addr = so->so_laddr;
@@ -447,7 +461,7 @@ udp_attach(PNATState pData, struct socket *so, int service_port)
     QSOCKET_UNLOCK(udb);
     return so->s;
 error:
-    LogRel(("NAT: can't create datagramm socket\n"));
+    Log2(("NAT: can't create datagramm socket\n"));
     return -1;
 }
 
@@ -463,47 +477,6 @@ udp_detach(PNATState pData, struct socket *so)
         sofree(pData, so);
         SOCKET_UNLOCK(so);
     }
-}
-
-static const struct tos_t udptos[] =
-{
-    {   0,    53, IPTOS_LOWDELAY, 0           }, /* DNS */
-    { 517,   517, IPTOS_LOWDELAY, EMU_TALK    }, /* talk */
-    { 518,   518, IPTOS_LOWDELAY, EMU_NTALK   }, /* ntalk */
-    {   0,  7648, IPTOS_LOWDELAY, EMU_CUSEEME }, /* Cu-Seeme */
-    {   0,     0, 0,              0           }
-};
-
-u_int8_t
-udp_tos(struct socket *so)
-{
-    int i = 0;
-
-    while(udptos[i].tos)
-    {
-        if (   (udptos[i].fport && ntohs(so->so_fport) == udptos[i].fport)
-            || (udptos[i].lport && ntohs(so->so_lport) == udptos[i].lport))
-        {
-            so->so_emu = udptos[i].emu;
-            return udptos[i].tos;
-        }
-        i++;
-    }
-
-    return 0;
-}
-
-#ifdef EMULATE_TALK
-#include "talkd.h"
-#endif
-
-/*
- * Here, talk/ytalk/ntalk requests must be emulated
- */
-void
-udp_emu(PNATState pData, struct socket *so, struct mbuf *m)
-{
-    so->so_emu = 0;
 }
 
 struct socket *
@@ -528,7 +501,7 @@ udp_listen(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_
     fd_nonblock(so->s);
     SOCKET_LOCK_CREATE(so);
     QSOCKET_LOCK(udb);
-    insque(pData, so,&udb);
+    insque(pData, so, &udb);
     NSOCK_INC();
     QSOCKET_UNLOCK(udb);
 

@@ -1,3 +1,4 @@
+/* $Id: VBoxHelpActions.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,18 +15,18 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include "precomp.h"
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxHelpActions.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 
 /* Qt includes */
 #include <QMenu>
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 void VBoxHelpActions::setup (QObject *aParent)
 {
@@ -44,6 +45,7 @@ void VBoxHelpActions::setup (QObject *aParent)
     registerAction->setIcon (VBoxGlobal::iconSet (":/register_16px.png",
                                                   ":/register_disabled_16px.png"));
     updateAction = new QAction (aParent);
+    updateAction->setMenuRole(QAction::ApplicationSpecificRole);
     updateAction->setIcon (VBoxGlobal::iconSet (":/refresh_16px.png",
                                                 ":/refresh_disabled_16px.png"));
     aboutAction = new QAction (aParent);

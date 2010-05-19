@@ -1,10 +1,10 @@
-/* $Id: CPUMAllRegs.cpp $ */
+/* $Id: CPUMAllRegs.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Getters and Setters.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -37,6 +33,7 @@
 #include <VBox/tm.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #ifdef IN_RING3
 #include <iprt/thread.h>
 #endif
@@ -735,6 +732,7 @@ VMMDECL(void) CPUMSetGuestEFER(PVMCPU pVCpu, uint64_t val)
 VMMDECL(uint64_t)  CPUMGetGuestMsr(PVMCPU pVCpu, unsigned idMsr)
 {
     uint64_t u64 = 0;
+    uint8_t  u8Multiplier = 4;
 
     switch (idMsr)
     {
@@ -789,8 +787,41 @@ VMMDECL(uint64_t)  CPUMGetGuestMsr(PVMCPU pVCpu, unsigned idMsr)
         case MSR_IA32_PERF_STATUS:
             /** @todo: could really be not exactly correct, maybe use host's values */
             /* Keep consistent with helper_rdmsr() in REM */
-            u64 =     (1000ULL                /* TSC increment by tick */)
-                    | (((uint64_t)4ULL) << 40 /* CPU multiplier */       );
+            u64 =     (1000ULL                      /* TSC increment by tick */)
+                    | ((uint64_t)u8Multiplier << 24 /* CPU multiplier (aka bus ratio) min */       )
+                    | ((uint64_t)u8Multiplier << 40 /* CPU multiplier (aka bus ratio) max */       );
+            break;
+
+        case  MSR_IA32_FSB_CLOCK_STS:
+            /**
+             * Encoded as:
+             * 0 - 266
+             * 1 - 133
+             * 2 - 200
+             * 3 - return 166
+             * 5 - return 100
+             */
+            u64 = (2 << 4);
+            break;
+
+        case MSR_IA32_PLATFORM_INFO:
+            u64 =     ((u8Multiplier)<<8              /* Flex ratio max */)
+                    | ((uint64_t)u8Multiplier << 40   /* Flex ratio min */ );
+            break;
+
+        case MSR_IA32_THERM_STATUS:
+            /* CPU temperature reltive to TCC, to actually activate, CPUID leaf 6 EAX[0] must be set */
+            u64 = (1 << 31) /* validity bit */ |
+                  (20 << 16) /* degrees till TCC */;
+            break;
+
+        case MSR_IA32_MISC_ENABLE:
+#if 0
+            /* Needs to be tested more before enabling. */
+            u64 = pVCpu->cpum.s.GuestMsr.msr.miscEnable;
+#else
+            u64 = 0;
+#endif
             break;
 
         /* fs & gs base skipped on purpose as the current context might not be up-to-date. */
@@ -808,6 +839,10 @@ VMMDECL(void) CPUMSetGuestMsr(PVMCPU pVCpu, unsigned idMsr, uint64_t valMsr)
     {
         case MSR_K8_TSC_AUX:
             pVCpu->cpum.s.GuestMsr.msr.tscAux = valMsr;
+            break;
+
+        case MSR_IA32_MISC_ENABLE:
+            pVCpu->cpum.s.GuestMsr.msr.miscEnable = valMsr;
             break;
 
         default:
@@ -1071,15 +1106,14 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t iLeaf, uint32_t *pEax, ui
     else
         pCpuId = &pVM->cpum.s.GuestCpuIdDef;
 
-    bool fHasMoreCaches = (*pEcx == 0);
+    uint32_t cCurrentCacheIndex = *pEcx;
 
     *pEax = pCpuId->eax;
     *pEbx = pCpuId->ebx;
     *pEcx = pCpuId->ecx;
     *pEdx = pCpuId->edx;
 
-    if (    iLeaf == 1
-        &&  pVM->cCpus > 1)
+    if (    iLeaf == 1)
     {
         /* Bits 31-24: Initial APIC ID */
         Assert(pVCpu->idCpu <= 255);
@@ -1087,13 +1121,56 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t iLeaf, uint32_t *pEax, ui
    }
 
     if (    iLeaf == 4
-        &&  fHasMoreCaches
+        &&  cCurrentCacheIndex < 3
         &&  pVM->cpum.s.enmGuestCpuVendor == CPUMCPUVENDOR_INTEL)
     {
-        /* Report L0 data cache, Linux'es num_cpu_cores() requires
-         * that to be non-0 to detect core count correctly. */
-        *pEax |= (1 << 5) /* level 1 */ | 1 /* 1 - data cache, 2 - i-cache, 3 - unified */ ;
-        *pEbx = 63 /* linesize 64 */ ;
+        uint32_t type, level, sharing, linesize,
+                 partitions, associativity, sets, cores;
+
+        /* For type: 1 - data cache, 2 - i-cache, 3 - unified */
+        partitions = 1;
+        /* Those are only to shut up compiler, as they will always
+           get overwritten, and compiler should be able to figure that out */
+        sets = associativity = sharing = level = 1;
+        cores = pVM->cCpus > 32 ? 32 : pVM->cCpus;
+        switch (cCurrentCacheIndex)
+        {
+            case 0:
+                type = 1;
+                level = 1;
+                sharing = 1;
+                linesize = 64;
+                associativity = 8;
+                sets = 64;
+                break;
+            case 1:
+                level = 1;
+                type = 2;
+                sharing = 1;
+                linesize = 64;
+                associativity = 8;
+                sets = 64;
+                break;
+            default:            /* shut up gcc.*/
+                AssertFailed();
+            case 2:
+                level = 2;
+                type = 3;
+                sharing = cores; /* our L2 cache is modelled as shared between all cores */
+                linesize = 64;
+                associativity = 24;
+                sets = 4096;
+                break;
+        }
+
+        *pEax |= ((cores - 1) << 26)        |
+                 ((sharing - 1) << 14)      |
+                 (level << 5)               |
+                 1;
+        *pEbx = (linesize - 1)               |
+                ((partitions - 1) << 12)     |
+                ((associativity - 1) << 22); /* -1 encoding */
+        *pEcx = sets - 1;
     }
 
     Log2(("CPUMGetGuestCpuId: iLeaf=%#010x %RX32 %RX32 %RX32 %RX32\n", iLeaf, *pEax, *pEbx, *pEcx, *pEdx));
@@ -1656,6 +1733,119 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu)
     return VINF_SUCCESS;
 }
 
+
+/**
+ * Tests if the guest has No-Execute Page Protection Enabled (NXE).
+ *
+ * @returns true if in real mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestNXEnabled(PVMCPU pVCpu)
+{
+    return !!(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_NXE);
+}
+
+
+/**
+ * Tests if the guest has the Page Size Extension enabled (PSE).
+ *
+ * @returns true if in real mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestPageSizeExtEnabled(PVMCPU pVCpu)
+{
+    /* PAE or AMD64 implies support for big pages regardless of CR4.PSE */
+    return !!(pVCpu->cpum.s.Guest.cr4 & (X86_CR4_PSE | X86_CR4_PAE));
+}
+
+
+/**
+ * Tests if the guest has the paging enabled (PG).
+ *
+ * @returns true if in real mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestPagingEnabled(PVMCPU pVCpu)
+{
+    return !!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PG);
+}
+
+
+/**
+ * Tests if the guest has the paging enabled (PG).
+ *
+ * @returns true if in real mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestR0WriteProtEnabled(PVMCPU pVCpu)
+{
+    return !!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_WP);
+}
+
+
+/**
+ * Tests if the guest is running in real mode or not.
+ *
+ * @returns true if in real mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestInRealMode(PVMCPU pVCpu)
+{
+    return !(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE);
+}
+
+
+/**
+ * Tests if the guest is running in protected or not.
+ *
+ * @returns true if in protected mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestInProtectedMode(PVMCPU pVCpu)
+{
+    return !!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE);
+}
+
+
+/**
+ * Tests if the guest is running in paged protected or not.
+ *
+ * @returns true if in paged protected mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu)
+{
+    return (pVCpu->cpum.s.Guest.cr0 & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG);
+}
+
+
+/**
+ * Tests if the guest is running in long mode or not.
+ *
+ * @returns true if in long mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestInLongMode(PVMCPU pVCpu)
+{
+    return (pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_LMA) == MSR_K6_EFER_LMA;
+}
+
+
+/**
+ * Tests if the guest is running in PAE mode or not.
+ *
+ * @returns true if in PAE mode, otherwise false.
+ * @param   pVCpu       The virtual CPU handle.
+ */
+VMMDECL(bool) CPUMIsGuestInPAEMode(PVMCPU pVCpu)
+{
+    return (pVCpu->cpum.s.Guest.cr4 & X86_CR4_PAE)
+        && (pVCpu->cpum.s.Guest.cr0 & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG)
+        && !(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_LMA);
+}
+
+
+
 #ifndef IN_RING0  /** @todo I don't think we need this in R0, so move it to CPUMAll.cpp? */
 
 /**
@@ -2075,4 +2265,3 @@ VMMDECL(CPUMMODE) CPUMGetGuestMode(PVMCPU pVCpu)
 
     return enmMode;
 }
-

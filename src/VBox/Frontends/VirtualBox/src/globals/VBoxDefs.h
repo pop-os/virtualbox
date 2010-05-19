@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __VBoxDefs_h__
@@ -82,7 +78,7 @@ struct VBoxDefs
     enum RenderMode
     {
         InvalidRenderMode, TimerMode, QImageMode, SDLMode, DDRAWMode, Quartz2DMode
-#ifdef VBOX_GUI_USE_QGL
+#ifdef VBOX_GUI_USE_QGLFB
         , QGLMode
 #endif
     };
@@ -115,7 +111,8 @@ struct VBoxDefs
 #if defined (Q_WS_WIN)
         , ShellExecuteEventType
 #endif
-        , ActivateMenuEventType
+        , ActivateMenuEventType /* remove when new core is active */
+        , ActivateActionEventType /* New name for new core */
 #if defined (Q_WS_MAC)
         , ShowWindowEventType
 #endif
@@ -144,8 +141,10 @@ struct VBoxDefs
 
     static const char* GUI_LastWindowPosition;
     static const char* GUI_LastWindowPosition_Max;
+    static const char* GUI_LastGuestSizeHint;
     static const char* GUI_Fullscreen;
     static const char* GUI_Seamless;
+    static const char* GUI_VirtualScreenToHostScreen;
     static const char* GUI_AutoresizeGuest;
     static const char* GUI_FirstRun;
     static const char* GUI_SaveMountedAtRuntime;
@@ -153,6 +152,7 @@ struct VBoxDefs
     static const char* GUI_MiniToolBarAlignment;
     static const char* GUI_MiniToolBarAutoHide;
     static const char* GUI_LastCloseAction;
+    static const char* GUI_RestrictedCloseActions;
     static const char* GUI_SuppressMessages;
     static const char* GUI_PermanentSharedFoldersAtRuntime;
 #ifdef Q_WS_X11
@@ -172,6 +172,7 @@ struct VBoxDefs
 #endif
 #ifdef Q_WS_MAC
     static const char* GUI_RealtimeDockIconUpdateEnabled;
+    static const char* GUI_RealtimeDockIconUpdateMonitor;
     static const char* GUI_PresentationModeEnabled;
 #endif /* Q_WS_MAC */
     static const char* GUI_PassCAD;
@@ -180,6 +181,14 @@ struct VBoxDefs
     static const char* GUI_Export_Hostname;
     static const char* GUI_Export_Bucket;
     static const char* GUI_PreventBetaWarning;
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    static const char* GUI_Accelerate2D_StretchLinear;
+    static const char* GUI_Accelerate2D_PixformatYV12;
+    static const char* GUI_Accelerate2D_PixformatUYVY;
+    static const char* GUI_Accelerate2D_PixformatYUY2;
+    static const char* GUI_Accelerate2D_PixformatAYUV;
+#endif
 };
 
 #define MAC_LEOPARD_STYLE defined(Q_WS_MAC) && (QT_VERSION >= 0x040300)

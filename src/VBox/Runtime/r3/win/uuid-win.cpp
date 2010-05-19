@@ -1,10 +1,10 @@
-/* $Id: uuid-win.cpp $ */
+/* $Id: uuid-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - UUID, Windows implementation.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -82,20 +78,43 @@ RTDECL(int)  RTUuidCompare(PCRTUUID pUuid1, PCRTUUID pUuid2)
 }
 
 
-RTDECL(int)  RTUuidCompareStr(PCRTUUID pUuid1, const char *pszString)
+RTDECL(int)  RTUuidCompareStr(PCRTUUID pUuid1, const char *pszString2)
 {
     /* check params */
     AssertPtrReturn(pUuid1, -1);
-    AssertPtrReturn(pszString, 1);
+    AssertPtrReturn(pszString2, 1);
 
     /*
      * Try convert the string to a UUID and then compare the two.
      */
     RTUUID Uuid2;
-    int rc = RTUuidFromStr(&Uuid2, pszString);
+    int rc = RTUuidFromStr(&Uuid2, pszString2);
     AssertRCReturn(rc, 1);
 
     return RTUuidCompare(pUuid1, &Uuid2);
+}
+
+
+RTDECL(int)  RTUuidCompare2Strs(const char *pszString1, const char *pszString2)
+{
+    RTUUID Uuid1;
+    RTUUID Uuid2;
+    int rc;
+
+    /* check params */
+    AssertPtrReturn(pszString1, -1);
+    AssertPtrReturn(pszString2, 1);
+
+    /*
+     * Try convert the strings to UUIDs and then compare them.
+     */
+    rc = RTUuidFromStr(&Uuid1, pszString1);
+    AssertRCReturn(rc, -1);
+
+    rc = RTUuidFromStr(&Uuid2, pszString2);
+    AssertRCReturn(rc, 1);
+
+    return RTUuidCompare(&Uuid1, &Uuid2);
 }
 
 
@@ -163,5 +182,4 @@ RTDECL(int)  RTUuidFromStr(PRTUUID pUuid, const char *pszString)
 
     return RTErrConvertFromWin32(rc);
 }
-
 

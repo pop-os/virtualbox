@@ -1,10 +1,10 @@
-/* $Id: VBoxManage.h $ */
+/* $Id: VBoxManage.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox command-line interface, internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___H_VBOXMANAGE
@@ -93,6 +89,9 @@
 #define USAGE_DUMPHDINFO            RT_BIT_64(48)
 #define USAGE_STORAGEATTACH         RT_BIT_64(49)
 #define USAGE_STORAGECONTROLLER     RT_BIT_64(50)
+#ifdef VBOX_WITH_GUEST_CONTROL
+#define USAGE_GUESTCONTROL          RT_BIT_64(51)
+#endif  /* VBOX_WITH_GUEST_CONTROL defined */
 #define USAGE_ALL                   (~(uint64_t)0)
 /** @} */
 
@@ -118,10 +117,9 @@ typedef enum
 {
     VMINFO_NONE             = 0,
     VMINFO_STANDARD         = 1,    /**< standard details */
-    VMINFO_STATISTICS       = 2,    /**< guest statistics */
-    VMINFO_FULL             = 3,    /**< both */
-    VMINFO_MACHINEREADABLE  = 4,    /**< both, and make it machine readable */
-    VMINFO_COMPACT          = 5
+    VMINFO_FULL             = 2,    /**< both */
+    VMINFO_MACHINEREADABLE  = 3,    /**< both, and make it machine readable */
+    VMINFO_COMPACT          = 4
 } VMINFO_DETAILS;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,6 +166,10 @@ extern void usageGuestProperty(void);
 #ifndef VBOX_ONLY_DOCS
 extern int handleGuestProperty(HandlerArg *a);
 
+/* VBoxManageGuestCtrl.cpp */
+extern int handleGuestControl(HandlerArg *a);
+extern void usageGuestControl(void);
+
 /* VBoxManageVMInfo.cpp */
 void showSnapshots(ComPtr<ISnapshot> &rootSnapshot,
                    ComPtr<ISnapshot> &currentSnapshot,
@@ -192,7 +194,7 @@ int handleUnregisterVM(HandlerArg *a);
 int handleCreateVM(HandlerArg *a);
 int handleStartVM(HandlerArg *a);
 int handleDiscardState(HandlerArg *a);
-int handleAdoptdState(HandlerArg *a);
+int handleAdoptState(HandlerArg *a);
 int handleGetExtraData(HandlerArg *a);
 int handleSetExtraData(HandlerArg *a);
 int handleSetProperty(HandlerArg *a);

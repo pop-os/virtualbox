@@ -1,10 +1,10 @@
-/* $Id: tstLdr-4.cpp $ */
+/* $Id: tstLdr-4.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Testcase for RTLdrOpen using ldrLdrObjR0.r0.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -60,10 +56,10 @@ extern "C" DECLEXPORT(int) DisasmTest1(void);
  */
 static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser)
 {
-    if (     !strcmp(pszSymbol, "AssertMsg1")           || !strcmp(pszSymbol, "_AssertMsg1"))
-        *pValue = (uintptr_t)AssertMsg1;
-    else if (!strcmp(pszSymbol, "AssertMsg2")           || !strcmp(pszSymbol, "_AssertMsg2"))
-        *pValue = (uintptr_t)AssertMsg2;
+    if (     !strcmp(pszSymbol, "RTAssertMsg1Weak")     || !strcmp(pszSymbol, "_RTAssertMsg1Weak"))
+        *pValue = (uintptr_t)RTAssertMsg1Weak;
+    else if (!strcmp(pszSymbol, "RTAssertMsg2Weak")     || !strcmp(pszSymbol, "_RTAssertMsg2Weak"))
+        *pValue = (uintptr_t)RTAssertMsg1Weak;
     else if (!strcmp(pszSymbol, "RTLogDefaultInstance") || !strcmp(pszSymbol, "_RTLogDefaultInstance"))
         *pValue = (uintptr_t)RTLogDefaultInstance;
     else if (!strcmp(pszSymbol, "RTLogLoggerExV")       || !strcmp(pszSymbol, "_RTLogLoggerExV"))

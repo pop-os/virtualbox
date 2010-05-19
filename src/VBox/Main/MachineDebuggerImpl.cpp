@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.cpp $ */
+/* $Id: MachineDebuggerImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,14 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "MachineDebuggerImpl.h"
 
 #include "Global.h"
 #include "ConsoleImpl.h"
+
+#include "AutoCaller.h"
 #include "Logging.h"
 
 #include <VBox/em.h>
@@ -46,7 +44,14 @@
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (MachineDebugger)
+MachineDebugger::MachineDebugger()
+    : mParent(NULL)
+{
+}
+
+MachineDebugger::~MachineDebugger()
+{
+}
 
 HRESULT MachineDebugger::FinalConstruct()
 {
@@ -72,7 +77,7 @@ HRESULT MachineDebugger::init (Console *aParent)
 {
     LogFlowThisFunc(("aParent=%p\n", aParent));
 
-    ComAssertRet (aParent, E_INVALIDARG);
+    ComAssertRet(aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -108,7 +113,7 @@ void MachineDebugger::uninit()
     if (autoUninitSpan.uninitDone())
         return;
 
-    unconst(mParent).setNull();
+    unconst(mParent) = NULL;
     mFlushMode = false;
 }
 
@@ -126,7 +131,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(Singlestep) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /** @todo */
     ReturnComNotImplemented();
@@ -141,7 +146,7 @@ STDMETHODIMP MachineDebugger::COMGETTER(Singlestep) (BOOL *aEnabled)
 STDMETHODIMP MachineDebugger::COMSETTER(Singlestep) (BOOL aEnable)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /** @todo */
     ReturnComNotImplemented();
@@ -158,9 +163,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(RecompileUser) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -183,9 +188,9 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser) (BOOL aEnable)
     LogFlowThisFunc(("enable=%d\n", aEnable));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
     {
@@ -195,7 +200,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileUser) (BOOL aEnable)
     }
 
     Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     EMRAWMODE rawModeFlag = aEnable ? EMRAW_RING3_DISABLE : EMRAW_RING3_ENABLE;
     int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, pVM.raw(), rawModeFlag);
@@ -218,9 +223,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(RecompileSupervisor) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -243,9 +248,9 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileSupervisor) (BOOL aEnable)
     LogFlowThisFunc(("enable=%d\n", aEnable));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
     {
@@ -255,7 +260,7 @@ STDMETHODIMP MachineDebugger::COMSETTER(RecompileSupervisor) (BOOL aEnable)
     }
 
     Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     EMRAWMODE rawModeFlag = aEnable ? EMRAW_RING0_DISABLE : EMRAW_RING0_ENABLE;
     int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)EMR3RawSetMode, 2, pVM.raw(), rawModeFlag);
@@ -278,9 +283,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(PATMEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -303,9 +308,9 @@ STDMETHODIMP MachineDebugger::COMSETTER(PATMEnabled) (BOOL aEnable)
     LogFlowThisFunc(("enable=%d\n", aEnable));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
     {
@@ -314,8 +319,8 @@ STDMETHODIMP MachineDebugger::COMSETTER(PATMEnabled) (BOOL aEnable)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     PATMR3AllowPatching (pVM, aEnable);
 
@@ -333,9 +338,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(CSAMEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -358,9 +363,9 @@ STDMETHODIMP MachineDebugger::COMSETTER(CSAMEnabled) (BOOL aEnable)
     LogFlowThisFunc(("enable=%d\n", aEnable));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
     {
@@ -369,8 +374,8 @@ STDMETHODIMP MachineDebugger::COMSETTER(CSAMEnabled) (BOOL aEnable)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     int vrc;
     if (aEnable)
@@ -397,10 +402,10 @@ STDMETHODIMP MachineDebugger::COMGETTER(LogEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
 #ifdef LOG_ENABLED
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     const PRTLOGGER pLogInstance = RTLogDefaultInstance();
     *aEnabled = pLogInstance && !(pLogInstance->fFlags & RTLOGFLAGS_DISABLED);
@@ -422,9 +427,9 @@ STDMETHODIMP MachineDebugger::COMSETTER(LogEnabled) (BOOL aEnabled)
     LogFlowThisFunc(("aEnabled=%d\n", aEnabled));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
     {
@@ -433,8 +438,8 @@ STDMETHODIMP MachineDebugger::COMSETTER(LogEnabled) (BOOL aEnabled)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
 #ifdef LOG_ENABLED
     int vrc = DBGFR3LogModifyFlags (pVM, aEnabled ? "enabled" : "disabled");
@@ -458,9 +463,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -483,9 +488,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExNestedPagingEnabled) (BOOL *aEna
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -508,9 +513,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(HWVirtExVPIDEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -533,9 +538,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(PAEEnabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -561,9 +566,9 @@ STDMETHODIMP MachineDebugger::COMGETTER(VirtualTimeRate) (ULONG *aPct)
     CheckComArgOutPointerValid(aPct);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
 
@@ -587,9 +592,9 @@ STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate) (ULONG aPct)
         return E_INVALIDARG;
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (queueSettings())
     {
@@ -598,8 +603,8 @@ STDMETHODIMP MachineDebugger::COMSETTER(VirtualTimeRate) (ULONG aPct)
         return S_OK;
     }
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     int vrc = TMR3SetWarpDrive (pVM, aPct);
     if (RT_FAILURE(vrc))
@@ -624,12 +629,12 @@ STDMETHODIMP MachineDebugger::COMGETTER(VM) (ULONG64 *aVm)
     CheckComArgOutPointerValid(aVm);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     *aVm = (uintptr_t)pVM.raw();
 
@@ -721,12 +726,12 @@ STDMETHODIMP MachineDebugger::InjectNMI()
     LogFlowThisFunc(("\n"));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     HWACCMR3InjectNMI(pVM);
 

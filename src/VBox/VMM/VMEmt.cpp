@@ -1,10 +1,10 @@
-/* $Id: VMEmt.cpp $ */
+/* $Id: VMEmt.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VM - Virtual Machine, The Emulation Thread.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -38,6 +34,7 @@
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>

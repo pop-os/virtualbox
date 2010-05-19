@@ -1,11 +1,11 @@
-/* $Id: tstGuestPropSvc.cpp $ */
+/* $Id: tstGuestPropSvc.cpp 29394 2010-05-12 01:27:04Z vboxsync $ */
 /** @file
  *
  * Testcase for the guest property service.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -730,7 +726,7 @@ int testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
 {
     int rc = VINF_SUCCESS;
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
-    char chBuffer[MAX_NAME_LEN + MAX_VALUE_LEN + MAX_FLAGS_LEN];
+    char achBuffer[MAX_NAME_LEN + MAX_VALUE_LEN + MAX_FLAGS_LEN];
     static char szPattern[] = "";
 
     RTPrintf("Testing the GET_NOTIFICATION call.\n");
@@ -742,7 +738,7 @@ int testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
     u64Timestamp = 1;
     paParms[0].setPointer ((void *) szPattern, sizeof(szPattern));
     paParms[1].setUInt64 (u64Timestamp);
-    paParms[2].setPointer ((void *) chBuffer, getNotifications[0].cchBuffer - 1);
+    paParms[2].setPointer ((void *) achBuffer, getNotifications[0].cchBuffer - 1);
     pTable->pfnCall(pTable->pvService, &callHandle, 0, NULL,
                     GET_NOTIFICATION, 4, paParms);
     if (   callHandle.rc != VERR_BUFFER_OVERFLOW
@@ -763,7 +759,7 @@ int testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
     {
         paParms[0].setPointer ((void *) szPattern, sizeof(szPattern));
         paParms[1].setUInt64 (u64Timestamp);
-        paParms[2].setPointer ((void *) chBuffer, sizeof(chBuffer));
+        paParms[2].setPointer ((void *) achBuffer, sizeof(achBuffer));
         pTable->pfnCall(pTable->pvService, &callHandle, 0, NULL,
                         GET_NOTIFICATION, 4, paParms);
         if (   RT_FAILURE(callHandle.rc)
@@ -771,11 +767,11 @@ int testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
             || RT_FAILURE(paParms[1].getUInt64 (&u64Timestamp))
             || RT_FAILURE(paParms[3].getUInt32 (&u32Size))
             || u32Size != getNotifications[i].cchBuffer
-            || memcmp(chBuffer, getNotifications[i].pchBuffer, u32Size) != 0
+            || memcmp(achBuffer, getNotifications[i].pchBuffer, u32Size) != 0
            )
         {
-            RTPrintf("Failed to get notification for property '%s'.\n",
-                     getNotifications[i].pchBuffer);
+            RTPrintf("Failed to get notification for property '%s' (rc=%Rrc).\n",
+                     getNotifications[i].pchBuffer, rc);
             rc = VERR_UNRESOLVED_ERROR;
         }
     }
@@ -865,20 +861,21 @@ static const struct
     bool isHost;
     /** Should we use SET_PROP or SET_PROP_VALUE? */
     bool useSetProp;
-    /** Should this succeed or be rejected with VERR_PERMISSION_DENIED? */
+    /** Should this succeed or be rejected with VERR_ (NOT VINF_!)
+     * PERMISSION_DENIED?  The global check is done after the property one. */
     bool isAllowed;
 }
 setPropertiesROGuest[] =
 {
-    { "Red", "Stop!", "transient", false, true, false },
-    { "Amber", "Caution!", "", false, false, false },
+    { "Red", "Stop!", "transient", false, true, true },
+    { "Amber", "Caution!", "", false, false, true },
     { "Green", "Go!", "readonly", true, true, true },
     { "Blue", "What on earth...?", "", true, false, true },
-    { "/test/name", "test", "", false, true, false },
+    { "/test/name", "test", "", false, true, true },
     { "TEST NAME", "test", "", true, true, true },
     { "Green", "gone out...", "", false, false, false },
-    { "Green", "gone out...", "", true, false, false },
-    { NULL, NULL, NULL, false, false, false }
+    { "Green", "gone out....", "", true, false, false },
+    { NULL, NULL, NULL, false, false, true }
 };
 
 /**
@@ -930,13 +927,24 @@ int testSetPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
                            setPropertiesROGuest[i].isHost,
                            setPropertiesROGuest[i].useSetProp);
         if (setPropertiesROGuest[i].isAllowed && RT_FAILURE(rc))
-            RTPrintf("Setting property '%s' failed with rc=%Rrc.\n",
-                     setPropertiesROGuest[i].pcszName, rc);
+            RTPrintf("Setting property '%s' to '%s' failed with rc=%Rrc.\n",
+                     setPropertiesROGuest[i].pcszName,
+                     setPropertiesROGuest[i].pcszValue, rc);
         else if (   !setPropertiesROGuest[i].isAllowed
                  && (rc != VERR_PERMISSION_DENIED))
         {
-            RTPrintf("Setting property '%s' returned %Rrc instead of VERR_PERMISSION_DENIED.\n",
-                     setPropertiesROGuest[i].pcszName, rc);
+            RTPrintf("Setting property '%s' to '%s' returned %Rrc instead of VERR_PERMISSION_DENIED.\n",
+                     setPropertiesROGuest[i].pcszName,
+                     setPropertiesROGuest[i].pcszValue, rc);
+            rc = VERR_IPE_UNEXPECTED_STATUS;
+        }
+        else if (   !setPropertiesROGuest[i].isHost
+                 && setPropertiesROGuest[i].isAllowed
+                 && (rc != VINF_PERMISSION_DENIED))
+        {
+            RTPrintf("Setting property '%s' to '%s' returned %Rrc instead of VINF_PERMISSION_DENIED.\n",
+                     setPropertiesROGuest[i].pcszName,
+                     setPropertiesROGuest[i].pcszValue, rc);
             rc = VERR_IPE_UNEXPECTED_STATUS;
         }
         else
@@ -959,19 +967,20 @@ static const struct
     bool shouldCreate;
     /** And with what flags? */
     const char *pcszFlags;
-    /** Should this succeed or be rejected with VERR_PERMISSION_DENIED? */
+    /** Should this succeed or be rejected with VERR_ (NOT VINF_!)
+     * PERMISSION_DENIED?  The global check is done after the property one. */
     bool isAllowed;
 }
 delPropertiesROGuest[] =
 {
     { "Red", true, true, "", true },
-    { "Amber", false, true, "", false },
+    { "Amber", false, true, "", true },
     { "Red2", true, false, "", true },
-    { "Amber2", false, false, "", false },
+    { "Amber2", false, false, "", true },
     { "Red3", true, true, "READONLY", false },
     { "Amber3", false, true, "READONLY", false },
     { "Red4", true, true, "RDONLYHOST", false },
-    { "Amber4", false, true, "RDONLYHOST", false },
+    { "Amber4", false, true, "RDONLYHOST", true },
     { NULL, false, false, "", false }
 };
 
@@ -1006,6 +1015,15 @@ int testDelPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
                 )
         {
             RTPrintf("Deleting property '%s' returned %Rrc instead of VERR_PERMISSION_DENIED.\n",
+                     delPropertiesROGuest[i].pcszName, rc);
+            rc = VERR_IPE_UNEXPECTED_STATUS;
+        }
+        else if (   !delPropertiesROGuest[i].isHost
+                 && delPropertiesROGuest[i].shouldCreate
+                 && delPropertiesROGuest[i].isAllowed
+                 && (rc != VINF_PERMISSION_DENIED))
+        {
+            RTPrintf("Deleting property '%s' as guest returned %Rrc instead of VINF_PERMISSION_DENIED.\n",
                      delPropertiesROGuest[i].pcszName, rc);
             rc = VERR_IPE_UNEXPECTED_STATUS;
         }

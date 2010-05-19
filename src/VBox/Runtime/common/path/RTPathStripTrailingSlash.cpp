@@ -1,10 +1,10 @@
-/* $Id: RTPathStripTrailingSlash.cpp $ */
+/* $Id: RTPathStripTrailingSlash.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - RTPathSTripTrailingSlash
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -35,33 +31,34 @@
 #include "internal/iprt.h"
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/ctype.h>
 
 
 
-/**
- * Strips the trailing slashes of a path name.
- *
- * @param   pszPath     Path to strip.
- *
- * @todo    This isn't safe for a root element! Needs fixing.
- */
-RTDECL(void) RTPathStripTrailingSlash(char *pszPath)
+RTDECL(size_t) RTPathStripTrailingSlash(char *pszPath)
 {
-    char *pszEnd = strchr(pszPath, '\0');
-    while (pszEnd-- > pszPath)
+    size_t off = strlen(pszPath);
+    while (off > 1)
     {
-        switch (*pszEnd)
+        off--;
+        switch (pszPath[off])
         {
             case '/':
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
             case '\\':
+                if (    off == 2
+                    &&  pszPath[1] == ':'
+                    &&  RT_C_IS_ALPHA(pszPath[0]))
+                    return off + 1;
 #endif
-                *pszEnd = '\0';
+                pszPath[off] = '\0';
                 break;
+
             default:
-                return;
+                return off + 1;
         }
     }
-    return;
+
+    return 1;
 }
 

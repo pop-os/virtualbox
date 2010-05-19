@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __iprt_stdint_h
@@ -66,7 +62,7 @@
 #  define UINT32_C(Value)   (Value ## U)
 # endif /* 64-bit darwin kludge. */
 
-#elif defined(RT_OS_FREEBSD) && defined(_KERNEL) \
+#elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
 
 # ifndef __STDC_CONSTANT_MACROS
 #  define __STDC_CONSTANT_MACROS
@@ -101,7 +97,7 @@
 # endif
 
     /* x-bit types */
-#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
 #   if !defined(_INT8_T_DECLARED)   && !defined(_INT8_T)
 typedef signed char         int8_t;
 #   endif

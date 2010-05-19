@@ -1,10 +1,10 @@
-/* $Id: path.cpp $ */
+/* $Id: path.cpp 28916 2010-04-29 18:13:54Z vboxsync $ */
 /** @file
  * IPRT - Path Manipulation.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -74,19 +70,7 @@ RTDECL(int) RTPathExecDir(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_PRIVATE)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_APP_PRIVATE);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathPrivateNoArch = strlen(pszUtf8Path);
-        if (cchPathPrivateNoArch < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathPrivateNoArch + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_APP_PRIVATE);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif
@@ -108,19 +92,7 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_PRIVATE_ARCH)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_APP_PRIVATE_ARCH);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathPrivateArch = strlen(pszUtf8Path);
-        if (cchPathPrivateArch < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathPrivateArch + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_APP_PRIVATE_ARCH);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif
@@ -143,19 +115,7 @@ RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_SHARED_LIBS)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_SHARED_LIBS);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathSharedLibs = strlen(pszUtf8Path);
-        if (cchPathSharedLibs < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathSharedLibs + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_SHARED_LIBS);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif
@@ -176,19 +136,7 @@ RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath)
 RTDECL(int) RTPathAppDocs(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_DOCS)
-    char *pszUtf8Path;
-    int rc;
-    rc = rtPathFromNative(&pszUtf8Path, RTPATH_APP_DOCS);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPathAppDocs = strlen(pszUtf8Path);
-        if (cchPathAppDocs < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchPathAppDocs + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return RTStrCopy(pszPath, cchPath, RTPATH_APP_DOCS);
 #else
     return RTPathExecDir(pszPath, cchPath);
 #endif

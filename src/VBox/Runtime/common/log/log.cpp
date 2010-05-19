@@ -1,10 +1,10 @@
-/* $Id: log.cpp $ */
+/* $Id: log.cpp 29263 2010-05-09 19:52:03Z vboxsync $ */
 /** @file
  * Runtime VBox - Logger.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -45,10 +41,14 @@
 #ifdef IN_RING3
 # include <iprt/env.h>
 # include <iprt/file.h>
+# include <iprt/lockvalidator.h>
 # include <iprt/path.h>
 #endif
 #include <iprt/time.h>
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/param.h>
@@ -157,6 +157,9 @@ const s_aLogFlags[] =
     { "abs",          sizeof("abs"         ) - 1,   RTLOGFLAGS_REL_TS,              true  },
     { "dec",          sizeof("dec"         ) - 1,   RTLOGFLAGS_DECIMAL_TS,          false },
     { "hex",          sizeof("hex"         ) - 1,   RTLOGFLAGS_DECIMAL_TS,          true  },
+    { "writethru",    sizeof("writethru"   ) - 1,   RTLOGFLAGS_WRITE_THROUGH,       false },
+    { "writethrough", sizeof("writethrough") - 1,   RTLOGFLAGS_WRITE_THROUGH,       false },
+    { "flush",        sizeof("flush"       ) - 1,   RTLOGFLAGS_FLUSH,               false },
     { "lockcnts",     sizeof("lockcnts"    ) - 1,   RTLOGFLAGS_PREFIX_LOCK_COUNTS,  false },
     { "cpuid",        sizeof("cpuid"       ) - 1,   RTLOGFLAGS_PREFIX_CPUID,        false },
     { "pid",          sizeof("pid"         ) - 1,   RTLOGFLAGS_PREFIX_PID,          false },
@@ -274,10 +277,12 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
      * Allocate a logger instance.
      */
     cb = RT_OFFSETOF(RTLOGGER, afGroups[cGroups + 1]) + RTPATH_MAX;
-    pLogger = (PRTLOGGER)RTMemAllocZ(cb);
+    pLogger = (PRTLOGGER)RTMemAllocZVar(cb);
     if (pLogger)
     {
+#if defined(RT_ARCH_X86) && (!defined(LOG_USE_C99) || !defined(RT_WITHOUT_EXEC_ALLOC))
         uint8_t *pu8Code;
+#endif
 
         pLogger->u32Magic    = RTLOGGER_MAGIC;
         pLogger->papszGroups = papszGroups;
@@ -291,21 +296,14 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
         if (pszGroupSettings)
             RTLogGroupSettings(pLogger, pszGroupSettings);
 
+#if defined(RT_ARCH_X86) && (!defined(LOG_USE_C99) || !defined(RT_WITHOUT_EXEC_ALLOC))
         /*
          * Emit wrapper code.
          */
-#if defined(LOG_USE_C99) && defined(RT_WITHOUT_EXEC_ALLOC)
-        pu8Code = (uint8_t *)RTMemAlloc(64);
-#else
         pu8Code = (uint8_t *)RTMemExecAlloc(64);
-#endif
         if (pu8Code)
         {
             pLogger->pfnLogger = *(PFNRTLOGGER*)&pu8Code;
-#if defined(RT_ARCH_AMD64) || (defined(LOG_USE_C99) && defined(RT_WITHOUT_EXEC_ALLOC))
-            /* this wrapper will not be used on AMD64, we will be requiring C99 compilers there. */
-            *pu8Code++ = 0xcc;
-#else
             *pu8Code++ = 0x68;          /* push imm32 */
             *(void **)pu8Code = pLogger;
             pu8Code += sizeof(void *);
@@ -317,11 +315,21 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
             *pu8Code++ = 0x24;
             *pu8Code++ = 0x04;
             *pu8Code++ = 0xc3;          /* ret near */
-#endif
             AssertMsg((uintptr_t)pu8Code - (uintptr_t)pLogger->pfnLogger <= 64,
                       ("Wrapper assembly is too big! %d bytes\n", (uintptr_t)pu8Code - (uintptr_t)pLogger->pfnLogger));
-
-
+            rc = VINF_SUCCESS;
+        }
+        else
+        {
+# ifdef RT_OS_LINUX
+            if (pszErrorMsg) /* Most probably SELinux causing trouble since the larger RTMemAlloc succeeded. */
+                RTStrPrintf(pszErrorMsg, cchErrorMsg, "mmap(PROT_WRITE | PROT_EXEC) failed -- SELinux?");
+# endif
+            rc = VERR_NO_MEMORY;
+        }
+        if (RT_SUCCESS(rc))
+#endif /* X86 wrapper code*/
+        {
 #ifdef IN_RING3 /* files and env.vars. are only accessible when in R3 at the present time. */
             /*
              * Format the filename.
@@ -375,26 +383,16 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
 #ifdef IN_RING3
             if (pLogger->fDestFlags & RTLOGDEST_FILE)
             {
-                if (!(pLogger->fFlags & RTLOGFLAGS_APPEND))
-                    rc = RTFileOpen(&pLogger->File, pLogger->pszFilename,
-                                    RTFILE_O_WRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_WRITE);
+                uint32_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_WRITE;
+                if (pLogger->fFlags & RTLOGFLAGS_APPEND)
+                    fOpen |= RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND;
                 else
-                {
-                    /** @todo RTFILE_O_APPEND. */
-                    rc = RTFileOpen(&pLogger->File, pLogger->pszFilename,
-                                    RTFILE_O_WRITE | RTFILE_O_OPEN_CREATE | RTFILE_O_DENY_WRITE);
-                    if (RT_SUCCESS(rc))
-                    {
-                        rc = RTFileSeek(pLogger->File, 0, RTFILE_SEEK_END, NULL);
-                        if (RT_FAILURE(rc))
-                        {
-                            RTFileClose(pLogger->File);
-                            pLogger->File = NIL_RTFILE;
-                        }
-                    }
-                }
+                    fOpen |= RTFILE_O_CREATE_REPLACE;
+                if (pLogger->fFlags & RTLOGFLAGS_WRITE_THROUGH)
+                    fOpen |= RTFILE_O_WRITE_THROUGH;
+                rc = RTFileOpen(&pLogger->File, pLogger->pszFilename, fOpen);
                 if (RT_FAILURE(rc) && pszErrorMsg)
-                    RTStrPrintf(pszErrorMsg, cchErrorMsg, "could not open file '%s'", pLogger->pszFilename);
+                    RTStrPrintf(pszErrorMsg, cchErrorMsg, "could not open file '%s' (fOpen=%#x)", pLogger->pszFilename, fOpen);
             }
 #endif  /* IN_RING3 */
 
@@ -411,9 +409,9 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
                     RTTHREAD Thread = RTThreadSelf();
                     if (Thread != NIL_RTTHREAD)
                     {
-                        int32_t c = RTThreadGetWriteLockCount(Thread);
+                        int32_t c = RTLockValidatorWriteLockGetCount(Thread);
                         RTSemSpinMutexRequest(pLogger->hSpinMtx);
-                        c = RTThreadGetWriteLockCount(Thread) - c;
+                        c = RTLockValidatorWriteLockGetCount(Thread) - c;
                         RTSemSpinMutexRelease(pLogger->hSpinMtx);
                         ASMAtomicWriteU32(&g_cLoggerLockCount, c);
                     }
@@ -433,17 +431,6 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
 #else
             RTMemExecFree(*(void **)&pLogger->pfnLogger);
 #endif
-        }
-        else
-        {
-#ifdef RT_OS_LINUX
-            /*
-             * RTMemAlloc() succeeded but RTMemExecAlloc() failed -- most probably an SELinux problem.
-             */
-            if (pszErrorMsg)
-                RTStrPrintf(pszErrorMsg, cchErrorMsg, "mmap(PROT_WRITE | PROT_EXEC) failed -- SELinux?");
-#endif /* RT_OS_LINUX */
-            rc = VERR_NO_MEMORY;
         }
         RTMemFree(pLogger);
     }
@@ -1064,7 +1051,7 @@ RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszVar)
 
         while ((ch = *pszVar) == '+' || ch == '-' || ch == ' ' || ch == '\t' || ch == '\n' || ch == ';')
         {
-            if (ch == '+' || ch == '-' || ';')
+            if (ch == '+' || ch == '-' || ch == ';')
                 fEnabled = ch != '-';
             pszVar++;
         }
@@ -2212,7 +2199,11 @@ static void rtlogFlush(PRTLOGGER pLogger)
 
 # ifdef IN_RING3
     if (pLogger->fDestFlags & RTLOGDEST_FILE)
+    {
         RTFileWrite(pLogger->File, pLogger->achScratch, pLogger->offScratch, NULL);
+        if (pLogger->fFlags & RTLOGFLAGS_FLUSH)
+            RTFileFlush(pLogger->File);
+    }
 # endif
 
     if (pLogger->fDestFlags & RTLOGDEST_STDOUT)
@@ -2376,7 +2367,11 @@ static DECLCALLBACK(size_t) rtLogOutputPrefixed(void *pv, const char *pachChars,
                 }
                 if (pLogger->fFlags & RTLOGFLAGS_PREFIX_TSC)
                 {
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
                     uint64_t     u64    = ASMReadTSC();
+#else
+                    uint64_t     u64    = RTTimeNanoTS();
+#endif
                     int          iBase  = 16;
                     unsigned int fFlags = RTSTR_F_ZEROPAD;
                     if (pLogger->fFlags & RTLOGFLAGS_DECIMAL_TS)
@@ -2524,8 +2519,8 @@ static DECLCALLBACK(size_t) rtLogOutputPrefixed(void *pv, const char *pachChars,
                     RTTHREAD Thread = RTThreadSelf();
                     if (Thread != NIL_RTTHREAD)
                     {
-                        uint32_t cReadLocks  = RTThreadGetReadLockCount(Thread);
-                        uint32_t cWriteLocks = RTThreadGetWriteLockCount(Thread) - g_cLoggerLockCount;
+                        uint32_t cReadLocks  = RTLockValidatorReadLockGetCount(Thread);
+                        uint32_t cWriteLocks = RTLockValidatorWriteLockGetCount(Thread) - g_cLoggerLockCount;
                         cReadLocks  = RT_MIN(0xfff, cReadLocks);
                         cWriteLocks = RT_MIN(0xfff, cWriteLocks);
                         psz += RTStrFormatNumber(psz, cReadLocks,  16, 1, 0, RTSTR_F_ZEROPAD);
@@ -2623,7 +2618,7 @@ static DECLCALLBACK(size_t) rtLogOutputPrefixed(void *pv, const char *pachChars,
                  * Done, figure what we've used and advance the buffer and free size.
                  */
                 cb = psz - &pLogger->achScratch[pLogger->offScratch];
-                Assert(cb <= 198);
+                AssertMsg(cb <= 223, ("%#zx (%zd) - fFlags=%#x\n", cb, cb, pLogger->fFlags));
                 pLogger->offScratch += (uint32_t)cb;
                 cb = sizeof(pLogger->achScratch) - pLogger->offScratch - 1;
             }

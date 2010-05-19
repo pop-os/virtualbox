@@ -1,3 +1,20 @@
+/* $Id: slirp.h 28807 2010-04-27 10:43:09Z vboxsync $ */
+/** @file
+ * NAT - slirp (declarations/defines).
+ */
+
+/*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
@@ -32,6 +49,7 @@ typedef int socklen_t;
 # include <windows.h>
 # include <io.h>
 #endif
+#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/dir.h>
@@ -55,11 +73,6 @@ typedef int socklen_t;
 #  include <inttypes.h>
 # endif
 
-typedef uint8_t u_int8_t;
-typedef uint16_t u_int16_t;
-typedef uint32_t u_int32_t;
-typedef uint64_t u_int64_t;
-typedef char *caddr_t;
 
 # include <sys/timeb.h>
 # include <iphlpapi.h>
@@ -71,6 +84,10 @@ typedef char *caddr_t;
 # define ENETUNREACH WSAENETUNREACH
 # define ECONNREFUSED WSAECONNREFUSED
 
+typedef uint8_t u_int8_t;
+typedef uint16_t u_int16_t;
+typedef uint32_t u_int32_t;
+
 #else /* !RT_OS_WINDOWS */
 
 # define ioctlsocket ioctl
@@ -78,6 +95,11 @@ typedef char *caddr_t;
 # define O_BINARY 0
 
 #endif /* !RT_OS_WINDOWS */
+
+#if defined(RT_OS_WINDOWS) || defined (RT_OS_SOLARIS)
+typedef uint64_t u_int64_t;
+typedef char *caddr_t;
+#endif
 
 #include <sys/types.h>
 #ifdef HAVE_SYS_BITYPES_H
@@ -310,7 +332,6 @@ int tcp_fconnect (PNATState, struct socket *);
 void tcp_connect (PNATState, struct socket *);
 int tcp_attach (PNATState, struct socket *);
 u_int8_t tcp_tos (struct socket *);
-int tcp_emu (PNATState, struct socket *, struct mbuf *);
 int tcp_ctl (PNATState, struct socket *);
 struct tcpcb *tcp_drop(PNATState, struct tcpcb *tp, int err);
 
@@ -387,7 +408,7 @@ int sscanf(const char *s, const char *format, ...);
 # define stderr NULL
 # define stdout NULL
 
-# ifdef DEBUG
+# ifdef VBOX_WITH_DEBUG_LIBALIAS
 #  define LIBALIAS_DEBUG
 # endif
 
@@ -396,18 +417,18 @@ int sscanf(const char *s, const char *format, ...);
 #endif /*VBOX_SLIRP_ALIAS*/
 
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
-/* @todo might be useful to make it configurable,
- * especially in terms of Intnet behind NAT
+/**
+ * @todo might be useful to make it configurable, especially in terms of Intnet behind NAT
  */
 # define maxusers 32
 # define max_protohdr 0
-/* @todo (r=vvl) for now ignore value,
- * latter here should be fetching of tuning parameters entered
+/**
+ * @todo (vvl) for now ignore these values, later perhaps initialize tuning parameters
  */
 # define TUNABLE_INT_FETCH(name, pval) do { } while (0)
-# define SYSCTL_PROC(a0, a1, a2, a3, a4, a5, a6, a7, a8)
-# define SYSCTL_STRUCT(a0, a1, a2, a3, a4, a5, a6)
-# define SYSINIT(a0, a1, a2, a3, a4)
+# define SYSCTL_PROC(a0, a1, a2, a3, a4, a5, a6, a7, a8) const int dummy_ ## a6 = 0
+# define SYSCTL_STRUCT(a0, a1, a2, a3, a4, a5, a6) const int dummy_ ## a5 = 0
+# define SYSINIT(a0, a1, a2, a3, a4) const int dummy_ ## a3 = 0
 # define sysctl_handle_int(a0, a1, a2, a3) 0
 # define EVENTHANDLER_INVOKE(a) do{}while(0)
 # define EVENTHANDLER_REGISTER(a0, a1, a2, a3) do{}while(0)

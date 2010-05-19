@@ -1,10 +1,10 @@
-/* $Id: PDMAsyncCompletionFile.cpp $ */
+/* $Id: PDMAsyncCompletionFile.cpp 29121 2010-05-06 09:09:33Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -294,7 +290,7 @@ DECLINLINE(void) pdmacFileEpTaskInit(PPDMASYNCCOMPLETIONTASK pTask, size_t cbTra
 
 int pdmacFileEpTaskInitiate(PPDMASYNCCOMPLETIONTASK pTask,
                             PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                            PCPDMDATASEG paSegments, size_t cSegments,
+                            PCRTSGSEG paSegments, size_t cSegments,
                             size_t cbTransfer, PDMACTASKFILETRANSFER enmTransfer)
 {
     int rc = VINF_SUCCESS;
@@ -514,7 +510,7 @@ bool pdmacFileBwMgrIsTransferAllowed(PPDMACFILEBWMGR pBwMgr, uint32_t cbTransfer
 
     LogFlowFunc(("pBwMgr=%p cbTransfer=%u\n", pBwMgr, cbTransfer));
 
-    uint32_t cbOld = ASMAtomicAddU32(&pBwMgr->cbVMTransferAllowed, (uint32_t)-(int32_t)cbTransfer);
+    uint32_t cbOld = ASMAtomicSubU32(&pBwMgr->cbVMTransferAllowed, cbTransfer);
     if (RT_LIKELY(cbOld >= cbTransfer))
         fAllowed = true;
     else
@@ -557,7 +553,7 @@ static int pdmacFileMgrTypeFromName(const char *pszVal, PPDMACEPFILEMGRTYPE penm
     else if (!RTStrCmp(pszVal, "Async"))
         *penmMgrType = PDMACEPFILEMGRTYPE_ASYNC;
     else
-        rc = VERR_CFGM_VALUE_NOT_FOUND;
+        rc = VERR_CFGM_CONFIG_UNKNOWN_VALUE;
 
     return rc;
 }
@@ -581,7 +577,7 @@ static int pdmacFileBackendTypeFromName(const char *pszVal, PPDMACFILEEPBACKEND 
     else if (!RTStrCmp(pszVal, "NonBuffered"))
         *penmBackendType = PDMACFILEEPBACKEND_NON_BUFFERED;
     else
-        rc = VERR_CFGM_VALUE_NOT_FOUND;
+        rc = VERR_CFGM_CONFIG_UNKNOWN_VALUE;
 
     return rc;
 }
@@ -974,7 +970,7 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 
 static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
                            PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                           PCPDMDATASEG paSegments, size_t cSegments,
+                           PCRTSGSEG paSegments, size_t cSegments,
                            size_t cbRead)
 {
     int rc = VINF_SUCCESS;
@@ -1001,7 +997,7 @@ static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
 
 static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
                             PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
-                            PCPDMDATASEG paSegments, size_t cSegments,
+                            PCRTSGSEG paSegments, size_t cSegments,
                             size_t cbWrite)
 {
     int rc = VINF_SUCCESS;

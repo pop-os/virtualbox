@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_em_h
@@ -81,6 +77,22 @@ typedef enum EMSTATE
     EMSTATE_MAKE_32BIT_HACK = 0x7fffffff
 } EMSTATE;
 
+
+/**
+ * EMInterpretInstructionCPUEx execution modes.
+ */
+typedef enum
+{
+    /** Only supervisor code (CPL=0). */
+    EMCODETYPE_SUPERVISOR,
+    /** User-level code only. */
+    EMCODETYPE_USER,
+    /** Supervisor and user-level code (use with great care!). */
+    EMCODETYPE_ALL,
+    /** Just a hack to ensure that we get a 32-bit integer. */
+    EMCODETYPE_32BIT_HACK = 0x7fffffff
+} EMCODETYPE;
+
 VMMDECL(EMSTATE) EMGetState(PVMCPU pVCpu);
 VMMDECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState);
 
@@ -125,7 +137,7 @@ VMMDECL(int)        EMInterpretDisasOne(PVM pVM, PVMCPU pVCpu, PCCPUMCTXCORE pCt
 VMMDECL(int)        EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
                                           PDISCPUSTATE pDISState, unsigned *pcbInstr);
 VMMDECL(int)        EMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize);
-VMMDECL(int)        EMInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDISState, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize);
+VMMDECL(int)        EMInterpretInstructionCPUEx(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDISState, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize, EMCODETYPE enmCodeType);
 VMMDECL(int)        EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)        EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)        EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
@@ -133,6 +145,7 @@ VMMDECL(int)        EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 VMMDECL(int)        EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pAddrGC);
 VMMDECL(int)        EMInterpretIret(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)        EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)        EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)        EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen);
 VMMDECL(int)        EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx);
 VMMDECL(int)        EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegCrx, uint32_t SrcRegGen);
@@ -142,6 +155,14 @@ VMMDECL(int)        EMInterpretCLTS(PVM pVM, PVMCPU pVCpu);
 VMMDECL(VBOXSTRICTRC)   EMInterpretPortIO(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, PDISCPUSTATE pCpu, uint32_t cbOp);
 VMMDECL(int)        EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 VMMDECL(int)        EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(bool)       EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx);
+
+/* Wrap EMInterpretInstructionCPUEx for supervisor code only interpretation.
+ */
+inline int EMInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDISState, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize)
+{
+    return EMInterpretInstructionCPUEx(pVM, pVCpu, pDISState, pRegFrame, pvFault, pcbSize, EMCODETYPE_SUPERVISOR);
+}
 
 /** @name Assembly routines
  * @{ */
@@ -183,6 +204,7 @@ VMMDECL(int)        EMTryEnterRemLock(PVM pVM);
 VMMR3DECL(int)      EMR3Init(PVM pVM);
 VMMR3DECL(int)      EMR3InitCPU(PVM pVM);
 VMMR3DECL(void)     EMR3Relocate(PVM pVM);
+VMMR3DECL(void)     EMR3ResetCpu(PVMCPU pVCpu);
 VMMR3DECL(void)     EMR3Reset(PVM pVM);
 VMMR3DECL(int)      EMR3Term(PVM pVM);
 VMMR3DECL(int)      EMR3TermCPU(PVM pVM);

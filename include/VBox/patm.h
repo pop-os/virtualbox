@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_patm_h
@@ -193,7 +189,7 @@ VMMDECL(RCPTRTYPE(PPATMGCSTATE)) PATMQueryGCState(PVM pVM);
  * @param   pVM         The VM to operate on.
  * @param   pAddr       Guest context address
  */
-VMMDECL(bool) PATMIsPatchGCAddr(PVM pVM, RTRCPTR pAddr);
+VMMDECL(bool) PATMIsPatchGCAddr(PVM pVM, RTRCUINTPTR pAddr);
 
 /**
  * Check if we must use raw mode (patch code being executed or marked safe for IF=0)

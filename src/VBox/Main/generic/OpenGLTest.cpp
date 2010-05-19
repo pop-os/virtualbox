@@ -1,10 +1,10 @@
-/* $Id: OpenGLTest.cpp $ */
+/* $Id: OpenGLTest.cpp 29208 2010-05-07 13:09:51Z vboxsync $ */
 /** @file
  * VBox host opengl support test - generic implementation.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <VBox/err.h>
@@ -41,17 +37,10 @@ bool is3DAccelerationSupported()
     rc = RTPathExecDir(pszVBoxPath, RTPATH_MAX); AssertRCReturn(rc, false);
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     rc = RTPathAppend(pszVBoxPath, RTPATH_MAX, "VBoxTestOGL.exe");
-    static char pszVBoxPathArg[RTPATH_MAX];
-    pszVBoxPathArg[0] = '"';
-    strcpy(pszVBoxPathArg+1, pszVBoxPath);
-    char *pszPathEnd = (char *)memchr(pszVBoxPathArg, '\0', RTPATH_MAX);
-    pszPathEnd[0] = '"';
-    pszPathEnd[1] = '\0';
-    papszArgs[0] = pszVBoxPathArg;         /* argv[0] */
 #else
     rc = RTPathAppend(pszVBoxPath, RTPATH_MAX, "VBoxTestOGL");
-    papszArgs[0] = pszVBoxPath;         /* argv[0] */
 #endif
+    papszArgs[0] = pszVBoxPath;         /* argv[0] */
     AssertRCReturn(rc, false);
 
     rc = RTProcCreate(pszVBoxPath, papszArgs, RTENV_DEFAULT, 0, &Process);

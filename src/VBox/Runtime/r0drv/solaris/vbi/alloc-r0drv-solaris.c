@@ -1,10 +1,10 @@
-/* $Id: alloc-r0drv-solaris.c $ */
+/* $Id: alloc-r0drv-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -37,6 +33,7 @@
 #include <iprt/mem.h>
 
 #include <iprt/assert.h>
+#include <iprt/log.h>
 #include <iprt/param.h>
 #include <iprt/thread.h>
 #include "r0drv/alloc-r0drv.h"
@@ -46,7 +43,7 @@
 /**
  * OS specific allocation function.
  */
-PRTMEMHDR rtMemAlloc(size_t cb, uint32_t fFlags)
+PRTMEMHDR rtR0MemAlloc(size_t cb, uint32_t fFlags)
 {
     size_t cbAllocated = cb;
     PRTMEMHDR pHdr;
@@ -70,7 +67,7 @@ PRTMEMHDR rtMemAlloc(size_t cb, uint32_t fFlags)
         pHdr->cbReq     = cb;
     }
     else
-        printf("rtMemAlloc(%#x, %#x) failed\n", cb + sizeof(*pHdr), fFlags);
+        LogRel(("rtMemAlloc(%u, %#x) failed\n", (unsigned)cb + sizeof(*pHdr), fFlags));
     return pHdr;
 }
 
@@ -78,7 +75,7 @@ PRTMEMHDR rtMemAlloc(size_t cb, uint32_t fFlags)
 /**
  * OS specific free function.
  */
-void rtMemFree(PRTMEMHDR pHdr)
+void rtR0MemFree(PRTMEMHDR pHdr)
 {
     pHdr->u32Magic += 1;
 #ifdef RT_ARCH_AMD64
@@ -92,21 +89,21 @@ void rtMemFree(PRTMEMHDR pHdr)
 
 RTR0DECL(void *) RTMemContAlloc(PRTCCPHYS pPhys, size_t cb)
 {
-    AssertPtr(pPhys);
-    Assert(cb > 0);
+    AssertPtrReturn(pPhys, NULL);
+    AssertReturn(cb > 0, NULL);
     RT_ASSERT_PREEMPTIBLE();
 
-    /* Allocate physically contiguous page-aligned memory. */
-    caddr_t virtAddr;
-    uint64_t phys = (unsigned)0xffffffff;	/* insist on below 4Gig */
-
-    virtAddr = vbi_contig_alloc(&phys, cb);
+    /* Allocate physically contiguous (< 4GB) page-aligned memory. */
+    uint64_t physAddr = _4G -1;
+    caddr_t virtAddr  = vbi_contig_alloc(&physAddr, cb);
     if (virtAddr == NULL)
+    {
+        LogRel(("vbi_contig_alloc failed to allocate %u bytes\n", cb));
         return NULL;
+    }
 
-    Assert(phys < (uint64_t)1 << 32);
-
-    *pPhys = phys;
+    Assert(physAddr < _4G);
+    *pPhys = physAddr;
     return virtAddr;
 }
 

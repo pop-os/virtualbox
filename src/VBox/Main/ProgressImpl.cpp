@@ -1,11 +1,11 @@
-/* $Id: ProgressImpl.cpp $ */
+/* $Id: ProgressImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VirtualBox Progress COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <iprt/types.h>
@@ -28,7 +24,7 @@
 #include <nsCOMPtr.h>
 #endif /* defined (VBOX_WITH_XPCOM) */
 
-#include "ProgressImpl.h"
+#include "ProgressCombinedImpl.h"
 
 #include "VirtualBoxImpl.h"
 #include "VirtualBoxErrorInfoImpl.h"
@@ -47,7 +43,17 @@
 // constructor / destructor
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (ProgressBase)
+ProgressBase::ProgressBase()
+#if !defined (VBOX_COM_INPROC)
+    : mParent(NULL)
+#endif
+{
+}
+
+ProgressBase::~ProgressBase()
+{
+}
+
 
 /**
  * Subclasses must call this method from their FinalConstruct() implementations.
@@ -91,7 +97,7 @@ HRESULT ProgressBase::FinalConstruct()
  * @param aInitiator    Initiator of the task (for server-side objects. Can be
  *                      NULL which means initiator = parent, otherwise must not
  *                      be NULL).
- * @param aDescription  Task description.
+ * @param aDescription  ask description.
  * @param aID           Address of result GUID structure (optional).
  *
  * @return              COM result indicator.
@@ -120,18 +126,18 @@ HRESULT ProgressBase::protectedInit (AutoInitSpan &aAutoInitSpan,
 #if !defined (VBOX_COM_INPROC)
     /* share parent weakly */
     unconst(mParent) = aParent;
-
-    /* register with parent early, since uninit() will unconditionally
-     * unregister on failure */
-    mParent->addDependentChild (this);
 #endif
 
 #if !defined (VBOX_COM_INPROC)
     /* assign (and therefore addref) initiator only if it is not VirtualBox
      * (to avoid cycling); otherwise mInitiator will remain null which means
      * that it is the same as the parent */
-    if (aInitiator && !mParent.equalsTo (aInitiator))
-        unconst(mInitiator) = aInitiator;
+    if (aInitiator)
+    {
+        ComObjPtr<VirtualBox> pVirtualBox(mParent);
+        if (!pVirtualBox.equalsTo(aInitiator))
+            unconst(mInitiator) = aInitiator;
+    }
 #else
     unconst(mInitiator) = aInitiator;
 #endif
@@ -143,7 +149,7 @@ HRESULT ProgressBase::protectedInit (AutoInitSpan &aAutoInitSpan,
 #if !defined (VBOX_COM_INPROC)
     /* add to the global collection of progress operations (note: after
      * creating mId) */
-    mParent->addProgress (this);
+    mParent->addProgress(this);
 #endif
 
     unconst(mDescription) = aDescription;
@@ -194,9 +200,7 @@ void ProgressBase::protectedUninit (AutoUninitSpan &aAutoUninitSpan)
         if (aAutoUninitSpan.initFailed() && !mId.isEmpty())
             mParent->removeProgress (mId);
 
-        mParent->removeDependentChild (this);
-
-        unconst(mParent).setNull();
+        unconst(mParent) = NULL;
     }
 #endif
 }
@@ -209,7 +213,7 @@ STDMETHODIMP ProgressBase::COMGETTER(Id) (BSTR *aId)
     CheckComArgOutPointerValid(aId);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* mId is constant during life time, no need to lock */
     mId.toUtf16().cloneTo(aId);
@@ -222,7 +226,7 @@ STDMETHODIMP ProgressBase::COMGETTER(Description) (BSTR *aDescription)
     CheckComArgOutPointerValid(aDescription);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* mDescription is constant during life time, no need to lock */
     mDescription.cloneTo(aDescription);
@@ -235,7 +239,7 @@ STDMETHODIMP ProgressBase::COMGETTER(Initiator) (IUnknown **aInitiator)
     CheckComArgOutPointerValid(aInitiator);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* mInitiator/mParent are constant during life time, no need to lock */
 
@@ -243,7 +247,10 @@ STDMETHODIMP ProgressBase::COMGETTER(Initiator) (IUnknown **aInitiator)
     if (mInitiator)
         mInitiator.queryInterfaceTo(aInitiator);
     else
-        mParent.queryInterfaceTo(aInitiator);
+    {
+        ComObjPtr<VirtualBox> pVirtualBox(mParent);
+        pVirtualBox.queryInterfaceTo(aInitiator);
+    }
 #else
     mInitiator.queryInterfaceTo(aInitiator);
 #endif
@@ -256,9 +263,9 @@ STDMETHODIMP ProgressBase::COMGETTER(Cancelable) (BOOL *aCancelable)
     CheckComArgOutPointerValid(aCancelable);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aCancelable = mCancelable;
 
@@ -308,9 +315,9 @@ STDMETHODIMP ProgressBase::COMGETTER(TimeRemaining)(LONG *aTimeRemaining)
     CheckComArgOutPointerValid(aTimeRemaining);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mCompleted)
         *aTimeRemaining = 0;
@@ -341,12 +348,12 @@ STDMETHODIMP ProgressBase::COMGETTER(Percent)(ULONG *aPercent)
     CheckComArgOutPointerValid(aPercent);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     checkForAutomaticTimeout();
 
     /* checkForAutomaticTimeout requires a write lock. */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mCompleted && SUCCEEDED(mResultCode))
         *aPercent = 100;
@@ -374,9 +381,9 @@ STDMETHODIMP ProgressBase::COMGETTER(Completed) (BOOL *aCompleted)
     CheckComArgOutPointerValid(aCompleted);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aCompleted = mCompleted;
 
@@ -388,9 +395,9 @@ STDMETHODIMP ProgressBase::COMGETTER(Canceled) (BOOL *aCanceled)
     CheckComArgOutPointerValid(aCanceled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aCanceled = mCanceled;
 
@@ -402,13 +409,13 @@ STDMETHODIMP ProgressBase::COMGETTER(ResultCode) (LONG *aResultCode)
     CheckComArgOutPointerValid(aResultCode);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mCompleted)
-        return setError (E_FAIL,
-            tr ("Result code is not available, operation is still in progress"));
+        return setError(E_FAIL,
+                        tr("Result code is not available, operation is still in progress"));
 
     *aResultCode = mResultCode;
 
@@ -420,13 +427,13 @@ STDMETHODIMP ProgressBase::COMGETTER(ErrorInfo) (IVirtualBoxErrorInfo **aErrorIn
     CheckComArgOutPointerValid(aErrorInfo);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mCompleted)
-        return setError (E_FAIL,
-            tr ("Error info is not available, operation is still in progress"));
+        return setError(E_FAIL,
+                        tr("Error info is not available, operation is still in progress"));
 
     mErrorInfo.queryInterfaceTo(aErrorInfo);
 
@@ -438,9 +445,9 @@ STDMETHODIMP ProgressBase::COMGETTER(OperationCount) (ULONG *aOperationCount)
     CheckComArgOutPointerValid(aOperationCount);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aOperationCount = m_cOperations;
 
@@ -452,9 +459,9 @@ STDMETHODIMP ProgressBase::COMGETTER(Operation) (ULONG *aOperation)
     CheckComArgOutPointerValid(aOperation);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aOperation = m_ulCurrentOperation;
 
@@ -466,9 +473,9 @@ STDMETHODIMP ProgressBase::COMGETTER(OperationDescription) (BSTR *aOperationDesc
     CheckComArgOutPointerValid(aOperationDescription);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m_bstrOperationDescription.cloneTo(aOperationDescription);
 
@@ -480,9 +487,9 @@ STDMETHODIMP ProgressBase::COMGETTER(OperationPercent)(ULONG *aOperationPercent)
     CheckComArgOutPointerValid(aOperationPercent);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mCompleted && SUCCEEDED(mResultCode))
         *aOperationPercent = 100;
@@ -495,9 +502,9 @@ STDMETHODIMP ProgressBase::COMGETTER(OperationPercent)(ULONG *aOperationPercent)
 STDMETHODIMP ProgressBase::COMSETTER(Timeout)(ULONG aTimeout)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mCancelable)
         return setError(VBOX_E_INVALID_OBJECT_STATE,
@@ -513,9 +520,9 @@ STDMETHODIMP ProgressBase::COMGETTER(Timeout)(ULONG *aTimeout)
     CheckComArgOutPointerValid(aTimeout);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     *aTimeout = m_cMsTimeout;
     return S_OK;
@@ -580,7 +587,7 @@ bool ProgressBase::setCancelCallback(void (*pfnCallback)(void *), void *pvUser)
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), false);
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     checkForAutomaticTimeout();
     if (mCanceled)
@@ -598,7 +605,7 @@ bool ProgressBase::setCancelCallback(void (*pfnCallback)(void *), void *pvUser)
 HRESULT Progress::FinalConstruct()
 {
     HRESULT rc = ProgressBase::FinalConstruct();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     mCompletedSem = NIL_RTSEMEVENTMULTI;
     mWaitersCount = 0;
@@ -697,7 +704,7 @@ HRESULT Progress::init (
                                       aParent,
 #endif
                                       aInitiator, aDescription, aId);
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     mCancelable = aCancelable;
 
@@ -749,7 +756,7 @@ HRESULT Progress::init(BOOL aCancelable,
     HRESULT rc = S_OK;
 
     rc = ProgressBase::protectedInit (autoInitSpan);
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     mCancelable = aCancelable;
 
@@ -820,9 +827,9 @@ STDMETHODIMP Progress::WaitForCompletion (LONG aTimeout)
     LogFlowThisFunc(("aTimeout=%d\n", aTimeout));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* if we're already completed, take a shortcut */
     if (!mCompleted)
@@ -882,9 +889,9 @@ STDMETHODIMP Progress::WaitForOperationCompletion(ULONG aOperation, LONG aTimeou
     LogFlowThisFunc(("aOperation=%d, aTimeout=%d\n", aOperation, aTimeout));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CheckComArgExpr(aOperation, aOperation < m_cOperations);
 
@@ -940,9 +947,9 @@ STDMETHODIMP Progress::WaitForOperationCompletion(ULONG aOperation, LONG aTimeou
 STDMETHODIMP Progress::Cancel()
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mCancelable)
         return setError(VBOX_E_INVALID_OBJECT_STATE,
@@ -969,7 +976,7 @@ STDMETHODIMP Progress::SetCurrentOperationProgress(ULONG aPercent)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(aPercent <= 100, E_INVALIDARG);
 
@@ -1001,7 +1008,7 @@ STDMETHODIMP Progress::SetNextOperation(IN_BSTR bstrNextOperationDescription, UL
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(!mCompleted && !mCanceled, E_FAIL);
     AssertReturn(m_ulCurrentOperation + 1 < m_cOperations, E_FAIL);
@@ -1039,7 +1046,7 @@ HRESULT Progress::setResultCode(HRESULT aResultCode)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     mResultCode = aResultCode;
 
@@ -1092,7 +1099,7 @@ HRESULT Progress::setResultCode(HRESULT aResultCode)
 /**
  * Marks the whole task as complete and sets the result code.
  *
- * If the result code indicates a failure (|FAILED (@a aResultCode)|) then this
+ * If the result code indicates a failure (|FAILED(@a aResultCode)|) then this
  * method will import the error info from the current thread and assign it to
  * the errorInfo attribute (it will return an error if no info is available in
  * such case).
@@ -1110,7 +1117,7 @@ HRESULT Progress::notifyComplete(HRESULT aResultCode)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(mCompleted == FALSE, E_FAIL);
 
@@ -1167,7 +1174,7 @@ HRESULT Progress::notifyComplete(HRESULT aResultCode,
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(mCompleted == FALSE, E_FAIL);
 
@@ -1177,7 +1184,7 @@ HRESULT Progress::notifyComplete(HRESULT aResultCode,
     mCompleted = TRUE;
     mResultCode = aResultCode;
 
-    AssertReturn(FAILED (aResultCode), E_FAIL);
+    AssertReturn(FAILED(aResultCode), E_FAIL);
 
     ComObjPtr<VirtualBoxErrorInfo> errorInfo;
     HRESULT rc = errorInfo.createObject();
@@ -1220,7 +1227,7 @@ bool Progress::notifyPointOfNoReturn(void)
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), false);
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mCanceled)
         return false;
@@ -1236,7 +1243,7 @@ bool Progress::notifyPointOfNoReturn(void)
 HRESULT CombinedProgress::FinalConstruct()
 {
     HRESULT rc = ProgressBase::FinalConstruct();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     mProgress = 0;
     mCompletedOperations = 0;
@@ -1279,7 +1286,7 @@ HRESULT CombinedProgress::protectedInit (AutoInitSpan &aAutoInitSpan,
                                       aParent,
 #endif
                                       aInitiator, aDescription, aId);
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     mProgress = 0; /* the first object */
     mCompletedOperations = 0;
@@ -1291,17 +1298,16 @@ HRESULT CombinedProgress::protectedInit (AutoInitSpan &aAutoInitSpan,
     m_cOperations = 0; /* will be calculated later */
 
     m_ulCurrentOperation = 0;
-    rc = mProgresses [0]->COMGETTER(OperationDescription) (
-        m_bstrOperationDescription.asOutParam());
-    CheckComRCReturnRC(rc);
+    rc = mProgresses[0]->COMGETTER(OperationDescription)(m_bstrOperationDescription.asOutParam());
+    if (FAILED(rc)) return rc;
 
     for (size_t i = 0; i < mProgresses.size(); i ++)
     {
         if (mCancelable)
         {
             BOOL cancelable = FALSE;
-            rc = mProgresses [i]->COMGETTER(Cancelable) (&cancelable);
-            CheckComRCReturnRC(rc);
+            rc = mProgresses[i]->COMGETTER(Cancelable)(&cancelable);
+            if (FAILED(rc)) return rc;
 
             if (!cancelable)
                 mCancelable = FALSE;
@@ -1309,15 +1315,15 @@ HRESULT CombinedProgress::protectedInit (AutoInitSpan &aAutoInitSpan,
 
         {
             ULONG opCount = 0;
-            rc = mProgresses [i]->COMGETTER(OperationCount) (&opCount);
-            CheckComRCReturnRC(rc);
+            rc = mProgresses[i]->COMGETTER(OperationCount)(&opCount);
+            if (FAILED(rc)) return rc;
 
             m_cOperations += opCount;
         }
     }
 
     rc =  checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return rc;
 }
@@ -1333,28 +1339,31 @@ HRESULT CombinedProgress::protectedInit (AutoInitSpan &aAutoInitSpan,
  * @param aProgress2    Second normal progress object.
  * @param aId           See ProgressBase::init().
  */
-HRESULT CombinedProgress::init (
+HRESULT CombinedProgress::init(
 #if !defined (VBOX_COM_INPROC)
-                                VirtualBox *aParent,
+                               VirtualBox *aParent,
 #endif
-                                IUnknown *aInitiator,
-                                CBSTR aDescription,
-                                IProgress *aProgress1, IProgress *aProgress2,
-                                OUT_GUID aId /* = NULL */)
+                               IUnknown *aInitiator,
+                               CBSTR aDescription,
+                               IProgress *aProgress1,
+                               IProgress *aProgress2,
+                               OUT_GUID aId /* = NULL */)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    mProgresses.resize (2);
-    mProgresses [0] = aProgress1;
-    mProgresses [1] = aProgress2;
+    mProgresses.resize(2);
+    mProgresses[0] = aProgress1;
+    mProgresses[1] = aProgress2;
 
-    HRESULT rc =  protectedInit (autoInitSpan,
+    HRESULT rc =  protectedInit(autoInitSpan,
 #if !defined (VBOX_COM_INPROC)
-                                 aParent,
+                                aParent,
 #endif
-                                 aInitiator, aDescription, aId);
+                                aInitiator,
+                                aDescription,
+                                aId);
 
     /* Confirm a successful initialization when it's the case */
     if (SUCCEEDED(rc))
@@ -1391,17 +1400,17 @@ STDMETHODIMP CombinedProgress::COMGETTER(Percent)(ULONG *aPercent)
     CheckComArgOutPointerValid(aPercent);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mCompleted && SUCCEEDED(mResultCode))
         *aPercent = 100;
     else
     {
         HRESULT rc = checkProgress();
-        CheckComRCReturnRC(rc);
+        if (FAILED(rc)) return rc;
 
         /* global percent =
          *      (100 / m_cOperations) * mOperation +
@@ -1417,13 +1426,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(Completed) (BOOL *aCompleted)
     CheckComArgOutPointerValid(aCompleted);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(Completed) (aCompleted);
 }
@@ -1433,13 +1442,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(Canceled) (BOOL *aCanceled)
     CheckComArgOutPointerValid(aCanceled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(Canceled) (aCanceled);
 }
@@ -1449,13 +1458,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(ResultCode) (LONG *aResultCode)
     CheckComArgOutPointerValid(aResultCode);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(ResultCode) (aResultCode);
 }
@@ -1465,13 +1474,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(ErrorInfo) (IVirtualBoxErrorInfo **aErr
     CheckComArgOutPointerValid(aErrorInfo);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(ErrorInfo) (aErrorInfo);
 }
@@ -1481,13 +1490,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(Operation) (ULONG *aOperation)
     CheckComArgOutPointerValid(aOperation);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(Operation) (aOperation);
 }
@@ -1497,13 +1506,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(OperationDescription) (BSTR *aOperation
     CheckComArgOutPointerValid(aOperationDescription);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(OperationDescription) (aOperationDescription);
 }
@@ -1513,13 +1522,13 @@ STDMETHODIMP CombinedProgress::COMGETTER(OperationPercent)(ULONG *aOperationPerc
     CheckComArgOutPointerValid(aOperationPercent);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* checkProgress needs a write lock */
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = checkProgress();
-    CheckComRCReturnRC(rc);
+    if (FAILED(rc)) return rc;
 
     return ProgressBase::COMGETTER(OperationPercent) (aOperationPercent);
 }
@@ -1554,42 +1563,41 @@ STDMETHODIMP CombinedProgress::WaitForCompletion (LONG aTimeout)
     LogFlowThisFunc(("aTtimeout=%d\n", aTimeout));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* if we're already completed, take a shortcut */
     if (!mCompleted)
     {
         RTTIMESPEC time;
-        RTTimeNow (&time);
+        RTTimeNow(&time);
 
         HRESULT rc = S_OK;
         bool forever = aTimeout < 0;
         int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeSpecGetMilli (&time);
+        int64_t lastTime = RTTimeSpecGetMilli(&time);
 
         while (!mCompleted && (forever || timeLeft > 0))
         {
             alock.leave();
-            rc = mProgresses.back()->WaitForCompletion (
-                forever ? -1 : (LONG) timeLeft);
+            rc = mProgresses.back()->WaitForCompletion(forever ? -1 : (LONG) timeLeft);
             alock.enter();
 
             if (SUCCEEDED(rc))
                 rc = checkProgress();
 
-            CheckComRCBreakRC (rc);
+            if (FAILED(rc)) break;
 
             if (!forever)
             {
-                RTTimeNow (&time);
-                timeLeft -= RTTimeSpecGetMilli (&time) - lastTime;
-                lastTime = RTTimeSpecGetMilli (&time);
+                RTTimeNow(&time);
+                timeLeft -= RTTimeSpecGetMilli(&time) - lastTime;
+                lastTime = RTTimeSpecGetMilli(&time);
             }
         }
 
-        CheckComRCReturnRC(rc);
+        if (FAILED(rc)) return rc;
     }
 
     LogFlowThisFuncLeave();
@@ -1609,13 +1617,13 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
     LogFlowThisFunc(("aOperation=%d, aTimeout=%d\n", aOperation, aTimeout));
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (aOperation >= m_cOperations)
-        return setError (E_FAIL,
-            tr ("Operation number must be in range [0, %d]"), m_ulCurrentOperation - 1);
+        return setError(E_FAIL,
+                        tr("Operation number must be in range [0, %d]"), m_ulCurrentOperation - 1);
 
     /* if we're already completed or if the given operation is already done,
      * then take a shortcut */
@@ -1629,8 +1637,8 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
         do
         {
             ULONG opCount = 0;
-            rc = mProgresses [progress]->COMGETTER(OperationCount) (&opCount);
-            if (FAILED (rc))
+            rc = mProgresses[progress]->COMGETTER(OperationCount)(&opCount);
+            if (FAILED(rc))
                 return rc;
 
             if (completedOps + opCount > aOperation)
@@ -1642,7 +1650,7 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
 
             completedOps += opCount;
             progress ++;
-            ComAssertRet (progress < mProgresses.size(), E_FAIL);
+            ComAssertRet(progress < mProgresses.size(), E_FAIL);
         }
         while (1);
 
@@ -1661,24 +1669,24 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
         {
             alock.leave();
             /* wait for the appropriate progress operation completion */
-            rc = mProgresses [progress]-> WaitForOperationCompletion (
-                operation, forever ? -1 : (LONG) timeLeft);
+            rc = mProgresses[progress]-> WaitForOperationCompletion(operation,
+                                                                    forever ? -1 : (LONG) timeLeft);
             alock.enter();
 
             if (SUCCEEDED(rc))
                 rc = checkProgress();
 
-            CheckComRCBreakRC (rc);
+            if (FAILED(rc)) break;
 
             if (!forever)
             {
-                RTTimeNow (&time);
-                timeLeft -= RTTimeSpecGetMilli (&time) - lastTime;
-                lastTime = RTTimeSpecGetMilli (&time);
+                RTTimeNow(&time);
+                timeLeft -= RTTimeSpecGetMilli(&time) - lastTime;
+                lastTime = RTTimeSpecGetMilli(&time);
             }
         }
 
-        CheckComRCReturnRC(rc);
+        if (FAILED(rc)) return rc;
     }
 
     LogFlowThisFuncLeave();
@@ -1689,12 +1697,12 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
 STDMETHODIMP CombinedProgress::Cancel()
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mCancelable)
-        return setError (E_FAIL, tr ("Operation cannot be canceled"));
+        return setError(E_FAIL, tr("Operation cannot be canceled"));
 
     if (!mCanceled)
     {
@@ -1729,7 +1737,7 @@ HRESULT CombinedProgress::checkProgress()
     AssertReturn(mProgress < mProgresses.size(), E_FAIL);
 
     ComPtr<IProgress> progress = mProgresses[mProgress];
-    ComAssertRet (!progress.isNull(), E_FAIL);
+    ComAssertRet(!progress.isNull(), E_FAIL);
 
     HRESULT rc = S_OK;
     BOOL fCompleted = FALSE;
@@ -1737,29 +1745,29 @@ HRESULT CombinedProgress::checkProgress()
     do
     {
         rc = progress->COMGETTER(Completed)(&fCompleted);
-        if (FAILED (rc))
+        if (FAILED(rc))
             return rc;
 
         if (fCompleted)
         {
             rc = progress->COMGETTER(Canceled)(&mCanceled);
-            if (FAILED (rc))
+            if (FAILED(rc))
                 return rc;
 
             LONG iRc;
             rc = progress->COMGETTER(ResultCode)(&iRc);
-            if (FAILED (rc))
+            if (FAILED(rc))
                 return rc;
             mResultCode = iRc;
 
-            if (FAILED (mResultCode))
+            if (FAILED(mResultCode))
             {
                 rc = progress->COMGETTER(ErrorInfo) (mErrorInfo.asOutParam());
-                if (FAILED (rc))
+                if (FAILED(rc))
                     return rc;
             }
 
-            if (FAILED (mResultCode) || mCanceled)
+            if (FAILED(mResultCode) || mCanceled)
             {
                 mCompleted = TRUE;
             }
@@ -1767,14 +1775,14 @@ HRESULT CombinedProgress::checkProgress()
             {
                 ULONG opCount = 0;
                 rc = progress->COMGETTER(OperationCount) (&opCount);
-                if (FAILED (rc))
+                if (FAILED(rc))
                     return rc;
 
                 mCompletedOperations += opCount;
                 mProgress ++;
 
                 if (mProgress < mProgresses.size())
-                    progress = mProgresses [mProgress];
+                    progress = mProgresses[mProgress];
                 else
                     mCompleted = TRUE;
             }

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,14 +14,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_CONSOLEIMPL
 #define ____H_CONSOLEIMPL
+
+#include <VBox/types.h>
 
 /*
  * Host key handling.
@@ -99,6 +97,26 @@ typedef enum _CONEVENT
     CONEVENT_NONE
 } CONEVENT;
 
+/**
+ *  Checks the availability of the underlying VM device driver corresponding
+ *  to the COM interface (IKeyboard, IMouse, IDisplay, etc.). When the driver is
+ *  not available (NULL), sets error info and returns returns E_ACCESSDENIED.
+ *  The translatable error message is defined in null context.
+ *
+ *  Intended to used only within Console children (i.e. Keyboard, Mouse,
+ *  Display, etc.).
+ *
+ *  @param drv  driver pointer to check (compare it with NULL)
+ */
+#define CHECK_CONSOLE_DRV(drv) \
+    do { \
+        if (!(drv)) \
+            return setError(E_ACCESSDENIED, tr("The console is not powered up")); \
+    } while (0)
+
+class VMMDev;
+class Display;
+
 class Console
 {
 public:
@@ -123,12 +141,16 @@ public:
                                                bool fAlpha, uint32_t xHot,
                                                uint32_t yHot, uint32_t width,
                                                uint32_t height, void *pShape) = 0;
+    virtual void     onMouseCapabilityChange(bool fAbs, bool fRel,
+                                             bool fNeedsHostCursor) {}
 
     virtual CONEVENT eventWait() = 0;
     virtual void     eventQuit() = 0;
             bool     initialized() { return mfInitialized; }
     virtual void     progressInfo(PVM pVM, unsigned uPercent, void *pvUser) = 0;
     virtual void     resetKeys(void) = 0;
+    virtual VMMDev  *getVMMDev() = 0;
+    virtual Display *getDisplay() = 0;
 
 protected:
     HKEYSTATE enmHKeyState;

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_types_h
@@ -171,8 +167,13 @@ typedef __uint128_t uint128_t;
 #else
 typedef struct uint128_s
 {
+# ifdef RT_BIG_ENDIAN
+    uint64_t    Hi;
+    uint64_t    Lo;
+# else
     uint64_t    Lo;
     uint64_t    Hi;
+# endif
 } uint128_t;
 #endif
 
@@ -185,8 +186,13 @@ typedef __int128_t int128_t;
 #else
 typedef struct int128_s
 {
-    uint64_t    lo;
-    int64_t     hi;
+# ifdef RT_BIG_ENDIAN
+    int64_t     Hi;
+    uint64_t    Lo;
+# else
+    uint64_t    Lo;
+    int64_t     Hi;
+# endif
 } int128_t;
 #endif
 
@@ -206,8 +212,13 @@ typedef union RTUINT16U
     /** 16-bit hi/lo view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint8_t    Hi;
+        uint8_t    Lo;
+#else
         uint8_t    Lo;
         uint8_t    Hi;
+#endif
     } s;
 } RTUINT16U;
 /** Pointer to a 16-bit unsigned integer union. */
@@ -226,14 +237,24 @@ typedef union RTUINT32U
     /** Hi/Low view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint16_t    Hi;
+        uint16_t    Lo;
+#else
         uint16_t    Lo;
         uint16_t    Hi;
+#endif
     } s;
     /** Word view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint16_t    w1;
+        uint16_t    w0;
+#else
         uint16_t    w0;
         uint16_t    w1;
+#endif
     } Words;
 
     /** 32-bit view. */
@@ -259,22 +280,39 @@ typedef union RTUINT64U
     /** Hi/Low view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint32_t    Hi;
+        uint32_t    Lo;
+#else
         uint32_t    Lo;
         uint32_t    Hi;
+#endif
     } s;
     /** Double-Word view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint32_t    dw1;
+        uint32_t    dw0;
+#else
         uint32_t    dw0;
         uint32_t    dw1;
+#endif
     } DWords;
     /** Word view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint16_t    w3;
+        uint16_t    w2;
+        uint16_t    w1;
+        uint16_t    w0;
+#else
         uint16_t    w0;
         uint16_t    w1;
         uint16_t    w2;
         uint16_t    w3;
+#endif
     } Words;
 
     /** 64-bit view. */
@@ -303,26 +341,53 @@ typedef union RTUINT128U
     /** Hi/Low view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint64_t    Hi;
+        uint64_t    Lo;
+#else
         uint64_t    Lo;
         uint64_t    Hi;
+#endif
     } s;
     /** Quad-Word view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint64_t    qw1;
+        uint64_t    qw0;
+#else
         uint64_t    qw0;
         uint64_t    qw1;
+#endif
     } QWords;
     /** Double-Word view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint32_t    dw3;
+        uint32_t    dw2;
+        uint32_t    dw1;
+        uint32_t    dw0;
+#else
         uint32_t    dw0;
         uint32_t    dw1;
         uint32_t    dw2;
         uint32_t    dw3;
+#endif
     } DWords;
     /** Word view. */
     struct
     {
+#ifdef RT_BIG_ENDIAN
+        uint16_t    w7;
+        uint16_t    w6;
+        uint16_t    w5;
+        uint16_t    w4;
+        uint16_t    w3;
+        uint16_t    w2;
+        uint16_t    w1;
+        uint16_t    w0;
+#else
         uint16_t    w0;
         uint16_t    w1;
         uint16_t    w2;
@@ -331,6 +396,7 @@ typedef union RTUINT128U
         uint16_t    w5;
         uint16_t    w6;
         uint16_t    w7;
+#endif
     } Words;
 
     /** 64-bit view. */
@@ -354,7 +420,8 @@ typedef const RTUINT128U *PCRTUINT128U;
 typedef DECLCALLBACK(void) FNRT(void);
 
 /** Generic function pointer.
- * With -pedantic, gcc-4 complains when casting a function to a data object, for example
+ * With -pedantic, gcc-4 complains when casting a function to a data object, for
+ * example:
  *
  * @code
  *    void foo(void)
@@ -364,12 +431,19 @@ typedef DECLCALLBACK(void) FNRT(void);
  *    void *bar = (void *)foo;
  * @endcode
  *
- * The compiler would warn with "ISO C++ forbids casting between pointer-to-function and
- * pointer-to-object". The purpose of this warning is not to bother the programmer but to
- * point out that he is probably doing something dangerous, assigning a pointer to executable
- * code to a data object.
+ * The compiler would warn with "ISO C++ forbids casting between
+ * pointer-to-function and pointer-to-object".  The purpose of this warning is
+ * not to bother the programmer but to point out that he is probably doing
+ * something dangerous, assigning a pointer to executable code to a data object.
  */
 typedef FNRT *PFNRT;
+
+/** Millisecond interval. */
+typedef uint32_t            RTMSINTERVAL;
+/** Pointer to a millisecond interval. */
+typedef RTMSINTERVAL       *PRTMSINTERVAL;
+/** Pointer to a const millisecond interval. */
+typedef const RTMSINTERVAL *PCRTMSINTERVAL;
 
 
 /** @defgroup grp_rt_types_both  Common Guest and Host Context Basic Types
@@ -1025,18 +1099,18 @@ typedef const RTRCPTR  *PCRTRCPTR;
 
 /** Raw mode context pointer, unsigned integer variant. */
 typedef int32_t         RTRCINTPTR;
-/** @def RTRCUINPTR_MAX
+/** @def RTRCUINTPTR_MAX
  * The maximum value a RTRCUINPTR can have.
  */
 #define RTRCUINTPTR_MAX ((RTRCUINTPTR)UINT32_MAX)
 
 /** Raw mode context pointer, signed integer variant. */
 typedef uint32_t        RTRCUINTPTR;
-/** @def RTRCINPTR_MIN
+/** @def RTRCINTPTR_MIN
  * The minimum value a RTRCINPTR can have.
  */
 #define RTRCINTPTR_MIN ((RTRCINTPTR)INT32_MIN)
-/** @def RTRCINPTR_MAX
+/** @def RTRCINTPTR_MAX
  * The maximum value a RTRCINPTR can have.
  */
 #define RTRCINTPTR_MAX ((RTRCINTPTR)INT32_MAX)
@@ -1125,6 +1199,13 @@ typedef RTLDRMOD                                   *PRTLDRMOD;
 /** Nil loader module handle. */
 #define NIL_RTLDRMOD                                0
 
+/** Lock validator class handle. */
+typedef R3R0PTRTYPE(struct RTLOCKVALCLASSINT *)     RTLOCKVALCLASS;
+/** Pointer to a lock validator class handle. */
+typedef RTLOCKVALCLASS                             *PRTLOCKVALCLASS;
+/** Nil lock validator class handle. */
+#define NIL_RTLOCKVALCLASS                         ((RTLOCKVALCLASS)0)
+
 /** Ring-0 memory object handle. */
 typedef R0PTRTYPE(struct RTR0MEMOBJINTERNAL *)      RTR0MEMOBJ;
 /** Pointer to a Ring-0 memory object handle. */
@@ -1138,6 +1219,22 @@ typedef RTHCUINTPTR                                 RTNATIVETHREAD;
 typedef RTNATIVETHREAD                             *PRTNATIVETHREAD;
 /** Nil native thread handle. */
 #define NIL_RTNATIVETHREAD                          (~(RTNATIVETHREAD)0)
+
+/** Pipe handle. */
+typedef R3R0PTRTYPE(struct RTPIPEINTERNAL *)        RTPIPE;
+/** Pointer to a pipe handle. */
+typedef RTPIPE                                     *PRTPIPE;
+/** Nil pipe handle.
+ * @remarks This is not 0 because of UNIX and OS/2 handle values. Take care! */
+#define NIL_RTPIPE                                 ((RTPIPE)RTHCUINTPTR_MAX)
+
+/** @typedef RTPOLLSET
+ * Poll set handle. */
+typedef R3R0PTRTYPE(struct RTPOLLSETINTERNAL *)     RTPOLLSET;
+/** Pointer to a poll set handle. */
+typedef RTPOLLSET                                  *PRTPOLLSET;
+/** Nil poll set handle handle. */
+#define NIL_RTPOLLSET                               ((RTPOLLSET)0)
 
 /** Process identifier. */
 typedef uint32_t                                    RTPROCESS;
@@ -1201,6 +1298,14 @@ typedef RTSEMRW                                    *PRTSEMRW;
 /** Nil read/write semaphore handle. */
 #define NIL_RTSEMRW                                 0
 
+/** @typedef RTSEMXROADS
+ * Crossroads semaphore handle. */
+typedef R3R0PTRTYPE(struct RTSEMXROADSINTERNAL *)   RTSEMXROADS;
+/** Pointer to a crossroads semaphore handle. */
+typedef RTSEMXROADS                                *PRTSEMXROADS;
+/** Nil crossroads semaphore handle. */
+#define NIL_RTSEMXROADS                             ((RTSEMXROADS)0)
+
 /** Spinlock handle. */
 typedef R3R0PTRTYPE(struct RTSPINLOCKINTERNAL *)    RTSPINLOCK;
 /** Pointer to a spinlock handle. */
@@ -1209,11 +1314,11 @@ typedef RTSPINLOCK                                 *PRTSPINLOCK;
 #define NIL_RTSPINLOCK                              0
 
 /** Socket handle. */
-typedef int RTSOCKET;
+typedef R3R0PTRTYPE(struct RTSOCKETINT *)           RTSOCKET;
 /** Pointer to socket handle. */
-typedef RTSOCKET *PRTSOCKET;
+typedef RTSOCKET                                   *PRTSOCKET;
 /** Nil socket handle. */
-#define NIL_RTSOCKET                                (~(RTSOCKET)0)
+#define NIL_RTSOCKET                                ((RTSOCKET)0)
 
 /** Thread handle.*/
 typedef R3R0PTRTYPE(struct RTTHREADINT *)           RTTHREAD;
@@ -1229,7 +1334,7 @@ typedef RTTLS                                      *PRTTLS;
 /** Pointer to a const TLS index. */
 typedef RTTLS const                                *PCRTTLS;
 /** NIL TLS index value. */
-#define NIL_RTTLS                                   (-1)
+#define NIL_RTTLS                                   ((RTTLS)-1)
 
 /** Handle to a simple heap. */
 typedef R3R0PTRTYPE(struct RTHEAPSIMPLEINTERNAL *)  RTHEAPSIMPLE;
@@ -1327,6 +1432,67 @@ typedef RTSTRCACHE                                 *PRTSTRCACHE;
 #define NIL_RTSTRCACHE                              ((RTSTRCACHE)0)
 /** The default string cache handle. */
 #define RTSTRCACHE_DEFAULT                          ((RTSTRCACHE)-2)
+
+/**
+ * Handle type.
+ *
+ * This is usually used together with RTHANDLEUNION.
+ */
+typedef enum RTHANDLETYPE
+{
+    /** The invalid zero value. */
+    RTHANDLETYPE_INVALID = 0,
+    /** File handle. */
+    RTHANDLETYPE_FILE,
+    /** Pipe handle */
+    RTHANDLETYPE_PIPE,
+    /** Socket handle. */
+    RTHANDLETYPE_SOCKET,
+    /** Thread handle. */
+    RTHANDLETYPE_THREAD,
+    /** The end of the valid values. */
+    RTHANDLETYPE_END,
+    /** The 32-bit type blow up. */
+    RTHANDLETYPE_32BIT_HACK = 0x7fffffff
+} RTHANDLETYPE;
+/** Pointer to a handle type. */
+typedef RTHANDLETYPE *PRTHANDLETYPE;
+
+/**
+ * Handle union.
+ *
+ * This is usually used together with RTHANDLETYPE or as RTHANDLE.
+ */
+typedef union RTHANDLEUNION
+{
+    RTFILE          hFile;              /**< File handle. */
+    RTPIPE          hPipe;              /**< Pipe handle. */
+    RTSOCKET        hSocket;            /**< Socket handle. */
+    RTTHREAD        hThread;            /**< Thread handle. */
+    /** Generic integer handle value.
+     * Note that RTFILE is not yet pointer sized, so accessing it via this member
+     * isn't necessarily safe or fully portable. */
+    RTHCUINTPTR     uInt;
+} RTHANDLEUNION;
+/** Pointer to a handle union. */
+typedef RTHANDLEUNION *PRTHANDLEUNION;
+/** Pointer to a const handle union. */
+typedef RTHANDLEUNION const *PCRTHANDLEUNION;
+
+/**
+ * Generic handle.
+ */
+typedef struct RTHANDLE
+{
+    /** The handle type. */
+    RTHANDLETYPE    enmType;
+    /** The handle value. */
+    RTHANDLEUNION   u;
+} RTHANDLE;
+/** Pointer to a generic handle. */
+typedef RTHANDLE *PRTHANDLE;
+/** Pointer to a const generic handle. */
+typedef RTHANDLE const *PCRTHANDLE;
 
 
 /**
@@ -1459,6 +1625,56 @@ typedef union RTMAC
 typedef RTMAC *PRTMAC;
 /** Pointer to a readonly MAC address. */
 typedef const RTMAC *PCRTMAC;
+
+
+/** Pointer to a lock validator record.
+ * The structure definition is found in iprt/lockvalidator.h.  */
+typedef struct RTLOCKVALRECEXCL        *PRTLOCKVALRECEXCL;
+/** Pointer to a lock validator source poisition.
+ * The structure definition is found in iprt/lockvalidator.h.  */
+typedef struct RTLOCKVALSRCPOS         *PRTLOCKVALSRCPOS;
+/** Pointer to a const lock validator source poisition.
+ * The structure definition is found in iprt/lockvalidator.h.  */
+typedef struct RTLOCKVALSRCPOS const   *PCRTLOCKVALSRCPOS;
+
+/** @name   Special sub-class values.
+ * The range 16..UINT32_MAX is available to the user, the range 0..15 is
+ * reserved for the lock validator.  In the user range the locks can only be
+ * taking in ascending order.
+ * @{ */
+/** Invalid value.  */
+#define RTLOCKVAL_SUB_CLASS_INVALID     UINT32_C(0)
+/** Not allowed to be taken with any other locks in the same class.
+  * This is the recommended value.  */
+#define RTLOCKVAL_SUB_CLASS_NONE        UINT32_C(1)
+/** Any order is allowed within the class. */
+#define RTLOCKVAL_SUB_CLASS_ANY         UINT32_C(2)
+/** The first user value. */
+#define RTLOCKVAL_SUB_CLASS_USER        UINT32_C(16)
+/** @} */
+
+
+/**
+ * Process exit codes.
+ */
+typedef enum RTEXITCODE
+{
+    /** Success. */
+    RTEXITCODE_SUCCESS = 0,
+    /** General failure. */
+    RTEXITCODE_FAILURE = 1,
+    /** Invalid arguments.  */
+    RTEXITCODE_SYNTAX = 2,
+    /** Initialization failure (usually IPRT, but could be used for other
+     *  components as well). */
+    RTEXITCODE_INIT = 3,
+    /** Test skipped. */
+    RTEXITCODE_SKIPPED = 4,
+    /** The end of valid exit codes. */
+    RTEXITCODE_END,
+    /** The usual 32-bit type hack. */
+    RTEXITCODE_32BIT_HACK = 0x7fffffff
+} RTEXITCODE;
 
 
 #ifdef __cplusplus

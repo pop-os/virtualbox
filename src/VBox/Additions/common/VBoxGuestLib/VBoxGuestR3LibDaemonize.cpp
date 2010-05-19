@@ -1,10 +1,10 @@
-/** $Id: VBoxGuestR3LibDaemonize.cpp $ */
+/** $Id: VBoxGuestR3LibDaemonize.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, daemonize a process.
  */
 
 /*
- * Copyright (C) 2007-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -72,6 +68,8 @@
  *
  * @param   fNoChDir    Pass false to change working directory to root.
  * @param   fNoClose    Pass false to redirect standard file streams to /dev/null.
+ *
+ * @todo    Use RTProcDaemonize instead of this.
  */
 VBGLR3DECL(int) VbglR3Daemonize(bool fNoChDir, bool fNoClose)
 {

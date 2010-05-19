@@ -1,10 +1,10 @@
-/* $Id: logcom.cpp $ */
+/* $Id: logcom.cpp 29271 2010-05-09 21:25:16Z vboxsync $ */
 /** @file
  * IPRT - Logging to Serial Port.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -52,6 +48,9 @@
 #include "internal/iprt.h"
 
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) /** @todo consider fixing the config instead. */
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/stdarg.h>
 #include <iprt/string.h>
 
@@ -116,6 +115,7 @@ static DECLCALLBACK(size_t) rtLogComOutput(void *pv, const char *pachChars, size
  */
 RTDECL(void) RTLogWriteCom(const char *pach, size_t cb)
 {
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     const uint8_t *pu8;
     for (pu8 = (const uint8_t *)pach; cb-- > 0; pu8++)
     {
@@ -137,6 +137,9 @@ RTDECL(void) RTLogWriteCom(const char *pach, size_t cb)
         /* write */
         ASMOutU8(IPRT_UART_BASE, *pu8);
     }
+#else
+    /* PORTME? */
+#endif
 }
 RT_EXPORT_SYMBOL(RTLogWriteCom);
 

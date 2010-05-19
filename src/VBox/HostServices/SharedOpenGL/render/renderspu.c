@@ -346,7 +346,7 @@ static void renderspuCheckCurrentCtxWindowCB(unsigned long key, void *data1, voi
     if (pCtx->currentWindow==pWindow)
     {
         renderspuMakeCurrent(0, 0, pCtx->id);
-    }    
+    }
 }
 
 static void
@@ -371,7 +371,7 @@ RENDER_APIENTRY renderspuWindowDestroy( GLint win )
             GET_CONTEXT(pNewCtx);
             if (pNewCtx!=pOldCtx)
             {
-                renderspuMakeCurrent(pOldCtx&&pOldCtx->currentWindow ? pOldCtx->currentWindow->id:0, 0, 
+                renderspuMakeCurrent(pOldCtx&&pOldCtx->currentWindow ? pOldCtx->currentWindow->id:0, 0,
                                      pOldCtx ? pOldCtx->id:0);
             }
         }
@@ -1033,11 +1033,28 @@ renderspuGetString(GLenum pname)
         return render_spu.ws.glGetString(GL_VERSION);
     else if (pname == GL_REAL_RENDERER)
         return render_spu.ws.glGetString(GL_RENDERER);
+    else if (pname == GL_REAL_EXTENSIONS)
+        return render_spu.ws.glGetString(GL_EXTENSIONS);
 #endif
     else
         return NULL;
 }
 
+DECLEXPORT(void) renderspuReparentWindow(GLint window)
+{
+    WindowInfo *pWindow;
+    CRASSERT(window >= 0);
+
+    pWindow = (WindowInfo *) crHashtableSearch(render_spu.windowTable, window);
+
+    if (!pWindow)
+    {
+        crDebug("Render SPU: Attempt to reparent invalid window (%d)", window);
+        return;
+    }
+
+    renderspu_SystemReparentWindow(pWindow);
+}
 
 #if defined(DARWIN)
 # ifdef VBOX_WITH_COCOA_QT

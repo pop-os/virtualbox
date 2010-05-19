@@ -1,10 +1,10 @@
-/* $Id: VBoxServiceUtils.h $ */
+/* $Id: VBoxServiceUtils.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxServiceUtils - Guest Additions Services (Utilities).
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxServiceUtils_h
@@ -25,16 +21,13 @@
 #include "VBoxServiceInternal.h"
 
 #ifdef VBOX_WITH_GUEST_PROPS
-/** Reads a guest property. */
 int VBoxServiceReadProp(uint32_t u32ClientId, const char *pszPropName, char **ppszValue, char **ppszFlags, uint64_t *puTimestamp);
-/** Reads a guest property as a 32-bit value. */
 int VBoxServiceReadPropUInt32(uint32_t u32ClientId, const char *pszPropName, uint32_t *pu32, uint32_t u32Min, uint32_t u32Max);
-/** Wrapper around VbglR3GuestPropWriteValue that does value formatting and logging. */
 int VBoxServiceWritePropF(uint32_t u32ClientId, const char *pszName, const char *pszValueFormat, ...);
 #endif
+
 #ifdef RT_OS_WINDOWS
-/** Gets a pre-formatted version string from the VS_FIXEDFILEINFO table. */
-BOOL VBoxServiceGetFileVersionString(const char* pszPath, const char* pszFileName, char* pszVersion, UINT uiSize);
+int VBoxServiceGetFileVersionString(const char *pszPath, const char *pszFileName, char *pszVersion, size_t cbVersion);
 #endif
 
 #endif

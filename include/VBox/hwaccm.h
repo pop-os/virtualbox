@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_hwaccm_h
@@ -128,6 +124,7 @@ VMMR3DECL(void)         HWACCMR3Relocate(PVM pVM);
 VMMR3DECL(int)          HWACCMR3Term(PVM pVM);
 VMMR3DECL(int)          HWACCMR3TermCPU(PVM pVM);
 VMMR3DECL(void)         HWACCMR3Reset(PVM pVM);
+VMMR3DECL(void)         HWACCMR3ResetCpu(PVMCPU pVCpu);
 VMMR3DECL(void)         HWACCMR3CheckError(PVM pVM, int iStatusCode);
 VMMR3DECL(bool)         HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx);
 VMMR3DECL(void)         HWACCMR3NotifyScheduled(PVMCPU pVCpu);
@@ -143,6 +140,7 @@ VMMR3DECL(VBOXSTRICTRC) HWACCMR3RestartPendingIOInstr(PVM pVM, PVMCPU pVCpu, PCP
 VMMR3DECL(int)          HWACMMR3EnablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3DECL(int)          HWACMMR3DisablePatching(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
 VMMR3DECL(int)          HWACCMR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR3DECL(bool)         HWACCMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx);
 
 /** @} */
 #endif /* IN_RING3 */

@@ -1,10 +1,10 @@
-/* $Id: fs-posix.cpp $ */
+/* $Id: fs-posix.cpp 28915 2010-04-29 18:12:35Z vboxsync $ */
 /** @file
  * IPRT - File System, Linux.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -37,9 +33,12 @@
 #include <errno.h>
 
 #include <iprt/fs.h>
+#include "internal/iprt.h"
+
+#include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
-#include <iprt/assert.h>
+#include <iprt/string.h>
 #include "internal/fs.h"
 #include "internal/path.h"
 
@@ -56,13 +55,14 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
     /*
      * Convert the path and query the information.
      */
-    char *pszNativeFsPath;
-    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
     if (RT_SUCCESS(rc))
     {
         /** @todo I'm not quite sure if statvfs was properly specified by SuS, I have to check my own
          * implementation and FreeBSD before this can eventually be promoted to posix. */
-        struct statvfs StatVFS = {0};
+        struct statvfs StatVFS;
+        RT_ZERO(StatVFS);
         if (!statvfs(pszNativeFsPath, &StatVFS))
         {
             /*
@@ -80,7 +80,7 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFsPath);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
 
     LogFlow(("RTFsQuerySizes(%p:{%s}, %p:{%RTfoff}, %p:{%RTfoff}, %p:{%RX32}, %p:{%RX32}): returns %Rrc\n",
@@ -102,8 +102,8 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
      * Conver the path and query the stats.
      * We're simply return the device id.
      */
-    char *pszNativeFsPath;
-    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat Stat;
@@ -114,7 +114,7 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFsPath);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
     LogFlow(("RTFsQuerySerial(%p:{%s}, %p:{%RX32}: returns %Rrc\n",
              pszFsPath, pszFsPath, pu32Serial, pu32Serial ? *pu32Serial : 0, rc));
@@ -133,11 +133,12 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
     /*
      * Convert the path and query the information.
      */
-    char *pszNativeFsPath;
-    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath);
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
     if (RT_SUCCESS(rc))
     {
-        struct statvfs StatVFS = {0};
+        struct statvfs StatVFS;
+        RT_ZERO(StatVFS);
         if (!statvfs(pszNativeFsPath, &StatVFS))
         {
             /*
@@ -153,7 +154,7 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativeFsPath);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
     }
 
     LogFlow(("RTFsQueryProperties(%p:{%s}, %p:{.cbMaxComponent=%u, .fCaseSensitive=%RTbool}): returns %Rrc\n",

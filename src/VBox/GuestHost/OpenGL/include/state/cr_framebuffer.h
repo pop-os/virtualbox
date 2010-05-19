@@ -1,11 +1,11 @@
-/* $Id: cr_framebuffer.h $ */
+/* $Id: cr_framebuffer.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * VBox crOpenGL: FBO related state info
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -90,6 +86,9 @@ DECLEXPORT(void) STATE_APIENTRY crStateFramebufferTexture3DEXT(GLenum target, GL
 DECLEXPORT(void) STATE_APIENTRY crStateFramebufferRenderbufferEXT(GLenum target, GLenum attachment, GLenum renderbuffertarget, GLuint renderbuffer);
 DECLEXPORT(void) STATE_APIENTRY crStateGetFramebufferAttachmentParameterivEXT(GLenum target, GLenum attachment, GLenum pname, GLint *params);
 DECLEXPORT(void) STATE_APIENTRY crStateGenerateMipmapEXT(GLenum target);
+
+DECLEXPORT(GLuint) STATE_APIENTRY crStateFBOHWIDtoID(GLuint hwid);
+DECLEXPORT(GLuint) STATE_APIENTRY crStateRBOHWIDtoID(GLuint hwid);
 
 #ifdef IN_GUEST
 DECLEXPORT(GLenum) STATE_APIENTRY crStateCheckFramebufferStatusEXT(GLenum target);

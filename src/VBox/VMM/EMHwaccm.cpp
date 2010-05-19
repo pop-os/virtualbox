@@ -1,10 +1,10 @@
-/* $Id: EMHwaccm.cpp $ */
+/* $Id: EMHwaccm.cpp 29329 2010-05-11 10:18:30Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager - hardware virtualization
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_em         EM - The Execution Monitor / Manager
@@ -41,9 +37,6 @@
 #define LOG_GROUP LOG_GROUP_EM
 #include <VBox/em.h>
 #include <VBox/vmm.h>
-#ifdef VBOX_WITH_VMI
-# include <VBox/parav.h>
-#endif
 #include <VBox/csam.h>
 #include <VBox/selm.h>
 #include <VBox/trpm.h>
@@ -64,6 +57,8 @@
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
 #include <VBox/dbgf.h>
+
+#include <iprt/asm.h>
 
 
 /*******************************************************************************
@@ -496,6 +491,13 @@ int emR3HwAccExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
     {
         STAM_PROFILE_ADV_START(&pVCpu->em.s.StatHwAccEntry, a);
 
+        /* Check if a forced reschedule is pending. */
+        if (HWACCMR3IsRescheduleRequired(pVM, pCtx))
+        {
+            rc = VINF_EM_RESCHEDULE;
+            break;
+        }
+
         /*
          * Process high priority pre-execution raw-mode FFs.
          */
@@ -590,5 +592,4 @@ int emR3HwAccExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
 #endif
     return rc;
 }
-
 

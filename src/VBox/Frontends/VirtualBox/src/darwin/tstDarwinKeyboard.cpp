@@ -1,3 +1,4 @@
+/* $Id: tstDarwinKeyboard.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Common GUI Library - Testcase - Darwin Keyboard routines.
  *
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -31,7 +28,6 @@
 #include <iprt/assert.h>
 
 #include "DarwinKeyboard.h"
-
 
 int main(int argc, char **argv)
 {
@@ -89,7 +85,7 @@ void     DarwinDisableGlobalHotKeys(bool fDisable);
     }
     const uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
     RTPrintf("\n"
-             "tstDarwinKeyboard: %u times in %RU64 ms - %RU64 ms per call\n", 
+             "tstDarwinKeyboard: %u times in %RU64 ms - %RU64 ms per call\n",
              i, u64Elapsed / 1000000, (u64Elapsed / i) / 1000000);
     RTPrintf("tstDarwinKeyboard: DarwinGrabKeyboard: %RU64 ms total - %RU64 ms per call\n",
              u64Grab / 1000000, (u64Grab / i) / 1000000);
@@ -98,3 +94,4 @@ void     DarwinDisableGlobalHotKeys(bool fDisable);
 
     return 0;
 }
+

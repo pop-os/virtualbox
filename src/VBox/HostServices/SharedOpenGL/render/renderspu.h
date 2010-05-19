@@ -306,6 +306,7 @@ extern void renderspu_SystemBindFramebufferEXT(GLenum target, GLuint framebuffer
 extern void renderspu_SystemShowWindow( WindowInfo *window, GLboolean showIt );
 extern void renderspu_SystemMakeCurrent( WindowInfo *window, GLint windowInfor, ContextInfo *context );
 extern void renderspu_SystemSwapBuffers( WindowInfo *window, GLint flags );
+extern void renderspu_SystemReparentWindow(WindowInfo *window);
 extern void renderspu_GCWindow(void);
 extern int renderspuCreateFunctions( SPUNamedFunctionTable table[] );
 
@@ -319,6 +320,7 @@ extern "C" {
 #endif
 DECLEXPORT(void) renderspuSetWindowId(uint64_t winId);
 DECLEXPORT(void) renderspuSetRootVisibleRegion(GLint cRects, GLint *pRects);
+DECLEXPORT(void) renderspuReparentWindow(GLint window);
 #ifdef __cplusplus
 }
 #endif

@@ -1,10 +1,10 @@
-/* $Id: display.cpp $ */
+/* $Id: display.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * X11 guest client - display management.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @todo this should probably be replaced by something IPRT */
@@ -118,7 +114,7 @@ static void setSize(Display *pDisplay, uint32_t cx, uint32_t cy)
     int cSizes;
     pConfig = XRRGetScreenInfo(pDisplay, DefaultRootWindow(pDisplay));
     /* Reset the current mode */
-    LogFlowFunc(("Setting size %ux%u\n", cx, cy));
+    LogRelFlowFunc(("Setting size %ux%u\n", cx, cy));
     if (pConfig)
     {
         pSizes = XRRConfigSizes(pConfig, &cSizes);
@@ -129,7 +125,7 @@ static void setSize(Display *pDisplay, uint32_t cx, uint32_t cy)
 #define VBCL_SQUARE(x) (x) * (x)
             unsigned uThisDist =   VBCL_SQUARE(pSizes[i].width - cx)
                                  + VBCL_SQUARE(pSizes[i].height - cy);
-            LogFlowFunc(("Found size %dx%d, distance %u\n", pSizes[i].width,
+            LogRelFlowFunc(("Found size %dx%d, distance %u\n", pSizes[i].width,
                          pSizes[i].height, uThisDist));
 #undef VBCL_SQUARE
             if (uThisDist < uDist)
@@ -142,7 +138,7 @@ static void setSize(Display *pDisplay, uint32_t cx, uint32_t cy)
         {
             Time config_timestamp = 0;
             XRRConfigTimes(pConfig, &config_timestamp);
-            LogFlowFunc(("Setting new size %d\n", iMode));
+            LogRelFlowFunc(("Setting new size %d\n", iMode));
             XRRSetScreenConfig(pDisplay, pConfig,
                                DefaultRootWindow(pDisplay), iMode,
                                RR_Rotate_0, config_timestamp);

@@ -1,10 +1,10 @@
-/* $Id: time-darwin.cpp $ */
+/* $Id: time-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Time, Darwin.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -97,40 +93,18 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
 }
 
 
-/**
- * Gets the current nanosecond timestamp.
- *
- * This differs from RTTimeNanoTS in that it will use system APIs and not do any
- * resolution or performance optimizations.
- *
- * @returns nanosecond timestamp.
- */
 RTDECL(uint64_t) RTTimeSystemNanoTS(void)
 {
     return rtTimeGetSystemNanoTS();
 }
 
 
-/**
- * Gets the current millisecond timestamp.
- *
- * This differs from RTTimeNanoTS in that it will use system APIs and not do any
- * resolution or performance optimizations.
- *
- * @returns millisecond timestamp.
- */
 RTDECL(uint64_t) RTTimeSystemMilliTS(void)
 {
     return rtTimeGetSystemNanoTS();
 }
 
 
-/**
- * Gets the current system time.
- *
- * @returns pTime.
- * @param   pTime   Where to store the time.
- */
 RTDECL(PRTTIMESPEC) RTTimeNow(PRTTIMESPEC pTime)
 {
     /** @todo find nanosecond API for getting time of day. */

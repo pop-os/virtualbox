@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29263 2010-05-09 19:52:03Z vboxsync $
 ## @file
 # Top-level makefile for src/VBox.
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../..
@@ -31,6 +27,11 @@ ifdef VBOX_ONLY_ADDITIONS
    include $(PATH_SUB_CURRENT)/GuestHost/Makefile.kmk
   endif
  endif
+ include $(PATH_SUB_CURRENT)/Additions/Makefile.kmk
+
+else ifdef VBOX_ONLY_TESTSUITE
+ include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/HostDrivers/Makefile.kmk
  include $(PATH_SUB_CURRENT)/Additions/Makefile.kmk
 
 else ifdef VBOX_ONLY_DOCS
@@ -51,11 +52,13 @@ else
   include $(PATH_SUB_CURRENT)/Main/Makefile.kmk 			# Do this one first because of soap.
  endif
  include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
- include $(PATH_SUB_CURRENT)/VMM/Makefile.kmk
- include $(PATH_SUB_CURRENT)/Devices/Makefile.kmk
  include $(PATH_SUB_CURRENT)/Disassembler/Makefile.kmk
- include $(PATH_SUB_CURRENT)/HostDrivers/Makefile.kmk
- include $(PATH_SUB_CURRENT)/HostServices/Makefile.kmk
+ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+  include $(PATH_SUB_CURRENT)/VMM/Makefile.kmk
+  include $(PATH_SUB_CURRENT)/Devices/Makefile.kmk
+  include $(PATH_SUB_CURRENT)/HostDrivers/Makefile.kmk
+  include $(PATH_SUB_CURRENT)/HostServices/Makefile.kmk
+ endif
  ifdef VBOX_WITH_DEBUGGER
   include $(PATH_SUB_CURRENT)/Debugger/Makefile.kmk
  endif
@@ -69,7 +72,9 @@ else
  ifdef VBOX_WITH_ADDITIONS
   include $(PATH_SUB_CURRENT)/Additions/Makefile.kmk
  endif
- include $(PATH_SUB_CURRENT)/NetworkServices/Makefile.kmk
+ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
+  include $(PATH_SUB_CURRENT)/NetworkServices/Makefile.kmk
+ endif
  ifdef VBOX_WITH_INSTALLER
   include $(PATH_SUB_CURRENT)/Installer/Makefile.kmk 		        # Keep this last.
  endif

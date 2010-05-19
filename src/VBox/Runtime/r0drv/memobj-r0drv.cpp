@@ -1,10 +1,10 @@
-/* $Revision: 53284 $ */
+/* $Revision: 29027 $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Common Code.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -497,7 +493,7 @@ RT_EXPORT_SYMBOL(RTR0MemObjAllocCont);
  *                          nearest page boundrary.
  * @param   fAccess         The desired access, a combination of RTMEM_PROT_READ
  *                          and RTMEM_PROT_WRITE.
- * @param   R0Process       The process to lock pages in. NIL_R0PROCESS is an
+ * @param   R0Process       The process to lock pages in. NIL_RTR0PROCESS is an
  *                          alias for the current one.
  *
  * @remarks RTR0MemGetAddressR3() and RTR0MemGetAddress() will return therounded
@@ -582,9 +578,50 @@ RTR0DECL(int) RTR0MemObjAllocPhys(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysH
     RT_ASSERT_PREEMPTIBLE();
 
     /* do the allocation. */
-    return rtR0MemObjNativeAllocPhys(pMemObj, cbAligned, PhysHighest);
+    return rtR0MemObjNativeAllocPhys(pMemObj, cbAligned, PhysHighest, PAGE_SIZE /* page aligned */);
 }
 RT_EXPORT_SYMBOL(RTR0MemObjAllocPhys);
+
+
+/**
+ * Allocates contiguous physical memory without (necessarily) any kernel mapping.
+ *
+ * @returns IPRT status code.
+ * @param   pMemObj         Where to store the ring-0 memory object handle.
+ * @param   cb              Number of bytes to allocate. This is rounded up to nearest page.
+ * @param   PhysHighest     The highest permittable address (inclusive).
+ *                          Pass NIL_RTHCPHYS if any address is acceptable.
+ * @param   uAlignment      The alignment of the physical memory to allocate.
+ *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M, _4M and _1G.
+ */
+RTR0DECL(int) RTR0MemObjAllocPhysEx(PRTR0MEMOBJ pMemObj, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
+{
+    /* sanity checks. */
+    const size_t cbAligned = RT_ALIGN_Z(cb, PAGE_SIZE);
+    AssertPtrReturn(pMemObj, VERR_INVALID_POINTER);
+    *pMemObj = NIL_RTR0MEMOBJ;
+    AssertReturn(cb > 0, VERR_INVALID_PARAMETER);
+    AssertReturn(cb <= cbAligned, VERR_INVALID_PARAMETER);
+    AssertReturn(PhysHighest >= cb, VERR_INVALID_PARAMETER);
+    if (uAlignment == 0)
+        uAlignment = PAGE_SIZE;
+    AssertReturn(    uAlignment == PAGE_SIZE
+                 ||  uAlignment == _2M
+                 ||  uAlignment == _4M
+                 ||  uAlignment == _1G,
+                 VERR_INVALID_PARAMETER);
+#if HC_ARCH_BITS == 32
+    /* Memory allocated in this way is typically mapped into kernel space as well; simply
+       don't allow this on 32 bits hosts as the kernel space is too crowded already. */
+    if (uAlignment != PAGE_SIZE)
+        return VERR_NOT_SUPPORTED;
+#endif
+    RT_ASSERT_PREEMPTIBLE();
+
+    /* do the allocation. */
+    return rtR0MemObjNativeAllocPhys(pMemObj, cbAligned, PhysHighest, uAlignment);
+}
+RT_EXPORT_SYMBOL(RTR0MemObjAllocPhysEx);
 
 
 /**
@@ -623,8 +660,9 @@ RT_EXPORT_SYMBOL(RTR0MemObjAllocPhysNC);
  * @param   Phys            The physical address to start at. This is rounded down to the
  *                          nearest page boundrary.
  * @param   cb              The size of the object in bytes. This is rounded up to nearest page boundrary.
+ * @param   uCachePolicy    One of the RTMEM_CACHE_XXX modes.
  */
-RTR0DECL(int) RTR0MemObjEnterPhys(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb)
+RTR0DECL(int) RTR0MemObjEnterPhys(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
     /* sanity checks. */
     const size_t cbAligned = RT_ALIGN_Z(cb + (Phys & PAGE_OFFSET_MASK), PAGE_SIZE);
@@ -634,10 +672,13 @@ RTR0DECL(int) RTR0MemObjEnterPhys(PRTR0MEMOBJ pMemObj, RTHCPHYS Phys, size_t cb)
     AssertReturn(cb > 0, VERR_INVALID_PARAMETER);
     AssertReturn(cb <= cbAligned, VERR_INVALID_PARAMETER);
     AssertReturn(Phys != NIL_RTHCPHYS, VERR_INVALID_PARAMETER);
+    AssertReturn(   uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE
+                 || uCachePolicy == RTMEM_CACHE_POLICY_MMIO,
+                 VERR_INVALID_PARAMETER);
     RT_ASSERT_PREEMPTIBLE();
 
     /* do the allocation. */
-    return rtR0MemObjNativeEnterPhys(pMemObj, PhysAligned, cbAligned);
+    return rtR0MemObjNativeEnterPhys(pMemObj, PhysAligned, cbAligned, uCachePolicy);
 }
 RT_EXPORT_SYMBOL(RTR0MemObjEnterPhys);
 
@@ -682,7 +723,7 @@ RT_EXPORT_SYMBOL(RTR0MemObjReserveKernel);
  * @param   cb              The number of bytes to reserve. This is rounded up to nearest PAGE_SIZE.
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
- * @param   R0Process       The process to reserve the memory in. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to reserve the memory in. NIL_RTR0PROCESS is an alias for the current one.
  */
 RTR0DECL(int) RTR0MemObjReserveUser(PRTR0MEMOBJ pMemObj, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process)
 {
@@ -817,7 +858,7 @@ RT_EXPORT_SYMBOL(RTR0MemObjMapKernelEx);
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
  * @param   fProt           Combination of RTMEM_PROT_* flags (except RTMEM_PROT_NONE).
- * @param   R0Process       The process to map the memory into. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to map the memory into. NIL_RTR0PROCESS is an alias for the current one.
  */
 RTR0DECL(int) RTR0MemObjMapUser(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, RTR3PTR R3PtrFixed, size_t uAlignment, unsigned fProt, RTR0PROCESS R0Process)
 {

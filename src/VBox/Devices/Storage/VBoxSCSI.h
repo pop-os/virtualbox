@@ -1,4 +1,4 @@
-/* $Id: VBoxSCSI.h $ */
+/* $Id: VBoxSCSI.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox storage devices:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /**
@@ -42,6 +38,8 @@
  * |   1    |  Read  | Data out |
  * +--------+--------+----------+
  * |   2    |  R/W   | Detect   |
+ * +--------+--------+----------+
+ * |   3    |  Write | Reset    |
  * +--------+--------+----------+
  *
  * The register at port 0 receives the SCSI CDB issued from the driver when writing to it but
@@ -81,6 +79,9 @@ typedef enum VBOXSCSISTATE
 
 #define VBOXSCSI_TXDIR_FROM_DEVICE 0
 #define VBOXSCSI_TXDIR_TO_DEVICE   1
+
+/** Maximum CDB size the BIOS driver sends. */
+#define VBOXSCSI_CDB_SIZE_MAX     10
 
 typedef struct VBOXSCSI
 {

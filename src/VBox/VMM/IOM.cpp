@@ -1,10 +1,10 @@
-/* $Id: IOM.cpp $ */
+/* $Id: IOM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IOM - Input / Output Monitor.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -104,7 +100,8 @@
 #include <VBox/mm.h>
 #include <VBox/stam.h>
 #include <VBox/dbgf.h>
-#include <VBox/pdm.h>
+#include <VBox/pdmapi.h>
+#include <VBox/pdmdev.h>
 #include "IOMInternal.h"
 #include <VBox/vm.h>
 
@@ -159,7 +156,7 @@ VMMR3DECL(int) IOMR3Init(PVM pVM)
     /*
      * Initialize the REM critical section.
      */
-    int rc = PDMR3CritSectInit(pVM, &pVM->iom.s.EmtLock, "IOM EMT Lock");
+    int rc = PDMR3CritSectInit(pVM, &pVM->iom.s.EmtLock, RT_SRC_POS, "IOM EMT Lock");
     AssertRCReturn(rc, rc);
 
     /*
@@ -1417,6 +1414,8 @@ VMMR3DECL(int)  IOMR3MMIORegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys
         AssertMsgFailed(("Wrapped! %RGp %#x bytes\n", GCPhysStart, cbRange));
         return VERR_IOM_INVALID_MMIO_RANGE;
     }
+    /** @todo implement per-device locks for MMIO access. */
+    AssertReturn(!pDevIns->pCritSectR3, VERR_INTERNAL_ERROR_2);
 
     /*
      * Resolve the GC/R0 handler addresses lazily because of init order.

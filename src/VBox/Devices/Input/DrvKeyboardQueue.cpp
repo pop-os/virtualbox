@@ -1,11 +1,10 @@
+/* $Id: DrvKeyboardQueue.cpp 28909 2010-04-29 16:34:17Z vboxsync $ */
 /** @file
- *
- * VBox input devices:
- * Keyboard queue driver
+ * VBox input devices: Keyboard queue driver
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -27,6 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DRV_KBD_QUEUE
 #include <VBox/pdmdrv.h>
 #include <iprt/assert.h>
+#include <iprt/uuid.h>
 
 #include "Builtins.h"
 
@@ -37,6 +33,9 @@
 *******************************************************************************/
 /**
  * Keyboard queue driver instance data.
+ *
+ * @implements  PDMIKEYBOARDCONNECTOR
+ * @implements  PDMIKEYBOARDPORT
  */
 typedef struct DRVKBDQUEUE
 {
@@ -47,9 +46,9 @@ typedef struct DRVKBDQUEUE
     /** Pointer to the keyboard port interface of the driver/device below us. */
     PPDMIKEYBOARDCONNECTOR      pDownConnector;
     /** Our keyboard connector interface. */
-    PDMIKEYBOARDCONNECTOR       Connector;
+    PDMIKEYBOARDCONNECTOR       IConnector;
     /** Our keyboard port interface. */
-    PDMIKEYBOARDPORT            Port;
+    PDMIKEYBOARDPORT            IPort;
     /** The queue handle. */
     PPDMQUEUE                   pQueue;
     /** Discard input when this flag is set.
@@ -74,35 +73,24 @@ typedef struct DRVKBDQUEUEITEM
 /* -=-=-=-=- IBase -=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *)  drvKbdQueueQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *)  drvKbdQueueQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVKBDQUEUE pDrv = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_KEYBOARD_PORT:
-            return &pDrv->Port;
-        case PDMINTERFACE_KEYBOARD_CONNECTOR:
-            return &pDrv->Connector;
-        default:
-            return NULL;
-    }
+    PPDMDRVINS      pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVKBDQUEUE    pThis   = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIKEYBOARDCONNECTOR, &pThis->IConnector);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIKEYBOARDPORT, &pThis->IPort);
+    return NULL;
 }
 
 
 /* -=-=-=-=- IKeyboardPort -=-=-=-=- */
 
-/** Converts a pointer to DRVKBDQUEUE::Port to a DRVKBDQUEUE pointer. */
-#define IKEYBOARDPORT_2_DRVKBDQUEUE(pInterface) ( (PDRVKBDQUEUE)((char *)(pInterface) - RT_OFFSETOF(DRVKBDQUEUE, Port)) )
+/** Converts a pointer to DRVKBDQUEUE::IPort to a DRVKBDQUEUE pointer. */
+#define IKEYBOARDPORT_2_DRVKBDQUEUE(pInterface) ( (PDRVKBDQUEUE)((char *)(pInterface) - RT_OFFSETOF(DRVKBDQUEUE, IPort)) )
 
 
 /**
@@ -132,9 +120,9 @@ static DECLCALLBACK(int) drvKbdQueuePutEvent(PPDMIKEYBOARDPORT pInterface, uint8
 }
 
 
-/* -=-=-=-=- Connector -=-=-=-=- */
+/* -=-=-=-=- IConnector -=-=-=-=- */
 
-#define PPDMIKEYBOARDCONNECTOR_2_DRVKBDQUEUE(pInterface) ( (PDRVKBDQUEUE)((char *)(pInterface) - RT_OFFSETOF(DRVKBDQUEUE, Connector)) )
+#define PPDMIKEYBOARDCONNECTOR_2_DRVKBDQUEUE(pInterface) ( (PDRVKBDQUEUE)((char *)(pInterface) - RT_OFFSETOF(DRVKBDQUEUE, IConnector)) )
 
 
 /**
@@ -149,6 +137,17 @@ static DECLCALLBACK(void) drvKbdPassThruLedsChange(PPDMIKEYBOARDCONNECTOR pInter
     pDrv->pDownConnector->pfnLedStatusChange(pDrv->pDownConnector, enmLeds);
 }
 
+/**
+ * Pass keyboard state changes from the guest thru to the frontent driver.
+ *
+ * @param   pInterface  Pointer to the keyboard connector interface structure.
+ * @param   fActive     The new active/inactive state.
+ */
+static DECLCALLBACK(void) drvKbdPassThruSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
+{
+    PDRVKBDQUEUE pDrv = PPDMIKEYBOARDCONNECTOR_2_DRVKBDQUEUE(pInterface);
+    pDrv->pDownConnector->pfnSetActive(pDrv->pDownConnector, fActive);
+}
 
 
 /* -=-=-=-=- queue -=-=-=-=- */
@@ -241,15 +240,16 @@ static DECLCALLBACK(void) drvKbdQueuePowerOff(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVKBDQUEUE pDrv = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
     LogFlow(("drvKbdQueueConstruct: iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "QueueSize\0Interval\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "QueueSize\0Interval\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
 
     /*
@@ -259,14 +259,15 @@ static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* IBase. */
     pDrvIns->IBase.pfnQueryInterface        = drvKbdQueueQueryInterface;
     /* IKeyboardConnector. */
-    pDrv->Connector.pfnLedStatusChange      = drvKbdPassThruLedsChange;
+    pDrv->IConnector.pfnLedStatusChange     = drvKbdPassThruLedsChange;
+    pDrv->IConnector.pfnSetActive           = drvKbdPassThruSetActive;
     /* IKeyboardPort. */
-    pDrv->Port.pfnPutEvent                  = drvKbdQueuePutEvent;
+    pDrv->IPort.pfnPutEvent                 = drvKbdQueuePutEvent;
 
     /*
      * Get the IKeyboardPort interface of the above driver/device.
      */
-    pDrv->pUpPort = (PPDMIKEYBOARDPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_KEYBOARD_PORT);
+    pDrv->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIKEYBOARDPORT);
     if (!pDrv->pUpPort)
     {
         AssertMsgFailed(("Configuration error: No keyboard port interface above!\n"));
@@ -283,7 +284,7 @@ static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
         AssertMsgFailed(("Failed to attach driver below us! rc=%Rra\n", rc));
         return rc;
     }
-    pDrv->pDownConnector = (PPDMIKEYBOARDCONNECTOR)pDownBase->pfnQueryInterface(pDownBase, PDMINTERFACE_KEYBOARD_CONNECTOR);
+    pDrv->pDownConnector = PDMIBASE_QUERY_INTERFACE(pDownBase, PDMIKEYBOARDCONNECTOR);
     if (!pDrv->pDownConnector)
     {
         AssertMsgFailed(("Configuration error: No keyboard connector interface below!\n"));
@@ -294,7 +295,7 @@ static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
      * Create the queue.
      */
     uint32_t cMilliesInterval = 0;
-    rc = CFGMR3QueryU32(pCfgHandle, "Interval", &cMilliesInterval);
+    rc = CFGMR3QueryU32(pCfg, "Interval", &cMilliesInterval);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         cMilliesInterval = 0;
     else if (RT_FAILURE(rc))
@@ -304,7 +305,7 @@ static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     }
 
     uint32_t cItems = 0;
-    rc = CFGMR3QueryU32(pCfgHandle, "QueueSize", &cItems);
+    rc = CFGMR3QueryU32(pCfg, "QueueSize", &cItems);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         cItems = 128;
     else if (RT_FAILURE(rc))
@@ -313,7 +314,7 @@ static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
         return rc;
     }
 
-    rc = PDMDrvHlpPDMQueueCreate(pDrvIns, sizeof(DRVKBDQUEUEITEM), cItems, cMilliesInterval, drvKbdQueueConsumer, "Keyboard", &pDrv->pQueue);
+    rc = PDMDrvHlpQueueCreate(pDrvIns, sizeof(DRVKBDQUEUEITEM), cItems, cMilliesInterval, drvKbdQueueConsumer, "Keyboard", &pDrv->pQueue);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Failed to create driver: cItems=%d cMilliesInterval=%d rc=%Rrc\n", cItems, cMilliesInterval, rc));
@@ -331,8 +332,12 @@ const PDMDRVREG g_DrvKeyboardQueue =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "KeyboardQueue",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Keyboard queue driver to plug in between the key source and the device to do queueing and inter-thread transport.",
     /* fFlags */
@@ -345,6 +350,8 @@ const PDMDRVREG g_DrvKeyboardQueue =
     sizeof(DRVKBDQUEUE),
     /* pfnConstruct */
     drvKbdQueueConstruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnDestruct */
     NULL,
     /* pfnIOCtl */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_uuid_h
@@ -76,8 +72,10 @@ RTDECL(bool)  RTUuidIsNull(PCRTUUID pUuid);
  * Compares two UUID values.
  *
  * @returns 0 if eq, < 0 or > 0.
- * @param   pUuid1          First value to compare. NULL is treated like if RTUuidIsNull() return true.
- * @param   pUuid2          Second value to compare. NULL is treated like if RTUuidIsNull() return true.
+ * @param   pUuid1          First value to compare.  NULL is treated like if
+ *                          RTUuidIsNull() return true.
+ * @param   pUuid2          Second value to compare.  NULL is treated like if
+ *                          RTUuidIsNull() return true.
  */
 RTDECL(int)  RTUuidCompare(PCRTUUID pUuid1, PCRTUUID pUuid2);
 
@@ -86,8 +84,8 @@ RTDECL(int)  RTUuidCompare(PCRTUUID pUuid1, PCRTUUID pUuid2);
  *
  * @note IPRT uses little endian byte ordering in the UUID integer fields. If
  * you want to pass IPRT UUIDs in binary representation to other UUID libraries
- * and expect to get exactly the same string representation as in IPRT, you
- * need to convert the first three integer fields (one 32 bit value, two 16 bit
+ * and expect to get exactly the same string representation as in IPRT, you need
+ * to convert the first three integer fields (one 32 bit value, two 16 bit
  * values) separately to big endian (also called network byte order).
  * Correspondingly, if you want to get the right result with UUIDs which are in
  * big endian format, you need to convert them before using this function.
@@ -95,10 +93,22 @@ RTDECL(int)  RTUuidCompare(PCRTUUID pUuid1, PCRTUUID pUuid2);
  * @sa RTUUID::Gen
  *
  * @returns 0 if eq, < 0 or > 0.
- * @param   pUuid1          First value to compare. NULL is not allowed.
- * @param   pszString2      The 2nd UUID in string form. NULL of malformed string is not permitted.
+ * @param   pUuid1          First value to compare.  NULL is not allowed.
+ * @param   pszString2      The 2nd UUID in string form.  NULL or malformed
+ *                          string is not permitted.
  */
-RTDECL(int)  RTUuidCompareStr(PCRTUUID pUuid1, const char *pszString);
+RTDECL(int)  RTUuidCompareStr(PCRTUUID pUuid1, const char *pszString2);
+
+/**
+ * Compares two UUID strings.
+ *
+ * @returns 0 if eq, < 0 or > 0.
+ * @param   pszString1      The 1st UUID in string from.  NULL or malformed
+ *                          string is not permitted.
+ * @param   pszString2      The 2nd UUID in string form.  NULL or malformed
+ *                          string is not permitted.
+ */
+RTDECL(int)  RTUuidCompare2Strs(const char *pszString1, const char *pszString2);
 
 /**
  * Converts binary UUID to its string representation.

@@ -1,10 +1,10 @@
-/* $Id: VBoxServiceInternal.h $ */
+/* $Id: VBoxServiceInternal.h 29313 2010-05-11 07:08:01Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
 
 /*
- * Copyright (C) 2007-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxServiceInternal_h
@@ -26,8 +22,10 @@
 #ifdef RT_OS_WINDOWS
 # include <Windows.h>
 # include <process.h> /* Needed for file version information. */
-# include <Ntsecapi.h> /* Needed for process security information. */
 #endif
+
+#include <iprt/list.h>
+#include <iprt/critsect.h>
 
 /**
  * A service descriptor.
@@ -94,34 +92,166 @@ typedef VBOXSERVICE *PVBOXSERVICE;
 typedef VBOXSERVICE const *PCVBOXSERVICE;
 
 #ifdef RT_OS_WINDOWS
+
 /** The service name (needed for mutex creation on Windows). */
-#define VBOXSERVICE_NAME          "VBoxService"
+# define VBOXSERVICE_NAME           "VBoxService"
 /** The friendly service name. */
-#define VBOXSERVICE_FRIENDLY_NAME "VBoxService"
+# define VBOXSERVICE_FRIENDLY_NAME  "VirtualBox Guest Additions Service"
+/** The service description (only W2K+ atm) */
+# define VBOXSERVICE_DESCRIPTION    "Manages VM runtime information, time synchronization, remote sysprep execution and miscellaneous utilities for guest operating systems."
 /** The following constant may be defined by including NtStatus.h. */
-#define STATUS_SUCCESS ((NTSTATUS)0x00000000L)
+# define STATUS_SUCCESS             ((NTSTATUS)0x00000000L)
 /** Structure for storing the looked up user information. */
 typedef struct
 {
-    WCHAR szUser [_MAX_PATH];
-    WCHAR szAuthenticationPackage [_MAX_PATH];
-    WCHAR szLogonDomain [_MAX_PATH];
+    WCHAR wszUser[_MAX_PATH];
+    WCHAR wszAuthenticationPackage[_MAX_PATH];
+    WCHAR wszLogonDomain[_MAX_PATH];
 } VBOXSERVICEVMINFOUSER, *PVBOXSERVICEVMINFOUSER;
 /** Structure for the file information lookup. */
 typedef struct
 {
-    char* pszFilePath;
-    char* pszFileName;
+    char *pszFilePath;
+    char *pszFileName;
 } VBOXSERVICEVMINFOFILE, *PVBOXSERVICEVMINFOFILE;
 /** Structure for process information lookup. */
 typedef struct
 {
-    DWORD id; 
+    DWORD id;
     LUID luid;
 } VBOXSERVICEVMINFOPROC, *PVBOXSERVICEVMINFOPROC;
 /** Function prototypes for dynamic loading. */
-typedef DWORD (WINAPI* fnWTSGetActiveConsoleSessionId)();
-#endif
+typedef DWORD (WINAPI *PFNWTSGETACTIVECONSOLESESSIONID)(void);
+
+#endif /* RT_OS_WINDOWS */
+#ifdef VBOX_WITH_GUEST_CONTROL
+
+enum VBOXSERVICECTRLTHREADDATATYPE
+{
+    VBoxServiceCtrlThreadDataUnknown = 0,
+    VBoxServiceCtrlThreadDataExec = 1
+};
+
+typedef struct
+{
+    uint8_t    *pbData;
+    uint32_t    cbSize;
+    uint32_t    cbOffset;
+    uint32_t    cbRead;
+    RTCRITSECT  CritSect;
+} VBOXSERVICECTRLEXECPIPEBUF;
+/** Pointer to thread data. */
+typedef VBOXSERVICECTRLEXECPIPEBUF *PVBOXSERVICECTRLEXECPIPEBUF;
+
+/* Structure for holding guest exection relevant data. */
+typedef struct
+{
+    uint32_t  uPID;
+    char     *pszCmd;
+    uint32_t  uFlags;
+    char    **papszArgs;
+    uint32_t  uNumArgs;
+    char    **papszEnv;
+    uint32_t  uNumEnvVars;
+    char     *pszStdIn;
+    char     *pszStdOut;
+    char     *pszStdErr;
+    char     *pszUser;
+    char     *pszPassword;
+    uint32_t  uTimeLimitMS;
+
+    VBOXSERVICECTRLEXECPIPEBUF stdOut;
+    VBOXSERVICECTRLEXECPIPEBUF stdErr;
+
+} VBOXSERVICECTRLTHREADDATAEXEC;
+/** Pointer to thread data. */
+typedef VBOXSERVICECTRLTHREADDATAEXEC *PVBOXSERVICECTRLTHREADDATAEXEC;
+
+/* Structure for holding thread relevant data. */
+typedef struct VBOXSERVICECTRLTHREAD
+{
+    /** Node. */
+    RTLISTNODE                      Node;
+    /** The worker thread. */
+    RTTHREAD                        Thread;
+    /** Shutdown indicator. */
+    bool volatile                   fShutdown;
+    /** Indicator set by the service thread exiting. */
+    bool volatile                   fStopped;
+    /** Whether the service was started or not. */
+    bool                            fStarted;
+    /** Client ID. */
+    uint32_t                        uClientID;
+    /** Context ID. */
+    uint32_t                        uContextID;
+    /** Type of thread.  See VBOXSERVICECTRLTHREADDATATYPE for more info. */
+    VBOXSERVICECTRLTHREADDATATYPE   enmType;
+    /** Pointer to actual thread data, depending on enmType. */
+    void                           *pvData;
+} VBOXSERVICECTRLTHREAD;
+/** Pointer to thread data. */
+typedef VBOXSERVICECTRLTHREAD *PVBOXSERVICECTRLTHREAD;
+
+/**
+ * For buffering process input supplied by the client.
+ */
+typedef struct VBOXSERVICECTRLSTDINBUF
+{
+    /** The mount of buffered data. */
+    size_t  cb;
+    /** The current data offset. */
+    size_t  off;
+    /** The data buffer. */
+    char   *pch;
+    /** The amount of allocated buffer space. */
+    size_t  cbAllocated;
+    /** Send further input into the bit bucket (stdin is dead). */
+    bool    fBitBucket;
+    /** The CRC-32 for standard input (received part). */
+    uint32_t uCrc32;
+} VBOXSERVICECTRLSTDINBUF;
+/** Pointer to a standard input buffer. */
+typedef VBOXSERVICECTRLSTDINBUF *PVBOXSERVICECTRLSTDINBUF;
+
+#endif /* VBOX_WITH_GUEST_CONTROL */
+#ifdef VBOX_WITH_GUEST_PROPS
+
+/**
+ * A guest property cache.
+ */
+typedef struct VBOXSERVICEVEPROPCACHE
+{
+    /** The client ID for HGCM communication. */
+    uint32_t    uClientID;
+    /** List of VBOXSERVICEVEPROPCACHEENTRY nodes. */
+    RTLISTNODE  ListEntries;
+    /** Critical section for thread-safe use. */
+    RTCRITSECT  CritSect;
+} VBOXSERVICEVEPROPCACHE;
+/** Pointer to a guest property cache. */
+typedef VBOXSERVICEVEPROPCACHE *PVBOXSERVICEVEPROPCACHE;
+
+/**
+ * An entry in the property cache (VBOXSERVICEVEPROPCACHE).
+ */
+typedef struct VBOXSERVICEVEPROPCACHEENTRY
+{
+    /** Node. */
+    RTLISTNODE  Node;
+    /** Name (and full path) of guest property. */
+    char       *pszName;
+    /** The last value stored (for reference). */
+    char       *pszValue;
+    /** Reset value to write if property is temporary.  If NULL, it will be
+     *  deleted. */
+    char       *pszValueReset;
+    /** Flags. */
+    uint32_t    fFlags;
+} VBOXSERVICEVEPROPCACHEENTRY;
+/** Pointer to a cached guest property. */
+typedef VBOXSERVICEVEPROPCACHEENTRY *PVBOXSERVICEVEPROPCACHEENTRY;
+
+#endif /* VBOX_WITH_GUEST_PROPS */
 
 RT_C_DECLS_BEGIN
 
@@ -141,32 +271,48 @@ extern VBOXSERVICE g_TimeSync;
 extern VBOXSERVICE g_Clipboard;
 extern VBOXSERVICE g_Control;
 extern VBOXSERVICE g_VMInfo;
-extern VBOXSERVICE g_Exec;
+extern VBOXSERVICE g_CpuHotPlug;
+#ifdef VBOXSERVICE_MANAGEMENT
+extern VBOXSERVICE g_MemBalloon;
+extern VBOXSERVICE g_VMStatistics;
+#endif
+#ifdef VBOX_WITH_PAGE_SHARING
+extern VBOXSERVICE g_PageSharing;
+#endif
 
 #ifdef RT_OS_WINDOWS
 extern DWORD g_rcWinService;
-extern SERVICE_STATUS_HANDLE g_hWinServiceStatus;
 extern SERVICE_TABLE_ENTRY const g_aServiceTable[];     /** @todo generate on the fly, see comment in main() from the enabled sub services. */
+extern PFNWTSGETACTIVECONSOLESESSIONID g_pfnWTSGetActiveConsoleSessionId; /* VBoxServiceVMInfo-win.cpp */
 
-/** Installs the service into the registry. */
-extern int VBoxServiceWinInstall(void);
-/** Uninstalls the service from the registry. */
-extern int VBoxServiceWinUninstall(void);
-/** Reports our current status to the SCM. */
+extern int  VBoxServiceWinInstall(void);
+extern int  VBoxServiceWinUninstall(void);
 extern BOOL VBoxServiceWinSetStatus(DWORD dwStatus, DWORD dwCheckPoint);
-#ifdef VBOX_WITH_GUEST_PROPS
-/** Determines the total count of processes attach to a logon session. */
-extern DWORD VBoxServiceVMInfoWinSessionGetProcessCount(PLUID pSession,
-                                                        PVBOXSERVICEVMINFOPROC pProc, DWORD dwProcCount);
-/** Detects wheter a user is logged on based on the enumerated processes. */
-extern BOOL VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo,
-                                           PLUID a_pSession);
-/** Gets logon user IDs from enumerated processes. ppProc needs to be freed with VBoxServiceVMInfoWinProcessesFree() afterwards. */
-extern int VBoxServiceVMInfoWinProcessesEnumerate(PVBOXSERVICEVMINFOPROC *ppProc, DWORD *pdwCount);
-/** Frees the process structure allocated by VBoxServiceVMInfoWinProcessesEnumerate() before. */
-extern void VBoxServiceVMInfoWinProcessesFree(PVBOXSERVICEVMINFOPROC pProc);
-#endif /* VBOX_WITH_GUEST_PROPS */
+# ifdef VBOX_WITH_GUEST_PROPS
+extern bool VBoxServiceVMInfoWinSessionHasProcesses(PLUID pSession, VBOXSERVICEVMINFOPROC const *paProcs, DWORD cProcs);
+extern bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_pSession);
+extern int  VBoxServiceVMInfoWinProcessesEnumerate(PVBOXSERVICEVMINFOPROC *ppProc, DWORD *pdwCount);
+extern void VBoxServiceVMInfoWinProcessesFree(PVBOXSERVICEVMINFOPROC paProcs);
+extern int  VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
+# endif /* VBOX_WITH_GUEST_PROPS */
 #endif /* RT_OS_WINDOWS */
+
+#ifdef VBOX_WITH_GUEST_CONTROL
+extern int VBoxServiceControlExecProcess(uint32_t uContext, const char *pszCmd, uint32_t uFlags,
+                                         const char *pszArgs, uint32_t uNumArgs,
+                                         const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
+                                         const char *pszStdIn, const char *pszStdOut, const char *pszStdErr,
+                                         const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
+extern void VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
+extern int VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
+                                                       uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
+extern int VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
+                                                 uint8_t *pbData, uint32_t cbData);
+#endif
+
+#ifdef VBOXSERVICE_MANAGEMENT
+extern uint32_t VBoxServiceBalloonQueryPages(uint32_t cbPage);
+#endif
 
 RT_C_DECLS_END
 

@@ -1,12 +1,10 @@
-/* $Id: DisplayImpl.cpp $ */
-
+/* $Id: DisplayImpl.cpp 28927 2010-04-30 11:07:23Z vboxsync $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "DisplayImpl.h"
@@ -26,6 +20,7 @@
 #include "ConsoleVRDPServer.h"
 #include "VMMDev.h"
 
+#include "AutoCaller.h"
 #include "Logging.h"
 
 #include <iprt/semaphore.h>
@@ -41,11 +36,17 @@
 # include <VBox/VBoxVideo.h>
 #endif
 
+#ifdef VBOX_WITH_CROGL
+# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
+#endif
+
 #include <VBox/com/array.h>
 #include <png.h>
 
 /**
  * Display driver instance data.
+ *
+ * @implements PDMIDISPLAYCONNECTOR
  */
 typedef struct DRVMAINDISPLAY
 {
@@ -56,15 +57,15 @@ typedef struct DRVMAINDISPLAY
     /** Pointer to the keyboard port interface of the driver/device above us. */
     PPDMIDISPLAYPORT            pUpPort;
     /** Our display connector interface. */
-    PDMIDISPLAYCONNECTOR        Connector;
+    PDMIDISPLAYCONNECTOR        IConnector;
 #if defined(VBOX_WITH_VIDEOHWACCEL)
     /** VBVA callbacks */
-    PPDMDDISPLAYVBVACALLBACKS   pVBVACallbacks;
+    PPDMIDISPLAYVBVACALLBACKS   pVBVACallbacks;
 #endif
 } DRVMAINDISPLAY, *PDRVMAINDISPLAY;
 
 /** Converts PDMIDISPLAYCONNECTOR pointer to a DRVMAINDISPLAY pointer. */
-#define PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface) ( (PDRVMAINDISPLAY) ((uintptr_t)pInterface - RT_OFFSETOF(DRVMAINDISPLAY, Connector)) )
+#define PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface)  RT_FROM_MEMBER(pInterface, DRVMAINDISPLAY, IConnector)
 
 #ifdef DEBUG_sunlover
 static STAMPROFILE StatDisplayRefresh;
@@ -74,7 +75,15 @@ static int stam = 0;
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (Display)
+Display::Display()
+    : mParent(NULL)
+{
+}
+
+Display::~Display()
+{
+}
+
 
 HRESULT Display::FinalConstruct()
 {
@@ -103,8 +112,8 @@ HRESULT Display::FinalConstruct()
     mLastHeight = 0;
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-    int rc = RTCritSectInit (&mVBVALock);
-    AssertRC (rc);
+    int rc = RTCritSectInit(&mVBVALock);
+    AssertRC(rc);
     mfu32PendingVideoAccelDisable = false;
 #endif /* VBOX_WITH_OLD_VBVA_LOCK */
 
@@ -215,6 +224,7 @@ static void PNGAPI png_write_data_fn(png_structp png_ptr, png_bytep p, png_size_
         if (pCtx->cbAllocated - pCtx->cbPNG < cb)
         {
             uint32_t cbNew = pCtx->cbPNG + (uint32_t)cb;
+            AssertReturnVoidStmt(cbNew > pCtx->cbPNG && cbNew <= _1G, pCtx->rc = VERR_TOO_MUCH_DATA);
             cbNew = RT_ALIGN_32(cbNew, 4096) + 4096;
 
             void *pNew = RTMemRealloc(pCtx->pu8PNG, cbNew);
@@ -223,13 +233,13 @@ static void PNGAPI png_write_data_fn(png_structp png_ptr, png_bytep p, png_size_
                 pCtx->rc = VERR_NO_MEMORY;
                 return;
             }
-            
+
             pCtx->pu8PNG = (uint8_t *)pNew;
             pCtx->cbAllocated = cbNew;
         }
 
         memcpy(pCtx->pu8PNG + pCtx->cbPNG, p, cb);
-        pCtx->cbPNG += cb;
+        pCtx->cbPNG += (uint32_t)cb;
     }
 }
 
@@ -372,7 +382,7 @@ static int displayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
                     rc = VERR_NO_MEMORY;
                 }
 
-                png_destroy_write_struct(&png_ptr, info_ptr ? &info_ptr 
+                png_destroy_write_struct(&png_ptr, info_ptr ? &info_ptr
                                                             : (png_infopp)NULL);
             }
             else
@@ -425,7 +435,7 @@ Display::displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser)
 
         /* SSM code is executed on EMT(0), therefore no need to use VMR3ReqCallWait. */
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-        int rc = Display::displayTakeScreenshotEMT(that, &pu8Data, &cbData, &cx, &cy);
+        int rc = Display::displayTakeScreenshotEMT(that, VBOX_VIDEO_PRIMARY_SCREEN, &pu8Data, &cbData, &cx, &cy);
 #else
         int rc = that->mpDrv->pUpPort->pfnTakeScreenshot (that->mpDrv->pUpPort, &pu8Data, &cbData, &cx, &cy);
 #endif /* !VBOX_WITH_OLD_VBVA_LOCK */
@@ -521,7 +531,8 @@ Display::displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersi
         LogFlowFunc(("[%d] type %d, size %d bytes\n", i, typeOfBlock, cbBlock));
 
         /* Note: displaySSMSaveScreenshot writes size of a block = 8 and
-         * does not write any data if the image size was 0.
+         * do not write any data if the image size was 0.
+         * @todo Fix and increase saved state version.
          */
         if (cbBlock > 2 * sizeof (uint32_t))
         {
@@ -585,7 +596,7 @@ HRESULT Display::init (Console *aParent)
 {
     LogFlowThisFunc(("aParent=%p\n", aParent));
 
-    ComAssertRet (aParent, E_INVALIDARG);
+    ComAssertRet(aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -614,6 +625,10 @@ HRESULT Display::init (Console *aParent)
 
         maFramebuffers[ul].w = 0;
         maFramebuffers[ul].h = 0;
+
+        maFramebuffers[ul].u16BitsPerPixel = 0;
+        maFramebuffers[ul].pu8FramebufferVRAM = NULL;
+        maFramebuffers[ul].u32LineSize = 0;
 
         maFramebuffers[ul].pHostEvents = NULL;
 
@@ -659,7 +674,7 @@ void Display::uninit()
     if (mParent)
         mParent->UnregisterCallback (this);
 
-    unconst(mParent).setNull();
+    unconst(mParent) = NULL;
 
     if (mpDrv)
         mpDrv->pDisplay = NULL;
@@ -907,6 +922,14 @@ void Display::handleResizeCompletedEMT (void)
 
             mpDrv->pUpPort->pfnSetRenderVRAM (mpDrv->pUpPort, pFBInfo->fDefaultFormat);
         }
+        else if (!pFBInfo->pFramebuffer.isNull())
+        {
+            BOOL usesGuestVRAM = FALSE;
+            pFBInfo->pFramebuffer->COMGETTER(UsesGuestVRAM) (&usesGuestVRAM);
+
+            pFBInfo->fDefaultFormat = (usesGuestVRAM == FALSE);
+        }
+        LogFlow(("[%d]: default format %d\n", uScreenId, pFBInfo->fDefaultFormat));
 
 #ifdef DEBUG_sunlover
         if (!stam)
@@ -923,6 +946,24 @@ void Display::handleResizeCompletedEMT (void)
         /* Inform VRDP server about the change of display parameters. */
         LogFlowFunc (("Calling VRDP\n"));
         mParent->consoleVRDPServer()->SendResize();
+
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+        {
+            BOOL is3denabled;
+            mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+
+            if (is3denabled)
+            {
+                VBOXHGCMSVCPARM parm;
+
+                parm.type = VBOX_HGCM_SVC_PARM_32BIT;
+                parm.u.uint32 = uScreenId;
+
+                mParent->getVMMDev()->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED,
+                                                   SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
+            }
+        }
+#endif /* VBOX_WITH_CROGL */
     }
 }
 
@@ -1008,7 +1049,7 @@ void Display::handleDisplayUpdate (int x, int y, int w, int h)
 
 #ifdef DEBUG_sunlover
     LogFlowFunc (("%d,%d %dx%d (%d,%d)\n",
-                  x, y, w, h, mpDrv->Connector.cx, mpDrv->Connector.cy));
+                  x, y, w, h, mpDrv->IConnector.cx, mpDrv->IConnector.cy));
 #endif /* DEBUG_sunlover */
 
     unsigned uScreenId = mapCoordsToScreen(maFramebuffers, mcMonitors, &x, &y, &w, &h);
@@ -1026,7 +1067,7 @@ void Display::handleDisplayUpdate (int x, int y, int w, int h)
     pFramebuffer->Lock();
 
     if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
-        checkCoordBounds (&x, &y, &w, &h, mpDrv->Connector.cx, mpDrv->Connector.cy);
+        checkCoordBounds (&x, &y, &w, &h, mpDrv->IConnector.cx, mpDrv->IConnector.cy);
     else
         checkCoordBounds (&x, &y, &w, &h, maFramebuffers[uScreenId].w,
                                           maFramebuffers[uScreenId].h);
@@ -1050,6 +1091,137 @@ void Display::handleDisplayUpdate (int x, int y, int w, int h)
             mParent->consoleVRDPServer()->SendUpdateBitmap(uScreenId, x, y, w, h);
     }
 }
+
+#ifdef MMSEAMLESS
+static bool displayIntersectRect(RTRECT *prectResult,
+                                 const RTRECT *prect1,
+                                 const RTRECT *prect2)
+{
+    /* Initialize result to an empty record. */
+    memset (prectResult, 0, sizeof (RTRECT));
+
+    int xLeftResult = RT_MAX(prect1->xLeft, prect2->xLeft);
+    int xRightResult = RT_MIN(prect1->xRight, prect2->xRight);
+
+    if (xLeftResult < xRightResult)
+    {
+        /* There is intersection by X. */
+
+        int yTopResult = RT_MAX(prect1->yTop, prect2->yTop);
+        int yBottomResult = RT_MIN(prect1->yBottom, prect2->yBottom);
+
+        if (yTopResult < yBottomResult)
+        {
+            /* There is intersection by Y. */
+
+            prectResult->xLeft   = xLeftResult;
+            prectResult->yTop    = yTopResult;
+            prectResult->xRight  = xRightResult;
+            prectResult->yBottom = yBottomResult;
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int Display::handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
+{
+    RTRECT *pVisibleRegion = (RTRECT *)RTMemTmpAlloc(cRect * sizeof (RTRECT));
+    if (!pVisibleRegion)
+    {
+        return VERR_NO_TMP_MEMORY;
+    }
+
+    unsigned uScreenId;
+    for (uScreenId = 0; uScreenId < mcMonitors; uScreenId++)
+    {
+        DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
+
+        if (!pFBInfo->pFramebuffer.isNull())
+        {
+            /* Prepare a new array of rectangles which intersect with the framebuffer.
+             */
+            RTRECT rectFramebuffer;
+            if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+            {
+                rectFramebuffer.xLeft   = 0;
+                rectFramebuffer.yTop    = 0;
+                if (mpDrv)
+                {
+                    rectFramebuffer.xRight  = mpDrv->IConnector.cx;
+                    rectFramebuffer.yBottom = mpDrv->IConnector.cy;
+                }
+                else
+                {
+                    rectFramebuffer.xRight  = 0;
+                    rectFramebuffer.yBottom = 0;
+                }
+            }
+            else
+            {
+                rectFramebuffer.xLeft   = pFBInfo->xOrigin;
+                rectFramebuffer.yTop    = pFBInfo->yOrigin;
+                rectFramebuffer.xRight  = pFBInfo->xOrigin + pFBInfo->w;
+                rectFramebuffer.yBottom = pFBInfo->yOrigin + pFBInfo->h;
+            }
+
+            uint32_t cRectVisibleRegion = 0;
+
+            uint32_t i;
+            for (i = 0; i < cRect; i++)
+            {
+                if (displayIntersectRect(&pVisibleRegion[cRectVisibleRegion], &pRect[i], &rectFramebuffer))
+                {
+                    pVisibleRegion[cRectVisibleRegion].xLeft -= pFBInfo->xOrigin;
+                    pVisibleRegion[cRectVisibleRegion].yTop -= pFBInfo->yOrigin;
+                    pVisibleRegion[cRectVisibleRegion].xRight -= pFBInfo->xOrigin;
+                    pVisibleRegion[cRectVisibleRegion].yBottom -= pFBInfo->yOrigin;
+
+                    cRectVisibleRegion++;
+                }
+            }
+
+            if (cRectVisibleRegion > 0)
+            {
+                pFBInfo->pFramebuffer->SetVisibleRegion((BYTE *)pVisibleRegion, cRectVisibleRegion);
+            }
+        }
+    }
+
+#if defined(RT_OS_DARWIN) && defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+    // @todo fix for multimonitor
+    BOOL is3denabled = FALSE;
+
+    mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+
+    VMMDev *vmmDev = mParent->getVMMDev();
+    if (is3denabled && vmmDev)
+    {
+        VBOXHGCMSVCPARM parms[2];
+
+        parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+        parms[0].u.pointer.addr = pRect;
+        parms[0].u.pointer.size = 0;  /* We don't actually care. */
+        parms[1].type = VBOX_HGCM_SVC_PARM_32BIT;
+        parms[1].u.uint32 = cRect;
+
+        vmmDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VISIBLE_REGION, 2, &parms[0]);
+    }
+#endif
+
+    RTMemTmpFree(pVisibleRegion);
+
+    return VINF_SUCCESS;
+}
+
+int Display::handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect)
+{
+    // @todo Currently not used by the guest and is not implemented in framebuffers. Remove?
+    return VERR_NOT_SUPPORTED;
+}
+#endif
 
 typedef struct _VBVADIRTYREGION
 {
@@ -1255,7 +1427,7 @@ void Display::vbvaUnlock(void)
     RTCritSectLeave(&mVBVALock);
 }
 #endif /* VBOX_WITH_OLD_VBVA_LOCK */
-    
+
 /**
  * @thread EMT
  */
@@ -1934,82 +2106,52 @@ int Display::videoAccelRefreshProcess(void)
 #endif /* VBOX_WITH_OLD_VBVA_LOCK */
 
 
-// IDisplay properties
-/////////////////////////////////////////////////////////////////////////////
-
-/**
- * Returns the current display width in pixel
- *
- * @returns COM status code
- * @param width Address of result variable.
- */
-STDMETHODIMP Display::COMGETTER(Width) (ULONG *width)
-{
-    CheckComArgNotNull(width);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this);
-
-    CHECK_CONSOLE_DRV (mpDrv);
-
-    *width = mpDrv->Connector.cx;
-
-    return S_OK;
-}
-
-/**
- * Returns the current display height in pixel
- *
- * @returns COM status code
- * @param height Address of result variable.
- */
-STDMETHODIMP Display::COMGETTER(Height) (ULONG *height)
-{
-    CheckComArgNotNull(height);
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this);
-
-    CHECK_CONSOLE_DRV (mpDrv);
-
-    *height = mpDrv->Connector.cy;
-
-    return S_OK;
-}
-
-/**
- * Returns the current display color depth in bits
- *
- * @returns COM status code
- * @param bitsPerPixel Address of result variable.
- */
-STDMETHODIMP Display::COMGETTER(BitsPerPixel) (ULONG *bitsPerPixel)
-{
-    if (!bitsPerPixel)
-        return E_INVALIDARG;
-
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this);
-
-    CHECK_CONSOLE_DRV (mpDrv);
-
-    uint32_t cBits = 0;
-    int rc = mpDrv->pUpPort->pfnQueryColorDepth(mpDrv->pUpPort, &cBits);
-    AssertRC(rc);
-    *bitsPerPixel = cBits;
-
-    return S_OK;
-}
-
-
 // IDisplay methods
 /////////////////////////////////////////////////////////////////////////////
+STDMETHODIMP Display::GetScreenResolution (ULONG aScreenId,
+    ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel)
+{
+    LogFlowFunc (("aScreenId = %d\n", aScreenId));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    uint32_t u32Width = 0;
+    uint32_t u32Height = 0;
+    uint32_t u32BitsPerPixel = 0;
+
+    if (aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+    {
+        CHECK_CONSOLE_DRV (mpDrv);
+
+        u32Width = mpDrv->IConnector.cx;
+        u32Height = mpDrv->IConnector.cy;
+        int rc = mpDrv->pUpPort->pfnQueryColorDepth(mpDrv->pUpPort, &u32BitsPerPixel);
+        AssertRC(rc);
+    }
+    else if (aScreenId < mcMonitors)
+    {
+        DISPLAYFBINFO *pFBInfo = &maFramebuffers[aScreenId];
+        u32Width = pFBInfo->w;
+        u32Height = pFBInfo->h;
+        u32BitsPerPixel = pFBInfo->u16BitsPerPixel;
+    }
+    else
+    {
+        return E_INVALIDARG;
+    }
+
+    if (aWidth)
+        *aWidth = u32Width;
+    if (aHeight)
+        *aHeight = u32Height;
+    if (aBitsPerPixel)
+        *aBitsPerPixel = u32BitsPerPixel;
+
+    return S_OK;
+}
 
 STDMETHODIMP Display::SetFramebuffer (ULONG aScreenId,
     IFramebuffer *aFramebuffer)
@@ -2020,9 +2162,9 @@ STDMETHODIMP Display::SetFramebuffer (ULONG aScreenId,
         CheckComArgOutPointerValid(aFramebuffer);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet pVM (mParent);
     if (pVM.isOk())
@@ -2038,6 +2180,29 @@ STDMETHODIMP Display::SetFramebuffer (ULONG aScreenId,
         alock.enter ();
 
         ComAssertRCRet (vrc, E_FAIL);
+
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+        {
+            BOOL is3denabled;
+            mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+
+            if (is3denabled)
+            {
+                VBOXHGCMSVCPARM parm;
+
+                parm.type = VBOX_HGCM_SVC_PARM_32BIT;
+                parm.u.uint32 = aScreenId;
+
+                alock.leave ();
+
+                vrc = mParent->getVMMDev()->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED,
+                                                         SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
+                /*ComAssertRCRet (vrc, E_FAIL);*/
+
+                alock.enter ();
+            }
+        }
+#endif /* VBOX_WITH_CROGL */
     }
     else
     {
@@ -2057,9 +2222,12 @@ STDMETHODIMP Display::GetFramebuffer (ULONG aScreenId,
     CheckComArgOutPointerValid(aFramebuffer);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (aScreenId != 0 && aScreenId >= mcMonitors)
+        return E_INVALIDARG;
 
     /* @todo this should be actually done on EMT. */
     DISPLAYFBINFO *pFBInfo = &maFramebuffers[aScreenId];
@@ -2079,9 +2247,9 @@ STDMETHODIMP Display::SetVideoModeHint(ULONG aWidth, ULONG aHeight,
     ULONG aBitsPerPixel, ULONG aDisplay)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_CONSOLE_DRV (mpDrv);
 
@@ -2090,10 +2258,10 @@ STDMETHODIMP Display::SetVideoModeHint(ULONG aWidth, ULONG aHeight,
      */
     ULONG width  = aWidth;
     if (!width)
-        width    = mpDrv->Connector.cx;
+        width    = mpDrv->IConnector.cx;
     ULONG height = aHeight;
     if (!height)
-        height   = mpDrv->Connector.cy;
+        height   = mpDrv->IConnector.cy;
     ULONG bpp    = aBitsPerPixel;
     if (!bpp)
     {
@@ -2129,9 +2297,9 @@ STDMETHODIMP Display::SetVideoModeHint(ULONG aWidth, ULONG aHeight,
 STDMETHODIMP Display::SetSeamlessMode (BOOL enabled)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Have to leave the lock because the pfnRequestSeamlessChange will call EMT.  */
     alock.leave ();
@@ -2143,18 +2311,91 @@ STDMETHODIMP Display::SetSeamlessMode (BOOL enabled)
 }
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-int Display::displayTakeScreenshotEMT(Display *pDisplay, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height)
+int Display::displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_t **ppu8Data, size_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height)
 {
-   int rc;
-   pDisplay->vbvaLock();
-   rc = pDisplay->mpDrv->pUpPort->pfnTakeScreenshot(pDisplay->mpDrv->pUpPort, ppu8Data, pcbData, pu32Width, pu32Height);
-   pDisplay->vbvaUnlock();
-   return rc;
+    int rc;
+    pDisplay->vbvaLock();
+    if (aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+    {
+        rc = pDisplay->mpDrv->pUpPort->pfnTakeScreenshot(pDisplay->mpDrv->pUpPort, ppu8Data, pcbData, pu32Width, pu32Height);
+    }
+    else if (aScreenId < pDisplay->mcMonitors)
+    {
+        DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[aScreenId];
+
+        uint32_t width = pFBInfo->w;
+        uint32_t height = pFBInfo->h;
+
+        /* Allocate 32 bit per pixel bitmap. */
+        size_t cbRequired = width * 4 * height;
+
+        if (cbRequired)
+        {
+            uint8_t *pu8Data = (uint8_t *)RTMemAlloc(cbRequired);
+
+            if (pu8Data == NULL)
+            {
+                rc = VERR_NO_MEMORY;
+            }
+            else
+            {
+                /* Copy guest VRAM to the allocated 32bpp buffer. */
+                const uint8_t *pu8Src       = pFBInfo->pu8FramebufferVRAM;
+                int32_t xSrc                = 0;
+                int32_t ySrc                = 0;
+                uint32_t u32SrcWidth        = width;
+                uint32_t u32SrcHeight       = height;
+                uint32_t u32SrcLineSize     = pFBInfo->u32LineSize;
+                uint32_t u32SrcBitsPerPixel = pFBInfo->u16BitsPerPixel;
+
+                uint8_t *pu8Dst             = pu8Data;
+                int32_t xDst                = 0;
+                int32_t yDst                = 0;
+                uint32_t u32DstWidth        = u32SrcWidth;
+                uint32_t u32DstHeight       = u32SrcHeight;
+                uint32_t u32DstLineSize     = u32DstWidth * 4;
+                uint32_t u32DstBitsPerPixel = 32;
+
+                rc = pDisplay->mpDrv->pUpPort->pfnCopyRect(pDisplay->mpDrv->pUpPort,
+                                                      width, height,
+                                                      pu8Src,
+                                                      xSrc, ySrc,
+                                                      u32SrcWidth, u32SrcHeight,
+                                                      u32SrcLineSize, u32SrcBitsPerPixel,
+                                                      pu8Dst,
+                                                      xDst, yDst,
+                                                      u32DstWidth, u32DstHeight,
+                                                      u32DstLineSize, u32DstBitsPerPixel);
+                if (RT_SUCCESS(rc))
+                {
+                    *ppu8Data = pu8Data;
+                    *pcbData = cbRequired;
+                    *pu32Width = width;
+                    *pu32Height = height;
+                }
+            }
+        }
+        else
+        {
+            /* No image. */
+            *ppu8Data = NULL;
+            *pcbData = 0;
+            *pu32Width = 0;
+            *pu32Height = 0;
+            rc = VINF_SUCCESS;
+        }
+    }
+    else
+    {
+        rc = VERR_INVALID_PARAMETER;
+    }
+    pDisplay->vbvaUnlock();
+    return rc;
 }
 #endif /* VBOX_WITH_OLD_VBVA_LOCK */
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-static int displayTakeScreenshot(PVM pVM, Display *pDisplay, struct DRVMAINDISPLAY *pDrv, BYTE *address, ULONG width, ULONG height)
+static int displayTakeScreenshot(PVM pVM, Display *pDisplay, struct DRVMAINDISPLAY *pDrv, ULONG aScreenId, BYTE *address, ULONG width, ULONG height)
 #else
 static int displayTakeScreenshot(PVM pVM, struct DRVMAINDISPLAY *pDrv, BYTE *address, ULONG width, ULONG height)
 #endif /* !VBOX_WITH_OLD_VBVA_LOCK */
@@ -2165,15 +2406,15 @@ static int displayTakeScreenshot(PVM pVM, struct DRVMAINDISPLAY *pDrv, BYTE *add
     uint32_t cy = 0;
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-    int vrc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)Display::displayTakeScreenshotEMT, 5,
-                              pDisplay, &pu8Data, &cbData, &cx, &cy);
+    int vrc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)Display::displayTakeScreenshotEMT, 6,
+                              pDisplay, aScreenId, &pu8Data, &cbData, &cx, &cy);
 #else
     /* @todo pfnTakeScreenshot is probably callable from any thread, because it uses the VGA device lock. */
     int vrc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)pDrv->pUpPort->pfnTakeScreenshot, 5,
                               pDrv->pUpPort, &pu8Data, &cbData, &cx, &cy);
 #endif /* !VBOX_WITH_OLD_VBVA_LOCK */
 
-    if (RT_SUCCESS(vrc))
+    if (RT_SUCCESS(vrc) && pu8Data)
     {
         if (cx == width && cy == height)
         {
@@ -2209,7 +2450,7 @@ static int displayTakeScreenshot(PVM pVM, struct DRVMAINDISPLAY *pDrv, BYTE *add
     return vrc;
 }
 
-STDMETHODIMP Display::TakeScreenShot (BYTE *address, ULONG width, ULONG height)
+STDMETHODIMP Display::TakeScreenShot (ULONG aScreenId, BYTE *address, ULONG width, ULONG height)
 {
     /// @todo (r=dmik) this function may take too long to complete if the VM
     //  is doing something like saving state right now. Which, in case if it
@@ -2226,14 +2467,14 @@ STDMETHODIMP Display::TakeScreenShot (BYTE *address, ULONG width, ULONG height)
     CheckComArgExpr(height, height != 0);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_CONSOLE_DRV (mpDrv);
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     HRESULT rc = S_OK;
 
@@ -2247,25 +2488,25 @@ STDMETHODIMP Display::TakeScreenShot (BYTE *address, ULONG width, ULONG height)
     alock.leave();
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-    int vrc = displayTakeScreenshot(pVM, this, mpDrv, address, width, height);
+    int vrc = displayTakeScreenshot(pVM, this, mpDrv, aScreenId, address, width, height);
 #else
     int vrc = displayTakeScreenshot(pVM, mpDrv, address, width, height);
 #endif /* !VBOX_WITH_OLD_VBVA_LOCK */
 
     if (vrc == VERR_NOT_IMPLEMENTED)
-        rc = setError (E_NOTIMPL,
-                       tr ("This feature is not implemented"));
+        rc = setError(E_NOTIMPL,
+                      tr("This feature is not implemented"));
     else if (RT_FAILURE(vrc))
-        rc = setError (VBOX_E_IPRT_ERROR,
-                       tr ("Could not take a screenshot (%Rrc)"), vrc);
+        rc = setError(VBOX_E_IPRT_ERROR,
+                      tr("Could not take a screenshot (%Rrc)"), vrc);
 
     LogFlowFunc (("rc=%08X\n", rc));
     LogFlowFuncLeave();
     return rc;
 }
 
-STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
-                                          ComSafeArrayOut(BYTE, aScreenData))
+STDMETHODIMP Display::TakeScreenShotToArray (ULONG aScreenId, ULONG width, ULONG height,
+                                             ComSafeArrayOut(BYTE, aScreenData))
 {
     LogFlowFuncEnter();
     LogFlowFunc (("width=%d, height=%d\n",
@@ -2276,14 +2517,14 @@ STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
     CheckComArgExpr(height, height != 0);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_CONSOLE_DRV (mpDrv);
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     HRESULT rc = S_OK;
 
@@ -2303,7 +2544,7 @@ STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
         return E_OUTOFMEMORY;
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-    int vrc = displayTakeScreenshot(pVM, this, mpDrv, pu8Data, width, height);
+    int vrc = displayTakeScreenshot(pVM, this, mpDrv, aScreenId, pu8Data, width, height);
 #else
     int vrc = displayTakeScreenshot(pVM, mpDrv, pu8Data, width, height);
 #endif /* !VBOX_WITH_OLD_VBVA_LOCK */
@@ -2329,11 +2570,13 @@ STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
         screenData.detachTo(ComSafeArrayOutArg(aScreenData));
     }
     else if (vrc == VERR_NOT_IMPLEMENTED)
-        rc = setError (E_NOTIMPL,
-                       tr ("This feature is not implemented"));
+        rc = setError(E_NOTIMPL,
+                      tr("This feature is not implemented"));
     else
-        rc = setError (VBOX_E_IPRT_ERROR,
-                       tr ("Could not take a screenshot (%Rrc)"), vrc);
+        rc = setError(VBOX_E_IPRT_ERROR,
+                      tr("Could not take a screenshot (%Rrc)"), vrc);
+
+    RTMemFree(pu8Data);
 
     RTMemFree(pu8Data);
 
@@ -2343,17 +2586,102 @@ STDMETHODIMP Display::TakeScreenShotSlow (ULONG width, ULONG height,
 }
 
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-int Display::DrawToScreenEMT(Display *pDisplay, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height)
+int Display::drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height)
 {
     int rc;
     pDisplay->vbvaLock();
-    rc = pDisplay->mpDrv->pUpPort->pfnDisplayBlt(pDisplay->mpDrv->pUpPort, address, x, y, width, height);
+    if (aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+    {
+        rc = pDisplay->mpDrv->pUpPort->pfnDisplayBlt(pDisplay->mpDrv->pUpPort, address, x, y, width, height);
+    }
+    else if (aScreenId < pDisplay->mcMonitors)
+    {
+        DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[aScreenId];
+
+        /* Copy the bitmap to the guest VRAM. */
+        const uint8_t *pu8Src       = address;
+        int32_t xSrc                = 0;
+        int32_t ySrc                = 0;
+        uint32_t u32SrcWidth        = width;
+        uint32_t u32SrcHeight       = height;
+        uint32_t u32SrcLineSize     = width * 4;
+        uint32_t u32SrcBitsPerPixel = 32;
+
+        uint8_t *pu8Dst             = pFBInfo->pu8FramebufferVRAM;
+        int32_t xDst                = x;
+        int32_t yDst                = y;
+        uint32_t u32DstWidth        = pFBInfo->w;
+        uint32_t u32DstHeight       = pFBInfo->h;
+        uint32_t u32DstLineSize     = pFBInfo->u32LineSize;
+        uint32_t u32DstBitsPerPixel = pFBInfo->u16BitsPerPixel;
+
+        rc = pDisplay->mpDrv->pUpPort->pfnCopyRect(pDisplay->mpDrv->pUpPort,
+                                                   width, height,
+                                                   pu8Src,
+                                                   xSrc, ySrc,
+                                                   u32SrcWidth, u32SrcHeight,
+                                                   u32SrcLineSize, u32SrcBitsPerPixel,
+                                                   pu8Dst,
+                                                   xDst, yDst,
+                                                   u32DstWidth, u32DstHeight,
+                                                   u32DstLineSize, u32DstBitsPerPixel);
+        if (RT_SUCCESS(rc))
+        {
+            if (!pFBInfo->pFramebuffer.isNull())
+            {
+                /* Update the changed screen area. When framebuffer uses VRAM directly, just notify
+                 * it to update. And for default format, render the guest VRAM to framebuffer.
+                 */
+                if (pFBInfo->fDefaultFormat)
+                {
+                    address = NULL;
+                    HRESULT hrc = pFBInfo->pFramebuffer->COMGETTER(Address) (&address);
+                    if (SUCCEEDED(hrc) && address != NULL)
+                    {
+                        pu8Src       = pFBInfo->pu8FramebufferVRAM;
+                        xSrc                = x;
+                        ySrc                = y;
+                        u32SrcWidth        = pFBInfo->w;
+                        u32SrcHeight       = pFBInfo->h;
+                        u32SrcLineSize     = pFBInfo->u32LineSize;
+                        u32SrcBitsPerPixel = pFBInfo->u16BitsPerPixel;
+
+                        /* Default format is 32 bpp. */
+                        pu8Dst             = address;
+                        xDst                = xSrc;
+                        yDst                = ySrc;
+                        u32DstWidth        = u32SrcWidth;
+                        u32DstHeight       = u32SrcHeight;
+                        u32DstLineSize     = u32DstWidth * 4;
+                        u32DstBitsPerPixel = 32;
+
+                        pDisplay->mpDrv->pUpPort->pfnCopyRect(pDisplay->mpDrv->pUpPort,
+                                                              width, height,
+                                                              pu8Src,
+                                                              xSrc, ySrc,
+                                                              u32SrcWidth, u32SrcHeight,
+                                                              u32SrcLineSize, u32SrcBitsPerPixel,
+                                                              pu8Dst,
+                                                              xDst, yDst,
+                                                              u32DstWidth, u32DstHeight,
+                                                              u32DstLineSize, u32DstBitsPerPixel);
+                    }
+                }
+
+                pDisplay->handleDisplayUpdate(x + pFBInfo->xOrigin, y + pFBInfo->yOrigin, width, height);
+            }
+        }
+    }
+    else
+    {
+        rc = VERR_INVALID_PARAMETER;
+    }
     pDisplay->vbvaUnlock();
     return rc;
 }
 #endif /* VBOX_WITH_OLD_VBVA_LOCK */
 
-STDMETHODIMP Display::DrawToScreen (BYTE *address, ULONG x, ULONG y,
+STDMETHODIMP Display::DrawToScreen (ULONG aScreenId, BYTE *address, ULONG x, ULONG y,
                                     ULONG width, ULONG height)
 {
     /// @todo (r=dmik) this function may take too long to complete if the VM
@@ -2371,22 +2699,22 @@ STDMETHODIMP Display::DrawToScreen (BYTE *address, ULONG x, ULONG y,
     CheckComArgExpr(height, height != 0);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_CONSOLE_DRV (mpDrv);
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     /*
      * Again we're lazy and make the graphics device do all the
      * dirty conversion work.
      */
 #ifdef VBOX_WITH_OLD_VBVA_LOCK
-    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)Display::DrawToScreenEMT, 6,
-                                 this, address, x, y, width, height);
+    int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)Display::drawToScreenEMT, 7,
+                                 this, aScreenId, address, x, y, width, height);
 #else
     int rcVBox = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)mpDrv->pUpPort->pfnDisplayBlt, 6,
                                  mpDrv->pUpPort, address, x, y, width, height);
@@ -2403,8 +2731,8 @@ STDMETHODIMP Display::DrawToScreen (BYTE *address, ULONG x, ULONG y,
         rc = E_NOTIMPL;
     }
     else if (RT_FAILURE(rcVBox))
-        rc = setError (VBOX_E_IPRT_ERROR,
-            tr ("Could not draw to the screen (%Rrc)"), rcVBox);
+        rc = setError(VBOX_E_IPRT_ERROR,
+                      tr("Could not draw to the screen (%Rrc)"), rcVBox);
 //@todo
 //    else
 //    {
@@ -2421,7 +2749,65 @@ STDMETHODIMP Display::DrawToScreen (BYTE *address, ULONG x, ULONG y,
 void Display::InvalidateAndUpdateEMT(Display *pDisplay)
 {
     pDisplay->vbvaLock();
-    pDisplay->mpDrv->pUpPort->pfnUpdateDisplayAll(pDisplay->mpDrv->pUpPort);
+    unsigned uScreenId;
+    for (uScreenId = 0; uScreenId < pDisplay->mcMonitors; uScreenId++)
+    {
+        if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+        {
+            pDisplay->mpDrv->pUpPort->pfnUpdateDisplayAll(pDisplay->mpDrv->pUpPort);
+        }
+        else
+        {
+            DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[uScreenId];
+
+            if (!pFBInfo->pFramebuffer.isNull())
+            {
+                /* Render complete VRAM screen to the framebuffer.
+                 * When framebuffer uses VRAM directly, just notify it to update.
+                 */
+                if (pFBInfo->fDefaultFormat)
+                {
+                    BYTE *address = NULL;
+                    HRESULT hrc = pFBInfo->pFramebuffer->COMGETTER(Address) (&address);
+                    if (SUCCEEDED(hrc) && address != NULL)
+                    {
+                        uint32_t width              = pFBInfo->w;
+                        uint32_t height             = pFBInfo->h;
+
+                        const uint8_t *pu8Src       = pFBInfo->pu8FramebufferVRAM;
+                        int32_t xSrc                = 0;
+                        int32_t ySrc                = 0;
+                        uint32_t u32SrcWidth        = pFBInfo->w;
+                        uint32_t u32SrcHeight       = pFBInfo->h;
+                        uint32_t u32SrcLineSize     = pFBInfo->u32LineSize;
+                        uint32_t u32SrcBitsPerPixel = pFBInfo->u16BitsPerPixel;
+
+                        /* Default format is 32 bpp. */
+                        uint8_t *pu8Dst             = address;
+                        int32_t xDst                = xSrc;
+                        int32_t yDst                = ySrc;
+                        uint32_t u32DstWidth        = u32SrcWidth;
+                        uint32_t u32DstHeight       = u32SrcHeight;
+                        uint32_t u32DstLineSize     = u32DstWidth * 4;
+                        uint32_t u32DstBitsPerPixel = 32;
+
+                        pDisplay->mpDrv->pUpPort->pfnCopyRect(pDisplay->mpDrv->pUpPort,
+                                                              width, height,
+                                                              pu8Src,
+                                                              xSrc, ySrc,
+                                                              u32SrcWidth, u32SrcHeight,
+                                                              u32SrcLineSize, u32SrcBitsPerPixel,
+                                                              pu8Dst,
+                                                              xDst, yDst,
+                                                              u32DstWidth, u32DstHeight,
+                                                              u32DstLineSize, u32DstBitsPerPixel);
+                    }
+                }
+
+                pDisplay->handleDisplayUpdate (pFBInfo->xOrigin, pFBInfo->yOrigin, pFBInfo->w, pFBInfo->h);
+            }
+        }
+    }
     pDisplay->vbvaUnlock();
 }
 #endif /* VBOX_WITH_OLD_VBVA_LOCK */
@@ -2437,14 +2823,14 @@ STDMETHODIMP Display::InvalidateAndUpdate()
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(this);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_CONSOLE_DRV (mpDrv);
 
-    Console::SafeVMPtr pVM (mParent);
-    CheckComRCReturnRC(pVM.rc());
+    Console::SafeVMPtr pVM(mParent);
+    if (FAILED(pVM.rc())) return pVM.rc();
 
     HRESULT rc = S_OK;
 
@@ -2464,8 +2850,8 @@ STDMETHODIMP Display::InvalidateAndUpdate()
     alock.enter ();
 
     if (RT_FAILURE(rcVBox))
-        rc = setError (VBOX_E_IPRT_ERROR,
-            tr ("Could not invalidate and update the screen (%Rrc)"), rcVBox);
+        rc = setError(VBOX_E_IPRT_ERROR,
+                      tr("Could not invalidate and update the screen (%Rrc)"), rcVBox);
 
     LogFlowFunc (("rc=%08X\n", rc));
     LogFlowFuncLeave();
@@ -2482,7 +2868,7 @@ STDMETHODIMP Display::ResizeCompleted(ULONG aScreenId)
 {
     LogFlowFunc (("\n"));
 
-    /// @todo (dmik) can we AutoWriteLock alock(this); here?
+    /// @todo (dmik) can we AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS); here?
     //  do it when we switch this class to VirtualBoxBase_NEXT.
     //  This will require general code review and may add some details.
     //  In particular, we may want to check whether EMT is really waiting for
@@ -2491,49 +2877,18 @@ STDMETHODIMP Display::ResizeCompleted(ULONG aScreenId)
     //  (and therefore don't use Display lock at all here to save some
     //  milliseconds).
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* this is only valid for external framebuffers */
     if (maFramebuffers[aScreenId].pFramebuffer == NULL)
-        return setError (VBOX_E_NOT_SUPPORTED,
-            tr ("Resize completed notification is valid only "
-                "for external framebuffers"));
+        return setError(VBOX_E_NOT_SUPPORTED,
+                        tr("Resize completed notification is valid only for external framebuffers"));
 
     /* Set the flag indicating that the resize has completed and display
      * data need to be updated. */
     bool f = ASMAtomicCmpXchgU32 (&maFramebuffers[aScreenId].u32ResizeStatus,
         ResizeStatus_UpdateDisplayData, ResizeStatus_InProgress);
     AssertRelease(f);NOREF(f);
-
-    return S_OK;
-}
-
-/**
- * Notification that the framebuffer has completed the
- * asynchronous update processing
- *
- * @returns COM status code
- */
-STDMETHODIMP Display::UpdateCompleted()
-{
-    LogFlowFunc (("\n"));
-
-    /// @todo (dmik) can we AutoWriteLock alock(this); here?
-    //  do it when we switch this class to VirtualBoxBase_NEXT.
-    //  Tthis will require general code review and may add some details.
-    //  In particular, we may want to check whether EMT is really waiting for
-    //  this notification, etc. It might be also good to obey the caller to make
-    //  sure this method is not called from more than one thread at a time
-    //  (and therefore don't use Display lock at all here to save some
-    //  milliseconds).
-    AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
-
-    /* this is only valid for external framebuffers */
-    if (maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN].pFramebuffer == NULL)
-        return setError (VBOX_E_NOT_SUPPORTED,
-            tr ("Resize completed notification is valid only "
-                "for external framebuffers"));
 
     return S_OK;
 }
@@ -2554,13 +2909,12 @@ STDMETHODIMP Display::CompleteVHWACommand(BYTE *pCommand)
 /**
  *  Helper to update the display information from the framebuffer.
  *
- *  @param aCheckParams true to compare the parameters of the current framebuffer
- *                      and the new one and issue handleDisplayResize()
- *                      if they differ.
  *  @thread EMT
  */
-void Display::updateDisplayData (bool aCheckParams /* = false */)
+void Display::updateDisplayData(void)
 {
+    LogFlowFunc (("\n"));
+
     /* the driver might not have been constructed yet */
     if (!mpDrv)
         return;
@@ -2601,42 +2955,22 @@ void Display::updateDisplayData (bool aCheckParams /* = false */)
         rc = pFramebuffer->COMGETTER(Height) (&height);
         AssertComRC (rc);
 
-        /*
-         *  Check current parameters with new ones and issue handleDisplayResize()
-         *  to let the new frame buffer adjust itself properly. Note that it will
-         *  result into a recursive updateDisplayData() call but with
-         *  aCheckOld = false.
-         */
-        if (aCheckParams &&
-            (mLastAddress != address ||
-             mLastBytesPerLine != bytesPerLine ||
-             mLastBitsPerPixel != bitsPerPixel ||
-             mLastWidth != (int) width ||
-             mLastHeight != (int) height))
-        {
-            handleDisplayResize (VBOX_VIDEO_PRIMARY_SCREEN, mLastBitsPerPixel,
-                                 mLastAddress,
-                                 mLastBytesPerLine,
-                                 mLastWidth,
-                                 mLastHeight);
-            return;
-        }
-
-        mpDrv->Connector.pu8Data = (uint8_t *) address;
-        mpDrv->Connector.cbScanline = bytesPerLine;
-        mpDrv->Connector.cBits = bitsPerPixel;
-        mpDrv->Connector.cx = width;
-        mpDrv->Connector.cy = height;
+        mpDrv->IConnector.pu8Data = (uint8_t *) address;
+        mpDrv->IConnector.cbScanline = bytesPerLine;
+        mpDrv->IConnector.cBits = bitsPerPixel;
+        mpDrv->IConnector.cx = width;
+        mpDrv->IConnector.cy = height;
     }
     else
     {
         /* black hole */
-        mpDrv->Connector.pu8Data = NULL;
-        mpDrv->Connector.cbScanline = 0;
-        mpDrv->Connector.cBits = 0;
-        mpDrv->Connector.cx = 0;
-        mpDrv->Connector.cy = 0;
+        mpDrv->IConnector.pu8Data = NULL;
+        mpDrv->IConnector.cbScanline = 0;
+        mpDrv->IConnector.cBits = 0;
+        mpDrv->IConnector.cx = 0;
+        mpDrv->IConnector.cy = 0;
     }
+    LogFlowFunc (("leave\n"));
 }
 
 /**
@@ -2656,17 +2990,44 @@ DECLCALLBACK(int) Display::changeFramebuffer (Display *that, IFramebuffer *aFB,
     AssertReturn(uScreenId < that->mcMonitors, VERR_INVALID_PARAMETER);
 
     AutoCaller autoCaller(that);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(that);
+    AutoWriteLock alock(that COMMA_LOCKVAL_SRC_POS);
 
     DISPLAYFBINFO *pDisplayFBInfo = &that->maFramebuffers[uScreenId];
     pDisplayFBInfo->pFramebuffer = aFB;
 
     that->mParent->consoleVRDPServer()->SendResize ();
 
-    that->updateDisplayData (true /* aCheckParams */);
+    /* The driver might not have been constructed yet */
+    if (that->mpDrv)
+    {
+        /* Setup the new framebuffer, the resize will lead to an updateDisplayData call. */
+        DISPLAYFBINFO *pFBInfo = &that->maFramebuffers[uScreenId];
 
+        if (pFBInfo->fVBVAEnabled && pFBInfo->pu8FramebufferVRAM)
+        {
+            /* This display in VBVA mode. Resize it to the last guest resolution,
+             * if it has been reported.
+             */
+            that->handleDisplayResize(uScreenId, pFBInfo->u16BitsPerPixel,
+                                      pFBInfo->pu8FramebufferVRAM,
+                                      pFBInfo->u32LineSize,
+                                      pFBInfo->w,
+                                      pFBInfo->h);
+        }
+        else if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+        {
+            /* VGA device mode, only for the primary screen. */
+            that->handleDisplayResize(VBOX_VIDEO_PRIMARY_SCREEN, that->mLastBitsPerPixel,
+                                      that->mLastAddress,
+                                      that->mLastBytesPerLine,
+                                      that->mLastWidth,
+                                      that->mLastHeight);
+        }
+    }
+
+    LogFlowFunc (("leave\n"));
     return VINF_SUCCESS;
 }
 
@@ -2789,7 +3150,7 @@ DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterf
                 DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN];
                 if (!pFBInfo->pFramebuffer.isNull() && pFBInfo->u32ResizeStatus == ResizeStatus_Void)
                 {
-                    Assert(pDrv->Connector.pu8Data);
+                    Assert(pDrv->IConnector.pu8Data);
                     pDisplay->vbvaLock();
                     pDrv->pUpPort->pfnUpdateDisplay(pDrv->pUpPort);
                     pDisplay->vbvaUnlock();
@@ -2850,7 +3211,7 @@ DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterf
                 DISPLAYFBINFO *pFBInfo = &pDisplay->maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN];
                 if (!pFBInfo->pFramebuffer.isNull())
                 {
-                    Assert(pDrv->Connector.pu8Data);
+                    Assert(pDrv->IConnector.pu8Data);
                     Assert(pFBInfo->u32ResizeStatus == ResizeStatus_Void);
                     pDrv->pUpPort->pfnUpdateDisplay(pDrv->pUpPort);
                 }
@@ -3149,16 +3510,19 @@ void Display::handleVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVH
 {
     unsigned id = (unsigned)pCommand->iDisplay;
     int rc = VINF_SUCCESS;
-    if(id < mcMonitors)
+    if (id < mcMonitors)
     {
         IFramebuffer *pFramebuffer = maFramebuffers[id].pFramebuffer;
+#ifdef DEBUG_misha
+        Assert (pFramebuffer);
+#endif
 
         if (pFramebuffer != NULL)
         {
             pFramebuffer->Lock();
 
             HRESULT hr = pFramebuffer->ProcessVHWACommand((BYTE*)pCommand);
-            if(FAILED(hr))
+            if (FAILED(hr))
             {
                 rc = (hr == E_NOTIMPL) ? VERR_NOT_IMPLEMENTED : VERR_GENERAL_FAILURE;
             }
@@ -3175,7 +3539,7 @@ void Display::handleVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVH
         rc = VERR_INVALID_PARAMETER;
     }
 
-    if(RT_FAILURE(rc))
+    if (RT_FAILURE(rc))
     {
         /* tell the guest the command is complete */
         pCommand->Flags &= (~VBOXVHWACMD_FLAG_HG_ASYNCH);
@@ -3214,11 +3578,27 @@ DECLCALLBACK(void) Display::displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterface,
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
 
-    pThis->maFramebuffers[uScreenId].fVBVAEnabled = false;
+    DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[uScreenId];
 
-    vbvaSetMemoryFlagsHGSMI(uScreenId, 0, false, &pThis->maFramebuffers[uScreenId]);
+    pFBInfo->fVBVAEnabled = false;
 
-    pThis->maFramebuffers[uScreenId].pVBVAHostFlags = NULL;
+    vbvaSetMemoryFlagsHGSMI(uScreenId, 0, false, pFBInfo);
+
+    pFBInfo->pVBVAHostFlags = NULL;
+
+    pFBInfo->u32Offset = 0; /* Not used in HGSMI. */
+    pFBInfo->u32MaxFramebufferSize = 0; /* Not used in HGSMI. */
+    pFBInfo->u32InformationSize = 0; /* Not used in HGSMI. */
+
+    pFBInfo->xOrigin = 0;
+    pFBInfo->yOrigin = 0;
+
+    pFBInfo->w = 0;
+    pFBInfo->h = 0;
+
+    pFBInfo->u16BitsPerPixel = 0;
+    pFBInfo->pu8FramebufferVRAM = NULL;
+    pFBInfo->u32LineSize = 0;
 }
 
 DECLCALLBACK(void) Display::displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId)
@@ -3268,7 +3648,48 @@ DECLCALLBACK(void) Display::displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pInte
     {
         if (pFBInfo->fDefaultFormat)
         {
-            pDrv->pUpPort->pfnUpdateDisplayRect (pDrv->pUpPort, pCmd->x, pCmd->y, pCmd->w, pCmd->h);
+            if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+            {
+                pDrv->pUpPort->pfnUpdateDisplayRect (pDrv->pUpPort, pCmd->x, pCmd->y, pCmd->w, pCmd->h);
+            }
+            else if (!pFBInfo->pFramebuffer.isNull())
+            {
+                /* Render VRAM content to the framebuffer. */
+                BYTE *address = NULL;
+                HRESULT hrc = pFBInfo->pFramebuffer->COMGETTER(Address) (&address);
+                if (SUCCEEDED(hrc) && address != NULL)
+                {
+                    uint32_t width              = pCmd->w;
+                    uint32_t height             = pCmd->h;
+
+                    const uint8_t *pu8Src       = pFBInfo->pu8FramebufferVRAM;
+                    int32_t xSrc                = pCmd->x - pFBInfo->xOrigin;
+                    int32_t ySrc                = pCmd->y - pFBInfo->yOrigin;
+                    uint32_t u32SrcWidth        = pFBInfo->w;
+                    uint32_t u32SrcHeight       = pFBInfo->h;
+                    uint32_t u32SrcLineSize     = pFBInfo->u32LineSize;
+                    uint32_t u32SrcBitsPerPixel = pFBInfo->u16BitsPerPixel;
+
+                    uint8_t *pu8Dst             = address;
+                    int32_t xDst                = xSrc;
+                    int32_t yDst                = ySrc;
+                    uint32_t u32DstWidth        = u32SrcWidth;
+                    uint32_t u32DstHeight       = u32SrcHeight;
+                    uint32_t u32DstLineSize     = u32DstWidth * 4;
+                    uint32_t u32DstBitsPerPixel = 32;
+
+                    pDrv->pUpPort->pfnCopyRect(pDrv->pUpPort,
+                                               width, height,
+                                               pu8Src,
+                                               xSrc, ySrc,
+                                               u32SrcWidth, u32SrcHeight,
+                                               u32SrcLineSize, u32SrcBitsPerPixel,
+                                               pu8Dst,
+                                               xDst, yDst,
+                                               u32DstWidth, u32DstHeight,
+                                               u32DstLineSize, u32DstBitsPerPixel);
+                }
+            }
             pThis->handleDisplayUpdate (pCmd->x + pFBInfo->xOrigin,
                                         pCmd->y + pFBInfo->yOrigin, pCmd->w, pCmd->h);
         }
@@ -3338,6 +3759,18 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
 
     DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[pScreen->u32ViewIndex];
 
+    /* Check if this is a real resize or a notification about the screen origin.
+     * The guest uses this VBVAResize call for both.
+     */
+    bool fResize =    pFBInfo->u16BitsPerPixel != pScreen->u16BitsPerPixel
+                   || pFBInfo->pu8FramebufferVRAM != (uint8_t *)pvVRAM + pScreen->u32StartOffset
+                   || pFBInfo->u32LineSize != pScreen->u32LineSize
+                   || pFBInfo->w != pScreen->u32Width
+                   || pFBInfo->h != pScreen->u32Height;
+
+    bool fNewOrigin =    pFBInfo->xOrigin != pScreen->i32OriginX
+                      || pFBInfo->yOrigin != pScreen->i32OriginY;
+
     pFBInfo->u32Offset = pView->u32ViewOffset; /* Not used in HGSMI. */
     pFBInfo->u32MaxFramebufferSize = pView->u32MaxScreenSize; /* Not used in HGSMI. */
     pFBInfo->u32InformationSize = 0; /* Not used in HGSMI. */
@@ -3347,6 +3780,40 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
 
     pFBInfo->w = pScreen->u32Width;
     pFBInfo->h = pScreen->u32Height;
+
+    pFBInfo->u16BitsPerPixel = pScreen->u16BitsPerPixel;
+    pFBInfo->pu8FramebufferVRAM = (uint8_t *)pvVRAM + pScreen->u32StartOffset;
+    pFBInfo->u32LineSize = pScreen->u32LineSize;
+
+    if (fNewOrigin)
+    {
+        /* @todo May be framebuffer/display should be notified in this case. */
+    }
+
+#if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
+    if (fNewOrigin && !fResize)
+    {
+        BOOL is3denabled;
+        pThis->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+
+        if (is3denabled)
+        {
+            VBOXHGCMSVCPARM parm;
+
+            parm.type = VBOX_HGCM_SVC_PARM_32BIT;
+            parm.u.uint32 = pScreen->u32ViewIndex;
+
+            pThis->mParent->getVMMDev()->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SCREEN_CHANGED,
+                                                      SHCRGL_CPARMS_SCREEN_CHANGED, &parm);
+        }
+    }
+#endif /* VBOX_WITH_CROGL */
+
+    if (!fResize)
+    {
+        /* No paramaters of the framebuffer have actually changed. */
+        return VINF_SUCCESS;
+    }
 
     return pThis->handleDisplayResize(pScreen->u32ViewIndex, pScreen->u16BitsPerPixel,
                                       (uint8_t *)pvVRAM + pScreen->u32StartOffset,
@@ -3372,26 +3839,15 @@ DECLCALLBACK(int) Display::displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pI
 #endif /* VBOX_WITH_HGSMI */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-DECLCALLBACK(void *)  Display::drvQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+DECLCALLBACK(void *)  Display::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDRVMAINDISPLAY pDrv = PDMINS_2_DATA(pDrvIns, PDRVMAINDISPLAY);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_DISPLAY_CONNECTOR:
-            return &pDrv->Connector;
-        default:
-            return NULL;
-    }
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIDISPLAYCONNECTOR, &pDrv->IConnector);
+    return NULL;
 }
 
 
@@ -3405,9 +3861,11 @@ DECLCALLBACK(void) Display::drvDestruct(PPDMDRVINS pDrvIns)
 {
     PDRVMAINDISPLAY pData = PDMINS_2_DATA(pDrvIns, PDRVMAINDISPLAY);
     LogFlowFunc (("iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+
     if (pData->pDisplay)
     {
-        AutoWriteLock displayLock (pData->pDisplay);
+        AutoWriteLock displayLock(pData->pDisplay COMMA_LOCKVAL_SRC_POS);
         pData->pDisplay->mpDrv = NULL;
         pData->pDisplay->mpVMMDev = NULL;
         pData->pDisplay->mLastAddress = NULL;
@@ -3424,15 +3882,16 @@ DECLCALLBACK(void) Display::drvDestruct(PPDMDRVINS pDrvIns)
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVMAINDISPLAY pData = PDMINS_2_DATA(pDrvIns, PDRVMAINDISPLAY);
     LogFlowFunc (("iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Object\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Object\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
     AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
@@ -3441,40 +3900,40 @@ DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle
     /*
      * Init Interfaces.
      */
-    pDrvIns->IBase.pfnQueryInterface       = Display::drvQueryInterface;
+    pDrvIns->IBase.pfnQueryInterface        = Display::drvQueryInterface;
 
-    pData->Connector.pfnResize             = Display::displayResizeCallback;
-    pData->Connector.pfnUpdateRect         = Display::displayUpdateCallback;
-    pData->Connector.pfnRefresh            = Display::displayRefreshCallback;
-    pData->Connector.pfnReset              = Display::displayResetCallback;
-    pData->Connector.pfnLFBModeChange      = Display::displayLFBModeChangeCallback;
-    pData->Connector.pfnProcessAdapterData = Display::displayProcessAdapterDataCallback;
-    pData->Connector.pfnProcessDisplayData = Display::displayProcessDisplayDataCallback;
+    pData->IConnector.pfnResize             = Display::displayResizeCallback;
+    pData->IConnector.pfnUpdateRect         = Display::displayUpdateCallback;
+    pData->IConnector.pfnRefresh            = Display::displayRefreshCallback;
+    pData->IConnector.pfnReset              = Display::displayResetCallback;
+    pData->IConnector.pfnLFBModeChange      = Display::displayLFBModeChangeCallback;
+    pData->IConnector.pfnProcessAdapterData = Display::displayProcessAdapterDataCallback;
+    pData->IConnector.pfnProcessDisplayData = Display::displayProcessDisplayDataCallback;
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    pData->Connector.pfnVHWACommandProcess = Display::displayVHWACommandProcess;
+    pData->IConnector.pfnVHWACommandProcess = Display::displayVHWACommandProcess;
 #endif
 #ifdef VBOX_WITH_HGSMI
-    pData->Connector.pfnVBVAEnable         = Display::displayVBVAEnable;
-    pData->Connector.pfnVBVADisable        = Display::displayVBVADisable;
-    pData->Connector.pfnVBVAUpdateBegin    = Display::displayVBVAUpdateBegin;
-    pData->Connector.pfnVBVAUpdateProcess  = Display::displayVBVAUpdateProcess;
-    pData->Connector.pfnVBVAUpdateEnd      = Display::displayVBVAUpdateEnd;
-    pData->Connector.pfnVBVAResize         = Display::displayVBVAResize;
-    pData->Connector.pfnVBVAMousePointerShape = Display::displayVBVAMousePointerShape;
+    pData->IConnector.pfnVBVAEnable         = Display::displayVBVAEnable;
+    pData->IConnector.pfnVBVADisable        = Display::displayVBVADisable;
+    pData->IConnector.pfnVBVAUpdateBegin    = Display::displayVBVAUpdateBegin;
+    pData->IConnector.pfnVBVAUpdateProcess  = Display::displayVBVAUpdateProcess;
+    pData->IConnector.pfnVBVAUpdateEnd      = Display::displayVBVAUpdateEnd;
+    pData->IConnector.pfnVBVAResize         = Display::displayVBVAResize;
+    pData->IConnector.pfnVBVAMousePointerShape = Display::displayVBVAMousePointerShape;
 #endif
 
 
     /*
      * Get the IDisplayPort interface of the above driver/device.
      */
-    pData->pUpPort = (PPDMIDISPLAYPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_DISPLAY_PORT);
+    pData->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIDISPLAYPORT);
     if (!pData->pUpPort)
     {
         AssertMsgFailed(("Configuration error: No display port interface above!\n"));
         return VERR_PDM_MISSING_INTERFACE_ABOVE;
     }
 #if defined(VBOX_WITH_VIDEOHWACCEL)
-    pData->pVBVACallbacks = (PPDMDDISPLAYVBVACALLBACKS)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_DISPLAY_VBVA_CALLBACKS);
+    pData->pVBVACallbacks = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIDISPLAYVBVACALLBACKS);
     if (!pData->pVBVACallbacks)
     {
         AssertMsgFailed(("Configuration error: No VBVA callback interface above!\n"));
@@ -3485,7 +3944,7 @@ DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle
      * Get the Display object pointer and update the mpDrv member.
      */
     void *pv;
-    int rc = CFGMR3QueryPtr(pCfgHandle, "Object", &pv);
+    int rc = CFGMR3QueryPtr(pCfg, "Object", &pv);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc));
@@ -3515,8 +3974,12 @@ const PDMDRVREG Display::DrvReg =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "MainDisplay",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Main display driver (Main as in the API).",
     /* fFlags */
@@ -3531,6 +3994,8 @@ const PDMDRVREG Display::DrvReg =
     Display::drvConstruct,
     /* pfnDestruct */
     Display::drvDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

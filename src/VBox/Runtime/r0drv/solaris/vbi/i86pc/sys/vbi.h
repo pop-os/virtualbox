@@ -32,6 +32,13 @@ extern "C" {
 #endif
 
 /*
+ * Must be the called to initialize the VBI structures and code paths.
+ *
+ * return value is 0 on success, non-zero on failure.
+ */
+int vbi_init(void);
+
+/*
  * Private interfaces for VirtualBox access to Solaris kernel internal
  * facilities. The interface uses limited types when crossing the kernel
  * to hypervisor boundary. (void *) is for handles and function and other
@@ -229,7 +236,7 @@ extern uint_t vbi_revision_level;
  * Install/remove a call back for CPU online/offline event notification.
  *
  * The call back func is invoked with 3 arguments:
- *      void func(void *arg, int cpu, int online);
+ *      void func(void *arg, int icpu, int online);
  * - arg is passed through from vbi_watch_cpus()
  * - cpu is the CPU id involved
  * - online is non-zero for a CPU that comes online and 0 for a CPU that is
@@ -276,7 +283,7 @@ extern void vbi_ignore_cpus(vbi_cpu_watch_t *);
 
 typedef struct vbi_stimer vbi_stimer_t;
 extern vbi_stimer_t *vbi_stimer_begin(void (*func)(void *, uint64_t), void *arg,
-    uint64_t when, uint64_t interval, int cpu);
+    uint64_t when, uint64_t interval, int icpu);
 extern void vbi_stimer_end(vbi_stimer_t *);
 #pragma weak vbi_stimer_begin
 #pragma weak vbi_stimer_end
@@ -334,6 +341,63 @@ extern void vbi_lowmem_free(void *va, size_t size);
 extern int vbi_is_preempt_pending(void);
 
 /* end of interfaces defined for version 6 */
+
+/* begin interfaces defined for version 7 */
+/*
+ * Allocate and free physically limited, aligned as specified continuous or non-continuous memory. 
+ *
+ * return value is a) NULL if memory below "phys" not available or
+ * b) virtual address of memory in kernel heap
+ *
+ * phys on input is set to the upper boundary of acceptable memory
+ *
+ * size is the amount to allocate and must be a multiple of PAGESIZE
+ */
+extern void *vbi_phys_alloc(uint64_t *phys, size_t size, uint64_t alignment, int contig);
+extern void vbi_phys_free(void *va, size_t size);
+/* end of interfaces defined for version 7 */
+
+/* begin interfaces defined for version 8 */
+
+/*
+ * Allocate pages from the free/cache list without creating
+ * any kernel mapping of the memory.
+ *
+ * return value is a) NULL if memory unavailable or
+ * b) an allocated array of page_t structures to each page allocated.
+ *
+ * phys on input is set to the physical address of the first page allocated.
+ *
+ * size is the amount to allocate and must be a multiple of PAGESIZE
+ */
+extern page_t **vbi_pages_alloc(uint64_t *phys, size_t size);
+
+/*
+ * Free pages allocated using vbi_pages_alloc()
+ */
+extern void vbi_pages_free(page_t **pp_pages, size_t size);
+
+/*
+ * Prepare pages allocated via vbi_pages_alloc() to be mapped into
+ * user or kernel space.
+ *
+ * return value is 0 on success, non-zero on failure.
+ *
+ * size is the amount allocated from which number of pages in the page array
+ * will be computed.
+ *
+ * physaddrs on input is filled with the physical address of each corresponding page
+ * that can be mapped in. Size of the array pointed to by physaddrs must correspond
+ * to size.
+ */
+extern int vbi_pages_premap(page_t **pp_pages, size_t size, uint64_t *physaddrs);
+
+/*
+ * Returns the physical address for the 'i'th page in the array of page
+ * structures in 'pp_pages'
+ */
+extern uint64_t vbi_page_to_pa(page_t **pp_pages, pgcnt_t i);
+/* end of interfaces defined for version 8 */
 
 #ifdef	__cplusplus
 }

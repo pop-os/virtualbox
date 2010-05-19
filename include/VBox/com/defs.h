@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_com_defs_h
@@ -86,6 +82,20 @@
 
 /** Returns @c true if @a rc represents a warning result code */
 #define SUCCEEDED_WARNING(rc)   (SUCCEEDED (rc) && (rc) != S_OK)
+
+/** Tests is a COM result code indicates that the process implementing the
+ * interface is dead.
+ *
+ * COM status codes:
+ *      0x800706ba - RPC_S_SERVER_UNAVAILABLE.  Killed before call was made.
+ *      0x800706be - RPC_S_CALL_FAILED.         Killed after call was made.
+ *      0x800706bf - RPC_S_CALL_FAILED_DNE.     Not observed, but should be matter of timing.
+ */
+#define FAILED_DEAD_INTERFACE(rc) \
+    (   (rc) == HRESULT_FROM_WIN32(RPC_S_SERVER_UNAVAILABLE) \
+     || (rc) == HRESULT_FROM_WIN32(RPC_S_CALL_FAILED) \
+     || (rc) == HRESULT_FROM_WIN32(RPC_S_CALL_FAILED_DNE) \
+    )
 
 /** Immutable BSTR string */
 typedef const OLECHAR *CBSTR;
@@ -253,6 +263,8 @@ typedef const OLECHAR *CBSTR;
 
 #define SUCCEEDED_WARNING(rc)   (NS_SUCCEEDED (rc) && (rc) != NS_OK)
 
+#define FAILED_DEAD_INTERFACE(rc) (false) /**< @todo */
+
 #define IUnknown nsISupports
 
 #define BOOL    PRBool
@@ -263,6 +275,9 @@ typedef const OLECHAR *CBSTR;
 #define ULONG   PRUint32
 #define LONG64  PRInt64
 #define ULONG64 PRUint64
+/* XPCOM has only 64bit floats */
+#define FLOAT   PRFloat64
+#define DOUBLE  PRFloat64
 
 #define FALSE   PR_FALSE
 #define TRUE    PR_TRUE

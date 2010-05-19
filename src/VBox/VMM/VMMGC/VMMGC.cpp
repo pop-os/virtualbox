@@ -1,10 +1,10 @@
-/* $Id: VMMGC.cpp $ */
+/* $Id: VMMGC.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * VMM - Raw-mode Context.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -24,6 +20,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VMM
+#include <iprt/asm-amd64-x86.h> /* for SUPGetCpuHzFromGIP */
 #include <VBox/vmm.h>
 #include <VBox/trpm.h>
 #include <VBox/pgm.h>
@@ -32,7 +29,6 @@
 #include <VBox/sup.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/initterm.h>
 
@@ -329,7 +325,7 @@ static int vmmGCTest(PVM pVM, unsigned uOperation, unsigned uArg)
 
 
 /**
- * Temporary #PF trap handler for the #PF test case.
+ * Temporary \#PF trap handler for the \#PF test case.
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.
@@ -348,7 +344,8 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
 
 
 /**
- * Temporary #PF trap handler for the #PF test case, this one messes up the fs selector.
+ * Temporary \#PF trap handler for the \#PF test case, this one messes up the fs
+ * selector.
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.

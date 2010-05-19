@@ -1,10 +1,10 @@
-/* $Id: VBoxManageModifyVM.cpp $ */
+/* $Id: VBoxManageModifyVM.cpp 29218 2010-05-07 14:52:27Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of modifyvm command.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -68,8 +64,12 @@ enum
     MODIFYVM_HWVIRTEX,
     MODIFYVM_HWVIRTEXEXCLUSIVE,
     MODIFYVM_NESTEDPAGING,
+    MODIFYVM_LARGEPAGES,
     MODIFYVM_VTXVPID,
     MODIFYVM_CPUS,
+    MODIFYVM_CPUHOTPLUG,
+    MODIFYVM_PLUGCPU,
+    MODIFYVM_UNPLUGCPU,
     MODIFYVM_SETCPUID,
     MODIFYVM_DELCPUID,
     MODIFYVM_DELALLCPUID,
@@ -104,16 +104,31 @@ enum
     MODIFYVM_NICTRACE,
     MODIFYVM_NICTYPE,
     MODIFYVM_NICSPEED,
+    MODIFYVM_NICBOOTPRIO,
     MODIFYVM_NIC,
     MODIFYVM_CABLECONNECTED,
     MODIFYVM_BRIDGEADAPTER,
     MODIFYVM_HOSTONLYADAPTER,
     MODIFYVM_INTNET,
     MODIFYVM_NATNET,
+#ifdef VBOX_WITH_VDE
+    MODIFYVM_VDENET,
+#endif
+    MODIFYVM_NATBINDIP,
+    MODIFYVM_NATSETTINGS,
+    MODIFYVM_NATPF,
+    MODIFYVM_NATALIASMODE,
+    MODIFYVM_NATTFTPPREFIX,
+    MODIFYVM_NATTFTPFILE,
+    MODIFYVM_NATTFTPSERVER,
+    MODIFYVM_NATDNSPASSDOMAIN,
+    MODIFYVM_NATDNSPROXY,
+    MODIFYVM_NATDNSHOSTRESOLVER,
     MODIFYVM_MACADDRESS,
+    MODIFYVM_HIDPTR,
+    MODIFYVM_HIDKBD,
     MODIFYVM_UARTMODE,
     MODIFYVM_UART,
-    MODIFYVM_GUESTSTATISTICSINTERVAL,
     MODIFYVM_GUESTMEMORYBALLOON,
     MODIFYVM_AUDIOCONTROLLER,
     MODIFYVM_AUDIO,
@@ -124,8 +139,11 @@ enum
     MODIFYVM_VRDPAUTHTYPE,
     MODIFYVM_VRDPMULTICON,
     MODIFYVM_VRDPREUSECON,
+    MODIFYVM_VRDPVIDEOCHANNEL,
+    MODIFYVM_VRDPVIDEOCHANNELQUALITY,
     MODIFYVM_VRDP,
 #endif
+    MODIFYVM_RTCUSEUTC,
     MODIFYVM_USBEHCI,
     MODIFYVM_USB,
     MODIFYVM_SNAPSHOTFOLDER,
@@ -133,7 +151,11 @@ enum
     MODIFYVM_TELEPORTER_PORT,
     MODIFYVM_TELEPORTER_ADDRESS,
     MODIFYVM_TELEPORTER_PASSWORD,
-    MODIFYVM_HARDWARE_UUID
+    MODIFYVM_HARDWARE_UUID,
+    MODIFYVM_HPET,
+    MODIFYVM_IOCACHE,
+    MODIFYVM_IOCACHESIZE,
+    MODIFYVM_IOBANDWIDTHMAX
 };
 
 static const RTGETOPTDEF g_aModifyVMOptions[] =
@@ -150,11 +172,16 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--hwvirtex",                 MODIFYVM_HWVIRTEX,                  RTGETOPT_REQ_BOOL_ONOFF },
     { "--hwvirtexexcl",             MODIFYVM_HWVIRTEXEXCLUSIVE,         RTGETOPT_REQ_BOOL_ONOFF },
     { "--nestedpaging",             MODIFYVM_NESTEDPAGING,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--largepages",               MODIFYVM_LARGEPAGES,                RTGETOPT_REQ_BOOL_ONOFF },
     { "--vtxvpid",                  MODIFYVM_VTXVPID,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--cpuidset",                 MODIFYVM_SETCPUID,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX},
     { "--cpuidremove",              MODIFYVM_DELCPUID,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX},
     { "--cpuidremoveall",           MODIFYVM_DELALLCPUID,               RTGETOPT_REQ_NOTHING},
     { "--cpus",                     MODIFYVM_CPUS,                      RTGETOPT_REQ_UINT32 },
+    { "--cpuhotplug",               MODIFYVM_CPUHOTPLUG,                RTGETOPT_REQ_BOOL_ONOFF },
+    { "--plugcpu",                  MODIFYVM_PLUGCPU,                   RTGETOPT_REQ_UINT32 },
+    { "--unplugcpu",                MODIFYVM_UNPLUGCPU,                 RTGETOPT_REQ_UINT32 },
+    { "--rtcuseutc",                MODIFYVM_RTCUSEUTC,                 RTGETOPT_REQ_BOOL_ONOFF },
     { "--monitorcount",             MODIFYVM_MONITORCOUNT,              RTGETOPT_REQ_UINT32 },
     { "--accelerate3d",             MODIFYVM_ACCELERATE3D,              RTGETOPT_REQ_BOOL_ONOFF },
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -162,7 +189,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
 #endif
     { "--bioslogofadein",           MODIFYVM_BIOSLOGOFADEIN,            RTGETOPT_REQ_BOOL_ONOFF },
     { "--bioslogofadeout",          MODIFYVM_BIOSLOGOFADEOUT,           RTGETOPT_REQ_BOOL_ONOFF },
-    { "--bioslogodisplaytime",      MODIFYVM_BIOSLOGODISPLAYTIME,       RTGETOPT_REQ_UINT64 },
+    { "--bioslogodisplaytime",      MODIFYVM_BIOSLOGODISPLAYTIME,       RTGETOPT_REQ_UINT32 },
     { "--bioslogoimagepath",        MODIFYVM_BIOSLOGOIMAGEPATH,         RTGETOPT_REQ_STRING },
     { "--biosbootmenu",             MODIFYVM_BIOSBOOTMENU,              RTGETOPT_REQ_STRING },
     { "--biossystemtimeoffset",     MODIFYVM_BIOSSYSTEMTIMEOFFSET,      RTGETOPT_REQ_INT64 },
@@ -186,16 +213,31 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--nictrace",                 MODIFYVM_NICTRACE,                  RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
     { "--nictype",                  MODIFYVM_NICTYPE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--nicspeed",                 MODIFYVM_NICSPEED,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
+    { "--nicbootprio",              MODIFYVM_NICBOOTPRIO,               RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
     { "--nic",                      MODIFYVM_NIC,                       RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--cableconnected",           MODIFYVM_CABLECONNECTED,            RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
     { "--bridgeadapter",            MODIFYVM_BRIDGEADAPTER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--hostonlyadapter",          MODIFYVM_HOSTONLYADAPTER,           RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--intnet",                   MODIFYVM_INTNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--natnet",                   MODIFYVM_NATNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+#ifdef VBOX_WITH_VDE
+    { "--vdenet",                   MODIFYVM_VDENET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+#endif
+    { "--natbindip",                MODIFYVM_NATBINDIP,                 RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--natsettings",              MODIFYVM_NATSETTINGS,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--natpf",                    MODIFYVM_NATPF,                     RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--nataliasmode",             MODIFYVM_NATALIASMODE,              RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--nattftpprefix",            MODIFYVM_NATTFTPPREFIX,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--nattftpfile",              MODIFYVM_NATTFTPFILE,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--nattftpserver",            MODIFYVM_NATTFTPSERVER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--natdnspassdomain",         MODIFYVM_NATDNSPASSDOMAIN,          RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
+    { "--natdnsproxy",              MODIFYVM_NATDNSPROXY,               RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
+    { "--natdnshostresolver",       MODIFYVM_NATDNSHOSTRESOLVER,        RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
     { "--macaddress",               MODIFYVM_MACADDRESS,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    { "--mouse",                    MODIFYVM_HIDPTR,                    RTGETOPT_REQ_STRING },
+    { "--keyboard",                 MODIFYVM_HIDKBD,                    RTGETOPT_REQ_STRING },
     { "--uartmode",                 MODIFYVM_UARTMODE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
     { "--uart",                     MODIFYVM_UART,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--gueststatisticsinterval",  MODIFYVM_GUESTSTATISTICSINTERVAL,   RTGETOPT_REQ_UINT32 },
     { "--guestmemoryballoon",       MODIFYVM_GUESTMEMORYBALLOON,        RTGETOPT_REQ_UINT32 },
     { "--audiocontroller",          MODIFYVM_AUDIOCONTROLLER,           RTGETOPT_REQ_STRING },
     { "--audio",                    MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING },
@@ -206,6 +248,8 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--vrdpauthtype",             MODIFYVM_VRDPAUTHTYPE,              RTGETOPT_REQ_STRING },
     { "--vrdpmulticon",             MODIFYVM_VRDPMULTICON,              RTGETOPT_REQ_BOOL_ONOFF },
     { "--vrdpreusecon",             MODIFYVM_VRDPREUSECON,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdpvideochannel",         MODIFYVM_VRDPVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdpvideochannelquality",  MODIFYVM_VRDPVIDEOCHANNELQUALITY,   RTGETOPT_REQ_UINT32 },
     { "--vrdp",                     MODIFYVM_VRDP,                      RTGETOPT_REQ_BOOL_ONOFF },
 #endif
     { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
@@ -217,6 +261,10 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--teleporteraddress",        MODIFYVM_TELEPORTER_ADDRESS,        RTGETOPT_REQ_STRING },
     { "--teleporterpassword",       MODIFYVM_TELEPORTER_PASSWORD,       RTGETOPT_REQ_STRING },
     { "--hardwareuuid",             MODIFYVM_HARDWARE_UUID,             RTGETOPT_REQ_STRING },
+    { "--hpet",                     MODIFYVM_HPET,                      RTGETOPT_REQ_BOOL_ONOFF },
+    { "--iocache",                  MODIFYVM_IOCACHE,                   RTGETOPT_REQ_BOOL_ONOFF },
+    { "--iocachesize",              MODIFYVM_IOCACHESIZE,               RTGETOPT_REQ_UINT32 },
+    { "--iobandwidthmax",           MODIFYVM_IOBANDWIDTHMAX,            RTGETOPT_REQ_UINT32 },
 };
 
 int handleModifyVM(HandlerArg *a)
@@ -268,7 +316,7 @@ int handleModifyVM(HandlerArg *a)
     machine->COMGETTER(BIOSSettings)(biosSettings.asOutParam());
 
     RTGetOptInit(&GetOptState, a->argc, a->argv, g_aModifyVMOptions,
-                 RT_ELEMENTS(g_aModifyVMOptions), 1, 0 /* fFlags */);
+                 RT_ELEMENTS(g_aModifyVMOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
     while (   SUCCEEDED (rc)
            && (c = RTGetOpt(&GetOptState, &ValueUnion)))
@@ -352,13 +400,13 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_PAE:
             {
-                CHECK_ERROR(machine, SetCpuProperty(CpuPropertyType_PAE, ValueUnion.f));
+                CHECK_ERROR(machine, SetCPUProperty(CPUPropertyType_PAE, ValueUnion.f));
                 break;
             }
 
             case MODIFYVM_SYNTHCPU:
             {
-                CHECK_ERROR(machine, SetCpuProperty(CpuPropertyType_Synthetic, ValueUnion.f));
+                CHECK_ERROR(machine, SetCPUProperty(CPUPropertyType_Synthetic, ValueUnion.f));
                 break;
             }
 
@@ -388,25 +436,31 @@ int handleModifyVM(HandlerArg *a)
                                            GetOptState.pDef->pszLong);
                     aValue[i] = ValueUnion.u32;
                 }
-                CHECK_ERROR(machine, SetCpuIdLeaf(id, aValue[0], aValue[1], aValue[2], aValue[3]));
+                CHECK_ERROR(machine, SetCPUIDLeaf(id, aValue[0], aValue[1], aValue[2], aValue[3]));
                 break;
             }
 
             case MODIFYVM_DELCPUID:
             {
-                CHECK_ERROR(machine, RemoveCpuIdLeaf(ValueUnion.u32));
+                CHECK_ERROR(machine, RemoveCPUIDLeaf(ValueUnion.u32));
                 break;
             }
 
             case MODIFYVM_DELALLCPUID:
             {
-                CHECK_ERROR(machine, RemoveAllCpuIdLeafs());
+                CHECK_ERROR(machine, RemoveAllCPUIDLeaves());
                 break;
             }
 
             case MODIFYVM_NESTEDPAGING:
             {
                 CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_NestedPaging, ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_LARGEPAGES:
+            {
+                CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_LargePages, ValueUnion.f));
                 break;
             }
 
@@ -419,6 +473,30 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_CPUS:
             {
                 CHECK_ERROR(machine, COMSETTER(CPUCount)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_RTCUSEUTC:
+            {
+                CHECK_ERROR(machine, COMSETTER(RTCUseUTC)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_CPUHOTPLUG:
+            {
+                CHECK_ERROR(machine, COMSETTER(CPUHotPlugEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_PLUGCPU:
+            {
+                CHECK_ERROR(machine, HotPlugCPU(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_UNPLUGCPU:
+            {
+                CHECK_ERROR(machine, HotUnplugCPU(ValueUnion.u32));
                 break;
             }
 
@@ -456,7 +534,7 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_BIOSLOGODISPLAYTIME:
             {
-                CHECK_ERROR(biosSettings, COMSETTER(LogoDisplayTime)(ValueUnion.u64));
+                CHECK_ERROR(biosSettings, COMSETTER(LogoDisplayTime)(ValueUnion.u32));
                 break;
             }
 
@@ -502,11 +580,6 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_BOOT:
             {
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 4))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid boot slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
                     CHECK_ERROR(machine, SetBootOrder(GetOptState.uIndex, DeviceType_Null));
@@ -529,7 +602,6 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else
                     return errorArgument("Invalid boot device '%s'", ValueUnion.psz);
-
                 break;
             }
 
@@ -672,19 +744,8 @@ int handleModifyVM(HandlerArg *a)
                 ComPtr<IStorageController> SataCtl;
                 CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 4))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid SATA boot slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
-                if ((ValueUnion.u32 < 1) && (ValueUnion.u32 > 30))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid SATA port number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 if (SUCCEEDED(rc))
                     CHECK_ERROR(SataCtl, SetIDEEmulationPort(GetOptState.uIndex, ValueUnion.u32));
-
                 break;
             }
 
@@ -695,17 +756,11 @@ int handleModifyVM(HandlerArg *a)
 
                 if (SUCCEEDED(rc) && ValueUnion.u32 > 0)
                     CHECK_ERROR(SataCtl, COMSETTER(PortCount)(ValueUnion.u32));
-
                 break;
             }
 
             case MODIFYVM_SATAPORT: // deprecated
             {
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 30))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid SATA port number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
                     machine->DetachDevice(Bstr("SATA"), GetOptState.uIndex, 0);
@@ -724,17 +779,17 @@ int handleModifyVM(HandlerArg *a)
                         {
                             /* open the new hard disk object */
                             CHECK_ERROR(a->virtualBox,
-                                         OpenHardDisk(Bstr(ValueUnion.psz), AccessMode_ReadWrite,
-                                                      false, Bstr(""), false,
-                                                      Bstr(""), hardDisk.asOutParam()));
+                                        OpenHardDisk(Bstr(ValueUnion.psz), AccessMode_ReadWrite,
+                                                     false, Bstr(""), false,
+                                                     Bstr(""), hardDisk.asOutParam()));
                         }
                     }
                     if (hardDisk)
                     {
                         hardDisk->COMGETTER(Id)(uuid.asOutParam());
                         CHECK_ERROR(machine,
-                                     AttachDevice(Bstr("SATA"), GetOptState.uIndex,
-                                                  0, DeviceType_HardDisk, uuid));
+                                    AttachDevice(Bstr("SATA"), GetOptState.uIndex,
+                                                 0, DeviceType_HardDisk, uuid));
                     }
                     else
                         rc = E_FAIL;
@@ -759,11 +814,6 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_SCSIPORT: // deprecated
             {
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > 16))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid SCSI port number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
                     rc = machine->DetachDevice(Bstr("LsiLogic"), GetOptState.uIndex, 0);
@@ -1007,11 +1057,6 @@ int handleModifyVM(HandlerArg *a)
             {
                 ComPtr<INetworkAdapter> nic;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
@@ -1023,11 +1068,6 @@ int handleModifyVM(HandlerArg *a)
             {
                 ComPtr<INetworkAdapter> nic;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
@@ -1038,11 +1078,6 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_NICTYPE:
             {
                 ComPtr<INetworkAdapter> nic;
-
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
 
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
@@ -1077,7 +1112,7 @@ int handleModifyVM(HandlerArg *a)
 #endif /* VBOX_WITH_VIRTIO */
                 else
                 {
-                    errorArgument("Invalid NIC type '%s' specified for NIC %lu", ValueUnion.psz, GetOptState.uIndex);
+                    errorArgument("Invalid NIC type '%s' specified for NIC %u", ValueUnion.psz, GetOptState.uIndex);
                     rc = E_FAIL;
                 }
                 break;
@@ -1087,18 +1122,6 @@ int handleModifyVM(HandlerArg *a)
             {
                 ComPtr<INetworkAdapter> nic;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
-                if ((ValueUnion.u32 < 1000) && (ValueUnion.u32 > 4000000))
-                {
-                    errorArgument("Invalid --nicspeed%lu argument '%u'", GetOptState.uIndex, ValueUnion.u32);
-                    rc = E_FAIL;
-                    break;
-                }
-
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
@@ -1106,14 +1129,32 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_NIC:
+            case MODIFYVM_NICBOOTPRIO:
             {
                 ComPtr<INetworkAdapter> nic;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                /* Somewhat arbitrary limitation - we can pass a list of up to 4 PCI devices
+                 * to the PXE ROM, hence only boot priorities 1-4 are allowed (in addition to
+                 * 0 for the default lowest priority).
+                 */
+                if (ValueUnion.u32 > 4)
+                {
+                    errorArgument("Invalid boot priority '%u' specfied for NIC %u", ValueUnion.u32, GetOptState.uIndex);
+                    rc = E_FAIL;
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(BootPriority)(ValueUnion.u32));
+                }
+                break;
+            }
+
+            case MODIFYVM_NIC:
+            {
+                ComPtr<INetworkAdapter> nic;
 
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
@@ -1151,9 +1192,17 @@ int handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(nic, AttachToHostOnlyInterface());
                 }
 #endif
+#ifdef VBOX_WITH_VDE
+                else if (!strcmp(ValueUnion.psz, "vde"))
+                {
+
+                    CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, AttachToVDE());
+                }
+#endif
                 else
                 {
-                    errorArgument("Invalid type '%s' specfied for NIC %lu", ValueUnion.psz, GetOptState.uIndex);
+                    errorArgument("Invalid type '%s' specfied for NIC %u", ValueUnion.psz, GetOptState.uIndex);
                     rc = E_FAIL;
                 }
                 break;
@@ -1162,11 +1211,6 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_CABLECONNECTED:
             {
                 ComPtr<INetworkAdapter> nic;
-
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
 
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
@@ -1179,11 +1223,6 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_HOSTONLYADAPTER:
             {
                 ComPtr<INetworkAdapter> nic;
-
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
 
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
@@ -1204,11 +1243,6 @@ int handleModifyVM(HandlerArg *a)
             {
                 ComPtr<INetworkAdapter> nic;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
@@ -1224,34 +1258,274 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_NATNET:
+#ifdef VBOX_WITH_VDE
+            case MODIFYVM_VDENET:
             {
                 ComPtr<INetworkAdapter> nic;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                if (!strcmp(ValueUnion.psz, "default"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(VDENetwork)(NULL));
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(VDENetwork)(Bstr(ValueUnion.psz)));
+                }
+                break;
+            }
+#endif
+            case MODIFYVM_NATNET:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
 
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
 
                 const char *psz = ValueUnion.psz;
                 if (!strcmp("default", psz))
                     psz = "";
 
-                CHECK_ERROR(nic, COMSETTER(NATNetwork)(Bstr(psz)));
+                CHECK_ERROR(driver, COMSETTER(Network)(Bstr(psz)));
                 break;
             }
 
+            case MODIFYVM_NATBINDIP:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(HostIP)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+#define ITERATE_TO_NEXT_TERM(ch)                                           \
+    do {                                                                   \
+        while (*ch != ',')                                                 \
+        {                                                                  \
+            if (*ch == 0)                                                  \
+            {                                                              \
+                return errorSyntax(USAGE_MODIFYVM,                         \
+                                   "Missing or Invalid argument to '%s'",  \
+                                    GetOptState.pDef->pszLong);            \
+            }                                                              \
+            ch++;                                                          \
+        }                                                                  \
+        *ch = '\0';                                                        \
+        ch++;                                                              \
+    } while(0)
+
+            case MODIFYVM_NATSETTINGS:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+                char *strMtu;
+                char *strSockSnd;
+                char *strSockRcv;
+                char *strTcpSnd;
+                char *strTcpRcv;
+                char *strRaw = RTStrDup(ValueUnion.psz);
+                char *ch = strRaw;
+                strMtu = RTStrStrip(ch);
+                ITERATE_TO_NEXT_TERM(ch);
+                strSockSnd = RTStrStrip(ch);
+                ITERATE_TO_NEXT_TERM(ch);
+                strSockRcv = RTStrStrip(ch);
+                ITERATE_TO_NEXT_TERM(ch);
+                strTcpSnd = RTStrStrip(ch);
+                ITERATE_TO_NEXT_TERM(ch);
+                strTcpRcv = RTStrStrip(ch);
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, SetNetworkSettings(RTStrToUInt32(strMtu), RTStrToUInt32(strSockSnd), RTStrToUInt32(strSockRcv),
+                                    RTStrToUInt32(strTcpSnd), RTStrToUInt32(strTcpRcv)));
+                break;
+            }
+
+
+            case MODIFYVM_NATPF:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                /* format name:proto:hostip:hostport:guestip:guestport*/
+                if (RTStrCmp(ValueUnion.psz, "delete") != 0)
+                {
+                    char *strName;
+                    char *strProto;
+                    char *strHostIp;
+                    char *strHostPort;
+                    char *strGuestIp;
+                    char *strGuestPort;
+                    char *strRaw = RTStrDup(ValueUnion.psz);
+                    char *ch = strRaw;
+                    strName = RTStrStrip(ch);
+                    ITERATE_TO_NEXT_TERM(ch);
+                    strProto = RTStrStrip(ch);
+                    ITERATE_TO_NEXT_TERM(ch);
+                    strHostIp = RTStrStrip(ch);
+                    ITERATE_TO_NEXT_TERM(ch);
+                    strHostPort = RTStrStrip(ch);
+                    ITERATE_TO_NEXT_TERM(ch);
+                    strGuestIp = RTStrStrip(ch);
+                    ITERATE_TO_NEXT_TERM(ch);
+                    strGuestPort = RTStrStrip(ch);
+                    NATProtocol_T proto;
+                    if (RTStrICmp(strProto, "udp") == 0)
+                        proto = NATProtocol_UDP;
+                    else if (RTStrICmp(strProto, "tcp") == 0)
+                        proto = NATProtocol_TCP;
+                    else
+                    {
+                        errorArgument("Invalid proto '%s' specfied for NIC %u", ValueUnion.psz, GetOptState.uIndex);
+                        rc = E_FAIL;
+                        break;
+                    }
+                    CHECK_ERROR(driver, AddRedirect(Bstr(strName), proto, Bstr(strHostIp),
+                            RTStrToUInt16(strHostPort), Bstr(strGuestIp), RTStrToUInt16(strGuestPort)));
+                }
+                else
+                {
+                    /* delete NAT Rule operation */
+                    int vrc;
+                    vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
+                    if (RT_FAILURE(vrc))
+                        return errorSyntax(USAGE_MODIFYVM, "Not enough parameters");
+                    CHECK_ERROR(driver, RemoveRedirect(Bstr(ValueUnion.psz)));
+                }
+                break;
+            }
+            #undef ITERATE_TO_NEXT_TERM
+            case MODIFYVM_NATALIASMODE:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+                uint32_t aliasMode = 0;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                if (RTStrCmp(ValueUnion.psz,"default") == 0)
+                {
+                    aliasMode = 0;
+                }
+                else
+                {
+                    char *token = (char *)ValueUnion.psz;
+                    while(token)
+                    {
+                        if (RTStrNCmp(token, "log", 3) == 0)
+                            aliasMode |= 0x1;
+                        else if (RTStrNCmp(token, "proxyonly", 9) == 0)
+                            aliasMode |= 0x2;
+                        else if (RTStrNCmp(token, "sameports", 9) == 0)
+                            aliasMode |= 0x4;
+                        token = RTStrStr(token, ",");
+                        if (token == NULL)
+                            break;
+                        token++;
+                    }
+                }
+                CHECK_ERROR(driver, COMSETTER(AliasMode)(aliasMode));
+                break;
+            }
+
+            case MODIFYVM_NATTFTPPREFIX:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(TftpPrefix)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_NATTFTPFILE:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(TftpBootFile)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_NATTFTPSERVER:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(TftpNextServer)(Bstr(ValueUnion.psz)));
+                break;
+            }
+            case MODIFYVM_NATDNSPASSDOMAIN:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(DnsPassDomain)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_NATDNSPROXY:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(DnsProxy)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_NATDNSHOSTRESOLVER:
+            {
+                ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> driver;
+
+                CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
+                CHECK_ERROR(driver, COMSETTER(DnsUseHostResolver)(ValueUnion.f));
+                break;
+            }
             case MODIFYVM_MACADDRESS:
             {
                 ComPtr<INetworkAdapter> nic;
-
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > NetworkAdapterCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid NIC slot number in '%s'",
-                                       GetOptState.pDef->pszLong);
 
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
@@ -1268,15 +1542,88 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_HIDPTR:
+            {
+                bool fEnableUsb = false;
+                if (!strcmp(ValueUnion.psz, "ps2"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(PointingHidType)(PointingHidType_PS2Mouse));
+                }
+                else if (!strcmp(ValueUnion.psz, "usb"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(PointingHidType)(PointingHidType_USBMouse));
+                    if (SUCCEEDED(rc))
+                        fEnableUsb = true;
+                }
+                else if (!strcmp(ValueUnion.psz, "usbtablet"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(PointingHidType)(PointingHidType_USBTablet));
+                    if (SUCCEEDED(rc))
+                        fEnableUsb = true;
+                }
+                else
+                {
+                    errorArgument("Invalid type '%s' specfied for pointing device", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                if (fEnableUsb)
+                {
+                    /* Make sure the OHCI controller is enabled. */
+                    ComPtr<IUSBController> UsbCtl;
+                    rc = machine->COMGETTER(USBController)(UsbCtl.asOutParam());
+                    if (SUCCEEDED(rc))
+                    {
+                        BOOL fEnabled;
+                        rc = UsbCtl->COMGETTER(Enabled)(&fEnabled);
+                        if (FAILED(rc))
+                            fEnabled = false;
+                        if (!fEnabled)
+                            CHECK_ERROR(UsbCtl, COMSETTER(Enabled)(true));
+                    }
+                }
+                break;
+            }
+
+            case MODIFYVM_HIDKBD:
+            {
+                bool fEnableUsb = false;
+                if (!strcmp(ValueUnion.psz, "ps2"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(KeyboardHidType)(KeyboardHidType_PS2Keyboard));
+                }
+                else if (!strcmp(ValueUnion.psz, "usb"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(KeyboardHidType)(KeyboardHidType_USBKeyboard));
+                    if (SUCCEEDED(rc))
+                        fEnableUsb = true;
+                }
+                else
+                {
+                    errorArgument("Invalid type '%s' specfied for keyboard", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                if (fEnableUsb)
+                {
+                    /* Make sure the OHCI controller is enabled. */
+                    ComPtr<IUSBController> UsbCtl;
+                    rc = machine->COMGETTER(USBController)(UsbCtl.asOutParam());
+                    if (SUCCEEDED(rc))
+                    {
+                        BOOL fEnabled;
+                        rc = UsbCtl->COMGETTER(Enabled)(&fEnabled);
+                        if (FAILED(rc))
+                            fEnabled = false;
+                        if (!fEnabled)
+                            CHECK_ERROR(UsbCtl, COMSETTER(Enabled)(true));
+                    }
+                }
+                break;
+            }
+
             case MODIFYVM_UARTMODE:
             {
                 ComPtr<ISerialPort> uart;
                 char *pszIRQ = NULL;
-
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > SerialPortCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid Serial Port number in '%s'",
-                                       GetOptState.pDef->pszLong);
 
                 CHECK_ERROR_BREAK(machine, GetSerialPort(GetOptState.uIndex - 1, uart.asOutParam()));
                 ASSERT(uart);
@@ -1326,11 +1673,6 @@ int handleModifyVM(HandlerArg *a)
             {
                 ComPtr<ISerialPort> uart;
 
-                if ((GetOptState.uIndex < 1) && (GetOptState.uIndex > SerialPortCount))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid Serial Port number in '%s'",
-                                       GetOptState.pDef->pszLong);
-
                 CHECK_ERROR_BREAK(machine, GetSerialPort(GetOptState.uIndex - 1, uart.asOutParam()));
                 ASSERT(uart);
 
@@ -1359,19 +1701,11 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_GUESTSTATISTICSINTERVAL:
-            {
-                CHECK_ERROR(machine, COMSETTER(StatisticsUpdateInterval)(ValueUnion.u32));
-                break;
-            }
-
-#ifdef VBOX_WITH_MEM_BALLOONING
             case MODIFYVM_GUESTMEMORYBALLOON:
             {
                 CHECK_ERROR(machine, COMSETTER(MemoryBalloonSize)(ValueUnion.u32));
                 break;
             }
-#endif
 
             case MODIFYVM_AUDIOCONTROLLER:
             {
@@ -1444,6 +1778,20 @@ int handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 #endif /* !RT_OS_SOLARIS */
+#ifdef RT_OS_FREEBSD
+                else if (!strcmp(ValueUnion.psz, "oss"))
+                {
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_OSS));
+                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
+                }
+# ifdef VBOX_WITH_PULSE
+                else if (!strcmp(ValueUnion.psz, "pulse"))
+                {
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_Pulse));
+                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
+                }
+# endif
+#endif /* !RT_OS_FREEBSD */
 #ifdef RT_OS_DARWIN
                 else if (!strcmp(ValueUnion.psz, "coreaudio"))
                 {
@@ -1563,6 +1911,26 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_VRDPVIDEOCHANNEL:
+            {
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                CHECK_ERROR(vrdpServer, COMSETTER(VideoChannel)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_VRDPVIDEOCHANNELQUALITY:
+            {
+                ComPtr<IVRDPServer> vrdpServer;
+                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+                ASSERT(vrdpServer);
+
+                CHECK_ERROR(vrdpServer, COMSETTER(VideoChannelQuality)(ValueUnion.u32));
+                break;
+            }
+
             case MODIFYVM_VRDP:
             {
                 ComPtr<IVRDPServer> vrdpServer;
@@ -1628,6 +1996,30 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_HARDWARE_UUID:
             {
                 CHECK_ERROR(machine, COMSETTER(HardwareUUID)(Bstr(ValueUnion.psz)));
+                break;
+            }
+
+            case MODIFYVM_HPET:
+            {
+                CHECK_ERROR(machine, COMSETTER(HpetEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_IOCACHE:
+            {
+                CHECK_ERROR(machine, COMSETTER(IoCacheEnabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_IOCACHESIZE:
+            {
+                CHECK_ERROR(machine, COMSETTER(IoCacheSize)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_IOBANDWIDTHMAX:
+            {
+                CHECK_ERROR(machine, COMSETTER(IoBandwidthMax)(ValueUnion.u32));
                 break;
             }
 

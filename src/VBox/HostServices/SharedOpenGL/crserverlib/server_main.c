@@ -14,6 +14,7 @@
 #include "cr_hash.h"
 #include "server_dispatch.h"
 #include "state/cr_texture.h"
+#include "render/renderspu.h"
 #include <signal.h>
 #include <stdlib.h>
 #define DEBUG_FP_EXCEPTIONS 0
@@ -24,7 +25,7 @@
 #include <iprt/assert.h>
 
 /**
- * \mainpage CrServerLib 
+ * \mainpage CrServerLib
  *
  * \section CrServerLibIntroduction Introduction
  *
@@ -89,7 +90,7 @@ static void crServerTearDown( void )
     /* Deallocate all semaphores */
     crFreeHashtable(cr_server.semaphores, crFree);
     cr_server.semaphores = NULL;
- 
+
     /* Deallocate all barriers */
     crFreeHashtable(cr_server.barriers, DeleteBarrierCallback);
     cr_server.barriers = NULL;
@@ -327,7 +328,7 @@ int32_t crVBoxServerAddClient(uint32_t u32ClientID)
         return VERR_MAX_THRDS_REACHED;
     }
 
-    newClient = (CRClient *) crCalloc(sizeof(CRClient));    
+    newClient = (CRClient *) crCalloc(sizeof(CRClient));
     crDebug("crServer: AddClient u32ClientID=%d", u32ClientID);
 
     newClient->spu_id = 0;
@@ -354,8 +355,8 @@ void crVBoxServerRemoveClient(uint32_t u32ClientID)
 
     for (i = 0; i < cr_server.numClients; i++)
     {
-        if (cr_server.clients[i] && cr_server.clients[i]->conn 
-            && cr_server.clients[i]->conn->u32ClientID==u32ClientID) 
+        if (cr_server.clients[i] && cr_server.clients[i]->conn
+            && cr_server.clients[i]->conn->u32ClientID==u32ClientID)
         {
             break;
         }
@@ -379,8 +380,8 @@ int32_t crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t
 
     for (i = 0; i < cr_server.numClients; i++)
     {
-        if (cr_server.clients[i] && cr_server.clients[i]->conn 
-            && cr_server.clients[i]->conn->u32ClientID==u32ClientID) 
+        if (cr_server.clients[i] && cr_server.clients[i]->conn
+            && cr_server.clients[i]->conn->u32ClientID==u32ClientID)
         {
             break;
         }
@@ -402,11 +403,11 @@ int32_t crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t
         crDebug("crServer: client %d blocked, allow_redir_ptr = 0", u32ClientID);
         pClient->conn->allow_redir_ptr = 0;
     }
-    else    
+    else
     {
         pClient->conn->allow_redir_ptr = 1;
     }
-    
+
     pClient->conn->pBuffer = pBuffer;
     pClient->conn->cbBuffer = cbBuffer;
 
@@ -458,8 +459,8 @@ int32_t crVBoxServerClientRead(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t 
 
     for (i = 0; i < cr_server.numClients; i++)
     {
-        if (cr_server.clients[i] && cr_server.clients[i]->conn 
-            && cr_server.clients[i]->conn->u32ClientID==u32ClientID) 
+        if (cr_server.clients[i] && cr_server.clients[i]->conn
+            && cr_server.clients[i]->conn->u32ClientID==u32ClientID)
         {
             break;
         }
@@ -489,7 +490,7 @@ int32_t crVBoxServerClientRead(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t 
         crMemcpy(pBuffer, pClient->conn->pHostBuffer, *pcbBuffer);
         pClient->conn->cbHostBuffer = 0;
     }
-    
+
     return VINF_SUCCESS;
 }
 
@@ -500,8 +501,8 @@ int32_t crVBoxServerClientSetVersion(uint32_t u32ClientID, uint32_t vMajor, uint
 
     for (i = 0; i < cr_server.numClients; i++)
     {
-        if (cr_server.clients[i] && cr_server.clients[i]->conn 
-            && cr_server.clients[i]->conn->u32ClientID==u32ClientID) 
+        if (cr_server.clients[i] && cr_server.clients[i]->conn
+            && cr_server.clients[i]->conn->u32ClientID==u32ClientID)
         {
             break;
         }
@@ -550,6 +551,11 @@ static void crVBoxServerSaveMuralCB(unsigned long key, void *data1, void *data2)
 
     rc = SSMR3PutMem(pSSM, pMI, sizeof(*pMI));
     CRASSERT(rc == VINF_SUCCESS);
+
+    if (pMI->pVisibleRects)
+    {
+        rc = SSMR3PutMem(pSSM, pMI->pVisibleRects, 4*sizeof(GLint)*pMI->cVisibleRects);
+    }
 }
 
 /* @todo add hashtable walker with result info and intermediate abort */
@@ -596,7 +602,7 @@ static void crVBoxServerSaveContextStateCB(unsigned long key, void *data1, void 
      */
     rc = SSMR3PutMem(pSSM, &key, sizeof(key));
     CRASSERT(rc == VINF_SUCCESS);
-    
+
 #ifdef CR_STATE_NO_TEXTURE_IMAGE_STORE
     if (cr_server.curClient)
     {
@@ -670,9 +676,9 @@ DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM)
 #endif
 
     /* Save contexts state tracker data */
-    /* @todo For now just some blind data dumps, 
+    /* @todo For now just some blind data dumps,
      * but I've a feeling those should be saved/restored in a very strict sequence to
-     * allow diff_api to work correctly. 
+     * allow diff_api to work correctly.
      * Should be tested more with multiply guest opengl apps working when saving VM snapshot.
      */
     crHashtableWalk(cr_server.contextTable, crVBoxServerSaveContextStateCB, pSSM);
@@ -693,7 +699,7 @@ DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM)
 
     /* Save cr_server.muralTable
      * @todo we don't need it all, just geometry info actually
-     * @todo store visible regions as well 
+     * @todo store visible regions as well
      */
     ui32 = crHashtableNumElements(cr_server.muralTable);
     /* There should be default mural always */
@@ -709,7 +715,7 @@ DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM)
     /* Save clients info */
     for (i = 0; i < cr_server.numClients; i++)
     {
-        if (cr_server.clients[i] && cr_server.clients[i]->conn) 
+        if (cr_server.clients[i] && cr_server.clients[i]->conn)
         {
             CRClient *pClient = cr_server.clients[i];
 
@@ -810,7 +816,7 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
 
         rc = crStateLoadContext(pContext, pSSM);
         AssertRCReturn(rc, rc);
-    }    
+    }
 
     /* Load windows */
     rc = SSMR3GetU32(pSSM, &uiNumElems);
@@ -850,9 +856,32 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
         rc = SSMR3GetMem(pSSM, &muralInfo, sizeof(muralInfo));
         AssertRCReturn(rc, rc);
 
+        if (muralInfo.pVisibleRects)
+        {
+            muralInfo.pVisibleRects = crAlloc(4*sizeof(GLint)*muralInfo.cVisibleRects);
+            if (!muralInfo.pVisibleRects)
+            {
+                return VERR_NO_MEMORY;
+            }
+
+            rc = SSMR3GetMem(pSSM, muralInfo.pVisibleRects, 4*sizeof(GLint)*muralInfo.cVisibleRects);
+            AssertRCReturn(rc, rc);
+        }
+
         /* Restore windows geometry info */
-        crServerDispatchWindowSize(key, muralInfo.underlyingDisplay[2], muralInfo.underlyingDisplay[3]);
-        crServerDispatchWindowPosition(key, muralInfo.underlyingDisplay[0], muralInfo.underlyingDisplay[1]);
+        crServerDispatchWindowSize(key, muralInfo.width, muralInfo.height);
+        crServerDispatchWindowPosition(key, muralInfo.gX, muralInfo.gY);
+        /* Same workaround as described in stub.c:stubUpdateWindowVisibileRegions for compiz on a freshly booted VM*/
+        if (muralInfo.cVisibleRects)
+        {
+            crServerDispatchWindowVisibleRegion(key, muralInfo.cVisibleRects, muralInfo.pVisibleRects);
+        }
+        crServerDispatchWindowShow(key, muralInfo.bVisible);
+
+        if (muralInfo.pVisibleRects)
+        {
+            crFree(muralInfo.pVisibleRects);
+        }
     }
 
     /* Load starting free context and window IDs */
@@ -862,7 +891,7 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
     /* Load clients info */
     for (i = 0; i < cr_server.numClients; i++)
     {
-        if (cr_server.clients[i] && cr_server.clients[i]->conn) 
+        if (cr_server.clients[i] && cr_server.clients[i]->conn)
         {
             CRClient *pClient = cr_server.clients[i];
             CRClient client;
@@ -953,7 +982,7 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
 
             cr_server.head_spu->dispatch_table.Enable(GL_CULL_FACE);
             cr_server.head_spu->dispatch_table.Enable(GL_TEXTURE_2D);*/
-            
+
             //crStateViewport( 0, 0, 600, 600 );
             //pClient->currentMural->viewportValidated = GL_FALSE;
             //cr_server.head_spu->dispatch_table.Viewport( 0, 0, 600, 600 );
@@ -1002,3 +1031,136 @@ DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version)
     return VINF_SUCCESS;
 }
 
+#define SCREEN(i) (cr_server.screen[i])
+#define MAPPED(screen) ((screen).winID != 0)
+
+static void crVBoxServerReparentMuralCB(unsigned long key, void *data1, void *data2)
+{
+    CRMuralInfo *pMI = (CRMuralInfo*) data1;
+    int *sIndex = (int*) data2;
+
+    if (pMI->screenId == *sIndex)
+    {
+        renderspuReparentWindow(pMI->spuWindow);
+    }
+}
+
+static void crVBoxServerCheckMuralCB(unsigned long key, void *data1, void *data2)
+{
+    CRMuralInfo *pMI = (CRMuralInfo*) data1;
+    (void) data2;
+
+    crServerCheckMuralGeometry(pMI);
+}
+
+DECLEXPORT(int32_t) crVBoxServerSetScreenCount(int sCount)
+{
+    int i;
+
+    if (sCount>CR_MAX_GUEST_MONITORS)
+        return VERR_INVALID_PARAMETER;
+
+    /*Shouldn't happen yet, but to be safe in future*/
+    for (i=0; i<cr_server.screenCount; ++i)
+    {
+        if (MAPPED(SCREEN(i)))
+            crWarning("Screen count is changing, but screen[%i] is still mapped", i);
+        return VERR_NOT_IMPLEMENTED;
+    }
+
+    cr_server.screenCount = sCount;
+
+    for (i=0; i<sCount; ++i)
+    {
+        SCREEN(i).winID = 0;
+    }
+
+    return VINF_SUCCESS;
+}
+
+DECLEXPORT(int32_t) crVBoxServerUnmapScreen(int sIndex)
+{
+    if (sIndex<0 || sIndex>=cr_server.screenCount)
+        return VERR_INVALID_PARAMETER;
+
+    if (MAPPED(SCREEN(sIndex)))
+    {
+        SCREEN(sIndex).winID = 0;
+        renderspuSetWindowId(0);
+
+        crHashtableWalk(cr_server.muralTable, crVBoxServerReparentMuralCB, &sIndex);
+    }
+
+    renderspuSetWindowId(SCREEN(0).winID);
+    return VINF_SUCCESS;
+}
+
+DECLEXPORT(int32_t) crVBoxServerMapScreen(int sIndex, int32_t x, int32_t y, uint32_t w, uint32_t h, uint64_t winID)
+{
+    crDebug("crVBoxServerMapScreen(%i) [%i,%i:%u,%u]", sIndex, x, y, w, h);
+
+    if (sIndex<0 || sIndex>=cr_server.screenCount)
+        return VERR_INVALID_PARAMETER;
+
+    if (MAPPED(SCREEN(sIndex)) && SCREEN(sIndex).winID!=winID)
+    {
+        crWarning("Mapped screen[%i] is being remapped.", sIndex);
+        crVBoxServerUnmapScreen(sIndex);
+    }
+
+    SCREEN(sIndex).winID = winID;
+    SCREEN(sIndex).x = x;
+    SCREEN(sIndex).y = y;
+    SCREEN(sIndex).w = w;
+    SCREEN(sIndex).h = h;
+
+    renderspuSetWindowId(SCREEN(sIndex).winID);
+    crHashtableWalk(cr_server.muralTable, crVBoxServerReparentMuralCB, &sIndex);
+    renderspuSetWindowId(SCREEN(0).winID);
+
+    crHashtableWalk(cr_server.muralTable, crVBoxServerCheckMuralCB, NULL);
+
+#ifndef WINDOWS
+    /*Restore FB content for clients, which have current window on a screen being remapped*/
+    {
+        GLint i;
+
+        for (i = 0; i < cr_server.numClients; i++)
+        {
+            cr_server.curClient = cr_server.clients[i];
+            if (cr_server.curClient->currentCtx
+                && cr_server.curClient->currentCtx->pImage
+                && cr_server.curClient->currentMural
+                && cr_server.curClient->currentMural->screenId == sIndex
+                && cr_server.curClient->currentCtx->viewport.viewportH == h
+                && cr_server.curClient->currentCtx->viewport.viewportW == w)
+            {
+                int clientWindow = cr_server.curClient->currentWindow;
+                int clientContext = cr_server.curClient->currentContextNumber;
+
+                if (clientWindow && clientWindow != cr_server.currentWindow)
+                {
+                    crServerDispatchMakeCurrent(clientWindow, 0, clientContext);
+                }
+
+                crStateApplyFBImage(cr_server.curClient->currentCtx);
+            }
+        }
+        cr_server.curClient = NULL;
+    }
+#endif
+
+    return VINF_SUCCESS;
+}
+
+DECLEXPORT(int32_t) crVBoxServerSetRootVisibleRegion(GLint cRects, GLint *pRects)
+{
+    renderspuSetRootVisibleRegion(cRects, pRects);
+
+    return VINF_SUCCESS;
+}
+
+DECLEXPORT(void) crVBoxServerSetPresentFBOCB(PFNCRSERVERPRESENTFBO pfnPresentFBO)
+{
+    cr_server.pfnPresentFBO = pfnPresentFBO;
+}

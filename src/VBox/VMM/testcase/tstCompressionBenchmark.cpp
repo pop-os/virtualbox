@@ -1,10 +1,10 @@
-/* $Id: tstCompressionBenchmark.cpp $ */
+/* $Id: tstCompressionBenchmark.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Compression Benchmark for SSM and PGM.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -25,6 +21,7 @@
 *******************************************************************************/
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/buildconfig.h>
 #include <iprt/crc.h>
 #include <iprt/ctype.h>
 #include <iprt/err.h>
@@ -247,7 +244,6 @@ int main(int argc, char **argv)
         { "--page-at-a-time", 'c', RTGETOPT_REQ_UINT32 },
         { "--page-file",      'f', RTGETOPT_REQ_STRING },
         { "--offset",         'o', RTGETOPT_REQ_UINT64 },
-        { "--help",           'h', RTGETOPT_REQ_NOTHING },
     };
 
     const char     *pszPageFile = NULL;
@@ -314,23 +310,12 @@ int main(int argc, char **argv)
                          "    Offset into the page file to start reading at.\n");
                 return 0;
 
+            case 'V':
+                RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
+                return 0;
+
             default:
-                if (rc == VINF_GETOPT_NOT_OPTION)
-                    Error("unknown argument: %s\n", Val.psz);
-                else if (rc > 0)
-                {
-                    if (RT_C_IS_GRAPH(rc))
-                        Error("unhandled option: -%c\n", rc);
-                    else
-                        Error("unhandled option: %d\n", rc);
-                }
-                else if (rc == VERR_GETOPT_UNKNOWN_OPTION)
-                    Error("unknown option: %s\n", Val.psz);
-                else if (Val.pDef)
-                    Error("%s: %Rrs\n", Val.pDef->pszLong, rc);
-                else
-                    Error("%Rrs\n", rc);
-                return 1;
+                return RTGetOptPrintError(rc, &Val);
         }
     }
 

@@ -1,10 +1,10 @@
-/* $Id: DHCPServerRunner.h $ */
+/* $Id: DHCPServerRunner.h 29158 2010-05-06 14:06:46Z vboxsync $ */
 /** @file
  * VirtualBox Main - interface for VBox DHCP server
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 #include <iprt/err.h>
 #include <iprt/types.h>
@@ -62,18 +58,7 @@ public:
         if(isRunning())
             return VERR_INVALID_STATE;
 
-#ifdef RT_OS_WINDOWS
-        if (val && *val)
-        {
-            mOptions[opt] = "\"";
-            mOptions[opt].append(val);
-            mOptions[opt].append("\"");
-        }
-        else
-#endif
-        {
-            mOptions[opt] = val;
-        }
+        mOptions[opt] = val;
         mOptionEnabled[opt] = enabled;
         return VINF_SUCCESS;
     }

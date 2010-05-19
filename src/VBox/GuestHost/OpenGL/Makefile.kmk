@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest/Host OpenGL part
 #
 
 #
-# Copyright (C) 2008 Sun Microsystems, Inc.
+# Copyright (C) 2008 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -46,7 +42,7 @@ endif
 VBoxOGLcrutil_TEMPLATE      = VBOXCROGLR3GUESTDLL
 VBoxOGLcrutil_SDKS.win      = DXSDK
 VBoxOGLcrutil_INTERMEDIATES = $(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLcrutil_INCS += \
 	$(VBOX_MESA_INCS)
 endif
@@ -123,7 +119,7 @@ $(VBOX_PATH_CROGL_GENFILES)/debug_opcodes.c: $(PATH_SUB_CURRENT)/util/debug_opco
 VBoxOGLcrpacker_TEMPLATE = VBOXCROGLR3GUESTLIB
 VBoxOGLcrpacker_INCS = \
 	packer
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLcrpacker_INCS += \
 	$(VBOX_MESA_INCS)
 endif
@@ -257,7 +253,7 @@ $(VBOX_PATH_CROGL_GENFILES)/%_swap.c: $(PATH_SUB_CURRENT)/packer/%.c $(PATH_SUB_
 VBoxOGLspuload_TEMPLATE = VBOXCROGLR3GUESTLIB
 VBoxOGLspuload_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLspuload_INCS += \
 	$(VBOX_MESA_INCS)
 endif
@@ -275,6 +271,7 @@ VBoxOGLspuload_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/dispatch.c \
 	$(VBOX_PATH_CROGL_GENFILES)/glloader.c \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
+
 
 #
 # VBoxOGLspuload
@@ -312,7 +309,7 @@ $(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h: $(PATH_SUB_CURRENT)/spu_loader
 VBoxOGLcrstate_TEMPLATE = VBOXCROGLR3GUESTLIB
 VBoxOGLcrstate_INCS = \
 	state_tracker
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLcrstate_INCS += \
 	$(VBOX_MESA_INCS)
 endif
@@ -479,7 +476,7 @@ $(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h: $(addprefix $(PATH_SUB_CURREN
 VBoxOGLerrorspu_TEMPLATE = VBOXCROGLR3GUESTDLL
 VBoxOGLerrorspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
-if1of ($(KBUILD_TARGET),linux solaris)
+if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLerrorspu_INCS += \
 	$(VBOX_MESA_INCS)
 endif

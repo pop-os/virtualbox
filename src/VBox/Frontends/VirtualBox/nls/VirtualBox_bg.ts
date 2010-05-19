@@ -24,9 +24,9 @@
         <translation>Bulgaria</translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Stoyan Marinov, Moyat.NET.</translation>
+        <translation>Stoyan Marinov, Moyat.NET</translation>
     </message>
 </context>
 <context>
@@ -393,6 +393,1154 @@
     </message>
 </context>
 <context>
+    <name>QIWizardPage</name>
+    <message>
+        <source>Use the &lt;b&gt;%1&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;%2&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;%3&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
+        <translation>Използвайте бутона &lt;b&gt;%1&lt;/b&gt;, за да отидете на следващата стъпка от помощника, и бутона &lt;b&gt;%2&lt;/b&gt;, за да се върнете на предишната. Също така, можете да натиснете &lt;b&gt;%3&lt;/b&gt;, ако искате да прекъснете изпълнението на този помощник.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloader</name>
+    <message>
+        <source>The download process has been cancelled by the user.</source>
+        <translation type="obsolete">Изтеглянето е прекъснато от потребителя.</translation>
+    </message>
+    <message>
+        <source>The download process has been canceled by the user.</source>
+        <translation>Изтеглянето е прекъснато от потребителя.</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderAdditions</name>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Отказ</translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="obsolete">Изтегляне на CD изображението VirtualBox Виртуални Добавки от &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel the VirtualBox Guest Additions CD image download</source>
+        <translation type="obsolete">Прекъсване изтеглянето на CD изображението VirtualBox Виртуални Добавки</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изтегленият файл не може да се запише като &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Select folder to save Guest Additions image to</source>
+        <translation>Изберете папка, в която да се запише изображението Виртуални Добавки</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderUserManual</name>
+    <message>
+        <source>Select folder to save User Manual to</source>
+        <translation>Изберете папка, в която да се запази Потребителското ръководство</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzd</name>
+    <message>
+        <source>Select a file to export into</source>
+        <translation type="obsolete">Изберете файл, към който да се изнесе</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation type="obsolete">Отворен Виртуализационен Формат (%1)</translation>
+    </message>
+    <message>
+        <source>Appliance</source>
+        <translation type="obsolete">Приспособление</translation>
+    </message>
+    <message>
+        <source>Exporting Appliance ...</source>
+        <translation type="obsolete">Изнасяне на приспособление ...</translation>
+    </message>
+    <message>
+        <source>Appliance Export Wizard</source>
+        <translation>Помощник за изнасяне на приспособление</translation>
+    </message>
+    <message>
+        <source>Welcome to the Appliance Export Wizard!</source>
+        <translation type="obsolete">Добре дошли в помощника за изнасяне на приспособление!</translation>
+    </message>
+    <message>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that you wish to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="obsolete">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Този помощник ще ви води през процеса на изнасяне на приспособление. &lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Използвайте бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Напред&lt;/span&gt;, за да отидете към следващата страница на помощника, и бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Назад&lt;/span&gt;, за да се върнете към предишната страница.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Моля, изберете виртуалните машини, които ще бъдат изнесени към приспособлението. Можете да изберете и повече от една. Моля, имайте в предвид, че тези машини трябва да бъдат изключени преди да бъдат изнесени.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; &amp;Назад</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">&amp;Напред &gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Отказ</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation type="obsolete">Настройки за изнасяне на приспособление</translation>
+    </message>
+    <message>
+        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
+        <translation type="obsolete">Тук можете да промените допълнителните конфигурационни стойности на избраните виртуални машини. Можете да промените повечето от показаните опции чрез двойно щракване върху елементите.</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Възстановяване по подразбиране</translation>
+    </message>
+    <message>
+        <source>Please specify a filename into which the appliance information will be written. Currently VirtualBox supports the Open Virtualization Format (OVF).</source>
+        <translation type="obsolete">Моля, укажете име на файла, в който информацията за приспособлението ще бъде записана. За момента VirtualBox поддържа Отворения Виртуализационен Формат (OVF).</translation>
+    </message>
+    <message>
+        <source>&amp;Export &gt;</source>
+        <translation type="obsolete">&amp;Изнасяне &gt;</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation type="obsolete">Записване в остарелия формат OVF 0.9 за съвместимост с други виртуализационни продукти.</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation type="obsolete">&amp;Запис в остарял OVF 0.9</translation>
+    </message>
+    <message>
+        <source>Please choose a filename to export the OVF to.</source>
+        <translation type="obsolete">Моля, изберете име на OVF файла за изнасяне.</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
+        <translation type="obsolete">Моля, попълнете допълнителните полета като потребителско име, парола и кошница. Накрая е нужно да укажете име за OVF файла.</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
+        <translation type="obsolete">Моля, попълнете допълнителните полета като потребителско име, парола, име на хоста и кошница. Накрая е нужно да укажете име за OVF файла.</translation>
+    </message>
+    <message>
+        <source>Checking files ...</source>
+        <translation type="obsolete">Проверка на файлове ...</translation>
+    </message>
+    <message>
+        <source>Removing files ...</source>
+        <translation type="obsolete">Премахване на файлове ...</translation>
+    </message>
+    <message>
+        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
+        <translation type="obsolete">Моля, укажете местоположение за изнасяне към OVF. Имате избор между изнасяне към локалната файлова система, качване на OVF към услугата Sun Cloud или S3 сървър за съхранение.</translation>
+    </message>
+    <message>
+        <source>&amp;Local Filesystem </source>
+        <translation type="obsolete">&amp;Локална файлова система</translation>
+    </message>
+    <message>
+        <source>Sun &amp;Cloud</source>
+        <translation type="obsolete">Sun &amp;Cloud</translation>
+    </message>
+    <message>
+        <source>&amp;Simple Storage System (S3)</source>
+        <translation type="obsolete">&amp;Проста система за съхранение (S3)</translation>
+    </message>
+    <message>
+        <source>&amp;Username:</source>
+        <translation type="obsolete">&amp;Потребител:</translation>
+    </message>
+    <message>
+        <source>&amp;Password:</source>
+        <translation type="obsolete">П&amp;арола:</translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation type="obsolete">&amp;Файл:</translation>
+    </message>
+    <message>
+        <source>&amp;Bucket:</source>
+        <translation type="obsolete">&amp;Кошница:</translation>
+    </message>
+    <message>
+        <source>&amp;Hostname:</source>
+        <translation type="obsolete">&amp;Име на хоста:</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage1</name>
+    <message>
+        <source>Welcome to the Appliance Export Wizard!</source>
+        <translation>Добре дошли в помощника за изнасяне на приспособление!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through the process of exporting an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Този помощник ще ви води през процеса на изнасяне на приспособление.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Моля, изберете виртуалните машини, които ще бъдат добавени към приспособлението. Можете да изберете повече от една. Имайте в предвид, че тези машини трябва да бъдат изключени преди да бъде възможно изнасянето им.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage2</name>
+    <message>
+        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
+        <translation>Тук можете да промените допълнителните конфигурационни стойности на избраните виртуални машини. Можете да промените повечето от показаните опции чрез двойно щракване върху елементите.</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation>Настройки за изнасяне на приспособление</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage3</name>
+    <message>
+        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
+        <translation>Моля, укажете местоположение за изнасяне към OVF. Имате избор между изнасяне към локалната файлова система, качване на OVF към услугата Sun Cloud или S3 сървър за съхранение.</translation>
+    </message>
+    <message>
+        <source>&amp;Local Filesystem </source>
+        <translation>&amp;Локална файлова система </translation>
+    </message>
+    <message>
+        <source>Sun &amp;Cloud</source>
+        <translation>Sun &amp;Cloud</translation>
+    </message>
+    <message>
+        <source>&amp;Simple Storage System (S3)</source>
+        <translation>&amp;Проста система за съхранение (S3)</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation>Настройки за изнасяне на приспособление</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage4</name>
+    <message>
+        <source>&amp;Username:</source>
+        <translation>&amp;Потребител:</translation>
+    </message>
+    <message>
+        <source>&amp;Password:</source>
+        <translation>П&amp;арола:</translation>
+    </message>
+    <message>
+        <source>&amp;Hostname:</source>
+        <translation>&amp;Име на хоста:</translation>
+    </message>
+    <message>
+        <source>&amp;Bucket:</source>
+        <translation>&amp;Кошница:</translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation>&amp;Файл:</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation>Записване в остарелия формат OVF 0.9 за съвместимост с други виртуализационни продукти.</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation>&amp;Запис в остарял OVF 0.9</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation>Настройки за изнасяне на приспособление</translation>
+    </message>
+    <message>
+        <source>Appliance</source>
+        <translation>Приспособление</translation>
+    </message>
+    <message>
+        <source>Select a file to export into</source>
+        <translation>Изберете файл, към който да се изнесе</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation>Отворен Виртуализационен Формат (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a filename to export the OVF to.</source>
+        <translation>Моля, изберете име на OVF файла за изнасяне.</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
+        <translation>Моля, попълнете допълнителните полета като потребителско име, парола и кошница, и укажете име за OVF файла.</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
+        <translation>Моля, попълнете допълнителните полета като потребителско име, парола, име на хоста и кошница, и укажете име за OVF файла.</translation>
+    </message>
+    <message>
+        <source>Checking files ...</source>
+        <translation>Проверка на файлове ...</translation>
+    </message>
+    <message>
+        <source>Removing files ...</source>
+        <translation>Премахване на файлове ...</translation>
+    </message>
+    <message>
+        <source>Exporting Appliance ...</source>
+        <translation>Изнасяне на приспособление ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzd</name>
+    <message>
+        <source>First Run Wizard</source>
+        <translation>Помощник за първо включване</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Стартирали сте новосъздадена виртуална машина за пръв път. Този помощник ще ви помогне да завършите стъпките, необходими за инсталирането на операционна система според вашия избор на тази виртуална машина.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница. Също така, можете да натиснете бутона &lt;b&gt;Отказ&lt;/b&gt;, ако искате да откажете изпълнението на този помощник.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Welcome to the First Run Wizard!</source>
+        <translation type="obsolete">Добре дошли в помощника за първо включване!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the type of media you would like to use for installation.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;По-долу изберете типа на диска, който искате да използвате за целите на инсталацията.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Media Type</source>
+        <translation type="obsolete">Тип на диска</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD-ROM Device</source>
+        <translation type="obsolete">&amp;CD/DVD-ROM устройство</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Device</source>
+        <translation type="obsolete">&amp;Флопи устройство</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете диска, който съдържа инсталационната програма на операционната система, която искате да инсталирате. Този диск трябва да бъде зареждащ, в противен случай инсталационната програма няма да може да се включи.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Media Source</source>
+        <translation type="obsolete">Източник на диска</translation>
+    </message>
+    <message>
+        <source>&amp;Host Drive</source>
+        <translation type="obsolete">&amp;Реално устройство</translation>
+    </message>
+    <message>
+        <source>&amp;Image File</source>
+        <translation type="obsolete">&amp;Файл с изображение</translation>
+    </message>
+    <message>
+        <source>Select Installation Media</source>
+        <translation type="obsolete">Изберете инсталационен диск</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Избрахте зареждане от следния диск:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Обобщение</translation>
+    </message>
+    <message>
+        <source>CD/DVD-ROM Device</source>
+        <translation type="obsolete">CD/DVD-ROM устройство</translation>
+    </message>
+    <message>
+        <source>Floppy Device</source>
+        <translation type="obsolete">Флопи устройство</translation>
+    </message>
+    <message>
+        <source>Host Drive %1</source>
+        <translation type="obsolete">Реално устройство %1</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Стартирали сте новосъздадена виртуална машина за пръв път. Този помощник ще ви помогне да завършите стъпките, необходими за зареждането на операционна система според вашия избор на виртуалната машина.&lt;/p&gt;&lt;p&gt;Имайте в предвид, че няма да можете да инсталирате операционна система на тази виртуална машина в момента, тъй като не сте закачили твърд диск към нея. Ако това не е, което искате, можете да откажете изпълнението на този помощник, да изберете &lt;b&gt;Настройки&lt;/b&gt; от менюто &lt;b&gt;Машина&lt;/b&gt; от основния прозорец на VirtualBox, за да достъпите диалога с настройки на тази виртуална машина, и да промените конфигурацията на твърдия диск.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница. Също така, можете да натиснете бутона &lt;b&gt;Отказ&lt;/b&gt;, ако искате да откажете изпълнението на този помощник.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the type of media you would like to use for booting an operating system.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете типа на диска, който искате да използвате за зареждане на операционна система.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете диска, който съдържа операционната система, с която искате да работите. Този диск трябва да бъде зареждащ, в противен случай операционната система няма да може да се включи.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Избрали сте следния диск, от който да заредите операционна система:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ако информацията по-горе е вярна, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, избраният диск ще бъде монтиран във виртуалната машина и машината ще започне изпълнение.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; &amp;Назад</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">&amp;Напред &gt;</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the above is correct, press the &lt;span style=&quot; font-weight:600;&quot;&gt;Finish&lt;/span&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;span style=&quot; font-weight:600;&quot;&gt;Unmount...&lt;/span&gt; action in the &lt;span style=&quot; font-weight:600;&quot;&gt;Devices&lt;/span&gt; menu&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="obsolete">&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Ако информацията по-горе е вярна, натиснете бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Край&lt;/span&gt; . След като го натиснете, избраният диск ще бъде временно монтиран във виртуалната машина и машината ще започне изпълнение.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Моля, имайте предвид, че когато затворите виртуалната машина, указаният диск ще бъде автоматично демонтиран и зареждащото устройство ще бъде зададено отново до първия твърд диск.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;В зависимост от вида на инсталационната програма може да се наложи ръчно да демонтирате (извадите) диска, след като инсталационната програма рестартира виртуалната машина, за да попречите на инсталационния процес да стартира отново. Можете да направите това чрез избиране на съответното действие &lt;span style=&quot; font-weight:600;&quot;&gt;Демонтиране...&lt;/span&gt; в менюто &lt;span style=&quot; font-weight:600;&quot;&gt;Устройства&lt;/span&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation type="obsolete">&amp;Край</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Тип</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Източник</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Отказ</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ако по-горното е вярно, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, избраният диск ще бъде временно монтиран във виртуалната машина и машината ще се включи.&lt;/p&gt;&lt;p&gt;Моля, имайте в предвид, че когато затворите виртуалната машина, избраният диск ще бъде демонтиран автоматично и зареждащото устройство ще бъде зададено отново към първия твърд диск.&lt;/p&gt;&lt;p&gt;В зависимост от вида на инсталиращата програма, може да се наложи ръчно да демонтирате (извадите) диска, след като инсталиращата програма рестартира виртуалната машина, за да избегнете ново стартиране на инсталиращата програма. Можете да направите това чрез избиране на съответното &lt;b&gt;Демонтиране...&lt;/b&gt; действие в менюто &lt;b&gt;Устройства&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzdPage1</name>
+    <message>
+        <source>Welcome to the First Run Wizard!</source>
+        <translation>Добре дошли в помощника за първо включване!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Включили сте новосъздадена виртуална машина за първи път. Този помощник ще ви помогне да изпълните стъпките по инсталиране на операционна система по ваш избор в тази виртуална машина.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Включили сте новосъздадена виртуална машина за първи път. Този помощник ще ви помогне да изпълните стъпките, необходими за зареждането на операционна система по ваш избор във виртуалната машина.&lt;/p&gt;&lt;p&gt;Забележете, че няма да можете да инсталирате операционна система в тази виртуална машина в този момент, тъй като не сте закачили твърд диск към нея. Ако това не е вашето желание, можете да прекъснете изпълнението на помощника, да изберете &lt;b&gt;Настройки&lt;/b&gt; от менюто &lt;b&gt;Машина&lt;/b&gt;, намиращо се в основния прозорец на VirtualBox, за да отворите прозореца с настройки за тази машина, и да промените конфигурацията на твърдите дискове.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изберете диска, който съдържа инсталационната програма на операционната система, която искате да инсталирате. Този диск трябва да бъде зареждащ, в противен случай инсталационната програма няма да може да се включи.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изберете диска, който съдържа операционната система, с която искате да работите. Този диск трябва да бъде зареждащ, в противен случай операционната система няма да може да се включи.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Media Source</source>
+        <translation>Източник на диска</translation>
+    </message>
+    <message>
+        <source>Select Installation Media</source>
+        <translation>Изберете инсталационен диск</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Избрахте зареждане от следния диск:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Избрали сте следния диск, от който да заредите операционна система:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Ако по-горното е вярно, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, избраният диск ще бъде временно монтиран във виртуалната машина и машината ще се включи.&lt;/p&gt;&lt;p&gt;Моля, имайте в предвид, че когато затворите виртуалната машина, избраният диск ще бъде демонтиран автоматично и зареждащото устройство ще бъде зададено отново към първия твърд диск.&lt;/p&gt;&lt;p&gt;В зависимост от вида на инсталиращата програма, може да се наложи ръчно да демонтирате (извадите) диска, след като инсталиращата програма рестартира виртуалната машина, за да избегнете ново стартиране на инсталиращата програма. Можете да направите това чрез избиране на съответното &lt;b&gt;Демонтиране...&lt;/b&gt; действие в менюто &lt;b&gt;Устройства&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Ако информацията по-горе е вярна, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, избраният диск ще бъде монтиран във виртуалната машина и машината ще започне изпълнение.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation>Обобщение</translation>
+    </message>
+    <message>
+        <source>CD/DVD-ROM Device</source>
+        <translation>CD/DVD-ROM устройство</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation>Тип</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <comment>summary</comment>
+        <translation>Източник</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportApplianceWzd</name>
+    <message>
+        <source>Select an appliance to import</source>
+        <translation type="obsolete">Изберете приспособление за внасяне</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation type="obsolete">Отворен Виртуализационен Формат (%1)</translation>
+    </message>
+    <message>
+        <source>Appliance Import Wizard</source>
+        <translation>Помощник за внасяне на приспособление</translation>
+    </message>
+    <message>
+        <source>Welcome to the Appliance Import Wizard!</source>
+        <translation type="obsolete">Добре дошли в помощника за внасяне на приспособление!</translation>
+    </message>
+    <message>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through importing an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="obsolete">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Този помощник ще ви води през процеса на внасяне на приспособление. &lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Използвайте бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Напред&lt;/span&gt;, за да отидете към следващата страница на помощника, и бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Назад&lt;/span&gt;, за да се върнете към предишната страница.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Като начало, за да внесете приспособление, трябва първо да изберете файл, описващ приспособлението. За момента VirtualBox поддържа Отворения Виртуализационен Формат (OVF). За да продължите, изберете по-долу файл за внасяне:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; &amp;Назад</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">&amp;Напред &gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Отказ</translation>
+    </message>
+    <message>
+        <source>Appliance Import Settings</source>
+        <translation type="obsolete">Настройки за внасяне на приспособление</translation>
+    </message>
+    <message>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation type="obsolete">Това са виртуалните машини, както са описани в приспособлението с техните предложени указания за внасяне във VirtualBox. Можете да промените много от показаните опции чрез двойно щракване върху елементите, и да забраните другите като използвате кутийките за отметки по-долу.</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Възстановяване по подразбиране</translation>
+    </message>
+    <message>
+        <source>&amp;Import &gt;</source>
+        <translation type="obsolete">&amp;Внасяне &gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportApplianceWzdPage1</name>
+    <message>
+        <source>Select an appliance to import</source>
+        <translation>Изберете приспособление за внасяне</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation>Отворен Виртуализационен Формат (%1)</translation>
+    </message>
+    <message>
+        <source>Welcome to the Appliance Import Wizard!</source>
+        <translation>Добре дошли в помощника за внасяне на приспособление!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through importing an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Този помощник ще ви води през внасянето на приспособление.&lt;p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox текущо поддържа внасяне на приспособления, запазени в Отворения Виртуализационен Формат (OVF). За да продължите, изберете файл за внасяне по-долу:&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportApplianceWzdPage2</name>
+    <message>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation>Това са виртуалните машини, съдържащи се в приспособлението, и предложените настройки за внесените във VirtualBox машини. Можете да промените много от показаните опции чрез двойно щракване върху елементите, и да забраните другите като използвате кутийките за отметки по-долу.</translation>
+    </message>
+    <message>
+        <source>Appliance Import Settings</source>
+        <translation>Настройки за внасяне на приспособление</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportLicenseViewer</name>
+    <message>
+        <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
+        <translation>&lt;b&gt;Виртуалната система &quot;%1&quot; изисква да се съгласите с условията на договора на софтуерния лиценз, показани по-долу.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Натиснете &lt;b&gt;Съгласявам се&lt;/b&gt;, за да продължите, или натиснете &lt;b&gt;Не се съгласявам&lt;/b&gt;, за да откажете внасянето.</translation>
+    </message>
+    <message>
+        <source>Software License Agreement</source>
+        <translation>Договор на софтуерния лиценз</translation>
+    </message>
+    <message>
+        <source>&amp;Disagree</source>
+        <translation>&amp;Не се съгласявам</translation>
+    </message>
+    <message>
+        <source>&amp;Agree</source>
+        <translation>&amp;Съгласявам се</translation>
+    </message>
+    <message>
+        <source>&amp;Print...</source>
+        <translation>&amp;Отпечатване...</translation>
+    </message>
+    <message>
+        <source>&amp;Save...</source>
+        <translation>&amp;Запазване...</translation>
+    </message>
+    <message>
+        <source>Text (*.txt)</source>
+        <translation>Текст (*.txt)</translation>
+    </message>
+    <message>
+        <source>Save license to file...</source>
+        <translation>Запазване на лиценза във файл...</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineLogic</name>
+    <message>
+        <source>VirtualBox OSE</source>
+        <translation>VirtualBox OSE</translation>
+    </message>
+    <message>
+        <source> EXPERIMENTAL build %1r%2 - %3</source>
+        <translation>ЕКСПЕРИМЕНТАЛНО издание %1r%2 - %3</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProcessWidgetAdditions</name>
+    <message>
+        <source>Cancel</source>
+        <translation>Отказ</translation>
+    </message>
+    <message>
+        <source>Cancel the VirtualBox Guest Additions CD image download</source>
+        <translation>Прекъсване изтеглянето на CD изображението VirtualBox Виртуални Добавки</translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation>Изтегляне на CD изображението VirtualBox Виртуални Добавки от &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProcessWidgetUserManual</name>
+    <message>
+        <source>Cancel</source>
+        <translation>Отказ</translation>
+    </message>
+    <message>
+        <source>Cancel the VirtualBox User Manual download</source>
+        <translation>Прекъсване изтеглянето на VirtualBox Потребителско ръководство</translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox User Manual</source>
+        <translation>Изтегляне на VirtualBox Потребителско ръководство</translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation>Изтегляне на VirtualBox Потребителско ръководство &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMultiScreenLayout</name>
+    <message>
+        <source>Virtual Screen %1</source>
+        <translation>Виртуален екран %1</translation>
+    </message>
+    <message>
+        <source>Use Host Screen %1</source>
+        <translation>Използване на екран на хоста %1</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzd</name>
+    <message>
+        <source>Create New Virtual Disk</source>
+        <translation>Създаване на нов виртуален диск</translation>
+    </message>
+    <message>
+        <source>Welcome to the Create New Virtual Disk Wizard!</source>
+        <translation type="obsolete">Добре дошли в помощника за създаване на нов виртуален диск!</translation>
+    </message>
+    <message>
+        <source>Virtual Disk Location and Size</source>
+        <translation type="obsolete">Местоположение и размер на виртуалния диск</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Обобщение</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 Bytes&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;%1 Байта&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Hard disk images (*.vdi)</source>
+        <translation type="obsolete">Изображения на твърд диск (*.vdi)</translation>
+    </message>
+    <message>
+        <source>Select a file for the new hard disk image file</source>
+        <translation type="obsolete">Изберете файл за новото изображение на твърд диск</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; &amp;Назад</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">&amp;Напред &gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation type="obsolete">&amp;Край</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Тип</translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Местоположение</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Размер</translation>
+    </message>
+    <message>
+        <source>Bytes</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Байта</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Отказ</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Този помощник ще ви помогне да създадете нов виртуален твърд диск за вашата виртуална машина.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Hard Disk Storage Type</source>
+        <translation type="obsolete">Тип на паметта на твърдия диск</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете тип на паметта на виртуалния диск, който ще бъде създаден.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Динамично преоразмеряващата се памет&lt;/b&gt; първоначално заема много малка част от пространството на вашия физически твърд диск. Тя ще се променя динамично (максимално до зададения размер) според изисканото дисково пространство от виртуалната ОС.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Фиксираният размер на паметта&lt;/b&gt; не се променя. Тя се разполага във файл с приблизително същия размер, какъвто е размерът на виртуалния твърд диск. Създаването на памет с фиксиран размер може да отнеме доста време, в зависимост от зададения размер и възможностите за запис физическия твърд диск.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Storage Type</source>
+        <translation type="obsolete">Тип на паметта</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically expanding storage</source>
+        <translation type="obsolete">&amp;Динамично преоразмеряваща се памет</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed-size storage</source>
+        <translation type="obsolete">&amp;Фиксиран размер на паметта</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Натиснете бутона &lt;b&gt;Избор&lt;/b&gt;, за да изберете местоположение на файла, в който ще се съхраняват данните на твърдия диск, или въведете име на файла в полето за въвеждане.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Location</source>
+        <translation type="obsolete">&amp;Местоположение</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете размера на виртуалния твърд диск в мегабайти. Този размер ще бъде съобщен на виртуалната ОС като максимален размер на този твърд диск.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation type="obsolete">&amp;Размер</translation>
+    </message>
+    <message>
+        <source>You are going to create a new virtual hard disk with the following parameters:</source>
+        <translation type="obsolete">Предстои да създадете нов виртуален твърд диск със следните параметри:</translation>
+    </message>
+    <message>
+        <source>If the above settings are correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
+        <translation type="obsolete">Ако настройките по-горе са правилни, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, ще започне създаване на новия твърд диск.</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage1</name>
+    <message>
+        <source>Welcome to the Create New Virtual Disk Wizard!</source>
+        <translation>Добре дошли в помощника за създаване на нов виртуален диск!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Този помощник ще ви помогне да създадете нов виртуален твърд диск за вашата виртуална машина.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изберете тип на паметта на виртуалния диск, който ще бъде създаден.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Динамично преоразмеряващата се памет&lt;/b&gt; първоначално заема много малка част от пространството на вашия физически твърд диск. Тя ще се променя динамично (максимално до зададения размер) според изисканото дисково пространство от виртуалната ОС.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Фиксираният размер на паметта&lt;/b&gt; не се променя. Тя се разполага във файл с приблизително същия размер, какъвто е размерът на виртуалния твърд диск. Създаването на памет с фиксиран размер може да отнеме доста време, в зависимост от зададения размер и възможностите за запис на физическия твърд диск.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Storage Type</source>
+        <translation>Тип на паметта</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically expanding storage</source>
+        <translation>&amp;Динамично преоразмеряваща се памет</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed-size storage</source>
+        <translation>&amp;Фиксиран размер на паметта</translation>
+    </message>
+    <message>
+        <source>Hard Disk Storage Type</source>
+        <translation>Тип на паметта на твърдия диск</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Натиснете бутона &lt;b&gt;Избор&lt;/b&gt;, за да изберете местоположение на файла, в който ще се съхраняват данните на твърдия диск, или въведете име на файла в полето за въвеждане.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Location</source>
+        <translation>&amp;Местоположение</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изберете размера на виртуалния твърд диск в мегабайти. Този размер ще бъде съобщен на виртуалната ОС като максимален размер на този твърд диск.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation>&amp;Размер</translation>
+    </message>
+    <message>
+        <source>Virtual Disk Location and Size</source>
+        <translation>Местоположение и размер на виртуалния диск</translation>
+    </message>
+    <message>
+        <source>Select a file for the new hard disk image file</source>
+        <translation>Изберете файл за новото изображение на твърд диск</translation>
+    </message>
+    <message>
+        <source>Hard disk images (*.vdi)</source>
+        <translation>Изображения на твърд диск (*.vdi)</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;%1 (%2 Б)&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage4</name>
+    <message>
+        <source>You are going to create a new virtual hard disk with the following parameters:</source>
+        <translation>Предстои да създадете нов виртуален твърд диск със следните параметри:</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation>Обобщение</translation>
+    </message>
+    <message>
+        <source>%1 B</source>
+        <translation>%1 Б</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation>Тип</translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <comment>summary</comment>
+        <translation>Местоположение</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <comment>summary</comment>
+        <translation>Размер</translation>
+    </message>
+    <message>
+        <source>If the above settings are correct, press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
+        <translation>Ако настройките по-горе са правилни, натиснете бутона &lt;b&gt;%1&lt;/b&gt;. След като го натиснете, ще започне създаване на новия твърд диск.</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzd</name>
+    <message>
+        <source>Create New Virtual Machine</source>
+        <translation>Създаване на нова виртуална машина</translation>
+    </message>
+    <message>
+        <source>Welcome to the New Virtual Machine Wizard!</source>
+        <translation type="obsolete">Добре дошли в помощника за създаване на нова виртуална машина!</translation>
+    </message>
+    <message>
+        <source>N&amp;ame</source>
+        <translation type="obsolete">&amp;Име</translation>
+    </message>
+    <message>
+        <source>OS &amp;Type</source>
+        <translation type="obsolete">Вид &amp;ОС</translation>
+    </message>
+    <message>
+        <source>VM Name and OS Type</source>
+        <translation type="obsolete">Име на ВМ и вид ОС</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете количеството оперативна памет (RAM) в мегабайти, което да бъде заделяно за виртуалната машина.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Base &amp;Memory Size</source>
+        <translation type="obsolete">Размер на &amp;оперативната памет</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation type="obsolete">МБ</translation>
+    </message>
+    <message>
+        <source>Memory</source>
+        <translation type="obsolete">Памет</translation>
+    </message>
+    <message>
+        <source>Virtual Hard Disk</source>
+        <translation type="obsolete">Виртуален твърд диск</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">Обобщение</translation>
+    </message>
+    <message>
+        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation type="obsolete">Препоръчителният размер на оперативната памет е &lt;b&gt;%1&lt;/b&gt; МБ.</translation>
+    </message>
+    <message>
+        <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation type="obsolete">Препоръчителният размер на зареждащият твърд диск е &lt;b&gt;%1&lt;/b&gt; МБ.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Този помощник ще ви води през стъпките, които са нужни за създаването на нова виртуална машина за VirtualBox.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; &amp;Назад</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">&amp;Напред &gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Въведете име за новата виртуална машина и изберете вид на виртуалната операционна система, която планирате да инсталирате на тази виртуална машина.&lt;/p&gt;&lt;p&gt;Името на виртуалната машина обикновено показва нейната софтуерна и хардуерна конфигурация. То ще бъде използвано от всички компоненти на VirtualBox, за да се разпознава тази виртуална машина.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Предстои да създадете нова виртуална машина със следните параметри:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Ако настройките по-горе са верни, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, новата виртуална машина ще бъде създадена.&lt;/p&gt;&lt;p&gt;Имайте в предвид, че можете да промените тези и всички останали настройки на създадената виртуална машина по всяко време като използвате диалога &lt;b&gt;Настройки&lt;/b&gt;, който е достъпен през менюто на основния прозорец.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation type="obsolete">&amp;Край</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>megabytes</comment>
+        <translation type="obsolete">МБ</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Име</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Вид ОС</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Оперативна памет</translation>
+    </message>
+    <message>
+        <source>Boot Hard Disk</source>
+        <comment>summary</comment>
+        <translation type="obsolete">Зареждащ твърд диск</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">Отказ</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;Изберете изображение на твърд диск, което да бъде използвано като зареждащ твърд диск на виртуалната машина. Можете или да създадете нов твърд диск като използвате бутона &lt;b&gt;Нов&lt;/b&gt;, или да изберете съществуващо изображение на твърд диск от падащият списък или чрез натискане на бутона &lt;b&gt;Съществуващ&lt;/b&gt; (за да извикате диалога Управление на виртуални дискове).&lt;/p&gt;&lt;p&gt;Ако имате нужда от по-комплексна настройка на твърдите дискове, можете да пропуснете тази стъпка и да закачите твърди дискове по-късно от диалога ВМ Настройки.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk (Primary Master)</source>
+        <translation type="obsolete">Зареждащ твърд &amp;диск (Първичен Главен)</translation>
+    </message>
+    <message>
+        <source>&amp;Create new hard disk</source>
+        <translation type="obsolete">&amp;Създаване на нов твърд диск</translation>
+    </message>
+    <message>
+        <source>&amp;Use existing hard disk</source>
+        <translation type="obsolete">&amp;Използване на съществуващ твърд диск</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage1</name>
+    <message>
+        <source>Welcome to the New Virtual Machine Wizard!</source>
+        <translation>Добре дошли в помощника за създаване на нова виртуална машина!</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Този помощник ще ви води през стъпките, необходими за създаването на нова виртуална машина във VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Въведете име за новата виртуална машина и изберете вид на виртуалната операционна система, която планирате да инсталирате на тази виртуална машина.&lt;/p&gt;&lt;p&gt;Името на виртуалната машина обикновено показва нейната софтуерна и хардуерна конфигурация. То ще бъде използвано от всички компоненти на VirtualBox, за да се разпознава тази виртуална машина.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>N&amp;ame</source>
+        <translation>&amp;Име</translation>
+    </message>
+    <message>
+        <source>OS &amp;Type</source>
+        <translation>Вид &amp;ОС</translation>
+    </message>
+    <message>
+        <source>VM Name and OS Type</source>
+        <translation>Име на ВМ и вид ОС</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изберете количеството оперативна памет (RAM) в мегабайти, което да бъде заделяно за виртуалната машина.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Base &amp;Memory Size</source>
+        <translation>Размер на &amp;оперативната памет</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation>МБ</translation>
+    </message>
+    <message>
+        <source>Memory</source>
+        <translation>Памет</translation>
+    </message>
+    <message>
+        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation>Препоръчителният размер на оперативната памет е &lt;b&gt;%1&lt;/b&gt; МБ.</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation>МБ</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage4</name>
+    <message>
+        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изберете изображение на твърд диск, което да бъде използвано като зареждащ твърд диск на виртуалната машина. Можете или да създадете нов твърд диск като използвате бутона &lt;b&gt;Нов&lt;/b&gt;, или да изберете съществуващо изображение на твърд диск от падащият списък или чрез натискане на бутона &lt;b&gt;Съществуващ&lt;/b&gt; (за да извикате диалога Управление на виртуални дискове).&lt;/p&gt;&lt;p&gt;Ако имате нужда от по-комплексна настройка на твърдите дискове, можете да пропуснете тази стъпка и да закачите твърди дискове по-късно от диалога ВМ Настройки.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk (Primary Master)</source>
+        <translation>Зареждащ твърд &amp;диск (Първичен Главен)</translation>
+    </message>
+    <message>
+        <source>&amp;Create new hard disk</source>
+        <translation>&amp;Създаване на нов твърд диск</translation>
+    </message>
+    <message>
+        <source>&amp;Use existing hard disk</source>
+        <translation>&amp;Използване на съществуващ твърд диск</translation>
+    </message>
+    <message>
+        <source>Virtual Hard Disk</source>
+        <translation>Виртуален твърд диск</translation>
+    </message>
+    <message>
+        <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation>Препоръчителният размер на зареждащия твърд диск е &lt;b&gt;%1&lt;/b&gt; МБ.</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage5</name>
+    <message>
+        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Предстои да създадете нова виртуална машина със следните параметри:&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation>Обобщение</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>summary</comment>
+        <translation>Име</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>summary</comment>
+        <translation>Вид ОС</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>summary</comment>
+        <translation>Оперативна памет</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024KBytes</comment>
+        <translation>МБ</translation>
+    </message>
+    <message>
+        <source>Boot Hard Disk</source>
+        <comment>summary</comment>
+        <translation>Зареждащ твърд диск</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Ако настройките по-горе са верни, натиснете бутона &lt;b&gt;%1&lt;/b&gt;. След като го натиснете, новата виртуална машина ще бъде създадена.&lt;/p&gt;&lt;p&gt;Забележете, че можете да промените тези и всички останали настройки на създадената виртуална машина по всяко време, като използвате прозореца &lt;b&gt;Настройки&lt;/b&gt;, достъпен от менюто на основния прозорец.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
     <name>VBoxAboutDlg</name>
     <message>
         <source>VirtualBox - About</source>
@@ -405,29 +1553,6 @@
     <message>
         <source>Version %1</source>
         <translation>Версия %1</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxAdditionsDownloader</name>
-    <message>
-        <source>Cancel</source>
-        <translation>Отказ</translation>
-    </message>
-    <message>
-        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Изтегляне на CD изображението VirtualBox Виртуални Добавки от &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation>Прекъсване изтеглянето на CD изображението VirtualBox Виртуални Добавки</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изтегленият файл не може да се запише като &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Select folder to save Guest Additions image to</source>
-        <translation>Изберете папка, в която да се запише изображението Виртуални Добавки</translation>
     </message>
 </context>
 <context>
@@ -522,7 +1647,7 @@
     </message>
     <message>
         <source>MB</source>
-        <translation>МБ</translation>
+        <translation type="obsolete">МБ</translation>
     </message>
     <message>
         <source>&lt;b&gt;Original Value:&lt;/b&gt; %1</source>
@@ -535,6 +1660,16 @@
     <message>
         <source>Warnings:</source>
         <translation>Предупреждения:</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation>МБ</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024KBytes</comment>
+        <translation>МБ</translation>
     </message>
 </context>
 <context>
@@ -901,7 +2036,7 @@
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: cable %3&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Адаптер %1 (%2)&lt;/b&gt;: кабел %3&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Адаптер %1 (%2)&lt;/b&gt;: кабел %3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>connected</source>
@@ -988,7 +2123,7 @@
     </message>
     <message>
         <source>Sun VirtualBox</source>
-        <translation>Sun VirtualBox</translation>
+        <translation type="obsolete">Sun VirtualBox</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
@@ -1097,12 +2232,50 @@
         <comment>Shared folders tooltip</comment>
         <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Показва активността на споделените папки към машината:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
-</context>
-<context>
-    <name>VBoxDownloaderWgt</name>
     <message>
-        <source>The download process has been cancelled by the user.</source>
-        <translation>Изтеглянето е прекъснато от потребителя.</translation>
+        <source>Dock Icon</source>
+        <translation>Икона в панела</translation>
+    </message>
+    <message>
+        <source>Show Application Icon</source>
+        <translation>Показване иконата на програмата</translation>
+    </message>
+    <message>
+        <source>Show Monitor Preview</source>
+        <translation>Показване преглед на монитора</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Адаптер %1 (%2)&lt;/b&gt;: %3 кабел %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>ACPI Sh&amp;utdown</source>
+        <translation>ACPI И&amp;зключване</translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation>&amp;Преглед</translation>
+    </message>
+    <message>
+        <source>Preview Monitor %1</source>
+        <translation>Преглед на монитор %1</translation>
+    </message>
+    <message>
+        <source>No CD/DVD devices attached to that VM</source>
+        <translation>Няма свързани CD/DVD устройства към тази ВМ</translation>
+    </message>
+    <message>
+        <source>No floppy devices attached to that VM</source>
+        <translation>Няма свързани флопи устройства към тази ВМ</translation>
+    </message>
+    <message>
+        <source>No USB Devices Connected</source>
+        <translation>Няма свързани USB устройства</translation>
+    </message>
+    <message>
+        <source>No supported devices connected to the host PC</source>
+        <translation>Няма поддържани устройства, свързани към реалната машина</translation>
     </message>
 </context>
 <context>
@@ -1110,139 +2283,6 @@
     <message>
         <source>&amp;Choose...</source>
         <translation>&amp;Избор...</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxExportApplianceWzd</name>
-    <message>
-        <source>Select a file to export into</source>
-        <translation>Изберете файл, към който да се изнесе</translation>
-    </message>
-    <message>
-        <source>Open Virtualization Format (%1)</source>
-        <translation>Отворен Виртуализационен Формат (%1)</translation>
-    </message>
-    <message>
-        <source>Appliance</source>
-        <translation>Приспособление</translation>
-    </message>
-    <message>
-        <source>Exporting Appliance ...</source>
-        <translation>Изнасяне на приспособление ...</translation>
-    </message>
-    <message>
-        <source>Appliance Export Wizard</source>
-        <translation>Помощник за изнасяне на приспособление</translation>
-    </message>
-    <message>
-        <source>Welcome to the Appliance Export Wizard!</source>
-        <translation>Добре дошли в помощника за изнасяне на приспособление!</translation>
-    </message>
-    <message>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that you wish to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Този помощник ще ви води през процеса на изнасяне на приспособление. &lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Използвайте бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Напред&lt;/span&gt;, за да отидете към следващата страница на помощника, и бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Назад&lt;/span&gt;, за да се върнете към предишната страница.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Моля, изберете виртуалните машини, които ще бъдат изнесени към приспособлението. Можете да изберете и повече от една. Моля, имайте в предвид, че тези машини трябва да бъдат изключени преди да бъдат изнесени.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Напред &gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Отказ</translation>
-    </message>
-    <message>
-        <source>Appliance Export Settings</source>
-        <translation>Настройки за изнасяне на приспособление</translation>
-    </message>
-    <message>
-        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
-        <translation>Тук можете да промените допълнителните конфигурационни стойности на избраните виртуални машини. Можете да промените повечето от показаните опции чрез двойно щракване върху елементите.</translation>
-    </message>
-    <message>
-        <source>Restore Defaults</source>
-        <translation>Възстановяване по подразбиране</translation>
-    </message>
-    <message>
-        <source>Please specify a filename into which the appliance information will be written. Currently VirtualBox supports the Open Virtualization Format (OVF).</source>
-        <translation type="obsolete">Моля, укажете име на файла, в който информацията за приспособлението ще бъде записана. За момента VirtualBox поддържа Отворения Виртуализационен Формат (OVF).</translation>
-    </message>
-    <message>
-        <source>&amp;Export &gt;</source>
-        <translation>&amp;Изнасяне &gt;</translation>
-    </message>
-    <message>
-        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
-        <translation>Записване в остарелия формат OVF 0.9 за съвместимост с други виртуализационни продукти.</translation>
-    </message>
-    <message>
-        <source>&amp;Write legacy OVF 0.9</source>
-        <translation>&amp;Запис в остарял OVF 0.9</translation>
-    </message>
-    <message>
-        <source>Please choose a filename to export the OVF to.</source>
-        <translation>Моля, изберете име на OVF файла за изнасяне.</translation>
-    </message>
-    <message>
-        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Моля, попълнете допълнителните полета като потребителско име, парола и кошница. Накрая е нужно да укажете име за OVF файла.</translation>
-    </message>
-    <message>
-        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Моля, попълнете допълнителните полета като потребителско име, парола, име на хоста и кошница. Накрая е нужно да укажете име за OVF файла.</translation>
-    </message>
-    <message>
-        <source>Checking files ...</source>
-        <translation>Проверка на файлове ...</translation>
-    </message>
-    <message>
-        <source>Removing files ...</source>
-        <translation>Премахване на файлове ...</translation>
-    </message>
-    <message>
-        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
-        <translation>Моля, укажете местоположение за изнасяне към OVF. Имате избор между изнасяне към локалната файлова система, качване на OVF към услугата Sun Cloud или S3 сървър за съхранение.</translation>
-    </message>
-    <message>
-        <source>&amp;Local Filesystem </source>
-        <translation>&amp;Локална файлова система</translation>
-    </message>
-    <message>
-        <source>Sun &amp;Cloud</source>
-        <translation>Sun &amp;Cloud</translation>
-    </message>
-    <message>
-        <source>&amp;Simple Storage System (S3)</source>
-        <translation>&amp;Проста система за съхранение (S3)</translation>
-    </message>
-    <message>
-        <source>&amp;Username:</source>
-        <translation>&amp;Потребител:</translation>
-    </message>
-    <message>
-        <source>&amp;Password:</source>
-        <translation>П&amp;арола:</translation>
-    </message>
-    <message>
-        <source>&amp;File:</source>
-        <translation>&amp;Файл:</translation>
-    </message>
-    <message>
-        <source>&amp;Bucket:</source>
-        <translation>&amp;Кошница:</translation>
-    </message>
-    <message>
-        <source>&amp;Hostname:</source>
-        <translation>&amp;Име на хоста:</translation>
     </message>
 </context>
 <context>
@@ -1367,11 +2407,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the Dock Icon will reflect the VM window content in realtime.</source>
-        <translation>Когато е избрано, иконата в панела ще реагира на съдържанието на прозореца на ВМ в реално време.</translation>
+        <translation type="obsolete">Когато е избрано, иконата в панела ще реагира на съдържанието на прозореца на ВМ в реално време.</translation>
     </message>
     <message>
         <source>&amp;Dock Icon Realtime Preview</source>
-        <translation>&amp;Преглед в реално време от иконата в панела</translation>
+        <translation type="obsolete">&amp;Преглед в реално време от иконата в панела</translation>
     </message>
     <message>
         <source>&amp;Auto show Dock and Menubar in fullscreen</source>
@@ -1395,6 +2435,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Auto Capture Keyboard</source>
         <translation>&amp;Авто прихващане на клавиатурата</translation>
+    </message>
+    <message>
+        <source>Reset Host Key</source>
+        <translation>Нулиране на Основния клавиш</translation>
+    </message>
+    <message>
+        <source>Resets the key used as a Host Key in the VM window.</source>
+        <translation>Нулира настройката за Основен клавиш в прозореца на ВМ.</translation>
     </message>
 </context>
 <context>
@@ -2855,6 +3903,85 @@ p, li { white-space: pre-wrap; }
         <source>(CD/DVD)</source>
         <translation>(CD/DVD)</translation>
     </message>
+    <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation>Екрани</translation>
+    </message>
+    <message>
+        <source>VDE network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>VDE мрежа, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>SAS</source>
+        <comment>StorageBus</comment>
+        <translation>SAS</translation>
+    </message>
+    <message>
+        <source>VDE Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>VDE адаптер</translation>
+    </message>
+    <message>
+        <source>LsiLogic SAS</source>
+        <comment>StorageControllerType</comment>
+        <translation>LsiLogic SAS</translation>
+    </message>
+    <message>
+        <source>^(?:(?:(\d+)(?:\s?(B|KB|MB|GB|TB|PB))?)|(?:(\d*)%1(\d{1,2})(?:\s?(KB|MB|GB|TB|PB))))$</source>
+        <comment>regexp for matching ####[.##] B|KB|MB|GB|TB|PB, %1=decimal point</comment>
+        <translation>^(?:(?:(\d+)(?:\s?(Б|KБ|MБ|ГБ|TБ|ПБ))?)|(?:(\d*)%1(\d{1,2})(?:\s?(KБ|MБ|ГБ|TБ|ПБ))))$</translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>size suffix Bytes</comment>
+        <translation>Б</translation>
+    </message>
+    <message>
+        <source>KB</source>
+        <comment>size suffix KBytes=1024 Bytes</comment>
+        <translation>КБ</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation>МБ</translation>
+    </message>
+    <message>
+        <source>GB</source>
+        <comment>size suffix GBytes=1024 MBytes</comment>
+        <translation>ГБ</translation>
+    </message>
+    <message>
+        <source>TB</source>
+        <comment>size suffix TBytes=1024 GBytes</comment>
+        <translation>ТБ</translation>
+    </message>
+    <message>
+        <source>PB</source>
+        <comment>size suffix PBytes=1024 TBytes</comment>
+        <translation>ПБ</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>nested paging</comment>
+        <translation>Позволено</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>nested paging</comment>
+        <translation>Забранено</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <translation>Вместено страниране</translation>
+    </message>
+    <message>
+        <source>Shareable</source>
+        <comment>DiskType</comment>
+        <translation>За споделяне</translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -2887,98 +4014,6 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Reading Appliance ...</source>
         <translation>Четене на приспособление ...</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxImportApplianceWzd</name>
-    <message>
-        <source>Select an appliance to import</source>
-        <translation>Изберете приспособление за внасяне</translation>
-    </message>
-    <message>
-        <source>Open Virtualization Format (%1)</source>
-        <translation>Отворен Виртуализационен Формат (%1)</translation>
-    </message>
-    <message>
-        <source>Appliance Import Wizard</source>
-        <translation>Помощник за внасяне на приспособление</translation>
-    </message>
-    <message>
-        <source>Welcome to the Appliance Import Wizard!</source>
-        <translation>Добре дошли в помощника за внасяне на приспособление!</translation>
-    </message>
-    <message>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through importing an appliance. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;p, li { white-space: pre-wrap; }&lt;/style&gt;&lt;/head&gt;&lt;body&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Този помощник ще ви води през процеса на внасяне на приспособление. &lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Използвайте бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Напред&lt;/span&gt;, за да отидете към следващата страница на помощника, и бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Назад&lt;/span&gt;, за да се върнете към предишната страница.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Като начало, за да внесете приспособление, трябва първо да изберете файл, описващ приспособлението. За момента VirtualBox поддържа Отворения Виртуализационен Формат (OVF). За да продължите, изберете по-долу файл за внасяне:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Напред &gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Отказ</translation>
-    </message>
-    <message>
-        <source>Appliance Import Settings</source>
-        <translation>Настройки за внасяне на приспособление</translation>
-    </message>
-    <message>
-        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>Това са виртуалните машини, както са описани в приспособлението с техните предложени указания за внасяне във VirtualBox. Можете да промените много от показаните опции чрез двойно щракване върху елементите, и да забраните другите като използвате кутийките за отметки по-долу.</translation>
-    </message>
-    <message>
-        <source>Restore Defaults</source>
-        <translation>Възстановяване по подразбиране</translation>
-    </message>
-    <message>
-        <source>&amp;Import &gt;</source>
-        <translation>&amp;Внасяне &gt;</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxImportLicenseViewer</name>
-    <message>
-        <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
-        <translation>&lt;b&gt;Виртуалната система &quot;%1&quot; изисква да се съгласите с условията на договора на софтуерния лиценз, показани по-долу.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Натиснете &lt;b&gt;Съгласявам се&lt;/b&gt;, за да продължите, или натиснете &lt;b&gt;Не се съгласявам&lt;/b&gt;, за да откажете внасянето.</translation>
-    </message>
-    <message>
-        <source>Software License Agreement</source>
-        <translation>Договор на софтуерния лиценз</translation>
-    </message>
-    <message>
-        <source>&amp;Disagree</source>
-        <translation>&amp;Не се съгласявам</translation>
-    </message>
-    <message>
-        <source>&amp;Agree</source>
-        <translation>&amp;Съгласявам се</translation>
-    </message>
-    <message>
-        <source>&amp;Print...</source>
-        <translation>&amp;Отпечатване...</translation>
-    </message>
-    <message>
-        <source>&amp;Save...</source>
-        <translation>&amp;Запазване...</translation>
-    </message>
-    <message>
-        <source>Text (*.txt)</source>
-        <translation>Текст (*.txt)</translation>
-    </message>
-    <message>
-        <source>Save license to file...</source>
-        <translation>Запазване на лиценза във файл...</translation>
     </message>
 </context>
 <context>
@@ -3228,249 +4263,6 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Network Adapters</source>
         <translation>Мрежови адаптери</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxNewHDWzd</name>
-    <message>
-        <source>Create New Virtual Disk</source>
-        <translation>Създаване на нов виртуален диск</translation>
-    </message>
-    <message>
-        <source>Welcome to the Create New Virtual Disk Wizard!</source>
-        <translation>Добре дошли в помощника за създаване на нов виртуален диск!</translation>
-    </message>
-    <message>
-        <source>Virtual Disk Location and Size</source>
-        <translation>Местоположение и размер на виртуалния диск</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Обобщение</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1 Bytes&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;%1 Байта&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Hard disk images (*.vdi)</source>
-        <translation>Изображения на твърд диск (*.vdi)</translation>
-    </message>
-    <message>
-        <source>Select a file for the new hard disk image file</source>
-        <translation>Изберете файл за новото изображение на твърд диск</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Напред &gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>&amp;Край</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>summary</comment>
-        <translation>Тип</translation>
-    </message>
-    <message>
-        <source>Location</source>
-        <comment>summary</comment>
-        <translation>Местоположение</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <comment>summary</comment>
-        <translation>Размер</translation>
-    </message>
-    <message>
-        <source>Bytes</source>
-        <comment>summary</comment>
-        <translation>Байта</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Отказ</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Този помощник ще ви помогне да създадете нов виртуален твърд диск за вашата виртуална машина.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Hard Disk Storage Type</source>
-        <translation>Тип на паметта на твърдия диск</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете тип на паметта на виртуалния диск, който ще бъде създаден.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Динамично преоразмеряващата се памет&lt;/b&gt; първоначално заема много малка част от пространството на вашия физически твърд диск. Тя ще се променя динамично (максимално до зададения размер) според изисканото дисково пространство от виртуалната ОС.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Фиксираният размер на паметта&lt;/b&gt; не се променя. Тя се разполага във файл с приблизително същия размер, какъвто е размерът на виртуалния твърд диск. Създаването на памет с фиксиран размер може да отнеме доста време, в зависимост от зададения размер и възможностите за запис физическия твърд диск.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Storage Type</source>
-        <translation>Тип на паметта</translation>
-    </message>
-    <message>
-        <source>&amp;Dynamically expanding storage</source>
-        <translation>&amp;Динамично преоразмеряваща се памет</translation>
-    </message>
-    <message>
-        <source>&amp;Fixed-size storage</source>
-        <translation>&amp;Фиксиран размер на паметта</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Натиснете бутона &lt;b&gt;Избор&lt;/b&gt;, за да изберете местоположение на файла, в който ще се съхраняват данните на твърдия диск, или въведете име на файла в полето за въвеждане.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Location</source>
-        <translation>&amp;Местоположение</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете размера на виртуалния твърд диск в мегабайти. Този размер ще бъде съобщен на виртуалната ОС като максимален размер на този твърд диск.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Size</source>
-        <translation>&amp;Размер</translation>
-    </message>
-    <message>
-        <source>You are going to create a new virtual hard disk with the following parameters:</source>
-        <translation>Предстои да създадете нов виртуален твърд диск със следните параметри:</translation>
-    </message>
-    <message>
-        <source>If the above settings are correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
-        <translation>Ако настройките по-горе са правилни, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, ще започне създаване на новия твърд диск.</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxNewVMWzd</name>
-    <message>
-        <source>Create New Virtual Machine</source>
-        <translation>Създаване на нова виртуална машина</translation>
-    </message>
-    <message>
-        <source>Welcome to the New Virtual Machine Wizard!</source>
-        <translation>Добре дошли в помощника за създаване на нова виртуална машина!</translation>
-    </message>
-    <message>
-        <source>N&amp;ame</source>
-        <translation>&amp;Име</translation>
-    </message>
-    <message>
-        <source>OS &amp;Type</source>
-        <translation>Вид &amp;ОС</translation>
-    </message>
-    <message>
-        <source>VM Name and OS Type</source>
-        <translation>Име на ВМ и вид ОС</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете количеството оперативна памет (RAM) в мегабайти, което да бъде заделяно за виртуалната машина.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Base &amp;Memory Size</source>
-        <translation>Размер на &amp;оперативната памет</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <translation>МБ</translation>
-    </message>
-    <message>
-        <source>Memory</source>
-        <translation>Памет</translation>
-    </message>
-    <message>
-        <source>Virtual Hard Disk</source>
-        <translation>Виртуален твърд диск</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Обобщение</translation>
-    </message>
-    <message>
-        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
-        <translation>Препоръчителният размер на оперативната памет е &lt;b&gt;%1&lt;/b&gt; МБ.</translation>
-    </message>
-    <message>
-        <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
-        <translation>Препоръчителният размер на зареждащият твърд диск е &lt;b&gt;%1&lt;/b&gt; МБ.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Този помощник ще ви води през стъпките, които са нужни за създаването на нова виртуална машина за VirtualBox.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Напред &gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Въведете име за новата виртуална машина и изберете вид на виртуалната операционна система, която планирате да инсталирате на тази виртуална машина.&lt;/p&gt;&lt;p&gt;Името на виртуалната машина обикновено показва нейната софтуерна и хардуерна конфигурация. То ще бъде използвано от всички компоненти на VirtualBox, за да се разпознава тази виртуална машина.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Предстои да създадете нова виртуална машина със следните параметри:&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ако настройките по-горе са верни, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, новата виртуална машина ще бъде създадена.&lt;/p&gt;&lt;p&gt;Имайте в предвид, че можете да промените тези и всички останали настройки на създадената виртуална машина по всяко време като използвате диалога &lt;b&gt;Настройки&lt;/b&gt;, който е достъпен през менюто на основния прозорец.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>&amp;Край</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <comment>megabytes</comment>
-        <translation>МБ</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <comment>summary</comment>
-        <translation>Име</translation>
-    </message>
-    <message>
-        <source>OS Type</source>
-        <comment>summary</comment>
-        <translation>Вид ОС</translation>
-    </message>
-    <message>
-        <source>Base Memory</source>
-        <comment>summary</comment>
-        <translation>Оперативна памет</translation>
-    </message>
-    <message>
-        <source>Boot Hard Disk</source>
-        <comment>summary</comment>
-        <translation>Зареждащ твърд диск</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Отказ</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете изображение на твърд диск, което да бъде използвано като зареждащ твърд диск на виртуалната машина. Можете или да създадете нов твърд диск като използвате бутона &lt;b&gt;Нов&lt;/b&gt;, или да изберете съществуващо изображение на твърд диск от падащият списък или чрез натискане на бутона &lt;b&gt;Съществуващ&lt;/b&gt; (за да извикате диалога Управление на виртуални дискове).&lt;/p&gt;&lt;p&gt;Ако имате нужда от по-комплексна настройка на твърдите дискове, можете да пропуснете тази стъпка и да закачите твърди дискове по-късно от диалога ВМ Настройки.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Boot Hard &amp;Disk (Primary Master)</source>
-        <translation>Зареждащ твърд &amp;диск (Първичен Главен)</translation>
-    </message>
-    <message>
-        <source>&amp;Create new hard disk</source>
-        <translation>&amp;Създаване на нов твърд диск</translation>
-    </message>
-    <message>
-        <source>&amp;Use existing hard disk</source>
-        <translation>&amp;Използване на съществуващ твърд диск</translation>
     </message>
 </context>
 <context>
@@ -4406,6 +5198,54 @@ p, li { white-space: pre-wrap; }
         <comment>medium</comment>
         <translation>&amp;Премахване</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;VT-x/AMD-V hardware acceleration is not available on your system. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.</source>
+        <translation>&lt;p&gt;VT-x/AMD-V хардуерното ускорение не е достъпно на вашата система. Вашата 64-битова виртуална машина няма да успее да засече 54-битов CPU, и няма да успее да зареди.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;VT-x/AMD-V hardware acceleration is not available on your system. Certain guests (e.g. OS/2 and QNX) require this feature and will fail to boot without it.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VT-x/AMD-V хардуерното ускорение не е достъпно на вашата система. Някои виртуални машини (като OS/2 и QNX) изискват тази функция и няма да могат да заредят без нея.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot %1 will temporarily need more disk space. In the worst case the size of image %2 will grow by %3, however on this filesystem there is only %4 free.&lt;/p&gt;&lt;p&gt;Running out of disk space during the merge operation can result in corruption of the image and the VM configuration, i.e. loss of the VM and its data.&lt;/p&gt;&lt;p&gt;You may continue with deleting the snapshot at your own risk.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Изтриването на снимката %1 временно ще се нуждае от повече дисково пространство. В най-лошия случай, размерът на изображението %2 ще нарасне с %3, а на тази файлова система има само %4 свободни.&lt;/p&gt;&lt;p&gt;Свършването на дисковото пространство по време на сливането може да причини счупване на изображението и конфигурацията на ВМ, като например загуба на ВМ и нейните данни.&lt;/p&gt;&lt;p&gt;Може да продължите с изтриването на снимката на ваша отговорност.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Не може да се смени виртуалния екран към този реален екран, заради недостатъчна виртуална видео памет.&lt;/p&gt;&lt;p&gt;Нужно е да настроите виртуалната машина да използва поне &lt;b&gt;%1&lt;/b&gt; видео памет.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch the screen anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Не може да се смени виртуалния екран към този реален екран, заради недостатъчна виртуална видео памет.&lt;/p&gt;&lt;p&gt;Нужно е да настроите виртуалната машина да използва поне &lt;b&gt;%1&lt;/b&gt; видео памет.&lt;/p&gt;&lt;p&gt;Натиснете &lt;b&gt;Игнорирай&lt;/b&gt;, за да превключите екрана въпреки това, или натиснете &lt;b&gt;Отказ&lt;/b&gt;, за да прекъснете операцията.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Не може да се превключи виртуалният екран към режим на цял екран. Имате настроени повече виртуални екрани от реалните екрани, закачени към хоста.&lt;/p&gt;&lt;p&gt;Моля, намалете броя на виртуалните екрани в настройките на ВМ, или закачете допълнителни екрани към реалната машина.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Can not switch the guest display to seamless mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Не може да се превключи виртуалният екран към безрамков режим. Имате настроени повече виртуални екрани от реалните екрани, закачени към хоста.&lt;/p&gt;&lt;p&gt;Моля, намалете броя на виртуалните екрани в настройките на ВМ, или закачете допълнителни екрани към реалната машина.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Не може да се намери VirtualBox Потребителско ръководство &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Искате ли да изтеглите този файл от Интернет?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Сигурни ли сте, че искате да изтеглите VirtualBox Потребителско ръководство от &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (размер %3 байта)?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Неуспех при изтеглянето на VirtualBox Потребителско ръководство от &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox Потребителско ръководство е изтеглено успешно от &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; и запазено локално в &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox Потребителско ръководство е изтеглено успешно от &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt;, но не може да бъде запазено локално в &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Моля, изберете друго местоположение за този файл.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
     <name>VBoxProgressDialog</name>
@@ -4767,7 +5607,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Sun VirtualBox</source>
-        <translation>Sun VirtualBox</translation>
+        <translation type="obsolete">Sun VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Import Appliance...</source>
@@ -5218,137 +6058,6 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
-    <message>
-        <source>First Run Wizard</source>
-        <translation>Помощник за първо включване</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Стартирали сте новосъздадена виртуална машина за пръв път. Този помощник ще ви помогне да завършите стъпките, необходими за инсталирането на операционна система според вашия избор на тази виртуална машина.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница. Също така, можете да натиснете бутона &lt;b&gt;Отказ&lt;/b&gt;, ако искате да откажете изпълнението на този помощник.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Welcome to the First Run Wizard!</source>
-        <translation>Добре дошли в помощника за първо включване!</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the type of media you would like to use for installation.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;По-долу изберете типа на диска, който искате да използвате за целите на инсталацията.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Media Type</source>
-        <translation>Тип на диска</translation>
-    </message>
-    <message>
-        <source>&amp;CD/DVD-ROM Device</source>
-        <translation>&amp;CD/DVD-ROM устройство</translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Device</source>
-        <translation>&amp;Флопи устройство</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете диска, който съдържа инсталационната програма на операционната система, която искате да инсталирате. Този диск трябва да бъде зареждащ, в противен случай инсталационната програма няма да може да се включи.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Media Source</source>
-        <translation>Източник на диска</translation>
-    </message>
-    <message>
-        <source>&amp;Host Drive</source>
-        <translation type="obsolete">&amp;Реално устройство</translation>
-    </message>
-    <message>
-        <source>&amp;Image File</source>
-        <translation type="obsolete">&amp;Файл с изображение</translation>
-    </message>
-    <message>
-        <source>Select Installation Media</source>
-        <translation>Изберете инсталационен диск</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Избрахте зареждане от следния диск:&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Обобщение</translation>
-    </message>
-    <message>
-        <source>CD/DVD-ROM Device</source>
-        <translation>CD/DVD-ROM устройство</translation>
-    </message>
-    <message>
-        <source>Floppy Device</source>
-        <translation>Флопи устройство</translation>
-    </message>
-    <message>
-        <source>Host Drive %1</source>
-        <translation type="obsolete">Реално устройство %1</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Стартирали сте новосъздадена виртуална машина за пръв път. Този помощник ще ви помогне да завършите стъпките, необходими за зареждането на операционна система според вашия избор на виртуалната машина.&lt;/p&gt;&lt;p&gt;Имайте в предвид, че няма да можете да инсталирате операционна система на тази виртуална машина в момента, тъй като не сте закачили твърд диск към нея. Ако това не е, което искате, можете да откажете изпълнението на този помощник, да изберете &lt;b&gt;Настройки&lt;/b&gt; от менюто &lt;b&gt;Машина&lt;/b&gt; от основния прозорец на VirtualBox, за да достъпите диалога с настройки на тази виртуална машина, и да промените конфигурацията на твърдия диск.&lt;/p&gt;&lt;p&gt;Използвайте бутона &lt;b&gt;Напред&lt;/b&gt;, за да отидете към следващата страница на помощника, и бутона &lt;b&gt;Назад&lt;/b&gt;, за да се върнете към предишната страница. Също така, можете да натиснете бутона &lt;b&gt;Отказ&lt;/b&gt;, ако искате да откажете изпълнението на този помощник.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the type of media you would like to use for booting an operating system.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете типа на диска, който искате да използвате за зареждане на операционна система.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Изберете диска, който съдържа операционната система, с която искате да работите. Този диск трябва да бъде зареждащ, в противен случай операционната система няма да може да се включи.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Избрали сте следния диск, от който да заредите операционна система:&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ако информацията по-горе е вярна, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, избраният диск ще бъде монтиран във виртуалната машина и машината ще започне изпълнение.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; &amp;Назад</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>&amp;Напред &gt;</translation>
-    </message>
-    <message>
-        <source>&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;If the above is correct, press the &lt;span style=&quot; font-weight:600;&quot;&gt;Finish&lt;/span&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;span style=&quot; font-weight:600;&quot;&gt;Unmount...&lt;/span&gt; action in the &lt;span style=&quot; font-weight:600;&quot;&gt;Devices&lt;/span&gt; menu&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation type="obsolete">&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:&apos;Arial&apos;; font-size:9pt; font-weight:400; font-style:normal;&quot;&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Ако информацията по-горе е вярна, натиснете бутона &lt;span style=&quot; font-weight:600;&quot;&gt;Край&lt;/span&gt; . След като го натиснете, избраният диск ще бъде временно монтиран във виртуалната машина и машината ще започне изпълнение.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Моля, имайте предвид, че когато затворите виртуалната машина, указаният диск ще бъде автоматично демонтиран и зареждащото устройство ще бъде зададено отново до първия твърд диск.&lt;/p&gt;&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;В зависимост от вида на инсталационната програма може да се наложи ръчно да демонтирате (извадите) диска, след като инсталационната програма рестартира виртуалната машина, за да попречите на инсталационния процес да стартира отново. Можете да направите това чрез избиране на съответното действие &lt;span style=&quot; font-weight:600;&quot;&gt;Демонтиране...&lt;/span&gt; в менюто &lt;span style=&quot; font-weight:600;&quot;&gt;Устройства&lt;/span&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>&amp;Край</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>summary</comment>
-        <translation>Тип</translation>
-    </message>
-    <message>
-        <source>Source</source>
-        <comment>summary</comment>
-        <translation>Източник</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Отказ</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ако по-горното е вярно, натиснете бутона &lt;b&gt;Край&lt;/b&gt;. След като го натиснете, избраният диск ще бъде временно монтиран във виртуалната машина и машината ще се включи.&lt;/p&gt;&lt;p&gt;Моля, имайте в предвид, че когато затворите виртуалната машина, избраният диск ще бъде демонтиран автоматично и зареждащото устройство ще бъде зададено отново към първия твърд диск.&lt;/p&gt;&lt;p&gt;В зависимост от вида на инсталиращата програма, може да се наложи ръчно да демонтирате (извадите) диска, след като инсталиращата програма рестартира виртуалната машина, за да избегнете ново стартиране на инсталиращата програма. Можете да направите това чрез избиране на съответното &lt;b&gt;Демонтиране...&lt;/b&gt; действие в менюто &lt;b&gt;Устройства&lt;/b&gt;.&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
     <name>VBoxVMInformationDlg</name>
     <message>
         <source>%1 - Session Information</source>
@@ -5405,7 +6114,7 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
     <message>
         <source>Version %1.%2</source>
         <comment>guest additions</comment>
-        <translation>Версия %1.%2</translation>
+        <translation type="obsolete">Версия %1.%2</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -5729,6 +6438,18 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <source>The VRDP Server port number. You may specify &lt;tt&gt;0&lt;/tt&gt; (zero), to select port 3389, the standard port for RDP.</source>
         <translation>Номер на порта на VRDP сървъра. Можете да зададете &lt;tt&gt;0&lt;/tt&gt; (нула), за да изберете порт 3389, стандартният порт за RDP.</translation>
     </message>
+    <message>
+        <source>Mo&amp;nitor Count:</source>
+        <translation>Брояч на мо&amp;нитори:</translation>
+    </message>
+    <message>
+        <source>Controls the amount of virtual monitors provided to the virtual machine.</source>
+        <translation>Контролира количеството на виртуалните монитори, предоставени на тази виртуална машина.</translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&lt;/qt&gt;</source>
+        <translation>&lt;qt&gt;%1&lt;/qt&gt;</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsDlg</name>
@@ -5807,6 +6528,10 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
     <message>
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
         <translation>Имате позволено 2D видео ускорение. Тъй като 2D видео ускорението се поддържа само за виртуални машини с Windows, тази функция ще бъде забранена.</translation>
+    </message>
+    <message>
+        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation>позволили сте USB HID (Human Interface Device). Това няма да работи, докато не позволите и USB емулацията. Това ще бъде направено автоматично, когато потвърдите настройките на ВМ при натискането на бутона Добре.</translation>
     </message>
 </context>
 <context>
@@ -6357,6 +7082,30 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <source>Attached To:</source>
         <translation>Закачен към:</translation>
     </message>
+    <message>
+        <source>Allows to use host I/O caching capabilities.</source>
+        <translation>Позволява използването на I/O кеширащите възможности на реалната машина.</translation>
+    </message>
+    <message>
+        <source>Use host I/O cache</source>
+        <translation>Използване на I/O кеш на хоста</translation>
+    </message>
+    <message>
+        <source>Add SAS Controller</source>
+        <translation>Добавяне на SAS контролер</translation>
+    </message>
+    <message>
+        <source>SAS Controller</source>
+        <translation>SAS контролер</translation>
+    </message>
+    <message>
+        <source>Storage Controller</source>
+        <translation>Контролер за съхранение</translation>
+    </message>
+    <message>
+        <source>Storage Controller 1</source>
+        <translation>Контролер за съхранение 1</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsNetwork</name>
@@ -6858,8 +7607,8 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
         <translation>&amp;Процесор(и):</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
-        <translation>Контролира броя на виртуалните процесори във виртуалната машина.</translation>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <translation type="obsolete">Контролира броя на виртуалните процесори във виртуалната машина.</translation>
     </message>
     <message>
         <source>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</source>
@@ -6905,6 +7654,26 @@ p, li { white-space: pre-wrap; &lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; 
     <message>
         <source>Enable &amp;EFI (special OSes only)</source>
         <translation>Позволяване на &amp;EFI (само за специални ОС)</translation>
+    </message>
+    <message>
+        <source>If checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
+        <translation>Ако е избрано, RTC устройството ще съобщава времето в UTC, иначе - в локално (на реалната машина) време. Unix обикновено очаква хардуерният часовник да бъде зададен към UTC.</translation>
+    </message>
+    <message>
+        <source>Hardware clock in &amp;UTC time</source>
+        <translation>Хардуерен часовник към &amp;UTC време</translation>
+    </message>
+    <message>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <translation>Контролира броя на виртуалните CPU във виртуалната машина. Нуждаете се от поддръжка на хардуерна виртуализация във вашата реална машина, за да използвате повече от един виртуален CPU.</translation>
+    </message>
+    <message>
+        <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
+        <translation>Ако е избрано, ще бъдат поддържани точно позициониращи устройства (USB таблет). В противен случай ще бъде емулирана само стандартна PS/2 мишка.</translation>
+    </message>
+    <message>
+        <source>Enable &amp;absolute pointing device</source>
+        <translation>Позволяване на &amp;точно позициониращи устройства</translation>
     </message>
 </context>
 <context>

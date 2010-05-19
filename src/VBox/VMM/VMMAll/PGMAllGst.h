@@ -1,10 +1,10 @@
-/* $Id: PGMAllGst.h $ */
+/* $Id: PGMAllGst.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Guest Paging Template - All context code.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -79,13 +75,11 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
     /* pgmGstGetPaePDE will return 0 if the PDPTE is marked as not present.
      * All the other bits in the PDPTE are only valid in long mode (r/w, u/s, nx). */
     X86PDEPAE   Pde = pgmGstGetPaePDE(&pVCpu->pgm.s, GCPtr);
-    bool        fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_NXE);
 
 #elif PGM_GST_TYPE == PGM_TYPE_AMD64
     PX86PML4E   pPml4e;
     X86PDPE     Pdpe;
     X86PDEPAE   Pde = pgmGstGetLongModePDEEx(&pVCpu->pgm.s, GCPtr, &pPml4e, &Pdpe);
-    bool        fNoExecuteBitValid = !!(CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_NXE);
 
     Assert(pPml4e);
     if (!(pPml4e->n.u1Present & Pdpe.n.u1Present))
@@ -105,8 +99,8 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
     if (    !Pde.b.u1Size
-# if PGM_GST_TYPE != PGM_TYPE_AMD64
-        ||  !(CPUMGetGuestCR4(pVCpu) & X86_CR4_PSE)
+# if PGM_GST_TYPE == PGM_TYPE_32BIT
+        ||  !CPUMIsGuestPageSizeExtEnabled(pVCpu)
 # endif
         )
     {
@@ -133,8 +127,8 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
                      & ((Pde.u & (X86_PTE_RW | X86_PTE_US)) | ~(uint64_t)(X86_PTE_RW | X86_PTE_US));
 # if PGM_WITH_NX(PGM_GST_TYPE, PGM_GST_TYPE)
             /* The NX bit is determined by a bitwise OR between the PT and PD */
-            if (fNoExecuteBitValid)
-                *pfFlags |= (Pte.u & Pde.u & X86_PTE_PAE_NX);
+            if ((Pte.u & Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu)) /** @todo the code is ANDing not ORing NX like the comment says... */
+                *pfFlags |= X86_PTE_PAE_NX;
 # endif
         }
         if (pGCPhys)
@@ -150,9 +144,8 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
             *pfFlags = (Pde.u & ~(GST_PTE_PG_MASK | X86_PTE_PAT))
                      | ((Pde.u & X86_PDE4M_PAT) >> X86_PDE4M_PAT_SHIFT);
 # if PGM_WITH_NX(PGM_GST_TYPE, PGM_GST_TYPE)
-            /* The NX bit is determined by a bitwise OR between the PT and PD */
-            if (fNoExecuteBitValid)
-                *pfFlags |= (Pde.u & X86_PTE_PAE_NX);
+            if ((Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
+                *pfFlags |= X86_PTE_PAE_NX;
 # endif
         }
         if (pGCPhys)
@@ -223,8 +216,8 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
             return VERR_PAGE_TABLE_NOT_PRESENT;
 
         if (    !Pde.b.u1Size
-# if PGM_GST_TYPE != PGM_TYPE_AMD64
-            ||  !(CPUMGetGuestCR4(pVCpu) & X86_CR4_PSE)
+# if PGM_GST_TYPE == PGM_TYPE_32BIT
+            ||  !CPUMIsGuestPageSizeExtEnabled(pVCpu)
 # endif
             )
         {
@@ -333,17 +326,17 @@ PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
  */
 static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE pNode, void *pvUser)
 {
-    PPGMVIRTHANDLER pCur  = (PPGMVIRTHANDLER)pNode;
+    PPGMVIRTHANDLER pCur   = (PPGMVIRTHANDLER)pNode;
     PPGMHVUSTATE    pState = (PPGMHVUSTATE)pvUser;
-    PVM             pVM = pState->pVM;
-    PVMCPU          pVCpu = pState->pVCpu;
+    PVM             pVM    = pState->pVM;
+    PVMCPU          pVCpu  = pState->pVCpu;
     Assert(pCur->enmType != PGMVIRTHANDLERTYPE_HYPERVISOR);
 
 #if PGM_GST_TYPE == PGM_TYPE_32BIT
     PX86PD          pPDSrc = pgmGstGet32bitPDPtr(&pVCpu->pgm.s);
 #endif
 
-    RTGCPTR         GCPtr = pCur->Core.Key;
+    RTGCPTR         GCPtr  = pCur->Core.Key;
 #if PGM_GST_MODE != PGM_MODE_AMD64
     /* skip all stuff above 4GB if not AMD64 mode. */
     if (GCPtr >= _4GB)
@@ -364,7 +357,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
         if (Pde.n.u1Present)
         {
             if (    !Pde.b.u1Size
-# if PGM_GST_TYPE != PGM_TYPE_AMD64
+# if PGM_GST_TYPE == PGM_TYPE_32BIT
                 ||  !(pState->cr4 & X86_CR4_PSE)
 # endif
                 )

@@ -2418,10 +2418,12 @@ DConnectStub::QueryInterface(const nsID &aIID, void **aInstancePtr)
     const char *nameQ;
     nsCOMPtr <nsIInterfaceInfo> iinfoQ;
     dConnect->GetInterfaceInfo(aIID, getter_AddRefs(iinfoQ));
-    iinfoQ->GetNameShared(&nameQ);
-    LOG(("calling QueryInterface {%s} on peer object "
-         "(stub=%p, instance=0x%Lx {%s})\n",
-         nameQ, this, mInstance, name));
+    if (iinfoQ) {
+        iinfoQ->GetNameShared(&nameQ);
+        LOG(("calling QueryInterface {%s} on peer object "
+             "(stub=%p, instance=0x%Lx {%s})\n",
+             nameQ, this, mInstance, name));
+    }
   }
 #endif
 
@@ -2639,7 +2641,7 @@ DConnectStub::CallMethod(PRUint16 aMethodIndex,
     for (i=0; i<paramCount && NS_SUCCEEDED(rv); ++i)
     {
       const nsXPTParamInfo &paramInfo = aInfo->GetParam(i);
-      if (aParams[i].val.p && (paramInfo.IsOut() || paramInfo.IsRetval()))
+      if ((paramInfo.IsOut() || paramInfo.IsRetval()) && aParams[i].val.p)
       {
         const nsXPTType &type = paramInfo.GetType();
         if (type.IsInterfacePointer())

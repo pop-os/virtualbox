@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmthread_h
@@ -280,7 +276,7 @@ typedef struct PDMTHREAD
 } PDMTHREAD;
 
 /** PDMTHREAD::u32Version value. */
-#define PDMTHREAD_VERSION   0xef010000
+#define PDMTHREAD_VERSION                       PDM_VERSION_MAKE(0xefff, 1, 0)
 
 #ifdef IN_RING3
 VMMR3DECL(int) PDMR3ThreadCreate(PVM pVM, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADINT pfnThread,
@@ -290,7 +286,7 @@ VMMR3DECL(int) PDMR3ThreadCreateExternal(PVM pVM, PPPDMTHREAD ppThread, void *pv
 VMMR3DECL(int) PDMR3ThreadDestroy(PPDMTHREAD pThread, int *pRcThread);
 VMMR3DECL(int) PDMR3ThreadIAmSuspending(PPDMTHREAD pThread);
 VMMR3DECL(int) PDMR3ThreadIAmRunning(PPDMTHREAD pThread);
-VMMR3DECL(int) PDMR3ThreadSleep(PPDMTHREAD pThread, unsigned cMillies);
+VMMR3DECL(int) PDMR3ThreadSleep(PPDMTHREAD pThread, RTMSINTERVAL cMillies);
 VMMR3DECL(int) PDMR3ThreadSuspend(PPDMTHREAD pThread);
 VMMR3DECL(int) PDMR3ThreadResume(PPDMTHREAD pThread);
 #endif /* IN_RING3 */

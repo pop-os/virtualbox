@@ -1,10 +1,10 @@
+/* $Id: tstVD.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
- *
  * Simple VBox HDD container test utility.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,16 +13,15 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #include <VBox/VBoxHDD.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/dir.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
@@ -53,6 +52,16 @@ static void tstVDError(void *pvUser, int rc, RT_SRC_POS_DECL,
     RTPrintf("\n");
 }
 
+static int tstVDMessage(void *pvUser, const char *pszFormat, ...)
+{
+    va_list va;
+
+    RTPrintf("tstVD: ");
+    va_start(va, pszFormat);
+    RTPrintfV(pszFormat, va);
+    va_end(va);
+    return VINF_SUCCESS;
+}
 
 static int tstVDCreateDelete(const char *pszBackend, const char *pszFilename,
                              uint64_t cbSize, unsigned uFlags, bool fDelete)
@@ -80,6 +89,7 @@ static int tstVDCreateDelete(const char *pszBackend, const char *pszFilename,
     VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
     VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
     VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
     rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
                         NULL, &pVDIfs);
@@ -137,6 +147,7 @@ static int tstVDOpenDelete(const char *pszBackend, const char *pszFilename)
     VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
     VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
     VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
     rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
                         NULL, &pVDIfs);
@@ -524,6 +535,7 @@ static int tstVDOpenCreateWriteMerge(const char *pszBackend,
     VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
     VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
     VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
     rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
                         NULL, &pVDIfs);
@@ -624,7 +636,7 @@ static int tstVDCreateWriteOpenRead(const char *pszBackend,
     PDMMEDIAGEOMETRY LCHS = { 0, 0, 0 };
     uint64_t u64DiskSize  = 1000 * _1M;
     uint32_t u32SectorSize = 512;
-    PVDINTERFACE     pVDIfs;
+    PVDINTERFACE     pVDIfs = NULL;
     VDINTERFACE      VDIError;
     VDINTERFACEERROR VDIErrorCallbacks;
 
@@ -647,6 +659,7 @@ static int tstVDCreateWriteOpenRead(const char *pszBackend,
     VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
     VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
     VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
     rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
                         NULL, &pVDIfs);
@@ -721,6 +734,7 @@ static int tstVmdkRename(const char *src, const char *dst)
     VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
     VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
     VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
     rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
                         NULL, &pVDIfs);
@@ -770,6 +784,7 @@ static int tstVmdkCreateRenameOpen(const char *src, const char *dst,
     VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
     VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
     VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
     rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
                         NULL, &pVDIfs);

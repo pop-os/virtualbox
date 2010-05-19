@@ -1,10 +1,10 @@
-/* $Id: NetIf-darwin.cpp $ */
+/* $Id: NetIf-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Main - NetIfList, Darwin implementation.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -156,7 +152,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
 #else
 
 #define ROUNDUP(a) \
-	((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
+        ((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))
 #define ADVANCE(x, n) (x += ROUNDUP((n)->sa_len))
 
 void extractAddresses(int iAddrMask, caddr_t cp, caddr_t cplim, struct sockaddr **pAddresses)
@@ -216,7 +212,7 @@ static int getDefaultIfaceIndex(unsigned short *pu16Index)
     aiMib[0] = CTL_NET;
     aiMib[1] = PF_ROUTE;
     aiMib[2] = 0;
-    aiMib[3] = PF_INET;	/* address family */
+    aiMib[3] = PF_INET; /* address family */
     aiMib[4] = NET_RT_DUMP;
     aiMib[5] = 0;
 
@@ -290,7 +286,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
     aiMib[0] = CTL_NET;
     aiMib[1] = PF_ROUTE;
     aiMib[2] = 0;
-    aiMib[3] = 0;	/* address family */
+    aiMib[3] = 0;       /* address family */
     aiMib[4] = NET_RT_IFLIST;
     aiMib[5] = 0;
 
@@ -439,7 +435,7 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
     aiMib[0] = CTL_NET;
     aiMib[1] = PF_ROUTE;
     aiMib[2] = 0;
-    aiMib[3] = 0;	/* address family */
+    aiMib[3] = 0;       /* address family */
     aiMib[4] = NET_RT_IFLIST;
     aiMib[5] = 0;
 

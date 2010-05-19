@@ -1,11 +1,12 @@
-/* $Id: MediumImpl.h $ */
+/* $Id: MediumImpl.h 29325 2010-05-11 10:07:04Z vboxsync $ */
+
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2008-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,22 +15,16 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_MEDIUMIMPL
 #define ____H_MEDIUMIMPL
 
 #include "VirtualBoxBase.h"
+#include "MediumLock.h"
 
-#include <VBox/com/SupportErrorInfo.h>
-
-class VirtualBox;
 class Progress;
-struct VM;
+class MediumFormat;
 
 namespace settings
 {
@@ -42,18 +37,12 @@ namespace settings
  * Medium component class for all media types.
  */
 class ATL_NO_VTABLE Medium :
-    public VirtualBoxBaseWithTypedChildren<Medium>,
+    public VirtualBoxBase,
     public com::SupportErrorInfoImpl<Medium, IMedium>,
     public VirtualBoxSupportTranslation<Medium>,
     VBOX_SCRIPTABLE_IMPL(IMedium)
 {
 public:
-
-    typedef VirtualBoxBaseWithTypedChildren<Medium>::DependentChildren List;
-
-    class MergeChain;
-    class ImageChain;
-
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Medium)
 
     DECLARE_NOT_AGGREGATABLE(Medium)
@@ -68,6 +57,9 @@ public:
 
     DECLARE_EMPTY_CTOR_DTOR(Medium)
 
+    HRESULT FinalConstruct();
+    void FinalRelease();
+
     enum HDDOpenMode  { OpenReadWrite, OpenReadOnly };
                 // have to use a special enum for the overloaded init() below;
                 // can't use AccessMode_T from XIDL because that's mapped to an int
@@ -76,7 +68,8 @@ public:
     // public initializer/uninitializer for internal purposes only
     HRESULT init(VirtualBox *aVirtualBox,
                  CBSTR aFormat,
-                 CBSTR aLocation);
+                 CBSTR aLocation,
+                 bool *pfNeedsSaveSettings);
     HRESULT init(VirtualBox *aVirtualBox,
                  CBSTR aLocation,
                  HDDOpenMode enOpenMode,
@@ -97,6 +90,9 @@ public:
                  CBSTR aDescription = NULL);
     void uninit();
 
+    void deparent();
+    void setParent(const ComObjPtr<Medium> &pParent);
+
     // IMedium properties
     STDMETHOD(COMGETTER(Id))(BSTR *aId);
     STDMETHOD(COMGETTER(Description))(BSTR *aDescription);
@@ -109,6 +105,7 @@ public:
     STDMETHOD(COMGETTER(HostDrive))(BOOL *aHostDrive);
     STDMETHOD(COMGETTER(Size))(ULONG64 *aSize);
     STDMETHOD(COMGETTER(Format))(BSTR *aFormat);
+    STDMETHOD(COMGETTER(MediumFormat))(IMediumFormat **aMediumFormat);
     STDMETHOD(COMGETTER(Type))(MediumType_T *aType);
     STDMETHOD(COMSETTER(Type))(MediumType_T aType);
     STDMETHOD(COMGETTER(Parent))(IMedium **aParent);
@@ -144,7 +141,7 @@ public:
     STDMETHOD(CreateDiffStorage)(IMedium *aTarget,
                                  MediumVariant_T aVariant,
                                  IProgress **aProgress);
-    STDMETHOD(MergeTo)(IN_BSTR aTargetId, IProgress **aProgress);
+    STDMETHOD(MergeTo)(IMedium *aTarget, IProgress **aProgress);
     STDMETHOD(CloneTo)(IMedium *aTarget, MediumVariant_T aVariant,
                         IMedium *aParent, IProgress **aProgress);
     STDMETHOD(Compact)(IProgress **aProgress);
@@ -152,35 +149,34 @@ public:
     STDMETHOD(Reset)(IProgress **aProgress);
 
     // public methods for internal purposes only
+    const ComObjPtr<Medium>& getParent() const;
+    const MediaList& getChildren() const;
 
-    HRESULT FinalConstruct();
-    void FinalRelease();
-
-    HRESULT updatePath(const char *aOldPath, const char *aNewPath);
+    // unsafe methods for internal purposes only (ensure there is
+    // a caller and a read lock before calling them!)
+    const Guid& getId() const;
+    MediumState_T getState() const;
+    const Utf8Str& getLocation() const;
+    const Utf8Str& getLocationFull() const;
+    const Utf8Str& getFormat() const;
+    const ComObjPtr<MediumFormat> & getMediumFormat() const;
+    uint64_t getSize() const;
+    MediumType_T getType() const;
+    Utf8Str getName();
 
     HRESULT attachTo(const Guid &aMachineId,
                      const Guid &aSnapshotId = Guid::Empty);
     HRESULT detachFrom(const Guid &aMachineId,
                        const Guid &aSnapshotId = Guid::Empty);
 
+    const Guid* getFirstMachineBackrefId() const;
+    const Guid* getFirstMachineBackrefSnapshotId() const;
+
 #ifdef DEBUG
     void dumpBackRefs();
 #endif
 
-    const Guid& getId() const;
-    MediumState_T getState() const;
-    const Utf8Str& getLocation() const;
-    const Utf8Str& getLocationFull() const;
-    uint64_t getSize() const;
-
-    const Guid* getFirstMachineBackrefId() const;
-    const Guid* getFirstMachineBackrefSnapshotId() const;
-
-    /**
-     * Shortcut to VirtualBoxBaseWithTypedChildrenNEXT::dependentChildren().
-     */
-    const List& getChildren() const { return dependentChildren(); }
-
+    HRESULT updatePath(const char *aOldPath, const char *aNewPath);
     void updatePaths(const char *aOldPath, const char *aNewPath);
 
     ComObjPtr<Medium> getBase(uint32_t *aLevel = NULL);
@@ -191,84 +187,50 @@ public:
 
     HRESULT compareLocationTo(const char *aLocation, int &aResult);
 
-    /**
-     * Shortcut to #deleteStorage() that doesn't wait for operation completion
-     * and implies the progress object will be used for waiting.
-     */
-    HRESULT deleteStorageNoWait(ComObjPtr<Progress> &aProgress)
-    { return deleteStorage(&aProgress, false /* aWait */); }
+    HRESULT createMediumLockList(bool fFailIfInaccessible,
+                                 bool fMediumLockWrite,
+                                 Medium *pToBeParent,
+                                 MediumLockList &mediumLockList);
 
-    /**
-     * Shortcut to #deleteStorage() that wait for operation completion by
-     * blocking the current thread.
-     */
-    HRESULT deleteStorageAndWait(ComObjPtr<Progress> *aProgress = NULL)
-    { return deleteStorage(aProgress, true /* aWait */); }
+    HRESULT createDiffStorage(ComObjPtr<Medium> &aTarget,
+                              MediumVariant_T aVariant,
+                              MediumLockList *pMediumLockList,
+                              ComObjPtr<Progress> *aProgress,
+                              bool aWait,
+                              bool *pfNeedsSaveSettings);
 
-    /**
-     * Shortcut to #createDiffStorage() that doesn't wait for operation
-     * completion and implies the progress object will be used for waiting.
-     */
-    HRESULT createDiffStorageNoWait(ComObjPtr<Medium> &aTarget,
-                                    MediumVariant_T aVariant,
-                                    ComObjPtr<Progress> &aProgress)
-    { return createDiffStorage(aTarget, aVariant, &aProgress, false /* aWait */); }
+    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait, bool *pfNeedsSaveSettings);
+    HRESULT markForDeletion();
+    HRESULT unmarkForDeletion();
+    HRESULT markLockedForDeletion();
+    HRESULT unmarkLockedForDeletion();
 
-    /**
-     * Shortcut to #createDiffStorage() that wait for operation completion by
-     * blocking the current thread.
-     */
-    HRESULT createDiffStorageAndWait(ComObjPtr<Medium> &aTarget,
-                                     MediumVariant_T aVariant,
-                                     ComObjPtr<Progress> *aProgress = NULL)
-    { return createDiffStorage(aTarget, aVariant, aProgress, true /* aWait */); }
+    HRESULT prepareMergeTo(const ComObjPtr<Medium> &pTarget,
+                           const Guid *aMachineId,
+                           const Guid *aSnapshotId,
+                           bool fLockMedia,
+                           bool &fMergeForward,
+                           ComObjPtr<Medium> &pParentForTarget,
+                           MediaList &aChildrenToReparent,
+                           MediumLockList * &aMediumLockList);
+    HRESULT mergeTo(const ComObjPtr<Medium> &pTarget,
+                    bool fMergeForward,
+                    const ComObjPtr<Medium> &pParentForTarget,
+                    const MediaList &aChildrenToReparent,
+                    MediumLockList *aMediumLockList,
+                    ComObjPtr<Progress> *aProgress,
+                    bool aWait,
+                    bool *pfNeedsSaveSettings);
+    void cancelMergeTo(const MediaList &aChildrenToReparent,
+                       MediumLockList *aMediumLockList);
 
-    HRESULT prepareMergeTo(Medium *aTarget, MergeChain * &aChain,
-                            bool aIgnoreAttachments = false);
-
-    /**
-     * Shortcut to #mergeTo() that doesn't wait for operation completion and
-     * implies the progress object will be used for waiting.
-     */
-    HRESULT mergeToNoWait(MergeChain *aChain,
-                          ComObjPtr<Progress> &aProgress)
-    { return mergeTo(aChain, &aProgress, false /* aWait */); }
-
-    /**
-     * Shortcut to #mergeTo() that wait for operation completion by
-     * blocking the current thread.
-     */
-    HRESULT mergeToAndWait(MergeChain *aChain,
-                           ComObjPtr<Progress> *aProgress = NULL)
-    { return mergeTo(aChain, aProgress, true /* aWait */); }
-
-    void cancelMergeTo(MergeChain *aChain);
-
-    Utf8Str getName();
-
-    HRESULT prepareDiscard(MergeChain * &aChain);
-    HRESULT discard(ComObjPtr<Progress> &aProgress, ULONG ulWeight, MergeChain *aChain);
-    void cancelDiscard(MergeChain *aChain);
+    HRESULT fixParentUuidOfChildren(const MediaList &childrenToReparent);
 
     /** Returns a preferred format for a differencing hard disk. */
     Bstr preferredDiffFormat();
 
-    // unsafe inline public methods for internal purposes only (ensure there is
-    // a caller and a read lock before calling them!)
-
-    ComObjPtr<Medium> getParent() const { return static_cast<Medium *>(mParent); }
-    MediumType_T getType() const;
-
     /** For com::SupportErrorInfoImpl. */
     static const char *ComponentName() { return "Medium"; }
-
-protected:
-
-    RWLockHandle* getTreeLock();
-
-    /** Reimplements VirtualBoxWithTypedChildren::childrenLock() to return
-     *  treeLock(). */
-    RWLockHandle *childrenLock() { return getTreeLock(); }
 
 private:
 
@@ -285,23 +247,9 @@ private:
      * Unregisters this medium with mVirtualBox. Called by Close() under
      * the medium tree lock.
      */
-    HRESULT unregisterWithVirtualBox();
+    HRESULT unregisterWithVirtualBox(bool *pfNeedsSaveSettings);
 
     HRESULT setStateError();
-
-    /** weak VirtualBox parent */
-    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
-
-    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait);
-
-    HRESULT createDiffStorage(ComObjPtr<Medium> &aTarget,
-                              MediumVariant_T aVariant,
-                              ComObjPtr<Progress> *aProgress,
-                              bool aWait);
-
-    HRESULT mergeTo(MergeChain *aChain,
-                    ComObjPtr<Progress> *aProgress,
-                    bool aWait);
 
     HRESULT setLocation(const Utf8Str &aLocation, const Utf8Str &aFormat = Utf8Str());
     HRESULT setFormat(CBSTR aFormat);
@@ -311,9 +259,6 @@ private:
     static DECLCALLBACK(void) vdErrorCall(void *pvUser, int rc, RT_SRC_POS_DECL,
                                           const char *pszFormat, va_list va);
 
-    static DECLCALLBACK(int) vdProgressCall(VM* /* pVM */, unsigned uPercent,
-                                            void *pvUser);
-
     static DECLCALLBACK(bool) vdConfigAreKeysValid(void *pvUser,
                                                    const char *pszzValid);
     static DECLCALLBACK(int) vdConfigQuerySize(void *pvUser, const char *pszName,
@@ -321,13 +266,33 @@ private:
     static DECLCALLBACK(int) vdConfigQuery(void *pvUser, const char *pszName,
                                            char *pszValue, size_t cchValue);
 
-    static DECLCALLBACK(int) taskThread(RTTHREAD thread, void *pvUser);
+    class Task;
+    class CreateBaseTask;
+    class CreateDiffTask;
+    class CloneTask;
+    class CompactTask;
+    class ResetTask;
+    class DeleteTask;
+    class MergeTask;
+    friend class Task;
+    friend class CreateBaseTask;
+    friend class CreateDiffTask;
+    friend class CloneTask;
+    friend class CompactTask;
+    friend class ResetTask;
+    friend class DeleteTask;
+    friend class MergeTask;
 
-    /** weak parent */
-    ComObjPtr<Medium, ComWeakRef> mParent;
+    HRESULT startThread(Medium::Task *pTask);
+    HRESULT runNow(Medium::Task *pTask, bool *pfNeedsSaveSettings);
 
-    struct Task;
-    friend struct Task;
+    HRESULT taskCreateBaseHandler(Medium::CreateBaseTask &task);
+    HRESULT taskCreateDiffHandler(Medium::CreateDiffTask &task);
+    HRESULT taskMergeHandler(Medium::MergeTask &task);
+    HRESULT taskCloneHandler(Medium::CloneTask &task);
+    HRESULT taskDeleteHandler(Medium::DeleteTask &task);
+    HRESULT taskResetHandler(Medium::ResetTask &task);
+    HRESULT taskCompactHandler(Medium::CompactTask &task);
 
     struct Data;            // opaque data struct, defined in MediumImpl.cpp
     Data *m;

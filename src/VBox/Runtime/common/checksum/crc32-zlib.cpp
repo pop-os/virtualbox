@@ -1,10 +1,10 @@
-/* $Id: crc32-zlib.cpp $ */
+/* $Id: crc32-zlib.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - CRC-32 on top of zlib (very fast).
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -39,10 +35,30 @@
 
 /** @todo Check if we can't just use the zlib code directly here. */
 
+/**
+ * Deal with blocks that are too big for the uInt type.
+ */
+static uint32_t rtCrc32ProcessTooBig(uint32_t uCRC32, const void *pv, size_t cb)
+{
+    const Bytef *pb = (const Bytef *)pv;
+    do
+    {
+        uInt const cbChunk = cb <= ~(uInt)0 ? (uInt)cb : ~(uInt)0;
+        uCRC32 = crc32(uCRC32, pb, cbChunk);
+        pb += cbChunk;
+        cb -= cbChunk;
+    } while (!cb);
+    return uCRC32;
+}
+
 RTDECL(uint32_t) RTCrc32(const void *pv, register size_t cb)
 {
     uint32_t uCrc = crc32(0, NULL, 0);
-    return crc32(uCrc, (const Bytef *)pv, cb);
+    if (RT_UNLIKELY((uInt)cb == cb))
+        uCrc = crc32(uCrc, (const Bytef *)pv, (uInt)cb);
+    else
+        uCrc = rtCrc32ProcessTooBig(uCrc, pv, cb);
+    return uCrc;
 }
 RT_EXPORT_SYMBOL(RTCrc32);
 
@@ -56,7 +72,11 @@ RT_EXPORT_SYMBOL(RTCrc32Start);
 
 RTDECL(uint32_t) RTCrc32Process(uint32_t uCRC32, const void *pv, size_t cb)
 {
-    return crc32(uCRC32, (const Bytef *)pv, cb);
+    if (RT_UNLIKELY((uInt)cb == cb))
+        uCRC32 = crc32(uCRC32, (const Bytef *)pv, (uInt)cb);
+    else
+        uCRC32 = rtCrc32ProcessTooBig(uCRC32, pv, cb);
+    return uCRC32;
 }
 RT_EXPORT_SYMBOL(RTCrc32Process);
 

@@ -1,4 +1,4 @@
-# $Id: VBoxPkg.dec $
+# $Id: VBoxPkg.dec 26441 2010-02-11 16:20:14Z vboxsync $
 ## @file
 # VBoxPkg.dec - VirtualBox Package description.
 #
@@ -76,3 +76,7 @@
 [PcdsFeatureFlag.common]
         gVBoxVgaPkgTokenSpaceGuid.PcdSupportGop|TRUE|BOOLEAN|0x00010004
         gVBoxVgaPkgTokenSpaceGuid.PcdSupportUga|FALSE|BOOLEAN|0x00010005
+
+[LibraryClasses]
+  ##  @libraryclass  Generic BDS library definition, include the data structure and function.
+  GenericBdsLib|Include/Library/GenericBdsLib.h

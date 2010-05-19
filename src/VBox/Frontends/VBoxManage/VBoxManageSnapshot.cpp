@@ -1,10 +1,10 @@
-/* $Id: VBoxManageSnapshot.cpp $ */
+/* $Id: VBoxManageSnapshot.cpp 28870 2010-04-28 14:33:11Z vboxsync $ */
 /** @file
  * VBoxManage - The 'snapshot' command.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -278,7 +274,8 @@ int handleSnapshot(HandlerArg *a)
                 { "--pause",       'p', RTGETOPT_REQ_NOTHING }
             };
             RTGETOPTSTATE GetOptState;
-            RTGetOptInit(&GetOptState, a->argc, a->argv, s_aTakeOptions, RT_ELEMENTS(s_aTakeOptions), 3, 0 /*fFlags*/);
+            RTGetOptInit(&GetOptState, a->argc, a->argv, s_aTakeOptions, RT_ELEMENTS(s_aTakeOptions),
+                         3, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
             int ch;
             RTGETOPTUNION Value;
             while (   SUCCEEDED(rc)

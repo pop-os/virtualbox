@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_vmapi_h
@@ -370,9 +366,9 @@ VMMR3DECL(int)      VMR3AtRuntimeErrorRegister(PVM pVM, PFNVMATRUNTIMEERROR pfnA
 VMMR3DECL(int)      VMR3AtRuntimeErrorDeregister(PVM pVM, PFNVMATRUNTIMEERROR pfnAtRuntimeError, void *pvUser);
 VMMR3DECL(int)      VMR3SetRuntimeErrorWorker(PVM pVM);
 VMMR3DECL(uint32_t) VMR3GetRuntimeErrorCount(PVM pVM);
-VMMR3DECL(int)      VMR3ReqCall(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, uint32_t fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)      VMR3ReqCallU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
-VMMR3DECL(int)      VMR3ReqCallVU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, unsigned cMillies, unsigned fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
+VMMR3DECL(int)      VMR3ReqCall(PVM pVM, VMCPUID idDstCpu, PVMREQ *ppReq, RTMSINTERVAL cMillies, uint32_t fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)      VMR3ReqCallU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, RTMSINTERVAL cMillies, uint32_t fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
+VMMR3DECL(int)      VMR3ReqCallVU(PUVM pUVM, VMCPUID idDstCpu, PVMREQ *ppReq, RTMSINTERVAL cMillies, uint32_t fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
 VMMR3DECL(int)      VMR3ReqCallWait(PVM pVM, VMCPUID idDstCpu, PFNRT pfnFunction, unsigned cArgs, ...);
 VMMR3DECL(int)      VMR3ReqCallWaitU(PUVM pUVM, VMCPUID idDstCpu, PFNRT pfnFunction, unsigned cArgs, ...);
 VMMR3DECL(int)      VMR3ReqCallNoWait(PVM pVM, VMCPUID idDstCpu, PFNRT pfnFunction, unsigned cArgs, ...);
@@ -384,8 +380,8 @@ VMMR3DECL(int)      VMR3ReqCallVoidNoWaitU(PUVM pUVM, VMCPUID idDstCpu, PFNRT pf
 VMMR3DECL(int)      VMR3ReqAlloc(PVM pVM, PVMREQ *ppReq, VMREQTYPE enmType, VMCPUID idDstCpu);
 VMMR3DECL(int)      VMR3ReqAllocU(PUVM pUVM, PVMREQ *ppReq, VMREQTYPE enmType, VMCPUID idDstCpu);
 VMMR3DECL(int)      VMR3ReqFree(PVMREQ pReq);
-VMMR3DECL(int)      VMR3ReqQueue(PVMREQ pReq, unsigned cMillies);
-VMMR3DECL(int)      VMR3ReqWait(PVMREQ pReq, unsigned cMillies);
+VMMR3DECL(int)      VMR3ReqQueue(PVMREQ pReq, RTMSINTERVAL cMillies);
+VMMR3DECL(int)      VMR3ReqWait(PVMREQ pReq, RTMSINTERVAL cMillies);
 VMMR3DECL(int)      VMR3ReqProcessU(PUVM pUVM, VMCPUID idDstCpu);
 VMMR3DECL(void)     VMR3NotifyGlobalFFU(PUVM pUVM, uint32_t fFlags);
 VMMR3DECL(void)     VMR3NotifyCpuFFU(PUVMCPU pUVMCpu, uint32_t fFlags);
@@ -406,6 +402,9 @@ VMMR3DECL(RTTHREAD)         VMR3GetVMCPUThread(PVM pVM);
 VMMR3DECL(RTTHREAD)         VMR3GetVMCPUThreadU(PUVM pUVM);
 VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThread(PVM pVM);
 VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThreadU(PUVM pUVM);
+VMMR3DECL(int)              VMR3GetCpuCoreAndPackageIdFromCpuId(PVM pVM, VMCPUID idCpu, uint32_t *pidCpuCore, uint32_t *pidCpuPackage);
+VMMR3DECL(int)              VMR3HotUnplugCpu(PVM pVM, VMCPUID idCpu);
+VMMR3DECL(int)              VMR3HotPlugCpu(PVM pVM, VMCPUID idCpu);
 
 /** @} */
 #endif /* IN_RING3 */
@@ -424,5 +423,4 @@ RT_C_DECLS_END
 /** @} */
 
 #endif
-
 

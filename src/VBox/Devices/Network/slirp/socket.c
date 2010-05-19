@@ -1,4 +1,23 @@
+/* $Id: socket.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - socket handling.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1995 Danny Gasparovski.
  *
  * Please read the file COPYRIGHT for the
@@ -30,7 +49,6 @@ void
 so_init()
 {
 }
-
 
 struct socket *
 solookup(struct socket *head, struct in_addr laddr,
@@ -88,7 +106,7 @@ sofree(PNATState pData, struct socket *so)
 
     /* check if mbuf haven't been already freed  */
     if (so->so_m != NULL)
-        m_free(pData, so->so_m);
+        m_freem(pData, so->so_m);
 #ifndef VBOX_WITH_SLIRP_MT
     if (so->so_next && so->so_prev)
     {
@@ -133,7 +151,7 @@ soread(PNATState pData, struct socket *so)
     QSOCKET_UNLOCK(tcb);
 
     DEBUG_CALL("soread");
-    DEBUG_ARG("so = %lx", (long )so);
+    DEBUG_ARG("so = %lx", (long)so);
 
     /*
      * No need to check if there's enough room to read.
@@ -199,11 +217,10 @@ soread(PNATState pData, struct socket *so)
     nn = readv(so->s, (struct iovec *)iov, n);
     DEBUG_MISC((dfd, " ... read nn = %d bytes\n", nn));
 #else
-    nn = recv(so->s, iov[0].iov_base, iov[0].iov_len, 0);
+    nn = recv(so->s, iov[0].iov_base, iov[0].iov_len, (so->so_tcpcb->t_force? MSG_OOB:0));
 #endif
     if (nn <= 0)
     {
-#if defined(RT_OS_WINDOWS)
         /*
          * Special case for WSAEnumNetworkEvents: If we receive 0 bytes that
          * _could_ mean that the connection is closed. But we will receive an
@@ -211,18 +228,17 @@ soread(PNATState pData, struct socket *so)
          * www.youtube.com I see this very often. Closing the socket too early
          * would be dangerous.
          */
-        int status, ignored;
+        int status;
         unsigned long pending = 0;
-        status = WSAIoctl(so->s, FIONREAD, NULL, 0, &pending, sizeof(unsigned long), &ignored, NULL, NULL);
+        status = ioctlsocket(so->s, FIONREAD, &pending);
         if (status < 0)
-            LogRel(("NAT:error in WSAIoctl: %d\n", WSAGetLastError()));
+            LogRel(("NAT:error in WSAIoctl: %d\n", errno));
         if (nn == 0 && (pending != 0))
         {
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
             return 0;
         }
-#endif
         if (   nn < 0
             && (   errno == EINTR
                 || errno == EAGAIN
@@ -306,6 +322,7 @@ void
 sorecvoob(PNATState pData, struct socket *so)
 {
     struct tcpcb *tp = sototcpcb(so);
+    ssize_t ret;
 
     DEBUG_CALL("sorecvoob");
     DEBUG_ARG("so = %lx", (long)so);
@@ -318,7 +335,7 @@ sorecvoob(PNATState pData, struct socket *so)
      * urgent data, or the read() doesn't return all the
      * urgent data.
      */
-    soread(pData, so);
+    ret = soread(pData, so);
     tp->snd_up = tp->snd_una + so->so_snd.sb_cc;
     tp->t_force = 1;
     tcp_output(pData, tp);
@@ -568,7 +585,6 @@ sorecvfrom(PNATState pData, struct socket *so)
     {
         /* A "normal" UDP packet */
         struct mbuf *m;
-        struct ethhdr *eh;
         ssize_t len;
         u_long n = 0;
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
@@ -595,7 +611,7 @@ sorecvfrom(PNATState pData, struct socket *so)
          * but I don't know the max packet size for DNS lookups
          */
         len = M_FREEROOM(m);
-        /* if (so->so_fport != htons(53)) */
+        /* if (so->so_fport != RT_H2N_U16_C(53)) */
         rc = ioctlsocket(so->s, FIONREAD, &n);
         if (   rc == -1
             && (  errno == EAGAIN
@@ -603,7 +619,7 @@ sorecvfrom(PNATState pData, struct socket *so)
                || errno == EINPROGRESS
                || errno == ENOTCONN))
         {
-            m_free(pData, m);
+            m_freem(pData, m);
             return;
         }
 
@@ -614,7 +630,7 @@ sorecvfrom(PNATState pData, struct socket *so)
         {
             LogRel(("NAT: can't fetch amount of bytes on socket %R[natsock], so message will be truncated.\n", so));
             signalled = 1;
-            m_free(pData, m);
+            m_freem(pData, m);
             return;
         }
 
@@ -627,7 +643,7 @@ sorecvfrom(PNATState pData, struct socket *so)
         ret = recvfrom(so->s, m->m_data, len, 0,
                             (struct sockaddr *)&addr, &addrlen);
         Log2(("NAT: %R[natsock] ioctlsocket after read "
-            "(rc:%d errno:%d, n:%d) ret:%d, len:%d\n", so, 
+            "(rc:%d errno:%d, n:%d) ret:%d, len:%d\n", so,
              rc, errno, n, ret, len));
 #else
         /*How many data has been received ?*/
@@ -644,35 +660,33 @@ sorecvfrom(PNATState pData, struct socket *so)
         }
 
         len = sizeof(struct udpiphdr) + ETH_HLEN;
+        if (n > (if_mtu - len))
+        {
+            n = if_mtu - len; /* can't read than we can put in the mbuf*/
+        }
         len += n;
 
+        size = MCLBYTES;
         if (len < MSIZE)
-        {
             size = MCLBYTES;
-        }
         else if (len < MCLBYTES)
-        {
             size = MCLBYTES;
-        }
         else if (len < MJUM9BYTES)
-        {
             size = MJUM9BYTES;
-        }
         else if (len < MJUM16BYTES)
-        {
             size = MJUM16BYTES;
-        }
         else
-        {
             AssertMsgFailed(("Unsupported size"));
-        }
+
         m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
+        if (m == NULL)
+            return;
         m->m_data += ETH_HLEN;
         m->m_pkthdr.header = mtod(m, void *);
         m->m_data += sizeof(struct udpiphdr);
         ret = recvfrom(so->s, mtod(m, char *), n, 0,
                             (struct sockaddr *)&addr, &addrlen);
-        /* @todo (r=vvl) check which flags and type should be passed */
+        /* @todo (vvl) check which flags and type should be passed */
 #endif
         m->m_len = ret;
         if (ret < 0)
@@ -684,7 +698,7 @@ sorecvfrom(PNATState pData, struct socket *so)
             else if (errno == ENETUNREACH)
                 code = ICMP_UNREACH_NET;
 
-            m_free(pData, m);
+            m_freem(pData, m);
             if (   errno == EAGAIN
                 || errno == EWOULDBLOCK
                 || errno == EINPROGRESS
@@ -707,7 +721,7 @@ sorecvfrom(PNATState pData, struct socket *so)
              */
             if (so->so_expire)
             {
-                if (so->so_fport != htons(53))
+                if (so->so_fport != RT_H2N_U16_C(53))
                     so->so_expire = curtime + SO_EXPIRE;
             }
             /*
@@ -715,7 +729,7 @@ sorecvfrom(PNATState pData, struct socket *so)
              *  Note: Here we can't check if dnsproxy's sent initial request
              */
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
-            if (so->so_fport == htons(53))
+            if (so->so_fport == RT_H2N_U16_C(53))
                 dnsproxy_answer(pData, so, m);
 #endif
 
@@ -750,7 +764,7 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
     struct sockaddr_in host_addr;
 #endif
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
-    uint8_t *buf;
+    caddr_t buf;
     int mlen;
 #endif
 
@@ -764,10 +778,10 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
 #endif
     paddr = (struct sockaddr_in *)&addr;
     paddr->sin_family = AF_INET;
-    if ((so->so_faddr.s_addr & htonl(pData->netmask)) == pData->special_addr.s_addr)
+    if ((so->so_faddr.s_addr & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr)
     {
         /* It's an alias */
-        uint32_t last_byte = ntohl(so->so_faddr.s_addr) & ~pData->netmask;
+        uint32_t last_byte = RT_N2H_U32(so->so_faddr.s_addr) & ~pData->netmask;
         switch(last_byte)
         {
 #if 0
@@ -801,7 +815,7 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
     paddr->sin_port = so->so_fport;
 
     DEBUG_MISC((dfd, " sendto()ing, addr.sin_port=%d, addr.sin_addr.s_addr=%.16s\n",
-                ntohs(paddr->sin_port), inet_ntoa(paddr->sin_addr)));
+                RT_N2H_U16(paddr->sin_port), inet_ntoa(paddr->sin_addr)));
 
     /* Don't care what port we get */
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
@@ -1056,18 +1070,21 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     struct icmp_msg *icm;
     uint8_t proto;
     int type = 0;
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
     int m_room;
+#endif
 
     ip = (struct ip *)buff;
+    /* Fix ip->ip_len to  contain the total packet length including the header
+     * in _host_ byte order for all OSes. On Darwin, that value already is in
+     * host byte order. Solaris and Darwin report only the payload. */
 #ifndef RT_OS_DARWIN
-    /* Darwin: send IP.IP_LEN in host format (payload only) */
     ip->ip_len = RT_N2H_U16(ip->ip_len);
 #endif
-    /* Note: ip->ip_len in host byte order (all OS) */
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
-    ip->ip_len += (ip->ip_hl << 2); /* Solaris: reports only payload length */
-#endif
     hlen = (ip->ip_hl << 2);
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
+    ip->ip_len += hlen;
+#endif
     if (ip->ip_len < hlen + ICMP_MINLEN)
     {
        Log(("send_icmp_to_guest: ICMP header is too small to understand which type/subtype of the datagram\n"));
@@ -1111,7 +1128,6 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
     }
 
     icm = icmp_find_original_mbuf(pData, ip);
-
     if (icm == NULL)
     {
         Log(("NAT: Can't find the corresponding packet for the received ICMP\n"));
@@ -1132,16 +1148,16 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, c
             return;
         }
         /*
-         * while combining buffer to send (see ip_icmp.c) we control ICMP header only, 
-         * IP header combined by OS network stack, our local copy of IP header contians values 
+         * while combining buffer to send (see ip_icmp.c) we control ICMP header only,
+         * IP header combined by OS network stack, our local copy of IP header contians values
          * in host byte order so no byte order conversion is required. IP headers fields are converting
-         * in ip_output0 routine only.   
+         * in ip_output0 routine only.
          */
-        if (   (ip->ip_len - hlen )
-            != (ip0->ip_len - (ip0->ip_hl << 2))) 
+        if (   (ip->ip_len - hlen)
+            != (ip0->ip_len - (ip0->ip_hl << 2)))
         {
             Log(("NAT: ECHO(%d) lenght doesn't match ECHOREPLY(%d)\n",
-                (ip->ip_len - hlen ), (ip0->ip_len - (ip0->ip_hl << 2))));
+                (ip->ip_len - hlen), (ip0->ip_len - (ip0->ip_hl << 2))));
             return;
         }
     }
@@ -1242,6 +1258,8 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
     int data_len = 0;
     int nbytes = 0;
     u_char code = ~0;
+    int out_len;
+    int size;
 
     len = pData->pfIcmpParseReplies(pData->pvIcmpBuffer, pData->szIcmpBuffer);
     if (len < 0)
@@ -1270,11 +1288,28 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 so->so_m = NULL;
                 break;
             case IP_SUCCESS: /* echo replied */
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+# ifndef VBOX_WITH_SLIRP_BSD_MBUF
                 m = m_get(pData);
-#else
-                m = m_gethdr(pData, M_NOWAIT, MT_HEADER);
-#endif
+# else
+                out_len = ETH_HLEN + sizeof(struct ip) +  8;
+                size;
+                size = MCLBYTES;
+                if (out_len < MSIZE)
+                    size = MCLBYTES;
+                else if (out_len < MCLBYTES)
+                    size = MCLBYTES;
+                else if (out_len < MJUM9BYTES)
+                    size = MJUM9BYTES;
+                else if (out_len < MJUM16BYTES)
+                    size = MJUM16BYTES;
+                else
+                    AssertMsgFailed(("Unsupported size"));
+
+                m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
+                if (m == NULL)
+                    return;
+# endif
+                m->m_len = 0;
                 m->m_data += if_maxlinkhdr;
                 ip = mtod(m, struct ip *);
                 ip->ip_src.s_addr = icr[i].Address;
@@ -1292,12 +1327,16 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
 
                 data_len += ICMP_MINLEN;
 
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
+# ifndef VBOX_WITH_SLIRP_BSD_MBUF
                 nbytes = (data_len + icr[i].DataSize > m->m_size? m->m_size - data_len: icr[i].DataSize);
                 memcpy(icp->icmp_data, icr[i].Data, nbytes);
-#else
-                AssertMsgFailed(("ICMP"));
-#endif
+# else
+                hlen = (ip->ip_hl << 2);
+                m->m_pkthdr.header = mtod(m, void *);
+                m->m_len = data_len;
+
+                m_copyback(pData, m, hlen + 8, icr[i].DataSize, icr[i].Data);
+# endif
 
                 data_len += icr[i].DataSize;
 
@@ -1330,7 +1369,9 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
                 nbytes =(hlen + ICMP_MINLEN + data_len > m->m_size? m->m_size - (hlen + ICMP_MINLEN): data_len);
                 memcpy(icp->icmp_data, ip_broken,  nbytes);
 #else
-                AssertMsgFailed(("ICMP"));
+                m->m_len = data_len;
+                m->m_pkthdr.header = mtod(m, void *);
+                m_copyback(pData, m, ip->ip_hl >> 2, icr[i].DataSize, icr[i].Data);
 #endif
                 icmp_reflect(pData, m);
                 break;
@@ -1340,7 +1381,7 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
         }
     }
 }
-#else /* RT_OS_WINDOWS */
+#else /* !RT_OS_WINDOWS */
 static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
 {
     struct sockaddr_in addr;
@@ -1383,21 +1424,22 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     }
     /* basic check of IP header */
     if (   ip.ip_v != IPVERSION
-#ifndef RT_OS_DARWIN
+# ifndef RT_OS_DARWIN
         || ip.ip_p != IPPROTO_ICMP
-#endif
-    )
+# endif
+        )
     {
         Log(("sorecvfrom_icmp_unix: 1 - step IP isn't IPv4 \n"));
         return;
     }
-#ifndef RT_OS_DARWIN
-    /* Darwin reports IP header in host format */
+# ifndef RT_OS_DARWIN
+    /* Darwin reports the IP length already in host byte order. */
     ip.ip_len = RT_N2H_U16(ip.ip_len);
-#endif
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
-    ip.ip_len += (ip.ip_hl << 2); /* Solaris: reports only payload length */
-#endif
+# endif
+# if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
+    /* Solaris and Darwin report the payload only */
+    ip.ip_len += (ip.ip_hl << 2);
+# endif
     /* Note: ip->ip_len in host byte order (all OS) */
     len = ip.ip_len;
     buff = RTMemAlloc(len);

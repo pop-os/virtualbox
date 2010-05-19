@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_x86_h
@@ -468,6 +464,16 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_EDX_PBE       RT_BIT(31)
 /** @} */
 
+/** @name CPUID mwait/monitor information.
+ * CPUID query with EAX=5.
+ * @{
+ */
+/** ECX Bit 0 - MWAITEXT - Supports mwait/monitor extensions or not. */
+#define X86_CPUID_MWAIT_ECX_EXT            RT_BIT(0)
+/** ECX Bit 1 - MWAITBREAK - Break mwait for external interrupt even if EFLAGS.IF=0. */
+#define X86_CPUID_MWAIT_ECX_BREAKIRQIF0    RT_BIT(1)
+/** @} */
+
 
 /** @name CPUID AMD Feature information.
  * CPUID query with EAX=0x80000001.
@@ -817,6 +823,21 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** BIOS update signature (microcode). */
 #define MSR_IA32_BIOS_SIGN_ID               0x8B
 
+/** General performance counter no. 0. */
+#define MSR_IA32_PMC0                       0xC1
+/** General performance counter no. 1. */
+#define MSR_IA32_PMC1                       0xC2
+/** General performance counter no. 2. */
+#define MSR_IA32_PMC2                       0xC3
+/** General performance counter no. 3. */
+#define MSR_IA32_PMC3                       0xC4
+
+/** Nehalem power control. */
+#define MSR_IA32_PLATFORM_INFO              0xCE
+
+/** Get FSB clock status (Intel-specific). */
+#define MSR_IA32_FSB_CLOCK_STS              0xCD
+
 /** MTRR Capabilities. */
 #define MSR_IA32_MTRR_CAP                   0xFE
 
@@ -850,8 +871,13 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** Performance counter MSRs. (Intel only) */
 #define MSR_IA32_PERFEVTSEL0                0x186
 #define MSR_IA32_PERFEVTSEL1                0x187
+#define MSR_IA32_FLEX_RATIO                 0x194
 #define MSR_IA32_PERF_STATUS                0x198
 #define MSR_IA32_PERF_CTL                   0x199
+#define MSR_IA32_THERM_STATUS               0x19c
+
+/** Enable misc. processor features (R/W). */
+#define MSR_IA32_MISC_ENABLE                0x1A0
 
 /** MTRR Default Range. */
 #define MSR_IA32_MTRR_DEF_TYPE              0x2FF
@@ -1117,7 +1143,7 @@ typedef struct X86PTEBITS
      * Indicates that the page have been read or written to. */
     unsigned    u1Accessed : 1;
     /** Dirty flag.
-     * Indicates that the page have been written to. */
+     * Indicates that the page has been written to. */
     unsigned    u1Dirty : 1;
     /** Reserved / If PAT enabled, bit 2 of the index.  */
     unsigned    u1PAT : 1;
@@ -1174,7 +1200,7 @@ typedef struct X86PTEPAEBITS
      * Indicates that the page have been read or written to. */
     uint32_t    u1Accessed : 1;
     /** Dirty flag.
-     * Indicates that the page have been written to. */
+     * Indicates that the page has been written to. */
     uint32_t    u1Dirty : 1;
     /** Reserved / If PAT enabled, bit 2 of the index.  */
     uint32_t    u1PAT : 1;
@@ -1309,7 +1335,7 @@ typedef struct X86PDEBITS
     /** Cache disabled flag. If PAT enabled, bit 1 of the index. */
     unsigned    u1CacheDisable : 1;
     /** Accessed flag.
-     * Indicates that the page have been read or written to. */
+     * Indicates that the page has been read or written to. */
     unsigned    u1Accessed : 1;
     /** Reserved / Ignored (dirty bit). */
     unsigned    u1Reserved0 : 1;
@@ -1344,7 +1370,7 @@ typedef struct X86PDEPAEBITS
     /** Cache disabled flag. If PAT enabled, bit 1 of the index. */
     uint32_t    u1CacheDisable : 1;
     /** Accessed flag.
-     * Indicates that the page have been read or written to. */
+     * Indicates that the page has been read or written to. */
     uint32_t    u1Accessed : 1;
     /** Reserved / Ignored (dirty bit). */
     uint32_t    u1Reserved0 : 1;
@@ -1430,7 +1456,7 @@ typedef struct X86PDE4MBITS
      * Indicates that the page have been read or written to. */
     unsigned    u1Accessed : 1;
     /** Dirty flag.
-     * Indicates that the page have been written to. */
+     * Indicates that the page has been written to. */
     unsigned    u1Dirty : 1;
     /** Page size flag - always 1 for 4MB entries. */
     unsigned    u1Size : 1;
@@ -1473,7 +1499,7 @@ typedef struct X86PDE2MPAEBITS
      * Indicates that the page have been read or written to. */
     uint32_t    u1Accessed : 1;
     /** Dirty flag.
-     * Indicates that the page have been written to. */
+     * Indicates that the page has been written to. */
     uint32_t    u1Dirty : 1;
     /** Page size flag - always 1 for 2MB entries. */
     uint32_t    u1Size : 1;

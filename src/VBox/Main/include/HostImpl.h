@@ -1,10 +1,10 @@
-/* $Id: HostImpl.h $ */
+/* $Id: HostImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Implemenation of IHost.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_HOSTIMPL
@@ -26,11 +22,9 @@
 
 class HostUSBDeviceFilter;
 class USBProxyService;
-class VirtualBox;
 class SessionMachine;
 class Progress;
 class PerformanceCollector;
-class Medium;
 
 namespace settings
 {
@@ -75,7 +69,7 @@ public:
     STDMETHOD(GetProcessorSpeed)(ULONG cpuId, ULONG *speed);
     STDMETHOD(GetProcessorDescription)(ULONG cpuId, BSTR *description);
     STDMETHOD(GetProcessorFeature) (ProcessorFeature_T feature, BOOL *supported);
-    STDMETHOD(GetProcessorCpuIdLeaf)(ULONG aCpuId, ULONG aLeaf, ULONG aSubLeaf, ULONG *aValEAX, ULONG *aValEBX, ULONG *aValECX, ULONG *aValEDX);
+    STDMETHOD(GetProcessorCPUIDLeaf)(ULONG aCpuId, ULONG aLeaf, ULONG aSubLeaf, ULONG *aValEAX, ULONG *aValEBX, ULONG *aValECX, ULONG *aValEDX);
     STDMETHOD(COMGETTER(MemorySize))(ULONG *size);
     STDMETHOD(COMGETTER(MemoryAvailable))(ULONG *available);
     STDMETHOD(COMGETTER(OperatingSystem))(BSTR *os);
@@ -100,8 +94,31 @@ public:
     STDMETHOD(FindUSBDeviceById) (IN_BSTR aId, IHostUSBDevice **aDevice);
 
     // public methods only for internal purposes
+
+    /**
+     * Simple run-time type identification without having to enable C++ RTTI.
+     * The class IDs are defined in VirtualBoxBase.h.
+     * @return
+     */
+    virtual VBoxClsID getClassID() const
+    {
+        return clsidHost;
+    }
+
+    /**
+     * Override of the default locking class to be used for validating lock
+     * order with the standard member lock handle.
+     */
+    virtual VBoxLockingClass getLockingClass() const
+    {
+        return LOCKCLASS_HOSTOBJECT;
+    }
+
     HRESULT loadSettings(const settings::Host &data);
     HRESULT saveSettings(settings::Host &data);
+
+    HRESULT getDVDDrives(MediaList &ll);
+    HRESULT getFloppyDrives(MediaList &ll);
 
 #ifdef VBOX_WITH_USB
     typedef std::list< ComObjPtr<HostUSBDeviceFilter> > USBDeviceFilterList;

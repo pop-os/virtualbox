@@ -1,11 +1,11 @@
-/* $Id: packspu_framebuffer.c $ */
+/* $Id: packspu_framebuffer.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * VBox OpenGL FBO related functions
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "packspu.h"
@@ -72,6 +68,13 @@ packspu_FramebufferRenderbufferEXT(GLenum target, GLenum attachment, GLenum rend
 {
 	crStateFramebufferRenderbufferEXT(target, attachment, renderbuffertarget, renderbuffer);
     crPackFramebufferRenderbufferEXT(target, attachment, renderbuffertarget, renderbuffer);
+}
+
+void PACKSPU_APIENTRY
+packspu_BindRenderbufferEXT(GLenum target, GLuint renderbuffer)
+{
+    crStateBindRenderbufferEXT(target, renderbuffer);
+    crPackBindRenderbufferEXT(target, renderbuffer);
 }
 
 GLenum PACKSPU_APIENTRY

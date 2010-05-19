@@ -456,6 +456,7 @@ GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
     /* @todo For some odd reason *first* run of compiz on freshly booted VM gives us 0 cRects all the time.
      * In (!pWindow->pVisibleRegions && cRects) "&& cRects" is a workaround for that case, especially as this
      * information is useless for full screen composing managers anyway.
+     * If this is changed, make sure to change crVBoxServerLoadState accordingly.
      */
     if ((!pWindow->pVisibleRegions && cRects)
         || pWindow->cVisibleRegions!=cRects 
@@ -467,7 +468,8 @@ GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
         pGLRects = crAlloc(4*cRects*sizeof(GLint));
         if (!pGLRects)
         {
-            crWarning("stubUpdateWindowVisibileRegions: failed to allocate %i bytes", 4*cRects*sizeof(GLint));
+            crWarning("stubUpdateWindowVisibileRegions: failed to allocate %lu bytes",
+                    (unsigned long)(4*cRects*sizeof(GLint)));
             return GL_FALSE;
         }
 

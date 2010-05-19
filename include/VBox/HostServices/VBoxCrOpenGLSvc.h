@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_HostService_VBoxCrOpenGLSvc_h
@@ -37,9 +33,10 @@
 #include <VBox/hgcmsvc.h>
 
 /* crOpenGL host functions */
-#define SHCRGL_HOST_FN_SET_FRAMEBUFFER (1)
+#define SHCRGL_HOST_FN_SET_CONSOLE (1)
 #define SHCRGL_HOST_FN_SET_VISIBLE_REGION (5)
 #define SHCRGL_HOST_FN_SET_VM (7)
+#define SHCRGL_HOST_FN_SCREEN_CHANGED (8)
 /* crOpenGL guest functions */
 #define SHCRGL_GUEST_FN_WRITE       (2)
 #define SHCRGL_GUEST_FN_READ        (3)
@@ -47,13 +44,14 @@
 #define SHCRGL_GUEST_FN_SET_VERSION (6)
 
 /* Parameters count */
-#define SHCRGL_CPARMS_SET_FRAMEBUFFER (1)
+#define SHCRGL_CPARMS_SET_CONSOLE (1)
 #define SHCRGL_CPARMS_SET_VM (1)
 #define SHCRGL_CPARMS_SET_VISIBLE_REGION (2)
 #define SHCRGL_CPARMS_WRITE      (1)
 #define SHCRGL_CPARMS_READ       (2)
 #define SHCRGL_CPARMS_WRITE_READ (3)
 #define SHCRGL_CPARMS_SET_VERSION (2)
+#define SHCRGL_CPARMS_SCREEN_CHANGED (1)
 
 /**
  * SHCRGL_GUEST_FN_WRITE

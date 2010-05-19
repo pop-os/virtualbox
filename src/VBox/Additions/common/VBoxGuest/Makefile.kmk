@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29044 2010-05-04 20:38:42Z vboxsync $
 ## @file
 # Makefile for the Cross Platform Guest Additions Driver.
 #
 
 #
-# Copyright (C) 2007 Sun Microsystems, Inc.
+# Copyright (C) 2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../../..
@@ -36,6 +32,8 @@ if1of ($(KBUILD_TARGET), freebsd $(if $(defined VBOX_WITH_ADDITION_DRIVERS),linu
  VBoxGuest_DEFS.linux    = KBUILD_MODNAME=KBUILD_STR\(vboxguest\) KBUILD_BASENAME=KBUILD_STR\(vboxguest\) DEBUG_HASH=2 DEBUG_HASH2=3 EXPORT_SYMTAB
  VBoxGuest_DEFS.solaris  = VBOX_SVN_REV=$(VBOX_SVN_REV)
  VBoxGuest_DEPS.solaris += $(VBOX_SVN_REV_KMK)
+ VBoxGuest_DEPS.linux   += $(VBOX_SVN_REV_HEADER)
+ VBoxGuest_DEPS.freebsd += $(VBOX_SVN_REV_HEADER)
  VBoxGuest_DEFS          = VBGL_VBOXGUEST VBOX_WITH_HGCM
  VBoxGuest_INCS          = .
  VBoxGuest_INCS.freebsd  = $(PATH_VBoxGuest) $(PATH_INS)/gen-sys-hdrs
@@ -120,10 +118,23 @@ ifeq ($(KBUILD_TARGET),linux)
  		$(VBOX_VERSION_STAMP) \
  		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
-	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxguest;g" --output $@ $<
+	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxguest;g; s;_BUILDTYPE_;${KBUILD_TYPE};g" --output $@ $<
 	$(QUIET)$(CHMOD) 0755 $@
 
 endif # Linux
+
+ifeq ($(KBUILD_TARGET),freebsd)
+ #
+ # Install the source files and script(s).
+ #
+ include $(PATH_SUB_CURRENT)/freebsd/files_vboxguest
+ # sources and stuff.
+ INSTALLS += vboxguest-src
+ vboxguest-src_INST     = $(INST_ADDITIONS)src/vboxguest/
+ vboxguest-src_MODE     = a+r,u+w
+ vboxguest-src_SOURCES  = $(subst ",,$(FILES_VBOXGUEST_NOBIN))
+
+endif # FreeBSD
 
 include	$(KBUILD_PATH)/subfooter.kmk
 

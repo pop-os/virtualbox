@@ -1,4 +1,4 @@
-/* $Id: VBoxInternalManage.cpp $ */
+/* $Id: VBoxInternalManage.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - The 'internalcommands' command.
  *
@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -54,7 +50,8 @@
 #ifdef RT_OS_WINDOWS
 # include <windows.h>
 # include <winioctl.h>
-#elif defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#elif defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) \
+    || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 # include <errno.h>
 # include <sys/ioctl.h>
 # include <sys/types.h>
@@ -76,6 +73,9 @@
 # include <sys/dkio.h>
 # include <sys/vtoc.h>
 #endif /* RT_OS_SOLARIS */
+#ifdef RT_OS_FREEBSD
+# include <sys/disk.h>
+#endif /* RT_OS_FREEBSD */
 
 using namespace com;
 
@@ -606,7 +606,7 @@ static int CmdDumpHDInfo(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBox,
     }
 
     /* Open the image */
-    rc = VDOpen(pDisk, pszFormat, argv[0], VD_OPEN_FLAGS_NORMAL, NULL);
+    rc = VDOpen(pDisk, pszFormat, argv[0], VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("Error while opening the image: %Rrc\n", rc);
@@ -1083,6 +1083,28 @@ static int CmdCreateRawVMDK(int argc, char **argv, ComPtr<IVirtualBox> aVirtualB
         vrc = VERR_INVALID_PARAMETER;
         goto out;
     }
+#elif defined(RT_OS_FREEBSD)
+    struct stat DevStat;
+    if (!fstat(RawFile, &DevStat) && S_ISCHR(DevStat.st_mode))
+    {
+        off_t cbMedia = 0;
+        if (!ioctl(RawFile, DIOCGMEDIASIZE, &cbMedia))
+        {
+            cbSize = cbMedia;
+        }
+        else
+        {
+            vrc = RTErrConvertFromErrno(errno);
+            RTPrintf("Cannot get the block count for file '%s': %Rrc", rawdisk.raw(), vrc);
+            goto out;
+        }
+    }
+    else
+    {
+        RTPrintf("File '%s' is no character device\n", rawdisk.raw());
+        vrc = VERR_INVALID_PARAMETER;
+        goto out;
+    }
 #else /* all unrecognized OSes */
     /* Hopefully this works on all other hosts. If it doesn't, it'll just fail
      * creating the VMDK, so no real harm done. */
@@ -1549,14 +1571,14 @@ static int CmdConvertToRaw(int argc, char **argv, ComPtr<IVirtualBox> aVirtualBo
     uint64_t cbSize = VDGetSize(pDisk, VD_LAST_IMAGE);
     uint64_t offFile = 0;
 #define RAW_BUFFER_SIZE _128K
-    uint64_t cbBuf = RAW_BUFFER_SIZE;
+    size_t cbBuf = RAW_BUFFER_SIZE;
     void *pvBuf = RTMemAlloc(cbBuf);
     if (pvBuf)
     {
         RTPrintf("Converting image \"%s\" with size %RU64 bytes (%RU64MB) to raw...\n", Utf8Str(src).raw(), cbSize, (cbSize + _1M - 1) / _1M);
         while (offFile < cbSize)
         {
-            size_t cb = cbSize - offFile >= (uint64_t)cbBuf ? cbBuf : (size_t)(cbSize - offFile);
+            size_t cb = (size_t)RT_MIN(cbSize - offFile, cbBuf);
             vrc = VDRead(pDisk, offFile, pvBuf, cb);
             if (RT_FAILURE(vrc))
                 break;

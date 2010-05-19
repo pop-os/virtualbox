@@ -1,10 +1,10 @@
-/* $Id: HWACCMInternal.h $ */
+/* $Id: HWACCMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * HWACCM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___HWACCMInternal_h
@@ -259,6 +255,9 @@ typedef struct HWACCM
     /** Set if nested paging is allowed. */
     bool                        fAllowNestedPaging;
 
+    /** Set if large pages are enabled (requires nested paging). */
+    bool                        fLargePages;
+
     /** Set if we can support 64-bit guests or not. */
     bool                        fAllow64BitGuests;
 
@@ -273,7 +272,7 @@ typedef struct HWACCM
 
     /** Set when TPR patching is active. */
     bool                        fTPRPatchingActive;
-    bool                        u8Alignment[7];
+    bool                        u8Alignment[6];
 
     /** And mask for copying register contents. */
     uint64_t                    u64RegisterMask;
@@ -331,6 +330,10 @@ typedef struct HWACCM
         /** Set if VT-x VPID is allowed. */
         bool                        fAllowVPID;
 
+        /** Set if unrestricted guest execution is allowed (real and protected mode without paging). */
+        bool                        fUnrestrictedGuest;
+        bool                        uAlignment[3];
+
         /** Virtual address of the TSS page used for real mode emulation. */
         R3PTRTYPE(PVBOXTSS)         pRealModeTSS;
 
@@ -373,6 +376,9 @@ typedef struct HWACCM
         /** Ring 0 handlers for VT-x. */
         DECLR0CALLBACKMEMBER(void, pfnSetupTaggedTLB, (PVM pVM, PVMCPU pVCpu));
 
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS)
+        uint32_t                    u32Alignment;
+#endif
         /** Host CR4 value (set by ring-0 VMX init) */
         uint64_t                    hostCR4;
 
@@ -564,7 +570,7 @@ typedef struct HWACCMCPU
     /** Current ASID in use by the VM */
     RTUINT                      uCurrentASID;
 
-    /** World switch exit counter. */ 
+    /** World switch exit counter. */
     volatile uint32_t           cWorldSwitchExit;
     uint32_t                    u32Alignment;
 
@@ -807,6 +813,7 @@ typedef struct HWACCMCPU
     STAMCOUNTER             StatExitCLTS;
     STAMCOUNTER             StatExitHlt;
     STAMCOUNTER             StatExitMwait;
+    STAMCOUNTER             StatExitMonitor;
     STAMCOUNTER             StatExitLMSW;
     STAMCOUNTER             StatExitIOWrite;
     STAMCOUNTER             StatExitIORead;

@@ -1,10 +1,10 @@
-/* $Id: VBox-MakefileGuidelines.cpp $ */
+/* $Id: VBox-MakefileGuidelines.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox - Makefile Guidelines.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_vbox_makefile_guidelines      VBox Makefile Guidelines
@@ -128,7 +124,7 @@
  *        where we don't do this yet.)
  *
  *      - Always break SOURCES, LIBS, long target list and other lists the
- *        manner Debugger_SOURCES is broeken into multiple lines in
+ *        manner Debugger_SOURCES is broken into multiple lines in
  *        src/VBox/Debugger/Makefile.kmk. I.e. exactly one tab, the file name /
  *        list item, another space, the slash and then the newline.
  *

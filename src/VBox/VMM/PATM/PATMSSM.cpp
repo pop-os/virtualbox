@@ -1,4 +1,4 @@
-/* $Id: PATMSSM.cpp $ */
+/* $Id: PATMSSM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PATMSSM - Dynamic Guest OS Patching Manager; Save and load state
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -26,16 +22,9 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/patm.h>
-#include <VBox/hwaccm.h>
-#include <VBox/stam.h>
-#include <VBox/pgm.h>
 #include <VBox/cpum.h>
-#include <VBox/iom.h>
-#include <VBox/sup.h>
 #include <VBox/mm.h>
 #include <VBox/ssm.h>
-#include <VBox/pdm.h>
-#include <VBox/trpm.h>
 #include <VBox/param.h>
 #include <iprt/avl.h>
 #include "PATMInternal.h"
@@ -854,7 +843,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
          */
         pPatchRec->patch.FixupTree = 0;
         pPatchRec->patch.nrFixups  = 0;    /* increased by patmPatchAddReloc32 */
-        for (int i=0;i<patch.patch.nrFixups;i++)
+        for (int j=0;j<patch.patch.nrFixups;j++)
         {
             RELOCREC rec;
             int32_t offset;
@@ -869,7 +858,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
             AssertRCReturn(rc, rc);
 
             /* rec.pRelocPos now contains the relative position inside the hypervisor area. */
-            offset = (int32_t)(int64_t)rec.pRelocPos;
+            offset = (int32_t)(intptr_t)rec.pRelocPos;
             /* Convert to HC pointer again. */
             PATM_ADD_PTR(rec.pRelocPos, pVM->patm.s.pPatchMemHC);
             pFixup = (RTRCPTR *)rec.pRelocPos;
@@ -880,13 +869,13 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
                     &&  (pPatchRec->patch.flags & PATMFL_PATCHED_GUEST_CODE))
                 {
                     Assert(pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32 || pPatchRec->patch.cbPatchJump == SIZEOF_NEAR_COND_JUMP32);
-                    unsigned offset = (pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32) ? 1 : 2;
+                    unsigned offset2 = (pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32) ? 1 : 2;
 
                     /** @todo This will fail & crash in patmCorrectFixup if the page isn't present
                      *        when we restore. Happens with my XP image here
                      *        (pPrivInstrGC=0x8069e051). */
                     AssertLogRelMsg(pPatchRec->patch.pPrivInstrHC, ("%RRv rc=%Rrc uState=%u\n", pPatchRec->patch.pPrivInstrGC, rc2, pPatchRec->patch.uState));
-                    rec.pRelocPos = pPatchRec->patch.pPrivInstrHC + offset;
+                    rec.pRelocPos = pPatchRec->patch.pPrivInstrHC + offset2;
                     pFixup        = (RTRCPTR *)rec.pRelocPos;
                 }
 
@@ -908,7 +897,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
             uint32_t        nrPatch2GuestRecs = pPatchRec->patch.nrPatch2GuestRecs;
 
             pPatchRec->patch.nrPatch2GuestRecs = 0;    /* incremented by patmr3AddP2GLookupRecord */
-            for (uint32_t i=0;i<nrPatch2GuestRecs;i++)
+            for (uint32_t j=0;j<nrPatch2GuestRecs;j++)
             {
 #if 0
                 rc = SSMR3GetMem(pSSM, &rec, sizeof(rec));
@@ -1007,7 +996,7 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
     {
     case FIXUP_ABSOLUTE:
     {
-        if (pRec->pSource && !PATMIsPatchGCAddr(pVM, pRec->pSource))
+        if (pRec->pSource && !PATMIsPatchGCAddr(pVM, (RTRCUINTPTR)pRec->pSource))
             break;
 
         if (    *pFixup >= patmInfo.pGCStateGC

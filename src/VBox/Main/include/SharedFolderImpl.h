@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_SHAREDFOLDERIMPL
@@ -25,12 +21,10 @@
 #include "VirtualBoxBase.h"
 #include <VBox/shflsvc.h>
 
-class Machine;
 class Console;
-class VirtualBox;
 
 class ATL_NO_VTABLE SharedFolder :
-    public VirtualBoxBase,
+    public VirtualBoxBaseWithChildrenNEXT,
     public VirtualBoxSupportErrorInfoImpl<SharedFolder, ISharedFolder>,
     public VirtualBoxSupportTranslation<SharedFolder>,
     VBOX_SCRIPTABLE_IMPL(ISharedFolder)
@@ -65,10 +59,10 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Machine *aMachine, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
-    HRESULT initCopy (Machine *aMachine, SharedFolder *aThat);
-    HRESULT init (Console *aConsole, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
-    HRESULT init (VirtualBox *aVirtualBox, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
+    HRESULT init(Machine *aMachine, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
+    HRESULT initCopy(Machine *aMachine, SharedFolder *aThat);
+    HRESULT init(Console *aConsole, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
+    HRESULT init(VirtualBox *aVirtualBox, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
     void uninit();
 
     // ISharedFolder properties
@@ -93,17 +87,17 @@ public:
 
 protected:
 
-    HRESULT protectedInit (VirtualBoxBaseWithChildrenNEXT *aParent,
-                           CBSTR aName, CBSTR aHostPath, BOOL aWritable);
+    HRESULT protectedInit(VirtualBoxBase *aParent,
+                          CBSTR aName, CBSTR aHostPath, BOOL aWritable);
 
 private:
 
-    VirtualBoxBaseWithChildrenNEXT *const mParent;
+    VirtualBoxBase * const  mParent;
 
     /* weak parents (only one of them is not null) */
-    const ComObjPtr<Machine, ComWeakRef> mMachine;
-    const ComObjPtr<Console, ComWeakRef> mConsole;
-    const ComObjPtr<VirtualBox, ComWeakRef> mVirtualBox;
+    Machine * const         mMachine;
+    Console * const         mConsole;
+    VirtualBox * const      mVirtualBox;
 
     Data m;
 };

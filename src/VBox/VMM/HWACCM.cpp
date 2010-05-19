@@ -1,10 +1,10 @@
-/* $Id: HWACCM.cpp $ */
+/* $Id: HWACCM.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -26,10 +22,12 @@
 #include <VBox/cpum.h>
 #include <VBox/stam.h>
 #include <VBox/mm.h>
-#include <VBox/pdm.h>
+#include <VBox/pdmapi.h>
 #include <VBox/pgm.h>
+#include <VBox/ssm.h>
 #include <VBox/trpm.h>
 #include <VBox/dbgf.h>
+#include <VBox/iom.h>
 #include <VBox/patm.h>
 #include <VBox/csam.h>
 #include <VBox/selm.h>
@@ -44,6 +42,7 @@
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/env.h>
 #include <iprt/thread.h>
@@ -300,6 +299,7 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved6) == 0x4D8, ("guest.u8Reserved6 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved6)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved7) == 0x580, ("guest.u8Reserved7 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved7)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved9) == 0x648, ("guest.u8Reserved9 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved9)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64GPAT) == 0x668, ("guest.u64GPAT offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64GPAT)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, u8Reserved10) == 0x698, ("u8Reserved3 offset = %x\n", RT_OFFSETOF(SVM_VMCB, u8Reserved10)));
     AssertReleaseMsg(sizeof(SVM_VMCB) == 0x1000, ("SVM_VMCB size = %x\n", sizeof(SVM_VMCB)));
 
@@ -321,6 +321,7 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     pVM->hwaccm.s.svm.fEnabled   = false;
 
     pVM->hwaccm.s.fNestedPaging  = false;
+    pVM->hwaccm.s.fLargePages    = false;
 
     /* Disabled by default. */
     pVM->fHWACCMEnabled = false;
@@ -332,6 +333,10 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     PCFGMNODE pHWVirtExt = CFGMR3GetChild(pRoot, "HWVirtExt/");
     /* Nested paging: disabled by default. */
     rc = CFGMR3QueryBoolDef(pHWVirtExt, "EnableNestedPaging", &pVM->hwaccm.s.fAllowNestedPaging, false);
+    AssertRC(rc);
+
+    /* Large pages: disabled by default. */
+    rc = CFGMR3QueryBoolDef(pHWVirtExt, "EnableLargePages", &pVM->hwaccm.s.fLargePages, false);
     AssertRC(rc);
 
     /* VT-x VPID: disabled by default. */
@@ -387,7 +392,7 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
      *
      *  Default false for Mac OS X and Windows due to the higher risk of conflicts with other hypervisors.
      */
-    rc = CFGMR3QueryBoolDef(pHWVirtExt, "Exclusive", &pVM->hwaccm.s.fGlobalInit, 
+    rc = CFGMR3QueryBoolDef(pHWVirtExt, "Exclusive", &pVM->hwaccm.s.fGlobalInit,
 #if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
                             false
 #else
@@ -495,6 +500,7 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitRdmsr,              "/HWACCM/CPU%d/Exit/Instr/Rdmsr");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitWrmsr,              "/HWACCM/CPU%d/Exit/Instr/Wrmsr");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitMwait,              "/HWACCM/CPU%d/Exit/Instr/Mwait");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitMonitor,            "/HWACCM/CPU%d/Exit/Instr/Monitor");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitDRxWrite,           "/HWACCM/CPU%d/Exit/Instr/DR/Write");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitDRxRead,            "/HWACCM/CPU%d/Exit/Instr/DR/Read");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatExitCLTS,               "/HWACCM/CPU%d/Exit/Instr/CLTS");
@@ -654,12 +660,12 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
     int rc;
 
     /* Hack to allow users to work around broken BIOSes that incorrectly set EFER.SVME, which makes us believe somebody else
-     * is already using AMD-V. 
+     * is already using AMD-V.
      */
     if (    !pVM->hwaccm.s.vmx.fSupported
         &&  !pVM->hwaccm.s.svm.fSupported
         &&  pVM->hwaccm.s.lLastError == VERR_SVM_IN_USE /* implies functional AMD-V */
-        &&  RTEnvGet("VBOX_HWVIRTEX_IGNORE_SVM_IN_USE"))
+        &&  RTEnvExist("VBOX_HWVIRTEX_IGNORE_SVM_IN_USE"))
     {
         LogRel(("HWACCM: VBOX_HWVIRTEX_IGNORE_SVM_IN_USE active!\n"));
         pVM->hwaccm.s.svm.fSupported        = true;
@@ -671,6 +677,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
     {
         LogRel(("HWACCM: No VT-x or AMD-V CPU extension found. Reason %Rrc\n", pVM->hwaccm.s.lLastError));
         LogRel(("HWACCM: VMX MSR_IA32_FEATURE_CONTROL=%RX64\n", pVM->hwaccm.s.vmx.msr.feature_ctrl));
+
         if (VMMIsHwVirtExtForced(pVM))
         {
             switch (pVM->hwaccm.s.lLastError)
@@ -880,7 +887,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 if (val & VMX_VMCS_CTRL_PROC_EXEC2_REAL_MODE)
                     LogRel(("HWACCM:    VMX_VMCS_CTRL_PROC_EXEC2_REAL_MODE\n"));
                 if (val & VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT)
-                    LogRel(("HWACCM:    VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT\n"));               
+                    LogRel(("HWACCM:    VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT\n"));
 
                 val = pVM->hwaccm.s.vmx.msr.vmx_proc_ctls2.n.disallowed0;
                 if (val & VMX_VMCS_CTRL_PROC_EXEC2_VIRT_APIC)
@@ -900,7 +907,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 if (val & VMX_VMCS_CTRL_PROC_EXEC2_REAL_MODE)
                     LogRel(("HWACCM:    VMX_VMCS_CTRL_PROC_EXEC2_REAL_MODE *must* be set\n"));
                 if (val & VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT)
-                    LogRel(("HWACCM:    VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT *must* be set\n"));               
+                    LogRel(("HWACCM:    VMX_VMCS_CTRL_PROC_EXEC2_PAUSE_LOOP_EXIT *must* be set\n"));
             }
 
             LogRel(("HWACCM: MSR_IA32_VMX_ENTRY_CTLS       = %RX64\n", pVM->hwaccm.s.vmx.msr.vmx_entry.u));
@@ -1063,50 +1070,56 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 pVM->hwaccm.s.vmx.fVPID = pVM->hwaccm.s.vmx.fAllowVPID;
 #endif /* HWACCM_VTX_WITH_VPID */
 
+            /* Unrestricted guest execution relies on EPT. */
+            if (    pVM->hwaccm.s.fNestedPaging
+                &&  (pVM->hwaccm.s.vmx.msr.vmx_proc_ctls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_REAL_MODE))
+            {
+                pVM->hwaccm.s.vmx.fUnrestrictedGuest = true;
+            }
+
             /* Only try once. */
             pVM->hwaccm.s.fInitialized = true;
 
-            /* Allocate three pages for the TSS we need for real mode emulation. (2 page for the IO bitmap) */
-#if 1
-            rc = PDMR3VMMDevHeapAlloc(pVM, HWACCM_VTX_TOTAL_DEVHEAP_MEM, (RTR3PTR *)&pVM->hwaccm.s.vmx.pRealModeTSS);
-#else
-            rc = VERR_NO_MEMORY; /* simulation of no VMMDev Heap. */
-#endif
-            if (RT_SUCCESS(rc))
+            if (!pVM->hwaccm.s.vmx.fUnrestrictedGuest)
             {
-                /* The I/O bitmap starts right after the virtual interrupt redirection bitmap. */
-                ASMMemZero32(pVM->hwaccm.s.vmx.pRealModeTSS, sizeof(*pVM->hwaccm.s.vmx.pRealModeTSS));
-                pVM->hwaccm.s.vmx.pRealModeTSS->offIoBitmap = sizeof(*pVM->hwaccm.s.vmx.pRealModeTSS);
-                /* Bit set to 0 means redirection enabled. */
-                memset(pVM->hwaccm.s.vmx.pRealModeTSS->IntRedirBitmap, 0x0, sizeof(pVM->hwaccm.s.vmx.pRealModeTSS->IntRedirBitmap));
-                /* Allow all port IO, so the VT-x IO intercepts do their job. */
-                memset(pVM->hwaccm.s.vmx.pRealModeTSS + 1, 0, PAGE_SIZE*2);
-                *((unsigned char *)pVM->hwaccm.s.vmx.pRealModeTSS + HWACCM_VTX_TSS_SIZE - 2) = 0xff;
-
-                /* Construct a 1024 element page directory with 4 MB pages for the identity mapped page table used in
-                 * real and protected mode without paging with EPT.
-                 */
-                pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable = (PX86PD)((char *)pVM->hwaccm.s.vmx.pRealModeTSS + PAGE_SIZE * 3);
-                for (unsigned i=0;i<X86_PG_ENTRIES;i++)
+                /* Allocate three pages for the TSS we need for real mode emulation. (2 pages for the IO bitmap) */
+                rc = PDMR3VMMDevHeapAlloc(pVM, HWACCM_VTX_TOTAL_DEVHEAP_MEM, (RTR3PTR *)&pVM->hwaccm.s.vmx.pRealModeTSS);
+                if (RT_SUCCESS(rc))
                 {
-                    pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable->a[i].u  = _4M * i;
-                    pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable->a[i].u |= X86_PDE4M_P | X86_PDE4M_RW | X86_PDE4M_US | X86_PDE4M_A | X86_PDE4M_D | X86_PDE4M_PS | X86_PDE4M_G;
+                    /* The I/O bitmap starts right after the virtual interrupt redirection bitmap. */
+                    ASMMemZero32(pVM->hwaccm.s.vmx.pRealModeTSS, sizeof(*pVM->hwaccm.s.vmx.pRealModeTSS));
+                    pVM->hwaccm.s.vmx.pRealModeTSS->offIoBitmap = sizeof(*pVM->hwaccm.s.vmx.pRealModeTSS);
+                    /* Bit set to 0 means redirection enabled. */
+                    memset(pVM->hwaccm.s.vmx.pRealModeTSS->IntRedirBitmap, 0x0, sizeof(pVM->hwaccm.s.vmx.pRealModeTSS->IntRedirBitmap));
+                    /* Allow all port IO, so the VT-x IO intercepts do their job. */
+                    memset(pVM->hwaccm.s.vmx.pRealModeTSS + 1, 0, PAGE_SIZE*2);
+                    *((unsigned char *)pVM->hwaccm.s.vmx.pRealModeTSS + HWACCM_VTX_TSS_SIZE - 2) = 0xff;
+
+                    /* Construct a 1024 element page directory with 4 MB pages for the identity mapped page table used in
+                     * real and protected mode without paging with EPT.
+                     */
+                    pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable = (PX86PD)((char *)pVM->hwaccm.s.vmx.pRealModeTSS + PAGE_SIZE * 3);
+                    for (unsigned i=0;i<X86_PG_ENTRIES;i++)
+                    {
+                        pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable->a[i].u  = _4M * i;
+                        pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable->a[i].u |= X86_PDE4M_P | X86_PDE4M_RW | X86_PDE4M_US | X86_PDE4M_A | X86_PDE4M_D | X86_PDE4M_PS | X86_PDE4M_G;
+                    }
+
+                    /* We convert it here every time as pci regions could be reconfigured. */
+                    rc = PDMVMMDevHeapR3ToGCPhys(pVM, pVM->hwaccm.s.vmx.pRealModeTSS, &GCPhys);
+                    AssertRC(rc);
+                    LogRel(("HWACCM: Real Mode TSS guest physaddr  = %RGp\n", GCPhys));
+
+                    rc = PDMVMMDevHeapR3ToGCPhys(pVM, pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable, &GCPhys);
+                    AssertRC(rc);
+                    LogRel(("HWACCM: Non-Paging Mode EPT CR3       = %RGp\n", GCPhys));
                 }
-
-                /* We convert it here every time as pci regions could be reconfigured. */
-                rc = PDMVMMDevHeapR3ToGCPhys(pVM, pVM->hwaccm.s.vmx.pRealModeTSS, &GCPhys);
-                AssertRC(rc);
-                LogRel(("HWACCM: Real Mode TSS guest physaddr  = %RGp\n", GCPhys));
-
-                rc = PDMVMMDevHeapR3ToGCPhys(pVM, pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable, &GCPhys);
-                AssertRC(rc);
-                LogRel(("HWACCM: Non-Paging Mode EPT CR3       = %RGp\n", GCPhys));
-            }
-            else
-            {
-                LogRel(("HWACCM: No real mode VT-x support (PDMR3VMMDevHeapAlloc returned %Rrc)\n", rc));
-                pVM->hwaccm.s.vmx.pRealModeTSS = NULL;
-                pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable = NULL;
+                else
+                {
+                    LogRel(("HWACCM: No real mode VT-x support (PDMR3VMMDevHeapAlloc returned %Rrc)\n", rc));
+                    pVM->hwaccm.s.vmx.pRealModeTSS = NULL;
+                    pVM->hwaccm.s.vmx.pNonPagingModeEPTPageTable = NULL;
+                }
             }
 
             rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_HWACC_SETUP_VM, 0, NULL);
@@ -1145,7 +1158,21 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 {
                     LogRel(("HWACCM: Enabled nested paging\n"));
                     LogRel(("HWACCM: EPT root page                 = %RHp\n", PGMGetHyperCR3(VMMGetCpu(pVM))));
+                    if (pVM->hwaccm.s.vmx.fUnrestrictedGuest)
+                        LogRel(("HWACCM: Unrestricted guest execution enabled!\n"));
+
+#if HC_ARCH_BITS == 64
+                    if (pVM->hwaccm.s.fLargePages)
+                    {
+                        /* Use large (2 MB) pages for our EPT PDEs where possible. */
+                        PGMSetLargePageUsage(pVM, true);
+                        LogRel(("HWACCM: Large page support enabled!\n"));
+                    }
+#endif
                 }
+                else
+                    Assert(!pVM->hwaccm.s.vmx.fUnrestrictedGuest);
+
                 if (pVM->hwaccm.s.vmx.fVPID)
                     LogRel(("HWACCM: Enabled VPID\n"));
 
@@ -1244,7 +1271,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
             if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE)
                 LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_SSE_3_5_DISABLE\n"));
             if (pVM->hwaccm.s.svm.u32Features & AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER)
-                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER\n"));           
+                LogRel(("HWACCM:    AMD_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER\n"));
 
             /* Only try once. */
             pVM->hwaccm.s.fInitialized = true;
@@ -1260,7 +1287,17 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 pVM->hwaccm.s.svm.fEnabled = true;
 
                 if (pVM->hwaccm.s.fNestedPaging)
+                {
                     LogRel(("HWACCM:    Enabled nested paging\n"));
+#if HC_ARCH_BITS == 64
+                    if (pVM->hwaccm.s.fLargePages)
+                    {
+                        /* Use large (2 MB) pages for our nested paging PDEs where possible. */
+                        PGMSetLargePageUsage(pVM, true);
+                        LogRel(("HWACCM:    Large page support enabled!\n"));
+                    }
+#endif
+                }
 
                 hwaccmR3DisableRawMode(pVM);
                 CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
@@ -1279,6 +1316,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                 if (CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
                     CPUMSetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NXE);
 #endif
+
                 LogRel((pVM->hwaccm.s.fAllow64BitGuests
                         ? "HWACCM:    32-bit and 64-bit guest supported.\n"
                         : "HWACCM:    32-bit guest supported.\n"));
@@ -1487,6 +1525,41 @@ VMMR3DECL(int) HWACCMR3TermCPU(PVM pVM)
 }
 
 /**
+ * Resets a virtual CPU.
+ *
+ * Used by HWACCMR3Reset and CPU hot plugging.
+ *
+ * @param   pVCpu   The CPU to reset.
+ */
+VMMR3DECL(void) HWACCMR3ResetCpu(PVMCPU pVCpu)
+{
+    /* On first entry we'll sync everything. */
+    pVCpu->hwaccm.s.fContextUseFlags = HWACCM_CHANGED_ALL;
+
+    pVCpu->hwaccm.s.vmx.cr0_mask = 0;
+    pVCpu->hwaccm.s.vmx.cr4_mask = 0;
+
+    pVCpu->hwaccm.s.fActive        = false;
+    pVCpu->hwaccm.s.Event.fPending = false;
+
+    /* Reset state information for real-mode emulation in VT-x. */
+    pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode = PGMMODE_REAL;
+    pVCpu->hwaccm.s.vmx.enmPrevGuestMode     = PGMMODE_REAL;
+    pVCpu->hwaccm.s.vmx.enmCurrGuestMode     = PGMMODE_REAL;
+
+    /* Reset the contents of the read cache. */
+    PVMCSCACHE pCache = &pVCpu->hwaccm.s.vmx.VMCSCache;
+    for (unsigned j=0;j<pCache->Read.cValidEntries;j++)
+        pCache->Read.aFieldVal[j] = 0;
+
+#ifdef VBOX_WITH_CRASHDUMP_MAGIC
+    /* Magic marker for searching in crash dumps. */
+    strcpy((char *)pCache->aMagic, "VMCSCACHE Magic");
+    pCache->uMagic = UINT64_C(0xDEADBEEFDEADBEEF);
+#endif
+}
+
+/**
  * The VM is being reset.
  *
  * For the HWACCM component this means that any GDT/LDT/TSS monitors
@@ -1505,30 +1578,7 @@ VMMR3DECL(void) HWACCMR3Reset(PVM pVM)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
-        /* On first entry we'll sync everything. */
-        pVCpu->hwaccm.s.fContextUseFlags = HWACCM_CHANGED_ALL;
-
-        pVCpu->hwaccm.s.vmx.cr0_mask = 0;
-        pVCpu->hwaccm.s.vmx.cr4_mask = 0;
-
-        pVCpu->hwaccm.s.fActive        = false;
-        pVCpu->hwaccm.s.Event.fPending = false;
-
-        /* Reset state information for real-mode emulation in VT-x. */
-        pVCpu->hwaccm.s.vmx.enmLastSeenGuestMode = PGMMODE_REAL;
-        pVCpu->hwaccm.s.vmx.enmPrevGuestMode     = PGMMODE_REAL;
-        pVCpu->hwaccm.s.vmx.enmCurrGuestMode     = PGMMODE_REAL;
-
-        /* Reset the contents of the read cache. */
-        PVMCSCACHE pCache = &pVCpu->hwaccm.s.vmx.VMCSCache;
-        for (unsigned j=0;j<pCache->Read.cValidEntries;j++)
-            pCache->Read.aFieldVal[j] = 0;
-
-#ifdef VBOX_WITH_CRASHDUMP_MAGIC
-        /* Magic marker for searching in crash dumps. */
-        strcpy((char *)pCache->aMagic, "VMCSCACHE Magic");
-        pCache->uMagic = UINT64_C(0xDEADBEEFDEADBEEF);
-#endif
+        HWACCMR3ResetCpu(pVCpu);
     }
 
     /* Clear all patch information. */
@@ -1570,7 +1620,7 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3RemovePatches(PVM pVM, PVMCPU pVCpu, void *pv
         char            szOutput[256];
 
         rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, CPUMGetGuestCS(pVCpu), pInstrGC, 0, szOutput, sizeof(szOutput), 0);
-        if (VBOX_SUCCESS(rc))
+        if (RT_SUCCESS(rc))
             Log(("Patched instr: %s\n", szOutput));
 #endif
 
@@ -1593,7 +1643,7 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3RemovePatches(PVM pVM, PVMCPU pVCpu, void *pv
 
 #ifdef LOG_ENABLED
         rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, CPUMGetGuestCS(pVCpu), pInstrGC, 0, szOutput, sizeof(szOutput), 0);
-        if (VBOX_SUCCESS(rc))
+        if (RT_SUCCESS(rc))
             Log(("Original instr: %s\n", szOutput));
 #endif
     }
@@ -1686,7 +1736,6 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *
 {
     VMCPUID      idCpu  = (VMCPUID)(uintptr_t)pvUser;
     PCPUMCTX     pCtx   = CPUMQueryGuestCtxPtr(pVCpu);
-    RTGCPTR      oldrip = pCtx->rip;
     PDISCPUSTATE pDis   = &pVCpu->hwaccm.s.DisState;
     unsigned     cbOp;
 
@@ -1711,7 +1760,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *
     {
         uint8_t         aVMMCall[3] = { 0xf, 0x1, 0xd9};
         uint32_t        idx = pVM->hwaccm.s.cPatches;
-        PHWACCMTPRPATCH pPatch = &pVM->hwaccm.s.aPatches[idx];
+
+        pPatch = &pVM->hwaccm.s.aPatches[idx];
 
         rc = PGMPhysSimpleReadGCPtr(pVCpu, pPatch->aOpcode, pCtx->rip, cbOp);
         AssertRC(rc);
@@ -1816,7 +1866,7 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *
 #ifdef LOG_ENABLED
     char      szOutput[256];
     rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
-    if (VBOX_SUCCESS(rc))
+    if (RT_SUCCESS(rc))
         Log(("Failed to patch instr: %s\n", szOutput));
 #endif
 
@@ -1874,13 +1924,14 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
         &&  cbOp >= 5)
     {
         uint32_t        idx = pVM->hwaccm.s.cPatches;
-        PHWACCMTPRPATCH pPatch = &pVM->hwaccm.s.aPatches[idx];
         uint8_t         aPatch[64];
         uint32_t        off = 0;
 
+        pPatch = &pVM->hwaccm.s.aPatches[idx];
+
 #ifdef LOG_ENABLED
         rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
-        if (VBOX_SUCCESS(rc))
+        if (RT_SUCCESS(rc))
             Log(("Original instr: %s\n", szOutput));
 #endif
 
@@ -2010,7 +2061,7 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
                 uint32_t cb;
 
                 rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pInstr, 0, szOutput, sizeof(szOutput), &cb);
-                if (VBOX_SUCCESS(rc))
+                if (RT_SUCCESS(rc))
                     Log(("Patch instr %s\n", szOutput));
 
                 pInstr += cb;
@@ -2029,7 +2080,7 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
 
 #ifdef LOG_ENABLED
             rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
-            if (VBOX_SUCCESS(rc))
+            if (RT_SUCCESS(rc))
                 Log(("Jump: %s\n", szOutput));
 #endif
             pVM->hwaccm.s.pFreeGuestPatchMem += off;
@@ -2053,7 +2104,7 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
 
 #ifdef LOG_ENABLED
     rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
-    if (VBOX_SUCCESS(rc))
+    if (RT_SUCCESS(rc))
         Log(("Failed to patch instr: %s\n", szOutput));
 #endif
 
@@ -2141,7 +2192,12 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
 
     /* Note! The context supplied by REM is partial. If we add more checks here, be sure to verify that REM provides this info! */
 #ifdef HWACCM_VMX_EMULATE_REALMODE
-    if (pVM->hwaccm.s.vmx.pRealModeTSS)
+    bool fVMMDeviceHeapEnabled = PDMVMMDevHeapIsEnabled(pVM);
+
+    Assert((pVM->hwaccm.s.vmx.fUnrestrictedGuest && !pVM->hwaccm.s.vmx.pRealModeTSS) || (!pVM->hwaccm.s.vmx.fUnrestrictedGuest && pVM->hwaccm.s.vmx.pRealModeTSS));
+
+    /** The VMM device heap is a requirement for emulating real mode or protected mode without paging when the unrestricted guest execution feature is missing. */
+    if (fVMMDeviceHeapEnabled)
     {
         if (CPUMIsGuestInRealModeEx(pCtx))
         {
@@ -2183,7 +2239,8 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
     else
 #endif /* HWACCM_VMX_EMULATE_REALMODE */
     {
-        if (!CPUMIsGuestInLongModeEx(pCtx))
+        if (    !CPUMIsGuestInLongModeEx(pCtx)
+            &&  !pVM->hwaccm.s.vmx.fUnrestrictedGuest)
         {
             /** @todo   This should (probably) be set on every excursion to the REM,
              *          however it's too risky right now. So, only apply it when we go
@@ -2191,6 +2248,10 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
              *          work reliably without this.)
              *  Update: Implemented in EM.cpp, see #ifdef EM_NOTIFY_HWACCM.  */
             pVM->aCpus[0].hwaccm.s.fContextUseFlags |= HWACCM_CHANGED_ALL_GUEST;
+
+            if (    !pVM->hwaccm.s.fNestedPaging        /* requires a fake PD for real *and* protected mode without paging - stored in the VMM device heap*/
+                ||  CPUMIsGuestInRealModeEx(pCtx))      /* requires a fake TSS for real mode - stored in the VMM device heap */
+                return false;
 
             /* Too early for VT-x; Solaris guests will fail with a guru meditation otherwise; same for XP. */
             if (pCtx->idtr.pIdt == 0 || pCtx->idtr.cbIdt == 0 || pCtx->tr == 0)
@@ -2226,30 +2287,33 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
     {
         uint32_t mask;
 
-        /* if bit N is set in cr0_fixed0, then it must be set in the guest's cr0. */
-        mask = (uint32_t)pVM->hwaccm.s.vmx.msr.vmx_cr0_fixed0;
-        /* Note: We ignore the NE bit here on purpose; see vmmr0\hwaccmr0.cpp for details. */
-        mask &= ~X86_CR0_NE;
+        if (!pVM->hwaccm.s.vmx.fUnrestrictedGuest)
+        {
+            /* if bit N is set in cr0_fixed0, then it must be set in the guest's cr0. */
+            mask = (uint32_t)pVM->hwaccm.s.vmx.msr.vmx_cr0_fixed0;
+            /* Note: We ignore the NE bit here on purpose; see vmmr0\hwaccmr0.cpp for details. */
+            mask &= ~X86_CR0_NE;
 
 #ifdef HWACCM_VMX_EMULATE_REALMODE
-        if (pVM->hwaccm.s.vmx.pRealModeTSS)
-        {
-            /* Note: We ignore the PE & PG bits here on purpose; we emulate real and protected mode without paging. */
-            mask &= ~(X86_CR0_PG|X86_CR0_PE);
-        }
-        else
+            if (fVMMDeviceHeapEnabled)
+            {
+                /* Note: We ignore the PE & PG bits here on purpose; we emulate real and protected mode without paging. */
+                mask &= ~(X86_CR0_PG|X86_CR0_PE);
+            }
+            else
 #endif
-        {
-            /* We support protected mode without paging using identity mapping. */
-            mask &= ~X86_CR0_PG;
-        }
-        if ((pCtx->cr0 & mask) != mask)
-            return false;
+            {
+                /* We support protected mode without paging using identity mapping. */
+                mask &= ~X86_CR0_PG;
+            }
+            if ((pCtx->cr0 & mask) != mask)
+                return false;
 
-        /* if bit N is cleared in cr0_fixed1, then it must be zero in the guest's cr0. */
-        mask = (uint32_t)~pVM->hwaccm.s.vmx.msr.vmx_cr0_fixed1;
-        if ((pCtx->cr0 & mask) != 0)
-            return false;
+            /* if bit N is cleared in cr0_fixed1, then it must be zero in the guest's cr0. */
+            mask = (uint32_t)~pVM->hwaccm.s.vmx.msr.vmx_cr0_fixed1;
+            if ((pCtx->cr0 & mask) != 0)
+                return false;
+        }
 
         /* if bit N is set in cr4_fixed0, then it must be set in the guest's cr4. */
         mask  = (uint32_t)pVM->hwaccm.s.vmx.msr.vmx_cr4_fixed0;
@@ -2268,6 +2332,26 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
 
     return false;
 }
+
+/**
+ * Checks if we need to reschedule due to VMM device heap changes
+ *
+ * @returns boolean
+ * @param   pVM         The VM to operate on.
+ * @param   pCtx        VM execution context
+ */
+VMMR3DECL(bool) HWACCMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx)
+{
+    /** The VMM device heap is a requirement for emulating real mode or protected mode without paging when the unrestricted guest execution feature is missing. (VT-x only) */
+    if (    pVM->hwaccm.s.vmx.fEnabled
+        &&  !CPUMIsGuestInPagedProtectedModeEx(pCtx)
+        &&  !PDMVMMDevHeapIsEnabled(pVM)
+        &&  (pVM->hwaccm.s.fNestedPaging || CPUMIsGuestInRealModeEx(pCtx)))
+        return true;
+
+    return false;
+}
+
 
 /**
  * Notifcation from EM about a rescheduling into hardware assisted execution

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -223,8 +219,8 @@ typedef struct _VBOXRec
     size_t pointerSize;
     Bool useDevice;
     Bool forceSWCursor;
-    /** Do we know that the guest mouse driver was loaded successfully? */
-    Bool mouseDriverLoaded;
+    /** Do we know that the guest can handle absolute co-ordinates? */
+    Bool guestCanAbsolute;
     /** Are we currently switched to a virtual terminal?  If so, it is not
      * safe to touch the hardware. */
     Bool vtSwitch;

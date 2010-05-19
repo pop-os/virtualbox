@@ -1,10 +1,10 @@
-/* $Id: initterm-r0drv-solaris.c $ */
+/* $Id: initterm-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -36,7 +32,9 @@
 #include "internal/iprt.h"
 
 #include <iprt/err.h>
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include "internal/initterm.h"
 
 
@@ -56,6 +54,7 @@ int rtR0InitNative(void)
     int rc = vbi_init();
     if (!rc)
     {
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         /*
          * Detech whether spl*() is preserving the interrupt flag or not.
          * This is a problem on S10.
@@ -68,6 +67,9 @@ int rtR0InitNative(void)
         if (ASMIntAreEnabled())
             g_frtSolarisSplSetsEIF = true;
         ASMSetFlags(uOldFlags);
+#else
+        /* PORTME: See if the amd64/x86 problem applies to this architecture. */
+#endif
 
         return VINF_SUCCESS;
     }

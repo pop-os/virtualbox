@@ -1,3 +1,46 @@
+/* $Id: slirp.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - slirp glue.
+ */
+
+/*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
+ * libslirp glue
+ *
+ * Copyright (c) 2004-2008 Fabrice Bellard
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
 #include "slirp.h"
 #ifdef RT_OS_OS2
 # include <paths.h>
@@ -17,80 +60,83 @@
 #endif
 #include <alias.h>
 
-#if !defined(RT_OS_WINDOWS)
+#ifndef RT_OS_WINDOWS
 
-#  define DO_ENGAGE_EVENT1(so, fdset, label)                        \
-    do {                                                            \
-        if (    so->so_poll_index != -1                             \
-            && so->s == polls[so->so_poll_index].fd) {              \
-            polls[so->so_poll_index].events |= N_(fdset ## _poll);  \
-            break; /* out of this loop */                           \
-        }                                                           \
-        AssertRelease(poll_index < (nfds));                         \
-        AssertRelease(poll_index >= 0 && poll_index < (nfds));      \
-        polls[poll_index].fd = (so)->s;                             \
-        (so)->so_poll_index = poll_index;                           \
-        polls[poll_index].events = N_(fdset ## _poll);              \
-        polls[poll_index].revents = 0;                              \
-        poll_index++;                                               \
-    } while (0)
+# define DO_ENGAGE_EVENT1(so, fdset, label)                        \
+   do {                                                            \
+       if (   so->so_poll_index != -1                              \
+           && so->s == polls[so->so_poll_index].fd)                \
+       {                                                           \
+           polls[so->so_poll_index].events |= N_(fdset ## _poll);  \
+           break;                                                  \
+       }                                                           \
+       AssertRelease(poll_index < (nfds));                         \
+       AssertRelease(poll_index >= 0 && poll_index < (nfds));      \
+       polls[poll_index].fd = (so)->s;                             \
+       (so)->so_poll_index = poll_index;                           \
+       polls[poll_index].events = N_(fdset ## _poll);              \
+       polls[poll_index].revents = 0;                              \
+       poll_index++;                                               \
+   } while (0)
 
+# define DO_ENGAGE_EVENT2(so, fdset1, fdset2, label)               \
+   do {                                                            \
+       if (   so->so_poll_index != -1                              \
+           && so->s == polls[so->so_poll_index].fd)                \
+       {                                                           \
+           polls[so->so_poll_index].events |=                      \
+               N_(fdset1 ## _poll) | N_(fdset2 ## _poll);          \
+           break;                                                  \
+       }                                                           \
+       AssertRelease(poll_index < (nfds));                         \
+       polls[poll_index].fd = (so)->s;                             \
+       (so)->so_poll_index = poll_index;                           \
+       polls[poll_index].events =                                  \
+           N_(fdset1 ## _poll) | N_(fdset2 ## _poll);              \
+       poll_index++;                                               \
+   } while (0)
 
-#  define DO_ENGAGE_EVENT2(so, fdset1, fdset2, label)               \
-    do {                                                            \
-        if (    so->so_poll_index != -1                             \
-            && so->s == polls[so->so_poll_index].fd) {              \
-            polls[so->so_poll_index].events |=                      \
-                N_(fdset1 ## _poll) | N_(fdset1 ## _poll);          \
-            break; /* out of this loop */                           \
-        }                                                           \
-        AssertRelease(poll_index < (nfds));                         \
-        polls[poll_index].fd = (so)->s;                             \
-        (so)->so_poll_index = poll_index;                           \
-        polls[poll_index].events =                                  \
-            N_(fdset1 ## _poll) | N_(fdset1 ## _poll);              \
-        poll_index++;                                               \
-    } while (0)
+# define DO_POLL_EVENTS(rc, error, so, events, label) do {} while (0)
 
-#  define DO_POLL_EVENTS(rc, error, so, events, label) do {} while (0)
-
+/*
+ * DO_CHECK_FD_SET is used in dumping events on socket, including POLLNVAL.
+ * gcc warns about attempts to log POLLNVAL so construction in a last to lines
+ * used to catch POLLNVAL while logging and return false in case of error while
+ * normal usage.
+ */
 #  define DO_CHECK_FD_SET(so, events, fdset)                        \
       (   ((so)->so_poll_index != -1)                               \
        && ((so)->so_poll_index <= ndfs)                             \
        && ((so)->s == polls[so->so_poll_index].fd)                  \
-       && (polls[(so)->so_poll_index].revents & N_(fdset ## _poll)))
+       && (polls[(so)->so_poll_index].revents & N_(fdset ## _poll)) \
+       && (   N_(fdset ## _poll) == POLLNVAL                        \
+           || !(polls[(so)->so_poll_index].revents & POLLNVAL)))
 
-   /* specific for Unix API */
-#  define DO_UNIX_CHECK_FD_SET(so, events, fdset ) DO_CHECK_FD_SET((so), (events), fdset) 
-   /* specific for Windows Winsock API */
-#  define DO_WIN_CHECK_FD_SET(so, events, fdset ) 0 
+  /* specific for Unix API */
+# define DO_UNIX_CHECK_FD_SET(so, events, fdset) DO_CHECK_FD_SET((so), (events), fdset)
+  /* specific for Windows Winsock API */
+# define DO_WIN_CHECK_FD_SET(so, events, fdset) 0
 
-# ifndef RT_OS_WINDOWS
+# ifndef RT_OS_LINUX
+#  define readfds_poll   (POLLRDNORM)
+#  define writefds_poll  (POLLWRNORM)
+# else
+#  define readfds_poll   (POLLIN)
+#  define writefds_poll  (POLLOUT)
+# endif
+# define xfds_poll       (POLLPRI)
+# define closefds_poll   (POLLHUP)
+# define rderr_poll      (POLLERR)
+# define rdhup_poll      (POLLHUP)
+# define nval_poll       (POLLNVAL)
 
-#  ifndef RT_OS_LINUX
-#   define readfds_poll (POLLRDNORM)
-#   define writefds_poll (POLLWRNORM)
-#   define xfds_poll (POLLRDBAND|POLLWRBAND|POLLPRI)
-#  else
-#   define readfds_poll (POLLIN)
-#   define writefds_poll (POLLOUT)
-#   define xfds_poll (POLLPRI)
-#  endif
-#  define rderr_poll (POLLERR)
-#  define rdhup_poll (POLLHUP)
-#  define nval_poll (POLLNVAL)
+# define ICMP_ENGAGE_EVENT(so, fdset)              \
+   do {                                            \
+       if (pData->icmp_socket.s != -1)             \
+           DO_ENGAGE_EVENT1((so), fdset, ICMP);    \
+   } while (0)
 
-#  define ICMP_ENGAGE_EVENT(so, fdset)              \
-    do {                                            \
-        if (pData->icmp_socket.s != -1)             \
-            DO_ENGAGE_EVENT1((so), fdset, ICMP);    \
-    } while (0)
-# else /* !RT_OS_WINDOWS */
-#  define DO_WIN_CHECK_FD_SET(so, events, fdset ) DO_CHECK_FD_SET((so), (events), fdset)
-#  define ICMP_ENGAGE_EVENT(so, fdset) do {} while (0)
-#endif /* RT_OS_WINDOWS */
-
-#else /* defined(RT_OS_WINDOWS) */
+#else /* RT_OS_WINDOWS */
 
 /*
  * On Windows, we will be notified by IcmpSendEcho2() when the response arrives.
@@ -98,6 +144,9 @@
  */
 # define ICMP_ENGAGE_EVENT(so, fdset)                do {} while (0)
 
+/*
+ * On Windows we use FD_ALL_EVENTS to ensure that we don't miss any event.
+ */
 # define DO_ENGAGE_EVENT1(so, fdset1, label)                                                    \
     do {                                                                                        \
         rc = WSAEventSelect((so)->s, VBOX_SOCKET_EVENT, FD_ALL_EVENTS);                         \
@@ -108,7 +157,7 @@
             LogRel(("WSAEventSelect (" #label ") error %d (so=%x, socket=%s, event=%x)\n",      \
                         error, (so), (so)->s, VBOX_SOCKET_EVENT));                              \
         }                                                                                       \
-    } while (0);                                                                                 \
+    } while (0);                                                                                \
     CONTINUE(label)
 
 # define DO_ENGAGE_EVENT2(so, fdset1, fdset2, label) \
@@ -123,25 +172,27 @@
         CONTINUE(label);                                                    \
     }
 
-# define acceptds_win FD_ACCEPT
+# define acceptds_win     FD_ACCEPT
 # define acceptds_win_bit FD_ACCEPT_BIT
-
-# define readfds_win FD_READ
-# define readfds_win_bit FD_READ_BIT
-
-# define writefds_win FD_WRITE
+# define readfds_win      FD_READ
+# define readfds_win_bit  FD_READ_BIT
+# define writefds_win     FD_WRITE
 # define writefds_win_bit FD_WRITE_BIT
+# define xfds_win         FD_OOB
+# define xfds_win_bit     FD_OOB_BIT
+# define closefds_win     FD_CLOSE
+# define closefds_win_bit FD_CLOSE_BIT
 
-# define xfds_win FD_OOB
-# define xfds_win_bit FD_OOB_BIT
+# define closefds_win FD_CLOSE
+# define closefds_win_bit FD_CLOSE_BIT
 
 # define DO_CHECK_FD_SET(so, events, fdset)  \
     (((events).lNetworkEvents & fdset ## _win) && ((events).iErrorCode[fdset ## _win_bit] == 0))
 
-# define DO_WIN_CHECK_FD_SET(so, events, fdset ) DO_CHECK_FD_SET((so), (events), fdset)
-# define DO_UNIX_CHECK_FD_SET(so, events, fdset ) 1 /*specific for Unix API */
+# define DO_WIN_CHECK_FD_SET(so, events, fdset) DO_CHECK_FD_SET((so), (events), fdset)
+# define DO_UNIX_CHECK_FD_SET(so, events, fdset) 1 /*specific for Unix API */
 
-#endif /* defined(RT_OS_WINDOWS) */
+#endif /* RT_OS_WINDOWS */
 
 #define TCP_ENGAGE_EVENT1(so, fdset) \
     DO_ENGAGE_EVENT1((so), fdset, tcp)
@@ -158,11 +209,12 @@
 #define POLL_UDP_EVENTS(rc, error, so, events) \
     DO_POLL_EVENTS((rc), (error), (so), (events), udp)
 
-#define CHECK_FD_SET(so, events, set)           \
+#define CHECK_FD_SET(so, events, set) \
     (DO_CHECK_FD_SET((so), (events), set))
 
-#define WIN_CHECK_FD_SET(so, events, set)           \
+#define WIN_CHECK_FD_SET(so, events, set) \
     (DO_WIN_CHECK_FD_SET((so), (events), set))
+
 #define UNIX_CHECK_FD_SET(so, events, set) \
     (DO_UNIX_CHECK_FD_SET(so, events, set))
 
@@ -175,7 +227,7 @@
    do {                                                                                \
        LogRel(("  " #proto " %R[natsock] %R[natwinnetevents]\n", (so), (winevent)));   \
    } while (0)
-# else /* RT_OS_WINDOWS */
+# else /* !RT_OS_WINDOWS */
 #  define  DO_LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset)         \
    do {                                                                            \
            LogRel(("  " #proto " %R[natsock] %s %s %s er: %s, %s, %s\n", (so),     \
@@ -187,11 +239,12 @@
                     CHECK_FD_SET(so, ign, nval) ? "RDNVAL":""));                   \
    } while (0)
 # endif /* !RT_OS_WINDOWS */
-#else /* VBOX_WITH_DEBUG_NAT_SOCKETS */
+#else /* !VBOX_WITH_DEBUG_NAT_SOCKETS */
 # define DO_LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset) do {} while (0)
 #endif /* !VBOX_WITH_DEBUG_NAT_SOCKETS */
 
-#define LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset) DO_LOG_NAT_SOCK((so), proto, (winevent), r_fdset, w_fdset, x_fdset)
+#define LOG_NAT_SOCK(so, proto, winevent, r_fdset, w_fdset, x_fdset) \
+    DO_LOG_NAT_SOCK((so), proto, (winevent), r_fdset, w_fdset, x_fdset)
 
 static void activate_port_forwarding(PNATState, const uint8_t *pEther);
 
@@ -282,8 +335,8 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
             }
 
             LogRel(("NAT: adding %R[IP4] to DNS server list\n", &InAddr));
-            if ((InAddr.s_addr & htonl(IN_CLASSA_NET)) == ntohl(INADDR_LOOPBACK & IN_CLASSA_NET))
-                pDns->de_addr.s_addr = htonl(ntohl(pData->special_addr.s_addr) | CTL_ALIAS);
+            if ((InAddr.s_addr & RT_H2N_U32_C(IN_CLASSA_NET)) == RT_N2H_U32_C(INADDR_LOOPBACK & IN_CLASSA_NET))
+                pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
             else
                 pDns->de_addr.s_addr = InAddr.s_addr;
 
@@ -366,12 +419,12 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
     char buff[512];
     char buff2[256];
     RTFILE f;
-    int found = 0;
+    int fFoundNameserver = 0;
     struct in_addr tmp_addr;
     int rc;
     size_t bytes;
 
-#ifdef RT_OS_OS2
+# ifdef RT_OS_OS2
     /* Try various locations. */
     char *etc = getenv("ETC");
     if (etc)
@@ -389,10 +442,10 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
         RTStrmPrintf(buff, sizeof(buff), "%s/resolv.conf", _PATH_ETC);
         rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     }
-#else
-# ifndef DEBUG_vvl
+# else /* !RT_OS_OS2 */
+#  ifndef DEBUG_vvl
     rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-# else
+#  else
     char *home = getenv("HOME");
     RTStrPrintf(buff, sizeof(buff), "%s/resolv.conf", home);
     rc = RTFileOpen(&f, buff, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
@@ -405,8 +458,8 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
         rc = RTFileOpen(&f, "/etc/resolv.conf", RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
         Log(("NAT: DNS we're using %s\n", buff));
     }
-# endif
-#endif
+#  endif
+# endif /* !RT_OS_OS2 */
     if (RT_FAILURE(rc))
         return -1;
 
@@ -433,30 +486,30 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
 
             /* check */
             pDns->de_addr.s_addr = tmp_addr.s_addr;
-            if ((pDns->de_addr.s_addr & htonl(IN_CLASSA_NET)) == ntohl(INADDR_LOOPBACK & IN_CLASSA_NET))
+            if ((pDns->de_addr.s_addr & RT_H2N_U32_C(IN_CLASSA_NET)) == RT_N2H_U32_C(INADDR_LOOPBACK & IN_CLASSA_NET))
             {
-                pDns->de_addr.s_addr = htonl(ntohl(pData->special_addr.s_addr) | CTL_ALIAS);
+                pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
             }
             TAILQ_INSERT_HEAD(&pData->pDnsList, pDns, de_list);
-            found++;
+            fFoundNameserver++;
         }
         if ((!strncmp(buff, "domain", 6) || !strncmp(buff, "search", 6)))
         {
             char *tok;
             char *saveptr;
             struct dns_domain_entry *pDomain = NULL;
-            int found = 0;
+            int fFoundDomain = 0;
             tok = strtok_r(&buff[6], " \t\n", &saveptr);
             LIST_FOREACH(pDomain, &pData->pDomainList, dd_list)
             {
                 if (   tok != NULL
                     && strcmp(tok, pDomain->dd_pszDomain) == 0)
                 {
-                    found = 1;
+                    fFoundDomain = 1;
                     break;
                 }
             }
-            if (tok != NULL && found == 0)
+            if (tok != NULL && !fFoundDomain)
             {
                 pDomain = RTMemAllocZ(sizeof(struct dns_domain_entry));
                 if (!pDomain)
@@ -471,12 +524,12 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
         }
     }
     RTFileClose(f);
-    if (!found)
+    if (!fFoundNameserver)
         return -1;
     return 0;
 }
 
-#endif
+#endif /* !RT_OS_WINDOWS */
 
 static int slirp_init_dns_list(PNATState pData)
 {
@@ -512,13 +565,8 @@ int get_dns_addr(PNATState pData, struct in_addr *pdns_addr)
     return get_dns_addr_domain(pData, false, pdns_addr, NULL);
 }
 
-#ifndef VBOX_WITH_NAT_SERVICE
-int slirp_init(PNATState *ppData, const char *pszNetAddr, uint32_t u32Netmask,
-               bool fPassDomain, bool fUseHostResolver, void *pvUser)
-#else
 int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
-               bool fPassDomain, void *pvUser)
-#endif
+               bool fPassDomain, bool fUseHostResolver, int i32AliasMode, void *pvUser)
 {
     int fNATfailed = 0;
     int rc;
@@ -530,7 +578,7 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
         /* CTL is x.x.x.15, bootp passes up to 16 IPs (15..31) */
         return VERR_INVALID_PARAMETER;
     pData->fPassDomain = !fUseHostResolver ? fPassDomain : false;
-    pData->use_host_resolver = fUseHostResolver;
+    pData->fUseHostResolver = fUseHostResolver;
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
@@ -574,25 +622,26 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     mbuf_init(pData);
 #endif
 
-#ifndef VBOX_WITH_NAT_SERVICE
-    inet_aton(pszNetAddr, &pData->special_addr);
-#else
     pData->special_addr.s_addr = u32NetAddr;
-#endif
     pData->slirp_ethaddr = &special_ethaddr[0];
-    alias_addr.s_addr = pData->special_addr.s_addr | htonl(CTL_ALIAS);
+    alias_addr.s_addr = pData->special_addr.s_addr | RT_H2N_U32_C(CTL_ALIAS);
     /* @todo: add ability to configure this staff */
 
     /* set default addresses */
     inet_aton("127.0.0.1", &loopback_addr);
-    if (!pData->use_host_resolver)
+    if (!pData->fUseHostResolver)
     {
         if (slirp_init_dns_list(pData) < 0)
             fNATfailed = 1;
 
         dnsproxy_init(pData);
     }
-
+    if (i32AliasMode & ~(PKT_ALIAS_LOG|PKT_ALIAS_SAME_PORTS|PKT_ALIAS_PROXY_ONLY))
+    {
+        LogRel(("NAT: alias mode %x is ignored\n", i32AliasMode));
+        i32AliasMode = 0;
+    }
+    pData->i32AliasMode = i32AliasMode;
     getouraddr(pData);
     {
         int flags = 0;
@@ -607,13 +656,13 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 #ifndef NO_FW_PUNCH
         flags |= PKT_ALIAS_PUNCH_FW;
 #endif
-        flags |= PKT_ALIAS_LOG; /* set logging */
+        flags |= pData->i32AliasMode; /* do transparent proxying */
         flags = LibAliasSetMode(pData->proxy_alias, flags, ~0);
-        proxy_addr.s_addr = htonl(ntohl(pData->special_addr.s_addr) | CTL_ALIAS);
+        proxy_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
         LibAliasSetAddress(pData->proxy_alias, proxy_addr);
         ftp_alias_load(pData);
         nbt_alias_load(pData);
-        if (pData->use_host_resolver)
+        if (pData->fUseHostResolver)
             dns_alias_load(pData);
     }
     return fNATfailed ? VINF_NAT_DNS : VINF_SUCCESS;
@@ -640,6 +689,8 @@ void slirp_register_statistics(PNATState pData, PPDMDRVINS pDrvIns)
  */
 void slirp_deregister_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 {
+    if (pData == NULL)
+        return;
 #ifdef VBOX_WITH_STATISTICS
 # define PROFILE_COUNTER(name, dsc)     DEREGISTER_COUNTER(name, pData)
 # define COUNTING_COUNTER(name, dsc)    DEREGISTER_COUNTER(name, pData)
@@ -701,6 +752,8 @@ void slirp_link_down(PNATState pData)
  */
 void slirp_term(PNATState pData)
 {
+    if (pData == NULL)
+        return;
 #ifdef RT_OS_WINDOWS
     pData->pfIcmpCloseHandle(pData->icmp_socket.sh);
     FreeLibrary(pData->hmIcmpLibrary);
@@ -713,7 +766,7 @@ void slirp_term(PNATState pData)
     slirp_release_dns_list(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
-    if (pData->use_host_resolver)
+    if (pData->fUseHostResolver)
         dns_alias_unload(pData);
     while (!LIST_EMPTY(&instancehead))
     {
@@ -818,7 +871,6 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
             if (!TAILQ_EMPTY(&ipq[i]))
             {
                 do_slowtimo = 1;
-                slirp_arm_slow_timer(pData->pvUser);
                 break;
             }
         }
@@ -837,6 +889,7 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
 #if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
 #endif
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         if (pData->fmbuf_water_line == 1)
         {
             if (mbuf_alloced < pData->mbuf_water_line_limit/2)
@@ -844,11 +897,12 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
                 pData->fmbuf_water_warn_sent = 0;
                 pData->fmbuf_water_line = 0;
             }
-#ifndef RT_OS_WINDOWS
+# ifndef RT_OS_WINDOWS
             poll_index = 0;
-#endif
+# endif
             goto done;
         }
+#endif /* !VBOX_WITH_SLIRP_BSD_MBUF */
         STAM_COUNTER_INC(&pData->StatTCP);
 
         /*
@@ -859,7 +913,6 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
                 && so->so_tcpcb->t_flags & TF_DELACK)
         {
             time_fasttimo = curtime; /* Flag when we want a fasttimo */
-            slirp_arm_fast_timer(pData->pvUser);
         }
 
         /*
@@ -920,6 +973,7 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
     QSOCKET_FOREACH(so, so_next, udp)
     /* { */
 
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         if (pData->fmbuf_water_line == 1)
         {
             if (mbuf_alloced < pData->mbuf_water_line_limit/2)
@@ -927,11 +981,12 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
                 pData->fmbuf_water_line = 0;
                 pData->fmbuf_water_warn_sent = 0;
             }
-#ifndef RT_OS_WINDOWS
+# ifndef RT_OS_WINDOWS
             poll_index = 0;
-#endif
+# endif
             goto done;
         }
+#endif /* !VBOX_WITH_SLIRP_BSD_MBUF */
         STAM_COUNTER_INC(&pData->StatUDP);
 #if !defined(RT_OS_WINDOWS)
         so->so_poll_index = -1;
@@ -959,7 +1014,6 @@ void slirp_select_fill(PNATState pData, int *pnfds, struct pollfd *polls)
             else
             {
                 do_slowtimo = 1; /* Let socket expire */
-                slirp_arm_slow_timer(pData->pvUser);
             }
         }
 
@@ -1020,18 +1074,18 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
     {
         if (time_fasttimo && ((curtime - time_fasttimo) >= 2))
         {
-            STAM_PROFILE_START(&pData->StatFastTimer, a);
+            STAM_PROFILE_START(&pData->StatFastTimer, b);
             tcp_fasttimo(pData);
             time_fasttimo = 0;
-            STAM_PROFILE_STOP(&pData->StatFastTimer, a);
+            STAM_PROFILE_STOP(&pData->StatFastTimer, b);
         }
         if (do_slowtimo && ((curtime - last_slowtimo) >= 499))
         {
-            STAM_PROFILE_START(&pData->StatSlowTimer, a);
+            STAM_PROFILE_START(&pData->StatSlowTimer, c);
             ip_slowtimo(pData);
             tcp_slowtimo(pData);
             last_slowtimo = curtime;
-            STAM_PROFILE_STOP(&pData->StatSlowTimer, a);
+            STAM_PROFILE_STOP(&pData->StatSlowTimer, c);
         }
     }
 #if defined(RT_OS_WINDOWS)
@@ -1060,6 +1114,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
      */
     QSOCKET_FOREACH(so, so_next, tcp)
     /* { */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         if (pData->fmbuf_water_line == 1)
         {
             if (mbuf_alloced < pData->mbuf_water_line_limit/2)
@@ -1069,6 +1124,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             }
             goto done;
         }
+#endif
 
 #ifdef VBOX_WITH_SLIRP_MT
         if (   so->so_state & SS_NOFDREF
@@ -1119,7 +1175,14 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
          */
 
         /* out-of-band data */
-        if (CHECK_FD_SET(so, NetworkEvents, xfds))
+        if (    CHECK_FD_SET(so, NetworkEvents, xfds)
+#ifdef RT_OS_DARWIN
+            /* Darwin and probably BSD hosts generates POLLPRI|POLLHUP event on receiving TCP.flags.{ACK|URG|FIN} this
+             * combination on other Unixs hosts doesn't enter to this branch
+             */
+            &&  !CHECK_FD_SET(so, NetworkEvents, closefds)
+#endif
+        )
         {
             sorecvoob(pData, so);
         }
@@ -1136,9 +1199,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             if (so->so_state & SS_FACCEPTCONN)
             {
                 TCP_CONNECT(pData, so);
-#if defined(RT_OS_WINDOWS)
-                if (!(NetworkEvents.lNetworkEvents & FD_CLOSE))
-#endif
+                if (!CHECK_FD_SET(so, NetworkEvents, closefds))
                     CONTINUE(tcp);
             }
 
@@ -1148,12 +1209,11 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
                 TCP_OUTPUT(pData, sototcpcb(so));
         }
 
-#if defined(RT_OS_WINDOWS)
         /*
          * Check for FD_CLOSE events.
          * in some cases once FD_CLOSE engaged on socket it could be flashed latter (for some reasons)
          */
-        if (   (NetworkEvents.lNetworkEvents & FD_CLOSE)
+        if (   CHECK_FD_SET(so, NetworkEvents, closefds)
             || (so->so_close == 1))
         {
             /*
@@ -1164,14 +1224,16 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
                 ret = soread(pData, so);
                 if (ret > 0)
                     TCP_OUTPUT(pData, sototcpcb(so));
-                else 
+                else
+                {
+                    Log2(("%R[natsock] errno %d:%s\n", so, errno, strerror(errno)));
                     break;
+                }
             }
             /* mark the socket for termination _after_ it was drained */
             so->so_close = 1;
             CONTINUE(tcp);
         }
-#endif
 
         /*
          * Check sockets for writing
@@ -1273,81 +1335,6 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
             TCP_INPUT((struct mbuf *)NULL, sizeof(struct ip),so);
         } /* SS_ISFCONNECTING */
 #endif
-#ifndef RT_OS_WINDOWS
-        if (   UNIX_CHECK_FD_SET(so, NetworkEvents, rdhup)
-            || UNIX_CHECK_FD_SET(so, NetworkEvents, rderr))
-        {
-            int err;
-            int inq, outq;
-            int status;
-            socklen_t optlen = sizeof(int);
-            inq = outq = 0;
-            status = getsockopt(so->s, SOL_SOCKET, SO_ERROR, &err, &optlen);
-            if (status != 0)
-                Log(("NAT: can't get error status from %R[natsock]\n", so));
-#ifndef RT_OS_SOLARIS
-            status = ioctl(so->s, FIONREAD, &inq); /* tcp(7) recommends SIOCINQ which is Linux specific */
-            if (status != 0 || status != EINVAL)
-            {
-                /* EINVAL returned if socket in listen state tcp(7)*/
-                Log(("NAT: can't get depth of IN queue status from %R[natsock]\n", so));
-            }
-            status = ioctl(so->s, TIOCOUTQ, &outq); /* SIOCOUTQ see previous comment */
-            if (status != 0)
-                Log(("NAT: can't get depth of OUT queue from %R[natsock]\n", so));
-#else
-                /*
-                 * Solaris has bit different ioctl commands and its handlings
-                 * hint: streamio(7) I_NREAD
-                 */
-#endif
-            if (   so->so_state & SS_ISFCONNECTING
-                || UNIX_CHECK_FD_SET(so, NetworkEvents, readfds))
-            {
-                /**
-                 * Check if we need here take care about gracefull connection
-                 * @todo try with proxy server
-                 */
-                if (UNIX_CHECK_FD_SET(so, NetworkEvents, readfds))
-                {
-                    /*
-                     * Never meet inq != 0 or outq != 0, anyway let it stay for a while
-                     * in case it happens we'll able to detect it.
-                     * Give TCP/IP stack wait or expire the socket.
-                     */
-                    Log(("NAT: %R[natsock] err(%d:%s) s(in:%d,out:%d)happens on read I/O, "
-                        "other side close connection \n", so, err, strerror(err), inq, outq));
-                    CONTINUE(tcp);
-                }
-                goto tcp_input_close;
-            }
-            if (   !UNIX_CHECK_FD_SET(so, NetworkEvents, readfds)
-                && !UNIX_CHECK_FD_SET(so, NetworkEvents, writefds)
-                && !UNIX_CHECK_FD_SET(so, NetworkEvents, xfds))
-            {
-                Log(("NAT: system expires the socket %R[natsock] err(%d:%s) s(in:%d,out:%d) happens on non-I/O. ",
-                        so, err, strerror(err), inq, outq));
-                goto tcp_input_close;
-            }
-            Log(("NAT: %R[natsock] we've met(%d:%s) s(in:%d, out:%d) unhandled combination hup (%d) "
-                "rederr(%d) on (r:%d, w:%d, x:%d)\n",
-                    so, err, strerror(err),
-                    inq, outq,
-                    UNIX_CHECK_FD_SET(so, ign, rdhup),
-                    UNIX_CHECK_FD_SET(so, ign, rderr),
-                    UNIX_CHECK_FD_SET(so, ign, readfds),
-                    UNIX_CHECK_FD_SET(so, ign, writefds),
-                    UNIX_CHECK_FD_SET(so, ign, xfds)));
-            /*
-             * Give OS's TCP/IP stack a chance to resolve an issue or expire the socket.
-             */
-            CONTINUE(tcp);
-tcp_input_close:
-            so->so_state = SS_NOFDREF; /*cause connection valid tcp connection termination and socket closing */
-            TCP_INPUT(pData, (struct mbuf *)NULL, sizeof(struct ip), so);
-            CONTINUE(tcp);
-        }
-#endif
         LOOP_LABEL(tcp, so, so_next);
     }
 
@@ -1358,6 +1345,7 @@ tcp_input_close:
      */
      QSOCKET_FOREACH(so, so_next, udp)
      /* { */
+#ifndef VBOX_WITH_SLIRP_BSD_MBUF
         if (pData->fmbuf_water_line == 1)
         {
             if (mbuf_alloced < pData->mbuf_water_line_limit/2)
@@ -1367,6 +1355,7 @@ tcp_input_close:
             }
             goto done;
         }
+#endif
 #ifdef VBOX_WITH_SLIRP_MT
         if (   so->so_state & SS_NOFDREF
             && so->so_deleted == 1)
@@ -1446,16 +1435,16 @@ static void arp_input(PNATState pData, struct mbuf *m)
     struct arphdr *ah;
     struct arphdr *rah;
     int ar_op;
-    struct ex_list *ex_ptr;
     uint32_t htip;
     uint32_t tip;
     struct mbuf *mr;
     eh = mtod(m, struct ethhdr *);
     ah = (struct arphdr *)&eh[1];
-    htip = ntohl(*(uint32_t*)ah->ar_tip);
+    htip = RT_N2H_U32(*(uint32_t*)ah->ar_tip);
     tip = *(uint32_t*)ah->ar_tip;
 
-    ar_op = ntohs(ah->ar_op);
+    ar_op = RT_N2H_U16(ah->ar_op);
+
     switch (ar_op)
     {
         case ARPOP_REQUEST:
@@ -1473,6 +1462,8 @@ static void arp_input(PNATState pData, struct mbuf *m)
             rah = mtod(mr, struct arphdr *);
 #else
             mr = m_getcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR);
+            if (mr == NULL)
+                return;
             reh = mtod(mr, struct ethhdr *);
             mr->m_data += ETH_HLEN;
             rah = mtod(mr, struct arphdr *);
@@ -1484,29 +1475,22 @@ static void arp_input(PNATState pData, struct mbuf *m)
             if (tip == pData->special_addr.s_addr)
                 goto arp_ok;
 #endif
-            if ((htip & pData->netmask) == ntohl(pData->special_addr.s_addr))
+            if ((htip & pData->netmask) == RT_N2H_U32(pData->special_addr.s_addr))
             {
                 if (   CTL_CHECK(htip, CTL_DNS)
                     || CTL_CHECK(htip, CTL_ALIAS)
                     || CTL_CHECK(htip, CTL_TFTP))
                     goto arp_ok;
-                for (ex_ptr = exec_list; ex_ptr; ex_ptr = ex_ptr->ex_next)
-                {
-                    if ((htip & ~pData->netmask) == ex_ptr->ex_addr)
-                    {
-                        goto arp_ok;
-                    }
-                }
-                m_free(pData, m);
-                m_free(pData, mr);
+                m_freem(pData, m);
+                m_freem(pData, mr);
                 return;
 
          arp_ok:
-                rah->ar_hrd = htons(1);
-                rah->ar_pro = htons(ETH_P_IP);
+                rah->ar_hrd = RT_H2N_U16_C(1);
+                rah->ar_pro = RT_H2N_U16_C(ETH_P_IP);
                 rah->ar_hln = ETH_ALEN;
                 rah->ar_pln = 4;
-                rah->ar_op = htons(ARPOP_REPLY);
+                rah->ar_op = RT_H2N_U16_C(ARPOP_REPLY);
                 memcpy(rah->ar_sha, special_ethaddr, ETH_ALEN);
 
                 switch (htip & ~pData->netmask)
@@ -1522,7 +1506,7 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 memcpy(rah->ar_tha, ah->ar_sha, ETH_ALEN);
                 memcpy(rah->ar_tip, ah->ar_sip, 4);
                 if_encap(pData, ETH_P_ARP, mr, ETH_ENCAP_URG);
-                m_free(pData, m);
+                m_freem(pData, m);
             }
             /* Gratuitous ARP */
             if (  *(uint32_t *)ah->ar_sip == *(uint32_t *)ah->ar_tip
@@ -1534,8 +1518,8 @@ static void arp_input(PNATState pData, struct mbuf *m)
                  */
                 if (slirp_arp_cache_update(pData, *(uint32_t *)ah->ar_tip, &eh->h_dest[0]) == 0)
                 {
-                    m_free(pData, mr);
-                    m_free(pData, m);
+                    m_freem(pData, mr);
+                    m_freem(pData, m);
                     break;
                 }
                 slirp_arp_cache_add(pData, *(uint32_t *)ah->ar_tip, &eh->h_dest[0]);
@@ -1545,11 +1529,11 @@ static void arp_input(PNATState pData, struct mbuf *m)
         case ARPOP_REPLY:
             if (slirp_arp_cache_update(pData, *(uint32_t *)ah->ar_sip, &ah->ar_sha[0]) == 0)
             {
-                m_free(pData, m);
+                m_freem(pData, m);
                 break;
             }
             slirp_arp_cache_add(pData, *(uint32_t *)ah->ar_sip, ah->ar_sha);
-            m_free(pData, m);
+            m_freem(pData, m);
             break;
 
         default:
@@ -1557,74 +1541,28 @@ static void arp_input(PNATState pData, struct mbuf *m)
     }
 }
 
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-void slirp_input(PNATState pData, const uint8_t *pkt, int pkt_len)
-#else
-void slirp_input(PNATState pData, void *pvArg)
-#endif
+/**
+ * Feed a packet into the slirp engine.
+ *
+ * @param   m               Data buffer, m_len is not valid.
+ * @param   cbBuf           The length of the data in m.
+ */
+void slirp_input(PNATState pData, struct mbuf *m, size_t cbBuf)
 {
-    struct mbuf *m;
     int proto;
     static bool fWarnedIpv6;
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-    struct ethhdr *eh = (struct ethhdr*)pkt;
-    int size = 0;
-#else
     struct ethhdr *eh;
-#endif
     uint8_t au8Ether[ETH_ALEN];
 
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
-    m = (struct mbuf *)pvArg;
-    if (m->m_len < ETH_HLEN)
+    m->m_len = cbBuf;
+    if (cbBuf < ETH_HLEN)
     {
-        LogRel(("NAT: packet having size %d has been ingnored\n", m->m_len));
-        m_free(pData, m);
+        LogRel(("NAT: packet having size %d has been ignored\n", m->m_len));
+        m_freem(pData, m);
         return;
     }
     eh = mtod(m, struct ethhdr *);
-    proto = ntohs(eh->h_proto);
-#else
-    Log2(("NAT: slirp_input %d\n", pkt_len));
-    if (pkt_len < ETH_HLEN)
-    {
-        LogRel(("NAT: packet having size %d has been ingnored\n", pkt_len));
-        return;
-    }
-    Log4(("NAT: in:%R[ether]->%R[ether]\n", &eh->h_source, &eh->h_dest));
-
-    if (memcmp(eh->h_source, special_ethaddr, ETH_ALEN) == 0)
-    {
-        /* @todo vasily: add ether logging routine in debug.c */
-        Log(("NAT: packet was addressed to other MAC\n"));
-        RTMemFree((void *)pkt);
-        return;
-    }
-
-    if (pkt_len < MSIZE)
-        size = MCLBYTES;
-    else if (pkt_len < MCLBYTES)
-        size = MCLBYTES;
-    else if (pkt_len < MJUM9BYTES)
-        size = MJUM9BYTES;
-    else if (pkt_len < MJUM16BYTES)
-        size = MJUM16BYTES;
-    else
-        AssertMsgFailed(("Unsupported size"));
-
-    m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, size);
-    if (!m)
-    {
-        LogRel(("NAT: can't allocate new mbuf\n"));
-        RTMemFree((void *)pkt);
-        return;
-    }
-
-    m->m_len = pkt_len ;
-    memcpy(m->m_data, pkt, pkt_len);
-    proto = ntohs(*(uint16_t *)(pkt + 12));
-#endif
-    /* Note: we add to align the IP header */
+    proto = RT_N2H_U16(eh->h_proto);
 
     memcpy(au8Ether, eh->h_source, ETH_ALEN);
 
@@ -1642,8 +1580,7 @@ void slirp_input(PNATState pData, void *pvArg)
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
             M_ASSERTPKTHDR(m);
             m->m_pkthdr.header = mtod(m, void *);
-#endif
-#if 1
+#else /* !VBOX_WITH_SLIRP_BSD_MBUF */
             if (   pData->fmbuf_water_line
                 && pData->fmbuf_water_warn_sent == 0
                 && (curtime - pData->tsmbuf_water_warn_sent) > 500)
@@ -1652,12 +1589,12 @@ void slirp_input(PNATState pData, void *pvArg)
                 pData->fmbuf_water_warn_sent = 1;
                 pData->tsmbuf_water_warn_sent = curtime;
             }
-#endif
+#endif /* !VBOX_WITH_SLIRP_BSD_MBUF */
             ip_input(pData, m);
             break;
 
         case ETH_P_IPV6:
-            m_free(pData, m);
+            m_freem(pData, m);
             if (!fWarnedIpv6)
             {
                 LogRel(("NAT: IPv6 not supported\n"));
@@ -1667,16 +1604,12 @@ void slirp_input(PNATState pData, void *pvArg)
 
         default:
             Log(("NAT: Unsupported protocol %x\n", proto));
-            m_free(pData, m);
+            m_freem(pData, m);
             break;
     }
 
     if (pData->cRedirectionsActive != pData->cRedirectionsStored)
         activate_port_forwarding(pData, au8Ether);
-
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-    RTMemFree((void *)pkt);
-#endif
 }
 
 /* output the IP packet to the ethernet device */
@@ -1712,6 +1645,7 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
         if (memcmp(eh->h_dest, zerro_ethaddr, ETH_ALEN) == 0)
         {
             /* don't do anything */
+            m_freem(pData, m);
             goto done;
         }
     }
@@ -1723,12 +1657,17 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
     if (buf == NULL)
     {
         LogRel(("NAT: Can't alloc memory for outgoing buffer\n"));
+        m_freem(pData, m);
         goto done;
     }
 #endif
-    eh->h_proto = htons(eth_proto);
+    eh->h_proto = RT_H2N_U16(eth_proto);
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
     m_copydata(m, 0, mlen, (char *)buf);
+    if (flags & ETH_ENCAP_URG)
+        slirp_urg_output(pData->pvUser, m, buf, mlen);
+    else
+        slirp_output(pData->pvUser, m, buf, mlen);
 #else
     if (flags & ETH_ENCAP_URG)
         slirp_urg_output(pData->pvUser, m, mtod(m, const uint8_t *), mlen);
@@ -1737,9 +1676,6 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
 #endif
 done:
     STAM_PROFILE_STOP(&pData->StatIF_encap, a);
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-    m_free(pData, m);
-#endif
 }
 
 /**
@@ -1781,7 +1717,7 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
     LIST_FOREACH(rule, &pData->port_forward_rule_head, list)
     {
         struct socket *so;
-        struct alias_link *link;
+        struct alias_link *alias_link;
         struct libalias *lib;
         int flags;
         struct sockaddr sa;
@@ -1821,11 +1757,11 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
                rule->host_port, rule->guest_port, &guest_addr));
 
         if (rule->proto == IPPROTO_UDP)
-            so = udp_listen(pData, rule->bind_ip.s_addr, htons(rule->host_port), guest_addr,
-                            htons(rule->guest_port), 0);
+            so = udp_listen(pData, rule->bind_ip.s_addr, RT_H2N_U16(rule->host_port), guest_addr,
+                            RT_H2N_U16(rule->guest_port), 0);
         else
-            so = solisten(pData, rule->bind_ip.s_addr, htons(rule->host_port), guest_addr,
-                          htons(rule->guest_port), 0);
+            so = solisten(pData, rule->bind_ip.s_addr, RT_H2N_U16(rule->host_port), guest_addr,
+                          RT_H2N_U16(rule->guest_port), 0);
 
         if (so == NULL)
             goto remove_port_forwarding;
@@ -1844,16 +1780,16 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
 
         lib = LibAliasInit(pData, NULL);
         flags = LibAliasSetMode(lib, 0, 0);
-        flags |= PKT_ALIAS_LOG; /* set logging */
-        flags |= PKT_ALIAS_REVERSE; /* set logging */
+        flags |= pData->i32AliasMode; 
+        flags |= PKT_ALIAS_REVERSE; /* set reverse  */
         flags = LibAliasSetMode(lib, flags, ~0);
 
-        alias.s_addr =  htonl(ntohl(guest_addr) | CTL_ALIAS);
-        link = LibAliasRedirectPort(lib, psin->sin_addr, htons(rule->host_port),
-                                    alias, htons(rule->guest_port),
-                                    pData->special_addr,  -1, /* not very clear for now */
-                                    rule->proto);
-        if (!link)
+        alias.s_addr = RT_H2N_U32(RT_N2H_U32(guest_addr) | CTL_ALIAS);
+        alias_link = LibAliasRedirectPort(lib, psin->sin_addr, RT_H2N_U16(rule->host_port),
+                                          alias, RT_H2N_U16(rule->guest_port),
+                                          pData->special_addr,  -1, /* not very clear for now */
+                                          rule->proto);
+        if (!alias_link)
             goto remove_port_forwarding;
 
         so->so_la = lib;
@@ -1906,13 +1842,6 @@ int slirp_redir(PNATState pData, int is_udp, struct in_addr host_addr, int host_
     return 0;
 }
 
-int slirp_add_exec(PNATState pData, int do_pty, const char *args, int addr_low_byte,
-                   int guest_port)
-{
-    return add_exec(&exec_list, do_pty, (char *)args,
-                    addr_low_byte, htons(guest_port));
-}
-
 void slirp_set_ethaddr_and_activate_port_forwarding(PNATState pData, const uint8_t *ethaddr, uint32_t GuestIP)
 {
 #ifndef VBOX_WITH_NAT_SERVICE
@@ -1945,7 +1874,7 @@ unsigned int slirp_get_timeout_ms(PNATState pData)
         if (do_slowtimo)
             return 500; /* see PR_SLOWHZ */
     }
-    return 0;
+    return 3600*1000;   /* one hour */
 }
 
 #ifndef RT_OS_WINDOWS
@@ -1963,7 +1892,7 @@ void slirp_post_sent(PNATState pData, void *pvArg)
     struct socket *so = 0;
     struct tcpcb *tp = 0;
     struct mbuf *m = (struct mbuf *)pvArg;
-    m_free(pData, m);
+    m_freem(pData, m);
 }
 #ifdef VBOX_WITH_SLIRP_MT
 void slirp_process_queue(PNATState pData)
@@ -1992,7 +1921,7 @@ void slirp_set_dhcp_next_server(PNATState pData, const char *next_server)
 {
     Log2(("next_server:%s\n", next_server));
     if (next_server == NULL)
-        pData->tftp_server.s_addr = htonl(ntohl(pData->special_addr.s_addr) | CTL_TFTP);
+        pData->tftp_server.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_TFTP);
     else
         inet_aton(next_server, &pData->tftp_server);
 }
@@ -2009,10 +1938,10 @@ int slirp_set_binding_address(PNATState pData, char *addr)
 
 void slirp_set_dhcp_dns_proxy(PNATState pData, bool fDNSProxy)
 {
-    if (!pData->use_host_resolver)
+    if (!pData->fUseHostResolver)
     {
         Log2(("NAT: DNS proxy switched %s\n", (fDNSProxy ? "on" : "off")));
-        pData->use_dns_proxy = fDNSProxy;
+        pData->fUseDnsProxy = fDNSProxy;
     }
     else
         LogRel(("NAT: Host Resolver conflicts with DNS proxy, the last one was forcely ignored\n"));
@@ -2122,13 +2051,13 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     ehdr = mtod(m, struct ethhdr *);
     memset(ehdr->h_source, 0xff, ETH_ALEN);
     ahdr = (struct arphdr *)&ehdr[1];
-    ahdr->ar_hrd = htons(1);
-    ahdr->ar_pro = htons(ETH_P_IP);
+    ahdr->ar_hrd = RT_H2N_U16_C(1);
+    ahdr->ar_pro = RT_H2N_U16_C(ETH_P_IP);
     ahdr->ar_hln = ETH_ALEN;
     ahdr->ar_pln = 4;
-    ahdr->ar_op = htons(ARPOP_REQUEST);
+    ahdr->ar_op = RT_H2N_U16_C(ARPOP_REQUEST);
     memcpy(ahdr->ar_sha, special_ethaddr, ETH_ALEN);
-    *(uint32_t *)ahdr->ar_sip = htonl(ntohl(pData->special_addr.s_addr) | CTL_ALIAS);
+    *(uint32_t *)ahdr->ar_sip = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
     memset(ahdr->ar_tha, 0xff, ETH_ALEN); /*broadcast*/
     *(uint32_t *)ahdr->ar_tip = dst;
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
@@ -2137,6 +2066,8 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
 #else
     /* warn!!! should falls in mbuf minimal size */
     m->m_len = sizeof(struct arphdr) + ETH_HLEN;
+    m->m_data += ETH_HLEN;
+    m->m_len -= ETH_HLEN;
 #endif
     if_encap(pData, ETH_P_ARP, m, ETH_ENCAP_URG);
 }

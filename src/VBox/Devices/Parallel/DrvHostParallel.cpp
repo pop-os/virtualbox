@@ -1,4 +1,4 @@
-/* $Id: DrvHostParallel.cpp $ */
+/* $Id: DrvHostParallel.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Host Parallel Port Driver.
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -29,9 +25,10 @@
 #include <VBox/pdmthread.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/stream.h>
-#include <iprt/semaphore.h>
 #include <iprt/file.h>
+#include <iprt/semaphore.h>
+#include <iprt/stream.h>
+#include <iprt/uuid.h>
 
 #ifdef RT_OS_LINUX
 # include <sys/ioctl.h>
@@ -47,11 +44,13 @@
 
 #include "Builtins.h"
 
+
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /**
  * Host parallel port driver instance data.
+ * @implements PDMIHOSTPARALLELCONNECTOR
  */
 typedef struct DRVHOSTPARALLEL
 {
@@ -61,10 +60,8 @@ typedef struct DRVHOSTPARALLEL
     PPDMIHOSTPARALLELPORT         pDrvHostParallelPort;
     /** Our host device interface. */
     PDMIHOSTPARALLELCONNECTOR     IHostParallelConnector;
-    /** Our host device port interface. */
-    PDMIHOSTPARALLELPORT          IHostParallelPort;
     /** Device Path */
-    char                          *pszDevicePath;
+    char                         *pszDevicePath;
     /** Device Handle */
     RTFILE                        FileDevice;
     /** Thread waiting for interrupts. */
@@ -77,37 +74,26 @@ typedef struct DRVHOSTPARALLEL
 
 /** Converts a pointer to DRVHOSTPARALLEL::IHostDeviceConnector to a PDRHOSTPARALLEL. */
 #define PDMIHOSTPARALLELCONNECTOR_2_DRVHOSTPARALLEL(pInterface) ( (PDRVHOSTPARALLEL)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTPARALLEL, IHostParallelConnector)) )
-/** Converts a pointer to DRVHOSTPARALLEL::IHostDevicePort to a PDRHOSTPARALLEL. */
-#define PDMIHOSTPARALLELPORT_2_DRVHOSTPARALLEL(pInterface) ( (PDRVHOSTPARALLEL)((uintptr_t)pInterface - RT_OFFSETOF(DRVHOSTPARALLEL, IHostParallelPort)) )
+
 
 /* -=-=-=-=- IBase -=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) drvHostParallelQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) drvHostParallelQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS  pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVHOSTPARALLEL    pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_HOST_PARALLEL_CONNECTOR:
-            return &pThis->IHostParallelConnector;
-        default:
-            return NULL;
-    }
+    PPDMDRVINS          pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PDRVHOSTPARALLEL    pThis   = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHOSTPARALLELCONNECTOR, &pThis->IHostParallelConnector);
+    return NULL;
 }
 
 /* -=-=-=-=- IHostDeviceConnector -=-=-=-=- */
 
-/** @copydoc PDMICHAR::pfnWrite */
+/** @copydoc PDMICHARCONNECTOR::pfnWrite */
 static DECLCALLBACK(int) drvHostParallelWrite(PPDMIHOSTPARALLELCONNECTOR pInterface, const void *pvBuf, size_t *cbWrite)
 {
     PDRVHOSTPARALLEL pThis = PDMIHOSTPARALLELCONNECTOR_2_DRVHOSTPARALLEL(pInterface);
@@ -258,19 +244,56 @@ static DECLCALLBACK(int) drvHostParallelWakeupMonitorThread(PPDMDRVINS pDrvIns, 
 }
 
 /**
+ * Destruct a host parallel driver instance.
+ *
+ * Most VM resources are freed by the VM. This callback is provided so that
+ * any non-VM resources can be freed correctly.
+ *
+ * @param   pDrvIns     The driver instance data.
+ */
+static DECLCALLBACK(void) drvHostParallelDestruct(PPDMDRVINS pDrvIns)
+{
+    PDRVHOSTPARALLEL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
+    LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+
+    ioctl(pThis->FileDevice, PPRELEASE);
+
+    if (pThis->WakeupPipeW != NIL_RTFILE)
+    {
+        int rc = RTFileClose(pThis->WakeupPipeW);
+        AssertRC(rc);
+        pThis->WakeupPipeW = NIL_RTFILE;
+    }
+    if (pThis->WakeupPipeR != NIL_RTFILE)
+    {
+        int rc = RTFileClose(pThis->WakeupPipeR);
+        AssertRC(rc);
+        pThis->WakeupPipeR = NIL_RTFILE;
+    }
+    if (pThis->FileDevice != NIL_RTFILE)
+    {
+        int rc = RTFileClose(pThis->FileDevice);
+        AssertRC(rc);
+        pThis->FileDevice = NIL_RTFILE;
+    }
+}
+
+/**
  * Construct a host parallel driver instance.
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
-static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
+static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDRVHOSTPARALLEL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
     LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "DevicePath\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "DevicePath\0"))
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
                                 N_("Unknown host parallel configuration option, only supports DevicePath"));
 
@@ -292,7 +315,7 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
      * Query configuration.
      */
     /* Device */
-    int rc = CFGMR3QueryStringAlloc(pCfgHandle, "DevicePath", &pThis->pszDevicePath);
+    int rc = CFGMR3QueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: query for \"DevicePath\" string returned %Rra.\n", rc));
@@ -330,7 +353,7 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
     /*
      * Get the IHostParallelPort interface of the above driver/device.
      */
-    pThis->pDrvHostParallelPort = (PPDMIHOSTPARALLELPORT)pDrvIns->pUpBase->pfnQueryInterface(pDrvIns->pUpBase, PDMINTERFACE_HOST_PARALLEL_PORT);
+    pThis->pDrvHostParallelPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIHOSTPARALLELPORT);
     if (!pThis->pDrvHostParallelPort)
         return PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_MISSING_INTERFACE_ABOVE, RT_SRC_POS, N_("Parallel#%d has no parallel port interface above"),
                                    pDrvIns->iInstance);
@@ -341,7 +364,7 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
     int aFDs[2];
     if (pipe(aFDs) != 0)
     {
-        int rc = RTErrConvertFromErrno(errno);
+        rc = RTErrConvertFromErrno(errno);
         AssertRC(rc);
         return rc;
     }
@@ -351,49 +374,12 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
     /*
      * Start waiting for interrupts.
      */
-    rc = PDMDrvHlpPDMThreadCreate(pDrvIns, &pThis->pMonitorThread, pThis, drvHostParallelMonitorThread, drvHostParallelWakeupMonitorThread, 0,
-                                  RTTHREADTYPE_IO, "ParMon");
+    rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pMonitorThread, pThis, drvHostParallelMonitorThread, drvHostParallelWakeupMonitorThread, 0,
+                               RTTHREADTYPE_IO, "ParMon");
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("HostParallel#%d cannot create monitor thread"), pDrvIns->iInstance);
 
     return VINF_SUCCESS;
-}
-
-
-/**
- * Destruct a host parallel driver instance.
- *
- * Most VM resources are freed by the VM. This callback is provided so that
- * any non-VM resources can be freed correctly.
- *
- * @param   pDrvIns     The driver instance data.
- */
-static DECLCALLBACK(void) drvHostParallelDestruct(PPDMDRVINS pDrvIns)
-{
-    PDRVHOSTPARALLEL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
-
-    LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
-
-    ioctl(pThis->FileDevice, PPRELEASE);
-
-    if (pThis->WakeupPipeW != NIL_RTFILE)
-    {
-        int rc = RTFileClose(pThis->WakeupPipeW);
-        AssertRC(rc);
-        pThis->WakeupPipeW = NIL_RTFILE;
-    }
-    if (pThis->WakeupPipeR != NIL_RTFILE)
-    {
-        int rc = RTFileClose(pThis->WakeupPipeR);
-        AssertRC(rc);
-        pThis->WakeupPipeR = NIL_RTFILE;
-    }
-    if (pThis->FileDevice != NIL_RTFILE)
-    {
-        int rc = RTFileClose(pThis->FileDevice);
-        AssertRC(rc);
-        pThis->FileDevice = NIL_RTFILE;
-    }
 }
 
 /**
@@ -403,8 +389,12 @@ const PDMDRVREG g_DrvHostParallel =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "HostParallel",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "Parallel host driver.",
     /* fFlags */
@@ -419,6 +409,8 @@ const PDMDRVREG g_DrvHostParallel =
     drvHostParallelConstruct,
     /* pfnDestruct */
     drvHostParallelDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

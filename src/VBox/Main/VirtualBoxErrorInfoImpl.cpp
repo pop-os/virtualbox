@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VirtualBoxErrorInfoImpl.h"
@@ -81,7 +77,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(Next) (IVirtualBoxErrorInfo **aNext)
     return mNext.queryInterfaceTo(aNext);
 }
 
-#if !defined (VBOX_WITH_XPCOM)
+#if !defined(VBOX_WITH_XPCOM)
 
 /**
  *  Initializes itself by fetching error information from the given error info
@@ -140,13 +136,13 @@ STDMETHODIMP VirtualBoxErrorInfo::GetSource (BSTR *source)
     return COMGETTER(Component) (source);
 }
 
-#else // !defined (VBOX_WITH_XPCOM)
+#else // defined(VBOX_WITH_XPCOM)
 
 /**
  *  Initializes itself by fetching error information from the given error info
  *  object.
  */
-HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
+HRESULT VirtualBoxErrorInfo::init(nsIException *aInfo)
 {
     AssertReturn(aInfo, E_FAIL);
 
@@ -156,13 +152,19 @@ HRESULT VirtualBoxErrorInfo::init (nsIException *aInfo)
      * protect ourselves from bad nsIException implementations (the
      * corresponding fields will simply remain null in this case). */
 
-    rc = aInfo->GetResult (&mResultCode);
-    AssertComRC (rc);
-    Utf8Str message;
-    rc = aInfo->GetMessage(message.asOutParam());
-    message.jolt();
-    AssertComRC (rc);
-    mText = message;
+    rc = aInfo->GetResult(&mResultCode);
+    AssertComRC(rc);
+
+    char *pszMsg;             /* No Utf8Str.asOutParam, different allocator! */
+    rc = aInfo->GetMessage(&pszMsg);
+    AssertComRC(rc);
+    if (NS_SUCCEEDED(rc))
+    {
+        mText = Bstr(pszMsg);
+        nsMemory::Free(pszMsg);
+    }
+    else
+        mText.setNull();
 
     return S_OK;
 }
@@ -227,7 +229,7 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetInner (nsIException **aInner)
 {
     ComPtr<IVirtualBoxErrorInfo> info;
     nsresult rv = COMGETTER(Next) (info.asOutParam());
-    CheckComRCReturnRC(rv);
+    if (FAILED(rv)) return rv;
     return info.queryInterfaceTo(aInner);
 }
 
@@ -246,5 +248,5 @@ NS_IMETHODIMP VirtualBoxErrorInfo::ToString (char ** /* retval */)
 NS_IMPL_THREADSAFE_ISUPPORTS2 (VirtualBoxErrorInfo,
                                nsIException, IVirtualBoxErrorInfo)
 
-#endif // !defined (VBOX_WITH_XPCOM)
+#endif // defined(VBOX_WITH_XPCOM)
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

@@ -1,10 +1,10 @@
-/* $Id:$ */
+/* $Id: VBoxGuestR3LibVideo.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Video.
  */
 
 /*
- * Copyright (C) 2007-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -144,18 +140,17 @@ VBGLR3DECL(int) VbglR3SetPointerShapeReq(VMMDevReqMousePointer *pReq)
  *                      the host.  If this is set, the function will return the
  *                      most recent host request, otherwise it will return the
  *                      last request to be acknowleged.
- *                      
+ *
  */
 VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits, uint32_t *piDisplay, bool fAck)
 {
-    VMMDevDisplayChangeRequest2 Req = { { 0 } };
+    VMMDevDisplayChangeRequest2 Req;
 
-#ifndef VBOX_VBGLR3_XFREE86
     AssertPtrReturn(pcx, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pcy, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pcBits, VERR_INVALID_PARAMETER);
     AssertPtrReturn(piDisplay, VERR_INVALID_PARAMETER);
-#endif
+    RT_ZERO(Req);
     vmmdevInitRequest(&Req.header, VMMDevReq_GetDisplayChangeRequest2);
     if (fAck)
         Req.eventAck = VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST;
@@ -210,7 +205,7 @@ VBGLR3DECL(bool) VbglR3HostLikesVideoMode(uint32_t cx, uint32_t cy, uint32_t cBi
  */
 VBGLR3DECL(int) VbglR3SaveVideoMode(const char *pszName, uint32_t cx, uint32_t cy, uint32_t cBits)
 {
-#ifdef VBOX_WITH_GUEST_PROPS
+#if defined(VBOX_WITH_GUEST_PROPS)
     using namespace guestProp;
 
     char szModeName[MAX_NAME_LEN];
@@ -224,9 +219,9 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(const char *pszName, uint32_t cx, uint32_t c
     if (u32ClientId != 0)
         VbglR3GuestPropDisconnect(u32ClientId);  /* Return value ignored, because what can we do anyway? */
     return rc;
-#else /* VBOX_WITH_GUEST_PROPS not defined */
+#else /* !VBOX_WITH_GUEST_PROPS */
     return VERR_NOT_IMPLEMENTED;
-#endif /* VBOX_WITH_GUEST_PROPS not defined */
+#endif /* !VBOX_WITH_GUEST_PROPS */
 }
 
 
@@ -241,7 +236,7 @@ VBGLR3DECL(int) VbglR3SaveVideoMode(const char *pszName, uint32_t cx, uint32_t c
  */
 VBGLR3DECL(int) VbglR3RetrieveVideoMode(const char *pszName, uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits)
 {
-#ifdef VBOX_WITH_GUEST_PROPS
+#if defined(VBOX_WITH_GUEST_PROPS)
     using namespace guestProp;
 
 /*
@@ -302,7 +297,7 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(const char *pszName, uint32_t *pcx, uint
         *pcBits = cBits;
     }
     return rc;
-#else /* VBOX_WITH_GUEST_PROPS not defined */
+#else /* !VBOX_WITH_GUEST_PROPS */
     return VERR_NOT_IMPLEMENTED;
-#endif /* VBOX_WITH_GUEST_PROPS not defined */
+#endif /* !VBOX_WITH_GUEST_PROPS */
 }

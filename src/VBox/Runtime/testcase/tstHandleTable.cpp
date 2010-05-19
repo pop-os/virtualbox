@@ -1,10 +1,10 @@
-/* $Id: tstHandleTable.cpp $ */
+/* $Id: tstHandleTable.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT Testcase - Handle Tables.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -459,8 +455,6 @@ int main(int argc, char **argv)
         { "--base",         'b', RTGETOPT_REQ_UINT32 },
         { "--max",          'm', RTGETOPT_REQ_UINT32 },
         { "--threads",      't', RTGETOPT_REQ_UINT32 },
-        { "--help",         'h', RTGETOPT_REQ_NOTHING },
-        { "--?",            '?', RTGETOPT_REQ_NOTHING },
     };
 
     uint32_t uBase    = 0;
@@ -488,21 +482,16 @@ int main(int argc, char **argv)
                     cThreads = 1;
                 break;
 
-            case '?':
             case 'h':
                 RTPrintf("syntax: tstHandleTable [-b <base>] [-m <max>] [-t <threads>]\n");
                 return 1;
 
-            case VINF_GETOPT_NOT_OPTION:
-                RTPrintf("tstHandleTable: unexpected non-option: %s\n", Value.psz);
-                break;
+            case 'V':
+                RTPrintf("$Revision: $\n");
+                return 0;
 
             default:
-                if (RT_SUCCESS(ch))
-                    RTPrintf("tstHandleTable: invalid argument (%#x): %s\n", ch, Value.psz);
-                else
-                    RTPrintf("tstHandleTable: invalid argument: %Rrc - \n", ch, Value.pDef->pszLong);
-                return 1;
+                return RTGetOptPrintError(ch, &Value);
         }
 
     /*

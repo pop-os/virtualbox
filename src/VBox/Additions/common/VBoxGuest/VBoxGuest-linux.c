@@ -1,4 +1,4 @@
-/* $Rev: 50919 $ */
+/* $Rev: 28800 $ */
 /** @file
  * VBoxGuest - Linux specifics.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,10 +16,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * Some lines of code to disable the local APIC on x86_64 machines taken
  * from a Mandriva patch by Gwenole Beauchesne <gbeauchesne@mandriva.com>.
  */
@@ -33,6 +29,7 @@
 #include <linux/miscdevice.h>
 #include <linux/poll.h>
 #include "version-generated.h"
+#include "product-generated.h"
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -898,8 +895,8 @@ module_param_call(dbg_log_dest,   vboxguestLinuxParamLogDstSet,   vboxguestLinux
 module_init(vboxguestLinuxModInit);
 module_exit(vboxguestLinuxModExit);
 
-MODULE_AUTHOR("Sun Microsystems, Inc.");
-MODULE_DESCRIPTION("VirtualBox Guest Additions for Linux Module");
+MODULE_AUTHOR(VBOX_VENDOR);
+MODULE_DESCRIPTION(VBOX_PRODUCT " Guest Additions for Linux Module");
 MODULE_LICENSE("GPL");
 #ifdef MODULE_VERSION
 MODULE_VERSION(VBOX_VERSION_STRING);

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_cdefs_h
@@ -56,22 +52,24 @@
 /*
  * Shut up DOXYGEN warnings and guide it properly thru the code.
  */
-#ifdef  __DOXYGEN__
+#ifdef DOXYGEN_RUNNING
 #define VBOX_WITH_STATISTICS
 #define VBOX_STRICT
+#define IN_DBG
 #define IN_DIS
 #define IN_INTNET_R0
 #define IN_INTNET_R3
 #define IN_REM_R3
 #define IN_SUP_R0
 #define IN_SUP_R3
-#define IN_SUP_GC
+#define IN_SUP_RC
+#define IN_SUP_STATIC
 #define IN_USBLIB
 #define IN_VBOXDDU
 #define IN_VMM_RC
 #define IN_VMM_R0
 #define IN_VMM_R3
-/** @todo fixme */
+#define IN_VMM_STATIC
 #endif
 
 
@@ -119,7 +117,7 @@
 
 
 /** @def IN_INTNET_R3
- * Used to indicate whether we're inside the same link module as the Ring 3
+ * Used to indicate whether we're inside the same link module as the Ring-3
  * Internal Networking Service.
  */
 /** @def INTNETR3DECL(type)
@@ -165,7 +163,8 @@
 
 
 /** @def IN_SUP_R3
- * Used to indicate whether we're inside the same link module as the Ring 3 Support Library or not.
+ * Used to indicate whether we're inside the same link module as the Ring-3
+ * Support Library or not.
  */
 /** @def SUPR3DECL(type)
  * Support library export or import declaration.
@@ -178,7 +177,7 @@
 #endif
 
 /** @def IN_SUP_R0
- * Used to indicate whether we're inside the same link module as the Ring 0
+ * Used to indicate whether we're inside the same link module as the Ring-0
  * Support Library or not.
  */
 /** @def IN_SUP_STATIC
@@ -203,27 +202,29 @@
 # endif
 #endif
 
-/** @def IN_SUP_GC
- * Used to indicate whether we're inside the same link module as the GC Support Library or not.
+/** @def IN_SUP_RC
+ * Used to indicate whether we're inside the same link module as the RC Support
+ * Library or not.
  */
-/** @def SUPGCDECL(type)
+/** @def SUPRCDECL(type)
  * Support library export or import declaration.
  * @param   type    The return type of the function declaration.
  */
-#ifdef IN_SUP_GC
-# define SUPGCDECL(type)    DECLEXPORT(type) VBOXCALL
+#ifdef IN_SUP_RC
+# define SUPRCDECL(type)    DECLEXPORT(type) VBOXCALL
 #else
-# define SUPGCDECL(type)    DECLIMPORT(type) VBOXCALL
+# define SUPRCDECL(type)    DECLIMPORT(type) VBOXCALL
 #endif
 
 /** @def IN_SUP_R0
- * Used to indicate whether we're inside the same link module as the Ring 0 Support Library or not.
+ * Used to indicate whether we're inside the same link module as the Ring-0
+ * Support Library or not.
  */
 /** @def SUPR0DECL(type)
  * Support library export or import declaration.
  * @param   type    The return type of the function declaration.
  */
-#if defined(IN_SUP_R0) || defined(IN_SUP_R3) || defined(IN_SUP_GC)
+#if defined(IN_SUP_R0) || defined(IN_SUP_R3) || defined(IN_SUP_RC)
 # define SUPDECL(type)      DECLEXPORT(type) VBOXCALL
 #else
 # define SUPDECL(type)      DECLIMPORT(type) VBOXCALL
@@ -257,7 +258,7 @@
  * virtual machine monitor or not.
  */
 /** @def VMMR3DECL
- * Ring 3 VMM export or import declaration.
+ * Ring-3 VMM export or import declaration.
  * @param   type    The return type of the function declaration.
  */
 #ifdef IN_VMM_R3
@@ -277,11 +278,11 @@
 #endif
 
 /** @def IN_VMM_R0
- * Used to indicate whether we're inside the same link module as the ring 0 part of the
- * virtual machine monitor or not.
+ * Used to indicate whether we're inside the same link module as the ring-0 part
+ * of the virtual machine monitor or not.
  */
 /** @def VMMR0DECL
- * Ring 0 VMM export or import declaration.
+ * Ring-0 VMM export or import declaration.
  * @param   type    The return type of the function declaration.
  */
 #ifdef IN_VMM_R0

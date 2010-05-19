@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -12,10 +12,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Provider interfaces for shared folder file system.
@@ -123,7 +119,7 @@ sfprov_mount(sfp_connection_t *conn, char *path, sfp_mount_t **mnt)
 	m = kmem_zalloc(sizeof (*m), KM_SLEEP);
 	str = sfprov_string(path, &size);
 	rc = vboxCallMapFolder(&vbox_client, str, &m->map);
-	if (!VBOX_SUCCESS(rc)) {
+	if (!RT_SUCCESS(rc)) {
 		cmn_err(CE_WARN, "sfprov_mount: vboxCallMapFolder() failed");
 		kmem_free(m, sizeof (*m));
 		*mnt = NULL;
@@ -142,7 +138,7 @@ sfprov_unmount(sfp_mount_t *mnt)
 	int rc;
 
 	rc = vboxCallUnmapFolder(&vbox_client, &mnt->map);
-	if (!VBOX_SUCCESS(rc)) {
+	if (!RT_SUCCESS(rc)) {
 		cmn_err(CE_WARN, "sfprov_mount: vboxCallUnmapFolder() failed");
 		rc = EINVAL;
 	} else {
@@ -164,7 +160,7 @@ sfprov_get_blksize(sfp_mount_t *mnt, uint64_t *blksize)
 
 	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
 	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (VBOX_FAILURE(rc))
+	if (RT_FAILURE(rc))
 		return (EINVAL);
 	*blksize = info.ulBytesPerAllocationUnit;
 	return (0);
@@ -179,7 +175,7 @@ sfprov_get_blksused(sfp_mount_t *mnt, uint64_t *blksused)
 
 	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
 	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (VBOX_FAILURE(rc))
+	if (RT_FAILURE(rc))
 		return (EINVAL);
 	*blksused = (info.ullTotalAllocationBytes -
 	    info.ullAvailableAllocationBytes) / info.ulBytesPerAllocationUnit;
@@ -195,7 +191,7 @@ sfprov_get_blksavail(sfp_mount_t *mnt, uint64_t *blksavail)
 
 	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
 	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (VBOX_FAILURE(rc))
+	if (RT_FAILURE(rc))
 		return (EINVAL);
 	*blksavail =
 	    info.ullAvailableAllocationBytes / info.ulBytesPerAllocationUnit;
@@ -211,7 +207,7 @@ sfprov_get_maxnamesize(sfp_mount_t *mnt, uint32_t *maxnamesize)
 
 	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
 	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (VBOX_FAILURE(rc))
+	if (RT_FAILURE(rc))
 		return (EINVAL);
 	*maxnamesize = info.fsProperties.cbMaxComponent;
 	return (0);
@@ -226,7 +222,7 @@ sfprov_get_readonly(sfp_mount_t *mnt, uint32_t *readonly)
 
 	rc = vboxCallFSInfo(&vbox_client, &mnt->map, 0,
 	    (SHFL_INFO_GET | SHFL_INFO_VOLUME), &bytes, (SHFLDIRINFO *)&info);
-	if (VBOX_FAILURE(rc))
+	if (RT_FAILURE(rc))
 		return (EINVAL);
 	*readonly = info.fsProperties.fReadOnly;
 	return (0);

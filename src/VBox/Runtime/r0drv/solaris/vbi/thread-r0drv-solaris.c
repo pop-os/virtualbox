@@ -1,10 +1,10 @@
-/* $Id: thread-r0drv-solaris.c $ */
+/* $Id: thread-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -36,7 +32,9 @@
 #include "internal/iprt.h"
 #include <iprt/thread.h>
 
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mp.h>
@@ -49,10 +47,9 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 }
 
 
-RTDECL(int) RTThreadSleep(unsigned cMillies)
+RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
 {
     clock_t cTicks;
-    unsigned long timeout;
     RT_ASSERT_PREEMPTIBLE();
 
     if (!cMillies)
@@ -83,8 +80,10 @@ RTDECL(bool) RTThreadPreemptIsEnabled(RTTHREAD hThread)
     Assert(hThread == NIL_RTTHREAD);
     if (!vbi_is_preempt_enabled())
         return false;
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     if (!ASMIntAreEnabled())
         return false;
+#endif
     if (getpil() >= DISP_LEVEL)
         return false;
     return true;

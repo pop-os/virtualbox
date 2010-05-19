@@ -1,10 +1,10 @@
-/* $Id: vboxvideo_drm.c $ */
+/* $Id: vboxvideo_drm.c 28854 2010-04-27 19:41:12Z vboxsync $ */
 /** @file
  * vboxvideo_drm - Direct Rendering Module, Solaris Specific Code.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -50,7 +46,7 @@
 #define DEVICE_DESC_DRV                 "VirtualBox DRM"
 
 /** DRM Specific defines */
-#define DRIVER_AUTHOR                   "Sun Microsystems Inc."
+#define DRIVER_AUTHOR                   "Oracle Corporation"
 #define DRIVER_NAME                     DEVICE_NAME
 #define DRIVER_DESC                     DEVICE_DESC_DRV
 #define DRIVER_DATE                     "20090317"
@@ -385,8 +381,8 @@ static void vboxVideoSolarisConfigure(drm_driver_t *pDriver)
     pDirver->irq_uninstall      = drm_driver_irq_uninstall;
     pDriver->irq_handler        = drm_driver_irq_handler;
 
-    pDriver->driver_ioctls      = 
-    pDriver->max_driver_ioctls  = 
+    pDriver->driver_ioctls      =
+    pDriver->max_driver_ioctls  =
 #endif
 
     pDriver->driver_name        = DRIVER_NAME;

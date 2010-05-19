@@ -24,9 +24,9 @@
         <translation>--</translation>
     </message>
     <message>
-        <source>Sun Microsystems, Inc.</source>
+        <source>Oracle Corporation</source>
         <comment>Comma-separated list of translators</comment>
-        <translation type="obsolete">Sun Microsystems, Inc.</translation>
+        <translation>Khoem Sokhem</translation>
     </message>
 </context>
 <context>
@@ -360,6 +360,1140 @@
     </message>
 </context>
 <context>
+    <name>QIWizardPage</name>
+    <message>
+        <source>Use the &lt;b&gt;%1&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;%2&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;%3&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloader</name>
+    <message>
+        <source>The download process has been cancelled by the user.</source>
+        <translation type="obsolete">ដំណើរការ​​ទាញយក​ត្រូវ​បានបោះបង់​ដោយ​អ្នកប្រើ​ ។</translation>
+    </message>
+    <message>
+        <source>The download process has been canceled by the user.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderAdditions</name>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">បោះពុម្ព</translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="obsolete">កំពុង​ទាញយក​រូបភាព​ស៊ីឌី​បន្ថែម​​ភ្ញៀវ​របស់ VirtualBox ពី &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel the VirtualBox Guest Additions CD image download</source>
+        <translation type="obsolete">បោះបង់ការ​ទាញយក​រូបភាព​ស៊ីឌី​បន្ថែម​ភ្ញៀវ VirtualBox</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;បាន​បរាជ័យ​ក្នុងកា​ររក្សាទុក​ឯកសារ​ដែលបាន​ទាញ​យក​ជា &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; ។&lt;/nobr&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Select folder to save Guest Additions image to</source>
+        <translation>ជ្រើស​ថត​ដើម្បី​រក្សាទុក​រូបភាព​បន្ថែម​ភ្ញៀវ​ទៅ​កាន់</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloaderUserManual</name>
+    <message>
+        <source>Select folder to save User Manual to</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzd</name>
+    <message>
+        <source>Select a file to export into</source>
+        <translation type="obsolete">ជ្រើស​ឯកសាត​ត្រូវ​នាំចេញ</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation type="obsolete">Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Appliance</source>
+        <translation type="obsolete">ឧបករណ៍​</translation>
+    </message>
+    <message>
+        <source>Please choose a filename to export the OVF to.</source>
+        <translation type="obsolete">សូម​ជ្រើស​ឈ្មោះ​ឯកសារ​​ ដើម្បី​នាំ​ចូល​ OVF ។</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
+        <translation type="obsolete">សូម​បំពេញ​​វាល​​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ និងសញ្ញា​សម្គាល់​​ ហើយ​​​ផ្តល់​ឈ្មោះ​​ឯកសារ​សម្រាប់​គោលដៅ ​OVF ។</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
+        <translation type="obsolete">សូម​បំពេញ​វាល​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ ឈ្មោះ​ម៉ាស៊ីន​ និង​សញ្ញា​សម្គាល់​ ហើយ​​​ផ្តល់​ឈ្មោះ​ឯកសារ​សម្រាប់​គោល​ដៅ​ OVF ។</translation>
+    </message>
+    <message>
+        <source>Checking files ...</source>
+        <translation type="obsolete">កំពុង​ពិនិត្យ​មើល​​ឯកសារ​...</translation>
+    </message>
+    <message>
+        <source>Removing files ...</source>
+        <translation type="obsolete">កំពុង​​យក​ឯកសារ​ចេញ​...</translation>
+    </message>
+    <message>
+        <source>Exporting Appliance ...</source>
+        <translation type="obsolete">កំពុង​នាំចេញ​ឧបករណ៍...</translation>
+    </message>
+    <message>
+        <source>Appliance Export Wizard</source>
+        <translation>អ្នក​ជំនួយការ​នាំចេញ​ឧបករណ៍</translation>
+    </message>
+    <message>
+        <source>Welcome to the Appliance Export Wizard!</source>
+        <translation type="obsolete">ស្វា​គមន៍​មក​​កាន់​អ្នក​​ជំនួយ​ការ​នាំ​ចេញ​ឧបករណ៍​ !</translation>
+    </message>
+    <message>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that you wish to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="obsolete">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;អ្នក​ជំនួយ​កា​រនេះ​នឹង​នាំអ្នក​តាមរយៈ​ដំណើរការ​នាំចេញ​ឧបករណ៍ ។&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;ប្រើ​ប៊ូតុង &lt;span style=&quot; font-weight:600;&quot;&gt;បន្ទាប់&lt;/span&gt; ដើម្បី​ទៅ​កាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយ​ការ​ ហើយ​ប៊ូតុង &lt;span style=&quot; font-weight:600;&quot;&gt;ថយក្រោយ&lt;/span&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;សូម​ជ្រើស​ម៉ាស៊ីន​និម្មិត ដែល​អ្នក​ចង់បាន​ឧបករណ៍ ។ អ្នក​អាចជ្រើស​ច្រើនជាង​មួយ​បាន ។ សូម​ចំណាំថា ម៉ាស៊ីន​ទាំង​នេះ​ត្រូវ​តែ​បិទ មុន​នឹង​ពួកវា​អាច​ត្រូវ​បាន​នាំចេញ ។&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt;ថយ​ក្រោយ​</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">បន្ទាប់&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">បោះបង់​</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation type="obsolete">​កំណត់​ការ​នាំ​ចេញ​ឧបករណ៍​</translation>
+    </message>
+    <message>
+        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
+        <translation type="obsolete">នៅ​ទី​នេះ អ្នក​​អាច​ប្តូរ​តម្លៃ​​​កំណត់​រចនា​សម្ព័ន្ធ​​​បន្ថែម​របស់​​ម៉ាស៊ីន​និម្មិត​​​ដែល​​បាន​ជ្រើស​ ។ អ្នក​អាច​កែប្រែ​លក្ខណសម្បត្តិ​ភាគច្រើន ដែលបាន​បង្ហាញ​ដោយ​ចុច​ទ្វេរដង​លើ​ធាតុ ។ ។</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>ស្តារ​​លំនាំ​ដើម</translation>
+    </message>
+    <message>
+        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
+        <translation type="obsolete">សូម​បញ្ជាក់​គោល​ដៅ​សម្រាប់​នាំ​ចេញ​​ OVF ។ អ្នក​អាច​ជ្រើស​​រវាង​​ការ​នាំ​ចេញ​ប្រព័ន្ធ​ឯកសារ​មូល​ដ្ឋាន​​ ការ​ផ្ទុក​ OVF ឡើង​ទៅ​​កាន់​ Sun អាច​ជា​​សេវា​ ឬម៉ា​ស៊ីន​បម្រើ​ផ្ទុក S3 ។</translation>
+    </message>
+    <message>
+        <source>&amp;Local Filesystem </source>
+        <translation type="obsolete">ប្រព័ន្ធ​ឯកសារ​មូលដ្ឋាន ​</translation>
+    </message>
+    <message>
+        <source>Sun &amp;Cloud</source>
+        <translation type="obsolete">ពពក​របស់ Sun</translation>
+    </message>
+    <message>
+        <source>&amp;Simple Storage System (S3)</source>
+        <translation type="obsolete">ប្រព័ន្ធ​ផ្ទុក​ធម្មតា (S3)</translation>
+    </message>
+    <message>
+        <source>&amp;Username:</source>
+        <translation type="obsolete">ឈ្មោះ​អ្នក​ប្រើ​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Password:</source>
+        <translation type="obsolete">ពាក្យ​សម្ងាត់​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation type="obsolete">ឯកសារ​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Bucket:</source>
+        <translation type="obsolete">ធុង​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Hostname:</source>
+        <translation type="obsolete">ឈ្មោះ​ម៉ាស៊ីន​ ៖</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation type="obsolete">សរ​សេរ​ក្នុង​​ទ្រង់​ទ្រាយ​ OVF 0.9 ​ចាស់ៗ​ សម្រាប់​ភាព​ឆប​គ្នា​ជាមួយផលិត​ផលនិម្មិត​ផ្សេង​ទៀត​ ។</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation type="obsolete">សេរ​សេរ​ OVF 0.9 ចាស់ៗ</translation>
+    </message>
+    <message>
+        <source>&amp;Export &gt;</source>
+        <translation type="obsolete">នាំ​ចេញ&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage1</name>
+    <message>
+        <source>Welcome to the Appliance Export Wizard!</source>
+        <translation type="unfinished">ស្វា​គមន៍​មក​​កាន់​អ្នក​​ជំនួយ​ការ​នាំ​ចេញ​ឧបករណ៍​ !</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through the process of exporting an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage2</name>
+    <message>
+        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
+        <translation type="unfinished">នៅ​ទី​នេះ អ្នក​​អាច​ប្តូរ​តម្លៃ​​​កំណត់​រចនា​សម្ព័ន្ធ​​​បន្ថែម​របស់​​ម៉ាស៊ីន​និម្មិត​​​ដែល​​បាន​ជ្រើស​ ។ អ្នក​អាច​កែប្រែ​លក្ខណសម្បត្តិ​ភាគច្រើន ដែលបាន​បង្ហាញ​ដោយ​ចុច​ទ្វេរដង​លើ​ធាតុ ។ ។</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation type="unfinished">​កំណត់​ការ​នាំ​ចេញ​ឧបករណ៍​</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage3</name>
+    <message>
+        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
+        <translation type="unfinished">សូម​បញ្ជាក់​គោល​ដៅ​សម្រាប់​នាំ​ចេញ​​ OVF ។ អ្នក​អាច​ជ្រើស​​រវាង​​ការ​នាំ​ចេញ​ប្រព័ន្ធ​ឯកសារ​មូល​ដ្ឋាន​​ ការ​ផ្ទុក​ OVF ឡើង​ទៅ​​កាន់​ Sun អាច​ជា​​សេវា​ ឬម៉ា​ស៊ីន​បម្រើ​ផ្ទុក S3 ។</translation>
+    </message>
+    <message>
+        <source>&amp;Local Filesystem </source>
+        <translation type="unfinished">ប្រព័ន្ធ​ឯកសារ​មូលដ្ឋាន ​</translation>
+    </message>
+    <message>
+        <source>Sun &amp;Cloud</source>
+        <translation type="unfinished">ពពក​របស់ Sun</translation>
+    </message>
+    <message>
+        <source>&amp;Simple Storage System (S3)</source>
+        <translation type="unfinished">ប្រព័ន្ធ​ផ្ទុក​ធម្មតា (S3)</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation type="unfinished">​កំណត់​ការ​នាំ​ចេញ​ឧបករណ៍​</translation>
+    </message>
+</context>
+<context>
+    <name>UIExportApplianceWzdPage4</name>
+    <message>
+        <source>&amp;Username:</source>
+        <translation type="unfinished">ឈ្មោះ​អ្នក​ប្រើ​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Password:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hostname:</source>
+        <translation type="unfinished">ឈ្មោះ​ម៉ាស៊ីន​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;Bucket:</source>
+        <translation type="unfinished">ធុង​ ៖</translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation type="unfinished">ឯកសារ​ ៖</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation type="unfinished">សរ​សេរ​ក្នុង​​ទ្រង់​ទ្រាយ​ OVF 0.9 ​ចាស់ៗ​ សម្រាប់​ភាព​ឆប​គ្នា​ជាមួយផលិត​ផលនិម្មិត​ផ្សេង​ទៀត​ ។</translation>
+    </message>
+    <message>
+        <source>&amp;Write legacy OVF 0.9</source>
+        <translation type="unfinished">សេរ​សេរ​ OVF 0.9 ចាស់ៗ</translation>
+    </message>
+    <message>
+        <source>Appliance Export Settings</source>
+        <translation type="unfinished">​កំណត់​ការ​នាំ​ចេញ​ឧបករណ៍​</translation>
+    </message>
+    <message>
+        <source>Appliance</source>
+        <translation type="unfinished">ឧបករណ៍​</translation>
+    </message>
+    <message>
+        <source>Select a file to export into</source>
+        <translation type="unfinished">ជ្រើស​ឯកសាត​ត្រូវ​នាំចេញ</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation type="unfinished">Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a filename to export the OVF to.</source>
+        <translation type="unfinished">សូម​ជ្រើស​ឈ្មោះ​ឯកសារ​​ ដើម្បី​នាំ​ចូល​ OVF ។</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
+        <translation type="unfinished">សូម​បំពេញ​​វាល​​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ និងសញ្ញា​សម្គាល់​​ ហើយ​​​ផ្តល់​ឈ្មោះ​​ឯកសារ​សម្រាប់​គោលដៅ ​OVF ។</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
+        <translation type="unfinished">សូម​បំពេញ​វាល​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ ឈ្មោះ​ម៉ាស៊ីន​ និង​សញ្ញា​សម្គាល់​ ហើយ​​​ផ្តល់​ឈ្មោះ​ឯកសារ​សម្រាប់​គោល​ដៅ​ OVF ។</translation>
+    </message>
+    <message>
+        <source>Checking files ...</source>
+        <translation type="unfinished">កំពុង​ពិនិត្យ​មើល​​ឯកសារ​...</translation>
+    </message>
+    <message>
+        <source>Removing files ...</source>
+        <translation type="unfinished">កំពុង​​យក​ឯកសារ​ចេញ​...</translation>
+    </message>
+    <message>
+        <source>Exporting Appliance ...</source>
+        <translation type="unfinished">កំពុង​នាំចេញ​ឧបករណ៍...</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzd</name>
+    <message>
+        <source>First Run Wizard</source>
+        <translation>អ្នក​ជំនួយកា​ររត់​ដំបូង</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នក​បាន​ចាប់ផ្ដើម​ម៉ាស៊ីន​និម្មិត​ដែលបាន​បង្កើត​ថ្មីៗ​ពេល​ដំបូង​បាន​ ។ អ្នក​ជំនួយការ​នេះ​នឹង​ជួយ​អ្នក​ឲ្យ​អនុវត្ត​ជំហាន​ដែល​ចាំបាច់​សម្រាប់ដំឡើង​​ប្រព័ន្ធ​ប្រតិបត្តិការ​នៃ​ជម្រើស​របស់អ្នក​ក្នុង​​ម៉ាស៊ីន​និម្មិត​នេះ ។&lt;/p&gt;&lt;p&gt;ប្រើ​ប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅ​កាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ហើយ​ប៊ូតុង​ &lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បីត្រឡប់​ទៅ​ទំព័រ​មុន ។ អ្នកក៏​អាច​ចុច &lt;b&gt;បោះបង់&lt;/b&gt; ប្រសិន​បើ​អ្នក​ចង់​បោះបង់​ប្រតិបត្តិការ​របស់​អ្នក​ជំនួយកា​រនេះ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Welcome to the First Run Wizard!</source>
+        <translation type="obsolete">សូម​ស្វាគមន៍​មកកាន់​អ្នក​ជំនួយកា​រដំបូង !</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the type of media you would like to use for installation.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​ប្រភេទ​មេឌៀ​ដែល​អ្នក​ចង់​ប្រើ​សម្រាប់​ដំឡើងខាង​ក្រោម ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Media Type</source>
+        <translation type="obsolete">ប្រភេទ​មេឌៀ</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD-ROM Device</source>
+        <translation type="obsolete">ឧបករណ៍​ស៊ីឌី/ឌីវីឌី​រ៉ូម</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Device</source>
+        <translation type="obsolete">ឧបករណ៍​ថាស​ទន់</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​មេឌៀ​ដែល​មាន​កម្មវិធីរៀបចំ​របស់​ប្រព័ន្ធ​ប្រតិបត្តិការ​ដែល​អ្នក​ចង់​ដំឡើង ។ មេឌៀ​នេះ​ត្រូវ​តែ​អាច​ចាប់ផ្ដើម​បាន បើ​មិនដូច្នេះ​ទេ កម្មវិធី​រៀបចំ​នឹង​មិនអាច​ចាប់ផ្ដើម​បានទេ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Media Source</source>
+        <translation type="obsolete">ប្រភព​មេឌៀ</translation>
+    </message>
+    <message>
+        <source>Select Installation Media</source>
+        <translation type="obsolete">ជ្រើស​មេឌៀ​ដំឡើង</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នក​បាន​ជ្រើស​មេឌៀ​ដូចខាងក្រោម​ដើម្បី​ចាប់ផ្ដើម ៖&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">សេចក្ដីសង្ខេប</translation>
+    </message>
+    <message>
+        <source>CD/DVD-ROM Device</source>
+        <translation type="obsolete">ឧបករណ៍​ស៊ីឌី/ឌីវីឌីរ៉ូម</translation>
+    </message>
+    <message>
+        <source>Floppy Device</source>
+        <translation type="obsolete">ឧបករណ៍​ថាស​ទន់</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នក​បាន​ចាប់ផ្ដើម​ម៉ាស៊ីន​និម្មិត​ដែល​ទើប​បានបង្កើត​ថ្មី​ជា​លើក​ដំបូង ។ អ្នក​ជំនួយ​ការ​នេះ​នឹង​ជួយ​អ្នក​ក្នុងការ​អនុវត្ត​ជំហាន​ដែល​ចាំបាច់​សម្រាប់​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ​ជា​ជម្រើស​របស់​អ្នក​នៅ​លើ​ម៉ាស៊ីន​និម្មិត ។&lt;/p&gt;&lt;p&gt;ចំណាំ​ថា អ្នក​នឹង​មិន​អាច​ដំឡើង​ប្រព័ន្ធ​ប្រតិបត្តិការ​ក្នុង​ម៉ាស៊ីន​និម្មិត​ឥឡូវ​បានទេ ពីព្រោះ​អ្នក​មិន​បាន​ភ្ជាប់​ថាសរឹង​ ។ ប្រសិន​បើ​នេះ​មិនមែន​ជា​អ្វី​ដែល​អ្នក​ចង់​បានទេ អ្នក​អាច​បោះបង់​ប្រតិបត្តិការ​នៃ​អ្នក​ជំនួយ​ការ​នេះ​បាន ដោយ​ជ្រើស &lt;b&gt;ការ​កំណត់&lt;/b&gt; ពី​ម៉ឺនុយ​ &lt;b&gt;ម៉ាស៊ីន&lt;/b&gt; របស់​បង្អួច​ VirtualBox មេ ដើម្បី​ចូលដំណើរការ​ប្រអប់​កំណត់​របស់​ម៉ាស៊ីន​នេះ ហើយ​ផ្លាស់ប្ដូរ​កា​រកំណត់​រចនាសម្ព័ន្ធ​ថាសរឹង ។&lt;/p&gt;&lt;p&gt;ប្រើ​ប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅ​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ហើយ​ប៊ូតុង &lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បីត្រឡប់​ទៅ​ទំព័រ​មុន ។ អ្នក​ក៏អា​ច​ចុច &lt;b&gt;បោះបង់&lt;/b&gt; ប្រសិន​បើ​អ្នក​បោះបង់​ប្រត្តិការ​អ្នក​ជំនួយការ​នេះ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the type of media you would like to use for booting an operating system.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​ប្រភេទ​មេឌៀ​ដែល​អ្នកចង់​ប្រើ​ដើម្បី​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ​ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​មេឌៀ​ដែល​មាន​ប្រព័ន្ធ​ប្រតិបត្តិការ​ដែល​អ្នក​ចង់​ធ្វើការ​ជា​មួយ ។ មេឌៀ​នេះ​ត្រូវទេ​អាច​ចាប់ផ្ដើម​បាន បើ​មិន​ដូច្នេះ​ទេ ប្រព័ន្ធ​ប្រតិបត្តិការ​មិនអាច​ចាប់ផ្ដើម​បានទេ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នក​បាន​ជ្រើស​មេឌៀ​ដូចខាង​ក្រោម​ដើម្បី​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ ៖&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ប្រសិន​បើ​ខា​ងលើ​ត្រឹមត្រូវ​ហើយ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុច​វា មេឌៀ​ដែល​បាន​ជ្រើស​នឹង​ត្រូវ​បានម៉ោន​​លើ​ម៉ាស៊ីន​និម្មិត ហើយ​ម៉ាស៊ីន​នឹង​ចាប់ផ្ដើម​ប្រតិបត្តិ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; ថយក្រោយ</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">បន្ទាប់ &gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation type="obsolete">បញ្ចប់</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ប្រភេទ</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ប្រភព</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">បោះបង់</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;​​ចុច​ ប្រ​សិន​បើ​ខាងលើ​​ត្រឹម​ត្រូវ​ &lt;b&gt;​បញ្ចប់​​&lt;/b&gt; ប៊ូតុង​ ។​ លើ​ទី​មួយ​ដែល​អ្នក​ចុច​វា​Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzdPage1</name>
+    <message>
+        <source>Welcome to the First Run Wizard!</source>
+        <translation type="unfinished">សូម​ស្វាគមន៍​មកកាន់​អ្នក​ជំនួយកា​រដំបូង !</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ជ្រើស​មេឌៀ​ដែល​មាន​កម្មវិធីរៀបចំ​របស់​ប្រព័ន្ធ​ប្រតិបត្តិការ​ដែល​អ្នក​ចង់​ដំឡើង ។ មេឌៀ​នេះ​ត្រូវ​តែ​អាច​ចាប់ផ្ដើម​បាន បើ​មិនដូច្នេះ​ទេ កម្មវិធី​រៀបចំ​នឹង​មិនអាច​ចាប់ផ្ដើម​បានទេ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ជ្រើស​មេឌៀ​ដែល​មាន​ប្រព័ន្ធ​ប្រតិបត្តិការ​ដែល​អ្នក​ចង់​ធ្វើការ​ជា​មួយ ។ មេឌៀ​នេះ​ត្រូវទេ​អាច​ចាប់ផ្ដើម​បាន បើ​មិន​ដូច្នេះ​ទេ ប្រព័ន្ធ​ប្រតិបត្តិការ​មិនអាច​ចាប់ផ្ដើម​បានទេ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Media Source</source>
+        <translation type="unfinished">ប្រភព​មេឌៀ</translation>
+    </message>
+    <message>
+        <source>Select Installation Media</source>
+        <translation type="unfinished">ជ្រើស​មេឌៀ​ដំឡើង</translation>
+    </message>
+</context>
+<context>
+    <name>UIFirstRunWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;អ្នក​បាន​ជ្រើស​មេឌៀ​ដូចខាងក្រោម​ដើម្បី​ចាប់ផ្ដើម ៖&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;អ្នក​បាន​ជ្រើស​មេឌៀ​ដូចខាង​ក្រោម​ដើម្បី​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ ៖&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;​​ចុច​ ប្រ​សិន​បើ​ខាងលើ​​ត្រឹម​ត្រូវ​ &lt;b&gt;​បញ្ចប់​​&lt;/b&gt; ប៊ូតុង​ ។​ លើ​ទី​មួយ​ដែល​អ្នក​ចុច​វា​Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ប្រសិន​បើ​ខា​ងលើ​ត្រឹមត្រូវ​ហើយ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុច​វា មេឌៀ​ដែល​បាន​ជ្រើស​នឹង​ត្រូវ​បានម៉ោន​​លើ​ម៉ាស៊ីន​និម្មិត ហើយ​ម៉ាស៊ីន​នឹង​ចាប់ផ្ដើម​ប្រតិបត្តិ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CD/DVD-ROM Device</source>
+        <translation type="unfinished">ឧបករណ៍​ស៊ីឌី/ឌីវីឌីរ៉ូម</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ប្រភេទ</translation>
+    </message>
+    <message>
+        <source>Source</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ប្រភព</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportApplianceWzd</name>
+    <message>
+        <source>Select an appliance to import</source>
+        <translation type="obsolete">ជ្រើស​ឧបករណ៍​​ដើម្បី​នាំ​ចូល​</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation type="obsolete">Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Appliance Import Wizard</source>
+        <translation>អ្នក​ជំនួយ​ការ​នាំ​ចូល​ឧបករណ៍​</translation>
+    </message>
+    <message>
+        <source>Welcome to the Appliance Import Wizard!</source>
+        <translation type="obsolete">សូម​ស្វាគមន៍​មក​កាន់​អ្នក​ជំនួយកា​រនាំចូល​ឧបករណ៍ !</translation>
+    </message>
+    <message>
+        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through importing an appliance. &lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation type="obsolete">&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;អ្នក​ជំនួយ​ការ​នេះ​នឹង​នាំយក​​តាម​រយៈ​ការ​នាំចូល​ឧបករណ៍ ។&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;ប្រើ​ប៊ូតុង &lt;span style=&quot; font-weight:600;&quot;&gt;បន្ទាប់&lt;/span&gt; ទៅ​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយ​ការ និងប៊ូតុង​ &lt;span style=&quot; font-weight:600;&quot;&gt;ថយក្រោយ&lt;/span&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;បច្ចុប្បន្ន VirtualBox គាំទ្រ​ការ​នាំចូល​ឧបករណ៍ ដែលបាន​រក្សាទុក​នៅ​ក្នុង​ទ្រង់ទ្រាយ Open Virtualization Format (OVF) ។ ដើម្បី​បន្ត ជ្រើស​ឯកសារ​​ត្រូវ​នាំ​ចូល​ខាង​ក្រោម ៖&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt;ថយ​ក្រោយ​</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">បន្ទាប់&gt;</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">បោះបង់​</translation>
+    </message>
+    <message>
+        <source>Appliance Import Settings</source>
+        <translation type="obsolete">​កំណត់​ការ​​នាំ​ចូល​ឧបករណ៍​</translation>
+    </message>
+    <message>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation type="obsolete">មាន​ម៉ាស៊ីន​និម្មិត​ដែល​មាន​នៅ​ក្នុង​ឧបករណ៍​ និង​ការ​កំណត់​ដែលបាន​ស្នើ​របស់ម៉ាស៊ីន VirtualBox ដែល​បាននាំចូល ។ អ្នក​អាច​ផ្លាស់ប្ដូរ​លក្ខណសម្បត្តិ​ដែលបានបង្ហាញ​ដោយ​ចុច​ទ្វេដង​លើ​ធាតុ និងបិទ​​លក្ខណសម្បត្តិ​ផ្សេងៗ​ទៀត ដោយ​ប្រើ​ប្រ​អប់ធីក​ខាង​ក្រោម ។</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>ស្តារ​លំនាំដើម</translation>
+    </message>
+    <message>
+        <source>&amp;Import &gt;</source>
+        <translation type="obsolete">នាំ​ចូល​​&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportApplianceWzdPage1</name>
+    <message>
+        <source>Select an appliance to import</source>
+        <translation type="unfinished">ជ្រើស​ឧបករណ៍​​ដើម្បី​នាំ​ចូល​</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation type="unfinished">Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Welcome to the Appliance Import Wizard!</source>
+        <translation type="unfinished">សូម​ស្វាគមន៍​មក​កាន់​អ្នក​ជំនួយកា​រនាំចូល​ឧបករណ៍ !</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through importing an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIImportApplianceWzdPage2</name>
+    <message>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation type="unfinished">មាន​ម៉ាស៊ីន​និម្មិត​ដែល​មាន​នៅ​ក្នុង​ឧបករណ៍​ និង​ការ​កំណត់​ដែលបាន​ស្នើ​របស់ម៉ាស៊ីន VirtualBox ដែល​បាននាំចូល ។ អ្នក​អាច​ផ្លាស់ប្ដូរ​លក្ខណសម្បត្តិ​ដែលបានបង្ហាញ​ដោយ​ចុច​ទ្វេដង​លើ​ធាតុ និងបិទ​​លក្ខណសម្បត្តិ​ផ្សេងៗ​ទៀត ដោយ​ប្រើ​ប្រ​អប់ធីក​ខាង​ក្រោម ។</translation>
+    </message>
+    <message>
+        <source>Appliance Import Settings</source>
+        <translation type="unfinished">​កំណត់​ការ​​នាំ​ចូល​ឧបករណ៍​</translation>
+    </message>
+</context>
+<context>
+    <name>UIImportLicenseViewer</name>
+    <message>
+        <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
+        <translation>&lt;b&gt;ប្រ​ព័ន្ធ​ជាក់​ស្តែង​របស់​​ &quot;%1&quot; តម្រូវ​ការ​ដែល​អ្នក​យល់​ព្រមទៅ​កាន់ពេល​កំណត់​ និ​ងលក្ខ​ខ័ណ្នៃអាជ្ញាបណ្ណ​​ផ្នែកទន់​កិច្ច​ព្រម​ព្រៀង​​បង្ហាញ​ខាង​ក្រោម​ ។&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;ចុច​​ &lt;b&gt;យល់​ព្រម​​&lt;/b&gt; ទៅ​បន្ត​ ឬ​&lt;b&gt;មិន​យល់​ព្រម​​&lt;/b&gt; ទៅ​​បោះ​បង់​កា​រនាំចូល​ ។</translation>
+    </message>
+    <message>
+        <source>Software License Agreement</source>
+        <translation>កិច្ច​ព្រមព្រៀង​អាជ្ញាបណ្ណ​​កម្មវិធី​</translation>
+    </message>
+    <message>
+        <source>&amp;Disagree</source>
+        <translation>មិន​យល់ព្រម​</translation>
+    </message>
+    <message>
+        <source>&amp;Agree</source>
+        <translation>យល់ព្រម​</translation>
+    </message>
+    <message>
+        <source>&amp;Print...</source>
+        <translation>បោះពុម្ព...</translation>
+    </message>
+    <message>
+        <source>&amp;Save...</source>
+        <translation>រក្សាទុក...</translation>
+    </message>
+    <message>
+        <source>Text (*.txt)</source>
+        <translation>អត្ថបទ​​ (*.txt)</translation>
+    </message>
+    <message>
+        <source>Save license to file...</source>
+        <translation>រក្សាទុក​អាជ្ញា​បណ្ណទៅ​ឯកសារ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineLogic</name>
+    <message>
+        <source>VirtualBox OSE</source>
+        <translation type="unfinished">VirtualBox OSE</translation>
+    </message>
+    <message>
+        <source> EXPERIMENTAL build %1r%2 - %3</source>
+        <translation type="unfinished"> ស្ថាបនា​ពិសោធ %1r%2 - %3</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProcessWidgetAdditions</name>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel the VirtualBox Guest Additions CD image download</source>
+        <translation type="unfinished">បោះបង់ការ​ទាញយក​រូបភាព​ស៊ីឌី​បន្ថែម​ភ្ញៀវ VirtualBox</translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="unfinished">កំពុង​ទាញយក​រូបភាព​ស៊ីឌី​បន្ថែម​​ភ្ញៀវ​របស់ VirtualBox ពី &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
+    </message>
+</context>
+<context>
+    <name>UIMiniProcessWidgetUserManual</name>
+    <message>
+        <source>Cancel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel the VirtualBox User Manual download</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox User Manual</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Downloading the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIMultiScreenLayout</name>
+    <message>
+        <source>Virtual Screen %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Host Screen %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzd</name>
+    <message>
+        <source>Create New Virtual Disk</source>
+        <translation>បង្កើត​ថាស​និម្មិត​ថ្មី</translation>
+    </message>
+    <message>
+        <source>Welcome to the Create New Virtual Disk Wizard!</source>
+        <translation type="obsolete">សូម​ស្វាគមន៍​មក​កាន់​​អ្នក​ជំនួយការ​បង្កើត​ថាស​និម្មិ​តថ្មី !</translation>
+    </message>
+    <message>
+        <source>Virtual Disk Location and Size</source>
+        <translation type="obsolete">ទីតាំង និង​ទំហំ​ថាស​និម្មិត</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">សេចក្ដី​សង្ខេប</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 Bytes&lt;/nobr&gt;</source>
+        <translation type="obsolete">&lt;nobr&gt;%1 បៃ&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Hard disk images (*.vdi)</source>
+        <translation type="obsolete">រូបភាព​ថាសរឹង (*.vdi)</translation>
+    </message>
+    <message>
+        <source>Select a file for the new hard disk image file</source>
+        <translation type="obsolete">ជ្រើស​ឯកសារ​សម្រាប់​ឯកសារ​រូបភាព​ថាស​រឹង</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt; ថយក្រោយ</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">បន្ទាប់ &gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation type="obsolete">បញ្ចប់</translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ប្រភេទ</translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ទីតាំង</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ទំហំ</translation>
+    </message>
+    <message>
+        <source>Bytes</source>
+        <comment>summary</comment>
+        <translation type="obsolete">បៃ</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">បោះបង់</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នក​ជំនួយការ​នេះ​ជួយ​អ្នក​ក្នុងកា​របង្កើត​ថាសរឹង​និម្មិត​សម្រាប់​ម៉ាស៊ីន​និម្មិត​របស់​អ្នក ។&lt;/p&gt;&lt;p&gt;ប្រើប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅកាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ប៊ូតុង&lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Hard Disk Storage Type</source>
+        <translation type="obsolete">ប្រភេទ​ផ្ទុក​របស់​ថាសរឹង</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​ប្រភេទ​ថាសរឹង​និម្មិត​ដែល​អ្នក​ចង់​បង្កើត ។&lt;/p&gt;&lt;p&gt; &lt;b&gt;កា​រផ្ទុក​ពង្រីក​ជា​ថាមវន្ត&lt;/b&gt; ដំបូង​គ្រប់គ្រង​រាល់​ទំហំ​តូចៗ​របស់ចន្លោះ​នៅ​ក្នុង​ថាសរឹង​ហ្វីស៊ីខល​របស់​អ្នក ។ វា​នឹង​ពង្រីក​ដោយ​ថាមវន្ត (ដល់​ទំហំ​ដែល​បាន​បញ្ជាក់) ជា​ការ​អះអាង​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ ។&lt;/p&gt;&lt;p&gt; &lt;b&gt;កា​រផ្ទុក​ទំហំថេរ&lt;/b&gt; មិន​រីកចំរើន​ទេ ។ វា​ត្រូ​វបាន​ផ្ទុក​នៅ​ក្នុង​ឯកសារ​របស់​ទំហំ​​ប្រហែល​ ជា​ទំហំ​របស់​ថាសរឹង​និម្មិត ។ ការ​បង្កើត​ការ​ផ្ទុក​ទំហំថេរ អាច​ចំណាយ​ពេល​យូរ​ ដោយអាស្រ័យ​លើ​ទំហំ​ផ្ទុក និង​សរសេរ​ការ​អនុវត្ត​នៃ​ថាសរឹង​របស់​អ្នក ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Storage Type</source>
+        <translation type="obsolete">ប្រភេទ​ផ្ទុក</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically expanding storage</source>
+        <translation type="obsolete">ពង្រីក​ការ​ផ្ទុក​ថាមវន្ត</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed-size storage</source>
+        <translation type="obsolete">កា​រ​ផ្ទុក​ទំហំថេរ</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ចុច​ប៊ូតុង &lt;b&gt;ជ្រើស&lt;/b&gt; ដើម្បី​ជ្រើស​ទីតាំង​របស់​ឯកសារ​ដើម្បី​ផ្ទុក​ថាសរឹង ឬ​ប្រភេទ​ឈ្មោះ​ឯកសារ​នៅ​ក្នុង​វាល​ធាតុ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Location</source>
+        <translation type="obsolete">ទីតាំង</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​ទំហំ​ថាសរឹង​និម្មិត​គិត​ជាមេកាបៃ ។ ទំហំ​នេះ​នឹង​ត្រូវ​បាន​រាយការណ៍​ទៅ​កាន់​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ​តាម​ទំហំ​អតិបរមា​របស់​ថាសរឹង​នេះ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation type="obsolete">ទំហំ</translation>
+    </message>
+    <message>
+        <source>You are going to create a new virtual hard disk with the following parameters:</source>
+        <translation type="obsolete">អ្នកនឹង​បង្កើត​ថាសរឹង​និម្មិត​ថ្មី​ដោយ​មាន​ប៉ារ៉ាម៉ែត្រ​ដូច​ខាងក្រោម ៖</translation>
+    </message>
+    <message>
+        <source>If the above settings are correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
+        <translation type="obsolete">ប្រសិនបើ​កា​រកំណត់​ខាង​លើ​ត្រឹមត្រូវ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុចវា ថាសរឹង​ថ្មី​នឹង​ត្រូវ​បានបង្កើត​ឡើង ។</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage1</name>
+    <message>
+        <source>Welcome to the Create New Virtual Disk Wizard!</source>
+        <translation type="unfinished">សូម​ស្វាគមន៍​មក​កាន់​​អ្នក​ជំនួយការ​បង្កើត​ថាស​និម្មិ​តថ្មី !</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ជ្រើស​ប្រភេទ​ថាសរឹង​និម្មិត​ដែល​អ្នក​ចង់​បង្កើត ។&lt;/p&gt;&lt;p&gt; &lt;b&gt;កា​រផ្ទុក​ពង្រីក​ជា​ថាមវន្ត&lt;/b&gt; ដំបូង​គ្រប់គ្រង​រាល់​ទំហំ​តូចៗ​របស់ចន្លោះ​នៅ​ក្នុង​ថាសរឹង​ហ្វីស៊ីខល​របស់​អ្នក ។ វា​នឹង​ពង្រីក​ដោយ​ថាមវន្ត (ដល់​ទំហំ​ដែល​បាន​បញ្ជាក់) ជា​ការ​អះអាង​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ ។&lt;/p&gt;&lt;p&gt; &lt;b&gt;កា​រផ្ទុក​ទំហំថេរ&lt;/b&gt; មិន​រីកចំរើន​ទេ ។ វា​ត្រូ​វបាន​ផ្ទុក​នៅ​ក្នុង​ឯកសារ​របស់​ទំហំ​​ប្រហែល​ ជា​ទំហំ​របស់​ថាសរឹង​និម្មិត ។ ការ​បង្កើត​ការ​ផ្ទុក​ទំហំថេរ អាច​ចំណាយ​ពេល​យូរ​ ដោយអាស្រ័យ​លើ​ទំហំ​ផ្ទុក និង​សរសេរ​ការ​អនុវត្ត​នៃ​ថាសរឹង​របស់​អ្នក ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Storage Type</source>
+        <translation type="unfinished">ប្រភេទ​ផ្ទុក</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically expanding storage</source>
+        <translation type="unfinished">ពង្រីក​ការ​ផ្ទុក​ថាមវន្ត</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed-size storage</source>
+        <translation type="unfinished">កា​រ​ផ្ទុក​ទំហំថេរ</translation>
+    </message>
+    <message>
+        <source>Hard Disk Storage Type</source>
+        <translation type="unfinished">ប្រភេទ​ផ្ទុក​របស់​ថាសរឹង</translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ចុច​ប៊ូតុង &lt;b&gt;ជ្រើស&lt;/b&gt; ដើម្បី​ជ្រើស​ទីតាំង​របស់​ឯកសារ​ដើម្បី​ផ្ទុក​ថាសរឹង ឬ​ប្រភេទ​ឈ្មោះ​ឯកសារ​នៅ​ក្នុង​វាល​ធាតុ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Location</source>
+        <translation type="unfinished">ទីតាំង</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ជ្រើស​ទំហំ​ថាសរឹង​និម្មិត​គិត​ជាមេកាបៃ ។ ទំហំ​នេះ​នឹង​ត្រូវ​បាន​រាយការណ៍​ទៅ​កាន់​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ​តាម​ទំហំ​អតិបរមា​របស់​ថាសរឹង​នេះ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Size</source>
+        <translation type="unfinished">ទំហំ</translation>
+    </message>
+    <message>
+        <source>Virtual Disk Location and Size</source>
+        <translation type="unfinished">ទីតាំង និង​ទំហំ​ថាស​និម្មិត</translation>
+    </message>
+    <message>
+        <source>Select a file for the new hard disk image file</source>
+        <translation type="unfinished">ជ្រើស​ឯកសារ​សម្រាប់​ឯកសារ​រូបភាព​ថាស​រឹង</translation>
+    </message>
+    <message>
+        <source>Hard disk images (*.vdi)</source>
+        <translation type="unfinished">រូបភាព​ថាសរឹង (*.vdi)</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINewHDWzdPage4</name>
+    <message>
+        <source>You are going to create a new virtual hard disk with the following parameters:</source>
+        <translation type="unfinished">អ្នកនឹង​បង្កើត​ថាសរឹង​និម្មិត​ថ្មី​ដោយ​មាន​ប៉ារ៉ាម៉ែត្រ​ដូច​ខាងក្រោម ៖</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 B</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Type</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ប្រភេទ</translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ទីតាំង</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ទំហំ</translation>
+    </message>
+    <message>
+        <source>If the above settings are correct, press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzd</name>
+    <message>
+        <source>Create New Virtual Machine</source>
+        <translation>បង្កើត​ម៉ាស៊ីន​និម្មិត​ថ្មី</translation>
+    </message>
+    <message>
+        <source>Welcome to the New Virtual Machine Wizard!</source>
+        <translation type="obsolete">សូម​ស្វាគមន៍​មក​កាន់​អ្នក​ជំនួយការ​ម៉ាស៊ីន​និម្មិត​ថ្មី !</translation>
+    </message>
+    <message>
+        <source>N&amp;ame</source>
+        <translation type="obsolete">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>OS &amp;Type</source>
+        <translation type="obsolete">ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
+    </message>
+    <message>
+        <source>VM Name and OS Type</source>
+        <translation type="obsolete">ឈ្មោះ​របស់ VM និង​ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​ចំនួន​សតិ (RAM) ​មូលដ្ឋាន​គិត​ជាមេកាបៃ ដែល​​ត្រូវ​បម្រុង​ទុក​សម្រាប់​ម៉ាស៊ីន​និម្មិត ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Base &amp;Memory Size</source>
+        <translation type="obsolete">ទំហំ​សតិ​មូលដ្ឋាន</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation type="obsolete">មេកាបៃ</translation>
+    </message>
+    <message>
+        <source>Memory</source>
+        <translation type="obsolete">សតិ</translation>
+    </message>
+    <message>
+        <source>Virtual Hard Disk</source>
+        <translation type="obsolete">ថាសរឹង​និម្មិត</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="obsolete">សេចក្ដី​សង្ខេប</translation>
+    </message>
+    <message>
+        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation type="obsolete">ទំហំ​សតិ​មូលដ្ឋាន​ដែលបានផ្ដល់​អនុសាសន៍​គឺ &lt;b&gt;%1&lt;/b&gt; មេកាបៃ ។</translation>
+    </message>
+    <message>
+        <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation type="obsolete">ទំហំ​ដែល​បានផ្ដល់​អនុសាសន៍​របស់​ថាសរឹង​ចាប់ផ្ដើម​គឺ &lt;b&gt;%1&lt;/b&gt; មេកាបៃ ។</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នក​ជំនួយ​កា​រនេះ​នឹង​នាំអ្នក​តាម​ជំហាន​ដែល​ចាំបាច់​ដើម្បីបង្កើត​ម៉ាស៊ីន​និម្មិ​តថ្មី​សម្រាប់ VirtualBox ។&lt;/p&gt;&lt;p&gt;ប្រើ​ប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅកាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ហើយ​ប៊ូតុង &lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt; &amp;Back</source>
+        <translation type="obsolete">&lt;ថយក្រោយ</translation>
+    </message>
+    <message>
+        <source>&amp;Next &gt;</source>
+        <translation type="obsolete">បន្ទាប់ &gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;បញ្ចូល​ឈ្មោះ​ឲ្យ​ម៉ាស៊ីន​និម្មតិ​ថ្មី ហើយ​ជ្រើស​ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ​ម៉ាស៊ីន​ភ្ញៀវ ដែល​អ្នក​ចង់​ដំឡើង​ក្នុង​ម៉ាស៊ីន​និម្មិត ។ &lt;/p&gt;&lt;p&gt;ឈ្មោះ​របស់​ម៉ាស៊ីន​និម្មិត​តាមធម្មតា​បង្ហាញ​ការ​កំណត់​រចនាសម្ព័ន្ធ​ផ្នែក​រឹង និង​ផ្នែក​ទន់​របស់​វា ។ វា​នឹង​ត្រូវ​បាន​ប្រើ​ដោយ​សមាសធាតុ​ VirtualBox ដើម្បី​បញ្ជាក់​អត្តសញ្ញាណ​ម៉ាស៊ីន​និម្មិត​របស់​អ្នក ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;អ្នករៀបនឹង​បង្កើត​ម៉ាស៊ីន​និម្មិត​ថ្មី​ដែល​មាន​ប៉ារ៉ាម៉ែត្រ​ដូច​ខាងក្រោម ៖&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ប្រសិនបើ​ខា​ងលើ​ត្រឹមត្រូវ​​ហើយ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុច​វា ម៉ាស៊ីន​និម្មិត​ថ្មី​នឹង​ត្រូវ​បាន​បង្កើត​ឡើង ។ &lt;/p&gt;&lt;p&gt;ចំណាំ​ថា អ្នក​អាច​ត្រង​ការ​កំណត់​ទាំង​នេះ និង​ការ​កំណត់​ផ្សេងៗ​របស់​ម៉ាស៊ីន​និម្មិត​ដែល​បានបង្កើត​​នៅពេល​ដែល​ប្រើ​ប្រអប់ &lt;b&gt;ការ​កំណត់&lt;/b&gt; ដែល​អាច​ចូល​ដំណើរ​ការ​បាន​តាមរយៈ​ម៉ឺនុយ​របស់​បង្អួច​មេ ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Finish</source>
+        <translation type="obsolete">បញ្ចប់</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>megabytes</comment>
+        <translation type="obsolete">មេកាបៃ</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>summary</comment>
+        <translation type="obsolete">សតិមូលដ្ឋាន</translation>
+    </message>
+    <message>
+        <source>Boot Hard Disk</source>
+        <comment>summary</comment>
+        <translation type="obsolete">ថាសរឹង​ចាប់ផ្ដើម</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation type="obsolete">បោះបង់</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;ជ្រើស​រូបភាព​ថាសរឹង​ត្រូវ​ប្រើ​ជា​ថាស​រឹង​ចាប់ផ្ដើម​របស់ម៉ាស៊ីន​និម្មិត ។ អ្នកអាច​បង្កើត​ថាសរឹង​ថ្មី​ដោយ​ប្រើ​ប៊ូតុង &lt;b&gt;ថ្មី&lt;/b&gt; ឬ​ជ្រើស​រូបភាព​ថាសរឹង​ដែលមាន​ស្រាប់​ពី​បញ្ជី​ទម្លាក់ចុះ ឬ​ដោយ​ចុច​ប៊ូតុង &lt;b&gt;មាន​ស្រាប់&lt;/b&gt; (ដើម្បីដកហូត​ប្រអប់​កម្មវិធី​គ្រប់គ្រង​មេឌៀ​និម្មិត) ។&lt;/p&gt;&lt;p&gt;ប្រសិនបើ​អ្នក​ត្រូវការ​រៀបចំ​ថាសរឹង​ដែល​ស្មុគស្មាញ អ្នក​ក៏​អាច​រំលង​ជំហាន​នេះ ហើយ​ភ្ជាប់​ថាសរឹង​ពេលក្រោយ​ដោយ​ប្រើ​ប្រអប់​កំណត់របស់ VM ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk (Primary Master)</source>
+        <translation type="obsolete">ថាសរឹង​ចាប់ផ្ដើម (Primary Master)</translation>
+    </message>
+    <message>
+        <source>&amp;Create new hard disk</source>
+        <translation type="obsolete">បង្កើត​ថាស​រឹង​ថ្មី</translation>
+    </message>
+    <message>
+        <source>&amp;Use existing hard disk</source>
+        <translation type="obsolete">ប្រើ​ថាស​រឹង​ដែល​មាន​ស្រាប់​</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage1</name>
+    <message>
+        <source>Welcome to the New Virtual Machine Wizard!</source>
+        <translation type="unfinished">សូម​ស្វាគមន៍​មក​កាន់​អ្នក​ជំនួយការ​ម៉ាស៊ីន​និម្មិត​ថ្មី !</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage2</name>
+    <message>
+        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;បញ្ចូល​ឈ្មោះ​ឲ្យ​ម៉ាស៊ីន​និម្មតិ​ថ្មី ហើយ​ជ្រើស​ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ​ម៉ាស៊ីន​ភ្ញៀវ ដែល​អ្នក​ចង់​ដំឡើង​ក្នុង​ម៉ាស៊ីន​និម្មិត ។ &lt;/p&gt;&lt;p&gt;ឈ្មោះ​របស់​ម៉ាស៊ីន​និម្មិត​តាមធម្មតា​បង្ហាញ​ការ​កំណត់​រចនាសម្ព័ន្ធ​ផ្នែក​រឹង និង​ផ្នែក​ទន់​របស់​វា ។ វា​នឹង​ត្រូវ​បាន​ប្រើ​ដោយ​សមាសធាតុ​ VirtualBox ដើម្បី​បញ្ជាក់​អត្តសញ្ញាណ​ម៉ាស៊ីន​និម្មិត​របស់​អ្នក ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>N&amp;ame</source>
+        <translation type="unfinished">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>OS &amp;Type</source>
+        <translation type="unfinished">ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
+    </message>
+    <message>
+        <source>VM Name and OS Type</source>
+        <translation type="unfinished">ឈ្មោះ​របស់ VM និង​ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage3</name>
+    <message>
+        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ជ្រើស​ចំនួន​សតិ (RAM) ​មូលដ្ឋាន​គិត​ជាមេកាបៃ ដែល​​ត្រូវ​បម្រុង​ទុក​សម្រាប់​ម៉ាស៊ីន​និម្មិត ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Base &amp;Memory Size</source>
+        <translation type="unfinished">ទំហំ​សតិ​មូលដ្ឋាន</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <translation type="unfinished">មេកាបៃ</translation>
+    </message>
+    <message>
+        <source>Memory</source>
+        <translation type="unfinished">សតិ</translation>
+    </message>
+    <message>
+        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation type="unfinished">ទំហំ​សតិ​មូលដ្ឋាន​ដែលបានផ្ដល់​អនុសាសន៍​គឺ &lt;b&gt;%1&lt;/b&gt; មេកាបៃ ។</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation type="unfinished">មេកាបៃ</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage4</name>
+    <message>
+        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;ជ្រើស​រូបភាព​ថាសរឹង​ត្រូវ​ប្រើ​ជា​ថាស​រឹង​ចាប់ផ្ដើម​របស់ម៉ាស៊ីន​និម្មិត ។ អ្នកអាច​បង្កើត​ថាសរឹង​ថ្មី​ដោយ​ប្រើ​ប៊ូតុង &lt;b&gt;ថ្មី&lt;/b&gt; ឬ​ជ្រើស​រូបភាព​ថាសរឹង​ដែលមាន​ស្រាប់​ពី​បញ្ជី​ទម្លាក់ចុះ ឬ​ដោយ​ចុច​ប៊ូតុង &lt;b&gt;មាន​ស្រាប់&lt;/b&gt; (ដើម្បីដកហូត​ប្រអប់​កម្មវិធី​គ្រប់គ្រង​មេឌៀ​និម្មិត) ។&lt;/p&gt;&lt;p&gt;ប្រសិនបើ​អ្នក​ត្រូវការ​រៀបចំ​ថាសរឹង​ដែល​ស្មុគស្មាញ អ្នក​ក៏​អាច​រំលង​ជំហាន​នេះ ហើយ​ភ្ជាប់​ថាសរឹង​ពេលក្រោយ​ដោយ​ប្រើ​ប្រអប់​កំណត់របស់ VM ។&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk (Primary Master)</source>
+        <translation type="unfinished">ថាសរឹង​ចាប់ផ្ដើម (Primary Master)</translation>
+    </message>
+    <message>
+        <source>&amp;Create new hard disk</source>
+        <translation type="unfinished">បង្កើត​ថាស​រឹង​ថ្មី</translation>
+    </message>
+    <message>
+        <source>&amp;Use existing hard disk</source>
+        <translation type="unfinished">ប្រើ​ថាស​រឹង​ដែល​មាន​ស្រាប់​</translation>
+    </message>
+    <message>
+        <source>Virtual Hard Disk</source>
+        <translation type="unfinished">ថាសរឹង​និម្មិត</translation>
+    </message>
+    <message>
+        <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
+        <translation type="unfinished">ទំហំ​ដែល​បានផ្ដល់​អនុសាសន៍​របស់​ថាសរឹង​ចាប់ផ្ដើម​គឺ &lt;b&gt;%1&lt;/b&gt; មេកាបៃ ។</translation>
+    </message>
+</context>
+<context>
+    <name>UINewVMWzdPage5</name>
+    <message>
+        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
+        <translation type="unfinished">&lt;p&gt;អ្នករៀបនឹង​បង្កើត​ម៉ាស៊ីន​និម្មិត​ថ្មី​ដែល​មាន​ប៉ារ៉ាម៉ែត្រ​ដូច​ខាងក្រោម ៖&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Summary</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ឈ្មោះ</translation>
+    </message>
+    <message>
+        <source>OS Type</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>summary</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024KBytes</comment>
+        <translation type="unfinished">មេកាបៃ</translation>
+    </message>
+    <message>
+        <source>Boot Hard Disk</source>
+        <comment>summary</comment>
+        <translation type="unfinished">ថាសរឹង​ចាប់ផ្ដើម</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>VBoxAboutDlg</name>
     <message>
         <source>VirtualBox - About</source>
@@ -372,29 +1506,6 @@
     <message>
         <source>Version %1</source>
         <translation>កំណែ %1</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxAdditionsDownloader</name>
-    <message>
-        <source>Cancel</source>
-        <translation>បោះពុម្ព</translation>
-    </message>
-    <message>
-        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>កំពុង​ទាញយក​រូបភាព​ស៊ីឌី​បន្ថែម​​ភ្ញៀវ​របស់ VirtualBox ពី &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation>បោះបង់ការ​ទាញយក​រូបភាព​ស៊ីឌី​បន្ថែម​ភ្ញៀវ VirtualBox</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;បាន​បរាជ័យ​ក្នុងកា​ររក្សាទុក​ឯកសារ​ដែលបាន​ទាញ​យក​ជា &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; ។&lt;/nobr&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Select folder to save Guest Additions image to</source>
-        <translation>ជ្រើស​ថត​ដើម្បី​រក្សាទុក​រូបភាព​បន្ថែម​ភ្ញៀវ​ទៅ​កាន់</translation>
     </message>
 </context>
 <context>
@@ -489,7 +1600,7 @@
     </message>
     <message>
         <source>MB</source>
-        <translation>មេកាបៃ</translation>
+        <translation type="obsolete">មេកាបៃ</translation>
     </message>
     <message>
         <source>&lt;b&gt;Original Value:&lt;/b&gt; %1</source>
@@ -502,6 +1613,16 @@
     <message>
         <source>Warnings:</source>
         <translation>ការ​ព្រមាន​ ៖</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation type="unfinished">មេកាបៃ</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024KBytes</comment>
+        <translation type="unfinished">មេកាបៃ</translation>
     </message>
 </context>
 <context>
@@ -735,7 +1856,7 @@
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: cable %3&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;អាដាប់ទ័រ %1 (%2)&lt;/b&gt; ៖ ខ្សែ %3&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;អាដាប់ទ័រ %1 (%2)&lt;/b&gt; ៖ ខ្សែ %3&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>connected</source>
@@ -812,7 +1933,7 @@
     </message>
     <message>
         <source>Sun VirtualBox</source>
-        <translation>Sun VirtualBox</translation>
+        <translation type="obsolete">Sun VirtualBox</translation>
     </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
@@ -939,6 +2060,18 @@ Virtualization Stuff LED</comment>
         <translation type="unfinished">ម៉ាស៊ីន​បម្រើ​ផ្ទៃតុ​ពី​ចម្ងាយ (RDP)​</translation>
     </message>
     <message>
+        <source>Dock Icon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Application Icon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Monitor Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>HDD tooltip</comment>
         <translation type="unfinished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;បង្ហាញ​សកម្មភាព​របស់​ថាសរឹង​និម្មិត ៖&lt;/nobr&gt;%1&lt;/p&gt;</translation>
@@ -969,6 +2102,11 @@ Virtualization Stuff LED</comment>
         <translation type="unfinished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;បង្ហាញ​សកម្មភាព​របស់​ចំណុច​ប្រទាក់​បណ្ដាញ ៖&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>USB device tooltip</comment>
         <translation type="unfinished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;បង្ហាញ​សកម្មភាព​របស់​ឧបករណ៍ USB ដែល​បាន​ភ្ជាប់ ៖&lt;/nobr&gt;%1&lt;/p&gt;</translation>
@@ -988,12 +2126,33 @@ Virtualization Stuff LED</comment>
         <comment>Virtualization Stuff LED</comment>
         <translation type="unfinished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
-</context>
-<context>
-    <name>VBoxDownloaderWgt</name>
     <message>
-        <source>The download process has been cancelled by the user.</source>
-        <translation>ដំណើរការ​​ទាញយក​ត្រូវ​បានបោះបង់​ដោយ​អ្នកប្រើ​ ។</translation>
+        <source>ACPI Sh&amp;utdown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview Monitor %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No CD/DVD devices attached to that VM</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No floppy devices attached to that VM</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No USB Devices Connected</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No supported devices connected to the host PC</source>
+        <translation type="unfinished">គ្មាន​ឧបករណ៍​ដែលបានគាំទ្រ​ទេ​ បានភ្ជាប់​ទៅកាន់​ម៉ាស៊ីន​ទេ</translation>
     </message>
 </context>
 <context>
@@ -1001,141 +2160,6 @@ Virtualization Stuff LED</comment>
     <message>
         <source>&amp;Choose...</source>
         <translation>ជ្រើស​រើស... </translation>
-    </message>
-</context>
-<context>
-    <name>VBoxExportApplianceWzd</name>
-    <message>
-        <source>Select a file to export into</source>
-        <translation>ជ្រើស​ឯកសាត​ត្រូវ​នាំចេញ</translation>
-    </message>
-    <message>
-        <source>Open Virtualization Format (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
-    </message>
-    <message>
-        <source>Appliance</source>
-        <translation>ឧបករណ៍​</translation>
-    </message>
-    <message>
-        <source>Please choose a filename to export the OVF to.</source>
-        <translation>សូម​ជ្រើស​ឈ្មោះ​ឯកសារ​​ ដើម្បី​នាំ​ចូល​ OVF ។</translation>
-    </message>
-    <message>
-        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
-        <translation>សូម​បំពេញ​​វាល​​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ និងសញ្ញា​សម្គាល់​​ ហើយ​​​ផ្តល់​ឈ្មោះ​​ឯកសារ​សម្រាប់​គោលដៅ ​OVF ។</translation>
-    </message>
-    <message>
-        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
-        <translation>សូម​បំពេញ​វាល​ដែល​បន្ថែម ​ដូចជា​​ឈ្មោះ​អ្នក​ប្រើ​ ពាក្យ​សម្ងាត់​ ឈ្មោះ​ម៉ាស៊ីន​ និង​សញ្ញា​សម្គាល់​ ហើយ​​​ផ្តល់​ឈ្មោះ​ឯកសារ​សម្រាប់​គោល​ដៅ​ OVF ។</translation>
-    </message>
-    <message>
-        <source>Checking files ...</source>
-        <translation>កំពុង​ពិនិត្យ​មើល​​ឯកសារ​...</translation>
-    </message>
-    <message>
-        <source>Removing files ...</source>
-        <translation>កំពុង​​យក​ឯកសារ​ចេញ​...</translation>
-    </message>
-    <message>
-        <source>Exporting Appliance ...</source>
-        <translation>កំពុង​នាំចេញ​ឧបករណ៍...</translation>
-    </message>
-    <message>
-        <source>Appliance Export Wizard</source>
-        <translation>អ្នក​ជំនួយការ​នាំចេញ​ឧបករណ៍</translation>
-    </message>
-    <message>
-        <source>Welcome to the Appliance Export Wizard!</source>
-        <translation>ស្វា​គមន៍​មក​​កាន់​អ្នក​​ជំនួយ​ការ​នាំ​ចេញ​ឧបករណ៍​ !</translation>
-    </message>
-    <message>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through the process of exporting an appliance. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Please select the virtual machines that you wish to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;អ្នក​ជំនួយ​កា​រនេះ​នឹង​នាំអ្នក​តាមរយៈ​ដំណើរការ​នាំចេញ​ឧបករណ៍ ។&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;ប្រើ​ប៊ូតុង &lt;span style=&quot; font-weight:600;&quot;&gt;បន្ទាប់&lt;/span&gt; ដើម្បី​ទៅ​កាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយ​ការ​ ហើយ​ប៊ូតុង &lt;span style=&quot; font-weight:600;&quot;&gt;ថយក្រោយ&lt;/span&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;សូម​ជ្រើស​ម៉ាស៊ីន​និម្មិត ដែល​អ្នក​ចង់បាន​ឧបករណ៍ ។ អ្នក​អាចជ្រើស​ច្រើនជាង​មួយ​បាន ។ សូម​ចំណាំថា ម៉ាស៊ីន​ទាំង​នេះ​ត្រូវ​តែ​បិទ មុន​នឹង​ពួកវា​អាច​ត្រូវ​បាន​នាំចេញ ។&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt;ថយ​ក្រោយ​</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>បន្ទាប់&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>បោះបង់​</translation>
-    </message>
-    <message>
-        <source>Appliance Export Settings</source>
-        <translation>​កំណត់​ការ​នាំ​ចេញ​ឧបករណ៍​</translation>
-    </message>
-    <message>
-        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
-        <translation>នៅ​ទី​នេះ អ្នក​​អាច​ប្តូរ​តម្លៃ​​​កំណត់​រចនា​សម្ព័ន្ធ​​​បន្ថែម​របស់​​ម៉ាស៊ីន​និម្មិត​​​ដែល​​បាន​ជ្រើស​ ។ អ្នក​អាច​កែប្រែ​លក្ខណសម្បត្តិ​ភាគច្រើន ដែលបាន​បង្ហាញ​ដោយ​ចុច​ទ្វេរដង​លើ​ធាតុ ។ ។</translation>
-    </message>
-    <message>
-        <source>Restore Defaults</source>
-        <translation>ស្តារ​​លំនាំ​ដើម</translation>
-    </message>
-    <message>
-        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
-        <translation>សូម​បញ្ជាក់​គោល​ដៅ​សម្រាប់​នាំ​ចេញ​​ OVF ។ អ្នក​អាច​ជ្រើស​​រវាង​​ការ​នាំ​ចេញ​ប្រព័ន្ធ​ឯកសារ​មូល​ដ្ឋាន​​ ការ​ផ្ទុក​ OVF ឡើង​ទៅ​​កាន់​ Sun អាច​ជា​​សេវា​ ឬម៉ា​ស៊ីន​បម្រើ​ផ្ទុក S3 ។</translation>
-    </message>
-    <message>
-        <source>&amp;Local Filesystem </source>
-        <translation>ប្រព័ន្ធ​ឯកសារ​មូលដ្ឋាន ​</translation>
-    </message>
-    <message>
-        <source>Sun &amp;Cloud</source>
-        <translation>ពពក​របស់ Sun</translation>
-    </message>
-    <message>
-        <source>&amp;Simple Storage System (S3)</source>
-        <translation>ប្រព័ន្ធ​ផ្ទុក​ធម្មតា (S3)</translation>
-    </message>
-    <message>
-        <source>&amp;Username:</source>
-        <translation>ឈ្មោះ​អ្នក​ប្រើ​ ៖</translation>
-    </message>
-    <message>
-        <source>&amp;Password:</source>
-        <translation>ពាក្យ​សម្ងាត់​ ៖</translation>
-    </message>
-    <message>
-        <source>&amp;File:</source>
-        <translation>ឯកសារ​ ៖</translation>
-    </message>
-    <message>
-        <source>&amp;Bucket:</source>
-        <translation>ធុង​ ៖</translation>
-    </message>
-    <message>
-        <source>&amp;Hostname:</source>
-        <translation>ឈ្មោះ​ម៉ាស៊ីន​ ៖</translation>
-    </message>
-    <message>
-        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
-        <translation>សរ​សេរ​ក្នុង​​ទ្រង់​ទ្រាយ​ OVF 0.9 ​ចាស់ៗ​ សម្រាប់​ភាព​ឆប​គ្នា​ជាមួយផលិត​ផលនិម្មិត​ផ្សេង​ទៀត​ ។</translation>
-    </message>
-    <message>
-        <source>&amp;Write legacy OVF 0.9</source>
-        <translation>សេរ​សេរ​ OVF 0.9 ចាស់ៗ</translation>
-    </message>
-    <message>
-        <source>&amp;Export &gt;</source>
-        <translation>នាំ​ចេញ&gt;</translation>
     </message>
 </context>
 <context>
@@ -1260,11 +2284,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the Dock Icon will reflect the VM window content in realtime.</source>
-        <translation>នៅពេលបានគូស​ធីក រូប​តំណាង​ចូលផែ​នឹង​ជះឥទ្ធិពល​លើ​មាតិកា​បង្អួច​ VM នៅ​ក្នុង realtime ។</translation>
+        <translation type="obsolete">នៅពេលបានគូស​ធីក រូប​តំណាង​ចូលផែ​នឹង​ជះឥទ្ធិពល​លើ​មាតិកា​បង្អួច​ VM នៅ​ក្នុង realtime ។</translation>
     </message>
     <message>
         <source>&amp;Dock Icon Realtime Preview</source>
-        <translation>មើល​រូបតំណាង​ចូលផែ Realtime ជា​មុន</translation>
+        <translation type="obsolete">មើល​រូបតំណាង​ចូលផែ Realtime ជា​មុន</translation>
     </message>
     <message>
         <source>&amp;Auto show Dock and Menubar in fullscreen</source>
@@ -1288,6 +2312,14 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&amp;Auto Capture Keyboard</source>
         <translation>ចាប់យក​ក្ដារចុច​ដោយ​ស្វ័យ​ប្រវត្តិ</translation>
+    </message>
+    <message>
+        <source>Reset Host Key</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resets the key used as a Host Key in the VM window.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3054,6 +4086,11 @@ medium</comment>
         <translation type="unfinished">ប្រព័ន្ធ</translation>
     </message>
     <message>
+        <source>Screens</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Enabled</source>
         <comment>details report (2D Video Acceleration)</comment>
         <translation type="unfinished"></translation>
@@ -3109,6 +4146,11 @@ medium</comment>
         <translation type="unfinished">​អាដាប់​ទ័រ​​ ម៉ាស៊ីន​​-​តែ​មួយ &apos;%1&apos;​</translation>
     </message>
     <message>
+        <source>VDE network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Teleported</source>
         <comment>MachineState</comment>
         <translation type="unfinished">បញ្ជួន​</translation>
@@ -3150,6 +4192,11 @@ medium</comment>
     </message>
     <message>
         <source>Floppy</source>
+        <comment>StorageBus</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SAS</source>
         <comment>StorageBus</comment>
         <translation type="unfinished"></translation>
     </message>
@@ -3219,6 +4266,11 @@ medium</comment>
         <translation type="unfinished">អាដាប់​ទ័រ​​ម៉ាស៊ីន​​-​តែ​មួយ​</translation>
     </message>
     <message>
+        <source>VDE Adapter</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>PIIX3</source>
         <comment>StorageControllerType</comment>
         <translation type="unfinished">PIIX3</translation>
@@ -3253,6 +4305,65 @@ medium</comment>
         <comment>StorageControllerType</comment>
         <translation type="unfinished">I82078</translation>
     </message>
+    <message>
+        <source>LsiLogic SAS</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>^(?:(?:(\d+)(?:\s?(B|KB|MB|GB|TB|PB))?)|(?:(\d*)%1(\d{1,2})(?:\s?(KB|MB|GB|TB|PB))))$</source>
+        <comment>regexp for matching ####[.##] B|KB|MB|GB|TB|PB, %1=decimal point</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>B</source>
+        <comment>size suffix Bytes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>KB</source>
+        <comment>size suffix KBytes=1024 Bytes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024 KBytes</comment>
+        <translation type="unfinished">មេកាបៃ</translation>
+    </message>
+    <message>
+        <source>GB</source>
+        <comment>size suffix GBytes=1024 MBytes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TB</source>
+        <comment>size suffix TBytes=1024 GBytes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>PB</source>
+        <comment>size suffix PBytes=1024 TBytes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>nested paging</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>nested paging</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shareable</source>
+        <comment>DiskType</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -3285,104 +4396,6 @@ medium</comment>
     <message>
         <source>Importing Appliance ...</source>
         <translation>កំពុង​នាំ​ចូល​ឧបករណ៍​...</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxImportApplianceWzd</name>
-    <message>
-        <source>Select an appliance to import</source>
-        <translation>ជ្រើស​ឧបករណ៍​​ដើម្បី​នាំ​ចូល​</translation>
-    </message>
-    <message>
-        <source>Open Virtualization Format (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
-    </message>
-    <message>
-        <source>Appliance Import Wizard</source>
-        <translation>អ្នក​ជំនួយ​ការ​នាំ​ចូល​ឧបករណ៍​</translation>
-    </message>
-    <message>
-        <source>Welcome to the Appliance Import Wizard!</source>
-        <translation>សូម​ស្វាគមន៍​មក​កាន់​អ្នក​ជំនួយកា​រនាំចូល​ឧបករណ៍ !</translation>
-    </message>
-    <message>
-        <source>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;This wizard will guide you through importing an appliance. &lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;Use the &lt;span style=&quot; font-weight:600;&quot;&gt;Next&lt;/span&gt; button to go the next page of the wizard and the &lt;span style=&quot; font-weight:600;&quot;&gt;Back&lt;/span&gt; button to return to the previous page.&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
-&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
-p, li { white-space: pre-wrap; }
-&lt;/style&gt;&lt;/head&gt;&lt;body&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;អ្នក​ជំនួយ​ការ​នេះ​នឹង​នាំយក​​តាម​រយៈ​ការ​នាំចូល​ឧបករណ៍ ។&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;ប្រើ​ប៊ូតុង &lt;span style=&quot; font-weight:600;&quot;&gt;បន្ទាប់&lt;/span&gt; ទៅ​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយ​ការ និងប៊ូតុង​ &lt;span style=&quot; font-weight:600;&quot;&gt;ថយក្រោយ&lt;/span&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;
-&lt;p style=&quot; margin-top:12px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;បច្ចុប្បន្ន VirtualBox គាំទ្រ​ការ​នាំចូល​ឧបករណ៍ ដែលបាន​រក្សាទុក​នៅ​ក្នុង​ទ្រង់ទ្រាយ Open Virtualization Format (OVF) ។ ដើម្បី​បន្ត ជ្រើស​ឯកសារ​​ត្រូវ​នាំ​ចូល​ខាង​ក្រោម ៖&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt;ថយ​ក្រោយ​</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>បន្ទាប់&gt;</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>បោះបង់​</translation>
-    </message>
-    <message>
-        <source>Appliance Import Settings</source>
-        <translation>​កំណត់​ការ​​នាំ​ចូល​ឧបករណ៍​</translation>
-    </message>
-    <message>
-        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>មាន​ម៉ាស៊ីន​និម្មិត​ដែល​មាន​នៅ​ក្នុង​ឧបករណ៍​ និង​ការ​កំណត់​ដែលបាន​ស្នើ​របស់ម៉ាស៊ីន VirtualBox ដែល​បាននាំចូល ។ អ្នក​អាច​ផ្លាស់ប្ដូរ​លក្ខណសម្បត្តិ​ដែលបានបង្ហាញ​ដោយ​ចុច​ទ្វេដង​លើ​ធាតុ និងបិទ​​លក្ខណសម្បត្តិ​ផ្សេងៗ​ទៀត ដោយ​ប្រើ​ប្រ​អប់ធីក​ខាង​ក្រោម ។</translation>
-    </message>
-    <message>
-        <source>Restore Defaults</source>
-        <translation>ស្តារ​លំនាំដើម</translation>
-    </message>
-    <message>
-        <source>&amp;Import &gt;</source>
-        <translation>នាំ​ចូល​​&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxImportLicenseViewer</name>
-    <message>
-        <source>&lt;b&gt;The virtual system &quot;%1&quot; requires that you agree to the terms and conditions of the software license agreement shown below.&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;Click &lt;b&gt;Agree&lt;/b&gt; to continue or click &lt;b&gt;Disagree&lt;/b&gt; to cancel the import.</source>
-        <translation>&lt;b&gt;ប្រ​ព័ន្ធ​ជាក់​ស្តែង​របស់​​ &quot;%1&quot; តម្រូវ​ការ​ដែល​អ្នក​យល់​ព្រមទៅ​កាន់ពេល​កំណត់​ និ​ងលក្ខ​ខ័ណ្នៃអាជ្ញាបណ្ណ​​ផ្នែកទន់​កិច្ច​ព្រម​ព្រៀង​​បង្ហាញ​ខាង​ក្រោម​ ។&lt;/b&gt;&lt;br /&gt;&lt;br /&gt;ចុច​​ &lt;b&gt;យល់​ព្រម​​&lt;/b&gt; ទៅ​បន្ត​ ឬ​&lt;b&gt;មិន​យល់​ព្រម​​&lt;/b&gt; ទៅ​​បោះ​បង់​កា​រនាំចូល​ ។</translation>
-    </message>
-    <message>
-        <source>Software License Agreement</source>
-        <translation>កិច្ច​ព្រមព្រៀង​អាជ្ញាបណ្ណ​​កម្មវិធី​</translation>
-    </message>
-    <message>
-        <source>&amp;Disagree</source>
-        <translation>មិន​យល់ព្រម​</translation>
-    </message>
-    <message>
-        <source>&amp;Agree</source>
-        <translation>យល់ព្រម​</translation>
-    </message>
-    <message>
-        <source>&amp;Print...</source>
-        <translation>បោះពុម្ព...</translation>
-    </message>
-    <message>
-        <source>&amp;Save...</source>
-        <translation>រក្សាទុក...</translation>
-    </message>
-    <message>
-        <source>Text (*.txt)</source>
-        <translation>អត្ថបទ​​ (*.txt)</translation>
-    </message>
-    <message>
-        <source>Save license to file...</source>
-        <translation>រក្សាទុក​អាជ្ញា​បណ្ណទៅ​ឯកសារ...</translation>
     </message>
 </context>
 <context>
@@ -3648,249 +4661,6 @@ VMM: Floppy Image</comment>
     <message>
         <source>Network Adapters</source>
         <translation>អាដាប់​ទ័រ​បណ្តាញ</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxNewHDWzd</name>
-    <message>
-        <source>Create New Virtual Disk</source>
-        <translation>បង្កើត​ថាស​និម្មិត​ថ្មី</translation>
-    </message>
-    <message>
-        <source>Welcome to the Create New Virtual Disk Wizard!</source>
-        <translation>សូម​ស្វាគមន៍​មក​កាន់​​អ្នក​ជំនួយការ​បង្កើត​ថាស​និម្មិ​តថ្មី !</translation>
-    </message>
-    <message>
-        <source>Virtual Disk Location and Size</source>
-        <translation>ទីតាំង និង​ទំហំ​ថាស​និម្មិត</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>សេចក្ដី​សង្ខេប</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1 Bytes&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;%1 បៃ&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Hard disk images (*.vdi)</source>
-        <translation>រូបភាព​ថាសរឹង (*.vdi)</translation>
-    </message>
-    <message>
-        <source>Select a file for the new hard disk image file</source>
-        <translation>ជ្រើស​ឯកសារ​សម្រាប់​ឯកសារ​រូបភាព​ថាស​រឹង</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; ថយក្រោយ</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>បន្ទាប់ &gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>បញ្ចប់</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>summary</comment>
-        <translation>ប្រភេទ</translation>
-    </message>
-    <message>
-        <source>Location</source>
-        <comment>summary</comment>
-        <translation>ទីតាំង</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <comment>summary</comment>
-        <translation>ទំហំ</translation>
-    </message>
-    <message>
-        <source>Bytes</source>
-        <comment>summary</comment>
-        <translation>បៃ</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>បោះបង់</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will help you to create a new virtual hard disk for your virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នក​ជំនួយការ​នេះ​ជួយ​អ្នក​ក្នុងកា​របង្កើត​ថាសរឹង​និម្មិត​សម្រាប់​ម៉ាស៊ីន​និម្មិត​របស់​អ្នក ។&lt;/p&gt;&lt;p&gt;ប្រើប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅកាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ប៊ូតុង&lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Hard Disk Storage Type</source>
-        <translation>ប្រភេទ​ផ្ទុក​របស់​ថាសរឹង</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the type of virtual hard disk you want to create.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;dynamically expanding storage&lt;/b&gt; initially occupies a very small amount of space on your physical hard disk. It will grow dynamically (up to the size specified) as the Guest OS claims disk space.&lt;/p&gt;&lt;p&gt;A &lt;b&gt;fixed-size storage&lt;/b&gt; does not grow. It is stored in a file of approximately the same size as the size of the virtual hard disk. The creation of a fixed-size storage may take a long time depending on the storage size and the write performance of your harddisk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​ប្រភេទ​ថាសរឹង​និម្មិត​ដែល​អ្នក​ចង់​បង្កើត ។&lt;/p&gt;&lt;p&gt; &lt;b&gt;កា​រផ្ទុក​ពង្រីក​ជា​ថាមវន្ត&lt;/b&gt; ដំបូង​គ្រប់គ្រង​រាល់​ទំហំ​តូចៗ​របស់ចន្លោះ​នៅ​ក្នុង​ថាសរឹង​ហ្វីស៊ីខល​របស់​អ្នក ។ វា​នឹង​ពង្រីក​ដោយ​ថាមវន្ត (ដល់​ទំហំ​ដែល​បាន​បញ្ជាក់) ជា​ការ​អះអាង​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ ។&lt;/p&gt;&lt;p&gt; &lt;b&gt;កា​រផ្ទុក​ទំហំថេរ&lt;/b&gt; មិន​រីកចំរើន​ទេ ។ វា​ត្រូ​វបាន​ផ្ទុក​នៅ​ក្នុង​ឯកសារ​របស់​ទំហំ​​ប្រហែល​ ជា​ទំហំ​របស់​ថាសរឹង​និម្មិត ។ ការ​បង្កើត​ការ​ផ្ទុក​ទំហំថេរ អាច​ចំណាយ​ពេល​យូរ​ ដោយអាស្រ័យ​លើ​ទំហំ​ផ្ទុក និង​សរសេរ​ការ​អនុវត្ត​នៃ​ថាសរឹង​របស់​អ្នក ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Storage Type</source>
-        <translation>ប្រភេទ​ផ្ទុក</translation>
-    </message>
-    <message>
-        <source>&amp;Dynamically expanding storage</source>
-        <translation>ពង្រីក​ការ​ផ្ទុក​ថាមវន្ត</translation>
-    </message>
-    <message>
-        <source>&amp;Fixed-size storage</source>
-        <translation>កា​រ​ផ្ទុក​ទំហំថេរ</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Press the &lt;b&gt;Select&lt;/b&gt; button to select the location of a file to store the hard disk data or type a file name in the entry field.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ចុច​ប៊ូតុង &lt;b&gt;ជ្រើស&lt;/b&gt; ដើម្បី​ជ្រើស​ទីតាំង​របស់​ឯកសារ​ដើម្បី​ផ្ទុក​ថាសរឹង ឬ​ប្រភេទ​ឈ្មោះ​ឯកសារ​នៅ​ក្នុង​វាល​ធាតុ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Location</source>
-        <translation>ទីតាំង</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the size of the virtual hard disk in megabytes. This size will be reported to the Guest OS as the maximum size of this hard disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​ទំហំ​ថាសរឹង​និម្មិត​គិត​ជាមេកាបៃ ។ ទំហំ​នេះ​នឹង​ត្រូវ​បាន​រាយការណ៍​ទៅ​កាន់​ប្រព័ន្ធ​ប្រតិបត្តិការ​របស់​ម៉ាស៊ីន​ភ្ញៀវ​តាម​ទំហំ​អតិបរមា​របស់​ថាសរឹង​នេះ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Size</source>
-        <translation>ទំហំ</translation>
-    </message>
-    <message>
-        <source>You are going to create a new virtual hard disk with the following parameters:</source>
-        <translation>អ្នកនឹង​បង្កើត​ថាសរឹង​និម្មិត​ថ្មី​ដោយ​មាន​ប៉ារ៉ាម៉ែត្រ​ដូច​ខាងក្រោម ៖</translation>
-    </message>
-    <message>
-        <source>If the above settings are correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new hard disk will be created.</source>
-        <translation>ប្រសិនបើ​កា​រកំណត់​ខាង​លើ​ត្រឹមត្រូវ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុចវា ថាសរឹង​ថ្មី​នឹង​ត្រូវ​បានបង្កើត​ឡើង ។</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxNewVMWzd</name>
-    <message>
-        <source>Create New Virtual Machine</source>
-        <translation>បង្កើត​ម៉ាស៊ីន​និម្មិត​ថ្មី</translation>
-    </message>
-    <message>
-        <source>Welcome to the New Virtual Machine Wizard!</source>
-        <translation>សូម​ស្វាគមន៍​មក​កាន់​អ្នក​ជំនួយការ​ម៉ាស៊ីន​និម្មិត​ថ្មី !</translation>
-    </message>
-    <message>
-        <source>N&amp;ame</source>
-        <translation>ឈ្មោះ</translation>
-    </message>
-    <message>
-        <source>OS &amp;Type</source>
-        <translation>ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
-    </message>
-    <message>
-        <source>VM Name and OS Type</source>
-        <translation>ឈ្មោះ​របស់ VM និង​ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​ចំនួន​សតិ (RAM) ​មូលដ្ឋាន​គិត​ជាមេកាបៃ ដែល​​ត្រូវ​បម្រុង​ទុក​សម្រាប់​ម៉ាស៊ីន​និម្មិត ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Base &amp;Memory Size</source>
-        <translation>ទំហំ​សតិ​មូលដ្ឋាន</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <translation>មេកាបៃ</translation>
-    </message>
-    <message>
-        <source>Memory</source>
-        <translation>សតិ</translation>
-    </message>
-    <message>
-        <source>Virtual Hard Disk</source>
-        <translation>ថាសរឹង​និម្មិត</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>សេចក្ដី​សង្ខេប</translation>
-    </message>
-    <message>
-        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
-        <translation>ទំហំ​សតិ​មូលដ្ឋាន​ដែលបានផ្ដល់​អនុសាសន៍​គឺ &lt;b&gt;%1&lt;/b&gt; មេកាបៃ ។</translation>
-    </message>
-    <message>
-        <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
-        <translation>ទំហំ​ដែល​បានផ្ដល់​អនុសាសន៍​របស់​ថាសរឹង​ចាប់ផ្ដើម​គឺ &lt;b&gt;%1&lt;/b&gt; មេកាបៃ ។</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នក​ជំនួយ​កា​រនេះ​នឹង​នាំអ្នក​តាម​ជំហាន​ដែល​ចាំបាច់​ដើម្បីបង្កើត​ម៉ាស៊ីន​និម្មិ​តថ្មី​សម្រាប់ VirtualBox ។&lt;/p&gt;&lt;p&gt;ប្រើ​ប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅកាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ហើយ​ប៊ូតុង &lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បី​ត្រឡប់​ទៅ​ទំព័រ​មុន ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt;ថយក្រោយ</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>បន្ទាប់ &gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;បញ្ចូល​ឈ្មោះ​ឲ្យ​ម៉ាស៊ីន​និម្មតិ​ថ្មី ហើយ​ជ្រើស​ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ​ម៉ាស៊ីន​ភ្ញៀវ ដែល​អ្នក​ចង់​ដំឡើង​ក្នុង​ម៉ាស៊ីន​និម្មិត ។ &lt;/p&gt;&lt;p&gt;ឈ្មោះ​របស់​ម៉ាស៊ីន​និម្មិត​តាមធម្មតា​បង្ហាញ​ការ​កំណត់​រចនាសម្ព័ន្ធ​ផ្នែក​រឹង និង​ផ្នែក​ទន់​របស់​វា ។ វា​នឹង​ត្រូវ​បាន​ប្រើ​ដោយ​សមាសធាតុ​ VirtualBox ដើម្បី​បញ្ជាក់​អត្តសញ្ញាណ​ម៉ាស៊ីន​និម្មិត​របស់​អ្នក ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នករៀបនឹង​បង្កើត​ម៉ាស៊ីន​និម្មិត​ថ្មី​ដែល​មាន​ប៉ារ៉ាម៉ែត្រ​ដូច​ខាងក្រោម ៖&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ប្រសិនបើ​ខា​ងលើ​ត្រឹមត្រូវ​​ហើយ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុច​វា ម៉ាស៊ីន​និម្មិត​ថ្មី​នឹង​ត្រូវ​បាន​បង្កើត​ឡើង ។ &lt;/p&gt;&lt;p&gt;ចំណាំ​ថា អ្នក​អាច​ត្រង​ការ​កំណត់​ទាំង​នេះ និង​ការ​កំណត់​ផ្សេងៗ​របស់​ម៉ាស៊ីន​និម្មិត​ដែល​បានបង្កើត​​នៅពេល​ដែល​ប្រើ​ប្រអប់ &lt;b&gt;ការ​កំណត់&lt;/b&gt; ដែល​អាច​ចូល​ដំណើរ​ការ​បាន​តាមរយៈ​ម៉ឺនុយ​របស់​បង្អួច​មេ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>បញ្ចប់</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <comment>megabytes</comment>
-        <translation>មេកាបៃ</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <comment>summary</comment>
-        <translation>ឈ្មោះ</translation>
-    </message>
-    <message>
-        <source>OS Type</source>
-        <comment>summary</comment>
-        <translation>ប្រភេទ​ប្រព័ន្ធ​ប្រតិបត្តិការ</translation>
-    </message>
-    <message>
-        <source>Base Memory</source>
-        <comment>summary</comment>
-        <translation>សតិមូលដ្ឋាន</translation>
-    </message>
-    <message>
-        <source>Boot Hard Disk</source>
-        <comment>summary</comment>
-        <translation>ថាសរឹង​ចាប់ផ្ដើម</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>បោះបង់</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select a hard disk image to be used as the boot hard disk of the virtual machine. You can either create a new hard disk using the &lt;b&gt;New&lt;/b&gt; button or select an existing hard disk image from the drop-down list or by pressing the &lt;b&gt;Existing&lt;/b&gt; button (to invoke the Virtual Media Manager dialog).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​រូបភាព​ថាសរឹង​ត្រូវ​ប្រើ​ជា​ថាស​រឹង​ចាប់ផ្ដើម​របស់ម៉ាស៊ីន​និម្មិត ។ អ្នកអាច​បង្កើត​ថាសរឹង​ថ្មី​ដោយ​ប្រើ​ប៊ូតុង &lt;b&gt;ថ្មី&lt;/b&gt; ឬ​ជ្រើស​រូបភាព​ថាសរឹង​ដែលមាន​ស្រាប់​ពី​បញ្ជី​ទម្លាក់ចុះ ឬ​ដោយ​ចុច​ប៊ូតុង &lt;b&gt;មាន​ស្រាប់&lt;/b&gt; (ដើម្បីដកហូត​ប្រអប់​កម្មវិធី​គ្រប់គ្រង​មេឌៀ​និម្មិត) ។&lt;/p&gt;&lt;p&gt;ប្រសិនបើ​អ្នក​ត្រូវការ​រៀបចំ​ថាសរឹង​ដែល​ស្មុគស្មាញ អ្នក​ក៏​អាច​រំលង​ជំហាន​នេះ ហើយ​ភ្ជាប់​ថាសរឹង​ពេលក្រោយ​ដោយ​ប្រើ​ប្រអប់​កំណត់របស់ VM ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Boot Hard &amp;Disk (Primary Master)</source>
-        <translation>ថាសរឹង​ចាប់ផ្ដើម (Primary Master)</translation>
-    </message>
-    <message>
-        <source>&amp;Create new hard disk</source>
-        <translation>បង្កើត​ថាស​រឹង​ថ្មី</translation>
-    </message>
-    <message>
-        <source>&amp;Use existing hard disk</source>
-        <translation>ប្រើ​ថាស​រឹង​ដែល​មាន​ស្រាប់​</translation>
     </message>
 </context>
 <context>
@@ -4780,6 +5550,34 @@ medium</comment>
         <translation type="obsolete">យកចេញ​</translation>
     </message>
     <message>
+        <source>&lt;p&gt;VT-x/AMD-V hardware acceleration is not available on your system. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;VT-x/AMD-V hardware acceleration is not available on your system. Certain guests (e.g. OS/2 and QNX) require this feature and will fail to boot without it.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Deleting the snapshot %1 will temporarily need more disk space. In the worst case the size of image %2 will grow by %3, however on this filesystem there is only %4 free.&lt;/p&gt;&lt;p&gt;Running out of disk space during the merge operation can result in corruption of the image and the VM configuration, i.e. loss of the VM and its data.&lt;/p&gt;&lt;p&gt;You may continue with deleting the snapshot at your own risk.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not change the guest screen to this host screen due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch the screen anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Can not switch the guest display to seamless mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Change</source>
         <comment>hard disk</comment>
         <translation type="unfinished">ផ្លាស់ប្តូរ​</translation>
@@ -4798,6 +5596,26 @@ medium</comment>
         <source>&amp;Remove</source>
         <comment>medium</comment>
         <translation type="unfinished">យកចេញ​</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>E&amp;xit</source>
@@ -5141,7 +5959,7 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
     <message>
         <source>Sun VirtualBox</source>
-        <translation>Sun VirtualBox</translation>
+        <translation type="obsolete">Sun VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Import Appliance...</source>
@@ -5519,115 +6337,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
 </context>
 <context>
-    <name>VBoxVMFirstRunWzd</name>
-    <message>
-        <source>First Run Wizard</source>
-        <translation>អ្នក​ជំនួយកា​ររត់​ដំបូង</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នក​បាន​ចាប់ផ្ដើម​ម៉ាស៊ីន​និម្មិត​ដែលបាន​បង្កើត​ថ្មីៗ​ពេល​ដំបូង​បាន​ ។ អ្នក​ជំនួយការ​នេះ​នឹង​ជួយ​អ្នក​ឲ្យ​អនុវត្ត​ជំហាន​ដែល​ចាំបាច់​សម្រាប់ដំឡើង​​ប្រព័ន្ធ​ប្រតិបត្តិការ​នៃ​ជម្រើស​របស់អ្នក​ក្នុង​​ម៉ាស៊ីន​និម្មិត​នេះ ។&lt;/p&gt;&lt;p&gt;ប្រើ​ប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅ​កាន់​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ហើយ​ប៊ូតុង​ &lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បីត្រឡប់​ទៅ​ទំព័រ​មុន ។ អ្នកក៏​អាច​ចុច &lt;b&gt;បោះបង់&lt;/b&gt; ប្រសិន​បើ​អ្នក​ចង់​បោះបង់​ប្រតិបត្តិការ​របស់​អ្នក​ជំនួយកា​រនេះ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Welcome to the First Run Wizard!</source>
-        <translation>សូម​ស្វាគមន៍​មកកាន់​អ្នក​ជំនួយកា​រដំបូង !</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the type of media you would like to use for installation.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​ប្រភេទ​មេឌៀ​ដែល​អ្នក​ចង់​ប្រើ​សម្រាប់​ដំឡើងខាង​ក្រោម ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Media Type</source>
-        <translation>ប្រភេទ​មេឌៀ</translation>
-    </message>
-    <message>
-        <source>&amp;CD/DVD-ROM Device</source>
-        <translation>ឧបករណ៍​ស៊ីឌី/ឌីវីឌី​រ៉ូម</translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Device</source>
-        <translation>ឧបករណ៍​ថាស​ទន់</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​មេឌៀ​ដែល​មាន​កម្មវិធីរៀបចំ​របស់​ប្រព័ន្ធ​ប្រតិបត្តិការ​ដែល​អ្នក​ចង់​ដំឡើង ។ មេឌៀ​នេះ​ត្រូវ​តែ​អាច​ចាប់ផ្ដើម​បាន បើ​មិនដូច្នេះ​ទេ កម្មវិធី​រៀបចំ​នឹង​មិនអាច​ចាប់ផ្ដើម​បានទេ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Media Source</source>
-        <translation>ប្រភព​មេឌៀ</translation>
-    </message>
-    <message>
-        <source>Select Installation Media</source>
-        <translation>ជ្រើស​មេឌៀ​ដំឡើង</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នក​បាន​ជ្រើស​មេឌៀ​ដូចខាងក្រោម​ដើម្បី​ចាប់ផ្ដើម ៖&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>សេចក្ដីសង្ខេប</translation>
-    </message>
-    <message>
-        <source>CD/DVD-ROM Device</source>
-        <translation>ឧបករណ៍​ស៊ីឌី/ឌីវីឌីរ៉ូម</translation>
-    </message>
-    <message>
-        <source>Floppy Device</source>
-        <translation>ឧបករណ៍​ថាស​ទន់</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;Use the &lt;b&gt;Next&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;Back&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;Cancel&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នក​បាន​ចាប់ផ្ដើម​ម៉ាស៊ីន​និម្មិត​ដែល​ទើប​បានបង្កើត​ថ្មី​ជា​លើក​ដំបូង ។ អ្នក​ជំនួយ​ការ​នេះ​នឹង​ជួយ​អ្នក​ក្នុងការ​អនុវត្ត​ជំហាន​ដែល​ចាំបាច់​សម្រាប់​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ​ជា​ជម្រើស​របស់​អ្នក​នៅ​លើ​ម៉ាស៊ីន​និម្មិត ។&lt;/p&gt;&lt;p&gt;ចំណាំ​ថា អ្នក​នឹង​មិន​អាច​ដំឡើង​ប្រព័ន្ធ​ប្រតិបត្តិការ​ក្នុង​ម៉ាស៊ីន​និម្មិត​ឥឡូវ​បានទេ ពីព្រោះ​អ្នក​មិន​បាន​ភ្ជាប់​ថាសរឹង​ ។ ប្រសិន​បើ​នេះ​មិនមែន​ជា​អ្វី​ដែល​អ្នក​ចង់​បានទេ អ្នក​អាច​បោះបង់​ប្រតិបត្តិការ​នៃ​អ្នក​ជំនួយ​ការ​នេះ​បាន ដោយ​ជ្រើស &lt;b&gt;ការ​កំណត់&lt;/b&gt; ពី​ម៉ឺនុយ​ &lt;b&gt;ម៉ាស៊ីន&lt;/b&gt; របស់​បង្អួច​ VirtualBox មេ ដើម្បី​ចូលដំណើរការ​ប្រអប់​កំណត់​របស់​ម៉ាស៊ីន​នេះ ហើយ​ផ្លាស់ប្ដូរ​កា​រកំណត់​រចនាសម្ព័ន្ធ​ថាសរឹង ។&lt;/p&gt;&lt;p&gt;ប្រើ​ប៊ូតុង &lt;b&gt;បន្ទាប់&lt;/b&gt; ដើម្បី​ទៅ​ទំព័រ​បន្ទាប់​របស់​អ្នក​ជំនួយការ ហើយ​ប៊ូតុង &lt;b&gt;ថយក្រោយ&lt;/b&gt; ដើម្បីត្រឡប់​ទៅ​ទំព័រ​មុន ។ អ្នក​ក៏អា​ច​ចុច &lt;b&gt;បោះបង់&lt;/b&gt; ប្រសិន​បើ​អ្នក​បោះបង់​ប្រត្តិការ​អ្នក​ជំនួយការ​នេះ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the type of media you would like to use for booting an operating system.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​ប្រភេទ​មេឌៀ​ដែល​អ្នកចង់​ប្រើ​ដើម្បី​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ​ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ជ្រើស​មេឌៀ​ដែល​មាន​ប្រព័ន្ធ​ប្រតិបត្តិការ​ដែល​អ្នក​ចង់​ធ្វើការ​ជា​មួយ ។ មេឌៀ​នេះ​ត្រូវទេ​អាច​ចាប់ផ្ដើម​បាន បើ​មិន​ដូច្នេះ​ទេ ប្រព័ន្ធ​ប្រតិបត្តិការ​មិនអាច​ចាប់ផ្ដើម​បានទេ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;អ្នក​បាន​ជ្រើស​មេឌៀ​ដូចខាង​ក្រោម​ដើម្បី​ចាប់ផ្ដើម​ប្រព័ន្ធ​ប្រតិបត្តិការ ៖&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;ប្រសិន​បើ​ខា​ងលើ​ត្រឹមត្រូវ​ហើយ ចុច​ប៊ូតុង &lt;b&gt;បញ្ចប់&lt;/b&gt; ។ នៅពេល​អ្នក​ចុច​វា មេឌៀ​ដែល​បាន​ជ្រើស​នឹង​ត្រូវ​បានម៉ោន​​លើ​ម៉ាស៊ីន​និម្មិត ហើយ​ម៉ាស៊ីន​នឹង​ចាប់ផ្ដើម​ប្រតិបត្តិ ។&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt; &amp;Back</source>
-        <translation>&lt; ថយក្រោយ</translation>
-    </message>
-    <message>
-        <source>&amp;Next &gt;</source>
-        <translation>បន្ទាប់ &gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Finish</source>
-        <translation>បញ្ចប់</translation>
-    </message>
-    <message>
-        <source>Type</source>
-        <comment>summary</comment>
-        <translation>ប្រភេទ</translation>
-    </message>
-    <message>
-        <source>Source</source>
-        <comment>summary</comment>
-        <translation>ប្រភព</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>បោះបង់</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;​​ចុច​ ប្រ​សិន​បើ​ខាងលើ​​ត្រឹម​ត្រូវ​ &lt;b&gt;​បញ្ចប់​​&lt;/b&gt; ប៊ូតុង​ ។​ លើ​ទី​មួយ​ដែល​អ្នក​ចុច​វា​Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
     <name>VBoxVMInformationDlg</name>
     <message>
         <source>%1 - Session Information</source>
@@ -5676,7 +6385,7 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     <message>
         <source>Version %1.%2</source>
         <comment>guest additions</comment>
-        <translation>កំណែ %1.%2</translation>
+        <translation type="obsolete">កំណែ %1.%2</translation>
     </message>
     <message>
         <source>Not Detected</source>
@@ -5941,6 +6650,18 @@ details report (VRDP server port)</comment>
         <source>Specifies the timeout for guest authentication, in milliseconds.</source>
         <translation>បញ្ជាក់​ការ​អស់ពេល ​សម្រាប់​ការ​ផ្ទៀងផ្ទាត់​ភាព​ត្រឹមត្រូវ​របស់​ម៉ាស៊ីន​ភ្ញៀវ​ គិត​​ជា​មិល្លី​វិនាទី ។</translation>
     </message>
+    <message>
+        <source>Mo&amp;nitor Count:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Controls the amount of virtual monitors provided to the virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;qt&gt;%1&lt;/qt&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsDlg</name>
@@ -6015,6 +6736,10 @@ details report (VRDP server port)</comment>
     <message>
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
         <translation>អ្នកបាន​បើក​បង្កើនល្បឿន​​វី​ដេអូ​​ទ្វេ​​មាត្រ​ ។ បង្កើនល្បឿន​វីដេអូ​​ទ្វេ​មាត្រ​​ត្រូវ​បាន​គាំ​ទ្រ​សម្រាប់​​​ម៉ាស៊ីន​វីនដូ​តែ​ប៉ុ​ណ្ណោះ​ លក្ខណៈ​ពិសេសនេះ​​នឹង​​មិន​ត្រូវ​បាន​អនុញ្ញាត​ ។​</translation>
+    </message>
+    <message>
+        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6305,6 +7030,30 @@ details report (VRDP server port)</comment>
     <message>
         <source>Attached To:</source>
         <translation>បាន​​ភ្ជាប់ទៅកាន់ ៖</translation>
+    </message>
+    <message>
+        <source>Allows to use host I/O caching capabilities.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use host I/O cache</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add SAS Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SAS Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Storage Controller 1</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6755,8 +7504,8 @@ network adapter name</comment>
         <translation>ប្រ​ព័ន្ធ​ដំណើរ​ការ​​ ៖</translation>
     </message>
     <message>
-        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
-        <translation>ត្រួត​ពិនិត្យចំនួន​ស៊ីភីយូ​និម្មិត​នៅ​ក្នុង​ម៉ាស៊ីន​និម្មិត ។</translation>
+        <source>Controls the number of virtual CPUs in the virtual machine.</source>
+        <translation type="obsolete">ត្រួត​ពិនិត្យចំនួន​ស៊ីភីយូ​និម្មិត​នៅ​ក្នុង​ម៉ាស៊ីន​និម្មិត ។</translation>
     </message>
     <message>
         <source>When checked, the Physical Address Extension (PAE) feature of the host CPU will be exposed to the virtual machine.</source>
@@ -6791,6 +7540,18 @@ network adapter name</comment>
         <translation>បើកការ​ដាក់​ទំព័រ​ក្នុង​</translation>
     </message>
     <message>
+        <source>If checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware clock in &amp;UTC time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&lt;qt&gt;%1&amp;nbsp;CPU&lt;/qt&gt;</source>
         <comment>%1 is 1 for now</comment>
         <translation type="unfinished">&lt;qt&gt;%1&amp;nbsp; ស៊ី​ភី​យូ&lt;/qt&gt;</translation>
@@ -6799,6 +7560,14 @@ network adapter name</comment>
         <source>&lt;qt&gt;%1&amp;nbsp;CPUs&lt;/qt&gt;</source>
         <comment>%1 is host cpu count * 2 for now</comment>
         <translation type="unfinished">&lt;qt&gt;%1&amp;nbsp; ស៊ី​ភី​យូ​&lt;/qt&gt;</translation>
+    </message>
+    <message>
+        <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;absolute pointing device</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

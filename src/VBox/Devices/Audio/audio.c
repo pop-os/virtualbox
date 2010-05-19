@@ -27,6 +27,7 @@
 #include <VBox/mm.h>
 
 #include <VBox/log.h>
+#include <iprt/asm-math.h>
 #include <iprt/assert.h>
 #include <iprt/uuid.h>
 #include <iprt/string.h>
@@ -53,6 +54,9 @@
 
 #define SW_NAME(sw) (sw)->name ? (sw)->name : "unknown"
 
+/**
+ * @implements PDMIAUDIOCONNECTOR
+ */
 typedef struct DRVAUDIO
 {
     /** The audio interface. */
@@ -73,6 +77,11 @@ static struct audio_driver *drvtab[] = {
     &alsa_audio_driver,
 # endif
 #endif /* RT_OS_LINUX */
+#ifdef RT_OS_FREEBSD
+# ifdef VBOX_WITH_PULSE
+    &pulse_audio_driver,
+# endif
+#endif
 #ifdef RT_OS_DARWIN
     &coreaudio_audio_driver,
 #endif
@@ -1294,7 +1303,7 @@ static void audio_run_out (AudioState *s)
 
     while ((hw = audio_pcm_hw_find_any_enabled_out (s, hw))) {
         int played;
-        int live, free, nb_live, cleanup_required, prev_rpos;
+        int live, myfree, nb_live, cleanup_required, prev_rpos;
 
         live = audio_pcm_hw_get_live_out2 (hw, &nb_live);
         if (!nb_live) {
@@ -1324,9 +1333,9 @@ static void audio_run_out (AudioState *s)
         if (!live) {
             for (sw = hw->sw_head.lh_first; sw; sw = sw->entries.le_next) {
                 if (sw->active) {
-                    free = audio_get_free (sw);
-                    if (free > 0) {
-                        sw->callback.fn (sw->callback.opaque, free);
+                    myfree = audio_get_free (sw);
+                    if (myfree > 0) {
+                        sw->callback.fn (sw->callback.opaque, myfree);
                     }
                 }
             }
@@ -1370,9 +1379,9 @@ static void audio_run_out (AudioState *s)
             }
 
             if (sw->active) {
-                free = audio_get_free (sw);
-                if (free > 0) {
-                    sw->callback.fn (sw->callback.opaque, free);
+                myfree = audio_get_free (sw);
+                if (myfree > 0) {
+                    sw->callback.fn (sw->callback.opaque, myfree);
                 }
             }
         }
@@ -1699,7 +1708,7 @@ static int AUD_init (PPDMDRVINS pDrvIns, const char *drvname)
             conf.period.ticks = 1;
         }
         else {
-            conf.period.ticks = pDrvIns->pDrvHlp->pfnTMGetVirtualFreq (pDrvIns)
+            conf.period.ticks = PDMDrvHlpTMGetVirtualFreq (pDrvIns)
                 / conf.period.hz;
         }
     }
@@ -1764,7 +1773,9 @@ CaptureVoiceOut *AUD_add_capture (
     }
     else {
         HWVoiceOut *hw;
+#ifndef VBOX
         CaptureVoiceOut *cap;
+#endif
 
         cap = audio_calloc (AUDIO_FUNC, 1, sizeof (*cap));
         if (!cap) {
@@ -1918,28 +1929,15 @@ void AUD_set_record_source (audrecsource_t *ars, audrecsource_t *als)
 }
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the driver.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  Any thread.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) drvAudioQueryInterface(PPDMIBASE pInterface,
-                                                   PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) drvAudioQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVAUDIO  pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIO);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pDrvIns->IBase;
-        case PDMINTERFACE_AUDIO_CONNECTOR:
-            return &pThis->IAudioConnector;
-        default:
-            return NULL;
-    }
+    PDRVAUDIO  pThis   = PDMINS_2_DATA(pDrvIns, PDRVAUDIO);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIAUDIOCONNECTOR, &pThis->IAudioConnector);
+    return NULL;
 }
 
 /**
@@ -1964,13 +1962,14 @@ static DECLCALLBACK(void) drvAudioPowerOff(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(void) drvAudioDestruct(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvAUDIODestruct:\n"));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
     audio_atexit ();
 }
 
 /**
  * Construct an AUDIO driver instance.
- *  
+ *
  * @copydoc FNPDMDRVCONSTRUCT
  */
 static DECLCALLBACK(int) drvAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle, uint32_t fFlags)
@@ -1980,6 +1979,7 @@ static DECLCALLBACK(int) drvAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
     int         rc;
 
     LogFlow(("drvAUDIOConstruct:\n"));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate the config.
@@ -2046,8 +2046,12 @@ const PDMDRVREG g_DrvAUDIO =
 {
     /* u32Version */
     PDM_DRVREG_VERSION,
-    /* szDriverName */
+    /* szName */
     "AUDIO",
+    /* szRCMod */
+    "",
+    /* szR0Mod */
+    "",
     /* pszDescription */
     "AUDIO Driver",
     /* fFlags */
@@ -2062,6 +2066,8 @@ const PDMDRVREG g_DrvAUDIO =
     drvAudioConstruct,
     /* pfnDestruct */
     drvAudioDestruct,
+    /* pfnRelocate */
+    NULL,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */

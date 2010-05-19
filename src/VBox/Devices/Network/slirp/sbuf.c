@@ -1,4 +1,23 @@
+/* $Id: sbuf.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - sbuf implemenation.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1995 Danny Gasparovski.
  *
  * Please read the file COPYRIGHT for the
@@ -18,7 +37,20 @@
 void
 sbfree(struct sbuf *sb)
 {
-    RTMemFree(sb->sb_data);
+    /*
+     * Catch double frees. Actually tcp_close() already filters out listening sockets
+     * passing NULL.
+     */
+    Assert((sb->sb_data));
+
+    /*
+     * Don't call RTMemFree() for an already freed buffer, the EFence could complain
+     */
+    if (sb->sb_data)
+    {
+        RTMemFree(sb->sb_data);
+        sb->sb_data = NULL;
+    }
 }
 
 void
@@ -78,7 +110,7 @@ sbappend(PNATState pData, struct socket *so, struct mbuf *m)
     int ret = 0;
 #ifdef VBOX_WITH_SLIRP_BSD_MBUF
     int mlen = 0;
-    uint8_t *buf = NULL;
+    caddr_t buf = NULL;
 #endif
 
     STAM_PROFILE_START(&pData->StatIOSBAppend_pf, a);
@@ -225,7 +257,7 @@ sbappendsb(PNATState pData, struct sbuf *sb, struct mbuf *m)
 #ifndef VBOX_WITH_SLIRP_BSD_MBUF
             memcpy(sb->sb_data, m->m_data+n, nn);
 #else
-            m_copydata(m, n, nn, sb->sb_wptr);
+            m_copydata(m, n, nn, sb->sb_data);
 #endif
             n += nn;
         }

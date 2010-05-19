@@ -1,10 +1,10 @@
-/* $Id: PDMInternal.h $ */
+/* $Id: PDMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * PDM - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___PDMInternal_h
@@ -48,6 +44,12 @@ RT_C_DECLS_BEGIN
  * Enables or disabled ring-3/ring-0 critical sections. */
 #if defined(DOXYGEN_RUNNING) || 1
 # define PDM_WITH_R3R0_CRIT_SECT
+#endif
+
+/** @def PDMCRITSECT_STRICT
+ * Enables/disables PDM critsect strictness like deadlock detection. */
+#if (defined(RT_LOCK_STRICT) && defined(IN_RING3)) || defined(DOXYGEN_RUNNING)
+# define PDMCRITSECT_STRICT
 #endif
 
 
@@ -84,6 +86,19 @@ typedef struct PDMRTC *PPDMRTC;
 
 /** Pointer to an USB HUB registration record. */
 typedef struct PDMUSBHUB *PPDMUSBHUB;
+
+/**
+ * Supported asynchronous completion endpoint classes.
+ */
+typedef enum PDMASYNCCOMPLETIONEPCLASSTYPE
+{
+    /** File class. */
+    PDMASYNCCOMPLETIONEPCLASSTYPE_FILE = 0,
+    /** Number of supported classes. */
+    PDMASYNCCOMPLETIONEPCLASSTYPE_MAX,
+    /** 32bit hack. */
+    PDMASYNCCOMPLETIONEPCLASSTYPE_32BIT_HACK = 0x7fffffff
+} PDMASYNCCOMPLETIONEPCLASSTYPE;
 
 /**
  * Private device instance data.
@@ -197,16 +212,20 @@ typedef struct PDMDRVINSINT
 {
     /** Pointer to the driver instance above.
      * This is NULL for the topmost drive. */
-    PPDMDRVINS                      pUp;
+    R3PTRTYPE(PPDMDRVINS)           pUp;
     /** Pointer to the driver instance below.
      * This is NULL for the bottommost driver. */
-    PPDMDRVINS                      pDown;
+    R3PTRTYPE(PPDMDRVINS)           pDown;
     /** Pointer to the logical unit this driver chained on. */
-    PPDMLUN                         pLun;
+    R3PTRTYPE(PPDMLUN)              pLun;
     /** Pointer to driver structure from which this was instantiated. */
-    PPDMDRV                         pDrv;
-    /** Pointer to the VM this instance was created for. */
-    PVM                             pVM;
+    R3PTRTYPE(PPDMDRV)              pDrv;
+    /** Pointer to the VM this instance was created for, ring-3 context. */
+    PVMR3                           pVMR3;
+    /** Pointer to the VM this instance was created for, ring-0 context. */
+    PVMR0                           pVMR0;
+    /** Pointer to the VM this instance was created for, raw-mode context. */
+    PVMRC                           pVMRC;
     /** Flag indicating that the driver is being detached and destroyed.
      * (Helps detect potential recursive detaching.) */
     bool                            fDetaching;
@@ -215,12 +234,15 @@ typedef struct PDMDRVINSINT
     bool                            fVMSuspended;
     /** Indicates that the driver has been reset already. */
     bool                            fVMReset;
+    /** Set if allocated on the hyper heap, false if on the ring-3 heap. */
+    bool                            fHyperHeap;
     /** Pointer to the asynchronous notification callback set while in
      * PDMUSBREG::pfnVMSuspend or PDMUSBREG::pfnVMPowerOff. */
     R3PTRTYPE(PFNPDMDRVASYNCNOTIFY) pfnAsyncNotify;
     /** Configuration handle to the instance node. */
-    PCFGMNODE                       pCfgHandle;
-
+    R3PTRTYPE(PCFGMNODE)            pCfgHandle;
+    /** Pointer to the ring-0 request handler function. */
+    PFNPDMDRVREQHANDLERR0           pfnReqHandlerR0;
 } PDMDRVINSINT;
 
 
@@ -363,9 +385,9 @@ typedef struct PDMDEV
     /** Device name length. (search optimization) */
     RTUINT                          cchName;
     /** Registration structure. */
-    R3PTRTYPE(const struct PDMDEVREG *) pDevReg;
+    R3PTRTYPE(const struct PDMDEVREG *) pReg;
     /** Number of instances. */
-    RTUINT                          cInstances;
+    uint32_t                        cInstances;
     /** Pointer to chain of instances (R3 Ptr). */
     PPDMDEVINSR3                    pInstances;
 } PDMDEV;
@@ -381,9 +403,9 @@ typedef struct PDMUSB
     /** Device name length. (search optimization) */
     RTUINT                          cchName;
     /** Registration structure. */
-    R3PTRTYPE(const struct PDMUSBREG *) pUsbReg;
+    R3PTRTYPE(const struct PDMUSBREG *) pReg;
     /** Next instance number. */
-    RTUINT                          iNextInstance;
+    uint32_t                        iNextInstance;
     /** Pointer to chain of instances (R3 Ptr). */
     R3PTRTYPE(PPDMUSBINS)           pInstances;
 } PDMUSB;
@@ -397,9 +419,11 @@ typedef struct PDMDRV
     /** Pointer to the next device. */
     PPDMDRV                         pNext;
     /** Registration structure. */
-    const struct PDMDRVREG *        pDrvReg;
-    /** Number of instances. */
-    RTUINT                          cInstances;
+    const struct PDMDRVREG *        pReg;
+    /** Current number of instances. */
+    uint32_t                        cInstances;
+    /** The next instance number. */
+    uint32_t                        iNextInstance;
 } PDMDRV;
 
 
@@ -926,8 +950,6 @@ typedef struct PDM
     R3PTRTYPE(PPDMUSBINS)           pUsbInstances;
     /** List of registered drivers. (FIFO) */
     R3PTRTYPE(PPDMDRV)              pDrvs;
-    /** List of initialized critical sections. (LIFO) */
-    R3PTRTYPE(PPDMCRITSECTINT)      pCritSects;
     /** PCI Buses. */
     PDMPCIBUS                       aPciBuses[PDM_PCI_BUSSES_MAX];
     /** The register PIC device. */
@@ -949,47 +971,26 @@ typedef struct PDM
     R0PTRTYPE(PPDMQUEUE)            pDevHlpQueueR0;
     /** Queue in which devhlp tasks are queued for R3 execution - RC Ptr. */
     RCPTRTYPE(PPDMQUEUE)            pDevHlpQueueRC;
-    RTRCPTR                         uPadding1; /**< Alignment padding. */
-
-    /** Linked list of timer driven PDM queues. */
-    R3PTRTYPE(struct PDMQUEUE *)    pQueuesTimer;
-    /** Linked list of force action driven PDM queues. */
-    R3PTRTYPE(struct PDMQUEUE *)    pQueuesForced;
-    /** Pointer to the queue which should be manually flushed - R0 Ptr.
-     * Only touched by EMT. */
-    R0PTRTYPE(struct PDMQUEUE *)    pQueueFlushR0;
     /** Pointer to the queue which should be manually flushed - RC Ptr.
      * Only touched by EMT. */
     RCPTRTYPE(struct PDMQUEUE *)    pQueueFlushRC;
+    /** Pointer to the queue which should be manually flushed - R0 Ptr.
+     * Only touched by EMT. */
+    R0PTRTYPE(struct PDMQUEUE *)    pQueueFlushR0;
     /** Bitmask controlling the queue flushing.
      * See PDM_QUEUE_FLUSH_FLAG_ACTIVE and PDM_QUEUE_FLUSH_FLAG_PENDING. */
     uint32_t volatile               fQueueFlushing;
-
-    /** Head of the PDM Thread list. (singly linked) */
-    R3PTRTYPE(PPDMTHREAD)           pThreads;
-    /** Tail of the PDM Thread list. (singly linked) */
-    R3PTRTYPE(PPDMTHREAD)           pThreadsTail;
-
-    /** @name   PDM Async Completion
-     * @{ */
-    /** Pointer to the array of supported endpoint classes. */
-    R3PTRTYPE(PPDMASYNCCOMPLETIONEPCLASS *)  papAsyncCompletionEndpointClass;
-    /** Head of the templates. (singly linked) */
-    R3PTRTYPE(PPDMASYNCCOMPLETIONTEMPLATE) pAsyncCompletionTemplates;
-    /** @} */
+    /** Alignment padding. */
+    uint32_t                        u32Padding2;
 
     /** @name   VMM device heap
      * @{ */
     /** Pointer to the heap base (MMIO2 ring-3 mapping). NULL if not registered. */
     RTR3PTR                         pvVMMDevHeap;
-#if HC_ARCH_BITS == 32
-    /** Alignment padding. */
-    uint32_t                        u32Padding2;
-#endif
     /** The heap size. */
-    RTUINT                          cbVMMDevHeap;
+    uint32_t                        cbVMMDevHeap;
     /** Free space. */
-    RTUINT                          cbVMMDevHeapLeft;
+    uint32_t                        cbVMMDevHeapLeft;
     /** The current mapping. NIL_RTGCPHYS if not mapped or registered. */
     RTGCPHYS                        GCPhysVMMDevHeap;
     /** @} */
@@ -998,11 +999,6 @@ typedef struct PDM
      * This is used to protect everything that deals with interrupts, i.e.
      * the PIC, APIC, IOAPIC and PCI devices pluss some PDM functions. */
     PDMCRITSECT                     CritSect;
-    /** The PDM miscellancous lock.
-     * This is used to protect things like critsect init/delete that formerly was
-     * serialized by there only being one EMT.
-     */
-    RTCRITSECT                      MiscCritSect;
 
     /** Number of times a critical section leave requesed needed to be queued for ring-3 execution. */
     STAMCOUNTER                     StatQueuedCritSectLeaves;
@@ -1014,14 +1010,40 @@ AssertCompileMemberAlignment(PDM, StatQueuedCritSectLeaves, 8);
 typedef PDM *PPDM;
 
 
+
 /**
  * PDM data kept in the UVM.
  */
 typedef struct PDMUSERPERVM
 {
+    /** @todo move more stuff over here. */
+
+    /** Linked list of timer driven PDM queues.
+     * Currently serialized by PDM::CritSect.  */
+    R3PTRTYPE(struct PDMQUEUE *)    pQueuesTimer;
+    /** Linked list of force action driven PDM queues.
+     * Currently serialized by PDM::CritSect. */
+    R3PTRTYPE(struct PDMQUEUE *)    pQueuesForced;
+
+    /** Lock protecting the lists below it. */
+    RTCRITSECT                      ListCritSect;
     /** Pointer to list of loaded modules. */
     PPDMMOD                         pModules;
-    /** @todo move more stuff over here. */
+    /** List of initialized critical sections. (LIFO) */
+    R3PTRTYPE(PPDMCRITSECTINT)      pCritSects;
+    /** Head of the PDM Thread list. (singly linked) */
+    R3PTRTYPE(PPDMTHREAD)           pThreads;
+    /** Tail of the PDM Thread list. (singly linked) */
+    R3PTRTYPE(PPDMTHREAD)           pThreadsTail;
+
+    /** @name   PDM Async Completion
+     * @{ */
+    /** Pointer to the array of supported endpoint classes. */
+    PPDMASYNCCOMPLETIONEPCLASS      apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_MAX];
+    /** Head of the templates. Singly linked, protected by ListCritSect. */
+    R3PTRTYPE(PPDMASYNCCOMPLETIONTEMPLATE) pAsyncCompletionTemplates;
+    /** @} */
+
 } PDMUSERPERVM;
 /** Pointer to the PDM data kept in the UVM. */
 typedef PDMUSERPERVM *PPDMUSERPERVM;
@@ -1032,7 +1054,7 @@ typedef PDMUSERPERVM *PPDMUSERPERVM;
 *   Global Variables                                                           *
 *******************************************************************************/
 #ifdef IN_RING3
-extern const PDMDRVHLP      g_pdmR3DrvHlp;
+extern const PDMDRVHLPR3    g_pdmR3DrvHlp;
 extern const PDMDEVHLPR3    g_pdmR3DevHlpTrusted;
 extern const PDMDEVHLPR3    g_pdmR3DevHlpUnTrusted;
 extern const PDMPICHLPR3    g_pdmR3DevPicHlp;
@@ -1041,6 +1063,7 @@ extern const PDMIOAPICHLPR3 g_pdmR3DevIoApicHlp;
 extern const PDMPCIHLPR3    g_pdmR3DevPciHlp;
 extern const PDMDMACHLP     g_pdmR3DevDmacHlp;
 extern const PDMRTCHLP      g_pdmR3DevRtcHlp;
+extern const PDMHPETHLPR3   g_pdmR3DevHpetHlp;
 #endif
 
 
@@ -1061,16 +1084,31 @@ extern const PDMRTCHLP      g_pdmR3DevRtcHlp;
 # define PDMDEV_ASSERT_DEVINS(pDevIns)   do { } while (0)
 #endif
 
+/** @def PDMDRV_ASSERT_DRVINS
+ * Asserts the validity of the driver instance.
+ */
+#ifdef VBOX_STRICT
+# define PDMDRV_ASSERT_DRVINS(pDrvIns) \
+    do { \
+        AssertPtr(pDrvIns); \
+        Assert(pDrvIns->u32Version == PDM_DRVINS_VERSION); \
+        Assert(pDrvIns->CTX_SUFF(pvInstanceData) == (void *)&pDrvIns->achInstanceData[0]); \
+    } while (0)
+#else
+# define PDMDRV_ASSERT_DRVINS(pDrvIns)   do { } while (0)
+#endif
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
 #ifdef IN_RING3
-int         pdmR3CritSectInit(PVM pVM);
-int         pdmR3CritSectTerm(PVM pVM);
+int         pdmR3CritSectInitStats(PVM pVM);
 void        pdmR3CritSectRelocate(PVM pVM);
-int         pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, const char *pszName);
+int         pdmR3CritSectInitDevice(PVM pVM, PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, va_list va);
 int         pdmR3CritSectDeleteDevice(PVM pVM, PPDMDEVINS pDevIns);
+int         pdmR3CritSectInitDriver(PVM pVM, PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszNameFmt, ...);
+int         pdmR3CritSectDeleteDriver(PVM pVM, PPDMDRVINS pDrvIns);
 
 int         pdmR3DevInit(PVM pVM);
 PPDMDEV     pdmR3DevLookup(PVM pVM, const char *pszName);
@@ -1085,6 +1123,8 @@ int         pdmR3UsbRegisterHub(PVM pVM, PPDMDRVINS pDrvIns, uint32_t fVersions,
 int         pdmR3UsbVMInitComplete(PVM pVM);
 
 int         pdmR3DrvInit(PVM pVM);
+int         pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDMDRVINS pDrvAbove,
+                                PPDMLUN pLun, PPDMIBASE *ppBaseInterface);
 int         pdmR3DrvDetach(PPDMDRVINS pDrvIns, uint32_t fFlags);
 void        pdmR3DrvDestroyChain(PPDMDRVINS pDrvIns, uint32_t fFlags);
 PPDMDRV     pdmR3DrvLookup(PVM pVM, const char *pszName);

@@ -1,10 +1,10 @@
-/* $Id: MMAllHyper.cpp $ */
+/* $Id: MMAllHyper.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Hypervisor Memory Area, All Contexts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -204,7 +200,7 @@ static void mmHyperUnlock(PVM pVM)
  * @param   pVM         The VM to operate on.
  * @param   cb          Number of bytes to allocate.
  * @param   uAlignment  Required memory alignment in bytes.
- *                      Values are 0,8,16,32 and PAGE_SIZE.
+ *                      Values are 0,8,16,32,64 and PAGE_SIZE.
  *                      0 -> default alignment, i.e. 8 bytes.
  * @param   enmTag      The statistics tag.
  * @param   ppv         Where to store the address to the allocated
@@ -225,6 +221,7 @@ static int mmHyperAllocInternal(PVM pVM, size_t cb, unsigned uAlignment, MMTAG e
         case 8:
         case 16:
         case 32:
+        case 64:
             cbAligned = RT_ALIGN_32(cb, MMHYPER_HEAP_ALIGN_MIN);
             if (!cbAligned || cbAligned < cb)
             {
@@ -349,7 +346,7 @@ VMMDECL(int) MMHyperAlloc(PVM pVM, size_t cb, unsigned uAlignment, MMTAG enmTag,
  * @returns Pointer to the allocated chunk.
  * @returns NULL on failure.
  * @param   pHeap       The heap.
- * @param   cb     	Size of the memory block to allocate.
+ * @param   cb          Size of the memory block to allocate.
  * @param   uAlignment  The alignment specifications for the allocated block.
  * @internal
  */
@@ -594,7 +591,7 @@ static PMMHYPERCHUNK mmHyperAllocChunk(PMMHYPERHEAP pHeap, uint32_t cb, unsigned
  * @returns Pointer to the allocated chunk.
  * @returns NULL on failure.
  * @param   pHeap       The heap.
- * @param   cb     	Size of the memory block to allocate.
+ * @param   cb          Size of the memory block to allocate.
  * @internal
  */
 static void *mmHyperAllocPages(PMMHYPERHEAP pHeap, uint32_t cb)

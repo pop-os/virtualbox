@@ -1,10 +1,10 @@
-/* $Id: VBoxNetFltCommon-win.h $ */
+/* $Id: VBoxNetFltCommon-win.h 29108 2010-05-05 20:17:42Z vboxsync $ */
 /** @file
  * VBoxNetFltCommon.h - Network Filter Driver (Host), Windows Specific Code. Common headeer with commonly used defines and decls
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 /*
  * Based in part on Microsoft DDK sample code for Ndis Intermediate Miniport passthru driver sample.
@@ -26,15 +22,7 @@
 #ifndef ___VBoxNetFltCommon_win_h___
 #define ___VBoxNetFltCommon_win_h___
 
-#ifndef VBOX_NETFLT_ONDEMAND_BIND
-# define NDIS_MINIPORT_DRIVER
-# define NDIS50_MINIPORT 1
-#endif
-
-#define BINARY_COMPATIBLE 0
-#define NDIS_WDM 0
-#define NDIS50 1
-#define NTSTRSAFE_LIB
+//#define NTSTRSAFE_LIB
 
 #ifdef DEBUG
 //# define DEBUG_NETFLT_PACKETS
@@ -187,6 +175,7 @@ typedef struct VBOXNETFLTINS *PVBOXNETFLTINS;
  * if clear the packet comes from the wire (underlying miniport) */
 #define PACKET_SRC_HOST             0x00000002
 
+#ifndef VBOXNETFLT_NO_PACKET_QUEUE
 /** flag specifying the packet was originated by our driver
  * i.e. we could use it on our needs and should not return it
  * we are enqueueing "our" packets on ProtocolReceive call-back when
@@ -197,6 +186,7 @@ typedef struct VBOXNETFLTINS *PVBOXNETFLTINS;
 /** flag passed to vboxNetFltWinQuEnqueuePacket specifying that the packet should be copied
  * this is supported for Ndis Packet only */
 #define PACKET_COPY                 0x00000008
+#endif
 
 /** packet queue element containing the packet info */
 typedef struct _PACKET_INFO

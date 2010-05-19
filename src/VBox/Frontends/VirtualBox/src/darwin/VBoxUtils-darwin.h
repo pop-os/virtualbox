@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBoxUtils_darwin_h
@@ -92,7 +88,11 @@ void darwinWindowAnimateResizeImpl (NativeWindowRef aWindow, int x, int y, int w
 void darwinWindowInvalidateShapeImpl (NativeWindowRef aWindow);
 void darwinWindowInvalidateShadowImpl (NativeWindowRef aWindow);
 int  darwinWindowToolBarHeight (NativeWindowRef aWindow);
+bool darwinIsWindowMaximized(NativeWindowRef aWindow);
+
 float darwinSmallFontSize();
+bool darwinSetFrontMostProcess();
+uint64_t darwinGetCurrentProcessId();
 
 RT_C_DECLS_END
 
@@ -169,6 +169,7 @@ void darwinWindowAnimateResize (QWidget *aWidget, const QRect &aTarget);
 void darwinWindowInvalidateShape (QWidget *aWidget);
 void darwinWindowInvalidateShadow (QWidget *aWidget);
 int  darwinWindowToolBarHeight (QWidget *aWidget);
+bool darwinIsWindowMaximized(QWidget *aWidget);
 QString darwinSystemLanguage (void);
 QPixmap darwinCreateDragPixmap (const QPixmap& aPixmap, const QString &aText);
 

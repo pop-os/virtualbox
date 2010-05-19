@@ -1,10 +1,10 @@
-/* $Id: TM.cpp $ */
+/* $Id: TM.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * TM - Time Manager.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_tm        TM - The Time Manager
@@ -130,15 +126,19 @@
 #include <VBox/ssm.h>
 #include <VBox/dbgf.h>
 #include <VBox/rem.h>
-#include <VBox/pdm.h>
+#include <VBox/pdmapi.h>
+#include <VBox/iom.h>
 #include "TMInternal.h"
 #include <VBox/vm.h>
 
+#include <VBox/pdmdev.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/asm-math.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
@@ -273,10 +273,10 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     /*
      * Init the locks.
      */
-    rc = PDMR3CritSectInit(pVM, &pVM->tm.s.TimerCritSect, "TM Timer Lock");
+    rc = PDMR3CritSectInit(pVM, &pVM->tm.s.TimerCritSect, RT_SRC_POS, "TM Timer Lock");
     if (RT_FAILURE(rc))
         return rc;
-    rc = PDMR3CritSectInit(pVM, &pVM->tm.s.VirtualSyncLock, "TM VirtualSync Lock");
+    rc = PDMR3CritSectInit(pVM, &pVM->tm.s.VirtualSyncLock, RT_SRC_POS, "TM VirtualSync Lock");
     if (RT_FAILURE(rc))
         return rc;
 
@@ -786,18 +786,18 @@ static uint64_t tmR3CalibrateTSC(PVM pVM)
     unsigned                i;
     for (i = 0; i < RT_ELEMENTS(au64Samples); i++)
     {
-        unsigned    cMillies;
-        int         cTries   = 5;
-        uint64_t    u64Start = ASMReadTSC();
-        uint64_t    u64End;
-        uint64_t    StartTS  = RTTimeNanoTS();
-        uint64_t    EndTS;
+        RTMSINTERVAL    cMillies;
+        int             cTries   = 5;
+        uint64_t        u64Start = ASMReadTSC();
+        uint64_t        u64End;
+        uint64_t        StartTS  = RTTimeNanoTS();
+        uint64_t        EndTS;
         do
         {
             RTThreadSleep(s_auSleep[i]);
             u64End = ASMReadTSC();
             EndTS  = RTTimeNanoTS();
-            cMillies = (unsigned)((EndTS - StartTS + 500000) / 1000000);
+            cMillies = (RTMSINTERVAL)((EndTS - StartTS + 500000) / 1000000);
         } while (   cMillies == 0       /* the sleep may be interrupted... */
                  || (cMillies < 20 && --cTries > 0));
         uint64_t    u64Diff = u64End - u64Start;
@@ -1283,7 +1283,12 @@ VMM_INT_DECL(int) TMR3TimerCreateDevice(PVM pVM, PPDMDEVINS pDevIns, TMCLOCK enm
         (*ppTimer)->u.Dev.pDevIns   = pDevIns;
         (*ppTimer)->pvUser          = pvUser;
         if (fFlags & TMTIMER_FLAGS_DEFAULT_CRIT_SECT)
-            (*ppTimer)->pCritSect   = IOMR3GetCritSect(pVM);
+        {
+            if (pDevIns->pCritSectR3)
+                (*ppTimer)->pCritSect = pDevIns->pCritSectR3;
+            else
+                (*ppTimer)->pCritSect = IOMR3GetCritSect(pVM);
+        }
         Log(("TM: Created device timer %p clock %d callback %p '%s'\n", (*ppTimer), enmClock, pfnCallback, pszDesc));
     }
 
@@ -2438,7 +2443,7 @@ VMMR3DECL(int) TMR3TimerSetCritSect(PTMTIMERR3 pTimer, PPDMCRITSECT pCritSect)
  * @param   pVM             The VM instance.
  * @param   pTime           Where to store the time.
  */
-VMM_INT_DECL(PRTTIMESPEC) TMR3UTCNow(PVM pVM, PRTTIMESPEC pTime)
+VMM_INT_DECL(PRTTIMESPEC) TMR3UtcNow(PVM pVM, PRTTIMESPEC pTime)
 {
     RTTimeNow(pTime);
     RTTimeSpecSubNano(pTime, ASMAtomicReadU64(&pVM->tm.s.offVirtualSync) - ASMAtomicReadU64((uint64_t volatile *)&pVM->tm.s.offVirtualSyncGivenUp));

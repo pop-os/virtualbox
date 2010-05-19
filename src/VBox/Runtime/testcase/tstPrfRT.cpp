@@ -1,10 +1,10 @@
-/* $Id: tstPrfRT.cpp $ */
+/* $Id: tstPrfRT.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * IPRT testcase - profile some of the important functions.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -36,7 +32,8 @@
 #include <iprt/log.h>
 #include <iprt/stream.h>
 #include <iprt/thread.h>
-#include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
 
 
 void PrintResult(uint64_t u64Ticks, uint64_t u64MaxTicks, uint64_t u64MinTicks, unsigned cTimes, const char *pszOperation)
@@ -45,7 +42,7 @@ void PrintResult(uint64_t u64Ticks, uint64_t u64MaxTicks, uint64_t u64MinTicks, 
              pszOperation, u64MinTicks, u64Ticks / (uint64_t)cTimes, u64MaxTicks, cTimes, u64Ticks);
 }
 
-#define ITERATE(preexpr, expr, postexpr, cIterations) \
+# define ITERATE(preexpr, expr, postexpr, cIterations) \
     for (i = 0, u64TotalTS = 0, u64MinTS = ~0, u64MaxTS = 0; i < (cIterations); i++) \
     { \
         { preexpr } \
@@ -64,6 +61,37 @@ void PrintResult(uint64_t u64Ticks, uint64_t u64MaxTicks, uint64_t u64MinTicks, 
             u64MaxTS = u64ElapsedTS; \
         u64TotalTS += u64ElapsedTS; \
     }
+
+#else  /* !AMD64 && !X86 */
+
+void PrintResult(uint64_t cNs, uint64_t cNsMax, uint64_t cNsMin, unsigned cTimes, const char *pszOperation)
+{
+    RTPrintf("tstPrfRT: %-32s %5lld / %5lld / %5lld ns per call (%u calls %lld ns)\n",
+             pszOperation, cNsMin, cNs / (uint64_t)cTimes, cNsMax, cTimes, cNs);
+}
+
+# define ITERATE(preexpr, expr, postexpr, cIterations) \
+    for (i = 0, u64TotalTS = 0, u64MinTS = ~0, u64MaxTS = 0; i < (cIterations); i++) \
+    { \
+        { preexpr } \
+        uint64_t u64StartTS = RTTimeNanoTS(); \
+        { expr } \
+        uint64_t u64ElapsedTS = RTTimeNanoTS() - u64StartTS; \
+        { postexpr } \
+        if (u64ElapsedTS > u64MinTS * 32) \
+        { \
+            i--; \
+            continue; \
+        } \
+        if (u64ElapsedTS < u64MinTS) \
+            u64MinTS = u64ElapsedTS; \
+        if (u64ElapsedTS > u64MaxTS) \
+            u64MaxTS = u64ElapsedTS; \
+        u64TotalTS += u64ElapsedTS; \
+    }
+
+#endif /* !AMD64 && !X86 */
+
 
 int main()
 {

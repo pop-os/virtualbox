@@ -1,10 +1,10 @@
-/* $Id: HWVMXR0.h $ */
+/* $Id: HWVMXR0.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * HWACCM VT-x - Internal header file.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___HWVMXR0_h
@@ -226,7 +222,8 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
         if ((pCtx->eflags.u32 & X86_EFL_VM))                                                    \
             val = pCtx->reg##Hid.Attr.u;                                                        \
         else                                                                                    \
-        if (CPUMIsGuestInRealModeEx(pCtx))                                                      \
+        if (    CPUMIsGuestInRealModeEx(pCtx)                                                   \
+            &&  !pVM->hwaccm.s.vmx.fUnrestrictedGuest)                                          \
         {                                                                                       \
             /* Must override this or else VT-x will fail with invalid guest state errors. */    \
             /* DPL=3, present, code/data, r/w/accessed. */                                      \
@@ -255,16 +252,16 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
 }
 
 /* Don't read from the cache in this macro; used only in case of failure where the cache is out of sync. */
-# define VMX_LOG_SELREG(REG, szSelReg) \
-{                                                                    \
-        VMXReadVMCS(VMX_VMCS16_GUEST_FIELD_##REG,           &val);   \
-        Log(("%s Selector     %x\n", szSelReg, val));                \
-        VMXReadVMCS(VMX_VMCS32_GUEST_##REG##_LIMIT,         &val);   \
-        Log(("%s Limit        %x\n", szSelReg, val));                \
-        VMXReadVMCS(VMX_VMCS64_GUEST_##REG##_BASE,          &val);   \
-        Log(("%s Base         %RX64\n", szSelReg, (uint64_t)val));   \
-        VMXReadVMCS(VMX_VMCS32_GUEST_##REG##_ACCESS_RIGHTS, &val);   \
-        Log(("%s Attributes   %x\n", szSelReg, val));                \
+# define VMX_LOG_SELREG(REG, szSelReg, val) \
+{                                                                      \
+        VMXReadVMCS(VMX_VMCS16_GUEST_FIELD_##REG,           &(val));   \
+        Log(("%s Selector     %x\n", szSelReg, (val)));                \
+        VMXReadVMCS(VMX_VMCS32_GUEST_##REG##_LIMIT,         &(val));   \
+        Log(("%s Limit        %x\n", szSelReg, (val)));                \
+        VMXReadVMCS(VMX_VMCS64_GUEST_##REG##_BASE,          &(val));   \
+        Log(("%s Base         %RX64\n", szSelReg, (uint64_t)(val)));   \
+        VMXReadVMCS(VMX_VMCS32_GUEST_##REG##_ACCESS_RIGHTS, &(val));   \
+        Log(("%s Attributes   %x\n", szSelReg, (val)));                \
 }
 
 /**
@@ -307,7 +304,7 @@ DECLINLINE(int) VMXReadCachedVMCSEx(PVMCPU pVCpu, uint32_t idxCache, RTGCUINTREG
 /**
  * Setup cached VMCS for performance reasons (Darwin) and for running 64 bits guests on 32 bits hosts.
  *
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pCache      The cache.
  * @param   idxField    VMCS field
  */
 #define VMXSetupCachedReadVMCS(pCache, idxField)                        \

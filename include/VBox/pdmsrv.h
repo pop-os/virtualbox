@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_pdmsrv_h
@@ -246,7 +242,7 @@ typedef PDMSRVHLP *PPDMSRVHLP;
 typedef const PDMSRVHLP *PCPDMSRVHLP;
 
 /** Current SRVHLP version number. */
-#define PDM_SRVHLP_VERSION  0xf9010000
+#define PDM_SRVHLP_VERSION                      PDM_VERSION_MAKE(0xdfff, 1, 0)
 
 
 /**
@@ -285,7 +281,7 @@ typedef struct PDMSRVINS
 } PDMSRVINS;
 
 /** Current PDMSRVREG version number. */
-#define PDM_SRVINS_VERSION  0xf7010000
+#define PDM_SRVINS_VERSION                      PDM_VERSION_MAKE(0xdffe, 1, 0)
 
 /** Converts a pointer to the PDMSRVINS::IBase to a pointer to PDMSRVINS. */
 #define PDMIBASE_2_PDMSRV(pInterface) ( (PPDMSRVINS)((char *)(pInterface) - RT_OFFSETOF(PDMSRVINS, IBase)) )
@@ -316,7 +312,7 @@ typedef struct PDMSRVREGCB
 } PDMSRVREGCB;
 
 /** Current version of the PDMSRVREGCB structure. */
-#define PDM_SRVREG_CB_VERSION 0xf8010000
+#define PDM_SRVREG_CB_VERSION                   PDM_VERSION_MAKE(0xdffd, 1, 0)
 
 
 /**

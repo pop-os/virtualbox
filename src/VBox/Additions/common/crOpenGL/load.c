@@ -306,7 +306,11 @@ static void stubSPUTearDown(void)
         shmctl(stub.xshmSI.shmid, IPC_RMID, 0);
         shmdt(stub.xshmSI.shmaddr);
     }
+    crFreeHashtable(stub.pGLXPixmapsHash, crFree);
 #endif
+
+    crFreeHashtable(stub.windowTable, crFree);
+    crFreeHashtable(stub.contextTable, NULL);
 
     crMemset(&stub, 0, sizeof(stub) );
 }
@@ -693,6 +697,7 @@ raise(SIGINT);*/
 #ifdef GLX
     stub.xshmSI.shmid = -1;
     stub.bShmInitFailed = GL_FALSE;
+    stub.pGLXPixmapsHash = crAllocHashtable();
 #endif
 
     stub_initialized = 1;

@@ -1,10 +1,10 @@
-/* $Id: SELMAll.cpp $ */
+/* $Id: SELMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * SELM All contexts.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -97,8 +93,8 @@ VMMDECL(RTGCPTR) SELMToFlat(PVM pVM, DIS_SELREG SelReg, PCPUMCTXCORE pCtxCore, R
     /*
      * Deal with real & v86 mode first.
      */
-    if (    CPUMIsGuestInRealMode(pVCpu)
-        ||  pCtxCore->eflags.Bits.u1VM)
+    if (    pCtxCore->eflags.Bits.u1VM
+        ||  CPUMIsGuestInRealMode(pVCpu))
     {
         RTGCUINTPTR uFlat = (RTGCUINTPTR)Addr & 0xffff;
         if (CPUMAreHiddenSelRegsValid(pVM))
@@ -117,8 +113,8 @@ VMMDECL(RTGCPTR) SELMToFlat(PVM pVM, DIS_SELREG SelReg, PCPUMCTXCORE pCtxCore, R
 #endif
 
     /* 64 bits mode: CS, DS, ES and SS are treated as if each segment base is 0 (Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
-    if (    CPUMIsGuestInLongMode(pVCpu)
-        &&  pCtxCore->csHid.Attr.n.u1Long)
+    if (    pCtxCore->csHid.Attr.n.u1Long
+        &&  CPUMIsGuestInLongMode(pVCpu))
     {
         switch (SelReg)
         {
@@ -166,8 +162,8 @@ VMMDECL(int) SELMToFlatEx(PVM pVM, DIS_SELREG SelReg, PCCPUMCTXCORE pCtxCore, RT
     /*
      * Deal with real & v86 mode first.
      */
-    if (    CPUMIsGuestInRealMode(pVCpu)
-        ||  pCtxCore->eflags.Bits.u1VM)
+    if (    pCtxCore->eflags.Bits.u1VM
+        ||  CPUMIsGuestInRealMode(pVCpu))
     {
         RTGCUINTPTR uFlat = (RTGCUINTPTR)Addr & 0xffff;
         if (ppvGC)
@@ -200,8 +196,8 @@ VMMDECL(int) SELMToFlatEx(PVM pVM, DIS_SELREG SelReg, PCCPUMCTXCORE pCtxCore, RT
         u32Limit      = pHiddenSel->u32Limit;
 
         /* 64 bits mode: CS, DS, ES and SS are treated as if each segment base is 0 (Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
-        if (    CPUMIsGuestInLongMode(pVCpu)
-            &&  pCtxCore->csHid.Attr.n.u1Long)
+        if (    pCtxCore->csHid.Attr.n.u1Long
+            &&  CPUMIsGuestInLongMode(pVCpu))
         {
             fCheckLimit = false;
             switch (SelReg)
@@ -472,8 +468,8 @@ VMMDECL(int) SELMToFlatBySelEx(PVM pVM, X86EFLAGS eflags, RTSEL Sel, RTGCPTR Add
     /*
      * Deal with real & v86 mode first.
      */
-    if (    CPUMIsGuestInRealMode(pVCpu)
-        ||  eflags.Bits.u1VM)
+    if (    eflags.Bits.u1VM
+        ||  CPUMIsGuestInRealMode(pVCpu))
     {
         RTGCUINTPTR uFlat = (RTGCUINTPTR)Addr & 0xffff;
         if (ppvGC)
@@ -506,8 +502,8 @@ VMMDECL(int) SELMToFlatBySelEx(PVM pVM, X86EFLAGS eflags, RTSEL Sel, RTGCPTR Add
         u32Limit      = pHiddenSel->u32Limit;
         pvFlat        = (RTGCPTR)(pHiddenSel->u64Base + (RTGCUINTPTR)Addr);
 
-        if (   !CPUMIsGuestInLongMode(pVCpu)
-            || !pHiddenSel->Attr.n.u1Long)
+        if (   !pHiddenSel->Attr.n.u1Long
+            || !CPUMIsGuestInLongMode(pVCpu))
         {
             /* AMD64 manual: compatibility mode ignores the high 32 bits when calculating an effective address. */
             pvFlat &= 0xffffffff;
@@ -797,8 +793,8 @@ DECLINLINE(int) selmValidateAndConvertCSAddrHidden(PVMCPU pVCpu, RTSEL SelCPL, R
                     )
             {
                 /* 64 bits mode: CS, DS, ES and SS are treated as if each segment base is 0 (Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
-                if (    CPUMIsGuestInLongMode(pVCpu)
-                    &&  pHidCS->Attr.n.u1Long)
+                if (    pHidCS->Attr.n.u1Long
+                    &&  CPUMIsGuestInLongMode(pVCpu))
                 {
                     *ppvFlat = Addr;
                     return VINF_SUCCESS;
@@ -848,8 +844,8 @@ VMMDECL(int) SELMValidateAndConvertCSAddrGCTrap(PVM pVM, X86EFLAGS eflags, RTSEL
     Assert(pVM->cCpus == 1);
     PVMCPU pVCpu = &pVM->aCpus[0];
 
-    if (    CPUMIsGuestInRealMode(pVCpu)
-        ||  eflags.Bits.u1VM)
+    if (    eflags.Bits.u1VM
+        ||  CPUMIsGuestInRealMode(pVCpu))
     {
         *pcBits = 16;
         return selmValidateAndConvertCSAddrRealMode(pVM, SelCS, NULL, Addr, ppvFlat);
@@ -876,8 +872,8 @@ VMMDECL(int) SELMValidateAndConvertCSAddr(PVM pVM, X86EFLAGS eflags, RTSEL SelCP
 {
     PVMCPU pVCpu = VMMGetCpu(pVM);
 
-    if (    CPUMIsGuestInRealMode(pVCpu)
-        ||  eflags.Bits.u1VM)
+    if (    eflags.Bits.u1VM
+        ||  CPUMIsGuestInRealMode(pVCpu))
         return selmValidateAndConvertCSAddrRealMode(pVM, SelCS, pHiddenCSSel, Addr, ppvFlat);
 
 #ifdef IN_RING0
@@ -938,15 +934,15 @@ VMMDECL(DISCPUMODE) SELMGetCpuModeFromSelector(PVM pVM, X86EFLAGS eflags, RTSEL 
         /*
          * Deal with real & v86 mode first.
          */
-        if (    CPUMIsGuestInRealMode(pVCpu)
-            ||  eflags.Bits.u1VM)
+        if (    eflags.Bits.u1VM
+            ||  CPUMIsGuestInRealMode(pVCpu))
             return CPUMODE_16BIT;
 
         return selmGetCpuModeFromSelector(pVM, Sel);
     }
 #endif /* !IN_RING0 */
-    if (    CPUMIsGuestInLongMode(pVCpu)
-        &&  pHiddenSel->Attr.n.u1Long)
+    if (    pHiddenSel->Attr.n.u1Long
+        &&  CPUMIsGuestInLongMode(pVCpu))
         return CPUMODE_64BIT;
 
     /* Else compatibility or 32 bits mode. */
@@ -1021,10 +1017,11 @@ VMMDECL(int) SELMGetRing1Stack(PVM pVM, uint32_t *pSS, PRTGCPTR32 pEsp)
         bool    fTriedAlready = false;
 
 l_tryagain:
-        rc  = MMGCRamRead(pVM, &tss.ss0,  (RCPTRTYPE(void *))(GCPtrTss + RT_OFFSETOF(VBOXTSS, ss0)), sizeof(tss.ss0));
-        rc |= MMGCRamRead(pVM, &tss.esp0, (RCPTRTYPE(void *))(GCPtrTss + RT_OFFSETOF(VBOXTSS, esp0)), sizeof(tss.esp0));
+        PVBOXTSS pTss = (PVBOXTSS)(uintptr_t)GCPtrTss;
+        rc  = MMGCRamRead(pVM, &tss.ss0,  &pTss->ss0,  sizeof(tss.ss0));
+        rc |= MMGCRamRead(pVM, &tss.esp0, &pTss->esp0, sizeof(tss.esp0));
 #  ifdef DEBUG
-        rc |= MMGCRamRead(pVM, &tss.offIoBitmap, (RCPTRTYPE(void *))(GCPtrTss + RT_OFFSETOF(VBOXTSS, offIoBitmap)), sizeof(tss.offIoBitmap));
+        rc |= MMGCRamRead(pVM, &tss.offIoBitmap, &pTss->offIoBitmap, sizeof(tss.offIoBitmap));
 #  endif
 
         if (RT_FAILURE(rc))

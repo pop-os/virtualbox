@@ -1,4 +1,4 @@
-/* $Id: DHCPServerImpl.cpp $ */
+/* $Id: DHCPServerImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,11 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "DHCPServerRunner.h"
 #include "DHCPServerImpl.h"
+#include "AutoCaller.h"
 #include "Logging.h"
 
 #include <VBox/settings.h>
@@ -32,7 +29,14 @@
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (DHCPServer)
+DHCPServer::DHCPServer()
+    : mVirtualBox(NULL)
+{
+}
+
+DHCPServer::~DHCPServer()
+{
+}
 
 HRESULT DHCPServer::FinalConstruct()
 {
@@ -51,13 +55,7 @@ void DHCPServer::uninit()
     if (autoUninitSpan.uninitDone())
         return;
 
-//    /* we uninit children and reset mParent
-//     * and VirtualBox::removeDependentChild() needs a write lock */
-//    AutoMultiWriteLock2 alock (mVirtualBox->lockHandle(), this->treeLock());
-
-    mVirtualBox->removeDependentChild (this);
-
-    unconst(mVirtualBox).setNull();
+    unconst(mVirtualBox) = NULL;
 }
 
 HRESULT DHCPServer::init(VirtualBox *aVirtualBox, IN_BSTR aName)
@@ -77,10 +75,6 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox, IN_BSTR aName)
     m.lowerIP = "0.0.0.0";
     m.upperIP = "0.0.0.0";
 
-    /* register with VirtualBox early, since uninit() will
-     * unconditionally unregister on failure */
-    aVirtualBox->addDependentChild (this);
-
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
 
@@ -97,8 +91,6 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox,
     /* share VirtualBox weakly (parent remains NULL so far) */
     unconst(mVirtualBox) = aVirtualBox;
 
-    aVirtualBox->addDependentChild (this);
-
     unconst(mName) = data.strNetworkName;
     m.IPAddress = data.strIPAddress;
     m.networkMask = data.strIPNetworkMask;
@@ -114,9 +106,9 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox,
 HRESULT DHCPServer::saveSettings(settings::DHCPServer &data)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     data.strNetworkName = mName;
     data.strIPAddress = m.IPAddress;
@@ -133,7 +125,7 @@ STDMETHODIMP DHCPServer::COMGETTER(NetworkName) (BSTR *aName)
     CheckComArgOutPointerValid(aName);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     mName.cloneTo(aName);
 
@@ -145,7 +137,7 @@ STDMETHODIMP DHCPServer::COMGETTER(Enabled) (BOOL *aEnabled)
     CheckComArgOutPointerValid(aEnabled);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     *aEnabled = m.enabled;
 
@@ -155,10 +147,10 @@ STDMETHODIMP DHCPServer::COMGETTER(Enabled) (BOOL *aEnabled)
 STDMETHODIMP DHCPServer::COMSETTER(Enabled) (BOOL aEnabled)
 {
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* VirtualBox::saveSettings() needs a write lock */
-    AutoMultiWriteLock2 alock (mVirtualBox, this);
+    AutoMultiWriteLock2 alock(mVirtualBox, this COMMA_LOCKVAL_SRC_POS);
 
     m.enabled = aEnabled;
 
@@ -172,7 +164,7 @@ STDMETHODIMP DHCPServer::COMGETTER(IPAddress) (BSTR *aIPAddress)
     CheckComArgOutPointerValid(aIPAddress);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     m.IPAddress.cloneTo(aIPAddress);
 
@@ -184,7 +176,7 @@ STDMETHODIMP DHCPServer::COMGETTER(NetworkMask) (BSTR *aNetworkMask)
     CheckComArgOutPointerValid(aNetworkMask);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     m.networkMask.cloneTo(aNetworkMask);
 
@@ -196,7 +188,7 @@ STDMETHODIMP DHCPServer::COMGETTER(LowerIP) (BSTR *aIPAddress)
     CheckComArgOutPointerValid(aIPAddress);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     m.lowerIP.cloneTo(aIPAddress);
 
@@ -208,7 +200,7 @@ STDMETHODIMP DHCPServer::COMGETTER(UpperIP) (BSTR *aIPAddress)
     CheckComArgOutPointerValid(aIPAddress);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     m.upperIP.cloneTo(aIPAddress);
 
@@ -223,10 +215,10 @@ STDMETHODIMP DHCPServer::SetConfiguration (IN_BSTR aIPAddress, IN_BSTR aNetworkM
     AssertReturn(aUpperIP != NULL, E_INVALIDARG);
 
     AutoCaller autoCaller(this);
-    CheckComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* VirtualBox::saveSettings() needs a write lock */
-    AutoMultiWriteLock2 alock (mVirtualBox, this);
+    AutoMultiWriteLock2 alock(mVirtualBox, this COMMA_LOCKVAL_SRC_POS);
 
     m.IPAddress = aIPAddress;
     m.networkMask = aNetworkMask;

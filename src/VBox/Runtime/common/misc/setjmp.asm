@@ -1,10 +1,10 @@
-; $Id: setjmp.asm $
+; $Id: setjmp.asm 28800 2010-04-27 08:22:32Z vboxsync $
 ;; @file
 ; IPRT - No-CRT setjmp & longjmp - AMD64 & X86.
 ;
 
 ;
-; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+; Copyright (C) 2006-2009 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,6 @@
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
 ;
-; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-; Clara, CA 95054 USA or visit http://www.sun.com if you need
-; additional information or have any questions.
-;
 
 %include "iprt/asmdefs.mac"
 
@@ -34,62 +30,109 @@
 BEGINCODE
 
 
+;;
+; @param x86:[esp+4] msc:rcx gcc:rdi     The jump buffer pointer.
 BEGINPROC RT_NOCRT(setjmp)
 %ifdef RT_ARCH_AMD64
+ %ifndef ASM_CALL64_MSC
+        mov     rcx, rdi
+ %endif
         mov     rax, [rsp]
-        mov     [rdi + 00h], rax        ; rip
-        lea     rcx, [rsp + 8]
-        mov     [rdi + 08h], rcx        ; rsp
-        mov     [rdi + 10h], rbp
-        mov     [rdi + 18h], r15
-        mov     [rdi + 20h], r14
-        mov     [rdi + 28h], r13
-        mov     [rdi + 30h], r12
-        mov     [rdi + 38h], rbx
+        mov     [rcx +  0h*8], rax      ; 0 - rip
+        lea     rdx, [rsp + 8]
+        mov     [rcx +  1h*8], rdx      ; 1 - rsp
+        mov     [rcx +  2h*8], rbp
+        mov     [rcx +  3h*8], r15
+        mov     [rcx +  4h*8], r14
+        mov     [rcx +  5h*8], r13
+        mov     [rcx +  6h*8], r12
+        mov     [rcx +  7h*8], rbx
+ %ifdef ASM_CALL64_MSC
+        mov     [rcx +  8h*8], rsi
+        mov     [rcx +  9h*8], rdi
+        movdqa  [rcx + 0ah*8], xmm6
+        movdqa  [rcx + 0ch*8], xmm7
+        movdqa  [rcx + 0eh*8], xmm8
+        movdqa  [rcx + 10h*8], xmm9
+        movdqa  [rcx + 12h*8], xmm10
+        movdqa  [rcx + 14h*8], xmm11
+        movdqa  [rcx + 16h*8], xmm12
+        movdqa  [rcx + 18h*8], xmm13
+        movdqa  [rcx + 1ah*8], xmm14
+        movdqa  [rcx + 1ch*8], xmm15
+  %ifndef RT_OS_WINDOWS
+   %error "Fix setjmp.h"
+  %endif
+ %endif
 %else
         mov     edx, [esp + 4h]
         mov     eax, [esp]
-        mov     [edx + 00h], eax        ; eip
+        mov     [edx + 0h*4], eax       ; eip
         lea     ecx, [esp + 4h]
-        mov     [edx + 04h], ecx        ; esp
-        mov     [edx + 08h], ebp
-        mov     [edx + 0ch], ebx
-        mov     [edx + 10h], edi
-        mov     [edx + 14h], esi
+        mov     [edx + 1h*4], ecx       ; esp
+        mov     [edx + 2h*4], ebp
+        mov     [edx + 3h*4], ebx
+        mov     [edx + 4h*4], edi
+        mov     [edx + 5h*4], esi
 %endif
         xor     eax, eax
         ret
 ENDPROC RT_NOCRT(setjmp)
 
 
+;;
+; @param x86:[esp+4] msc:rcx gcc:rdi     The jump buffer pointer.
+; @param x86:[esp+8] msc:rdx gcc:rsi     Return value.
 BEGINPROC RT_NOCRT(longjmp)
 %ifdef RT_ARCH_AMD64
-        mov     rbx, [rdi + 38h]
-        mov     r12, [rdi + 30h]
-        mov     r13, [rdi + 28h]
-        mov     r14, [rdi + 20h]
-        mov     r15, [rdi + 18h]
-        mov     rbp, [rdi + 10h]
-        mov     eax, esi
+ %ifdef ASM_CALL64_MSC
+        mov     eax, edx                ; ret
+ %else
+        mov     rcx, rdi                ; jmp_buf
+        mov     eax, esi                ; ret
+ %endif
+        mov     rbp,   [rcx +  2h*8]
+        mov     r15,   [rcx +  3h*8]
+        mov     r14,   [rcx +  4h*8]
+        mov     r13,   [rcx +  5h*8]
+        mov     r12,   [rcx +  6h*8]
+        mov     rbx,   [rcx +  7h*8]
+ %ifdef ASM_CALL64_MSC
+        mov     rsi,   [rcx +  8h*8]
+        mov     rdi,   [rcx +  9h*8]
+        movdqa  xmm6,  [rcx + 0ah*8]
+        movdqa  xmm7,  [rcx + 0ch*8]
+        movdqa  xmm8,  [rcx + 0eh*8]
+        movdqa  xmm9,  [rcx + 10h*8]
+        movdqa  xmm10, [rcx + 12h*8]
+        movdqa  xmm11, [rcx + 14h*8]
+        movdqa  xmm12, [rcx + 16h*8]
+        movdqa  xmm13, [rcx + 18h*8]
+        movdqa  xmm14, [rcx + 1ah*8]
+        movdqa  xmm15, [rcx + 1ch*8]
+  %ifndef RT_OS_WINDOWS
+   %error "Fix setjmp.h"
+  %endif
+ %endif
         test    eax, eax
         jnz     .fine
         inc     al
 .fine:
-        mov     rsp, [rdi + 08h]
-        jmp     qword [rdi + 00h]
+        mov     rsp,   [rcx +  1h*8]
+        jmp     qword  [rcx +  0h*8]
 %else
-        mov     edx, [esp + 4h]
-        mov     eax, [esp + 8h]
-        mov     esi, [edx + 14h]
-        mov     edi, [edx + 10h]
-        mov     ebx, [edx + 0ch]
-        mov     ebp, [edx + 08h]
+        mov     edx, [esp + 4h]         ; jmp_buf
+        mov     eax, [esp + 8h]         ; ret
+        mov     esi, [edx + 5h*4]
+        mov     edi, [edx + 4h*4]
+        mov     ebx, [edx + 3h*4]
+        mov     ebp, [edx + 2h*4]
         test    eax, eax
         jnz     .fine
         inc     al
 .fine:
-        mov     esp, [edx + 04h]
-        jmp     dword [edx + 00h]
+        mov     esp, [edx + 1h*4]
+        jmp     dword [edx+ 0h*4]
 %endif
 ENDPROC RT_NOCRT(longjmp)
 

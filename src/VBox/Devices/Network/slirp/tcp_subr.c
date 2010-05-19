@@ -1,4 +1,23 @@
+/* $Id: tcp_subr.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** @file
+ * NAT - TCP support.
+ */
+
 /*
+ * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+/*
+ * This code is based on:
+ *
  * Copyright (c) 1982, 1986, 1988, 1990, 1993
  *      The Regents of the University of California.  All rights reserved.
  *
@@ -74,7 +93,7 @@ tcp_template(struct tcpcb *tp)
 
     memset(n->ti_x1, 0, 9);
     n->ti_pr = IPPROTO_TCP;
-    n->ti_len = htons(sizeof (struct tcpiphdr) - sizeof (struct ip));
+    n->ti_len = RT_H2N_U16(sizeof (struct tcpiphdr) - sizeof (struct ip));
     n->ti_src = so->so_faddr;
     n->ti_dst = so->so_laddr;
     n->ti_sport = so->so_fport;
@@ -155,20 +174,20 @@ tcp_respond(PNATState pData, struct tcpcb *tp, struct tcpiphdr *ti, struct mbuf 
         xchg(ti->ti_dport, ti->ti_sport, u_int16_t);
 #undef xchg
     }
-    ti->ti_len = htons((u_short)(sizeof (struct tcphdr) + tlen));
+    ti->ti_len = RT_H2N_U16((u_short)(sizeof (struct tcphdr) + tlen));
     tlen += sizeof (struct tcpiphdr);
     m->m_len = tlen;
 
     memset(ti->ti_x1, 0, 9);
-    ti->ti_seq = htonl(seq);
-    ti->ti_ack = htonl(ack);
+    ti->ti_seq = RT_H2N_U32(seq);
+    ti->ti_ack = RT_H2N_U32(ack);
     ti->ti_x2 = 0;
     ti->ti_off = sizeof (struct tcphdr) >> 2;
     ti->ti_flags = flags;
     if (tp)
-        ti->ti_win = htons((u_int16_t) (win >> tp->rcv_scale));
+        ti->ti_win = RT_H2N_U16((u_int16_t) (win >> tp->rcv_scale));
     else
-        ti->ti_win = htons((u_int16_t)win);
+        ti->ti_win = RT_H2N_U16((u_int16_t)win);
     ti->ti_urp = 0;
     ti->ti_sum = 0;
     ti->ti_sum = cksum(m, tlen);
@@ -288,8 +307,13 @@ tcp_close(PNATState pData, register struct tcpcb *tp)
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
     closesocket(so->s);
-    sbfree(&so->so_rcv);
-    sbfree(&so->so_snd);
+    /* Avoid double free if the socket is listening and therefore doesn't have
+     * any sbufs reserved. */
+    if (!(so->so_state & SS_FACCEPTCONN))
+    {
+        sbfree(&so->so_rcv);
+        sbfree(&so->so_snd);
+    }
     sofree(pData, so);
     SOCKET_UNLOCK(so);
     tcpstat.tcps_closed++;
@@ -369,11 +393,8 @@ tcp_sockclosed(PNATState pData, struct tcpcb *tp)
      * (see slirp.c for details about setting so_close member).
      */
     if (   tp
-#ifdef RT_OS_WINDOWS
         && tp->t_socket
-        && !tp->t_socket->so_close
-#endif
-        )
+        && !tp->t_socket->so_close)
         tcp_output(pData, tp);
 }
 
@@ -406,10 +427,10 @@ int tcp_fconnect(PNATState pData, struct socket *so)
         setsockopt(s, SOL_SOCKET, SO_OOBINLINE, (char *)&opt, sizeof(opt));
 
         addr.sin_family = AF_INET;
-        if ((so->so_faddr.s_addr & htonl(pData->netmask)) == pData->special_addr.s_addr)
+        if ((so->so_faddr.s_addr & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr)
         {
             /* It's an alias */
-            switch(ntohl(so->so_faddr.s_addr) & ~pData->netmask)
+            switch(RT_N2H_U32(so->so_faddr.s_addr) & ~pData->netmask)
             {
                 case CTL_DNS:
                 case CTL_ALIAS:
@@ -424,7 +445,7 @@ int tcp_fconnect(PNATState pData, struct socket *so)
 
         DEBUG_MISC((dfd, " connect()ing, addr.sin_port=%d, "
                          "addr.sin_addr.s_addr=%.16s\n",
-                         ntohs(addr.sin_port), inet_ntoa(addr.sin_addr)));
+                         RT_N2H_U16(addr.sin_port), inet_ntoa(addr.sin_addr)));
         /* We don't care what port we get */
         ret = connect(s,(struct sockaddr *)&addr,sizeof (addr));
 
@@ -562,7 +583,6 @@ tcp_connect(PNATState pData, struct socket *inso)
     }
     so->s = s;
 
-    so->so_iptos = tcp_tos(so);
     tp = sototcpcb(so);
 
     tcp_template(tp);
@@ -599,60 +619,4 @@ tcp_attach(PNATState pData, struct socket *so)
     NSOCK_INC();
     QSOCKET_UNLOCK(tcb);
     return 0;
-}
-
-/*
- * Set the socket's type of service field
- */
-static const struct tos_t tcptos[] =
-{
-    {0, 20, IPTOS_THROUGHPUT, 0},                       /* ftp data */
-    {21, 21, IPTOS_LOWDELAY,  EMU_FTP},                 /* ftp control */
-    {0, 23, IPTOS_LOWDELAY, 0},                         /* telnet */
-    {0, 80, IPTOS_THROUGHPUT, 0},                       /* WWW */
-    {0, 513, IPTOS_LOWDELAY, EMU_RLOGIN|EMU_NOCONNECT}, /* rlogin */
-    {0, 514, IPTOS_LOWDELAY, EMU_RSH|EMU_NOCONNECT},    /* shell */
-    {0, 544, IPTOS_LOWDELAY, EMU_KSH},                  /* kshell */
-    {0, 543, IPTOS_LOWDELAY, 0},                        /* klogin */
-    {0, 6667, IPTOS_THROUGHPUT, EMU_IRC},               /* IRC */
-    {0, 6668, IPTOS_THROUGHPUT, EMU_IRC},               /* IRC undernet */
-    {0, 7070, IPTOS_LOWDELAY, EMU_REALAUDIO },          /* RealAudio control */
-    {0, 113, IPTOS_LOWDELAY, EMU_IDENT },               /* identd protocol */
-    {0, 0, 0, 0}
-};
-
-/*
- * Return TOS according to the above table
- */
-u_int8_t
-tcp_tos(struct socket *so)
-{
-    return 0;
-}
-
-/*
- * Emulate programs that try and connect to us. This includes ftp (the data
- * connection is initiated by the server) and IRC (DCC CHAT and DCC SEND)
- * for now
- *
- * NOTE: It's possible to crash SLiRP by sending it unstandard strings to
- * emulate... if this is a problem, more checks are needed here.
- *
- * XXX Assumes the whole command cames in one packet
- *
- * XXX Some ftp clients will have their TOS set to LOWDELAY and so Nagel will
- * kick in.  Because of this, we'll get the first letter, followed by the
- * rest, so we simply scan for ORT instead of PORT... DCC doesn't have this
- * problem because there's other stuff in the packet before the DCC command.
- *
- * Return 1 if the mbuf m is still valid and should be sbappend()ed
- *
- * NOTE: if you return 0 you MUST m_free() the mbuf!
- */
-int
-tcp_emu(PNATState pData, struct socket *so, struct mbuf *m)
-{
-    /*XXX: libalias should care about it */
-    so->so_emu = 0;
-    return 1;
 }

@@ -1,10 +1,10 @@
-/* $Id: VBoxSampleDevice.cpp $ */
+/* $Id: VBoxSampleDevice.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox Sample Device.
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -57,19 +53,19 @@ static DECLCALLBACK(int) devSampleDestruct(PPDMDEVINS pDevIns)
      * Check the versions here as well since the destructor is *always* called.
      */
     AssertMsgReturn(pDevIns->u32Version            == PDM_DEVINS_VERSION, ("%#x, expected %#x\n", pDevIns->u32Version,            PDM_DEVINS_VERSION), VERR_VERSION_MISMATCH);
-    AssertMsgReturn(pDevIns->pDevHlpR3->u32Version == PDM_DEVHLP_VERSION, ("%#x, expected %#x\n", pDevIns->pDevHlpR3->u32Version, PDM_DEVHLP_VERSION), VERR_VERSION_MISMATCH);
+    AssertMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
 
     return VINF_SUCCESS;
 }
 
 
-static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     /*
      * Check that the device instance and device helper structures are compatible.
      */
     AssertLogRelMsgReturn(pDevIns->u32Version            == PDM_DEVINS_VERSION, ("%#x, expected %#x\n", pDevIns->u32Version,            PDM_DEVINS_VERSION), VERR_VERSION_MISMATCH);
-    AssertLogRelMsgReturn(pDevIns->pDevHlpR3->u32Version == PDM_DEVHLP_VERSION, ("%#x, expected %#x\n", pDevIns->pDevHlpR3->u32Version, PDM_DEVHLP_VERSION), VERR_VERSION_MISMATCH);
+    AssertLogRelMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
 
     /*
      * Initialize the instance data so that the destructure won't mess up.
@@ -80,7 +76,7 @@ static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, P
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "Whatever1\0"
                               "Whatever2\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
@@ -97,7 +93,7 @@ static const PDMDEVREG g_DeviceSample =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "sample",
     /* szRCMod */
     "",

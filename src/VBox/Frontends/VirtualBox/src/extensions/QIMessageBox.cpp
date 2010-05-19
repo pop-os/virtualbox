@@ -1,3 +1,4 @@
+/* $Id: QIMessageBox.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* VBox includes */
@@ -29,6 +26,7 @@
 #include "QIDialogButtonBox.h"
 #ifdef Q_WS_MAC
 # include "VBoxConsoleWnd.h"
+# include "VBoxSelectorWnd.h"
 #endif /* Q_WS_MAC */
 
 /* Qt includes */
@@ -40,6 +38,10 @@
 #include <QToolButton>
 #include <QKeyEvent>
 
+#if defined(VBOX_WITH_NEW_RUNTIME_CORE) && defined(Q_WS_MAC)
+# include "UIMachineWindowFullscreen.h"
+# include "UIMachineWindowSeamless.h"
+#endif /* defined(VBOX_WITH_NEW_RUNTIME_CORE) && defined(Q_WS_MAC) */
 
 /** @class QIMessageBox
  *
@@ -61,9 +63,18 @@ QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
     , mWasPolished (false)
 {
 #ifdef Q_WS_MAC
+    VBoxConsoleWnd *cwnd = qobject_cast<VBoxConsoleWnd*> (aParent);
+# ifdef VBOX_WITH_NEW_RUNTIME_CORE
+    /* No sheets in another mode than normal for now. Firstly it looks ugly and
+     * secondly in some cases it is broken. */
+    if (   !(   qobject_cast<UIMachineWindowFullscreen*>(aParent)
+             || qobject_cast<UIMachineWindowSeamless*>(aParent))
+        && !cwnd)
+        setWindowFlags (Qt::Sheet);
+    else
+# endif /* VBOX_WITH_NEW_RUNTIME_CORE */
     /* Sheets are broken if the window is in fullscreen mode. So make it a
      * normal window in that case. */
-    VBoxConsoleWnd *cwnd = qobject_cast<VBoxConsoleWnd*> (aParent);
     if (cwnd == NULL ||
         (!cwnd->isTrueFullscreen() &&
          !cwnd->isTrueSeamless()))
@@ -454,3 +465,4 @@ void QIMessageBox::reject()
         setResult (mButtonEsc & ButtonMask);
     }
 }
+

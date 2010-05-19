@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_VMMDev2_h
@@ -55,6 +51,21 @@ typedef enum
     VMMDev_Seamless_Host_Window      = 2      /**< windowed mode; each top-level guest window is represented in a host window. */
 } VMMDevSeamlessMode;
 
+/**
+ * CPU event types.
+ *
+ * Used by VbglR3CpuHotplugWaitForEvent
+ *
+ * @ingroup grp_vmmdev_req
+ */
+typedef enum
+{
+    VMMDevCpuEventType_Invalid  = 0,
+    VMMDevCpuEventType_None     = 1,
+    VMMDevCpuEventType_Plug     = 2,
+    VMMDevCpuEventType_Unplug   = 3,
+    VMMDevCpuEventType_SizeHack = 0x7fffffff
+} VMMDevCpuEventType;
 
 /**
  * HGCM service location types.

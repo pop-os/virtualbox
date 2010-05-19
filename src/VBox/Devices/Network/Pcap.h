@@ -1,10 +1,10 @@
-/* $Id: Pcap.h $ */
+/* $Id: Pcap.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * Helpers for writing libpcap files.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,24 +13,25 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_Pcap_h
 #define ___VBox_Pcap_h
 
 #include <iprt/stream.h>
+#include <VBox/types.h>
 
 RT_C_DECLS_BEGIN
 
 int PcapStreamHdr(PRTSTREAM pStream, uint64_t StartNanoTS);
 int PcapStreamFrame(PRTSTREAM pStream, uint64_t StartNanoTS, const void *pvFrame, size_t cbFrame, size_t cbMax);
+int PcapStreamGsoFrame(PRTSTREAM pStream, uint64_t StartNanoTS, PCPDMNETWORKGSO pGso,
+                       const void *pvFrame, size_t cbFrame, size_t cbMax);
 
 int PcapFileHdr(RTFILE File, uint64_t StartNanoTS);
 int PcapFileFrame(RTFILE File, uint64_t StartNanoTS, const void *pvFrame, size_t cbFrame, size_t cbMax);
+int PcapFileGsoFrame(RTFILE File, uint64_t StartNanoTS, PCPDMNETWORKGSO pGso,
+                     const void *pvFrame, size_t cbFrame, size_t cbSegMax);
 
 RT_C_DECLS_END
 

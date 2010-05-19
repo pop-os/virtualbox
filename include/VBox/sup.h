@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_sup_h
@@ -34,7 +30,6 @@
 #include <VBox/types.h>
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
-#include <iprt/asm.h>
 
 RT_C_DECLS_BEGIN
 
@@ -128,7 +123,7 @@ typedef struct SUPGIPCPU
      */
     volatile uint32_t   au32TSCHistory[8];
     /** The interval between the last two NanoTS updates. (experiment for now) */
-    volatile uint32_t   u32UpdateIntervalNS;
+    volatile uint32_t   u32PrevUpdateIntervalNS;
     /** Reserved for future per processor data. */
     volatile uint32_t   au32Reserved[5];
 } SUPGIPCPU;
@@ -216,29 +211,41 @@ typedef enum SUPGIPMODE
  *          thinking that values doesn't change even if members are marked
  *          as volatile. Thus, there is no PCSUPGLOBALINFOPAGE type.
  */
-#if defined(IN_SUP_R0) || defined(IN_SUP_R3) || defined(IN_SUP_GC)
+#if defined(IN_SUP_R0) || defined(IN_SUP_R3) || defined(IN_SUP_RC)
 extern DECLEXPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
-#elif defined(IN_RING0)
-extern DECLIMPORT(SUPGLOBALINFOPAGE)    g_SUPGlobalInfoPage;
-# if defined(__GNUC__) && !defined(RT_OS_DARWIN) && defined(RT_ARCH_AMD64)
+
+#elif !defined(IN_RING0) || defined(RT_OS_WINDOWS)
+extern DECLIMPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
+
+#else /* IN_RING0 && !RT_OS_WINDOWS */
+# if !defined(__GNUC__) || defined(RT_OS_DARWIN) || !defined(RT_ARCH_AMD64)
+#  define g_pSUPGlobalInfoPage          (&g_SUPGlobalInfoPage)
+# else
+#  define g_pSUPGlobalInfoPage          (SUPGetGIPHlp())
 /** Workaround for ELF+GCC problem on 64-bit hosts.
  * (GCC emits a mov with a R_X86_64_32 reloc, we need R_X86_64_64.) */
-DECLINLINE(PSUPGLOBALINFOPAGE) SUPGetGIP(void)
+DECLINLINE(PSUPGLOBALINFOPAGE) SUPGetGIPHlp(void)
 {
     PSUPGLOBALINFOPAGE pGIP;
     __asm__ __volatile__ ("movabs $g_SUPGlobalInfoPage,%0\n\t"
                           : "=a" (pGIP));
     return pGIP;
 }
-#  define g_pSUPGlobalInfoPage          (SUPGetGIP())
-# else
-#  define g_pSUPGlobalInfoPage          (&g_SUPGlobalInfoPage)
 # endif
-#else
-extern DECLIMPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
+/** The GIP.
+ * We save a level of indirection by exporting the GIP instead of a variable
+ * pointing to it. */
+extern DECLIMPORT(SUPGLOBALINFOPAGE)    g_SUPGlobalInfoPage;
 #endif
 
+/**
+ * Gets the GIP pointer.
+ *
+ * @returns Pointer to the GIP or NULL.
+ */
+SUPDECL(PSUPGLOBALINFOPAGE)             SUPGetGIP(void);
 
+#ifdef ___iprt_asm_amd64_x86_h
 /**
  * Gets the TSC frequency of the calling CPU.
  *
@@ -263,7 +270,7 @@ DECLINLINE(uint64_t) SUPGetCpuHzFromGIP(PSUPGLOBALINFOPAGE pGip)
 
     return pGip->aCPUs[iCpu].u64CpuHz;
 }
-
+#endif
 
 /**
  * Request for generic VMMR0Entry calls.
@@ -451,7 +458,7 @@ SUPDECL(int) SUPSemEventMultiWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENTMU
 
 #ifdef IN_RING3
 
-/** @defgroup   grp_sup_r3     SUP Host Context Ring 3 API
+/** @defgroup   grp_sup_r3     SUP Host Context Ring-3 API
  * @ingroup grp_sup
  * @{
  */
@@ -954,7 +961,7 @@ SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps);
 
 
 #ifdef IN_RING0
-/** @defgroup   grp_sup_r0     SUP Host Context Ring 0 API
+/** @defgroup   grp_sup_r0     SUP Host Context Ring-0 API
  * @ingroup grp_sup
  * @{
  */

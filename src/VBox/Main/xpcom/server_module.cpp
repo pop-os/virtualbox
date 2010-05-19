@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifdef RT_OS_OS2
@@ -83,7 +79,7 @@ enum
 /**
  *  Full path to the VBoxSVC executable.
  */
-static char VBoxSVCPath [RTPATH_MAX];
+static char VBoxSVCPath[RTPATH_MAX];
 static bool IsVBoxSVCPathSet = false;
 
 /*
@@ -159,12 +155,12 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
 #endif
                 }
             }
-            if (NS_FAILED (rc))
+            if (NS_FAILED(rc))
                 break;
         }
 
         nsCOMPtr <ipcIService> ipcServ = do_GetService (IPC_SERVICE_CONTRACTID, &rc);
-        if (NS_FAILED (rc))
+        if (NS_FAILED(rc))
             break;
 
         /* connect to the VBoxSVC server process */
@@ -178,7 +174,7 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
 
             PRUint32 serverID = 0;
             rc = ipcServ->ResolveClientName (VBOXSVC_IPC_NAME, &serverID);
-            if (NS_FAILED (rc))
+            if (NS_FAILED(rc))
             {
                 LogFlowFunc (("Starting server \"%s\"...\n", VBoxSVCPath));
 
@@ -240,7 +236,7 @@ VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
 
             nsCOMPtr <ipcIDConnectService> dconServ =
                 do_GetService (IPC_DCONNECTSERVICE_CONTRACTID, &rc);
-            if (NS_FAILED (rc))
+            if (NS_FAILED(rc))
                 break;
 
             rc = dconServ->CreateInstance (serverID,

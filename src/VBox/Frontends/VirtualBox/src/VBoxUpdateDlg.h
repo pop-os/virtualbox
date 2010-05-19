@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,23 +14,20 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef __VBoxUpdateDlg_h__
 #define __VBoxUpdateDlg_h__
 
-#include "QIAbstractWizard.h"
-#include "QIWithRetranslateUI.h"
-#include "VBoxUpdateDlg.gen.h"
-
-/* Qt includes */
+/* Global includes */
 #include <QUrl>
 #include <QDate>
 
+/* Local includes */
+#include "QIWithRetranslateUI.h"
+#include "VBoxUpdateDlg.gen.h"
+
+/* Global forwards */
 class QIHttp;
 
 /**
@@ -110,7 +107,7 @@ private:
     BranchType mBranchIndex;
 };
 
-class VBoxUpdateDlg : public QIWithRetranslateUI <QIAbstractWizard>,
+class VBoxUpdateDlg : public QIWithRetranslateUI <QDialog>,
                       public Ui::VBoxUpdateDlg
 {
     Q_OBJECT;
@@ -134,7 +131,6 @@ private slots:
 
     void accept();
     void searchResponse (bool aError);
-    void onPageShow();
 
 private:
 

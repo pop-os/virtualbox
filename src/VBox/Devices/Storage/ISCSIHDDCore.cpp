@@ -1,10 +1,10 @@
-/* $Id: ISCSIHDDCore.cpp $ */
+/* $Id: ISCSIHDDCore.cpp 28827 2010-04-27 13:55:04Z vboxsync $ */
 /** @file
  * iSCSI initiator driver, VD backend.
  */
 
 /*
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -257,6 +253,22 @@ typedef enum ISCSISTATE
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /**
+ * iSCSI Request PDU buffer (gather).
+ */
+typedef struct ISCSIREQ
+{
+    /** Length of PDU segment in bytes. */
+    size_t cbSeg;
+    /** Pointer to PDU segment. */
+    const void *pcvSeg;
+} ISCSIREQ;
+/** Pointer to an iSCSI Request PDU buffer. */
+typedef ISCSIREQ *PISCSIREQ;
+/** Pointer to a const iSCSI Request PDU buffer. */
+typedef ISCSIREQ const *PCISCSIREQ;
+
+
+/**
  * Block driver instance data.
  */
 typedef struct ISCSIIMAGE
@@ -415,6 +427,22 @@ typedef struct ISCSIPARAMETER
 } ISCSIPARAMETER;
 
 
+/**
+ * iSCSI Response PDU buffer (scatter).
+ */
+typedef struct ISCSIRES
+{
+    /** Length of PDU segment. */
+    size_t cbSeg;
+    /** Pointer to PDU segment. */
+    void *pvSeg;
+} ISCSIRES;
+/** Pointer to an iSCSI Response PDU buffer. */
+typedef ISCSIRES *PISCSIRES;
+/** Pointer to a const iSCSI Response PDU buffer. */
+typedef ISCSIRES const *PCISCSIRES;
+
+
 /*******************************************************************************
 *   Static Variables                                                           *
 *******************************************************************************/
@@ -506,15 +534,18 @@ static int iscsiTransportConnect(PISCSIIMAGE pImage)
         return VERR_NET_DEST_ADDRESS_REQUIRED;
 
     rc = pImage->pInterfaceNetCallbacks->pfnClientConnect(pImage->pszHostname, pImage->uPort, &pImage->Socket);
-    if (RT_UNLIKELY(   RT_FAILURE(rc)
-                    && (   rc == VERR_NET_CONNECTION_REFUSED
-                        || rc == VERR_NET_CONNECTION_RESET
-                        || rc == VERR_NET_UNREACHABLE
-                        || rc == VERR_NET_HOST_UNREACHABLE
-                        || rc == VERR_NET_CONNECTION_TIMED_OUT)))
+    if (RT_FAILURE(rc))
     {
-        /* Standardize return value for no connection. */
-        return VERR_NET_CONNECTION_REFUSED;
+        if (   rc == VERR_NET_CONNECTION_REFUSED
+            || rc == VERR_NET_CONNECTION_RESET
+            || rc == VERR_NET_UNREACHABLE
+            || rc == VERR_NET_HOST_UNREACHABLE
+            || rc == VERR_NET_CONNECTION_TIMED_OUT)
+        {
+            /* Standardize return value for no connection. */
+            rc = VERR_NET_CONNECTION_REFUSED;
+        }
+        return rc;
     }
 
     /* Make initiator name and ISID unique on this host. */
@@ -3812,5 +3843,7 @@ VBOXHDDBACKEND g_ISCSIBackend =
     /* pfnComposeLocation */
     iscsiComposeLocation,
     /* pfnComposeName */
-    iscsiComposeName
+    iscsiComposeName,
+    /* pfnCompact */
+    NULL
 };

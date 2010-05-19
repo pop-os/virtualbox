@@ -1,10 +1,10 @@
-/* $Id: fs-win.cpp $ */
+/* $Id: fs-win.cpp 28918 2010-04-29 18:30:09Z vboxsync $ */
 /** @file
  * IPRT - File System, Win32.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -89,7 +85,6 @@ static bool rtFsIsRoot(const char *pszFsPath)
 }
 
 
-#ifndef RT_DONT_CONVERT_FILENAMES
 
 /**
  * Finds the root of the specified volume.
@@ -158,69 +153,6 @@ static void rtFsFreeRoot(PRTUTF16 pwszFsRoot)
     RTUtf16Free(pwszFsRoot);
 }
 
-#else /* RT_DONT_CONVERT_FILENAMES */
-
-/**
- * Finds the root of the specified volume.
- *
- * @returns iprt status code.
- * @param   pszFsPath       Path within the filesystem. Verified as one byte or more.
- * @param   ppszFsRoot      Where to store the returned string. Free with rtFsFreeRoot(),
- */
-static int rtFsGetRoot(const char *pszFsPath, char **ppszFsRoot)
-{
-    /*
-     * Do straight forward stuff first,
-     */
-    if (rtFsIsRoot(pszFsPath))
-        return RTStrDupEx(ppszFsRoot, pszFsPath);
-
-    /*
-     * Expand and add slash (if required).
-     */
-    char szFullPath[RTPATH_MAX];
-    int rc = RTPathAbs(pszFsPath, szFullPath, sizeof(szFullPath));
-    if (RT_FAILURE(rc))
-        return rc;
-    size_t cb = strlen(szFullPath);
-    if (!RTPATH_IS_SLASH(szFullPath[cb - 1]))
-    {
-        AssertReturn(cb + 1 < RTPATH_MAX);
-        szFullPath[cb] = '\\';
-        szFullPath[++cb] = '\0';
-    }
-
-    /*
-     * Walk the path until our proper API is happy or there is no more path left.
-     */
-    if (GetVolumeInformation(szFullPath, NULL, 0, NULL, NULL, 0, NULL, 0))
-    {
-        char *pszEnd = szFullPath + cb;
-        char *pszMin = szFullPath + 2;
-        do
-        {
-            /* Strip off the last path component. */
-            while (pszEnd-- > pszMin)
-                if (RTPATH_IS_SLASH(*pszEnd))
-                    break;
-            AssertReturn(pszEnd >= pszMin, VERR_INTERNAL_ERROR);
-            pszEnd[1] = '\0';
-        } while (GetVolumeInformationA(pszStart, NULL, 0, NULL, NULL, 0, NULL, 0));
-    }
-
-    return RTStrDupEx(ppszFsRoot, szFullPath);
-}
-
-/**
- * Frees string returned by rtFsGetRoot().
- */
-static void rtFsFreeRoot(char *pszFsRoot)
-{
-    RTStrFree(pszFsRoot);
-}
-
-#endif /* RT_DONT_CONVERT_FILENAMES*/
-
 
 RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pcbFree,
                              uint32_t *pcbBlock, uint32_t *pcbSector)
@@ -229,13 +161,8 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
      * Validate & get valid root path.
      */
     AssertMsgReturn(VALID_PTR(pszFsPath) && *pszFsPath, ("%p", pszFsPath), VERR_INVALID_PARAMETER);
-#ifndef RT_DONT_CONVERT_FILENAMES
     PRTUTF16 pwszFsRoot;
     int rc = rtFsGetRoot(pszFsPath, &pwszFsRoot);
-#else
-    char pszFsRoot;
-    int rc = rtFsGetRoot(pszFsPath, &pszFsRoot);
-#endif
     if (RT_FAILURE(rc))
         return rc;
 
@@ -246,11 +173,7 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
     {
         ULARGE_INTEGER cbTotal;
         ULARGE_INTEGER cbFree;
-#ifndef RT_DONT_CONVERT_FILENAMES
         if (GetDiskFreeSpaceExW(pwszFsRoot, &cbFree, &cbTotal, NULL))
-#else
-        if (GetDiskFreeSpaceExA(pszFsRoot, &cbFree, &cbTotal, NULL))
-#endif
         {
             if (pcbTotal)
                 *pcbTotal = cbTotal.QuadPart;
@@ -275,11 +198,7 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
         DWORD dwDummy1, dwDummy2;
         DWORD cbSector;
         DWORD cSectorsPerCluster;
-#ifndef RT_DONT_CONVERT_FILENAMES
         if (GetDiskFreeSpaceW(pwszFsRoot, &cSectorsPerCluster, &cbSector, &dwDummy1, &dwDummy2))
-#else
-        if (GetDiskFreeSpaceA(pszFsRoot, &cSectorsPerCluster, &cbSector, &dwDummy1, &dwDummy2))
-#endif
         {
             if (pcbBlock)
                 *pcbBlock = cbSector * cSectorsPerCluster;
@@ -295,11 +214,7 @@ RTR3DECL(int) RTFsQuerySizes(const char *pszFsPath, RTFOFF *pcbTotal, RTFOFF *pc
         }
     }
 
-#ifndef RT_DONT_CONVERT_FILENAMES
     rtFsFreeRoot(pwszFsRoot);
-#else
-    rtFsFreeRoot(pszFsRoot);
-#endif
     return rc;
 }
 
@@ -318,13 +233,8 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
      */
     AssertMsgReturn(VALID_PTR(pszFsPath) && *pszFsPath, ("%p", pszFsPath), VERR_INVALID_PARAMETER);
     AssertMsgReturn(VALID_PTR(pu32Serial), ("%p", pu32Serial), VERR_INVALID_PARAMETER);
-#ifndef RT_DONT_CONVERT_FILENAMES
     PRTUTF16 pwszFsRoot;
     int rc = rtFsGetRoot(pszFsPath, &pwszFsRoot);
-#else
-    char pszFsRoot;
-    int rc = rtFsGetRoot(pszFsPath, &pszFsRoot);
-#endif
     if (RT_FAILURE(rc))
         return rc;
 
@@ -334,11 +244,7 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
     DWORD   dwMaxName;
     DWORD   dwFlags;
     DWORD   dwSerial;
-#ifndef RT_DONT_CONVERT_FILENAMES
     if (GetVolumeInformationW(pwszFsRoot, NULL, 0, &dwSerial, &dwMaxName, &dwFlags, NULL, 0))
-#else
-    if (GetVolumeInformationA(pszFsRoot, NULL, 0, &dwSerial, &dwMaxName, &dwFlags, NULL, 0))
-#endif
         *pu32Serial = dwSerial;
     else
     {
@@ -348,11 +254,7 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
              pszFsPath, Err, rc));
     }
 
-#ifndef RT_DONT_CONVERT_FILENAMES
     RTUtf16Free(pwszFsRoot);
-#else
-    RTStrFree(pszFsRoot);
-#endif
     return rc;
 }
 
@@ -371,13 +273,8 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
      */
     AssertMsgReturn(VALID_PTR(pszFsPath) && *pszFsPath, ("%p", pszFsPath), VERR_INVALID_PARAMETER);
     AssertMsgReturn(VALID_PTR(pProperties), ("%p", pProperties), VERR_INVALID_PARAMETER);
-#ifndef RT_DONT_CONVERT_FILENAMES
     PRTUTF16 pwszFsRoot;
     int rc = rtFsGetRoot(pszFsPath, &pwszFsRoot);
-#else
-    char pszFsRoot;
-    int rc = rtFsGetRoot(pszFsPath, &pszFsRoot);
-#endif
     if (RT_FAILURE(rc))
         return rc;
 
@@ -387,11 +284,7 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
     DWORD   dwMaxName;
     DWORD   dwFlags;
     DWORD   dwSerial;
-#ifndef RT_DONT_CONVERT_FILENAMES
     if (GetVolumeInformationW(pwszFsRoot, NULL, 0, &dwSerial, &dwMaxName, &dwFlags, NULL, 0))
-#else
-    if (GetVolumeInformationA(pszFsRoot, NULL, 0, &dwSerial, &dwMaxName, &dwFlags, NULL, 0))
-#endif
     {
         memset(pProperties, 0, sizeof(*pProperties));
         pProperties->cbMaxComponent   = dwMaxName;
@@ -410,11 +303,7 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
              pszFsPath, Err, rc));
     }
 
-#ifndef RT_DONT_CONVERT_FILENAMES
     RTUtf16Free(pwszFsRoot);
-#else
-    RTStrFree(pszFsRoot);
-#endif
     return rc;
 }
 

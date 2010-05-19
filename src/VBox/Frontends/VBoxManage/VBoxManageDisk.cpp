@@ -1,10 +1,10 @@
-/* $Id: VBoxManageDisk.cpp $ */
+/* $Id: VBoxManageDisk.cpp 28888 2010-04-29 11:50:05Z vboxsync $ */
 /** @file
  * VBoxManage - The disk delated commands.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef VBOX_ONLY_DOCS
@@ -112,6 +108,8 @@ static int parseDiskType(const char *psz, MediumType_T *pDiskType)
         DiskType = MediumType_Immutable;
     else if (!RTStrICmp(psz, "writethrough"))
         DiskType = MediumType_Writethrough;
+    else if (!RTStrICmp(psz, "shareable"))
+        DiskType = MediumType_Shareable;
     else
         rc = VERR_PARSE_ERROR;
 
@@ -186,7 +184,8 @@ int handleCreateHardDisk(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aCreateHardDiskOptions, RT_ELEMENTS(g_aCreateHardDiskOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aCreateHardDiskOptions, RT_ELEMENTS(g_aCreateHardDiskOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -279,10 +278,11 @@ int handleCreateHardDisk(HandlerArg *a)
          * created unless fRemember is set */
         bool doClose = false;
 
-        if (!comment.isNull())
+        if (!comment.isEmpty())
         {
             CHECK_ERROR(hardDisk,COMSETTER(Description)(comment));
         }
+
         ComPtr<IProgress> progress;
         CHECK_ERROR(hardDisk, CreateBaseStorage(sizeMB, DiskVariant, progress.asOutParam()));
         if (SUCCEEDED(rc) && progress)
@@ -364,7 +364,8 @@ int handleModifyHardDisk(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aModifyHardDiskOptions, RT_ELEMENTS(g_aModifyHardDiskOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aModifyHardDiskOptions, RT_ELEMENTS(g_aModifyHardDiskOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -531,7 +532,8 @@ int handleCloneHardDisk(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aCloneHardDiskOptions, RT_ELEMENTS(g_aCloneHardDiskOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aCloneHardDiskOptions, RT_ELEMENTS(g_aCloneHardDiskOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -750,7 +752,8 @@ int handleConvertFromRaw(int argc, char *argv[])
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, argc, argv, g_aConvertFromRawHardDiskOptions, RT_ELEMENTS(g_aConvertFromRawHardDiskOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, argc, argv, g_aConvertFromRawHardDiskOptions, RT_ELEMENTS(g_aConvertFromRawHardDiskOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -942,7 +945,8 @@ int handleAddiSCSIDisk(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aAddiSCSIDiskOptions, RT_ELEMENTS(g_aAddiSCSIDiskOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aAddiSCSIDiskOptions, RT_ELEMENTS(g_aAddiSCSIDiskOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -1030,9 +1034,9 @@ int handleAddiSCSIDisk(HandlerArg *a)
                                BstrFmt ("%ls|%ls|%ls", server.raw(), target.raw(), lun.raw()),
                                hardDisk.asOutParam()));
         }
-        CheckComRCBreakRC (rc);
+        if (FAILED(rc)) break;
 
-        if (!port.isNull())
+        if (!port.isEmpty())
             server = BstrFmt ("%ls:%ls", server.raw(), port.raw());
 
         com::SafeArray <BSTR> names;
@@ -1043,17 +1047,17 @@ int handleAddiSCSIDisk(HandlerArg *a)
         Bstr ("TargetName").detachTo (names.appendedRaw());
         target.detachTo (values.appendedRaw());
 
-        if (!lun.isNull())
+        if (!lun.isEmpty())
         {
             Bstr ("LUN").detachTo (names.appendedRaw());
             lun.detachTo (values.appendedRaw());
         }
-        if (!username.isNull())
+        if (!username.isEmpty())
         {
             Bstr ("InitiatorUsername").detachTo (names.appendedRaw());
             username.detachTo (values.appendedRaw());
         }
-        if (!password.isNull())
+        if (!password.isEmpty())
         {
             Bstr ("InitiatorSecret").detachTo (names.appendedRaw());
             password.detachTo (values.appendedRaw());
@@ -1106,7 +1110,8 @@ int handleShowHardDiskInfo(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aShowHardDiskInfoOptions, RT_ELEMENTS(g_aShowHardDiskInfoOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aShowHardDiskInfoOptions, RT_ELEMENTS(g_aShowHardDiskInfoOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -1227,6 +1232,9 @@ int handleShowHardDiskInfo(HandlerArg *a)
             case MediumType_Writethrough:
                 typeStr = "writethrough";
                 break;
+            case MediumType_Shareable:
+                typeStr = "shareable";
+                break;
         }
         RTPrintf("Type:                 %s\n", typeStr);
 
@@ -1312,7 +1320,8 @@ int handleOpenMedium(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aOpenMediumOptions, RT_ELEMENTS(g_aOpenMediumOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aOpenMediumOptions, RT_ELEMENTS(g_aOpenMediumOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -1487,7 +1496,8 @@ int handleCloseMedium(HandlerArg *a)
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aCloseMediumOptions, RT_ELEMENTS(g_aCloseMediumOptions), 0, 0 /* fFlags */);
+    RTGetOptInit(&GetState, a->argc, a->argv, g_aCloseMediumOptions, RT_ELEMENTS(g_aCloseMediumOptions),
+                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
     while ((c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)

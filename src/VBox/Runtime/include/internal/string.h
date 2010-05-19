@@ -1,10 +1,10 @@
-/* $Id: string.h $ */
+/* $Id: string.h 28903 2010-04-29 14:58:12Z vboxsync $ */
 /** @file
  * IPRT - Internal RTStr header.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___internal_string_h
@@ -38,7 +34,7 @@ RT_C_DECLS_BEGIN
 /** @def RTSTR_STRICT
  * Enables strict assertions on bad string encodings.
  */
-#ifdef __DOXYGEN__
+#ifdef DOXYGEN_RUNNING
 # define RTSTR_STRICT
 #endif
 /*#define RTSTR_STRICT*/
@@ -51,11 +47,38 @@ RT_C_DECLS_BEGIN
 # define RTStrAssertMsgReturn(expr, msg, rc)    do { if (!(expr)) return rc; } while (0)
 #endif
 
-#ifdef RT_WITH_VBOX
-size_t rtstrFormatVBox(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat, va_list *pArgs, int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize);
+size_t rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat, va_list *pArgs,
+                     int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize);
+size_t rtstrFormatType(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat, va_list *pArgs,
+                       int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize);
+
+#ifdef RT_WITH_ICONV_CACHE
+void rtStrIconvCacheInit(struct RTTHREADINT *pThread);
+void rtStrIconvCacheDestroy(struct RTTHREADINT *pThread);
 #endif
-size_t rtstrFormatRt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat, va_list *pArgs, int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize);
-size_t rtstrFormatType(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, const char **ppszFormat, va_list *pArgs, int cchWidth, int cchPrecision, unsigned fFlags, char chArgSize);
+
+/**
+ * Indexes into RTTHREADINT::ahIconvs
+ */
+typedef enum RTSTRICONV
+{
+    /** UTF-8 to the locale codeset (LC_CTYPE). */
+    RTSTRICONV_UTF8_TO_LOCALE = 0,
+    /** The locale codeset (LC_CTYPE) to UTF-8. */
+    RTSTRICONV_LOCALE_TO_UTF8,
+    /** UTF-8 to the filesystem codeset - if different from the locale codeset. */
+    RTSTRICONV_UTF8_TO_FS,
+    /** The filesystem codeset to UTF-8. */
+    RTSTRICONV_FS_TO_UTF8,
+    /** The end of the valid indexes. */
+    RTSTRICONV_END
+} RTSTRICONV;
+
+int rtStrConvert(const char *pchInput, size_t cchInput, const char *pszInputCS,
+                 char **ppszOutput, size_t cbOutput, const char *pszOutputCS,
+                 unsigned cFactor, RTSTRICONV enmCacheIdx);
+const char *rtStrGetLocaleCodeset(void);
+int rtUtf8Length(const char *psz, size_t cch, size_t *pcuc, size_t *pcchActual);
 
 RT_C_DECLS_END
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___VBox_cpum_h
@@ -247,7 +243,9 @@ typedef struct CPUMCTX
         uint32_t        esp;
         uint64_t        rsp;
     };
-    /* Note: lss esp, [] in the switcher needs some space, so we reserve it here instead of relying on the exact esp & ss layout as before (prevented us from using a union with rsp). */
+    /** @note lss esp, [] in the switcher needs some space, so we reserve it here
+     *        instead of relying on the exact esp & ss layout as before (prevented
+     *        us from using a union with rsp). */
     uint32_t            lss_esp;
     RTSEL               ss;
     RTSEL               ssPadding;
@@ -335,12 +333,12 @@ typedef struct CPUMCTX
     /** System MSRs.
      * @{ */
     uint64_t        msrEFER;
-    uint64_t        msrSTAR;        /* legacy syscall eip, cs & ss */
+    uint64_t        msrSTAR;            /**< Legacy syscall eip, cs & ss. */
     uint64_t        msrPAT;
-    uint64_t        msrLSTAR;       /* 64 bits mode syscall rip */
-    uint64_t        msrCSTAR;       /* compatibility mode syscall rip */
-    uint64_t        msrSFMASK;      /* syscall flag mask */
-    uint64_t        msrKERNELGSBASE;/* swapgs exchange value */
+    uint64_t        msrLSTAR;           /**< 64 bits mode syscall rip. */
+    uint64_t        msrCSTAR;           /**< Compatibility mode syscall rip. */
+    uint64_t        msrSFMASK;          /**< syscall flag mask. */
+    uint64_t        msrKERNELGSBASE;    /**< swapgs exchange value. */
     /** @} */
 
     /** Hidden selector registers.
@@ -350,7 +348,7 @@ typedef struct CPUMCTX
     /** @} */
 
 #if 0
-    /*& Padding to align the size on a 64 byte boundrary. */
+    /** Padding to align the size on a 64 byte boundrary. */
     uint32_t        padding[6];
 #endif
 } CPUMCTX;
@@ -425,7 +423,8 @@ typedef struct CPUMCTX_VER1_6
         uint32_t        ecx;
         uint64_t        rcx;
     };
-    /* Note: we rely on the exact layout, because we use lss esp, [] in the switcher */
+    /** @note We rely on the exact layout, because we use lss esp, [] in the
+     *        switcher. */
     uint32_t        esp;
     RTSEL           ss;
     RTSEL           ssPadding;
@@ -441,7 +440,7 @@ typedef struct CPUMCTX_VER1_6
     RTSEL           ds;
     RTSEL           dsPadding;
     RTSEL           cs;
-    RTSEL           csPadding[3];  /* 3 words to force 8 byte alignment for the remainder */
+    RTSEL           csPadding[3];   /**< 3 words to force 8 byte alignment for the remainder. */
 
     union
     {
@@ -537,17 +536,22 @@ typedef struct CPUMCTX_VER1_6
     CPUMSELREGHID_VER1_6   trHid;
     /** @} */
 
-    /* padding to get 32byte aligned size */
+    /** padding to get 32byte aligned size. */
     uint32_t        padding[2];
 } CPUMCTX_VER1_6;
 #pragma pack()
 
-/* Guest MSR state. */
+/**
+ * Guest MSR state.
+ *
+ * @note    Never change the order here because of saved stated!
+ */
 typedef union CPUMCTXMSR
 {
     struct
     {
-        uint64_t        tscAux;         /* MSR_K8_TSC_AUX */
+        uint64_t        tscAux;         /**< MSR_K8_TSC_AUX */
+        uint64_t        miscEnable;     /**< MSR_IA32_MISC_ENABLE */
     } msr;
     uint64_t    au64[64];
 } CPUMCTXMSR;
@@ -660,6 +664,8 @@ VMMDECL(uint32_t)   CPUMGetGuestCpuIdCentaurMax(PVM pVM);
 VMMDECL(uint64_t)   CPUMGetGuestEFER(PVMCPU pVCpu);
 VMMDECL(uint64_t)   CPUMGetGuestMsr(PVMCPU pVCpu, unsigned idMsr);
 VMMDECL(void)       CPUMSetGuestMsr(PVMCPU pVCpu, unsigned idMsr, uint64_t valMsr);
+VMMDECL(CPUMCPUVENDOR)  CPUMGetGuestCpuVendor(PVM pVM);
+VMMDECL(CPUMCPUVENDOR)  CPUMGetHostCpuVendor(PVM pVM);
 /** @} */
 
 /** @name Guest Register Setters.
@@ -702,26 +708,21 @@ VMMDECL(bool)       CPUMGetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFeatur
 VMMDECL(void)       CPUMSetGuestCtx(PVMCPU pVCpu, const PCPUMCTX pCtx);
 /** @} */
 
+
 /** @name Misc Guest Predicate Functions.
  * @{  */
 
-
-VMMDECL(bool)           CPUMIsGuestIn16BitCode(PVMCPU pVCpu);
-VMMDECL(bool)           CPUMIsGuestIn32BitCode(PVMCPU pVCpu);
-
-VMMDECL(CPUMCPUVENDOR)  CPUMGetGuestCpuVendor(PVM pVM);
-VMMDECL(CPUMCPUVENDOR)  CPUMGetHostCpuVendor(PVM pVM);
-
-/**
- * Tests if the guest is running in real mode or not.
- *
- * @returns true if in real mode, otherwise false.
- * @param   pVM     The VM handle.
- */
-DECLINLINE(bool) CPUMIsGuestInRealMode(PVMCPU pVCpu)
-{
-    return !(CPUMGetGuestCR0(pVCpu) & X86_CR0_PE);
-}
+VMMDECL(bool)       CPUMIsGuestIn16BitCode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestIn32BitCode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestNXEnabled(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestPageSizeExtEnabled(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestPagingEnabled(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestR0WriteProtEnabled(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestInRealMode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestInProtectedMode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestInLongMode(PVMCPU pVCpu);
+VMMDECL(bool)       CPUMIsGuestInPAEMode(PVMCPU pVCpu);
 
 /**
  * Tests if the guest is running in real mode or not.
@@ -729,40 +730,18 @@ DECLINLINE(bool) CPUMIsGuestInRealMode(PVMCPU pVCpu)
  * @returns true if in real mode, otherwise false.
  * @param   pCtx    Current CPU context
  */
-DECLINLINE(bool) CPUMIsGuestInRealModeEx(PCPUMCTX pCtx)
+DECLINLINE(bool)    CPUMIsGuestInRealModeEx(PCPUMCTX pCtx)
 {
     return !(pCtx->cr0 & X86_CR0_PE);
 }
 
 /**
- * Tests if the guest is running in protected or not.
- *
- * @returns true if in protected mode, otherwise false.
- * @param   pVM     The VM handle.
- */
-DECLINLINE(bool) CPUMIsGuestInProtectedMode(PVMCPU pVCpu)
-{
-    return !!(CPUMGetGuestCR0(pVCpu) & X86_CR0_PE);
-}
-
-/**
  * Tests if the guest is running in paged protected or not.
  *
  * @returns true if in paged protected mode, otherwise false.
  * @param   pVM     The VM handle.
  */
-DECLINLINE(bool) CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu)
-{
-    return (CPUMGetGuestCR0(pVCpu) & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG);
-}
-
-/**
- * Tests if the guest is running in paged protected or not.
- *
- * @returns true if in paged protected mode, otherwise false.
- * @param   pVM     The VM handle.
- */
-DECLINLINE(bool) CPUMIsGuestInPagedProtectedModeEx(PCPUMCTX pCtx)
+DECLINLINE(bool)    CPUMIsGuestInPagedProtectedModeEx(PCPUMCTX pCtx)
 {
     return (pCtx->cr0 & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG);
 }
@@ -771,20 +750,9 @@ DECLINLINE(bool) CPUMIsGuestInPagedProtectedModeEx(PCPUMCTX pCtx)
  * Tests if the guest is running in long mode or not.
  *
  * @returns true if in long mode, otherwise false.
- * @param   pVM     The VM handle.
- */
-DECLINLINE(bool) CPUMIsGuestInLongMode(PVMCPU pVCpu)
-{
-    return (CPUMGetGuestEFER(pVCpu) & MSR_K6_EFER_LMA) == MSR_K6_EFER_LMA;
-}
-
-/**
- * Tests if the guest is running in long mode or not.
- *
- * @returns true if in long mode, otherwise false.
  * @param   pCtx    Current CPU context
  */
-DECLINLINE(bool) CPUMIsGuestInLongModeEx(PCPUMCTX pCtx)
+DECLINLINE(bool)    CPUMIsGuestInLongModeEx(PCPUMCTX pCtx)
 {
     return (pCtx->msrEFER & MSR_K6_EFER_LMA) == MSR_K6_EFER_LMA;
 }
@@ -796,7 +764,7 @@ DECLINLINE(bool) CPUMIsGuestInLongModeEx(PCPUMCTX pCtx)
  * @param   pVM     The VM handle.
  * @param   pCtx    Current CPU context
  */
-DECLINLINE(bool) CPUMIsGuestIn64BitCode(PVMCPU pVCpu, PCCPUMCTXCORE pCtx)
+DECLINLINE(bool)    CPUMIsGuestIn64BitCode(PVMCPU pVCpu, PCCPUMCTXCORE pCtx)
 {
     if (!CPUMIsGuestInLongMode(pVCpu))
         return false;
@@ -811,7 +779,7 @@ DECLINLINE(bool) CPUMIsGuestIn64BitCode(PVMCPU pVCpu, PCCPUMCTXCORE pCtx)
  * @param   pVM     The VM handle.
  * @param   pCtx    Current CPU context
  */
-DECLINLINE(bool) CPUMIsGuestIn64BitCodeEx(PCCPUMCTX pCtx)
+DECLINLINE(bool)    CPUMIsGuestIn64BitCodeEx(PCCPUMCTX pCtx)
 {
     if (!(pCtx->msrEFER & MSR_K6_EFER_LMA))
         return false;
@@ -823,25 +791,12 @@ DECLINLINE(bool) CPUMIsGuestIn64BitCodeEx(PCCPUMCTX pCtx)
  * Tests if the guest is running in PAE mode or not.
  *
  * @returns true if in PAE mode, otherwise false.
- * @param   pVM     The VM handle.
- */
-DECLINLINE(bool) CPUMIsGuestInPAEMode(PVMCPU pVCpu)
-{
-    return (    CPUMIsGuestInPagedProtectedMode(pVCpu)
-            &&  (CPUMGetGuestCR4(pVCpu) & X86_CR4_PAE)
-            &&  !CPUMIsGuestInLongMode(pVCpu));
-}
-
-/**
- * Tests if the guest is running in PAE mode or not.
- *
- * @returns true if in PAE mode, otherwise false.
  * @param   pCtx    Current CPU context
  */
-DECLINLINE(bool) CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
+DECLINLINE(bool)    CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
 {
-    return (    CPUMIsGuestInPagedProtectedModeEx(pCtx)
-            &&  (pCtx->cr4 & X86_CR4_PAE)
+    return (    (pCtx->cr4 & X86_CR4_PAE)
+            &&  CPUMIsGuestInPagedProtectedModeEx(pCtx)
             &&  !CPUMIsGuestInLongModeEx(pCtx));
 }
 
@@ -979,6 +934,7 @@ VMMR3DECL(int)          CPUMR3TermCPU(PVM pVM);
 VMMR3DECL(void)         CPUMR3Reset(PVM pVM);
 VMMR3DECL(void)         CPUMR3ResetCpu(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMR3IsStateRestorePending(PVM pVM);
+VMMR3DECL(void)         CPUMR3SetHWVirtEx(PVM pVM, bool fHWVirtExEnabled);
 # ifdef DEBUG
 VMMR3DECL(void)         CPUMR3SaveEntryCtx(PVM pVM);
 # endif

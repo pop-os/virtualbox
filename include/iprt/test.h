@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Sun Microsystems, Inc.
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +21,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___iprt_test_h
@@ -97,13 +93,13 @@ RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest);
     }
    @endcode
  *
- * @returns 0 on success. On failure an error message is printed and
- *          a suitable exit code is return.
+ * @returns RTEXITCODE_SUCCESS on success.  On failure an error message is
+ *          printed and a suitable exit code is return.
  *
  * @param   pszTest     The test name.
  * @param   phTest      Where to store the test instance handle.
  */
-RTR3DECL(int) RTTestInitAndCreate(const char *pszTest, PRTTEST phTest);
+RTR3DECL(RTEXITCODE) RTTestInitAndCreate(const char *pszTest, PRTTEST phTest);
 
 /**
  * Destroys a test instance previously created by RTTestCreate.
@@ -232,7 +228,7 @@ RTR3DECL(int) RTTestBanner(RTTEST hTest);
  * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
  *                      associated with the calling thread.
  */
-RTR3DECL(int) RTTestSummaryAndDestroy(RTTEST hTest);
+RTR3DECL(RTEXITCODE) RTTestSummaryAndDestroy(RTTEST hTest);
 
 /**
  * Skips the test, destroys the test instance and return an exit code.
@@ -243,7 +239,7 @@ RTR3DECL(int) RTTestSummaryAndDestroy(RTTEST hTest);
  * @param   pszReasonFmt    Text explaining why, optional (NULL).
  * @param   va              Arguments for the reason format string.
  */
-RTR3DECL(int) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReason, va_list va);
+RTR3DECL(RTEXITCODE) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReasonFmt, va_list va);
 
 /**
  * Skips the test, destroys the test instance and return an exit code.
@@ -252,9 +248,9 @@ RTR3DECL(int) RTTestSkipAndDestroyV(RTTEST hTest, const char *pszReason, va_list
  * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
  *                          associated with the calling thread.
  * @param   pszReasonFmt    Text explaining why, optional (NULL).
- * @param   va              Arguments for the reason format string.
+ * @param   ...             Arguments for the reason format string.
  */
-RTR3DECL(int) RTTestSkipAndDestroy(RTTEST hTest, const char *pszReason, ...);
+RTR3DECL(RTEXITCODE) RTTestSkipAndDestroy(RTTEST hTest, const char *pszReasonFmt, ...);
 
 /**
  * Starts a sub-test.
@@ -291,7 +287,7 @@ RTR3DECL(int) RTTestSubF(RTTEST hTest, const char *pszSubTestFmt, ...);
  * @param   hTest           The test handle. If NIL_RTTEST we'll use the one
  *                          associated with the calling thread.
  * @param   pszSubTestFmt   The sub-test name format string.
- * @param   ...             Arguments.
+ * @param   va              Arguments.
  */
 RTR3DECL(int) RTTestSubV(RTTEST hTest, const char *pszSubTestFmt, va_list va);
 
@@ -332,6 +328,109 @@ RTR3DECL(int) RTTestPassedV(RTTEST hTest, const char *pszFormat, va_list va);
  */
 RTR3DECL(int) RTTestPassed(RTTEST hTest, const char *pszFormat, ...);
 
+/**
+ * Value units.
+ */
+typedef enum RTTESTUNIT
+{
+    /** The usual invalid value. */
+    RTTESTUNIT_INVALID = 0,
+    /** Percentage. */
+    RTTESTUNIT_PCT,
+    /** Bytes. */
+    RTTESTUNIT_BYTES,
+    /** Bytes per second. */
+    RTTESTUNIT_BYTES_PER_SEC,
+    /** Kilobytes. */
+    RTTESTUNIT_KILOBYTES,
+    /** Kilobytes per second. */
+    RTTESTUNIT_KILOBYTES_PER_SEC,
+    /** Megabytes. */
+    RTTESTUNIT_MEGABYTES,
+    /** Megabytes per second. */
+    RTTESTUNIT_MEGABYTES_PER_SEC,
+    /** Packets. */
+    RTTESTUNIT_PACKETS,
+    /** Packets per second. */
+    RTTESTUNIT_PACKETS_PER_SEC,
+    /** Frames. */
+    RTTESTUNIT_FRAMES,
+    /** Frames per second. */
+    RTTESTUNIT_FRAMES_PER_SEC,
+    /** Occurrences. */
+    RTTESTUNIT_OCCURRENCES,
+    /** Occurrences per second. */
+    RTTESTUNIT_OCCURRENCES_PER_SEC,
+    /** Calls. */
+    RTTESTUNIT_CALLS,
+    /** Calls per second. */
+    RTTESTUNIT_CALLS_PER_SEC,
+    /** Round trips. */
+    RTTESTUNIT_ROUND_TRIP,
+    /** Seconds. */
+    RTTESTUNIT_SECS,
+    /** Milliseconds. */
+    RTTESTUNIT_MS,
+    /** Nanoseconds. */
+    RTTESTUNIT_NS,
+    /** Nanoseconds per call. */
+    RTTESTUNIT_NS_PER_CALL,
+    /** Nanoseconds per frame. */
+    RTTESTUNIT_NS_PER_FRAME,
+    /** Nanoseconds per occurrence. */
+    RTTESTUNIT_NS_PER_OCCURRENCE,
+    /** Nanoseconds per frame. */
+    RTTESTUNIT_NS_PER_PACKET,
+    /** Nanoseconds per round trip. */
+    RTTESTUNIT_NS_PER_ROUND_TRIP,
+    /** The end of valid units. */
+    RTTESTUNIT_END
+} RTTESTUNIT;
+
+/**
+ * Report a named test result value.
+ *
+ * This is typically used for benchmarking but can be used for other purposes
+ * like reporting limits of some implementation.  The value gets associated with
+ * the current sub test, the name must be unique within the sub test.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
+ *                      associated with the calling thread.
+ * @param   pszName     The value name.
+ * @param   u64Value    The value.
+ * @param   enmUnit     The value unit.
+ */
+RTR3DECL(int) RTTestValue(RTTEST hTest, const char *pszName, uint64_t u64Value, RTTESTUNIT enmUnit);
+
+/**
+ * Same as RTTestValue, except that the name is now a format string.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
+ *                      associated with the calling thread.
+ * @param   u64Value    The value.
+ * @param   enmUnit     The value unit.
+ * @param   pszNameFmt  The value name format string.
+ * @param   ...         String arguments.
+ */
+RTR3DECL(int) RTTestValueF(RTTEST hTest, uint64_t u64Value, RTTESTUNIT enmUnit, const char *pszNameFmt, ...);
+
+/**
+ * Same as RTTestValue, except that the name is now a format string.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
+ *                      associated with the calling thread.
+ * @param   u64Value    The value.
+ * @param   enmUnit     The value unit.
+ * @param   pszNameFmt  The value name format string.
+ * @param   va_list     String arguments.
+ */
+RTR3DECL(int) RTTestValueV(RTTEST hTest, uint64_t u64Value, RTTESTUNIT enmUnit, const char *pszNameFmt, va_list va);
 
 /**
  * Increments the error counter.
@@ -341,6 +440,15 @@ RTR3DECL(int) RTTestPassed(RTTEST hTest, const char *pszFormat, ...);
  *                      associated with the calling thread.
  */
 RTR3DECL(int) RTTestErrorInc(RTTEST hTest);
+
+/**
+ * Get the current error count.
+ *
+ * @returns The error counter, UINT32_MAX if no valid test handle.
+ * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
+ *                      associated with the calling thread.
+ */
+RTR3DECL(uint32_t) RTTestErrorCount(RTTEST hTest);
 
 /**
  * Increments the error counter and prints a failure message.
@@ -370,7 +478,6 @@ RTR3DECL(int) RTTestFailed(RTTEST hTest, const char *pszFormat, ...);
  * @returns Number of chars printed.
  * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
  *                      associated with the calling thread.
- * @param   enmLevel    Message importance level.
  * @param   pszFormat   The message.
  * @param   va          Arguments.
  */
@@ -382,7 +489,6 @@ RTR3DECL(int) RTTestFailureDetailsV(RTTEST hTest, const char *pszFormat, va_list
  * @returns Number of chars printed.
  * @param   hTest       The test handle. If NIL_RTTEST we'll use the one
  *                      associated with the calling thread.
- * @param   enmLevel    Message importance level.
  * @param   pszFormat   The message.
  * @param   ...         Arguments.
  */
@@ -493,7 +599,7 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
  * number, expression, actual and expected status codes.
  *
  * @param   hTest           The test handle.
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  * @param   rcExpect        The expected return code. This may be referenced
  *                          more than once by the macro.
  */
@@ -511,7 +617,9 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
  * number, expression, actual and expected status codes, then return.
  *
  * @param   hTest           The test handle.
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
+ *                          This will be assigned to a local rcCheck variable
+ *                          that can be used as return value.
  * @param   rcExpect        The expected return code. This may be referenced
  *                          more than once by the macro.
  * @param   rcRet           The return code.
@@ -531,7 +639,7 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
  * number, expression, actual and expected status codes, then return.
  *
  * @param   hTest           The test handle.
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  * @param   rcExpect        The expected return code. This may be referenced
  *                          more than once by the macro.
  */
@@ -552,13 +660,13 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
  * expression and status code.
  *
  * @param   hTest           The test handle.
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  */
 #define RTTEST_CHECK_RC_OK(hTest, rcExpr) \
     do { \
         int rcCheck = (rcExpr); \
         if (RT_FAILURE(rcCheck)) { \
-            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rc); \
+            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
         } \
     } while (0)
 /** @def RTTEST_CHECK_RC_OK_RET
@@ -568,14 +676,16 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
  * expression and status code, then return with the specified value.
  *
  * @param   hTest           The test handle.
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
+ *                          This will be assigned to a local rcCheck variable
+ *                          that can be used as return value.
  * @param   rcRet           The return code.
  */
 #define RTTEST_CHECK_RC_OK_RET(hTest, rcExpr, rcRet) \
     do { \
         int rcCheck = (rcExpr); \
         if (RT_FAILURE(rcCheck)) { \
-            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rc); \
+            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
             return (rcRet); \
         } \
     } while (0)
@@ -586,13 +696,13 @@ RTR3DECL(int) RTTestFailureDetails(RTTEST hTest, const char *pszFormat, ...);
  * expression and status code, then return.
  *
  * @param   hTest           The test handle.
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  */
 #define RTTEST_CHECK_RC_OK_RETV(hTest, rcExpr) \
     do { \
         int rcCheck = (rcExpr); \
         if (RT_FAILURE(rcCheck)) { \
-            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rc); \
+            RTTestFailed((hTest), "line %u: %s: %Rrc", __LINE__, #rcExpr, rcCheck); \
             return; \
         } \
     } while (0)
@@ -654,7 +764,7 @@ RTR3DECL(int) RTTestISubF(const char *pszSubTestFmt, ...);
  *
  * @returns Number of chars printed.
  * @param   pszSubTestFmt   The sub-test name format string.
- * @param   ...             Arguments.
+ * @param   va              Arguments.
  */
 RTR3DECL(int) RTTestISubV(const char *pszSubTestFmt, va_list va);
 
@@ -690,11 +800,57 @@ RTR3DECL(int) RTTestIPassedV(const char *pszFormat, va_list va);
 RTR3DECL(int) RTTestIPassed(const char *pszFormat, ...);
 
 /**
+ * Report a named test result value.
+ *
+ * This is typically used for benchmarking but can be used for other purposes
+ * like reporting limits of some implementation.  The value gets associated with
+ * the current sub test, the name must be unique within the sub test.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   pszName     The value name.
+ * @param   u64Value    The value.
+ * @param   enmUnit     The value unit.
+ */
+RTR3DECL(int) RTTestIValue(const char *pszName, uint64_t u64Value, RTTESTUNIT enmUnit);
+
+/**
+ * Same as RTTestValue, except that the name is now a format string.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   u64Value    The value.
+ * @param   enmUnit     The value unit.
+ * @param   pszNameFmt  The value name format string.
+ * @param   ...         String arguments.
+ */
+RTR3DECL(int) RTTestIValueF(uint64_t u64Value, RTTESTUNIT enmUnit, const char *pszNameFmt, ...);
+
+/**
+ * Same as RTTestValue, except that the name is now a format string.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   u64Value    The value.
+ * @param   enmUnit     The value unit.
+ * @param   pszNameFmt  The value name format string.
+ * @param   va_list     String arguments.
+ */
+RTR3DECL(int) RTTestIValueV(uint64_t u64Value, RTTESTUNIT enmUnit, const char *pszNameFmt, va_list va);
+
+/**
  * Increments the error counter.
  *
  * @returns IPRT status code.
  */
 RTR3DECL(int) RTTestIErrorInc(void);
+
+/**
+ * Get the current error count.
+ *
+ * @returns The error counter, UINT32_MAX if no valid test handle.
+ */
+RTR3DECL(uint32_t) RTTestIErrorCount(void);
 
 /**
  * Increments the error counter and prints a failure message.
@@ -713,6 +869,34 @@ RTR3DECL(int) RTTestIFailedV(const char *pszFormat, va_list va);
  * @param   ...         The arguments.
  */
 RTR3DECL(int) RTTestIFailed(const char *pszFormat, ...);
+
+/**
+ * Increments the error counter, prints a failure message and returns the
+ * specified status code.
+ *
+ * This is mainly a convenience method for saving vertical space in the source
+ * code.
+ *
+ * @returns @a rcRet
+ * @param   rcRet       The IPRT status code to return.
+ * @param   pszFormat   The message. No trailing newline.
+ * @param   va          The arguments.
+ */
+RTR3DECL(int) RTTestIFailedRcV(int rcRet, const char *pszFormat, va_list va);
+
+/**
+ * Increments the error counter, prints a failure message and returns the
+ * specified status code.
+ *
+ * This is mainly a convenience method for saving vertical space in the source
+ * code.
+ *
+ * @returns @a rcRet
+ * @param   rcRet       The IPRT status code to return.
+ * @param   pszFormat   The message. No trailing newline.
+ * @param   ...         The arguments.
+ */
+RTR3DECL(int) RTTestIFailedRc(int rcRet, const char *pszFormat, ...);
 
 /**
  * Same as RTTestIPrintfV with RTTESTLVL_FAILURE.
@@ -836,7 +1020,7 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
  * If a different status code is return, call RTTestIFailed giving the line
  * number, expression, actual and expected status codes.
  *
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  * @param   rcExpect        The expected return code. This may be referenced
  *                          more than once by the macro.
  */
@@ -853,7 +1037,9 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
  * If a different status code is return, call RTTestIFailed giving the line
  * number, expression, actual and expected status codes, then return.
  *
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
+ *                          This will be assigned to a local rcCheck variable
+ *                          that can be used as return value.
  * @param   rcExpect        The expected return code. This may be referenced
  *                          more than once by the macro.
  * @param   rcRet           The return code.
@@ -872,7 +1058,7 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
  * If a different status code is return, call RTTestIFailed giving the line
  * number, expression, actual and expected status codes, then return.
  *
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  * @param   rcExpect        The expected return code. This may be referenced
  *                          more than once by the macro.
  */
@@ -892,7 +1078,7 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
  * If the status indicates failure, call RTTestIFailed giving the line number,
  * expression and status code.
  *
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  */
 #define RTTESTI_CHECK_RC_OK(rcExpr) \
     do { \
@@ -907,7 +1093,9 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
  * If the status indicates failure, call RTTestIFailed giving the line number,
  * expression and status code, then return with the specified value.
  *
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
+ *                          This will be assigned to a local rcCheck variable
+ *                          that can be used as return value.
  * @param   rcRet           The return code.
  */
 #define RTTESTI_CHECK_RC_OK_RET(rcExpr, rcRet) \
@@ -924,7 +1112,7 @@ RTR3DECL(int) RTTestIFailureDetails(const char *pszFormat, ...);
  * If the status indicates failure, call RTTestIFailed giving the line number,
  * expression and status code, then return.
  *
- * @param   rcExpr          The expression resulting an IPRT status code.
+ * @param   rcExpr          The expression resulting in an IPRT status code.
  */
 #define RTTESTI_CHECK_RC_OK_RETV(rcExpr) \
     do { \

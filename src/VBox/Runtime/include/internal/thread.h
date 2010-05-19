@@ -1,10 +1,10 @@
-/* $Id: thread.h $ */
+/* $Id: thread.h 28903 2010-04-29 14:58:12Z vboxsync $ */
 /** @file
  * IPRT - Internal RTThread header.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ___thread_h
@@ -38,18 +34,20 @@
 # include <iprt/process.h>
 # include <iprt/critsect.h>
 #endif
+#include "internal/lockvalidator.h"
 #include "internal/magics.h"
+#ifdef RT_WITH_ICONV_CACHE
+# include "internal/string.h"
+#endif
 
 RT_C_DECLS_BEGIN
 
 
-
-
 /** Max thread name length. */
-#define RTTHREAD_NAME_LEN 16
+#define RTTHREAD_NAME_LEN       16
 #ifdef IPRT_WITH_GENERIC_TLS
 /** The number of TLS entries for the generic implementation. */
-# define RTTHREAD_TLS_ENTRIES 64
+# define RTTHREAD_TLS_ENTRIES   64
 #endif
 
 /**
@@ -65,10 +63,17 @@ typedef struct RTTHREADINT
     uint32_t volatile       cRefs;
     /** The current thread state. */
     RTTHREADSTATE volatile  enmState;
+    /** Set when really sleeping. */
+    bool volatile           fReallySleeping;
 #if defined(RT_OS_WINDOWS) && defined(IN_RING3)
     /** The thread handle
      * This is not valid until the create function has returned! */
     uintptr_t               hThread;
+#endif
+#if defined(RT_OS_LINUX) && defined(IN_RING3)
+    /** The thread ID.
+     * This is not valid before rtThreadMain has been called by the new thread.  */
+    pid_t                   tid;
 #endif
     /** The user event semaphore. */
     RTSEMEVENTMULTI         EventUser;
@@ -89,33 +94,23 @@ typedef struct RTTHREADINT
     /** Actual stack size. */
     size_t                  cbStack;
 #ifdef IN_RING3
-    /** What we're blocking on. */
-    union RTTHREADINTBLOCKID
-    {
-        uint64_t            u64;
-        PRTCRITSECT         pCritSect;
-        RTSEMEVENT          Event;
-        RTSEMEVENTMULTI     EventMulti;
-        RTSEMMUTEX          Mutex;
-    } Block;
-    /** Where we're blocking. */
-    const char volatile    *pszBlockFile;
-    /** Where we're blocking. */
-    unsigned volatile       uBlockLine;
-    /** Where we're blocking. */
-    RTUINTPTR volatile      uBlockId;
-    /** Number of registered write locks, mutexes and critsects that this thread owns. */
-    int32_t volatile        cWriteLocks;
-    /** Number of registered read locks that this thread owns, nesting included. */
-    int32_t volatile        cReadLocks;
+    /** The lock validator data. */
+    RTLOCKVALPERTHREAD      LockValidator;
 #endif /* IN_RING3 */
+#ifdef RT_WITH_ICONV_CACHE
+    /** Handle cache for iconv.
+     * @remarks ASSUMES sizeof(void *) >= sizeof(iconv_t). */
+    void *ahIconvs[RTSTRICONV_END];
+#endif
 #ifdef IPRT_WITH_GENERIC_TLS
     /** The TLS entries for this thread. */
     void                   *apvTlsEntries[RTTHREAD_TLS_ENTRIES];
 #endif
     /** Thread name. */
     char                    szName[RTTHREAD_NAME_LEN];
-} RTTHREADINT, *PRTTHREADINT;
+} RTTHREADINT;
+/** Pointer to the internal representation of a thread. */
+typedef RTTHREADINT *PRTTHREADINT;
 
 
 /** @name RTTHREADINT::fIntFlags Masks and Bits.
@@ -207,6 +202,33 @@ int rtThreadDoSetProcPriority(RTPROCPRIORITY enmPriority);
 #ifdef IPRT_WITH_GENERIC_TLS
 void rtThreadClearTlsEntry(RTTLS iTls);
 void rtThreadTlsDestruction(PRTTHREADINT pThread); /* in tls-generic.cpp */
+#endif
+
+#ifdef ___iprt_asm_h
+
+/**
+ * Gets the thread state.
+ *
+ * @returns The thread state.
+ * @param   pThread             The thread.
+ */
+DECLINLINE(RTTHREADSTATE) rtThreadGetState(PRTTHREADINT pThread)
+{
+    return pThread->enmState;
+}
+
+/**
+ * Sets the thread state.
+ *
+ * @param   pThread             The thread.
+ * @param   enmNewState         The new thread state.
+ */
+DECLINLINE(void) rtThreadSetState(PRTTHREADINT pThread, RTTHREADSTATE enmNewState)
+{
+    AssertCompile(sizeof(pThread->enmState) == sizeof(uint32_t));
+    ASMAtomicWriteU32((uint32_t volatile *)&pThread->enmState, enmNewState);
+}
+
 #endif
 
 RT_C_DECLS_END

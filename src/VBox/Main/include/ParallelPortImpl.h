@@ -1,11 +1,11 @@
-/* $Id: ParallelPortImpl.h $ */
+/* $Id: ParallelPortImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * VirtualBox COM class implementation.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,18 +14,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef ____H_PARALLELPORTIMPL
 #define ____H_PARALLELPORTIMPL
 
 #include "VirtualBoxBase.h"
-
-class Machine;
 
 namespace settings
 {
@@ -39,33 +33,6 @@ class ATL_NO_VTABLE ParallelPort :
     VBOX_SCRIPTABLE_IMPL(IParallelPort)
 {
 public:
-
-    struct Data
-    {
-        Data()
-            : mSlot (0)
-            , mEnabled (FALSE)
-            , mIRQ (4)
-            , mIOBase (0x378)
-        {}
-
-        bool operator== (const Data &that) const
-        {
-            return this == &that ||
-                   (mSlot == that.mSlot &&
-                    mEnabled == that.mEnabled &&
-                    mIRQ == that.mIRQ &&
-                    mIOBase == that.mIOBase &&
-                    mPath == that.mPath);
-        }
-
-        ULONG mSlot;
-        BOOL  mEnabled;
-        ULONG mIRQ;
-        ULONG mIOBase;
-        Bstr  mPath;
-    };
-
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (ParallelPort)
 
     DECLARE_NOT_AGGREGATABLE(ParallelPort)
@@ -78,7 +45,8 @@ public:
         COM_INTERFACE_ENTRY2 (IDispatch, IParallelPort)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR (ParallelPort)
+    ParallelPort() {}
+    ~ParallelPort() {}
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -105,11 +73,10 @@ public:
     HRESULT loadSettings(const settings::ParallelPort &data);
     HRESULT saveSettings(settings::ParallelPort &data);
 
-    bool isModified() { AutoWriteLock alock (this); return mData.isBackedUp(); }
-    bool isReallyModified() { AutoWriteLock alock (this); return mData.hasActualChanges(); }
-    bool rollback();
+    bool isModified();
+    void rollback();
     void commit();
-    void copyFrom (ParallelPort *aThat);
+    void copyFrom(ParallelPort *aThat);
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
@@ -118,13 +85,10 @@ public:
     static const wchar_t *getComponentName() { return L"ParallelPort"; }
 
 private:
+    HRESULT checkSetPath(const Utf8Str &str);
 
-    HRESULT checkSetPath (CBSTR aPath);
-
-    const ComObjPtr<Machine, ComWeakRef> mParent;
-    const ComObjPtr<ParallelPort> mPeer;
-
-    Backupable<Data> mData;
+    struct Data;
+    Data *m;
 };
 
 #endif // ____H_FLOPPYDRIVEIMPL

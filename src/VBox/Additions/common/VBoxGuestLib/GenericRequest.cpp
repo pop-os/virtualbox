@@ -1,10 +1,10 @@
-/* $Revision: 57546 $ */
+/* $Revision: 29360 $ */
 /** @file
  * VBoxGuestLibR0 - Generic VMMDev request management.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,14 +22,11 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "VBGLInternal.h"
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
@@ -71,7 +68,7 @@ DECLVBGL(int) VbglGRVerify (const VMMDevRequestHeader *pReq, size_t cbReq)
     }
 
     /* This can be a variable size request. Check the request type and limit the size
-     * to VMMDEV_MAX_VMMDEVREQ_SIZE, which is max size supported by the host. 
+     * to VMMDEV_MAX_VMMDEVREQ_SIZE, which is max size supported by the host.
      */
     if (   pReq->requestType == VMMDevReq_LogString
         || pReq->requestType == VMMDevReq_VideoSetVisibleRegion
@@ -82,7 +79,8 @@ DECLVBGL(int) VbglGRVerify (const VMMDevRequestHeader *pReq, size_t cbReq)
 #else
         || pReq->requestType == VMMDevReq_HGCMCall
 #endif /* VBOX_WITH_64_BITS_GUESTS */
-        || pReq->requestType == VMMDevReq_ChangeMemBalloon)
+        || pReq->requestType == VMMDevReq_ChangeMemBalloon
+        || pReq->requestType == VMMDevReq_RegisterSharedModule)
     {
         if (cbReq > VMMDEV_MAX_VMMDEVREQ_SIZE)
         {

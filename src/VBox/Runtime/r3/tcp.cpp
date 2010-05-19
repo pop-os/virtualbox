@@ -1,10 +1,10 @@
-/* $Id: tcp.cpp $ */
+/* $Id: tcp.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - TCP/IP.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -33,22 +29,17 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #ifdef RT_OS_WINDOWS
-# include <winsock.h>
-# include <limits.h>
-#else /* !RT_OS_WINDOWS */
-# include <errno.h>
-# include <sys/stat.h>
+# include <winsock2.h>
+#else
+# include <sys/types.h>
 # include <sys/socket.h>
+# include <errno.h>
 # include <netinet/in.h>
 # include <netinet/tcp.h>
 # include <arpa/inet.h>
-# ifdef IPRT_WITH_TCPIP_V6
-#  include <netinet6/in6.h>
-# endif
-# include <sys/un.h>
 # include <netdb.h>
-# include <unistd.h>
-#endif /* !RT_OS_WINDOWS */
+#endif
+#include <limits.h>
 
 #include "internal/iprt.h"
 #include <iprt/tcp.h>
@@ -57,11 +48,14 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mempool.h>
+#include <iprt/mem.h>
 #include <iprt/string.h>
+#include <iprt/socket.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
 
 #include "internal/magics.h"
+#include "internal/socket.h"
 
 
 /*******************************************************************************
@@ -133,108 +127,38 @@ typedef struct RTTCPSERVER
     /** The server thread. */
     RTTHREAD                    Thread;
     /** The server socket. */
-    RTSOCKET volatile           SockServer;
+    RTSOCKET volatile           hServerSocket;
     /** The socket to the client currently being serviced.
      * This is NIL_RTSOCKET when no client is serviced. */
-    RTSOCKET volatile           SockClient;
+    RTSOCKET volatile           hClientSocket;
     /** The connection function. */
     PFNRTTCPSERVE               pfnServe;
     /** Argument to pfnServer. */
     void                       *pvUser;
 } RTTCPSERVER;
 
-typedef union RTSOCKADDRUNION
-{
-    struct sockaddr     Addr;
-    struct sockaddr_in  Ipv4;
-#ifdef IPRT_WITH_TCPIP_V6
-    struct sockaddr_in6 Ipv6;
-#endif
-} RTSOCKADDRUNION;
 
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
 static DECLCALLBACK(int)  rtTcpServerThread(RTTHREAD ThreadSelf, void *pvServer);
 static int  rtTcpServerListen(PRTTCPSERVER pServer);
-static int  rcTcpServerListenCleanup(PRTTCPSERVER pServer);
+static int  rtTcpServerListenCleanup(PRTTCPSERVER pServer);
 static int  rtTcpServerDestroySocket(RTSOCKET volatile *pSockClient, const char *pszMsg);
 static int  rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdown);
-static int  rtTcpConvertAddress(RTSOCKADDRUNION *pSrc, size_t cbSrc, PRTNETADDR pAddr);
-
-
-
-/**
- * Get the last error as an iprt status code.
- *
- * @returns iprt status code.
- */
-DECLINLINE(int) rtTcpError(void)
-{
-#ifdef RT_OS_WINDOWS
-    return RTErrConvertFromWin32(WSAGetLastError());
-#else
-    return RTErrConvertFromErrno(errno);
-#endif
-}
-
-
-/**
- * Resets the last error.
- */
-DECLINLINE(void) rtTcpErrorReset(void)
-{
-#ifdef RT_OS_WINDOWS
-    WSASetLastError(0);
-#else
-    errno = 0;
-#endif
-}
-
-
-/**
- * Get the last resolver error as an iprt status code.
- *
- * @returns iprt status code.
- */
-DECLINLINE(int) rtTcpResolverError(void)
-{
-#ifdef RT_OS_WINDOWS
-    return RTErrConvertFromWin32(WSAGetLastError());
-#else
-    switch (h_errno)
-    {
-        case HOST_NOT_FOUND:
-            return VERR_NET_HOST_NOT_FOUND;
-        case NO_DATA:
-            return VERR_NET_ADDRESS_NOT_AVAILABLE;
-        case NO_RECOVERY:
-            return VERR_IO_GEN_FAILURE;
-        case TRY_AGAIN:
-            return VERR_TRY_AGAIN;
-
-        default:
-            return VERR_UNRESOLVED_ERROR;
-    }
-#endif
-}
 
 
 /**
  * Atomicly updates a socket variable.
- * @returns The old value.
- * @param   pSock   The socket variable to update.
- * @param   Sock    The new value.
+ * @returns The old handle value.
+ * @param   phSock          The socket handle variable to update.
+ * @param   hSock           The new socket handle value.
  */
-DECLINLINE(RTSOCKET) rtTcpAtomicXchgSock(RTSOCKET volatile *pSock, const RTSOCKET Sock)
+DECLINLINE(RTSOCKET) rtTcpAtomicXchgSock(RTSOCKET volatile *phSock, const RTSOCKET hNew)
 {
-    switch (sizeof(RTSOCKET))
-    {
-        case 4: return (RTSOCKET)ASMAtomicXchgS32((int32_t volatile *)pSock, (int32_t)Sock);
-        default:
-            AssertReleaseFailed();
-            return NIL_RTSOCKET;
-    }
+    RTSOCKET hRet;
+    ASMAtomicXchgHandle(phSock, hNew, &hRet);
+    return hRet;
 }
 
 
@@ -258,6 +182,7 @@ DECLINLINE(void) rtTcpServerSetState(PRTTCPSERVER pServer, RTTCPSERVERSTATE enmS
     Assert(fRc); NOREF(fRc);
 }
 
+
 /**
  * Closes the a socket (client or server).
  *
@@ -265,12 +190,12 @@ DECLINLINE(void) rtTcpServerSetState(PRTTCPSERVER pServer, RTTCPSERVERSTATE enmS
  */
 static int rtTcpServerDestroySocket(RTSOCKET volatile *pSock, const char *pszMsg, bool fTryGracefulShutdown)
 {
-    RTSOCKET Sock = rtTcpAtomicXchgSock(pSock, NIL_RTSOCKET);
-    if (Sock != NIL_RTSOCKET)
+    RTSOCKET hSocket = rtTcpAtomicXchgSock(pSock, NIL_RTSOCKET);
+    if (hSocket != NIL_RTSOCKET)
     {
         if (!fTryGracefulShutdown)
-            shutdown(Sock, SHUT_RDWR);
-        return rtTcpClose(Sock, pszMsg, fTryGracefulShutdown);
+            RTSocketShutdown(hSocket, true /*fRead*/, true /*fWrite*/);
+        return rtTcpClose(hSocket, pszMsg, fTryGracefulShutdown);
     }
     return VINF_TCP_SERVER_NO_CLIENT;
 }
@@ -356,7 +281,7 @@ static DECLCALLBACK(int)  rtTcpServerThread(RTTHREAD ThreadSelf, void *pvServer)
     if (rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_ACCEPTING, RTTCPSERVERSTATE_STARTING))
         rc = rtTcpServerListen(pServer);
     else
-        rc = rcTcpServerListenCleanup(pServer);
+        rc = rtTcpServerListenCleanup(pServer);
     RTMemPoolRelease(RTMEMPOOL_DEFAULT, pServer);
     NOREF(ThreadSelf);
     return VINF_SUCCESS;
@@ -411,7 +336,7 @@ RTR3DECL(int) RTTcpServerCreateEx(const char *pszAddress, uint32_t uPort, PPRTTC
             pHostEnt = gethostbyaddr((char *)&InAddr, 4, AF_INET);
             if (!pHostEnt)
             {
-                rc = rtTcpResolverError();
+                rc = rtSocketResolverError();
                 AssertMsgFailed(("Could not get host address rc=%Rrc\n", rc));
                 return rc;
             }
@@ -421,19 +346,23 @@ RTR3DECL(int) RTTcpServerCreateEx(const char *pszAddress, uint32_t uPort, PPRTTC
     /*
      * Setting up socket.
      */
-    RTSOCKET WaitSock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (WaitSock != -1)
+    RTSOCKET WaitSock;
+    rc = rtSocketCreate(&WaitSock, AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (RT_SUCCESS(rc))
     {
+        RTSocketSetInheritance(WaitSock, false /*fInheritable*/);
+
         /*
          * Set socket options.
          */
         int fFlag = 1;
-        if (!setsockopt(WaitSock, SOL_SOCKET, SO_REUSEADDR, (const char *)&fFlag, sizeof(fFlag)))
+        if (!rtSocketSetOpt(WaitSock, SOL_SOCKET, SO_REUSEADDR, &fFlag, sizeof(fFlag)))
         {
             /*
              * Set socket family, address and port.
              */
-            struct sockaddr_in LocalAddr = {0};
+            struct sockaddr_in LocalAddr;
+            RT_ZERO(LocalAddr);
             LocalAddr.sin_family = AF_INET;
             LocalAddr.sin_port = htons(uPort);
             /* if address not specified, use INADDR_ANY. */
@@ -443,57 +372,37 @@ RTR3DECL(int) RTTcpServerCreateEx(const char *pszAddress, uint32_t uPort, PPRTTC
                 LocalAddr.sin_addr = *((struct in_addr *)pHostEnt->h_addr);
 
             /*
-             * Bind a name to a socket.
+             * Bind a name to a socket and set it listening for connections.
              */
-            if (bind(WaitSock, (struct sockaddr *)&LocalAddr, sizeof(LocalAddr)) != -1)
+            rc = rtSocketBind(WaitSock, (struct sockaddr *)&LocalAddr, sizeof(LocalAddr));
+            if (RT_SUCCESS(rc))
+                rc = rtSocketListen(WaitSock, RTTCP_SERVER_BACKLOG);
+            if (RT_SUCCESS(rc))
             {
                 /*
-                 * Listen for connections on a socket.
+                 * Create the server handle.
                  */
-                if (listen(WaitSock, RTTCP_SERVER_BACKLOG) != -1)
+                PRTTCPSERVER pServer = (PRTTCPSERVER)RTMemPoolAlloc(RTMEMPOOL_DEFAULT, sizeof(*pServer));
+                if (pServer)
                 {
-                    /*
-                     * Create the server handle.
-                     */
-                    PRTTCPSERVER pServer = (PRTTCPSERVER)RTMemPoolAlloc(RTMEMPOOL_DEFAULT, sizeof(*pServer));
-                    if (pServer)
-                    {
-                        pServer->u32Magic   = RTTCPSERVER_MAGIC;
-                        pServer->enmState   = RTTCPSERVERSTATE_CREATED;
-                        pServer->Thread     = NIL_RTTHREAD;
-                        pServer->SockServer = WaitSock;
-                        pServer->SockClient = NIL_RTSOCKET;
-                        pServer->pfnServe   = NULL;
-                        pServer->pvUser     = NULL;
-                        *ppServer = pServer;
-                        return VINF_SUCCESS;
-                    }
+                    pServer->u32Magic       = RTTCPSERVER_MAGIC;
+                    pServer->enmState       = RTTCPSERVERSTATE_CREATED;
+                    pServer->Thread         = NIL_RTTHREAD;
+                    pServer->hServerSocket  = WaitSock;
+                    pServer->hClientSocket  = NIL_RTSOCKET;
+                    pServer->pfnServe       = NULL;
+                    pServer->pvUser         = NULL;
+                    *ppServer = pServer;
+                    return VINF_SUCCESS;
+                }
 
-                    /* bail out */
-                    rc = VERR_NO_MEMORY;
-                }
-                else
-                {
-                    rc = rtTcpError();
-                    AssertMsgFailed(("listen() %Rrc\n", rc));
-                }
-            }
-            else
-            {
-                rc = rtTcpError();
+                /* bail out */
+                rc = VERR_NO_MEMORY;
             }
         }
         else
-        {
-            rc = rtTcpError();
-            AssertMsgFailed(("setsockopt() %Rrc\n", rc));
-        }
+            AssertMsgFailed(("rtSocketSetOpt: %Rrc\n", rc));
         rtTcpClose(WaitSock, "RTServerCreateEx", false /*fTryGracefulShutdown*/);
-    }
-    else
-    {
-        rc = rtTcpError();
-        AssertMsgFailed(("socket() %Rrc\n", rc));
     }
 
     return rc;
@@ -532,7 +441,7 @@ RTR3DECL(int) RTTcpServerListen(PRTTCPSERVER pServer, PFNRTTCPSERVE pfnServe, vo
         Assert(!pServer->pfnServe);
         Assert(!pServer->pvUser);
         Assert(pServer->Thread == NIL_RTTHREAD);
-        Assert(pServer->SockClient == NIL_RTSOCKET);
+        Assert(pServer->hClientSocket == NIL_RTSOCKET);
 
         pServer->pfnServe = pfnServe;
         pServer->pvUser   = pvUser;
@@ -565,43 +474,62 @@ static int rtTcpServerListen(PRTTCPSERVER pServer)
     for (;;)
     {
         /*
-         * Change state.
+         * Change state, getting an extra reference to the socket so we can
+         * allow others to close it while we're stuck in rtSocketAccept.
          */
-        RTTCPSERVERSTATE    enmState   = pServer->enmState;
-        RTSOCKET            SockServer = pServer->SockServer;
+        RTTCPSERVERSTATE    enmState      = pServer->enmState;
+        RTSOCKET            hServerSocket;
+        ASMAtomicXchgHandle(&pServer->hServerSocket, NIL_RTSOCKET, &hServerSocket);
+        if (hServerSocket != NIL_RTSOCKET)
+        {
+            RTSocketRetain(hServerSocket);
+            ASMAtomicWriteHandle(&pServer->hServerSocket, hServerSocket);
+        }
         if (    enmState != RTTCPSERVERSTATE_ACCEPTING
             &&  enmState != RTTCPSERVERSTATE_SERVING)
-            return rcTcpServerListenCleanup(pServer);
+        {
+            RTSocketRelease(hServerSocket);
+            return rtTcpServerListenCleanup(pServer);
+        }
         if (!rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_ACCEPTING, enmState))
+        {
+            RTSocketRelease(hServerSocket);
             continue;
+        }
 
         /*
          * Accept connection.
          */
-        struct sockaddr_in  RemoteAddr   = {0};
-        socklen_t           cbRemoteAddr = sizeof(RemoteAddr);
-        RTSOCKET Socket = accept(SockServer, (struct sockaddr *)&RemoteAddr, &cbRemoteAddr);
-        if (Socket == -1)
+        struct sockaddr_in  RemoteAddr;
+        size_t              cbRemoteAddr = sizeof(RemoteAddr);
+        RTSOCKET            hClientSocket;
+        RT_ZERO(RemoteAddr);
+        int rc = rtSocketAccept(hServerSocket, &hClientSocket, (struct sockaddr *)&RemoteAddr, &cbRemoteAddr);
+        RTSocketRelease(hServerSocket);
+        if (RT_FAILURE(rc))
         {
-#ifndef RT_OS_WINDOWS
             /* These are typical for what can happen during destruction. */
-            if (errno == EBADF || errno == EINVAL || errno == ENOTSOCK)
-                return rcTcpServerListenCleanup(pServer);
-#endif
+            if (   rc == VERR_INVALID_HANDLE
+                || rc == VERR_INVALID_PARAMETER
+                || rc == VERR_NET_NOT_SOCKET)
+                return rtTcpServerListenCleanup(pServer);
             continue;
         }
+        RTSocketSetInheritance(hClientSocket, false /*fInheritable*/);
 
         /*
          * Run a pfnServe callback.
          */
         if (!rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_SERVING, RTTCPSERVERSTATE_ACCEPTING))
         {
-            rtTcpClose(Socket, "rtTcpServerListen", true /*fTryGracefulShutdown*/);
-            return rcTcpServerListenCleanup(pServer);
+            rtTcpClose(hClientSocket, "rtTcpServerListen", true /*fTryGracefulShutdown*/);
+            return rtTcpServerListenCleanup(pServer);
         }
-        rtTcpAtomicXchgSock(&pServer->SockClient, Socket);
-        int rc = pServer->pfnServe(Socket, pServer->pvUser);
-        rtTcpServerDestroySocket(&pServer->SockClient, "Listener: client", true /*fTryGracefulShutdown*/);
+        RTSocketRetain(hClientSocket);
+        rtTcpAtomicXchgSock(&pServer->hClientSocket, hClientSocket);
+        rc = pServer->pfnServe(hClientSocket, pServer->pvUser);
+        rtTcpServerDestroySocket(&pServer->hClientSocket, "Listener: client (secondary)", true /*fTryGracefulShutdown*/);
+        RTSocketRelease(hClientSocket);
 
         /*
          * Stop the server?
@@ -614,12 +542,12 @@ static int rtTcpServerListen(PRTTCPSERVER pServer)
                  * Reset the server socket and change the state to stopped. After that state change
                  * we cannot safely access the handle so we'll have to return here.
                  */
-                SockServer = rtTcpAtomicXchgSock(&pServer->SockServer, NIL_RTSOCKET);
+                hServerSocket = rtTcpAtomicXchgSock(&pServer->hServerSocket, NIL_RTSOCKET);
                 rtTcpServerSetState(pServer, RTTCPSERVERSTATE_STOPPED, RTTCPSERVERSTATE_STOPPING);
-                rtTcpClose(SockServer, "Listener: server stopped", false /*fTryGracefulShutdown*/);
+                rtTcpClose(hServerSocket, "Listener: server stopped", false /*fTryGracefulShutdown*/);
             }
             else
-                rcTcpServerListenCleanup(pServer); /* ignore rc */
+                rtTcpServerListenCleanup(pServer); /* ignore rc */
             return rc;
         }
     }
@@ -629,13 +557,13 @@ static int rtTcpServerListen(PRTTCPSERVER pServer)
 /**
  * Clean up after listener.
  */
-static int rcTcpServerListenCleanup(PRTTCPSERVER pServer)
+static int rtTcpServerListenCleanup(PRTTCPSERVER pServer)
 {
     /*
      * Close the server socket, the client one shouldn't be set.
      */
-    rtTcpServerDestroySocket(&pServer->SockServer, "ListenCleanup", false /*fTryGracefulShutdown*/);
-    Assert(pServer->SockClient == NIL_RTSOCKET);
+    rtTcpServerDestroySocket(&pServer->hServerSocket, "ListenCleanup", false /*fTryGracefulShutdown*/);
+    Assert(pServer->hClientSocket == NIL_RTSOCKET);
 
     /*
      * Figure the return code and make sure the state is OK.
@@ -663,6 +591,102 @@ static int rcTcpServerListenCleanup(PRTTCPSERVER pServer)
 
 
 /**
+ * Listen and accept one incomming connection.
+ *
+ * This is an alternative to RTTcpServerListen for the use the callbacks are not
+ * possible.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_TCP_SERVER_SHUTDOWN if shut down by RTTcpServerShutdown.
+ * @retval  VERR_INTERRUPTED if the listening was interrupted.
+ *
+ * @param   pServer         The server handle as returned from RTTcpServerCreateEx().
+ * @param   phClientSocket  Where to return the socket handle to the client
+ *                          connection (on success only).  This must be closed
+ *                          by calling RTTcpServerDisconnectClient2().
+ */
+RTR3DECL(int) RTTcpServerListen2(PRTTCPSERVER pServer, PRTSOCKET phClientSocket)
+{
+    /*
+     * Validate input and retain the instance.
+     */
+    AssertPtrReturn(phClientSocket, VERR_INVALID_HANDLE);
+    *phClientSocket = NIL_RTSOCKET;
+    AssertReturn(pServer->u32Magic == RTTCPSERVER_MAGIC, VERR_INVALID_HANDLE);
+    AssertReturn(RTMemPoolRetain(pServer) != UINT32_MAX, VERR_INVALID_HANDLE);
+
+    int rc = VERR_INVALID_STATE;
+    for (;;)
+    {
+        /*
+         * Change state, getting an extra reference to the socket so we can
+         * allow others to close it while we're stuck in rtSocketAccept.
+         */
+        RTTCPSERVERSTATE    enmState      = pServer->enmState;
+        RTSOCKET            hServerSocket;
+        ASMAtomicXchgHandle(&pServer->hServerSocket, NIL_RTSOCKET, &hServerSocket);
+        if (hServerSocket != NIL_RTSOCKET)
+        {
+            RTSocketRetain(hServerSocket);
+            ASMAtomicWriteHandle(&pServer->hServerSocket, hServerSocket);
+        }
+        if (    enmState != RTTCPSERVERSTATE_SERVING
+            &&  enmState != RTTCPSERVERSTATE_CREATED)
+        {
+            RTSocketRelease(hServerSocket);
+            return rtTcpServerListenCleanup(pServer);
+        }
+        if (!rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_ACCEPTING, enmState))
+        {
+            RTSocketRelease(hServerSocket);
+            continue;
+        }
+        Assert(!pServer->pfnServe);
+        Assert(!pServer->pvUser);
+        Assert(pServer->Thread == NIL_RTTHREAD);
+        Assert(pServer->hClientSocket == NIL_RTSOCKET);
+
+        /*
+         * Accept connection.
+         */
+        struct sockaddr_in  RemoteAddr;
+        size_t              cbRemoteAddr = sizeof(RemoteAddr);
+        RTSOCKET            hClientSocket;
+        RT_ZERO(RemoteAddr);
+        rc = rtSocketAccept(hServerSocket, &hClientSocket, (struct sockaddr *)&RemoteAddr, &cbRemoteAddr);
+        RTSocketRelease(hServerSocket);
+        if (RT_FAILURE(rc))
+        {
+            if (!rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_CREATED, RTTCPSERVERSTATE_ACCEPTING))
+                rc = rtTcpServerListenCleanup(pServer);
+            if (RT_FAILURE(rc))
+                break;
+            continue;
+        }
+        RTSocketSetInheritance(hClientSocket, false /*fInheritable*/);
+
+        /*
+         * Chance to the 'serving' state and return the socket.
+         */
+        if (rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_SERVING, RTTCPSERVERSTATE_ACCEPTING))
+        {
+            *phClientSocket = hClientSocket;
+            rc = VINF_SUCCESS;
+        }
+        else
+        {
+            rtTcpClose(hClientSocket, "RTTcpServerListen2", true /*fTryGracefulShutdown*/);
+            rc = rtTcpServerListenCleanup(pServer);
+        }
+        break;
+    }
+
+    RTMemPoolRelease(RTMEMPOOL_DEFAULT, pServer);
+    return rc;
+}
+
+
+/**
  * Terminate the open connection to the server.
  *
  * @returns iprt status code.
@@ -677,10 +701,24 @@ RTR3DECL(int) RTTcpServerDisconnectClient(PRTTCPSERVER pServer)
     AssertReturn(pServer->u32Magic == RTTCPSERVER_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRetain(pServer) != UINT32_MAX, VERR_INVALID_HANDLE);
 
-    int rc = rtTcpServerDestroySocket(&pServer->SockClient, "DisconnectClient: client", true /*fTryGracefulShutdown*/);
+    int rc = rtTcpServerDestroySocket(&pServer->hClientSocket, "DisconnectClient: client", true /*fTryGracefulShutdown*/);
 
     RTMemPoolRelease(RTMEMPOOL_DEFAULT, pServer);
     return rc;
+}
+
+
+/**
+ * Terminates an open client connect when using RTTcpListen2
+ *
+ * @returns IPRT status code.
+ * @param   hClientSocket   The client socket handle.  This will be invalid upon
+ *                          return, whether successful or not.  NIL is quietly
+ *                          ignored (VINF_SUCCESS).
+ */
+RTR3DECL(int) RTTcpServerDisconnectClient2(RTSOCKET hClientSocket)
+{
+    return rtTcpClose(hClientSocket, "RTTcpServerDisconnectClient2", true /*fTryGracefulShutdown*/);
 }
 
 
@@ -727,7 +765,7 @@ RTR3DECL(int) RTTcpServerShutdown(PRTTCPSERVER pServer)
         }
         if (rtTcpServerTrySetState(pServer, RTTCPSERVERSTATE_STOPPING, enmState))
         {
-            rtTcpServerDestroySocket(&pServer->SockServer, "RTTcpServerShutdown", false /*fTryGracefulShutdown*/);
+            rtTcpServerDestroySocket(&pServer->hServerSocket, "RTTcpServerShutdown", false /*fTryGracefulShutdown*/);
             rtTcpServerSetState(pServer, RTTCPSERVERSTATE_STOPPED, RTTCPSERVERSTATE_STOPPING);
 
             RTMemPoolRelease(RTMEMPOOL_DEFAULT, pServer);
@@ -791,8 +829,8 @@ RTR3DECL(int) RTTcpServerDestroy(PRTTCPSERVER pServer)
      * Destroy it.
      */
     ASMAtomicWriteU32(&pServer->u32Magic, ~RTTCPSERVER_MAGIC);
-    rtTcpServerDestroySocket(&pServer->SockServer, "Destroyer: server", false /*fTryGracefulShutdown*/);
-    rtTcpServerDestroySocket(&pServer->SockClient, "Destroyer: client", true  /*fTryGracefulShutdown*/);
+    rtTcpServerDestroySocket(&pServer->hServerSocket, "Destroyer: server", false /*fTryGracefulShutdown*/);
+    rtTcpServerDestroySocket(&pServer->hClientSocket, "Destroyer: client", true  /*fTryGracefulShutdown*/);
 
     /*
      * Release it.
@@ -800,184 +838,6 @@ RTR3DECL(int) RTTcpServerDestroy(PRTTCPSERVER pServer)
     RTMemPoolRelease(RTMEMPOOL_DEFAULT, pServer);
     RTMemPoolRelease(RTMEMPOOL_DEFAULT, pServer);
     return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTTcpRead(RTSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
-{
-    /*
-     * Validate input.
-     */
-    AssertReturn(cbBuffer > 0, VERR_INVALID_PARAMETER);
-    AssertPtr(pvBuffer);
-
-    /*
-     * Read loop.
-     * If pcbRead is NULL we have to fill the entire buffer!
-     */
-    size_t cbRead = 0;
-    size_t cbToRead = cbBuffer;
-    for (;;)
-    {
-        rtTcpErrorReset();
-#ifdef RT_OS_WINDOWS
-        int    cbNow = cbToRead >= INT_MAX/2 ? INT_MAX/2 : (int)cbToRead;
-#else
-        size_t cbNow = cbToRead;
-#endif
-        ssize_t cbBytesRead = recv(Sock, (char *)pvBuffer + cbRead, cbNow, MSG_NOSIGNAL);
-        if (cbBytesRead <= 0)
-        {
-            int rc = rtTcpError();
-            Assert(RT_FAILURE_NP(rc) || cbBytesRead == 0);
-            if (RT_FAILURE_NP(rc))
-                return rc;
-            if (pcbRead)
-            {
-                *pcbRead = 0;
-                return VINF_SUCCESS;
-            }
-            return VERR_NET_SHUTDOWN;
-        }
-        if (pcbRead)
-        {
-            /* return partial data */
-            *pcbRead = cbBytesRead;
-            break;
-        }
-
-        /* read more? */
-        cbRead += cbBytesRead;
-        if (cbRead == cbBuffer)
-            break;
-
-        /* next */
-        cbToRead = cbBuffer - cbRead;
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int)  RTTcpWrite(RTSOCKET Sock, const void *pvBuffer, size_t cbBuffer)
-{
-
-    do
-    {
-#ifdef RT_OS_WINDOWS
-        int    cbNow = cbBuffer >= INT_MAX/2 ? INT_MAX/2 : (int)cbBuffer;
-#else
-        size_t cbNow = cbBuffer;
-#endif
-        ssize_t cbWritten = send(Sock, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL);
-        if (cbWritten < 0)
-            return rtTcpError();
-        AssertMsg(cbBuffer >= (size_t)cbWritten, ("Wrote more than we requested!!! cbWritten=%d cbBuffer=%d rtTcpError()=%d\n",
-                                                  cbWritten, cbBuffer, rtTcpError()));
-        cbBuffer -= cbWritten;
-        pvBuffer = (char *)pvBuffer + cbWritten;
-    } while (cbBuffer);
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int)  RTTcpFlush(RTSOCKET Sock)
-{
-    int fFlag = 1;
-    setsockopt(Sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&fFlag, sizeof(fFlag));
-    fFlag = 0;
-    setsockopt(Sock, IPPROTO_TCP, TCP_NODELAY, (const char *)&fFlag, sizeof(fFlag));
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int)  RTTcpSelectOne(RTSOCKET Sock, unsigned cMillies)
-{
-    fd_set fdsetR;
-    FD_ZERO(&fdsetR);
-    FD_SET(Sock, &fdsetR);
-
-    fd_set fdsetE = fdsetR;
-
-    int rc;
-    if (cMillies == RT_INDEFINITE_WAIT)
-        rc = select(Sock + 1, &fdsetR, NULL, &fdsetE, NULL);
-    else
-    {
-        struct timeval timeout;
-        timeout.tv_sec = cMillies / 1000;
-        timeout.tv_usec = (cMillies % 1000) * 1000;
-        rc = select(Sock + 1, &fdsetR, NULL, &fdsetE, &timeout);
-    }
-    if (rc > 0)
-        return VINF_SUCCESS;
-    if (rc == 0)
-        return VERR_TIMEOUT;
-    return rtTcpError();
-}
-
-
-static int rtTcpConvertAddress(RTSOCKADDRUNION *pSrc, size_t cbSrc, PRTNETADDR pAddr)
-{
-    /*
-     * Convert the address.
-     */
-    if (   cbSrc == sizeof(struct sockaddr_in)
-        && pSrc->Addr.sa_family == AF_INET)
-    {
-        RT_ZERO(*pAddr);
-        pAddr->enmType      = RTNETADDRTYPE_IPV4;
-        pAddr->uPort        = RT_N2H_U16(pSrc->Ipv4.sin_port);
-        pAddr->uAddr.IPv4.u = pSrc->Ipv4.sin_addr.s_addr;
-    }
-#ifdef IPRT_WITH_TCPIP_V6
-    else if (   cbSrc == sizeof(struct sockaddr_in6)
-             && pSrc->Addr.sa_family == AF_INET6)
-    {
-        RT_ZERO(*pAddr);
-        pAddr->enmType            = RTNETADDRTYPE_IPV6;
-        pAddr->uPort              = RT_N2H_U16(pSrc->Ipv6.sin6_port);
-        pAddr->uAddr.IPv6.au32[0] = pSrc->Ipv6.sin6_addr.s6_addr32[0];
-        pAddr->uAddr.IPv6.au32[1] = pSrc->Ipv6.sin6_addr.s6_addr32[1];
-        pAddr->uAddr.IPv6.au32[2] = pSrc->Ipv6.sin6_addr.s6_addr32[2];
-        pAddr->uAddr.IPv6.au32[3] = pSrc->Ipv6.sin6_addr.s6_addr32[3];
-    }
-#endif
-    else
-        return VERR_NET_ADDRESS_FAMILY_NOT_SUPPORTED;
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTTcpGetLocalAddress(RTSOCKET Sock, PRTNETADDR pAddr)
-{
-    RTSOCKADDRUNION u;
-#ifdef RT_OS_WINDOWS
-    int             cbAddr = sizeof(u);
-#else
-    socklen_t       cbAddr = sizeof(u);
-#endif
-    RT_ZERO(u);
-    if (!getsockname(Sock, &u.Addr, &cbAddr))
-        return rtTcpConvertAddress(&u, cbAddr, pAddr);
-    return rtTcpError();
-}
-
-
-RTR3DECL(int) RTTcpGetPeerAddress(RTSOCKET Sock, PRTNETADDR pAddr)
-{
-    RTSOCKADDRUNION u;
-#ifdef RT_OS_WINDOWS
-    int             cbAddr = sizeof(u);
-#else
-    socklen_t       cbAddr = sizeof(u);
-#endif
-    RT_ZERO(u);
-    if (!getpeername(Sock, &u.Addr, &cbAddr))
-        return rtTcpConvertAddress(&u, cbAddr, pAddr);
-    return rtTcpError();
 }
 
 
@@ -1017,7 +877,7 @@ RTR3DECL(int) RTTcpClientConnect(const char *pszAddress, uint32_t uPort, PRTSOCK
         pHostEnt = gethostbyaddr((char *)&InAddr, 4, AF_INET);
         if (!pHostEnt)
         {
-            rc = rtTcpError();
+            rc = rtSocketResolverError();
             AssertMsgFailed(("Could not resolve '%s', rc=%Rrc\n", pszAddress, rc));
             return rc;
         }
@@ -1026,23 +886,26 @@ RTR3DECL(int) RTTcpClientConnect(const char *pszAddress, uint32_t uPort, PRTSOCK
     /*
      * Create the socket and connect.
      */
-    RTSOCKET Sock = socket(PF_INET, SOCK_STREAM, 0);
-    if (Sock != -1)
+    RTSOCKET Sock;
+    rc = rtSocketCreate(&Sock, PF_INET, SOCK_STREAM, 0);
+    if (RT_SUCCESS(rc))
     {
-        struct sockaddr_in InAddr = {0};
+        RTSocketSetInheritance(Sock, false /*fInheritable*/);
+
+        struct sockaddr_in InAddr;
+        RT_ZERO(InAddr);
         InAddr.sin_family = AF_INET;
         InAddr.sin_port = htons(uPort);
         InAddr.sin_addr = *((struct in_addr *)pHostEnt->h_addr);
-        if (!connect(Sock, (struct sockaddr *)&InAddr, sizeof(InAddr)))
+        rc = rtSocketConnect(Sock, (struct sockaddr *)&InAddr, sizeof(InAddr));
+        if (RT_SUCCESS(rc))
         {
             *pSock = Sock;
             return VINF_SUCCESS;
         }
-        rc = rtTcpError();
+
         rtTcpClose(Sock, "RTTcpClientConnect", false /*fTryGracefulShutdown*/);
     }
-    else
-        rc = rtTcpError();
     return rc;
 }
 
@@ -1069,13 +932,13 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
      */
     if (fTryGracefulShutdown)
     {
-        rc = shutdown(Sock, SHUT_WR);
-        if (!rc)
+        rc = RTSocketShutdown(Sock, false /*fRead*/, true /*fWrite*/);
+        if (RT_SUCCESS(rc))
         {
             uint64_t u64Start = RTTimeMilliTS();
             for (;;)
             {
-                rc = RTTcpSelectOne(Sock, 1000);
+                rc = RTSocketSelectOne(Sock, 1000);
                 if (rc == VERR_TIMEOUT)
                 {
                     if (RTTimeMilliTS() - u64Start > 30000)
@@ -1085,7 +948,7 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
                     break;
                 {
                     char abBitBucket[16*_1K];
-                    ssize_t cbBytesRead = recv(Sock, &abBitBucket[0], sizeof(abBitBucket), MSG_NOSIGNAL);
+                    ssize_t cbBytesRead = recv(RTSocketToNative(Sock), &abBitBucket[0], sizeof(abBitBucket), MSG_NOSIGNAL);
                     if (cbBytesRead == 0)
                         break; /* orderly shutdown in progress */
                     if (cbBytesRead < 0)
@@ -1096,17 +959,58 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
     }
 
     /*
-     * Attempt to close it.
+     * Close the socket handle (drops our reference to it).
      */
-#ifdef RT_OS_WINDOWS
-    rc = closesocket(Sock);
-#else
-    rc = close(Sock);
-#endif
-    if (!rc)
-        return VINF_SUCCESS;
-    rc = rtTcpError();
-    AssertMsgFailed(("\"%s\": close(%d) -> %Rrc\n", pszMsg, Sock, rc));
+    return RTSocketClose(Sock);
+}
+
+
+RTR3DECL(int) RTTcpRead(RTSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
+{
+    return RTSocketRead(Sock, pvBuffer, cbBuffer, pcbRead);
+}
+
+
+RTR3DECL(int)  RTTcpWrite(RTSOCKET Sock, const void *pvBuffer, size_t cbBuffer)
+{
+    return RTSocketWrite(Sock, pvBuffer, cbBuffer);
+}
+
+
+RTR3DECL(int)  RTTcpFlush(RTSOCKET Sock)
+{
+    int fFlag = 1;
+    int rc = rtSocketSetOpt(Sock, IPPROTO_TCP, TCP_NODELAY, &fFlag, sizeof(fFlag));
+    if (RT_SUCCESS(rc))
+    {
+        fFlag = 0;
+        rc = rtSocketSetOpt(Sock, IPPROTO_TCP, TCP_NODELAY, &fFlag, sizeof(fFlag));
+    }
     return rc;
+}
+
+
+RTR3DECL(int)  RTTcpSetSendCoalescing(RTSOCKET Sock, bool fEnable)
+{
+    int fFlag = fEnable ? 0 : 1;
+    return rtSocketSetOpt(Sock, IPPROTO_TCP, TCP_NODELAY, &fFlag, sizeof(fFlag));
+}
+
+
+RTR3DECL(int)  RTTcpSelectOne(RTSOCKET Sock, RTMSINTERVAL cMillies)
+{
+    return RTSocketSelectOne(Sock, cMillies);
+}
+
+
+RTR3DECL(int) RTTcpGetLocalAddress(RTSOCKET Sock, PRTNETADDR pAddr)
+{
+    return RTSocketGetLocalAddress(Sock, pAddr);
+}
+
+
+RTR3DECL(int) RTTcpGetPeerAddress(RTSOCKET Sock, PRTNETADDR pAddr)
+{
+    return RTSocketGetPeerAddress(Sock, pAddr);
 }
 

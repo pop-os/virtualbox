@@ -1,10 +1,10 @@
-/* $Id: DevPit-i8254.cpp $ */
+/* $Id: DevPit-i8254.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
 /** @file
  * DevPIT-i8254 - Intel 8254 Programmable Interval Timer (PIT) And Dummy Speaker Device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -52,7 +48,13 @@
 #include <VBox/log.h>
 #include <VBox/stam.h>
 #include <iprt/assert.h>
-#include <iprt/asm.h>
+#include <iprt/asm-math.h>
+
+#ifdef IN_RING3
+# include <iprt/alloc.h>
+# include <iprt/string.h>
+# include <iprt/uuid.h>
+#endif /* IN_RING3 */
 
 #include "../Builtins.h"
 
@@ -69,7 +71,10 @@
 #define RW_STATE_WORD1 4
 
 /** The current saved state version. */
-#define PIT_SAVED_STATE_VERSION             3
+#define PIT_SAVED_STATE_VERSION             4
+/** The saved state version used by VirtualBox 3.1 and earlier.
+ * This did not include disable by HPET flag. */
+#define PIT_SAVED_STATE_VERSION_VBOX_31     3
 /** The saved state version used by VirtualBox 3.0 and earlier.
  * This did not include the config part. */
 #define PIT_SAVED_STATE_VERSION_VBOX_30     2
@@ -146,7 +151,10 @@ typedef struct PITState
     RTIOPORT                IOPortBaseCfg;
     /** Config: Speaker enabled. */
     bool                    fSpeakerCfg;
-    bool                    afAlignment0[HC_ARCH_BITS == 32 ? 1 : 5];
+    bool                    fDisabledByHpet;
+    bool                    afAlignment0[HC_ARCH_BITS == 32 ? 4 : 4];
+    /** PIT port interface. */
+    PDMIHPETLEGACYNOTIFY    IHpetLegacyNotify;
     /** Pointer to the device instance. */
     PPDMDEVINSR3            pDevIns;
     /** Number of IRQs that's been raised. */
@@ -413,9 +421,18 @@ static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time, uint
 
     /* We just flip-flop the irq level to save that extra timer call, which isn't generally required (we haven't served it for months). */
     pDevIns = s->CTX_SUFF(pPit)->pDevIns;
-    PDMDevHlpISASetIrq(pDevIns, s->irq, irq_level);
-    if (irq_level)
-        PDMDevHlpISASetIrq(pDevIns, s->irq, 0);
+
+    /* If PIT disabled by HPET - just disconnect ticks from interrupt controllers, and not modify
+     * other moments of device functioning.
+     * @todo: is it correct?
+     */
+    if (!s->pPitR3->fDisabledByHpet)
+    {
+        PDMDevHlpISASetIrq(pDevIns, s->irq, irq_level);
+        if (irq_level)
+            PDMDevHlpISASetIrq(pDevIns, s->irq, 0);
+    }
+
     if (irq_level)
     {
         s->u64ReloadTS = now;
@@ -763,10 +780,12 @@ static DECLCALLBACK(int) pitSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 
     SSMR3PutS32(pSSM, pThis->speaker_data_on);
 #ifdef FAKE_REFRESH_CLOCK
-    return SSMR3PutS32(pSSM, pThis->dummy_refresh_clock);
+    SSMR3PutS32(pSSM, pThis->dummy_refresh_clock);
 #else
-    return SSMR3PutS32(pSSM, 0);
+    SSMR3PutS32(pSSM, 0);
 #endif
+
+    return SSMR3PutBool(pSSM, pThis->fDisabledByHpet);
 }
 
 
@@ -779,7 +798,8 @@ static DECLCALLBACK(int) pitLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     int         rc;
 
     if (    uVersion != PIT_SAVED_STATE_VERSION
-        &&  uVersion != PIT_SAVED_STATE_VERSION_VBOX_30)
+        &&  uVersion != PIT_SAVED_STATE_VERSION_VBOX_30
+        &&  uVersion != PIT_SAVED_STATE_VERSION_VBOX_31)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
     /* The config. */
@@ -838,11 +858,15 @@ static DECLCALLBACK(int) pitLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 
     SSMR3GetS32(pSSM, &pThis->speaker_data_on);
 #ifdef FAKE_REFRESH_CLOCK
-    return SSMR3GetS32(pSSM, &pThis->dummy_refresh_clock);
+    SSMR3GetS32(pSSM, &pThis->dummy_refresh_clock);
 #else
     int32_t u32Dummy;
-    return SSMR3GetS32(pSSM, &u32Dummy);
+    SSMR3GetS32(pSSM, &u32Dummy);
 #endif
+    if (uVersion > PIT_SAVED_STATE_VERSION_VBOX_31)
+        SSMR3GetBool(pSSM, &pThis->fDisabledByHpet);
+
+    return VINF_SUCCESS;
 }
 
 
@@ -860,67 +884,6 @@ static DECLCALLBACK(void) pitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pv
     Log(("pitTimer\n"));
     pit_irq_timer_update(s, s->next_transition_time, TMTimerGet(pTimer));
     STAM_PROFILE_ADV_STOP(&s->CTX_SUFF(pPit)->StatPITHandler, a);
-}
-
-
-/**
- * Relocation notification.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- * @param   offDelta    The delta relative to the old address.
- */
-static DECLCALLBACK(void) pitRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    PITState *pThis = PDMINS_2_DATA(pDevIns, PITState *);
-    unsigned i;
-    LogFlow(("pitRelocate: \n"));
-
-    for (i = 0; i < RT_ELEMENTS(pThis->channels); i++)
-    {
-        PITChannelState *pCh = &pThis->channels[i];
-        if (pCh->pTimerR3)
-            pCh->pTimerRC = TMTimerRCPtr(pCh->pTimerR3);
-        pThis->channels[i].pPitRC = PDMINS_2_DATA_RCPTR(pDevIns);
-    }
-}
-
-/** @todo remove this! */
-static DECLCALLBACK(void) pitInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs);
-
-/**
- * Reset notification.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- */
-static DECLCALLBACK(void) pitReset(PPDMDEVINS pDevIns)
-{
-    PITState *pThis = PDMINS_2_DATA(pDevIns, PITState *);
-    unsigned i;
-    LogFlow(("pitReset: \n"));
-
-    for (i = 0; i < RT_ELEMENTS(pThis->channels); i++)
-    {
-        PITChannelState *s = &pThis->channels[i];
-
-#if 1 /* Set everything back to virgin state. (might not be strictly correct) */
-        s->latched_count = 0;
-        s->count_latched = 0;
-        s->status_latched = 0;
-        s->status = 0;
-        s->read_state = 0;
-        s->write_state = 0;
-        s->write_latch = 0;
-        s->rw_mode = 0;
-        s->bcd = 0;
-#endif
-        s->u64NextTS = UINT64_MAX;
-        s->cRelLogEntries = 0;
-        s->mode = 3;
-        s->gate = (i != 2);
-        pit_load_count(s, 0);
-    }
 }
 
 
@@ -962,23 +925,99 @@ static DECLCALLBACK(void) pitInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const 
 #else
     pHlp->pfnPrintf(pHlp, "speaker_data_on=%#x\n", pThis->speaker_data_on);
 #endif
+    if (pThis->fDisabledByHpet)
+        pHlp->pfnPrintf(pHlp, "Disabled by HPET\n");
 }
 
 
 /**
- * Construct a device instance for a VM.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
+ */
+static DECLCALLBACK(void *) pitQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+{
+    PPDMDEVINS  pDevIns = RT_FROM_MEMBER(pInterface, PDMDEVINS, IBase);
+    PITState   *pThis   = PDMINS_2_DATA(pDevIns, PITState *);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE,    &pDevIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHPETLEGACYNOTIFY, &pThis->IHpetLegacyNotify);
+    return NULL;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHPETLEGACYNOTIFY,pfnModeChanged}
+ */
+static DECLCALLBACK(void) pitNotifyHpetLegacyNotify_ModeChanged(PPDMIHPETLEGACYNOTIFY pInterface, bool fActivated)
+{
+    PITState *pThis = RT_FROM_MEMBER(pInterface, PITState, IHpetLegacyNotify);
+    pThis->fDisabledByHpet = fActivated;
+}
+
+
+/**
+ * Relocation notification.
  *
  * @returns VBox status.
  * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @param   offDelta    The delta relative to the old address.
  */
-static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(void) pitRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+{
+    PITState *pThis = PDMINS_2_DATA(pDevIns, PITState *);
+    unsigned i;
+    LogFlow(("pitRelocate: \n"));
+
+    for (i = 0; i < RT_ELEMENTS(pThis->channels); i++)
+    {
+        PITChannelState *pCh = &pThis->channels[i];
+        if (pCh->pTimerR3)
+            pCh->pTimerRC = TMTimerRCPtr(pCh->pTimerR3);
+        pThis->channels[i].pPitRC = PDMINS_2_DATA_RCPTR(pDevIns);
+    }
+}
+
+
+/**
+ * Reset notification.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ */
+static DECLCALLBACK(void) pitReset(PPDMDEVINS pDevIns)
+{
+    PITState *pThis = PDMINS_2_DATA(pDevIns, PITState *);
+    unsigned i;
+    LogFlow(("pitReset: \n"));
+
+    pThis->fDisabledByHpet = false;
+
+    for (i = 0; i < RT_ELEMENTS(pThis->channels); i++)
+    {
+        PITChannelState *s = &pThis->channels[i];
+
+#if 1 /* Set everything back to virgin state. (might not be strictly correct) */
+        s->latched_count = 0;
+        s->count_latched = 0;
+        s->status_latched = 0;
+        s->status = 0;
+        s->read_state = 0;
+        s->write_state = 0;
+        s->write_latch = 0;
+        s->rw_mode = 0;
+        s->bcd = 0;
+#endif
+        s->u64NextTS = UINT64_MAX;
+        s->cRelLogEntries = 0;
+        s->mode = 3;
+        s->gate = (i != 2);
+        pit_load_count(s, 0);
+    }
+}
+
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
+ */
+static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PITState   *pThis = PDMINS_2_DATA(pDevIns, PITState *);
     int         rc;
@@ -993,33 +1032,33 @@ static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "Irq\0" "Base\0" "SpeakerEnabled\0" "GCEnabled\0" "R0Enabled\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Irq\0" "Base\0" "SpeakerEnabled\0" "GCEnabled\0" "R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
 
     /*
      * Init the data.
      */
-    rc = CFGMR3QueryU8Def(pCfgHandle, "Irq", &u8Irq, 0);
+    rc = CFGMR3QueryU8Def(pCfg, "Irq", &u8Irq, 0);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"Irq\" as a uint8_t failed"));
 
-    rc = CFGMR3QueryU16Def(pCfgHandle, "Base", &u16Base, 0x40);
+    rc = CFGMR3QueryU16Def(pCfg, "Base", &u16Base, 0x40);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"Base\" as a uint16_t failed"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "SpeakerEnabled", &fSpeaker, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "SpeakerEnabled", &fSpeaker, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"SpeakerEnabled\" as a bool failed"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"GCEnabled\" as a bool failed"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: failed to read R0Enabled as boolean"));
@@ -1034,6 +1073,14 @@ static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         pThis->channels[i].pPitR0 = PDMINS_2_DATA_R0PTR(pDevIns);
         pThis->channels[i].pPitRC = PDMINS_2_DATA_RCPTR(pDevIns);
     }
+
+    /*
+     * Interfaces
+     */
+    /* IBase */
+    pDevIns->IBase.pfnQueryInterface        = pitQueryInterface;
+    /* IHpetLegacyNotify */
+    pThis->IHpetLegacyNotify.pfnModeChanged = pitNotifyHpetLegacyNotify_ModeChanged;
 
     /*
      * Create timer, register I/O Ports and save state.
@@ -1051,7 +1098,7 @@ static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return rc;
     if (fGCEnabled)
     {
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, u16Base, 4, 0, "pitIOPortWrite", "pitIOPortRead", NULL, NULL, "i8254 Programmable Interval Timer");
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, u16Base, 4, 0, "pitIOPortWrite", "pitIOPortRead", NULL, NULL, "i8254 Programmable Interval Timer");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -1069,7 +1116,7 @@ static DECLCALLBACK(int)  pitConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
             return rc;
         if (fGCEnabled)
         {
-            rc = PDMDevHlpIOPortRegisterGC(pDevIns, 0x61, 1, 0, NULL, "pitIOPortSpeakerRead", NULL, NULL, "PC Speaker");
+            rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x61, 1, 0, NULL, "pitIOPortSpeakerRead", NULL, NULL, "PC Speaker");
             if (RT_FAILURE(rc))
                 return rc;
         }
@@ -1103,7 +1150,7 @@ const PDMDEVREG g_DeviceI8254 =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "i8254",
     /* szRCMod */
     "VBoxDDGC.gc",
@@ -1139,7 +1186,7 @@ const PDMDEVREG g_DeviceI8254 =
     NULL,
     /* pfnDetach */
     NULL,
-    /* pfnQueryInterface. */
+    /* pfnQueryInterface */
     NULL,
     /* pfnInitComplete */
     NULL,

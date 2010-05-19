@@ -1,10 +1,10 @@
-/* $Id: NetIf-solaris.cpp $ */
+/* $Id: NetIf-solaris.cpp 28962 2010-05-03 08:26:14Z vboxsync $ */
 /** @file
  * Main - NetIfList, Solaris implementation.
  */
 
 /*
- * Copyright (C) 2008 Sun Microsystems, Inc.
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -80,9 +76,12 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
         SolarisNICMap.insert(NICPair("eri", "eri Fast Ethernet"));
         SolarisNICMap.insert(NICPair("ge", "GEM Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("hme", "SUNW,hme Fast-Ethernet"));
+        SolarisNICMap.insert(NICPair("hxge", "Sun Blade 10 Gigabit Ethernet"));
+        SolarisNICMap.insert(NICPair("igb", "Intel 82575 PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ipge", "PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("iprb", "Intel 82557/58/59 Ethernet"));
         SolarisNICMap.insert(NICPair("mxfe", "Macronix 98715 Fast Ethernet"));
+        SolarisNICMap.insert(NICPair("nfo", "Nvidia Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("nge", "Nvidia Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("pcelx", "3COM EtherLink III PCMCIA Ethernet"));
         SolarisNICMap.insert(NICPair("pcn", "AMD PCnet Ethernet"));
@@ -207,6 +206,12 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
 static boolean_t vboxSolarisAddLinkHostIface(const char *pszIface, void *pvHostNetworkInterfaceList)
 {
     /*
+     * Skip IPSEC interfaces. It's at IP level.
+     */
+    if (!strncmp(pszIface, "ip.tun", 6))
+        return _B_FALSE;
+
+    /*
      * Clip off the zone instance number from the interface name (if any).
      */
     char szIfaceName[128];
@@ -269,6 +274,8 @@ static bool vboxSolarisSameNIC(const ComObjPtr<HostNetworkInterface> Iface1, con
 # ifdef VBOX_SOLARIS_NSL_RESOLVED
 static int vboxSolarisAddPhysHostIface(di_node_t Node, di_minor_t Minor, void *pvHostNetworkInterfaceList)
 {
+    NOREF(Minor);
+
     /*
      * Skip aggregations.
      */
@@ -396,6 +403,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
 
 int NetIfGetConfigByName(PNETIFINFO pInfo)
 {
+    NOREF(pInfo);
     return VERR_NOT_IMPLEMENTED;
 }
 

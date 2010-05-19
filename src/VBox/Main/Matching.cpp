@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include "Matching.h"
@@ -54,10 +50,10 @@ void ParsedIntervalFilter_base::parse (const char *aFilter,
 
     do
     {
-        end = strcspn (aFilter + start, ",-");
+        end = strcspn(aFilter + start, ",-");
         end += start;
 
-        char delim = aFilter [end];
+        char delim = aFilter[end];
 
         if (delim == '-')
         {
@@ -72,12 +68,12 @@ void ParsedIntervalFilter_base::parse (const char *aFilter,
 
         // skip spaces around numbers
         size_t s = start;
-        while (s < end && aFilter [s] == ' ') ++ s;
+        while (s < end && aFilter[s] == ' ') ++s;
         size_t e = end - 1;
-        while (e > s && aFilter [e] == ' ') -- e;
-        ++ e;
+        while (e > s && aFilter[e] == ' ') --e;
+        ++e;
 
-        that->parseValue (aFilter, s, e, mode);
+        that->parseValue(aFilter, s, e, mode);
         if (!that->mValid)
             return;
 
@@ -195,10 +191,9 @@ bool ParsedRegexpFilter_base::isMatch (const Bstr &aValue) const
     /// @todo (dmik) do regexp matching
 
     // empty or null mSimple matches any match
-    return
-        mSimple.isEmpty() ||
-        (mIgnoreCase && mSimple.compareIgnoreCase (aValue) == 0) ||
-        (!mIgnoreCase && mSimple.compare (aValue) == 0);
+    return     mSimple.isEmpty()
+            || (mIgnoreCase && mSimple.compare(aValue, Bstr::CaseInsensitive) == 0)
+            || (!mIgnoreCase && mSimple.compare(aValue) == 0);
 }
 
 } /* namespace matching */

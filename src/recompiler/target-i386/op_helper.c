@@ -31,9 +31,6 @@
 #include "host-utils.h"
 
 #ifdef VBOX
-# ifdef VBOX_WITH_VMI
-#  include <VBox/parav.h>
-# endif
 #include "qemu-common.h"
 #include <math.h>
 #include "tcg.h"
@@ -821,14 +818,6 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 
 #ifdef VBOX
     ss = ss_e1 = ss_e2 = 0;
-# ifdef VBOX_WITH_VMI
-    if (   intno == 6
-        && PARAVIsBiosCall(env->pVM, (RTRCPTR)next_eip, env->regs[R_EAX]))
-    {
-        env->exception_index = EXCP_PARAV_CALL;
-        cpu_loop_exit();
-    }
-# endif
     if (remR3NotifyTrap(env, intno, error_code, next_eip) != VINF_SUCCESS)
         cpu_loop_exit();
 #endif
@@ -3825,7 +3814,6 @@ void helper_wrmsr(void)
 void helper_rdmsr(void)
 {
     uint64_t val;
-
     helper_svm_check_intercept_param(SVM_EXIT_MSR, 0);
 
     switch((uint32_t)ECX) {
@@ -3853,12 +3841,21 @@ void helper_rdmsr(void)
     case MSR_VM_HSAVE_PA:
         val = env->vm_hsave;
         break;
+#ifdef VBOX
+    case MSR_IA32_PERF_STATUS:
+    case MSR_IA32_PLATFORM_INFO:
+    case MSR_IA32_FSB_CLOCK_STS:
+    case MSR_IA32_THERM_STATUS:
+        val = CPUMGetGuestMsr(env->pVCpu, (uint32_t)ECX);
+        break;
+#else
     case MSR_IA32_PERF_STATUS:
         /* tsc_increment_by_tick */
         val = 1000ULL;
         /* CPU multiplier */
-        val |= (((uint64_t)4ULL) << 40);
+        val |= ((uint64_t)4ULL << 40);
         break;
+#endif
 #ifdef TARGET_X86_64
     case MSR_LSTAR:
         val = env->lstar;
@@ -5369,8 +5366,13 @@ void helper_hlt(int next_eip_addend)
 
 void helper_monitor(target_ulong ptr)
 {
+#ifdef VBOX
+    if ((uint32_t)ECX > 1)
+        raise_exception(EXCP0D_GPF);
+#else
     if ((uint32_t)ECX != 0)
         raise_exception(EXCP0D_GPF);
+#endif
     /* XXX: store address ? */
     helper_svm_check_intercept_param(SVM_EXIT_MONITOR, 0);
 }

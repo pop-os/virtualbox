@@ -1,10 +1,10 @@
+/* $Id: alsa_stubs.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
- *
  * Stubs for libasound.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <iprt/assert.h>
@@ -32,9 +28,12 @@
 #define VBOX_ALSA_LIB "libasound.so.2"
 
 #define PROXY_STUB(function, rettype, signature, shortsig) \
-void (*function ## _fn)(void); \
-rettype function signature \
-{ return ( (rettype (*) signature) function ## _fn ) shortsig; }
+    static rettype (*pfn_ ## function) signature; \
+    \
+    rettype function signature \
+    { \
+        return pfn_ ## function shortsig; \
+    }
 
 PROXY_STUB(snd_pcm_hw_params_any, int,
            (snd_pcm_t *pcm, snd_pcm_hw_params_t *params),
@@ -114,7 +113,7 @@ typedef struct
     void (**fn)(void);
 } SHARED_FUNC;
 
-#define ELEMENT(s) { #s , & s ## _fn }
+#define ELEMENT(function) { #function , (void (**)(void)) & pfn_ ## function }
 static SHARED_FUNC SharedFuncs[] =
 {
     ELEMENT(snd_pcm_hw_params_any),

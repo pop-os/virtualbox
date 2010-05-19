@@ -1,10 +1,10 @@
-/* $Id: SELM.cpp $ */
+/* $Id: SELM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * SELM - The Selector Manager.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /** @page pg_selm   SELM - The Selector Manager
@@ -851,7 +847,7 @@ VMMR3DECL(int) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
          * ASSUMES that the entire GDT is in memory.
          */
         RTUINT      cbEffLimit = GDTR.cbGdt;
-        PX86DESC   pGDTE = &pVM->selm.s.paGdtR3[1];
+        PX86DESC    pGDTE = &pVM->selm.s.paGdtR3[1];
         rc = PGMPhysSimpleReadGCPtr(pVCpu, pGDTE, GDTR.pGdt + sizeof(X86DESC), cbEffLimit + 1 - sizeof(X86DESC));
         if (RT_FAILURE(rc))
         {
@@ -922,18 +918,18 @@ VMMR3DECL(int) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
         RTSEL aHyperSel[SELM_HYPER_SEL_MAX];
         if (cbEffLimit >= SELM_HYPER_DEFAULT_BASE)
         {
-            PX86DESC pGDTEStart = pVM->selm.s.paGdtR3;
-            PX86DESC pGDTE = (PX86DESC)((char *)pGDTEStart + GDTR.cbGdt + 1 - sizeof(X86DESC));
-            int       iGDT = 0;
+            PX86DESC    pGDTEStart = pVM->selm.s.paGdtR3;
+            PX86DESC    pGDTECur   = (PX86DESC)((char *)pGDTEStart + GDTR.cbGdt + 1 - sizeof(X86DESC));
+            int         iGDT       = 0;
 
             Log(("Internal SELM GDT conflict: use non-present entries\n"));
             STAM_COUNTER_INC(&pVM->selm.s.StatScanForHyperSels);
-            while (pGDTE > pGDTEStart)
+            while (pGDTECur > pGDTEStart)
             {
                 /* We can reuse non-present entries */
-                if (!pGDTE->Gen.u1Present)
+                if (!pGDTECur->Gen.u1Present)
                 {
-                    aHyperSel[iGDT] = ((uintptr_t)pGDTE - (uintptr_t)pVM->selm.s.paGdtR3) / sizeof(X86DESC);
+                    aHyperSel[iGDT] = ((uintptr_t)pGDTECur - (uintptr_t)pVM->selm.s.paGdtR3) / sizeof(X86DESC);
                     aHyperSel[iGDT] = aHyperSel[iGDT] << X86_SEL_SHIFT;
                     Log(("SELM: Found unused GDT %04X\n", aHyperSel[iGDT]));
                     iGDT++;
@@ -941,7 +937,7 @@ VMMR3DECL(int) SELMR3UpdateFromCPUM(PVM pVM, PVMCPU pVCpu)
                         break;
                 }
 
-                pGDTE--;
+                pGDTECur--;
             }
             if (iGDT != SELM_HYPER_SEL_MAX)
             {
@@ -1517,7 +1513,7 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
         uint32_t cr4 = CPUMGetGuestCR4(pVCpu);
         rc = PGMPhysSimpleReadGCPtr(pVCpu, &Tss, GCPtrTss, RT_OFFSETOF(VBOXTSS, IntRedirBitmap));
         if (    !(cr4 & X86_CR4_VME)
-            ||   (  VBOX_SUCCESS(rc)
+            ||   (  RT_SUCCESS(rc)
                  && Tss.offIoBitmap < sizeof(VBOXTSS) /* too small */
                  && Tss.offIoBitmap > cbTss)          /* beyond the end */ /** @todo not sure how the partial case is handled; probably not allowed. */
            )
@@ -1565,10 +1561,10 @@ VMMR3DECL(int) SELMR3SyncTSS(PVM pVM, PVMCPU pVCpu)
                 {
                     RTGCPHYS GCPhys = NIL_RTGCPHYS;
                     rc = PGMGstGetPage(pVCpu, GCPtrTss, NULL, &GCPhys); AssertRC(rc);
-                    Log(("SELMR3SyncTSS: Updating TSS ring 0 stack to %04X:%08X from %04X:%08X; TSS Phys=%VGp)\n",
+                    Log(("SELMR3SyncTSS: Updating TSS ring 0 stack to %04X:%08X from %04X:%08X; TSS Phys=%RGp)\n",
                          Tss.ss0, Tss.esp0, (ssr0 & ~1), espr0,  GCPhys));
                     AssertMsg(ssr0 != Tss.ss0,
-                              ("ring-1 leak into TSS.SS0! %04X:%08X from %04X:%08X; TSS Phys=%VGp)\n",
+                              ("ring-1 leak into TSS.SS0! %04X:%08X from %04X:%08X; TSS Phys=%RGp)\n",
                                Tss.ss0, Tss.esp0, (ssr0 & ~1), espr0,  GCPhys));
                 }
                 Log(("offIoBitmap=%#x\n", Tss.offIoBitmap));
@@ -1752,7 +1748,7 @@ VMMR3DECL(int) SELMR3DebugCheck(PVM pVM)
     while (pLDTE < pLDTEEnd)
     {
         X86DESC    LDTEGuest;
-        int rc = PGMPhysSimpleReadGCPtr(pVCpu, &LDTEGuest, GCPtrLDTEGuest, sizeof(LDTEGuest));
+        rc = PGMPhysSimpleReadGCPtr(pVCpu, &LDTEGuest, GCPtrLDTEGuest, sizeof(LDTEGuest));
         if (RT_SUCCESS(rc))
         {
             if (   pLDTE->Gen.u16LimitLow != LDTEGuest.Gen.u16LimitLow
@@ -1859,7 +1855,7 @@ VMMR3DECL(bool) SELMR3CheckTSS(PVM pVM)
                          && !(CPUMGetGuestEFlags(pVCpu) & X86_EFL_IF)),
                      false);
         if (    !(cr4 & X86_CR4_VME)
-            ||   (  VBOX_SUCCESS(rc)
+            ||   (  RT_SUCCESS(rc)
                  && Tss.offIoBitmap < sizeof(VBOXTSS) /* too small */
                  && Tss.offIoBitmap > cbTss)
            )
@@ -1945,8 +1941,8 @@ VMMDECL(int) SELMGetLDTFromSel(PVM pVM, RTSEL SelLdt, PRTGCPTR ppvLdt, unsigned 
     CPUMGetGuestGDTR(pVCpu, &GDTR);
 
     /* Check selector TI and GDT limit. */
-    if (    SelLdt & X86_SEL_LDT
-        ||  (SelLdt > GDTR.cbGdt))
+    if (   (SelLdt & X86_SEL_LDT)
+        || SelLdt > GDTR.cbGdt)
         return VERR_INVALID_SELECTOR;
 
     /* Read descriptor from GC. */
@@ -2012,7 +2008,7 @@ static int selmR3GetSelectorInfo64(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PDBGFSELINF
          * LDT - must locate the LDT first.
          */
         RTSEL SelLdt = CPUMGetGuestLDTR(pVCpu);
-        if (    (unsigned)(SelLdt & X86_SEL_MASK) < sizeof(X86DESC) /* the first selector is invalid, right? */
+        if (    (unsigned)(SelLdt & X86_SEL_MASK) < sizeof(X86DESC) /* the first selector is invalid, right? */ /** @todo r=bird: No, I don't think so */
             ||  (unsigned)(SelLdt & X86_SEL_MASK) + sizeof(X86DESC) - 1 > (unsigned)Gdtr.cbGdt)
             return VERR_INVALID_SELECTOR;
         GCPtrDesc = Gdtr.pGdt + (SelLdt & X86_SEL_MASK);
@@ -2224,7 +2220,7 @@ static int selmR3GetSelectorInfo32(PVM pVM, PVMCPU pVCpu, RTSEL Sel, PDBGFSELINF
              * LDT - must locate the LDT first...
              */
             RTSEL SelLdt = CPUMGetGuestLDTR(pVCpu);
-            if (    (unsigned)(SelLdt & X86_SEL_MASK) < sizeof(X86DESC) /* the first selector is invalid, right? */
+            if (    (unsigned)(SelLdt & X86_SEL_MASK) < sizeof(X86DESC) /* the first selector is invalid, right? */ /** @todo r=bird: No, I don't think so */
                 ||  (unsigned)(SelLdt & X86_SEL_MASK) + sizeof(X86DESC) - 1 > (unsigned)Gdtr.cbGdt)
                 return VERR_INVALID_SELECTOR;
             GCPtrDesc = Gdtr.pGdt + (SelLdt & X86_SEL_MASK);
@@ -2618,7 +2614,7 @@ static DECLCALLBACK(void) selmR3InfoLdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
     for (unsigned iLdt = 0; iLdt < cLdts; iLdt++, GCPtrLdt += sizeof(X86DESC))
     {
         X86DESC LdtE;
-        int rc = PGMPhysSimpleReadGCPtr(pVCpu, &LdtE, GCPtrLdt, sizeof(LdtE));
+        rc = PGMPhysSimpleReadGCPtr(pVCpu, &LdtE, GCPtrLdt, sizeof(LdtE));
         if (RT_SUCCESS(rc))
         {
             if (LdtE.Gen.u1Present)

@@ -1,0 +1,32 @@
+#
+# Copyright (C) 2010 Oracle Corporation
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+OS=$(shell uname -s)
+ARCH=$(shell uname -p)
+
+ifeq ($(OS), Darwin)
+ VBOX_BIN=/Applications/VirtualBox.app/Contents/MacOS
+ VBOX_SDK=$(VBOX_BIN)/sdk
+ JAVA_OPT= -d32
+endif
+
+ifeq ($(OS), Linux)
+ VBOX_SDK=/home/nike/work/ws/out/linux.amd64/debug/bin/sdk
+ VBOX_BIN=/home/nike/work/ws/out/linux.amd64/debug/bin
+endif
+
+VBOX_JAR=$(VBOX_SDK)/bindings/xpcom/java/vboxjxpcom.jar
+
+all: testvb
+
+testvb:
+	javac -cp $(VBOX_JAR) TestVBox.java
+	java $(JAVA_OPT) -cp  $(VBOX_JAR):. -Dvbox.home=$(VBOX_BIN) TestVBox

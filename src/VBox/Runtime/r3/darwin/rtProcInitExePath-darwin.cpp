@@ -1,10 +1,10 @@
-/* $Id: rtProcInitExePath-darwin.cpp $ */
+/* $Id: rtProcInitExePath-darwin.cpp 28929 2010-04-30 11:26:46Z vboxsync $ */
 /** @file
  * IPRT - rtProcInitName, Darwin.
  */
 
 /*
- * Copyright (C) 2006-2008 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -52,15 +48,8 @@ DECLHIDDEN(int) rtProcInitExePath(char *pszPath, size_t cchPath)
     const char *pszImageName = _dyld_get_image_name(0);
     AssertReturn(pszImageName, VERR_INTERNAL_ERROR);
 
-    char *pszTmp;
-    int rc = rtPathFromNative(&pszTmp, pszImageName);
-    AssertMsgRCReturn(rc, ("rc=%Rrc pszLink=\"%s\"\nhex: %.*Rhsx\n", rc, pszPath, strlen(pszImageName), pszPath), rc);
-
-    size_t cch = strlen(pszTmp);
-    AssertReturn(cch <= cchPath, VERR_BUFFER_OVERFLOW);
-
-    memcpy(pszPath, pszTmp, cch + 1);
-    RTStrFree(pszTmp);
+    int rc = rtPathFromNativeCopy(pszPath, cchPath, pszImageName, NULL);
+    AssertMsgRCReturn(rc, ("rc=%Rrc pszLink=\"%s\"\nhex: %.*Rhxs\n", rc, pszPath, strlen(pszImageName), pszPath), rc);
 
     return VINF_SUCCESS;
 }

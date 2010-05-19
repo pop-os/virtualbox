@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29117 2010-05-05 22:59:38Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxManage (the cli frontend).
 #
 
 #
-# Copyright (C) 2006-2007 Sun Microsystems, Inc.
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 # Foundation, in version 2 as it comes in the "COPYING" file of the
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
-# Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-# Clara, CA 95054 USA or visit http://www.sun.com if you need
-# additional information or have any questions.
 #
 
 SUB_DEPTH = ../../../..
@@ -44,7 +40,9 @@ else # !VBOX_ONLY_DOCS
  	$(if $(VBOX_WITH_AHCI), VBOX_WITH_AHCI) \
  	$(if $(VBOX_WITH_SCSI), VBOX_WITH_SCSI) \
  	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS) \
- 	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API)
+ 	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL) \
+ 	$(if $(VBOX_WITH_HOSTNETIF_API), VBOX_WITH_HOSTNETIF_API) \
+ 	$(if $(VBOX_WITH_VDE), VBOX_WITH_VDE)
  VBoxManage_DEFS.win   = _WIN32_WINNT=0x0500
  ifdef VBOX_DYNAMIC_NET_ATTACH
   VBoxManage_DEFS += VBOX_DYNAMIC_NET_ATTACH
@@ -62,6 +60,7 @@ else # !VBOX_ONLY_DOCS
  	VBoxManageDHCPServer.cpp \
  	VBoxManageDisk.cpp \
  	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
+	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrl.cpp) \
  	VBoxManageHelp.cpp \
  	VBoxManageHostonly.cpp \
  	VBoxManageImport.cpp \

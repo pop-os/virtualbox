@@ -1,4 +1,4 @@
-/* $Id: avlu32.cpp $ */
+/* $Id: avlu32.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - AVL tree, uint32_t, unique keys.
  */
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef NOFILEID
@@ -77,5 +73,4 @@ static const char szFileId[] = "Id: kAVLULInt.c,v 1.4 2003/02/13 02:02:38 bird E
 #include "avl_RemoveBestFit.cpp.h"
 #include "avl_DoWithAll.cpp.h"
 #include "avl_Destroy.cpp.h"
-
 

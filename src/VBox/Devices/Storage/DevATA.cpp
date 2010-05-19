@@ -1,10 +1,10 @@
-/* $Id: DevATA.cpp $ */
+/* $Id: DevATA.cpp 28980 2010-05-03 14:45:14Z vboxsync $ */
 /** @file
  * VBox storage devices: ATA/ATAPI controller device (disk and cdrom).
  */
 
 /*
- * Copyright (C) 2006-2010 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -100,6 +96,7 @@
 #define ATA_EVENT_STATUS_MEDIA_NEW              1    /**< new medium inserted */
 #define ATA_EVENT_STATUS_MEDIA_REMOVED          2    /**< medium removed */
 #define ATA_EVENT_STATUS_MEDIA_CHANGED          3    /**< medium was removed + new medium was inserted */
+#define ATA_EVENT_STATUS_MEDIA_EJECT_REQUESTED  4    /**< medium eject requested (eject button pressed) */
 
 /**
  * Length of the configurable VPD data (without termination)
@@ -114,7 +111,15 @@
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
-typedef struct ATADevState {
+/**
+ * The state of an ATA device.
+ *
+ * @implements PDMIBASE
+ * @implements PDMIBLOCKPORT
+ * @implements PDMIMOUNTNOTIFY
+ */
+typedef struct ATADevState
+{
     /** Flag indicating whether the current command uses LBA48 mode. */
     bool fLBA48;
     /** Flag indicating whether this drive implements the ATAPI command set. */
@@ -286,7 +291,7 @@ typedef struct ATADevState {
     /** Pointer to controller instance. */
     RCPTRTYPE(struct ATACONTROLLER *)   pControllerRC;
 
-    /** The serial numnber to use for IDENTIFY DEVICE commands. */
+    /** The serial number to use for IDENTIFY DEVICE commands. */
     char                                szSerialNumber[ATA_SERIAL_NUMBER_LENGTH+1];
     /** The firmware revision to use for IDENTIFY DEVICE commands. */
     char                                szFirmwareRevision[ATA_FIRMWARE_REVISION_LENGTH+1];
@@ -453,17 +458,24 @@ typedef enum CHIPSET
     CHIPSET_ICH6 = 2
 } CHIPSET;
 
-typedef struct PCIATAState {
+/**
+ * The state of the ATA PCI device.
+ *
+ * @extends     PCIDEVICE
+ * @implements  PDMILEDPORTS
+ */
+typedef struct PCIATAState
+{
     PCIDEVICE           dev;
     /** The controllers. */
     ATACONTROLLER       aCts[2];
     /** Pointer to device instance. */
     PPDMDEVINSR3        pDevIns;
-    /** Status Port - Base interface. */
+    /** Status LUN: Base interface. */
     PDMIBASE            IBase;
-    /** Status Port - Leds interface. */
+    /** Status LUN: Leds interface. */
     PDMILEDPORTS        ILeds;
-    /** Partner of ILeds. */
+    /** Status LUN: Partner of ILeds. */
     R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
     /** Flag whether GC is enabled. */
     bool                fGCEnabled;
@@ -668,11 +680,10 @@ static const PSourceSinkFunc g_apfnSourceSinkFuncs[ATAFN_SS_MAX] =
 };
 
 
-static const ATARequest g_ataDMARequest = { ATA_AIO_DMA, };
-static const ATARequest g_ataPIORequest = { ATA_AIO_PIO, };
-static const ATARequest g_ataResetARequest = { ATA_AIO_RESET_ASSERTED, };
-static const ATARequest g_ataResetCRequest = { ATA_AIO_RESET_CLEARED, };
-
+static const ATARequest g_ataDMARequest    = { ATA_AIO_DMA,            { { 0, 0, 0, 0, 0 } } };
+static const ATARequest g_ataPIORequest    = { ATA_AIO_PIO,            { { 0, 0, 0, 0, 0 } } };
+static const ATARequest g_ataResetARequest = { ATA_AIO_RESET_ASSERTED, { { 0, 0, 0, 0, 0 } } };
+static const ATARequest g_ataResetCRequest = { ATA_AIO_RESET_CLEARED,  { { 0, 0, 0, 0, 0 } } };
 
 static void ataAsyncIOClearRequests(PATACONTROLLER pCtl)
 {
@@ -1133,6 +1144,18 @@ static void ataCmdError(ATADevState *s, uint8_t uErrorCode)
     s->iSourceSink = ATAFN_SS_NULL;
 }
 
+static uint32_t ataChecksum(void* ptr, size_t count)
+{
+    uint8_t u8Sum = 0xa5, *p = (uint8_t*)ptr;
+    size_t i;
+
+    for (i = 0; i < count; i++)
+    {
+      u8Sum += *p++;
+    }
+
+    return (uint8_t)-(int32_t)u8Sum;
+}
 
 static bool ataIdentifySS(ATADevState *s)
 {
@@ -1215,6 +1238,8 @@ static bool ataIdentifySS(ATADevState *s)
         p[102] = RT_H2LE_U16(s->cTotalSectors >> 32);
         p[103] = RT_H2LE_U16(s->cTotalSectors >> 48);
     }
+    uint32_t uCsum = ataChecksum(p, 510);
+    p[255] = RT_H2LE_U16(0xa5 | (uCsum << 8)); /* Integrity word */
     s->iSourceSink = ATAFN_SS_NULL;
     ataCmdOK(s, ATA_STAT_SEEK);
     return false;
@@ -1242,7 +1267,6 @@ static bool ataFlushSS(ATADevState *s)
     ataCmdOK(s, 0);
     return false;
 }
-
 
 static bool atapiIdentifySS(ATADevState *s)
 {
@@ -1284,6 +1308,22 @@ static bool atapiIdentifySS(ATADevState *s)
     p[87] = RT_H2LE_U16(1 << 14);
     p[88] = RT_H2LE_U16(ATA_TRANSFER_ID(ATA_MODE_UDMA, ATA_UDMA_MODE_MAX, s->uATATransferMode)); /* UDMA modes supported / mode enabled */
     p[93] = RT_H2LE_U16((1 | 1 << 1) << ((s->iLUN & 1) == 0 ? 0 : 8) | 1 << 13 | 1 << 14);
+    /* According to ATAPI-5 spec:
+     *
+     * The use of this word is optional.
+     * If bits 7:0 of this word contain the signature A5h, bits 15:8
+     * contain the data
+     * structure checksum.
+     * The data structure checksum is the twos complement of the sum of
+     * all bytes in words 0 through 254 and the byte consisting of
+     * bits 7:0 in word 255.
+     * Each byte shall be added with unsigned arithmetic,
+     * and overflow shall be ignored.
+     * The sum of all 512 bytes is zero when the checksum is correct.
+     */
+    uint32_t uCsum = ataChecksum(p, 510);
+    p[255] = RT_H2LE_U16(0xa5 | (uCsum << 8)); /* Integrity word */
+
     s->iSourceSink = ATAFN_SS_NULL;
     ataCmdOK(s, ATA_STAT_SEEK);
     return false;
@@ -2318,12 +2358,12 @@ static bool atapiGetEventStatusNotificationSS(ATADevState *s)
         switch (OldStatus)
         {
             case ATA_EVENT_STATUS_MEDIA_NEW:
-            /* mount */
+                /* mount */
                 ataH2BE_U16(pbBuf + 0, 6);
-                pbBuf[2] = 0x04;
-                pbBuf[3] = 0x5e;
-                pbBuf[4] = 0x02;
-                pbBuf[5] = 0x02;
+                pbBuf[2] = 0x04; /* media */
+                pbBuf[3] = 0x5e; /* suppored = busy|media|external|power|operational */
+                pbBuf[4] = 0x02; /* new medium */
+                pbBuf[5] = 0x02; /* medium present / door closed */
                 pbBuf[6] = 0x00;
                 pbBuf[7] = 0x00;
                 break;
@@ -2332,21 +2372,31 @@ static bool atapiGetEventStatusNotificationSS(ATADevState *s)
             case ATA_EVENT_STATUS_MEDIA_REMOVED:
                 /* umount */
                 ataH2BE_U16(pbBuf + 0, 6);
-                pbBuf[2] = 0x04;
-                pbBuf[3] = 0x5e;
-                pbBuf[4] = 0x03;
-                pbBuf[5] = 0x00;
+                pbBuf[2] = 0x04; /* media */
+                pbBuf[3] = 0x5e; /* suppored = busy|media|external|power|operational */
+                pbBuf[4] = 0x03; /* media removal */
+                pbBuf[5] = 0x00; /* medium absent / door closed */
                 pbBuf[6] = 0x00;
                 pbBuf[7] = 0x00;
                 if (OldStatus == ATA_EVENT_STATUS_MEDIA_CHANGED)
                     NewStatus = ATA_EVENT_STATUS_MEDIA_NEW;
                 break;
 
+            case ATA_EVENT_STATUS_MEDIA_EJECT_REQUESTED: /* currently unused */
+                ataH2BE_U16(pbBuf + 0, 6);
+                pbBuf[2] = 0x04; /* media */
+                pbBuf[3] = 0x5e; /* supported = busy|media|external|power|operational */
+                pbBuf[4] = 0x01; /* eject requested (eject button pressed) */
+                pbBuf[5] = 0x02; /* medium present / door closed */
+                pbBuf[6] = 0x00;
+                pbBuf[7] = 0x00;
+                break;
+
             case ATA_EVENT_STATUS_UNCHANGED:
             default:
                 ataH2BE_U16(pbBuf + 0, 6);
-                pbBuf[2] = 0x01;
-                pbBuf[3] = 0x5e;
+                pbBuf[2] = 0x01; /* operational change request / notification */
+                pbBuf[3] = 0x5e; /* suppored = busy|media|external|power|operational */
                 pbBuf[4] = 0x00;
                 pbBuf[5] = 0x00;
                 pbBuf[6] = 0x00;
@@ -3023,19 +3073,8 @@ static void atapiParseCmdVirtualATAPI(ATADevState *s)
             break;
         case SCSI_READ_DVD_STRUCTURE:
         {
-            /* Only available for ICH6 for now. */
-            PCIATAState *pDevice = PDMINS_2_DATA(s->CTX_SUFF(pDevIns), PCIATAState *);
-
-            if (   (PCIDevGetVendorId(&pDevice->dev) == 0x8086)
-                && (PCIDevGetDeviceId(&pDevice->dev) == 0x269e))
-            {
-                cbMax = ataBE2H_U16(pbPacket + 8);
-                ataStartTransfer(s, RT_MIN(cbMax, 4), PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_READ_DVD_STRUCTURE, true);
-            }
-            else
-            {
-                atapiCmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE);
-            }
+            cbMax = ataBE2H_U16(pbPacket + 8);
+            ataStartTransfer(s, RT_MIN(cbMax, 4), PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_READ_DVD_STRUCTURE, true);
             break;
         }
         default:
@@ -3703,6 +3742,10 @@ static void ataParseCmd(ATADevState *s, uint8_t cmd)
         case ATA_IDLE_IMMEDIATE:
             LogRel(("PIIX3 ATA: LUN#%d: aborting current command\n", s->iLUN));
             ataAbortCurrentCommand(s, false);
+            break;
+        case ATA_SLEEP:
+            ataCmdOK(s, 0);
+            ataSetIRQ(s);
             break;
             /* ATAPI commands */
         case ATA_IDENTIFY_PACKET_DEVICE:
@@ -5195,7 +5238,7 @@ static DECLCALLBACK(int) ataBMDMAIORangeMap(PPCIDEVICE pPciDev, /*unsigned*/ int
 
         if (pThis->fGCEnabled)
         {
-            rc2 = PDMDevHlpIOPortRegisterGC(pPciDev->pDevIns, (RTIOPORT)GCPhysAddress + i * 8, 8,
+            rc2 = PDMDevHlpIOPortRegisterRC(pPciDev->pDevIns, (RTIOPORT)GCPhysAddress + i * 8, 8,
                                             (RTGCPTR)i, "ataBMDMAIOPortWrite", "ataBMDMAIOPortRead", NULL, NULL, "ATA Bus Master DMA");
             AssertRC(rc2);
             if (rc2 < rc)
@@ -5217,25 +5260,14 @@ static DECLCALLBACK(int) ataBMDMAIORangeMap(PPCIDEVICE pPciDev, /*unsigned*/ int
 /* -=-=-=-=-=- PCIATAState::IBase  -=-=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to ATADevState::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) ataStatus_QueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) ataStatus_QueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PCIATAState *pThis = PDMIBASE_2_PCIATASTATE(pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->IBase;
-        case PDMINTERFACE_LED_PORTS:
-            return &pThis->ILeds;
-        default:
-            return NULL;
-    }
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
+    return NULL;
 }
 
 
@@ -5271,27 +5303,15 @@ static DECLCALLBACK(int) ataStatus_QueryStatusLed(PPDMILEDPORTS pInterface, unsi
 /* -=-=-=-=-=- ATADevState::IBase   -=-=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to ATADevState::IBase.
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *)  ataQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *)  ataQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     ATADevState *pIf = PDMIBASE_2_ATASTATE(pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pIf->IBase;
-        case PDMINTERFACE_BLOCK_PORT:
-            return &pIf->IPort;
-        case PDMINTERFACE_MOUNT_NOTIFY:
-            return &pIf->IMountNotify;
-        default:
-            return NULL;
-    }
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pIf->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKPORT, &pIf->IPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNTNOTIFY, &pIf->IMountNotify);
+    return NULL;
 }
 
 #endif /* IN_RING3 */
@@ -5574,6 +5594,7 @@ static DECLCALLBACK(int) ataR3Destruct(PPDMDEVINS pDevIns)
     int             rc;
 
     Log(("ataR3Destruct\n"));
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
     /*
      * Tell the async I/O threads to terminate.
@@ -5702,7 +5723,7 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
     /*
      * Query Block, Bios and Mount interfaces.
      */
-    pIf->pDrvBlock = (PDMIBLOCK *)pIf->pDrvBase->pfnQueryInterface(pIf->pDrvBase, PDMINTERFACE_BLOCK);
+    pIf->pDrvBlock = PDMIBASE_QUERY_INTERFACE(pIf->pDrvBase, PDMIBLOCK);
     if (!pIf->pDrvBlock)
     {
         AssertMsgFailed(("Configuration error: LUN#%d hasn't a block interface!\n", pIf->iLUN));
@@ -5710,13 +5731,13 @@ static int ataConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
     }
 
     /** @todo implement the BIOS invisible code path. */
-    pIf->pDrvBlockBios = (PDMIBLOCKBIOS *)pIf->pDrvBase->pfnQueryInterface(pIf->pDrvBase, PDMINTERFACE_BLOCK_BIOS);
+    pIf->pDrvBlockBios = PDMIBASE_QUERY_INTERFACE(pIf->pDrvBase, PDMIBLOCKBIOS);
     if (!pIf->pDrvBlockBios)
     {
         AssertMsgFailed(("Configuration error: LUN#%d hasn't a block BIOS interface!\n", pIf->iLUN));
         return VERR_PDM_MISSING_INTERFACE;
     }
-    pIf->pDrvMount = (PDMIMOUNT *)pIf->pDrvBase->pfnQueryInterface(pIf->pDrvBase, PDMINTERFACE_MOUNT);
+    pIf->pDrvMount = PDMIBASE_QUERY_INTERFACE(pIf->pDrvBase, PDMIMOUNT);
 
     /*
      * Validate type.
@@ -6467,14 +6488,14 @@ static DECLCALLBACK(int) ataLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
  *
  * @returns VBox status code.
  * @param   pDevIns     The device instance data.
- * @param   pCfgHandle  Configuration handle.
+ * @param   pCfg        Configuration handle.
  * @param   penmChipset Where to store the chipset type.
  */
-static int ataControllerFromCfg(PPDMDEVINS pDevIns, PCFGMNODE pCfgHandle, CHIPSET *penmChipset)
+static int ataControllerFromCfg(PPDMDEVINS pDevIns, PCFGMNODE pCfg, CHIPSET *penmChipset)
 {
     char szType[20];
 
-    int rc = CFGMR3QueryStringDef(pCfgHandle, "Type", &szType[0], sizeof(szType), "PIIX4");
+    int rc = CFGMR3QueryStringDef(pCfg, "Type", &szType[0], sizeof(szType), "PIIX4");
     if (RT_FAILURE(rc))
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
                                    N_("Configuration error: Querying \"Type\" as a string failed"));
@@ -6496,19 +6517,9 @@ static int ataControllerFromCfg(PPDMDEVINS pDevIns, PCFGMNODE pCfgHandle, CHIPSE
 
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PCIATAState    *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
     PPDMIBASE       pBase;
@@ -6518,6 +6529,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     uint32_t        DelayIRQMillies;
 
     Assert(iInstance == 0);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Initialize NIL handle values (for the destructor).
@@ -6533,7 +6545,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     /*
      * Validate and read configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle,
+    if (!CFGMR3AreValuesValid(pCfg,
                               "GCEnabled\0"
                               "R0Enabled\0"
                               "IRQDelay\0"
@@ -6542,19 +6554,19 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("PIIX3 configuration error: unknown option specified"));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("PIIX3 configuration error: failed to read GCEnabled as boolean"));
     Log(("%s: fGCEnabled=%d\n", __FUNCTION__, fGCEnabled));
 
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("PIIX3 configuration error: failed to read R0Enabled as boolean"));
     Log(("%s: fR0Enabled=%d\n", __FUNCTION__, fR0Enabled));
 
-    rc = CFGMR3QueryU32Def(pCfgHandle, "IRQDelay", &DelayIRQMillies, 0);
+    rc = CFGMR3QueryU32Def(pCfg, "IRQDelay", &DelayIRQMillies, 0);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("PIIX3 configuration error: failed to read IRQDelay as integer"));
@@ -6562,7 +6574,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     Assert(DelayIRQMillies < 50);
 
     CHIPSET enmChipset = CHIPSET_PIIX3;
-    rc = ataControllerFromCfg(pDevIns, pCfgHandle, &enmChipset);
+    rc = ataControllerFromCfg(pDevIns, pCfg, &enmChipset);
     if (RT_FAILURE(rc))
         return rc;
     pThis->u8Type = (uint8_t)enmChipset;
@@ -6685,7 +6697,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
 
         if (fGCEnabled)
         {
-            rc = PDMDevHlpIOPortRegisterGC(pDevIns, pThis->aCts[i].IOPortBase1, 8, (RTGCPTR)i,
+            rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->aCts[i].IOPortBase1, 8, (RTGCPTR)i,
                                            "ataIOPortWrite1", "ataIOPortRead1", "ataIOPortWriteStr1", "ataIOPortReadStr1", "ATA I/O Base 1");
             if (RT_FAILURE(rc))
                 return PDMDEV_SET_ERROR(pDevIns, rc, N_("PIIX3 cannot register I/O handlers (GC)"));
@@ -6711,7 +6723,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
 
         if (fGCEnabled)
         {
-            rc = PDMDevHlpIOPortRegisterGC(pDevIns, pThis->aCts[i].IOPortBase2, 1, (RTGCPTR)i,
+            rc = PDMDevHlpIOPortRegisterRC(pDevIns, pThis->aCts[i].IOPortBase2, 1, (RTGCPTR)i,
                                            "ataIOPortWrite2", "ataIOPortRead2", NULL, NULL, "ATA I/O Base 2");
             if (RT_FAILURE(rc))
                 return PDMDEV_SET_ERROR(pDevIns, rc, N_("PIIX3 cannot register base2 I/O handlers (GC)"));
@@ -6773,9 +6785,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
 #endif /* VBOX_WITH_STATISTICS */
 
         /* Initialize per-controller critical section */
-        char szName[24];
-        RTStrPrintf(szName, sizeof(szName), "ATA%d", i);
-        rc = PDMDevHlpCritSectInit(pDevIns, &pThis->aCts[i].lock, szName);
+        rc = PDMDevHlpCritSectInit(pDevIns, &pThis->aCts[i].lock, RT_SRC_POS, "ATA%u", i);
         if (RT_FAILURE(rc))
             return PDMDEV_SET_ERROR(pDevIns, rc, N_("PIIX3 cannot initialize critical section"));
     }
@@ -6785,7 +6795,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
      */
     rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pThis->IBase, &pBase, "Status Port");
     if (RT_SUCCESS(rc))
-        pThis->pLedsConnector = (PDMILEDCONNECTORS *)pBase->pfnQueryInterface(pBase, PDMINTERFACE_LED_CONNECTORS);
+        pThis->pLedsConnector = PDMIBASE_QUERY_INTERFACE(pBase, PDMILEDCONNECTORS);
     else if (rc != VERR_PDM_NO_ATTACHED_DRIVER)
     {
         AssertMsgFailed(("Failed to attach to status driver. rc=%Rrc\n", rc));
@@ -6865,7 +6875,7 @@ static DECLCALLBACK(int)   ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
                         RTStrPrintf(szSerial, sizeof(szSerial), "VB%08x-%08x", Uuid.au32[0], Uuid.au32[3]);
 
                     /* Get user config if present using defaults otherwise. */
-                    PCFGMNODE pCfgNode = CFGMR3GetChild(pCfgHandle, s_apszCFGMKeys[i][j]);
+                    PCFGMNODE pCfgNode = CFGMR3GetChild(pCfg, s_apszCFGMKeys[i][j]);
                     rc = CFGMR3QueryStringDef(pCfgNode, "SerialNumber", pIf->szSerialNumber, sizeof(pIf->szSerialNumber),
                                               szSerial);
                     if (RT_FAILURE(rc))
@@ -6986,7 +6996,7 @@ const PDMDEVREG g_DevicePIIX3IDE =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "piix3ide",
     /* szRCMod */
     "VBoxDDGC.gc",

@@ -1,10 +1,10 @@
-/* $Id: VBoxManageControlVM.cpp $ */
+/* $Id: VBoxManageControlVM.cpp 29364 2010-05-11 15:13:50Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -114,6 +110,32 @@ int handleControlVM(HandlerArg *a)
         else if (!strcmp(a->argv[1], "reset"))
         {
             CHECK_ERROR_BREAK(console, Reset());
+        }
+        else if (!strcmp(a->argv[1], "unplugcpu"))
+        {
+            if (a->argc <= 1 + 1)
+            {
+                errorArgument("Missing argument to '%s'. Expected CPU number.", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+
+            unsigned n = parseNum(a->argv[2], 32, "CPU");
+
+            CHECK_ERROR_BREAK(sessionMachine, HotUnplugCPU(n));
+        }
+        else if (!strcmp(a->argv[1], "plugcpu"))
+        {
+            if (a->argc <= 1 + 1)
+            {
+                errorArgument("Missing argument to '%s'. Expected CPU number.", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+
+            unsigned n = parseNum(a->argv[2], 32, "CPU");
+
+            CHECK_ERROR_BREAK(sessionMachine, HotPlugCPU(n));
         }
         else if (!strcmp(a->argv[1], "poweroff"))
         {
@@ -526,6 +548,25 @@ int handleControlVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Ports)(vrdpports));
             }
         }
+        else if (!strcmp(a->argv[1], "vrdpvideochannelquality"))
+        {
+            if (a->argc <= 1 + 1)
+            {
+                errorArgument("Missing argument to '%s'", a->argv[1]);
+                rc = E_FAIL;
+                break;
+            }
+            /* get the corresponding VRDP server */
+            ComPtr<IVRDPServer> vrdpServer;
+            sessionMachine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
+            ASSERT(vrdpServer);
+            if (vrdpServer)
+            {
+                unsigned n = parseNum(a->argv[2], 100, "VRDP video channel quality in percent");
+
+                CHECK_ERROR(vrdpServer, COMSETTER(VideoChannelQuality)(n));
+            }
+        }
 #endif /* VBOX_WITH_VRDP */
         else if (   !strcmp(a->argv[1], "usbattach")
                  || !strcmp(a->argv[1], "usbdetach"))
@@ -617,6 +658,7 @@ int handleControlVM(HandlerArg *a)
             CHECK_ERROR_BREAK(console, COMGETTER(Guest)(guest.asOutParam()));
             CHECK_ERROR_BREAK(guest, SetCredentials(Bstr(a->argv[2]), Bstr(a->argv[3]), Bstr(a->argv[4]), fAllowLocalLogon));
         }
+#if 0 /* TODO: review & remove */
         else if (!strcmp(a->argv[1], "dvdattach"))
         {
             Bstr uuid;
@@ -737,9 +779,8 @@ int handleControlVM(HandlerArg *a)
             floppyMedium->COMGETTER(Id)(uuid.asOutParam());
             CHECK_ERROR(machine, MountMedium(Bstr("Floppy Controller"), 0, 0, uuid, FALSE /* aForce */));
         }
-#ifdef VBOX_WITH_MEM_BALLOONING
-        else if (   !strcmp(a->argv[1], "--guestmemoryballoon")
-                 || !strcmp(a->argv[1], "-guestmemoryballoon"))
+#endif /* obsolete dvdattach/floppyattach */
+        else if (!strcmp(a->argv[1], "guestmemoryballoon"))
         {
             if (a->argc != 3)
             {
@@ -756,40 +797,11 @@ int handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
                 break;
             }
-
             /* guest is running; update IGuest */
             ComPtr <IGuest> guest;
-
             rc = console->COMGETTER(Guest)(guest.asOutParam());
             if (SUCCEEDED(rc))
                 CHECK_ERROR(guest, COMSETTER(MemoryBalloonSize)(uVal));
-        }
-#endif
-        else if (   !strcmp(a->argv[1], "--gueststatisticsinterval")
-                 || !strcmp(a->argv[1], "-gueststatisticsinterval"))
-        {
-            if (a->argc != 3)
-            {
-                errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
-                rc = E_FAIL;
-                break;
-            }
-            uint32_t uVal;
-            int vrc;
-            vrc = RTStrToUInt32Ex(a->argv[2], NULL, 0, &uVal);
-            if (vrc != VINF_SUCCESS)
-            {
-                errorArgument("Error parsing guest statistics interval '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
-            }
-
-            /* guest is running; update IGuest */
-            ComPtr <IGuest> guest;
-
-            rc = console->COMGETTER(Guest)(guest.asOutParam());
-            if (SUCCEEDED(rc))
-                CHECK_ERROR(guest, COMSETTER(StatisticsUpdateInterval)(uVal));
         }
         else if (!strcmp(a->argv[1], "teleport"))
         {
@@ -808,7 +820,7 @@ int handleControlVM(HandlerArg *a)
                 { "--timeout",     't', RTGETOPT_REQ_UINT32 }
             };
             RTGETOPTSTATE GetOptState;
-            RTGetOptInit(&GetOptState, a->argc, a->argv, s_aTeleportOptions, RT_ELEMENTS(s_aTeleportOptions), 2, 0 /*fFlags*/);
+            RTGetOptInit(&GetOptState, a->argc, a->argv, s_aTeleportOptions, RT_ELEMENTS(s_aTeleportOptions), 2, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
             int ch;
             RTGETOPTUNION Value;
             while (   SUCCEEDED(rc)

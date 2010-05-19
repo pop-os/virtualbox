@@ -1,10 +1,10 @@
-; $Id: HWACCMR0A.asm $
+; $Id: HWACCMR0A.asm 28800 2010-04-27 08:22:32Z vboxsync $
 ;; @file
 ; VMXM - R0 vmx helpers
 ;
 
 ;
-; Copyright (C) 2006-2007 Sun Microsystems, Inc.
+; Copyright (C) 2006-2007 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
 ; Foundation, in version 2 as it comes in the "COPYING" file of the
 ; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 ; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-;
-; Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
-; Clara, CA 95054 USA or visit http://www.sun.com if you need
-; additional information or have any questions.
 ;
 
 ;*******************************************************************************
@@ -810,10 +806,11 @@ BEGINPROC VMXR0InvEPT
     dd          .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
 .legacy_mode:
  %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-    mov         eax, [esp + 4]
-    mov         ecx, [esp + 8]
-;    invept      eax, qword [ecx]
-    DB          0x66, 0x0F, 0x38, 0x80, 0x1
+    mov         ecx, [esp + 4]
+    mov         edx, [esp + 8]
+    xor         eax, eax
+;    invept      ecx, qword [edx]
+    DB          0x66, 0x0F, 0x38, 0x80, 0xA
 %endif
     jnc         .valid_vmcs
     mov         eax, VERR_VMX_INVALID_VMCS_PTR
@@ -873,10 +870,11 @@ BEGINPROC VMXR0InvVPID
     dd      .sixtyfourbit_mode, NAME(SUPR0Abs64bitKernelCS)
 .legacy_mode:
  %endif ; VBOX_WITH_HYBRID_32BIT_KERNEL
-    mov         eax, [esp + 4]
-    mov         ecx, [esp + 8]
-;    invept      eax, qword [ecx]
-    DB          0x66, 0x0F, 0x38, 0x81, 0x1
+    mov         ecx, [esp + 4]
+    mov         edx, [esp + 8]
+    xor         eax, eax
+;    invvpid     ecx, qword [edx]
+    DB          0x66, 0x0F, 0x38, 0x81, 0xA
 %endif
     jnc         .valid_vmcs
     mov         eax, VERR_VMX_INVALID_VMCS_PTR

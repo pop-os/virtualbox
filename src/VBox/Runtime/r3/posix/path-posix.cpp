@@ -1,10 +1,10 @@
-/* $Id: path-posix.cpp $ */
+/* $Id: path-posix.cpp 28915 2010-04-29 18:12:35Z vboxsync $ */
 /** @file
  * IPRT - Path Manipulation, POSIX.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 
@@ -65,8 +61,8 @@ RTDECL(int) RTPathReal(const char *pszPath, char *pszRealPath, size_t cchRealPat
     /*
      * Convert input.
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -76,25 +72,10 @@ RTDECL(int) RTPathReal(const char *pszPath, char *pszRealPath, size_t cchRealPat
         char szTmpPath[PATH_MAX + 1];
         const char *psz = realpath(pszNativePath, szTmpPath);
         if (psz)
-        {
-            /*
-             * Convert result and copy it to the return buffer.
-             */
-            char *pszUtf8RealPath;
-            rc = rtPathFromNative(&pszUtf8RealPath, szTmpPath);
-            if (RT_SUCCESS(rc))
-            {
-                size_t cch = strlen(pszUtf8RealPath) + 1;
-                if (cch <= cchRealPath)
-                    memcpy(pszRealPath, pszUtf8RealPath, cch);
-                else
-                    rc = VERR_BUFFER_OVERFLOW;
-                RTStrFree(pszUtf8RealPath);
-            }
-        }
+            rc = rtPathFromNativeCopy(pszRealPath, cchRealPath, szTmpPath, NULL);
         else
             rc = RTErrConvertFromErrno(errno);
-        RTStrFree(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTPathReal(%p:{%s}, %p:{%s}, %u): returns %Rrc\n", pszPath, pszPath,
@@ -363,18 +344,7 @@ static int rtPathUserHomeByPasswd(char *pszPath, size_t cchPath, uid_t uid)
     /*
      * Convert it to UTF-8 and copy it to the return buffer.
      */
-    char *pszUtf8Path;
-    rc = rtPathFromNative(&pszUtf8Path, pPasswd->pw_dir);
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchHome = strlen(pszUtf8Path);
-        if (cchHome < cchPath)
-            memcpy(pszPath, pszUtf8Path, cchHome + 1);
-        else
-            rc = VERR_BUFFER_OVERFLOW;
-        RTStrFree(pszUtf8Path);
-    }
-    return rc;
+    return rtPathFromNativeCopy(pszPath, cchPath, pPasswd->pw_dir, NULL);
 }
 #endif
 
@@ -392,30 +362,15 @@ static int rtPathUserHomeByEnv(char *pszPath, size_t cchPath)
     /*
      * Get HOME env. var it and validate it's existance.
      */
-    int rc = VERR_PATH_NOT_FOUND;
-    const char *pszHome = RTEnvGet("HOME");
+    int         rc      = VERR_PATH_NOT_FOUND;
+    const char *pszHome = RTEnvGet("HOME"); /** @todo Codeset confusion in RTEnv. */
     if (pszHome)
 
     {
         struct stat st;
         if (    !stat(pszHome, &st)
             &&  S_ISDIR(st.st_mode))
-        {
-            /*
-             * Convert it to UTF-8 and copy it to the return buffer.
-             */
-            char *pszUtf8Path;
-            rc = rtPathFromNative(&pszUtf8Path, pszHome);
-            if (RT_SUCCESS(rc))
-            {
-                size_t cchHome = strlen(pszUtf8Path);
-                if (cchHome < cchPath)
-                    memcpy(pszPath, pszUtf8Path, cchHome + 1);
-                else
-                    rc = VERR_BUFFER_OVERFLOW;
-                RTStrFree(pszUtf8Path);
-            }
-        }
+            rc = rtPathFromNativeCopy(pszPath, cchPath, pszHome, NULL);
     }
     return rc;
 }
@@ -483,8 +438,8 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
     /*
      * Convert the filename.
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat Stat;
@@ -515,7 +470,7 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
         }
         else
             rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTPathQueryInfo(%p:{%s}, pObjInfo=%p, %d): returns %Rrc\n",
@@ -548,8 +503,8 @@ RTR3DECL(int) RTPathSetTimesEx(const char *pszPath, PCRTTIMESPEC pAccessTime, PC
     /*
      * Convert the paths.
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         RTFSOBJINFO ObjInfo;
@@ -618,7 +573,7 @@ RTR3DECL(int) RTPathSetTimesEx(const char *pszPath, PCRTTIMESPEC pAccessTime, PC
                          pszPath, pAccessTime, pModificationTime, rc, errno));
             }
         }
-        rtPathFreeNative(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
 
     LogFlow(("RTPathSetTimes(%p:{%s}, %p:{%RDtimespec}, %p:{%RDtimespec}, %p:{%RDtimespec}, %p:{%RDtimespec}): return %Rrc\n",
@@ -661,17 +616,17 @@ static bool rtPathSame(const char *pszNativeSrc, const char *pszNativeDst)
  *                      source is a directory. If Its RTFS_TYPE_FILE we'll check that it's
  *                      not a directory (we are NOT checking whether it's a file).
  */
-int rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, RTFMODE fFileType)
+DECLHIDDEN(int) rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, RTFMODE fFileType)
 {
     /*
      * Convert the paths.
      */
-    char *pszNativeSrc;
-    int rc = rtPathToNative(&pszNativeSrc, pszSrc);
+    char const *pszNativeSrc;
+    int rc = rtPathToNative(&pszNativeSrc, pszSrc, NULL);
     if (RT_SUCCESS(rc))
     {
-        char *pszNativeDst;
-        rc = rtPathToNative(&pszNativeDst, pszDst);
+        char const *pszNativeDst;
+        rc = rtPathToNative(&pszNativeDst, pszDst, NULL);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -709,7 +664,7 @@ int rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, 
                     Assert(SrcStat.st_ino && DstStat.st_ino);
                     if (    SrcStat.st_dev == DstStat.st_dev
                         &&  SrcStat.st_ino == DstStat.st_ino
-                        &&  (SrcStat.st_mode & S_IFMT) == (SrcStat.st_mode & S_IFMT))
+                        &&  (SrcStat.st_mode & S_IFMT) == (DstStat.st_mode & S_IFMT))
                     {
                         /*
                          * It's likely that we're talking about the same file here.
@@ -792,9 +747,9 @@ int rtPathPosixRename(const char *pszSrc, const char *pszDst, unsigned fRename, 
                 Log(("rtPathRename('%s', '%s', %#x ,%RTfmode): source type check failed rc=%Rrc errno=%d\n",
                      pszSrc, pszDst, fRename, fFileType, rc, errno));
 
-            rtPathFreeNative(pszNativeDst);
+            rtPathFreeNative(pszNativeDst, pszDst);
         }
-        rtPathFreeNative(pszNativeSrc);
+        rtPathFreeNative(pszNativeSrc, pszSrc);
     }
     return rc;
 }
@@ -839,8 +794,8 @@ RTDECL(bool) RTPathExistsEx(const char *pszPath, uint32_t fFlags)
     /*
      * Convert the path and check if it exists using stat().
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         struct stat Stat;
@@ -852,7 +807,7 @@ RTDECL(bool) RTPathExistsEx(const char *pszPath, uint32_t fFlags)
             rc = VINF_SUCCESS;
         else
             rc = VERR_GENERAL_FAILURE;
-        RTStrFree(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
     return RT_SUCCESS(rc);
 }
@@ -863,23 +818,7 @@ RTDECL(int)  RTPathGetCurrent(char *pszPath, size_t cchPath)
     int rc;
     char szNativeCurDir[RTPATH_MAX];
     if (getcwd(szNativeCurDir, sizeof(szNativeCurDir)) != NULL)
-    {
-        char *pszCurDir;
-        rc = rtPathFromNative(&pszCurDir, szNativeCurDir);
-        if (RT_SUCCESS(rc))
-        {
-            size_t cchCurDir = strlen(pszCurDir);
-            if (cchCurDir < cchPath)
-            {
-                memcpy(pszPath, pszCurDir, cchCurDir + 1);
-                RTStrFree(pszCurDir);
-                return VINF_SUCCESS;
-            }
-
-            rc = VERR_BUFFER_OVERFLOW;
-            RTStrFree(pszCurDir);
-        }
-    }
+        rc = rtPathFromNativeCopy(pszPath, cchPath, szNativeCurDir, NULL);
     else
         rc = RTErrConvertFromErrno(errno);
     return rc;
@@ -897,13 +836,13 @@ RTDECL(int) RTPathSetCurrent(const char *pszPath)
     /*
      * Change the directory.
      */
-    char *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath);
+    char const *pszNativePath;
+    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
     if (RT_SUCCESS(rc))
     {
         if (chdir(pszNativePath))
             rc = RTErrConvertFromErrno(errno);
-        RTStrFree(pszNativePath);
+        rtPathFreeNative(pszNativePath, pszPath);
     }
     return rc;
 }

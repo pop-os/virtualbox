@@ -31,11 +31,6 @@
 #include "cr_environment.h"
 #include "stub.h"
 
-typedef struct {
-    WindowInfo *window;
-    GLboolean   windowInUse;
-} CtxCheckCurrentDrawableParams_t;
-
 /**
  * This function should be called from MakeCurrent().  It'll detect if
  * we're in a multi-thread situation, and do the right thing for dispatch.
@@ -582,7 +577,7 @@ stubGetWindowGeometry( const WindowInfo *window, int *x, int *y,
         || !XTranslateCoordinates(window->dpy, window->drawable, root,
                                   0, 0, x, y, &child)) 
     {
-        crWarning("Failed to get windows geometry for %x, try xwininfo", (int) window);
+        crWarning("Failed to get windows geometry for %p, try xwininfo", window);
         *x = *y = 0;
         *w = *h = 0;
     }

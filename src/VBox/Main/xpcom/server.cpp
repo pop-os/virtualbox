@@ -1,10 +1,10 @@
-/* $Id: server.cpp $ */
+/* $Id: server.cpp 29385 2010-05-11 18:05:44Z vboxsync $ */
 /** @file
  * XPCOM server process (VBoxSVC) start point.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #include <ipcIService.h>
@@ -38,6 +34,7 @@
 #include <VBox/param.h>
 #include <VBox/version.h>
 
+#include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
 #include <iprt/critsect.h>
 #include <iprt/getopt.h>
@@ -68,13 +65,14 @@
 #include <SnapshotImpl.h>
 #include <MediumImpl.h>
 #include <MediumFormatImpl.h>
-#include <ProgressImpl.h>
+#include <ProgressCombinedImpl.h>
 #include <VRDPServerImpl.h>
 #include <SharedFolderImpl.h>
 #include <HostImpl.h>
 #include <HostNetworkInterfaceImpl.h>
 #include <GuestOSTypeImpl.h>
 #include <NetworkAdapterImpl.h>
+#include <NATEngineImpl.h>
 #include <SerialPortImpl.h>
 #include <ParallelPortImpl.h>
 #include <USBControllerImpl.h>
@@ -152,6 +150,10 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestOSType, IGuestOSType)
 NS_DECL_CLASSINFO(NetworkAdapter)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NetworkAdapter, INetworkAdapter)
 
+NS_DECL_CLASSINFO(NATEngine)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NATEngine, INATEngine)
+
+
 NS_DECL_CLASSINFO(SerialPort)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SerialPort, ISerialPort)
 
@@ -197,7 +199,7 @@ enum
 {
     /* Delay before shutting down the VirtualBox server after the last
      * VirtualBox instance is released, in ms */
-    VBoxSVC_ShutdownDelay = 5000,
+    VBoxSVC_ShutdownDelay = 5000
 };
 
 static bool gAutoShutdown = false;
@@ -797,6 +799,18 @@ int main(int argc, char **argv)
                 break;
             }
 
+            case 'h':
+            {
+                RTPrintf("no help\n");
+                return 1;
+            }
+
+            case 'V':
+            {
+                RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
+                return 0;
+            }
+
             default:
                 return RTGetOptPrintError(vrc, &ValueUnion);
         }
@@ -977,7 +991,7 @@ int main(int argc, char **argv)
         }
 
         nsCOMPtr<ipcIService> ipcServ (do_GetService(IPC_SERVICE_CONTRACTID, &rc));
-        if (NS_FAILED (rc))
+        if (NS_FAILED(rc))
         {
             RTMsgError("Failed to get IPC service! (rc=%Rhrc)", rc);
             break;

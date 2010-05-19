@@ -1,10 +1,10 @@
-/* $Id: SUPDrv-solaris.c $ */
+/* $Id: SUPDrv-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Solaris specifics.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,6 @@
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /*******************************************************************************
@@ -149,9 +145,11 @@ static struct modldrv g_VBoxDrvSolarisModule =
  */
 static struct modlinkage g_VBoxDrvSolarisModLinkage =
 {
-    MODREV_1,               /* loadable module system revision */
-    &g_VBoxDrvSolarisModule,
-    NULL                    /* terminate array of linkage structures */
+    MODREV_1,                     /* loadable module system revision */
+    {
+        &g_VBoxDrvSolarisModule,
+        NULL                     /* terminate array of linkage structures */
+    }
 };
 
 #ifndef USE_SESSION_HASH
@@ -189,7 +187,7 @@ static RTSPINLOCK           g_Spinlock = NIL_RTSPINLOCK;
  */
 int _init(void)
 {
-    LogFlow((DEVICE_NAME ":_init\n"));
+    LogFlowFunc((DEVICE_NAME ":_init\n"));
 
     /*
      * Prevent module autounloading.
@@ -209,7 +207,7 @@ int _init(void)
         /*
          * Initialize the device extension
          */
-        rc = supdrvInitDevExt(&g_DevExt);
+        rc = supdrvInitDevExt(&g_DevExt, sizeof(SUPDRVSESSION));
         if (RT_SUCCESS(rc))
         {
             /*
@@ -219,7 +217,7 @@ int _init(void)
             rc = RTSpinlockCreate(&g_Spinlock);
             if (RT_SUCCESS(rc))
             {
-                int rc = ddi_soft_state_init(&g_pVBoxDrvSolarisState, sizeof(vbox_devstate_t), 8);
+                rc = ddi_soft_state_init(&g_pVBoxDrvSolarisState, sizeof(vbox_devstate_t), 8);
                 if (!rc)
                 {
                     rc = mod_install(&g_VBoxDrvSolarisModLinkage);
@@ -253,7 +251,7 @@ int _init(void)
 
 int _fini(void)
 {
-    LogFlow((DEVICE_NAME ":_fini\n"));
+    LogFlowFunc((DEVICE_NAME ":_fini\n"));
 
     /*
      * Undo the work we did at start (in the reverse order).
@@ -279,7 +277,7 @@ int _fini(void)
 
 int _info(struct modinfo *pModInfo)
 {
-    LogFlow((DEVICE_NAME ":_info\n"));
+    LogFlowFunc((DEVICE_NAME ":_info\n"));
     int e = mod_info(&g_VBoxDrvSolarisModLinkage, pModInfo);
     return e;
 }
@@ -295,7 +293,7 @@ int _info(struct modinfo *pModInfo)
  */
 static int VBoxDrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
 {
-    LogFlow((DEVICE_NAME ":VBoxDrvSolarisAttach\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxDrvSolarisAttach\n"));
 
     switch (enmCmd)
     {
@@ -377,17 +375,15 @@ static int VBoxDrvSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
  */
 static int VBoxDrvSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 {
-    int rc = VINF_SUCCESS;
-
-    LogFlow((DEVICE_NAME ":VBoxDrvSolarisDetach\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxDrvSolarisDetach\n"));
     switch (enmCmd)
     {
         case DDI_DETACH:
         {
-            int instance = ddi_get_instance(pDip);
 #ifndef USE_SESSION_HASH
             ddi_remove_minor_node(pDip, NULL);
 #else
+            int instance = ddi_get_instance(pDip);
             vbox_devstate_t *pState = ddi_get_soft_state(g_pVBoxDrvSolarisState, instance);
             ddi_remove_minor_node(pDip, NULL);
             ddi_soft_state_free(g_pVBoxDrvSolarisState, instance);
@@ -425,7 +421,7 @@ static int VBoxDrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
 {
     int                 rc;
     PSUPDRVSESSION      pSession;
-    LogFlow((DEVICE_NAME ":VBoxDrvSolarisOpen: pDev=%p:%#x\n", pDev, *pDev));
+    LogFlowFunc((DEVICE_NAME ":VBoxDrvSolarisOpen: pDev=%p:%#x\n", pDev, *pDev));
 
 #ifndef USE_SESSION_HASH
     /*
@@ -511,15 +507,15 @@ static int VBoxDrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
     }
 
     *pDev = makedevice(getmajor(*pDev), instance);
+#endif
 
     return VBoxSupDrvErr2SolarisErr(rc);
-#endif
 }
 
 
 static int VBoxDrvSolarisClose(dev_t Dev, int flag, int otyp, cred_t *cred)
 {
-    LogFlow((DEVICE_NAME ":VBoxDrvSolarisClose: Dev=%#x\n", Dev));
+    LogFlowFunc((DEVICE_NAME ":VBoxDrvSolarisClose: Dev=%#x\n", Dev));
 
 #ifndef USE_SESSION_HASH
     /*
@@ -600,14 +596,14 @@ static int VBoxDrvSolarisClose(dev_t Dev, int flag, int otyp, cred_t *cred)
 
 static int VBoxDrvSolarisRead(dev_t Dev, struct uio *pUio, cred_t *pCred)
 {
-    LogFlow((DEVICE_NAME ":VBoxDrvSolarisRead"));
+    LogFlowFunc((DEVICE_NAME ":VBoxDrvSolarisRead"));
     return 0;
 }
 
 
 static int VBoxDrvSolarisWrite(dev_t Dev, struct uio *pUio, cred_t *pCred)
 {
-    LogFlow((DEVICE_NAME ":VBoxDrvSolarisWrite"));
+    LogFlowFunc((DEVICE_NAME ":VBoxDrvSolarisWrite"));
     return 0;
 }
 
@@ -838,22 +834,22 @@ int VBOXCALL SUPDrvSolarisIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
  * Converts an supdrv error code to a solaris error code.
  *
  * @returns corresponding solaris error code.
- * @param   rc  supdrv error code (SUPDRV_ERR_* defines).
+ * @param   rc      IPRT status code.
  */
 static int VBoxSupDrvErr2SolarisErr(int rc)
 {
     switch (rc)
     {
-        case 0:                             return 0;
-        case SUPDRV_ERR_GENERAL_FAILURE:    return EACCES;
-        case SUPDRV_ERR_INVALID_PARAM:      return EINVAL;
-        case SUPDRV_ERR_INVALID_MAGIC:      return EILSEQ;
-        case SUPDRV_ERR_INVALID_HANDLE:     return ENXIO;
-        case SUPDRV_ERR_INVALID_POINTER:    return EFAULT;
-        case SUPDRV_ERR_LOCK_FAILED:        return ENOLCK;
-        case SUPDRV_ERR_ALREADY_LOADED:     return EEXIST;
-        case SUPDRV_ERR_PERMISSION_DENIED:  return EPERM;
-        case SUPDRV_ERR_VERSION_MISMATCH:   return ENOSYS;
+        case VINF_SUCCESS:              return 0;
+        case VERR_GENERAL_FAILURE:      return EACCES;
+        case VERR_INVALID_PARAMETER:    return EINVAL;
+        case VERR_INVALID_MAGIC:        return EILSEQ;
+        case VERR_INVALID_HANDLE:       return ENXIO;
+        case VERR_INVALID_POINTER:      return EFAULT;
+        case VERR_LOCK_FAILED:          return ENOLCK;
+        case VERR_ALREADY_LOADED:       return EEXIST;
+        case VERR_PERMISSION_DENIED:    return EPERM;
+        case VERR_VERSION_MISMATCH:     return ENOSYS;
     }
 
     return EPERM;
@@ -894,6 +890,35 @@ bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, c
 bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 {
     return false;
+}
+
+
+int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+    /** @todo This is something that shouldn't be impossible to implement
+     *  here and would make a few people happy. */
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits)
+{
+    NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
 }
 
 

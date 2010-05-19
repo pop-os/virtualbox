@@ -1,10 +1,10 @@
-/* $Id: DevPS2.cpp $ */
+/* $Id: DevPS2.cpp 28909 2010-04-29 16:34:17Z vboxsync $ */
 /** @file
  * DevPS2 - PS/2 keyboard & mouse controller device.
  */
 
 /*
- * Copyright (C) 2006-2007 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -52,10 +48,11 @@
 #include "vl_vbox.h"
 #include <VBox/pdmdev.h>
 #include <iprt/assert.h>
+#include <iprt/uuid.h>
 
 #include "../Builtins.h"
 
-#define PCKBD_SAVED_STATE_VERSION 3
+#define PCKBD_SAVED_STATE_VERSION 5
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -160,8 +157,19 @@ RT_C_DECLS_END
 
 #define KBD_QUEUE_SIZE 256
 
+/** Supported mouse protocols */
+enum
+{
+    MOUSE_PROT_PS2 = 0,
+    MOUSE_PROT_IMPS2 = 3,
+    MOUSE_PROT_IMEX = 4
+};
+
+/** @name Mouse flags */
+/** @{ */
+/** IMEX horizontal scroll-wheel mode is active */
 # define MOUSE_REPORT_HORIZONTAL  0x01
-# define MOUSE_OUTSTANDING_CLICK  0x02
+/** @} */
 
 typedef struct {
     uint8_t data[KBD_QUEUE_SIZE];
@@ -201,7 +209,7 @@ typedef struct KBDState {
     uint8_t mouse_resolution;
     uint8_t mouse_sample_rate;
     uint8_t mouse_wrap;
-    uint8_t mouse_type; /* 0 = PS2, 3 = IMPS/2, 4 = IMEX */
+    uint8_t mouse_type; /* MOUSE_PROT_PS2, *_IMPS/2, *_IMEX */
     uint8_t mouse_detect_state;
     int32_t mouse_dx; /* current values, needed for 'poll' mode */
     int32_t mouse_dy;
@@ -209,6 +217,7 @@ typedef struct KBDState {
     int32_t mouse_dw;
     int32_t mouse_flags;
     uint8_t mouse_buttons;
+    uint8_t mouse_buttons_reported;
 
     /** Pointer to the device instance - RC. */
     PPDMDEVINSRC                pDevInsRC;
@@ -220,13 +229,16 @@ typedef struct KBDState {
     PDMCRITSECT                 CritSect;
     /**
      * Keyboard port - LUN#0.
+     *
+     * @implements  PDMIBASE
+     * @implements  PDMIKEYBOARDPORT
      */
     struct
     {
         /** The base interface for the keyboard port. */
-        PDMIBASE                            Base;
+        PDMIBASE                            IBase;
         /** The keyboard port base interface. */
-        PDMIKEYBOARDPORT                    Port;
+        PDMIKEYBOARDPORT                    IPort;
 
         /** The base interface of the attached keyboard driver. */
         R3PTRTYPE(PPDMIBASE)                pDrvBase;
@@ -236,13 +248,16 @@ typedef struct KBDState {
 
     /**
      * Mouse port - LUN#1.
+     *
+     * @implements  PDMIBASE
+     * @implements  PDMIMOUSEPORT
      */
     struct
     {
         /** The base interface for the mouse port. */
-        PDMIBASE                            Base;
+        PDMIBASE                            IBase;
         /** The mouse port base interface. */
-        PDMIMOUSEPORT                       Port;
+        PDMIMOUSEPORT                       IPort;
 
         /** The base interface of the attached mouse driver. */
         R3PTRTYPE(PPDMIBASE)                pDrvBase;
@@ -624,7 +639,7 @@ static int  kbd_write_keyboard(KBDState *s, int val)
             else if (s->scancode_set == 3)
                 pc_kbd_put_keycode(s, 0x3f);
         } else {
-            if (val >= 1 && val <= 3) 
+            if (val >= 1 && val <= 3)
                 s->scancode_set = val;
             kbd_queue(s, KBD_REPLY_ACK, 0);
         }
@@ -658,112 +673,165 @@ static int  kbd_write_keyboard(KBDState *s, int val)
     return VINF_SUCCESS;
 }
 
-static void kbd_mouse_send_packet(KBDState *s, bool fToCmdQueue)
+static void kbd_mouse_set_reported_buttons(KBDState *s, unsigned fButtons, unsigned fButtonMask)
+{
+    s->mouse_buttons_reported |= (fButtons & fButtonMask);
+    s->mouse_buttons_reported &= (fButtons | ~fButtonMask);
+}
+
+/**
+ * Send a single relative packet in 3-byte PS/2 format, optionally with our
+ * packed button protocol extension, to the PS/2 controller.
+ * @param  s               keyboard state object
+ * @param  dx              relative X value, must be between -256 and +255
+ * @param  dy              relative y value, must be between -256 and +255
+ * @param  fButtonsLow     the state of the two first mouse buttons
+ * @param  fButtonsPacked  the state of the upper three mouse buttons and
+ *                         scroll wheel movement, packed as per the
+ *                         MOUSE_EXT_* defines.  For standard PS/2 packets
+ *                         only pass the value of button 3 here.
+ */
+static void kbd_mouse_send_rel3_packet(KBDState *s, bool fToCmdQueue)
 {
     int aux = fToCmdQueue ? 1 : 2;
+    int dx1 = s->mouse_dx < 0 ? RT_MAX(s->mouse_dx, -256)
+                              : RT_MIN(s->mouse_dx, 255);
+    int dy1 = s->mouse_dy < 0 ? RT_MAX(s->mouse_dy, -256)
+                              : RT_MIN(s->mouse_dy, 255);
     unsigned int b;
-    int dx1, dy1, dz1, dw1;
-
-    dx1 = s->mouse_dx;
-    dy1 = s->mouse_dy;
-    dz1 = s->mouse_dz;
-    dw1 = s->mouse_dw;
-    LogRel3(("%s: dx=%d, dy=%d, dz=%d, dw=%d\n", __PRETTY_FUNCTION__,
-             dx1, dy1, dz1, dw1));
-    /* XXX: increase range to 8 bits ? */
-    if (dx1 > 127)
-        dx1 = 127;
-    else if (dx1 < -127)
-        dx1 = -127;
-    if (dy1 > 127)
-        dy1 = 127;
-    else if (dy1 < -127)
-        dy1 = -127;
-    b = 0x08 | ((dx1 < 0) << 4) | ((dy1 < 0) << 5) | (s->mouse_buttons & 0x07);
+    unsigned fButtonsLow = s->mouse_buttons & 0x07;
+    s->mouse_dx -= dx1;
+    s->mouse_dy -= dy1;
+    kbd_mouse_set_reported_buttons(s, fButtonsLow, 0x07);
+    LogRel3(("%s: dx1=%d, dy1=%d, fButtonsLow=0x%x\n",
+             __PRETTY_FUNCTION__, dx1, dy1, fButtonsLow));
+    b = 0x08 | ((dx1 < 0 ? 1 : 0) << 4) | ((dy1 < 0 ? 1 : 0) << 5)
+             | fButtonsLow;
     kbd_queue(s, b, aux);
     kbd_queue(s, dx1 & 0xff, aux);
     kbd_queue(s, dy1 & 0xff, aux);
-    /* extra byte for IMPS/2 or IMEX */
-    switch(s->mouse_type) {
-    default:
-        break;
-    case 3:
-        if (dz1 > 127)
-            dz1 = 127;
-        else if (dz1 < -127)
-                dz1 = -127;
-        kbd_queue(s, dz1 & 0xff, aux);
-        break;
-    case 4:
-        if (dz1 > 1)
-            dz1 = 1;
-        else if (dz1 < -1)
-            dz1 = -1;
-        else if (dw1 > 1)
-            dw1 = 1;
-        else if (dw1 < -1)
-            dw1 = -1;
-        if (dz1)
-            dw1 = 0;
-        if ((s->mouse_flags & MOUSE_REPORT_HORIZONTAL) && dw1)
-            b = 0x40 | (dw1 & 0x3f);
-        else
-        {
-            b =   (dz1 & 0x0f) | ((dw1 << 1) & 0x0f)
-                | ((s->mouse_buttons & 0x18) << 1);
-            s->mouse_flags &= ~MOUSE_OUTSTANDING_CLICK;
-        }
-        kbd_queue(s, b, aux);
-        break;
-    }
+}
 
-    /* update deltas */
-    s->mouse_dx -= dx1;
-    s->mouse_dy -= dy1;
+static void kbd_mouse_send_imps2_byte4(KBDState *s, bool fToCmdQueue)
+{
+    int aux = fToCmdQueue ? 1 : 2;
+
+    int dz1 = s->mouse_dz < 0 ? RT_MAX(s->mouse_dz, -127)
+                              : RT_MIN(s->mouse_dz, 127);
+    LogRel3(("%s: dz1=%d\n", __PRETTY_FUNCTION__, dz1));
     s->mouse_dz -= dz1;
-    s->mouse_dw -= dw1;
+    kbd_queue(s, dz1 & 0xff, aux);
+}
+
+static void kbd_mouse_send_imex_byte4(KBDState *s, bool fToCmdQueue)
+{
+    int aux = fToCmdQueue ? 1 : 2;
+
+    if (s->mouse_dw)
+    {
+        int dw1 = s->mouse_dw < 0 ? RT_MAX(s->mouse_dw, -31)
+                                  : RT_MIN(s->mouse_dw, 32);
+        LogRel3(("%s: dw1=%d\n", __PRETTY_FUNCTION__, dw1));
+        s->mouse_dw -= dw1;
+        kbd_queue(s, 0x40 | (dw1 & 0x3f), aux);
+    }
+    else if (s->mouse_flags & MOUSE_REPORT_HORIZONTAL && s->mouse_dz)
+    {
+        int dz1 = s->mouse_dz < 0 ? RT_MAX(s->mouse_dz, -31)
+                                  : RT_MIN(s->mouse_dz, 32);
+        LogRel3(("%s: dz1=%d\n", __PRETTY_FUNCTION__, dz1));
+        s->mouse_dz -= dz1;
+        kbd_queue(s, 0x80 | (dz1 & 0x3f), aux);
+    }
+    else
+    {
+        int dz1 = s->mouse_dz < 0 ? RT_MAX(s->mouse_dz, -7)
+                                  : RT_MIN(s->mouse_dz, 8);
+        unsigned fButtonsHigh = s->mouse_buttons & 0x18;
+        LogRel3(("%s: dz1=%d fButtonsHigh=0x%x\n",
+                 __PRETTY_FUNCTION__, dz1, fButtonsHigh));
+        s->mouse_dz -= dz1;
+        kbd_mouse_set_reported_buttons(s, fButtonsHigh, 0x18);
+        kbd_queue(s, (dz1 & 0x0f) | (fButtonsHigh << 1), aux);
+    }
+}
+
+/**
+ * Send a single relative packet in (IM)PS/2 or IMEX format to the PS/2
+ * controller.
+ * @param  s            keyboard state object
+ * @param  fToCmdQueue  should this packet go to the command queue (or the
+ *                      event queue)?
+ */
+static void kbd_mouse_send_packet(KBDState *s, bool fToCmdQueue)
+{
+    kbd_mouse_send_rel3_packet(s, fToCmdQueue);
+    if (s->mouse_type == MOUSE_PROT_IMPS2)
+        kbd_mouse_send_imps2_byte4(s, fToCmdQueue);
+    if (s->mouse_type == MOUSE_PROT_IMEX)
+        kbd_mouse_send_imex_byte4(s, fToCmdQueue);
+}
+
+static bool kbd_mouse_unreported(KBDState *s)
+{
+   return    s->mouse_dx
+          || s->mouse_dy
+          || s->mouse_dz
+          || s->mouse_dw
+          || s->mouse_buttons != s->mouse_buttons_reported;
 }
 
 #ifdef IN_RING3
-static void pc_kbd_mouse_event(void *opaque,
-                               int dx, int dy, int dz, int dw, int buttons_state)
+static size_t kbd_mouse_event_queue_free(KBDState *s)
 {
+    AssertReturn(s->mouse_event_queue.count <= MOUSE_EVENT_QUEUE_SIZE, 0);
+    return MOUSE_EVENT_QUEUE_SIZE - s->mouse_event_queue.count;
+}
+
+static void pc_kbd_mouse_event(void *opaque, int dx, int dy, int dz, int dw,
+                               int buttons_state)
+{
+    LogRel3(("%s: dx=%d, dy=%d, dz=%d, dw=%d, buttons_state=0x%x\n",
+             __PRETTY_FUNCTION__, dx, dy, dz, dw, buttons_state));
     KBDState *s = (KBDState*)opaque;
 
     /* check if deltas are recorded when disabled */
     if (!(s->mouse_status & MOUSE_STATUS_ENABLED))
         return;
+    AssertReturnVoid((buttons_state & ~0x1f) == 0);
 
     s->mouse_dx += dx;
     s->mouse_dy -= dy;
-    s->mouse_dz += dz;
-    s->mouse_dw += dw;
-    /* In horizontal reporting mode, we may need to send an additional packet
-     * for the forth and fifth buttons, as they can't share a packet with a
-     * horizontal scroll delta. */
-    if (   s->mouse_type == 4
-        && (s->mouse_buttons & 0x18) != (buttons_state & 0x18))
-        s->mouse_flags |= MOUSE_OUTSTANDING_CLICK;
+    if (   (s->mouse_type == MOUSE_PROT_IMPS2)
+        || (s->mouse_type == MOUSE_PROT_IMEX))
+        s->mouse_dz += dz;
+    if (   (   (s->mouse_type == MOUSE_PROT_IMEX)
+            && s->mouse_flags & MOUSE_REPORT_HORIZONTAL))
+        s->mouse_dw += dw;
     s->mouse_buttons = buttons_state;
-
-    if (!(s->mouse_status & MOUSE_STATUS_REMOTE) &&
-        (s->mouse_event_queue.count < (MOUSE_EVENT_QUEUE_SIZE - 4))) {
-        for(;;) {
-            /* if not remote, send event. Multiple events are sent if
-               too big deltas */
+    if (!(s->mouse_status & MOUSE_STATUS_REMOTE))
+        /* if not remote, send event. Multiple events are sent if
+           too big deltas */
+        while (   kbd_mouse_unreported(s)
+               && kbd_mouse_event_queue_free(s) > 4)
             kbd_mouse_send_packet(s, false);
-            if (s->mouse_dx == 0 && s->mouse_dy == 0 && s->mouse_dz == 0 && s->mouse_dw == 0 && !(s->mouse_flags & MOUSE_OUTSTANDING_CLICK))
-                break;
-        }
-    }
+}
+
+/* Report a change in status down the driver chain */
+static void kbd_mouse_update_downstream_status(KBDState *pThis)
+{
+    PPDMIMOUSECONNECTOR pDrv = pThis->Mouse.pDrv;
+    bool fEnabled = !!(pThis->mouse_status & MOUSE_STATUS_ENABLED);
+    pDrv->pfnReportModes(pDrv, fEnabled, false);
 }
 #endif /* IN_RING3 */
 
-static void kbd_write_mouse(KBDState *s, int val)
+static int kbd_write_mouse(KBDState *s, int val)
 {
 #ifdef DEBUG_MOUSE
     LogRelFlowFunc(("kbd: write mouse 0x%02x\n", val));
 #endif
+    int rc = VINF_SUCCESS;
     /* Flush the mouse command response queue. */
     s->mouse_command_queue.count = 0;
     s->mouse_command_queue.rptr = 0;
@@ -776,10 +844,10 @@ static void kbd_write_mouse(KBDState *s, int val)
             if (val == AUX_RESET_WRAP) {
                 s->mouse_wrap = 0;
                 kbd_queue(s, AUX_ACK, 1);
-                return;
+                return VINF_SUCCESS;
             } else if (val != AUX_RESET) {
                 kbd_queue(s, val, 1);
-                return;
+                return VINF_SUCCESS;
             }
         }
         switch(val) {
@@ -823,28 +891,46 @@ static void kbd_write_mouse(KBDState *s, int val)
             kbd_mouse_send_packet(s, true);
             break;
         case AUX_ENABLE_DEV:
+#ifdef IN_RING3
+            LogRelFlowFunc(("Enabling mouse device\n"));
             s->mouse_status |= MOUSE_STATUS_ENABLED;
             kbd_queue(s, AUX_ACK, 1);
+            kbd_mouse_update_downstream_status(s);
+#else
+            LogRelFlowFunc(("Enabling mouse device, R0 stub\n"));
+            rc = VINF_IOM_HC_IOPORT_WRITE;
+#endif
             break;
         case AUX_DISABLE_DEV:
+#ifdef IN_RING3
             s->mouse_status &= ~MOUSE_STATUS_ENABLED;
             kbd_queue(s, AUX_ACK, 1);
             /* Flush the mouse events queue. */
             s->mouse_event_queue.count = 0;
             s->mouse_event_queue.rptr = 0;
             s->mouse_event_queue.wptr = 0;
+            kbd_mouse_update_downstream_status(s);
+#else
+            rc = VINF_IOM_HC_IOPORT_WRITE;
+#endif
             break;
         case AUX_SET_DEFAULT:
+#ifdef IN_RING3
             s->mouse_sample_rate = 100;
             s->mouse_resolution = 2;
             s->mouse_status = 0;
             kbd_queue(s, AUX_ACK, 1);
+            kbd_mouse_update_downstream_status(s);
+#else
+            rc = VINF_IOM_HC_IOPORT_WRITE;
+#endif
             break;
         case AUX_RESET:
+#ifdef IN_RING3
             s->mouse_sample_rate = 100;
             s->mouse_resolution = 2;
             s->mouse_status = 0;
-            s->mouse_type = 0;
+            s->mouse_type = MOUSE_PROT_PS2;
             kbd_queue(s, AUX_ACK, 1);
             kbd_queue(s, 0xaa, 1);
             kbd_queue(s, s->mouse_type, 1);
@@ -852,6 +938,10 @@ static void kbd_write_mouse(KBDState *s, int val)
             s->mouse_event_queue.count = 0;
             s->mouse_event_queue.rptr = 0;
             s->mouse_event_queue.wptr = 0;
+            kbd_mouse_update_downstream_status(s);
+#else
+            rc = VINF_IOM_HC_IOPORT_WRITE;
+#endif
             break;
         default:
             /* NACK all commands we don't know.
@@ -890,17 +980,17 @@ static void kbd_write_mouse(KBDState *s, int val)
                 s->mouse_detect_state = 2;
             else if (val == 200)
                 s->mouse_detect_state = 3;
-            else if ((val == 80) && s->mouse_type == 4 /* IMEX */)
+            else if ((val == 80) && s->mouse_type == MOUSE_PROT_IMEX)
                 /* enable horizontal scrolling, byte two */
                 s->mouse_detect_state = 4;
             else
                 s->mouse_detect_state = 0;
             break;
         case 2:
-            if (val == 80 && s->mouse_type < 4)
+            if (val == 80 && s->mouse_type < MOUSE_PROT_IMEX)
             {
                 LogRelFlowFunc(("switching mouse device to IMPS/2 mode\n"));
-                s->mouse_type = 3; /* IMPS/2 */
+                s->mouse_type = MOUSE_PROT_IMPS2;
             }
             s->mouse_detect_state = 0;
             break;
@@ -908,14 +998,14 @@ static void kbd_write_mouse(KBDState *s, int val)
             if (val == 80)
             {
                 LogRelFlowFunc(("switching mouse device to IMEX mode\n"));
-                s->mouse_type = 4; /* IMEX */
+                s->mouse_type = MOUSE_PROT_IMEX;
             }
             s->mouse_detect_state = 0;
             break;
         case 4:
             if (val == 40)
             {
-                LogFlowFunc(("enabling IMEX horizontal scrolling reporting\n"));
+                LogRelFlowFunc(("enabling IMEX horizontal scrolling reporting\n"));
                 s->mouse_flags |= MOUSE_REPORT_HORIZONTAL;
             }
             s->mouse_detect_state = 0;
@@ -925,11 +1015,17 @@ static void kbd_write_mouse(KBDState *s, int val)
         s->mouse_write_cmd = -1;
         break;
     case AUX_SET_RES:
-        s->mouse_resolution = val;
-        kbd_queue(s, AUX_ACK, 1);
+        if (0 <= val && val < 4)
+        {
+            s->mouse_resolution = val;
+            kbd_queue(s, AUX_ACK, 1);
+        }
+        else
+            kbd_queue(s, AUX_NACK, 1);
         s->mouse_write_cmd = -1;
         break;
     }
+    return rc;
 }
 
 static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
@@ -974,7 +1070,7 @@ static int kbd_write_data(void *opaque, uint32_t addr, uint32_t val)
         }
         break;
     case KBD_CCMD_WRITE_MOUSE:
-        kbd_write_mouse(s, val);
+        rc = kbd_write_mouse(s, val);
         break;
     default:
         break;
@@ -1002,11 +1098,15 @@ static void kbd_reset(void *opaque)
     s->scan_enabled = 0;
     s->translate = 0;
     s->scancode_set = 2;
-    s->mouse_status = 0;
+    if (s->mouse_status)
+    {
+        s->mouse_status = 0;
+        kbd_mouse_update_downstream_status(s);
+    }
     s->mouse_resolution = 0;
     s->mouse_sample_rate = 0;
     s->mouse_wrap = 0;
-    s->mouse_type = 0;
+    s->mouse_type = MOUSE_PROT_PS2;
     s->mouse_detect_state = 0;
     s->mouse_dx = 0;
     s->mouse_dy = 0;
@@ -1014,6 +1114,7 @@ static void kbd_reset(void *opaque)
     s->mouse_dw = 0;
     s->mouse_flags = 0;
     s->mouse_buttons = 0;
+    s->mouse_buttons_reported = 0;
     q = &s->queue;
     q->rptr = 0;
     q->wptr = 0;
@@ -1052,6 +1153,7 @@ static void kbd_save(QEMUFile* f, void* opaque)
     qemu_put_be32s(f, &s->mouse_dw);
     qemu_put_be32s(f, &s->mouse_flags);
     qemu_put_8s(f, &s->mouse_buttons);
+    qemu_put_8s(f, &s->mouse_buttons_reported);
 
     /* XXX: s->scancode_set isn't being saved, but we only really support set 2,
      * so no real harm done.
@@ -1085,9 +1187,17 @@ static void kbd_save(QEMUFile* f, void* opaque)
 static int kbd_load(QEMUFile* f, void* opaque, int version_id)
 {
     uint32_t    u32, i;
+    uint8_t u8Dummy;
+    uint32_t u32Dummy;
     int         rc;
     KBDState *s = (KBDState*)opaque;
 
+#if 0
+    /** @todo enable this and remove the "if (version_id == 4)" code at some
+     * later time */
+    /* Version 4 was never created by any publicly released version of VBox */
+    AssertReturn(version_id != 4, VERR_NOT_SUPPORTED);
+#endif
     if (version_id < 2 || version_id > PCKBD_SAVED_STATE_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     qemu_get_8s(f, &s->write_cmd);
@@ -1111,6 +1221,15 @@ static int kbd_load(QEMUFile* f, void* opaque, int version_id)
         SSMR3GetS32(f, &s->mouse_flags);
     }
     qemu_get_8s(f, &s->mouse_buttons);
+    if (version_id == 4)
+    {
+        SSMR3GetU32(f, &u32Dummy);
+        SSMR3GetU32(f, &u32Dummy);
+    }
+    if (version_id > 3)
+        SSMR3GetU8(f, &s->mouse_buttons_reported);
+    if (version_id == 4)
+        SSMR3GetU8(f, &u8Dummy);
     s->queue.count = 0;
     s->queue.rptr = 0;
     s->queue.wptr = 0;
@@ -1191,6 +1310,8 @@ static int kbd_load(QEMUFile* f, void* opaque, int version_id)
         AssertMsgFailed(("u32=%#x\n", u32));
         return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
     }
+    /* Resend a notification to Main if the device is active */
+    kbd_mouse_update_downstream_status(s);
     return 0;
 }
 #endif /* IN_RING3 */
@@ -1361,53 +1482,45 @@ static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle, 
  */
 static DECLCALLBACK(void)  kbdReset(PPDMDEVINS pDevIns)
 {
-    kbd_reset(PDMINS_2_DATA(pDevIns, KBDState *));
+    KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+
+    kbd_reset(pThis);
+    /* Activate the PS/2 keyboard by default. */
+    pThis->Keyboard.pDrv->pfnSetActive(pThis->Keyboard.pDrv, true);
 }
 
 
 /* -=-=-=-=-=- Keyboard: IBase  -=-=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to the keyboard port base interface (KBDState::Keyboard.Base).
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *)  kbdKeyboardQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *)  kbdKeyboardQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    KBDState *pThis = (KBDState *)((uintptr_t)pInterface -  RT_OFFSETOF(KBDState, Keyboard.Base));
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->Keyboard.Base;
-        case PDMINTERFACE_KEYBOARD_PORT:
-            return &pThis->Keyboard.Port;
-        default:
-            return NULL;
-    }
+    KBDState *pThis = RT_FROM_MEMBER(pInterface, KBDState, Keyboard.IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->Keyboard.IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIKEYBOARDPORT, &pThis->Keyboard.IPort);
+    return NULL;
 }
 
 
 /* -=-=-=-=-=- Keyboard: IKeyboardPort  -=-=-=-=-=- */
 
-/** Converts a keyboard port interface pointer to a keyboard state pointer. */
-#define IKEYBOARDPORT_2_KBDSTATE(pInterface) ( (KBDState *)((uintptr_t)pInterface -  RT_OFFSETOF(KBDState, Keyboard.Port)) )
-
 /**
  * Keyboard event handler.
  *
  * @returns VBox status code.
- * @param   pInterface      Pointer to the keyboard port interface (KBDState::Keyboard.Port).
+ * @param   pInterface      Pointer to the keyboard port interface (KBDState::Keyboard.IPort).
  * @param   u8KeyCode       The keycode.
  */
 static DECLCALLBACK(int) kbdKeyboardPutEvent(PPDMIKEYBOARDPORT pInterface, uint8_t u8KeyCode)
 {
-    KBDState *pThis = IKEYBOARDPORT_2_KBDSTATE(pInterface);
+    KBDState *pThis = RT_FROM_MEMBER(pInterface, KBDState, Keyboard.IPort);
     int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
     AssertReleaseRC(rc);
+
     pc_kbd_put_keycode(pThis, u8KeyCode);
+
     PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
 }
@@ -1416,51 +1529,41 @@ static DECLCALLBACK(int) kbdKeyboardPutEvent(PPDMIKEYBOARDPORT pInterface, uint8
 /* -=-=-=-=-=- Mouse: IBase  -=-=-=-=-=- */
 
 /**
- * Queries an interface to the driver.
- *
- * @returns Pointer to interface.
- * @returns NULL if the interface was not supported by the device.
- * @param   pInterface          Pointer to the mouse port base interface (KBDState::Mouse.Base).
- * @param   enmInterface        The requested interface identification.
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *)  kbdMouseQueryInterface(PPDMIBASE pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *)  kbdMouseQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    KBDState *pThis = (KBDState *)((uintptr_t)pInterface -  RT_OFFSETOF(KBDState, Mouse.Base));
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pThis->Mouse.Base;
-        case PDMINTERFACE_MOUSE_PORT:
-            return &pThis->Mouse.Port;
-        default:
-            return NULL;
-    }
+    KBDState *pThis = RT_FROM_MEMBER(pInterface, KBDState, Mouse.IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->Mouse.IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUSEPORT, &pThis->Mouse.IPort);
+    return NULL;
 }
 
 
 /* -=-=-=-=-=- Mouse: IMousePort  -=-=-=-=-=- */
 
-/** Converts a mouse port interface pointer to a keyboard state pointer. */
-#define IMOUSEPORT_2_KBDSTATE(pInterface) ( (KBDState *)((uintptr_t)pInterface -  RT_OFFSETOF(KBDState, Mouse.Port)) )
-
 /**
- * Mouse event handler.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the mouse port interface (KBDState::Mouse.Port).
- * @param   i32DeltaX       The X delta.
- * @param   i32DeltaY       The Y delta.
- * @param   i32DeltaZ       The Z delta.
- * @param   fButtonStates   The button states.
+ * @interface_method_impl{PDMIMOUSEPORT, pfnPutEvent}
  */
-static DECLCALLBACK(int) kbdMousePutEvent(PPDMIMOUSEPORT pInterface, int32_t i32DeltaX, int32_t i32DeltaY, int32_t i32DeltaZ, int32_t i32DeltaW, uint32_t fButtonStates)
+static DECLCALLBACK(int) kbdMousePutEvent(PPDMIMOUSEPORT pInterface, int32_t iDeltaX, int32_t iDeltaY,
+                                          int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates)
 {
-    KBDState *pThis = IMOUSEPORT_2_KBDSTATE(pInterface);
+    KBDState *pThis = RT_FROM_MEMBER(pInterface, KBDState, Mouse.IPort);
     int rc = PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
     AssertReleaseRC(rc);
-    pc_kbd_mouse_event(pThis, i32DeltaX, i32DeltaY, i32DeltaZ, i32DeltaW, fButtonStates);
+
+    pc_kbd_mouse_event(pThis, iDeltaX, iDeltaY, iDeltaZ, iDeltaW, fButtonStates);
+
     PDMCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{PDMIMOUSEPORT, pfnPutEventAbs}
+ */
+static DECLCALLBACK(int) kbdMousePutEventAbs(PPDMIMOUSEPORT pInterface, uint32_t uX, uint32_t uY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtons)
+{
+    AssertFailedReturn(VERR_NOT_SUPPORTED);
 }
 
 
@@ -1496,10 +1599,10 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
     {
         /* LUN #0: keyboard */
         case 0:
-            rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &pThis->Keyboard.Base, &pThis->Keyboard.pDrvBase, "Keyboard Port");
+            rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &pThis->Keyboard.IBase, &pThis->Keyboard.pDrvBase, "Keyboard Port");
             if (RT_SUCCESS(rc))
             {
-                pThis->Keyboard.pDrv = (PDMIKEYBOARDCONNECTOR*)(pThis->Keyboard.pDrvBase->pfnQueryInterface(pThis->Keyboard.pDrvBase, PDMINTERFACE_KEYBOARD_CONNECTOR));
+                pThis->Keyboard.pDrv = PDMIBASE_QUERY_INTERFACE(pThis->Keyboard.pDrvBase, PDMIKEYBOARDCONNECTOR);
                 if (!pThis->Keyboard.pDrv)
                 {
                     AssertLogRelMsgFailed(("LUN #0 doesn't have a keyboard interface! rc=%Rrc\n", rc));
@@ -1508,7 +1611,7 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
             }
             else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
             {
-                Log(("%s/%d: warning: no driver attached to LUN #0!\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                Log(("%s/%d: warning: no driver attached to LUN #0!\n", pDevIns->pReg->szName, pDevIns->iInstance));
                 rc = VINF_SUCCESS;
             }
             else
@@ -1517,10 +1620,10 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
 
         /* LUN #1: aux/mouse */
         case 1:
-            rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &pThis->Mouse.Base, &pThis->Mouse.pDrvBase, "Aux (Mouse) Port");
+            rc = PDMDevHlpDriverAttach(pDevIns, iLUN, &pThis->Mouse.IBase, &pThis->Mouse.pDrvBase, "Aux (Mouse) Port");
             if (RT_SUCCESS(rc))
             {
-                pThis->Mouse.pDrv = (PDMIMOUSECONNECTOR*)(pThis->Mouse.pDrvBase->pfnQueryInterface(pThis->Mouse.pDrvBase, PDMINTERFACE_MOUSE_CONNECTOR));
+                pThis->Mouse.pDrv = PDMIBASE_QUERY_INTERFACE(pThis->Mouse.pDrvBase, PDMIMOUSECONNECTOR);
                 if (!pThis->Mouse.pDrv)
                 {
                     AssertLogRelMsgFailed(("LUN #1 doesn't have a mouse interface! rc=%Rrc\n", rc));
@@ -1529,7 +1632,7 @@ static DECLCALLBACK(int)  kbdAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
             }
             else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
             {
-                Log(("%s/%d: warning: no driver attached to LUN #1!\n", pDevIns->pDevReg->szDeviceName, pDevIns->iInstance));
+                Log(("%s/%d: warning: no driver attached to LUN #1!\n", pDevIns->pReg->szName, pDevIns->iInstance));
                 rc = VINF_SUCCESS;
             }
             else
@@ -1608,6 +1711,8 @@ static DECLCALLBACK(void) kdbRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 static DECLCALLBACK(int) kbdDestruct(PPDMDEVINS pDevIns)
 {
     KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+
     PDMR3CritSectDelete(&pThis->CritSect);
 
     return VINF_SUCCESS;
@@ -1615,19 +1720,9 @@ static DECLCALLBACK(int) kbdDestruct(PPDMDEVINS pDevIns)
 
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     KBDState   *pThis = PDMINS_2_DATA(pDevIns, KBDState *);
     int         rc;
@@ -1635,15 +1730,17 @@ static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     bool        fR0Enabled;
     Assert(iInstance == 0);
 
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "GCEnabled\0R0Enabled\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "GCEnabled\0R0Enabled\0"))
         return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "GCEnabled", &fGCEnabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "GCEnabled", &fGCEnabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to query \"GCEnabled\" from the config"));
-    rc = CFGMR3QueryBoolDef(pCfgHandle, "R0Enabled", &fR0Enabled, true);
+    rc = CFGMR3QueryBoolDef(pCfg, "R0Enabled", &fR0Enabled, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to query \"R0Enabled\" from the config"));
     Log(("pckbd: fGCEnabled=%RTbool fR0Enabled=%RTbool\n", fGCEnabled, fR0Enabled));
@@ -1655,18 +1752,17 @@ static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     pThis->pDevInsR3 = pDevIns;
     pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    pThis->Keyboard.Base.pfnQueryInterface  = kbdKeyboardQueryInterface;
-    pThis->Keyboard.Port.pfnPutEvent        = kbdKeyboardPutEvent;
+    pThis->Keyboard.IBase.pfnQueryInterface = kbdKeyboardQueryInterface;
+    pThis->Keyboard.IPort.pfnPutEvent       = kbdKeyboardPutEvent;
 
-    pThis->Mouse.Base.pfnQueryInterface     = kbdMouseQueryInterface;
-    pThis->Mouse.Port.pfnPutEvent           = kbdMousePutEvent;
+    pThis->Mouse.IBase.pfnQueryInterface    = kbdMouseQueryInterface;
+    pThis->Mouse.IPort.pfnPutEvent          = kbdMousePutEvent;
+    pThis->Mouse.IPort.pfnPutEventAbs       = kbdMousePutEventAbs;
 
     /*
      * Initialize the critical section.
      */
-    char szName[24];
-    RTStrPrintf(szName, sizeof(szName), "PS2KM#%d", iInstance);
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, szName);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->CritSect, RT_SRC_POS, "PS2KM#%d", iInstance);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1681,19 +1777,19 @@ static DECLCALLBACK(int) kbdConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         return rc;
     if (fGCEnabled)
     {
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, 0x60, 1, 0, "kbdIOPortDataWrite",    "kbdIOPortDataRead", NULL, NULL,   "PC Keyboard - Data");
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x60, 1, 0, "kbdIOPortDataWrite",    "kbdIOPortDataRead", NULL, NULL,   "PC Keyboard - Data");
         if (RT_FAILURE(rc))
             return rc;
-        rc = PDMDevHlpIOPortRegisterGC(pDevIns, 0x64, 1, 0, "kbdIOPortCommandWrite", "kbdIOPortStatusRead", NULL, NULL, "PC Keyboard - Command / Status");
+        rc = PDMDevHlpIOPortRegisterRC(pDevIns, 0x64, 1, 0, "kbdIOPortCommandWrite", "kbdIOPortStatusRead", NULL, NULL, "PC Keyboard - Command / Status");
         if (RT_FAILURE(rc))
             return rc;
     }
     if (fR0Enabled)
     {
-        rc = pDevIns->pDevHlpR3->pfnIOPortRegisterR0(pDevIns, 0x60, 1, 0, "kbdIOPortDataWrite",    "kbdIOPortDataRead", NULL, NULL,   "PC Keyboard - Data");
+        rc = PDMDevHlpIOPortRegisterR0(pDevIns, 0x60, 1, 0, "kbdIOPortDataWrite",    "kbdIOPortDataRead", NULL, NULL,   "PC Keyboard - Data");
         if (RT_FAILURE(rc))
             return rc;
-        rc = pDevIns->pDevHlpR3->pfnIOPortRegisterR0(pDevIns, 0x64, 1, 0, "kbdIOPortCommandWrite", "kbdIOPortStatusRead", NULL, NULL, "PC Keyboard - Command / Status");
+        rc = PDMDevHlpIOPortRegisterR0(pDevIns, 0x64, 1, 0, "kbdIOPortCommandWrite", "kbdIOPortStatusRead", NULL, NULL, "PC Keyboard - Command / Status");
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -1727,7 +1823,7 @@ const PDMDEVREG g_DevicePS2KeyboardMouse =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
-    /* szDeviceName */
+    /* szName */
     "pckbd",
     /* szRCMod */
     "VBoxDDGC.gc",

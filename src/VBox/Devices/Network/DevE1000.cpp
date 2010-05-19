@@ -1,4 +1,4 @@
-/* $Id: DevE1000.cpp $ */
+/* $Id: DevE1000.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * DevE1000 - Intel 82540EM Ethernet Controller Emulation.
  *
@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2007 Sun Microsystems, Inc.
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +24,7 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
-
 
 #define LOG_GROUP LOG_GROUP_DEV_E1000
 
@@ -37,6 +32,8 @@
 #define E1kLogRel(a)
 
 /* Options */
+#define E1K_INIT_RA0
+#define E1K_LSC_ON_SLU
 #define E1K_ITR_ENABLED
 //#define E1K_GLOBAL_MUTEX
 //#define E1K_USE_TX_TIMERS
@@ -44,13 +41,18 @@
 //#define E1K_REL_DEBUG
 //#define E1K_INT_STATS
 //#define E1K_REL_STATS
+//#define E1K_USE_SUPLIB_SEMEVENT
 
 #include <iprt/crc32.h>
 #include <iprt/ctype.h>
 #include <iprt/net.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
+#include <iprt/uuid.h>
 #include <VBox/pdmdev.h>
+#include <VBox/pdmnetifs.h>
+#include <VBox/pdmnetinline.h>
+#include <VBox/param.h>
 #include <VBox/tm.h>
 #include <VBox/vm.h>
 #include "../Builtins.h"
@@ -100,7 +102,6 @@
 //#undef DEBUG
 
 #define INSTANCE(pState) pState->szInstance
-#define IFACE_TO_STATE(pIface, ifaceName) ((E1KSTATE *)((char*)pIface - RT_OFFSETOF(E1KSTATE, ifaceName)))
 #define STATE_TO_DEVINS(pState)           (((E1KSTATE *)pState)->CTX_SUFF(pDevIns))
 #define E1K_RELOCATE(p, o) *(RTHCUINTPTR *)&p += o
 
@@ -161,6 +162,7 @@ struct E1kChips
 
 /*****************************************************************************/
 
+/** Gets the specfieid bits from the register. */
 #define GET_BITS(reg, bits) ((reg & reg##_##bits##_MASK) >> reg##_##bits##_SHIFT)
 #define GET_BITS_V(val, reg, bits) ((val & reg##_##bits##_MASK) >> reg##_##bits##_SHIFT)
 #define BITS(reg, bits, bitval) (bitval << reg##_##bits##_SHIFT)
@@ -180,6 +182,13 @@ struct E1kChips
 #define EECD_EE_WIRES 0x0F
 #define EECD_EE_REQ   0x40
 #define EECD_EE_GNT   0x80
+
+#define EERD_START       0x00000001
+#define EERD_DONE        0x00000010
+#define EERD_DATA_MASK   0xFFFF0000
+#define EERD_DATA_SHIFT  16
+#define EERD_ADDR_MASK   0x0000FF00
+#define EERD_ADDR_SHIFT  8
 
 #define MDIC_DATA_MASK  0x0000FFFF
 #define MDIC_DATA_SHIFT 0
@@ -204,7 +213,7 @@ struct E1kChips
 #define RCTL_LBM_SHIFT   6
 #define RCTL_RDMTS_MASK  0x00000300
 #define RCTL_RDMTS_SHIFT 8
-#define RCTL_LBM_TCVR    3
+#define RCTL_LBM_TCVR    3              /**< PHY or external SerDes loopback. */
 #define RCTL_MO_MASK     0x00003000
 #define RCTL_MO_SHIFT    12
 #define RCTL_BAM         0x00008000
@@ -577,6 +586,11 @@ class E1kEEPROM
             eeprom.write(u32Wires);
         }
 
+        bool readWord(uint32_t u32Addr, uint16_t *pu16Value)
+        {
+            return eeprom.readWord(u32Addr, pu16Value);
+        }
+
         int load(PSSMHANDLE pSSM)
         {
             return eeprom.load(pSSM);
@@ -589,27 +603,35 @@ class E1kEEPROM
 #endif /* IN_RING3 */
 };
 
+
 struct E1kRxDStatus
 {
-    /* Descriptor Status field */
-    unsigned fDD     : 1;
-    unsigned fEOP    : 1;
-    unsigned fIXSM   : 1;
-    unsigned fVP     : 1;
+    /** @name Descriptor Status field (3.2.3.1)
+     * @{ */
+    unsigned fDD     : 1;                             /**< Descriptor Done. */
+    unsigned fEOP    : 1;                               /**< End of packet. */
+    unsigned fIXSM   : 1;                  /**< Ignore checksum indication. */
+    unsigned fVP     : 1;                           /**< VLAN, matches VET. */
     unsigned         : 1;
-    unsigned fTCPCS  : 1;
-    unsigned fIPCS   : 1;
-    unsigned fPIF    : 1;
-    /* Descriptor Errors field */
-    unsigned fCE     : 1;
-    unsigned         : 4;
-    unsigned fTCPE   : 1;
-    unsigned fIPE    : 1;
-    unsigned fRXE    : 1;
-    /* Descriptor Special field */
-    unsigned u12VLAN : 12;
-    unsigned fCFI    : 1;
-    unsigned u3PRI   : 3;
+    unsigned fTCPCS  : 1;       /**< RCP Checksum calculated on the packet. */
+    unsigned fIPCS   : 1;        /**< IP Checksum calculated on the packet. */
+    unsigned fPIF    : 1;                       /**< Passed in-exact filter */
+    /** @} */
+    /** @name Descriptor Errors field (3.2.3.2)
+     * (Only valid when fEOP and fDD are set.)
+     * @{ */
+    unsigned fCE     : 1;                      /**< CRC or alignment error. */
+    unsigned         : 4;    /**< Reserved, varies with different models... */
+    unsigned fTCPE   : 1;                      /**< TCP/UDP checksum error. */
+    unsigned fIPE    : 1;                           /**< IP Checksum error. */
+    unsigned fRXE    : 1;                               /**< RX Data error. */
+    /** @} */
+    /** @name Descriptor Special field (3.2.3.3)
+     * @{  */
+    unsigned u12VLAN : 12;                            /**< VLAN identifier. */
+    unsigned fCFI    : 1;             /**< Canonical form indicator (VLAN). */
+    unsigned u3PRI   : 3;                        /**< User priority (VLAN). */
+    /** @} */
 };
 typedef struct E1kRxDStatus E1KRXDST;
 
@@ -662,73 +684,120 @@ struct E1kTDLegacy
     } dw3;
 };
 
+/**
+ * TCP/IP Context Transmit Descriptor, section 3.3.6.
+ */
 struct E1kTDContext
 {
     struct CheckSum_st
     {
+        /** TSE: Header start. !TSE: Checksum start. */
         unsigned u8CSS     : 8;
+        /** Checksum offset - where to store it. */
         unsigned u8CSO     : 8;
+        /** Checksum ending (inclusive) offset, 0 = end of packet. */
         unsigned u16CSE    : 16;
     } ip;
     struct CheckSum_st tu;
     struct TDCDw2_st
     {
+        /** TSE: The total number of payload bytes for this context. Sans header. */
         unsigned u20PAYLEN : 20;
+        /** The descriptor type - E1K_DTYP_CONTEXT (0). */
         unsigned u4DTYP    : 4;
-        /* CMD field       : 8 */
+        /** TUCMD field, 8 bits
+         * @{ */
+        /** TSE: TCP (set) or UDP (clear). */
         unsigned fTCP      : 1;
+        /** TSE: IPv4 (set) or IPv6 (clear) - for finding the payload length field in
+         * the IP header.  Does not affect the checksumming.
+         * @remarks 82544GC/EI interprets a cleared field differently.  */
         unsigned fIP       : 1;
+        /** TSE: TCP segmentation enable.  When clear the context describes  */
         unsigned fTSE      : 1;
+        /** Report status (only applies to dw3.fDD for here). */
         unsigned fRS       : 1;
+        /** Reserved, MBZ. */
         unsigned fRSV1     : 1;
+        /** Descriptor extension, must be set for this descriptor type. */
         unsigned fDEXT     : 1;
+        /** Reserved, MBZ. */
         unsigned fRSV2     : 1;
+        /** Interrupt delay enable. */
         unsigned fIDE      : 1;
+        /** @} */
     } dw2;
     struct TDCDw3_st
     {
+        /** Descriptor Done. */
         unsigned fDD       : 1;
+        /** Reserved, MBZ. */
         unsigned u7RSV     : 7;
+        /** TSO: The header (prototype) length (Ethernet[, VLAN tag], IP, TCP/UDP. */
         unsigned u8HDRLEN  : 8;
+        /** TSO: Maximum segment size. */
         unsigned u16MSS    : 16;
     } dw3;
 };
 typedef struct E1kTDContext E1KTXCTX;
 
+/**
+ * TCP/IP Data Transmit Descriptor, section 3.3.7.
+ */
 struct E1kTDData
 {
-    uint64_t u64BufAddr;                     /**< Address of data buffer */
+    uint64_t u64BufAddr;                        /**< Address of data buffer */
     struct TDDCmd_st
     {
+        /** The total length of data pointed to by this descriptor. */
         unsigned u20DTALEN : 20;
+        /** The descriptor type - E1K_DTYP_DATA (1). */
         unsigned u4DTYP    : 4;
-        /* DCMD field       : 8 */
+        /** @name DCMD field, 8 bits (3.3.7.1).
+         * @{ */
+        /** End of packet.  Note TSCTFC update.  */
         unsigned fEOP      : 1;
+        /** Insert Ethernet FCS/CRC (requires fEOP to be set). */
         unsigned fIFCS     : 1;
+        /** Use the TSE context when set and the normal when clear. */
         unsigned fTSE      : 1;
+        /** Report status (dw3.STA). */
         unsigned fRS       : 1;
+        /** Reserved. 82544GC/EI defines this report packet set (RPS).  */
         unsigned fRSV      : 1;
+        /** Descriptor extension, must be set for this descriptor type. */
         unsigned fDEXT     : 1;
+        /** VLAN enable, requires CTRL.VME, auto enables FCS/CRC.
+         *  Insert dw3.SPECIAL after ethernet header. */
         unsigned fVLE      : 1;
+        /** Interrupt delay enable. */
         unsigned fIDE      : 1;
+        /** @} */
     } cmd;
     struct TDDDw3_st
     {
-        /* STA field */
-        unsigned fDD       : 1;
-        unsigned fEC       : 1;
-        unsigned fLC       : 1;
+        /** @name STA field (3.3.7.2)
+         * @{  */
+        unsigned fDD       : 1;                       /**< Descriptor done. */
+        unsigned fEC       : 1;                      /**< Excess collision. */
+        unsigned fLC       : 1;                        /**< Late collision. */
+        /** Reserved, except for the usual oddball (82544GC/EI) where it's called TU. */
         unsigned fTURSV    : 1;
-        /* RSV field */
-        unsigned u4RSV     : 4;
-        /* POPTS field */
-        unsigned fIXSM     : 1;
-        unsigned fTXSM     : 1;
-        unsigned u6RSV     : 6;
-        /* Special field*/
-        unsigned u12VLAN   : 12;
-        unsigned fCFI      : 1;
-        unsigned u3PRI     : 3;
+        /** @} */
+        unsigned u4RSV     : 4;                   /**< Reserved field, MBZ. */
+        /** @name POPTS (Packet Option) field (3.3.7.3)
+         * @{  */
+        unsigned fIXSM     : 1;                    /**< Insert IP checksum. */
+        unsigned fTXSM     : 1;               /**< Insert TCP/UDP checksum. */
+        unsigned u6RSV     : 6;                         /**< Reserved, MBZ. */
+        /** @} */
+        /** @name SPECIAL field - VLAN tag to be inserted after ethernet header.
+         * Requires fEOP, fVLE and CTRL.VME to be set.
+         * @{ */
+        unsigned u12VLAN   : 12;                      /**< VLAN identifier. */
+        unsigned fCFI      : 1;       /**< Canonical form indicator (VLAN). */
+        unsigned u3PRI     : 3;                  /**< User priority (VLAN). */
+        /** @}  */
     } dw3;
 };
 typedef struct E1kTDData E1KTXDAT;
@@ -819,54 +888,66 @@ AssertCompileSize(struct E1kTcpHeader, 20);
 
 /**
  * Device state structure. Holds the current state of device.
+ *
+ * @implements  PDMINETWORKDOWN
+ * @implements  PDMINETWORKCONFIG
+ * @implements  PDMILEDPORTS
  */
 struct E1kState_st
 {
     char                    szInstance[8];        /**< Instance name, e.g. E1000#1. */
     PDMIBASE                IBase;
-    PDMINETWORKPORT         INetworkPort;
+    PDMINETWORKDOWN         INetworkDown;
     PDMINETWORKCONFIG       INetworkConfig;
     PDMILEDPORTS            ILeds;                               /**< LED interface */
     R3PTRTYPE(PPDMIBASE)    pDrvBase;                 /**< Attached network driver. */
-    R3PTRTYPE(PPDMINETWORKCONNECTOR) pDrv;    /**< Connector of attached network driver. */
     R3PTRTYPE(PPDMILEDCONNECTORS)    pLedsConnector;
 
     PPDMDEVINSR3            pDevInsR3;                   /**< Device instance - R3. */
     R3PTRTYPE(PPDMQUEUE)    pTxQueueR3;                   /**< Transmit queue - R3. */
     R3PTRTYPE(PPDMQUEUE)    pCanRxQueueR3;           /**< Rx wakeup signaller - R3. */
+    PPDMINETWORKUPR3        pDrvR3;              /**< Attached network driver - R3. */
     PTMTIMERR3              pRIDTimerR3;   /**< Receive Interrupt Delay Timer - R3. */
     PTMTIMERR3              pRADTimerR3;    /**< Receive Absolute Delay Timer - R3. */
     PTMTIMERR3              pTIDTimerR3;  /**< Tranmsit Interrupt Delay Timer - R3. */
     PTMTIMERR3              pTADTimerR3;   /**< Tranmsit Absolute Delay Timer - R3. */
     PTMTIMERR3              pIntTimerR3;            /**< Late Interrupt Timer - R3. */
+    PTMTIMERR3              pLUTimerR3;               /**< Link Up(/Restore) Timer. */
+    /** The scatter / gather buffer used for the current outgoing packet - R3. */
+    R3PTRTYPE(PPDMSCATTERGATHER) pTxSgR3;
 
     PPDMDEVINSR0            pDevInsR0;                   /**< Device instance - R0. */
     R0PTRTYPE(PPDMQUEUE)    pTxQueueR0;                   /**< Transmit queue - R0. */
     R0PTRTYPE(PPDMQUEUE)    pCanRxQueueR0;           /**< Rx wakeup signaller - R0. */
+    PPDMINETWORKUPR0        pDrvR0;              /**< Attached network driver - R0. */
     PTMTIMERR0              pRIDTimerR0;   /**< Receive Interrupt Delay Timer - R0. */
     PTMTIMERR0              pRADTimerR0;    /**< Receive Absolute Delay Timer - R0. */
     PTMTIMERR0              pTIDTimerR0;  /**< Tranmsit Interrupt Delay Timer - R0. */
     PTMTIMERR0              pTADTimerR0;   /**< Tranmsit Absolute Delay Timer - R0. */
     PTMTIMERR0              pIntTimerR0;            /**< Late Interrupt Timer - R0. */
+    PTMTIMERR0              pLUTimerR0;          /**< Link Up(/Restore) Timer - R0. */
+    /** The scatter / gather buffer used for the current outgoing packet - R0. */
+    R0PTRTYPE(PPDMSCATTERGATHER) pTxSgR0;
 
     PPDMDEVINSRC            pDevInsRC;                   /**< Device instance - RC. */
     RCPTRTYPE(PPDMQUEUE)    pTxQueueRC;                   /**< Transmit queue - RC. */
     RCPTRTYPE(PPDMQUEUE)    pCanRxQueueRC;           /**< Rx wakeup signaller - RC. */
+    PPDMINETWORKUPRC        pDrvRC;              /**< Attached network driver - RC. */
     PTMTIMERRC              pRIDTimerRC;   /**< Receive Interrupt Delay Timer - RC. */
     PTMTIMERRC              pRADTimerRC;    /**< Receive Absolute Delay Timer - RC. */
     PTMTIMERRC              pTIDTimerRC;  /**< Tranmsit Interrupt Delay Timer - RC. */
     PTMTIMERRC              pTADTimerRC;   /**< Tranmsit Absolute Delay Timer - RC. */
     PTMTIMERRC              pIntTimerRC;            /**< Late Interrupt Timer - RC. */
+    PTMTIMERRC              pLUTimerRC;          /**< Link Up(/Restore) Timer - RC. */
+    /** The scatter / gather buffer used for the current outgoing packet - RC. */
+    RCPTRTYPE(PPDMSCATTERGATHER) pTxSgRC;
+    RTRCPTR                 RCPtrAlignment;
 
-    PTMTIMERR3  pLUTimer;                             /**< Link Up(/Restore) Timer. */
-    PPDMTHREAD  pTxThread;                                    /**< Transmit thread. */
     PDMCRITSECT cs;                  /**< Critical section - what is it protecting? */
 #ifndef E1K_GLOBAL_MUTEX
     PDMCRITSECT csRx;                                     /**< RX Critical section. */
 //    PDMCRITSECT csTx;                                     /**< TX Critical section. */
 #endif
-    /** Transmit thread blocker. */
-    RTSEMEVENT  hTxSem;
     /** Base address of memory-mapped registers. */
     RTGCPHYS    addrMMReg;
     /** MAC address obtained from the configuration. */
@@ -886,7 +967,7 @@ struct E1kState_st
     /** EMT: */
     bool        fGCEnabled;
 
-    /* All: Device register storage. */
+    /** All: Device register storage. */
     uint32_t    auRegs[E1K_NUM_OF_32BIT_REGS];
     /** TX/RX: Status LED. */
     PDMLED      led;
@@ -919,21 +1000,31 @@ struct E1kState_st
     E1KTXCTX    contextTSE;
     /** TX: Context used for ordinary packets. */
     E1KTXCTX    contextNormal;
-    /** TX: Transmit packet buffer. */
-    uint8_t     aTxPacket[E1K_MAX_TX_PKT_SIZE];
+    /** GSO context. u8Type is set to PDMNETWORKGSOTYPE_INVALID when not
+     *  applicable to the current TSE mode. */
+    PDMNETWORKGSO GsoCtx;
+    /** Scratch space for holding the loopback / fallback scatter / gather
+     *  descriptor. */
+    union
+    {
+        PDMSCATTERGATHER    Sg;
+        uint8_t             padding[8 * sizeof(RTUINTPTR)];
+    }           uTxFallback;
+    /** TX: Transmit packet buffer use for TSE fallback and loopback. */
+    uint8_t     aTxPacketFallback[E1K_MAX_TX_PKT_SIZE];
     /** TX: Number of bytes assembled in TX packet buffer. */
     uint16_t    u16TxPktLen;
     /** TX: IP checksum has to be inserted if true. */
     bool        fIPcsum;
     /** TX: TCP/UDP checksum has to be inserted if true. */
     bool        fTCPcsum;
-    /** TX: Number of payload bytes remaining in TSE context. */
+    /** TX TSE fallback: Number of payload bytes remaining in TSE context. */
     uint32_t    u32PayRemain;
-    /** TX: Number of header bytes remaining in TSE context. */
+    /** TX TSE fallback: Number of header bytes remaining in TSE context. */
     uint16_t    u16HdrRemain;
-    /** TX: Flags from template header. */
+    /** TX TSE fallback: Flags from template header. */
     uint16_t    u16SavedFlags;
-    /** TX: Partial checksum from template header. */
+    /** TX TSE fallback: Partial checksum from template header. */
     uint32_t    u32SavedCsum;
     /** ?: Emulated controller type. */
     E1KCHIP     eChip;
@@ -944,8 +1035,10 @@ struct E1kState_st
     /** EMT: Physical interface emulation. */
     PHY         phy;
 
+#if 0
     /** Alignment padding. */
     uint8_t                             Alignment[HC_ARCH_BITS == 64 ? 8 : 4];
+#endif
 
     STAMCOUNTER                         StatReceiveBytes;
     STAMCOUNTER                         StatTransmitBytes;
@@ -968,12 +1061,17 @@ struct E1kState_st
     STAMPROFILEADV                      StatReceiveFilter;
     STAMPROFILEADV                      StatReceiveStore;
     STAMPROFILEADV                      StatTransmit;
-    STAMPROFILEADV                      StatTransmitSend;
+    STAMPROFILE                         StatTransmitSend;
     STAMPROFILE                         StatRxOverflow;
     STAMCOUNTER                         StatRxOverflowWakeup;
+    STAMCOUNTER                         StatTxDescCtxNormal;
+    STAMCOUNTER                         StatTxDescCtxTSE;
     STAMCOUNTER                         StatTxDescLegacy;
     STAMCOUNTER                         StatTxDescData;
     STAMCOUNTER                         StatTxDescTSEData;
+    STAMCOUNTER                         StatTxPathFallback;
+    STAMCOUNTER                         StatTxPathGSO;
+    STAMCOUNTER                         StatTxPathRegular;
     STAMCOUNTER                         StatPHYAccesses;
 
 #endif /* VBOX_WITH_STATISTICS || E1K_REL_STATS */
@@ -1022,6 +1120,8 @@ PDMBOTHCBDECL(int) e1kIOPortIn (PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port,
 PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT port, uint32_t u32, unsigned cb);
 RT_C_DECLS_END
 
+static int e1kXmitPending(E1KSTATE *pState, bool fOnWorkerThread);
+
 static int e1kRegReadUnimplemented (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t *pu32Value);
 static int e1kRegWriteUnimplemented(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
 static int e1kRegReadAutoClear     (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t *pu32Value);
@@ -1033,6 +1133,7 @@ static int e1kRegReadCTRL          (E1KSTATE* pState, uint32_t offset, uint32_t 
 static int e1kRegWriteCTRL         (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
 static int e1kRegReadEECD          (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t *pu32Value);
 static int e1kRegWriteEECD         (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
+static int e1kRegWriteEERD         (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
 static int e1kRegWriteMDIC         (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
 static int e1kRegReadICR           (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t *pu32Value);
 static int e1kRegWriteICR          (E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t u32Value);
@@ -1081,7 +1182,7 @@ const static struct E1kRegMap_st
     { 0x00000, 0x00004, 0xDBF31BE9, 0xDBF31BE9, e1kRegReadDefault      , e1kRegWriteCTRL         , "CTRL"    , "Device Control" },
     { 0x00008, 0x00004, 0x0000FDFF, 0x00000000, e1kRegReadDefault      , e1kRegWriteUnimplemented, "STATUS"  , "Device Status" },
     { 0x00010, 0x00004, 0x000027F0, 0x00000070, e1kRegReadEECD         , e1kRegWriteEECD         , "EECD"    , "EEPROM/Flash Control/Data" },
-    { 0x00014, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "EERD"    , "EEPROM Read" },
+    { 0x00014, 0x00004, 0xFFFFFF10, 0xFFFFFF00, e1kRegReadDefault      , e1kRegWriteEERD         , "EERD"    , "EEPROM Read" },
     { 0x00018, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "CTRL_EXT", "Extended Device Control" },
     { 0x0001c, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "FLA"     , "Flash Access (N/A)" },
     { 0x00020, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadDefault      , e1kRegWriteMDIC         , "MDIC"    , "MDI Control" },
@@ -1099,8 +1200,8 @@ const static struct E1kRegMap_st
     { 0x00178, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "TXCW"    , "Transmit Configuration Word (N/A)" },
     { 0x00180, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "RXCW"    , "Receive Configuration Word (N/A)" },
     { 0x00400, 0x00004, 0x017FFFFA, 0x017FFFFA, e1kRegReadDefault      , e1kRegWriteDefault      , "TCTL"    , "Transmit Control" },
-    { 0x00410, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "TIPG"    , "Transmit IPG" },
-    { 0x00458, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "AIFS"    , "Adaptive IFS Throttle - AIT" },
+    { 0x00410, 0x00004, 0x3FFFFFFF, 0x3FFFFFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "TIPG"    , "Transmit IPG" },
+    { 0x00458, 0x00004, 0x0000FFFF, 0x0000FFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "AIFS"    , "Adaptive IFS Throttle - AIT" },
     { 0x00e00, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "LEDCTL"  , "LED Control" },
     { 0x01000, 0x00004, 0xFFFF007F, 0x0000007F, e1kRegReadDefault      , e1kRegWritePBA          , "PBA"     , "Packet Buffer Allocation" },
     { 0x02160, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "FCRTL"   , "Flow Control Receive Threshold Low" },
@@ -1133,7 +1234,7 @@ const static struct E1kRegMap_st
     { 0x03820, 0x00004, 0x0000FFFF, 0x0000FFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "TIDV"    , "Transmit Interrupt Delay Value" },
     { 0x03828, 0x00004, 0xFF3F3F3F, 0xFF3F3F3F, e1kRegReadDefault      , e1kRegWriteDefault      , "TXDCTL"  , "Transmit Descriptor Control" },
     { 0x0382c, 0x00004, 0x0000FFFF, 0x0000FFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "TADV"    , "Transmit Absolute Interrupt Delay Timer" },
-    { 0x03830, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "TSPMT"   , "TCP Segmentation Pad and Threshold" },
+    { 0x03830, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "TSPMT"   , "TCP Segmentation Pad and Threshold" },
     { 0x04000, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "CRCERRS" , "CRC Error Count" },
     { 0x04004, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "ALGNERRC", "Alignment Error Count" },
     { 0x04008, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "SYMERRS" , "Symbol Error Count" },
@@ -1191,7 +1292,7 @@ const static struct E1kRegMap_st
     { 0x040f0, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadAutoClear    , e1kRegWriteUnimplemented, "MPTC"    , "Multicast Packets Transmitted Count" },
     { 0x040f4, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadAutoClear    , e1kRegWriteUnimplemented, "BPTC"    , "Broadcast Packets Transmitted Count" },
     { 0x040f8, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadAutoClear    , e1kRegWriteUnimplemented, "TSCTC"   , "TCP Segmentation Context Transmitted Count" },
-    { 0x040fc, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "TSCTFC"  , "TCP Segmentation Context Tx Fail Count" },
+    { 0x040fc, 0x00004, 0xFFFFFFFF, 0x00000000, e1kRegReadAutoClear    , e1kRegWriteUnimplemented, "TSCTFC"  , "TCP Segmentation Context Tx Fail Count" },
     { 0x05000, 0x00004, 0x000007FF, 0x000007FF, e1kRegReadDefault      , e1kRegWriteDefault      , "RXCSUM"  , "Receive Checksum Control" },
     { 0x05800, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "WUC"     , "Wakeup Control" },
     { 0x05808, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "WUFC"    , "Wakeup Filter Control" },
@@ -1215,6 +1316,7 @@ const static struct E1kRegMap_st
 };
 
 #ifdef DEBUG
+
 /**
  * Convert U32 value to hex string. Masked bytes are replaced with dots.
  *
@@ -1261,6 +1363,7 @@ DECLINLINE(const char *) e1kGetTimerName(E1KSTATE *pState, PTMTIMER pTimer)
         return "Int";
     return "unknown";
 }
+
 #endif /* DEBUG */
 
 /**
@@ -1310,10 +1413,10 @@ DECLINLINE(void) e1kCsLeave(E1KSTATE *pState)
 }
 
 #define e1kCsRxEnter(ps, rc) VINF_SUCCESS
-#define e1kCsRxLeave(ps)
+#define e1kCsRxLeave(ps) do { } while (0)
 
 #define e1kCsTxEnter(ps, rc) VINF_SUCCESS
-#define e1kCsTxLeave(ps)
+#define e1kCsTxLeave(ps) do { } while (0)
 
 
 DECLINLINE(int) e1kMutexAcquire(E1KSTATE *pState, int iBusyRc, RT_SRC_POS_DECL)
@@ -1323,7 +1426,7 @@ DECLINLINE(int) e1kMutexAcquire(E1KSTATE *pState, int iBusyRc, RT_SRC_POS_DECL)
     {
         E1kLog2(("%s ==> FAILED to enter critical section at %s:%d:%s with rc=\n",
                 INSTANCE(pState), RT_SRC_POS_ARGS, rc));
-        PDMDeviceDBGFStop(pState->CTX_SUFF(pDevIns), RT_SRC_POS_ARGS,
+        PDMDevHlpDBGFStop(pState->CTX_SUFF(pDevIns), RT_SRC_POS_ARGS,
                           "%s Failed to enter critical section, rc=%Rrc\n",
                           INSTANCE(pState), rc);
     }
@@ -1348,7 +1451,7 @@ DECLINLINE(void) e1kMutexRelease(E1KSTATE *pState)
 #define e1kCsRxLeave(ps) PDMCritSectLeave(&ps->csRx)
 
 #define e1kCsTxEnter(ps, rc) VINF_SUCCESS
-#define e1kCsTxLeave(ps)
+#define e1kCsTxLeave(ps) do { } while (0)
 //#define e1kCsTxEnter(ps, rc) PDMCritSectEnter(&ps->csTx, rc)
 //#define e1kCsTxLeave(ps) PDMCritSectLeave(&ps->csTx)
 
@@ -1404,6 +1507,34 @@ static void e1kWakeupReceive(PPDMDEVINS pDevIns)
 }
 
 /**
+ * Hardware reset. Revert all registers to initial values.
+ *
+ * @param   pState      The device state structure.
+ */
+PDMBOTHCBDECL(void) e1kHardReset(E1KSTATE *pState)
+{
+    E1kLog(("%s Hard reset triggered\n", INSTANCE(pState)));
+    memset(pState->auRegs,        0, sizeof(pState->auRegs));
+    memset(pState->aRecAddr.au32, 0, sizeof(pState->aRecAddr.au32));
+#ifdef E1K_INIT_RA0
+    memcpy(pState->aRecAddr.au32, pState->macConfigured.au8,
+           sizeof(pState->macConfigured.au8));
+    pState->aRecAddr.array[0].ctl |= RA_CTL_AV;
+#endif /* E1K_INIT_RA0 */
+    STATUS = 0x0081;    /* SPEED=10b (1000 Mb/s), FD=1b (Full Duplex) */
+    EECD   = 0x0100;    /* EE_PRES=1b (EEPROM present) */
+    CTRL   = 0x0a09;    /* FRCSPD=1b SPEED=10b LRST=1b FD=1b */
+    TSPMT  = 0x01000400;/* TSMT=0400h TSPBP=0100h */
+    Assert(GET_BITS(RCTL, BSIZE) == 0);
+    pState->u16RxBSize = 2048;
+
+    /* Reset promiscous mode */
+    if (pState->pDrvR3)
+        pState->pDrvR3->pfnSetPromiscuousMode(pState->pDrvR3, false);
+}
+#endif
+
+/**
  * Compute Internet checksum.
  *
  * @remarks Refer to http://www.netfor2.com/checksum.html for short intro.
@@ -1417,7 +1548,7 @@ static void e1kWakeupReceive(PPDMDEVINS pDevIns)
  *
  * @thread  E1000_TX
  */
-static DECLCALLBACK(uint16_t) e1kCSum16(const void *pvBuf, size_t cb)
+static uint16_t e1kCSum16(const void *pvBuf, size_t cb)
 {
     uint32_t  csum = 0;
     uint16_t *pu16 = (uint16_t *)pvBuf;
@@ -1465,7 +1596,7 @@ DECLINLINE(void) e1kPacketDump(E1KSTATE* pState, const uint8_t *cpPacket, size_t
 /**
  * Determine the type of transmit descriptor.
  *
- * @returns Descriptor type. See E1K_DTYPE_XXX defines.
+ * @returns Descriptor type. See E1K_DTYP_XXX defines.
  *
  * @param   pDesc       Pointer to descriptor union.
  * @thread  E1000_TX
@@ -1587,28 +1718,6 @@ static void e1kPrintTDesc(E1KSTATE* pState, E1KTXDESC* pDesc, const char* cszDir
 }
 
 /**
- * Hardware reset. Revert all registers to initial values.
- *
- * @param   pState      The device state structure.
- */
-PDMBOTHCBDECL(void) e1kHardReset(E1KSTATE *pState)
-{
-    E1kLog(("%s Hard reset triggered\n", INSTANCE(pState)));
-    memset(pState->auRegs,        0, sizeof(pState->auRegs));
-    memset(pState->aRecAddr.au32, 0, sizeof(pState->aRecAddr.au32));
-    STATUS = 0x0081;    /* SPEED=10b (1000 Mb/s), FD=1b (Full Duplex) */
-    EECD   = 0x0100;    /* EE_PRES=1b (EEPROM present) */
-    CTRL   = 0x0a09;    /* FRCSPD=1b SPEED=10b LRST=1b FD=1b */
-    Assert(GET_BITS(RCTL, BSIZE) == 0);
-    pState->u16RxBSize = 2048;
-
-    /* Reset promiscous mode */
-    if (pState->pDrv)
-        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, false);
-}
-#endif /* IN_RING3 */
-
-/**
  * Raise interrupt if not masked.
  *
  * @param   pState      The device state structure.
@@ -1694,7 +1803,6 @@ PDMBOTHCBDECL(int) e1kRaiseInterrupt(E1KSTATE *pState, int rcBusy, uint32_t u32I
     return VINF_SUCCESS;
 }
 
-#ifdef IN_RING3
 /**
  * Compute the physical address of the descriptor.
  *
@@ -1832,22 +1940,28 @@ DECLINLINE(bool) e1kIsMulticast(const void *pvBuf)
  */
 static int e1kRxChecksumOffload(E1KSTATE* pState, const uint8_t *pFrame, size_t cb, E1KRXDST *pStatus)
 {
+    /** @todo
+     * It is not safe to bypass checksum verification for packets coming
+     * from real wire. We currently unable to tell where packets are
+     * coming from so we tell the driver to ignore our checksum flags
+     * and do verification in software.
+     */
+#if 0
     uint16_t uEtherType = ntohs(*(uint16_t*)(pFrame + 12));
-    PRTNETIPV4 pIpHdr4;
 
     E1kLog2(("%s e1kRxChecksumOffload: EtherType=%x\n", INSTANCE(pState), uEtherType));
 
-    //pStatus->fIPE   = false;
-    //pStatus->fTCPE  = false;
     switch (uEtherType)
     {
         case 0x800: /* IPv4 */
+        {
             pStatus->fIXSM  = false;
             pStatus->fIPCS  = true;
-            pIpHdr4 = (PRTNETIPV4)(pFrame + 14);
+            PRTNETIPV4 pIpHdr4 = (PRTNETIPV4)(pFrame + 14);
             /* TCP/UDP checksum offloading works with TCP and UDP only */
             pStatus->fTCPCS = pIpHdr4->ip_p == 6 || pIpHdr4->ip_p == 17;
             break;
+        }
         case 0x86DD: /* IPv6 */
             pStatus->fIXSM = false;
             pStatus->fIPCS  = false;
@@ -1857,7 +1971,9 @@ static int e1kRxChecksumOffload(E1KSTATE* pState, const uint8_t *pFrame, size_t 
             pStatus->fIXSM = true;
             break;
     }
-
+#else
+    pStatus->fIXSM = true;
+#endif
     return VINF_SUCCESS;
 }
 
@@ -1875,7 +1991,7 @@ static int e1kRxChecksumOffload(E1KSTATE* pState, const uint8_t *pFrame, size_t 
  */
 static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1KRXDST status)
 {
-    E1KRXDESC desc;
+#if defined(IN_RING3) /** @todo Remove this extra copying, it's gonna make us run out of kernel / hypervisor stack! */
     uint8_t   rxPacket[E1K_MAX_RX_PKT_SIZE];
     uint8_t  *ptr = rxPacket;
 
@@ -1885,16 +2001,8 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
         return rc;
 #endif
 
-#ifdef E1K_LEDS_WITH_MUTEX
-    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
-    {
-#endif /* E1K_LEDS_WITH_MUTEX */
-        pState->led.Asserted.s.fReading = 1;
-        pState->led.Actual.s.fReading = 1;
-#ifdef E1K_LEDS_WITH_MUTEX
-        e1kCsLeave(pState);
-    }
-#endif /* E1K_LEDS_WITH_MUTEX */
+    if (cb > 70) /* unqualified guess */
+        pState->led.Asserted.s.fReading = pState->led.Actual.s.fReading = 1;
 
     Assert(cb <= E1K_MAX_RX_PKT_SIZE);
     memcpy(rxPacket, pvBuf, cb);
@@ -1947,6 +2055,7 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
     while (RDH != RDT)
     {
         /* Load the desciptor pointed by head */
+        E1KRXDESC desc;
         PDMDevHlpPhysRead(pState->CTX_SUFF(pDevIns), e1kDescAddr(RDBAH, RDBAL, RDH),
                           &desc, sizeof(desc));
         if (desc.u64BufAddr)
@@ -1963,7 +2072,7 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
              * Note that it is safe to leave the critical section here since e1kRegWriteRDT()
              * modifies RDT only.
              */
-            if(cb > pState->u16RxBSize)
+            if (cb > pState->u16RxBSize)
             {
                 desc.status.fEOP = false;
                 e1kCsRxLeave(pState);
@@ -1979,15 +2088,7 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
                 desc.status.fEOP = true;
                 e1kCsRxLeave(pState);
                 e1kStoreRxFragment(pState, &desc, ptr, cb);
-#ifdef E1K_LEDS_WITH_MUTEX
-                if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
-                {
-#endif /* E1K_LEDS_WITH_MUTEX */
-                    pState->led.Actual.s.fReading = 0;
-#ifdef E1K_LEDS_WITH_MUTEX
-                    e1kCsLeave(pState);
-                }
-#endif /* E1K_LEDS_WITH_MUTEX */
+                pState->led.Actual.s.fReading = 0;
                 return VINF_SUCCESS;
             }
             /* Note: RDH is advanced by e1kStoreRxFragment! */
@@ -2001,22 +2102,20 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
             e1kAdvanceRDH(pState);
         }
     }
-#ifdef E1K_LEDS_WITH_MUTEX
-    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
-    {
-#endif /* E1K_LEDS_WITH_MUTEX */
-        pState->led.Actual.s.fReading = 0;
-#ifdef E1K_LEDS_WITH_MUTEX
-        e1kCsLeave(pState);
-    }
-#endif /* E1K_LEDS_WITH_MUTEX */
+
+    if (cb > 0)
+        E1kLog(("%s Out of recieve buffers, dropping %u bytes", INSTANCE(pState), cb));
+
+    pState->led.Actual.s.fReading = 0;
 
     e1kCsRxLeave(pState);
 
     return VINF_SUCCESS;
+#else
+    return VERR_INTERNAL_ERROR_2;
+#endif
 }
 
-#endif /* IN_RING3 */
 
 #if 0 /* unused */
 /**
@@ -2082,9 +2181,16 @@ static int e1kRegWriteCTRL(E1KSTATE* pState, uint32_t offset, uint32_t index, ui
     else
     {
         if (   (value & CTRL_SLU)
-            && pState->fCableConnected)
+            && pState->fCableConnected
+            && !(STATUS & STATUS_LU))
         {
             /* The driver indicates that we should bring up the link */
+            /* Do so in 5 seconds. */
+            e1kArmTimer(pState, pState->CTX_SUFF(pLUTimer), 5000000);
+            /*
+             * Change the status (but not PHY status) anyway as Windows expects
+             * it for 82543GC.
+             */
             STATUS |= STATUS_LU;
         }
         if (value & CTRL_VME)
@@ -2190,6 +2296,42 @@ static int e1kRegReadEECD(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
     return VINF_IOM_HC_MMIO_READ;
 #endif /* !IN_RING3 */
 }
+
+/**
+ * Write handler for EEPROM Read register.
+ *
+ * Handles EEPROM word access requests, reads EEPROM and stores the result
+ * into DATA field.
+ *
+ * @param   pState      The device state structure.
+ * @param   offset      Register offset in memory-mapped frame.
+ * @param   index       Register index in register array.
+ * @param   value       The value to store.
+ * @param   mask        Used to implement partial writes (8 and 16-bit).
+ * @thread  EMT
+ */
+static int e1kRegWriteEERD(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
+{
+#ifdef IN_RING3
+    /* Make use of 'writable' and 'readable' masks. */
+    e1kRegWriteDefault(pState, offset, index, value);
+    /* DONE and DATA are set only if read was triggered by START. */
+    if (value & EERD_START)
+    {
+        uint16_t tmp;
+        STAM_PROFILE_ADV_START(&pState->StatEEPROMRead, a);
+        if (pState->eeprom.readWord(GET_BITS_V(value, EERD, ADDR), &tmp))
+            SET_BITS(EERD, DATA, tmp);
+        EERD |= EERD_DONE;
+        STAM_PROFILE_ADV_STOP(&pState->StatEEPROMRead, a);
+    }
+
+    return VINF_SUCCESS;
+#else /* !IN_RING3 */
+    return VINF_IOM_HC_MMIO_WRITE;
+#endif /* !IN_RING3 */
+}
+
 
 /**
  * Write handler for MDI Control register.
@@ -2430,16 +2572,20 @@ static int e1kRegWriteRCTL(E1KSTATE* pState, uint32_t offset, uint32_t index, ui
 #ifndef IN_RING3
         return VINF_IOM_HC_IOPORT_WRITE;
 #else
-        if (pState->pDrv)
-            pState->pDrv->pfnSetPromiscuousMode(pState->pDrv, fBecomePromiscous);
+        if (pState->pDrvR3)
+            pState->pDrvR3->pfnSetPromiscuousMode(pState->pDrvR3, fBecomePromiscous);
 #endif
     }
+    /* Adjust receive buffer size */
+    if (GET_BITS(RCTL, BSIZE) != GET_BITS_V(value, RCTL, BSIZE))
+    {
+        pState->u16RxBSize = 2048 >> GET_BITS(RCTL, BSIZE);
+        if (RCTL & RCTL_BSEX)
+            pState->u16RxBSize *= 16;
+        E1kLog2(("%s e1kRegWriteRCTL: Setting receive buffer size to %d\n",
+                 INSTANCE(pState), pState->u16RxBSize));
+    }
     e1kRegWriteDefault(pState, offset, index, value);
-    pState->u16RxBSize = 2048 >> GET_BITS(RCTL, BSIZE);
-    if (RCTL & RCTL_BSEX)
-        pState->u16RxBSize *= 16;
-    E1kLog2(("%s e1kRegWriteRCTL: Setting receive buffer size to %d\n",
-            INSTANCE(pState), pState->u16RxBSize));
 
     return VINF_SUCCESS;
 }
@@ -2468,7 +2614,7 @@ static int e1kRegWritePBA(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
  * Write handler for Receive Descriptor Tail register.
  *
  * @remarks Write into RDT forces switch to HC and signal to
- *          e1kWaitReceiveAvail().
+ *          e1kNetworkDown_WaitReceiveAvail().
  *
  * @returns VBox status code.
  *
@@ -2493,7 +2639,7 @@ static int e1kRegWriteRDT(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
         e1kCsRxLeave(pState);
         if (RT_SUCCESS(rc))
         {
-#ifdef IN_RING3
+#ifdef IN_RING3 /** @todo bird: Use SUPSem* for this so we can signal it in ring-0 as well. (reduces latency) */
             /* Signal that we have more receive descriptors avalable. */
             e1kWakeupReceive(pState->CTX_SUFF(pDevIns));
 #else
@@ -2545,6 +2691,7 @@ DECLINLINE(uint32_t) e1kGetTxLen(E1KSTATE* pState)
 
 #ifdef IN_RING3
 #ifdef E1K_USE_TX_TIMERS
+
 /**
  * Transmit Interrupt Delay Timer handler.
  *
@@ -2594,9 +2741,10 @@ static DECLCALLBACK(void) e1kTxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
         e1kMutexRelease(pState);
     }
 }
-#endif /* E1K_USE_TX_TIMERS */
 
+#endif /* E1K_USE_TX_TIMERS */
 #ifdef E1K_USE_RX_TIMERS
+
 /**
  * Receive Interrupt Delay Timer handler.
  *
@@ -2644,6 +2792,7 @@ static DECLCALLBACK(void) e1kRxAbsDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer
         e1kMutexRelease(pState);
     }
 }
+
 #endif /* E1K_USE_RX_TIMERS */
 
 /**
@@ -2694,8 +2843,268 @@ static DECLCALLBACK(void) e1kLinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, vo
     }
 }
 
+#endif /* IN_RING3 */
 
+/**
+ * Sets up the GSO context according to the TSE new context descriptor.
+ *
+ * @param   pGso                The GSO context to setup.
+ * @param   pCtx                The context descriptor.
+ */
+DECLINLINE(void) e1kSetupGsoCtx(PPDMNETWORKGSO pGso, E1KTXCTX const *pCtx)
+{
+    pGso->u8Type = PDMNETWORKGSOTYPE_INVALID;
 
+    /*
+     * See if the context descriptor describes something that could be TCP or
+     * UDP over IPv[46].
+     */
+    /* Check the header ordering and spacing: 1. Ethernet, 2. IP, 3. TCP/UDP. */
+    if (RT_UNLIKELY( pCtx->ip.u8CSS < sizeof(RTNETETHERHDR) ))
+    {
+        E1kLog(("e1kSetupGsoCtx: IPCSS=%#x\n", pCtx->ip.u8CSS));
+        return;
+    }
+    if (RT_UNLIKELY( pCtx->tu.u8CSS     < (size_t)pCtx->ip.u8CSS + (pCtx->dw2.fIP  ? RTNETIPV4_MIN_LEN : RTNETIPV6_MIN_LEN) ))
+    {
+        E1kLog(("e1kSetupGsoCtx: TUCSS=%#x\n", pCtx->tu.u8CSS));
+        return;
+    }
+    if (RT_UNLIKELY(   pCtx->dw2.fTCP
+                     ? pCtx->dw3.u8HDRLEN <  (size_t)pCtx->tu.u8CSS + RTNETTCP_MIN_LEN
+                     : pCtx->dw3.u8HDRLEN != (size_t)pCtx->tu.u8CSS + RTNETUDP_MIN_LEN ))
+    {
+        E1kLog(("e1kSetupGsoCtx: HDRLEN=%#x TCP=%d\n", pCtx->dw3.u8HDRLEN, pCtx->dw2.fTCP));
+        return;
+    }
+
+    /* The end of the TCP/UDP checksum should stop at the end of the packet or at least after the headers. */
+    if (RT_UNLIKELY( pCtx->tu.u16CSE > 0 && pCtx->tu.u16CSE <= pCtx->dw3.u8HDRLEN ))
+    {
+        E1kLog(("e1kSetupGsoCtx: TUCSE=%#x HDRLEN=%#x\n", pCtx->tu.u16CSE, pCtx->dw3.u8HDRLEN));
+        return;
+    }
+
+    /* IPv4 checksum offset. */
+    if (RT_UNLIKELY( pCtx->dw2.fIP && (size_t)pCtx->ip.u8CSO - pCtx->ip.u8CSS != RT_UOFFSETOF(RTNETIPV4, ip_sum) ))
+    {
+        E1kLog(("e1kSetupGsoCtx: IPCSO=%#x IPCSS=%#x\n", pCtx->ip.u8CSO, pCtx->ip.u8CSS));
+        return;
+    }
+
+    /* TCP/UDP checksum offsets. */
+    if (RT_UNLIKELY(   (size_t)pCtx->tu.u8CSO - pCtx->tu.u8CSS
+                    != ( pCtx->dw2.fTCP
+                         ? RT_UOFFSETOF(RTNETTCP, th_sum)
+                         : RT_UOFFSETOF(RTNETUDP, uh_sum) ) ))
+    {
+        E1kLog(("e1kSetupGsoCtx: TUCSO=%#x TUCSS=%#x TCP=%d\n", pCtx->ip.u8CSO, pCtx->ip.u8CSS, pCtx->dw2.fTCP));
+        return;
+    }
+
+    /*
+     * Because of internal networking using a 16-bit size field for GSO context
+     * pluss frame, we have to make sure we don't exceed this.
+     */
+    if (RT_UNLIKELY( pCtx->dw3.u8HDRLEN + pCtx->dw2.u20PAYLEN > VBOX_MAX_GSO_SIZE ))
+    {
+        E1kLog(("e1kSetupGsoCtx: HDRLEN(=%#x) + PAYLEN(=%#x) = %#x, max is %#x\n",
+                pCtx->dw3.u8HDRLEN, pCtx->dw2.u20PAYLEN, pCtx->dw3.u8HDRLEN + pCtx->dw2.u20PAYLEN, VBOX_MAX_GSO_SIZE));
+        return;
+    }
+
+    /*
+     * We're good for now - we'll do more checks when seeing the data.
+     * So, figure the type of offloading and setup the context.
+     */
+    if (pCtx->dw2.fIP)
+    {
+        if (pCtx->dw2.fTCP)
+            pGso->u8Type = PDMNETWORKGSOTYPE_IPV4_TCP;
+        else
+            pGso->u8Type = PDMNETWORKGSOTYPE_IPV4_UDP;
+        /** @todo Detect IPv4-IPv6 tunneling (need test setup since linux doesn't do
+         *        this yet it seems)... */
+    }
+    else
+    {
+        if (pCtx->dw2.fTCP)
+            pGso->u8Type = PDMNETWORKGSOTYPE_IPV6_TCP;
+        else
+            pGso->u8Type = PDMNETWORKGSOTYPE_IPV6_UDP;
+    }
+    pGso->offHdr1  = pCtx->ip.u8CSS;
+    pGso->offHdr2  = pCtx->tu.u8CSS;
+    pGso->cbHdrs   = pCtx->dw3.u8HDRLEN;
+    pGso->cbMaxSeg = pCtx->dw3.u16MSS;
+    Assert(PDMNetGsoIsValid(pGso, sizeof(*pGso), pGso->cbMaxSeg * 5));
+    E1kLog2(("e1kSetupGsoCtx: mss=%#x hdr=%#x hdr1=%#x hdr2=%#x %s\n",
+             pGso->cbMaxSeg, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, PDMNetGsoTypeName((PDMNETWORKGSOTYPE)pGso->u8Type) ));
+}
+
+/**
+ * Checks if we can use GSO processing for the current TSE frame.
+ *
+ * @param   pGso                The GSO context.
+ * @param   pData               The first data descriptor of the frame.
+ * @param   pCtx                The TSO context descriptor.
+ */
+DECLINLINE(bool) e1kCanDoGso(PCPDMNETWORKGSO pGso, E1KTXDAT const *pData, E1KTXCTX const *pCtx)
+{
+    if (!pData->cmd.fTSE)
+    {
+        E1kLog2(("e1kCanDoGso: !TSE\n"));
+        return false;
+    }
+    if (pData->cmd.fVLE) /** @todo VLAN tagging. */
+    {
+        E1kLog(("e1kCanDoGso: VLE\n"));
+        return false;
+    }
+
+    switch ((PDMNETWORKGSOTYPE)pGso->u8Type)
+    {
+        case PDMNETWORKGSOTYPE_IPV4_TCP:
+        case PDMNETWORKGSOTYPE_IPV4_UDP:
+            if (!pData->dw3.fIXSM)
+            {
+                E1kLog(("e1kCanDoGso: !IXSM (IPv4)\n"));
+                return false;
+            }
+            if (!pData->dw3.fTXSM)
+            {
+                E1kLog(("e1kCanDoGso: !TXSM (IPv4)\n"));
+                return false;
+            }
+            /** @todo what more check should we perform here? Ethernet frame type? */
+            E1kLog2(("e1kCanDoGso: OK, IPv4\n"));
+            return true;
+
+        case PDMNETWORKGSOTYPE_IPV6_TCP:
+        case PDMNETWORKGSOTYPE_IPV6_UDP:
+            if (pData->dw3.fIXSM && pCtx->ip.u8CSO)
+            {
+                E1kLog(("e1kCanDoGso: IXSM (IPv6)\n"));
+                return false;
+            }
+            if (!pData->dw3.fTXSM)
+            {
+                E1kLog(("e1kCanDoGso: TXSM (IPv6)\n"));
+                return false;
+            }
+            /** @todo what more check should we perform here? Ethernet frame type? */
+            E1kLog2(("e1kCanDoGso: OK, IPv4\n"));
+            return true;
+
+        default:
+            Assert(pGso->u8Type == PDMNETWORKGSOTYPE_INVALID);
+            E1kLog2(("e1kCanDoGso: e1kSetupGsoCtx failed\n"));
+            return false;
+    }
+}
+
+/**
+ * Frees the current xmit buffer.
+ *
+ * @param   pState              The device state structure.
+ */
+static void e1kXmitFreeBuf(E1KSTATE *pState)
+{
+    PPDMSCATTERGATHER pSg = pState->CTX_SUFF(pTxSg);
+    if (pSg)
+    {
+        pState->CTX_SUFF(pTxSg) = NULL;
+
+        if (pSg->pvAllocator != pState)
+        {
+            PPDMINETWORKUP pDrv = pState->CTX_SUFF(pDrv);
+            if (pDrv)
+                pDrv->pfnFreeBuf(pDrv, pSg);
+        }
+        else
+        {
+            /* loopback */
+            AssertCompileMemberSize(E1KSTATE, uTxFallback.Sg, 8 * sizeof(size_t));
+            Assert(pSg->fFlags == (PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_3));
+            pSg->fFlags = 0;
+            pSg->pvAllocator = NULL;
+        }
+    }
+}
+
+/**
+ * Allocates a xmit buffer.
+ *
+ * Presently this will always return a buffer.  Later on we'll have a
+ * out-of-buffer mechanism in place where the driver calls us back when buffers
+ * becomes available.
+ *
+ * @returns See PDMINETWORKUP::pfnAllocBuf.
+ * @param   pState              The device state structure.
+ * @param   cbMin               The minimum frame size.
+ * @param   fExactSize          Whether cbMin is exact or if we have to max it
+ *                              out to the max MTU size.
+ * @param   fGso                Whether this is a GSO frame or not.
+ */
+DECLINLINE(int) e1kXmitAllocBuf(E1KSTATE *pState, size_t cbMin, bool fExactSize, bool fGso)
+{
+    /* Adjust cbMin if necessary. */
+    if (!fExactSize)
+        cbMin = RT_MAX(cbMin, E1K_MAX_TX_PKT_SIZE);
+
+    /* Deal with existing buffer (descriptor screw up, reset, etc). */
+    if (RT_UNLIKELY(pState->CTX_SUFF(pTxSg)))
+        e1kXmitFreeBuf(pState);
+    Assert(pState->CTX_SUFF(pTxSg) == NULL);
+
+    /*
+     * Allocate the buffer.
+     */
+    PPDMSCATTERGATHER pSg;
+    if (RT_LIKELY(GET_BITS(RCTL, LBM) != RCTL_LBM_TCVR))
+    {
+        PPDMINETWORKUP pDrv = pState->CTX_SUFF(pDrv);
+        if (RT_UNLIKELY(!pDrv))
+            return VERR_NET_DOWN;
+        int rc = pDrv->pfnAllocBuf(pDrv, cbMin, fGso ? &pState->GsoCtx : NULL, &pSg);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+    else
+    {
+        /* Create a loopback using the fallback buffer and preallocated SG. */
+        AssertCompileMemberSize(E1KSTATE, uTxFallback.Sg, 8 * sizeof(size_t));
+        pSg = &pState->uTxFallback.Sg;
+        pSg->fFlags      = PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_3;
+        pSg->cbUsed      = 0;
+        pSg->cbAvailable = 0;
+        pSg->pvAllocator = pState;
+        pSg->pvUser      = NULL; /* No GSO here. */
+        pSg->cSegs       = 1;
+        pSg->aSegs[0].pvSeg = pState->aTxPacketFallback;
+        pSg->aSegs[0].cbSeg = sizeof(pState->aTxPacketFallback);
+    }
+
+    pState->CTX_SUFF(pTxSg) = pSg;
+    return VINF_SUCCESS;
+}
+
+/**
+ * Checks if it's a GSO buffer or not.
+ *
+ * @returns true / false.
+ * @param   pTxSg               The scatter / gather buffer.
+ */
+DECLINLINE(bool) e1kXmitIsGsoBuf(PDMSCATTERGATHER const *pTxSg)
+{
+#if 0
+    if (!pTxSg)
+        E1kLog(("e1kXmitIsGsoBuf: pTxSG is NULL\n"));
+    if (pTxSg && pTxSg->pvUser)
+        E1kLog(("e1kXmitIsGsoBuf: pvUser is NULL\n"));
+#endif
+    return pTxSg && pTxSg->pvUser /* GSO indicator */;
+}
 
 /**
  * Load transmit descriptor from guest memory.
@@ -2728,97 +3137,105 @@ DECLINLINE(void) e1kWriteBackDesc(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS a
 /**
  * Transmit complete frame.
  *
- * @remarks Since we do not have real Ethernet medium between us and NAT (or
- *          another connector) there is no need for padding and FCS.
+ * @remarks We skip the FCS since we're not responsible for sending anything to
+ *          a real ethernet wire.
  *
- * @param   pState      The device state structure.
- * @param   pFrame      Pointer to the frame buffer.
- * @param   u16FrameLen Length of the frame.
+ * @param   pState              The device state structure.
+ * @param   fOnWorkerThread     Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static void e1kTransmitFrame(E1KSTATE* pState, uint8_t *pFrame, uint16_t u16FrameLen)
+static void e1kTransmitFrame(E1KSTATE* pState, bool fOnWorkerThread)
 {
+    PPDMSCATTERGATHER   pSg     = pState->CTX_SUFF(pTxSg);
+    uint32_t const      cbFrame = pSg ? (uint32_t)pSg->cbUsed : 0;
+    Assert(!pSg || pSg->cSegs == 1);
+
 /*    E1kLog2(("%s <<< Outgoing packet. Dump follows: >>>\n"
             "%.*Rhxd\n"
             "%s <<<<<<<<<<<<< End of dump >>>>>>>>>>>>\n",
-            INSTANCE(pState), u16FrameLen, pFrame, INSTANCE(pState)));*/
-#ifdef E1K_LEDS_WITH_MUTEX
-    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
-    {
-#endif /* E1K_LEDS_WITH_MUTEX */
-        pState->led.Asserted.s.fWriting = 1;
-        pState->led.Actual.s.fWriting = 1;
-#ifdef E1K_LEDS_WITH_MUTEX
-        e1kCsLeave(pState);
-    }
-#endif /* E1K_LEDS_WITH_MUTEX */
+            INSTANCE(pState), cbFrame, pSg->aSegs[0].pvSeg, INSTANCE(pState)));*/
+
+    if (cbFrame > 70) /* unqualified guess */
+        pState->led.Asserted.s.fWriting = pState->led.Actual.s.fWriting = 1;
+
     /* Update the stats */
     E1K_INC_CNT32(TPT);
-    E1K_ADD_CNT64(TOTL, TOTH, u16FrameLen);
+    E1K_ADD_CNT64(TOTL, TOTH, cbFrame);
     E1K_INC_CNT32(GPTC);
-    if (e1kIsBroadcast(pFrame))
+    if (pSg && e1kIsBroadcast(pSg->aSegs[0].pvSeg))
         E1K_INC_CNT32(BPTC);
-    else if (e1kIsMulticast(pFrame))
+    else if (pSg && e1kIsMulticast(pSg->aSegs[0].pvSeg))
         E1K_INC_CNT32(MPTC);
     /* Update octet transmit counter */
-    E1K_ADD_CNT64(GOTCL, GOTCH, u16FrameLen);
-    if (pState->pDrv)
-    {
-        STAM_REL_COUNTER_ADD(&pState->StatTransmitBytes, u16FrameLen);
-    }
-    if (u16FrameLen == 64)
+    E1K_ADD_CNT64(GOTCL, GOTCH, cbFrame);
+    if (pState->CTX_SUFF(pDrv))
+        STAM_REL_COUNTER_ADD(&pState->StatTransmitBytes, cbFrame);
+    if (cbFrame == 64)
         E1K_INC_CNT32(PTC64);
-    else if (u16FrameLen < 128)
+    else if (cbFrame < 128)
         E1K_INC_CNT32(PTC127);
-    else if (u16FrameLen < 256)
+    else if (cbFrame < 256)
         E1K_INC_CNT32(PTC255);
-    else if (u16FrameLen < 512)
+    else if (cbFrame < 512)
         E1K_INC_CNT32(PTC511);
-    else if (u16FrameLen < 1024)
+    else if (cbFrame < 1024)
         E1K_INC_CNT32(PTC1023);
     else
         E1K_INC_CNT32(PTC1522);
 
     E1K_INC_ISTAT_CNT(pState->uStatTxFrm);
 
-    e1kPacketDump(pState, pFrame, u16FrameLen, "--> Outgoing");
-
-
-    if (GET_BITS(RCTL, LBM) == RCTL_LBM_TCVR)
+    /*
+     * Dump and send the packet.
+     */
+    int rc = VERR_NET_DOWN;
+    if (pSg && pSg->pvAllocator != pState)
     {
-        E1KRXDST status;
-        status.fPIF = true;
-        /* Loopback mode */
-        e1kHandleRxPacket(pState, pFrame, u16FrameLen, status);
-    }
-    else if (pState->pDrv)
-    {
-        /* Release critical section to avoid deadlock in CanReceive */
-        //e1kCsLeave(pState);
-        e1kMutexRelease(pState);
-        STAM_PROFILE_ADV_START(&pState->StatTransmitSend, a);
-        int rc = pState->pDrv->pfnSend(pState->pDrv, pFrame, u16FrameLen);
-        STAM_PROFILE_ADV_STOP(&pState->StatTransmitSend, a);
-        if (rc != VINF_SUCCESS)
+        e1kPacketDump(pState, (uint8_t const *)pSg->aSegs[0].pvSeg, cbFrame, "--> Outgoing");
+
+        pState->CTX_SUFF(pTxSg) = NULL;
+        PPDMINETWORKUP pDrv = pState->CTX_SUFF(pDrv);
+        if (pDrv)
         {
-            E1kLogRel(("E1000: ERROR! pfnSend returned %Rrc\n", rc));
+            /* Release critical section to avoid deadlock in CanReceive */
+            //e1kCsLeave(pState);
+            e1kMutexRelease(pState);
+            STAM_PROFILE_START(&pState->StatTransmitSend, a);
+            rc = pDrv->pfnSendBuf(pDrv, pSg, fOnWorkerThread);
+            STAM_PROFILE_STOP(&pState->StatTransmitSend, a);
+            e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS);
+            //e1kCsEnter(pState, RT_SRC_POS);
         }
-        e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS);
-        //e1kCsEnter(pState, RT_SRC_POS);
     }
-#ifdef E1K_LEDS_WITH_MUTEX
-    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY, RT_SRC_POS) == VINF_SUCCESS))
+    else if (pSg)
     {
-#endif /* E1K_LEDS_WITH_MUTEX */
-        pState->led.Actual.s.fWriting = 0;
-#ifdef E1K_LEDS_WITH_MUTEX
-        e1kCsLeave(pState);
+        Assert(pSg->aSegs[0].pvSeg == pState->aTxPacketFallback);
+        e1kPacketDump(pState, (uint8_t const *)pSg->aSegs[0].pvSeg, cbFrame, "--> Loopback");
+
+        /** @todo do we actually need to check that we're in loopback mode here? */
+        if (GET_BITS(RCTL, LBM) == RCTL_LBM_TCVR)
+        {
+            E1KRXDST status;
+            RT_ZERO(status);
+            status.fPIF = true;
+            e1kHandleRxPacket(pState, pSg->aSegs[0].pvSeg, cbFrame, status);
+            rc = VINF_SUCCESS;
+        }
+        e1kXmitFreeBuf(pState);
     }
-#endif /* E1K_LEDS_WITH_MUTEX */
+    else
+        rc = VERR_NET_DOWN;
+    if (RT_FAILURE(rc))
+    {
+        E1kLogRel(("E1000: ERROR! pfnSend returned %Rrc\n", rc));
+        /** @todo handle VERR_NET_DOWN and VERR_NET_NO_BUFFER_SPACE. Signal error ? */
+    }
+
+    pState->led.Actual.s.fWriting = 0;
 }
 
 /**
- * Compute and write checksum at the specified offset.
+ * Compute and write internet checksum (e1kCSum16) at the specified offset.
  *
  * @param   pState      The device state structure.
  * @param   pPkt        Pointer to the packet.
@@ -2841,10 +3258,10 @@ static void e1kInsertChecksum(E1KSTATE* pState, uint8_t *pPkt, uint16_t u16PktLe
 
     if (cse == 0)
         cse = u16PktLen - 1;
+    uint16_t u16ChkSum = e1kCSum16(pPkt + css, cse - css + 1);
     E1kLog2(("%s Inserting csum: %04X at %02X, old value: %04X\n", INSTANCE(pState),
-             e1kCSum16(pPkt + css, cse - css + 1), cso,
-                       *(uint16_t*)(pPkt + cso)));
-    *(uint16_t*)(pPkt + cso) = e1kCSum16(pPkt + css, cse - css + 1);
+             u16ChkSum, cso, *(uint16_t*)(pPkt + cso)));
+    *(uint16_t*)(pPkt + cso) = u16ChkSum;
 }
 
 /**
@@ -2854,34 +3271,34 @@ static void e1kInsertChecksum(E1KSTATE* pState, uint8_t *pPkt, uint16_t u16PktLe
  *          and legacy descriptors since it is identical to
  *          legacy.u64BufAddr.
  *
- * @param   pState      The device state structure.
- * @param   pDesc       Pointer to the descriptor to transmit.
- * @param   u16Len      Length of buffer to the end of segment.
- * @param   fSend       Force packet sending.
+ * @param   pState          The device state structure.
+ * @param   pDesc           Pointer to the descriptor to transmit.
+ * @param   u16Len          Length of buffer to the end of segment.
+ * @param   fSend           Force packet sending.
+ * @param   fOnWorkerThread Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static void e1kAddSegment(E1KSTATE* pState, E1KTXDESC* pDesc, uint16_t u16Len, bool fSend)
+static void e1kFallbackAddSegment(E1KSTATE* pState, RTGCPHYS PhysAddr, uint16_t u16Len, bool fSend, bool fOnWorkerThread)
 {
     /* TCP header being transmitted */
     struct E1kTcpHeader *pTcpHdr = (struct E1kTcpHeader *)
-            (pState->aTxPacket + pState->contextTSE.tu.u8CSS);
+            (pState->aTxPacketFallback + pState->contextTSE.tu.u8CSS);
     /* IP header being transmitted */
     struct E1kIpHeader *pIpHdr = (struct E1kIpHeader *)
-            (pState->aTxPacket + pState->contextTSE.ip.u8CSS);
+            (pState->aTxPacketFallback + pState->contextTSE.ip.u8CSS);
 
-    E1kLog3(("%s e1kAddSegment: Length=%x, remaining payload=%x, header=%x, send=%s\n",
-             INSTANCE(pState), u16Len, pState->u32PayRemain, pState->u16HdrRemain,
-             fSend ? "true" : "false"));
+    E1kLog3(("%s e1kFallbackAddSegment: Length=%x, remaining payload=%x, header=%x, send=%RTbool\n",
+             INSTANCE(pState), u16Len, pState->u32PayRemain, pState->u16HdrRemain, fSend));
     Assert(pState->u32PayRemain + pState->u16HdrRemain > 0);
 
-    PDMDevHlpPhysRead(pState->CTX_SUFF(pDevIns), pDesc->data.u64BufAddr,
-                      pState->aTxPacket + pState->u16TxPktLen, u16Len);
+    PDMDevHlpPhysRead(pState->CTX_SUFF(pDevIns), PhysAddr,
+                      pState->aTxPacketFallback + pState->u16TxPktLen, u16Len);
     E1kLog3(("%s Dump of the segment:\n"
             "%.*Rhxd\n"
             "%s --- End of dump ---\n",
-            INSTANCE(pState), u16Len, pState->aTxPacket + pState->u16TxPktLen, INSTANCE(pState)));
+            INSTANCE(pState), u16Len, pState->aTxPacketFallback + pState->u16TxPktLen, INSTANCE(pState)));
     pState->u16TxPktLen += u16Len;
-    E1kLog3(("%s e1kAddSegment: pState->u16TxPktLen=%x\n",
+    E1kLog3(("%s e1kFallbackAddSegment: pState->u16TxPktLen=%x\n",
             INSTANCE(pState), pState->u16TxPktLen));
     if (pState->u16HdrRemain > 0)
     {
@@ -2901,7 +3318,7 @@ static void e1kAddSegment(E1KSTATE* pState, E1KTXDESC* pDesc, uint16_t u16Len, b
         {
             /* Still not */
             pState->u16HdrRemain -= u16Len;
-            E1kLog3(("%s e1kAddSegment: Header is still incomplete, 0x%x bytes remain.\n",
+            E1kLog3(("%s e1kFallbackAddSegment: Header is still incomplete, 0x%x bytes remain.\n",
                     INSTANCE(pState), pState->u16HdrRemain));
             return;
         }
@@ -2914,11 +3331,11 @@ static void e1kAddSegment(E1KSTATE* pState, E1KTXDESC* pDesc, uint16_t u16Len, b
         /* Leave ethernet header intact */
         /* IP Total Length = payload + headers - ethernet header */
         pIpHdr->total_len = htons(pState->u16TxPktLen - pState->contextTSE.ip.u8CSS);
-        E1kLog3(("%s e1kAddSegment: End of packet, pIpHdr->total_len=%x\n",
+        E1kLog3(("%s e1kFallbackAddSegment: End of packet, pIpHdr->total_len=%x\n",
                 INSTANCE(pState), ntohs(pIpHdr->total_len)));
         /* Update IP Checksum */
         pIpHdr->chksum = 0;
-        e1kInsertChecksum(pState, pState->aTxPacket, pState->u16TxPktLen,
+        e1kInsertChecksum(pState, pState->aTxPacketFallback, pState->u16TxPktLen,
                           pState->contextTSE.ip.u8CSO,
                           pState->contextTSE.ip.u8CSS,
                           pState->contextTSE.ip.u16CSE);
@@ -2937,11 +3354,28 @@ static void e1kAddSegment(E1KSTATE* pState, E1KTXDESC* pDesc, uint16_t u16Len, b
             csum = (csum >> 16) + (csum & 0xFFFF);
         pTcpHdr->chksum = csum;
         /* Compute final checksum */
-        e1kInsertChecksum(pState, pState->aTxPacket, pState->u16TxPktLen,
+        e1kInsertChecksum(pState, pState->aTxPacketFallback, pState->u16TxPktLen,
                           pState->contextTSE.tu.u8CSO,
                           pState->contextTSE.tu.u8CSS,
                           pState->contextTSE.tu.u16CSE);
-        e1kTransmitFrame(pState, pState->aTxPacket, pState->u16TxPktLen);
+
+        /*
+         * Transmit it. If we've use the SG already, allocate a new one before
+         * we copy of the data.
+         */
+        if (!pState->CTX_SUFF(pTxSg))
+            e1kXmitAllocBuf(pState, pState->u16TxPktLen, true /*fExactSize*/, false /*fGso*/);
+        if (pState->CTX_SUFF(pTxSg))
+        {
+            Assert(pState->u16TxPktLen <= pState->CTX_SUFF(pTxSg)->cbAvailable);
+            Assert(pState->CTX_SUFF(pTxSg)->cSegs == 1);
+            if (pState->CTX_SUFF(pTxSg)->aSegs[0].pvSeg != pState->aTxPacketFallback)
+                memcpy(pState->CTX_SUFF(pTxSg)->aSegs[0].pvSeg, pState->aTxPacketFallback, pState->u16TxPktLen);
+            pState->CTX_SUFF(pTxSg)->cbUsed         = pState->u16TxPktLen;
+            pState->CTX_SUFF(pTxSg)->aSegs[0].cbSeg = pState->u16TxPktLen;
+        }
+        e1kTransmitFrame(pState, fOnWorkerThread);
+
         /* Update Sequence Number */
         pTcpHdr->seqno = htonl(ntohl(pTcpHdr->seqno) + pState->u16TxPktLen
                                - pState->contextTSE.dw3.u8HDRLEN);
@@ -2951,67 +3385,112 @@ static void e1kAddSegment(E1KSTATE* pState, E1KTXDESC* pDesc, uint16_t u16Len, b
 }
 
 /**
- * Add descriptor's buffer to transmit frame.
+ * TCP segmentation offloading fallback: Add descriptor's buffer to transmit
+ * frame.
  *
- * @remarks data.u64BufAddr is used uncoditionally for both data
- *          and legacy descriptors since it is identical to
- *          legacy.u64BufAddr.
+ * We construct the frame in the fallback buffer first and the copy it to the SG
+ * buffer before passing it down to the network driver code.
  *
- * @param   pState      The device state structure.
- * @param   pDesc       Pointer to the descriptor to transmit.
- * @param   u16PartLen  Length of descriptor's buffer.
+ * @returns true if the frame should be transmitted, false if not.
+ *
+ * @param   pState          The device state structure.
+ * @param   pDesc           Pointer to the descriptor to transmit.
+ * @param   cbFragment      Length of descriptor's buffer.
+ * @param   fOnWorkerThread Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static bool e1kAddToFrame(E1KSTATE* pState, E1KTXDESC* pDesc, uint32_t u32PartLen)
+static bool e1kFallbackAddToFrame(E1KSTATE* pState, E1KTXDESC* pDesc, uint32_t cbFragment, bool fOnWorkerThread)
 {
-    if (e1kGetDescType(pDesc) == E1K_DTYP_DATA && pDesc->data.cmd.fTSE)
-    {
-        uint16_t u16MaxPktLen = pState->contextTSE.dw3.u8HDRLEN + pState->contextTSE.dw3.u16MSS;
-        Assert(u16MaxPktLen != 0);
-        Assert(u16MaxPktLen < E1K_MAX_TX_PKT_SIZE);
+    PPDMSCATTERGATHER pTxSg = pState->CTX_SUFF(pTxSg);
+    Assert(e1kGetDescType(pDesc) == E1K_DTYP_DATA);
+    Assert(pDesc->data.cmd.fTSE);
+    Assert(!e1kXmitIsGsoBuf(pTxSg));
 
-        do {
-            /* Calculate how many bytes have left in this TCP segment */
-            uint32_t uLen = u16MaxPktLen - pState->u16TxPktLen;
-            if (uLen > u32PartLen)
-            {
-                /* This descriptor fits completely into current segment */
-                uLen = u32PartLen;
-                e1kAddSegment(pState, pDesc, uLen, pDesc->data.cmd.fEOP);
-            }
-            else
-            {
-                e1kAddSegment(pState, pDesc, uLen, true);
-                /*
-                 * Rewind the packet tail pointer to the beginning of payload,
-                 * so we continue writing right beyond the header.
-                 */
-                pState->u16TxPktLen = pState->contextTSE.dw3.u8HDRLEN;
-            }
-            pDesc->data.u64BufAddr += uLen;
-            u32PartLen -= uLen;
-        } while (u32PartLen > 0);
-        if (pDesc->data.cmd.fEOP)
-        {
-            /* End of packet, next segment will contain header. */
-            pState->u16TxPktLen = 0;
-        }
-        return false;
-    }
-    else
+    uint16_t u16MaxPktLen = pState->contextTSE.dw3.u8HDRLEN + pState->contextTSE.dw3.u16MSS;
+    Assert(u16MaxPktLen != 0);
+    Assert(u16MaxPktLen < E1K_MAX_TX_PKT_SIZE);
+
+    /*
+     * Carve out segments.
+     */
+    do
     {
-        if (u32PartLen + pState->u16TxPktLen > E1K_MAX_TX_PKT_SIZE)
+        /* Calculate how many bytes we have left in this TCP segment */
+        uint32_t cb = u16MaxPktLen - pState->u16TxPktLen;
+        if (cb > cbFragment)
         {
-            E1kLog(("%s Transmit packet is too large: %d > %d(max)\n",
-                    INSTANCE(pState), u32PartLen + pState->u16TxPktLen, E1K_MAX_TX_PKT_SIZE));
-            return false;
+            /* This descriptor fits completely into current segment */
+            cb = cbFragment;
+            e1kFallbackAddSegment(pState, pDesc->data.u64BufAddr, cb, pDesc->data.cmd.fEOP /*fSend*/, fOnWorkerThread);
         }
         else
         {
-            PDMDevHlpPhysRead(pState->CTX_SUFF(pDevIns), pDesc->data.u64BufAddr, pState->aTxPacket + pState->u16TxPktLen, u32PartLen);
-            pState->u16TxPktLen += u32PartLen;
+            e1kFallbackAddSegment(pState, pDesc->data.u64BufAddr, cb, true /*fSend*/, fOnWorkerThread);
+            /*
+             * Rewind the packet tail pointer to the beginning of payload,
+             * so we continue writing right beyond the header.
+             */
+            pState->u16TxPktLen = pState->contextTSE.dw3.u8HDRLEN;
         }
+
+        pDesc->data.u64BufAddr += cb;
+        cbFragment             -= cb;
+    } while (cbFragment > 0);
+
+    if (pDesc->data.cmd.fEOP)
+    {
+        /* End of packet, next segment will contain header. */
+        if (pState->u32PayRemain != 0)
+            E1K_INC_CNT32(TSCTFC);
+        pState->u16TxPktLen = 0;
+        e1kXmitFreeBuf(pState);
     }
+
+    return false;
+}
+
+
+/**
+ * Add descriptor's buffer to transmit frame.
+ *
+ * This deals with GSO and normal frames, e1kFallbackAddToFrame deals with the
+ * TSE frames we cannot handle as GSO.
+ *
+ * @returns true on success, false on failure.
+ *
+ * @param   pThis       The device state structure.
+ * @param   PhysAddr    The physical address of the descriptor buffer.
+ * @param   cbFragment  Length of descriptor's buffer.
+ * @thread  E1000_TX
+ */
+static bool e1kAddToFrame(E1KSTATE *pThis, RTGCPHYS PhysAddr, uint32_t cbFragment)
+{
+    PPDMSCATTERGATHER   pTxSg    = pThis->CTX_SUFF(pTxSg);
+    bool const          fGso     = e1kXmitIsGsoBuf(pTxSg);
+    uint32_t const      cbNewPkt = cbFragment + pThis->u16TxPktLen;
+
+    if (RT_UNLIKELY( !fGso && cbNewPkt > E1K_MAX_TX_PKT_SIZE ))
+    {
+        E1kLog(("%s Transmit packet is too large: %u > %u(max)\n", INSTANCE(pThis), cbNewPkt, E1K_MAX_TX_PKT_SIZE));
+        return false;
+    }
+    if (RT_UNLIKELY( fGso && cbNewPkt > pTxSg->cbAvailable ))
+    {
+        E1kLog(("%s Transmit packet is too large: %u > %u(max)/GSO\n", INSTANCE(pThis), cbNewPkt, pTxSg->cbAvailable));
+        return false;
+    }
+
+    if (RT_LIKELY(pTxSg))
+    {
+        Assert(pTxSg->cSegs == 1);
+        Assert(pTxSg->cbUsed == pThis->u16TxPktLen);
+
+        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), PhysAddr,
+                          (uint8_t *)pTxSg->aSegs[0].pvSeg + pThis->u16TxPktLen, cbFragment);
+
+        pTxSg->cbUsed = cbNewPkt;
+    }
+    pThis->u16TxPktLen = cbNewPkt;
 
     return true;
 }
@@ -3050,22 +3529,22 @@ static void e1kDescReport(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
                 //else {
                 /* Arm the timer to fire in TIVD usec (discard .024) */
                 e1kArmTimer(pState, pState->CTX_SUFF(pTIDTimer), TIDV);
-#ifndef E1K_NO_TAD
+# ifndef E1K_NO_TAD
                 /* If absolute timer delay is enabled and the timer is not running yet, arm it. */
                 E1kLog2(("%s Checking if TAD timer is running\n",
                          INSTANCE(pState)));
                 if (TADV != 0 && !TMTimerIsActive(pState->CTX_SUFF(pTADTimer)))
                     e1kArmTimer(pState, pState->CTX_SUFF(pTADTimer), TADV);
-#endif /* E1K_NO_TAD */
+# endif /* E1K_NO_TAD */
             }
             else
             {
                 E1kLog2(("%s No IDE set, cancel TAD timer and raise interrupt\n",
                         INSTANCE(pState)));
-#ifndef E1K_NO_TAD
+# ifndef E1K_NO_TAD
                 /* Cancel both timers if armed and fire immediately. */
                 e1kCancelTimer(pState, pState->CTX_SUFF(pTADTimer));
-#endif /* E1K_NO_TAD */
+# endif /* E1K_NO_TAD */
 #endif /* E1K_USE_TX_TIMERS */
                 E1K_INC_ISTAT_CNT(pState->uStatIntTx);
                 e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_TXDW);
@@ -3088,12 +3567,13 @@ static void e1kDescReport(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
  * - data     the same as legacy but providing new offloading capabilities.
  * - context  sets up the context for following data descriptors.
  *
- * @param   pState      The device state structure.
- * @param   pDesc       Pointer to descriptor union.
- * @param   addr        Physical address of descriptor in guest memory.
+ * @param   pState          The device state structure.
+ * @param   pDesc           Pointer to descriptor union.
+ * @param   addr            Physical address of descriptor in guest memory.
+ * @param   fOnWorkerThread Whether we're on a worker thread or an EMT.
  * @thread  E1000_TX
  */
-static void e1kXmitDesc(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
+static void e1kXmitDesc(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr, bool fOnWorkerThread)
 {
     e1kPrintTDesc(pState, pDesc, "vvv");
 
@@ -3109,9 +3589,14 @@ static void e1kXmitDesc(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
                 pState->contextTSE = pDesc->context;
                 pState->u32PayRemain = pDesc->context.dw2.u20PAYLEN;
                 pState->u16HdrRemain = pDesc->context.dw3.u8HDRLEN;
+                e1kSetupGsoCtx(&pState->GsoCtx, &pDesc->context);
+                STAM_COUNTER_INC(&pState->StatTxDescCtxTSE);
             }
             else
+            {
                 pState->contextNormal = pDesc->context;
+                STAM_COUNTER_INC(&pState->StatTxDescCtxNormal);
+            }
             E1kLog2(("%s %s context updated: IP CSS=%02X, IP CSO=%02X, IP CSE=%04X"
                     ", TU CSS=%02X, TU CSO=%02X, TU CSE=%04X\n", INSTANCE(pState),
                      pDesc->context.dw2.fTSE ? "TSE" : "Normal",
@@ -3124,74 +3609,149 @@ static void e1kXmitDesc(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
             E1K_INC_ISTAT_CNT(pState->uStatDescCtx);
             e1kDescReport(pState, pDesc, addr);
             break;
+
         case E1K_DTYP_DATA:
+        {
             if (pDesc->data.cmd.u20DTALEN == 0 || pDesc->data.u64BufAddr == 0)
             {
-                E1kLog2(("% Empty descriptor, skipped.\n", INSTANCE(pState)));
+                E1kLog2(("% Empty data descriptor, skipped.\n", INSTANCE(pState)));
+                /** @todo Same as legacy when !TSE. See below. */
                 break;
             }
             STAM_COUNTER_INC(pDesc->data.cmd.fTSE?
                              &pState->StatTxDescTSEData:
                              &pState->StatTxDescData);
             STAM_PROFILE_ADV_START(&pState->StatTransmit, a);
-            /* IXSM and TXSM options are valid in the first fragment only */
+            E1K_INC_ISTAT_CNT(pState->uStatDescDat);
+
+            /*
+             * First fragment: Allocate new buffer and save the IXSM and TXSM
+             * packet options as these are only valid in the first fragment.
+             */
             if (pState->u16TxPktLen == 0)
             {
                 pState->fIPcsum  = pDesc->data.dw3.fIXSM;
                 pState->fTCPcsum = pDesc->data.dw3.fTXSM;
-                E1kLog2(("%s Saving checksum flags:%s%s\n", INSTANCE(pState),
+                E1kLog2(("%s Saving checksum flags:%s%s; \n", INSTANCE(pState),
                          pState->fIPcsum ? " IP" : "",
                          pState->fTCPcsum ? " TCP/UDP" : ""));
+                if (e1kCanDoGso(&pState->GsoCtx, &pDesc->data, &pState->contextTSE))
+                    e1kXmitAllocBuf(pState, pState->contextTSE.dw2.u20PAYLEN + pState->contextTSE.dw3.u8HDRLEN,
+                                    true /*fExactSize*/, true /*fGso*/);
+                else
+                    e1kXmitAllocBuf(pState, pState->contextTSE.dw3.u16MSS + pState->contextTSE.dw3.u8HDRLEN,
+                                    pDesc->data.cmd.fTSE  /*fExactSize*/, false /*fGso*/);
+                /** @todo Is there any way to indicating errors other than collisions? Like
+                 *        VERR_NET_DOWN. */
             }
-            E1K_INC_ISTAT_CNT(pState->uStatDescDat);
-            if (e1kAddToFrame(pState, pDesc, pDesc->data.cmd.u20DTALEN) && pDesc->data.cmd.fEOP)
+
+            /*
+             * Add the descriptor data to the frame.  If the frame is complete,
+             * transmit it and reset the u16TxPktLen field.
+             */
+            if (e1kXmitIsGsoBuf(pState->CTX_SUFF(pTxSg)))
             {
-                if (!pDesc->data.cmd.fTSE)
+                STAM_COUNTER_INC(&pState->StatTxPathGSO);
+                bool fRc = e1kAddToFrame(pState, pDesc->data.u64BufAddr, pDesc->data.cmd.u20DTALEN);
+                if (pDesc->data.cmd.fEOP)
                 {
-                    /*
-                     * We only insert checksums here if this packet was not segmented,
-                     * otherwise it has already been taken care of by e1kAddSegment().
-                     */
-                    if (pState->fIPcsum)
-                        e1kInsertChecksum(pState, pState->aTxPacket, pState->u16TxPktLen,
-                                          pState->contextNormal.ip.u8CSO,
-                                          pState->contextNormal.ip.u8CSS,
-                                          pState->contextNormal.ip.u16CSE);
-                    if (pState->fTCPcsum)
-                        e1kInsertChecksum(pState, pState->aTxPacket, pState->u16TxPktLen,
-                                          pState->contextNormal.tu.u8CSO,
-                                          pState->contextNormal.tu.u8CSS,
-                                          pState->contextNormal.tu.u16CSE);
+                    if (   fRc
+                        && pState->CTX_SUFF(pTxSg)
+                        && pState->CTX_SUFF(pTxSg)->cbUsed == (size_t)pState->contextTSE.dw3.u8HDRLEN + pState->contextTSE.dw2.u20PAYLEN)
+                    {
+                        e1kTransmitFrame(pState, fOnWorkerThread);
+                        E1K_INC_CNT32(TSCTC);
+                    }
+                    else
+                    {
+                        if (fRc)
+                           E1kLog(("%s bad GSO/TSE %p or %u < %u\n" , INSTANCE(pState),
+                                   pState->CTX_SUFF(pTxSg), pState->CTX_SUFF(pTxSg) ? pState->CTX_SUFF(pTxSg)->cbUsed : 0,
+                                   pState->contextTSE.dw3.u8HDRLEN + pState->contextTSE.dw2.u20PAYLEN));
+                        e1kXmitFreeBuf(pState);
+                        E1K_INC_CNT32(TSCTFC);
+                    }
+                    pState->u16TxPktLen = 0;
                 }
-                e1kTransmitFrame(pState, pState->aTxPacket, pState->u16TxPktLen);
-                /* Reset transmit packet storage. */
-                pState->u16TxPktLen = 0;
             }
+            else if (!pDesc->data.cmd.fTSE)
+            {
+                STAM_COUNTER_INC(&pState->StatTxPathRegular);
+                bool fRc = e1kAddToFrame(pState, pDesc->data.u64BufAddr, pDesc->data.cmd.u20DTALEN);
+                if (pDesc->data.cmd.fEOP)
+                {
+                    if (fRc && pState->CTX_SUFF(pTxSg))
+                    {
+                        Assert(pState->CTX_SUFF(pTxSg)->cSegs == 1);
+                        if (pState->fIPcsum)
+                            e1kInsertChecksum(pState, (uint8_t *)pState->CTX_SUFF(pTxSg)->aSegs[0].pvSeg, pState->u16TxPktLen,
+                                              pState->contextNormal.ip.u8CSO,
+                                              pState->contextNormal.ip.u8CSS,
+                                              pState->contextNormal.ip.u16CSE);
+                        if (pState->fTCPcsum)
+                            e1kInsertChecksum(pState, (uint8_t *)pState->CTX_SUFF(pTxSg)->aSegs[0].pvSeg, pState->u16TxPktLen,
+                                              pState->contextNormal.tu.u8CSO,
+                                              pState->contextNormal.tu.u8CSS,
+                                              pState->contextNormal.tu.u16CSE);
+                        e1kTransmitFrame(pState, fOnWorkerThread);
+                    }
+                    else
+                        e1kXmitFreeBuf(pState);
+                    pState->u16TxPktLen = 0;
+                }
+            }
+            else
+            {
+                STAM_COUNTER_INC(&pState->StatTxPathFallback);
+                e1kFallbackAddToFrame(pState, pDesc, pDesc->data.cmd.u20DTALEN, fOnWorkerThread);
+            }
+
             e1kDescReport(pState, pDesc, addr);
             STAM_PROFILE_ADV_STOP(&pState->StatTransmit, a);
             break;
+        }
+
         case E1K_DTYP_LEGACY:
             if (pDesc->legacy.cmd.u16Length == 0 || pDesc->legacy.u64BufAddr == 0)
             {
-                E1kLog(("%s Empty descriptor, skipped.\n", INSTANCE(pState)));
+                E1kLog(("%s Empty legacy descriptor, skipped.\n", INSTANCE(pState)));
+                /** @todo 3.3.3, Length/Buffer Address: RS set -> write DD when processing. */
                 break;
             }
             STAM_COUNTER_INC(&pState->StatTxDescLegacy);
             STAM_PROFILE_ADV_START(&pState->StatTransmit, a);
-            if (e1kAddToFrame(pState, pDesc, pDesc->legacy.cmd.u16Length))
+
+            /* First fragment: allocate new buffer. */
+            if (pState->u16TxPktLen == 0)
+                /** @todo reset status bits? */
+                e1kXmitAllocBuf(pState, pDesc->legacy.cmd.u16Length, pDesc->legacy.cmd.fEOP, false /*fGso*/);
+                /** @todo Is there any way to indicating errors other than collisions? Like
+                 *        VERR_NET_DOWN. */
+
+            /* Add fragment to frame. */
+            if (e1kAddToFrame(pState, pDesc->data.u64BufAddr, pDesc->legacy.cmd.u16Length))
             {
                 E1K_INC_ISTAT_CNT(pState->uStatDescLeg);
-                /** @todo Offload processing goes here. */
+
+                /* Last fragment: Transmit and reset the packet storage counter.  */
                 if (pDesc->legacy.cmd.fEOP)
                 {
-                    e1kTransmitFrame(pState, pState->aTxPacket, pState->u16TxPktLen);
-                    /* Reset transmit packet storage. */
+                    /** @todo Offload processing goes here. */
+                    e1kTransmitFrame(pState, fOnWorkerThread);
                     pState->u16TxPktLen = 0;
                 }
             }
+            /* Last fragment + failure: free the buffer and reset the storage counter. */
+            else if (pDesc->legacy.cmd.fEOP)
+            {
+                e1kXmitFreeBuf(pState);
+                pState->u16TxPktLen = 0;
+            }
+
             e1kDescReport(pState, pDesc, addr);
             STAM_PROFILE_ADV_STOP(&pState->StatTransmit, a);
             break;
+
         default:
             E1kLog(("%s ERROR Unsupported transmit descriptor type: 0x%04x\n",
                     INSTANCE(pState), e1kGetDescType(pDesc)));
@@ -3199,71 +3759,79 @@ static void e1kXmitDesc(E1KSTATE* pState, E1KTXDESC* pDesc, RTGCPHYS addr)
     }
 }
 
-/**
- * Wake up callback for transmission thread.
- *
- * @returns VBox status code. Returning failure will naturally terminate the thread.
- * @param   pDevIns     The pcnet device instance.
- * @param   pThread     The thread.
- */
-static DECLCALLBACK(int) e1kTxThreadWakeUp(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
-{
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
-    int rc = RTSemEventSignal(pState->hTxSem);
-    AssertRC(rc);
-    return VINF_SUCCESS;
-}
 
 /**
- * I/O thread for packet transmission.
+ * Transmit pending descriptors.
  *
- * @returns VBox status code. Returning failure will naturally terminate the thread.
- * @param   pDevIns     Pointer to device instance structure.
- * @param   pThread     The thread.
- * @thread  E1000_TX
+ * @returns VBox status code.  VERR_TRY_AGAIN is returned if we're busy.
+ *
+ * @param   pState              The E1000 state.
+ * @param   fOnWorkerThread     Whether we're on a worker thread or on an EMT.
  */
-static DECLCALLBACK(int) e1kTxThread(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
+static int e1kXmitPending(E1KSTATE *pState, bool fOnWorkerThread)
 {
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
+    int rc;
 
-    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
+    /*
+     * Grab the xmit lock of the driver as well as the E1K device state.
+     */
+    PPDMINETWORKUP pDrv = pState->CTX_SUFF(pDrv);
+    if (pDrv)
     {
-        int rc = RTSemEventWait(pState->hTxSem, RT_INDEFINITE_WAIT);
-        AssertRCReturn(rc, rc);
-        if (RT_UNLIKELY(pThread->enmState != PDMTHREADSTATE_RUNNING))
-            break;
-
-        if (pThread->enmState == PDMTHREADSTATE_RUNNING)
+        rc = pDrv->pfnBeginXmit(pDrv, fOnWorkerThread);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+    rc = e1kMutexAcquire(pState, VERR_TRY_AGAIN, RT_SRC_POS);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Process all pending descriptors.
+         * Note! Do not process descriptors in locked state
+         */
+        while (TDH != TDT && !pState->fLocked)
         {
             E1KTXDESC desc;
-            rc = e1kMutexAcquire(pState, VERR_SEM_BUSY, RT_SRC_POS);
-            AssertRCReturn(rc, rc);
-            /* Do not process descriptors in locked state */
-            while (TDH != TDT && !pState->fLocked)
+            E1kLog3(("%s About to process new TX descriptor at %08x%08x, TDLEN=%08x, TDH=%08x, TDT=%08x\n",
+                     INSTANCE(pState), TDBAH, TDBAL + TDH * sizeof(desc), TDLEN, TDH, TDT));
+
+            e1kLoadDesc(pState, &desc, ((uint64_t)TDBAH << 32) + TDBAL + TDH * sizeof(desc));
+            e1kXmitDesc(pState, &desc, ((uint64_t)TDBAH << 32) + TDBAL + TDH * sizeof(desc), fOnWorkerThread);
+            if (++TDH * sizeof(desc) >= TDLEN)
+                TDH = 0;
+
+            if (e1kGetTxLen(pState) <= GET_BITS(TXDCTL, LWTHRESH)*8)
             {
-                E1kLog3(("%s About to process new TX descriptor at %08x%08x, TDLEN=%08x, TDH=%08x, TDT=%08x\n",
-                         INSTANCE(pState), TDBAH, TDBAL + TDH * sizeof(desc), TDLEN, TDH, TDT));
-                //if (!e1kCsEnter(pState, RT_SRC_POS))
-                //    return VERR_PERMISSION_DENIED;
-                e1kLoadDesc(pState, &desc, ((uint64_t)TDBAH << 32) + TDBAL + TDH * sizeof(desc));
-                e1kXmitDesc(pState, &desc, ((uint64_t)TDBAH << 32) + TDBAL + TDH * sizeof(desc));
-                if (++TDH * sizeof(desc) >= TDLEN)
-                    TDH = 0;
-                if (e1kGetTxLen(pState) <= GET_BITS(TXDCTL, LWTHRESH)*8)
-                {
-                    E1kLog2(("%s Low on transmit descriptors, raise ICR.TXD_LOW, len=%x thresh=%x\n",
-                             INSTANCE(pState), e1kGetTxLen(pState), GET_BITS(TXDCTL, LWTHRESH)*8));
-                    e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_TXD_LOW);
-                }
-                STAM_PROFILE_ADV_STOP(&pState->StatTransmit, a);
-                //e1kCsLeave(pState);
+                E1kLog2(("%s Low on transmit descriptors, raise ICR.TXD_LOW, len=%x thresh=%x\n",
+                         INSTANCE(pState), e1kGetTxLen(pState), GET_BITS(TXDCTL, LWTHRESH)*8));
+                e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_TXD_LOW);
             }
-            /// @todo: uncomment: pState->uStatIntTXQE++;
-            /// @todo: uncomment: e1kRaiseInterrupt(pState, ICR_TXQE);
-            e1kMutexRelease(pState);
+
+            STAM_PROFILE_ADV_STOP(&pState->StatTransmit, a);
         }
+
+        /// @todo: uncomment: pState->uStatIntTXQE++;
+        /// @todo: uncomment: e1kRaiseInterrupt(pState, ICR_TXQE);
+
+        /*
+         * Release the locks.
+         */
+        e1kMutexRelease(pState);
     }
-    return VINF_SUCCESS;
+    if (pDrv)
+        pDrv->pfnEndXmit(pDrv);
+    return rc;
+}
+
+#ifdef IN_RING3
+
+/**
+ * @interface_method_impl{PDMINETWORKDOWN,pfnXmitPending}
+ */
+static DECLCALLBACK(void) e1kNetworkDown_XmitPending(PPDMINETWORKDOWN pInterface)
+{
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkDown);
+    e1kXmitPending(pState, true /*fOnWorkerThread*/);
 }
 
 /**
@@ -3279,9 +3847,11 @@ static DECLCALLBACK(bool) e1kTxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCO
 {
     NOREF(pItem);
     E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE *);
-    E1kLog2(("%s e1kTxQueueConsumer: Waking up TX thread...\n", INSTANCE(pState)));
-    int rc = RTSemEventSignal(pState->hTxSem);
-    AssertRC(rc);
+    E1kLog2(("%s e1kTxQueueConsumer:\n", INSTANCE(pState)));
+
+    int rc = e1kXmitPending(pState, false /*fOnWorkerThread*/);
+    AssertMsg(RT_SUCCESS(rc) || rc == VERR_TRY_AGAIN, ("%Rrc\n", rc));
+
     return true;
 }
 
@@ -3308,34 +3878,44 @@ static DECLCALLBACK(bool) e1kCanRxQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITE
  */
 static int e1kRegWriteTDT(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
 {
-#ifndef IN_RING3
-//    return VINF_IOM_HC_MMIO_WRITE;
-#endif
     int rc = e1kCsTxEnter(pState, VINF_IOM_HC_MMIO_WRITE);
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
         return rc;
     rc = e1kRegWriteDefault(pState, offset, index, value);
+
     /* All descriptors starting with head and not including tail belong to us. */
     /* Process them. */
     E1kLog2(("%s e1kRegWriteTDT: TDBAL=%08x, TDBAH=%08x, TDLEN=%08x, TDH=%08x, TDT=%08x\n",
             INSTANCE(pState), TDBAL, TDBAH, TDLEN, TDH, TDT));
+
     /* Ignore TDT writes when the link is down. */
     if (TDH != TDT && (STATUS & STATUS_LU))
     {
         E1kLogRel(("E1000: TDT write: %d descriptors to process\n", e1kGetTxLen(pState)));
         E1kLog(("%s e1kRegWriteTDT: %d descriptors to process, waking up E1000_TX thread\n",
                  INSTANCE(pState), e1kGetTxLen(pState)));
-#ifdef IN_RING3
-        rc = RTSemEventSignal(pState->hTxSem);
-        AssertRC(rc);
-#else
-        PPDMQUEUEITEMCORE pItem = PDMQueueAlloc(pState->CTX_SUFF(pTxQueue));
-        if (RT_UNLIKELY(pItem))
-            PDMQueueInsert(pState->CTX_SUFF(pTxQueue), pItem);
-#endif /* !IN_RING3 */
+        e1kCsTxLeave(pState);
 
+        /* Transmit pending packets if possible, defere it if we cannot do it
+           in the current context. */
+# ifndef IN_RING3
+        if (!pState->CTX_SUFF(pDrv))
+        {
+            PPDMQUEUEITEMCORE pItem = PDMQueueAlloc(pState->CTX_SUFF(pTxQueue));
+            if (RT_UNLIKELY(pItem))
+                PDMQueueInsert(pState->CTX_SUFF(pTxQueue), pItem);
+        }
+        else
+# endif
+        {
+            rc = e1kXmitPending(pState, false /*fOnWorkerThread*/);
+            if (rc == VERR_TRY_AGAIN)
+                rc = VINF_SUCCESS;
+            AssertRC(rc);
+        }
     }
-    e1kCsTxLeave(pState);
+    else
+        e1kCsTxLeave(pState);
 
     return rc;
 }
@@ -3530,7 +4110,7 @@ static int e1kRegReadDefault(E1KSTATE* pState, uint32_t offset, uint32_t index, 
  * @thread  EMT
  */
 
-static int e1kRegWriteUnimplemented(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
+ static int e1kRegWriteUnimplemented(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
 {
     E1kLog(("%s At %08X write attempt (%08X) to  unimplemented register %s (%s)\n",
             INSTANCE(pState), offset, value, s_e1kRegMap[index].abbrev, s_e1kRegMap[index].name));
@@ -3630,7 +4210,7 @@ static int e1kRegRead(E1KSTATE *pState, uint32_t uOffset, void *pv, uint32_t cb)
         case 2: mask = 0x0000FFFF; break;
         case 4: mask = 0xFFFFFFFF; break;
         default:
-            return PDMDeviceDBGFStop(pState->CTX_SUFF(pDevIns), RT_SRC_POS,
+            return PDMDevHlpDBGFStop(pState->CTX_SUFF(pDevIns), RT_SRC_POS,
                                      "%s e1kRegRead: unsupported op size: offset=%#10x cb=%#10x\n",
                                      szInst, uOffset, cb);
     }
@@ -3642,7 +4222,7 @@ static int e1kRegRead(E1KSTATE *pState, uint32_t uOffset, void *pv, uint32_t cb)
             shift = (uOffset - s_e1kRegMap[index].offset) % sizeof(uint32_t) * 8;
             mask <<= shift;
             if (!mask)
-                return PDMDeviceDBGFStop(pState->CTX_SUFF(pDevIns), RT_SRC_POS,
+                return PDMDevHlpDBGFStop(pState->CTX_SUFF(pDevIns), RT_SRC_POS,
                                          "%s e1kRegRead: Zero mask: offset=%#10x cb=%#10x\n",
                                          szInst, uOffset, cb);
             /*
@@ -3811,7 +4391,7 @@ PDMBOTHCBDECL(int) e1kMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
     if (cb != 4)
     {
         E1kLog(("%s e1kMMIOWrite: invalid op size: offset=%#10x cb=%#10x", pDevIns, uOffset, cb));
-        rc = PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "e1kMMIOWrite: invalid op size: offset=%#10x cb=%#10x\n", uOffset, cb);
+        rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "e1kMMIOWrite: invalid op size: offset=%#10x cb=%#10x\n", uOffset, cb);
     }
     else
         rc = e1kRegWrite(pState, uOffset, pv, cb);
@@ -3844,7 +4424,7 @@ PDMBOTHCBDECL(int) e1kIOPortIn(PPDMDEVINS pDevIns, void *pvUser,
     if (cb != 4)
     {
         E1kLog(("%s e1kIOPortIn: invalid op size: port=%RTiop cb=%08x", szInst, port, cb));
-        rc = PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "%s e1kIOPortIn: invalid op size: port=%RTiop cb=%08x\n", szInst, port, cb);
+        rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s e1kIOPortIn: invalid op size: port=%RTiop cb=%08x\n", szInst, port, cb);
     }
     else
         switch (port)
@@ -3855,7 +4435,7 @@ PDMBOTHCBDECL(int) e1kIOPortIn(PPDMDEVINS pDevIns, void *pvUser,
                 break;
             case 0x04: /* IODATA */
                 rc = e1kRegRead(pState, pState->uSelectedReg, pu32, cb);
-                /* @todo wrong return code triggers assertions in the debug build; fix please */
+                /** @todo wrong return code triggers assertions in the debug build; fix please */
                 if (rc == VINF_IOM_HC_MMIO_READ)
                     rc = VINF_IOM_HC_IOPORT_READ;
 
@@ -3895,7 +4475,7 @@ PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser,
     if (cb != 4)
     {
         E1kLog(("%s e1kIOPortOut: invalid op size: port=%RTiop cb=%08x\n", szInst, port, cb));
-        rc = PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "%s e1kIOPortOut: invalid op size: port=%RTiop cb=%08x\n", szInst, port, cb);
+        rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s e1kIOPortOut: invalid op size: port=%RTiop cb=%08x\n", szInst, port, cb);
     }
     else
     {
@@ -3909,7 +4489,7 @@ PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser,
             case 0x04: /* IODATA */
                 E1kLog2(("%s e1kIOPortOut: IODATA(4), writing to selected register %#010x, value=%#010x\n", szInst, pState->uSelectedReg, u32));
                 rc = e1kRegWrite(pState, pState->uSelectedReg, &u32, cb);
-                /* @todo wrong return code triggers assertions in the debug build; fix please */
+                /** @todo wrong return code triggers assertions in the debug build; fix please */
                 if (rc == VINF_IOM_HC_MMIO_WRITE)
                     rc = VINF_IOM_HC_IOPORT_WRITE;
                 break;
@@ -3918,7 +4498,7 @@ PDMBOTHCBDECL(int) e1kIOPortOut(PPDMDEVINS pDevIns, void *pvUser,
                 /** @todo Do we need to return an error here?
                  * bird: VINF_SUCCESS is fine for unhandled cases of an OUT handler. (If you're curious
                  *       about the guest code and a bit adventuresome, try rc = PDMDeviceDBGFStop(...);) */
-                rc = PDMDeviceDBGFStop(pDevIns, RT_SRC_POS, "e1kIOPortOut: invalid port %#010x\n", port);
+                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "e1kIOPortOut: invalid port %#010x\n", port);
         }
     }
 
@@ -4006,7 +4586,7 @@ static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion,
             }
             if (pState->fGCEnabled)
             {
-                rc = PDMDevHlpIOPortRegisterGC(pPciDev->pDevIns, pState->addrIOPort, cb, 0,
+                rc = PDMDevHlpIOPortRegisterRC(pPciDev->pDevIns, pState->addrIOPort, cb, 0,
                                                "e1kIOPortOut", "e1kIOPortIn", NULL, NULL, "E1000");
             }
             break;
@@ -4023,7 +4603,7 @@ static DECLCALLBACK(int) e1kMap(PPCIDEVICE pPciDev, int iRegion,
             }
             if (pState->fGCEnabled)
             {
-                rc = PDMDevHlpMMIORegisterGC(pPciDev->pDevIns, GCPhysAddress, cb, 0,
+                rc = PDMDevHlpMMIORegisterRC(pPciDev->pDevIns, GCPhysAddress, cb, 0,
                                              "e1kMMIOWrite", "e1kMMIORead", NULL);
             }
             break;
@@ -4068,9 +4648,12 @@ static int e1kCanReceive(E1KSTATE *pState)
     return cb > 0 ? VINF_SUCCESS : VERR_NET_NO_BUFFER_SPACE;
 }
 
-static DECLCALLBACK(int) e1kWaitReceiveAvail(PPDMINETWORKPORT pInterface, unsigned cMillies)
+/**
+ * @interface_method_impl{PDMINETWORKDOWN,pfnWaitReceiveAvail}
+ */
+static DECLCALLBACK(int) e1kNetworkDown_WaitReceiveAvail(PPDMINETWORKDOWN pInterface, RTMSINTERVAL cMillies)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, INetworkPort);
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkDown);
     int rc = e1kCanReceive(pState);
 
     if (RT_SUCCESS(rc))
@@ -4091,9 +4674,9 @@ static DECLCALLBACK(int) e1kWaitReceiveAvail(PPDMINETWORKPORT pInterface, unsign
             rc = VINF_SUCCESS;
             break;
         }
-        E1kLogRel(("E1000 e1kWaitReceiveAvail: waiting cMillies=%u...\n",
+        E1kLogRel(("E1000 e1kNetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n",
                 cMillies));
-        E1kLog(("%s e1kWaitReceiveAvail: waiting cMillies=%u...\n",
+        E1kLog(("%s e1kNetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n",
                 INSTANCE(pState), cMillies));
         RTSemEventWait(pState->hEventMoreRxDescAvail, cMillies);
     }
@@ -4266,17 +4849,11 @@ static bool e1kAddressFilter(E1KSTATE *pState, const void *pvBuf, size_t cb, E1K
 }
 
 /**
- * Receive data from the network.
- *
- * @returns VBox status code.
- * @param   pInterface      Pointer to the interface structure containing the called function pointer.
- * @param   pvBuf           The available data.
- * @param   cb              Number of bytes available in the buffer.
- * @thread  ???
+ * @interface_method_impl{PDMINETWORKDOWN,pfnReceive}
  */
-static DECLCALLBACK(int) e1kReceive(PPDMINETWORKPORT pInterface, const void *pvBuf, size_t cb)
+static DECLCALLBACK(int) e1kNetworkDown_Receive(PPDMINETWORKDOWN pInterface, const void *pvBuf, size_t cb)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, INetworkPort);
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkDown);
     int       rc = VINF_SUCCESS;
 
     /*
@@ -4315,7 +4892,7 @@ static DECLCALLBACK(int) e1kReceive(PPDMINETWORKPORT pInterface, const void *pvB
         }
         STAM_PROFILE_ADV_START(&pState->StatReceiveFilter, a);
         E1KRXDST status;
-        memset(&status, 0, sizeof(status));
+        RT_ZERO(status);
         bool fPassed = e1kAddressFilter(pState, pvBuf, cb, &status);
         STAM_PROFILE_ADV_STOP(&pState->StatReceiveFilter, a);
         if (fPassed)
@@ -4341,7 +4918,7 @@ static DECLCALLBACK(int) e1kReceive(PPDMINETWORKPORT pInterface, const void *pvB
  */
 static DECLCALLBACK(int) e1kQueryStatusLed(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, ILeds);
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, ILeds);
     int       rc     = VERR_PDM_LUN_NOT_FOUND;
 
     if (iLUN == 0)
@@ -4362,7 +4939,7 @@ static DECLCALLBACK(int) e1kQueryStatusLed(PPDMILEDPORTS pInterface, unsigned iL
  */
 static DECLCALLBACK(int) e1kGetMac(PPDMINETWORKCONFIG pInterface, PRTMAC pMac)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkConfig);
     pState->eeprom.getMac(pMac);
     return VINF_SUCCESS;
 }
@@ -4377,7 +4954,7 @@ static DECLCALLBACK(int) e1kGetMac(PPDMINETWORKCONFIG pInterface, PRTMAC pMac)
  */
 static DECLCALLBACK(PDMNETWORKLINKSTATE) e1kGetLinkState(PPDMINETWORKCONFIG pInterface)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkConfig);
     if (STATUS & STATUS_LU)
         return PDMNETWORKLINKSTATE_UP;
     return PDMNETWORKLINKSTATE_DOWN;
@@ -4394,7 +4971,7 @@ static DECLCALLBACK(PDMNETWORKLINKSTATE) e1kGetLinkState(PPDMINETWORKCONFIG pInt
  */
 static DECLCALLBACK(int) e1kSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETWORKLINKSTATE enmState)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, INetworkConfig);
+    E1KSTATE *pState = RT_FROM_MEMBER(pInterface, E1KSTATE, INetworkConfig);
     bool fOldUp = !!(STATUS & STATUS_LU);
     bool fNewUp = enmState == PDMNETWORKLINKSTATE_UP;
 
@@ -4408,7 +4985,7 @@ static DECLCALLBACK(int) e1kSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETWO
             Phy::setLinkStatus(&pState->phy, false);
             e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
             /* Restore the link back in 5 second. */
-            e1kArmTimer(pState, pState->pLUTimer, 5000000);
+            e1kArmTimer(pState, pState->pLUTimerR3, 5000000);
         }
         else
         {
@@ -4418,37 +4995,25 @@ static DECLCALLBACK(int) e1kSetLinkState(PPDMINETWORKCONFIG pInterface, PDMNETWO
             Phy::setLinkStatus(&pState->phy, false);
             e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
         }
-        if (pState->pDrv)
-            pState->pDrv->pfnNotifyLinkChanged(pState->pDrv, enmState);
+        if (pState->pDrvR3)
+            pState->pDrvR3->pfnNotifyLinkChanged(pState->pDrvR3, enmState);
     }
     return VINF_SUCCESS;
 }
 
 /**
- * Provides interfaces to the driver.
- *
- * @returns Pointer to interface. NULL if the interface is not supported.
- * @param   pInterface          Pointer to this interface structure.
- * @param   enmInterface        The requested interface identification.
- * @thread  EMT
+ * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) e1kQueryInterface(struct PDMIBASE *pInterface, PDMINTERFACE enmInterface)
+static DECLCALLBACK(void *) e1kQueryInterface(struct PDMIBASE *pInterface, const char *pszIID)
 {
-    E1KSTATE *pState = IFACE_TO_STATE(pInterface, IBase);
-    Assert(&pState->IBase == pInterface);
-    switch (enmInterface)
-    {
-        case PDMINTERFACE_BASE:
-            return &pState->IBase;
-        case PDMINTERFACE_NETWORK_PORT:
-            return &pState->INetworkPort;
-        case PDMINTERFACE_NETWORK_CONFIG:
-            return &pState->INetworkConfig;
-        case PDMINTERFACE_LED_PORTS:
-            return &pState->ILeds;
-        default:
-            return NULL;
-    }
+    E1KSTATE *pThis = RT_FROM_MEMBER(pInterface, E1KSTATE, IBase);
+    Assert(&pThis->IBase == pInterface);
+
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKDOWN, &pThis->INetworkDown);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKCONFIG, &pThis->INetworkConfig);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
+    return NULL;
 }
 
 /**
@@ -4546,11 +5111,14 @@ static DECLCALLBACK(int) e1kSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     //SSMR3PutBool(pSSM, pState->fDelayInts);
     //SSMR3PutBool(pSSM, pState->fIntMaskUsed);
     SSMR3PutU16(pSSM, pState->u16TxPktLen);
-    SSMR3PutMem(pSSM, pState->aTxPacket, pState->u16TxPktLen);
+/** @todo State wrt to the TSE buffer is incomplete, so little point in
+ *        saving this actually. */
+    SSMR3PutMem(pSSM, pState->aTxPacketFallback, pState->u16TxPktLen);
     SSMR3PutBool(pSSM, pState->fIPcsum);
     SSMR3PutBool(pSSM, pState->fTCPcsum);
     SSMR3PutMem(pSSM, &pState->contextTSE, sizeof(pState->contextTSE));
     SSMR3PutMem(pSSM, &pState->contextNormal, sizeof(pState->contextNormal));
+/**@todo GSO requres some more state here. */
     E1kLog(("%s State has been saved\n", INSTANCE(pState)));
     return VINF_SUCCESS;
 }
@@ -4656,12 +5224,16 @@ static DECLCALLBACK(int) e1kLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
         //SSMR3GetBool(pSSM, pState->fDelayInts);
         //SSMR3GetBool(pSSM, pState->fIntMaskUsed);
         SSMR3GetU16(pSSM, &pState->u16TxPktLen);
-        SSMR3GetMem(pSSM, &pState->aTxPacket, pState->u16TxPktLen);
+        SSMR3GetMem(pSSM, &pState->aTxPacketFallback[0], pState->u16TxPktLen);
         SSMR3GetBool(pSSM, &pState->fIPcsum);
         SSMR3GetBool(pSSM, &pState->fTCPcsum);
         SSMR3GetMem(pSSM, &pState->contextTSE, sizeof(pState->contextTSE));
         rc = SSMR3GetMem(pSSM, &pState->contextNormal, sizeof(pState->contextNormal));
         AssertRCReturn(rc, rc);
+
+        /* derived state  */
+        e1kSetupGsoCtx(&pState->GsoCtx, &pState->contextTSE);
+
         E1kLog(("%s State has been restored\n", INSTANCE(pState)));
         e1kDumpState(pState);
     }
@@ -4684,8 +5256,8 @@ static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         return rc;
 
     /* Update promiscous mode */
-    if (pState->pDrv)
-        pState->pDrv->pfnSetPromiscuousMode(pState->pDrv,
+    if (pState->pDrvR3)
+        pState->pDrvR3->pfnSetPromiscuousMode(pState->pDrvR3,
                                              !!(RCTL & (RCTL_UPE | RCTL_MPE)));
 
     /*
@@ -4701,9 +5273,212 @@ static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         Phy::setLinkStatus(&pState->phy, false);
         e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
         /* Restore the link back in five seconds. */
-        e1kArmTimer(pState, pState->pLUTimer, 5000000);
+        e1kArmTimer(pState, pState->pLUTimerR3, 5000000);
     }
     e1kMutexRelease(pState);
+    return VINF_SUCCESS;
+}
+
+/* -=-=-=-=- PDMDEVREG -=-=-=-=- */
+
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+
+/**
+ * Detach notification.
+ *
+ * One port on the network card has been disconnected from the network.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ */
+static DECLCALLBACK(void) e1kDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+{
+    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    Log(("%s e1kDetach:\n", INSTANCE(pState)));
+
+    AssertLogRelReturnVoid(iLUN == 0);
+
+    PDMCritSectEnter(&pState->cs, VERR_SEM_BUSY);
+
+    /** @todo: r=pritesh still need to check if i missed
+     * to clean something in this function
+     */
+
+    /*
+     * Zero some important members.
+     */
+    pState->pDrvBase = NULL;
+    pState->pDrvR3 = NULL;
+    pState->pDrvR0 = NIL_RTR0PTR;
+    pState->pDrvRC = NIL_RTRCPTR;
+
+    PDMCritSectLeave(&pState->cs);
+}
+
+
+/**
+ * Attach the Network attachment.
+ *
+ * One port on the network card has been connected to a network.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being attached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
+ *
+ * @remarks This code path is not used during construction.
+ */
+static DECLCALLBACK(int) e1kAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+{
+    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    LogFlow(("%s e1kAttach:\n",  INSTANCE(pState)));
+
+    AssertLogRelReturn(iLUN == 0, VERR_PDM_NO_SUCH_LUN);
+
+    PDMCritSectEnter(&pState->cs, VERR_SEM_BUSY);
+
+    /*
+     * Attach the driver.
+     */
+    int rc = PDMDevHlpDriverAttach(pDevIns, 0, &pState->IBase, &pState->pDrvBase, "Network Port");
+    if (RT_SUCCESS(rc))
+    {
+        if (rc == VINF_NAT_DNS)
+        {
+#ifdef RT_OS_LINUX
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Please check your /etc/resolv.conf for <tt>nameserver</tt> entries. Either add one manually (<i>man resolv.conf</i>) or ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+#else
+            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
+                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
+#endif
+        }
+        pState->pDrvR3 = PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMINETWORKUP);
+        AssertMsgStmt(pState->pDrvR3, ("Failed to obtain the PDMINETWORKUP interface!\n"),
+                      rc = VERR_PDM_MISSING_INTERFACE_BELOW);
+        if (RT_SUCCESS(rc))
+        {
+            PPDMIBASER0 pBaseR0 = PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMIBASER0);
+            pState->pDrvR0 = pBaseR0 ? pBaseR0->pfnQueryInterface(pBaseR0, PDMINETWORKUP_IID) : NIL_RTR0PTR;
+
+            PPDMIBASERC pBaseRC = PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMIBASERC);
+            pState->pDrvRC = pBaseRC ? pBaseRC->pfnQueryInterface(pBaseRC, PDMINETWORKUP_IID) : NIL_RTR0PTR;
+        }
+    }
+    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
+             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
+    {
+        /* This should never happen because this function is not called
+         * if there is no driver to attach! */
+        Log(("%s No attached driver!\n", INSTANCE(pState)));
+    }
+
+    /*
+     * Temporary set the link down if it was up so that the guest
+     * will know that we have change the configuration of the
+     * network card
+     */
+    if ((STATUS & STATUS_LU) && RT_SUCCESS(rc))
+    {
+        STATUS &= ~STATUS_LU;
+        Phy::setLinkStatus(&pState->phy, false);
+        e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
+        /* Restore the link back in 5 second. */
+        e1kArmTimer(pState, pState->pLUTimerR3, 5000000);
+    }
+
+    PDMCritSectLeave(&pState->cs);
+    return rc;
+
+}
+
+#endif /* VBOX_DYNAMIC_NET_ATTACH */
+
+/**
+ * @copydoc FNPDMDEVPOWEROFF
+ */
+static DECLCALLBACK(void) e1kPowerOff(PPDMDEVINS pDevIns)
+{
+    /* Poke thread waiting for buffer space. */
+    e1kWakeupReceive(pDevIns);
+}
+
+/**
+ * @copydoc FNPDMDEVSUSPEND
+ */
+static DECLCALLBACK(void) e1kSuspend(PPDMDEVINS pDevIns)
+{
+    /* Poke thread waiting for buffer space. */
+    e1kWakeupReceive(pDevIns);
+}
+
+/**
+ * Device relocation callback.
+ *
+ * When this callback is called the device instance data, and if the
+ * device have a GC component, is being relocated, or/and the selectors
+ * have been changed. The device must use the chance to perform the
+ * necessary pointer relocations and data updates.
+ *
+ * Before the GC code is executed the first time, this function will be
+ * called with a 0 delta so GC pointer calculations can be one in one place.
+ *
+ * @param   pDevIns     Pointer to the device instance.
+ * @param   offDelta    The relocation delta relative to the old location.
+ *
+ * @remark  A relocation CANNOT fail.
+ */
+static DECLCALLBACK(void) e1kRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+{
+    E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    pState->pDevInsRC     = PDMDEVINS_2_RCPTR(pDevIns);
+    pState->pTxQueueRC    = PDMQueueRCPtr(pState->pTxQueueR3);
+    pState->pCanRxQueueRC = PDMQueueRCPtr(pState->pCanRxQueueR3);
+#ifdef E1K_USE_RX_TIMERS
+    pState->pRIDTimerRC   = TMTimerRCPtr(pState->pRIDTimerR3);
+    pState->pRADTimerRC   = TMTimerRCPtr(pState->pRADTimerR3);
+#endif /* E1K_USE_RX_TIMERS */
+#ifdef E1K_USE_TX_TIMERS
+    pState->pTIDTimerRC   = TMTimerRCPtr(pState->pTIDTimerR3);
+# ifndef E1K_NO_TAD
+    pState->pTADTimerRC   = TMTimerRCPtr(pState->pTADTimerR3);
+# endif /* E1K_NO_TAD */
+#endif /* E1K_USE_TX_TIMERS */
+    pState->pIntTimerRC   = TMTimerRCPtr(pState->pIntTimerR3);
+    pState->pLUTimerRC    = TMTimerRCPtr(pState->pLUTimerR3);
+}
+
+/**
+ * Destruct a device instance.
+ *
+ * We need to free non-VM resources only.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
+ * @thread  EMT
+ */
+static DECLCALLBACK(int) e1kDestruct(PPDMDEVINS pDevIns)
+{
+    E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+
+    e1kDumpState(pState);
+    E1kLog(("%s Destroying instance\n", INSTANCE(pState)));
+    if (PDMCritSectIsInitialized(&pState->cs))
+    {
+        if (pState->hEventMoreRxDescAvail != NIL_RTSEMEVENT)
+        {
+            RTSemEventSignal(pState->hEventMoreRxDescAvail);
+            RTSemEventDestroy(pState->hEventMoreRxDescAvail);
+            pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
+        }
+#ifndef E1K_GLOBAL_MUTEX
+        PDMR3CritSectDelete(&pState->csRx);
+        //PDMR3CritSectDelete(&pState->csTx);
+#endif
+        PDMR3CritSectDelete(&pState->cs);
+    }
     return VINF_SUCCESS;
 }
 
@@ -4813,50 +5588,39 @@ static DECLCALLBACK(void) e1kConfigurePCI(PCIDEVICE& pci, E1KCHIP eChip)
 }
 
 /**
- * Construct a device instance for a VM.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- *                      If the registration structure is needed, pDevIns->pDevReg points to it.
- * @param   iInstance   Instance number. Use this to figure out which registers and such to use.
- *                      The device number is also found in pDevIns->iInstance, but since it's
- *                      likely to be freqently used PDM passes it as parameter.
- * @param   pCfgHandle  Configuration node handle for the device. Use this to obtain the configuration
- *                      of the device instance. It's also found in pDevIns->pCfgHandle, but like
- *                      iInstance it's expected to be used a bit in this function.
- * @thread  EMT
+ * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
-static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfgHandle)
+static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
     int       rc;
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /* Init handles and log related stuff. */
     RTStrPrintf(pState->szInstance, sizeof(pState->szInstance), "E1000#%d", iInstance);
     E1kLog(("%s Constructing new instance sizeof(E1KRXDESC)=%d\n", INSTANCE(pState), sizeof(E1KRXDESC)));
-    pState->hTxSem = NIL_RTSEMEVENT;
     pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfgHandle, "MAC\0" "CableConnected\0" "AdapterType\0" "LineSpeed\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "MAC\0" "CableConnected\0" "AdapterType\0" "LineSpeed\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("Invalid configuration for E1000 device"));
 
     /** @todo: LineSpeed unused! */
 
     /* Get config params */
-    rc = CFGMR3QueryBytes(pCfgHandle, "MAC", pState->macConfigured.au8,
+    rc = CFGMR3QueryBytes(pCfg, "MAC", pState->macConfigured.au8,
                           sizeof(pState->macConfigured.au8));
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get MAC address"));
-    rc = CFGMR3QueryBool(pCfgHandle, "CableConnected", &pState->fCableConnected);
+    rc = CFGMR3QueryBool(pCfg, "CableConnected", &pState->fCableConnected);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the value of 'CableConnected'"));
-    rc = CFGMR3QueryU32(pCfgHandle, "AdapterType", (uint32_t*)&pState->eChip);
+    rc = CFGMR3QueryU32(pCfg, "AdapterType", (uint32_t*)&pState->eChip);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed to get the value of 'AdapterType'"));
@@ -4912,9 +5676,13 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
     /* Interfaces */
     pState->IBase.pfnQueryInterface          = e1kQueryInterface;
-    pState->INetworkPort.pfnWaitReceiveAvail = e1kWaitReceiveAvail;
-    pState->INetworkPort.pfnReceive          = e1kReceive;
+
+    pState->INetworkDown.pfnWaitReceiveAvail = e1kNetworkDown_WaitReceiveAvail;
+    pState->INetworkDown.pfnReceive          = e1kNetworkDown_Receive;
+    pState->INetworkDown.pfnXmitPending      = e1kNetworkDown_XmitPending;
+
     pState->ILeds.pfnQueryStatusLed          = e1kQueryStatusLed;
+
     pState->INetworkConfig.pfnGetMac         = e1kGetMac;
     pState->INetworkConfig.pfnGetLinkState   = e1kGetLinkState;
     pState->INetworkConfig.pfnSetLinkState   = e1kSetLinkState;
@@ -4936,13 +5704,11 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         return rc;
 
     /* Initialize critical section */
-    rc = PDMDevHlpCritSectInit(pDevIns, &pState->cs, pState->szInstance);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pState->cs, RT_SRC_POS, "%s", pState->szInstance);
     if (RT_FAILURE(rc))
         return rc;
 #ifndef E1K_GLOBAL_MUTEX
-    char szTmp[sizeof(pState->szInstance) + 2];
-    RTStrPrintf(szTmp, sizeof(szTmp), "%sRX", pState->szInstance);
-    rc = PDMDevHlpCritSectInit(pDevIns, &pState->csRx, szTmp);
+    rc = PDMDevHlpCritSectInit(pDevIns, &pState->csRx, RT_SRC_POS, "%sRX", pState->szInstance);
     if (RT_FAILURE(rc))
         return rc;
 #endif
@@ -4966,16 +5732,16 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
         return rc;
 
     /* Create transmit queue */
-    rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
-                                 e1kTxQueueConsumer, true, "E1000-Xmit", &pState->pTxQueueR3);
+    rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
+                              e1kTxQueueConsumer, true, "E1000-Xmit", &pState->pTxQueueR3);
     if (RT_FAILURE(rc))
         return rc;
     pState->pTxQueueR0 = PDMQueueR0Ptr(pState->pTxQueueR3);
     pState->pTxQueueRC = PDMQueueRCPtr(pState->pTxQueueR3);
 
     /* Create the RX notifier signaller. */
-    rc = PDMDevHlpPDMQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
-                                 e1kCanRxQueueConsumer, true, "E1000-Rcv", &pState->pCanRxQueueR3);
+    rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 1, 0,
+                              e1kCanRxQueueConsumer, true, "E1000-Rcv", &pState->pCanRxQueueR3);
     if (RT_FAILURE(rc))
         return rc;
     pState->pCanRxQueueR0 = PDMQueueR0Ptr(pState->pCanRxQueueR3);
@@ -5035,16 +5801,18 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     /* Create Link Up Timer */
     rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL, e1kLinkUpTimer, pState,
                                 TMTIMER_FLAGS_DEFAULT_CRIT_SECT, /** @todo check locking here. */
-                                "E1000 Link Up Timer", &pState->pLUTimer);
+                                "E1000 Link Up Timer", &pState->pLUTimerR3);
     if (RT_FAILURE(rc))
         return rc;
+    pState->pLUTimerR0 = TMTimerR0Ptr(pState->pLUTimerR3);
+    pState->pLUTimerRC = TMTimerRCPtr(pState->pLUTimerR3);
 
     /* Status driver */
     PPDMIBASE pBase;
     rc = PDMDevHlpDriverAttach(pDevIns, PDM_STATUS_LUN, &pState->IBase, &pBase, "Status Port");
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the status LUN"));
-    pState->pLedsConnector = (PPDMILEDCONNECTORS)pBase->pfnQueryInterface(pBase, PDMINTERFACE_LED_CONNECTORS);
+    pState->pLedsConnector = PDMIBASE_QUERY_INTERFACE(pBase, PDMILEDCONNECTORS);
 
     rc = PDMDevHlpDriverAttach(pDevIns, 0, &pState->IBase, &pState->pDrvBase, "Network Port");
     if (RT_SUCCESS(rc))
@@ -5054,13 +5822,12 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
             PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
                                        N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
         }
-        pState->pDrv = (PPDMINETWORKCONNECTOR)
-            pState->pDrvBase->pfnQueryInterface(pState->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
-        if (!pState->pDrv)
-        {
-            AssertMsgFailed(("%s Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
-            return VERR_PDM_MISSING_INTERFACE_BELOW;
-        }
+        pState->pDrvR3 = PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMINETWORKUP);
+        AssertMsgReturn(pState->pDrvR3, ("Failed to obtain the PDMINETWORKUP interface!\n"),
+                        VERR_PDM_MISSING_INTERFACE_BELOW);
+
+        pState->pDrvR0 = PDMIBASER0_QUERY_INTERFACE(PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMIBASER0), PDMINETWORKUP);
+        pState->pDrvRC = PDMIBASERC_QUERY_INTERFACE(PDMIBASE_QUERY_INTERFACE(pState->pDrvBase, PDMIBASERC), PDMINETWORKUP);
     }
     else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
              || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
@@ -5071,18 +5838,11 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     else
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach the network LUN"));
 
-    rc = RTSemEventCreate(&pState->hTxSem);
-    if (RT_FAILURE(rc))
-        return rc;
     rc = RTSemEventCreate(&pState->hEventMoreRxDescAvail);
     if (RT_FAILURE(rc))
         return rc;
 
     e1kHardReset(pState);
-
-    rc = PDMDevHlpPDMThreadCreate(pDevIns, &pState->pTxThread, pState, e1kTxThread, e1kTxThreadWakeUp, 0, RTTHREADTYPE_IO, "E1000_TX");
-    if (RT_FAILURE(rc))
-        return rc;
 
 #if defined(VBOX_WITH_STATISTICS) || defined(E1K_REL_STATS)
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatMMIOReadGC,         STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling MMIO reads in GC",         "/Devices/E1k%d/MMIO/ReadGC", iInstance);
@@ -5113,210 +5873,18 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 #if defined(VBOX_WITH_STATISTICS) || defined(E1K_REL_STATS)
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTransmitSend,       STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling send transmit in HC",      "/Devices/E1k%d/Transmit/Send", iInstance);
 
-    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxDescLegacy,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of TX legacy descriptors",    "/Devices/E1k%d/TxDesc/Legacy", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxDescCtxNormal,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of normal context descriptors","/Devices/E1k%d/TxDesc/ContexNormal", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxDescCtxTSE,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of TSE context descriptors",  "/Devices/E1k%d/TxDesc/ContextTSE", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxDescData,         STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of TX data descriptors",      "/Devices/E1k%d/TxDesc/Data", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxDescLegacy,       STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of TX legacy descriptors",    "/Devices/E1k%d/TxDesc/Legacy", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxDescTSEData,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of TX TSE data descriptors",  "/Devices/E1k%d/TxDesc/TSEData", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxPathFallback,     STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Fallback TSE descriptor path",       "/Devices/E1k%d/TxPath/Fallback", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxPathGSO,          STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "GSO TSE descriptor path",            "/Devices/E1k%d/TxPath/GSO", iInstance);
+    PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatTxPathRegular,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Regular descriptor path",            "/Devices/E1k%d/TxPath/Normal", iInstance);
     PDMDevHlpSTAMRegisterF(pDevIns, &pState->StatPHYAccesses,        STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,     "Number of PHY accesses",             "/Devices/E1k%d/PHYAccesses", iInstance);
 #endif /* VBOX_WITH_STATISTICS || E1K_REL_STATS */
 
     return VINF_SUCCESS;
-}
-
-/**
- * Destruct a device instance.
- *
- * We need to free non-VM resources only.
- *
- * @returns VBox status.
- * @param   pDevIns     The device instance data.
- * @thread  EMT
- */
-static DECLCALLBACK(int) e1kDestruct(PPDMDEVINS pDevIns)
-{
-    E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
-
-    e1kDumpState(pState);
-    E1kLog(("%s Destroying instance\n", INSTANCE(pState)));
-    if (PDMCritSectIsInitialized(&pState->cs))
-    {
-        if (pState->hEventMoreRxDescAvail != NIL_RTSEMEVENT)
-        {
-            RTSemEventSignal(pState->hEventMoreRxDescAvail);
-            RTSemEventDestroy(pState->hEventMoreRxDescAvail);
-            pState->hEventMoreRxDescAvail = NIL_RTSEMEVENT;
-        }
-        if (pState->hTxSem != NIL_RTSEMEVENT)
-        {
-            RTSemEventDestroy(pState->hTxSem);
-            pState->hTxSem = NIL_RTSEMEVENT;
-        }
-#ifndef E1K_GLOBAL_MUTEX
-        PDMR3CritSectDelete(&pState->csRx);
-        //PDMR3CritSectDelete(&pState->csTx);
-#endif
-        PDMR3CritSectDelete(&pState->cs);
-    }
-    return VINF_SUCCESS;
-}
-
-/**
- * Device relocation callback.
- *
- * When this callback is called the device instance data, and if the
- * device have a GC component, is being relocated, or/and the selectors
- * have been changed. The device must use the chance to perform the
- * necessary pointer relocations and data updates.
- *
- * Before the GC code is executed the first time, this function will be
- * called with a 0 delta so GC pointer calculations can be one in one place.
- *
- * @param   pDevIns     Pointer to the device instance.
- * @param   offDelta    The relocation delta relative to the old location.
- *
- * @remark  A relocation CANNOT fail.
- */
-static DECLCALLBACK(void) e1kRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    E1KSTATE* pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
-    pState->pDevInsRC     = PDMDEVINS_2_RCPTR(pDevIns);
-    pState->pTxQueueRC    = PDMQueueRCPtr(pState->pTxQueueR3);
-    pState->pCanRxQueueRC = PDMQueueRCPtr(pState->pCanRxQueueR3);
-#ifdef E1K_USE_RX_TIMERS
-    pState->pRIDTimerRC   = TMTimerRCPtr(pState->pRIDTimerR3);
-    pState->pRADTimerRC   = TMTimerRCPtr(pState->pRADTimerR3);
-#endif /* E1K_USE_RX_TIMERS */
-#ifdef E1K_USE_TX_TIMERS
-    pState->pTIDTimerRC   = TMTimerRCPtr(pState->pTIDTimerR3);
-# ifndef E1K_NO_TAD
-    pState->pTADTimerRC   = TMTimerRCPtr(pState->pTADTimerR3);
-# endif /* E1K_NO_TAD */
-#endif /* E1K_USE_TX_TIMERS */
-    pState->pIntTimerRC   = TMTimerRCPtr(pState->pIntTimerR3);
-}
-
-/**
- * @copydoc FNPDMDEVSUSPEND
- */
-static DECLCALLBACK(void) e1kSuspend(PPDMDEVINS pDevIns)
-{
-    /* Poke thread waiting for buffer space. */
-    e1kWakeupReceive(pDevIns);
-}
-
-
-#ifdef VBOX_DYNAMIC_NET_ATTACH
-/**
- * Detach notification.
- *
- * One port on the network card has been disconnected from the network.
- *
- * @param   pDevIns     The device instance.
- * @param   iLUN        The logical unit which is being detached.
- * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
- */
-static DECLCALLBACK(void) e1kDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
-{
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
-    Log(("%s e1kDetach:\n", INSTANCE(pState)));
-
-    AssertLogRelReturnVoid(iLUN == 0);
-
-    PDMCritSectEnter(&pState->cs, VERR_SEM_BUSY);
-
-    /** @todo: r=pritesh still need to check if i missed
-     * to clean something in this function
-     */
-
-    /*
-     * Zero some important members.
-     */
-    pState->pDrvBase = NULL;
-    pState->pDrv = NULL;
-
-    PDMCritSectLeave(&pState->cs);
-}
-
-
-/**
- * Attach the Network attachment.
- *
- * One port on the network card has been connected to a network.
- *
- * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   iLUN        The logical unit which is being attached.
- * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
- *
- * @remarks This code path is not used during construction.
- */
-static DECLCALLBACK(int) e1kAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
-{
-    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
-    LogFlow(("%s e1kAttach:\n",  INSTANCE(pState)));
-
-    AssertLogRelReturn(iLUN == 0, VERR_PDM_NO_SUCH_LUN);
-
-    PDMCritSectEnter(&pState->cs, VERR_SEM_BUSY);
-
-    /*
-     * Attach the driver.
-     */
-    int rc = PDMDevHlpDriverAttach(pDevIns, 0, &pState->IBase, &pState->pDrvBase, "Network Port");
-    if (RT_SUCCESS(rc))
-    {
-        if (rc == VINF_NAT_DNS)
-        {
-#ifdef RT_OS_LINUX
-            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
-                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Please check your /etc/resolv.conf for <tt>nameserver</tt> entries. Either add one manually (<i>man resolv.conf</i>) or ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
-#else
-            PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "NoDNSforNAT",
-                                       N_("A Domain Name Server (DNS) for NAT networking could not be determined. Ensure that your host is correctly connected to an ISP. If you ignore this warning the guest will not be able to perform nameserver lookups and it will probably observe delays if trying so"));
-#endif
-        }
-        pState->pDrv = (PPDMINETWORKCONNECTOR)pState->pDrvBase->pfnQueryInterface(pState->pDrvBase, PDMINTERFACE_NETWORK_CONNECTOR);
-        if (!pState->pDrv)
-        {
-            AssertMsgFailed(("Failed to obtain the PDMINTERFACE_NETWORK_CONNECTOR interface!\n"));
-            rc = VERR_PDM_MISSING_INTERFACE_BELOW;
-        }
-    }
-    else if (   rc == VERR_PDM_NO_ATTACHED_DRIVER
-             || rc == VERR_PDM_CFG_MISSING_DRIVER_NAME)
-    {
-        /* This should never happen because this function is not called
-         * if there is no driver to attach! */
-        Log(("%s No attached driver!\n", INSTANCE(pState)));
-    }
-
-    /*
-     * Temporary set the link down if it was up so that the guest
-     * will know that we have change the configuration of the
-     * network card
-     */
-    if ((STATUS & STATUS_LU) && RT_SUCCESS(rc))
-    {
-        STATUS &= ~STATUS_LU;
-        Phy::setLinkStatus(&pState->phy, false);
-        e1kRaiseInterrupt(pState, VERR_SEM_BUSY, ICR_LSC);
-        /* Restore the link back in 5 second. */
-        e1kArmTimer(pState, pState->pLUTimer, 5000000);
-    }
-
-    PDMCritSectLeave(&pState->cs);
-    return rc;
-
-}
-#endif /* VBOX_DYNAMIC_NET_ATTACH */
-
-
-/**
- * @copydoc FNPDMDEVPOWEROFF
- */
-static DECLCALLBACK(void) e1kPowerOff(PPDMDEVINS pDevIns)
-{
-    /* Poke thread waiting for buffer space. */
-    e1kWakeupReceive(pDevIns);
 }
 
 /**

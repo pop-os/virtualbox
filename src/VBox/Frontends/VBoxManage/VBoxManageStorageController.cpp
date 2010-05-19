@@ -1,10 +1,10 @@
-/* $Id: VBoxManageStorageController.cpp $ */
+/* $Id: VBoxManageStorageController.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxManage - The storage controller related commands.
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,10 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 #ifndef VBOX_ONLY_DOCS
@@ -82,7 +78,7 @@ int handleStorageAttach(HandlerArg *a)
         return errorSyntax(USAGE_STORAGEATTACH, "Too many parameters");
 
     RTGetOptInit(&GetState, a->argc, a->argv, g_aStorageAttachOptions,
-                 RT_ELEMENTS(g_aStorageAttachOptions), 1, 0 /* fFlags */);
+                 RT_ELEMENTS(g_aStorageAttachOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
     while (   SUCCEEDED(rc)
            && (c = RTGetOpt(&GetState, &ValueUnion)))
@@ -656,6 +652,7 @@ static const RTGETOPTDEF g_aStorageControllerOptions[] =
     { "--sataideemulation", 'e', RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
     { "--sataportcount",    'p', RTGETOPT_REQ_UINT32 },
     { "--remove",           'r', RTGETOPT_REQ_NOTHING },
+    { "--iobackend",        'i', RTGETOPT_REQ_STRING },
 };
 
 int handleStorageController(HandlerArg *a)
@@ -665,6 +662,7 @@ int handleStorageController(HandlerArg *a)
     const char       *pszCtl         = NULL;
     const char       *pszBusType     = NULL;
     const char       *pszCtlType     = NULL;
+    const char       *pszIoBackend   = NULL;
     ULONG             satabootdev    = ~0U;
     ULONG             sataidedev     = ~0U;
     ULONG             sataportcount  = ~0U;
@@ -678,7 +676,7 @@ int handleStorageController(HandlerArg *a)
         return errorSyntax(USAGE_STORAGECONTROLLER, "Too few parameters");
 
     RTGetOptInit (&GetState, a->argc, a->argv, g_aStorageControllerOptions,
-                  RT_ELEMENTS(g_aStorageControllerOptions), 1, 0 /* fFlags */);
+                  RT_ELEMENTS(g_aStorageControllerOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
     while (   SUCCEEDED(rc)
            && (c = RTGetOpt(&GetState, &ValueUnion)))
@@ -714,16 +712,6 @@ int handleStorageController(HandlerArg *a)
 
             case 'e':   // sataideemulation
             {
-                if ((GetState.uIndex < 1) && (GetState.uIndex > 4))
-                    return errorSyntax(USAGE_STORAGECONTROLLER,
-                                       "Missing or Invalid SATA boot slot number in '%s'",
-                                       GetState.pDef->pszLong);
-
-                if ((ValueUnion.u32 < 1) && (ValueUnion.u32 > 30))
-                    return errorSyntax(USAGE_STORAGECONTROLLER,
-                                       "Missing or Invalid SATA port number in '%s'",
-                                       GetState.pDef->pszLong);
-
                 satabootdev = GetState.uIndex;
                 sataidedev = ValueUnion.u32;
                 break;
@@ -738,6 +726,12 @@ int handleStorageController(HandlerArg *a)
             case 'r':   // remove controller
             {
                 fRemoveCtl = true;
+                break;
+            }
+
+            case 'i':
+            {
+                pszIoBackend = ValueUnion.psz;
                 break;
             }
 
@@ -824,6 +818,10 @@ int handleStorageController(HandlerArg *a)
             {
                 CHECK_ERROR(machine, AddStorageController(Bstr(pszCtl), StorageBus_Floppy, ctl.asOutParam()));
             }
+            else if (!RTStrICmp(pszBusType, "sas"))
+            {
+                CHECK_ERROR(machine, AddStorageController(Bstr(pszCtl), StorageBus_SAS, ctl.asOutParam()));
+            }
             else
             {
                 errorArgument("Invalid --add argument '%s'", pszBusType);
@@ -867,6 +865,10 @@ int handleStorageController(HandlerArg *a)
                 else if (!RTStrICmp(pszCtlType, "i82078"))
                 {
                     CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_I82078));
+                }
+                else if (!RTStrICmp(pszCtlType, "lsilogicsas"))
+                {
+                    CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_LsiLogicSas));
                 }
                 else
                 {
@@ -916,6 +918,28 @@ int handleStorageController(HandlerArg *a)
                 errorArgument("Couldn't find the controller with the name: '%s'\n", pszCtl);
                 rc = E_FAIL;
             }
+        }
+
+        if (   pszIoBackend
+            && SUCCEEDED(rc))
+        {
+                ComPtr<IStorageController> ctl;
+
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr(pszCtl), ctl.asOutParam()));
+
+                if (!RTStrICmp(pszIoBackend, "buffered"))
+                {
+                    CHECK_ERROR(ctl, COMSETTER(IoBackend)(IoBackendType_Buffered));
+                }
+                else if (!RTStrICmp(pszIoBackend, "unbuffered"))
+                {
+                    CHECK_ERROR(ctl, COMSETTER(IoBackend)(IoBackendType_Unbuffered));
+                }
+                else
+                {
+                    errorArgument("Invalid --type argument '%s'", pszIoBackend);
+                    rc = E_FAIL;
+                }
         }
     }
 

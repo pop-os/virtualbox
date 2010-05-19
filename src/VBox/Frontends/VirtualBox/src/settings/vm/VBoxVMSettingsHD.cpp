@@ -1,3 +1,4 @@
+/* $Id: VBoxVMSettingsHD.cpp 29199 2010-05-07 12:04:23Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Sun Microsystems, Inc.
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +15,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa
- * Clara, CA 95054 USA or visit http://www.sun.com if you need
- * additional information or have any questions.
  */
 
 /* Global Includes */
@@ -36,7 +33,7 @@
 #include "QIWidgetValidator.h"
 #include "VBoxToolBar.h"
 #include "VBoxMediaManagerDlg.h"
-#include "VBoxNewHDWzd.h"
+#include "UINewHDWzd.h"
 
 /* String Tags */
 const char *firstAvailableId = "first available";
@@ -169,6 +166,9 @@ AbstractControllerType::AbstractControllerType (KStorageBus aBusType, KStorageCo
             case KStorageBus_Floppy:
                 mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::FloppyControllerNormal + i);
                 break;
+            case KStorageBus_SAS:
+                mPixmaps [i] = (PixmapPool::PixmapType) (PixmapPool::SATAControllerNormal + i);
+                break;
             default:
                 break;
         }
@@ -269,6 +269,22 @@ KStorageControllerType FloppyControllerType::first() const
 }
 
 uint FloppyControllerType::size() const
+{
+    return 1;
+}
+
+/* SAS Controller Type */
+SASControllerType::SASControllerType (KStorageControllerType aSubType)
+    : AbstractControllerType (KStorageBus_SAS, aSubType)
+{
+}
+
+KStorageControllerType SASControllerType::first() const
+{
+    return KStorageControllerType_LsiLogicSas;
+}
+
+uint SASControllerType::size() const
 {
     return 1;
 }
@@ -389,6 +405,7 @@ ControllerItem::ControllerItem (AbstractItem *aParent, const QString &aName,
     : AbstractItem (aParent)
     , mCtrName (aName)
     , mCtrType (0)
+    , mUseIoCache (true)
 {
     /* Check for proper parent type */
     AssertMsg (mParent->rtti() == AbstractItem::Type_RootItem, ("Incorrect parent type!\n"));
@@ -407,6 +424,9 @@ ControllerItem::ControllerItem (AbstractItem *aParent, const QString &aName,
             break;
         case KStorageBus_Floppy:
             mCtrType = new FloppyControllerType (aControllerType);
+            break;
+        case KStorageBus_SAS:
+            mCtrType = new SASControllerType (aControllerType);
             break;
         default:
             AssertMsgFailed (("Wrong Controller Type {%d}!\n", aBusType));
@@ -441,6 +461,11 @@ ControllerTypeList ControllerItem::ctrTypes() const
     return mCtrType->ctrTypes();
 }
 
+bool ControllerItem::ctrUseIoCache() const
+{
+    return mUseIoCache;
+}
+
 void ControllerItem::setCtrName (const QString &aCtrName)
 {
     mCtrName = aCtrName;
@@ -449,6 +474,11 @@ void ControllerItem::setCtrName (const QString &aCtrName)
 void ControllerItem::setCtrType (KStorageControllerType aCtrType)
 {
     mCtrType->setCtrType (aCtrType);
+}
+
+void ControllerItem::setCtrUseIoCache (bool aUseIoCache)
+{
+    mUseIoCache = aUseIoCache;
 }
 
 SlotsList ControllerItem::ctrAllSlots() const
@@ -1008,6 +1038,11 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
             return static_cast <RootItem*> (mRootItem)->childCount (KStorageBus_Floppy) <
                    vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus (KStorageBus_Floppy);
         }
+        case R_IsMoreSASControllersPossible:
+        {
+            return static_cast <RootItem*> (mRootItem)->childCount (KStorageBus_SAS) <
+                   vboxGlobal().virtualBox().GetSystemProperties().GetMaxInstancesOfStorageBus (KStorageBus_SAS);
+        }
         case R_IsMoreAttachmentsPossible:
         {
             if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
@@ -1061,6 +1096,13 @@ QVariant StorageModel::data (const QModelIndex &aIndex, int aRole) const
                 if (item->rtti() == AbstractItem::Type_ControllerItem)
                     result.setValue (static_cast <ControllerItem*> (item)->ctrBusType());
             return result;
+        }
+        case R_CtrIoCache:
+        {
+            if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
+                if (item->rtti() == AbstractItem::Type_ControllerItem)
+                    return static_cast <ControllerItem*> (item)->ctrUseIoCache();
+            return false;
         }
 
         case R_AttSlot:
@@ -1261,6 +1303,17 @@ bool StorageModel::setData (const QModelIndex &aIndex, const QVariant &aValue, i
                 }
             return false;
         }
+        case R_CtrIoCache:
+        {
+            if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
+                if (item->rtti() == AbstractItem::Type_ControllerItem)
+                {
+                    static_cast <ControllerItem*> (item)->setCtrUseIoCache (aValue.toBool());
+                    emit dataChanged (aIndex, aIndex);
+                    return true;
+                }
+            return false;
+        }
         case R_AttSlot:
         {
             if (AbstractItem *item = static_cast <AbstractItem*> (aIndex.internalPointer()))
@@ -1268,6 +1321,7 @@ bool StorageModel::setData (const QModelIndex &aIndex, const QVariant &aValue, i
                 {
                     static_cast <AttachmentItem*> (item)->setAttSlot (aValue.value <StorageSlot>());
                     emit dataChanged (aIndex, aIndex);
+                    sort();
                     return true;
                 }
             return false;
@@ -1374,6 +1428,81 @@ void StorageModel::delAttachment (const QUuid &aCtrId, const QUuid &aAttId)
 void StorageModel::setMachineId (const QString &aMachineId)
 {
     mRootItem->setMachineId (aMachineId);
+}
+
+void StorageModel::sort(int /* iColumn */, Qt::SortOrder order)
+{
+    /* Count of controller items: */
+    int iItemLevel1Count = mRootItem->childCount();
+    /* For each of controller items: */
+    for (int iItemLevel1Pos = 0; iItemLevel1Pos < iItemLevel1Count; ++iItemLevel1Pos)
+    {
+        /* Get iterated controller item: */
+        AbstractItem *pItemLevel1 = mRootItem->childByPos(iItemLevel1Pos);
+        ControllerItem *pControllerItem = static_cast<ControllerItem*>(pItemLevel1);
+        /* Count of attachment items: */
+        int iItemLevel2Count = pItemLevel1->childCount();
+        /* Prepare empty list for sorted attachments: */
+        QList<AbstractItem*> newAttachments;
+        /* For each of attachment items: */
+        for (int iItemLevel2Pos = 0; iItemLevel2Pos < iItemLevel2Count; ++iItemLevel2Pos)
+        {
+            /* Get iterated attachment item: */
+            AbstractItem *pItemLevel2 = pItemLevel1->childByPos(iItemLevel2Pos);
+            AttachmentItem *pAttachmentItem = static_cast<AttachmentItem*>(pItemLevel2);
+            /* Get iterated attachment storage slot: */
+            StorageSlot attachmentSlot = pAttachmentItem->attSlot();
+            int iInsertPosition = 0;
+            for (; iInsertPosition < newAttachments.size(); ++iInsertPosition)
+            {
+                /* Get sorted attachment item: */
+                AbstractItem *pNewItemLevel2 = newAttachments[iInsertPosition];
+                AttachmentItem *pNewAttachmentItem = static_cast<AttachmentItem*>(pNewItemLevel2);
+                /* Get sorted attachment storage slot: */
+                StorageSlot newAttachmentSlot = pNewAttachmentItem->attSlot();
+                /* Apply sorting rule: */
+                if (((order == Qt::AscendingOrder) && (attachmentSlot < newAttachmentSlot)) ||
+                    ((order == Qt::DescendingOrder) && (attachmentSlot > newAttachmentSlot)))
+                    break;
+            }
+            /* Insert iterated attachment into sorted position: */
+            newAttachments.insert(iInsertPosition, pItemLevel2);
+        }
+
+        /* If that controller has attachments: */
+        if (iItemLevel2Count)
+        {
+            /* We should update corresponding model-indexes: */
+            QModelIndex controllerIndex = index(iItemLevel1Pos, 0, root());
+            pControllerItem->setAttachments(newAttachments);
+            /* That is actually beginMoveRows() + endMoveRows() which
+             * unfortunately become available only in Qt 4.6 version. */
+            beginRemoveRows(controllerIndex, 0, iItemLevel2Count - 1);
+            endRemoveRows();
+            beginInsertRows(controllerIndex, 0, iItemLevel2Count - 1);
+            endInsertRows();
+        }
+    }
+}
+
+QModelIndex StorageModel::attachmentBySlot(QModelIndex controllerIndex, StorageSlot attachmentStorageSlot)
+{
+    /* Check what parent model index is valid, set and of 'controller' type: */
+    AssertMsg(controllerIndex.isValid(), ("Controller index should be valid!\n"));
+    AbstractItem *pParentItem = static_cast<AbstractItem*>(controllerIndex.internalPointer());
+    AssertMsg(pParentItem, ("Parent item should be set!\n"));
+    AssertMsg(pParentItem->rtti() == AbstractItem::Type_ControllerItem, ("Parent item should be of 'controller' type!\n"));
+    NOREF(pParentItem);
+
+    /* Search for suitable attachment one by one: */
+    for (int i = 0; i < rowCount(controllerIndex); ++i)
+    {
+        QModelIndex curAttachmentIndex = index(i, 0, controllerIndex);
+        StorageSlot curAttachmentStorageSlot = data(curAttachmentIndex, R_AttSlot).value<StorageSlot>();
+        if (curAttachmentStorageSlot ==  attachmentStorageSlot)
+            return curAttachmentIndex;
+    }
+    return QModelIndex();
 }
 
 Qt::ItemFlags StorageModel::flags (const QModelIndex &aIndex) const
@@ -1527,6 +1656,10 @@ VBoxVMSettingsHD::VBoxVMSettingsHD()
     mAddFloppyCtrAction->setIcon (VBoxGlobal::iconSet (PixmapPool::pool()->pixmap (PixmapPool::FloppyControllerAddEn),
                                                        PixmapPool::pool()->pixmap (PixmapPool::FloppyControllerAddDis)));
 
+    mAddSASCtrAction = new QAction (this);
+    mAddSASCtrAction->setIcon (VBoxGlobal::iconSet (PixmapPool::pool()->pixmap (PixmapPool::SATAControllerAddEn),
+                                                    PixmapPool::pool()->pixmap (PixmapPool::SATAControllerAddDis)));
+
     mDelCtrAction = new QAction (this);
     mDelCtrAction->setIcon (VBoxGlobal::iconSet (PixmapPool::pool()->pixmap (PixmapPool::ControllerDelEn),
                                                  PixmapPool::pool()->pixmap (PixmapPool::ControllerDelDis)));
@@ -1602,6 +1735,7 @@ VBoxVMSettingsHD::VBoxVMSettingsHD()
     connect (mAddIDECtrAction, SIGNAL (triggered (bool)), this, SLOT (addIDEController()));
     connect (mAddSATACtrAction, SIGNAL (triggered (bool)), this, SLOT (addSATAController()));
     connect (mAddSCSICtrAction, SIGNAL (triggered (bool)), this, SLOT (addSCSIController()));
+    connect (mAddSASCtrAction, SIGNAL (triggered (bool)), this, SLOT (addSASController()));
     connect (mAddFloppyCtrAction, SIGNAL (triggered (bool)), this, SLOT (addFloppyController()));
     connect (mDelCtrAction, SIGNAL (triggered (bool)), this, SLOT (delController()));
     connect (mAddAttAction, SIGNAL (triggered (bool)), this, SLOT (addAttachment()));
@@ -1628,6 +1762,7 @@ VBoxVMSettingsHD::VBoxVMSettingsHD()
     connect (mLeName, SIGNAL (textEdited (const QString&)), this, SLOT (setInformation()));
     connect (mCbType, SIGNAL (activated (int)), this, SLOT (setInformation()));
     connect (mCbSlot, SIGNAL (activated (int)), this, SLOT (setInformation()));
+    connect (mCbIoCache, SIGNAL (stateChanged (int)), this, SLOT (setInformation()));
     connect (mCbVdi, SIGNAL (activated (int)), this, SLOT (setInformation()));
     connect (mTbVmm, SIGNAL (clicked (bool)), this, SLOT (onVmmInvoked()));
     connect (mCbShowDiffs, SIGNAL (stateChanged (int)), this, SLOT (setInformation()));
@@ -1659,6 +1794,12 @@ void VBoxVMSettingsHD::getFrom (const CMachine &aMachine)
         QString controllerName = controller.GetName();
         QModelIndex ctrIndex = mStorageModel->addController (controllerName, controller.GetBus(), controller.GetControllerType());
         QUuid ctrId = QUuid (mStorageModel->data (ctrIndex, StorageModel::R_ItemId).toString());
+
+        bool useIoCache = true;
+        if (controller.GetIoBackend() == KIoBackendType_Unbuffered)
+            useIoCache = false;
+
+        mStorageModel->setData (ctrIndex, useIoCache, StorageModel::R_CtrIoCache);
 
         CMediumAttachmentVector attachments = mMachine.GetMediumAttachmentsOfController (controllerName);
         foreach (const CMediumAttachment &attachment, attachments)
@@ -1699,8 +1840,10 @@ void VBoxVMSettingsHD::putBackTo()
         QString ctrName = mStorageModel->data (ctrIndex, StorageModel::R_CtrName).toString();
         KStorageBus ctrBusType = mStorageModel->data (ctrIndex, StorageModel::R_CtrBusType).value <KStorageBus>();
         KStorageControllerType ctrType = mStorageModel->data (ctrIndex, StorageModel::R_CtrType).value <KStorageControllerType>();
+        bool useIoCache = mStorageModel->data (ctrIndex, StorageModel::R_CtrIoCache).toBool();
         CStorageController ctr = mMachine.AddStorageController (ctrName, ctrBusType);
         ctr.SetControllerType (ctrType);
+        ctr.SetIoBackend(useIoCache ? KIoBackendType_Buffered : KIoBackendType_Unbuffered);
         int maxUsedPort = -1;
         for (int j = 0; j < mStorageModel->rowCount (ctrIndex); ++ j)
         {
@@ -1708,11 +1851,18 @@ void VBoxVMSettingsHD::putBackTo()
             StorageSlot attStorageSlot = mStorageModel->data (attIndex, StorageModel::R_AttSlot).value <StorageSlot>();
             KDeviceType attDeviceType = mStorageModel->data (attIndex, StorageModel::R_AttDevice).value <KDeviceType>();
             QString attMediumId = mStorageModel->data (attIndex, StorageModel::R_AttMediumId).toString();
+            QString attMediumLocation = mStorageModel->data (attIndex, StorageModel::R_AttLocation).toString();
             mMachine.AttachDevice (ctrName, attStorageSlot.port, attStorageSlot.device, attDeviceType, attMediumId);
-            if (attDeviceType == KDeviceType_DVD)
-                mMachine.PassthroughDevice (ctrName, attStorageSlot.port, attStorageSlot.device,
-                                            mStorageModel->data (attIndex, StorageModel::R_AttIsPassthrough).toBool());
-            maxUsedPort = attStorageSlot.port > maxUsedPort ? attStorageSlot.port : maxUsedPort;
+            if (mMachine.isOk())
+            {
+                if (attDeviceType == KDeviceType_DVD)
+                    mMachine.PassthroughDevice (ctrName, attStorageSlot.port, attStorageSlot.device,
+                                                mStorageModel->data (attIndex, StorageModel::R_AttIsPassthrough).toBool());
+                maxUsedPort = attStorageSlot.port > maxUsedPort ? attStorageSlot.port : maxUsedPort;
+            }
+            else
+                vboxProblem().cannotAttachDevice(this, mMachine, VBoxDefs::MediumType_HardDisk, attMediumLocation,
+                                                 attStorageSlot.bus, attStorageSlot.port, attStorageSlot.device);
         }
         if (ctrBusType == KStorageBus_SATA)
         {
@@ -1777,6 +1927,7 @@ void VBoxVMSettingsHD::retranslateUi()
     mAddIDECtrAction->setText (tr ("Add IDE Controller"));
     mAddSATACtrAction->setText (tr ("Add SATA Controller"));
     mAddSCSICtrAction->setText (tr ("Add SCSI Controller"));
+    mAddSASCtrAction->setText (tr ("Add SAS Controller"));
     mAddFloppyCtrAction->setText (tr ("Add Floppy Controller"));
     mDelCtrAction->setText (tr ("Remove Controller"));
     mAddAttAction->setText (tr ("Add Attachment"));
@@ -1878,6 +2029,7 @@ void VBoxVMSettingsHD::addController()
     menu.addAction (mAddIDECtrAction);
     menu.addAction (mAddSATACtrAction);
     menu.addAction (mAddSCSICtrAction);
+    menu.addAction (mAddSASCtrAction);
     menu.addAction (mAddFloppyCtrAction);
     menu.exec (QCursor::pos());
 }
@@ -1900,6 +2052,11 @@ void VBoxVMSettingsHD::addSCSIController()
 void VBoxVMSettingsHD::addFloppyController()
 {
     addControllerWrapper (generateUniqueName (tr ("Floppy Controller")), KStorageBus_Floppy, KStorageControllerType_I82078);
+}
+
+void VBoxVMSettingsHD::addSASController()
+{
+    addControllerWrapper (generateUniqueName (tr ("SAS Controller")), KStorageBus_SAS, KStorageControllerType_LsiLogicSas);
 }
 
 void VBoxVMSettingsHD::delController()
@@ -2019,6 +2176,9 @@ void VBoxVMSettingsHD::getInformation()
                 int ctrPos = mCbType->findText (vboxGlobal().toString (type));
                 mCbType->setCurrentIndex (ctrPos == -1 ? 0 : ctrPos);
 
+                bool isUseIoCache = mStorageModel->data (index, StorageModel::R_CtrIoCache).toBool();
+                mCbIoCache->setChecked(isUseIoCache);
+
                 /* Showing Controller Page */
                 mSwRightPane->setCurrentIndex (1);
                 break;
@@ -2109,14 +2269,22 @@ void VBoxVMSettingsHD::setInformation()
             else if (sdr == mCbType)
                 mStorageModel->setData (index, QVariant::fromValue (vboxGlobal().toControllerType (mCbType->currentText())),
                                         StorageModel::R_CtrType);
+            else if (sdr == mCbIoCache)
+                mStorageModel->setData (index, mCbIoCache->isChecked(), StorageModel::R_CtrIoCache);
             break;
         }
         case AbstractItem::Type_AttachmentItem:
         {
             /* Setting Attachment Slot */
             if (sdr == mCbSlot)
-                mStorageModel->setData (index, QVariant::fromValue (vboxGlobal().toStorageSlot (mCbSlot->currentText())),
-                                        StorageModel::R_AttSlot);
+            {
+                QModelIndex controllerIndex = mStorageModel->parent(index);
+                StorageSlot attachmentStorageSlot = vboxGlobal().toStorageSlot(mCbSlot->currentText());
+                mStorageModel->setData(index, QVariant::fromValue(attachmentStorageSlot), StorageModel::R_AttSlot);
+                QModelIndex theSameIndexAtNewPosition = mStorageModel->attachmentBySlot(controllerIndex, attachmentStorageSlot);
+                AssertMsg(theSameIndexAtNewPosition.isValid(), ("Current attachment disappears!\n"));
+                mTwStorageTree->setCurrentIndex(theSameIndexAtNewPosition);
+            }
             /* Setting Attachment Medium */
             else if (sdr == mCbVdi)
                 mStorageModel->setData (index, mCbVdi->id(), StorageModel::R_AttMediumId);
@@ -2152,16 +2320,18 @@ void VBoxVMSettingsHD::updateActionsState()
     bool isSATAPossible = mStorageModel->data (index, StorageModel::R_IsMoreSATAControllersPossible).toBool();
     bool isSCSIPossible = mStorageModel->data (index, StorageModel::R_IsMoreSCSIControllersPossible).toBool();
     bool isFloppyPossible = mStorageModel->data (index, StorageModel::R_IsMoreFloppyControllersPossible).toBool();
+    bool isSASPossible = mStorageModel->data (index, StorageModel::R_IsMoreSASControllersPossible).toBool();
 
     bool isController = mStorageModel->data (index, StorageModel::R_IsController).toBool();
     bool isAttachment = mStorageModel->data (index, StorageModel::R_IsAttachment).toBool();
     bool isAttachmentsPossible = mStorageModel->data (index, StorageModel::R_IsMoreAttachmentsPossible).toBool();
 
-    mAddCtrAction->setEnabled (isIDEPossible || isSATAPossible || isSCSIPossible || isFloppyPossible);
+    mAddCtrAction->setEnabled (isIDEPossible || isSATAPossible || isSCSIPossible || isFloppyPossible || isSASPossible);
     mAddIDECtrAction->setEnabled (isIDEPossible);
     mAddSATACtrAction->setEnabled (isSATAPossible);
     mAddSCSICtrAction->setEnabled (isSCSIPossible);
     mAddFloppyCtrAction->setEnabled (isFloppyPossible);
+    mAddSASCtrAction->setEnabled (isSASPossible);
 
     mAddAttAction->setEnabled (isController && isAttachmentsPossible);
     mAddHDAttAction->setEnabled (isController && isAttachmentsPossible);
@@ -2453,6 +2623,9 @@ void VBoxVMSettingsHD::addControllerWrapper (const QString &aName, KStorageBus a
         case KStorageBus_SCSI:
             Assert (mStorageModel->data (index, StorageModel::R_IsMoreSCSIControllersPossible).toBool());
             break;
+        case KStorageBus_SAS:
+            Assert (mStorageModel->data (index, StorageModel::R_IsMoreSASControllersPossible).toBool());
+            break;
         case KStorageBus_Floppy:
             Assert (mStorageModel->data (index, StorageModel::R_IsMoreFloppyControllersPossible).toBool());
             break;
@@ -2471,6 +2644,7 @@ void VBoxVMSettingsHD::addAttachmentWrapper (KDeviceType aDevice)
     Assert (mStorageModel->data (index, StorageModel::R_IsMoreAttachmentsPossible).toBool());
 
     mStorageModel->addAttachment (QUuid (mStorageModel->data (index, StorageModel::R_ItemId).toString()), aDevice);
+    mStorageModel->sort();
     emit storageChanged();
     if (mValidator) mValidator->revalidate();
 }
@@ -2478,7 +2652,7 @@ void VBoxVMSettingsHD::addAttachmentWrapper (KDeviceType aDevice)
 QString VBoxVMSettingsHD::getWithNewHDWizard()
 {
     /* Run New HD Wizard */
-    VBoxNewHDWzd dlg (this);
+    UINewHDWzd dlg (this);
 
     return dlg.exec() == QDialog::Accepted ? dlg.hardDisk().GetId() : QString();
 }
