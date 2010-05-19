@@ -1,10 +1,16 @@
-virtualbox-ose (3.1.53-dfsg-2) UNRELEASED; urgency=low
+virtualbox-ose (3.2.0-dfsg-1) UNRELEASED; urgency=low
 
+  [ Felix Geyer ]
+  * New upstream release.
   * Add 23-remove-invalid-chars-check.patch to remove a check for invalid
     characters in the build path since kBuild is now able to handle those.
   * Fix FTBFS when building without arch-all packages.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 17 May 2010 15:49:00 +0200
+  [ Michael Meskes ]
+  * Changed order of some commands to make sure links are created inside
+    the source tarball not outside.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 19 May 2010 18:21:05 +0200
 
 virtualbox-ose (3.1.53-dfsg-1) experimental; urgency=low
 
