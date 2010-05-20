@@ -19,7 +19,7 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-BACKPORT =
+X11_BACKPORT =
 
 XSERVER_VERSION = 17
 INSTALL_X11_PCI_ID = 0
@@ -28,14 +28,14 @@ INSTALL_X11_UDEV = 1
 INSTALL_XORGCONFD = new
 XORG_PKG_ABI = new
 
-ifeq ($(BACKPORT),lenny)
+ifeq ($(X11_BACKPORT),lenny)
 	XSERVER_VERSION = 14
 	INSTALL_X11_PCI_ID = 1
 	INSTALL_X11_HAL = 1
 	INSTALL_X11_UDEV = 0
 	INSTALL_XORGCONFD = no
 	XORG_PKG_ABI = old
-else ifeq ($(BACKPORT),lucid)
+else ifeq ($(X11_BACKPORT),lucid)
 	INSTALL_XORGCONFD = old
 	XORG_PKG_ABI = old
 endif
