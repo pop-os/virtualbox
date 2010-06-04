@@ -1,4 +1,4 @@
-/* $Id: scm.cpp 29304 2010-05-10 13:37:01Z vboxsync $ */
+/* $Id: scm.cpp 29907 2010-05-31 13:07:02Z vboxsync $ */
 /** @file
  * IPRT Testcase / Tool - Source Code Massager.
  */
@@ -2411,6 +2411,8 @@ static int scmSettingsCreateFromFile(PSCMSETTINGS *ppSettings, const char *pszFi
  */
 static int scmSettingsCreateForPath(PSCMSETTINGS *ppSettings, PCSCMSETTINGSBASE pBaseSettings, const char *pszPath)
 {
+    *ppSettings = NULL;                 /* try shut up gcc. */
+
     /*
      * We'll be working with a stack copy of the path.
      */
@@ -4087,7 +4089,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 29304 $";
+                static const char s_szRev[] = "$Revision: 29907 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

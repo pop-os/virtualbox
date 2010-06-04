@@ -1,4 +1,4 @@
-/* $Id: Guid.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Guid.h 29873 2010-05-28 17:14:53Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -137,6 +137,19 @@ public:
     {
         char buf[RTUUID_STR_LENGTH];
         ::RTUuidToStr(&uuid, buf, RTUUID_STR_LENGTH);
+        return Utf8Str(buf);
+    }
+
+    /**
+     * Like toString, but encloses the returned string in curly brackets.
+     * @return
+     */
+    Utf8Str toStringCurly() const
+    {
+        char buf[RTUUID_STR_LENGTH + 2] = "{";
+        ::RTUuidToStr(&uuid, buf + 1, RTUUID_STR_LENGTH);
+        buf[sizeof(buf) - 2] = '}';
+        buf[sizeof(buf) - 1] = '\0';
         return Utf8Str(buf);
     }
 

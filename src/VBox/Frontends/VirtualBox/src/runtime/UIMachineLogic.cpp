@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogic.cpp 29445 2010-05-13 11:16:40Z vboxsync $ */
+/* $Id: UIMachineLogic.cpp 29915 2010-05-31 15:26:55Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -382,7 +382,7 @@ void UIMachineLogic::retranslateUi()
         for (int i = 0; i < actions.size(); ++i)
         {
             QAction *pAction = actions.at(i);
-            pAction->setText(QApplication::translate("VBoxConsoleWnd", "Preview Monitor %1").arg(pAction->data().toInt() + 1));
+            pAction->setText(QApplication::translate("UIMachineLogic", "Preview Monitor %1").arg(pAction->data().toInt() + 1));
         }
     }
 #endif /* Q_WS_MAC */
@@ -967,7 +967,7 @@ void UIMachineLogic::sltTakeSnapshot()
     dlg.mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(strTypeId));
 
     /* Search for the max available filter index. */
-    QString strNameTemplate = QApplication::translate("VBoxConsoleWnd", "Snapshot %1");
+    QString strNameTemplate = QApplication::translate("UIMachineLogic", "Snapshot %1");
     int iMaxSnapshotIndex = searchMaxSnapshotIndex(machine, machine.GetSnapshot(QString()), strNameTemplate);
     dlg.mLeName->setText(strNameTemplate.arg(++ iMaxSnapshotIndex));
 
@@ -1194,14 +1194,14 @@ void UIMachineLogic::sltPrepareStorageMenu()
             switch (mediumType)
             {
                 case VBoxDefs::MediumType_DVD:
-                    callVMMAction->setText(QApplication::translate("VBoxConsoleWnd", "More CD/DVD Images..."));
-                    unmountMediumAction->setText(QApplication::translate("VBoxConsoleWnd", "Unmount CD/DVD Device"));
+                    callVMMAction->setText(QApplication::translate("UIMachineLogic", "More CD/DVD Images..."));
+                    unmountMediumAction->setText(QApplication::translate("UIMachineLogic", "Unmount CD/DVD Device"));
                     unmountMediumAction->setIcon(VBoxGlobal::iconSet(":/cd_unmount_16px.png",
                                                                      ":/cd_unmount_dis_16px.png"));
                     break;
                 case VBoxDefs::MediumType_Floppy:
-                    callVMMAction->setText(QApplication::translate("VBoxConsoleWnd", "More Floppy Images..."));
-                    unmountMediumAction->setText(QApplication::translate("VBoxConsoleWnd", "Unmount Floppy Device"));
+                    callVMMAction->setText(QApplication::translate("UIMachineLogic", "More Floppy Images..."));
+                    unmountMediumAction->setText(QApplication::translate("UIMachineLogic", "Unmount Floppy Device"));
                     unmountMediumAction->setIcon(VBoxGlobal::iconSet(":/fd_unmount_16px.png",
                                                                      ":/fd_unmount_dis_16px.png"));
                     break;
@@ -1220,12 +1220,12 @@ void UIMachineLogic::sltPrepareStorageMenu()
         switch (mediumType)
         {
             case VBoxDefs::MediumType_DVD:
-                pEmptyMenuAction->setText(QApplication::translate("VBoxConsoleWnd", "No CD/DVD Devices Attached"));
-                pEmptyMenuAction->setToolTip(QApplication::translate("VBoxConsoleWnd", "No CD/DVD devices attached to that VM"));
+                pEmptyMenuAction->setText(QApplication::translate("UIMachineLogic", "No CD/DVD Devices Attached"));
+                pEmptyMenuAction->setToolTip(QApplication::translate("UIMachineLogic", "No CD/DVD devices attached to that VM"));
                 break;
             case VBoxDefs::MediumType_Floppy:
-                pEmptyMenuAction->setText(QApplication::translate("VBoxConsoleWnd", "No Floppy Devices Attached"));
-                pEmptyMenuAction->setToolTip(QApplication::translate("VBoxConsoleWnd", "No floppy devices attached to that VM"));
+                pEmptyMenuAction->setText(QApplication::translate("UIMachineLogic", "No Floppy Devices Attached"));
+                pEmptyMenuAction->setToolTip(QApplication::translate("UIMachineLogic", "No floppy devices attached to that VM"));
                 break;
             default:
                 break;
@@ -1331,9 +1331,9 @@ void UIMachineLogic::sltPrepareUSBMenu()
         /* Fill USB devices menu: */
         QAction *pEmptyMenuAction = new QAction(pMenu);
         pEmptyMenuAction->setEnabled(false);
-        pEmptyMenuAction->setText(QApplication::translate("VBoxConsoleWnd", "No USB Devices Connected"));
+        pEmptyMenuAction->setText(QApplication::translate("UIMachineLogic", "No USB Devices Connected"));
         pEmptyMenuAction->setIcon(VBoxGlobal::iconSet(":/delete_16px.png", ":/delete_dis_16px.png"));
-        pEmptyMenuAction->setToolTip(QApplication::translate("VBoxConsoleWnd", "No supported devices connected to the host PC"));
+        pEmptyMenuAction->setToolTip(QApplication::translate("UIMachineLogic", "No supported devices connected to the host PC"));
     }
     else
     {
@@ -1356,6 +1356,7 @@ void UIMachineLogic::sltPrepareUSBMenu()
 
             /* Set USB attach data: */
             attachUSBAction->setData(QVariant::fromValue(USBTarget(!attachUSBAction->isChecked(), device.GetId())));
+            attachUSBAction->setToolTip(vboxGlobal().toolTip(device));
         }
     }
 }

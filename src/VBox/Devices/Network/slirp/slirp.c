@@ -1,4 +1,4 @@
-/* $Id: slirp.c 29506 2010-05-17 07:14:47Z vboxsync $ */
+/* $Id: slirp.c 29946 2010-06-01 12:53:39Z vboxsync $ */
 /** @file
  * NAT - slirp glue.
  */
@@ -419,7 +419,8 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
     char buff[512];
     char buff2[256];
     RTFILE f;
-    int fFoundNameserver = 0;
+    int cNameserversFound = 0;
+    int fWarnTooManyDnsServers = 0;
     struct in_addr tmp_addr;
     int rc;
     size_t bytes;
@@ -467,11 +468,19 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
         *ppszDomain = NULL;
 
     Log(("NAT: DNS Servers:\n"));
-    while (    RT_SUCCESS(rc = RTFileGets(f, buff, 512, &bytes))
+    while (    RT_SUCCESS(rc = RTFileGets(f, buff, sizeof(buff), &bytes))
             && rc != VERR_EOF)
     {
         struct dns_entry *pDns = NULL;
-        if (sscanf(buff, "nameserver%*[ \t]%256s", buff2) == 1)
+        if (   cNameserversFound == 4
+            && fWarnTooManyDnsServers == 0
+            && sscanf(buff, "nameserver%*[ \t]%255s", buff2) == 1)
+        {
+            fWarnTooManyDnsServers = 1;
+            LogRel(("NAT: too many nameservers registered.\n"));
+        }
+        if (   sscanf(buff, "nameserver%*[ \t]%255s", buff2) == 1
+            && cNameserversFound < 4) /* Unix doesn't accept more than 4 name servers*/
         {
             if (!inet_aton(buff2, &tmp_addr))
                 continue;
@@ -491,7 +500,7 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
                 pDns->de_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
             }
             TAILQ_INSERT_HEAD(&pData->pDnsList, pDns, de_list);
-            fFoundNameserver++;
+            cNameserversFound++;
         }
         if ((!strncmp(buff, "domain", 6) || !strncmp(buff, "search", 6)))
         {
@@ -524,21 +533,21 @@ static int get_dns_addr_domain(PNATState pData, bool fVerbose,
         }
     }
     RTFileClose(f);
-    if (!fFoundNameserver)
+    if (!cNameserversFound)
         return -1;
     return 0;
 }
 
 #endif /* !RT_OS_WINDOWS */
 
-static int slirp_init_dns_list(PNATState pData)
+int slirp_init_dns_list(PNATState pData)
 {
     TAILQ_INIT(&pData->pDnsList);
     LIST_INIT(&pData->pDomainList);
     return get_dns_addr_domain(pData, true, NULL, NULL);
 }
 
-static void slirp_release_dns_list(PNATState pData)
+void slirp_release_dns_list(PNATState pData)
 {
     struct dns_entry *pDns = NULL;
     struct dns_domain_entry *pDomain = NULL;
@@ -1711,10 +1720,10 @@ static uint32_t find_guest_ip(PNATState pData, const uint8_t *eth_addr)
  */
 static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
 {
-    struct port_forward_rule *rule;
+    struct port_forward_rule *rule, *tmp;
 
     /* check mac here */
-    LIST_FOREACH(rule, &pData->port_forward_rule_head, list)
+    LIST_FOREACH_SAFE(rule, &pData->port_forward_rule_head, list, tmp)
     {
         struct socket *so;
         struct alias_link *alias_link;
@@ -1780,7 +1789,7 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
 
         lib = LibAliasInit(pData, NULL);
         flags = LibAliasSetMode(lib, 0, 0);
-        flags |= pData->i32AliasMode; 
+        flags |= pData->i32AliasMode;
         flags |= PKT_ALIAS_REVERSE; /* set reverse  */
         flags = LibAliasSetMode(lib, flags, ~0);
 

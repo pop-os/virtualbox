@@ -1,4 +1,4 @@
-/* $Id: UIExportApplianceWzd.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIExportApplianceWzd.cpp 29730 2010-05-21 12:48:19Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -52,8 +52,11 @@ UIExportApplianceWzd::UIExportApplianceWzd(QWidget *pParent, const QString &strS
     /* Set 'selectedVMName' field for wizard page 1 */
     setField("selectedVMName", strSelectName);
 
-    /* Translate */
+    /* Initial translate */
     retranslateUi();
+
+    /* Initial translate all pages */
+    retranslateAllPages();
 
     /* Resize to 'golden ratio' */
     resizeToGoldenRatio();
@@ -128,7 +131,7 @@ void UIExportApplianceWzdPage1::retranslateUi()
 
 void UIExportApplianceWzdPage1::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Choose initially selected item (if passed) */
@@ -220,7 +223,7 @@ void UIExportApplianceWzdPage2::retranslateUi()
 
 void UIExportApplianceWzdPage2::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* We propose a filename the first time the second page is displayed */
@@ -337,7 +340,7 @@ void UIExportApplianceWzdPage3::retranslateUi()
 
 void UIExportApplianceWzdPage3::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Revert to initial choice */
@@ -403,7 +406,7 @@ void UIExportApplianceWzdPage4::retranslateUi()
 
 void UIExportApplianceWzdPage4::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Setup components for chosen storage-type */

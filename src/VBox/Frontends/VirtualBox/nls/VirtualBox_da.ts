@@ -405,6 +405,282 @@
     </message>
 </context>
 <context>
+    <name>UIActionsPool</name>
+    <message>
+        <source>&amp;Machine</source>
+        <translation>&amp;Maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Fullscreen Mode</source>
+        <translation type="obsolete">&amp;Fuldskærm</translation>
+    </message>
+    <message>
+        <source>Switch to fullscreen mode</source>
+        <translation>Skift til fuldskærm</translation>
+    </message>
+    <message>
+        <source>Seam&amp;less Mode</source>
+        <translation type="obsolete">Ingen vinduesramme</translation>
+    </message>
+    <message>
+        <source>Switch to seamless desktop integration mode</source>
+        <translation>Skift til rammefri integration med skrivebordet</translation>
+    </message>
+    <message>
+        <source>Auto-resize &amp;Guest Display</source>
+        <translation type="obsolete">Tilpas opløsnin&amp;g dynamisk</translation>
+    </message>
+    <message>
+        <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
+        <translation>Tilpas gæstens skærmopløsning automatisk, når størrelsen af vinduet ændres (kræver Guest Additions)</translation>
+    </message>
+    <message>
+        <source>&amp;Adjust Window Size</source>
+        <translation>Tilp&amp;as vinduesstørrelse</translation>
+    </message>
+    <message>
+        <source>Adjust window size and position to best fit the guest display</source>
+        <translation>Tilpas skærmopløsning og placering til gæstens skærm</translation>
+    </message>
+    <message>
+        <source>Disable &amp;Mouse Integration</source>
+        <translation>Slå integration af &amp;mus fra</translation>
+    </message>
+    <message>
+        <source>Temporarily disable host mouse pointer integration</source>
+        <translation>Slå integration af mus fra midlertidigt</translation>
+    </message>
+    <message>
+        <source>Enable &amp;Mouse Integration</source>
+        <translation>Slå integration af &amp;mus til</translation>
+    </message>
+    <message>
+        <source>Enable temporarily disabled host mouse pointer integration</source>
+        <translation>Ophæv midlertidigt deaktiveret integration af mus</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Del</source>
+        <translation>Send Ctrl-Alt-Del</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
+        <translation>Send Ctrl-Alt-Del til den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Backspace</source>
+        <translation>Send Ctrl-Alt-Backspace</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
+        <translation>Send Ctrl-Alt-Backspace til den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>Take &amp;Snapshot...</source>
+        <translation>Tag øjeblik&amp;sbillede...</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the virtual machine</source>
+        <translation>Tag et øjebliksbillede af den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>Session I&amp;nformation Dialog</source>
+        <translation>I&amp;nformation om session</translation>
+    </message>
+    <message>
+        <source>Show Session Information Dialog</source>
+        <translation>Vis sessionsinformation</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation>&amp;Pause</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation>Suspendér afviklingen af den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation>G&amp;enoptag</translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation>Genoptag afviklingen af den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Reset</source>
+        <translation>&amp;Reset</translation>
+    </message>
+    <message>
+        <source>Reset the virtual machine</source>
+        <translation>Nulstiller den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>ACPI Sh&amp;utdown</source>
+        <translation>ACPI Nedl&amp;ukning</translation>
+    </message>
+    <message>
+        <source>ACPI S&amp;hutdown</source>
+        <translation>ACPI sluk</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the virtual machine</source>
+        <translation>Sender kommandoen &quot;ACPI-sluk&quot; til den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Close...</source>
+        <translation>Luk</translation>
+    </message>
+    <message>
+        <source>Close the virtual machine</source>
+        <translation>Stop den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation>&amp;Vis</translation>
+    </message>
+    <message>
+        <source>&amp;Devices</source>
+        <translation>Enhe&amp;der</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation>&amp;CD/DVD drev</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation>Diskettedrev</translation>
+    </message>
+    <message>
+        <source>&amp;USB Devices</source>
+        <translation>&amp;USB enheder</translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation>&amp;Netværkskort...</translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation>Tilpas indstillinger for netværkskort</translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders...</source>
+        <translation>Delte mapper...</translation>
+    </message>
+    <message>
+        <source>Create or modify shared folders</source>
+        <translation>Opret eller tilpas delte mapper</translation>
+    </message>
+    <message>
+        <source>&amp;Remote Display</source>
+        <translation type="obsolete">Fje&amp;rnskærm</translation>
+    </message>
+    <message>
+        <source>Enable or disable remote desktop (RDP) connections to this machine</source>
+        <translation type="obsolete">Tillad eller afvis fjernskærmsforbindelser (RDP) til denne maskine</translation>
+    </message>
+    <message>
+        <source>&amp;Install Guest Additions...</source>
+        <translation>&amp;Installér Gæstetilføjelser...</translation>
+    </message>
+    <message>
+        <source>Mount the Guest Additions installation image</source>
+        <translation>Monterer CD&apos;en med Gæstetilføjelser</translation>
+    </message>
+    <message>
+        <source>De&amp;bug</source>
+        <translation>Fejlsøg</translation>
+    </message>
+    <message>
+        <source>&amp;Statistics...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Statistik...</translation>
+    </message>
+    <message>
+        <source>&amp;Command Line...</source>
+        <comment>debug action</comment>
+        <translation>Kommandolinie...</translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="obsolete">&amp;Logger...</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>&amp;Hjælp</translation>
+    </message>
+    <message>
+        <source>Dock Icon</source>
+        <translation>Dok-ikon</translation>
+    </message>
+    <message>
+        <source>Show Monitor Preview</source>
+        <translation>Vis monitor miniature</translation>
+    </message>
+    <message>
+        <source>Show Application Icon</source>
+        <translation>Vis programikon</translation>
+    </message>
+    <message>
+        <source>Enter &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to normal mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable automatic resize of the guest display when the window is resized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Disable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloader</name>
     <message>
         <source>The download process has been cancelled by the user.</source>
@@ -1032,6 +1308,100 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIIndicatorsPool</name>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på de virtuelle harddiske:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på CD/DVD-drev:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på diskettedrev:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på netværkskort:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Netkort %1 (%2)&lt;/b&gt;: %3 kabel %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>connected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>tilsluttet</translation>
+    </message>
+    <message>
+        <source>disconnected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>afbrudt</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Alle netværkskort er deaktiveret&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på de tilsluttede USB-enheder:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen USB-enheder tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-enhedsstyring er deaktiveret&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på maskinens delte mapper:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen delte mapper&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation>Viser om forbindelser via fjernskærm (VRDP-server) er tilladt (&lt;img src=:/vrdp_16px.png/&gt;) eller ej (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+    </message>
+    <message>
+        <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
+        <translation>&lt;hr&gt;VRDP-server lytter på port %1</translation>
+    </message>
+    <message>
+        <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>Viser om værtsmaskinens funktioner til hardware-virtualisering bruges af den virtuelle maskine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation>Viser gæstens niveau af integration med musen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;musemarkør indfanges ikke&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;musemarkør indfanges&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået til&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået fra/markør indfanges&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået fra/markør indfanges ikke&lt;/nobr&gt;&lt;br&gt;Bemærk at integration med mus kræver at Gæstetilføjelser er installeret på gæstens operativsystem.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
+        <translation>Viser om tastetryk sendes til gæstens operativsystem (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+    </message>
+</context>
+<context>
     <name>UIMachineLogic</name>
     <message>
         <source>VirtualBox OSE</source>
@@ -1040,6 +1410,61 @@ p, li { white-space: pre-wrap; }
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation>EKSPERIMENTEL version %1r%2 - %3</translation>
+    </message>
+    <message>
+        <source>Preview Monitor %1</source>
+        <translation>Monitor miniature %1</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>Øjebliksbillede %1</translation>
+    </message>
+    <message>
+        <source>More CD/DVD Images...</source>
+        <translation>Flere CD/DVD-aftryk</translation>
+    </message>
+    <message>
+        <source>Unmount CD/DVD Device</source>
+        <translation>Afmontér CD/DVD-drev</translation>
+    </message>
+    <message>
+        <source>More Floppy Images...</source>
+        <translation>Flere disketteaftryk...</translation>
+    </message>
+    <message>
+        <source>Unmount Floppy Device</source>
+        <translation>Afmontér diskettedrev</translation>
+    </message>
+    <message>
+        <source>No CD/DVD Devices Attached</source>
+        <translation>Ingen CD/DVD-drev tilsluttet</translation>
+    </message>
+    <message>
+        <source>No CD/DVD devices attached to that VM</source>
+        <translation>Ingen CD/DVD-drev tilsluttet den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>No Floppy Devices Attached</source>
+        <translation>Ingen diskettedrev tilsluttet</translation>
+    </message>
+    <message>
+        <source>No floppy devices attached to that VM</source>
+        <translation>Ingen diskettedrev tilsluttet den virtuelle maskine</translation>
+    </message>
+    <message>
+        <source>No USB Devices Connected</source>
+        <translation>Ingen USB-enheder tilsluttet</translation>
+    </message>
+    <message>
+        <source>No supported devices connected to the host PC</source>
+        <translation>Ingen understøttede enheder forbundet til værtsmaskinen</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineWindowNormal</name>
+    <message>
+        <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
+        <translation>Viser den nuværende værtstast.&lt;br&gt;Et tryk på den angivne tast skifter status for integration med mus og tastatur. Den kan også bruges i kombination med andre taster til at kalde handlinger fra hovedmenuen direkte.</translation>
     </message>
 </context>
 <context>
@@ -1499,7 +1924,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Boot Hard &amp;Disk (Primary Master)</source>
-        <translation>Opstarts&amp;disk (Primær master)</translation>
+        <translation type="obsolete">Opstarts&amp;disk (Primær master)</translation>
     </message>
     <message>
         <source>&amp;Create new hard disk</source>
@@ -1516,6 +1941,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
         <translation>Anbefalet størrelse på opstartsharddisken er &lt;b&gt;%1&lt;/b&gt; MB.</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1687,7 +2116,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024KBytes</comment>
-        <translation>MB</translation>
+        <translation type="obsolete">MB</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SAS)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1749,89 +2182,89 @@ p, li { white-space: pre-wrap; }
     <name>VBoxConsoleWnd</name>
     <message>
         <source>VirtualBox OSE</source>
-        <translation>VirtualBox OSE</translation>
+        <translation type="obsolete">VirtualBox OSE</translation>
     </message>
     <message>
         <source>&amp;Fullscreen Mode</source>
-        <translation>&amp;Fuldskærm</translation>
+        <translation type="obsolete">&amp;Fuldskærm</translation>
     </message>
     <message>
         <source>Switch to fullscreen mode</source>
-        <translation>Skift til fuldskærm</translation>
+        <translation type="obsolete">Skift til fuldskærm</translation>
     </message>
     <message>
         <source>Mouse Integration</source>
         <comment>enable/disable...</comment>
-        <translation>Integreret mus</translation>
+        <translation type="obsolete">Integreret mus</translation>
     </message>
     <message>
         <source>Auto-resize Guest Display</source>
         <comment>enable/disable...</comment>
-        <translation>Tilpas opløsning dynamisk</translation>
+        <translation type="obsolete">Tilpas opløsning dynamisk</translation>
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
-        <translation>Tilpas opløsnin&amp;g dynamisk</translation>
+        <translation type="obsolete">Tilpas opløsnin&amp;g dynamisk</translation>
     </message>
     <message>
         <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
-        <translation>Tilpas gæstens skærmopløsning automatisk, når størrelsen af vinduet ændres (kræver Guest Additions)</translation>
+        <translation type="obsolete">Tilpas gæstens skærmopløsning automatisk, når størrelsen af vinduet ændres (kræver Guest Additions)</translation>
     </message>
     <message>
         <source>&amp;Adjust Window Size</source>
-        <translation>Tilp&amp;as vinduesstørrelse</translation>
+        <translation type="obsolete">Tilp&amp;as vinduesstørrelse</translation>
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Tilpas skærmopløsning og placering til gæstens skærm</translation>
+        <translation type="obsolete">Tilpas skærmopløsning og placering til gæstens skærm</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Del</source>
-        <translation>Send Ctrl-Alt-Del</translation>
+        <translation type="obsolete">Send Ctrl-Alt-Del</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
-        <translation>Send Ctrl-Alt-Del til den virtuelle maskine</translation>
+        <translation type="obsolete">Send Ctrl-Alt-Del til den virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation>Send Ctrl-Alt-Backspace</translation>
+        <translation type="obsolete">Send Ctrl-Alt-Backspace</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
-        <translation>Send Ctrl-Alt-Backspace til den virtuelle maskine</translation>
+        <translation type="obsolete">Send Ctrl-Alt-Backspace til den virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Reset</source>
-        <translation>&amp;Reset</translation>
+        <translation type="obsolete">&amp;Reset</translation>
     </message>
     <message>
         <source>Reset the virtual machine</source>
-        <translation>Nulstiller den virtuelle maskine</translation>
+        <translation type="obsolete">Nulstiller den virtuelle maskine</translation>
     </message>
     <message>
         <source>ACPI S&amp;hutdown</source>
-        <translation>ACPI sluk</translation>
+        <translation type="obsolete">ACPI sluk</translation>
     </message>
     <message>
         <source>Send the ACPI Power Button press event to the virtual machine</source>
-        <translation>Sender kommandoen &quot;ACPI-sluk&quot; til den virtuelle maskine</translation>
+        <translation type="obsolete">Sender kommandoen &quot;ACPI-sluk&quot; til den virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Close...</source>
-        <translation>Luk</translation>
+        <translation type="obsolete">Luk</translation>
     </message>
     <message>
         <source>Close the virtual machine</source>
-        <translation>Stop den virtuelle maskine</translation>
+        <translation type="obsolete">Stop den virtuelle maskine</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot...</source>
-        <translation>Tag øjeblik&amp;sbillede...</translation>
+        <translation type="obsolete">Tag øjeblik&amp;sbillede...</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
-        <translation>Tag et øjebliksbillede af den virtuelle maskine</translation>
+        <translation type="obsolete">Tag et øjebliksbillede af den virtuelle maskine</translation>
     </message>
     <message>
         <source>&amp;Floppy Image...</source>
@@ -1872,11 +2305,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enable or disable remote desktop (RDP) connections to this machine</source>
-        <translation>Tillad eller afvis fjernskærmsforbindelser (RDP) til denne maskine</translation>
+        <translation type="obsolete">Tillad eller afvis fjernskærmsforbindelser (RDP) til denne maskine</translation>
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation>Delte mapper...</translation>
+        <translation type="obsolete">Delte mapper...</translation>
     </message>
     <message>
         <source>Open the dialog to operate on shared folders</source>
@@ -1884,11 +2317,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Install Guest Additions...</source>
-        <translation>&amp;Installér Gæstetilføjelser...</translation>
+        <translation type="obsolete">&amp;Installér Gæstetilføjelser...</translation>
     </message>
     <message>
         <source>Mount the Guest Additions installation image</source>
-        <translation>Monterer CD&apos;en med Gæstetilføjelser</translation>
+        <translation type="obsolete">Monterer CD&apos;en med Gæstetilføjelser</translation>
     </message>
     <message>
         <source>Mount &amp;Floppy</source>
@@ -1900,59 +2333,59 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;USB Devices</source>
-        <translation>&amp;USB enheder</translation>
+        <translation type="obsolete">&amp;USB enheder</translation>
     </message>
     <message>
         <source>&amp;Devices</source>
-        <translation>Enhe&amp;der</translation>
+        <translation type="obsolete">Enhe&amp;der</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
-        <translation>Fejlsøg</translation>
+        <translation type="obsolete">Fejlsøg</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Hjælp</translation>
+        <translation type="obsolete">&amp;Hjælp</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
-        <translation>&lt;hr&gt;VRDP-server lytter på port %1</translation>
+        <translation type="obsolete">&lt;hr&gt;VRDP-server lytter på port %1</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
-        <translation>&amp;Pause</translation>
+        <translation type="obsolete">&amp;Pause</translation>
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
-        <translation>Suspendér afviklingen af den virtuelle maskine</translation>
+        <translation type="obsolete">Suspendér afviklingen af den virtuelle maskine</translation>
     </message>
     <message>
         <source>R&amp;esume</source>
-        <translation>G&amp;enoptag</translation>
+        <translation type="obsolete">G&amp;enoptag</translation>
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>
-        <translation>Genoptag afviklingen af den virtuelle maskine</translation>
+        <translation type="obsolete">Genoptag afviklingen af den virtuelle maskine</translation>
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
-        <translation>Slå integration af &amp;mus fra</translation>
+        <translation type="obsolete">Slå integration af &amp;mus fra</translation>
     </message>
     <message>
         <source>Temporarily disable host mouse pointer integration</source>
-        <translation>Slå integration af mus fra midlertidigt</translation>
+        <translation type="obsolete">Slå integration af mus fra midlertidigt</translation>
     </message>
     <message>
         <source>Enable &amp;Mouse Integration</source>
-        <translation>Slå integration af &amp;mus til</translation>
+        <translation type="obsolete">Slå integration af &amp;mus til</translation>
     </message>
     <message>
         <source>Enable temporarily disabled host mouse pointer integration</source>
-        <translation>Ophæv midlertidigt deaktiveret integration af mus</translation>
+        <translation type="obsolete">Ophæv midlertidigt deaktiveret integration af mus</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Øjebliksbillede %1</translation>
+        <translation type="obsolete">Øjebliksbillede %1</translation>
     </message>
     <message>
         <source>Host Drive </source>
@@ -1960,7 +2393,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Machine</source>
-        <translation>&amp;Maskine</translation>
+        <translation type="obsolete">&amp;Maskine</translation>
     </message>
     <message>
         <source>&amp;Network Adapters</source>
@@ -1992,11 +2425,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Seam&amp;less Mode</source>
         <translatorcomment>Kantfri, rammefri?</translatorcomment>
-        <translation>Ingen vinduesramme</translation>
+        <translation type="obsolete">Ingen vinduesramme</translation>
     </message>
     <message>
         <source>Switch to seamless desktop integration mode</source>
-        <translation>Skift til rammefri integration med skrivebordet</translation>
+        <translation type="obsolete">Skift til rammefri integration med skrivebordet</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2046,7 +2479,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hard disks attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen harddiske tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen harddiske tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: cable %3&lt;/nobr&gt;</source>
@@ -2056,17 +2489,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>connected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>tilsluttet</translation>
+        <translation type="obsolete">tilsluttet</translation>
     </message>
     <message>
         <source>disconnected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>afbrudt</translation>
+        <translation type="obsolete">afbrudt</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Alle netværkskort er deaktiveret&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Alle netværkskort er deaktiveret&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2076,12 +2509,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen USB-enheder tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen USB-enheder tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-enhedsstyring er deaktiveret&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-enhedsstyring er deaktiveret&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2091,50 +2524,50 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen delte mapper&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen delte mapper&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Session I&amp;nformation Dialog</source>
-        <translation>I&amp;nformation om session</translation>
+        <translation type="obsolete">I&amp;nformation om session</translation>
     </message>
     <message>
         <source>Show Session Information Dialog</source>
-        <translation>Vis sessionsinformation</translation>
+        <translation type="obsolete">Vis sessionsinformation</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
         <comment>debug action</comment>
-        <translation>&amp;Statistik...</translation>
+        <translation type="obsolete">&amp;Statistik...</translation>
     </message>
     <message>
         <source>&amp;Command Line...</source>
         <comment>debug action</comment>
-        <translation>Kommandolinie...</translation>
+        <translation type="obsolete">Kommandolinie...</translation>
     </message>
     <message>
         <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Viser om dynamiske ændringer af gæstens skærmopløsning er slået til (&lt;img src=:/auto_resize_on_16px.png/&gt;) eller fra (&lt;img src=:/auto_resize_off_16px.png/&gt;). Bemærk at denne funktion kræver at Gæstetilføjelser er installeret på gæstens operativsystem.</translation>
+        <translation type="obsolete">Viser om dynamiske ændringer af gæstens skærmopløsning er slået til (&lt;img src=:/auto_resize_on_16px.png/&gt;) eller fra (&lt;img src=:/auto_resize_off_16px.png/&gt;). Bemærk at denne funktion kræver at Gæstetilføjelser er installeret på gæstens operativsystem.</translation>
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Viser gæstens niveau af integration med musen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;musemarkør indfanges ikke&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;musemarkør indfanges&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået til&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået fra/markør indfanges&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået fra/markør indfanges ikke&lt;/nobr&gt;&lt;br&gt;Bemærk at integration med mus kræver at Gæstetilføjelser er installeret på gæstens operativsystem.</translation>
+        <translation type="obsolete">Viser gæstens niveau af integration med musen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;musemarkør indfanges ikke&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;musemarkør indfanges&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået til&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået fra/markør indfanges&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;integration med mus slået fra/markør indfanges ikke&lt;/nobr&gt;&lt;br&gt;Bemærk at integration med mus kræver at Gæstetilføjelser er installeret på gæstens operativsystem.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation>Viser om tastetryk sendes til gæstens operativsystem (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+        <translation type="obsolete">Viser om tastetryk sendes til gæstens operativsystem (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Viser om forbindelser via fjernskærm (VRDP-server) er tilladt (&lt;img src=:/vrdp_16px.png/&gt;) eller ej (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+        <translation type="obsolete">Viser om forbindelser via fjernskærm (VRDP-server) er tilladt (&lt;img src=:/vrdp_16px.png/&gt;) eller ej (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&amp;Logging...</source>
         <comment>debug action</comment>
-        <translation>&amp;Logger...</translation>
+        <translation type="obsolete">&amp;Logger...</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
-        <translation>Viser den nuværende værtstast.&lt;br&gt;Et tryk på den angivne tast skifter status for integration med mus og tastatur. Den kan også bruges i kombination med andre taster til at kalde handlinger fra hovedmenuen direkte.</translation>
+        <translation type="obsolete">Viser den nuværende værtstast.&lt;br&gt;Et tryk på den angivne tast skifter status for integration med mus og tastatur. Den kan også bruges i kombination med andre taster til at kalde handlinger fra hovedmenuen direkte.</translation>
     </message>
     <message>
         <source>Sun VirtualBox</source>
@@ -2144,154 +2577,154 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>Viser om værtsmaskinens funktioner til hardware-virtualisering bruges af den virtuelle maskine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Viser om værtsmaskinens funktioner til hardware-virtualisering bruges af den virtuelle maskine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation>EKSPERIMENTEL version %1r%2 - %3</translation>
+        <translation type="obsolete">EKSPERIMENTEL version %1r%2 - %3</translation>
     </message>
     <message>
         <source>&amp;CD/DVD Devices</source>
-        <translation>&amp;CD/DVD drev</translation>
+        <translation type="obsolete">&amp;CD/DVD drev</translation>
     </message>
     <message>
         <source>&amp;Floppy Devices</source>
-        <translation>Diskettedrev</translation>
+        <translation type="obsolete">Diskettedrev</translation>
     </message>
     <message>
         <source>&amp;Network Adapters...</source>
-        <translation>&amp;Netværkskort...</translation>
+        <translation type="obsolete">&amp;Netværkskort...</translation>
     </message>
     <message>
         <source>Change the settings of network adapters</source>
-        <translation>Tilpas indstillinger for netværkskort</translation>
+        <translation type="obsolete">Tilpas indstillinger for netværkskort</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
-        <translation>Opret eller tilpas delte mapper</translation>
+        <translation type="obsolete">Opret eller tilpas delte mapper</translation>
     </message>
     <message>
         <source>&amp;Remote Display</source>
-        <translation>Fje&amp;rnskærm</translation>
+        <translation type="obsolete">Fje&amp;rnskærm</translation>
     </message>
     <message>
         <source>Remote Desktop (RDP) Server</source>
         <comment>enable/disable...</comment>
-        <translation>Åbn for fjernskrivebord (RDP) </translation>
+        <translation type="obsolete">Åbn for fjernskrivebord (RDP) </translation>
     </message>
     <message>
         <source>More CD/DVD Images...</source>
-        <translation>Flere CD/DVD-aftryk</translation>
+        <translation type="obsolete">Flere CD/DVD-aftryk</translation>
     </message>
     <message>
         <source>Unmount CD/DVD Device</source>
-        <translation>Afmontér CD/DVD-drev</translation>
+        <translation type="obsolete">Afmontér CD/DVD-drev</translation>
     </message>
     <message>
         <source>More Floppy Images...</source>
-        <translation>Flere disketteaftryk...</translation>
+        <translation type="obsolete">Flere disketteaftryk...</translation>
     </message>
     <message>
         <source>Unmount Floppy Device</source>
-        <translation>Afmontér diskettedrev</translation>
+        <translation type="obsolete">Afmontér diskettedrev</translation>
     </message>
     <message>
         <source>No CD/DVD Devices Attached</source>
-        <translation>Ingen CD/DVD-drev tilsluttet</translation>
+        <translation type="obsolete">Ingen CD/DVD-drev tilsluttet</translation>
     </message>
     <message>
         <source>No Floppy Devices Attached</source>
-        <translation>Ingen diskettedrev tilsluttet</translation>
+        <translation type="obsolete">Ingen diskettedrev tilsluttet</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på de virtuelle harddiske:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på de virtuelle harddiske:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på CD/DVD-drev:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på CD/DVD-drev:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No CD/DVD devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen CD/DVD-drev tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen CD/DVD-drev tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på diskettedrev:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på diskettedrev:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No floppy devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen diskettedrev tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ingen diskettedrev tilsluttet&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på netværkskort:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på netværkskort:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på de tilsluttede USB-enheder:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på de tilsluttede USB-enheder:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på maskinens delte mapper:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Viser aktiviteten på maskinens delte mapper:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Dock Icon</source>
-        <translation>Dok-ikon</translation>
+        <translation type="obsolete">Dok-ikon</translation>
     </message>
     <message>
         <source>Show Application Icon</source>
-        <translation>Vis programikon</translation>
+        <translation type="obsolete">Vis programikon</translation>
     </message>
     <message>
         <source>Show Monitor Preview</source>
-        <translation>Vis monitor miniature</translation>
+        <translation type="obsolete">Vis monitor miniature</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Netkort %1 (%2)&lt;/b&gt;: %3 kabel %4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Netkort %1 (%2)&lt;/b&gt;: %3 kabel %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>ACPI Sh&amp;utdown</source>
-        <translation>ACPI Nedl&amp;ukning</translation>
+        <translation type="obsolete">ACPI Nedl&amp;ukning</translation>
     </message>
     <message>
         <source>&amp;View</source>
-        <translation>&amp;Vis</translation>
+        <translation type="obsolete">&amp;Vis</translation>
     </message>
     <message>
         <source>Preview Monitor %1</source>
-        <translation>Monitor miniature %1</translation>
+        <translation type="obsolete">Monitor miniature %1</translation>
     </message>
     <message>
         <source>No CD/DVD devices attached to that VM</source>
-        <translation>Ingen CD/DVD-drev tilsluttet den virtuelle maskine</translation>
+        <translation type="obsolete">Ingen CD/DVD-drev tilsluttet den virtuelle maskine</translation>
     </message>
     <message>
         <source>No floppy devices attached to that VM</source>
-        <translation>Ingen diskettedrev tilsluttet den virtuelle maskine</translation>
+        <translation type="obsolete">Ingen diskettedrev tilsluttet den virtuelle maskine</translation>
     </message>
     <message>
         <source>No USB Devices Connected</source>
-        <translation>Ingen USB-enheder tilsluttet</translation>
+        <translation type="obsolete">Ingen USB-enheder tilsluttet</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
-        <translation>Ingen understøttede enheder forbundet til værtsmaskinen</translation>
+        <translation type="obsolete">Ingen understøttede enheder forbundet til værtsmaskinen</translation>
     </message>
 </context>
 <context>
@@ -3971,6 +4404,16 @@ p, li { white-space: pre-wrap; }
         <translatorcomment>I tvivl om kontekst</translatorcomment>
         <translation>Delt</translation>
     </message>
+    <message>
+        <source>Unknown device</source>
+        <comment>USB device details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -5481,7 +5924,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;File</source>
-        <translation>&amp;Fil</translation>
+        <translation type="obsolete">&amp;Fil</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -5583,6 +6026,16 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Re&amp;fresh</source>
         <translation>Genop&amp;frisk</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation type="unfinished">&amp;Fil</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation type="unfinished">&amp;Fil</translation>
     </message>
 </context>
 <context>
@@ -6106,16 +6559,16 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Enabled</source>
         <comment>nested paging</comment>
-        <translation>Slået til</translation>
+        <translation type="obsolete">Slået til</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>nested paging</comment>
-        <translation>Slået fra</translation>
+        <translation type="obsolete">Slået fra</translation>
     </message>
     <message>
         <source>Nested Paging</source>
-        <translation>Nested Paging</translation>
+        <translation type="obsolete">Nested Paging</translation>
     </message>
     <message>
         <source>VBoxVMInformationDlg</source>
@@ -6138,6 +6591,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Network Statistics</source>
         <translation>Netværksstatistik</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Nested Paging</translation>
     </message>
 </context>
 <context>

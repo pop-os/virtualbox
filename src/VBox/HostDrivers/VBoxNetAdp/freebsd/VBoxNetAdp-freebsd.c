@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-freebsd.c 23159 2009-09-19 20:00:54Z vboxsync $ */
+/* $Id: VBoxNetAdp-freebsd.c 29713 2010-05-20 21:12:53Z vboxsync $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), FreeBSD Specific Code.
  */
@@ -92,7 +92,7 @@ static moduledata_t g_VBoxNetAdpFreeBSDModule = {
 DECLARE_MODULE(vboxnetadp, g_VBoxNetAdpFreeBSDModule, SI_SUB_PSEUDO, SI_ORDER_ANY);
 MODULE_VERSION(vboxnetadp, 1);
 MODULE_DEPEND(vboxnetadp, vboxdrv, 1, 1, 1);
-MODULE_DEPEND(vboxnetadp, ng_vboxnetflt, 1, 1, 1);
+MODULE_DEPEND(vboxnetadp, vboxnetflt, 1, 1, 1);
 
 /**
  * Module event handler

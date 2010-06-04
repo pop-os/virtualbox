@@ -402,6 +402,282 @@
     </message>
 </context>
 <context>
+    <name>UIActionsPool</name>
+    <message>
+        <source>&amp;Machine</source>
+        <translation>&amp;Machine</translation>
+    </message>
+    <message>
+        <source>&amp;Fullscreen Mode</source>
+        <translation type="obsolete">Modus &amp;Schermvullend</translation>
+    </message>
+    <message>
+        <source>Switch to fullscreen mode</source>
+        <translation>Schakel over op de modus schermvullend</translation>
+    </message>
+    <message>
+        <source>Seam&amp;less Mode</source>
+        <translation type="obsolete">Modus naad&amp;loos</translation>
+    </message>
+    <message>
+        <source>Switch to seamless desktop integration mode</source>
+        <translation>Schakel over op de naadloze bureaublad integratie modus (Het venster van de gast wordt naadloos in het bureablad van de gastheer geïntegreerd)</translation>
+    </message>
+    <message>
+        <source>Auto-resize &amp;Guest Display</source>
+        <translation type="obsolete">Grote van het &amp;gast scherm automatisch aanpassen</translation>
+    </message>
+    <message>
+        <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
+        <translation>Pas de grote van het gast scherm automatisch aan wanneer het venster van grote veranderd (vereist de gast uitbreiding)</translation>
+    </message>
+    <message>
+        <source>&amp;Adjust Window Size</source>
+        <translation>Venstergrote &amp;aanpassen</translation>
+    </message>
+    <message>
+        <source>Adjust window size and position to best fit the guest display</source>
+        <translation>Pas de venstergrote aan en plaats het gast scherm op de beste plek</translation>
+    </message>
+    <message>
+        <source>Disable &amp;Mouse Integration</source>
+        <translation>&amp;Muis integratie deactiveren</translation>
+    </message>
+    <message>
+        <source>Temporarily disable host mouse pointer integration</source>
+        <translation>Tijdelijk de integratie van de muis met de host deactiveren</translation>
+    </message>
+    <message>
+        <source>Enable &amp;Mouse Integration</source>
+        <translation>&amp;Muis integratie activeren</translation>
+    </message>
+    <message>
+        <source>Enable temporarily disabled host mouse pointer integration</source>
+        <translation>Activeer de tijdelijk uitgeschakede muis integratie</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Del</source>
+        <translation>&amp;Invoegen van Ctrl-Alt-Del</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
+        <translation>Stuur Ctrl-Alt-Del combinatie naar de virtuele machine</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Backspace</source>
+        <translation>&amp;Invoegen van Ctrl-Alt-Backspace</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
+        <translation>Stuur de Ctrl-Alt-Backspace combinatie naar de virtuele machine</translation>
+    </message>
+    <message>
+        <source>Take &amp;Snapshot...</source>
+        <translation>Maak een &amp;momentopname...</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the virtual machine</source>
+        <translation>Maak een momentopname van de virtuelen Machine</translation>
+    </message>
+    <message>
+        <source>Session I&amp;nformation Dialog</source>
+        <translation>Sessie i&amp;nformatie dialoog</translation>
+    </message>
+    <message>
+        <source>Show Session Information Dialog</source>
+        <translation>Geef de sessie informatie dialoog weer</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation>&amp;Pauze</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation>&amp;Hervatten</translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&amp;Reset</source>
+        <translation>&amp;Opnieuw instellen</translation>
+    </message>
+    <message>
+        <source>Reset the virtual machine</source>
+        <translation>Stel de virtuele machine opnieuw in</translation>
+    </message>
+    <message>
+        <source>ACPI Sh&amp;utdown</source>
+        <translation>&amp;Uitzetten via ACPI</translation>
+    </message>
+    <message>
+        <source>ACPI S&amp;hutdown</source>
+        <translation>&amp;Uitzetten via ACPI</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the virtual machine</source>
+        <translation>Stuur het ACPI startknop gebeurtenis naar de virtuele machine</translation>
+    </message>
+    <message>
+        <source>&amp;Close...</source>
+        <translation>&amp;Sluiten...</translation>
+    </message>
+    <message>
+        <source>Close the virtual machine</source>
+        <translation>Sluit de virtuele machine af</translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation>&amp;Weergeven</translation>
+    </message>
+    <message>
+        <source>&amp;Devices</source>
+        <translation>&amp;Apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation>&amp;CD/DVD apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation>&amp;Diskette apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;USB Devices</source>
+        <translation>&amp;USB-apparaten</translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation>&amp;Netwerk adapters...</translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation>Pas de instellingen van de netwerk adapters aan</translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders...</source>
+        <translation>&amp;Gedeelde mappen...</translation>
+    </message>
+    <message>
+        <source>Create or modify shared folders</source>
+        <translation>Open de dialoog om met de gedeelde mappen te bewerken</translation>
+    </message>
+    <message>
+        <source>&amp;Remote Display</source>
+        <translation type="obsolete">&amp;Beeldscherm op afstand</translation>
+    </message>
+    <message>
+        <source>Enable or disable remote desktop (RDP) connections to this machine</source>
+        <translation type="obsolete">Activeren of deactiverenvan het beeldscherm op afstand (remote desktop protocol, RDP) verbindingen naar deze virtuele machine</translation>
+    </message>
+    <message>
+        <source>&amp;Install Guest Additions...</source>
+        <translation>&amp;Gast uitbreidingen installeren...</translation>
+    </message>
+    <message>
+        <source>Mount the Guest Additions installation image</source>
+        <translation>Koppel de gast uitbreidingen installatie image aan</translation>
+    </message>
+    <message>
+        <source>De&amp;bug</source>
+        <translation>De&amp;bug</translation>
+    </message>
+    <message>
+        <source>&amp;Statistics...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Statistieken...</translation>
+    </message>
+    <message>
+        <source>&amp;Command Line...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Commandoregel...</translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="obsolete">&amp;Loggen...</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>&amp;Help</translation>
+    </message>
+    <message>
+        <source>Dock Icon</source>
+        <translation>Dok Iioon</translation>
+    </message>
+    <message>
+        <source>Show Monitor Preview</source>
+        <translation>Geef monitor voorvertoning weer</translation>
+    </message>
+    <message>
+        <source>Show Application Icon</source>
+        <translation>Geef applicatie icoon weer</translation>
+    </message>
+    <message>
+        <source>Enter &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to normal mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable automatic resize of the guest display when the window is resized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Disable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloader</name>
     <message>
         <source>The download process has been cancelled by the user.</source>
@@ -1029,6 +1305,100 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIIndicatorsPool</name>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de virtuale harde schijf weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de CD/DVD apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de diskette apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de netwerk interfaces weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cabel %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>connected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>verbonden</translation>
+    </message>
+    <message>
+        <source>disconnected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>los gemaakt</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Alle Netwerkadapters zijn gedeactiveerd&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de gekoppelde USB apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen USB apparaat aangesloten&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB controller is gedeactiveerd&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de gedeelde mappen van de machine weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen gedeelde mappen&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation>Geeft aan of het beeldscherm op afstand (VRDP server) geactiveerd is (&lt;img src=:/vrdp_16px.png/&gt;) of niet (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+    </message>
+    <message>
+        <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
+        <translation>&lt;hr&gt;VRDP server luistert op poort %1</translation>
+    </message>
+    <message>
+        <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>Geeft de status van de hardware virtualisatie functies weer die gebruikt worden door de virtuele machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation>Geeft aan of de muis, van de gastheer, is gevangen door het gast besturingssysteem:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is niet gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis integratie (MI) staat aan&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is niet gevangen&lt;/nobr&gt;&lt;br&gt;Let op Muis integratie werkt alleen als de gast uitbreidingen zijn geïnstalleerd op de het gast besturingssysteem.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
+        <translation>Geeft aan of het toetsenbord, van de gastheer, is gevangen door het gast besturingssysteem (&lt;img src=:/hostkey_captured_16px.png/&gt;) of niet (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+    </message>
+</context>
+<context>
     <name>UIMachineLogic</name>
     <message>
         <source>VirtualBox OSE</source>
@@ -1037,6 +1407,61 @@ p, li { white-space: pre-wrap; }
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation> PROEF constructie %1r%2 - %3</translation>
+    </message>
+    <message>
+        <source>Preview Monitor %1</source>
+        <translation>Voorvertoon monitor %1</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>Momentopname %1</translation>
+    </message>
+    <message>
+        <source>More CD/DVD Images...</source>
+        <translation>Meer CD/DVD images...</translation>
+    </message>
+    <message>
+        <source>Unmount CD/DVD Device</source>
+        <translation>ontkoppel CD/DVD apparaat</translation>
+    </message>
+    <message>
+        <source>More Floppy Images...</source>
+        <translation>Meer diskette images...</translation>
+    </message>
+    <message>
+        <source>Unmount Floppy Device</source>
+        <translation>ontkoppel diskette apparaat</translation>
+    </message>
+    <message>
+        <source>No CD/DVD Devices Attached</source>
+        <translation>Geen CD/DVD apparaten gekoppeld</translation>
+    </message>
+    <message>
+        <source>No CD/DVD devices attached to that VM</source>
+        <translation>Geen CD/DVD apparaten gekoppeld aan die VM</translation>
+    </message>
+    <message>
+        <source>No Floppy Devices Attached</source>
+        <translation>Geen diskette apparaten gekoppeld</translation>
+    </message>
+    <message>
+        <source>No floppy devices attached to that VM</source>
+        <translation>Geen diskette apparaten gekoppeld aan die VM</translation>
+    </message>
+    <message>
+        <source>No USB Devices Connected</source>
+        <translation>Geen USB apparaten gekoppeld</translation>
+    </message>
+    <message>
+        <source>No supported devices connected to the host PC</source>
+        <translation>Geen ondersteunde apparaten zijn aan de gastheer PC verbonden</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineWindowNormal</name>
+    <message>
+        <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
+        <translation>Geeft de nu toegekende gastheer toets weer.&lt;br&gt;Door alleen deze toets aan te raken wordt de status van het toetsenbord en de muis omgewisseld.De toets wordt ook in combinatie met andere toetsen gebruikt om snel acties uit het hoofdmenu uit te voeren.</translation>
     </message>
 </context>
 <context>
@@ -1393,7 +1818,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Base Memory</source>
         <comment>summary</comment>
-        <translation type="obsolete">Hoofd geheugen</translation>
+        <translation type="obsolete">Geheugen</translation>
     </message>
     <message>
         <source>Boot Hard Disk</source>
@@ -1487,7 +1912,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Boot Hard &amp;Disk (Primary Master)</source>
-        <translation>&amp;Opstartschijf (Primaire master)</translation>
+        <translation type="obsolete">&amp;Opstartschijf (Primaire master)</translation>
     </message>
     <message>
         <source>&amp;Create new hard disk</source>
@@ -1504,6 +1929,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
         <translation>De aanbevolen grote van de opstartschijf bedraagt &lt;b&gt;%1&lt;/b&gt; MB.</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1529,7 +1958,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Base Memory</source>
         <comment>summary</comment>
-        <translation>Hoofd geheugen</translation>
+        <translation>Geheugen</translation>
     </message>
     <message>
         <source>MB</source>
@@ -1676,7 +2105,11 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024KBytes</comment>
-        <translation>MB</translation>
+        <translation type="obsolete">MB</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SAS)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1738,85 +2171,85 @@ p, li { white-space: pre-wrap; }
     <name>VBoxConsoleWnd</name>
     <message>
         <source>VirtualBox OSE</source>
-        <translation>VirtualBox OSE</translation>
+        <translation type="obsolete">VirtualBox OSE</translation>
     </message>
     <message>
         <source>&amp;Fullscreen Mode</source>
-        <translation>Modus &amp;Schermvullend</translation>
+        <translation type="obsolete">Modus &amp;Schermvullend</translation>
     </message>
     <message>
         <source>Switch to fullscreen mode</source>
-        <translation>Schakel over op de modus schermvullend</translation>
+        <translation type="obsolete">Schakel over op de modus schermvullend</translation>
     </message>
     <message>
         <source>Mouse Integration</source>
         <comment>enable/disable...</comment>
-        <translation>Muis integratie</translation>
+        <translation type="obsolete">Muis integratie</translation>
     </message>
     <message>
         <source>Auto-resize Guest Display</source>
         <comment>enable/disable...</comment>
-        <translation>Grote van het gast scherm automatisch aanpassen</translation>
+        <translation type="obsolete">Grote van het gast scherm automatisch aanpassen</translation>
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
-        <translation>Grote van het &amp;gast scherm automatisch aanpassen</translation>
+        <translation type="obsolete">Grote van het &amp;gast scherm automatisch aanpassen</translation>
     </message>
     <message>
         <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
-        <translation>Pas de grote van het gast scherm automatisch aan wanneer het venster van grote veranderd (vereist de gast uitbreiding)</translation>
+        <translation type="obsolete">Pas de grote van het gast scherm automatisch aan wanneer het venster van grote veranderd (vereist de gast uitbreiding)</translation>
     </message>
     <message>
         <source>&amp;Adjust Window Size</source>
-        <translation>Venstergrote &amp;aanpassen</translation>
+        <translation type="obsolete">Venstergrote &amp;aanpassen</translation>
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Pas de venstergrote aan en plaats het gast scherm op de beste plek</translation>
+        <translation type="obsolete">Pas de venstergrote aan en plaats het gast scherm op de beste plek</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
-        <translation>Stuur Ctrl-Alt-Del combinatie naar de virtuele machine</translation>
+        <translation type="obsolete">Stuur Ctrl-Alt-Del combinatie naar de virtuele machine</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation>&amp;Invoegen van Ctrl-Alt-Backspace</translation>
+        <translation type="obsolete">&amp;Invoegen van Ctrl-Alt-Backspace</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
-        <translation>Stuur de Ctrl-Alt-Backspace combinatie naar de virtuele machine</translation>
+        <translation type="obsolete">Stuur de Ctrl-Alt-Backspace combinatie naar de virtuele machine</translation>
     </message>
     <message>
         <source>&amp;Reset</source>
-        <translation>&amp;Opnieuw instellen</translation>
+        <translation type="obsolete">&amp;Opnieuw instellen</translation>
     </message>
     <message>
         <source>Reset the virtual machine</source>
-        <translation>Stel de virtuele machine opnieuw in</translation>
+        <translation type="obsolete">Stel de virtuele machine opnieuw in</translation>
     </message>
     <message>
         <source>ACPI S&amp;hutdown</source>
-        <translation>&amp;Uitzetten via ACPI</translation>
+        <translation type="obsolete">&amp;Uitzetten via ACPI</translation>
     </message>
     <message>
         <source>Send the ACPI Power Button press event to the virtual machine</source>
-        <translation>Stuur het ACPI startknop gebeurtenis naar de virtuele machine</translation>
+        <translation type="obsolete">Stuur het ACPI startknop gebeurtenis naar de virtuele machine</translation>
     </message>
     <message>
         <source>&amp;Close...</source>
-        <translation>&amp;Sluiten...</translation>
+        <translation type="obsolete">&amp;Sluiten...</translation>
     </message>
     <message>
         <source>Close the virtual machine</source>
-        <translation>Sluit de virtuele machine af</translation>
+        <translation type="obsolete">Sluit de virtuele machine af</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot...</source>
-        <translation>Maak een &amp;momentopname...</translation>
+        <translation type="obsolete">Maak een &amp;momentopname...</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
-        <translation>Maak een momentopname van de virtuelen Machine</translation>
+        <translation type="obsolete">Maak een momentopname van de virtuelen Machine</translation>
     </message>
     <message>
         <source>&amp;Floppy Image...</source>
@@ -1856,23 +2289,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enable or disable remote desktop (RDP) connections to this machine</source>
-        <translation>Activeren of deactiverenvan het beeldscherm op afstand (remote desktop protocol, RDP) verbindingen naar deze virtuele machine</translation>
+        <translation type="obsolete">Activeren of deactiverenvan het beeldscherm op afstand (remote desktop protocol, RDP) verbindingen naar deze virtuele machine</translation>
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation>&amp;Gedeelde mappen...</translation>
+        <translation type="obsolete">&amp;Gedeelde mappen...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
-        <translation>Open de dialoog om met de gedeelde mappen te bewerken</translation>
+        <translation type="obsolete">Open de dialoog om met de gedeelde mappen te bewerken</translation>
     </message>
     <message>
         <source>&amp;Install Guest Additions...</source>
-        <translation>&amp;Gast uitbreidingen installeren...</translation>
+        <translation type="obsolete">&amp;Gast uitbreidingen installeren...</translation>
     </message>
     <message>
         <source>Mount the Guest Additions installation image</source>
-        <translation>Koppel de gast uitbreidingen installatie image aan</translation>
+        <translation type="obsolete">Koppel de gast uitbreidingen installatie image aan</translation>
     </message>
     <message>
         <source>Mount &amp;Floppy</source>
@@ -1884,60 +2317,60 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;USB Devices</source>
-        <translation>&amp;USB-apparaten</translation>
+        <translation type="obsolete">&amp;USB-apparaten</translation>
     </message>
     <message>
         <source>&amp;Devices</source>
-        <translation>&amp;Apparaten</translation>
+        <translation type="obsolete">&amp;Apparaten</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
-        <translation>De&amp;bug</translation>
+        <translation type="obsolete">De&amp;bug</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Help</translation>
+        <translation type="obsolete">&amp;Help</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
-        <translation>&lt;hr&gt;VRDP server luistert op poort %1</translation>
+        <translation type="obsolete">&lt;hr&gt;VRDP server luistert op poort %1</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
-        <translation>&amp;Pauze</translation>
+        <translation type="obsolete">&amp;Pauze</translation>
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
         <translatorcomment>Stel de uitvoering van de virtuele machine uit</translatorcomment>
-        <translation>Suspendiert die Ausführung der virtuellen Maschine</translation>
+        <translation type="obsolete">Suspendiert die Ausführung der virtuellen Maschine</translation>
     </message>
     <message>
         <source>R&amp;esume</source>
-        <translation>&amp;Hervatten</translation>
+        <translation type="obsolete">&amp;Hervatten</translation>
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>
-        <translation>Hervat de uitvoering van de virtuele machine</translation>
+        <translation type="obsolete">Hervat de uitvoering van de virtuele machine</translation>
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
-        <translation>&amp;Muis integratie deactiveren</translation>
+        <translation type="obsolete">&amp;Muis integratie deactiveren</translation>
     </message>
     <message>
         <source>Temporarily disable host mouse pointer integration</source>
-        <translation>Tijdelijk de integratie van de muis met de host deactiveren</translation>
+        <translation type="obsolete">Tijdelijk de integratie van de muis met de host deactiveren</translation>
     </message>
     <message>
         <source>Enable &amp;Mouse Integration</source>
-        <translation>&amp;Muis integratie activeren</translation>
+        <translation type="obsolete">&amp;Muis integratie activeren</translation>
     </message>
     <message>
         <source>Enable temporarily disabled host mouse pointer integration</source>
-        <translation>Activeer de tijdelijk uitgeschakede muis integratie</translation>
+        <translation type="obsolete">Activeer de tijdelijk uitgeschakede muis integratie</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Momentopname %1</translation>
+        <translation type="obsolete">Momentopname %1</translation>
     </message>
     <message>
         <source>Host Drive </source>
@@ -1945,11 +2378,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Del</source>
-        <translation>&amp;Invoegen van Ctrl-Alt-Del</translation>
+        <translation type="obsolete">&amp;Invoegen van Ctrl-Alt-Del</translation>
     </message>
     <message>
         <source>&amp;Machine</source>
-        <translation>&amp;Machine</translation>
+        <translation type="obsolete">&amp;Machine</translation>
     </message>
     <message>
         <source>&amp;Network Adapters</source>
@@ -1980,11 +2413,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
-        <translation>Modus naad&amp;loos</translation>
+        <translation type="obsolete">Modus naad&amp;loos</translation>
     </message>
     <message>
         <source>Switch to seamless desktop integration mode</source>
-        <translation>Schakel over op de naadloze bureaublad integratie modus (Het venster van de gast wordt naadloos in het bureablad van de gastheer geïntegreerd)</translation>
+        <translation type="obsolete">Schakel over op de naadloze bureaublad integratie modus (Het venster van de gast wordt naadloos in het bureablad van de gastheer geïntegreerd)</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2034,7 +2467,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hard disks attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen harde schijven aangesloten&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen harde schijven aangesloten&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2049,17 +2482,17 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>connected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>verbonden</translation>
+        <translation type="obsolete">verbonden</translation>
     </message>
     <message>
         <source>disconnected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>los gemaakt</translation>
+        <translation type="obsolete">los gemaakt</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Alle Netwerkadapters zijn gedeactiveerd&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Alle Netwerkadapters zijn gedeactiveerd&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2069,12 +2502,12 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen USB apparaat aangesloten&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen USB apparaat aangesloten&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB controller is gedeactiveerd&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB controller is gedeactiveerd&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2084,50 +2517,50 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen gedeelde mappen&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen gedeelde mappen&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Session I&amp;nformation Dialog</source>
-        <translation>Sessie i&amp;nformatie dialoog</translation>
+        <translation type="obsolete">Sessie i&amp;nformatie dialoog</translation>
     </message>
     <message>
         <source>Show Session Information Dialog</source>
-        <translation>Geef de sessie informatie dialoog weer</translation>
+        <translation type="obsolete">Geef de sessie informatie dialoog weer</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
         <comment>debug action</comment>
-        <translation>&amp;Statistieken...</translation>
+        <translation type="obsolete">&amp;Statistieken...</translation>
     </message>
     <message>
         <source>&amp;Command Line...</source>
         <comment>debug action</comment>
-        <translation>&amp;Commandoregel...</translation>
+        <translation type="obsolete">&amp;Commandoregel...</translation>
     </message>
     <message>
         <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Geeft aan of de automatische aanpassing van de grote, van het gast scherm, aan staat (&lt;img src=:/auto_resize_on_16px.png/&gt;) of uit (&lt;img src=:/auto_resize_off_16px.png/&gt;). Let op deze functie werkt alleen als de gast uitbreidingen zijn geïnstalleerd op de het gast besturingssysteem.</translation>
+        <translation type="obsolete">Geeft aan of de automatische aanpassing van de grote, van het gast scherm, aan staat (&lt;img src=:/auto_resize_on_16px.png/&gt;) of uit (&lt;img src=:/auto_resize_off_16px.png/&gt;). Let op deze functie werkt alleen als de gast uitbreidingen zijn geïnstalleerd op de het gast besturingssysteem.</translation>
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Geeft aan of de muis, van de gastheer, is gevangen door het gast besturingssysteem:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is niet gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis integratie (MI) staat aan&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is niet gevangen&lt;/nobr&gt;&lt;br&gt;Let op Muis integratie werkt alleen als de gast uitbreidingen zijn geïnstalleerd op de het gast besturingssysteem.</translation>
+        <translation type="obsolete">Geeft aan of de muis, van de gastheer, is gevangen door het gast besturingssysteem:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is niet gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis is gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;Muis integratie (MI) staat aan&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is gevangen&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI staat uit, muis is niet gevangen&lt;/nobr&gt;&lt;br&gt;Let op Muis integratie werkt alleen als de gast uitbreidingen zijn geïnstalleerd op de het gast besturingssysteem.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation>Geeft aan of het toetsenbord, van de gastheer, is gevangen door het gast besturingssysteem (&lt;img src=:/hostkey_captured_16px.png/&gt;) of niet (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+        <translation type="obsolete">Geeft aan of het toetsenbord, van de gastheer, is gevangen door het gast besturingssysteem (&lt;img src=:/hostkey_captured_16px.png/&gt;) of niet (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Geeft aan of het beeldscherm op afstand (VRDP server) geactiveerd is (&lt;img src=:/vrdp_16px.png/&gt;) of niet (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+        <translation type="obsolete">Geeft aan of het beeldscherm op afstand (VRDP server) geactiveerd is (&lt;img src=:/vrdp_16px.png/&gt;) of niet (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&amp;Logging...</source>
         <comment>debug action</comment>
-        <translation>&amp;Loggen...</translation>
+        <translation type="obsolete">&amp;Loggen...</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
-        <translation>Geeft de nu toegekende gastheer toets weer.&lt;br&gt;Door alleen deze toets aan te raken wordt de status van het toetsenbord en de muis omgewisseld.De toets wordt ook in combinatie met andere toetsen gebruikt om snel acties uit het hoofdmenu uit te voeren.</translation>
+        <translation type="obsolete">Geeft de nu toegekende gastheer toets weer.&lt;br&gt;Door alleen deze toets aan te raken wordt de status van het toetsenbord en de muis omgewisseld.De toets wordt ook in combinatie met andere toetsen gebruikt om snel acties uit het hoofdmenu uit te voeren.</translation>
     </message>
     <message>
         <source>Sun VirtualBox</source>
@@ -2136,150 +2569,150 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>Geeft de status van de hardware virtualisatie functies weer die gebruikt worden door de virtuele machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Geeft de status van de hardware virtualisatie functies weer die gebruikt worden door de virtuele machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation> PROEF constructie %1r%2 - %3</translation>
+        <translation type="obsolete"> PROEF constructie %1r%2 - %3</translation>
     </message>
     <message>
         <source>&amp;CD/DVD Devices</source>
-        <translation>&amp;CD/DVD apparaten</translation>
+        <translation type="obsolete">&amp;CD/DVD apparaten</translation>
     </message>
     <message>
         <source>&amp;Floppy Devices</source>
-        <translation>&amp;Diskette apparaten</translation>
+        <translation type="obsolete">&amp;Diskette apparaten</translation>
     </message>
     <message>
         <source>&amp;Network Adapters...</source>
-        <translation>&amp;Netwerk adapters...</translation>
+        <translation type="obsolete">&amp;Netwerk adapters...</translation>
     </message>
     <message>
         <source>Change the settings of network adapters</source>
-        <translation>Pas de instellingen van de netwerk adapters aan</translation>
+        <translation type="obsolete">Pas de instellingen van de netwerk adapters aan</translation>
     </message>
     <message>
         <source>&amp;Remote Display</source>
-        <translation>&amp;Beeldscherm op afstand</translation>
+        <translation type="obsolete">&amp;Beeldscherm op afstand</translation>
     </message>
     <message>
         <source>Remote Desktop (RDP) Server</source>
         <comment>enable/disable...</comment>
-        <translation>Server voor werkplek op afstand (RDP)</translation>
+        <translation type="obsolete">Server voor werkplek op afstand (RDP)</translation>
     </message>
     <message>
         <source>More CD/DVD Images...</source>
-        <translation>Meer CD/DVD images...</translation>
+        <translation type="obsolete">Meer CD/DVD images...</translation>
     </message>
     <message>
         <source>Unmount CD/DVD Device</source>
-        <translation>ontkoppel CD/DVD apparaat</translation>
+        <translation type="obsolete">ontkoppel CD/DVD apparaat</translation>
     </message>
     <message>
         <source>More Floppy Images...</source>
-        <translation>Meer diskette images...</translation>
+        <translation type="obsolete">Meer diskette images...</translation>
     </message>
     <message>
         <source>Unmount Floppy Device</source>
-        <translation>ontkoppel diskette apparaat</translation>
+        <translation type="obsolete">ontkoppel diskette apparaat</translation>
     </message>
     <message>
         <source>No CD/DVD Devices Attached</source>
-        <translation>Geen CD/DVD apparaten gekoppeld</translation>
+        <translation type="obsolete">Geen CD/DVD apparaten gekoppeld</translation>
     </message>
     <message>
         <source>No Floppy Devices Attached</source>
-        <translation>Geen diskette apparaten gekoppeld</translation>
+        <translation type="obsolete">Geen diskette apparaten gekoppeld</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de virtuale harde schijf weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de virtuale harde schijf weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de CD/DVD apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de CD/DVD apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No CD/DVD devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen CD/DVD apparaat gekoppeld&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen CD/DVD apparaat gekoppeld&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de diskette apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de diskette apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No floppy devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen diskette apparaten gekoppeld&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Geen diskette apparaten gekoppeld&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de netwerk interfaces weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de netwerk interfaces weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de gekoppelde USB apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de gekoppelde USB apparaten weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de gedeelde mappen van de machine weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Geeft de activiteit van de gedeelde mappen van de machine weer:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Dock Icon</source>
-        <translation>Dok Iioon</translation>
+        <translation type="obsolete">Dok Iioon</translation>
     </message>
     <message>
         <source>Show Application Icon</source>
-        <translation>Geef applicatie icoon weer</translation>
+        <translation type="obsolete">Geef applicatie icoon weer</translation>
     </message>
     <message>
         <source>Show Monitor Preview</source>
-        <translation>Geef monitor voorvertoning weer</translation>
+        <translation type="obsolete">Geef monitor voorvertoning weer</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cabel %4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cabel %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>ACPI Sh&amp;utdown</source>
-        <translation>&amp;Uitzetten via ACPI</translation>
+        <translation type="obsolete">&amp;Uitzetten via ACPI</translation>
     </message>
     <message>
         <source>&amp;View</source>
-        <translation>&amp;Weergeven</translation>
+        <translation type="obsolete">&amp;Weergeven</translation>
     </message>
     <message>
         <source>Preview Monitor %1</source>
-        <translation>Voorvertoon monitor %1</translation>
+        <translation type="obsolete">Voorvertoon monitor %1</translation>
     </message>
     <message>
         <source>No CD/DVD devices attached to that VM</source>
-        <translation>Geen CD/DVD apparaten gekoppeld aan die VM</translation>
+        <translation type="obsolete">Geen CD/DVD apparaten gekoppeld aan die VM</translation>
     </message>
     <message>
         <source>No floppy devices attached to that VM</source>
-        <translation>Geen diskette apparaten gekoppeld aan die VM</translation>
+        <translation type="obsolete">Geen diskette apparaten gekoppeld aan die VM</translation>
     </message>
     <message>
         <source>No USB Devices Connected</source>
-        <translation>Geen USB apparaten gekoppeld</translation>
+        <translation type="obsolete">Geen USB apparaten gekoppeld</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
-        <translation>Geen ondersteunde apparaten zijn aan de gastheer PC verbonden</translation>
+        <translation type="obsolete">Geen ondersteunde apparaten zijn aan de gastheer PC verbonden</translation>
     </message>
 </context>
 <context>
@@ -2379,7 +2812,7 @@ p, li { white-space: pre-wrap; }
     <name>VBoxGLSettingsGeneral</name>
     <message>
         <source>Displays the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
-        <translation>Geeft het pad weer naar de standaard map voor virtuele machines. Deze map wordt gebruikt voor het aanmaken van nieuwe virtuele machines, tenzij deze uitdrukkelijk wordt aangepast.</translation>
+        <translation>Geeft het pad weer naar de standaardmap voor virtuele machines. Deze map wordt gebruikt voor het aanmaken van nieuwe virtuele machines, tenzij deze uitdrukkelijk wordt aangepast.</translation>
     </message>
     <message>
         <source>Displays the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
@@ -2387,11 +2820,11 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Default &amp;Hard Disk Folder:</source>
-        <translation>Standaard map voor de &amp;Harde schijf:</translation>
+        <translation>Standaardmap voor de &amp;Harde schijf:</translation>
     </message>
     <message>
         <source>Default &amp;Machine Folder:</source>
-        <translation>Standaard map voor Virtuele &amp;machines:</translation>
+        <translation>Standaardmap voor Virtuele &amp;machines:</translation>
     </message>
     <message>
         <source>V&amp;RDP Authentication Library:</source>
@@ -2399,7 +2832,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Displays the path to the default hard disk folder. This folder is used, if not explicitly specified otherwise, when adding existing or creating new virtual hard disks.</source>
-        <translation>Geeft het pad weer naar de standaard map voor harde schijven. Deze map wordt gebruikt bij het toeveogen of aanmaken van nieuwe harde schijven, tenzij deze uitdrukkelijk wordt aangepast.</translation>
+        <translation>Geeft het pad weer naar de standaardmap voor harde schijven. Deze map wordt gebruikt bij het toeveogen of aanmaken van nieuwe harde schijven, tenzij deze uitdrukkelijk wordt aangepast.</translation>
     </message>
     <message>
         <source>When checked, the application will provide an icon with the context menu in the system tray.</source>
@@ -2831,7 +3264,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Base Memory</source>
         <comment>details report</comment>
-        <translation>Hoofd geheugen</translation>
+        <translation>Geheugen</translation>
     </message>
     <message>
         <source>General</source>
@@ -2988,7 +3421,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Powered Off</source>
         <comment>MachineState</comment>
-        <translation>Uit geschakeld</translation>
+        <translation>Uitgeschakeld</translation>
     </message>
     <message>
         <source>Saved</source>
@@ -3073,7 +3506,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Hard Disk</source>
         <comment>DeviceType</comment>
-        <translation>Harde schiijf</translation>
+        <translation>Harde schijf</translation>
     </message>
     <message>
         <source>Network</source>
@@ -3609,7 +4042,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Processor(s)</source>
         <comment>details report</comment>
-        <translation>Prosessoren</translation>
+        <translation>Processoren</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
@@ -3958,6 +4391,16 @@ p, li { white-space: pre-wrap; }
         <source>Shareable</source>
         <comment>DiskType</comment>
         <translation>Te delen</translation>
+    </message>
+    <message>
+        <source>Unknown device</source>
+        <comment>USB device details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4748,7 +5191,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;Reset All Warnings</source>
-        <translation>Alle Waarschuwingen &amp;terugzetten</translation>
+        <translation>Alle waarschuwingen &amp;terugzetten</translation>
     </message>
     <message>
         <source>Go back to showing all suppressed warnings and messages</source>
@@ -4911,7 +5354,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Een fatale fout is opgetreden terwijl de virtuele machine draaide en de machine is gestopt.&lt;/p&gt;&lt;p&gt;Kijk voor ondersteuning op de community sectie van &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; of u contact voor ondersteuning. Lever aub de inhoud van het logbestand &lt;tt&gt;VBox.log&lt;/tt&gt; en het image bestand &lt;tt&gt;VBox.png&lt;/tt&gt; deze kunt u terugvinden in de &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; folder, samen met een beschrijving van wat u deed op het moment dat de fout optrad. Let op; u kunt genoemde bestanden ook benaderen via &lt;b&gt;Geef Log weer&lt;/b&gt; in het &lt;b&gt;machine&lt;/b&gt; menu van de hoofdvenster van VirtualBox.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;Ok&lt;/b&gt; als u de machine uit wilt zetten of klik op &lt;b&gt;Negeren&lt;/b&gt; als u alles zo wilt laten staan voor nader onderzoek. Let op: nader onderzoek vereist specifieke kennis en hulpmiddelen, het is wenselijker om op &lt;b&gt;Ok&lt;/b&gt; te klikken.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Een fatale fout is opgetreden terwijl de virtuele machine draaide en de machine is gestopt.&lt;/p&gt;&lt;p&gt;Kijk voor ondersteuning op de community sectie van &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; of u contact voor ondersteuning. Lever aub de inhoud van het logbestand &lt;tt&gt;VBox.log&lt;/tt&gt; en het image bestand &lt;tt&gt;VBox.png&lt;/tt&gt; deze kunt u terugvinden in de &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; folder, samen met een beschrijving van wat u deed op het moment dat de fout optrad. Let op; u kunt genoemde bestanden ook benaderen via &lt;b&gt;Toon Log&lt;/b&gt; in het &lt;b&gt;machine&lt;/b&gt; menu van de hoofdvenster van VirtualBox.&lt;/p&gt;&lt;p&gt;Klik op &lt;b&gt;Ok&lt;/b&gt; als u de machine uit wilt zetten of klik op &lt;b&gt;Negeren&lt;/b&gt; als u alles zo wilt laten staan voor nader onderzoek. Let op: nader onderzoek vereist specifieke kennis en hulpmiddelen, het is wenselijker om op &lt;b&gt;Ok&lt;/b&gt; te klikken.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>hard disk</source>
@@ -5039,7 +5482,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Deleting the snapshot will cause the state information saved in it to be lost, and disk data spread over several image files that VirtualBox has created together with the snapshot will be merged into one file. This can be a lengthy process, and the information in the snapshot cannot be recovered.&lt;/p&gt;&lt;/p&gt;Are you sure you want to delete the selected snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Door het verwijderen van een momentopname wordt de status informatie opgeslagen in de momentopname weg gegooid. En de schijf gegevens, verspreidt over verschillende image bestanden, die VirtualBox heeft aangemaakt tesamen met de momentopname, worden samengevoegd in één bestand. Dit kan een langdurig proces zijn en de informatie in de momentopname kan niet hersteld worden.&lt;/p&gt;&lt;/p&gt;Bent u er zeker van dat u de geselecteerde mometopname &lt;b&gt;%1&lt;/b&gt;wilt verwijderen?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Door het verwijderen van een momentopname wordt de status informatie opgeslagen in de momentopname weg gegooid. En de schijf gegevens, verspreidt over verschillende image bestanden, die VirtualBox heeft aangemaakt tesamen met de momentopname, worden samengevoegd in één bestand. Dit kan een langdurig proces zijn en de informatie in de momentopname kan niet hersteld worden.&lt;/p&gt;&lt;/p&gt;Bent u er zeker van dat u de geselecteerde momentopname &lt;b&gt;%1&lt;/b&gt;wilt verwijderen?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Delete</source>
@@ -5472,7 +5915,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&amp;File</source>
-        <translation>&amp;Bestand</translation>
+        <translation type="obsolete">&amp;Bestand</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -5575,12 +6018,22 @@ p, li { white-space: pre-wrap; }
         <source>Re&amp;fresh</source>
         <translation>&amp;Verversen</translation>
     </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation type="unfinished">&amp;Bestand</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation type="unfinished">&amp;Bestand</translation>
+    </message>
 </context>
 <context>
     <name>VBoxSettingsDialog</name>
     <message>
         <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;Selecteer een categorie instellingen uit de lijst, aan de linkerkant, en beweeg met de muis over de een instelling om meer informatie te verkrijgen&lt;/i&gt;.</translation>
+        <translation>&lt;i&gt;Selecteer een categorie instellingen uit de lijst aan de linkerkant, en beweeg met de muis over de een instelling om meer informatie te verkrijgen&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>Invalid settings detected</source>
@@ -6100,16 +6553,16 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Enabled</source>
         <comment>nested paging</comment>
-        <translation>Geactiveerd</translation>
+        <translation type="obsolete">Geactiveerd</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>nested paging</comment>
-        <translation>Gedeactiveerd</translation>
+        <translation type="obsolete">Gedeactiveerd</translation>
     </message>
     <message>
         <source>Nested Paging</source>
-        <translation>Geneste Paginering</translation>
+        <translation type="obsolete">Geneste Paginering</translation>
     </message>
     <message>
         <source>VBoxVMInformationDlg</source>

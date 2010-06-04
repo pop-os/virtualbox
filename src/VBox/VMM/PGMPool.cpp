@@ -1,4 +1,4 @@
-/* $Id: PGMPool.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PGMPool.cpp 29888 2010-05-31 10:00:01Z vboxsync $ */
 /** @file
  * PGM Shadow Page Pool.
  */
@@ -606,13 +606,9 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
     pgmLock(pVM);
     Log(("pgmR3PoolClearAllRendezvous: cUsedPages=%d\n", pPool->cUsedPages));
 
-#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
-    pgmPoolResetDirtyPages(pVM);
-#endif
-
     /*
      * Iterate all the pages until we've encountered all that are in use.
-     * This is simple but not quite optimal solution.
+     * This is a simple but not quite optimal solution.
      */
     unsigned cModifiedPages = 0; NOREF(cModifiedPages);
     unsigned cLeft = pPool->cUsedPages;
@@ -684,17 +680,10 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                         pPage->cPresent = 0;
                         pPage->iFirstPresent = NIL_PGMPOOL_PRESENT_INDEX;
                     }
-#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
-                    else
-                        Assert(!pPage->fDirty);
-#endif
                 }
                 /* fall thru */
 
                 default:
-#ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
-                    Assert(!pPage->fDirty);
-#endif
                     Assert(!pPage->cModifications || ++cModifiedPages);
                     Assert(pPage->iModifiedNext == NIL_PGMPOOL_IDX || pPage->cModifications);
                     Assert(pPage->iModifiedPrev == NIL_PGMPOOL_IDX || pPage->cModifications);
@@ -757,12 +746,41 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
     }
     paPhysExts[cMaxPhysExts - 1].iNext = NIL_PGMPOOL_PHYSEXT_INDEX;
 
+
 #ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
+    /* Reset all dirty pages to reactivate the page monitoring. */
+    /* Note: we must do this *after* clearing all page references and shadow page tables as there might be stale references to
+     *       recently removed MMIO ranges around that might otherwise end up asserting in pgmPoolTracDerefGCPhysHint
+     */
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+	{
+        PPGMPOOLPAGE pPage;
+        unsigned     idxPage;
+
+        if (pPool->aIdxDirtyPages[i] == NIL_PGMPOOL_IDX)
+            continue;
+
+        idxPage = pPool->aIdxDirtyPages[i];
+        AssertRelease(idxPage != NIL_PGMPOOL_IDX);
+        pPage = &pPool->aPages[idxPage];
+        Assert(pPage->idx == idxPage);
+        Assert(pPage->iMonitoredNext == NIL_PGMPOOL_IDX && pPage->iMonitoredPrev == NIL_PGMPOOL_IDX);
+
+        AssertMsg(pPage->fDirty, ("Page %RGp (slot=%d) not marked dirty!", pPage->GCPhys, i));
+
+        Log(("Reactivate dirty page %RGp\n", pPage->GCPhys));
+
+        /* First write protect the page again to catch all write accesses. (before checking for changes -> SMP) */
+        int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys);
+        Assert(rc == VINF_SUCCESS);
+        pPage->fDirty = false;
+
+        pPool->aIdxDirtyPages[i] = NIL_PGMPOOL_IDX;
+	}
+
     /* Clear all dirty pages. */
     pPool->idxFreeDirtyPage = 0;
     pPool->cDirtyPages      = 0;
-    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
-        pPool->aIdxDirtyPages[i] = NIL_PGMPOOL_IDX;
 #endif
 
     /* Clear the PGM_SYNC_CLEAR_PGM_POOL flag on all VCPUs to prevent redundant flushes. */

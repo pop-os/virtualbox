@@ -1,4 +1,4 @@
-/* $Id: VBoxCocoaApplication.m 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxCocoaApplication.m 29816 2010-05-26 13:52:52Z vboxsync $ */
 /** @file
  * VBoxCocoaApplication - NSApplication subclass for handling -sendEvent.
  */
@@ -23,6 +23,8 @@
 #include <iprt/assert.h>
 #import <AppKit/NSWindow.h>
 #import <AppKit/NSEvent.h>
+
+#include <Carbon/Carbon.h>
 
 #include <stdio.h>
 

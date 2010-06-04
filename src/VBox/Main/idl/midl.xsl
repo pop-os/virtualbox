@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- $Id: midl.xsl 29200 2010-05-07 12:14:18Z vboxsync $ -->
+<!-- $Id: midl.xsl 29874 2010-05-28 18:14:44Z vboxsync $ -->
 
 <!--
  *  A template to generate a MS IDL compatible interface definition file
@@ -629,6 +629,16 @@
       <xsl:text>[default] </xsl:text>
     </xsl:if>
     <xsl:text>interface </xsl:text>
+    <xsl:value-of select="@name"/>
+    <xsl:text>;&#x0A;</xsl:text>
+  </xsl:for-each>
+  <xsl:for-each select="eventsink">
+    <xsl:text>    </xsl:text>
+    <xsl:choose>
+      <xsl:when test="@default='yes'"><xsl:text>[default,source]</xsl:text></xsl:when>
+      <xsl:otherwise><xsl:text>[source]</xsl:text></xsl:otherwise>
+    </xsl:choose>
+    <xsl:text> interface </xsl:text>
     <xsl:value-of select="@name"/>
     <xsl:text>;&#x0A;</xsl:text>
   </xsl:for-each>

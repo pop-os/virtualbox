@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ApplianceImpl.cpp 29984 2010-06-02 12:22:39Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -672,6 +672,15 @@ void Appliance::disksWeight()
 
 }
 
+/**
+ * Called from Appliance::importImpl() and Appliance::writeImpl() to set up a
+ * progress object with the proper weights and maximum progress values.
+ *
+ * @param pProgress
+ * @param bstrDescription
+ * @param mode
+ * @return
+ */
 HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
                                  const Bstr &bstrDescription,
                                  SetUpProgressMode mode)
@@ -684,6 +693,8 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
     // compute the disks weight (this sets ulTotalDisksMB and cDisks in the instance data)
     disksWeight();
 
+    m->ulWeightForManifestOperation = 0;
+
     ULONG cOperations;
     ULONG ulTotalOperationsWeight;
 
@@ -691,19 +702,28 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
                   + m->cDisks;      // plus one per disk
     if (m->ulTotalDisksMB)
     {
-        m->ulWeightPerOperation = (ULONG)((double)m->ulTotalDisksMB * 1 / 100);    // use 1% of the progress for the XML
-        ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightPerOperation;
+        m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1 / 100);    // use 1% of the progress for the XML
+        ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightForXmlOperation;
     }
     else
     {
         // no disks to export:
-        m->ulWeightPerOperation = 1;
+        m->ulWeightForXmlOperation = 1;
         ulTotalOperationsWeight = 1;
     }
 
     switch (mode)
     {
-        case Regular:
+        case ImportFileNoManifest:
+        break;
+
+        case ImportFileWithManifest:
+        case WriteFile:
+            ++cOperations;          // another one for creating the manifest
+
+            // assume that checking or creating the manifest will take 10% of the time it takes to export the disks
+            m->ulWeightForManifestOperation = m->ulTotalDisksMB / 10;
+            ulTotalOperationsWeight += m->ulWeightForManifestOperation;
         break;
 
         case ImportS3:
@@ -717,7 +737,7 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
             ULONG ulImportWeight = (ULONG)((double)ulTotalOperationsWeight * 50  / 100);  // use 50% for import
             ulTotalOperationsWeight += ulImportWeight;
 
-            m->ulWeightPerOperation = ulImportWeight; /* save for using later */
+            m->ulWeightForXmlOperation = ulImportWeight; /* save for using later */
 
             ULONG ulInitWeight = (ULONG)((double)ulTotalOperationsWeight * 0.1  / 100);  // use 0.1% for init
             ulTotalOperationsWeight += ulInitWeight;
@@ -730,14 +750,14 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
 
             if (m->ulTotalDisksMB)
             {
-                m->ulWeightPerOperation = (ULONG)((double)m->ulTotalDisksMB * 1  / 100);    // use 1% of the progress for OVF file upload (we didn't know the size at this point)
-                ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightPerOperation;
+                m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1  / 100);    // use 1% of the progress for OVF file upload (we didn't know the size at this point)
+                ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightForXmlOperation;
             }
             else
             {
                 // no disks to export:
                 ulTotalOperationsWeight = 1;
-                m->ulWeightPerOperation = 1;
+                m->ulWeightForXmlOperation = 1;
             }
             ULONG ulOVFCreationWeight = (ULONG)((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
             ulTotalOperationsWeight += ulOVFCreationWeight;
@@ -745,8 +765,8 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
         break;
     }
 
-    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightPerOperation = %d\n",
-         m->ulTotalDisksMB, m->cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightPerOperation));
+    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightForXmlOperation = %d\n",
+         m->ulTotalDisksMB, m->cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightForXmlOperation));
 
     rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
                          bstrDescription,
@@ -754,7 +774,7 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
                          cOperations, // ULONG cOperations,
                          ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
                          bstrDescription, // CBSTR bstrFirstOperationDescription,
-                         m->ulWeightPerOperation); // ULONG ulFirstOperationWeight,
+                         m->ulWeightForXmlOperation); // ULONG ulFirstOperationWeight,
     return rc;
 }
 
@@ -1036,10 +1056,10 @@ STDMETHODIMP VirtualSystemDescription::GetDescription(ComSafeArrayOut(VirtualSys
         bstr = vsde.strOvf;
         bstr.cloneTo(&sfaOrigValues[i]);
 
-        bstr = vsde.strVbox;
+        bstr = vsde.strVboxCurrent;
         bstr.cloneTo(&sfaVboxValues[i]);
 
-        bstr = vsde.strExtraConfig;
+        bstr = vsde.strExtraConfigCurrent;
         bstr.cloneTo(&sfaExtraConfigValues[i]);
     }
 
@@ -1099,10 +1119,10 @@ STDMETHODIMP VirtualSystemDescription::GetDescriptionByType(VirtualSystemDescrip
         bstr = vsde->strOvf;
         bstr.cloneTo(&sfaOrigValues[i]);
 
-        bstr = vsde->strVbox;
+        bstr = vsde->strVboxCurrent;
         bstr.cloneTo(&sfaVboxValues[i]);
 
-        bstr = vsde->strExtraConfig;
+        bstr = vsde->strExtraConfigCurrent;
         bstr.cloneTo(&sfaExtraConfigValues[i]);
     }
 
@@ -1147,8 +1167,8 @@ STDMETHODIMP VirtualSystemDescription::GetValuesByType(VirtualSystemDescriptionT
         {
             case VirtualSystemDescriptionValueType_Reference: bstr = vsde->strRef; break;
             case VirtualSystemDescriptionValueType_Original: bstr = vsde->strOvf; break;
-            case VirtualSystemDescriptionValueType_Auto: bstr = vsde->strVbox; break;
-            case VirtualSystemDescriptionValueType_ExtraConfig: bstr = vsde->strExtraConfig; break;
+            case VirtualSystemDescriptionValueType_Auto: bstr = vsde->strVboxCurrent; break;
+            case VirtualSystemDescriptionValueType_ExtraConfig: bstr = vsde->strExtraConfigCurrent; break;
         }
 
         bstr.cloneTo(&sfaValues[i]);
@@ -1200,8 +1220,8 @@ STDMETHODIMP VirtualSystemDescription::SetFinalValues(ComSafeArrayIn(BOOL, aEnab
 
         if (sfaEnabled[i])
         {
-            vsde.strVbox = sfaVboxValues[i];
-            vsde.strExtraConfig = sfaExtraConfigValues[i];
+            vsde.strVboxCurrent = sfaVboxValues[i];
+            vsde.strExtraConfigCurrent = sfaExtraConfigValues[i];
         }
         else
             vsde.type = VirtualSystemDescriptionType_Ignore;
@@ -1249,8 +1269,12 @@ void VirtualSystemDescription::addEntry(VirtualSystemDescriptionType_T aType,
     vsde.type = aType;
     vsde.strRef = strRef;
     vsde.strOvf = aOvfValue;
-    vsde.strVbox = aVboxValue;
-    vsde.strExtraConfig = strExtraConfig;
+    vsde.strVboxSuggested           // remember original value
+        = vsde.strVboxCurrent       // and set current value which can be overridden by setFinalValues()
+        = aVboxValue;
+    vsde.strExtraConfigSuggested
+        = vsde.strExtraConfigCurrent
+        = strExtraConfig;
     vsde.ulSizeMB = ulSizeMB;
 
     m->llDescriptions.push_back(vsde);
@@ -1299,6 +1323,7 @@ const VirtualSystemDescriptionEntry* VirtualSystemDescription::findControllerFro
             case VirtualSystemDescriptionType_HardDiskControllerIDE:
             case VirtualSystemDescriptionType_HardDiskControllerSATA:
             case VirtualSystemDescriptionType_HardDiskControllerSCSI:
+            case VirtualSystemDescriptionType_HardDiskControllerSAS:
                 if (d.strRef == strRef)
                     return &d;
             break;

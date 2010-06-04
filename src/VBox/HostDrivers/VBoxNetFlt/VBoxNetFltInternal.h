@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltInternal.h 29494 2010-05-14 18:35:33Z vboxsync $ */
+/* $Id: VBoxNetFltInternal.h 29708 2010-05-20 17:00:05Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Internal Header.
  */
@@ -177,22 +177,18 @@ typedef struct VBOXNETFLTINS
             /** @name Solaris instance data.
              * @{ */
 #  ifdef VBOX_WITH_NETFLT_CROSSBOW
-            /** The link Id of the VNIC */
-            datalink_id_t VNICLinkId;
-            /** Instance number of VNIC */
-            uint16_t uInstance;
-            /** Whether we created the VNIC or not */
-            bool fCreatedVNIC;
-            /** The lower MAC handle */
-            mac_handle_t hInterface;
-            /** The client MAC handle */
-            mac_client_handle_t hClient;
-            /** The unicast address handle */
-            mac_unicast_handle_t hUnicast;
-            /** The promiscuous handle */
-            mac_promisc_handle_t hPromiscuous;
-            /** The MAC address of the interface */
+            /** Whether the underlying interface is a VNIC or not. */
+            bool fIsVNIC;
+            /** Handle to list of created VNICs. */
+            list_t hVNICs;
+            /** Instance number while creating VNICs. */
+            uint64_t uInstance;
+            /** Pointer to the VNIC instance data. */
+            void *pvVNIC;
+            /** The MAC address of the host interface. */
             RTMAC MacAddr;
+            /** Whether required capabilities have been reported. */
+            bool fReportedInfo;
 #  else
             /** Pointer to the bound IPv4 stream. */
             void volatile *pvIp4Stream;
@@ -359,12 +355,13 @@ DECLHIDDEN(bool) vboxNetFltOsMaybeRediscovered(PVBOXNETFLTINS pThis);
  *
  * @return  IPRT status code.
  * @param   pThis           The new instance.
+ * @param   pvIfData        Pointer to the host-private interface data.
  * @param   pSG             The (scatter/)gather list.
  * @param   fDst            The destination mask. At least one bit will be set.
  *
  * @remarks Owns the out-bound trunk port semaphore.
  */
-DECLHIDDEN(int) vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst);
+DECLHIDDEN(int) vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, uint32_t fDst);
 
 /**
  * This is called when activating or suspending the instance.
@@ -384,27 +381,28 @@ DECLHIDDEN(void) vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive);
  * This is called when a network interface has obtained a new MAC address.
  *
  * @param   pThis           The instance.
- * @param   hIf             The handle to the network.
+ * @param   pvIfData        Pointer to the private interface data.
  * @param   pMac            Pointer to the new MAC address.
  */
-DECLHIDDEN(void) vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf, PCRTMAC pMac);
+DECLHIDDEN(void) vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, void *pvIfData, PCRTMAC pMac);
 
 /**
  * This is called when an interface is connected to the network.
  *
  * @return IPRT status code.
  * @param   pThis           The instance.
- * @param   hIf             The handle to the network.
+ * @param   pvIf            Pointer to the interface.
+ * @param   ppvIfData       Where to store the private interface data.
  */
-DECLHIDDEN(int) vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf);
+DECLHIDDEN(int) vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, void *pvIf, void **ppvIfData);
 
 /**
  * This is called when a VM host disconnects from the network.
  *
  * @param   pThis           The instance.
- * @param   hIf             The handle to the network.
+ * @param   pvIfData        Pointer to the private interface data.
  */
-DECLHIDDEN(int) vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf);
+DECLHIDDEN(int) vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, void *pvIfData);
 
 /**
  * This is called to when disconnecting from a network.

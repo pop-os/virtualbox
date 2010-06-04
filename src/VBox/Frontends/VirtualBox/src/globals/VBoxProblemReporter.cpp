@@ -1,4 +1,4 @@
-/* $Id: VBoxProblemReporter.cpp 28846 2010-04-27 16:47:03Z vboxsync $ */
+/* $Id: VBoxProblemReporter.cpp 29803 2010-05-26 09:36:14Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -21,12 +21,9 @@
 
 #include "VBoxGlobal.h"
 #include "VBoxSelectorWnd.h"
-#include "VBoxConsoleWnd.h"
 #include "VBoxProgressDialog.h"
 #include "UIDownloaderUserManual.h"
-#ifdef VBOX_WITH_NEW_RUNTIME_CORE
-# include "UIMachine.h"
-#endif
+#include "UIMachine.h"
 
 #include "VBoxAboutDlg.h"
 
@@ -288,7 +285,6 @@ QWidget* VBoxProblemReporter::mainWindowShown() const
     if (!vboxGlobal().isValid())
         return 0;
 
-#if defined (VBOX_GUI_SEPARATE_VM_PROCESS)
     if (vboxGlobal().isVMConsoleProcess())
     {
         if (vboxGlobal().vmWindow() && vboxGlobal().vmWindow()->isVisible()) /* VM window is visible */
@@ -299,12 +295,6 @@ QWidget* VBoxProblemReporter::mainWindowShown() const
         if (vboxGlobal().selectorWnd().isVisible()) /* VM selector is visible */
             return &vboxGlobal().selectorWnd(); /* return that window */
     }
-#else
-    if (vboxGlobal().vmWindow() && vboxGlobal().vmWindow().isVisible()) /* VM window is visible */
-        return &vboxGlobal().vmWindow(); /* return that window */
-    if (vboxGlobal().selectorWnd().isVisible()) /* VM selector is visible */
-        return &vboxGlobal().selectorWnd(); /* return that window */
-#endif
 
     return 0;
 }

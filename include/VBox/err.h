@@ -627,6 +627,9 @@
 #define VERR_SSM_FIELD_INVALID_PADDING_SIZE     (-1869)
 /** The field contains a value that is out of range. */
 #define VERR_SSM_FIELD_INVALID_VALUE            (-1870)
+/** Generic stream error. */
+#define VERR_SSM_STREAM_ERROR                   (-1871)
+
 /** @} */
 
 
@@ -1297,6 +1300,8 @@
 #define VERR_INTNET_INCOMPATIBLE_TRUNK              (-3603)
 /** The network already exists with a different security profile (restricted / public). */
 #define VERR_INTNET_INCOMPATIBLE_FLAGS              (-3604)
+/** Failed to create a virtual network interface instance. */
+#define VERR_INTNET_FLT_VNIC_CREATE_FAILED          (-3605)
 /** @} */
 
 

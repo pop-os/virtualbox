@@ -1,4 +1,4 @@
-/* $Id: the-freebsd-kernel.h 27146 2010-03-07 16:55:06Z vboxsync $ */
+/* $Id: the-freebsd-kernel.h 29878 2010-05-29 12:18:52Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Driver, The FreeBSD Kernel Headers.
  */
@@ -65,14 +65,14 @@
 #include <vm/vm_param.h>        /* KERN_SUCCESS ++ */
 #include <vm/vm_page.h>
 #include <vm/vm_phys.h>         /* vm_phys_alloc_* */
+#include <vm/vm_extern.h>       /* kmem_alloc_attr */
 #include <sys/vmmeter.h>        /* cnt */
 #include <sys/resourcevar.h>
 #include <machine/cpu.h>
 
-/*#ifdef __cplusplus
-# error "This header doesn't work for C++ code. Sorry, typical kernel crap."
-#endif*/
-
+/**
+ * Wrappers arount the sleepq_ KPI.
+ */
 #if __FreeBSD_version >= 800026
 # define SLEEPQ_TIMEDWAIT(EventInt) sleepq_timedwait(EventInt, 0)
 # define SLEEPQ_TIMEDWAIT_SIG(EventInt) sleepq_timedwait_sig(EventInt, 0)
@@ -83,6 +83,33 @@
 # define SLEEPQ_TIMEDWAIT_SIG(EventInt) sleepq_timedwait_sig(EventInt)
 # define SLEEPQ_WAIT(EventInt) sleepq_wait(EventInt)
 # define SLEEPQ_WAIT_SIG(EventInt) sleepq_wait_sig(EventInt)
+#endif
+
+/**
+ * Our pmap_enter version
+ */
+#if __FreeBSD_version >= 701105
+# define MY_PMAP_ENTER(pPhysMap, AddrR3, pPage, fProt, fWired) \
+    pmap_enter(pPhysMap, AddrR3, VM_PROT_NONE, pPage, fProt, fWired)
+#else
+# define MY_PMAP_ENTER(pPhysMap, AddrR3, pPage, fProt, fWired) \
+    pmap_enter(pPhysMap, AddrR3, pPage, fProt, fWired)
+#endif
+
+/**
+ * Check whether we can use kmem_alloc_attr for low allocs.
+ */
+#if    (__FreeBSD_version >= 900011) \
+    || (__FreeBSD_version < 900000 && __FreeBSD_version >= 800505) \
+    || (__FreeBSD_version < 800000 && __FreeBSD_version >= 703101)
+# define USE_KMEM_ALLOC_ATTR
+#endif
+
+/**
+ * Check whether we can use kmem_alloc_prot.
+ */
+#if 0 /** @todo Not available yet. */
+# define USE_KMEM_ALLOC_PROT
 #endif
 
 #endif

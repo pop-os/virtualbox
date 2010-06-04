@@ -1243,64 +1243,74 @@ int vbvaVHWACommandCompleteAsynch(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHW
     {
         PVGASTATE pVGAState = PPDMIDISPLAYVBVACALLBACKS_2_PVGASTATE(pInterface);
         PHGSMIINSTANCE pIns = pVGAState->pHGSMI;
-        VBVAHOSTCMD *pHostCmd;
-    //    Assert(0);
 
-        int32_t iDisplay = pCmd->iDisplay;
         Assert(pCmd->Flags & VBOXVHWACMD_FLAG_HG_ASYNCH);
-        if(pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_EVENT)
+#ifdef VBOXVDMA
+        if (pVGAState->fGuestCaps & VBVACAPS_COMPLETEGCMD_BY_IOREAD)
         {
-            rc = HGSMIHostCommandAlloc (pIns,
-                                          (void**)&pHostCmd,
-                                          VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDEVENT)),
-                                          HGSMI_CH_VBVA,
-                                          VBVAHG_EVENT);
+            rc = HGSMICompleteGuestCommand(pIns, pCmd, !!(pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ));
             AssertRC(rc);
-            if(RT_SUCCESS(rc))
-            {
-                memset(pHostCmd, 0 , VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDEVENT)));
-                pHostCmd->iDstID = pCmd->iDisplay;
-                pHostCmd->customOpCode = 0;
-                VBVAHOSTCMDEVENT *pBody = VBVAHOSTCMD_BODY(pHostCmd, VBVAHOSTCMDEVENT);
-                pBody->pEvent = pCmd->GuestVBVAReserved1;
-            }
         }
         else
+#endif
         {
-            HGSMIOFFSET offCmd = HGSMIPointerToOffsetHost (pIns, pCmd);
-            Assert(offCmd != HGSMIOFFSET_VOID);
-            if(offCmd != HGSMIOFFSET_VOID)
+            VBVAHOSTCMD *pHostCmd;
+            int32_t iDisplay = pCmd->iDisplay;
+
+            if(pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_EVENT)
             {
                 rc = HGSMIHostCommandAlloc (pIns,
-                                          (void**)&pHostCmd,
-                                          VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDVHWACMDCOMPLETE)),
-                                          HGSMI_CH_VBVA,
-                                          VBVAHG_DISPLAY_CUSTOM);
+                                              (void**)&pHostCmd,
+                                              VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDEVENT)),
+                                              HGSMI_CH_VBVA,
+                                              VBVAHG_EVENT);
                 AssertRC(rc);
                 if(RT_SUCCESS(rc))
                 {
-                    memset(pHostCmd, 0 , VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDVHWACMDCOMPLETE)));
+                    memset(pHostCmd, 0 , VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDEVENT)));
                     pHostCmd->iDstID = pCmd->iDisplay;
-                    pHostCmd->customOpCode = VBVAHG_DCUSTOM_VHWA_CMDCOMPLETE;
-                    VBVAHOSTCMDVHWACMDCOMPLETE *pBody = VBVAHOSTCMD_BODY(pHostCmd, VBVAHOSTCMDVHWACMDCOMPLETE);
-                    pBody->offCmd = offCmd;
+                    pHostCmd->customOpCode = 0;
+                    VBVAHOSTCMDEVENT *pBody = VBVAHOSTCMD_BODY(pHostCmd, VBVAHOSTCMDEVENT);
+                    pBody->pEvent = pCmd->GuestVBVAReserved1;
                 }
             }
             else
             {
-                rc = VERR_INVALID_PARAMETER;
+                HGSMIOFFSET offCmd = HGSMIPointerToOffsetHost (pIns, pCmd);
+                Assert(offCmd != HGSMIOFFSET_VOID);
+                if(offCmd != HGSMIOFFSET_VOID)
+                {
+                    rc = HGSMIHostCommandAlloc (pIns,
+                                              (void**)&pHostCmd,
+                                              VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDVHWACMDCOMPLETE)),
+                                              HGSMI_CH_VBVA,
+                                              VBVAHG_DISPLAY_CUSTOM);
+                    AssertRC(rc);
+                    if(RT_SUCCESS(rc))
+                    {
+                        memset(pHostCmd, 0 , VBVAHOSTCMD_SIZE(sizeof(VBVAHOSTCMDVHWACMDCOMPLETE)));
+                        pHostCmd->iDstID = pCmd->iDisplay;
+                        pHostCmd->customOpCode = VBVAHG_DCUSTOM_VHWA_CMDCOMPLETE;
+                        VBVAHOSTCMDVHWACMDCOMPLETE *pBody = VBVAHOSTCMD_BODY(pHostCmd, VBVAHOSTCMDVHWACMDCOMPLETE);
+                        pBody->offCmd = offCmd;
+                    }
+                }
+                else
+                {
+                    rc = VERR_INVALID_PARAMETER;
+                }
             }
-        }
 
-        if(RT_SUCCESS(rc))
-        {
-            rc = HGSMIHostCommandProcessAndFreeAsynch(pIns, pHostCmd, (pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ) != 0);
-            AssertRC(rc);
             if(RT_SUCCESS(rc))
             {
-                return rc;
+                rc = HGSMIHostCommandProcessAndFreeAsynch(pIns, pHostCmd, (pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ) != 0);
+                AssertRC(rc);
+                if(RT_SUCCESS(rc))
+                {
+                    return rc;
+                }
+                HGSMIHostCommandFree (pIns, pHostCmd);
             }
-            HGSMIHostCommandFree (pIns, pHostCmd);
         }
     }
     else
@@ -1557,7 +1567,13 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             if ((pEnable->u32Flags & (VBVA_F_ENABLE | VBVA_F_DISABLE)) == VBVA_F_ENABLE)
             {
                 /* Guest reported offset relative to view. */
-                uint32_t u32Offset = pEnable->u32Offset + pCtx->aViews[uScreenId].view.u32ViewOffset;
+                uint32_t u32Offset = pEnable->u32Offset;
+#ifdef VBOXWDDM_WITH_VBVA
+                if (!(pEnable->u32Flags & VBVA_F_ABSOFFSET))
+#endif
+                {
+                    u32Offset += pCtx->aViews[uScreenId].view.u32ViewOffset;
+                }
 
                 VBVABUFFER *pVBVA = (VBVABUFFER *)HGSMIOffsetToPointerHost (pIns, u32Offset);
 
@@ -1620,6 +1636,20 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
         } break;
 #endif
 
+#ifdef VBOXVDMA
+        case VBVA_INFO_CAPS:
+        {
+            if (cbBuffer < sizeof (VBVACAPS))
+            {
+                rc = VERR_INVALID_PARAMETER;
+                break;
+            }
+
+            VBVACAPS *pCaps = (VBVACAPS*)pvBuffer;
+            pVGAState->fGuestCaps = pCaps->fCaps;
+            pCaps->rc = VINF_SUCCESS;
+        } break;
+#endif
         default:
             Log(("Unsupported VBVA guest command %d!!!\n",
                  u16ChannelInfo));

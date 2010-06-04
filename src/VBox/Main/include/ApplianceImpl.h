@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h 29422 2010-05-12 14:08:52Z vboxsync $ */
+/* $Id: ApplianceImpl.h 29925 2010-05-31 18:33:15Z vboxsync $ */
 
 /** @file
  *
@@ -119,7 +119,7 @@ private:
     void addWarning(const char* aWarning, ...);
 
     void disksWeight();
-    enum SetUpProgressMode { Regular, ImportS3, WriteS3 };
+    enum SetUpProgressMode { ImportFileWithManifest, ImportFileNoManifest, ImportS3, WriteFile, WriteS3 };
     HRESULT setUpProgress(ComObjPtr<Progress> &pProgress,
                           const Bstr &bstrDescription,
                           SetUpProgressMode mode);
@@ -144,7 +144,7 @@ private:
                                      int32_t &lDevice);
 
     HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
-    HRESULT manifestVerify(const LocationInfo &locInfo, const ovf::OVFReader &reader);
+    HRESULT manifestVerify(const LocationInfo &locInfo, const ovf::OVFReader &reader, ComObjPtr<Progress> &pProgress);
 
     HRESULT importFS(const LocationInfo &locInfo, ComObjPtr<Progress> &aProgress);
 
@@ -167,6 +167,7 @@ private:
 
     struct XMLStack;
     void buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSystemsTo,
+                                     std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
                                      ComObjPtr<VirtualSystemDescription> &vsdescThis,
                                      OVFFormat enFormat,
                                      XMLStack &stack);
@@ -183,8 +184,10 @@ struct VirtualSystemDescriptionEntry
     VirtualSystemDescriptionType_T type;    // type of this entry
     Utf8Str strRef;                         // reference number (hard disk controllers only)
     Utf8Str strOvf;                         // original OVF value (type-dependent)
-    Utf8Str strVbox;                        // configuration value (type-dependent)
-    Utf8Str strExtraConfig;                 // extra configuration key=value strings (type-dependent)
+    Utf8Str strVboxSuggested;               // configuration value (type-dependent); original value suggested by interpret()
+    Utf8Str strVboxCurrent;                 // configuration value (type-dependent); current value, either from interpret() or setFinalValue()
+    Utf8Str strExtraConfigSuggested;        // extra configuration key=value strings (type-dependent); original value suggested by interpret()
+    Utf8Str strExtraConfigCurrent;          // extra configuration key=value strings (type-dependent); current value, either from interpret() or setFinalValue()
 
     uint32_t ulSizeMB;                      // hard disk images only: a copy of ovf::DiskImage::ulSuggestedSizeMB
 };

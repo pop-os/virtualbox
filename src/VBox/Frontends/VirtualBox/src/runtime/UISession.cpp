@@ -1,4 +1,4 @@
-/* $Id: UISession.cpp 29545 2010-05-17 14:04:53Z vboxsync $ */
+/* $Id: UISession.cpp 29700 2010-05-20 14:48:14Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1174,6 +1174,11 @@ void UISession::loadSessionSettings()
             /* Hide VRDP Action: */
             uimachine()->actionsPool()->action(UIActionIndex_Toggle_VRDP)->setVisible(false);
         }
+        else
+        {
+            /* Check/Uncheck VRDP action depending on VRDP server status: */
+            uimachine()->actionsPool()->action(UIActionIndex_Toggle_VRDP)->setChecked(vrdpServer.GetEnabled());
+        }
     }
 
     /* Load extra-data settings: */
@@ -1194,9 +1199,7 @@ void UISession::loadSessionSettings()
         /* Should guest autoresize? */
         strSettings = machine.GetExtraData(VBoxDefs::GUI_AutoresizeGuest);
         QAction *pGuestAutoresizeSwitch = uimachine()->actionsPool()->action(UIActionIndex_Toggle_GuestAutoresize);
-        pGuestAutoresizeSwitch->blockSignals(true);
         pGuestAutoresizeSwitch->setChecked(strSettings != "off");
-        pGuestAutoresizeSwitch->blockSignals(false);
     }
 }
 
@@ -1214,9 +1217,6 @@ void UISession::saveSessionSettings()
         machine.SetExtraData(VBoxDefs::GUI_AutoresizeGuest,
                              uimachine()->actionsPool()->action(UIActionIndex_Toggle_GuestAutoresize)->isChecked() ?
                              QString() : "off");
-
-        // TODO: Move to fullscreen/seamless logic:
-        //machine.SetExtraData(VBoxDefs::GUI_MiniToolBarAutoHide, mMiniToolBar->isAutoHide() ? "on" : "off");
     }
 }
 

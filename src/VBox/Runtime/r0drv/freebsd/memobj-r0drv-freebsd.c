@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-freebsd.c 29027 2010-05-04 14:33:41Z vboxsync $ */
+/* $Id: memobj-r0drv-freebsd.c 29877 2010-05-28 23:23:53Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, FreeBSD.
  */
@@ -42,17 +42,6 @@
 #include <iprt/param.h>
 #include <iprt/process.h>
 #include "internal/memobj.h"
-
-/**
- * Our pmap_enter version
- */
-#if __FreeBSD_version >= 701105
-# define MY_PMAP_ENTER(pPhysMap, AddrR3, pPage, fProt, fWired) \
-    pmap_enter(pPhysMap, AddrR3, VM_PROT_NONE, pPage, fProt, fWired)
-#else
-# define MY_PMAP_ENTER(pPhysMap, AddrR3, pPage, fProt, fWired) \
-    pmap_enter(pPhysMap, AddrR3, pPage, fProt, fWired)
-#endif
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -214,8 +203,15 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
             break;
         }
 
-        /* unused: */
+#ifdef USE_KMEM_ALLOC_ATTR
         case RTR0MEMOBJTYPE_LOW:
+        {
+            kmem_free(kernel_map, (vm_offset_t)pMemFreeBSD->Core.pv, pMemFreeBSD->Core.cb);
+            break;
+        }
+#else
+        case RTR0MEMOBJTYPE_LOW: /* unused */
+#endif
         default:
             AssertMsgFailed(("enmType=%d\n", pMemFreeBSD->Core.enmType));
             return VERR_INTERNAL_ERROR;
@@ -223,7 +219,6 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 
     return VINF_SUCCESS;
 }
-
 
 int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
@@ -313,9 +308,33 @@ int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
     return rc;
 }
 
-
 int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
 {
+#ifdef USE_KMEM_ALLOC_ATTR
+    /*
+     * Use kmem_alloc_attr, fExectuable is not needed because the
+     * memory will be executable by default
+     */
+    NOREF(fExecutable);
+
+    /* create the object. */
+    PRTR0MEMOBJFREEBSD pMemFreeBSD = (PRTR0MEMOBJFREEBSD)rtR0MemObjNew(sizeof(*pMemFreeBSD), RTR0MEMOBJTYPE_LOW, NULL, cb);
+    if (!pMemFreeBSD)
+        return VERR_NO_MEMORY;
+
+    pMemFreeBSD->Core.pv = (void *)kmem_alloc_attr(kernel_map,          /* Kernel */
+                                                   cb,                  /* Amount */
+                                                   M_ZERO,              /* Zero memory */
+                                                   0,                   /* Low physical address */
+                                                   _4G - PAGE_SIZE,     /* Highest physical address */
+                                                   VM_MEMATTR_DEFAULT); /* Default memory attributes */
+    if (!pMemFreeBSD->Core.pv)
+        return VERR_NO_MEMORY;
+
+    *ppMem = &pMemFreeBSD->Core;
+
+    return VINF_SUCCESS;
+#else
     /*
      * Try a Alloc first and see if we get luck, if not try contigmalloc.
      * Might wish to try find our own pages or something later if this
@@ -337,6 +356,7 @@ int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecut
     if (RT_FAILURE(rc))
         rc = rtR0MemObjNativeAllocCont(ppMem, cb, fExecutable);
     return rc;
+#endif
 }
 
 
@@ -518,7 +538,7 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
  */
 static int rtR0MemObjNativeLockInMap(PPRTR0MEMOBJINTERNAL ppMem, vm_map_t pVmMap,
                                      vm_offset_t AddrStart, size_t cb, uint32_t fAccess,
-                                     RTR0PROCESS R0Process)
+                                     RTR0PROCESS R0Process, int fFlags)
 {
     int rc;
     NOREF(fAccess);
@@ -535,7 +555,7 @@ static int rtR0MemObjNativeLockInMap(PPRTR0MEMOBJINTERNAL ppMem, vm_map_t pVmMap
     rc = vm_map_wire(pVmMap,                                         /* the map */
                      AddrStart,                                      /* start */
                      AddrStart + cb,                                 /* end */
-                     VM_MAP_WIRE_SYSTEM | VM_MAP_WIRE_NOHOLES);      /* flags */
+                     fFlags);                                        /* flags */
     if (rc == KERN_SUCCESS)
     {
         pMemFreeBSD->Core.u.Lock.R0Process = R0Process;
@@ -554,7 +574,8 @@ int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t c
                                      (vm_offset_t)R3Ptr,
                                      cb,
                                      fAccess,
-                                     R0Process);
+                                     R0Process,
+                                     VM_MAP_WIRE_USER | VM_MAP_WIRE_NOHOLES);
 }
 
 
@@ -565,7 +586,8 @@ int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, 
                                      (vm_offset_t)pv,
                                      cb,
                                      fAccess,
-                                     NIL_RTR0PROCESS);
+                                     NIL_RTR0PROCESS,
+                                     VM_MAP_WIRE_SYSTEM | VM_MAP_WIRE_NOHOLES);
 }
 
 
@@ -862,8 +884,16 @@ RTHCPHYS rtR0MemObjNativeGetPagePhysAddr(PRTR0MEMOBJINTERNAL pMem, size_t iPage)
         case RTR0MEMOBJTYPE_PHYS_NC:
             return VM_PAGE_TO_PHYS(pMemFreeBSD->u.Phys.apPages[iPage]);
 
-        case RTR0MEMOBJTYPE_RES_VIRT:
+#ifdef USE_KMEM_ALLOC_ATTR
         case RTR0MEMOBJTYPE_LOW:
+        {
+            vm_offset_t pb = (vm_offset_t)pMemFreeBSD->Core.pv + (iPage << PAGE_SHIFT);
+            return vtophys(pb);
+        }
+#else
+        case RTR0MEMOBJTYPE_LOW:
+#endif
+        case RTR0MEMOBJTYPE_RES_VIRT:
         default:
             return NIL_RTHCPHYS;
     }

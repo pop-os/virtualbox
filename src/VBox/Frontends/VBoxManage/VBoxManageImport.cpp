@@ -1,4 +1,4 @@
-/* $Id: VBoxManageImport.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxManageImport.cpp 29994 2010-06-02 13:04:36Z vboxsync $ */
 /** @file
  * VBoxManage - The appliance-related commands.
  */
@@ -528,6 +528,22 @@ int handleImportAppliance(HandlerArg *arg)
                             }
                             else
                                 RTPrintf("%2u: SATA controller, type %ls"
+                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                        a,
+                                        aVboxValues[a],
+                                        i, a);
+                        break;
+
+                        case VirtualSystemDescriptionType_HardDiskControllerSAS:
+                            if (fIgnoreThis)
+                            {
+                                RTPrintf("%2u: SAS controller, type %ls -- disabled\n",
+                                         a,
+                                         aVboxValues[a]);
+                                aEnabled[a] = false;
+                            }
+                            else
+                                RTPrintf("%2u: SAS controller, type %ls"
                                         "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
                                         a,
                                         aVboxValues[a],

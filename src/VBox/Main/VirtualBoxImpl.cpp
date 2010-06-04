@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.cpp 28955 2010-05-02 18:03:45Z vboxsync $ */
+/* $Id: VirtualBoxImpl.cpp 29937 2010-06-01 08:41:32Z vboxsync $ */
 
 /** @file
  * Implementation of IVirtualBox in VBoxSVC.
@@ -56,6 +56,7 @@
 #include "MediumImpl.h"
 #include "SharedFolderImpl.h"
 #include "ProgressImpl.h"
+#include "ProgressProxyImpl.h"
 #include "HostImpl.h"
 #include "USBControllerImpl.h"
 #include "SystemPropertiesImpl.h"
@@ -1993,24 +1994,36 @@ STDMETHODIMP VirtualBox::OpenRemoteSession(ISession *aSession,
     ComAssertMsgRet(!!control, ("No IInternalSessionControl interface"),
                     E_INVALIDARG);
 
+    /* get the teleporter enable state for the progress object init. */
+    BOOL fTeleporterEnabled;
+    rc = machine->COMGETTER(TeleporterEnabled)(&fTeleporterEnabled);
+    if (FAILED(rc))
+        return rc;
+
     /* create a progress object */
-    ComObjPtr<Progress> progress;
+    ComObjPtr<ProgressProxy> progress;
     progress.createObject();
-    progress->init(this, static_cast <IMachine *>(machine),
-                   Bstr(tr("Spawning session")),
-                   FALSE /* aCancelable */);
-
-    rc = machine->openRemoteSession(control, aType, aEnvironment, progress);
-
+    rc = progress->init(this,
+                        static_cast<IMachine *>(machine),
+                        Bstr(tr("Spawning session")),
+                        TRUE /* aCancelable */,
+                        fTeleporterEnabled ? 20 : 10 /* uTotalOperationsWeight */,
+                        Bstr(tr("Spawning session")),
+                        2 /* uFirstOperationWeight */,
+                        fTeleporterEnabled ? 3 : 1 /* cOtherProgressObjectOperations */);
     if (SUCCEEDED(rc))
     {
-        progress.queryInterfaceTo(aProgress);
+        rc = machine->openRemoteSession(control, aType, aEnvironment, progress);
+        if (SUCCEEDED(rc))
+        {
+            progress.queryInterfaceTo(aProgress);
 
-        /* signal the client watcher thread */
-        updateClientWatcher();
+            /* signal the client watcher thread */
+            updateClientWatcher();
 
-        /* fire an event */
-        onSessionStateChange(id, SessionState_Spawning);
+            /* fire an event */
+            onSessionStateChange(id, SessionState_Spawning);
+        }
     }
 
     return rc;
@@ -4454,6 +4467,7 @@ DECLCALLBACK(int) VirtualBox::AsyncEventHandler(RTTHREAD thread, void *pvUser)
     return 0;
 }
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
@@ -4485,6 +4499,70 @@ void *VirtualBox::CallbackEvent::handler()
         AutoReadLock alock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
         callbacks = mVirtualBox->m->llCallbacks;
     }
+
+#ifdef RT_OS_WINDOWS
+#if 0
+    // WIP
+
+    LPTYPEINFO       ptinfo;
+    HRESULT          hr;
+    LPTYPELIB        ptlib;
+    DISPID           dispid;
+
+    /* Real solution must cache all needed dispids once, ofc */
+    hr = ::LoadRegTypeLib(LIBID_VirtualBox, kTypeLibraryMajorVersion, kTypeLibraryMinorVersion, LOCALE_SYSTEM_DEFAULT, &ptlib);
+    hr = ptlib->GetTypeInfoOfGuid(IID_IVirtualBoxCallback, &ptinfo);
+    ptlib->Release();
+
+    OLECHAR FAR* szMember = L"OnMachineStateChange";
+
+    hr = ::DispGetIDsOfNames(ptinfo, &szMember, 1, &dispid);
+    ptinfo->Release();
+
+    int nConnections = mVirtualBox->m_vec.GetSize();
+    for (int i=0; i<nConnections; i++)
+    {
+        ComPtr<IUnknown> sp = mVirtualBox->m_vec.GetAt(i);
+        ComPtr<IVirtualBoxCallback> cbI;
+        ComPtr<IDispatch> cbD;
+
+        cbI = sp;
+        cbD = sp;
+
+        /**
+         * Would be like this in ideal world, unfortunately our consumers want to be invoked via IDispatch,
+         * thus going the hard way.
+         */
+#if 0
+        if (cbI != NULL)
+        {
+            HRESULT hrc = handleCallback(cbI);
+            if (hrc == VBOX_E_DONT_CALL_AGAIN)
+            {
+                // need to handle that somehow, maybe just set element to 0
+            }
+        }
+#endif
+        if (cbI != NULL && cbD != NULL)
+        {
+             CComVariant varResult, arg1, arg2;
+
+             ::VariantClear(&varResult);
+             ::VariantClear(&arg1);
+             ::VariantClear(&arg2);
+
+             VARIANTARG args[] = {arg1, arg2};
+             DISPPARAMS disp = { args, NULL, sizeof(args)/sizeof(args[0]), 0};
+
+             cbD->Invoke(dispid, IID_NULL,
+                         LOCALE_USER_DEFAULT,
+                         DISPATCH_METHOD,
+                         &disp, &varResult,
+                         NULL, NULL);
+        }
+    }
+#endif
+#endif
 
     for (CallbackList::const_iterator it = callbacks.begin();
          it != callbacks.end();

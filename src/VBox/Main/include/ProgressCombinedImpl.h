@@ -1,4 +1,4 @@
-/* $Id: ProgressCombinedImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ProgressCombinedImpl.h 29923 2010-05-31 17:55:44Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -30,6 +30,11 @@
  * operations of individual progress objects as a single sequence of operations
  * that follow each other in the same order as progress objects are passed to
  * the #init() method.
+ *
+ * @note CombinedProgress is legacy code and deprecated. It does not support
+ *       weighted operations, all suboperations are assumed to take the same
+ *       amount of time. For new code, please use IProgress directly which
+ *       has supported multiple weighted suboperations since VirtualBox 3.0.
  *
  * Individual progress objects are sequentially combined so that this progress
  * object:

@@ -1,4 +1,4 @@
-/* $Id: SrvIntNetR0.cpp 29635 2010-05-18 13:42:54Z vboxsync $ */
+/* $Id: SrvIntNetR0.cpp 29707 2010-05-20 16:49:16Z vboxsync $ */
 /** @file
  * Internal networking - The ring 0 service.
  */
@@ -220,7 +220,8 @@ typedef struct INTNETIF
     /** Whether the interface is active or not.
      * This is shadowed by INTNETMACTABENTRY::fActive. */
     bool                    fActive;
-    /** Whether someone is currently in the destructor. */
+    /** Whether someone is currently in the destructor or has indicated that
+     *  the end is nigh by means of IntNetR0IfAbortWait. */
     bool volatile           fDestroying;
     /** Number of yields done to try make the interface read pending data.
      * We will stop yielding when this reaches a threshold assuming that the VM is
@@ -264,6 +265,8 @@ typedef struct INTNETIF
      * This is NULL when it's in use as a precaution against unserialized
      * transmitting.  This is grown when new interfaces are added to the network. */
     PINTNETDSTTAB volatile  pDstTab;
+    /** Pointer to the trunk's per interface data.  Can be NULL. */
+    void                   *pvIfData;
 } INTNETIF;
 /** Pointer to an internal network interface. */
 typedef INTNETIF *PINTNETIF;
@@ -2474,10 +2477,11 @@ static void intnetR0IfSend(PINTNETIF pIf, PINTNETIF pIfSender, PINTNETSG pSG, PC
  * The caller holds the trunk lock.
  *
  * @param   pThis           The trunk.
+ * @param   pIfSender       The IF sending the frame.
  * @param   pSG             Pointer to the gather list.
  * @param   fDst            The destination flags.
  */
-static int intnetR0TrunkIfSendGsoFallback(PINTNETTRUNKIF pThis, PINTNETSG pSG, uint32_t fDst)
+static int intnetR0TrunkIfSendGsoFallback(PINTNETTRUNKIF pThis, PINTNETIF pIfSender, PINTNETSG pSG, uint32_t fDst)
 {
     /*
      * Since we're only using this for GSO frame comming from the internal
@@ -2512,7 +2516,7 @@ static int intnetR0TrunkIfSendGsoFallback(PINTNETTRUNKIF pThis, PINTNETSG pSG, u
         u.SG.aSegs[1].pv   = (uint8_t *)pSG->aSegs[0].pv + offSegPayload;
         u.SG.aSegs[1].cb   = (uint32_t)cbSegPayload;
 
-        int rc = pThis->pIfPort->pfnXmit(pThis->pIfPort, &u.SG, fDst);
+        int rc = pThis->pIfPort->pfnXmit(pThis->pIfPort, pIfSender->pvIfData, &u.SG, fDst);
         if (RT_FAILURE(rc))
             return rc;
     }
@@ -2635,9 +2639,9 @@ static void intnetR0TrunkIfSend(PINTNETTRUNKIF pThis, PINTNETNETWORK pNetwork, P
     int rc;
     if (   pSG->GsoCtx.u8Type == PDMNETWORKGSOTYPE_INVALID
         || intnetR0TrunkIfCanHandleGsoFrame(pThis, pSG, fDst) )
-        rc = pThis->pIfPort->pfnXmit(pThis->pIfPort, pSG, fDst);
+        rc = pThis->pIfPort->pfnXmit(pThis->pIfPort, pIfSender->pvIfData, pSG, fDst);
     else
-        rc = intnetR0TrunkIfSendGsoFallback(pThis, pSG, fDst);
+        rc = intnetR0TrunkIfSendGsoFallback(pThis, pIfSender, pSG, fDst);
 
     /** @todo failure statistics? */
     Log2(("intnetR0TrunkIfSend: %Rrc fDst=%d\n", rc, fDst)); NOREF(rc);
@@ -3639,7 +3643,7 @@ INTNETR0DECL(int) IntNetR0IfSetMacAddress(INTNETIFHANDLE hIf, PSUPDRVSESSION pSe
             Log(("IntNetR0IfSetMacAddress: pfnNotifyMacAddress hIf=%RX32\n", hIf));
             PINTNETTRUNKIFPORT pIfPort = pTrunk->pIfPort;
             if (pIfPort)
-                pIfPort->pfnNotifyMacAddress(pIfPort, hIf, pMac);
+                pIfPort->pfnNotifyMacAddress(pIfPort, pIf->pvIfData, pMac);
             intnetR0BusyDecTrunk(pTrunk);
         }
     }
@@ -3840,10 +3844,14 @@ INTNETR0DECL(int) IntNetR0IfWait(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, ui
         Log(("IntNetR0IfWait: returns VERR_INVALID_HANDLE\n"));
         return VERR_INVALID_HANDLE;
     }
-    const INTNETIFHANDLE    hIfSelf    = pIf->hIf;
-    const RTSEMEVENT        hRecvEvent = pIf->hRecvEvent;
+
+    const INTNETIFHANDLE    hIfSelf     = pIf->hIf;
+    const RTSEMEVENT        hRecvEvent  = pIf->hRecvEvent;
+    const bool              fDestroying = ASMAtomicReadBool(&pIf->fDestroying);
     if (    hIfSelf    != hIf           /* paranoia */
-        &&  hRecvEvent != NIL_RTSEMEVENT)
+        ||  hRecvEvent == NIL_RTSEMEVENT
+        ||  fDestroying
+       )
     {
         Log(("IntNetR0IfWait: returns VERR_SEM_DESTROYED\n"));
         return VERR_SEM_DESTROYED;
@@ -3898,6 +3906,79 @@ INTNETR0DECL(int) IntNetR0IfWaitReq(PSUPDRVSESSION pSession, PINTNETIFWAITREQ pR
 
 
 /**
+ * Wake up any threads waiting on the interface.
+ *
+ * @returns VBox status code.
+ * @param   hIf             The interface handle.
+ * @param   pSession        The caller's session.
+ * @param   fNoMoreWaits    When set, no more waits are permitted.
+ */
+INTNETR0DECL(int) IntNetR0IfAbortWait(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, bool fNoMoreWaits)
+{
+    Log4(("IntNetR0IfAbortWait: hIf=%RX32 fNoMoreWaits=%RTbool\n", hIf, fNoMoreWaits));
+
+    /*
+     * Get and validate essential handles.
+     */
+    PINTNET pIntNet = g_pIntNet;
+    AssertPtrReturn(pIntNet, VERR_INVALID_PARAMETER);
+    AssertReturn(pIntNet->u32Magic, VERR_INVALID_MAGIC);
+
+    PINTNETIF pIf = (PINTNETIF)RTHandleTableLookupWithCtx(pIntNet->hHtIfs, hIf, pSession);
+    if (!pIf)
+    {
+        Log(("IntNetR0IfAbortWait: returns VERR_INVALID_HANDLE\n"));
+        return VERR_INVALID_HANDLE;
+    }
+
+    const INTNETIFHANDLE    hIfSelf     = pIf->hIf;
+    const RTSEMEVENT        hRecvEvent  = pIf->hRecvEvent;
+    const bool              fDestroying = ASMAtomicReadBool(&pIf->fDestroying);
+    if (    hIfSelf    != hIf           /* paranoia */
+        ||  hRecvEvent == NIL_RTSEMEVENT
+        ||  fDestroying
+       )
+    {
+        Log(("IntNetR0IfAbortWait: returns VERR_SEM_DESTROYED\n"));
+        return VERR_SEM_DESTROYED;
+    }
+
+    /*
+     * Set fDestroying if requested to do so and then wake up all the sleeping        
+     * threads (usually just one).   We leave the semaphore in the signalled 
+     * state so the next caller will return immediately.
+     */
+    if (fNoMoreWaits)
+        ASMAtomicWriteBool(&pIf->fDestroying, true);
+
+    uint32_t cSleepers = ASMAtomicReadU32(&pIf->cSleepers) + 1;
+    while (cSleepers-- > 0)
+    {
+        int rc = RTSemEventSignal(pIf->hRecvEvent);
+        AssertRC(rc);
+    }
+
+    Log4(("IntNetR0IfWait: returns %Rrc\n", VINF_SUCCESS));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * VMMR0 request wrapper for IntNetR0IfAbortWait.
+ *
+ * @returns see IntNetR0IfWait.
+ * @param   pSession        The caller's session.
+ * @param   pReq            The request packet.
+ */
+INTNETR0DECL(int) IntNetR0IfAbortWaitReq(PSUPDRVSESSION pSession, PINTNETIFABORTWAITREQ pReq)
+{
+    if (RT_UNLIKELY(pReq->Hdr.cbReq != sizeof(*pReq)))
+        return VERR_INVALID_PARAMETER;
+    return IntNetR0IfAbortWait(pReq->hIf, pSession, pReq->fNoMoreWaits);
+}
+
+
+/**
  * Close an interface.
  *
  * @returns VBox status code.
@@ -3911,33 +3992,17 @@ INTNETR0DECL(int) IntNetR0IfClose(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession)
 
     /*
      * Validate and free the handle.
-     *
-     * We grab the big mutex before we free the handle to avoid any handle
-     * confusion on the trunk.
      */
     PINTNET pIntNet = g_pIntNet;
     AssertPtrReturn(pIntNet, VERR_INVALID_PARAMETER);
     AssertReturn(pIntNet->u32Magic, VERR_INVALID_MAGIC);
 
-    RTSemMutexRequest(pIntNet->hMtxCreateOpenDestroy, RT_INDEFINITE_WAIT);
-
     PINTNETIF pIf = (PINTNETIF)RTHandleTableFreeWithCtx(pIntNet->hHtIfs, hIf, pSession);
     if (!pIf)
-    {
-        RTSemMutexRelease(pIntNet->hMtxCreateOpenDestroy);
         return VERR_INVALID_HANDLE;
-    }
 
     /* Mark the handle as freed so intnetR0IfDestruct won't free it again. */
     ASMAtomicWriteU32(&pIf->hIf, INTNET_HANDLE_INVALID);
-
-    /* Notify the trunk that the interface has been disconnected. */
-    PINTNETNETWORK pNetwork = pIf->pNetwork;
-    PINTNETTRUNKIF pTrunk   = pNetwork ? pNetwork->MacTab.pTrunk : NULL;
-    if (pTrunk && pTrunk->pIfPort)
-        pTrunk->pIfPort->pfnDisconnectInterface(pTrunk->pIfPort, hIf);
-
-    RTSemMutexRelease(pIntNet->hMtxCreateOpenDestroy);
 
     /*
      * Signal the event semaphore to wake up any threads in IntNetR0IfWait
@@ -4042,10 +4107,9 @@ static DECLCALLBACK(void) intnetR0IfDestruct(void *pvObj, void *pvUser1, void *p
 
         RTSpinlockReleaseNoInts(pNetwork->hAddrSpinlock, &Tmp);
 
-        /* If we freed the handle just now, notify the trunk about the
-           interface being destroyed. */
-        if (hIf != INTNET_HANDLE_INVALID && pTrunk && pTrunk->pIfPort)
-            pTrunk->pIfPort->pfnDisconnectInterface(pTrunk->pIfPort, hIf);
+        /* Notify the trunk about the interface being destroyed. */
+        if (pTrunk && pTrunk->pIfPort)
+            pTrunk->pIfPort->pfnDisconnectInterface(pTrunk->pIfPort, pIf->pvIfData);
 
         /* Wait for the interface to quiesce while we still can. */
         intnetR0BusyWait(pNetwork, &pIf->cBusy);
@@ -4189,6 +4253,7 @@ static int intnetR0NetworkCreateIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION pSess
     pIf->hRecvInSpinlock    = NIL_RTSPINLOCK;
     pIf->cBusy              = 0;
     //pIf->pDstTab          = NULL;
+    //pIf->pvIfData         = NULL;
 
     for (int i = kIntNetAddrType_Invalid + 1; i < kIntNetAddrType_End && RT_SUCCESS(rc); i++)
         rc = intnetR0IfAddrCacheInit(&pIf->aAddrCache[i], (INTNETADDRTYPE)i,
@@ -4259,7 +4324,7 @@ static int intnetR0NetworkCreateIf(PINTNETNETWORK pNetwork, PSUPDRVSESSION pSess
                     {
                         Log(("intnetR0NetworkCreateIf: pfnConnectInterface hIf=%RX32\n", pIf->hIf));
                         if (pTrunk->pIfPort)
-                            rc = pTrunk->pIfPort->pfnConnectInterface(pTrunk->pIfPort, pIf->hIf);
+                            rc = pTrunk->pIfPort->pfnConnectInterface(pTrunk->pIfPort, pIf, &pIf->pvIfData);
                         intnetR0BusyDecTrunk(pTrunk);
                     }
                     if (RT_SUCCESS(rc))
@@ -4409,13 +4474,14 @@ static DECLCALLBACK(INTNETSWDECISION) intnetR0TrunkIfPortPreRecv(PINTNETTRUNKSWP
 
 
 /** @copydoc INTNETTRUNKSWPORT::pfnRecv */
-static DECLCALLBACK(bool) intnetR0TrunkIfPortRecv(PINTNETTRUNKSWPORT pSwitchPort, PINTNETSG pSG, uint32_t fSrc)
+static DECLCALLBACK(bool) intnetR0TrunkIfPortRecv(PINTNETTRUNKSWPORT pSwitchPort, void *pvIf, PINTNETSG pSG, uint32_t fSrc)
 {
     PINTNETTRUNKIF pThis = INTNET_SWITCHPORT_2_TRUNKIF(pSwitchPort);
 
     /* assert some sanity */
     AssertPtr(pSG);
     Assert(fSrc);
+    NOREF(pvIf); /* later */
 
     /*
      * Mark the trunk as busy, make sure we've got a network and that there are

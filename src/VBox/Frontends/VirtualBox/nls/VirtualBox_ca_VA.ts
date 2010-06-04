@@ -448,6 +448,282 @@
     </message>
 </context>
 <context>
+    <name>UIActionsPool</name>
+    <message>
+        <source>&amp;Machine</source>
+        <translation>&amp;Màquina</translation>
+    </message>
+    <message>
+        <source>&amp;Fullscreen Mode</source>
+        <translation type="obsolete">Mode de pantalla &amp;completa</translation>
+    </message>
+    <message>
+        <source>Switch to fullscreen mode</source>
+        <translation>Canvia al mode de pantalla completa</translation>
+    </message>
+    <message>
+        <source>Seam&amp;less Mode</source>
+        <translation type="obsolete">Mode f&amp;luid</translation>
+    </message>
+    <message>
+        <source>Switch to seamless desktop integration mode</source>
+        <translation>Canvia al mode d&apos;integració de l&apos;escriptori fluid</translation>
+    </message>
+    <message>
+        <source>Auto-resize &amp;Guest Display</source>
+        <translation type="obsolete">Re&amp;dimensiona automàticament la pantalla del client</translation>
+    </message>
+    <message>
+        <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
+        <translation>Redimensiona automàticament la pantalla del client en canviar la mida de la finestra (requereix les Guest Additions)</translation>
+    </message>
+    <message>
+        <source>&amp;Adjust Window Size</source>
+        <translation>Ajusta la mida de la &amp;finestra</translation>
+    </message>
+    <message>
+        <source>Adjust window size and position to best fit the guest display</source>
+        <translation>Ajusta la mida i la posició de la finestra per adaptar-se millor a la pantalla del client</translation>
+    </message>
+    <message>
+        <source>Disable &amp;Mouse Integration</source>
+        <translation>Desactiva la integració del &amp;punter</translation>
+    </message>
+    <message>
+        <source>Temporarily disable host mouse pointer integration</source>
+        <translation>Desactiva temporalment la integració del punter de l&apos;amfitrió</translation>
+    </message>
+    <message>
+        <source>Enable &amp;Mouse Integration</source>
+        <translation>Activa la integració del &amp;punter</translation>
+    </message>
+    <message>
+        <source>Enable temporarily disabled host mouse pointer integration</source>
+        <translation>Activa la integració del punter de l&apos;amfitrió que s&apos;havia desactivat temporalment</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Del</source>
+        <translation>&amp;Insereix Ctrl+Alt+Supr</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
+        <translation>Envia la seqüència Ctrl+Alt+Supr a la màquina virtual</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Backspace</source>
+        <translation>&amp;Insereix Ctrl+Alt+Retrocés</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
+        <translation>Envia la seqüència Ctrl+Alt+Retrocés a la màquina virtua</translation>
+    </message>
+    <message>
+        <source>Take &amp;Snapshot...</source>
+        <translation>Fe&amp;s una captura...</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the virtual machine</source>
+        <translation>Fes una captura de la màquina virtual</translation>
+    </message>
+    <message>
+        <source>Session I&amp;nformation Dialog</source>
+        <translation>D&amp;iàleg informatiu de la sessió</translation>
+    </message>
+    <message>
+        <source>Show Session Information Dialog</source>
+        <translation>Mostra el diàleg informatiu de la sessió</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation>&amp;Pausa</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation>Suspèn l&apos;execució de la màquina virtual</translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation>R&amp;eprèn</translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation>Reprén l&apos;execució de la màquina virtual</translation>
+    </message>
+    <message>
+        <source>&amp;Reset</source>
+        <translation>&amp;Reinicia</translation>
+    </message>
+    <message>
+        <source>Reset the virtual machine</source>
+        <translation>Reinicia la màquina virtual</translation>
+    </message>
+    <message>
+        <source>ACPI Sh&amp;utdown</source>
+        <translation>At&amp;urada ACPI</translation>
+    </message>
+    <message>
+        <source>ACPI S&amp;hutdown</source>
+        <translation>At&amp;urada ACPI</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the virtual machine</source>
+        <translation>Envia a la màquina virtual l&apos;esdeveniment de prémer el botó ACPI Power</translation>
+    </message>
+    <message>
+        <source>&amp;Close...</source>
+        <translation>&amp;Tanca...</translation>
+    </message>
+    <message>
+        <source>Close the virtual machine</source>
+        <translation>Tanca la màquina virtual</translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation>&amp;Visualitza</translation>
+    </message>
+    <message>
+        <source>&amp;Devices</source>
+        <translation>&amp;Dispositius</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation>Dispositius &amp;CD/DVD</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation>Dis&amp;queteres</translation>
+    </message>
+    <message>
+        <source>&amp;USB Devices</source>
+        <translation>Dispositius &amp;USB</translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation>Adaptadors de &amp;xarxa...</translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation>Canvia els paràmetres dels adaptadors de xarxa</translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders...</source>
+        <translation>&amp;Carpetes compartides...</translation>
+    </message>
+    <message>
+        <source>Create or modify shared folders</source>
+        <translation>Obri el diàleg per operar amb les carpetes compartides</translation>
+    </message>
+    <message>
+        <source>&amp;Remote Display</source>
+        <translation type="obsolete">Pantalla &amp;remota</translation>
+    </message>
+    <message>
+        <source>Enable or disable remote desktop (RDP) connections to this machine</source>
+        <translation type="obsolete">Habilita o inhabilita les connexions d&apos;escriptori remot (RDP) a esta màquina</translation>
+    </message>
+    <message>
+        <source>&amp;Install Guest Additions...</source>
+        <translation>&amp;Instal·la les Guest Additions...</translation>
+    </message>
+    <message>
+        <source>Mount the Guest Additions installation image</source>
+        <translation>Munta la imatge d&apos;instal·lació de les Guest Additions</translation>
+    </message>
+    <message>
+        <source>De&amp;bug</source>
+        <translation>De&amp;puració</translation>
+    </message>
+    <message>
+        <source>&amp;Statistics...</source>
+        <comment>debug action</comment>
+        <translation>E&amp;stadístiques...</translation>
+    </message>
+    <message>
+        <source>&amp;Command Line...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Línia d&apos;ordes...</translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="obsolete">&amp;S&apos;està connectant...</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>&amp;Ajuda</translation>
+    </message>
+    <message>
+        <source>Dock Icon</source>
+        <translation>Icona de safata</translation>
+    </message>
+    <message>
+        <source>Show Monitor Preview</source>
+        <translation>Mostra la previsualització del monitor</translation>
+    </message>
+    <message>
+        <source>Show Application Icon</source>
+        <translation>Mostra la icona de l&apos;aplicació</translation>
+    </message>
+    <message>
+        <source>Enter &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to normal mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable automatic resize of the guest display when the window is resized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Disable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloader</name>
     <message>
         <source>Cancel</source>
@@ -513,7 +789,7 @@
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
-        <translation>Seleccioneu la carpeta on s'alçarà el manual de l&apos;usuari</translation>
+        <translation>Seleccioneu la carpeta on s&apos;alçarà el manual de l&apos;usuari</translation>
     </message>
 </context>
 <context>
@@ -1109,6 +1385,100 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIIndicatorsPool</name>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels discos durs virtuals:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de CD/DVD:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de disquetera:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de xarxa:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adaptador %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>connected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>connectat</translation>
+    </message>
+    <message>
+        <source>disconnected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>desconnectat</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Tots els adaptadors de xarxa estan desactivats&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius USB connectats:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha dispositius USB connectats&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;El controlador USB està desactivat&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat de les carpetes compartides per la màquina virtual:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha carpetes compartides&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation>Indica si la pantalla remota (servidor VRDP) està activada (&lt;img src=:/vrdp_16px.png/&gt;) o no (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+    </message>
+    <message>
+        <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
+        <translation>&lt;hr&gt;El servidor VRDP està escoltant el port %1</translation>
+    </message>
+    <message>
+        <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>Indica l&apos;estat de les característiques de virtualització de maquinari que fa servir esta màquina virtual:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation>Indica si el punter de l&apos;ordinador amfitrió és capturat pel sistema operatiu client:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;no captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;la integració del punter (MI) està activada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI està desactivada, captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI està desactivada, no captura el punter&lt;/nobr&gt;&lt;br&gt;Tingueu en compte que la funció d&apos;integració del punter requereix tindre instal·lades les Guest Additions en el sistema operatiu client.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
+        <translation>Indica si el teclat és capturat pel sistema operatiu client (&lt;img src=:/hostkey_captured_16px.png/&gt;) o no (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+    </message>
+</context>
+<context>
     <name>UIMachineLogic</name>
     <message>
         <source>VirtualBox OSE</source>
@@ -1117,6 +1487,61 @@ p, li { white-space: pre-wrap; }
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation> Versió EXPERIMENTAL %1r%2 - %3</translation>
+    </message>
+    <message>
+        <source>Preview Monitor %1</source>
+        <translation>Previsualitza el monitor %1</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>Captura %1</translation>
+    </message>
+    <message>
+        <source>More CD/DVD Images...</source>
+        <translation>Més imatges de CD/DVD...</translation>
+    </message>
+    <message>
+        <source>Unmount CD/DVD Device</source>
+        <translation>Desmunta el CD/DVD</translation>
+    </message>
+    <message>
+        <source>More Floppy Images...</source>
+        <translation>Més imatges de disquet...</translation>
+    </message>
+    <message>
+        <source>Unmount Floppy Device</source>
+        <translation>Desmunta la disquetera</translation>
+    </message>
+    <message>
+        <source>No CD/DVD Devices Attached</source>
+        <translation>No s&apos;ha conectat cap dispositiu de CD/DVD</translation>
+    </message>
+    <message>
+        <source>No CD/DVD devices attached to that VM</source>
+        <translation>No hi ha cap dispositiu de CD/DVD connectat a la màquina virtual</translation>
+    </message>
+    <message>
+        <source>No Floppy Devices Attached</source>
+        <translation>No s&apos;ha connectat cap dispositiu de disquetera</translation>
+    </message>
+    <message>
+        <source>No floppy devices attached to that VM</source>
+        <translation>No hi ha cap dispositiu de disquet connectat a la màquina virtual</translation>
+    </message>
+    <message>
+        <source>No USB Devices Connected</source>
+        <translation>No hi ha cap dispositiu USB connectat</translation>
+    </message>
+    <message>
+        <source>No supported devices connected to the host PC</source>
+        <translation>No hi ha dispositius suportats connectats a l&apos;ordinador amfitrió</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineWindowNormal</name>
+    <message>
+        <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
+        <translation>Mostra la tecla assignada a l&apos;amfitrió.&lt;br&gt;Quan es prem esta tecla commuta l&apos;estat de captura del teclat i el punter. També es pot fer servir en combinació amb altres tecles per accedir ràpidament a algunes opcions del menú principal.</translation>
     </message>
 </context>
 <context>
@@ -1805,7 +2230,7 @@ pas i connectar discos durs més avant, fent servir el diàleg de configuració 
     </message>
     <message>
         <source>Boot Hard &amp;Disk (Primary Master)</source>
-        <translation>D&amp;isc dur d&apos;arrencada (primari mestre)</translation>
+        <translation type="obsolete">D&amp;isc dur d&apos;arrencada (primari mestre)</translation>
     </message>
     <message>
         <source>&amp;Create new hard disk</source>
@@ -1822,6 +2247,10 @@ pas i connectar discos durs més avant, fent servir el diàleg de configuració 
     <message>
         <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
         <translation>La mida del disc dur d&apos;arrencada recomanada és &lt;b&gt;%1&lt;/b&gt; MB.</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2094,7 +2523,11 @@ Versió %1</translation>
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024KBytes</comment>
-        <translation>MB</translation>
+        <translation type="obsolete">MB</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SAS)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2145,7 +2578,7 @@ Versió %1</translation>
 &lt;p&gt;Note that saving the machine state may take a long time, depending on the guest operating system type and the amount of memory you assigned to the virtual machine.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Alça l&apos;estat d&apos;execució actual de la màquina virtual al disc dur físic de l&apos;ordinador d&apos;amfitrió.&lt;/p&gt;
 &lt;p&gt;La propera vegada que s&apos;engegue esta màquina, es restaurarà des de l&apos;estat alçat i continuarà l&apos;execució des del mateix lloc en què l&apos;heu alçat, cosa que vos permetrà continuar immediatament amb el vostre treball.&lt;/p&gt;
-&lt;p&gt;Tingueu en compte que l&apos;operació d'alçar l&apos;estat de la màquina pot prendre molt de temps, depenent del tipus de sistema operatiu client i la quantitat de memòria assignada a la màquina virtual.&lt;/p&gt;</translation>
+&lt;p&gt;Tingueu en compte que l&apos;operació d&apos;alçar l&apos;estat de la màquina pot prendre molt de temps, depenent del tipus de sistema operatiu client i la quantitat de memòria assignada a la màquina virtual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>S&amp;end the shutdown signal</source>
@@ -2156,7 +2589,7 @@ Versió %1</translation>
 &lt;p&gt;Normally, the guest operating system running inside the virtual machine will detect this event and perform a clean shutdown procedure. This is a recommended way to turn off the virtual machine because all applications running inside it will get a chance to save their data and state.&lt;/p&gt;
 &lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Envia a la màquina virtual l&apos;esdeveniment de prémer el botó ACPI Power.&lt;/p&gt;
-&lt;p&gt;Normalment, el sistema operatiu client que s&apos;està executant a dins de la màquina virtual detectarà este esdeveniment i realitzarà un procediment de tancament net. Esta és una manera recomanada de tancar la màquina virtual perquè totes les aplicacions que s&apos;estan executant en ella tindran la possibilitat d'alçar les seues dades i estat.&lt;/p&gt;
+&lt;p&gt;Normalment, el sistema operatiu client que s&apos;està executant a dins de la màquina virtual detectarà este esdeveniment i realitzarà un procediment de tancament net. Esta és una manera recomanada de tancar la màquina virtual perquè totes les aplicacions que s&apos;estan executant en ella tindran la possibilitat d&apos;alçar les seues dades i estat.&lt;/p&gt;
 &lt;p&gt;Si la màquina no respon a esta acció potser el sistema operatiu client pot estar mal configurat o no entén els events del botó ACPI Power. En este cas, seleccioneu l&apos;acció &lt;b&gt;Atura la màquina&lt;/b&gt; per aturar l&apos;execució de la màquina virtual.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -2171,11 +2604,11 @@ Versió %1</translation>
     </message>
     <message>
         <source>&lt;p&gt;Saves the current execution state of the virtual machine to the physical hard disk of the host PC.&lt;/p&gt;&lt;p&gt;Next time this machine is started, it will be restored from the saved state and continue execution from the same place you saved it at, which will let you continue your work immediately.&lt;/p&gt;&lt;p&gt;Note that saving the machine state may take a long time, depending on the guest operating system type and the amount of memory you assigned to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Alça l&apos;estat d&apos;execució actual de la màquina virtual al disc dur físic de l&apos;ordinador amfitrió.&lt;/p&gt;&lt;p&gt;La propera vegada que s&apos;iniciÏ esta màquina, es restaurarà des de l&apos;estat alçat i continuarà l&apos;execució des del mateix lloc en què l&apos;heu alçat, cosa que permetrà continuar immediatament amb el vostre treball.&lt;/p&gt;&lt;p&gt;Tingueu en compte que l&apos;operació d'alçar l&apos;estat de la màquina pot prendre molt de temps, depenent del tipus de sistema operatiu client i la quantitat de memòria assignada a la màquina virtual.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Alça l&apos;estat d&apos;execució actual de la màquina virtual al disc dur físic de l&apos;ordinador amfitrió.&lt;/p&gt;&lt;p&gt;La propera vegada que s&apos;iniciÏ esta màquina, es restaurarà des de l&apos;estat alçat i continuarà l&apos;execució des del mateix lloc en què l&apos;heu alçat, cosa que permetrà continuar immediatament amb el vostre treball.&lt;/p&gt;&lt;p&gt;Tingueu en compte que l&apos;operació d&apos;alçar l&apos;estat de la màquina pot prendre molt de temps, depenent del tipus de sistema operatiu client i la quantitat de memòria assignada a la màquina virtual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Sends the ACPI Power Button press event to the virtual machine.&lt;/p&gt;&lt;p&gt;Normally, the guest operating system running inside the virtual machine will detect this event and perform a clean shutdown procedure. This is a recommended way to turn off the virtual machine because all applications running inside it will get a chance to save their data and state.&lt;/p&gt;&lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Envia a la màquina virtual l&apos;esdeveniment de prémer el botó ACPI Power.&lt;/p&gt;&lt;p&gt;Normalment, el sistema operatiu client que s&apos;està executant a dins de la màquina virtual detectarà este esdeveniment i realitzarà un procediment de tancament net. Esta és una manera recomanada de tancar la màquina virtual perquè totes les aplicacions que s&apos;estan executant en ella tindran la possibilitat d'alçar les seues dades i estat.&lt;/p&gt;&lt;p&gt;Si la màquina no respon a esta acció potser el sistema operatiu client pot estar mal configurat o no entén els events del botó ACPI Power. En este cas, seleccioneu l&apos;acció &lt;b&gt;Atura la màquina&lt;/b&gt; per aturar l&apos;execució de la màquina virtual.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Envia a la màquina virtual l&apos;esdeveniment de prémer el botó ACPI Power.&lt;/p&gt;&lt;p&gt;Normalment, el sistema operatiu client que s&apos;està executant a dins de la màquina virtual detectarà este esdeveniment i realitzarà un procediment de tancament net. Esta és una manera recomanada de tancar la màquina virtual perquè totes les aplicacions que s&apos;estan executant en ella tindran la possibilitat d&apos;alçar les seues dades i estat.&lt;/p&gt;&lt;p&gt;Si la màquina no respon a esta acció potser el sistema operatiu client pot estar mal configurat o no entén els events del botó ACPI Power. En este cas, seleccioneu l&apos;acció &lt;b&gt;Atura la màquina&lt;/b&gt; per aturar l&apos;execució de la màquina virtual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
@@ -2194,7 +2627,7 @@ Versió %1</translation>
     <name>VBoxConsoleWnd</name>
     <message>
         <source>VirtualBox OSE</source>
-        <translation>VirtualBox OSE</translation>
+        <translation type="obsolete">VirtualBox OSE</translation>
     </message>
     <message>
         <source>innotek VirtualBox</source>
@@ -2202,85 +2635,85 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;Fullscreen Mode</source>
-        <translation>Mode de pantalla &amp;completa</translation>
+        <translation type="obsolete">Mode de pantalla &amp;completa</translation>
     </message>
     <message>
         <source>Switch to fullscreen mode</source>
-        <translation>Canvia al mode de pantalla completa</translation>
+        <translation type="obsolete">Canvia al mode de pantalla completa</translation>
     </message>
     <message>
         <source>Mouse Integration</source>
         <comment>enable/disable...</comment>
-        <translation>Integració del punter</translation>
+        <translation type="obsolete">Integració del punter</translation>
     </message>
     <message>
         <source>Auto-resize Guest Display</source>
         <comment>enable/disable...</comment>
-        <translation>Redimensiona automàticament la pantalla del client</translation>
+        <translation type="obsolete">Redimensiona automàticament la pantalla del client</translation>
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
-        <translation>Re&amp;dimensiona automàticament la pantalla del client</translation>
+        <translation type="obsolete">Re&amp;dimensiona automàticament la pantalla del client</translation>
     </message>
     <message>
         <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
-        <translation>Redimensiona automàticament la pantalla del client en canviar la mida de la finestra (requereix les Guest Additions)</translation>
+        <translation type="obsolete">Redimensiona automàticament la pantalla del client en canviar la mida de la finestra (requereix les Guest Additions)</translation>
     </message>
     <message>
         <source>&amp;Adjust Window Size</source>
-        <translation>Ajusta la mida de la &amp;finestra</translation>
+        <translation type="obsolete">Ajusta la mida de la &amp;finestra</translation>
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Ajusta la mida i la posició de la finestra per adaptar-se millor a la pantalla del client</translation>
+        <translation type="obsolete">Ajusta la mida i la posició de la finestra per adaptar-se millor a la pantalla del client</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Del</source>
-        <translation>&amp;Insereix Ctrl+Alt+Supr</translation>
+        <translation type="obsolete">&amp;Insereix Ctrl+Alt+Supr</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
-        <translation>Envia la seqüència Ctrl+Alt+Supr a la màquina virtual</translation>
+        <translation type="obsolete">Envia la seqüència Ctrl+Alt+Supr a la màquina virtual</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation>&amp;Insereix Ctrl+Alt+Retrocés</translation>
+        <translation type="obsolete">&amp;Insereix Ctrl+Alt+Retrocés</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
-        <translation>Envia la seqüència Ctrl+Alt+Retrocés a la màquina virtua</translation>
+        <translation type="obsolete">Envia la seqüència Ctrl+Alt+Retrocés a la màquina virtua</translation>
     </message>
     <message>
         <source>&amp;Reset</source>
-        <translation>&amp;Reinicia</translation>
+        <translation type="obsolete">&amp;Reinicia</translation>
     </message>
     <message>
         <source>Reset the virtual machine</source>
-        <translation>Reinicia la màquina virtual</translation>
+        <translation type="obsolete">Reinicia la màquina virtual</translation>
     </message>
     <message>
         <source>ACPI S&amp;hutdown</source>
-        <translation>At&amp;urada ACPI</translation>
+        <translation type="obsolete">At&amp;urada ACPI</translation>
     </message>
     <message>
         <source>Send the ACPI Power Button press event to the virtual machine</source>
-        <translation>Envia a la màquina virtual l&apos;esdeveniment de prémer el botó ACPI Power</translation>
+        <translation type="obsolete">Envia a la màquina virtual l&apos;esdeveniment de prémer el botó ACPI Power</translation>
     </message>
     <message>
         <source>&amp;Close...</source>
-        <translation>&amp;Tanca...</translation>
+        <translation type="obsolete">&amp;Tanca...</translation>
     </message>
     <message>
         <source>Close the virtual machine</source>
-        <translation>Tanca la màquina virtual</translation>
+        <translation type="obsolete">Tanca la màquina virtual</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot...</source>
-        <translation>Fe&amp;s una captura...</translation>
+        <translation type="obsolete">Fe&amp;s una captura...</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
-        <translation>Fes una captura de la màquina virtual</translation>
+        <translation type="obsolete">Fes una captura de la màquina virtual</translation>
     </message>
     <message>
         <source>&amp;Floppy Image...</source>
@@ -2317,7 +2750,7 @@ Versió %1</translation>
     <message>
         <source>Remote Desktop (RDP) Server</source>
         <comment>enable/disable...</comment>
-        <translation>Servidor d&apos;escriptori remot (RDP)</translation>
+        <translation type="obsolete">Servidor d&apos;escriptori remot (RDP)</translation>
     </message>
     <message>
         <source>Remote Dis&amp;play</source>
@@ -2325,23 +2758,23 @@ Versió %1</translation>
     </message>
     <message>
         <source>Enable or disable remote desktop (RDP) connections to this machine</source>
-        <translation>Habilita o inhabilita les connexions d&apos;escriptori remot (RDP) a esta màquina</translation>
+        <translation type="obsolete">Habilita o inhabilita les connexions d&apos;escriptori remot (RDP) a esta màquina</translation>
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation>&amp;Carpetes compartides...</translation>
+        <translation type="obsolete">&amp;Carpetes compartides...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
-        <translation>Obri el diàleg per operar amb les carpetes compartides</translation>
+        <translation type="obsolete">Obri el diàleg per operar amb les carpetes compartides</translation>
     </message>
     <message>
         <source>&amp;Install Guest Additions...</source>
-        <translation>&amp;Instal·la les Guest Additions...</translation>
+        <translation type="obsolete">&amp;Instal·la les Guest Additions...</translation>
     </message>
     <message>
         <source>Mount the Guest Additions installation image</source>
-        <translation>Munta la imatge d&apos;instal·lació de les Guest Additions</translation>
+        <translation type="obsolete">Munta la imatge d&apos;instal·lació de les Guest Additions</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
@@ -2385,19 +2818,19 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;USB Devices</source>
-        <translation>Dispositius &amp;USB</translation>
+        <translation type="obsolete">Dispositius &amp;USB</translation>
     </message>
     <message>
         <source>&amp;Devices</source>
-        <translation>&amp;Dispositius</translation>
+        <translation type="obsolete">&amp;Dispositius</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
-        <translation>De&amp;puració</translation>
+        <translation type="obsolete">De&amp;puració</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>&amp;Ajuda</translation>
+        <translation type="obsolete">&amp;Ajuda</translation>
     </message>
     <message>
         <source>Indicates whether the guest display auto-resize function is On (&lt;img src=auto_resize_on_16px.png/&gt;) or Off (&lt;img src=auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
@@ -2413,7 +2846,7 @@ Versió %1</translation>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
-        <translation>&lt;hr&gt;El servidor VRDP està escoltant el port %1</translation>
+        <translation type="obsolete">&lt;hr&gt;El servidor VRDP està escoltant el port %1</translation>
     </message>
     <message>
         <source>&lt;qt&gt;Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;/qt&gt;</source>
@@ -2421,39 +2854,39 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
-        <translation>&amp;Pausa</translation>
+        <translation type="obsolete">&amp;Pausa</translation>
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
-        <translation>Suspèn l&apos;execució de la màquina virtual</translation>
+        <translation type="obsolete">Suspèn l&apos;execució de la màquina virtual</translation>
     </message>
     <message>
         <source>R&amp;esume</source>
-        <translation>R&amp;eprèn</translation>
+        <translation type="obsolete">R&amp;eprèn</translation>
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>
-        <translation>Reprén l&apos;execució de la màquina virtual</translation>
+        <translation type="obsolete">Reprén l&apos;execució de la màquina virtual</translation>
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
-        <translation>Desactiva la integració del &amp;punter</translation>
+        <translation type="obsolete">Desactiva la integració del &amp;punter</translation>
     </message>
     <message>
         <source>Temporarily disable host mouse pointer integration</source>
-        <translation>Desactiva temporalment la integració del punter de l&apos;amfitrió</translation>
+        <translation type="obsolete">Desactiva temporalment la integració del punter de l&apos;amfitrió</translation>
     </message>
     <message>
         <source>Enable &amp;Mouse Integration</source>
-        <translation>Activa la integració del &amp;punter</translation>
+        <translation type="obsolete">Activa la integració del &amp;punter</translation>
     </message>
     <message>
         <source>Enable temporarily disabled host mouse pointer integration</source>
-        <translation>Activa la integració del punter de l&apos;amfitrió que s&apos;havia desactivat temporalment</translation>
+        <translation type="obsolete">Activa la integració del punter de l&apos;amfitrió que s&apos;havia desactivat temporalment</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Captura %1</translation>
+        <translation type="obsolete">Captura %1</translation>
     </message>
     <message>
         <source>Host Drive </source>
@@ -2461,7 +2894,7 @@ Versió %1</translation>
     </message>
     <message>
         <source>&amp;Machine</source>
-        <translation>&amp;Màquina</translation>
+        <translation type="obsolete">&amp;Màquina</translation>
     </message>
     <message>
         <source>&amp;Network Adapters</source>
@@ -2496,11 +2929,11 @@ Versió %1</translation>
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
-        <translation>Mode f&amp;luid</translation>
+        <translation type="obsolete">Mode f&amp;luid</translation>
     </message>
     <message>
         <source>Switch to seamless desktop integration mode</source>
-        <translation>Canvia al mode d&apos;integració de l&apos;escriptori fluid</translation>
+        <translation type="obsolete">Canvia al mode d&apos;integració de l&apos;escriptori fluid</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=hostkey_captured_16px.png/&gt;) or not (&lt;img src=hostkey_16px.png/&gt;).</source>
@@ -2554,7 +2987,7 @@ Versió %1</translation>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hard disks attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha cap disc dur connectat&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha cap disc dur connectat&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2569,17 +3002,17 @@ Versió %1</translation>
     <message>
         <source>connected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>connectat</translation>
+        <translation type="obsolete">connectat</translation>
     </message>
     <message>
         <source>disconnected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>desconnectat</translation>
+        <translation type="obsolete">desconnectat</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Tots els adaptadors de xarxa estan desactivats&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Tots els adaptadors de xarxa estan desactivats&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2589,12 +3022,12 @@ Versió %1</translation>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha dispositius USB connectats&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha dispositius USB connectats&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;El controlador USB està desactivat&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;El controlador USB està desactivat&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=vrdp_16px.png/&gt;) or not (&lt;img src=vrdp_disabled_16px.png/&gt;).</source>
@@ -2608,7 +3041,7 @@ Versió %1</translation>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha carpetes compartides&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hi ha carpetes compartides&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&amp;Contents...</source>
@@ -2632,189 +3065,189 @@ Versió %1</translation>
     </message>
     <message>
         <source>Session I&amp;nformation Dialog</source>
-        <translation>D&amp;iàleg informatiu de la sessió</translation>
+        <translation type="obsolete">D&amp;iàleg informatiu de la sessió</translation>
     </message>
     <message>
         <source>Show Session Information Dialog</source>
-        <translation>Mostra el diàleg informatiu de la sessió</translation>
+        <translation type="obsolete">Mostra el diàleg informatiu de la sessió</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
         <comment>debug action</comment>
-        <translation>E&amp;stadístiques...</translation>
+        <translation type="obsolete">E&amp;stadístiques...</translation>
     </message>
     <message>
         <source>&amp;Command Line...</source>
         <comment>debug action</comment>
-        <translation>&amp;Línia d&apos;ordes...</translation>
+        <translation type="obsolete">&amp;Línia d&apos;ordes...</translation>
     </message>
     <message>
         <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Indica si la funció d&apos;autoredimensió de la pantalla client està activada (&lt;img src=:/auto_resize_on_16px.png/&gt;) o desactivada (&lt;img src=:/auto_resize_off_16px.png/&gt;). Tingueu en compte que esta funció requereix tindre les Guest Additions instal·lades en el sistema operatiu client.</translation>
+        <translation type="obsolete">Indica si la funció d&apos;autoredimensió de la pantalla client està activada (&lt;img src=:/auto_resize_on_16px.png/&gt;) o desactivada (&lt;img src=:/auto_resize_off_16px.png/&gt;). Tingueu en compte que esta funció requereix tindre les Guest Additions instal·lades en el sistema operatiu client.</translation>
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Indica si el punter de l&apos;ordinador amfitrió és capturat pel sistema operatiu client:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;no captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;la integració del punter (MI) està activada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI està desactivada, captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI està desactivada, no captura el punter&lt;/nobr&gt;&lt;br&gt;Tingueu en compte que la funció d&apos;integració del punter requereix tindre instal·lades les Guest Additions en el sistema operatiu client.</translation>
+        <translation type="obsolete">Indica si el punter de l&apos;ordinador amfitrió és capturat pel sistema operatiu client:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;no captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;la integració del punter (MI) està activada&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI està desactivada, captura el punter&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI està desactivada, no captura el punter&lt;/nobr&gt;&lt;br&gt;Tingueu en compte que la funció d&apos;integració del punter requereix tindre instal·lades les Guest Additions en el sistema operatiu client.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation>Indica si el teclat és capturat pel sistema operatiu client (&lt;img src=:/hostkey_captured_16px.png/&gt;) o no (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+        <translation type="obsolete">Indica si el teclat és capturat pel sistema operatiu client (&lt;img src=:/hostkey_captured_16px.png/&gt;) o no (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Indica si la pantalla remota (servidor VRDP) està activada (&lt;img src=:/vrdp_16px.png/&gt;) o no (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+        <translation type="obsolete">Indica si la pantalla remota (servidor VRDP) està activada (&lt;img src=:/vrdp_16px.png/&gt;) o no (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&amp;Logging...</source>
         <comment>debug action</comment>
-        <translation>&amp;S&apos;està connectant...</translation>
+        <translation type="obsolete">&amp;S&apos;està connectant...</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
-        <translation>Mostra la tecla assignada a l&apos;amfitrió.&lt;br&gt;Quan es prem esta tecla commuta l&apos;estat de captura del teclat i el punter. També es pot fer servir en combinació amb altres tecles per accedir ràpidament a algunes opcions del menú principal.</translation>
+        <translation type="obsolete">Mostra la tecla assignada a l&apos;amfitrió.&lt;br&gt;Quan es prem esta tecla commuta l&apos;estat de captura del teclat i el punter. També es pot fer servir en combinació amb altres tecles per accedir ràpidament a algunes opcions del menú principal.</translation>
     </message>
     <message>
         <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>Indica l&apos;estat de les característiques de virtualització de maquinari que fa servir esta màquina virtual:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">Indica l&apos;estat de les característiques de virtualització de maquinari que fa servir esta màquina virtual:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation> Versió EXPERIMENTAL %1r%2 - %3</translation>
+        <translation type="obsolete"> Versió EXPERIMENTAL %1r%2 - %3</translation>
     </message>
     <message>
         <source>&amp;CD/DVD Devices</source>
-        <translation>Dispositius &amp;CD/DVD</translation>
+        <translation type="obsolete">Dispositius &amp;CD/DVD</translation>
     </message>
     <message>
         <source>&amp;Floppy Devices</source>
-        <translation>Dis&amp;queteres</translation>
+        <translation type="obsolete">Dis&amp;queteres</translation>
     </message>
     <message>
         <source>&amp;Network Adapters...</source>
-        <translation>Adaptadors de &amp;xarxa...</translation>
+        <translation type="obsolete">Adaptadors de &amp;xarxa...</translation>
     </message>
     <message>
         <source>Change the settings of network adapters</source>
-        <translation>Canvia els paràmetres dels adaptadors de xarxa</translation>
+        <translation type="obsolete">Canvia els paràmetres dels adaptadors de xarxa</translation>
     </message>
     <message>
         <source>&amp;Remote Display</source>
-        <translation>Pantalla &amp;remota</translation>
+        <translation type="obsolete">Pantalla &amp;remota</translation>
     </message>
     <message>
         <source>More CD/DVD Images...</source>
-        <translation>Més imatges de CD/DVD...</translation>
+        <translation type="obsolete">Més imatges de CD/DVD...</translation>
     </message>
     <message>
         <source>Unmount CD/DVD Device</source>
-        <translation>Desmunta el CD/DVD</translation>
+        <translation type="obsolete">Desmunta el CD/DVD</translation>
     </message>
     <message>
         <source>More Floppy Images...</source>
-        <translation>Més imatges de disquet...</translation>
+        <translation type="obsolete">Més imatges de disquet...</translation>
     </message>
     <message>
         <source>Unmount Floppy Device</source>
-        <translation>Desmunta la disquetera</translation>
+        <translation type="obsolete">Desmunta la disquetera</translation>
     </message>
     <message>
         <source>No CD/DVD Devices Attached</source>
-        <translation>No s&apos;ha conectat cap dispositiu de CD/DVD</translation>
+        <translation type="obsolete">No s&apos;ha conectat cap dispositiu de CD/DVD</translation>
     </message>
     <message>
         <source>No Floppy Devices Attached</source>
-        <translation>No s&apos;ha connectat cap dispositiu de disquetera</translation>
+        <translation type="obsolete">No s&apos;ha connectat cap dispositiu de disquetera</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels discos durs virtuals:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels discos durs virtuals:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de CD/DVD:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de CD/DVD:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No CD/DVD devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No s&apos;ha connectat cap dispositiu de CD/DVD&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No s&apos;ha connectat cap dispositiu de CD/DVD&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de disquetera:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de disquetera:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No floppy devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No s&apos;ha connectat cap dispositiu de disquetera&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No s&apos;ha connectat cap dispositiu de disquetera&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de xarxa:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius de xarxa:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius USB connectats:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat dels dispositius USB connectats:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat de les carpetes compartides per la màquina virtual:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indica l&apos;activitat de les carpetes compartides per la màquina virtual:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Dock Icon</source>
-        <translation>Icona de safata</translation>
+        <translation type="obsolete">Icona de safata</translation>
     </message>
     <message>
         <source>Show Application Icon</source>
-        <translation>Mostra la icona de l&apos;aplicació</translation>
+        <translation type="obsolete">Mostra la icona de l&apos;aplicació</translation>
     </message>
     <message>
         <source>Show Monitor Preview</source>
-        <translation>Mostra la previsualització del monitor</translation>
+        <translation type="obsolete">Mostra la previsualització del monitor</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adaptador %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adaptador %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>ACPI Sh&amp;utdown</source>
-        <translation>At&amp;urada ACPI</translation>
+        <translation type="obsolete">At&amp;urada ACPI</translation>
     </message>
     <message>
         <source>&amp;View</source>
-        <translation>&amp;Visualitza</translation>
+        <translation type="obsolete">&amp;Visualitza</translation>
     </message>
     <message>
         <source>Preview Monitor %1</source>
-        <translation>Previsualitza el monitor %1</translation>
+        <translation type="obsolete">Previsualitza el monitor %1</translation>
     </message>
     <message>
         <source>No CD/DVD devices attached to that VM</source>
-        <translation>No hi ha cap dispositiu de CD/DVD connectat a la màquina virtual</translation>
+        <translation type="obsolete">No hi ha cap dispositiu de CD/DVD connectat a la màquina virtual</translation>
     </message>
     <message>
         <source>No floppy devices attached to that VM</source>
-        <translation>No hi ha cap dispositiu de disquet connectat a la màquina virtual</translation>
+        <translation type="obsolete">No hi ha cap dispositiu de disquet connectat a la màquina virtual</translation>
     </message>
     <message>
         <source>No USB Devices Connected</source>
-        <translation>No hi ha cap dispositiu USB connectat</translation>
+        <translation type="obsolete">No hi ha cap dispositiu USB connectat</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
-        <translation>No hi ha dispositius suportats connectats a l&apos;ordinador amfitrió</translation>
+        <translation type="obsolete">No hi ha dispositius suportats connectats a l&apos;ordinador amfitrió</translation>
     </message>
 </context>
 <context>
@@ -4823,48 +5256,36 @@ Versió %1</translation>
         <source>%n year(s)</source>
         <translation>
             <numerusform>%n any</numerusform>
-            <numerusform>%n anys</numerusform>
-            <numerusform>%n anys</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n month(s)</source>
         <translation>
             <numerusform>%n mes</numerusform>
-            <numerusform>%n mesos</numerusform>
-            <numerusform>%n mesos</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n day(s)</source>
         <translation>
             <numerusform>%n dia</numerusform>
-            <numerusform>%n dies</numerusform>
-            <numerusform>%n dies</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n hour(s)</source>
         <translation>
             <numerusform>%n hora</numerusform>
-            <numerusform>%n hores</numerusform>
-            <numerusform>%n hores</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n minute(s)</source>
         <translation>
             <numerusform>%n minut</numerusform>
-            <numerusform>%n minuts</numerusform>
-            <numerusform>%n minuts</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n second(s)</source>
         <translation>
             <numerusform>%n segon</numerusform>
-            <numerusform>%n segons</numerusform>
-            <numerusform>%n segons</numerusform>
         </translation>
     </message>
     <message>
@@ -4949,6 +5370,16 @@ Versió %1</translation>
         <source>Shareable</source>
         <comment>DiskType</comment>
         <translation>Compartible</translation>
+    </message>
+    <message>
+        <source>Unknown device</source>
+        <comment>USB device details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6164,7 +6595,7 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;La Màquina Virtual ha informat que el sistema client suporta &lt;b&gt;integració del punter del ratolí&lt;/b&gt;. Això significa que no necessiteu &lt;i&gt;capturar&lt;/i&gt; el punter del ratolí per poder fer-lo servir al sistema client -- totes les accions que executeu quan el punter del ratolí estiga a sobre de la Màquina virtual s&apos;enviaran directament al sistema client. Si es captura el ratolí, automàticament es tornarà al mode normal.&lt;/p&gt;&lt;p&gt;La icona del ratolí a la barra d&apos;estat es mostrarà com&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;per informar-vos que la integració del punter està suportada pel sistema client que està actiu.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algunes aplicacions poden comportar-s'incorrectament treballant en el mode d&apos;integració del ratolí. Sempre podeu inhabilitar-ho a la sessió actual (o habilitar-ho) seleccionat l&apos;opció corresponent a la barra de menú.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;La Màquina Virtual ha informat que el sistema client suporta &lt;b&gt;integració del punter del ratolí&lt;/b&gt;. Això significa que no necessiteu &lt;i&gt;capturar&lt;/i&gt; el punter del ratolí per poder fer-lo servir al sistema client -- totes les accions que executeu quan el punter del ratolí estiga a sobre de la Màquina virtual s&apos;enviaran directament al sistema client. Si es captura el ratolí, automàticament es tornarà al mode normal.&lt;/p&gt;&lt;p&gt;La icona del ratolí a la barra d&apos;estat es mostrarà com&amp;nbsp;&lt;img src=mouse_seamless_16px.png/&gt;&amp;nbsp;per informar-vos que la integració del punter està suportada pel sistema client que està actiu.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algunes aplicacions poden comportar-s&apos;incorrectament treballant en el mode d&apos;integració del ratolí. Sempre podeu inhabilitar-ho a la sessió actual (o habilitar-ho) seleccionat l&apos;opció corresponent a la barra de menú.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
@@ -6343,7 +6774,7 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files have been automatically converted to the new settings file format version &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;However, the results of the conversion were not saved back to disk yet. Please press:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Save&lt;/b&gt; to save all auto-converted files now (it will not be possible to use these settings files with an older version of VirtualBox in the future);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Backup&lt;/b&gt; to create backup copies of the settings files in the old format before saving them in the new format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cancel&lt;/b&gt; to not save the auto-converted settings files now.&lt;li&gt;&lt;/ul&gt;&lt;p&gt;Note that if you select &lt;b&gt;Cancel&lt;/b&gt;, the auto-converted settings files will be implicitly saved in the new format anyway once you change a setting or start a virtual machine, but &lt;b&gt;no&lt;/b&gt; backup copies will be created in this case.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Els següents fitxers de paràmetres del VirtualBox s&apos;han convertit automàticament al nou format &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Tot i així, els resultats de la conversió encara no s&apos;han alçat al disc. Premeu:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alça&lt;/b&gt; per alçar ara els fitxers auto-convertits (ja no serà possible fer servir estos paràmetres amb una versió anterior del VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Còpia de seguretat&lt;/b&gt; per crear una còpia de seguretat dels fitxers de paràmetres en el format antic abans d'alçar-los en el nou format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cancel·la&lt;/b&gt; per no alçar ara els fitxers de paràmetres auto-convertits.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Tingueu en compte que si seleccioneu &lt;b&gt;Cancel·la&lt;/b&gt;, els fitxers de paràmetres auto-convertits s'alçaran implícitament en el nou format tot i que una vegada que canvieu algun paràmetre o inicieu una màquina virtual, en canvi en este cas  &lt;b&gt;no&lt;/b&gt; es faran còpies de seguretat.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Els següents fitxers de paràmetres del VirtualBox s&apos;han convertit automàticament al nou format &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Tot i així, els resultats de la conversió encara no s&apos;han alçat al disc. Premeu:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alça&lt;/b&gt; per alçar ara els fitxers auto-convertits (ja no serà possible fer servir estos paràmetres amb una versió anterior del VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Còpia de seguretat&lt;/b&gt; per crear una còpia de seguretat dels fitxers de paràmetres en el format antic abans d&apos;alçar-los en el nou format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cancel·la&lt;/b&gt; per no alçar ara els fitxers de paràmetres auto-convertits.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Tingueu en compte que si seleccioneu &lt;b&gt;Cancel·la&lt;/b&gt;, els fitxers de paràmetres auto-convertits s&apos;alçaran implícitament en el nou format tot i que una vegada que canvieu algun paràmetre o inicieu una màquina virtual, en canvi en este cas  &lt;b&gt;no&lt;/b&gt; es faran còpies de seguretat.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Save</source>
@@ -6433,7 +6864,7 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS supports &lt;b&gt;mouse pointer integration&lt;/b&gt;. This means that you do not need to &lt;i&gt;capture&lt;/i&gt; the mouse pointer to be able to use it in your guest OS -- all mouse actions you perform when the mouse pointer is over the Virtual Machine&apos;s display are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.&lt;/p&gt;&lt;p&gt;The mouse icon on the status bar will look like&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;to inform you that mouse pointer integration is supported by the guest OS and is currently turned on.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;: Some applications may behave incorrectly in mouse pointer integration mode. You can always disable it for the current session (and enable it again) by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;La Màquina Virtual ha informat que el sistema client suporta &lt;b&gt;integració del punter&lt;/b&gt;. Això significa que no necessiteu &lt;i&gt;capturar&lt;/i&gt; el punter per poder fer-lo servir al sistema client -- totes les accions que executeu quan el punter estiga a sobre de la Màquina virtual s&apos;enviaran directament al sistema client. Si es captura el punter, automàticament es tornarà al mode normal.&lt;/p&gt;&lt;p&gt;La icona del punter a la barra d&apos;estat es mostrarà com&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;per informar-vos que la integració del punter està suportada pel sistema client que està actiu.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algunes aplicacions poden comportar-s'incorrectament treballant en el mode d&apos;integració del punter. Sempre podeu inhabilitar-ho a la sessió actual (o habilitar-ho) seleccionat l&apos;opció corresponent a la barra de menú.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;La Màquina Virtual ha informat que el sistema client suporta &lt;b&gt;integració del punter&lt;/b&gt;. Això significa que no necessiteu &lt;i&gt;capturar&lt;/i&gt; el punter per poder fer-lo servir al sistema client -- totes les accions que executeu quan el punter estiga a sobre de la Màquina virtual s&apos;enviaran directament al sistema client. Si es captura el punter, automàticament es tornarà al mode normal.&lt;/p&gt;&lt;p&gt;La icona del punter a la barra d&apos;estat es mostrarà com&amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;per informar-vos que la integració del punter està suportada pel sistema client que està actiu.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Nota&lt;/b&gt;: Algunes aplicacions poden comportar-s&apos;incorrectament treballant en el mode d&apos;integració del punter. Sempre podeu inhabilitar-ho a la sessió actual (o habilitar-ho) seleccionat l&apos;opció corresponent a la barra de menú.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;. Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -6689,7 +7120,7 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
     <message>
         <source>&lt;p&gt;The following VirtualBox settings files have been automatically converted to the new settings file format version &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;However, the results of the conversion were not saved back to disk yet. Please press:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Backup&lt;/b&gt; to create backup copies of the settings files in the old format before saving them in the new format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Overwrite&lt;/b&gt; to save all auto-converted files without creating backup copies (it will not be possible to use these settings files with an older version of VirtualBox afterwards);&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;It is recommended to always select &lt;b&gt;Backup&lt;/b&gt; because in this case it will be possible to go back to the previous version of VirtualBox (if necessary) without losing your current settings. See the VirtualBox Manual for more information about downgrading.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Els següents fitxers de paràmetres del VirtualBox s&apos;han convertit automàticament al nou format &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Tot i així, els resultats de la conversió encara no s&apos;han alçat al disc. Premeu:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alça&lt;/b&gt; per alçar ara els fitxers auto-convertits (ja no serà possible fer servir estos paràmetres amb una versió anterior del VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Còpia de seguretat&lt;/b&gt; per crear una còpia de seguretat dels fitxers de paràmetres en el format antic abans d'alçar-los en el nou format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sobreescriu&lt;/b&gt; per alçar tots els fitxers auto-convertitts sense crear còpies de seguretat;&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;Es recomana seleccionar en tot moment &lt;b&gt;Còpia de seguretat&lt;/b&gt; perquè sempre serà possible tornar a l&apos;estat anterior sense perdre els paràmetres de configuració actuals. Mireu el manual del VirtualBox per a més informació sobre desactualització.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Els següents fitxers de paràmetres del VirtualBox s&apos;han convertit automàticament al nou format &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Tot i així, els resultats de la conversió encara no s&apos;han alçat al disc. Premeu:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alça&lt;/b&gt; per alçar ara els fitxers auto-convertits (ja no serà possible fer servir estos paràmetres amb una versió anterior del VirtualBox);&lt;/li&gt;&lt;li&gt;&lt;b&gt;Còpia de seguretat&lt;/b&gt; per crear una còpia de seguretat dels fitxers de paràmetres en el format antic abans d&apos;alçar-los en el nou format;&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sobreescriu&lt;/b&gt; per alçar tots els fitxers auto-convertitts sense crear còpies de seguretat;&lt;/li&gt;%2&lt;/ul&gt;&lt;p&gt;Es recomana seleccionar en tot moment &lt;b&gt;Còpia de seguretat&lt;/b&gt; perquè sempre serà possible tornar a l&apos;estat anterior sense perdre els paràmetres de configuració actuals. Mireu el manual del VirtualBox per a més informació sobre desactualització.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;li&gt;&lt;b&gt;Exit&lt;/b&gt; to terminate VirtualBox without saving the results of the conversion to disk.&lt;/li&gt;</source>
@@ -7125,7 +7556,7 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
     <message>
         <source>&lt;p&gt;Please fill out this registration form to let vos know that you use VirtualBox and, optionally, to keep you informed about VirtualBox news and updates.&lt;/p&gt;&lt;p&gt;Please use Latin characters only to fill in  the fields below. Sun Microsystems will use this information only to gather product usage statistics and to send you VirtualBox newsletters. In particular, Sun Microsystems will never pass your data to third parties. Detailed information about how we use your personal data can be found in the &lt;b&gt;Privacy Policy&lt;/b&gt; section of the VirtualBox Manual or on the &lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; page of the VirtualBox web-site.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Ompliu este formulari de registre per permetre&apos;ns conèixer que feu servir el VirtualBox i, opcionalment, mantindre-vos informat sobre novetats i actualitzacions del VirtualBox.&lt;/p&gt;&lt;p&gt;Feu servir caràcters llatins per omplir els camps següents. Tingueu en compte que Sun Microsystems farà servir esta informació només per a usos estadístics i per enviar-vos notícies sobre el VirtualBox. Sun Microsystems mai compartirà les vostres dades amb terceres parts. Més informació detallada sobre l&apos;ús de les vostres dades personals poden trobar-s'a la secció de &lt;b&gt;Política de privacitat&lt;/b&gt; al manual de VirtualBox o al&lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; lloc web del VirtualBox.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Ompliu este formulari de registre per permetre&apos;ns conèixer que feu servir el VirtualBox i, opcionalment, mantindre-vos informat sobre novetats i actualitzacions del VirtualBox.&lt;/p&gt;&lt;p&gt;Feu servir caràcters llatins per omplir els camps següents. Tingueu en compte que Sun Microsystems farà servir esta informació només per a usos estadístics i per enviar-vos notícies sobre el VirtualBox. Sun Microsystems mai compartirà les vostres dades amb terceres parts. Més informació detallada sobre l&apos;ús de les vostres dades personals poden trobar-s&apos;a la secció de &lt;b&gt;Política de privacitat&lt;/b&gt; al manual de VirtualBox o al&lt;a href=http://www.virtualbox.org/wiki/PrivacyPolicy&gt;Privacy Policy&lt;/a&gt; lloc web del VirtualBox.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>I &amp;already have a Sun Online account:</source>
@@ -7318,7 +7749,7 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
     </message>
     <message>
         <source>&amp;File</source>
-        <translation>&amp;Fitxer</translation>
+        <translation type="obsolete">&amp;Fitxer</translation>
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
@@ -7514,12 +7945,22 @@ un disc dur per connectar a la ranura remarcada actualment.&lt;/a&gt;</translati
         <comment>icon text</comment>
         <translation>Registre</translation>
     </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation type="unfinished">&amp;Fitxer</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation type="unfinished">&amp;Fitxer</translation>
+    </message>
 </context>
 <context>
     <name>VBoxSettingsDialog</name>
     <message>
         <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;Seleccioneu una categoria de paràmetres en la llista de l&apos;esquerra i deplaceu el punter sobre un element de la dreta per obtindre'n més informació&lt;/i&gt;.</translation>
+        <translation>&lt;i&gt;Seleccioneu una categoria de paràmetres en la llista de l&apos;esquerra i deplaceu el punter sobre un element de la dreta per obtindre&apos;n més informació&lt;/i&gt;.</translation>
     </message>
     <message>
         <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
@@ -7868,32 +8309,24 @@ per accedir a ella des d&apos;un sistema Linux. Esta característica requereix G
         <source> (%n day(s) ago)</source>
         <translation type="obsolete">
             <numerusform> (fa %n dia)</numerusform>
-            <numerusform> (fa %n dies)</numerusform>
-            <numerusform> (fa %n dies)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n hour(s) ago)</source>
         <translation type="obsolete">
             <numerusform> (fa %n hora)</numerusform>
-            <numerusform> (fa %n hores)</numerusform>
-            <numerusform> (fa %n hores)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n minute(s) ago)</source>
         <translation type="obsolete">
             <numerusform> (fa %n minut)</numerusform>
-            <numerusform> (fa %n minuts)</numerusform>
-            <numerusform> (fa %n minuts)</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source> (%n second(s) ago)</source>
         <translation type="obsolete">
             <numerusform> (fa %n segon)</numerusform>
-            <numerusform> (fa %n segons)</numerusform>
-            <numerusform> (fa %n segons)</numerusform>
         </translation>
     </message>
     <message>
@@ -7966,8 +8399,6 @@ per accedir a ella des d&apos;un sistema Linux. Esta característica requereix G
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
         <translation>
             <numerusform>Avís: esteu fent una captura d&apos;una màquina que té %n imatge immutable connectada. Mentre treballeu amb esta captura, la imatge immutable no es reiniciarà per evitar la pèrdua de dades.</numerusform>
-            <numerusform>Avís: esteu fent una captura d&apos;una màquina que té %n imatge immutables connectades. Mentre treballeu amb esta captura, les imatges immutables no es reiniciaran per evitar la pèrdua de dades.</numerusform>
-            <numerusform>Avís: esteu fent una captura d&apos;una màquina que té %n imatge immutables connectades. Mentre treballeu amb esta captura, les imatges immutables no es reiniciaran per evitar la pèrdua de dades.</numerusform>
         </translation>
     </message>
 </context>
@@ -8462,16 +8893,16 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     <message>
         <source>Enabled</source>
         <comment>nested paging</comment>
-        <translation>Activat</translation>
+        <translation type="obsolete">Activat</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>nested paging</comment>
-        <translation>Desactivat</translation>
+        <translation type="obsolete">Desactivat</translation>
     </message>
     <message>
         <source>Nested Paging</source>
-        <translation>Paginació imbricada</translation>
+        <translation type="obsolete">Paginació imbricada</translation>
     </message>
     <message>
         <source>VBoxVMInformationDlg</source>
@@ -8493,6 +8924,11 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     <message>
         <source>Network Statistics</source>
         <translation>Estadístiques de xarxa</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Paginació imbricada</translation>
     </message>
 </context>
 <context>
@@ -8837,7 +9273,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     <name>VBoxVMSettingsAudio</name>
     <message>
         <source>When checked, a virtual PCI audio card will be plugged into the virtual machine and will communicate with the host audio system using the specified driver.</source>
-        <translation>Quan estiga marcat, la tarjeta de so PCI virtual es connectarà a dins de la màquina virtual, la qual farà servir un controlador específic per comunicar-s'amb la tarjeta de so de l&apos;amfitrió.</translation>
+        <translation>Quan estiga marcat, la tarjeta de so PCI virtual es connectarà a dins de la màquina virtual, la qual farà servir un controlador específic per comunicar-s&apos;amb la tarjeta de so de l&apos;amfitrió.</translation>
     </message>
     <message>
         <source>Enable &amp;Audio</source>
@@ -8849,7 +9285,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Controls the audio output driver. The &lt;b&gt;Null Audio Driver&lt;/b&gt; makes the guest see an audio card, however every access to it will be ignored.</source>
-        <translation>Gestiona el controlador d'eixida de so. El &lt;b&gt;controlador d&apos;àudio Nul&lt;/b&gt; fa que el client veja una tarjeta de so, però l&apos;accés a ella s&apos;ignorarà.</translation>
+        <translation>Gestiona el controlador d&apos;eixida de so. El &lt;b&gt;controlador d&apos;àudio Nul&lt;/b&gt; fa que el client veja una tarjeta de so, però l&apos;accés a ella s&apos;ignorarà.</translation>
     </message>
     <message>
         <source>Audio &amp;Controller:</source>
@@ -8963,7 +9399,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>When checked, the VM will act as a Remote Desktop Protocol (RDP) server, allowing remote clients to connect and operate the VM (when it is running) using a standard RDP client.</source>
-        <translation>Quan estiga marcat, la màquina virtual actuarà com un servidor RDP (protocol d&apos;escriptori remot), de forma que es permetrà a clients remots connectar-s'i operar amb la màquina virtual (quan estiga en execució) fent servir un client estàndard RDP.</translation>
+        <translation>Quan estiga marcat, la màquina virtual actuarà com un servidor RDP (protocol d&apos;escriptori remot), de forma que es permetrà a clients remots connectar-s&apos;i operar amb la màquina virtual (quan estiga en execució) fent servir un client estàndard RDP.</translation>
     </message>
     <message>
         <source>&amp;Enable Server</source>
@@ -9227,7 +9663,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
-        <translation type="obsolete">Mostra la ruta on les captures d&apos;esta màquina virtual s'alçaran. Tingueu en compte que les captures poden ocupar prou quantitat d&apos;espai al disc dur.</translation>
+        <translation type="obsolete">Mostra la ruta on les captures d&apos;esta màquina virtual s&apos;alçaran. Tingueu en compte que les captures poden ocupar prou quantitat d&apos;espai al disc dur.</translation>
     </message>
     <message>
         <source>Displays the virtual hard disk to attach to this IDE slot and allows to quickly select a different hard disk.</source>
@@ -9323,7 +9759,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>If checked, any change to mounted CD/DVD or Floppy media performed during machine execution will be saved in the settings file in order to preserve the configuration of mounted media between runs.</source>
-        <translation type="obsolete">Si està marcat, qualsevol canvi al CD/DVD o disquet muntat s'alçarà al fitxer de configuració per tal de preservar la configuració dels suports muntats entre cada execució de la màquina virtual.</translation>
+        <translation type="obsolete">Si està marcat, qualsevol canvi al CD/DVD o disquet muntat s&apos;alçarà al fitxer de configuració per tal de preservar la configuració dels suports muntats entre cada execució de la màquina virtual.</translation>
     </message>
     <message>
         <source>&amp;Image File</source>
@@ -9507,7 +9943,7 @@ o a ambdòs (&lt;i&gt;Qualsevol&lt;/i&gt;).&lt;/qt&gt;</translation>
     <message>
         <source>&lt;qt&gt;Controls the audio output driver. The &lt;b&gt;Null Audio Driver&lt;/b&gt;
 makes the guest see an audio card, however every access to it will be ignored.&lt;/qt&gt;</source>
-        <translation type="obsolete">&lt;qt&gt;Gestiona el controlador d'eixida de so. El &lt;b&gt;controlador d&apos;àudio Nul&lt;/b&gt;
+        <translation type="obsolete">&lt;qt&gt;Gestiona el controlador d&apos;eixida de so. El &lt;b&gt;controlador d&apos;àudio Nul&lt;/b&gt;
 fa que el client veja una tarjeta de so, però l&apos;accés a ella s&apos;ignorarà.&lt;/qt&gt;</translation>
     </message>
     <message>
@@ -9666,7 +10102,7 @@ esta característica després d&apos;haver instal·lat un Windows al sistema ope
     </message>
     <message>
         <source>When checked, a virtual PCI audio card will be plugged into the virtual machine and will communicate with the host audio system using the specified driver.</source>
-        <translation type="obsolete">Quan estiga marcat, la tarjeta de so PCI virtual es connectarà a dins de la màquina virtual, la qual farà servir un controlador específic per comunicar-s'amb la tarjeta de so de l&apos;amfitrió.</translation>
+        <translation type="obsolete">Quan estiga marcat, la tarjeta de so PCI virtual es connectarà a dins de la màquina virtual, la qual farà servir un controlador específic per comunicar-s&apos;amb la tarjeta de so de l&apos;amfitrió.</translation>
     </message>
     <message>
         <source>When checked, the VM will act as a Remote Desktop Protocol (RDP) server, allowing remote clients to connect and operate the VM (when it is running) using a standard RDP client.</source>
@@ -10038,7 +10474,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
-        <translation>Mostra el camí on les captures d&apos;esta màquina virtual s'alçaran. Tingueu en compte que les captures poden ocupar prou quantitat d&apos;espai al disc dur.</translation>
+        <translation>Mostra el camí on les captures d&apos;esta màquina virtual s&apos;alçaran. Tingueu en compte que les captures poden ocupar prou quantitat d&apos;espai al disc dur.</translation>
     </message>
     <message>
         <source>&amp;Basic</source>
@@ -10202,7 +10638,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>If checked, any change to mounted CD/DVD or Floppy media performed during machine execution will be saved in the settings file in order to preserve the configuration of mounted media between runs.</source>
-        <translation>Si està marcat, qualsevol canvi al CD/DVD o disquet muntat s'alçarà al fitxer de configuració per tal de preservar la configuració dels suports muntats entre cada execució de la màquina virtual.</translation>
+        <translation>Si està marcat, qualsevol canvi al CD/DVD o disquet muntat s&apos;alçarà al fitxer de configuració per tal de preservar la configuració dels suports muntats entre cada execució de la màquina virtual.</translation>
     </message>
     <message>
         <source>&amp;Remember Mounted Media</source>
@@ -10254,7 +10690,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation>Si està marcat, mostra una barra d&apos;eines petita a la part de dalt de la pantalla en lloc d'a la posició per defecte a la part de sota.</translation>
+        <translation>Si està marcat, mostra una barra d&apos;eines petita a la part de dalt de la pantalla en lloc d&apos;a la posició per defecte a la part de sota.</translation>
     </message>
     <message>
         <source>Show At &amp;Top Of Screen</source>
@@ -10325,7 +10761,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     </message>
     <message>
         <source>If checked, shows the differencing hard disks that are attached to slots rather than their base hard disks (shown for indirect attachments) and allows explicit attaching of differencing hard disks. Check this only if you need a complex hard disk setup.</source>
-        <translation>Si està marcat, mostrarà de forma diferenciada els discos durs connectats a les ranures en lloc d'als discos durs base (mostrat en cas d&apos;adjuncions indirectes), a més permetrà connectar altres discos durs explícitament. Marqueu això només si necessiteu una configuració complexa del disc dur.</translation>
+        <translation>Si està marcat, mostrarà de forma diferenciada els discos durs connectats a les ranures en lloc d&apos;als discos durs base (mostrat en cas d&apos;adjuncions indirectes), a més permetrà connectar altres discos durs explícitament. Marqueu això només si necessiteu una configuració complexa del disc dur.</translation>
     </message>
     <message>
         <source>&amp;Show Differencing Hard Disks</source>
@@ -11521,7 +11957,7 @@ al sistema amfitrió.&lt;/qt&gt;</translation>
     <name>VBoxVMSettingsVRDP</name>
     <message>
         <source>When checked, the VM will act as a Remote Desktop Protocol (RDP) server, allowing remote clients to connect and operate the VM (when it is running) using a standard RDP client.</source>
-        <translation type="obsolete">Quan estiga marcat, la màquina virtual actuarà com un servidor protocol d&apos;escriptori remot (RDP), permetent als clients remots connectar-s'a la màquina virtual (quan estiga executant-se) fent servir l&apos;estàndard client RDP.</translation>
+        <translation type="obsolete">Quan estiga marcat, la màquina virtual actuarà com un servidor protocol d&apos;escriptori remot (RDP), permetent als clients remots connectar-s&apos;a la màquina virtual (quan estiga executant-se) fent servir l&apos;estàndard client RDP.</translation>
     </message>
     <message>
         <source>&amp;Enable VRDP Server</source>

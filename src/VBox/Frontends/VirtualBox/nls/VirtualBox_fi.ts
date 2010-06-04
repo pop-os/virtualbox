@@ -437,6 +437,278 @@
     </message>
 </context>
 <context>
+    <name>UIActionsPool</name>
+    <message>
+        <source>&amp;Machine</source>
+        <translation>&amp;Kone</translation>
+    </message>
+    <message>
+        <source>&amp;Fullscreen Mode</source>
+        <translation type="obsolete">&amp;Kokoruututila</translation>
+    </message>
+    <message>
+        <source>Switch to fullscreen mode</source>
+        <translation>Vaihda kokoruututilaan</translation>
+    </message>
+    <message>
+        <source>Seam&amp;less Mode</source>
+        <translation type="obsolete">Saumato&amp;n tila</translation>
+    </message>
+    <message>
+        <source>Switch to seamless desktop integration mode</source>
+        <translation>Vaihda saumattoman työpöytäintegraation tilaan</translation>
+    </message>
+    <message>
+        <source>Auto-resize &amp;Guest Display</source>
+        <translation type="obsolete">&amp;Muuta automaattisesti asiakkaan näytön kokoa</translation>
+    </message>
+    <message>
+        <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
+        <translation>Muuta asiakkaan näytön kokoa automaattisesti, kun ikkunan kokoa muutetaan (vaatii asiakaslisäosat)</translation>
+    </message>
+    <message>
+        <source>&amp;Adjust Window Size</source>
+        <translation>&amp;Säädä ikkunan kokoa</translation>
+    </message>
+    <message>
+        <source>Adjust window size and position to best fit the guest display</source>
+        <translation>Säädä ikkunan kokoa ja sijaintia sopimaan asiakkaan näyttöön</translation>
+    </message>
+    <message>
+        <source>Disable &amp;Mouse Integration</source>
+        <translation>Poista &amp;hiirituki käytöstä</translation>
+    </message>
+    <message>
+        <source>Temporarily disable host mouse pointer integration</source>
+        <translation>Poista väliaikaisesti käytöstä isäntätietokoneen hiiren kohdistime tuki</translation>
+    </message>
+    <message>
+        <source>Enable &amp;Mouse Integration</source>
+        <translation>Ota &amp;hiirituki käyttöön</translation>
+    </message>
+    <message>
+        <source>Enable temporarily disabled host mouse pointer integration</source>
+        <translation>Ota väliaikaisesti käytöstä poistettu hiiren kohdistimen integrointi käyttöön</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Del</source>
+        <translation>&amp;Lähetä Ctrl-Alt-Del</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
+        <translation>Lähetä Ctrl-Alt-Del-näppäinyhdistelmä virtuaalikoneelle</translation>
+    </message>
+    <message>
+        <source>&amp;Insert Ctrl-Alt-Backspace</source>
+        <translation>Lä&amp;hetä Ctrl-Alt-Backspace</translation>
+    </message>
+    <message>
+        <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
+        <translation>Lähetä Ctrl-Alt-Backspace-näppäinyhdistelmä virtuaalikoneelle</translation>
+    </message>
+    <message>
+        <source>Take &amp;Snapshot...</source>
+        <translation>Luo &amp;palautuspiste...</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the virtual machine</source>
+        <translation>Luo palautuspiste virtuaalikoneesta</translation>
+    </message>
+    <message>
+        <source>Session I&amp;nformation Dialog</source>
+        <translation>Näytä &amp;tietoikkuna</translation>
+    </message>
+    <message>
+        <source>Show Session Information Dialog</source>
+        <translation>Näytä tietoja istunnosta</translation>
+    </message>
+    <message>
+        <source>&amp;Pause</source>
+        <translation>&amp;Keskeytä</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the virtual machine</source>
+        <translation>Keskeytä virtuaalikoneen suoritus</translation>
+    </message>
+    <message>
+        <source>R&amp;esume</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Resume the execution of the virtual machine</source>
+        <translation>Jatka virtuaalikoneen suorittamista</translation>
+    </message>
+    <message>
+        <source>&amp;Reset</source>
+        <translation>&amp;Palauta</translation>
+    </message>
+    <message>
+        <source>Reset the virtual machine</source>
+        <translation>Palauta virtuaalikone</translation>
+    </message>
+    <message>
+        <source>ACPI Sh&amp;utdown</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>ACPI S&amp;hutdown</source>
+        <translation>ACPI-samm&amp;utus</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the virtual machine</source>
+        <translation>Lähetä virtanapin painosta kertova ACPI-tapahtuma virtuaalikoneelle</translation>
+    </message>
+    <message>
+        <source>&amp;Close...</source>
+        <translation>&amp;Sulje...</translation>
+    </message>
+    <message>
+        <source>Close the virtual machine</source>
+        <translation>Sulje virtuaalikone</translation>
+    </message>
+    <message>
+        <source>&amp;View</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&amp;Devices</source>
+        <translation>&amp;Laitteet</translation>
+    </message>
+    <message>
+        <source>&amp;CD/DVD Devices</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&amp;Floppy Devices</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&amp;USB Devices</source>
+        <translation>&amp;USB-laitteet</translation>
+    </message>
+    <message>
+        <source>&amp;Network Adapters...</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Change the settings of network adapters</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders...</source>
+        <translation>&amp;Jaetut kansiot...</translation>
+    </message>
+    <message>
+        <source>Create or modify shared folders</source>
+        <translation>Avaa jaettujen kansioiden käsittelyikkuna</translation>
+    </message>
+    <message>
+        <source>Enable or disable remote desktop (RDP) connections to this machine</source>
+        <translation type="obsolete">Valitse, sallitaanko tähän virtuaalikoneeseen RDP-etätyöpöytäyhteydet</translation>
+    </message>
+    <message>
+        <source>&amp;Install Guest Additions...</source>
+        <translation>&amp;Asenna asiakaslisäosat...</translation>
+    </message>
+    <message>
+        <source>Mount the Guest Additions installation image</source>
+        <translation>Liitä asiakaslisäosien asennuslevykuva</translation>
+    </message>
+    <message>
+        <source>De&amp;bug</source>
+        <translation>&amp;Vianetsintä</translation>
+    </message>
+    <message>
+        <source>&amp;Statistics...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Tilastot...</translation>
+    </message>
+    <message>
+        <source>&amp;Command Line...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Komentorivi...</translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="obsolete">&amp;Lokitus...</translation>
+    </message>
+    <message>
+        <source>&amp;Help</source>
+        <translation>O&amp;hje</translation>
+    </message>
+    <message>
+        <source>Dock Icon</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Show Monitor Preview</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Show Application Icon</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Enter &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit &amp;Fullscreen Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to normal mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exit Seam&amp;less Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Guest Display Auto-resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable automatic resize of the guest display when the window is resized</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Enable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Disable Remote Display</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable remote desktop (RDP) connections to this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disable &amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDownloader</name>
     <message>
         <source>Cancel</source>
@@ -1008,14 +1280,163 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UIIndicatorsPool</name>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>HDD tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>CD/DVD tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>FD tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>connected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>yhdistetty</translation>
+    </message>
+    <message>
+        <source>disconnected</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>katkaistu</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Network adapters tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Kaikki verkkosovittimet poistettu käytössä&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-laitteita ei ole liitetty&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>USB device tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-ohjain ei ole käytössä&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
+        <comment>Shared folders tooltip</comment>
+        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ei jaettuja kansioita&lt;/b&gt;&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
+        <translation>Ilmaisee, onko etätyöpöytä (VRDP-palvelin) käytössä (&lt;img src=:/vrdp_16px.png/&gt;) vai ei (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+    </message>
+    <message>
+        <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
+        <translation>&lt;hr&gt;VRDP-palvelin kuuntelee porttissa %1</translation>
+    </message>
+    <message>
+        <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
+        <comment>Virtualization Stuff LED</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation>Ilmaisee, onko isännän hiiren kohdistin kaapattu virtuaalikoneeseen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;kohdistin ei ole kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;kohdistin on kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi on päällä&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi ei ole päällä, kohdistin on kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi ei ole päällä, kohdistin ei ole kaapattu&lt;/nobr&gt;&lt;br&gt;Huomaa että hiiren integrointiominaisuus vaatii asiakaslisäosien asennuksen virtuaalikoneeseen.</translation>
+    </message>
+    <message>
+        <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
+        <translation>Ilmaisee, onko näppäimistö kaapattu virtuaalikoneeseen (&lt;img src=:/hostkey_captured_16px.png/&gt;) vai ei (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+    </message>
+</context>
+<context>
     <name>UIMachineLogic</name>
     <message>
         <source>VirtualBox OSE</source>
-        <translation type="unfinished">VirtualBox OSE</translation>
+        <translation>VirtualBox OSE</translation>
     </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Preview Monitor %1</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>Palautuspiste %1</translation>
+    </message>
+    <message>
+        <source>More CD/DVD Images...</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Unmount CD/DVD Device</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>More Floppy Images...</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Unmount Floppy Device</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>No CD/DVD Devices Attached</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>No CD/DVD devices attached to that VM</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>No Floppy Devices Attached</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>No floppy devices attached to that VM</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>No USB Devices Connected</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>No supported devices connected to the host PC</source>
+        <translation>Tuettuja laitteita ei ole yhdistettynä isäntätietokoneeseen</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineWindowNormal</name>
+    <message>
+        <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
+        <translation>Näyttää asetetun isäntänäppäimen.&lt;br&gt;Painettaessa tätä näppäintä vaihdetaan näppäimistön ja hiiren kaappaustilaa. Näppäintä voidaan myös käyttää muiden näppäinten kanssa suorittamaan komentoja nopeasti päävalikosta.</translation>
     </message>
 </context>
 <context>
@@ -1595,7 +2016,7 @@ Kaikki VirtualBoxin komponentit käyttävät sitä koneen tunnistukseen.&lt;/p&g
     </message>
     <message>
         <source>Boot Hard &amp;Disk (Primary Master)</source>
-        <translation type="unfinished">Käynnistys&amp;kiintolevy (ensisijainen isäntä)</translation>
+        <translation type="obsolete">Käynnistys&amp;kiintolevy (ensisijainen isäntä)</translation>
     </message>
     <message>
         <source>&amp;Create new hard disk</source>
@@ -1612,6 +2033,10 @@ Kaikki VirtualBoxin komponentit käyttävät sitä koneen tunnistukseen.&lt;/p&g
     <message>
         <source>The recommended size of the boot hard disk is &lt;b&gt;%1&lt;/b&gt; MB.</source>
         <translation type="unfinished">Käynnistyskiintolevyn suositeltu koko on &lt;b&gt;%1&lt;/b&gt; MB.</translation>
+    </message>
+    <message>
+        <source>Boot Hard &amp;Disk</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1867,7 +2292,11 @@ Version %1</source>
     <message>
         <source>MB</source>
         <comment>size suffix MBytes=1024KBytes</comment>
-        <translation type="unfinished">MB</translation>
+        <translation type="obsolete">MB</translation>
+    </message>
+    <message>
+        <source>Hard Disk Controller (SAS)</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1971,7 +2400,7 @@ Version %1</source>
     </message>
     <message>
         <source>VirtualBox OSE</source>
-        <translation>VirtualBox OSE</translation>
+        <translation type="obsolete">VirtualBox OSE</translation>
     </message>
     <message>
         <source>innotek VirtualBox</source>
@@ -1979,85 +2408,85 @@ Version %1</source>
     </message>
     <message>
         <source>&amp;Fullscreen Mode</source>
-        <translation>&amp;Kokoruututila</translation>
+        <translation type="obsolete">&amp;Kokoruututila</translation>
     </message>
     <message>
         <source>Switch to fullscreen mode</source>
-        <translation>Vaihda kokoruututilaan</translation>
+        <translation type="obsolete">Vaihda kokoruututilaan</translation>
     </message>
     <message>
         <source>Mouse Integration</source>
         <comment>enable/disable...</comment>
-        <translation>Hiiren integrointi</translation>
+        <translation type="obsolete">Hiiren integrointi</translation>
     </message>
     <message>
         <source>Auto-resize Guest Display</source>
         <comment>enable/disable...</comment>
-        <translation>Muuta automaattisesti asiakkaan näytön kokoa</translation>
+        <translation type="obsolete">Muuta automaattisesti asiakkaan näytön kokoa</translation>
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
-        <translation>&amp;Muuta automaattisesti asiakkaan näytön kokoa</translation>
+        <translation type="obsolete">&amp;Muuta automaattisesti asiakkaan näytön kokoa</translation>
     </message>
     <message>
         <source>Automatically resize the guest display when the window is resized (requires Guest Additions)</source>
-        <translation>Muuta asiakkaan näytön kokoa automaattisesti, kun ikkunan kokoa muutetaan (vaatii asiakaslisäosat)</translation>
+        <translation type="obsolete">Muuta asiakkaan näytön kokoa automaattisesti, kun ikkunan kokoa muutetaan (vaatii asiakaslisäosat)</translation>
     </message>
     <message>
         <source>&amp;Adjust Window Size</source>
-        <translation>&amp;Säädä ikkunan kokoa</translation>
+        <translation type="obsolete">&amp;Säädä ikkunan kokoa</translation>
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Säädä ikkunan kokoa ja sijaintia sopimaan asiakkaan näyttöön</translation>
+        <translation type="obsolete">Säädä ikkunan kokoa ja sijaintia sopimaan asiakkaan näyttöön</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Del</source>
-        <translation>&amp;Lähetä Ctrl-Alt-Del</translation>
+        <translation type="obsolete">&amp;Lähetä Ctrl-Alt-Del</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Del sequence to the virtual machine</source>
-        <translation>Lähetä Ctrl-Alt-Del-näppäinyhdistelmä virtuaalikoneelle</translation>
+        <translation type="obsolete">Lähetä Ctrl-Alt-Del-näppäinyhdistelmä virtuaalikoneelle</translation>
     </message>
     <message>
         <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation>Lä&amp;hetä Ctrl-Alt-Backspace</translation>
+        <translation type="obsolete">Lä&amp;hetä Ctrl-Alt-Backspace</translation>
     </message>
     <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
-        <translation>Lähetä Ctrl-Alt-Backspace-näppäinyhdistelmä virtuaalikoneelle</translation>
+        <translation type="obsolete">Lähetä Ctrl-Alt-Backspace-näppäinyhdistelmä virtuaalikoneelle</translation>
     </message>
     <message>
         <source>&amp;Reset</source>
-        <translation>&amp;Palauta</translation>
+        <translation type="obsolete">&amp;Palauta</translation>
     </message>
     <message>
         <source>Reset the virtual machine</source>
-        <translation>Palauta virtuaalikone</translation>
+        <translation type="obsolete">Palauta virtuaalikone</translation>
     </message>
     <message>
         <source>ACPI S&amp;hutdown</source>
-        <translation>ACPI-samm&amp;utus</translation>
+        <translation type="obsolete">ACPI-samm&amp;utus</translation>
     </message>
     <message>
         <source>Send the ACPI Power Button press event to the virtual machine</source>
-        <translation>Lähetä virtanapin painosta kertova ACPI-tapahtuma virtuaalikoneelle</translation>
+        <translation type="obsolete">Lähetä virtanapin painosta kertova ACPI-tapahtuma virtuaalikoneelle</translation>
     </message>
     <message>
         <source>&amp;Close...</source>
-        <translation>&amp;Sulje...</translation>
+        <translation type="obsolete">&amp;Sulje...</translation>
     </message>
     <message>
         <source>Close the virtual machine</source>
-        <translation>Sulje virtuaalikone</translation>
+        <translation type="obsolete">Sulje virtuaalikone</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot...</source>
-        <translation>Luo &amp;palautuspiste...</translation>
+        <translation type="obsolete">Luo &amp;palautuspiste...</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
-        <translation>Luo palautuspiste virtuaalikoneesta</translation>
+        <translation type="obsolete">Luo palautuspiste virtuaalikoneesta</translation>
     </message>
     <message>
         <source>&amp;Floppy Image...</source>
@@ -2094,7 +2523,7 @@ Version %1</source>
     <message>
         <source>Remote Desktop (RDP) Server</source>
         <comment>enable/disable...</comment>
-        <translation type="unfinished">Etätyöpöytä (RDP) -palvelin</translation>
+        <translation type="obsolete">Etätyöpöytä (RDP) -palvelin</translation>
     </message>
     <message>
         <source>Remote Dis&amp;play</source>
@@ -2102,7 +2531,7 @@ Version %1</source>
     </message>
     <message>
         <source>Enable or disable remote desktop (RDP) connections to this machine</source>
-        <translation>Valitse, sallitaanko tähän virtuaalikoneeseen RDP-etätyöpöytäyhteydet</translation>
+        <translation type="obsolete">Valitse, sallitaanko tähän virtuaalikoneeseen RDP-etätyöpöytäyhteydet</translation>
     </message>
     <message>
         <source>Open</source>
@@ -2110,19 +2539,19 @@ Version %1</source>
     </message>
     <message>
         <source>&amp;Shared Folders...</source>
-        <translation>&amp;Jaetut kansiot...</translation>
+        <translation type="obsolete">&amp;Jaetut kansiot...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
-        <translation>Avaa jaettujen kansioiden käsittelyikkuna</translation>
+        <translation type="obsolete">Avaa jaettujen kansioiden käsittelyikkuna</translation>
     </message>
     <message>
         <source>&amp;Install Guest Additions...</source>
-        <translation>&amp;Asenna asiakaslisäosat...</translation>
+        <translation type="obsolete">&amp;Asenna asiakaslisäosat...</translation>
     </message>
     <message>
         <source>Mount the Guest Additions installation image</source>
-        <translation>Liitä asiakaslisäosien asennuslevykuva</translation>
+        <translation type="obsolete">Liitä asiakaslisäosien asennuslevykuva</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
@@ -2158,19 +2587,19 @@ Version %1</source>
     </message>
     <message>
         <source>&amp;USB Devices</source>
-        <translation>&amp;USB-laitteet</translation>
+        <translation type="obsolete">&amp;USB-laitteet</translation>
     </message>
     <message>
         <source>&amp;Devices</source>
-        <translation>&amp;Laitteet</translation>
+        <translation type="obsolete">&amp;Laitteet</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
-        <translation>&amp;Vianetsintä</translation>
+        <translation type="obsolete">&amp;Vianetsintä</translation>
     </message>
     <message>
         <source>&amp;Help</source>
-        <translation>O&amp;hje</translation>
+        <translation type="obsolete">O&amp;hje</translation>
     </message>
     <message>
         <source>Host&amp;nbsp;Drive&amp;nbsp;</source>
@@ -2199,43 +2628,43 @@ Version %1</source>
     </message>
     <message>
         <source>&lt;hr&gt;The VRDP Server is listening on port %1</source>
-        <translation>&lt;hr&gt;VRDP-palvelin kuuntelee porttissa %1</translation>
+        <translation type="obsolete">&lt;hr&gt;VRDP-palvelin kuuntelee porttissa %1</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
-        <translation>&amp;Keskeytä</translation>
+        <translation type="obsolete">&amp;Keskeytä</translation>
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
-        <translation>Keskeytä virtuaalikoneen suoritus</translation>
+        <translation type="obsolete">Keskeytä virtuaalikoneen suoritus</translation>
     </message>
     <message>
         <source>R&amp;esume</source>
-        <translation>&amp;Jatka</translation>
+        <translation type="obsolete">&amp;Jatka</translation>
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>
-        <translation>Jatka virtuaalikoneen suorittamista</translation>
+        <translation type="obsolete">Jatka virtuaalikoneen suorittamista</translation>
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
-        <translation>Poista &amp;hiirituki käytöstä</translation>
+        <translation type="obsolete">Poista &amp;hiirituki käytöstä</translation>
     </message>
     <message>
         <source>Temporarily disable host mouse pointer integration</source>
-        <translation>Poista väliaikaisesti käytöstä isäntätietokoneen hiiren kohdistime tuki</translation>
+        <translation type="obsolete">Poista väliaikaisesti käytöstä isäntätietokoneen hiiren kohdistime tuki</translation>
     </message>
     <message>
         <source>Enable &amp;Mouse Integration</source>
-        <translation>Ota &amp;hiirituki käyttöön</translation>
+        <translation type="obsolete">Ota &amp;hiirituki käyttöön</translation>
     </message>
     <message>
         <source>Enable temporarily disabled host mouse pointer integration</source>
-        <translation>Ota väliaikaisesti käytöstä poistettu hiiren kohdistimen integrointi käyttöön</translation>
+        <translation type="obsolete">Ota väliaikaisesti käytöstä poistettu hiiren kohdistimen integrointi käyttöön</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Palautuspiste %1</translation>
+        <translation type="obsolete">Palautuspiste %1</translation>
     </message>
     <message>
         <source>Host Drive </source>
@@ -2243,7 +2672,7 @@ Version %1</source>
     </message>
     <message>
         <source>&amp;Machine</source>
-        <translation>&amp;Kone</translation>
+        <translation type="obsolete">&amp;Kone</translation>
     </message>
     <message>
         <source>connected</source>
@@ -2289,7 +2718,7 @@ Version %1</source>
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
-        <translation>Saumato&amp;n tila</translation>
+        <translation type="obsolete">Saumato&amp;n tila</translation>
     </message>
     <message>
         <source>Sun VirtualBox</source>
@@ -2297,7 +2726,7 @@ Version %1</source>
     </message>
     <message>
         <source>Switch to seamless desktop integration mode</source>
-        <translation>Vaihda saumattoman työpöytäintegraation tilaan</translation>
+        <translation type="obsolete">Vaihda saumattoman työpöytäintegraation tilaan</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the floppy media:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2347,7 +2776,7 @@ Version %1</source>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No hard disks attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Kiintolevyjä ei ole liitetty&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Kiintolevyjä ei ole liitetty&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2362,17 +2791,17 @@ Version %1</source>
     <message>
         <source>connected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>yhdistetty</translation>
+        <translation type="obsolete">yhdistetty</translation>
     </message>
     <message>
         <source>disconnected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>katkaistu</translation>
+        <translation type="obsolete">katkaistu</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Kaikki verkkosovittimet poistettu käytössä&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Kaikki verkkosovittimet poistettu käytössä&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2382,12 +2811,12 @@ Version %1</source>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-laitteita ei ole liitetty&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-laitteita ei ole liitetty&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-ohjain ei ole käytössä&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB-ohjain ei ole käytössä&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;qt&gt;&lt;nobr&gt;Indicates the activity of the machineof the machine&apos;sapos;s shared folders: shared folders:&lt;/nobr&gt;%1&lt;/qt&gt;</source>
@@ -2397,7 +2826,7 @@ Version %1</source>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ei jaettuja kansioita&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Ei jaettuja kansioita&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&amp;Contents...</source>
@@ -2417,189 +2846,50 @@ Version %1</source>
     </message>
     <message>
         <source>Session I&amp;nformation Dialog</source>
-        <translation>Näytä &amp;tietoikkuna</translation>
+        <translation type="obsolete">Näytä &amp;tietoikkuna</translation>
     </message>
     <message>
         <source>Show Session Information Dialog</source>
-        <translation>Näytä tietoja istunnosta</translation>
+        <translation type="obsolete">Näytä tietoja istunnosta</translation>
     </message>
     <message>
         <source>&amp;Statistics...</source>
         <comment>debug action</comment>
-        <translation>&amp;Tilastot...</translation>
+        <translation type="obsolete">&amp;Tilastot...</translation>
     </message>
     <message>
         <source>&amp;Command Line...</source>
         <comment>debug action</comment>
-        <translation>&amp;Komentorivi...</translation>
+        <translation type="obsolete">&amp;Komentorivi...</translation>
     </message>
     <message>
         <source>Indicates whether the guest display auto-resize function is On (&lt;img src=:/auto_resize_on_16px.png/&gt;) or Off (&lt;img src=:/auto_resize_off_16px.png/&gt;). Note that this function requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Määrittää onko virtuaalikoneen näytön automaattinen koonmuutos päällä (&lt;img src=:/auto_resize_on_16px.png/&gt;) vai ei (&lt;img src=:/auto_resize_off_16px.png/&gt;). Huomaa, että tämä toiminto vaatii asiakaslisäosien asennuksen virtuaalikoneeseen.</translation>
+        <translation type="obsolete">Määrittää onko virtuaalikoneen näytön automaattinen koonmuutos päällä (&lt;img src=:/auto_resize_on_16px.png/&gt;) vai ei (&lt;img src=:/auto_resize_off_16px.png/&gt;). Huomaa, että tämä toiminto vaatii asiakaslisäosien asennuksen virtuaalikoneeseen.</translation>
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Ilmaisee, onko isännän hiiren kohdistin kaapattu virtuaalikoneeseen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;kohdistin ei ole kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;kohdistin on kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi on päällä&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi ei ole päällä, kohdistin on kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi ei ole päällä, kohdistin ei ole kaapattu&lt;/nobr&gt;&lt;br&gt;Huomaa että hiiren integrointiominaisuus vaatii asiakaslisäosien asennuksen virtuaalikoneeseen.</translation>
+        <translation type="obsolete">Ilmaisee, onko isännän hiiren kohdistin kaapattu virtuaalikoneeseen:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;kohdistin ei ole kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;kohdistin on kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi on päällä&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi ei ole päällä, kohdistin on kaapattu&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;hiiren integrointi ei ole päällä, kohdistin ei ole kaapattu&lt;/nobr&gt;&lt;br&gt;Huomaa että hiiren integrointiominaisuus vaatii asiakaslisäosien asennuksen virtuaalikoneeseen.</translation>
     </message>
     <message>
         <source>Indicates whether the keyboard is captured by the guest OS (&lt;img src=:/hostkey_captured_16px.png/&gt;) or not (&lt;img src=:/hostkey_16px.png/&gt;).</source>
-        <translation>Ilmaisee, onko näppäimistö kaapattu virtuaalikoneeseen (&lt;img src=:/hostkey_captured_16px.png/&gt;) vai ei (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
+        <translation type="obsolete">Ilmaisee, onko näppäimistö kaapattu virtuaalikoneeseen (&lt;img src=:/hostkey_captured_16px.png/&gt;) vai ei (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>Indicates whether the Remote Display (VRDP Server) is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Ilmaisee, onko etätyöpöytä (VRDP-palvelin) käytössä (&lt;img src=:/vrdp_16px.png/&gt;) vai ei (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+        <translation type="obsolete">Ilmaisee, onko etätyöpöytä (VRDP-palvelin) käytössä (&lt;img src=:/vrdp_16px.png/&gt;) vai ei (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
     </message>
     <message>
         <source>&amp;Logging...</source>
         <comment>debug action</comment>
-        <translation>&amp;Lokitus...</translation>
+        <translation type="obsolete">&amp;Lokitus...</translation>
     </message>
     <message>
         <source>Shows the currently assigned Host key.&lt;br&gt;This key, when pressed alone, toggles the keyboard and mouse capture state. It can also be used in combination with other keys to quickly perform actions from the main menu.</source>
-        <translation>Näyttää asetetun isäntänäppäimen.&lt;br&gt;Painettaessa tätä näppäintä vaihdetaan näppäimistön ja hiiren kaappaustilaa. Näppäintä voidaan myös käyttää muiden näppäinten kanssa suorittamaan komentoja nopeasti päävalikosta.</translation>
-    </message>
-    <message>
-        <source>Indicates the status of the hardware virtualization features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;</source>
-        <comment>Virtualization Stuff LED</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
-        <comment>Virtualization Stuff LED</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;CD/DVD Devices</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Devices</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Network Adapters...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Change the settings of network adapters</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Remote Display</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>More CD/DVD Images...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unmount CD/DVD Device</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>More Floppy Images...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Unmount Floppy Device</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No CD/DVD Devices Attached</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No Floppy Devices Attached</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the virtual hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>HDD tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>CD/DVD tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No CD/DVD devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
-        <comment>CD/DVD tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>FD tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No floppy devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
-        <comment>FD tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>Network adapters tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>USB device tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <comment>Shared folders tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Dock Icon</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Application Icon</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Show Monitor Preview</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
-        <comment>Network adapters tooltip</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ACPI Sh&amp;utdown</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;View</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Preview Monitor %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No CD/DVD devices attached to that VM</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No floppy devices attached to that VM</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No USB Devices Connected</source>
-        <translation type="unfinished"></translation>
+        <translation type="obsolete">Näyttää asetetun isäntänäppäimen.&lt;br&gt;Painettaessa tätä näppäintä vaihdetaan näppäimistön ja hiiren kaappaustilaa. Näppäintä voidaan myös käyttää muiden näppäinten kanssa suorittamaan komentoja nopeasti päävalikosta.</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
-        <translation type="unfinished">Tuettuja laitteita ei ole yhdistettynä isäntätietokoneeseen</translation>
+        <translation type="obsolete">Tuettuja laitteita ei ole yhdistettynä isäntätietokoneeseen</translation>
     </message>
 </context>
 <context>
@@ -4655,6 +4945,16 @@ Version %1</source>
         <comment>DiskType</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Unknown device</source>
+        <comment>USB device details</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>New Storage UI : Slot Name</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
@@ -6579,7 +6879,7 @@ Version %1</source>
     </message>
     <message>
         <source>&amp;File</source>
-        <translation>&amp;Tiedosto</translation>
+        <translation type="obsolete">&amp;Tiedosto</translation>
     </message>
     <message>
         <source>&amp;Help</source>
@@ -6713,6 +7013,16 @@ Version %1</source>
         <source>Log</source>
         <comment>icon text</comment>
         <translation>Loki</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation type="unfinished">&amp;Tiedosto</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation type="unfinished">&amp;Tiedosto</translation>
     </message>
 </context>
 <context>
@@ -7481,16 +7791,16 @@ to access it from a Linux OS. This feature requires Guest Additions.&lt;/qt&gt;<
     <message>
         <source>Enabled</source>
         <comment>nested paging</comment>
-        <translation>Käytössä</translation>
+        <translation type="obsolete">Käytössä</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>nested paging</comment>
-        <translation>Ei käytössä</translation>
+        <translation type="obsolete">Ei käytössä</translation>
     </message>
     <message>
         <source>Nested Paging</source>
-        <translation>Sisäkkäinen sivutus</translation>
+        <translation type="obsolete">Sisäkkäinen sivutus</translation>
     </message>
     <message>
         <source>VBoxVMInformationDlg</source>
@@ -7512,6 +7822,11 @@ to access it from a Linux OS. This feature requires Guest Additions.&lt;/qt&gt;<
     <message>
         <source>Network Statistics</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Sisäkkäinen sivutus</translation>
     </message>
 </context>
 <context>

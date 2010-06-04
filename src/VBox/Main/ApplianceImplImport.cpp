@@ -1,4 +1,4 @@
-/* $Id: ApplianceImplImport.cpp 29422 2010-05-12 14:08:52Z vboxsync $ */
+/* $Id: ApplianceImplImport.cpp 29981 2010-06-02 12:11:39Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -49,7 +49,9 @@ using namespace std;
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Public method implementation.
+ * Public method implementation. This opens the OVF with ovfreader.cpp.
+ * Thread implementation is in Appliance::readImpl().
+ *
  * @param path
  * @return
  */
@@ -99,7 +101,8 @@ STDMETHODIMP Appliance::Read(IN_BSTR path, IProgress **aProgress)
 }
 
 /**
- * Public method implementation.
+ * Public method implementation. This looks at the output of ovfreader.cpp and creates
+ * VirtualSystemDescription instances.
  * @return
  */
 STDMETHODIMP Appliance::Interpret()
@@ -440,15 +443,20 @@ STDMETHODIMP Appliance::Interpret()
                         /* Check for the constrains */
                         if (cSCSIused < 1)
                         {
+                            VirtualSystemDescriptionType_T vsdet = VirtualSystemDescriptionType_HardDiskControllerSCSI;
                             Utf8Str hdcController = "LsiLogic";
                             if (!hdc.strControllerType.compare("lsilogicsas", Utf8Str::CaseInsensitive))
+                            {
+                                // OVF considers SAS a variant of SCSI but VirtualBox considers it a class of its own
+                                vsdet = VirtualSystemDescriptionType_HardDiskControllerSAS;
                                 hdcController = "LsiLogicSas";
+                            }
                             else if (!hdc.strControllerType.compare("BusLogic", Utf8Str::CaseInsensitive))
                                 hdcController = "BusLogic";
-                            pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSCSI,
-                                                strControllerID,
-                                                hdc.strControllerType,
-                                                hdcController);
+                            pNewDesc->addEntry(vsdet,
+                                               strControllerID,
+                                               hdc.strControllerType,
+                                               hdcController);
                         }
                         else
                             addWarning(tr("The virtual system \"%s\" requests support for an additional SCSI controller of type \"%s\" with ID %s, but VirtualBox presently supports only one SCSI controller."),
@@ -538,7 +546,9 @@ STDMETHODIMP Appliance::Interpret()
 }
 
 /**
- * Public method implementation.
+ * Public method implementation. This creates one or more new machines according to the
+ * VirtualSystemScription instances created by Appliance::Interpret().
+ * Thread implementation is in Appliance::importImpl().
  * @param aProgress
  * @return
  */
@@ -586,6 +596,7 @@ STDMETHODIMP Appliance::ImportMachines(IProgress **aProgress)
 /**
  * Implementation for reading an OVF. This starts a new thread which will call
  * Appliance::taskThreadImportOrExport() which will then call readFS() or readS3().
+ * This will then open the OVF with ovfreader.cpp.
  *
  * This is in a separate private method because it is used from two locations:
  *
@@ -634,7 +645,9 @@ HRESULT Appliance::readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &a
 
 /**
  * Actual worker code for reading an OVF from disk. This is called from Appliance::taskThreadImportOrExport()
- * and therefore runs on the OVF read worker thread. This runs in two contexts:
+ * and therefore runs on the OVF read worker thread. This opens the OVF with ovfreader.cpp.
+ *
+ * This runs in two contexts:
  *
  * 1) in a first worker thread; in that case, Appliance::Read() called Appliance::readImpl();
  *
@@ -662,7 +675,7 @@ HRESULT Appliance::readFS(const LocationInfo &locInfo)
         m->pReader = new ovf::OVFReader(locInfo.strPath);
         /* Create the SHA1 sum of the OVF file for later validation */
         char *pszDigest;
-        int vrc = RTSha1Digest(locInfo.strPath.c_str(), &pszDigest);
+        int vrc = RTSha1Digest(locInfo.strPath.c_str(), &pszDigest, NULL, NULL);
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Couldn't calculate SHA1 digest for file '%s' (%Rrc)"),
@@ -761,8 +774,7 @@ HRESULT Appliance::readS3(TaskOVF *pTask)
         RTS3Destroy(hS3);
         hS3 = NIL_RTS3;
 
-        if (!pTask->pProgress.isNull())
-            pTask->pProgress->SetNextOperation(Bstr(tr("Reading")), 1);
+        pTask->pProgress->SetNextOperation(Bstr(tr("Reading")), 1);
 
         /* Prepare the temporary reading of the OVF */
         ComObjPtr<Progress> progress;
@@ -911,6 +923,9 @@ void Appliance::convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
  * Implementation for importing OVF data into VirtualBox. This starts a new thread which will call
  * Appliance::taskThreadImportOrExport().
  *
+ * This creates one or more new machines according to the VirtualSystemScription instances created by
+ * Appliance::Interpret().
+ *
  * This is in a separate private method because it is used from two locations:
  *
  * 1) from the public Appliance::ImportMachines().
@@ -920,15 +935,30 @@ void Appliance::convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
  * @param aProgress
  * @return
  */
-HRESULT Appliance::importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress)
+HRESULT Appliance::importImpl(const LocationInfo &aLocInfo,
+                              ComObjPtr<Progress> &aProgress)
 {
-    Bstr progressDesc = BstrFmt(tr("Importing appliance '%s'"),
-                                aLocInfo.strPath.c_str());
     HRESULT rc = S_OK;
 
+    SetUpProgressMode mode;
+    m->strManifestFile.setNull();
+    if (aLocInfo.storageType == VFSType_File)
+    {
+        Utf8Str strMfFile = manifestFileName(aLocInfo.strPath);
+        if (RTPathExists(strMfFile.c_str()))
+        {
+            m->strManifestFile = strMfFile;
+            mode = ImportFileWithManifest;
+        }
+        else
+            mode = ImportFileNoManifest;
+    }
+    else
+         mode = ImportS3;
+
     rc = setUpProgress(aProgress,
-                       progressDesc,
-                       (aLocInfo.storageType == VFSType_File) ? Regular : ImportS3);
+                       BstrFmt(tr("Importing appliance '%s'"), aLocInfo.strPath.c_str()),
+                       mode);
     if (FAILED(rc)) throw rc;
 
     /* Initialize our worker task */
@@ -944,43 +974,6 @@ HRESULT Appliance::importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> 
 }
 
 /**
- * Used by Appliance::importMachineGeneric() to store
- * input parameters and rollback information.
- */
-struct Appliance::ImportStack
-{
-    // input pointers
-    const LocationInfo          &locInfo;           // ptr to location info from Appliance::importFS()
-    Utf8Str                     strSourceDir;       // directory where source files reside
-    const ovf::DiskImagesMap    &mapDisks;          // ptr to disks map in OVF
-    ComObjPtr<Progress>         &pProgress;         // progress object passed into Appliance::importFS()
-
-    // session (not initially created)
-    ComPtr<ISession>            pSession;           // session opened in Appliance::importFS() for machine manipulation
-    bool                        fSessionOpen;       // true if the pSession is currently open and needs closing
-
-    // a list of images that we created/imported; this is initially empty
-    // and will be cleaned up on errors
-    list<MyHardDiskAttachment>  llHardDiskAttachments;      // disks that were attached
-    list< ComPtr<IMedium> >     llHardDisksCreated;         // media that were created
-    list<Bstr>                  llMachinesRegistered;       // machines that were registered; list of string UUIDs
-
-    ImportStack(const LocationInfo &aLocInfo,
-                const ovf::DiskImagesMap &aMapDisks,
-                ComObjPtr<Progress> &aProgress)
-        : locInfo(aLocInfo),
-          mapDisks(aMapDisks),
-          pProgress(aProgress),
-          fSessionOpen(false)
-    {
-        // disk images have to be on the same place as the OVF file. So
-        // strip the filename out of the full file path
-        strSourceDir = aLocInfo.strPath;
-        strSourceDir.stripFilename();
-    }
-};
-
-/**
  * Checks if a manifest file exists in the given location and, if so, verifies
  * that the relevant files (the OVF XML and the disks referenced by it, as
  * represented by the VirtualSystemDescription instances contained in this appliance)
@@ -991,13 +984,17 @@ struct Appliance::ImportStack
  * @return
  */
 HRESULT Appliance::manifestVerify(const LocationInfo &locInfo,
-                                  const ovf::OVFReader &reader)
+                                  const ovf::OVFReader &reader,
+                                  ComObjPtr<Progress> &pProgress)
 {
     HRESULT rc = S_OK;
 
-    Utf8Str strMfFile = manifestFileName(locInfo.strPath);
-    if (RTPathExists(strMfFile.c_str()))
+    if (!m->strManifestFile.isEmpty())
     {
+        const char *pcszManifestFileOnly = RTPathFilename(m->strManifestFile.c_str());
+        pProgress->SetNextOperation(BstrFmt(tr("Verifying manifest file '%s'"), pcszManifestFileOnly),
+                                    m->ulWeightForManifestOperation);     // operation's weight, as set up with the IProgress originally
+
         list<Utf8Str> filesList;
         Utf8Str strSrcDir(locInfo.strPath);
         strSrcDir.stripFilename();
@@ -1035,17 +1032,28 @@ HRESULT Appliance::manifestVerify(const LocationInfo &locInfo,
              ++it1, ++i)
         {
             char* pszDigest;
-            vrc = RTSha1Digest((*it1).c_str(), &pszDigest);
+            vrc = RTSha1Digest((*it1).c_str(), &pszDigest, NULL, NULL);
             pTestList[i].pszTestFile = (char*)(*it1).c_str();
             pTestList[i].pszTestDigest = pszDigest;
         }
 
         // this call can take a very long time
         size_t cIndexOnError;
-        vrc = RTManifestVerify(strMfFile.c_str(),
+        vrc = RTManifestVerify(m->strManifestFile.c_str(),
                                pTestList,
                                filesList.size() + 1,
                                &cIndexOnError);
+
+        if (vrc == VERR_MANIFEST_DIGEST_MISMATCH)
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("The SHA1 digest of '%s' does not match the one in '%s'"),
+                          RTPathFilename(pTestList[cIndexOnError].pszTestFile),
+                          pcszManifestFileOnly);
+        else if (RT_FAILURE(vrc))
+            rc = setError(VBOX_E_FILE_ERROR,
+                          tr("Could not verify the content of '%s' against the available files (%Rrc)"),
+                          pcszManifestFileOnly,
+                          vrc);
 
         // clean up
         for (size_t j = 1;
@@ -1053,17 +1061,6 @@ HRESULT Appliance::manifestVerify(const LocationInfo &locInfo,
              ++j)
             RTStrFree(pTestList[j].pszTestDigest);
         RTMemFree(pTestList);
-
-        if (vrc == VERR_MANIFEST_DIGEST_MISMATCH)
-            rc = setError(VBOX_E_FILE_ERROR,
-                          tr("The SHA1 digest of '%s' does not match the one in '%s'"),
-                          RTPathFilename(pTestList[cIndexOnError].pszTestFile),
-                          RTPathFilename(strMfFile.c_str()));
-        else if (RT_FAILURE(vrc))
-            rc = setError(VBOX_E_FILE_ERROR,
-                          tr("Could not verify the content of '%s' against the available files (%Rrc)"),
-                          RTPathFilename(strMfFile.c_str()),
-                          vrc);
     }
 
     return rc;
@@ -1071,7 +1068,10 @@ HRESULT Appliance::manifestVerify(const LocationInfo &locInfo,
 
 /**
  * Actual worker code for importing OVF data into VirtualBox. This is called from Appliance::taskThreadImportOrExport()
- * and therefore runs on the OVF import worker thread. This runs in two contexts:
+ * and therefore runs on the OVF import worker thread. This creates one or more new machines according to the
+ * VirtualSystemScription instances created by Appliance::Interpret().
+ *
+ * This runs in two contexts:
  *
  * 1) in a first worker thread; in that case, Appliance::ImportMachines() called Appliance::importImpl();
  *
@@ -1115,7 +1115,7 @@ HRESULT Appliance::importFS(const LocationInfo &locInfo,
     try
     {
         // if a manifest file exists, verify the content; we then need all files which are referenced by the OVF & the OVF itself
-        rc = manifestVerify(locInfo, reader);
+        rc = manifestVerify(locInfo, reader, pProgress);
         if (FAILED(rc)) throw rc;
 
         // create a session for the machine + disks we manipulate below
@@ -1143,13 +1143,72 @@ HRESULT Appliance::importFS(const LocationInfo &locInfo,
             // -- or this is an OVF from an older vbox or an external source, and then we need to translate the
             //    VirtualSystemDescriptionEntry and do import work
 
-            // @todo r=dj make this selection configurable at run-time, and from the GUI as well
+            // Even for the vbox:Machine case, there are a number of configuration items that will be taken from
+            // the OVF because otherwise the "override import parameters" mechanism in the GUI won't work.
 
+            // VM name
+            std::list<VirtualSystemDescriptionEntry*> vsdeName = vsdescThis->findByType(VirtualSystemDescriptionType_Name);
+            if (vsdeName.size() < 1)
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Missing VM name"));
+            stack.strNameVBox = vsdeName.front()->strVboxCurrent;
+
+            // guest OS type
+            std::list<VirtualSystemDescriptionEntry*> vsdeOS;
+            vsdeOS = vsdescThis->findByType(VirtualSystemDescriptionType_OS);
+            if (vsdeOS.size() < 1)
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Missing guest OS type"));
+            stack.strOsTypeVBox = vsdeOS.front()->strVboxCurrent;
+
+            // CPU count
+            std::list<VirtualSystemDescriptionEntry*> vsdeCPU = vsdescThis->findByType(VirtualSystemDescriptionType_CPU);
+            ComAssertMsgThrow(vsdeCPU.size() == 1, ("CPU count missing"), E_FAIL);
+            const Utf8Str &cpuVBox = vsdeCPU.front()->strVboxCurrent;
+            stack.cCPUs = (uint32_t)RTStrToUInt64(cpuVBox.c_str());
+            // We need HWVirt & IO-APIC if more than one CPU is requested
+            if (stack.cCPUs > 1)
+            {
+                stack.fForceHWVirt = true;
+                stack.fForceIOAPIC = true;
+            }
+
+            // RAM
+            std::list<VirtualSystemDescriptionEntry*> vsdeRAM = vsdescThis->findByType(VirtualSystemDescriptionType_Memory);
+            ComAssertMsgThrow(vsdeRAM.size() == 1, ("RAM size missing"), E_FAIL);
+            const Utf8Str &memoryVBox = vsdeRAM.front()->strVboxCurrent;
+            stack.ulMemorySizeMB = (uint32_t)RTStrToUInt64(memoryVBox.c_str());
+
+            // USB controller
+#ifdef VBOX_WITH_USB
+            /* USB Controller */
+            std::list<VirtualSystemDescriptionEntry*> vsdeUSBController = vsdescThis->findByType(VirtualSystemDescriptionType_USBController);
+            // USB support is enabled if there's at least one such entry; to disable USB support,
+            // the type of the USB item would have been changed to "ignore"
+            stack.fUSBEnabled = vsdeUSBController.size() > 0;
+#endif
+            // audio adapter
+            std::list<VirtualSystemDescriptionEntry*> vsdeAudioAdapter = vsdescThis->findByType(VirtualSystemDescriptionType_SoundCard);
+            /* @todo: we support one audio adapter only */
+            if (vsdeAudioAdapter.size() > 0)
+                stack.strAudioAdapter = vsdeAudioAdapter.front()->strVboxCurrent;
+
+            // import vbox:machine or OVF now
             if (vsdescThis->m->pConfig)
+                // vbox:Machine config
                 importVBoxMachine(vsdescThis, pNewMachine, stack);
             else
+                // generic OVF config
                 importMachineGeneric(vsysThis, vsdescThis, pNewMachine, stack);
 
+            // for the description of the new machine, always use the OVF entry, the user may have changed it in the import config
+            std::list<VirtualSystemDescriptionEntry*> vsdeDescription = vsdescThis->findByType(VirtualSystemDescriptionType_Description);
+            if (vsdeDescription.size())
+            {
+                const Utf8Str &strDescription = vsdeDescription.front()->strVboxCurrent;
+                rc = pNewMachine->COMSETTER(Description)(Bstr(strDescription));
+                if (FAILED(rc)) throw rc;
+            }
         } // for (it = pAppliance->m->llVirtualSystems.begin() ...
     }
     catch (HRESULT rc2)
@@ -1215,6 +1274,7 @@ HRESULT Appliance::importFS(const LocationInfo &locInfo,
     // restore the appliance state
     appLock.acquire();
     m->state = Data::ApplianceIdle;
+    appLock.release();
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
@@ -1258,7 +1318,6 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
         if (    strTargetPath.isEmpty()
              || RTPathExists(strTargetPath.c_str())
            )
-            /* This isn't allowed */
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Destination file '%s' exists"),
                            strTargetPath.c_str());
@@ -1293,7 +1352,7 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
             if (FAILED(rc)) throw rc;
 
             // advance to the next operation
-            stack.pProgress->SetNextOperation(BstrFmt(tr("Creating virtual disk image '%s'"), strTargetPath.c_str()),
+            stack.pProgress->SetNextOperation(BstrFmt(tr("Creating disk image '%s'"), strTargetPath.c_str()),
                                               di.ulSuggestedSizeMB);     // operation's weight, as set up with the IProgress originally
         }
         else
@@ -1312,12 +1371,12 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
 
             // First open the existing disk image
             rc = mVirtualBox->OpenHardDisk(Bstr(strSrcFilePath),
-                                        AccessMode_ReadOnly,
-                                        false,
-                                        NULL,
-                                        false,
-                                        NULL,
-                                        pSourceHD.asOutParam());
+                                           AccessMode_ReadOnly,
+                                           false,
+                                           NULL,
+                                           false,
+                                           NULL,
+                                           pSourceHD.asOutParam());
             if (FAILED(rc)) throw rc;
             fSourceHdNeedsClosing = true;
 
@@ -1366,77 +1425,54 @@ void Appliance::importOneDiskImage(const ovf::DiskImage &di,
  * up any leftovers from this function. For this, the given ImportStack instance has received information
  * about what needs cleaning up (to support rollback).
  *
- * @param locInfo
- * @param vsysThis
- * @param vsdescThis
- * @param pNewMachine
- * @param stack
+ * @param vsysThis OVF virtual system (machine) to import.
+ * @param vsdescThis  Matching virtual system description (machine) to import.
+ * @param pNewMachine out: Newly created machine.
+ * @param stack Cleanup stack for when this throws.
  */
 void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                                      ComObjPtr<VirtualSystemDescription> &vsdescThis,
                                      ComPtr<IMachine> &pNewMachine,
                                      ImportStack &stack)
 {
-    /* Guest OS type */
-    std::list<VirtualSystemDescriptionEntry*> vsdeOS;
-    vsdeOS = vsdescThis->findByType(VirtualSystemDescriptionType_OS);
-    if (vsdeOS.size() < 1)
-        throw setError(VBOX_E_FILE_ERROR,
-                       tr("Missing guest OS type"));
-    const Utf8Str &strOsTypeVBox = vsdeOS.front()->strVbox;
+    HRESULT rc;
 
-    /* Now that we know the base system get our internal defaults based on that. */
+    // Get the instance of IGuestOSType which matches our string guest OS type so we
+    // can use recommended defaults for the new machine where OVF doesen't provice any
     ComPtr<IGuestOSType> osType;
-    HRESULT rc = mVirtualBox->GetGuestOSType(Bstr(strOsTypeVBox), osType.asOutParam());
+    rc = mVirtualBox->GetGuestOSType(Bstr(stack.strOsTypeVBox), osType.asOutParam());
     if (FAILED(rc)) throw rc;
 
     /* Create the machine */
-    /* First get the name */
-    std::list<VirtualSystemDescriptionEntry*> vsdeName = vsdescThis->findByType(VirtualSystemDescriptionType_Name);
-    if (vsdeName.size() < 1)
-        throw setError(VBOX_E_FILE_ERROR,
-                       tr("Missing VM name"));
-    const Utf8Str &strNameVBox = vsdeName.front()->strVbox;
-    rc = mVirtualBox->CreateMachine(Bstr(strNameVBox),
-                                    Bstr(strOsTypeVBox),
+    rc = mVirtualBox->CreateMachine(Bstr(stack.strNameVBox),
+                                    Bstr(stack.strOsTypeVBox),
                                     NULL,
                                     NULL,
                                     FALSE,
                                     pNewMachine.asOutParam());
     if (FAILED(rc)) throw rc;
 
-    // and the description
+    // set the description
     std::list<VirtualSystemDescriptionEntry*> vsdeDescription = vsdescThis->findByType(VirtualSystemDescriptionType_Description);
     if (vsdeDescription.size())
     {
-        const Utf8Str &strDescription = vsdeDescription.front()->strVbox;
+        const Utf8Str &strDescription = vsdeDescription.front()->strVboxCurrent;
         rc = pNewMachine->COMSETTER(Description)(Bstr(strDescription));
         if (FAILED(rc)) throw rc;
     }
 
-    /* CPU count */
-    std::list<VirtualSystemDescriptionEntry*> vsdeCPU = vsdescThis->findByType(VirtualSystemDescriptionType_CPU);
-    ComAssertMsgThrow(vsdeCPU.size() == 1, ("CPU count missing"), E_FAIL);
-    const Utf8Str &cpuVBox = vsdeCPU.front()->strVbox;
-    ULONG tmpCount = (ULONG)RTStrToUInt64(cpuVBox.c_str());
-    rc = pNewMachine->COMSETTER(CPUCount)(tmpCount);
+    // CPU count
+    rc = pNewMachine->COMSETTER(CPUCount)(stack.cCPUs);
     if (FAILED(rc)) throw rc;
-    bool fEnableIOApic = false;
-    /* We need HWVirt & IO-APIC if more than one CPU is requested */
-    if (tmpCount > 1)
+
+    if (stack.fForceHWVirt)
     {
         rc = pNewMachine->SetHWVirtExProperty(HWVirtExPropertyType_Enabled, TRUE);
         if (FAILED(rc)) throw rc;
-
-        fEnableIOApic = true;
     }
 
-    /* RAM */
-    std::list<VirtualSystemDescriptionEntry*> vsdeRAM = vsdescThis->findByType(VirtualSystemDescriptionType_Memory);
-    ComAssertMsgThrow(vsdeRAM.size() == 1, ("RAM size missing"), E_FAIL);
-    const Utf8Str &memoryVBox = vsdeRAM.front()->strVbox;
-    ULONG tt = (ULONG)RTStrToUInt64(memoryVBox.c_str());
-    rc = pNewMachine->COMSETTER(MemorySize)(tt);
+    // RAM
+    rc = pNewMachine->COMSETTER(MemorySize)(stack.ulMemorySizeMB);
     if (FAILED(rc)) throw rc;
 
     /* VRAM */
@@ -1453,16 +1489,16 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
     // import a Windows VM because if if Windows was installed without IOAPIC,
     // it will not mind finding an one later on, but if Windows was installed
     // _with_ an IOAPIC, it will bluescreen if it's not found
-    if (!fEnableIOApic)
+    if (!stack.fForceIOAPIC)
     {
         Bstr bstrFamilyId;
         rc = osType->COMGETTER(FamilyId)(bstrFamilyId.asOutParam());
         if (FAILED(rc)) throw rc;
         if (bstrFamilyId == "Windows")
-            fEnableIOApic = true;
+            stack.fForceIOAPIC = true;
     }
 
-    if (fEnableIOApic)
+    if (stack.fForceIOAPIC)
     {
         ComPtr<IBIOSSettings> pBIOSSettings;
         rc = pNewMachine->COMGETTER(BIOSSettings)(pBIOSSettings.asOutParam());
@@ -1472,15 +1508,10 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         if (FAILED(rc)) throw rc;
     }
 
-    /* Audio Adapter */
-    std::list<VirtualSystemDescriptionEntry*> vsdeAudioAdapter = vsdescThis->findByType(VirtualSystemDescriptionType_SoundCard);
-    /* @todo: we support one audio adapter only */
-    if (vsdeAudioAdapter.size() > 0)
-    {
-        const Utf8Str& audioAdapterVBox = vsdeAudioAdapter.front()->strVbox;
-        if (audioAdapterVBox.compare("null", Utf8Str::CaseInsensitive) != 0)
+    if (!stack.strAudioAdapter.isEmpty())
+        if (stack.strAudioAdapter.compare("null", Utf8Str::CaseInsensitive) != 0)
         {
-            uint32_t audio = RTStrToUInt32(audioAdapterVBox.c_str());
+            uint32_t audio = RTStrToUInt32(stack.strAudioAdapter.c_str());       // should be 0 for AC97
             ComPtr<IAudioAdapter> audioAdapter;
             rc = pNewMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
             if (FAILED(rc)) throw rc;
@@ -1489,19 +1520,13 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
             rc = audioAdapter->COMSETTER(AudioController)(static_cast<AudioControllerType_T>(audio));
             if (FAILED(rc)) throw rc;
         }
-    }
 
 #ifdef VBOX_WITH_USB
     /* USB Controller */
-    std::list<VirtualSystemDescriptionEntry*> vsdeUSBController = vsdescThis->findByType(VirtualSystemDescriptionType_USBController);
-    // USB support is enabled if there's at least one such entry; to disable USB support,
-    // the type of the USB item would have been changed to "ignore"
-    bool fUSBEnabled = vsdeUSBController.size() > 0;
-
     ComPtr<IUSBController> usbController;
     rc = pNewMachine->COMGETTER(USBController)(usbController.asOutParam());
     if (FAILED(rc)) throw rc;
-    rc = usbController->COMSETTER(Enabled)(fUSBEnabled);
+    rc = usbController->COMSETTER(Enabled)(stack.fUSBEnabled);
     if (FAILED(rc)) throw rc;
 #endif /* VBOX_WITH_USB */
 
@@ -1530,7 +1555,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         {
             const VirtualSystemDescriptionEntry* pvsys = *nwIt;
 
-            const Utf8Str &nwTypeVBox = pvsys->strVbox;
+            const Utf8Str &nwTypeVBox = pvsys->strVboxCurrent;
             uint32_t tt1 = RTStrToUInt32(nwTypeVBox.c_str());
             ComPtr<INetworkAdapter> pNetworkAdapter;
             rc = pNewMachine->GetNetworkAdapter((ULONG)a, pNetworkAdapter.asOutParam());
@@ -1542,7 +1567,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
             if (FAILED(rc)) throw rc;
 
             // default is NAT; change to "bridged" if extra conf says so
-            if (!pvsys->strExtraConfig.compare("type=Bridged", Utf8Str::CaseInsensitive))
+            if (!pvsys->strExtraConfigCurrent.compare("type=Bridged", Utf8Str::CaseInsensitive))
             {
                 /* Attach to the right interface */
                 rc = pNetworkAdapter->AttachToBridgedInterface();
@@ -1575,7 +1600,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                 }
             }
             /* Next test for host only interfaces */
-            else if (!pvsys->strExtraConfig.compare("type=HostOnly", Utf8Str::CaseInsensitive))
+            else if (!pvsys->strExtraConfigCurrent.compare("type=HostOnly", Utf8Str::CaseInsensitive))
             {
                 /* Attach to the right interface */
                 rc = pNetworkAdapter->AttachToHostOnlyInterface();
@@ -1625,7 +1650,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         rc = pNewMachine->AddStorageController(Bstr("IDE Controller"), StorageBus_IDE, pController.asOutParam());
         if (FAILED(rc)) throw rc;
 
-        const char *pcszIDEType = vsdeHDCIDE.front()->strVbox.c_str();
+        const char *pcszIDEType = vsdeHDCIDE.front()->strVboxCurrent.c_str();
         if (!strcmp(pcszIDEType, "PIIX3"))
             rc = pController->COMSETTER(ControllerType)(StorageControllerType_PIIX3);
         else if (!strcmp(pcszIDEType, "PIIX4"))
@@ -1647,7 +1672,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
     if (vsdeHDCSATA.size() > 0)
     {
         ComPtr<IStorageController> pController;
-        const Utf8Str &hdcVBox = vsdeHDCSATA.front()->strVbox;
+        const Utf8Str &hdcVBox = vsdeHDCSATA.front()->strVboxCurrent;
         if (hdcVBox == "AHCI")
         {
             rc = pNewMachine->AddStorageController(Bstr("SATA Controller"), StorageBus_SATA, pController.asOutParam());
@@ -1670,7 +1695,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         Bstr bstrName(L"SCSI Controller");
         StorageBus_T busType = StorageBus_SCSI;
         StorageControllerType_T controllerType;
-        const Utf8Str &hdcVBox = vsdeHDCSCSI.front()->strVbox;
+        const Utf8Str &hdcVBox = vsdeHDCSCSI.front()->strVboxCurrent;
         if (hdcVBox == "LsiLogic")
             controllerType = StorageControllerType_LsiLogic;
         else if (hdcVBox == "LsiLogicSas")
@@ -1690,6 +1715,20 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
         rc = pNewMachine->AddStorageController(bstrName, busType, pController.asOutParam());
         if (FAILED(rc)) throw rc;
         rc = pController->COMSETTER(ControllerType)(controllerType);
+        if (FAILED(rc)) throw rc;
+    }
+
+    /* Hard disk controller SAS */
+    std::list<VirtualSystemDescriptionEntry*> vsdeHDCSAS = vsdescThis->findByType(VirtualSystemDescriptionType_HardDiskControllerSAS);
+    if (vsdeHDCSAS.size() > 1)
+        throw setError(VBOX_E_FILE_ERROR,
+                       tr("Too many SAS controllers in OVF; import facility only supports one"));
+    if (vsdeHDCSAS.size() > 0)
+    {
+        ComPtr<IStorageController> pController;
+        rc = pNewMachine->AddStorageController(Bstr(L"SAS Controller"), StorageBus_SAS, pController.asOutParam());
+        if (FAILED(rc)) throw rc;
+        rc = pController->COMSETTER(ControllerType)(StorageControllerType_LsiLogicSas);
         if (FAILED(rc)) throw rc;
     }
 
@@ -1862,7 +1901,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
 
                 ComPtr<IMedium> pTargetHD;
                 importOneDiskImage(ovfDiskImage,
-                                   vsdeHD->strVbox,
+                                   vsdeHD->strVboxCurrent,
                                    pTargetHD,
                                    stack);
 
@@ -1888,7 +1927,7 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                                             mhda.lControllerPort,
                                             mhda.lDevice);
 
-                Log(("Attaching disk %s to port %d on device %d\n", vsdeHD->strVbox.c_str(), mhda.lControllerPort, mhda.lDevice));
+                Log(("Attaching disk %s to port %d on device %d\n", vsdeHD->strVboxCurrent.c_str(), mhda.lControllerPort, mhda.lDevice));
 
                 rc = sMachine->AttachDevice(mhda.controllerType,    // wstring name
                                             mhda.lControllerPort,          // long controllerPort
@@ -1938,7 +1977,10 @@ void Appliance::importMachineGeneric(const ovf::VirtualSystem &vsysThis,
  *      and import the disk into VirtualBox, which creates a new UUID for it. In the machine config,
  *      replace the old UUID with the new one.
  *
- *  3)  Create the VirtualBox machine with the modfified machine config.
+ *  3)  Change the machine config according to the OVF virtual system descriptions, in case the
+ *      caller has modified them using setFinalValues().
+ *
+ *  4)  Create the VirtualBox machine with the modfified machine config.
  *
  * @param config
  * @param pNewMachine
@@ -1956,13 +1998,72 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
     HRESULT rc = getDefaultHardDiskFolder(strDefaultHardDiskFolder);
     if (FAILED(rc)) throw rc;
 
-    // step 1): scan the machine config for attachments
+    /*
+     *
+     * step 1): modify machine config according to OVF config, in case the user
+     * has modified them using setFinalValues()
+     *
+     */
+
+//     std::list<VirtualSystemDescriptionEntry*> llVSDEs;
+
+    config.hardwareMachine.cCPUs = stack.cCPUs;
+    config.hardwareMachine.ulMemorySizeMB = stack.ulMemorySizeMB;
+    if (stack.fForceIOAPIC)
+        config.hardwareMachine.fHardwareVirt = true;
+    if (stack.fForceIOAPIC)
+        config.hardwareMachine.biosSettings.fIOAPICEnabled = true;
+
+/*
+    <const name="HardDiskControllerIDE" value="14" />
+    <const name="HardDiskControllerSATA" value="15" />
+    <const name="HardDiskControllerSCSI" value="16" />
+    <const name="HardDiskControllerSAS" value="17" />
+    <const name="HardDiskImage" value="18" />
+    <const name="Floppy" value="19" />
+    <const name="CDROM" value="20" />
+    <const name="NetworkAdapter" value="21" />
+*/
+
+#ifdef VBOX_WITH_USB
+    // disable USB if user disabled USB
+    config.hardwareMachine.usbController.fEnabled = stack.fUSBEnabled;
+#endif
+
+    // audio adapter: only config is turning it off presently
+    if (stack.strAudioAdapter.isEmpty())
+        config.hardwareMachine.audioAdapter.fEnabled = false;
+
+    /*
+     *
+     * step 2: scan the machine config for media attachments
+     *
+     */
+
+    // for each storage controller...
     for (settings::StorageControllersList::iterator sit = config.storageMachine.llStorageControllers.begin();
          sit != config.storageMachine.llStorageControllers.end();
          ++sit)
     {
         settings::StorageController &sc = *sit;
 
+        // find the OVF virtual system description entry for this storage controller
+        switch (sc.storageBus)
+        {
+            case StorageBus_SATA:
+            break;
+
+            case StorageBus_SCSI:
+            break;
+
+            case StorageBus_IDE:
+            break;
+
+            case StorageBus_SAS:
+            break;
+        }
+
+        // for each medium attachment to this controller...
         for (settings::AttachedDevicesList::iterator dit = sc.llAttachedDevices.begin();
              dit != sc.llAttachedDevices.end();
              ++dit)
@@ -1991,7 +2092,11 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
                     strTargetPath.append(di.strHref);
                     searchUniqueDiskImageFilePath(strTargetPath);
 
-                    // step 2): for each attachment, import the disk...
+                    /*
+                     *
+                     * step 3: import disk
+                     *
+                     */
                     ComPtr<IMedium> pTargetHD;
                     importOneDiskImage(di,
                                        strTargetPath,
@@ -2019,14 +2124,11 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
         } // for (settings::AttachedDevicesList::const_iterator dit = sc.llAttachedDevices.begin();
     } // for (settings::StorageControllersList::const_iterator sit = config.storageMachine.llStorageControllers.begin();
 
-    // step 3): create the machine and have it import the config
-
-    // use the name that we computed in the OVF fields to avoid duplicates
-    std::list<VirtualSystemDescriptionEntry*> vsdeName = vsdescThis->findByType(VirtualSystemDescriptionType_Name);
-    if (vsdeName.size() < 1)
-        throw setError(VBOX_E_FILE_ERROR,
-                        tr("Missing VM name"));
-    const Utf8Str &strNameVBox = vsdeName.front()->strVbox;
+    /*
+     *
+     * step 4): create the machine and have it import the config
+     *
+     */
 
     ComObjPtr<Machine> pNewMachine;
     rc = pNewMachine.createObject();
@@ -2035,8 +2137,8 @@ void Appliance::importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThi
     // this magic constructor fills the new machine object with the MachineConfig
     // instance that we created from the vbox:Machine
     rc = pNewMachine->init(mVirtualBox,
-                           strNameVBox,         // name from just above (can be suffixed to avoid duplicates)
-                           config);             // the whole machine config
+                           stack.strNameVBox,       // name from OVF preparations; can be suffixed to avoid duplicates, or changed by user
+                           config);                 // the whole machine config
     if (FAILED(rc)) throw rc;
 
     // return the new machine as an IMachine
@@ -2186,8 +2288,7 @@ HRESULT Appliance::importS3(TaskOVF *pTask)
         RTS3Destroy(hS3);
         hS3 = NIL_RTS3;
 
-        if (!pTask->pProgress.isNull())
-            pTask->pProgress->SetNextOperation(BstrFmt(tr("Importing appliance")), m->ulWeightPerOperation);
+        pTask->pProgress->SetNextOperation(BstrFmt(tr("Importing appliance")), m->ulWeightForXmlOperation);
 
         ComObjPtr<Progress> progress;
         /* Import the whole temporary OVF & the disk images */

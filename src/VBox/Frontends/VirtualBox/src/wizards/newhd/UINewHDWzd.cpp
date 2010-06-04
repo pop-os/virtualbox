@@ -1,4 +1,4 @@
-/* $Id: UINewHDWzd.cpp 29437 2010-05-12 21:40:07Z vboxsync $ */
+/* $Id: UINewHDWzd.cpp 29730 2010-05-21 12:48:19Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -35,8 +35,11 @@ UINewHDWzd::UINewHDWzd(QWidget *pParent) : QIWizard(pParent)
     addPage(new UINewHDWzdPage3);
     addPage(new UINewHDWzdPage4);
 
-    /* Translate */
+    /* Initial translate */
     retranslateUi();
+
+    /* Initial translate all pages */
+    retranslateAllPages();
 
     /* Resize to 'golden ratio' */
     resizeToGoldenRatio();
@@ -117,7 +120,7 @@ void UINewHDWzdPage1::retranslateUi()
 
 void UINewHDWzdPage1::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 }
 
@@ -148,7 +151,7 @@ void UINewHDWzdPage2::retranslateUi()
 
 void UINewHDWzdPage2::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Prepare initial choice */
@@ -251,7 +254,7 @@ void UINewHDWzdPage3::retranslateUi()
 
 void UINewHDWzdPage3::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Initialise location */
@@ -464,7 +467,7 @@ void UINewHDWzdPage4::retranslateUi()
 
 void UINewHDWzdPage4::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Summary should have focus initially */

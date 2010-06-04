@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltCommon-win.h 29643 2010-05-18 15:26:50Z vboxsync $ */
+/* $Id: VBoxNetFltCommon-win.h 29682 2010-05-20 11:16:03Z vboxsync $ */
 /** @file
  * VBoxNetFltCommon.h - Network Filter Driver (Host), Windows Specific Code. Common headeer with commonly used defines and decls
  */
@@ -41,6 +41,8 @@
 //# define DEBUG_NETFLT_RECV
 //# define DEBUG_NETFLT_RECV_NOPACKET
 //# define DEBUG_NETFLT_RECV_TRANSFERDATA
+
+//#define DEBUG_NETFLT_USE_EXALLOC
 #endif
 
 #define LOG_GROUP LOG_GROUP_NET_FLT_DRV

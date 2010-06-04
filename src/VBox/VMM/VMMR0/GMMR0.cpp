@@ -1,4 +1,4 @@
-/* $Id: GMMR0.cpp 29639 2010-05-18 14:18:40Z vboxsync $ */
+/* $Id: GMMR0.cpp 29983 2010-06-02 12:16:30Z vboxsync $ */
 /** @file
  * GMM - Global Memory Manager.
  */
@@ -3473,6 +3473,34 @@ GMMR0DECL(int) GMMR0SeedChunk(PVM pVM, VMCPUID idCpu, RTR3PTR pvR3)
     return rc;
 }
 
+typedef struct
+{
+    PAVLGCPTRNODECORE    pNode;
+    char                *pszModuleName;
+    char                *pszVersion;
+    VBOXOSFAMILY         enmGuestOS;
+} GMMFINDMODULEBYNAME, *PGMMFINDMODULEBYNAME;
+
+/**
+ * Tree enumeration callback for finding identical modules by name and version
+ */
+DECLCALLBACK(int) gmmR0CheckForIdenticalModule(PAVLGCPTRNODECORE pNode, void *pvUser)
+{
+    PGMMFINDMODULEBYNAME pInfo = (PGMMFINDMODULEBYNAME)pvUser;
+    PGMMSHAREDMODULE     pModule = (PGMMSHAREDMODULE)pNode;
+
+    if (    pInfo
+        &&  pInfo->enmGuestOS == pModule->enmGuestOS
+        /** todo replace with RTStrNCmp */
+        &&  !strcmp(pModule->szName, pInfo->pszModuleName)
+        &&  !strcmp(pModule->szVersion, pInfo->pszVersion))
+    {
+        pInfo->pNode = pNode;
+        return 1;   /* stop search */
+    }
+    return 0;
+}
+
 
 /**
  * Registers a new shared module for the VM
@@ -3537,6 +3565,27 @@ GMMR0DECL(int) GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, VBOXOSFAMILY en
 
         /* Check if this module is already globally registered. */
         PGMMSHAREDMODULE pGlobalModule = (PGMMSHAREDMODULE)RTAvlGCPtrGet(&pGMM->pGlobalSharedModuleTree, GCBaseAddr);
+        if (    !pGlobalModule
+            &&  enmGuestOS == VBOXOSFAMILY_Windows64)
+        {
+            /* Two identical copies of e.g. Win7 x64 will typically not have a similar virtual address space layout for dlls or kernel modules.
+             * Try to find identical binaries based on name and version.
+             */
+            GMMFINDMODULEBYNAME Info;
+
+            Info.pNode         = NULL;
+            Info.pszVersion    = pszVersion;
+            Info.pszModuleName = pszModuleName;
+            Info.enmGuestOS    = enmGuestOS;
+
+            int ret = RTAvlGCPtrDoWithAll(&pGMM->pGlobalSharedModuleTree, true /* fFromLeft */, gmmR0CheckForIdenticalModule, &Info);
+            if (ret == 1)
+            {
+                Assert(Info.pNode);
+                pGlobalModule = (PGMMSHAREDMODULE)Info.pNode;
+            }
+        }
+
         if (!pGlobalModule)
         {
             Assert(fNewModule);
@@ -3564,7 +3613,7 @@ GMMR0DECL(int) GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, VBOXOSFAMILY en
             {
                 Log(("New region %d base=%RGv size %x\n", i, pRegions[i].GCRegionAddr, pRegions[i].cbRegion));
                 pGlobalModule->aRegions[i].GCRegionAddr      = pRegions[i].GCRegionAddr;
-                pGlobalModule->aRegions[i].cbRegion          = pRegions[i].cbRegion;
+                pGlobalModule->aRegions[i].cbRegion          = RT_ALIGN_T(pRegions[i].cbRegion, PAGE_SIZE, uint32_t);
                 pGlobalModule->aRegions[i].u32Alignment      = 0;
                 pGlobalModule->aRegions[i].paHCPhysPageID    = NULL; /* uninitialized. */
             }
@@ -4020,7 +4069,7 @@ DECLCALLBACK(int) gmmR0CheckSharedModule(PAVLGCPTRNODECORE pNode, void *pvUser)
         &&  pGlobalModule)
     {
         Log(("gmmR0CheckSharedModule: check %s %s base=%RGv size=%x collision=%d\n", pGlobalModule->szName, pGlobalModule->szVersion, pGlobalModule->Core.Key, pGlobalModule->cbModule, pLocalModule->fCollision));
-        PGMR0SharedModuleCheckRegion(pInfo->pGVM->pVM, pInfo->idCpu, pGlobalModule, pInfo->pGVM);
+        PGMR0SharedModuleCheck(pInfo->pGVM->pVM, pInfo->idCpu, pGlobalModule, pInfo->pGVM);
     }
     return 0;
 }

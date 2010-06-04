@@ -1,4 +1,4 @@
-/* $Id: tcp.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tcp.cpp 29951 2010-06-01 13:27:25Z vboxsync $ */
 /** @file
  * IPRT - TCP/IP.
  */
@@ -337,7 +337,6 @@ RTR3DECL(int) RTTcpServerCreateEx(const char *pszAddress, uint32_t uPort, PPRTTC
             if (!pHostEnt)
             {
                 rc = rtSocketResolverError();
-                AssertMsgFailed(("Could not get host address rc=%Rrc\n", rc));
                 return rc;
             }
         }

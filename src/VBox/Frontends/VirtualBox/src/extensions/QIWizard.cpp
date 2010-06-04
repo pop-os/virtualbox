@@ -1,4 +1,4 @@
-/* $Id: QIWizard.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: QIWizard.cpp 29723 2010-05-21 11:56:03Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -158,6 +158,13 @@ void QIWizard::resizeAccordingLabelWidth(int iLabelsWidth)
 
     /* Resize to minimum possible size */
     resize(minimumSizeHint());
+}
+
+void QIWizard::retranslateAllPages()
+{
+    QList<QIWizardPage*> pages = findChildren<QIWizardPage*>();
+    for(int i=0; i < pages.size(); ++i)
+        static_cast<QIWizardPage*>(pages.at((i)))->retranslateUi();
 }
 
 QIWizardPage::QIWizardPage()

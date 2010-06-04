@@ -1,4 +1,4 @@
-/* $Id: VMMInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VMMInternal.h 29902 2010-05-31 12:56:31Z vboxsync $ */
 /** @file
  * VMM - Internal header file.
  */
@@ -370,7 +370,6 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetPatchTPR;
     STAMCOUNTER                 StatRZCallPDMLock;
     STAMCOUNTER                 StatRZCallLogFlush;
-    STAMCOUNTER                 StatRZCallPDMQueueFlush;
     STAMCOUNTER                 StatRZCallPGMPoolGrow;
     STAMCOUNTER                 StatRZCallPGMMapChunk;
     STAMCOUNTER                 StatRZCallPGMAllocHandy;

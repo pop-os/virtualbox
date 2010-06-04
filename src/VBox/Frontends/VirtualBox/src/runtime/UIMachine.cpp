@@ -1,4 +1,4 @@
-/* $Id: UIMachine.cpp 28844 2010-04-27 16:07:10Z vboxsync $ */
+/* $Id: UIMachine.cpp 29816 2010-05-26 13:52:52Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -17,6 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Global includes */
+#include <QTimer>
+
 /* Local includes */
 #include "VBoxGlobal.h"
 #include "UIMachine.h"
@@ -26,7 +29,7 @@
 #include "UIMachineWindow.h"
 
 #ifdef Q_WS_MAC
-# include <Carbon/Carbon.h>
+# include <ApplicationServices/ApplicationServices.h>
 #endif /* Q_WS_MAC */
 
 class UIVisualState : public QObject
@@ -164,6 +167,7 @@ public:
         {
             pActionFullscreen->blockSignals(true);
             pActionFullscreen->setChecked(true);
+            QTimer::singleShot(0, pActionFullscreen, SLOT(sltUpdateAppearance()));
             pActionFullscreen->blockSignals(false);
         }
     }
@@ -177,6 +181,7 @@ public:
         {
             pActionFullscreen->blockSignals(true);
             pActionFullscreen->setChecked(false);
+            QTimer::singleShot(0, pActionFullscreen, SLOT(sltUpdateAppearance()));
             pActionFullscreen->blockSignals(false);
         }
     }
@@ -226,6 +231,7 @@ public:
         {
             pActionSeamless->blockSignals(true);
             pActionSeamless->setChecked(true);
+            QTimer::singleShot(0, pActionSeamless, SLOT(sltUpdateAppearance()));
             pActionSeamless->blockSignals(false);
         }
     }
@@ -239,6 +245,7 @@ public:
         {
             pActionSeamless->blockSignals(true);
             pActionSeamless->setChecked(false);
+            QTimer::singleShot(0, pActionSeamless, SLOT(sltUpdateAppearance()));
             pActionSeamless->blockSignals(false);
         }
     }

@@ -1,4 +1,4 @@
-/* $Id: HWVMXR0.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: HWVMXR0.h 29689 2010-05-20 11:58:53Z vboxsync $ */
 /** @file
  * HWACCM VT-x - Internal header file.
  */
@@ -220,7 +220,11 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
         rc |= VMXWriteVMCS(VMX_VMCS32_GUEST_##REG##_LIMIT,    pCtx->reg##Hid.u32Limit);         \
         rc |= VMXWriteVMCS64(VMX_VMCS64_GUEST_##REG##_BASE,     pCtx->reg##Hid.u64Base);        \
         if ((pCtx->eflags.u32 & X86_EFL_VM))                                                    \
-            val = pCtx->reg##Hid.Attr.u;                                                        \
+        {                                                                                       \
+            /* Must override this or else VT-x will fail with invalid guest state errors. */    \
+            /* DPL=3, present, code/data, r/w/accessed. */                                      \
+            val = (pCtx->reg##Hid.Attr.u & ~0xFF) | 0xF3;                                       \
+        }                                                                                       \
         else                                                                                    \
         if (    CPUMIsGuestInRealModeEx(pCtx)                                                   \
             &&  !pVM->hwaccm.s.vmx.fUnrestrictedGuest)                                          \

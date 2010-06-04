@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.cpp 29580 2010-05-17 18:23:00Z vboxsync $ */
+/* $Id: ConsoleImpl.cpp 29971 2010-06-02 08:51:13Z vboxsync $ */
 /** @file
  * VBox Console COM Class implementation
  */
@@ -211,13 +211,11 @@ struct VMPowerUpTask : public VMProgressTask
     VMPowerUpTask(Console *aConsole,
                   Progress *aProgress)
         : VMProgressTask(aConsole, aProgress, false /* aUsesVMPtr */),
-          mSetVMErrorCallback(NULL),
           mConfigConstructor(NULL),
           mStartPaused(false),
           mTeleporterEnabled(FALSE)
     {}
 
-    PFNVMATERROR mSetVMErrorCallback;
     PFNCFGMCONSTRUCTOR mConfigConstructor;
     Utf8Str mSavedStateFile;
     Console::SharedFolderDataMap mSharedFolders;
@@ -1684,7 +1682,7 @@ STDMETHODIMP Console::PowerDown(IProgress **aProgress)
         case MachineState_Saved:
             return setError(VBOX_E_INVALID_VM_STATE, tr("Cannot power down a saved virtual machine"));
         case MachineState_Stopping:
-            return setError(VBOX_E_INVALID_VM_STATE, tr("Virtual machine is being powered down"));
+            return setError(VBOX_E_INVALID_VM_STATE, tr("The virtual machine is being powered down"));
         default:
             return setError(VBOX_E_INVALID_VM_STATE,
                             tr("Invalid machine state: %s (must be Running, Paused or Stuck)"),
@@ -3416,106 +3414,108 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Don't do anything if the VM isn't running */
-    if (!mpVM)
-        return S_OK;
+    HRESULT rc = S_OK;
 
-    /* protect mpVM */
-    AutoVMCaller autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger network change if the VM isn't running */
+    if (mpVM)
+    {
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
-    /* Get the properties we need from the adapter */
-    BOOL fCableConnected, fTraceEnabled;
-    HRESULT rc = aNetworkAdapter->COMGETTER(CableConnected)(&fCableConnected);
-    AssertComRC(rc);
-    if (SUCCEEDED(rc))
-    {
-        rc = aNetworkAdapter->COMGETTER(TraceEnabled)(&fTraceEnabled);
-        AssertComRC(rc);
-    }
-    if (SUCCEEDED(rc))
-    {
-        ULONG ulInstance;
-        rc = aNetworkAdapter->COMGETTER(Slot)(&ulInstance);
+        /* Get the properties we need from the adapter */
+        BOOL fCableConnected, fTraceEnabled;
+        rc = aNetworkAdapter->COMGETTER(CableConnected)(&fCableConnected);
         AssertComRC(rc);
         if (SUCCEEDED(rc))
         {
-            /*
-             * Find the pcnet instance, get the config interface and update
-             * the link state.
-             */
-            NetworkAdapterType_T adapterType;
-            rc = aNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
+            rc = aNetworkAdapter->COMGETTER(TraceEnabled)(&fTraceEnabled);
             AssertComRC(rc);
-            const char *pszAdapterName = NULL;
-            switch (adapterType)
+        }
+        if (SUCCEEDED(rc))
+        {
+            ULONG ulInstance;
+            rc = aNetworkAdapter->COMGETTER(Slot)(&ulInstance);
+            AssertComRC(rc);
+            if (SUCCEEDED(rc))
             {
-                case NetworkAdapterType_Am79C970A:
-                case NetworkAdapterType_Am79C973:
-                    pszAdapterName = "pcnet";
-                    break;
+                /*
+                 * Find the pcnet instance, get the config interface and update
+                 * the link state.
+                 */
+                NetworkAdapterType_T adapterType;
+                rc = aNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
+                AssertComRC(rc);
+                const char *pszAdapterName = NULL;
+                switch (adapterType)
+                {
+                    case NetworkAdapterType_Am79C970A:
+                    case NetworkAdapterType_Am79C973:
+                        pszAdapterName = "pcnet";
+                        break;
 #ifdef VBOX_WITH_E1000
-                case NetworkAdapterType_I82540EM:
-                case NetworkAdapterType_I82543GC:
-                case NetworkAdapterType_I82545EM:
-                    pszAdapterName = "e1000";
-                    break;
+                    case NetworkAdapterType_I82540EM:
+                    case NetworkAdapterType_I82543GC:
+                    case NetworkAdapterType_I82545EM:
+                        pszAdapterName = "e1000";
+                        break;
 #endif
 #ifdef VBOX_WITH_VIRTIO
-                case NetworkAdapterType_Virtio:
-                    pszAdapterName = "virtio-net";
-                    break;
+                    case NetworkAdapterType_Virtio:
+                        pszAdapterName = "virtio-net";
+                        break;
 #endif
-                default:
-                    AssertFailed();
-                    pszAdapterName = "unknown";
-                    break;
-            }
-
-            PPDMIBASE pBase;
-            int vrc = PDMR3QueryDeviceLun(mpVM, pszAdapterName, ulInstance, 0, &pBase);
-            ComAssertRC(vrc);
-            if (RT_SUCCESS(vrc))
-            {
-                Assert(pBase);
-                PPDMINETWORKCONFIG pINetCfg;
-                pINetCfg = PDMIBASE_QUERY_INTERFACE(pBase, PDMINETWORKCONFIG);
-                if (pINetCfg)
-                {
-                    Log(("Console::onNetworkAdapterChange: setting link state to %d\n",
-                          fCableConnected));
-                    vrc = pINetCfg->pfnSetLinkState(pINetCfg,
-                                                    fCableConnected ? PDMNETWORKLINKSTATE_UP
-                                                                    : PDMNETWORKLINKSTATE_DOWN);
-                    ComAssertRC(vrc);
+                    default:
+                        AssertFailed();
+                        pszAdapterName = "unknown";
+                        break;
                 }
-#ifdef VBOX_DYNAMIC_NET_ATTACH
-                if (RT_SUCCESS(vrc) && changeAdapter)
+
+                PPDMIBASE pBase;
+                int vrc = PDMR3QueryDeviceLun(mpVM, pszAdapterName, ulInstance, 0, &pBase);
+                ComAssertRC(vrc);
+                if (RT_SUCCESS(vrc))
                 {
-                    VMSTATE enmVMState = VMR3GetState(mpVM);
-                    if (    enmVMState == VMSTATE_RUNNING    /** @todo LiveMigration: Forbit or deal correctly with the _LS variants */
-                        ||  enmVMState == VMSTATE_SUSPENDED)
+                    Assert(pBase);
+                    PPDMINETWORKCONFIG pINetCfg;
+                    pINetCfg = PDMIBASE_QUERY_INTERFACE(pBase, PDMINETWORKCONFIG);
+                    if (pINetCfg)
                     {
-                        if (fTraceEnabled && fCableConnected && pINetCfg)
+                        Log(("Console::onNetworkAdapterChange: setting link state to %d\n",
+                              fCableConnected));
+                        vrc = pINetCfg->pfnSetLinkState(pINetCfg,
+                                                        fCableConnected ? PDMNETWORKLINKSTATE_UP
+                                                                        : PDMNETWORKLINKSTATE_DOWN);
+                        ComAssertRC(vrc);
+                    }
+#ifdef VBOX_DYNAMIC_NET_ATTACH
+                    if (RT_SUCCESS(vrc) && changeAdapter)
+                    {
+                        VMSTATE enmVMState = VMR3GetState(mpVM);
+                        if (    enmVMState == VMSTATE_RUNNING    /** @todo LiveMigration: Forbid or deal correctly with the _LS variants */
+                            ||  enmVMState == VMSTATE_SUSPENDED)
                         {
-                            vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_DOWN);
-                            ComAssertRC(vrc);
-                        }
+                            if (fTraceEnabled && fCableConnected && pINetCfg)
+                            {
+                                vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_DOWN);
+                                ComAssertRC(vrc);
+                            }
 
-                        rc = doNetworkAdapterChange(pszAdapterName, ulInstance, 0, aNetworkAdapter);
+                            rc = doNetworkAdapterChange(pszAdapterName, ulInstance, 0, aNetworkAdapter);
 
-                        if (fTraceEnabled && fCableConnected && pINetCfg)
-                        {
-                            vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_UP);
-                            ComAssertRC(vrc);
+                            if (fTraceEnabled && fCableConnected && pINetCfg)
+                            {
+                                vrc = pINetCfg->pfnSetLinkState(pINetCfg, PDMNETWORKLINKSTATE_UP);
+                                ComAssertRC(vrc);
+                            }
                         }
                     }
-                }
 #endif /* VBOX_DYNAMIC_NET_ATTACH */
-            }
+                }
 
-            if (RT_FAILURE(vrc))
-                rc = E_FAIL;
+                if (RT_FAILURE(vrc))
+                    rc = E_FAIL;
+            }
         }
     }
 
@@ -3723,17 +3723,17 @@ HRESULT Console::onSerialPortChange(ISerialPort *aSerialPort)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Don't do anything if the VM isn't running */
-    if (!mpVM)
-        return S_OK;
-
     HRESULT rc = S_OK;
 
-    /* protect mpVM */
-    AutoVMCaller autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger serial port change if the VM isn't running */
+    if (mpVM)
+    {
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
-    /* nothing to do so far */
+        /* nothing to do so far */
+    }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -3757,17 +3757,17 @@ HRESULT Console::onParallelPortChange(IParallelPort *aParallelPort)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Don't do anything if the VM isn't running */
-    if (!mpVM)
-        return S_OK;
-
     HRESULT rc = S_OK;
 
-    /* protect mpVM */
-    AutoVMCaller autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger parallel port change if the VM isn't running */
+    if (mpVM)
+    {
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
-    /* nothing to do so far */
+        /* nothing to do so far */
+    }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -3791,17 +3791,17 @@ HRESULT Console::onStorageControllerChange()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Don't do anything if the VM isn't running */
-    if (!mpVM)
-        return S_OK;
-
     HRESULT rc = S_OK;
 
-    /* protect mpVM */
-    AutoVMCaller autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger storage controller change if the VM isn't running */
+    if (mpVM)
+    {
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
-    /* nothing to do so far */
+        /* nothing to do so far */
+    }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -3825,17 +3825,17 @@ HRESULT Console::onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForc
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Don't do anything if the VM isn't running */
-    if (!mpVM)
-        return S_OK;
-
     HRESULT rc = S_OK;
 
-    /* protect mpVM */
-    AutoVMCaller autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger medium change if the VM isn't running */
+    if (mpVM)
+    {
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
-    rc = doMediumChange(aMediumAttachment, !!aForce);
+        rc = doMediumChange(aMediumAttachment, !!aForce);
+    }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -3859,20 +3859,20 @@ HRESULT Console::onCPUChange(ULONG aCPU, BOOL aRemove)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Don't do anything if the VM isn't running */
-    if (!mpVM)
-        return S_OK;
-
     HRESULT rc = S_OK;
 
-    /* protect mpVM */
-    AutoVMCaller autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger CPU change if the VM isn't running */
+    if (mpVM)
+    {
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
-    if (aRemove)
-        rc = doCPURemove(aCPU);
-    else
-        rc = doCPUAdd(aCPU);
+        if (aRemove)
+            rc = doCPURemove(aCPU);
+        else
+            rc = doCPUAdd(aCPU);
+    }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -3974,22 +3974,24 @@ HRESULT Console::onUSBControllerChange()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Ignore if no VM is running yet. */
-    if (!mpVM)
-        return S_OK;
-
     HRESULT rc = S_OK;
 
-/// @todo (dmik)
-// check for the Enabled state and disable virtual USB controller??
-// Anyway, if we want to query the machine's USB Controller we need to cache
-// it to mUSBController in #init() (as it is done with mDVDDrive).
-//
-// bird: While the VM supports hot-plugging, I doubt any guest can handle it at this time... :-)
-//
-//    /* protect mpVM */
-//    AutoVMCaller autoVMCaller(this);
-//    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+    /* don't trigger USB controller change if the VM isn't running */
+    if (mpVM)
+    {
+        /// @todo implement one day.
+        // Anyway, if we want to query the machine's USB Controller we need
+        // to cache it to mUSBController in #init() (similar to mDVDDrive).
+        //
+        // bird: While the VM supports hot-plugging, I doubt any guest can
+        // handle it at this time... :-)
+
+        /* protect mpVM */
+        AutoVMCaller autoVMCaller(this);
+        if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+
+        /* nothing to do so far */
+    }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -4899,7 +4901,7 @@ HRESULT Console::addVMCaller(bool aQuiet /* = false */,
     {
         /* powerDown() is waiting for all callers to finish */
         return aQuiet ? E_ACCESSDENIED : setError(E_ACCESSDENIED,
-            tr("Virtual machine is being powered down"));
+            tr("The virtual machine is being powered down"));
     }
 
     if (mpVM == NULL)
@@ -4908,7 +4910,7 @@ HRESULT Console::addVMCaller(bool aQuiet /* = false */,
 
         /* The machine is not powered up */
         return aQuiet ? E_ACCESSDENIED : setError(E_ACCESSDENIED,
-            tr("Virtual machine is not powered up"));
+            tr("The virtual machine is not powered up"));
     }
 
     ++ mVMCallers;
@@ -5112,7 +5114,7 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
 
     if (Global::IsOnlineOrTransient(mMachineState))
         return setError(VBOX_E_INVALID_VM_STATE,
-            tr("Virtual machine is already running or busy (machine state: %s)"),
+            tr("The virtual machine is already running or busy (machine state: %s)"),
             Global::stringifyMachineState(mMachineState));
 
     HRESULT rc = S_OK;
@@ -5225,10 +5227,40 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
         progressDesc = tr("Teleporting virtual machine");
     else
         progressDesc = tr("Starting virtual machine");
-    rc = powerupProgress->init(static_cast<IConsole *>(this),
-                               progressDesc,
-                               fTeleporterEnabled /* aCancelable */);
-    if (FAILED(rc)) return rc;
+    if (mMachineState == MachineState_Saved || !fTeleporterEnabled)
+        rc = powerupProgress->init(static_cast<IConsole *>(this),
+                                   progressDesc,
+                                   FALSE /* aCancelable */);
+    else
+        rc = powerupProgress->init(static_cast<IConsole *>(this),
+                                   progressDesc,
+                                   TRUE /* aCancelable */,
+                                   3    /* cOperations */,
+                                   10   /* ulTotalOperationsWeight */,
+                                   Bstr(tr("Teleporting virtual machine")),
+                                   1    /* ulFirstOperationWeight */,
+                                   NULL);
+    if (FAILED(rc))
+        return rc;
+
+    /* Tell VBoxSVC and Machine about the progress object so they can combine
+       proxy it to any openRemoteSession caller. */
+    rc = mControl->BeginPowerUp(powerupProgress);
+    if (FAILED(rc))
+    {
+        LogFlowThisFunc(("BeginPowerUp failed\n"));
+        return rc;
+    }
+
+    BOOL fCanceled;
+    rc = powerupProgress->COMGETTER(Canceled)(&fCanceled);
+    if (FAILED(rc))
+        return rc;
+    if (fCanceled)
+    {
+        LogFlowThisFunc(("Canceled in BeginPowerUp\n"));
+        return setError(E_FAIL, tr("Powerup was canceled"));
+    }
 
     /* setup task object and thread to carry out the operation
      * asynchronously */
@@ -5236,7 +5268,6 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
     std::auto_ptr<VMPowerUpTask> task(new VMPowerUpTask(this, powerupProgress));
     ComAssertComRCRetRC(task->rc());
 
-    task->mSetVMErrorCallback = setVMErrorCallback;
     task->mConfigConstructor = configConstructor;
     task->mSharedFolders = sharedFolders;
     task->mStartPaused = aPaused;
@@ -6836,40 +6867,30 @@ DECLCALLBACK(int) Console::stateProgressCallback(PVM pVM, unsigned uPercent, voi
 }
 
 /**
- * VM error callback function. Called by the various VM components.
+ * @copydoc FNVMATERROR
  *
- * @param   pVM         VM handle. Can be NULL if an error occurred before
- *                      successfully creating a VM.
- * @param   pvUser      Pointer to the VMProgressTask structure.
- * @param   rc          VBox status code.
- * @param   pszFormat   Printf-like error message.
- * @param   args        Various number of arguments for the error message.
- *
- * @thread EMT, VMPowerUp...
- *
- * @note The VMProgressTask structure modified by this callback is not thread
- *       safe.
+ * @remarks Might be some tiny serialization concerns with access to the string
+ *          object here...
  */
-/* static */ DECLCALLBACK(void)
-Console::setVMErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
-                            const char *pszFormat, va_list args)
+/*static*/ DECLCALLBACK(void)
+Console::genericVMSetErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+                                   const char *pszErrorFmt, va_list va)
 {
-    VMProgressTask *task = static_cast<VMProgressTask *>(pvUser);
-    AssertReturnVoid(task);
+    Utf8Str *pErrorText = (Utf8Str *)pvUser;
+    AssertPtr(pErrorText);
 
-    /* we ignore RT_SRC_POS_DECL arguments to avoid confusion of end-users */
+    /* We ignore RT_SRC_POS_DECL arguments to avoid confusion of end-users. */
     va_list va2;
-    va_copy(va2, args); /* Have to make a copy here or GCC will break. */
+    va_copy(va2, va);
 
-    /* append to the existing error message if any */
-    if (task->mErrorMsg.length())
-        task->mErrorMsg = Utf8StrFmt("%s.\n%N (%Rrc)", task->mErrorMsg.raw(),
-                                     pszFormat, &va2, rc, rc);
+    /* Append to any the existing error message. */
+    if (pErrorText->length())
+        *pErrorText = Utf8StrFmt("%s.\n%N (%Rrc)", pErrorText->c_str(),
+                                 pszErrorFmt, &va2, rc, rc);
     else
-        task->mErrorMsg = Utf8StrFmt("%N (%Rrc)",
-                                     pszFormat, &va2, rc, rc);
+        *pErrorText = Utf8StrFmt("%N (%Rrc)", pszErrorFmt, &va2, rc, rc);
 
-    va_end (va2);
+    va_end(va2);
 }
 
 /**
@@ -7267,7 +7288,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
          */
         alock.leave();
 
-        vrc = VMR3Create(cCpus, task->mSetVMErrorCallback, task.get(),
+        vrc = VMR3Create(cCpus, Console::genericVMSetErrorCallback, &task->mErrorMsg,
                          task->mConfigConstructor, static_cast<Console *>(console),
                          &pVM);
 
@@ -7372,9 +7393,15 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                 else if (task->mTeleporterEnabled)
                 {
                     /* -> ConsoleImplTeleporter.cpp */
-                    vrc = console->teleporterTrg(pVM, pMachine, task->mStartPaused, task->mProgress);
-                    if (RT_FAILURE(vrc) && !task->mErrorMsg.length())
-                        rc = E_FAIL;    /* Avoid the "Missing error message..." assertion. */
+                    bool fPowerOffOnFailure;
+                    rc = console->teleporterTrg(pVM, pMachine, &task->mErrorMsg, task->mStartPaused,
+                                                task->mProgress, &fPowerOffOnFailure);
+                    if (FAILED(rc) && fPowerOffOnFailure)
+                    {
+                        ErrorInfoKeeper eik;
+                        int vrc2 = VMR3PowerOff(pVM);
+                        AssertRC(vrc2);
+                    }
                 }
                 else if (task->mStartPaused)
                     /* done */
@@ -7410,7 +7437,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                  * be sticky but our error callback isn't.
                  */
                 alock.leave();
-                VMR3AtErrorDeregister(pVM, task->mSetVMErrorCallback, task.get());
+                VMR3AtErrorDeregister(pVM, Console::genericVMSetErrorCallback, &task->mErrorMsg);
                 /** @todo register another VMSetError callback? */
                 alock.enter();
             }
@@ -7484,33 +7511,16 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
     {
         /* Notify the progress object of the success */
         task->mProgress->notifyComplete(S_OK);
-        console->mControl->SetPowerUpInfo(NULL);
     }
     else
     {
         /* The progress object will fetch the current error info */
         task->mProgress->notifyComplete(rc);
-        ProgressErrorInfo info(task->mProgress);
-        ComObjPtr<VirtualBoxErrorInfo> errorInfo;
-        rc = errorInfo.createObject();
-        if (SUCCEEDED(rc))
-        {
-            errorInfo->init(info.getResultCode(),
-                            info.getInterfaceID(),
-                            info.getComponent(),
-                            info.getText());
-            console->mControl->SetPowerUpInfo(errorInfo);
-        }
-        else
-        {
-            /* If it's not possible to create an IVirtualBoxErrorInfo object
-             * signal success, as not signalling anything will cause a stuck
-             * progress object in VBoxSVC. */
-            console->mControl->SetPowerUpInfo(NULL);
-        }
-
         LogRel(("Power up failed (vrc=%Rrc, rc=%Rhrc (%#08X))\n", vrc, rc, rc));
     }
+
+    /* Notify VBoxSVC and any waiting openRemoteSession progress object. */
+    console->mControl->EndPowerUp(rc);
 
 #if defined(RT_OS_WINDOWS)
     /* uninitialize COM */

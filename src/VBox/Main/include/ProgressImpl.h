@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ProgressImpl.h 29916 2010-05-31 15:26:56Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -70,7 +70,7 @@ public:
     STDMETHOD(COMGETTER(ResultCode)) (LONG *aResultCode);
     STDMETHOD(COMGETTER(ErrorInfo)) (IVirtualBoxErrorInfo **aErrorInfo);
     STDMETHOD(COMGETTER(OperationCount)) (ULONG *aOperationCount);
-    STDMETHOD(COMGETTER(Operation)) (ULONG *aCount);
+    STDMETHOD(COMGETTER(Operation)) (ULONG *aOperation);
     STDMETHOD(COMGETTER(OperationDescription)) (BSTR *aOperationDescription);
     STDMETHOD(COMGETTER(OperationPercent)) (ULONG *aOperationPercent);
     STDMETHOD(COMSETTER(Timeout)) (ULONG aTimeout);
@@ -260,7 +260,13 @@ public:
     HRESULT notifyComplete(HRESULT aResultCode,
                            const GUID &aIID,
                            const Bstr &aComponent,
-                           const char *aText, ...);
+                           const char *aText,
+                           ...);
+    HRESULT notifyCompleteV(HRESULT aResultCode,
+                            const GUID &aIID,
+                            const Bstr &aComponent,
+                            const char *aText,
+                            va_list va);
     bool notifyPointOfNoReturn(void);
 
     /** For com::SupportErrorInfoImpl. */

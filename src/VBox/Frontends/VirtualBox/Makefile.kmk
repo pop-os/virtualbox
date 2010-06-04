@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29039 2010-05-04 19:03:20Z vboxsync $
+# $Id: Makefile.kmk 29972 2010-06-02 09:03:45Z vboxsync $
 ## @file
 # Makefile for the VirtualBox Qt GUI.
 #
@@ -44,12 +44,6 @@ ifndef VBOX_OSE
 VBOX_WITH_UPDATE_REQUEST := 1
 endif
 
-# Build new VirtualBox FE/Qt4 GUI runtime core.
-# Currently its not used, you can build it for developing purposes.
-VBOX_WITH_NEW_RUNTIME_CORE := 1
-# Force the usage of the new runtime core for the single monitor case also.
-VBOX_FORCE_NEW_RUNTIME_CORE_ALWAYS := 1
-
 #
 # The targets.
 #
@@ -60,12 +54,6 @@ else
 PROGRAMS += VirtualBox
 endif
 
-ifeq ($(filter-out freebsd linux openbsd netbsd solaris,$(KBUILD_TARGET)),) # X11
- DLLS += VBoxKeyboard
- ## @todo convert to install target.
- OTHERS += $(PATH_BIN)/vboxkeyboard.tar.gz
- CLEAN += $(PATH_BIN)/vboxkeyboard.tar.gz
-endif
 INSTALLS += VirtualBox.nls
 
 
@@ -73,48 +61,6 @@ INSTALLS += VirtualBox.nls
 # Include the language lists.
 #
 include $(PATH_SUB_CURRENT)/nls/ApprovedLanguages.kmk
-
-
-#
-# VBoxKeyboard - keyboard library for X11.
-#
-VBoxKeyboard_TEMPLATE = VBOXR3
-VBoxKeyboard_SOURCES  = \
-	src/X11/keyboard-new.c
-VBoxKeyboard_LIBS     = X11
-VBoxKeyboard_LIBPATH  = $(VBOX_LIBPATH_X11)
-
-
-#
-# vboxkeyboard.tar.gz - the LGPLed keyboard library must always be
-# redistributed with usable sources.
-#
-# This rule will link create a temporary symlink to src/X11/ and tar
-# up the selected files into a tarball that is installed into the
-# bin directory (probably belongs in /usr/shared/somewhere really,
-# but wtf, it's not like we're even trying to be FHS compliant).
-#
-## @todo this should be tar'ed down into the output directory and installed using an install target.
-$(PATH_BIN)/vboxkeyboard.tar.gz: $(abspathex \
-		$(VBoxKeyboard_SOURCES) \
-		src/X11/COPYING.LIB \
-		src/X11/keyboard.h \
-		src/X11/keyboard-layouts.h \
-		src/X11/keyboard-list.h \
-		src/X11/keyboard-tables.h \
-		src/X11/keyboard-types.h \
-		src/X11/Makefile \
-		,$(PATH_SUB_CURRENT)) | $(PATH_TARGET)/VBoxKeyboard/
-	$(call MSG_TOOL,tar/gzip,,$@)
-	$(QUIET2)$(RM) -f $(PATH_TARGET)/VBoxKeyboard/vboxkeyboard $@
-	$(QUIET)$(LN_SYMLINK) $(VBOX_VIRTUALBOX4_SRC)/src/X11/ $(PATH_TARGET)/VBoxKeyboard/vboxkeyboard
-	$(QUIET)cd $(PATH_TARGET)/VBoxKeyboard \
-		&& tar -chvf - $(addprefix vboxkeyboard/,$(notdir $^)) \
-		   | gzip - > $@
-	$(QUIET2)$(RM) -f $(PATH_TARGET)/VBoxKeyboard/vboxkeyboard
-
-OTHER_CLEAN += \
-	$(PATH_BIN)/vboxkeyboard.tar.gz
 
 
 #
@@ -144,7 +90,7 @@ ifndef VBOX_WITH_HARDENING      # For the launch trick we need different inode n
  VirtualBox_INST.darwin = $(INST_BIN)VirtualBox $(INST_BIN)VirtualBoxVM
 endif
 VirtualBox_SDKS.win = WINPSDK DXSDK
-ifeq ($(filter-out freebsd linux netbsd openbsd os2,$(KBUILD_TARGET)),) # X11 + os2 ## @todo solaris
+if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd os2) # X11 + os2 ## @todo solaris
  VirtualBox_SDKS += LIBSDL
 endif
 
@@ -153,9 +99,9 @@ ifdef VBOX_WITH_ICHAT_THEATER
  VBOX_PATH_MACOSX_SDK = /Developer/SDKs/MacOSX10.5.sdk
 endif
 
-VirtualBox_DEFS           = VBOX_GUI_SEPARATE_VM_PROCESS
+VirtualBox_DEFS           =
 VirtualBox_DEFS.debug     = VBOX_CHECK_STATE # QT_FATAL_ASSERT
-VirtualBox_DEFS.darwin    = VBOX_GUI_USE_QUARTZ2D VBOX_GUI_USE_QIMAGE VBOX_WITHOUT_QHTTP
+VirtualBox_DEFS.darwin    = VBOX_GUI_USE_QUARTZ2D VBOX_GUI_USE_QIMAGE
 ifndef VBOX_WITH_COCOA_QT
 VirtualBox_DEFS.darwin.x86= USE_HID_FOR_MODIFIERS
 endif
@@ -165,15 +111,8 @@ VirtualBox_DEFS.netbsd    = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL
 VirtualBox_DEFS.openbsd   = VBOX_GUI_USE_QIMAGE VBOX_GUI_USE_SDL
 VirtualBox_DEFS.solaris   = VBOX_GUI_USE_QIMAGE #VBOX_GUI_USE_SDL
 VirtualBox_DEFS.win       = VBOX_GUI_USE_QIMAGE UNICODE QT_DLL
-VirtualBox_DEFS.win.amd64 = VBOX_WITHOUT_QHTTP
 ifdef VBOX_WITH_ICHAT_THEATER
  VirtualBox_DEFS.darwin += VBOX_WITH_ICHAT_THEATER
-endif
-ifdef VBOX_WITH_NEW_RUNTIME_CORE
- VirtualBox_DEFS += VBOX_WITH_NEW_RUNTIME_CORE
- ifdef VBOX_FORCE_NEW_RUNTIME_CORE_ALWAYS
-  VirtualBox_DEFS += VBOX_FORCE_NEW_RUNTIME_CORE_ALWAYS
- endif
 endif
 ifneq ($(KBUILD_TYPE),release)
  # non-release builds has some extra features.
@@ -197,18 +136,20 @@ ifdef VBOX_WITH_DEBUGGER_GUI
 endif
 ifdef VBOX_WITH_VIDEOHWACCEL
  VirtualBox_DEFS        += VBOX_WITH_VIDEOHWACCEL \
-            VBOX_GUI_USE_QGL
+	VBOX_GUI_USE_QGL
 else ifdef VBOX_GUI_USE_QGL
  VirtualBox_DEFS        += VBOX_GUI_USE_QGL
 endif
 ifdef VBOX_WITH_VIRTIO
  VirtualBox_DEFS        += VBOX_WITH_VIRTIO
 endif
-
+ifdef VBOXWDDM
+ VirtualBox_DEFS        += VBOXWDDM
+endif
 ifdef VBOX_BLEEDING_EDGE
-VirtualBox_src/VBoxConsoleWnd.cpp_DEFS += \
-    VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\"
 VirtualBox_src/VBoxSelectorWnd.cpp_DEFS += \
+    VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\"
+VirtualBox_src/runtime/UIMachineWindow.cpp_DEFS += \
     VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\"
 VirtualBox_src/VBoxAboutDlg.cpp_DEFS += \
     VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\"
@@ -231,14 +172,11 @@ VBOX_GUI_INC_DIRS = \
 	./src/wizards/importappliance \
 	./src/widgets \
 	./src/X11 \
-	./src/darwin
-ifdef VBOX_WITH_NEW_RUNTIME_CORE
-VBOX_GUI_INC_DIRS += \
+	./src/darwin \
     ./src/runtime \
 	./src/runtime/normal \
 	./src/runtime/fullscreen \
 	./src/runtime/seamless
-endif
 
 ifdef VBOX_WITH_REGISTRATION
  VBOX_GUI_INC_DIRS += \
@@ -277,9 +215,8 @@ if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
 endif
 
 VirtualBox_LDFLAGS.darwin = \
-	-framework IOKit -framework AppKit -framework ApplicationServices -framework Foundation -framework Carbon \
+	-framework AppKit -framework Carbon \
 	$(if $(VBOX_WITH_HARDENING),-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VirtualBox.dylib)
-VirtualBox_LDFLAGS.darwin.x86 = -framework QuickTime
 ifdef VBOX_WITH_ICHAT_THEATER
  VirtualBox_LDFLAGS.darwin += -framework InstantMessage -framework QuartzCore
 endif
@@ -291,7 +228,7 @@ VirtualBox_LIBS.win       = \
 	$(PATH_SDK_WINPSDK_LIB)/Htmlhelp.Lib \
 	$(PATH_SDK_DXSDK_LIB)/ddraw.lib \
 	$(PATH_SDK_DXSDK_LIB)/dxguid.lib
-ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
+if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris) # X11
  VirtualBox_LIBS         += $(PATH_DLL)/VBoxKeyboard$(VBOX_SUFF_DLL)
 endif
 
@@ -305,8 +242,6 @@ endif
 VirtualBox_QT_MOCHDRS = \
 	src/VBoxAboutDlg.h \
 	src/VBoxCloseVMDlg.h \
-	src/VBoxConsoleView.h \
-	src/VBoxConsoleWnd.h \
 	src/VBoxGlobalSettings.h \
 	src/VBoxMediaManagerDlg.h \
 	src/VBoxSelectorWnd.h \
@@ -337,6 +272,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/extensions/QISplitter.h \
 	src/extensions/QIStateIndicator.h \
 	src/extensions/QIStatusBar.h \
+	src/extensions/QITabWidget.h \
 	src/extensions/QIToolButton.h \
 	src/extensions/QITreeView.h \
 	src/extensions/QITreeWidget.h \
@@ -384,9 +320,7 @@ VirtualBox_QT_MOCHDRS = \
 	src/widgets/VBoxOSTypeSelectorWidget.h \
 	src/widgets/VBoxProgressDialog.h \
 	src/widgets/VBoxSpecialControls.h \
-	src/widgets/VBoxWarningPane.h
-ifdef VBOX_WITH_NEW_RUNTIME_CORE
-VirtualBox_QT_MOCHDRS += \
+	src/widgets/VBoxWarningPane.h \
 	src/runtime/UISession.h \
 	src/runtime/UIActionsPool.h \
 	src/runtime/UIIndicatorsPool.h \
@@ -403,7 +337,6 @@ VirtualBox_QT_MOCHDRS += \
 	src/runtime/seamless/UIMachineLogicSeamless.h \
 	src/runtime/seamless/UIMachineWindowSeamless.h \
 	src/runtime/seamless/UIMachineViewSeamless.h
-endif
 
 ifdef VBOX_WITH_REGISTRATION
  VirtualBox_QT_MOCHDRS += \
@@ -413,15 +346,12 @@ endif
 # Sources containing local definitions of classes that use the Q_OBJECT macro.
 VirtualBox_QT_MOCSRCS = \
 	src/VBoxSelectorWnd.cpp \
-	src/VBoxMediaManagerDlg.cpp
-ifdef VBOX_WITH_NEW_RUNTIME_CORE
-VirtualBox_QT_MOCSRCS += \
+	src/VBoxMediaManagerDlg.cpp \
 	src/runtime/UIActionsPool.cpp \
 	src/runtime/UIMachineMenuBar.cpp \
 	src/runtime/UIIndicatorsPool.cpp \
 	src/runtime/UIMachine.cpp \
 	src/runtime/UIMachineLogic.cpp
-endif
 ifdef VBOX_WITH_XPCOM
  VirtualBox_QT_MOCSRCS += \
 	src/globals/COMDefs.cpp
@@ -440,9 +370,6 @@ VirtualBox_SOURCES = \
 	src/main.cpp \
 	src/VBoxAboutDlg.cpp \
 	src/VBoxCloseVMDlg.cpp \
-	src/VBoxConsoleView.cpp \
-	src/VBoxConsoleWnd.cpp \
-	src/VBoxFrameBuffer.cpp \
 	src/VBoxGlobalSettings.cpp \
 	src/VBoxHelpActions.cpp \
 	src/VBoxMediaManagerDlg.cpp \
@@ -523,9 +450,7 @@ VirtualBox_SOURCES = \
 	src/widgets/VBoxOSTypeSelectorWidget.cpp \
 	src/widgets/VBoxProgressDialog.cpp \
 	src/widgets/VBoxSpecialControls.cpp \
-	src/widgets/VBoxWarningPane.cpp
-ifdef VBOX_WITH_NEW_RUNTIME_CORE
-VirtualBox_SOURCES += \
+	src/widgets/VBoxWarningPane.cpp \
 	src/runtime/UISession.cpp \
 	src/runtime/UIActionsPool.cpp \
 	src/runtime/UIIndicatorsPool.cpp \
@@ -554,9 +479,8 @@ VirtualBox_SOURCES.darwin += \
 	src/runtime/UIFrameBufferQuartz2D.cpp \
 	src/darwin/UIAbstractDockIconPreview.cpp \
 	src/darwin/UICocoaDockIconPreview.mm
-endif
 
-ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
+if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris) # X11
  ifndef VBOX_OSE
   VirtualBox_QT_MOCHDRS += \
  	src/VBoxLicenseViewer.h
@@ -582,14 +506,11 @@ ifdef VBOX_WITH_REGISTRATION
 endif
 
 VirtualBox_SOURCES.win += \
-	src/VBoxFBDDRAW.cpp \
 	src/win/VirtualBox.rc
 
 VirtualBox_SOURCES.darwin += \
 	src/darwin/DarwinKeyboard.cpp \
-	src/darwin/VBoxUtils-darwin.cpp \
-	src/darwin/AbstractDockIconPreview.cpp \
-	src/VBoxFBQuartz2D.cpp
+	src/darwin/VBoxUtils-darwin.cpp
 
 ifdef VBOX_WITH_ICHAT_THEATER
  VirtualBox_SOURCES.darwin += \
@@ -601,14 +522,9 @@ ifdef VBOX_WITH_COCOA_QT
  VirtualBox_SOURCES.darwin += \
  	src/darwin/VBoxCocoaApplication.m \
  	src/darwin/VBoxUtils-darwin-cocoa.mm \
- 	src/darwin/VBoxCocoaSpecialControls.mm \
- 	src/darwin/CocoaDockIconPreview.mm
+ 	src/darwin/VBoxCocoaSpecialControls.mm
  VirtualBox_QT_MOCHDRS.darwin = \
  	src/darwin/VBoxCocoaSpecialControls.h
-else
- VirtualBox_SOURCES.darwin += \
- 	src/darwin/VBoxUtils-darwin-carbon.cpp \
- 	src/darwin/CarbonDockIconPreview.cpp
 endif
 
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
@@ -622,7 +538,7 @@ endif
 VirtualBox_QT_MODULES = Core Gui Network
 
 if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_GUI_USE_QGL)
-VirtualBox_QT_MODULES += OpenGL
+ VirtualBox_QT_MODULES += OpenGL
 endif
 
 # Import QDesigner UI sources and translations from VBoxUI.pro.
@@ -802,7 +718,6 @@ $$(VirtualBox_0_OUTDIR)/include/precomp.h.gch: \
 		'-DHC_ARCH_BITS=32' \
 		'-DGC_ARCH_BITS=64' \
 		'-DVBOX_WITH_XPCOM' \
-		'-DVBOX_GUI_SEPARATE_VM_PROCESS' \
 		'-DVBOX_WITH_REGISTRATION' \
 		'-DVBOX_WITH_REGISTRATION_REQUEST' \
 		'-DVBOX_WITH_UPDATE_REQUEST' \
@@ -825,7 +740,6 @@ $$(VirtualBox_0_OUTDIR)/include/precomp.h.gch: \
 		'-DMAC_OS_X_VERSION_MAX_ALLOWED=1050' \
 		'-DVBOX_GUI_USE_QUARTZ2D' \
 		'-DVBOX_GUI_USE_QIMAGE' \
-		'-DVBOX_WITHOUT_QHTTP' \
 		'-o' $@ $<
 endif
 
@@ -963,6 +877,7 @@ include $(KBUILD_PATH)/subfooter.kmk
 # For Qt >= 4.6.0 it maybe necessary to add -I $(VBOX_GUI_INC_DIRS) to the
 # lupdate call
 #
+#VirtualBox_QT_TRANSLATIONS = nls/VirtualBox_de.ts
 updatenls:: makeallnls nls/VirtualBox_en.ts
 
 makeallnls:: \
