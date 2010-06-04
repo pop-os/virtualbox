@@ -1,4 +1,4 @@
-/* $Id: slirp.h 29506 2010-05-17 07:14:47Z vboxsync $ */
+/* $Id: slirp.h 29656 2010-05-19 06:05:09Z vboxsync $ */
 /** @file
  * NAT - slirp (declarations/defines).
  */
@@ -340,6 +340,8 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst);
 int slirp_arp_cache_update(PNATState pData, uint32_t dst, const uint8_t *mac);
 void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether);
 int slirp_arp_cache_update_or_add(PNATState pData, uint32_t dst, const uint8_t *mac);
+int slirp_init_dns_list(PNATState pData);
+void slirp_release_dns_list(PNATState pData);
 #define MIN_MRU 128
 #define MAX_MRU 16384
 

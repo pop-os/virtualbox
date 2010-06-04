@@ -1,4 +1,4 @@
-/* $Id: VBoxGLSettingsGeneral.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxGLSettingsGeneral.cpp 29921 2010-05-31 16:49:37Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -30,9 +30,6 @@ VBoxGLSettingsGeneral::VBoxGLSettingsGeneral()
 #ifndef VBOX_GUI_WITH_SYSTRAY
     mCbCheckTrayIcon->hide();
 #endif /* VBOX_GUI_WITH_SYSTRAY */
-#ifndef QT_MAC_USE_COCOA
-    mCbCheckPresentationMode->hide();
-#endif /* QT_MAC_USE_COCOA */
     if (   mCbCheckTrayIcon->isHidden()
         && mCbCheckPresentationMode->isHidden())
         mLnSeparator2->hide();

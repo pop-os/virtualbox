@@ -1,4 +1,4 @@
-/* $Id: service.cpp 29438 2010-05-12 21:50:16Z vboxsync $ */
+/* $Id: service.cpp 29900 2010-05-31 12:41:27Z vboxsync $ */
 /** @file
  * Guest Control Service: Controlling the guest.
  */
@@ -17,7 +17,38 @@
 
 /** @page pg_svc_guest_control   Guest Control HGCM Service
  *
- * @todo Write up some nice text here.
+ * This service acts as a proxy for handling and buffering host command requests
+ * and clients on the guest. It tries to be as transparent as possible to let
+ * the guest (client) and host side do their protocol handling as desired.
+ *
+ * The following terms are used:
+ * - Host:   A host process (e.g. VBoxManage or another tool utilizing the Main API)
+ *           which wants to control something on the guest.
+ * - Client: A client (e.g. VBoxService) running inside the guest OS waiting for
+ *           new host commands to perform. There can be multiple clients connected
+ *           to a service. A client is represented by its HGCM client ID.
+ * - Context ID: A (almost) unique ID automatically generated on the host (Main API)
+ *               to not only distinguish clients but individual requests. Because
+ *               the host does not know anything about connected clients it needs
+ *               an indicator which it can refer to later. This context ID gets
+ *               internally bound by the service to a client which actually processes
+ *               the command in order to have a relationship between client<->context ID(s).
+ *
+ * The host can trigger commands which get buffered by the service (with full HGCM
+ * parameter info). As soon as a client connects (or is ready to do some new work)
+ * it gets a buffered host command to process it. This command then will be immediately
+ * removed from the command list. If there are ready clients but no new commands to be
+ * processed, these clients will be set into a deferred state (that is being blocked
+ * to return until a new command is available).
+ *
+ * If a client needs to inform the host that something happend, it can send a
+ * message to a low level HGCM callback registered in Main. This callback contains
+ * the actual data as well as the context ID to let the host do the next necessary
+ * steps for this context. This context ID makes it possible to wait for an event
+ * inside the host's Main API function (like starting a process on the guest and
+ * wait for getting its PID returned by the client) as well as cancelling blocking
+ * host calls in order the client terminated/crashed (HGCM detects disconnected
+ * clients and reports it to this service's callback).
  */
 
 /*******************************************************************************
@@ -47,22 +78,30 @@
 namespace guestControl {
 
 /**
- * Structure for holding a buffered host command
+ * Structure for holding all clients with their
+ * generated host contexts. This is necessary for
+ * mainting the relationship between a client and its context IDs.
  */
-struct HostCmd
+struct ClientContexts
 {
-    /** Dynamic structure for holding the HGCM parms */
-    VBOXGUESTCTRPARAMBUFFER parmBuf;
+    /** This client ID. */
+    uint32_t mClientID;
+    /** The list of contexts a client is assigned to. */
+    std::list< uint32_t > mContextList;
+
+    /** The normal contructor. */
+    ClientContexts(uint32_t aClientID)
+                   : mClientID(aClientID) {}
 };
-/** The host cmd list + iterator type */
-typedef std::list< HostCmd > HostCmdList;
-typedef std::list< HostCmd >::iterator HostCmdListIter;
-typedef std::list< HostCmd >::const_iterator HostCmdListIterConst;
+/** The client list + iterator type */
+typedef std::list< ClientContexts > ClientContextsList;
+typedef std::list< ClientContexts >::iterator ClientContextsListIter;
+typedef std::list< ClientContexts >::const_iterator ClientContextsListIterConst;
 
 /**
- * Structure for holding an uncompleted guest call
+ * Structure for holding an uncompleted guest call.
  */
-struct GuestCall
+struct ClientWaiter
 {
     /** Client ID; a client can have multiple handles! */
     uint32_t mClientID;
@@ -73,17 +112,36 @@ struct GuestCall
     /** Number of parameters */
     uint32_t mNumParms;
 
-    /** The standard constructor */
-    GuestCall() : mClientID(0), mHandle(0), mParms(NULL), mNumParms(0) {}
-    /** The normal contructor */
-    GuestCall(uint32_t aClientID, VBOXHGCMCALLHANDLE aHandle, 
+    /** The standard contructor. */
+    ClientWaiter() : mClientID(0), mHandle(0), mParms(NULL), mNumParms(0) {}
+    /** The normal contructor. */
+    ClientWaiter(uint32_t aClientID, VBOXHGCMCALLHANDLE aHandle,
               VBOXHGCMSVCPARM aParms[], uint32_t cParms)
               : mClientID(aClientID), mHandle(aHandle), mParms(aParms), mNumParms(cParms) {}
 };
 /** The guest call list type */
-typedef std::list< GuestCall > CallList;
-typedef std::list< GuestCall >::iterator CallListIter;
-typedef std::list< GuestCall >::const_iterator CallListIterConst;
+typedef std::list< ClientWaiter > ClientWaiterList;
+typedef std::list< ClientWaiter >::iterator CallListIter;
+typedef std::list< ClientWaiter >::const_iterator CallListIterConst;
+
+/**
+ * Structure for holding a buffered host command.
+ */
+struct HostCmd
+{
+    /** The context ID this command belongs to. Will be extracted
+      * from the HGCM parameters. */
+    uint32_t mContextID;
+    /** Dynamic structure for holding the HGCM parms */
+    VBOXGUESTCTRPARAMBUFFER mParmBuf;
+
+    /** The standard contructor. */
+    HostCmd() : mContextID(0) {}
+};
+/** The host cmd list + iterator type */
+typedef std::list< HostCmd > HostCmdList;
+typedef std::list< HostCmd >::iterator HostCmdListIter;
+typedef std::list< HostCmd >::const_iterator HostCmdListIterConst;
 
 /**
  * Class containing the shared information service functionality.
@@ -91,19 +149,23 @@ typedef std::list< GuestCall >::const_iterator CallListIterConst;
 class Service : public stdx::non_copyable
 {
 private:
-    /** Type definition for use in callback functions */
+    /** Type definition for use in callback functions. */
     typedef Service SELF;
     /** HGCM helper functions. */
     PVBOXHGCMSVCHELPERS mpHelpers;
-    /** Callback function supplied by the host for notification of updates
-     * to properties */
+    /*
+     * Callback function supplied by the host for notification of updates
+     * to properties.
+     */
     PFNHGCMSVCEXT mpfnHostCallback;
-    /** User data pointer to be supplied to the host callback function */
+    /** User data pointer to be supplied to the host callback function. */
     void *mpvHostData;
-    /** The deferred calls list */
-    CallList mClientList;
-    /** The host command list */
+    /** The deferred calls list. */
+    ClientWaiterList mClientWaiterList;
+    /** The host command list. */
     HostCmdList mHostCmds;
+    /** Client contexts list. */
+    ClientContextsList mClientContextsList;
 
 public:
     explicit Service(PVBOXHGCMSVCHELPERS pHelpers)
@@ -367,31 +429,69 @@ int Service::clientConnect(uint32_t u32ClientID, void *pvClient)
 int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
 {
     LogFlowFunc(("Client (%ld) disconnected\n", u32ClientID));
+
     /*
      * Throw out all stale clients.
      */
-    CallListIter it = mClientList.begin();
-    while (it != mClientList.end())
+    int rc = VINF_SUCCESS;
+
+    CallListIter itCall = mClientWaiterList.begin();
+    while (itCall != mClientWaiterList.end())
+    {
+        if (itCall->mClientID == u32ClientID)
+        {       
+            itCall = mClientWaiterList.erase(itCall);
+        }
+        else
+            itCall++;
+    }
+
+    ClientContextsListIter it = mClientContextsList.begin();
+    while (   it != mClientContextsList.end()
+           && RT_SUCCESS(rc))
     {
         if (it->mClientID == u32ClientID)
-            it = mClientList.erase(it);
+        {
+            std::list< uint32_t >::iterator itContext = it->mContextList.begin();
+            while (   itContext != it->mContextList.end()
+                   && RT_SUCCESS(rc))
+            {
+                LogFlowFunc(("Notifying host context %u of disconnect ...\n", (*itContext)));
+
+                /*
+                 * Notify the host that clients with u32ClientID are no longer
+                 * around and need to be cleaned up (canceling waits etc).
+                 */
+                if (mpfnHostCallback)
+                {
+                    CALLBACKDATACLIENTDISCONNECTED data;
+                    data.hdr.u32Magic = CALLBACKDATAMAGICCLIENTDISCONNECTED;
+                    data.hdr.u32ContextID = (*itContext);
+                    rc = mpfnHostCallback(mpvHostData, GUEST_DISCONNECTED, (void *)(&data), sizeof(data));
+                    if (RT_FAILURE(rc))
+                        LogFlowFunc(("Notification of host context %u failed with %Rrc\n", rc));
+                }
+                itContext++;
+            }
+            it = mClientContextsList.erase(it);
+        }
         else
             it++;
     }
-    return VINF_SUCCESS;
+    return rc;
 }
 
 int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     AssertPtr(pCmd);
     int rc;
-  
+
     /* Sufficient parameter space? */
-    if (pCmd->parmBuf.uParmCount > cParms)
+    if (pCmd->mParmBuf.uParmCount > cParms)
     {
-        paParms[0].setUInt32(pCmd->parmBuf.uMsg);       /* Message ID */
-        paParms[1].setUInt32(pCmd->parmBuf.uParmCount); /* Required parameters for message */
-        
+        paParms[0].setUInt32(pCmd->mParmBuf.uMsg);       /* Message ID */
+        paParms[1].setUInt32(pCmd->mParmBuf.uParmCount); /* Required parameters for message */
+
         /*
         * So this call apparently failed because the guest wanted to peek
         * how much parameters it has to supply in order to successfully retrieve
@@ -401,7 +501,7 @@ int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, ui
     }
     else
     {
-        rc = paramBufferAssign(&pCmd->parmBuf, cParms, paParms);
+        rc = paramBufferAssign(&pCmd->mParmBuf, cParms, paParms);
     }
     return rc;
 }
@@ -410,10 +510,30 @@ int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, ui
  * Either fills in parameters from a pending host command into our guest context or
  * defer the guest call until we have something from the host.
  */
-int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle, 
+int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle,
                                  uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
+
+    /*
+     * Lookup client in our list so that we can assign the context ID of
+     * a command to that client.
+     */
+    std::list< ClientContexts >::reverse_iterator it = mClientContextsList.rbegin();
+    while (it != mClientContextsList.rend())
+    {
+        if (it->mClientID == u32ClientID)
+            break;
+        it++;
+    }
+
+    /* Not found? Add client to list. */
+    if (it == mClientContextsList.rend())
+    {
+        mClientContextsList.push_back(ClientContexts(u32ClientID));
+        it = mClientContextsList.rbegin();
+    }
+    Assert(it != mClientContextsList.rend());
 
     /*
      * If host command list is empty (nothing to do right now) just
@@ -422,7 +542,7 @@ int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHa
      */
     if (mHostCmds.empty()) /* If command list is empty, defer ... */
     {
-        mClientList.push_back(GuestCall(u32ClientID, callHandle, paParms, cParms));
+        mClientWaiterList.push_back(ClientWaiter(u32ClientID, callHandle, paParms, cParms));
         rc = VINF_HGCM_ASYNC_EXECUTE;
     }
     else
@@ -434,31 +554,40 @@ int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHa
          rc = sendHostCmdToGuest(&curCmd, callHandle, cParms, paParms);
          if (RT_SUCCESS(rc))
          {
-             /* Only if the guest really got and understood the message 
-              * remove it from the list. */
-             paramBufferFree(&curCmd.parmBuf);
+             /* Remember which client processes which context (for
+              * later reference & cleanup). */
+             Assert(curCmd.mContextID > 0);
+             /// @todo r=bird: check if already in the list.
+             it->mContextList.push_back(curCmd.mContextID);
+
+             /* Only if the guest really got and understood the message remove it from the list. */
+             paramBufferFree(&curCmd.mParmBuf);
              mHostCmds.pop_front();
          }
     }
     return rc;
 }
 
+/*
+ * Client asks itself (in another thread) to cancel all pending waits which are blocking the client
+ * from shutting down / doing something else.
+ */
 int Service::cancelPendingWaits(uint32_t u32ClientID)
 {
     int rc = VINF_SUCCESS;
-    CallListIter it = mClientList.begin();
-    while (it != mClientList.end())
+    CallListIter it = mClientWaiterList.begin();
+    while (it != mClientWaiterList.end())
     {
         if (it->mClientID == u32ClientID)
-        {       
+        {
             if (it->mNumParms >= 2)
             {
-                it->mParms[0].setUInt32(GETHOSTMSG_EXEC_HOST_CANCEL_WAIT); /* Message ID */
-                it->mParms[1].setUInt32(0);                                /* Required parameters for message */
-            }              
+                it->mParms[0].setUInt32(GETHOSTMSG_EXEC_HOST_CANCEL_WAIT); /* Message ID. */
+                it->mParms[1].setUInt32(0);                                /* Required parameters for message. */
+            }
             if (mpHelpers)
-                mpHelpers->pfnCallComplete(it->mHandle, rc);      
-            it = mClientList.erase(it);
+                mpHelpers->pfnCallComplete(it->mHandle, rc);
+            it = mClientWaiterList.erase(it);
         }
         else
             it++;
@@ -474,8 +603,8 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
     if (   eFunction == GUEST_EXEC_SEND_STATUS
         && cParms    == 5)
     {
-        HOSTEXECCALLBACKDATA data;
-        data.hdr.u32Magic = HOSTEXECCALLBACKDATAMAGIC;
+        CALLBACKDATAEXECSTATUS data;
+        data.hdr.u32Magic = CALLBACKDATAMAGICEXECSTATUS;
         paParms[0].getUInt32(&data.hdr.u32ContextID);
 
         paParms[1].getUInt32(&data.u32PID);
@@ -490,8 +619,8 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
     else if (   eFunction == GUEST_EXEC_SEND_OUTPUT
              && cParms    == 5)
     {
-        HOSTEXECOUTCALLBACKDATA data;
-        data.hdr.u32Magic = HOSTEXECOUTCALLBACKDATAMAGIC;
+        CALLBACKDATAEXECOUT data;
+        data.hdr.u32Magic = CALLBACKDATAMAGICEXECOUT;
         paParms[0].getUInt32(&data.hdr.u32ContextID);
 
         paParms[1].getUInt32(&data.u32PID);
@@ -514,31 +643,42 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
     int rc = VINF_SUCCESS;
 
     HostCmd newCmd;
+    rc = paramBufferAllocate(&newCmd.mParmBuf, eFunction, cParms, paParms);
+    if (   RT_SUCCESS(rc)
+        && newCmd.mParmBuf.uParmCount > 0)
+    {
+        /*
+         * Assume that the context ID *always* is the first parameter,
+         * assign the context ID to the command.
+         */
+        newCmd.mParmBuf.pParms[0].getUInt32(&newCmd.mContextID);
+        Assert(newCmd.mContextID > 0);
+    }
+
     bool fProcessed = false;
-    rc = paramBufferAllocate(&newCmd.parmBuf, eFunction, cParms, paParms);
     if (RT_SUCCESS(rc))
     {
         /* Can we wake up a waiting client on guest? */
-        if (!mClientList.empty())
+        if (!mClientWaiterList.empty())
         {
-            GuestCall guest = mClientList.front();
-            rc = sendHostCmdToGuest(&newCmd, 
+            ClientWaiter guest = mClientWaiterList.front();
+            rc = sendHostCmdToGuest(&newCmd,
                                     guest.mHandle, guest.mNumParms, guest.mParms);
 
             /* In any case the client did something, so wake up and remove from list. */
             AssertPtr(mpHelpers);
             mpHelpers->pfnCallComplete(guest.mHandle, rc);
-            mClientList.pop_front();                       
-            
+            mClientWaiterList.pop_front();
+
             /* If we got VERR_TOO_MUCH_DATA we buffer the host command in the next block
-             * and return success to the host. */            
+             * and return success to the host. */
             if (rc == VERR_TOO_MUCH_DATA)
             {
                 rc = VINF_SUCCESS;
             }
             else /* If command was understood by the client, free and remove from host commands list. */
             {
-                paramBufferFree(&newCmd.parmBuf);
+                paramBufferFree(&newCmd.mParmBuf);
                 fProcessed = true;
             }
         }
@@ -546,7 +686,7 @@ int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM
         /* If not processed, buffer it ... */
         if (!fProcessed)
         {
-            mHostCmds.push_back(newCmd);    
+            mHostCmds.push_back(newCmd);
 #if 0
             /* Limit list size by deleting oldest element. */
             if (mHostCmds.size() > 256) /** @todo Use a define! */
@@ -667,7 +807,7 @@ int Service::uninit()
     /* Free allocated buffered host commands. */
     HostCmdListIter it;
     for (it = mHostCmds.begin(); it != mHostCmds.end(); it++)
-        paramBufferFree(&it->parmBuf);
+        paramBufferFree(&it->mParmBuf);
     mHostCmds.clear();
 
     return VINF_SUCCESS;

@@ -1,4 +1,4 @@
-/* $Id: tstRTStrFormat.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstRTStrFormat.cpp 29783 2010-05-25 13:13:35Z vboxsync $ */
 /** @file
  * IPRT Testcase - String formatting.
  */
@@ -431,9 +431,15 @@ int main()
 
     CHECK42("%RU32", (uint32_t)1123, "1123");
     CHECK42("%RU32", (uint32_t)86596, "86596");
+    CHECK42("%4RU32",  (uint32_t)42, "  42");
+    CHECK42("%04RU32", (uint32_t)42, "0042");
+    CHECK42("%.4RU32", (uint32_t)42, "0042");
 
     CHECK42("%RU64", (uint64_t)112345987345ULL, "112345987345");
     CHECK42("%RU64", (uint64_t)8659643985723459ULL, "8659643985723459");
+    CHECK42("%14RU64",  (uint64_t)4, "             4");
+    CHECK42("%014RU64", (uint64_t)4, "00000000000004");
+    CHECK42("%.14RU64", (uint64_t)4, "00000000000004");
 
     CHECK42("%RU8", (uint8_t)1, "1");
     CHECK42("%RU8", (uint8_t)254, "254");
@@ -445,8 +451,12 @@ int main()
     CHECK42("%RX32", (uint32_t)0x1123, "1123");
     CHECK42("%RX32", (uint32_t)0x49939493, "49939493");
 
-    CHECK42("%RX64", (uint64_t)0x348734, "348734");
-    CHECK42("%RX64", (uint64_t)0x12312312312343fULL, "12312312312343f");
+    CHECK42("%RX64", UINT64_C(0x348734), "348734");
+    CHECK42("%RX64", UINT64_C(0x12312312312343f), "12312312312343f");
+    CHECK42("%5RX64",   UINT64_C(0x42), "   42");
+    CHECK42("%05RX64",  UINT64_C(0x42), "00042");
+    CHECK42("%.5RX64",  UINT64_C(0x42), "00042");
+    CHECK42("%.05RX64", UINT64_C(0x42), "00042"); /* '0' is ignored */
 
     CHECK42("%RX8", (uint8_t)1, "1");
     CHECK42("%RX8", (uint8_t)0xff, "ff");

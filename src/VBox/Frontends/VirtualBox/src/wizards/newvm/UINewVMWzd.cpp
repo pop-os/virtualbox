@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp 29437 2010-05-12 21:40:07Z vboxsync $ */
+/* $Id: UINewVMWzd.cpp 29897 2010-05-31 12:14:53Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -134,8 +134,11 @@ UINewVMWzd::UINewVMWzd(QWidget *pParent) : QIWizard(pParent)
     addPage(new UINewVMWzdPage4);
     addPage(new UINewVMWzdPage5);
 
-    /* Translate */
+    /* Initial translate */
     retranslateUi();
+
+    /* Initial translate all pages */
+    retranslateAllPages();
 
     /* Resize to 'golden ratio' */
     resizeToGoldenRatio();
@@ -182,7 +185,7 @@ void UINewVMWzdPage1::retranslateUi()
 
 void UINewVMWzdPage1::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 }
 
@@ -215,7 +218,7 @@ void UINewVMWzdPage2::retranslateUi()
 
 void UINewVMWzdPage2::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* 'Name' field should have focus initially */
@@ -285,7 +288,7 @@ void UINewVMWzdPage3::retranslateUi()
 
 void UINewVMWzdPage3::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Assign recommended 'ram' field value */
@@ -374,7 +377,7 @@ void UINewVMWzdPage4::retranslateUi()
 
 void UINewVMWzdPage4::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Prepare initial choice */
@@ -540,6 +543,11 @@ void UINewVMWzdPage4::setHardDiskLocation(const QString &strHardDiskLocation)
 }
 
 UINewVMWzdPage5::UINewVMWzdPage5()
+    : m_iIDECount(0)
+    , m_iSATACount(0)
+    , m_iSCSICount(0)
+    , m_iFloppyCount(0)
+    , m_iSASCount(0)
 {
     /* Decorate page */
     Ui::UINewVMWzdPage5::setupUi(this);
@@ -607,7 +615,7 @@ void UINewVMWzdPage5::retranslateUi()
 
 void UINewVMWzdPage5::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 
     /* Summary should have focus initially */
@@ -666,8 +674,8 @@ bool UINewVMWzdPage5::constructMachine()
     }
 
     /* Create recommended DVD storage controller */
-    QString ctrDvdName = VBoxVMSettingsHD::tr("Storage Controller");
     KStorageBus ctrDvdBus = type.GetRecommendedDvdStorageBus();
+    QString ctrDvdName = getNextControllerName(ctrDvdBus);
     m_Machine.AddStorageController(ctrDvdName, ctrDvdBus);
 
     /* Set recommended DVD storage controller type */
@@ -682,7 +690,7 @@ bool UINewVMWzdPage5::constructMachine()
     QString ctrHdName;
     if (ctrHdBus != ctrDvdBus || hdStorageControllerType != dvdStorageControllerType)
     {
-        ctrHdName = VBoxVMSettingsHD::tr("Storage Controller 1");
+        ctrHdName = getNextControllerName(ctrHdBus);
         m_Machine.AddStorageController(ctrHdName, ctrHdBus);
         hdCtr = m_Machine.GetStorageControllerByName(ctrHdName);
         hdCtr.SetControllerType(hdStorageControllerType);
@@ -780,6 +788,57 @@ bool UINewVMWzdPage5::constructMachine()
         field("hardDisk").value<CMedium>().detach();
 
     return true;
+}
+
+QString UINewVMWzdPage5::getNextControllerName(KStorageBus type)
+{
+    QString strControllerName;
+    switch (type)
+    {
+        case KStorageBus_IDE:
+        {
+            strControllerName = VBoxVMSettingsHD::tr("IDE Controller");
+            ++m_iIDECount;
+            if (m_iIDECount > 1)
+                strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iIDECount);
+            break;
+        }
+        case KStorageBus_SATA:
+        {
+            strControllerName = VBoxVMSettingsHD::tr("SATA Controller");
+            ++m_iSATACount;
+            if (m_iSATACount > 1)
+                strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSATACount);
+            break;
+        }
+        case KStorageBus_SCSI:
+        {
+            strControllerName = VBoxVMSettingsHD::tr("SCSI Controller");
+            ++m_iSCSICount;
+            if (m_iSCSICount > 1)
+                strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSCSICount);
+            break;
+        }
+        case KStorageBus_Floppy:
+        {
+            strControllerName = VBoxVMSettingsHD::tr("Floppy Controller");
+            ++m_iFloppyCount;
+            if (m_iFloppyCount > 1)
+                strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iFloppyCount);
+            break;
+        }
+        case KStorageBus_SAS:
+        {
+            strControllerName = VBoxVMSettingsHD::tr("SAS Controller");
+            ++m_iSASCount;
+            if (m_iSASCount > 1)
+                strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSASCount);
+            break;
+        }
+        default:
+            break;
+    }
+    return strControllerName;
 }
 
 CMachine UINewVMWzdPage5::machine() const

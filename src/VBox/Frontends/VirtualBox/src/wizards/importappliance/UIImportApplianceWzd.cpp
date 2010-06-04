@@ -1,4 +1,4 @@
-/* $Id: UIImportApplianceWzd.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIImportApplianceWzd.cpp 29730 2010-05-21 12:48:19Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -107,8 +107,11 @@ UIImportApplianceWzd::UIImportApplianceWzd(QWidget *pParent) : QIWizard(pParent)
     addPage(new UIImportApplianceWzdPage1);
     addPage(new UIImportApplianceWzdPage2);
 
-    /* Translate */
+    /* Initial translate */
     retranslateUi();
+
+    /* Initial translate all pages */
+    retranslateAllPages();
 
     /* Resize to 'golden ratio' */
     resizeToGoldenRatio();
@@ -175,7 +178,7 @@ void UIImportApplianceWzdPage1::retranslateUi()
 
 void UIImportApplianceWzdPage1::initializePage()
 {
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 }
 
@@ -213,7 +216,7 @@ UIImportApplianceWzdPage2::UIImportApplianceWzdPage2()
     registerField("applianceWidget", this, "applianceWidget");
     m_pApplianceWidget = m_pSettingsCnt;
 
-    /* Translate */
+    /* Fill and translate */
     retranslateUi();
 }
 

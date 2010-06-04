@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2009 Oracle Corporation
+# Copyright (C) 2007-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -138,9 +138,12 @@ find . -type d | $VBOX_GGREP -E 'opt/VirtualBox' | pkgproto >> prototype
 # don't grok for class-specific files (like sed, if any)
 filelist_fixup prototype '$2 == "none"'                                                                '$5 = "root"; $6 = "bin"'
 
-# don't include autoresponse from the base folder into / of the package, it goes into .tar.gz
-# and another one already exists in /opt/VirtualBox
+# don't include autoresponse and LICENSE from the base folder into / of
+# the package, it goes into .tar.gz and another one already exists
+# in /opt/VirtualBox
 sed '/f none autoresponse/d' prototype > prototype2
+mv -f prototype2 prototype
+sed '/f none LICENSE/d' prototype > prototype2
 mv -f prototype2 prototype
 
 # HostDriver vboxdrv
@@ -207,10 +210,13 @@ pkgmk -p $VBOXPKG_TIMESTAMP -o -r .
 pkgtrans -s -o /var/spool/pkg "`pwd`/$VBOX_PKGFILE" "$VBOX_PKGNAME"
 
 # $5 if exist would contain the path to the VBI package to include in the .tar.gz
+if [ -f LICENSE ]; then
+    VBOX_LICENSEFILE=LICENSE
+fi
 if test -f "$5"; then
-    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" "$VBOX_PKGFILE" "$5" autoresponse ReadMe.txt
+    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" $VBOX_LICENSEFILE "$VBOX_PKGFILE" "$5" autoresponse ReadMe.txt
 else
-    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" "$VBOX_PKGFILE" autoresponse ReadMe.txt
+    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" $VBOX_LICENSEFILE "$VBOX_PKGFILE" autoresponse ReadMe.txt
 fi
 
 echo "## Packaging and transfer completed successfully!"

@@ -1,5 +1,5 @@
 
-/* $Id: VBoxServiceControlExec.cpp 29627 2010-05-18 12:47:35Z vboxsync $ */
+/* $Id: VBoxServiceControlExec.cpp 29842 2010-05-27 10:53:19Z vboxsync $ */
 /** @file
  * VBoxServiceControlExec - Utility functions for process execution.
  */
@@ -252,9 +252,6 @@ static int VBoxServiceControlExecProcLoop(PVBOXSERVICECTRLTHREAD pThread,
     bool                        fProcessAlive       = true;
     bool                        fProcessTimedOut    = false;
     uint64_t                    MsProcessKilled     = UINT64_MAX;
-    bool const                  fHavePipes          = hStdInW    != NIL_RTPIPE
-                                                      || hStdOutR   != NIL_RTPIPE
-                                                      || hStdErrR   != NIL_RTPIPE;
     RTMSINTERVAL const          cMsPollBase         = hStdInW != NIL_RTPIPE
                                                       ? 100   /* need to poll for input */
                                                       : 1000; /* need only poll for process exit and aborts */
@@ -749,6 +746,49 @@ void VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pDat
     }
 }
 
+int VBoxServiceControlExecCreateProcess(const char *pszExec, const char * const *papszArgs, RTENV hEnv, uint32_t fFlags,
+                                        PCRTHANDLE phStdIn, PCRTHANDLE phStdOut, PCRTHANDLE phStdErr, const char *pszAsUser,
+                                        const char *pszPassword, PRTPROCESS phProcess)
+{
+    int  rc = VINF_SUCCESS;
+#ifdef RT_OS_WINDOWS
+    /* 
+     * If sysprep should be executed do this in the context of VBoxService, which
+     * (usually, if started by SCM) has administrator rights. Because of that a UI
+     * won't be shown (doesn't have a desktop).
+     */
+    if (stricmp(pszExec, "sysprep") == 0)
+    {
+        /* Get the predefined path of sysprep.exe (depending on Windows OS). */
+        char szSysprepCmd[RTPATH_MAX] = "C:\\sysprep\\sysprep.exe";
+        OSVERSIONINFOEX OSInfoEx;
+        RT_ZERO(OSInfoEx);
+        OSInfoEx.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
+        if (    GetVersionEx((LPOSVERSIONINFO) &OSInfoEx)
+            &&  OSInfoEx.dwPlatformId == VER_PLATFORM_WIN32_NT
+            &&  OSInfoEx.dwMajorVersion >= 6 /* Vista or later */)
+        {
+            rc = RTEnvGetEx(RTENV_DEFAULT, "windir", szSysprepCmd, sizeof(szSysprepCmd), NULL);
+            if (RT_SUCCESS(rc))
+                rc = RTPathAppend(szSysprepCmd, sizeof(szSysprepCmd), "system32\\sysprep\\sysprep.exe");
+        }
+        rc = RTProcCreateEx(szSysprepCmd, papszArgs, hEnv, 0 /* fFlags */,
+                            phStdIn, phStdOut, phStdErr, NULL /* pszAsUser */,
+                            NULL /* pszPassword */, phProcess);
+    }
+    else
+    {
+#endif
+        /* Do normal execution. */
+        rc = RTProcCreateEx(pszExec, papszArgs, hEnv, fFlags,
+                            phStdIn, phStdOut, phStdErr, pszAsUser,
+                            pszPassword, phProcess);
+#ifdef RT_OS_WINDOWS
+    }
+#endif
+    return rc;
+}
+
 DECLCALLBACK(int) VBoxServiceControlExecProcessWorker(PVBOXSERVICECTRLTHREAD pThread)
 {
     AssertPtr(pThread);
@@ -823,11 +863,10 @@ DECLCALLBACK(int) VBoxServiceControlExecProcessWorker(PVBOXSERVICECTRLTHREAD pTh
                             if (RT_SUCCESS(rc))
                             {
                                 RTPROCESS hProcess;
-                                rc = RTProcCreateEx(pData->pszCmd, pData->papszArgs, hEnv, RTPROC_FLAGS_SERVICE,
-                                                    phStdIn, phStdOut, phStdErr,
-                                                    strlen(pData->pszUser) ? pData->pszUser : NULL,
-                                                    strlen(pData->pszUser) && strlen(pData->pszPassword) ? pData->pszPassword : NULL,
-                                                    &hProcess);
+                                rc = VBoxServiceControlExecCreateProcess(pData->pszCmd, pData->papszArgs, hEnv, RTPROC_FLAGS_SERVICE,
+                                                                         phStdIn, phStdOut, phStdErr,
+                                                                         pData->pszUser, pData->pszPassword,
+                                                                         &hProcess);
                                 if (RT_SUCCESS(rc))
                                 {
                                     /*

@@ -80,8 +80,6 @@ typedef enum VMMCALLRING3
     VMMCALLRING3_INVALID = 0,
     /** Acquire the PDM lock. */
     VMMCALLRING3_PDM_LOCK,
-    /** Call PDMR3QueueFlushWorker. */
-    VMMCALLRING3_PDM_QUEUE_FLUSH,
     /** Acquire the PGM lock. */
     VMMCALLRING3_PGM_LOCK,
     /** Grow the PGM shadow page pool. */
@@ -342,6 +340,8 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_INTNET_IF_SEND,
     /** Call IntNetR0IfWait(). */
     VMMR0_DO_INTNET_IF_WAIT,
+    /** Call IntNetR0IfAbortWait(). */
+    VMMR0_DO_INTNET_IF_ABORT_WAIT,
     /** The end of the R0 service operations. */
     VMMR0_DO_SRV_END,
 

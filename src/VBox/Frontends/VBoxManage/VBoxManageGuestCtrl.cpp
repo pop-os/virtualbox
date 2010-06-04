@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestCtrl.cpp 29645 2010-05-18 15:41:46Z vboxsync $ */
+/* $Id: VBoxManageGuestCtrl.cpp 29807 2010-05-26 10:13:20Z vboxsync $ */
 /** @file
  * VBoxManage - The 'guestcontrol' command.
  */
@@ -65,8 +65,8 @@ static volatile bool    g_fExecCanceled = false;
 void usageGuestControl(void)
 {
     RTPrintf("VBoxManage guestcontrol     execute <vmname>|<uuid>\n"
-             "                            <path to program> --username <name>\n"
-             "                            [--password <password>]\n"
+             "                            <path to program>\n"
+             "                            --username <name> --password <password>\n"
              "                            [--arguments \"<arguments>\"]\n"
              "                            [--environment \"<NAME>=<VALUE> [<NAME>=<VALUE>]\"]\n"
              "                            [--flags <flags>] [--timeout <msec>]\n"             
@@ -321,9 +321,20 @@ static int handleExecProgram(HandlerArg *a)
                                        &uPID, progress.asOutParam());
             if (FAILED(rc))
             {
+                /* If we got a VBOX_E_IPRT error we handle the error in a more gentle way
+                 * because it contains more accurate info about what went wrong. */
                 ErrorInfo info(guest);
                 if (info.isFullAvailable())
-                    RTPrintf("ERROR: %ls (%Rhrc).\n", info.getText().raw(), info.getResultCode());
+                {
+                    if (rc == VBOX_E_IPRT_ERROR)
+                    {
+                        RTPrintf("%ls.\n", info.getText().raw());
+                    }
+                    else
+                    {
+                        RTPrintf("ERROR: %ls (%Rhrc).\n", info.getText().raw(), info.getResultCode());
+                    }
+                }
                 break;
             }
             if (fVerbose)
@@ -366,7 +377,8 @@ static int handleExecProgram(HandlerArg *a)
                 }
 
                 /* Wait for process to exit ... */
-                BOOL fCompleted = false;
+                BOOL fCompleted = FALSE;
+                BOOL fCanceled = FALSE;
                 while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
                 {
                     SafeArray<BYTE> aOutputData;
@@ -423,9 +435,16 @@ static int handleExecProgram(HandlerArg *a)
                     {
                         hrc = progress->Cancel();
                         if (SUCCEEDED(hrc))
-                            fCanceledAlready = true;
+                            fCanceledAlready = TRUE;
                         else
                             g_fExecCanceled = false;
+                    }
+
+                    /* progress canceled by Main API? */
+                    if (   SUCCEEDED(progress->COMGETTER(Canceled(&fCanceled)))
+                        && fCanceled)
+                    {
+                        break;
                     }
 
                     progress->WaitForCompletion(100);
@@ -440,11 +459,12 @@ static int handleExecProgram(HandlerArg *a)
             #endif
                 }
 
-                BOOL fCanceled;
-                if (SUCCEEDED(progress->COMGETTER(Canceled)(&fCanceled)) && fCanceled)
-                    if (fVerbose) RTPrintf("Process execution canceled!\n");
-
-                if (fCompleted)
+                if (fCanceled)
+                {
+                    if (fVerbose)
+                        RTPrintf("Process execution canceled!\n");
+                }
+                else if (fCompleted)
                 {
                     LONG iRc = false;
                     CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
@@ -463,6 +483,11 @@ static int handleExecProgram(HandlerArg *a)
                         CHECK_ERROR_BREAK(guest, GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &uRetStatus));
                         RTPrintf("Exit code=%u (Status=%u [%s], Flags=%u)\n", uRetExitCode, uRetStatus, getStatus(uRetStatus), uRetFlags);
                     }
+                }
+                else /* If neither canceled nor completed we got a hard abort (shouldn't happen). */
+                {
+                    if (fVerbose)
+                        RTPrintf("Process execution aborted!\n");
                 }
             }
             a->session->Close();

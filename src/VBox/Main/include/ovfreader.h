@@ -1,4 +1,4 @@
-/* $Id: ovfreader.h 29422 2010-05-12 14:08:52Z vboxsync $ */
+/* $Id: ovfreader.h 29925 2010-05-31 18:33:15Z vboxsync $ */
 /** @file
  * OVF reader declarations.
  *
@@ -310,7 +310,7 @@ struct VirtualSystem
 {
     iprt::MiniString    strName;                // copy of VirtualSystem/@id
 
-    iprt::MiniString    strDescription;         // copy of VirtualSystem/Info content
+    iprt::MiniString    strDescription;         // copy of VirtualSystem/AnnotationSection content, if any
 
     CIMOSType_T         cimos;
     iprt::MiniString    strCimosDesc;           // readable description of the cimos type in the case of cimos = 0/1/102

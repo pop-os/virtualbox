@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h 29580 2010-05-17 18:23:00Z vboxsync $ */
+/* $Id: ConsoleImpl.h 29965 2010-06-01 18:41:10Z vboxsync $ */
 /** @file
  * VBox Console COM Class definition
  */
@@ -518,8 +518,8 @@ private:
 
     static DECLCALLBACK(int)    stateProgressCallback(PVM pVM, unsigned uPercent, void *pvUser);
 
-    static DECLCALLBACK(void)   setVMErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
-                                                   const char *pszFormat, va_list args);
+    static DECLCALLBACK(void)   genericVMSetErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+                                                          const char *pszErrorFmt, va_list va);
 
     static DECLCALLBACK(void) setVMRuntimeErrorCallbackF(PVM pVM, void *pvUser, uint32_t fFatal,
                                const char *pszErrorId,
@@ -572,7 +572,8 @@ private:
     HRESULT                     teleporterSrc(TeleporterStateSrc *pState);
     HRESULT                     teleporterSrcReadACK(TeleporterStateSrc *pState, const char *pszWhich, const char *pszNAckMsg = NULL);
     HRESULT                     teleporterSrcSubmitCommand(TeleporterStateSrc *pState, const char *pszCommand, bool fWaitForAck = true);
-    int                         teleporterTrg(PVM pVM, IMachine *pMachine, bool fStartPaused, Progress *pProgress);
+    HRESULT                     teleporterTrg(PVM pVM, IMachine *pMachine, Utf8Str *pErrorMsg, bool fStartPaused,
+                                              Progress *pProgress, bool *pfPowerOffOnFailure);
     static DECLCALLBACK(int)    teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser);
     /** @} */
 

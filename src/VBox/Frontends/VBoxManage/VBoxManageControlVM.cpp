@@ -1,4 +1,4 @@
-/* $Id: VBoxManageControlVM.cpp 29364 2010-05-11 15:13:50Z vboxsync $ */
+/* $Id: VBoxManageControlVM.cpp 29979 2010-06-02 11:41:49Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -158,8 +158,16 @@ int handleControlVM(HandlerArg *a)
         }
         else if (!strcmp(a->argv[1], "savestate"))
         {
+            /* first pause so we don't trigger a live save which needs more time/resources */
+            CHECK_ERROR_BREAK(console, Pause());
+
             ComPtr<IProgress> progress;
-            CHECK_ERROR_BREAK(console, SaveState(progress.asOutParam()));
+            CHECK_ERROR(console, SaveState(progress.asOutParam()));
+            if (FAILED(rc))
+            {
+                console->Resume();
+                break;
+            }
 
             rc = showProgress(progress);
             if (FAILED(rc))
@@ -173,6 +181,7 @@ int handleControlVM(HandlerArg *a)
                 {
                     RTPrintf("Error: failed to save machine state. No error message available!\n");
                 }
+                console->Resume();
             }
         }
         else if (!strcmp(a->argv[1], "acpipowerbutton"))

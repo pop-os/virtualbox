@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.c 29643 2010-05-18 15:26:50Z vboxsync $ */
+/* $Id: VBoxNetFlt-win.c 29682 2010-05-20 11:16:03Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
@@ -165,18 +165,32 @@ DECLHIDDEN(void) vboxNetFltWinWaitDereference(PADAPT_DEVICE pState)
 /* allocates and zeroes the nonpaged memory of a given size */
 DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMemAlloc(PVOID* ppMemBuf, UINT cbLength)
 {
+#ifdef DEBUG_NETFLT_USE_EXALLOC
+    *ppMemBuf = ExAllocatePoolWithTag(NonPagedPool, cbLength, MEM_TAG);
+    if(*ppMemBuf)
+    {
+        NdisZeroMemory(*ppMemBuf, cbLength);
+        return NDIS_STATUS_SUCCESS;
+    }
+    return NDIS_STATUS_FAILURE;
+#else
     NDIS_STATUS fStatus = NdisAllocateMemoryWithTag(ppMemBuf, cbLength, MEM_TAG);
     if(fStatus == NDIS_STATUS_SUCCESS)
     {
         NdisZeroMemory(*ppMemBuf, cbLength);
     }
     return fStatus;
+#endif
 }
 
 /* frees memory allocated with vboxNetFltWinMemAlloc */
 DECLHIDDEN(void) vboxNetFltWinMemFree(PVOID pvMemBuf)
 {
+#ifdef DEBUG_NETFLT_USE_EXALLOC
+    ExFreePool(pvMemBuf);
+#else
     NdisFreeMemory(pvMemBuf, 0, 0);
+#endif
 }
 
 /* frees ndis buffers used on send/receive */
@@ -699,14 +713,14 @@ DECLHIDDEN(bool) vboxNetFltWinPostIntnet(PVBOXNETFLTINS pNetFltIf, PVOID pvPacke
 #ifndef VBOX_NETFLT_ONDEMAND_BIND
         bDropIt =
 #endif
-        pSG ? pNetFltIf->pSwitchPort->pfnRecv(pNetFltIf->pSwitchPort, pSG,
+        pSG ? pNetFltIf->pSwitchPort->pfnRecv(pNetFltIf->pSwitchPort, NULL /* pvIf */, pSG,
                     bSrcHost ? INTNETTRUNKDIR_HOST : INTNETTRUNKDIR_WIRE
                             )
               : false;
 #else
         if(pSG)
         {
-            pNetFltIf->pSwitchPort->pfnRecv(pNetFltIf->pSwitchPort, pSG, INTNETTRUNKDIR_HOST);
+            pNetFltIf->pSwitchPort->pfnRecv(pNetFltIf->pSwitchPort, pSG, NULL /* pvIf */, INTNETTRUNKDIR_HOST);
             STATISTIC_INCREASE(pAdapt->cTxSuccess);
         }
         else
@@ -797,6 +811,10 @@ DECLHIDDEN(bool) vboxNetFltWinPostIntnet(PVBOXNETFLTINS pNetFltIf, PVOID pvPacke
 #endif
 #else /* #ifdef VBOXNETFLT_NO_PACKET_QUEUE */
     } while(0);
+
+    if (bDeleteSG)
+        vboxNetFltWinMemFree(pSG);
+
 # ifndef VBOXNETADP
     return bDropIt;
 # else
@@ -3427,7 +3445,7 @@ bool vboxNetFltOsMaybeRediscovered(PVBOXNETFLTINS pThis)
     return !ASMAtomicUoReadBool(&pThis->fDisconnectedFromHost);
 }
 
-int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, PINTNETSG pSG, uint32_t fDst)
+int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, uint32_t fDst)
 {
     int rc = VINF_SUCCESS;
     uint32_t cRefs = 0;
@@ -3771,22 +3789,19 @@ int vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
     return VINF_SUCCESS;
 }
 
-void vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf, PCRTMAC pMac)
+void vboxNetFltPortOsNotifyMacAddress(PVBOXNETFLTINS pThis, void *pvIfData, PCRTMAC pMac)
 {
-    NOREF(pThis); NOREF(hIf); NOREF(pMac);
 }
 
-int vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+int vboxNetFltPortOsConnectInterface(PVBOXNETFLTINS pThis, void *pvIf, void **ppvIfData)
 {
     /* Nothing to do */
-    NOREF(pThis); NOREF(hIf);
     return VINF_SUCCESS;
 }
 
-int vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, INTNETIFHANDLE hIf)
+int vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, void *pvIfData)
 {
     /* Nothing to do */
-    NOREF(pThis); NOREF(hIf);
     return VINF_SUCCESS;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: xml.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: xml.cpp 29873 2010-05-28 17:14:53Z vboxsync $ */
 /** @file
  * IPRT - XML Manipulation API.
  */
@@ -1010,6 +1010,7 @@ ContentNode* ElementNode::addContent(const char *pcszContent)
  */
 AttributeNode* ElementNode::setAttribute(const char *pcszName, const char *pcszValue)
 {
+    AttributeNode *pattrReturn;
     Data::AttributesMap::const_iterator it;
 
     it = m->attribs.find(pcszName);
@@ -1023,14 +1024,21 @@ AttributeNode* ElementNode::setAttribute(const char *pcszName, const char *pcszV
         boost::shared_ptr<AttributeNode> pNew(new AttributeNode(*m_pelmRoot, this, plibAttr, &pcszKey));
         // store
         m->attribs[pcszKey] = pNew;
+        pattrReturn = pNew.get();
     }
     else
     {
-        // @todo
-        throw LogicError("Attribute exists");
+        // overwrite existing libxml attribute node
+        xmlAttrPtr plibAttr = xmlSetProp(m_plibNode, (xmlChar*)pcszName, (xmlChar*)pcszValue);
+
+        // and fix our existing C++ side around it
+        boost::shared_ptr<AttributeNode> pattr = it->second;
+        pattr->m_plibAttr = plibAttr;       // in case the xmlAttrPtr is different, I'm not sure
+
+        pattrReturn = pattr.get();
     }
 
-    return NULL;
+    return pattrReturn;
 
 }
 

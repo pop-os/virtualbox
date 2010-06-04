@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.cpp 29480 2010-05-14 15:24:19Z vboxsync $ */
+/* $Id: StorageControllerImpl.cpp 29686 2010-05-20 11:46:09Z vboxsync $ */
 
 /** @file
  *
@@ -143,7 +143,8 @@ HRESULT StorageController::init(Machine *aParent,
     m->bd->strName = aName;
     m->bd->mInstance = aInstance;
     m->bd->mStorageBus = aStorageBus;
-    if (aStorageBus != StorageBus_IDE)
+    if (   aStorageBus != StorageBus_IDE
+        && aStorageBus != StorageBus_Floppy)
         m->bd->fUseHostIOCache = false;
     else
         m->bd->fUseHostIOCache = true;

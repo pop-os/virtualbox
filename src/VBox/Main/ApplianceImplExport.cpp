@@ -1,4 +1,4 @@
-/* $Id: ApplianceImplExport.cpp 29389 2010-05-11 20:10:16Z vboxsync $ */
+/* $Id: ApplianceImplExport.cpp 29984 2010-06-02 12:22:39Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -264,7 +264,7 @@ STDMETHODIMP Machine::Export(IAppliance *aAppliance, IVirtualSystemDescription *
             // it should be a SCSI controller
             Utf8Str strVbox = "LsiLogicSas";
             lSCSIControllerIndex = (int32_t)pNewDesc->m->llDescriptions.size();
-            pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSCSI,
+            pNewDesc->addEntry(VirtualSystemDescriptionType_HardDiskControllerSAS,
                                Utf8StrFmt("%d", lSCSIControllerIndex),
                                strVbox,
                                strVbox);
@@ -627,10 +627,9 @@ HRESULT Appliance::writeImpl(OVFFormat aFormat, const LocationInfo &aLocInfo, Co
     HRESULT rc = S_OK;
     try
     {
-        Bstr progressDesc = BstrFmt(tr("Export appliance '%s'"),
-                                    aLocInfo.strPath.c_str());
-
-        rc = setUpProgress(aProgress, progressDesc, (aLocInfo.storageType == VFSType_File) ? Regular : WriteS3);
+        rc = setUpProgress(aProgress,
+                           BstrFmt(tr("Export appliance '%s'"), aLocInfo.strPath.c_str()),
+                           (aLocInfo.storageType == VFSType_File) ? WriteFile : WriteS3);
 
         /* Initialize our worker task */
         std::auto_ptr<TaskOVF> task(new TaskOVF(this, TaskOVF::Write, aLocInfo, aProgress));
@@ -660,6 +659,7 @@ HRESULT Appliance::writeImpl(OVFFormat aFormat, const LocationInfo &aLocInfo, Co
  * @param stack Structure for temporary private data shared with caller.
  */
 void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSystemsTo,
+                                            std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
                                             ComObjPtr<VirtualSystemDescription> &vsdescThis,
                                             OVFFormat enFormat,
                                             XMLStack &stack)
@@ -682,7 +682,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
     if (llName.size() != 1)
         throw setError(VBOX_E_NOT_SUPPORTED,
                         tr("Missing VM name"));
-    Utf8Str &strVMName = llName.front()->strVbox;
+    Utf8Str &strVMName = llName.front()->strVboxCurrent;
     pelmVirtualSystem->setAttribute("ovf:id", strVMName);
 
     // product info
@@ -691,11 +691,11 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
     std::list<VirtualSystemDescriptionEntry*> llVendor = vsdescThis->findByType(VirtualSystemDescriptionType_Vendor);
     std::list<VirtualSystemDescriptionEntry*> llVendorUrl = vsdescThis->findByType(VirtualSystemDescriptionType_VendorUrl);
     std::list<VirtualSystemDescriptionEntry*> llVersion = vsdescThis->findByType(VirtualSystemDescriptionType_Version);
-    bool fProduct = llProduct.size() && !llProduct.front()->strVbox.isEmpty();
-    bool fProductUrl = llProductUrl.size() && !llProductUrl.front()->strVbox.isEmpty();
-    bool fVendor = llVendor.size() && !llVendor.front()->strVbox.isEmpty();
-    bool fVendorUrl = llVendorUrl.size() && !llVendorUrl.front()->strVbox.isEmpty();
-    bool fVersion = llVersion.size() && !llVersion.front()->strVbox.isEmpty();
+    bool fProduct = llProduct.size() && !llProduct.front()->strVboxCurrent.isEmpty();
+    bool fProductUrl = llProductUrl.size() && !llProductUrl.front()->strVboxCurrent.isEmpty();
+    bool fVendor = llVendor.size() && !llVendor.front()->strVboxCurrent.isEmpty();
+    bool fVendorUrl = llVendorUrl.size() && !llVendorUrl.front()->strVboxCurrent.isEmpty();
+    bool fVersion = llVersion.size() && !llVersion.front()->strVboxCurrent.isEmpty();
     if (fProduct ||
         fProductUrl ||
         fVersion ||
@@ -722,21 +722,21 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
 
         pelmAnnotationSection->createChild("Info")->addContent("Meta-information about the installed software");
         if (fProduct)
-            pelmAnnotationSection->createChild("Product")->addContent(llProduct.front()->strVbox);
+            pelmAnnotationSection->createChild("Product")->addContent(llProduct.front()->strVboxCurrent);
         if (fVendor)
-            pelmAnnotationSection->createChild("Vendor")->addContent(llVendor.front()->strVbox);
+            pelmAnnotationSection->createChild("Vendor")->addContent(llVendor.front()->strVboxCurrent);
         if (fVersion)
-            pelmAnnotationSection->createChild("Version")->addContent(llVersion.front()->strVbox);
+            pelmAnnotationSection->createChild("Version")->addContent(llVersion.front()->strVboxCurrent);
         if (fProductUrl)
-            pelmAnnotationSection->createChild("ProductUrl")->addContent(llProductUrl.front()->strVbox);
+            pelmAnnotationSection->createChild("ProductUrl")->addContent(llProductUrl.front()->strVboxCurrent);
         if (fVendorUrl)
-            pelmAnnotationSection->createChild("VendorUrl")->addContent(llVendorUrl.front()->strVbox);
+            pelmAnnotationSection->createChild("VendorUrl")->addContent(llVendorUrl.front()->strVboxCurrent);
     }
 
     // description
     std::list<VirtualSystemDescriptionEntry*> llDescription = vsdescThis->findByType(VirtualSystemDescriptionType_Description);
     if (llDescription.size() &&
-        !llDescription.front()->strVbox.isEmpty())
+        !llDescription.front()->strVboxCurrent.isEmpty())
     {
         /*  <Section ovf:required="false" xsi:type="ovf:AnnotationSection_Type">
                 <Info>A human-readable annotation</Info>
@@ -753,13 +753,13 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
             pelmAnnotationSection = pelmVirtualSystem->createChild("AnnotationSection");
 
         pelmAnnotationSection->createChild("Info")->addContent("A human-readable annotation");
-        pelmAnnotationSection->createChild("Annotation")->addContent(llDescription.front()->strVbox);
+        pelmAnnotationSection->createChild("Annotation")->addContent(llDescription.front()->strVboxCurrent);
     }
 
     // license
     std::list<VirtualSystemDescriptionEntry*> llLicense = vsdescThis->findByType(VirtualSystemDescriptionType_License);
     if (llLicense.size() &&
-        !llLicense.front()->strVbox.isEmpty())
+        !llLicense.front()->strVboxCurrent.isEmpty())
     {
         /* <EulaSection>
             <Info ovf:msgid="6">License agreement for the Virtual System.</Info>
@@ -775,7 +775,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
             pelmEulaSection = pelmVirtualSystem->createChild("EulaSection");
 
         pelmEulaSection->createChild("Info")->addContent("License agreement for the virtual system");
-        pelmEulaSection->createChild("License")->addContent(llLicense.front()->strVbox);
+        pelmEulaSection->createChild("License")->addContent(llLicense.front()->strVboxCurrent);
     }
 
     // operating system
@@ -874,12 +874,13 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                          (  desc.type == VirtualSystemDescriptionType_HardDiskControllerIDE ? "HardDiskControllerIDE"
                           : desc.type == VirtualSystemDescriptionType_HardDiskControllerSATA ? "HardDiskControllerSATA"
                           : desc.type == VirtualSystemDescriptionType_HardDiskControllerSCSI ? "HardDiskControllerSCSI"
+                          : desc.type == VirtualSystemDescriptionType_HardDiskControllerSAS ? "HardDiskControllerSAS"
                           : desc.type == VirtualSystemDescriptionType_HardDiskImage ? "HardDiskImage"
                           : Utf8StrFmt("%d", desc.type).c_str()),
                          desc.strRef.c_str(),
                          desc.strOvf.c_str(),
-                         desc.strVbox.c_str(),
-                         desc.strExtraConfig.c_str()));
+                         desc.strVboxCurrent.c_str(),
+                         desc.strExtraConfigCurrent.c_str()));
 
             ovf::ResourceType_T type = (ovf::ResourceType_T)0;      // if this becomes != 0 then we do stuff
             Utf8Str strResourceSubType;
@@ -917,7 +918,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                     {
                         strDescription = "Number of virtual CPUs";
                         type = ovf::ResourceType_Processor; // 3
-                        desc.strVbox.toInt(uTemp);
+                        desc.strVboxCurrent.toInt(uTemp);
                         lVirtualQuantity = (int32_t)uTemp;
                         strCaption = Utf8StrFmt("%d virtual CPU", lVirtualQuantity);     // without this ovftool won't eat the item
                     }
@@ -937,7 +938,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                     {
                         strDescription = "Memory Size";
                         type = ovf::ResourceType_Memory; // 4
-                        desc.strVbox.toInt(uTemp);
+                        desc.strVboxCurrent.toInt(uTemp);
                         lVirtualQuantity = (int32_t)(uTemp / _1M);
                         strAllocationUnits = "MegaBytes";
                         strCaption = Utf8StrFmt("%d MB of memory", lVirtualQuantity);     // without this ovftool won't eat the item
@@ -957,7 +958,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                     {
                         strDescription = "IDE Controller";
                         type = ovf::ResourceType_IDEController; // 5
-                        strResourceSubType = desc.strVbox;
+                        strResourceSubType = desc.strVboxCurrent;
 
                         if (!lIDEPrimaryControllerIndex)
                         {
@@ -1003,13 +1004,13 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                         lAddress = 0;
                         lBusNumber = 0;
 
-                        if (    desc.strVbox.isEmpty()      // AHCI is the default in VirtualBox
-                                || (!desc.strVbox.compare("ahci", Utf8Str::CaseInsensitive))
-                            )
+                        if (    desc.strVboxCurrent.isEmpty()      // AHCI is the default in VirtualBox
+                             || (!desc.strVboxCurrent.compare("ahci", Utf8Str::CaseInsensitive))
+                           )
                             strResourceSubType = "AHCI";
                         else
                             throw setError(VBOX_E_NOT_SUPPORTED,
-                                            tr("Invalid config string \"%s\" in SATA controller"), desc.strVbox.c_str());
+                                            tr("Invalid config string \"%s\" in SATA controller"), desc.strVboxCurrent.c_str());
 
                         // remember this ID
                         idSATAController = ulInstanceID;
@@ -1018,6 +1019,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                 break;
 
                 case VirtualSystemDescriptionType_HardDiskControllerSCSI:
+                case VirtualSystemDescriptionType_HardDiskControllerSAS:
                     /*  <Item>
                             <rasd:Caption>scsiController0</rasd:Caption>
                             <rasd:Description>SCSI Controller</rasd:Description>
@@ -1038,17 +1040,17 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                         lAddress = 0;
                         lBusNumber = 0;
 
-                        if (    desc.strVbox.isEmpty()      // LsiLogic is the default in VirtualBox
-                             || (!desc.strVbox.compare("lsilogic", Utf8Str::CaseInsensitive))
+                        if (    desc.strVboxCurrent.isEmpty()      // LsiLogic is the default in VirtualBox
+                             || (!desc.strVboxCurrent.compare("lsilogic", Utf8Str::CaseInsensitive))
                             )
                             strResourceSubType = "lsilogic";
-                        else if (!desc.strVbox.compare("buslogic", Utf8Str::CaseInsensitive))
+                        else if (!desc.strVboxCurrent.compare("buslogic", Utf8Str::CaseInsensitive))
                             strResourceSubType = "buslogic";
-                        else if (!desc.strVbox.compare("lsilogicsas", Utf8Str::CaseInsensitive))
+                        else if (!desc.strVboxCurrent.compare("lsilogicsas", Utf8Str::CaseInsensitive))
                             strResourceSubType = "lsilogicsas";
                         else
                             throw setError(VBOX_E_NOT_SUPPORTED,
-                                            tr("Invalid config string \"%s\" in SCSI controller"), desc.strVbox.c_str());
+                                            tr("Invalid config string \"%s\" in SCSI/SAS controller"), desc.strVboxCurrent.c_str());
 
                         // remember this ID
                         idSCSIController = ulInstanceID;
@@ -1078,12 +1080,12 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                         strHostResource = Utf8StrFmt("/disk/%s", strDiskID.c_str());
 
                         // controller=<index>;channel=<c>
-                        size_t pos1 = desc.strExtraConfig.find("controller=");
-                        size_t pos2 = desc.strExtraConfig.find("channel=");
+                        size_t pos1 = desc.strExtraConfigCurrent.find("controller=");
+                        size_t pos2 = desc.strExtraConfigCurrent.find("channel=");
                         int32_t lControllerIndex = -1;
                         if (pos1 != Utf8Str::npos)
                         {
-                            RTStrToInt32Ex(desc.strExtraConfig.c_str() + pos1 + 11, NULL, 0, &lControllerIndex);
+                            RTStrToInt32Ex(desc.strExtraConfigCurrent.c_str() + pos1 + 11, NULL, 0, &lControllerIndex);
                             if (lControllerIndex == lIDEPrimaryControllerIndex)
                                 ulParent = idIDEPrimaryController;
                             else if (lControllerIndex == lIDESecondaryControllerIndex)
@@ -1094,7 +1096,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                                 ulParent = idSATAController;
                         }
                         if (pos2 != Utf8Str::npos)
-                            RTStrToInt32Ex(desc.strExtraConfig.c_str() + pos2 + 8, NULL, 0, &lAddressOnParent);
+                            RTStrToInt32Ex(desc.strExtraConfigCurrent.c_str() + pos2 + 8, NULL, 0, &lAddressOnParent);
 
                         LogFlowFunc(("HardDiskImage details: pos1=%d, pos2=%d, lControllerIndex=%d, lIDEPrimaryControllerIndex=%d, lIDESecondaryControllerIndex=%d, ulParent=%d, lAddressOnParent=%d\n",
                                      pos1, pos2, lControllerIndex, lIDEPrimaryControllerIndex, lIDESecondaryControllerIndex, ulParent, lAddressOnParent));
@@ -1103,7 +1105,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                              || lAddressOnParent == -1
                            )
                             throw setError(VBOX_E_NOT_SUPPORTED,
-                                            tr("Missing or bad extra config string in hard disk image: \"%s\""), desc.strExtraConfig.c_str());
+                                            tr("Missing or bad extra config string in hard disk image: \"%s\""), desc.strExtraConfigCurrent.c_str());
 
                         stack.mapDisks[strDiskID] = &desc;
                     }
@@ -1155,7 +1157,7 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
                             * To be compatible with vmware & others we set
                             * PCNet32 for our PCNet types & E1000 for the
                             * E1000 cards. */
-                        switch (desc.strVbox.toInt32())
+                        switch (desc.strVboxCurrent.toInt32())
                         {
                             case NetworkAdapterType_Am79C970A:
                             case NetworkAdapterType_Am79C973: strResourceSubType = "PCNet32"; break;
@@ -1297,8 +1299,9 @@ void Appliance::buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSys
         // write the machine config to the vbox:Machine element
         pConfig->buildMachineXML(*pelmVBoxMachine,
                                    settings::MachineConfigFile::BuildMachineXML_WriteVboxVersionAttribute
-                                 | settings::MachineConfigFile::BuildMachineXML_SkipRemovableMedia);
+                                 | settings::MachineConfigFile::BuildMachineXML_SkipRemovableMedia,
                                         // but not BuildMachineXML_IncludeSnapshots
+                                 pllElementsWithUuidAttributes);
         delete pConfig;
     }
     catch (...)
@@ -1424,6 +1427,10 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
         else
             pelmToAddVirtualSystemsTo = pelmRoot;       // add virtual system directly under root element
 
+        // this list receives pointers to the XML elements in the machine XML which
+        // might have UUIDs that need fixing after we know the UUIDs of the exported images
+        std::list<xml::ElementNode*> llElementsWithUuidAttributes;
+
         list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
         /* Iterate throughs all virtual systems of that appliance */
         for (it = m->virtualSystemDescriptions.begin();
@@ -1432,6 +1439,7 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
         {
             ComObjPtr<VirtualSystemDescription> vsdescThis = *it;
             buildXMLForOneVirtualSystem(*pelmToAddVirtualSystemsTo,
+                                        &llElementsWithUuidAttributes,
                                         vsdescThis,
                                         enFormat,
                                         stack);         // disks and networks stack
@@ -1463,7 +1471,7 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
             const VirtualSystemDescriptionEntry *pDiskEntry = itS->second;
 
             // source path: where the VBox image is
-            const Utf8Str &strSrcFilePath = pDiskEntry->strVbox;
+            const Utf8Str &strSrcFilePath = pDiskEntry->strVboxCurrent;
             Bstr bstrSrcFilePath(strSrcFilePath);
             if (!RTPathExists(strSrcFilePath.c_str()))
                 /* This isn't allowed */
@@ -1510,9 +1518,8 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
                 if (FAILED(rc)) throw rc;
 
                 // advance to the next operation
-                if (!pProgress.isNull())
-                    pProgress->SetNextOperation(BstrFmt(tr("Exporting to disk image '%s'"), strTargetFilePath.c_str()),
-                                                pDiskEntry->ulSizeMB);     // operation's weight, as set up with the IProgress originally);
+                pProgress->SetNextOperation(BstrFmt(tr("Exporting to disk image '%s'"), strTargetFilePath.c_str()),
+                                            pDiskEntry->ulSizeMB);     // operation's weight, as set up with the IProgress originally);
 
                 // now wait for the background disk operation to complete; this throws HRESULTs on error
                 waitForAsyncProgress(pProgress, pProgress2);
@@ -1536,6 +1543,11 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
             if (FAILED(rc)) throw rc;
             // capacity is reported in megabytes, so...
             cbCapacity *= _1M;
+
+            Bstr uuidTarget;
+            rc = pTargetDisk->COMGETTER(Id)(uuidTarget.asOutParam());
+            if (FAILED(rc)) throw rc;
+            Guid guidTarget(uuidTarget);
 
             // upon success, close the disk as well
             rc = pTargetDisk->Close();
@@ -1561,14 +1573,34 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
                         :  "http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized"
                                                                                     // correct string as communicated to us by VMware (public bug #6612)
                                   );
-            pelmDisk->setAttribute("vbox:uuid", Utf8StrFmt("%RTuuid", guidSource.raw()).c_str());
+
+            // add the UUID of the newly created target image to the OVF disk element, but in the
+            // vbox: namespace since it's not part of the standard
+            pelmDisk->setAttribute("vbox:uuid", Utf8StrFmt("%RTuuid", guidTarget.raw()).c_str());
+
+            // now, we might have other XML elements from vbox:Machine pointing to this image,
+            // but those would refer to the UUID of the _source_ image (which we created the
+            // export image from); those UUIDs need to be fixed to the export image
+            for (std::list<xml::ElementNode*>::iterator eit = llElementsWithUuidAttributes.begin();
+                 eit != llElementsWithUuidAttributes.end();
+                 ++eit)
+            {
+                xml::ElementNode *pelmImage = *eit;
+                // overwrite existing uuid attribute
+                pelmImage->setAttribute("uuid", guidTarget.toStringCurly());
+            }
         }
 
         // now go write the XML
         xml::XmlFileWriter writer(doc);
         writer.write(locInfo.strPath.c_str(), false /*fSafe*/);
 
-        /* Create & write the manifest file */
+        // Create & write the manifest file
+        Utf8Str strMfFile = manifestFileName(locInfo.strPath.c_str());
+        const char *pcszManifestFileOnly = RTPathFilename(strMfFile.c_str());
+        pProgress->SetNextOperation(BstrFmt(tr("Creating manifest file '%s'"), pcszManifestFileOnly),
+                                    m->ulWeightForManifestOperation);     // operation's weight, as set up with the IProgress originally);
+
         const char** ppManifestFiles = (const char**)RTMemAlloc(sizeof(char*)*diskList.size() + 1);
         ppManifestFiles[0] = locInfo.strPath.c_str();
         list<Utf8Str>::const_iterator it1;
@@ -1577,13 +1609,12 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
              it1 != diskList.end();
              ++it1, ++i)
             ppManifestFiles[i] = (*it1).c_str();
-        Utf8Str strMfFile = manifestFileName(locInfo.strPath.c_str());
-        int vrc = RTManifestWriteFiles(strMfFile.c_str(), ppManifestFiles, diskList.size()+1);
+        int vrc = RTManifestWriteFiles(strMfFile.c_str(), ppManifestFiles, diskList.size()+1, NULL, NULL);
         RTMemFree(ppManifestFiles);
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR,
-                           tr("Couldn't create manifest file '%s' (%Rrc)"),
-                           RTPathFilename(strMfFile.c_str()), vrc);
+                           tr("Could not create manifest file '%s' (%Rrc)"),
+                           pcszManifestFileOnly, vrc);
     }
     catch(xml::Error &x)
     {
@@ -1677,9 +1708,9 @@ HRESULT Appliance::writeS3(TaskOVF *pTask)
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Cannot find source file '%s'"), strTmpOvf.c_str());
         /* Add the OVF file */
-        filesList.push_back(pair<Utf8Str, ULONG>(strTmpOvf, m->ulWeightPerOperation)); /* Use 1% of the total for the OVF file upload */
+        filesList.push_back(pair<Utf8Str, ULONG>(strTmpOvf, m->ulWeightForXmlOperation)); /* Use 1% of the total for the OVF file upload */
         Utf8Str strMfFile = manifestFileName(strTmpOvf);
-        filesList.push_back(pair<Utf8Str, ULONG>(strMfFile , m->ulWeightPerOperation)); /* Use 1% of the total for the manifest file upload */
+        filesList.push_back(pair<Utf8Str, ULONG>(strMfFile , m->ulWeightForXmlOperation)); /* Use 1% of the total for the manifest file upload */
 
         /* Now add every disks of every virtual system */
         list< ComObjPtr<VirtualSystemDescription> >::const_iterator it;
@@ -1720,8 +1751,7 @@ HRESULT Appliance::writeS3(TaskOVF *pTask)
             const pair<Utf8Str, ULONG> &s = (*it1);
             char *pszFilename = RTPathFilename(s.first.c_str());
             /* Advance to the next operation */
-            if (!pTask->pProgress.isNull())
-                pTask->pProgress->SetNextOperation(BstrFmt(tr("Uploading file '%s'"), pszFilename), s.second);
+            pTask->pProgress->SetNextOperation(BstrFmt(tr("Uploading file '%s'"), pszFilename), s.second);
             vrc = RTS3PutKey(hS3, bucket.c_str(), pszFilename, s.first.c_str());
             if (RT_FAILURE(vrc))
             {

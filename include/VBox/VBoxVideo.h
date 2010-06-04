@@ -281,6 +281,9 @@ typedef enum
     VBOXVHWACMD_TYPE_DISABLE,
     VBOXVHWACMD_TYPE_HH_CONSTRUCT,
     VBOXVHWACMD_TYPE_HH_RESET
+#ifdef VBOXWDDM
+    , VBOXVHWACMD_TYPE_SURF_GETINFO
+#endif
 } VBOXVHWACMD_TYPE;
 
 /* the command processing was asynch, set by the host to indicate asynch command completion
@@ -323,7 +326,7 @@ typedef struct _VBOXVHWACMD
 #define VBOXVHWACMD_SIZE(_tCmd) (VBOXVHWACMD_SIZE_FROMBODYSIZE(sizeof(_tCmd)))
 typedef unsigned int VBOXVHWACMD_LENGTH;
 typedef uint64_t VBOXVHWA_SURFHANDLE;
-#define VBOXVHWA_SURFHANDLE_INVALID 0
+#define VBOXVHWA_SURFHANDLE_INVALID 0ULL
 #define VBOXVHWACMD_BODY(_p, _t) ((_t*)(_p)->body)
 #define VBOXVHWACMD_HEAD(_pb) ((VBOXVHWACMD*)((uint8_t *)(_pb) - RT_OFFSETOF(VBOXVHWACMD, body)))
 
@@ -606,6 +609,13 @@ typedef struct _VBOXVHWACMD_SURF_CREATE
     VBOXVHWA_SURFACEDESC SurfInfo;
 } VBOXVHWACMD_SURF_CREATE;
 
+#ifdef VBOXWDDM
+typedef struct _VBOXVHWACMD_SURF_GETINFO
+{
+    VBOXVHWA_SURFACEDESC SurfInfo;
+} VBOXVHWACMD_SURF_GETINFO;
+#endif
+
 typedef struct _VBOXVHWACMD_SURF_DESTROY
 {
     union
@@ -811,6 +821,7 @@ typedef struct _VBVABUFFER
 # define VBVA_VDMA_CTL   10 /* setup G<->H DMA channel info */
 # define VBVA_VDMA_CMD    11 /* G->H DMA command             */
 #endif
+#define VBVA_INFO_CAPS   12 /* informs host about HGSMI caps. see _VBVACAPS below */
 
 /* host->guest commands */
 # define VBVAHG_EVENT              1
@@ -946,6 +957,8 @@ typedef struct VBVAINFOSCREEN
 #ifdef VBOXWDDM_WITH_VBVA
 /* extended VBVA to be used with WDDM */
 #define VBVA_F_EXTENDED 0x00000004
+/* vbva offset is absolute VRAM offset */
+#define VBVA_F_ABSOFFSET 0x00000008
 #endif
 
 typedef struct _VBVAENABLE
@@ -1012,6 +1025,16 @@ typedef struct _VBVAMOUSEPOINTERSHAPE
     uint8_t au8Data[4];
 
 } VBVAMOUSEPOINTERSHAPE;
+
+/* the guest driver can handle asynch guest cmd completion by reading the command offset from io port */
+#define VBVACAPS_COMPLETEGCMD_BY_IOREAD 0x00000001
+/* the guest driver can handle video adapter IRQs */
+#define VBVACAPS_IRQ                    0x00000002
+typedef struct _VBVACAPS
+{
+    int32_t rc;
+    uint32_t fCaps;
+} VBVACAPS;
 
 #pragma pack()
 

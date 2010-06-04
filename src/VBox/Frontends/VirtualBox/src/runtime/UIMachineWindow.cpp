@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindow.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIMachineWindow.cpp 29926 2010-05-31 18:37:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -22,6 +22,9 @@
 #include <QTimer>
 
 #include <VBox/version.h>
+#ifdef VBOX_BLEEDING_EDGE
+# include <iprt/buildconfig.h>
+#endif /* VBOX_BLEEDING_EDGE */
 
 /* Local includes */
 #include "COMDefs.h"
@@ -98,6 +101,21 @@ UIMachineWindow::UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId)
 
 UIMachineWindow::~UIMachineWindow()
 {
+    /* Close any opened modal & popup widgets: */
+    while (QWidget *pWidget = QApplication::activeModalWidget() ? QApplication::activeModalWidget() :
+                              QApplication::activePopupWidget() ? QApplication::activePopupWidget() : 0)
+    {
+        /* Set modal/popup window's parent to null early,
+         * because deleteLater() is synchronous
+         * and will be called later than this destructor: */
+        pWidget->setParent(0);
+        /* Close modal/popup window early to hide it
+         * because deleteLater() is synchronous
+         * and will be called later than this destructor: */
+        pWidget->close();
+        /* Delete modal/popup window synchronously (safe): */
+        pWidget->deleteLater();
+    }
 }
 
 UISession* UIMachineWindow::uisession() const
@@ -123,6 +141,7 @@ void UIMachineWindow::retranslateUi()
                               .arg(RTBldCfgRevisionStr())
                               .arg(VBOX_BLEEDING_EDGE);
 #endif
+    updateAppearanceOf(UIVisualElement_WindowCaption);
 }
 
 void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
@@ -428,8 +447,11 @@ void UIMachineWindow::updateAppearanceOf(int iElement)
         }
         QString strMachineName = machine.GetName() + strSnapshotName;
         if (state != KMachineState_Null)
-            strMachineName += " [" + vboxGlobal().toString(state) + "] - ";
-        strMachineName += m_strWindowTitlePrefix;
+            strMachineName += " [" + vboxGlobal().toString(state) + "]";
+        /* Unusual on the Mac. */
+#ifndef Q_WS_MAC
+        strMachineName += " - " + m_strWindowTitlePrefix;
+#endif /* Q_WS_MAC */
         if (machine.GetMonitorCount() > 1)
             strMachineName += QString(" : %1").arg(m_uScreenId + 1);
         machineWindow()->setWindowTitle(strMachineName);

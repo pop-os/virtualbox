@@ -1,4 +1,4 @@
-/* $Revision: 28800 $ */
+/* $Revision: 29680 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
@@ -45,7 +45,7 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 /** The max parameter buffer size for a user request. */
-#define VBGLR0_MAX_HGCM_USER_PARM       (16*_1M)
+#define VBGLR0_MAX_HGCM_USER_PARM       (24*_1M)
 /** The max parameter buffer size for a kernel request. */
 #define VBGLR0_MAX_HGCM_KERNEL_PARM     (16*_1M)
 #ifdef RT_OS_LINUX
@@ -770,7 +770,7 @@ static int vbglR0HGCMInternalCopyBackResult(VBoxGuestHGCMCallInfo *pCallInfo, VM
     /*
      * Copy back parameters.
      */
-    for (iParm = 0; iParm < pCallInfo->cParms; iParm++, pSrcParm++, pDstParm++)
+    for (iParm = 0; iParm < cParms; iParm++, pSrcParm++, pDstParm++)
     {
         switch (pDstParm->type)
         {

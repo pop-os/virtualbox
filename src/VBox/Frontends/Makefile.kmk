@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: Makefile.kmk 29654 2010-05-18 21:37:32Z vboxsync $
 ## @file
 # Top-level makefile for the VBox frontends.
 #
@@ -38,6 +38,7 @@ ifndef VBOX_ONLY_DOCS
  ifdef VBOX_WITH_QTGUI
   include $(PATH_SUB_CURRENT)/VirtualBox/Makefile.kmk
  endif
+ include $(PATH_SUB_CURRENT)/Common/Makefile.kmk
 endif # !VBOX_ONLY_DOCS
 
 ## @todo Include Python shell into binary delivery?

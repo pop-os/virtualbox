@@ -1,4 +1,4 @@
-/* $Id: VBoxSettingsSelector.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxSettingsSelector.cpp 29972 2010-06-02 09:03:45Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -27,6 +27,7 @@
 #include "VBoxGlobal.h"
 #include "VBoxToolBar.h"
 #include "QITreeWidget.h"
+#include "QITabWidget.h"
 
 enum
 {
@@ -423,7 +424,7 @@ QWidget *VBoxSettingsToolBarSelector::addItem (const QString &aBigIcon,
     {
         mActionGroup->addAction (item->action());
         mTbSelector->addAction (item->action());
-        QTabWidget *tabWidget= new QTabWidget ();
+        QITabWidget *tabWidget= new QITabWidget();
         tabWidget->setContentsMargins (0, 0, 0, 0);
 //        connect (tabWidget, SIGNAL (currentChanged (int)),
 //                 this, SLOT (settingsGroupChanged (int)));

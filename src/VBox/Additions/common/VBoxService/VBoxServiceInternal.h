@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h 29516 2010-05-17 09:55:17Z vboxsync $ */
+/* $Id: VBoxServiceInternal.h 29858 2010-05-28 12:54:03Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -101,27 +101,6 @@ typedef VBOXSERVICE const *PCVBOXSERVICE;
 # define VBOXSERVICE_DESCRIPTION    "Manages VM runtime information, time synchronization, remote sysprep execution and miscellaneous utilities for guest operating systems."
 /** The following constant may be defined by including NtStatus.h. */
 # define STATUS_SUCCESS             ((NTSTATUS)0x00000000L)
-/** Structure for storing the looked up user information. */
-typedef struct
-{
-    WCHAR wszUser[_MAX_PATH];
-    WCHAR wszAuthenticationPackage[_MAX_PATH];
-    WCHAR wszLogonDomain[_MAX_PATH];
-} VBOXSERVICEVMINFOUSER, *PVBOXSERVICEVMINFOUSER;
-/** Structure for the file information lookup. */
-typedef struct
-{
-    char *pszFilePath;
-    char *pszFileName;
-} VBOXSERVICEVMINFOFILE, *PVBOXSERVICEVMINFOFILE;
-/** Structure for process information lookup. */
-typedef struct
-{
-    DWORD id;
-    LUID luid;
-} VBOXSERVICEVMINFOPROC, *PVBOXSERVICEVMINFOPROC;
-/** Function prototypes for dynamic loading. */
-typedef DWORD (WINAPI *PFNWTSGETACTIVECONSOLESESSIONID)(void);
 
 #endif /* RT_OS_WINDOWS */
 #ifdef VBOX_WITH_GUEST_CONTROL
@@ -252,58 +231,54 @@ typedef VBOXSERVICEVEPROPCACHEENTRY *PVBOXSERVICEVEPROPCACHEENTRY;
 
 RT_C_DECLS_BEGIN
 
-extern char *g_pszProgName;
-extern int g_cVerbosity;
-extern uint32_t g_DefaultInterval;
-
-extern int VBoxServiceSyntax(const char *pszFormat, ...);
-extern int VBoxServiceError(const char *pszFormat, ...);
-extern void VBoxServiceVerbose(int iLevel, const char *pszFormat, ...);
-extern int VBoxServiceArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu32, uint32_t u32Min, uint32_t u32Max);
-extern unsigned VBoxServiceGetStartedServices(void);
-extern int VBoxServiceStartServices(unsigned iMain);
-extern int VBoxServiceStopServices(void);
-
-extern VBOXSERVICE g_TimeSync;
-extern VBOXSERVICE g_Clipboard;
-extern VBOXSERVICE g_Control;
-extern VBOXSERVICE g_VMInfo;
-extern VBOXSERVICE g_CpuHotPlug;
+extern char        *g_pszProgName;
+extern int          g_cVerbosity;
+extern uint32_t     g_DefaultInterval;
+extern VBOXSERVICE  g_TimeSync;
+extern VBOXSERVICE  g_Clipboard;
+extern VBOXSERVICE  g_Control;
+extern VBOXSERVICE  g_VMInfo;
+extern VBOXSERVICE  g_CpuHotPlug;
 #ifdef VBOXSERVICE_MANAGEMENT
-extern VBOXSERVICE g_MemBalloon;
-extern VBOXSERVICE g_VMStatistics;
+extern VBOXSERVICE  g_MemBalloon;
+extern VBOXSERVICE  g_VMStatistics;
 #endif
 #ifdef VBOX_WITH_PAGE_SHARING
-extern VBOXSERVICE g_PageSharing;
+extern VBOXSERVICE  g_PageSharing;
+#endif
+
+extern RTEXITCODE   VBoxServiceSyntax(const char *pszFormat, ...);
+extern RTEXITCODE   VBoxServiceError(const char *pszFormat, ...);
+extern void         VBoxServiceVerbose(int iLevel, const char *pszFormat, ...);
+extern int          VBoxServiceArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu32,
+                                         uint32_t u32Min, uint32_t u32Max);
+extern int          VBoxServiceStartServices(void);
+extern int          VBoxServiceStopServices(void);
+extern void         VBoxServiceMainWait(void);
+#ifdef RT_OS_WINDOWS
+extern RTEXITCODE   VBoxServiceWinInstall(void);
+extern RTEXITCODE   VBoxServiceWinUninstall(void);
+extern RTEXITCODE   VBoxServiceWinEnterCtrlDispatcher(void);
+extern void         VBoxServiceWinSetStopPendingStatus(uint32_t uCheckPoint);
 #endif
 
 #ifdef RT_OS_WINDOWS
-extern DWORD g_rcWinService;
-extern SERVICE_TABLE_ENTRY const g_aServiceTable[];     /** @todo generate on the fly, see comment in main() from the enabled sub services. */
-extern PFNWTSGETACTIVECONSOLESESSIONID g_pfnWTSGetActiveConsoleSessionId; /* VBoxServiceVMInfo-win.cpp */
-
-extern int  VBoxServiceWinInstall(void);
-extern int  VBoxServiceWinUninstall(void);
-extern BOOL VBoxServiceWinSetStatus(DWORD dwStatus, DWORD dwCheckPoint);
 # ifdef VBOX_WITH_GUEST_PROPS
-extern bool VBoxServiceVMInfoWinSessionHasProcesses(PLUID pSession, VBOXSERVICEVMINFOPROC const *paProcs, DWORD cProcs);
-extern bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_pSession);
-extern int  VBoxServiceVMInfoWinProcessesEnumerate(PVBOXSERVICEVMINFOPROC *ppProc, DWORD *pdwCount);
-extern void VBoxServiceVMInfoWinProcessesFree(PVBOXSERVICEVMINFOPROC paProcs);
-extern int  VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
+extern int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList);
+extern int VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
 # endif /* VBOX_WITH_GUEST_PROPS */
 #endif /* RT_OS_WINDOWS */
 
 #ifdef VBOX_WITH_GUEST_CONTROL
-extern int VBoxServiceControlExecProcess(uint32_t uContext, const char *pszCmd, uint32_t uFlags,
-                                         const char *pszArgs, uint32_t uNumArgs,
-                                         const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
-                                         const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
+extern int  VBoxServiceControlExecProcess(uint32_t uContext, const char *pszCmd, uint32_t uFlags,
+                                          const char *pszArgs, uint32_t uNumArgs,
+                                          const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
+                                          const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
 extern void VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
-extern int VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
-                                                       uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
-extern int VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
-                                                 uint8_t *pbData, uint32_t cbData);
+extern int  VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
+                                                        uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
+extern int  VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
+                                                  uint8_t *pbData, uint32_t cbData);
 #endif
 
 #ifdef VBOXSERVICE_MANAGEMENT

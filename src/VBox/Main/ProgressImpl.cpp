@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ProgressImpl.cpp 29989 2010-06-02 12:46:49Z vboxsync $ */
 /** @file
  *
  * VirtualBox Progress COM class implementation
@@ -330,7 +330,7 @@ STDMETHODIMP ProgressBase::COMGETTER(TimeRemaining)(LONG *aTimeRemaining)
         {
             uint64_t ullTimeNow = RTTimeMilliTS();
             uint64_t ullTimeElapsed = ullTimeNow - m_ullTimestamp;
-            uint64_t ullTimeTotal = (uint64_t)(ullTimeElapsed / dPercentDone * 100);
+            uint64_t ullTimeTotal = (uint64_t)(ullTimeElapsed * 100 / dPercentDone);
             uint64_t ullTimeRemaining = ullTimeTotal - ullTimeElapsed;
 
 //             Log(("ProgressBase::GetTimeRemaining: dPercentDone %RI32, ullTimeNow = %RI64, ullTimeElapsed = %RI64, ullTimeTotal = %RI64, ullTimeRemaining = %RI64\n",
@@ -834,20 +834,17 @@ STDMETHODIMP Progress::WaitForCompletion (LONG aTimeout)
     /* if we're already completed, take a shortcut */
     if (!mCompleted)
     {
-        RTTIMESPEC time;
-        RTTimeNow(&time); /** @todo r=bird: Use monotonic time (RTTimeMilliTS()) here because of daylight saving and things like that. */
-
         int vrc = VINF_SUCCESS;
         bool fForever = aTimeout < 0;
         int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeSpecGetMilli(&time);
+        int64_t lastTime = RTTimeMilliTS();
 
         while (!mCompleted && (fForever || timeLeft > 0))
         {
             mWaitersCount++;
             alock.leave();
             vrc = RTSemEventMultiWait(mCompletedSem,
-                                      fForever ? RT_INDEFINITE_WAIT : (unsigned)timeLeft);
+                                      fForever ? RT_INDEFINITE_WAIT : (RTMSINTERVAL)timeLeft);
             alock.enter();
             mWaitersCount--;
 
@@ -860,9 +857,9 @@ STDMETHODIMP Progress::WaitForCompletion (LONG aTimeout)
 
             if (!fForever)
             {
-                RTTimeNow (&time);
-                timeLeft -= RTTimeSpecGetMilli(&time) - lastTime;
-                lastTime = RTTimeSpecGetMilli(&time);
+                int64_t now = RTTimeMilliTS();
+                timeLeft -= now - lastTime;
+                lastTime = now;
             }
         }
 
@@ -900,13 +897,10 @@ STDMETHODIMP Progress::WaitForOperationCompletion(ULONG aOperation, LONG aTimeou
     if (    !mCompleted
          && aOperation >= m_ulCurrentOperation)
     {
-        RTTIMESPEC time;
-        RTTimeNow (&time);
-
         int vrc = VINF_SUCCESS;
         bool fForever = aTimeout < 0;
         int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeSpecGetMilli (&time);
+        int64_t lastTime = RTTimeMilliTS();
 
         while (    !mCompleted && aOperation >= m_ulCurrentOperation
                 && (fForever || timeLeft > 0))
@@ -927,9 +921,9 @@ STDMETHODIMP Progress::WaitForOperationCompletion(ULONG aOperation, LONG aTimeou
 
             if (!fForever)
             {
-                RTTimeNow(&time);
-                timeLeft -= RTTimeSpecGetMilli(&time) - lastTime;
-                lastTime = RTTimeSpecGetMilli(&time);
+                int64_t now = RTTimeMilliTS();
+                timeLeft -= now - lastTime;
+                lastTime = now;
             }
         }
 
@@ -957,11 +951,15 @@ STDMETHODIMP Progress::Cancel()
 
     if (!mCanceled)
     {
+        LogThisFunc(("Canceling\n"));
         mCanceled = TRUE;
         if (m_pfnCancelCallback)
             m_pfnCancelCallback(m_pvCancelUserArg);
 
     }
+    else
+        LogThisFunc(("Already canceled\n"));
+
     return S_OK;
 }
 
@@ -1010,7 +1008,9 @@ STDMETHODIMP Progress::SetNextOperation(IN_BSTR bstrNextOperationDescription, UL
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AssertReturn(!mCompleted && !mCanceled, E_FAIL);
+    if (mCanceled)
+        return E_FAIL;
+    AssertReturn(!mCompleted, E_FAIL);
     AssertReturn(m_ulCurrentOperation + 1 < m_cOperations, E_FAIL);
 
     ++m_ulCurrentOperation;
@@ -1148,6 +1148,22 @@ HRESULT Progress::notifyComplete(HRESULT aResultCode)
 }
 
 /**
+ * Wrapper around Progress:notifyCompleteV.
+ */
+HRESULT Progress::notifyComplete(HRESULT aResultCode,
+                                 const GUID &aIID,
+                                 const Bstr &aComponent,
+                                 const char *aText,
+                                 ...)
+{
+    va_list va;
+    va_start(va, aText);
+    HRESULT hrc = notifyCompleteV(aResultCode, aIID, aComponent, aText, va);
+    va_end(va);
+    return hrc;
+}
+
+/**
  * Marks the operation as complete and attaches full error info.
  *
  * See com::SupportErrorInfoImpl::setError(HRESULT, const GUID &, const wchar_t
@@ -1158,18 +1174,15 @@ HRESULT Progress::notifyComplete(HRESULT aResultCode)
  * @param aComponent    Name of the component that generates the error.
  * @param aText         Error message (must not be null), an RTStrPrintf-like
  *                      format string in UTF-8 encoding.
- * @param  ...          List of arguments for the format string.
+ * @param va            List of arguments for the format string.
  */
-HRESULT Progress::notifyComplete(HRESULT aResultCode,
-                                 const GUID &aIID,
-                                 const Bstr &aComponent,
-                                 const char *aText,
-                                 ...)
+HRESULT Progress::notifyCompleteV(HRESULT aResultCode,
+                                  const GUID &aIID,
+                                  const Bstr &aComponent,
+                                  const char *aText,
+                                  va_list va)
 {
-    va_list args;
-    va_start(args, aText);
-    Utf8Str text = Utf8StrFmtVA(aText, args);
-    va_end (args);
+    Utf8Str text = Utf8StrFmtVA(aText, va);
 
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -1230,9 +1243,13 @@ bool Progress::notifyPointOfNoReturn(void)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mCanceled)
+    {
+        LogThisFunc(("returns false\n"));
         return false;
+    }
 
     mCancelable = FALSE;
+    LogThisFunc(("returns true\n"));
     return true;
 }
 
@@ -1570,13 +1587,10 @@ STDMETHODIMP CombinedProgress::WaitForCompletion (LONG aTimeout)
     /* if we're already completed, take a shortcut */
     if (!mCompleted)
     {
-        RTTIMESPEC time;
-        RTTimeNow(&time);
-
         HRESULT rc = S_OK;
         bool forever = aTimeout < 0;
         int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeSpecGetMilli(&time);
+        int64_t lastTime = RTTimeMilliTS();
 
         while (!mCompleted && (forever || timeLeft > 0))
         {
@@ -1591,9 +1605,9 @@ STDMETHODIMP CombinedProgress::WaitForCompletion (LONG aTimeout)
 
             if (!forever)
             {
-                RTTimeNow(&time);
-                timeLeft -= RTTimeSpecGetMilli(&time) - lastTime;
-                lastTime = RTTimeSpecGetMilli(&time);
+                int64_t now = RTTimeMilliTS();
+                timeLeft -= now - lastTime;
+                lastTime = now;
             }
         }
 
@@ -1657,12 +1671,9 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
         LogFlowThisFunc(("will wait for mProgresses [%d] (%d)\n",
                           progress, operation));
 
-        RTTIMESPEC time;
-        RTTimeNow (&time);
-
         bool forever = aTimeout < 0;
         int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeSpecGetMilli (&time);
+        int64_t lastTime = RTTimeMilliTS();
 
         while (!mCompleted && aOperation >= m_ulCurrentOperation &&
                (forever || timeLeft > 0))
@@ -1680,9 +1691,9 @@ STDMETHODIMP CombinedProgress::WaitForOperationCompletion (ULONG aOperation, LON
 
             if (!forever)
             {
-                RTTimeNow(&time);
-                timeLeft -= RTTimeSpecGetMilli(&time) - lastTime;
-                lastTime = RTTimeSpecGetMilli(&time);
+                int64_t now = RTTimeMilliTS();
+                timeLeft -= now - lastTime;
+                lastTime = now;
             }
         }
 
@@ -1706,6 +1717,7 @@ STDMETHODIMP CombinedProgress::Cancel()
 
     if (!mCanceled)
     {
+        LogThisFunc(("Canceling\n"));
         mCanceled = TRUE;
 /** @todo Teleportation: Shouldn't this be propagated to mProgresses? If
  *        powerUp creates passes a combined progress object to the client, I
@@ -1715,6 +1727,9 @@ STDMETHODIMP CombinedProgress::Cancel()
             m_pfnCancelCallback(m_pvCancelUserArg);
 
     }
+    else
+        LogThisFunc(("Already canceled\n"));
+
     return S_OK;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: QIHotKeyEdit.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: QIHotKeyEdit.cpp 29921 2010-05-31 16:49:37Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -68,10 +68,8 @@ QMap<QString, QString> QIHotKeyEdit::sKeyNames;
 #ifdef Q_WS_MAC
 # include "DarwinKeyboard.h"
 # include <Carbon/Carbon.h>
-# ifdef QT_MAC_USE_COCOA
-#  include "darwin/VBoxCocoaApplication.h"
-#  include "VBoxUtils.h"
-# endif
+# include "darwin/VBoxCocoaApplication.h"
+# include "VBoxUtils.h"
 #endif
 
 
@@ -142,26 +140,7 @@ QIHotKeyEdit::QIHotKeyEdit (QWidget *aParent) :
 
 #ifdef Q_WS_MAC
     mDarwinKeyModifiers = GetCurrentEventKeyModifiers();
-# ifdef QT_MAC_USE_COCOA
     ::VBoxCocoaApplication_setCallback (UINT32_MAX, QIHotKeyEdit::darwinEventHandlerProc, this);
-# else  /* !QT_MAC_USE_COCOA */
-    EventTypeSpec eventTypes [4];
-    eventTypes [0].eventClass = kEventClassKeyboard;
-    eventTypes [0].eventKind  = kEventRawKeyDown;
-    eventTypes [1].eventClass = kEventClassKeyboard;
-    eventTypes [1].eventKind  = kEventRawKeyUp;
-    eventTypes [2].eventClass = kEventClassKeyboard;
-    eventTypes [2].eventKind  = kEventRawKeyRepeat;
-    eventTypes [3].eventClass = kEventClassKeyboard;
-    eventTypes [3].eventKind  = kEventRawKeyModifiersChanged;
-
-    EventHandlerUPP eventHandler = ::NewEventHandlerUPP (QIHotKeyEdit::darwinEventHandlerProc);
-
-    mDarwinEventHandlerRef = NULL;
-    ::InstallApplicationEventHandler (eventHandler, RT_ELEMENTS (eventTypes), &eventTypes [0],
-                                      this, &mDarwinEventHandlerRef);
-    ::DisposeEventHandlerUPP (eventHandler);
-# endif /* !QT_MAC_USE_COCOA */
     ::DarwinGrabKeyboard (false /* just modifiers */);
 #endif
 }
@@ -170,12 +149,7 @@ QIHotKeyEdit::~QIHotKeyEdit()
 {
 #ifdef Q_WS_MAC
     ::DarwinReleaseKeyboard();
-# ifdef QT_MAC_USE_COCOA
     ::VBoxCocoaApplication_unsetCallback (UINT32_MAX, QIHotKeyEdit::darwinEventHandlerProc, this);
-# else
-    ::RemoveEventHandler (mDarwinEventHandlerRef);
-    mDarwinEventHandlerRef = NULL;
-# endif
 #endif
 }
 
@@ -676,7 +650,6 @@ bool QIHotKeyEdit::x11Event (XEvent *event)
 }
 
 #elif defined (Q_WS_MAC)
-# ifdef QT_MAC_USE_COCOA
 /* static */
 bool QIHotKeyEdit::darwinEventHandlerProc (const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser)
 {
@@ -688,21 +661,6 @@ bool QIHotKeyEdit::darwinEventHandlerProc (const void *pvCocoaEvent, const void 
     return false;
 }
 
-# else  /* !QT_MAC_USE_COCOA */
-/* static */
-pascal OSStatus QIHotKeyEdit::darwinEventHandlerProc (EventHandlerCallRef inHandlerCallRef,
-                                                      EventRef inEvent, void *inUserData)
-{
-    QIHotKeyEdit *edit = (QIHotKeyEdit *) inUserData;
-    UInt32 EventClass = ::GetEventClass (inEvent);
-    if (EventClass == kEventClassKeyboard)
-    {
-        if (edit->darwinKeyboardEvent (NULL, inEvent))
-            return 0;
-    }
-    return CallNextEventHandler (inHandlerCallRef, inEvent);
-}
-# endif /* !QT_MAC_USE_COCOA */
 
 bool QIHotKeyEdit::darwinKeyboardEvent (const void *pvCocoaEvent, EventRef inEvent)
 {

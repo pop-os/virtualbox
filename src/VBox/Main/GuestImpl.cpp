@@ -1,4 +1,4 @@
-/* $Id: GuestImpl.cpp 29645 2010-05-18 15:41:46Z vboxsync $ */
+/* $Id: GuestImpl.cpp 29997 2010-06-02 13:39:06Z vboxsync $ */
 
 /** @file
  *
@@ -268,9 +268,13 @@ STDMETHODIMP Guest::COMSETTER(MemoryBalloonSize) (ULONG aMemoryBalloonSize)
     {
         mMemoryBalloonSize = aMemoryBalloonSize;
         /* forward the information to the VMM device */
-        VMMDev *vmmDev = mParent->getVMMDev();
-        if (vmmDev)
-            vmmDev->getVMMDevPort()->pfnSetMemoryBalloon(vmmDev->getVMMDevPort(), aMemoryBalloonSize);
+        VMMDev *pVMMDev = mParent->getVMMDev();
+        if (pVMMDev)
+        {
+            PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
+            ComAssertRet(pVMMDevPort, E_FAIL);
+            pVMMDevPort->pfnSetMemoryBalloon(pVMMDevPort, aMemoryBalloonSize);
+        }
     }
 
     return ret;
@@ -298,9 +302,13 @@ STDMETHODIMP Guest::COMSETTER(StatisticsUpdateInterval)(ULONG aUpdateInterval)
 
     mStatUpdateInterval = aUpdateInterval;
     /* forward the information to the VMM device */
-    VMMDev *vmmDev = mParent->getVMMDev();
-    if (vmmDev)
-        vmmDev->getVMMDevPort()->pfnSetStatisticsInterval(vmmDev->getVMMDevPort(), aUpdateInterval);
+    VMMDev *pVMMDev = mParent->getVMMDev();
+    if (pVMMDev)
+    {
+        PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
+        ComAssertRet(pVMMDevPort, E_FAIL);
+        pVMMDevPort->pfnSetStatisticsInterval(pVMMDevPort, aUpdateInterval);
+    }
 
     return S_OK;
 }
@@ -392,14 +400,17 @@ STDMETHODIMP Guest::SetCredentials(IN_BSTR aUserName, IN_BSTR aPassword,
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* forward the information to the VMM device */
-    VMMDev *vmmDev = mParent->getVMMDev();
-    if (vmmDev)
+    VMMDev *pVMMDev = mParent->getVMMDev();
+    if (pVMMDev)
     {
+        PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
+        ComAssertRet(pVMMDevPort, E_FAIL);
+
         uint32_t u32Flags = VMMDEV_SETCREDENTIALS_GUESTLOGON;
         if (!aAllowInteractiveLogon)
             u32Flags = VMMDEV_SETCREDENTIALS_NOLOCALLOGON;
 
-        vmmDev->getVMMDevPort()->pfnSetCredentials(vmmDev->getVMMDevPort(),
+        pVMMDevPort->pfnSetCredentials(pVMMDevPort,
             Utf8Str(aUserName).raw(), Utf8Str(aPassword).raw(),
             Utf8Str(aDomain).raw(), u32Flags);
         return S_OK;
@@ -483,25 +494,36 @@ DECLCALLBACK(int) Guest::doGuestCtrlNotification(void    *pvExtension,
     ComObjPtr<Guest> pGuest = reinterpret_cast<Guest *>(pvExtension);
 
     int rc = VINF_SUCCESS;
-    if (u32Function == GUEST_EXEC_SEND_STATUS)
+    if (u32Function == GUEST_DISCONNECTED)
+    {
+        LogFlowFunc(("GUEST_DISCONNECTED\n"));
+
+        PCALLBACKDATACLIENTDISCONNECTED pCBData = reinterpret_cast<PCALLBACKDATACLIENTDISCONNECTED>(pvParms);
+        AssertPtr(pCBData);
+        AssertReturn(sizeof(CALLBACKDATACLIENTDISCONNECTED) == cbParms, VERR_INVALID_PARAMETER);
+        AssertReturn(CALLBACKDATAMAGICCLIENTDISCONNECTED == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+
+        rc = pGuest->notifyCtrlClientDisconnected(u32Function, pCBData);
+    }
+    else if (u32Function == GUEST_EXEC_SEND_STATUS)
     {
         LogFlowFunc(("GUEST_EXEC_SEND_STATUS\n"));
 
-        PHOSTEXECCALLBACKDATA pCBData = reinterpret_cast<PHOSTEXECCALLBACKDATA>(pvParms);
+        PCALLBACKDATAEXECSTATUS pCBData = reinterpret_cast<PCALLBACKDATAEXECSTATUS>(pvParms);
         AssertPtr(pCBData);
-        AssertReturn(sizeof(HOSTEXECCALLBACKDATA) == cbParms, VERR_INVALID_PARAMETER);
-        AssertReturn(HOSTEXECCALLBACKDATAMAGIC == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+        AssertReturn(sizeof(CALLBACKDATAEXECSTATUS) == cbParms, VERR_INVALID_PARAMETER);
+        AssertReturn(CALLBACKDATAMAGICEXECSTATUS == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
 
-        rc = pGuest->notifyCtrlExec(u32Function, pCBData);
+        rc = pGuest->notifyCtrlExecStatus(u32Function, pCBData);
     }
     else if (u32Function == GUEST_EXEC_SEND_OUTPUT)
     {
         LogFlowFunc(("GUEST_EXEC_SEND_OUTPUT\n"));
 
-        PHOSTEXECOUTCALLBACKDATA pCBData = reinterpret_cast<PHOSTEXECOUTCALLBACKDATA>(pvParms);
+        PCALLBACKDATAEXECOUT pCBData = reinterpret_cast<PCALLBACKDATAEXECOUT>(pvParms);
         AssertPtr(pCBData);
-        AssertReturn(sizeof(HOSTEXECOUTCALLBACKDATA) == cbParms, VERR_INVALID_PARAMETER);
-        AssertReturn(HOSTEXECOUTCALLBACKDATAMAGIC == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+        AssertReturn(sizeof(CALLBACKDATAEXECOUT) == cbParms, VERR_INVALID_PARAMETER);
+        AssertReturn(CALLBACKDATAMAGICEXECOUT == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
 
         rc = pGuest->notifyCtrlExecOut(u32Function, pCBData);
     }
@@ -511,8 +533,8 @@ DECLCALLBACK(int) Guest::doGuestCtrlNotification(void    *pvExtension,
 }
 
 /* Function for handling the execution start/termination notification. */
-int Guest::notifyCtrlExec(uint32_t              u32Function,
-                          PHOSTEXECCALLBACKDATA pData)
+int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
+                                PCALLBACKDATAEXECSTATUS pData)
 {
     LogFlowFuncEnter();
     int rc = VINF_SUCCESS;
@@ -525,7 +547,7 @@ int Guest::notifyCtrlExec(uint32_t              u32Function,
     /* Callback can be called several times. */
     if (it != mCallbackList.end())
     {
-        PHOSTEXECCALLBACKDATA pCBData = (HOSTEXECCALLBACKDATA*)it->pvData;
+        PCALLBACKDATAEXECSTATUS pCBData = (PCALLBACKDATAEXECSTATUS)it->pvData;
         AssertPtr(pCBData);
 
         pCBData->u32PID = pData->u32PID;
@@ -587,11 +609,11 @@ int Guest::notifyCtrlExec(uint32_t              u32Function,
         {
             /* Not found, add to list. */
             GuestProcess p;
-            p.mPID = pCBData->u32PID;            
+            p.mPID = pCBData->u32PID;
             p.mStatus = pCBData->u32Status;
             p.mExitCode = pCBData->u32Flags; /* Contains exit code. */
             p.mFlags = 0;
-            
+
             mGuestProcessList.push_back(p);
         }
         else /* Update list. */
@@ -616,7 +638,7 @@ int Guest::notifyCtrlExec(uint32_t              u32Function,
                 LogFlowFunc(("Callback (context ID=%u, status=%u) progress already marked as completed\n",
                              pData->hdr.u32ContextID, pData->u32Status));
         }
-        ASMAtomicWriteBool(&it->bCalled, true);
+        ASMAtomicWriteBool(&it->fCalled, true);
     }
     else
         LogFlowFunc(("Unexpected callback (magic=%u, context ID=%u) arrived\n", pData->hdr.u32Magic, pData->hdr.u32ContextID));
@@ -625,8 +647,8 @@ int Guest::notifyCtrlExec(uint32_t              u32Function,
 }
 
 /* Function for handling the execution output notification. */
-int Guest::notifyCtrlExecOut(uint32_t                 u32Function,
-                             PHOSTEXECOUTCALLBACKDATA pData)
+int Guest::notifyCtrlExecOut(uint32_t             u32Function,
+                             PCALLBACKDATAEXECOUT pData)
 {
     LogFlowFuncEnter();
     int rc = VINF_SUCCESS;
@@ -637,8 +659,8 @@ int Guest::notifyCtrlExecOut(uint32_t                 u32Function,
     CallbackListIter it = getCtrlCallbackContextByID(pData->hdr.u32ContextID);
     if (it != mCallbackList.end())
     {
-        Assert(!it->bCalled);
-        PHOSTEXECOUTCALLBACKDATA pCBData = (HOSTEXECOUTCALLBACKDATA*)it->pvData;
+        Assert(!it->fCalled);
+        PCALLBACKDATAEXECOUT pCBData = (CALLBACKDATAEXECOUT*)it->pvData;
         AssertPtr(pCBData);
 
         pCBData->u32PID = pData->u32PID;
@@ -661,10 +683,30 @@ int Guest::notifyCtrlExecOut(uint32_t                 u32Function,
             pCBData->pvData = NULL;
             pCBData->cbData = 0;
         }
-        ASMAtomicWriteBool(&it->bCalled, true);
+        ASMAtomicWriteBool(&it->fCalled, true);
     }
     else
         LogFlowFunc(("Unexpected callback (magic=%u, context ID=%u) arrived\n", pData->hdr.u32Magic, pData->hdr.u32ContextID));
+    LogFlowFuncLeave();
+    return rc;
+}
+
+int Guest::notifyCtrlClientDisconnected(uint32_t                        u32Function,
+                                        PCALLBACKDATACLIENTDISCONNECTED pData)
+{
+    LogFlowFuncEnter();
+    int rc = VINF_SUCCESS;
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /** @todo Maybe use a map instead of list for fast context lookup. */
+    CallbackListIter it;
+    for (it = mCallbackList.begin(); it != mCallbackList.end(); it++)
+    {
+        if (it->mContextID == pData->hdr.u32ContextID)
+            destroyCtrlCallbackContext(it);
+    }
+
     LogFlowFuncLeave();
     return rc;
 }
@@ -715,9 +757,9 @@ void Guest::destroyCtrlCallbackContext(Guest::CallbackListIter it)
         BOOL fCancelled;
         if (SUCCEEDED(it->pProgress->COMGETTER(Canceled)(&fCancelled)) && !fCancelled)
             it->pProgress->Cancel();
-        /* 
-         * Do *not NULL pProgress here, because waiting function like executeProcess() 
-         * will still rely on this object for checking whether they have to give up! 
+        /*
+         * Do *not NULL pProgress here, because waiting function like executeProcess()
+         * will still rely on this object for checking whether they have to give up!
          */
     }
     LogFlowFuncLeave();
@@ -737,7 +779,7 @@ uint32_t Guest::addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void 
     CallbackContext context;
     context.mContextID = uNewContext;
     context.mType = enmType;
-    context.bCalled = false;
+    context.fCalled = false;
     context.pvData = pvData;
     context.cbData = cbData;
     context.pProgress = pProgress;
@@ -745,9 +787,10 @@ uint32_t Guest::addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void 
     uint32_t nCallbacks;
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        /// @todo r=bird: check if already in the list and find another one.
         mCallbackList.push_back(context);
         nCallbacks = mCallbackList.size();
-    }    
+    }
 
 #if 0
     if (nCallbacks > 256) /* Don't let the container size get too big! */
@@ -771,6 +814,8 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                                    IN_BSTR aUserName, IN_BSTR aPassword,
                                    ULONG aTimeoutMS, ULONG *aPID, IProgress **aProgress)
 {
+/** @todo r=bird: Eventually we should clean up all the timeout parameters
+ *        in the API and have the same way of specifying infinite waits!  */
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else  /* VBOX_WITH_GUEST_CONTROL */
@@ -828,6 +873,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
             AssertReturn(papszArgv, E_OUTOFMEMORY);
             for (unsigned i = 0; RT_SUCCESS(vrc) && i < uNumArgs; i++)
             {
+                /// @todo r=bird: RTUtf16ToUtf8().
                 int cbLen = RTStrAPrintf(&papszArgv[i], "%s", Utf8Str(args[i]).raw());
                 if (cbLen < 0)
                     vrc = VERR_NO_MEMORY;
@@ -867,10 +913,10 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
 
                 if (RT_SUCCESS(vrc))
                 {
-                    PHOSTEXECCALLBACKDATA pData = (HOSTEXECCALLBACKDATA*)RTMemAlloc(sizeof(HOSTEXECCALLBACKDATA));
+                    PCALLBACKDATAEXECSTATUS pData = (PCALLBACKDATAEXECSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECSTATUS));
                     AssertReturn(pData, VBOX_E_IPRT_ERROR);
-                    uContextID = addCtrlCallbackContext(VBOXGUESTCTRLCALLBACKTYPE_EXEC_START, 
-                                                        pData, sizeof(HOSTEXECCALLBACKDATA), progress);
+                    uContextID = addCtrlCallbackContext(VBOXGUESTCTRLCALLBACKTYPE_EXEC_START,
+                                                        pData, sizeof(CALLBACKDATAEXECSTATUS), progress);
                     Assert(uContextID > 0);
 
                     VBOXHGCMSVCPARM paParms[15];
@@ -889,11 +935,11 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
 
                     VMMDev *vmmDev;
                     {
-                        /* Make sure mParent is valid, so set the read lock while using. 
+                        /* Make sure mParent is valid, so set the read lock while using.
                          * Do not keep this lock while doing the actual call, because in the meanwhile
                          * another thread could request a write lock which would be a bad idea ... */
                         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
                         /* Forward the information to the VMM device. */
                         AssertPtr(mParent);
                         vmmDev = mParent->getVMMDev();
@@ -925,7 +971,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                 if (it != mCallbackList.end())
                 {
                     uint64_t u64Started = RTTimeMilliTS();
-                    while (!it->bCalled)
+                    while (!it->fCalled)
                     {
                         /* Check for timeout. */
                         unsigned cMsWait;
@@ -941,12 +987,15 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
 
                         /* Check for manual stop. */
                         if (!it->pProgress.isNull())
-                        {                            
+                        {
                             rc = it->pProgress->COMGETTER(Canceled)(&fCanceled);
                             if (FAILED(rc)) throw rc;
                             if (fCanceled)
-                                break; /* Client wants to abort. */
+                                break; /* HGCM/guest wants to abort because of status change. */
+
                         }
+                        /// @todo r=bird: two operation progress object and wait first operation.
+                        /// IProgress::WaitForOperationCompletion.
                         RTThreadSleep(cMsWait);
                     }
                 }
@@ -954,13 +1003,13 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                 /* Was the whole thing canceled? */
                 if (!fCanceled)
                 {
-                    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS); 
+                    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-                    PHOSTEXECCALLBACKDATA pData = (HOSTEXECCALLBACKDATA*)it->pvData;
-                    Assert(it->cbData == sizeof(HOSTEXECCALLBACKDATA));
+                    PCALLBACKDATAEXECSTATUS pData = (PCALLBACKDATAEXECSTATUS)it->pvData;
+                    Assert(it->cbData == sizeof(CALLBACKDATAEXECSTATUS));
                     AssertPtr(pData);
 
-                    if (it->bCalled)
+                    if (it->fCalled)
                     {
                         /* Did we get some status? */
                         switch (pData->u32Status)
@@ -969,7 +1018,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                                 /* Process is (still) running; get PID. */
                                 *aPID = pData->u32PID;
                                 break;
-    
+
                             /* In any other case the process either already
                              * terminated or something else went wrong, so no PID ... */
                             case PROC_STS_TEN: /* Terminated normally. */
@@ -978,17 +1027,17 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                             case PROC_STS_TOK:
                             case PROC_STS_TOA:
                             case PROC_STS_DWN:
-                                /* 
+                                /*
                                  * Process (already) ended, but we want to get the
-                                 * PID anyway to retrieve the output in a later call. 
+                                 * PID anyway to retrieve the output in a later call.
                                  */
                                 *aPID = pData->u32PID;
                                 break;
-    
+
                             case PROC_STS_ERROR:
                                 vrc = pData->u32Flags; /* u32Flags member contains IPRT error code. */
                                 break;
-    
+
                             default:
                                 vrc = VERR_INVALID_PARAMETER; /* Unknown status, should never happen! */
                                 break;
@@ -1008,6 +1057,11 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                             rc = setError(VBOX_E_IPRT_ERROR,
                                           tr("The file '%s' was not found on guest"), Utf8Command.raw());
                         }
+                        else if (vrc == VERR_PATH_NOT_FOUND)
+                        {
+                            rc = setError(VBOX_E_IPRT_ERROR,
+                                          tr("The path to file '%s' was not found on guest"), Utf8Command.raw());
+                        }
                         else if (vrc == VERR_BAD_EXE_FORMAT)
                         {
                             rc = setError(VBOX_E_IPRT_ERROR,
@@ -1023,11 +1077,6 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                             rc = setError(VBOX_E_IPRT_ERROR,
                                           tr("The guest did not respond within time (%ums)"), aTimeoutMS);
                         }
-                        else if (vrc == VERR_INVALID_PARAMETER)
-                        {
-                            rc = setError(VBOX_E_IPRT_ERROR,
-                                          tr("The guest reported an unknown process status (%u)"), pData->u32Status);
-                        }
                         else if (vrc == VERR_PERMISSION_DENIED)
                         {
                             rc = setError(VBOX_E_IPRT_ERROR,
@@ -1035,9 +1084,13 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                         }
                         else
                         {
-                            rc = setError(E_UNEXPECTED,
-                                          tr("The service call failed with error %Rrc"), vrc);
-                        }               
+                            if (pData->u32Status == PROC_STS_ERROR)
+                                rc = setError(VBOX_E_IPRT_ERROR,
+                                              tr("Process could not be started: %Rrc"), pData->u32Flags);
+                            else
+                                rc = setError(E_UNEXPECTED,
+                                              tr("The service call failed with error %Rrc"), vrc);
+                        }
                     }
                     else /* Execution went fine. */
                     {
@@ -1085,6 +1138,8 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
 
 STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, ULONG64 aSize, ComSafeArrayOut(BYTE, aData))
 {
+/** @todo r=bird: Eventually we should clean up all the timeout parameters
+ *        in the API and have the same way of specifying infinite waits!  */
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else  /* VBOX_WITH_GUEST_CONTROL */
@@ -1096,7 +1151,7 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
         return E_INVALIDARG;
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc(); 
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT rc = S_OK;
 
@@ -1122,31 +1177,31 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             aTimeoutMS = UINT32_MAX;
 
         /* Search for existing PID. */
-        PHOSTEXECOUTCALLBACKDATA pData = (HOSTEXECOUTCALLBACKDATA*)RTMemAlloc(sizeof(HOSTEXECOUTCALLBACKDATA));
+        PCALLBACKDATAEXECOUT pData = (CALLBACKDATAEXECOUT*)RTMemAlloc(sizeof(CALLBACKDATAEXECOUT));
         AssertReturn(pData, VBOX_E_IPRT_ERROR);
         uint32_t uContextID = addCtrlCallbackContext(VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT,
-                                                     pData, sizeof(HOSTEXECOUTCALLBACKDATA), progress);
+                                                     pData, sizeof(CALLBACKDATAEXECOUT), progress);
         Assert(uContextID > 0);
-    
+
         size_t cbData = (size_t)RT_MIN(aSize, _64K);
         com::SafeArray<BYTE> outputData(cbData);
-    
+
         VBOXHGCMSVCPARM paParms[5];
         int i = 0;
         paParms[i++].setUInt32(uContextID);
         paParms[i++].setUInt32(aPID);
         paParms[i++].setUInt32(aFlags); /** @todo Should represent stdout and/or stderr. */
-    
+
         int vrc = VINF_SUCCESS;
-    
+
         {
             VMMDev *vmmDev;
             {
-                /* Make sure mParent is valid, so set the read lock while using. 
+                /* Make sure mParent is valid, so set the read lock while using.
                  * Do not keep this lock while doing the actual call, because in the meanwhile
                  * another thread could request a write lock which would be a bad idea ... */
                 AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-        
+
                 /* Forward the information to the VMM device. */
                 AssertPtr(mParent);
                 vmmDev = mParent->getVMMDev();
@@ -1159,11 +1214,11 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
                                            i, paParms);
             }
         }
-    
+
         if (RT_SUCCESS(vrc))
         {
             LogFlowFunc(("Waiting for HGCM callback (timeout=%ldms) ...\n", aTimeoutMS));
-    
+
             /*
              * Wait for the HGCM low level callback until the process
              * has been started (or something went wrong). This is necessary to
@@ -1174,7 +1229,7 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             if (it != mCallbackList.end())
             {
                 uint64_t u64Started = RTTimeMilliTS();
-                while (!it->bCalled)
+                while (!it->fCalled)
                 {
                     /* Check for timeout. */
                     unsigned cMsWait;
@@ -1197,26 +1252,26 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
                             break; /* Client wants to abort. */
                     }
                     RTThreadSleep(cMsWait);
-                } 
-    
+                }
+
                 /* Was the whole thing canceled? */
                 if (!fCanceled)
                 {
-                    if (it->bCalled)
+                    if (it->fCalled)
                     {
                         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-            
+
                         /* Did we get some output? */
-                        pData = (HOSTEXECOUTCALLBACKDATA*)it->pvData;
-                        Assert(it->cbData == sizeof(HOSTEXECOUTCALLBACKDATA));
+                        pData = (PCALLBACKDATAEXECOUT)it->pvData;
+                        Assert(it->cbData == sizeof(CALLBACKDATAEXECOUT));
                         AssertPtr(pData);
-            
+
                         if (pData->cbData)
                         {
                             /* Do we need to resize the array? */
                             if (pData->cbData > cbData)
                                 outputData.resize(pData->cbData);
-            
+
                             /* Fill output in supplied out buffer. */
                             memcpy(outputData.raw(), pData->pvData, pData->cbData);
                             outputData.resize(pData->cbData); /* Shrink to fit actual buffer size. */
@@ -1260,12 +1315,12 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             }
             else /* PID lookup failed. */
                 rc = setError(VBOX_E_IPRT_ERROR,
-                              tr("Process (PID %u) not found!"), aPID);    
+                              tr("Process (PID %u) not found!"), aPID);
         }
         else /* HGCM operation failed. */
             rc = setError(E_UNEXPECTED,
                           tr("The HGCM call failed with error %Rrc"), vrc);
-    
+
         /* Cleanup. */
         progress->uninit();
         progress.setNull();
@@ -1292,21 +1347,21 @@ STDMETHODIMP Guest::GetProcessStatus(ULONG aPID, ULONG *aExitCode, ULONG *aFlags
     using namespace guestControl;
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc(); 
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT rc = S_OK;
 
     try
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         GuestProcessIterConst it;
         for (it = mGuestProcessList.begin(); it != mGuestProcessList.end(); it++)
         {
             if (it->mPID == aPID)
                 break;
         }
-    
+
         if (it != mGuestProcessList.end())
         {
             *aExitCode = it->mExitCode;

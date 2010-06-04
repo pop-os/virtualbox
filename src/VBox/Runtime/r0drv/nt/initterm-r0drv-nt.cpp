@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv-nt.cpp 29253 2010-05-09 18:01:10Z vboxsync $ */
+/* $Id: initterm-r0drv-nt.cpp 29738 2010-05-21 14:25:22Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, NT.
  */
@@ -184,6 +184,13 @@ int rtR0InitNative(void)
             g_offrtNtPbQuantumEnd    = 0x1a41;
             g_cbrtNtPbQuantumEnd     = 1;
             g_offrtNtPbDpcQueueDepth = 0x19e0 + 0xc;
+        }        
+        else if (   BuildNumber == 3790                         /* Server 2003 SP2 */
+                 && !memcmp(&pbPrcb[0xb60], &u.szVendor[0], 4*3))
+        {
+            g_offrtNtPbQuantumEnd    = 0x981;
+            g_cbrtNtPbQuantumEnd     = 1;
+            g_offrtNtPbDpcQueueDepth = 0x920 + 0xc;
         }
 
         /** @todo more */

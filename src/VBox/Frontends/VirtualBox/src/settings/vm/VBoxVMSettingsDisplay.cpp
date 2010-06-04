@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsDisplay.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVMSettingsDisplay.cpp 29947 2010-06-01 12:54:34Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -21,6 +21,8 @@
 #include "VBoxVMSettingsDisplay.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
+
+#include <QDesktopWidget>
 
 /**
  *  Calculates a suitable page step size for the given max value. The returned
@@ -53,6 +55,11 @@ VBoxVMSettingsDisplay::VBoxVMSettingsDisplay()
     m_maxVRAM = sys.GetMaxGuestVRAM();
     m_maxVRAMVisible = m_maxVRAM;
     const uint MinMonitors = 1;
+#if (QT_VERSION >= 0x040600)
+    const uint cHostScreens = QApplication::desktop()->screenCount();
+#else /* (QT_VERSION >= 0x040600) */
+    const uint cHostScreens = QApplication::desktop()->numScreens();
+#endif /* !(QT_VERSION >= 0x040600) */
     const uint MaxMonitors = sys.GetMaxGuestMonitors();
 
     /* Setup validators */
@@ -84,7 +91,9 @@ VBoxVMSettingsDisplay::VBoxVMSettingsDisplay()
     mSlMemory->setOptimalHint (needMBytes, m_maxVRAMVisible);
     mSlMonitors->setMinimum (MinMonitors);
     mSlMonitors->setMaximum (MaxMonitors);
-    mSlMonitors->setSnappingEnabled (true);
+    mSlMonitors->setErrorHint (0, MinMonitors);
+    mSlMonitors->setOptimalHint (MinMonitors, cHostScreens);
+    mSlMonitors->setWarningHint (cHostScreens, MaxMonitors);
     /* Limit min/max. size of QLineEdit */
     mLeMemory->setFixedWidthByText (QString().fill ('8', 4));
     mLeMonitors->setFixedWidthByText (QString().fill ('8', 4));
@@ -139,7 +148,8 @@ void VBoxVMSettingsDisplay::getFrom (const CMachine &aMachine)
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
     mCb2DVideo->setEnabled (VBoxGlobal::isAcceleration2DVideoAvailable());
-    mCb2DVideo->setChecked (mMachine.GetAccelerate2DVideoEnabled());
+    mCb2DVideo->setChecked (   mMachine.GetAccelerate2DVideoEnabled()
+                            && VBoxGlobal::isAcceleration2DVideoAvailable());
 #endif
 
     /* VRDP Settings */

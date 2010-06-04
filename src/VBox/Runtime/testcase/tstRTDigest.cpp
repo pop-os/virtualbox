@@ -1,4 +1,4 @@
-/* $Id: tstRTDigest.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstRTDigest.cpp 29906 2010-05-31 13:01:17Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTSha*, RTMd5, RTCrc*.
  */
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
                              case kDigestType_SHA1:
                              {
                                  char *pszDigest;
-                                 int rc = RTSha1Digest(ValueUnion.psz, &pszDigest);
+                                 int rc = RTSha1Digest(ValueUnion.psz, &pszDigest, NULL, NULL);
                                  if (RT_FAILURE(rc))
                                      return Error("RTSha1Digest(%s,) -> %Rrc\n", ValueUnion.psz, rc);
                                  RTPrintf("%s  %s\n", pszDigest, ValueUnion.psz);

@@ -1,4 +1,4 @@
-/* $Id: VMMDevHGCM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VMMDevHGCM.cpp 29743 2010-05-21 16:00:02Z vboxsync $ */
 /** @file
  * VMMDev - HGCM - Host-Guest Communication Manager Device.
  */
@@ -1065,8 +1065,15 @@ int vmmdevHGCMCall (VMMDevState *pVMMDevState, VMMDevHGCMCall *pHGCMCall, uint32
         /* Pass the function call to HGCM connector for actual processing */
         rc = pVMMDevState->pHGCMDrv->pfnCall (pVMMDevState->pHGCMDrv, pCmd, pHGCMCall->u32ClientID,
                                               pHGCMCall->u32Function, cParms, pCmd->paHostParms);
+
+        if (RT_FAILURE (rc))
+        {
+            Log(("vmmdevHGCMCall: pfnCall failed rc = %Rrc\n", rc));
+            vmmdevHGCMRemoveCommand (pVMMDevState, pCmd);
+        }
     }
-    else
+
+    if (RT_FAILURE (rc))
     {
         if (pCmd->paLinPtrs)
         {

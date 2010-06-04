@@ -1,4 +1,4 @@
-/* $Id: PGMAllBth.h 29217 2010-05-07 14:38:51Z vboxsync $ */
+/* $Id: PGMAllBth.h 29676 2010-05-20 09:54:57Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Shadow+Guest Paging Template - All context code.
  *
@@ -4407,7 +4407,7 @@ PGM_BTH_DECL(int, MapCR3)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
             pVCpu->pgm.s.pGstPaePdptR0 = (R0PTRTYPE(PX86PDPT))HCPtrGuestCR3;
 #  endif
             pVCpu->pgm.s.pGstPaePdptRC = (RCPTRTYPE(PX86PDPT))((RTRCUINTPTR)pVM->pgm.s.GCPtrCR3Mapping + off);
-            Log(("Cached mapping %RRv\n", pVCpu->pgm.s.pGstPaePdptRC));
+            LogFlow(("Cached mapping %RRv\n", pVCpu->pgm.s.pGstPaePdptRC));
 
             /*
              * Map the 4 PDs too.

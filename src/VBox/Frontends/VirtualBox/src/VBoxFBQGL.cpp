@@ -1,4 +1,4 @@
-/* $Id: VBoxFBQGL.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxFBQGL.cpp 29794 2010-05-25 16:06:59Z vboxsync $ */
 /** @file
  * VBoxFBQGL Opengl-based FrameBuffer implementation
  */
@@ -23,24 +23,12 @@
 
 #include "VBoxFrameBuffer.h"
 
-#include "VBoxConsoleView.h"
-//#include "VBoxProblemReporter.h"
-//#include "VBoxGlobal.h"
-
 /* Qt includes */
 #include <QGLWidget>
 
-//#include <iprt/asm.h>
-//
 #ifdef VBOX_WITH_VIDEOHWACCEL
 #include <VBox/VBoxVideo.h>
-//#include <VBox/types.h>
-//#include <VBox/ssm.h>
 #endif
-//#include <iprt/semaphore.h>
-//
-//#include <QFile>
-//#include <QTextStream>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
@@ -50,20 +38,6 @@
  *  interface and uses QImage as the direct storage for VM display data. QImage
  *  is then converted to QPixmap and blitted to the console view widget.
  */
-
-VBoxQGLFrameBuffer::VBoxQGLFrameBuffer (VBoxConsoleView *aView) :
-    VBoxFrameBuffer (aView),
-    mCmdPipe(aView)
-{
-//    mWidget = new GLWidget(aView->viewport());
-#ifndef VBOXQGL_PROF_BASE
-    resizeEvent (new VBoxResizeEvent (FramebufferPixelFormat_Opaque,
-                                      NULL, 0, 0, 640, 480));
-#else
-    resizeEvent (new VBoxResizeEvent (FramebufferPixelFormat_Opaque,
-                                      NULL, 0, 0, VBOXQGL_PROF_WIDTH, VBOXQGL_PROF_HEIGHT));
-#endif
-}
 
 /** @note This method is called on EMT from under this object's lock */
 STDMETHODIMP VBoxQGLFrameBuffer::NotifyUpdate (ULONG aX, ULONG aY,

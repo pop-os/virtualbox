@@ -1,4 +1,4 @@
-/* $Id: ovfreader.cpp 29422 2010-05-12 14:08:52Z vboxsync $ */
+/* $Id: ovfreader.cpp 29893 2010-05-31 10:37:17Z vboxsync $ */
 /** @file
  *
  * OVF reader declarations. Depends only on IPRT, including the iprt::MiniString
@@ -85,7 +85,9 @@ void OVFReader::LoopThruSections(const xml::ElementNode *pReferencesElem,
         const char *pcszElemName = pElem->getName();
         const char *pcszTypeAttr = "";
         const xml::AttributeNode *pTypeAttr;
-        if ((pTypeAttr = pElem->findAttribute("type")))
+        if (    ((pTypeAttr = pElem->findAttribute("xsi:type")))
+             || ((pTypeAttr = pElem->findAttribute("type")))
+           )
             pcszTypeAttr = pTypeAttr->getValue();
 
         if (    (!strcmp(pcszElemName, "DiskSection"))
@@ -96,7 +98,7 @@ void OVFReader::LoopThruSections(const xml::ElementNode *pReferencesElem,
         {
             HandleDiskSection(pReferencesElem, pElem);
         }
-       else if (    (!strcmp(pcszElemName, "NetworkSection"))
+        else if (    (!strcmp(pcszElemName, "NetworkSection"))
                   || (    (!strcmp(pcszElemName, "Section"))
                        && (!strcmp(pcszTypeAttr, "ovf:NetworkSection_Type"))
                      )
@@ -294,8 +296,19 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
     while ((pelmThis = loop.forAllNodes()))
     {
         const char *pcszElemName = pelmThis->getName();
-        const xml::AttributeNode *pTypeAttr = pelmThis->findAttribute("type");
-        const char *pcszTypeAttr = (pTypeAttr) ? pTypeAttr->getValue() : "";
+        const char *pcszTypeAttr = "";
+        if (!strcmp(pcszElemName, "Section"))       // OVF 0.9 used "Section" element always with a varying "type" attribute
+        {
+            const xml::AttributeNode *pTypeAttr;
+            if (    ((pTypeAttr = pelmThis->findAttribute("type")))
+                 || ((pTypeAttr = pelmThis->findAttribute("xsi:type")))
+               )
+                pcszTypeAttr = pTypeAttr->getValue();
+            else
+                throw OVFLogicError(N_("Error reading \"%s\": element \"Section\" has no \"type\" attribute, line %d"),
+                                    m_strPath.c_str(),
+                                    pelmThis->getLineNumber());
+        }
 
         if (    (!strcmp(pcszElemName, "EulaSection"))
              || (!strcmp(pcszTypeAttr, "ovf:EulaSection_Type"))

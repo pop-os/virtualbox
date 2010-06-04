@@ -1,4 +1,4 @@
-/* $Id: process-win.cpp 29289 2010-05-10 09:38:30Z vboxsync $ */
+/* $Id: process-win.cpp 29912 2010-05-31 14:36:04Z vboxsync $ */
 /** @file
  * IPRT - Process, Windows.
  */
@@ -32,6 +32,7 @@
 
 #include <Userenv.h>
 #include <Windows.h>
+#include <tlhelp32.h>
 #include <process.h>
 #include <errno.h>
 
@@ -72,8 +73,20 @@ typedef FNCREATEPROCESSWITHLOGON *PFNCREATEPROCESSWITHLOGON;
 typedef DWORD WINAPI FNWTSGETACTIVECONSOLESESSIONID();
 typedef FNWTSGETACTIVECONSOLESESSIONID *PFNWTSGETACTIVECONSOLESESSIONID;
 
-typedef BOOL WINAPI FNWTSQUERYUSERTOKEN(ULONG, PHANDLE);
-typedef FNWTSQUERYUSERTOKEN *PFNWTSQUERYUSERTOKEN;
+typedef HANDLE WINAPI FNCREATETOOLHELP32SNAPSHOT(DWORD, DWORD);
+typedef FNCREATETOOLHELP32SNAPSHOT *PFNCREATETOOLHELP32SNAPSHOT;
+
+typedef BOOL WINAPI FNPROCESS32FIRST(HANDLE, LPPROCESSENTRY32);
+typedef FNPROCESS32FIRST *PFNPROCESS32FIRST;
+
+typedef BOOL WINAPI FNPROCESS32NEXT(HANDLE, LPPROCESSENTRY32);
+typedef FNPROCESS32NEXT *PFNPROCESS32NEXT;
+
+typedef BOOL WINAPI FNENUMPROCESSES(DWORD*, DWORD, DWORD*);
+typedef FNENUMPROCESSES *PFNENUMPROCESSES;
+
+typedef DWORD FNGETMODULEBASENAME(HANDLE, HMODULE, LPTSTR, DWORD);
+typedef FNGETMODULEBASENAME *PFNGETMODULEBASENAME;
 
 
 /*******************************************************************************
@@ -240,190 +253,223 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
 }
 
 
-static int rtProcCreateAsUserHlp(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszExec, PRTUTF16 pwszCmdLine,
-                                 PRTUTF16 pwszzBlock, DWORD dwCreationFlags,
-                                 STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo, uint32_t fFlags)
+static int rtProcGetProcessHandle(DWORD dwPID, PSID pSID, PHANDLE phToken)
 {
-    HANDLE hToken = INVALID_HANDLE_VALUE;
-    BOOL fRc = FALSE;
-#ifndef IPRT_TARGET_NT4
+    AssertPtr(pSID);
+    AssertPtr(phToken);
+
+    DWORD dwErr;
+    BOOL fRc;
+    BOOL fFound = FALSE;
+    HANDLE hProc = OpenProcess(MAXIMUM_ALLOWED, TRUE, dwPID);
+    if (hProc != NULL)
+    {
+        HANDLE hTokenProc;
+        fRc = OpenProcessToken(hProc,
+                               TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY | TOKEN_DUPLICATE |
+                               TOKEN_ASSIGN_PRIMARY | TOKEN_ADJUST_SESSIONID | TOKEN_READ | TOKEN_WRITE,
+                               &hTokenProc);
+        if (fRc)
+        {
+            DWORD dwSize = 0;
+            fRc = GetTokenInformation(hTokenProc, TokenUser, NULL, 0, &dwSize);
+            if (!fRc)
+                dwErr = GetLastError();
+            if (   !fRc
+                && dwErr == ERROR_INSUFFICIENT_BUFFER
+                && dwSize > 0)
+            {
+                PTOKEN_USER pTokenUser = (PTOKEN_USER)RTMemAlloc(dwSize);
+                AssertPtrReturn(pTokenUser, VERR_NO_MEMORY);
+                RT_ZERO(*pTokenUser);
+                if (   GetTokenInformation(hTokenProc,
+                                           TokenUser,
+                                           (LPVOID)pTokenUser,
+                                           dwSize,
+                                           &dwSize))
+                {
+                    if (   IsValidSid(pTokenUser->User.Sid)
+                        && EqualSid(pTokenUser->User.Sid, pSID))
+                    {
+                        if (DuplicateTokenEx(hTokenProc, MAXIMUM_ALLOWED,
+                                             NULL, SecurityIdentification, TokenPrimary, phToken))
+                        {
+                            /*
+                             * So we found the process instance which belongs to the user we want to
+                             * to run our new process under. This duplicated token will be used for
+                             * the actual CreateProcessAsUserW() call then.
+                             */
+                            fFound = TRUE;
+                        }
+                        else
+                            dwErr = GetLastError();
+                    }
+                }
+                else
+                    dwErr = GetLastError();
+                RTMemFree(pTokenUser);
+            }
+            else
+                dwErr = GetLastError();
+            CloseHandle(hTokenProc);
+        }
+        else
+            dwErr = GetLastError();
+        CloseHandle(hProc);
+    }
+    else
+        dwErr = GetLastError();
+    if (fFound)
+        return VINF_SUCCESS;
+    if (dwErr != NO_ERROR)
+        return RTErrConvertFromWin32(dwErr);
+    return VERR_NOT_FOUND; /* No error occured, but we didn't find the right process. */
+}
+
+
+static BOOL rtProcFindProcessByName(const char *pszName, PSID pSID, PHANDLE phToken)
+{
+    AssertPtr(pszName);
+    AssertPtr(pSID);
+    AssertPtr(phToken);
+
+    DWORD dwErr = NO_ERROR;
+    BOOL fFound = FALSE;
+
     /*
-     * Get the session ID.
+     * On modern systems (W2K+) try the Toolhelp32 API first; this is more stable
+     * and reliable. Fallback to EnumProcess on NT4.
      */
-    DWORD dwSessionID = 0; /* On W2K the session ID is always 0 (does not have fast user switching). */
     RTLDRMOD hKernel32;
     int rc = RTLdrLoad("Kernel32.dll", &hKernel32);
     if (RT_SUCCESS(rc))
     {
-        PFNWTSGETACTIVECONSOLESESSIONID pfnWTSGetActiveConsoleSessionId;
-        rc = RTLdrGetSymbol(hKernel32, "WTSGetActiveConsoleSessionId", (void **)&pfnWTSGetActiveConsoleSessionId);
+        PFNCREATETOOLHELP32SNAPSHOT pfnCreateToolhelp32Snapshot;
+        rc = RTLdrGetSymbol(hKernel32, "CreateToolhelp32Snapshot", (void**)&pfnCreateToolhelp32Snapshot);
         if (RT_SUCCESS(rc))
         {
+            PFNPROCESS32FIRST pfnProcess32First;
+            rc = RTLdrGetSymbol(hKernel32, "Process32First", (void**)&pfnProcess32First);
+            if (RT_SUCCESS(rc))
+            {
+                PFNPROCESS32NEXT pfnProcess32Next;
+                rc = RTLdrGetSymbol(hKernel32, "Process32Next", (void**)&pfnProcess32Next);
+                if (RT_SUCCESS(rc))
+                {
+                    HANDLE hSnap = pfnCreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+                    if (hSnap != INVALID_HANDLE_VALUE)
+                    {
+                        PROCESSENTRY32 procEntry;
+                        procEntry.dwSize = sizeof(PROCESSENTRY32);
+                        if (pfnProcess32First(hSnap, &procEntry))
+                        {
+                            do
+                            {
+                                if (   _stricmp(procEntry.szExeFile, pszName) == 0
+                                    && RT_SUCCESS(rtProcGetProcessHandle(procEntry.th32ProcessID, pSID, phToken)))
+                                {
+                                    fFound = TRUE;
+                                }
+                            } while (pfnProcess32Next(hSnap, &procEntry) && !fFound);
+                        }
+                        else /* Process32First */
+                            dwErr = GetLastError();
+                        CloseHandle(hSnap);
+                    }
+                    else /* hSnap =! INVALID_HANDLE_VALUE */
+                        dwErr = GetLastError();
+                }
+            }
+        }
+        else /* CreateToolhelp32Snapshot / Toolhelp32 API not available. */
+        {
             /*
-             * Console session means the session which the physical keyboard and mouse
-             * is connected to. Due to FUS (fast user switching) starting with Windows XP
-             * this can be a different session than 0.
+             * NT4 needs a copy of "PSAPI.dll" (redistributed by Microsoft and not
+             * part of the OS) in order to get a lookup. If we don't have this DLL
+             * we are not able to get a token and therefore no UI will be visible.
              */
-            dwSessionID = pfnWTSGetActiveConsoleSessionId(); /* Get active console session ID. */
+            RTLDRMOD hPSAPI;
+            int rc = RTLdrLoad("PSAPI.dll", &hPSAPI);
+            if (RT_SUCCESS(rc))
+            {
+                PFNENUMPROCESSES pfnEnumProcesses;
+                rc = RTLdrGetSymbol(hPSAPI, "EnumProcesses", (void**)&pfnEnumProcesses);
+                if (RT_SUCCESS(rc))
+                {
+                    PFNGETMODULEBASENAME pfnGetModuleBaseName;
+                    rc = RTLdrGetSymbol(hPSAPI, "GetModuleBaseName", (void**)&pfnGetModuleBaseName);
+                    if (RT_SUCCESS(rc))
+                    {
+                        /** @todo Retry if pBytesReturned equals cbBytes! */
+                        DWORD dwPIDs[4096]; /* Should be sufficient for now. */
+                        DWORD cbBytes = 0;
+                        if (pfnEnumProcesses(dwPIDs, sizeof(dwPIDs), &cbBytes))
+                        {
+                            for (DWORD dwIdx = 0; dwIdx < cbBytes/sizeof(DWORD) && !fFound; dwIdx++)
+                            {
+                                HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                                                           FALSE, dwPIDs[dwIdx]);
+                                if (hProc)
+                                {
+                                    char *pszProcName = NULL;
+                                    DWORD dwSize = 128;
+                                    do
+                                    {
+                                        RTMemRealloc(pszProcName, dwSize);
+                                        if (pfnGetModuleBaseName(hProc, 0, pszProcName, dwSize) == dwSize)
+                                            dwSize += 128;
+                                    } while (GetLastError() == ERROR_INSUFFICIENT_BUFFER);
+
+                                    if (pszProcName)
+                                    {
+                                        if (   _stricmp(pszProcName, pszName) == 0
+                                            && RT_SUCCESS(rtProcGetProcessHandle(dwPIDs[dwIdx], pSID, phToken)))
+                                        {
+                                            fFound = TRUE;
+                                        }
+                                    }
+                                    if (pszProcName)
+                                        RTStrFree(pszProcName);
+                                    CloseHandle(hProc);
+                                }
+                            }
+                        }
+                        else
+                            dwErr = GetLastError();
+                    }
+                }
+            }
         }
         RTLdrClose(hKernel32);
     }
+    Assert(dwErr == NO_ERROR);
+    return fFound;
+}
 
-    if (fFlags & RTPROC_FLAGS_SERVICE)
-    {
-        /*
-         * Get the current user token.
-         */
-        RTLDRMOD hWtsAPI32;
-        rc = RTLdrLoad("Wtsapi32.dll", &hWtsAPI32);
-        if (RT_SUCCESS(rc))
-        {
-            /* Note that WTSQueryUserToken() only is available on Windows XP and up! */
-            PFNWTSQUERYUSERTOKEN pfnWTSQueryUserToken;
-            rc = RTLdrGetSymbol(hWtsAPI32, "WTSQueryUserToken", (void **)&pfnWTSQueryUserToken);
-            if (RT_SUCCESS(rc))
-                fRc = pfnWTSQueryUserToken(dwSessionID, &hToken);
-            RTLdrClose(hWtsAPI32);
-        }
-    }
-#endif /* !IPRT_TARGET_NT4 */
 
+static int rtProcCreateAsUserHlp(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 pwszExec, PRTUTF16 pwszCmdLine,
+                                 PRTUTF16 pwszzBlock, DWORD dwCreationFlags,
+                                 STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo, uint32_t fFlags)
+{
+    int rc = VINF_SUCCESS;
+    BOOL fRc = FALSE;
     DWORD dwErr = NO_ERROR;
+
     /*
-     * If not run by a service, use the normal LogonUserW function in order
-     * to run the child process with different credentials using the returned
-     * primary token.
+     * If we run as a service CreateProcessWithLogon will fail,
+     * so don't even try it (because of Local System context).
      */
     if (!(fFlags & RTPROC_FLAGS_SERVICE))
-    {  
-        /*
-         * The following rights are needed in order to use LogonUserW and
-         * CreateProcessAsUserW, so the local policy has to be modified to:
-         *  - SE_TCB_NAME = Act as part of the operating system
-         *  - SE_ASSIGNPRIMARYTOKEN_NAME = Create/replace a token object
-         *  - SE_INCREASE_QUOTA_NAME
-         *
-         * We may fail here with ERROR_PRIVILEGE_NOT_HELD.
-         */
-        fRc = LogonUserW(pwszUser,
-                          NULL,      /* lpDomain */
-                          pwszPassword,
-                          LOGON32_LOGON_INTERACTIVE,
-                          LOGON32_PROVIDER_DEFAULT,
-                          &hToken);
-    }
-
-    if (fRc)
-    {
-#ifndef IPRT_TARGET_NT4
-        HANDLE hDuplicatedToken = INVALID_HANDLE_VALUE;
-        HANDLE hProcessToken = INVALID_HANDLE_VALUE;
-
-        /*
-         * If used by a service, open this service process and adjust 
-         * privileges by enabling the SE_TCB_NAME right to act as part
-         * of the operating system. 
-         */
-        if (fFlags & RTPROC_FLAGS_SERVICE)
-        {           
-            TOKEN_PRIVILEGES privToken, privTokenOld;
-            DWORD dwTokenSize;
-        
-            fRc = OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hProcessToken);
-            if (   fRc
-                && LookupPrivilegeValue(NULL, SE_TCB_NAME, &privToken.Privileges[0].Luid))
-            {
-                privToken.PrivilegeCount = 1;
-                privToken.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-                fRc = AdjustTokenPrivileges(hProcessToken, FALSE, &privToken, sizeof(privToken), &privTokenOld, &dwTokenSize);
-                if (!fRc)
-                    dwErr = GetLastError();
-            }
-        }
-    
-        if (   dwErr == ERROR_SUCCESS
-            || dwErr == ERROR_NOT_ALL_ASSIGNED) /* The AdjustTokenPrivileges() did not succeed, but this isn't fatal. */
-        {            
-            fRc = DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityIdentification, TokenPrimary, &hDuplicatedToken);
-#if 0
-            /*
-             * Assign the current session ID (> 0 on Windows Vista and up) to the primary token we just duplicated.
-             ** @todo This does not work yet, needs more investigation! */
-             */
-            if (fRc)
-            {
-                fRc = SetTokenInformation(hDuplicatedToken, TokenSessionId, &dwSessionID, sizeof(DWORD));
-                if (!fRc)
-                    dwErr = GetLastError();
-            }
-            else
-                dwErr = GetLastError();
-#endif
-        }
-
-#endif /* !IPRT_TARGET_NT4 */
-
-        /** @todo On NT4 we need to enable the SeTcbPrivilege to act as part of the operating system. Otherwise
-          *       we will get error 1314 (priviledge not held) as a response. */
-
-        /* Hopefully having a valid token now! */
-        if (   fRc
-#ifdef IPRT_TARGET_NT4
-            && hToken           != INVALID_HANDLE_VALUE
-#else
-            && hDuplicatedToken != INVALID_HANDLE_VALUE
-#endif /* IPRT_TARGET_NT4 */
-            )
-        {   
-            fRc = CreateProcessAsUserW(
-#ifdef IPRT_TARGET_NT4
-                                       hToken,
-#else
-                                       hDuplicatedToken,
-#endif /* !IPRT_TARGET_NT4 */
-                                       pwszExec,
-                                       pwszCmdLine,
-                                       NULL,         /* pProcessAttributes */
-                                       NULL,         /* pThreadAttributes */
-                                       TRUE,         /* fInheritHandles */
-                                       dwCreationFlags,
-                                       pwszzBlock,
-                                       NULL,         /* pCurrentDirectory */
-                                       pStartupInfo,
-                                       pProcInfo);
-            if (!fRc)
-                dwErr = GetLastError();
-#ifndef IPRT_TARGET_NT4
-            CloseHandle(hDuplicatedToken);
-#endif /* !IPRT_TARGET_NT4 */
-        }
-        CloseHandle(hToken);
-#ifndef IPRT_TARGET_NT4
-        if (fFlags & RTPROC_FLAGS_SERVICE)
-        {
-            /** @todo Drop SE_TCB_NAME priviledge before closing the process handle! */
-            if (hProcessToken != INVALID_HANDLE_VALUE)
-                CloseHandle(hProcessToken);
-        }
-#endif /* !IPRT_TARGET_NT4 */
-    }
-    else
-        dwErr = GetLastError();
-
-#ifndef IPRT_TARGET_NT4
-    /*
-     * If we don't hold enough priviledges to spawn a new process with
-     * different credentials we have to use CreateProcessWithLogonW here.  This
-     * API is W2K+ and uses a system service for spawning the process.
-     */
-    /** @todo Use fFlags to either use this feature or just fail. */
-    if (dwErr == ERROR_PRIVILEGE_NOT_HELD)
     {
         RTLDRMOD hAdvAPI32;
         rc = RTLdrLoad("Advapi32.dll", &hAdvAPI32);
         if (RT_SUCCESS(rc))
         {
-            /* This may fail on too old (NT4) platforms. */
+            /*
+             * This may fail on too old (NT4) platforms or if the calling process
+             * is running on a SYSTEM account (like a service, ERROR_ACCESS_DENIED) on newer
+             * platforms (however, this works on W2K!).
+             */
             PFNCREATEPROCESSWITHLOGON pfnCreateProcessWithLogonW;
             rc = RTLdrGetSymbol(hAdvAPI32, "CreateProcessWithLogonW", (void**)&pfnCreateProcessWithLogonW);
             if (RT_SUCCESS(rc))
@@ -439,18 +485,188 @@ static int rtProcCreateAsUserHlp(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUT
                                                  NULL,                       /* pCurrentDirectory */
                                                  pStartupInfo,
                                                  pProcInfo);
-                if (fRc)
-                    dwErr = NO_ERROR;
-                else
+                if (!fRc)
                     dwErr = GetLastError();
             }
             RTLdrClose(hAdvAPI32);
         }
     }
-#endif /* !IPRT_TARGET_NT4 */
+
+    /*
+     * Did the API call above fail because we're running on a too old OS (NT4) or
+     * we're running as a Windows service?
+     */
+    if (   RT_FAILURE(rc)
+        || (fFlags & RTPROC_FLAGS_SERVICE))
+    {
+        /*
+         * So if we want to start a process from a service (RTPROC_FLAGS_SERVICE),
+         * we have to do the following:
+         * - Check the credentials supplied and get the user SID.
+         * - If valid get the correct Explorer/VBoxTray instance corresponding to that
+         *   user. This of course is only possible if that user is logged in (over
+         *   physical console or terminal services).
+         * - If we found the user's Explorer/VBoxTray app, use and modify the token to
+         *   use it in order to allow the newly started process acess the user's
+         *   desktop. If there's no Explorer/VBoxTray app we cannot display the started
+         *   process (but run it without UI).
+         *
+         * The following restrictions apply:
+         * - A process only can show its UI when the user the process should run
+         *   under is logged in (has a desktop).
+         * - We do not want to display a process of user A run on the desktop
+         *   of user B on multi session systems.
+         *
+         * The following rights are needed in order to use LogonUserW and
+         * CreateProcessAsUserW, so the local policy has to be modified to:
+         *  - SE_TCB_NAME = Act as part of the operating system
+         *  - SE_ASSIGNPRIMARYTOKEN_NAME = Create/replace a token object
+         *  - SE_INCREASE_QUOTA_NAME
+         *
+         * We may fail here with ERROR_PRIVILEGE_NOT_HELD.
+         */
+        PHANDLE phToken = NULL;
+        HANDLE hTokenLogon = INVALID_HANDLE_VALUE;
+        fRc = LogonUserW(pwszUser,
+                         /* 
+                          * Because we have to deal with http://support.microsoft.com/kb/245683
+                          * for NULL domain names when running on NT4 here, pass an empty string if so.
+                          * However, passing FQDNs should work! 
+                          */
+                         ((DWORD)(LOBYTE(LOWORD(GetVersion()))) < 5)  /* < Windows 2000. */
+                         ? L""   /* NT4 and older. */
+                         : NULL, /* Windows 2000 and up. */
+                         pwszPassword,
+                         LOGON32_LOGON_INTERACTIVE,
+                         LOGON32_PROVIDER_DEFAULT,
+                         &hTokenLogon);
+
+        BOOL fFound = FALSE;
+        HANDLE hTokenUserDesktop = INVALID_HANDLE_VALUE;
+        if (fRc)
+        {
+            if (fFlags & RTPROC_FLAGS_SERVICE)
+            {
+                DWORD cbName = 0; /* Must be zero to query size! */
+                DWORD cbDomain = 0;
+                SID_NAME_USE sidNameUse = SidTypeUser;
+                fRc = LookupAccountNameW(NULL,
+                                         pwszUser,
+                                         NULL,
+                                         &cbName,
+                                         NULL,
+                                         &cbDomain,
+                                         &sidNameUse);
+                if (!fRc)
+                    dwErr = GetLastError();
+                if (   !fRc
+                    && dwErr == ERROR_INSUFFICIENT_BUFFER
+                    && cbName > 0)
+                {
+                    dwErr = NO_ERROR;
+
+                    PSID pSID = (PSID)RTMemAlloc(cbName * sizeof(wchar_t));
+                    AssertPtrReturn(pSID, VERR_NO_MEMORY);
+
+                    /** @todo No way to allocate a PRTUTF16 directly? */
+                    PRTUTF16 pwszDomain = NULL;
+                    if (cbDomain > 0)
+                    {
+                        pwszDomain = (PRTUTF16)RTMemAlloc(cbDomain * sizeof(RTUTF16));
+                        AssertPtrReturn(pwszDomain, VERR_NO_MEMORY);
+                    }
+
+                    /* Note: Also supports FQDNs! */
+                    if (   LookupAccountNameW(NULL,            /* lpSystemName */
+                                              pwszUser,
+                                              pSID,
+                                              &cbName,
+                                              pwszDomain,
+                                              &cbDomain,
+                                              &sidNameUse)
+                        && IsValidSid(pSID))
+                    {
+                        fFound = rtProcFindProcessByName(
+#ifdef VBOX
+                                                         "VBoxTray.exe",
+#else
+                                                         "explorer.exe"
+#endif
+                                                         pSID, &hTokenUserDesktop);
+                    }
+                    else
+                        dwErr = GetLastError(); /* LookupAccountNameW() failed. */
+                    RTMemFree(pSID);
+                    if (pwszDomain != NULL)
+                        RTUtf16Free(pwszDomain);
+                }
+            }
+            else /* !RTPROC_FLAGS_SERVICE */
+            {
+                /* Nothing to do here right now. */
+            }
+
+            /*
+             * If we didn't find a matching VBoxTray, just use the token we got
+             * above from LogonUserW(). This enables us to at least run processes with
+             * desktop interaction without UI.
+             */
+            phToken = fFound ? &hTokenUserDesktop : &hTokenLogon;
+
+            /*
+             * Useful KB articles:
+             * http://support.microsoft.com/kb/165194/
+             * http://support.microsoft.com/kb/184802/
+             * http://support.microsoft.com/kb/327618/
+             */
+            fRc = CreateProcessAsUserW(*phToken,
+                                       pwszExec,
+                                       pwszCmdLine,
+                                       NULL,         /* pProcessAttributes */
+                                       NULL,         /* pThreadAttributes */
+                                       TRUE,         /* fInheritHandles */
+                                       dwCreationFlags,
+                                       pwszzBlock,
+                                       NULL,         /* pCurrentDirectory */
+                                       pStartupInfo,
+                                       pProcInfo);
+            if (fRc)
+                dwErr = NO_ERROR;
+            else
+                dwErr = GetLastError(); /* CreateProcessAsUserW() failed. */
+
+            if (hTokenUserDesktop != INVALID_HANDLE_VALUE)
+                CloseHandle(hTokenUserDesktop);
+            CloseHandle(hTokenLogon);
+        }
+        else
+            dwErr = GetLastError(); /* LogonUserW() failed. */
+    }
 
     if (dwErr != NO_ERROR)
-        rc = RTErrConvertFromWin32(dwErr);
+    {
+        /*
+         * Map some important or much used Windows error codes
+         * to our error codes.
+         */
+        switch (dwErr)
+        {
+            case ERROR_NOACCESS:
+            case ERROR_PRIVILEGE_NOT_HELD:
+                rc = VERR_PERMISSION_DENIED;
+                break;
+
+            case ERROR_PASSWORD_EXPIRED:            
+            case ERROR_ACCOUNT_RESTRICTION: /* See: http://support.microsoft.com/kb/303846/ */
+                rc = VERR_LOGON_FAILURE;
+                break;
+
+            default:
+                /* Could trigger a debug assertion! */
+                rc = RTErrConvertFromWin32(dwErr);
+                break;
+        }
+    }
     else
         rc = VINF_SUCCESS;
     return rc;
@@ -585,7 +801,14 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
 
                 PROCESS_INFORMATION ProcInfo;
                 RT_ZERO(ProcInfo);
-                if (pszAsUser == NULL)
+
+                /*
+                 * Only use the normal CreateProcess stuff if we have no user name
+                 * and we are not running from a (Windows) service. Otherwise use
+                 * the more advanced version in rtProcCreateAsUserHlp().
+                 */
+                if (   pszAsUser == NULL
+                    && !(fFlags & RTPROC_FLAGS_SERVICE))
                 {
                     if (CreateProcessW(pwszExec,
                                        pwszCmdLine,

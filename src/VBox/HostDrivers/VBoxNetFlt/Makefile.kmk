@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29108 2010-05-05 20:17:42Z vboxsync $
+# $Id: Makefile.kmk 29826 2010-05-26 16:47:36Z vboxsync $
 ## @file
 # Sub-Makefile for the Network Filter Driver (VBoxNetFlt).
 #
@@ -84,6 +84,9 @@ $$(PATH_VBoxNetFlt.kext)/Info.plist: $(PATH_SUB_CURRENT)/darwin/Info.plist $(VBO
 		-e 's/@VBOX_VERSION_MAJOR@/$(VBOX_VERSION_MAJOR)/g' \
 		-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
 		-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
+		-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
+		-e 's/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g' \
+		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
 		--output $@ \
 		$<
 

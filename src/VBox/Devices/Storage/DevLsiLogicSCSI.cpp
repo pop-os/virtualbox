@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.cpp 29610 2010-05-18 10:16:38Z vboxsync $ */
+/* $Id: DevLsiLogicSCSI.cpp 29913 2010-05-31 14:51:38Z vboxsync $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller.
  */
@@ -403,7 +403,7 @@ static void lsilogicUpdateInterrupt(PLSILOGICSCSI pThis)
     /* Mask out doorbell status so that it does not affect interrupt updating. */
     uIntSts = (ASMAtomicReadU32(&pThis->uInterruptStatus) & ~LSILOGIC_REG_HOST_INTR_STATUS_DOORBELL_STS);
     /* Check maskable interrupts. */
-    uIntSts &= ~(pThis->uInterruptMask & ~LSILOGIC_REG_HOST_INTR_MASK_IRQ_ROUTING);
+    uIntSts &= ~(ASMAtomicReadU32(&pThis->uInterruptMask) & ~LSILOGIC_REG_HOST_INTR_MASK_IRQ_ROUTING);
 
     if (uIntSts)
     {
@@ -583,10 +583,10 @@ static void lsilogicFinishContextReply(PLSILOGICSCSI pLsiLogic, uint32_t u32Mess
     ASMAtomicIncU32(&pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
     pLsiLogic->uReplyPostQueueNextEntryFreeWrite %= pLsiLogic->cReplyQueueEntries;
 
-    PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
-
     /* Set interrupt. */
     lsilogicSetInterrupt(pLsiLogic, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
+
+    PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
 }
 
 static void lsilogicTaskStateClear(PLSILOGICTASKSTATE pTaskState)
@@ -701,8 +701,6 @@ static void lsilogicFinishAddressReply(PLSILOGICSCSI pLsiLogic, PMptReplyUnion p
         ASMAtomicIncU32(&pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
         pLsiLogic->uReplyPostQueueNextEntryFreeWrite %= pLsiLogic->cReplyQueueEntries;
 
-        PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
-
         if (fForceReplyFifo)
         {
             pLsiLogic->fDoorbellInProgress = false;
@@ -711,6 +709,8 @@ static void lsilogicFinishAddressReply(PLSILOGICSCSI pLsiLogic, PMptReplyUnion p
 
         /* Set interrupt. */
         lsilogicSetInterrupt(pLsiLogic, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
+
+        PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
 #else
         AssertMsgFailed(("This is not allowed to happen.\n"));
 #endif
@@ -1059,7 +1059,7 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv
              * The former bit is always cleared no matter what the guest writes to the register and
              * the latter one is read only.
              */
-            pThis->uInterruptStatus = pThis->uInterruptStatus & ~LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL;
+            ASMAtomicAndU32(&pThis->uInterruptStatus, ~LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
 
             /*
              * Check if there is still a doorbell function in progress. Set the
@@ -1084,7 +1084,7 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv
         }
         case LSILOGIC_REG_HOST_INTR_MASK:
         {
-            pThis->uInterruptMask = (u32 & LSILOGIC_REG_HOST_INTR_MASK_W_MASK);
+            ASMAtomicWriteU32(&pThis->uInterruptMask, u32 & LSILOGIC_REG_HOST_INTR_MASK_W_MASK);
             lsilogicUpdateInterrupt(pThis);
             break;
         }
@@ -1146,6 +1146,7 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv
  */
 static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv, unsigned cb)
 {
+    int rc = VINF_SUCCESS;
     uint32_t u32 = 0;
 
     /* Align to a 4 byte offset. */
@@ -1160,11 +1161,19 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv,
             if (RT_UNLIKELY(cb != 4))
                 LogFlowFunc((": cb is not 4 (%u)\n", cb));
 
-            if (pThis->uReplyPostQueueNextEntryFreeWrite != pThis->uReplyPostQueueNextAddressRead)
+            rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_IOM_HC_MMIO_READ);
+            if (rc != VINF_SUCCESS)
+                break;
+
+            uint32_t idxReplyPostQueueWrite = ASMAtomicUoReadU32(&pThis->uReplyPostQueueNextEntryFreeWrite);
+            uint32_t idxReplyPostQueueRead  = ASMAtomicUoReadU32(&pThis->uReplyPostQueueNextAddressRead);
+
+            if (idxReplyPostQueueWrite != idxReplyPostQueueRead)
             {
-                u32 = pThis->CTX_SUFF(pReplyPostQueueBase)[pThis->uReplyPostQueueNextAddressRead];
-                pThis->uReplyPostQueueNextAddressRead++;
-                pThis->uReplyPostQueueNextAddressRead %= pThis->cReplyQueueEntries;
+                u32 = pThis->CTX_SUFF(pReplyPostQueueBase)[idxReplyPostQueueRead];
+                idxReplyPostQueueRead++;
+                idxReplyPostQueueRead %= pThis->cReplyQueueEntries;
+                ASMAtomicWriteU32(&pThis->uReplyPostQueueNextAddressRead, idxReplyPostQueueRead);
             }
             else
             {
@@ -1172,6 +1181,8 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv,
                 u32 = UINT32_C(0xffffffff);
                 lsilogicClearInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
             }
+            PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
+
             Log(("%s: Returning address %#x\n", __FUNCTION__, u32));
             break;
         }
@@ -1199,12 +1210,12 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv,
         }
         case LSILOGIC_REG_HOST_INTR_STATUS:
         {
-            u32 = pThis->uInterruptStatus;
+            u32 = ASMAtomicReadU32(&pThis->uInterruptStatus);
             break;
         }
         case LSILOGIC_REG_HOST_INTR_MASK:
         {
-            u32 = pThis->uInterruptMask;
+            u32 = ASMAtomicReadU32(&pThis->uInterruptMask);
             break;
         }
         case LSILOGIC_REG_HOST_DIAGNOSTIC:
@@ -1254,7 +1265,7 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv,
 
     LogFlowFunc(("pThis=%#p uOffset=%#x pv=%#p{%.*Rhxs} cb=%u\n", pThis, uOffset, pv, cb, pv, cb));
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 PDMBOTHCBDECL(int) lsilogicIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
@@ -1280,7 +1291,11 @@ PDMBOTHCBDECL(int) lsilogicIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
 
     Assert(cb <= 4);
 
-    return lsilogicRegisterRead(pThis, uOffset, pu32, cb);
+    int rc = lsilogicRegisterRead(pThis, uOffset, pu32, cb);
+    if (rc == VINF_IOM_HC_MMIO_READ)
+        rc = VINF_IOM_HC_IOPORT_READ;
+
+    return rc;
 }
 
 PDMBOTHCBDECL(int) lsilogicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
@@ -3775,6 +3790,100 @@ static DECLCALLBACK(int) lsilogicMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegio
 }
 
 /**
+ * LsiLogic status info callback.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pHlp        The output helpers.
+ * @param   pszArgs     The arguments.
+ */
+static DECLCALLBACK(void) lsilogicInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    bool          fVerbose = false;
+
+    /*
+     * Parse args.
+     */
+    if (pszArgs)
+        fVerbose = strstr(pszArgs, "verbose");
+
+    /*
+     * Show info.
+     */
+    pHlp->pfnPrintf(pHlp,
+                    "%s#%d: port=%RTiop mmio=%RGp max-devices=%u GC=%RTbool R0=%RTbool\n",
+                    pDevIns->pReg->szName,
+                    pDevIns->iInstance,
+                    pThis->IOPortBase, pThis->GCPhysMMIOBase,
+                    pThis->cDeviceStates,
+                    pThis->fGCEnabled ? true : false,
+                    pThis->fR0Enabled ? true : false);
+
+    /*
+     * Show general state.
+     */
+    pHlp->pfnPrintf(pHlp, "enmState=%u\n", pThis->enmState);
+    pHlp->pfnPrintf(pHlp, "enmWhoInit=%u\n", pThis->enmWhoInit);
+    pHlp->pfnPrintf(pHlp, "fDoorbellInProgress=%RTbool\n", pThis->fDoorbellInProgress);
+    pHlp->pfnPrintf(pHlp, "fDiagnosticEnabled=%RTbool\n", pThis->fDiagnosticEnabled);
+    pHlp->pfnPrintf(pHlp, "fNotificationSend=%RTbool\n", pThis->fNotificationSend);
+    pHlp->pfnPrintf(pHlp, "fEventNotificationEnabled=%RTbool\n", pThis->fEventNotificationEnabled);
+    pHlp->pfnPrintf(pHlp, "uInterruptMask=%#x\n", pThis->uInterruptMask);
+    pHlp->pfnPrintf(pHlp, "uInterruptStatus=%#x\n", pThis->uInterruptStatus);
+    pHlp->pfnPrintf(pHlp, "u16IOCFaultCode=%#06x\n", pThis->u16IOCFaultCode);
+    pHlp->pfnPrintf(pHlp, "u32HostMFAHighAddr=%#x\n", pThis->u32HostMFAHighAddr);
+    pHlp->pfnPrintf(pHlp, "u32SenseBufferHighAddr=%#x\n", pThis->u32SenseBufferHighAddr);
+    pHlp->pfnPrintf(pHlp, "cMaxDevices=%u\n", pThis->cMaxDevices);
+    pHlp->pfnPrintf(pHlp, "cMaxBuses=%u\n", pThis->cMaxBuses);
+    pHlp->pfnPrintf(pHlp, "cbReplyFrame=%u\n", pThis->cbReplyFrame);
+    pHlp->pfnPrintf(pHlp, "cReplyQueueEntries=%u\n", pThis->cReplyQueueEntries);
+    pHlp->pfnPrintf(pHlp, "cRequestQueueEntries=%u\n", pThis->cRequestQueueEntries);
+    pHlp->pfnPrintf(pHlp, "cPorts=%u\n", pThis->cPorts);
+
+    /*
+     * Show queue status.
+     */
+    pHlp->pfnPrintf(pHlp, "uReplyFreeQueueNextEntryFreeWrite=%u\n", pThis->uReplyFreeQueueNextEntryFreeWrite);
+    pHlp->pfnPrintf(pHlp, "uReplyFreeQueueNextAddressRead=%u\n", pThis->uReplyFreeQueueNextAddressRead);
+    pHlp->pfnPrintf(pHlp, "uReplyPostQueueNextEntryFreeWrite=%u\n", pThis->uReplyPostQueueNextEntryFreeWrite);
+    pHlp->pfnPrintf(pHlp, "uReplyPostQueueNextAddressRead=%u\n", pThis->uReplyPostQueueNextAddressRead);
+    pHlp->pfnPrintf(pHlp, "uRequestQueueNextEntryFreeWrite=%u\n", pThis->uRequestQueueNextEntryFreeWrite);
+    pHlp->pfnPrintf(pHlp, "uRequestQueueNextAddressRead=%u\n", pThis->uRequestQueueNextAddressRead);
+
+    /*
+     * Show queue content if verbose
+     */
+    if (fVerbose)
+    {
+        for (unsigned i = 0; i < pThis->cReplyQueueEntries; i++)
+            pHlp->pfnPrintf(pHlp, "RFQ[%u]=%#x\n", i, pThis->pReplyFreeQueueBaseR3[i]);
+
+        pHlp->pfnPrintf(pHlp, "\n");
+
+        for (unsigned i = 0; i < pThis->cReplyQueueEntries; i++)
+            pHlp->pfnPrintf(pHlp, "RPQ[%u]=%#x\n", i, pThis->pReplyPostQueueBaseR3[i]);
+
+        pHlp->pfnPrintf(pHlp, "\n");
+
+        for (unsigned i = 0; i < pThis->cRequestQueueEntries; i++)
+            pHlp->pfnPrintf(pHlp, "ReqQ[%u]=%#x\n", i, pThis->pRequestQueueBaseR3[i]);
+    }
+
+    /*
+     * Print the device status.
+     */
+    for (unsigned i = 0; i < pThis->cDeviceStates; i++)
+    {
+        PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[i];
+
+        pHlp->pfnPrintf(pHlp, "\n");
+
+        pHlp->pfnPrintf(pHlp, "Device[%u]: device-attached=%RTbool cOutstandingRequests=%u\n",
+                        i, pDevice->pDrvBase != NULL, pDevice->cOutstandingRequests);
+    }
+}
+
+/**
  * Allocate the queues.
  *
  * @returns VBox status code.
@@ -4732,7 +4841,7 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
     if (RT_FAILURE(rc))
         return rc;
 
-    /* Intialize task queue. */
+    /* Intialize task queue. (Need two items to handle SMP guest concurrency.) */
     rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 2, 0,
                               lsilogicNotifyQueueConsumer, true,
                               pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
@@ -4877,6 +4986,16 @@ static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PC
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic cannot register save state handlers"));
 
     pThis->enmWhoInit = LSILOGICWHOINIT_SYSTEM_BIOS;
+
+    /*
+     * Register the info item.
+     */
+    char szTmp[128];
+    RTStrPrintf(szTmp, sizeof(szTmp), "%s%d", pDevIns->pReg->szName, pDevIns->iInstance);
+    PDMDevHlpDBGFInfoRegister(pDevIns, szTmp,
+                              pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
+                              ? "LsiLogic SPI info."
+                              : "LsiLogic SAS info.", lsilogicInfo);
 
     /* Perform hard reset. */
     rc = lsilogicHardReset(pThis);

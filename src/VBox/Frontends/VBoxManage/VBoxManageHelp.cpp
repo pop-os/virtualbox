@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHelp.cpp 29634 2010-05-18 13:41:15Z vboxsync $ */
+/* $Id: VBoxManageHelp.cpp 29865 2010-05-28 14:53:07Z vboxsync $ */
 /** @file
  * VBoxManage - help and other message output.
  */
@@ -172,7 +172,10 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            [--cpuidremoveall]\n"
                  "                            [--hardwareuuid <uuid>]\n"
                  "                            [--cpus <number>]\n"
-                 "                            [--rtcuseutc]\n"
+                 "                            [--cpuhotplug on|off]\n"
+                 "                            [--plugcpu <id>]\n"
+                 "                            [--unplugcpu <id>]\n"
+                 "                            [--rtcuseutc on|off]\n"
                  "                            [--monitorcount <number>]\n"
                  "                            [--accelerate3d on|off]\n"
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -389,6 +392,8 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                                           [--allowlocallogon <yes|no>] |\n"
                  "                            teleport --host <name> --port <port>\n"
                  "                                   [--maxdowntime <msec>] [--password password]\n"
+                 "                            plugcpu <id>\n"
+                 "                            unplugcpu <id>\n"
                  "\n");
     }
 

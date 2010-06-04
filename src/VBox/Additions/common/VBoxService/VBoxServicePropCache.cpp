@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePropCache.cpp 29040 2010-05-04 20:09:03Z vboxsync $ */
+/* $Id: VBoxServicePropCache.cpp 29885 2010-05-31 09:04:43Z vboxsync $ */
 /** @file
  * VBoxServicePropCache - Guest property cache.
  */
@@ -262,6 +262,30 @@ int VBoxServicePropCacheUpdateEx(PVBOXSERVICEVEPROPCACHE pCache, const char *psz
     /* Delete temp stuff. */
     RTStrFree(pszValue);
 
+    return rc;
+}
+
+
+/**
+ * Flushes the cache by writing every item regardless of its state.
+ *
+ * @param   pCache          The property cache.
+ */
+int VBoxServicePropCacheFlush(PVBOXSERVICEVEPROPCACHE pCache)
+{
+    AssertPtr(pCache);
+    int rc = VINF_SUCCESS;
+    PVBOXSERVICEVEPROPCACHEENTRY pNodeIt = NULL;
+    if (RT_SUCCESS(RTCritSectEnter(&pCache->CritSect)))
+    {
+        RTListForEach(&pCache->ListEntries, pNodeIt, VBOXSERVICEVEPROPCACHEENTRY, Node)
+        {
+            rc = VBoxServiceWritePropF(pCache->uClientID, pNodeIt->pszName, pNodeIt->pszValue);
+            if (RT_FAILURE(rc))
+                break;
+        }
+        RTCritSectLeave(&pCache->CritSect);
+    }
     return rc;
 }
 

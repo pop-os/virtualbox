@@ -1,4 +1,4 @@
-/* $Id: socket.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: socket.c 29968 2010-06-02 04:44:43Z vboxsync $ */
 /** @file
  * NAT - socket handling.
  */
@@ -728,10 +728,9 @@ sorecvfrom(PNATState pData, struct socket *so)
              *  last argument should be changed if Slirp will inject IP attributes
              *  Note: Here we can't check if dnsproxy's sent initial request
              */
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
-            if (so->so_fport == RT_H2N_U16_C(53))
+            if (   pData->fUseDnsProxy 
+                && so->so_fport == RT_H2N_U16_C(53))
                 dnsproxy_answer(pData, so, m);
-#endif
 
 #if 0
             if (m->m_len == len)

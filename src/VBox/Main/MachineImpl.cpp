@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 29620 2010-05-18 12:15:55Z vboxsync $ */
+/* $Id: MachineImpl.cpp 29971 2010-06-02 08:51:13Z vboxsync $ */
 /** @file
  * Implementation of IMachine in VBoxSVC.
  */
@@ -35,6 +35,7 @@
 #include "VirtualBoxImpl.h"
 #include "MachineImpl.h"
 #include "ProgressImpl.h"
+#include "ProgressProxyImpl.h"
 #include "MediumAttachmentImpl.h"
 #include "MediumImpl.h"
 #include "MediumLock.h"
@@ -4965,8 +4966,9 @@ STDMETHODIMP Machine::QueryLogFilename(ULONG aIdx, BSTR *aName)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Utf8Str log = queryLogFilename(aIdx);
-    if (RTFileExists(log.c_str()))
-        log.cloneTo(aName);
+    if (!RTFileExists(log.c_str()))
+        log.setNull();
+    log.cloneTo(aName);
 
     return S_OK;
 }
@@ -5173,7 +5175,8 @@ HRESULT Machine::openSession(IInternalSessionControl *aControl)
     AssertReturn(aControl, E_FAIL);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -5325,6 +5328,8 @@ HRESULT Machine::openSession(IInternalSessionControl *aControl)
     if (mData->mSession.mState == SessionState_Spawning)
     {
         /* Note that the progress object is finalized later */
+        /** @todo Consider checking mData->mSession.mProgress for cancellation
+         *        around here.  */
 
         /* We don't reset mSession.mPid here because it is necessary for
          * SessionMachine::uninit() to reap the child process later. */
@@ -5376,7 +5381,7 @@ HRESULT Machine::openSession(IInternalSessionControl *aControl)
     if (FAILED(rc))
         sessionMachine->uninit();
 
-    LogFlowThisFunc(("rc=%08X\n", rc));
+    LogFlowThisFunc(("rc=%Rhrc\n", rc));
     LogFlowThisFuncLeave();
     return rc;
 }
@@ -5388,7 +5393,7 @@ HRESULT Machine::openSession(IInternalSessionControl *aControl)
 HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
                                    IN_BSTR aType,
                                    IN_BSTR aEnvironment,
-                                   Progress *aProgress)
+                                   ProgressProxy *aProgress)
 {
     LogFlowThisFuncEnter();
 
@@ -5611,6 +5616,7 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
     LogFlowThisFuncLeave();
     return S_OK;
 }
+
 
 /**
  *  @note Locks this object for writing, calls the client process
@@ -5837,7 +5843,7 @@ bool Machine::checkForSpawnFailure()
     /* the process was already unexpectedly terminated, we just need to set an
      * error and finalize session spawning */
     rc = setError(E_FAIL,
-                  tr("Virtual machine '%ls' has terminated unexpectedly during startup"),
+                  tr("The virtual machine '%ls' has terminated unexpectedly during startup"),
                   getName().raw());
 #else
 
@@ -5853,19 +5859,19 @@ bool Machine::checkForSpawnFailure()
     {
         if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_NORMAL)
             rc = setError(E_FAIL,
-                          tr("Virtual machine '%ls' has terminated unexpectedly during startup with exit code %d"),
+                          tr("The virtual machine '%ls' has terminated unexpectedly during startup with exit code %d"),
                           getName().raw(), status.iStatus);
         else if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_SIGNAL)
             rc = setError(E_FAIL,
-                          tr("Virtual machine '%ls' has terminated unexpectedly during startup because of signal %d"),
+                          tr("The virtual machine '%ls' has terminated unexpectedly during startup because of signal %d"),
                           getName().raw(), status.iStatus);
         else if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_ABEND)
             rc = setError(E_FAIL,
-                          tr("Virtual machine '%ls' has terminated abnormally"),
+                          tr("The virtual machine '%ls' has terminated abnormally"),
                           getName().raw(), status.iStatus);
         else
             rc = setError(E_FAIL,
-                          tr("Virtual machine '%ls' has terminated unexpectedly during startup (%Rrc)"),
+                          tr("The virtual machine '%ls' has terminated unexpectedly during startup (%Rrc)"),
                           getName().raw(), rc);
     }
 
@@ -9823,45 +9829,43 @@ STDMETHODIMP SessionMachine::GetIPCId(BSTR *aId)
 /**
  *  @note Locks this object for writing.
  */
-STDMETHODIMP SessionMachine::SetPowerUpInfo(IVirtualBoxErrorInfo *aError)
+STDMETHODIMP SessionMachine::BeginPowerUp(IProgress *aProgress)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (   mData->mSession.mState == SessionState_Open
-        && mData->mSession.mProgress)
-    {
-        /* Finalize the progress, since the remote session has completed
-         * power on (successful or not). */
-        if (aError)
-        {
-            /* Transfer error information immediately, as the
-             * IVirtualBoxErrorInfo object is most likely transient. */
-            HRESULT rc;
-            LONG rRc = S_OK;
-            rc = aError->COMGETTER(ResultCode)(&rRc);
-            AssertComRCReturnRC(rc);
-            Bstr rIID;
-            rc = aError->COMGETTER(InterfaceID)(rIID.asOutParam());
-            AssertComRCReturnRC(rc);
-            Bstr rComponent;
-            rc = aError->COMGETTER(Component)(rComponent.asOutParam());
-            AssertComRCReturnRC(rc);
-            Bstr rText;
-            rc = aError->COMGETTER(Text)(rText.asOutParam());
-            AssertComRCReturnRC(rc);
-            mData->mSession.mProgress->notifyComplete(rRc, Guid(rIID), rComponent, Utf8Str(rText).raw());
-        }
-        else
-            mData->mSession.mProgress->notifyComplete(S_OK);
-        mData->mSession.mProgress.setNull();
-
-        return S_OK;
-    }
-    else
+    if (mData->mSession.mState != SessionState_Open)
         return VBOX_E_INVALID_OBJECT_STATE;
+
+    if (!mData->mSession.mProgress.isNull())
+        mData->mSession.mProgress->setOtherProgressObject(aProgress);
+
+    return S_OK;
+}
+
+
+/**
+ *  @note Locks this object for writing.
+ */
+STDMETHODIMP SessionMachine::EndPowerUp(LONG iResult)
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mSession.mState != SessionState_Open)
+        return VBOX_E_INVALID_OBJECT_STATE;
+
+    /* Finalize the openRemoteSession progress object. */
+    if (mData->mSession.mProgress)
+    {
+        mData->mSession.mProgress->notifyComplete((HRESULT)iResult);
+        mData->mSession.mProgress.setNull();
+    }
+    return S_OK;
 }
 
 /**
@@ -10055,13 +10059,16 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
 
         /*  Create the progress object the client will use to wait until
          * #checkForDeath() is called to uninitialize this session object after
-         * it releases the IPC semaphore. */
+         * it releases the IPC semaphore.
+         * Note! Because we're "reusing" mProgress here, this must be a proxy
+         *       object just like for openRemoteSession. */
         Assert(mData->mSession.mProgress.isNull());
-        ComObjPtr<Progress> progress;
+        ComObjPtr<ProgressProxy> progress;
         progress.createObject();
         ComPtr<IUnknown> pPeer(mPeer);
         progress->init(mParent, pPeer,
-                       Bstr(tr("Closing session")), FALSE /* aCancelable */);
+                       Bstr(tr("Closing session")),
+                       FALSE /* aCancelable */);
         progress.queryInterfaceTo(aProgress);
         mData->mSession.mProgress = progress;
     }
