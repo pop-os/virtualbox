@@ -19,7 +19,7 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-X11_BACKPORT =
+X11_BACKPORT = 
 
 XSERVER_VERSION = 17
 INSTALL_X11_PCI_ID = 0
@@ -60,24 +60,6 @@ else
 	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
 endif
 
-
-ifeq ($(INSTALL_X11_PCI_ID),1)
-	GUESTX11_INSTALL += src/VBox/Additions/x11/Installer/vboxvideo.ids \
-	    /usr/share/xserver-xorg/pci
-endif
-
-ifeq ($(INSTALL_X11_HAL),1)
-	GUESTX11_INSTALL += src/VBox/Additions/linux/installer/90-vboxguest.fdi \
-	    /usr/share/hal/fdi/policy/20thirdparty
-endif
-
-ifeq ($(INSTALL_XORGCONFD),new)
-	GUESTX11_INSTALL += src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
-	    /usr/share/X11/xorg.conf.d
-else ifeq ($(INSTALL_XORGCONFD),old)
-	GUESTX11_INSTALL += src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
-	    /usr/lib/X11/xorg.conf.d
-endif
 
 
 %:
@@ -163,8 +145,29 @@ endif # ifeq ($(XORG_PKG_ABI),new)
 
 
 override_dh_install:
-	dh_install -p$(uxname) $(GUESTX11_INSTALL)
-	dh_install --remaining-packages
+	dh_install
+
+ifeq ($(INSTALL_X11_PCI_ID),1)
+	dh_install -p$(uxname) --ignore debian/$(uxname).install \
+	    src/VBox/Additions/x11/Installer/vboxvideo.ids \
+	    /usr/share/xserver-xorg/pci
+endif
+
+ifeq ($(INSTALL_X11_HAL),1)
+	dh_install -p$(uxname) --ignore debian/$(uxname).install \
+	    src/VBox/Additions/linux/installer/90-vboxguest.fdi \
+	    /usr/share/hal/fdi/policy/20thirdparty
+endif
+
+ifeq ($(INSTALL_XORGCONFD),new)
+	dh_install -p$(uxname) --ignore debian/$(uxname).install \
+	    src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
+	    /usr/share/X11/xorg.conf.d
+else ifeq ($(INSTALL_XORGCONFD),old)
+	dh_install -p$(uxname) --ignore debian/$(uxname).install \
+	    src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
+	    /usr/lib/X11/xorg.conf.d
+endif
 
 override_dh_fixperms:
 	dh_fixperms

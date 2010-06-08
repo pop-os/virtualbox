@@ -1,8 +1,10 @@
-virtualbox-ose (3.2.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.2.2-dfsg-1) unstable; urgency=low
 
-  * Imported Upstream version 3.2.2-dfsg (Closes: #584488)
+  * Imported Upstream version 3.2.2-dfsg (Closes: #584488, #585003)
+  * Fixed dh_install usage in rules file for backports. - thanks to
+    Corey Wright <undefined@pobox.com>
 
- -- Michael Meskes <meskes@debian.org>  Fri, 04 Jun 2010 09:50:59 +0200
+ -- Michael Meskes <meskes@debian.org>  Tue, 08 Jun 2010 11:50:51 +0200
 
 virtualbox-ose (3.2.0-dfsg-1) unstable; urgency=low
 
