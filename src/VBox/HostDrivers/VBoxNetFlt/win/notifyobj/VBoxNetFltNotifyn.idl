@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltNotifyn.idl 29200 2010-05-07 12:14:18Z vboxsync $ */
+/* $Id: VBoxNetFltNotifyn.idl $ */
 /** @file
  * VBoxNetFltNotify.idl - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */

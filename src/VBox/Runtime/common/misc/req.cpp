@@ -1,4 +1,4 @@
-/* $Id: req.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: req.cpp $ */
 /** @file
  * IPRT - Request packets
  */

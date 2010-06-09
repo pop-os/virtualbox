@@ -1,4 +1,4 @@
-/* $Id: strncmp.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: strncmp.cpp $ */
 /** @file
  * IPRT - CRT Strings, strncmp().
  */

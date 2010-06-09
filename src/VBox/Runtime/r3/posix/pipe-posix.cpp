@@ -1,4 +1,4 @@
-/* $Id: pipe-posix.cpp 29559 2010-05-17 15:07:02Z vboxsync $ */
+/* $Id: pipe-posix.cpp $ */
 /** @file
  * IPRT - Anonymous Pipes, POSIX Implementation.
  */

@@ -1,4 +1,4 @@
-/* $Id: spinlock-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
+/* $Id: spinlock-r0drv-solaris.c $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, Solaris.
  */

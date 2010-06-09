@@ -1,4 +1,4 @@
-/* $Id: tstVMStructRC.cpp 29436 2010-05-12 20:57:57Z vboxsync $ */
+/* $Id: tstVMStructRC.cpp $ */
 /** @file
  * tstVMMStructRC - Generate structure member and size checks from the
  *                  RC perspective.

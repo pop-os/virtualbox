@@ -1,4 +1,4 @@
-/* $Id: simplepattern.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: simplepattern.cpp $ */
 /** @file
  * IPRT - RTStrSimplePattern.
  */

@@ -1,4 +1,4 @@
-/* $Id: UICocoaDockIconPreview.mm 29200 2010-05-07 12:14:18Z vboxsync $ */
+/* $Id: UICocoaDockIconPreview.mm $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

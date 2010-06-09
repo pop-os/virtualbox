@@ -1,4 +1,4 @@
-/* $Id: tstAsmStructs.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstAsmStructs.cpp $ */
 /** @file
  * Testcase for checking offsets in the assembly structures shared with C/C++.
  */

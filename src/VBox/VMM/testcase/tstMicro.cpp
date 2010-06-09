@@ -1,4 +1,4 @@
-/* $Id: tstMicro.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstMicro.cpp $ */
 /** @file
  * Micro Testcase, profiling special CPU operations.
  */

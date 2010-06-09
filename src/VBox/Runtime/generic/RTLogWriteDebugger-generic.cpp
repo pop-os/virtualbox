@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTLogWriteDebugger-generic.cpp $ */
 /** @file
  * IPRT - Log To Debugger, Generic Dummy.
  */

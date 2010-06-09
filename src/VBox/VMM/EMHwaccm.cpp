@@ -1,4 +1,4 @@
-/* $Id: EMHwaccm.cpp 29329 2010-05-11 10:18:30Z vboxsync $ */
+/* $Id: EMHwaccm.cpp $ */
 /** @file
  * EM - Execution Monitor / Manager - hardware virtualization
  */

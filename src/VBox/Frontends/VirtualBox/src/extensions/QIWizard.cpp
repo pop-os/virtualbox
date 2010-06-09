@@ -1,4 +1,4 @@
-/* $Id: QIWizard.cpp 29723 2010-05-21 11:56:03Z vboxsync $ */
+/* $Id: QIWizard.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

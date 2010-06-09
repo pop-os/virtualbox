@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltPt-win.c 29616 2010-05-18 11:55:55Z vboxsync $ */
+/* $Id: VBoxNetFltPt-win.c $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Protocol edge of ndis filter driver
  */

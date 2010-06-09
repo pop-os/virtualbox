@@ -1,4 +1,4 @@
-/* $Id: uniread.cpp 28876 2010-04-28 19:01:33Z vboxsync $ */
+/* $Id: uniread.cpp $ */
 /** @file
  * IPRT - Unicode Specification Reader.
  */

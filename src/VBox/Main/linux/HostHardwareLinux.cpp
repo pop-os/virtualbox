@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.cpp 29352 2010-05-11 13:23:15Z vboxsync $ */
+/* $Id: HostHardwareLinux.cpp $ */
 /** @file
  * Classes for handling hardware detection under Linux.  Please feel free to
  * expand these to work for other systems (Solaris!) or to add new ones for

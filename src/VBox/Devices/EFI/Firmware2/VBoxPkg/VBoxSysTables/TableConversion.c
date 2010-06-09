@@ -1,4 +1,4 @@
-/* $Id: TableConversion.c 29081 2010-05-05 13:32:04Z vboxsync $ */
+/* $Id: TableConversion.c $ */
 /** @file
  * TableConversion.c
  */

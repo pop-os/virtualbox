@@ -1,4 +1,4 @@
-/* $Id: DrvRawFile.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvRawFile.cpp $ */
 /** @file
  * VBox stream drivers - Raw file output.
  */

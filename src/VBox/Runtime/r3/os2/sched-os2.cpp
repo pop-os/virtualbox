@@ -1,4 +1,4 @@
-/* $Id: sched-os2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: sched-os2.cpp $ */
 /** @file
  * IPRT - Scheduling, OS/2
  */

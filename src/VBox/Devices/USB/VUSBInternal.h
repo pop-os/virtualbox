@@ -1,4 +1,4 @@
-/* $Id: VUSBInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VUSBInternal.h $ */
 /** @file
  * Virtual USB - Internal header.
  *

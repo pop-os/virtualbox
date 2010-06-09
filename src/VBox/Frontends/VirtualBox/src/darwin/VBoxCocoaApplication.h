@@ -1,4 +1,4 @@
-/* $Id: VBoxCocoaApplication.h 29816 2010-05-26 13:52:52Z vboxsync $ */
+/* $Id: VBoxCocoaApplication.h $ */
 /** @file
  * VBoxCocoaApplication - NSApplication subclass for handling -sendEvent.
  */

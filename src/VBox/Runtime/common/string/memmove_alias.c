@@ -1,4 +1,4 @@
-/* $Id: memmove_alias.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: memmove_alias.c $ */
 /** @file
  * IPRT - No-CRT memmove() alias for gcc.
  */

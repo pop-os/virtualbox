@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.h 28882 2010-04-28 23:17:52Z vboxsync $ */
+/* $Id: HostHardwareLinux.h $ */
 /** @file
  * Classes for handling hardware detection under Linux.
  *

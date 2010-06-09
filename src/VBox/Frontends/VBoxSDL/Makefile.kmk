@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29655 2010-05-18 21:38:28Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VBoxSDL (a simple frontend based on SDL).
 #

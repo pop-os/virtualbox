@@ -1,4 +1,4 @@
-/* $Id: BdsConnect.c 29125 2010-05-06 09:43:05Z vboxsync $ */
+/* $Id: BdsConnect.c $ */
 /** @file
  * BdsConnect.c - BDS Lib functions which relate with connect the device
  */

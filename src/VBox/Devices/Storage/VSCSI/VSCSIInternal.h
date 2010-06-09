@@ -1,4 +1,4 @@
-/* $Id: VSCSIInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VSCSIInternal.h $ */
 /** @file
  * Virtual SCSI driver: Internal defines
  */

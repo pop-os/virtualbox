@@ -1,5 +1,5 @@
 
-/* $Id: VBoxServiceControlExec.cpp 29842 2010-05-27 10:53:19Z vboxsync $ */
+/* $Id: VBoxServiceControlExec.cpp $ */
 /** @file
  * VBoxServiceControlExec - Utility functions for process execution.
  */
@@ -752,7 +752,7 @@ int VBoxServiceControlExecCreateProcess(const char *pszExec, const char * const 
 {
     int  rc = VINF_SUCCESS;
 #ifdef RT_OS_WINDOWS
-    /* 
+    /*
      * If sysprep should be executed do this in the context of VBoxService, which
      * (usually, if started by SCM) has administrator rights. Because of that a UI
      * won't be shown (doesn't have a desktop).

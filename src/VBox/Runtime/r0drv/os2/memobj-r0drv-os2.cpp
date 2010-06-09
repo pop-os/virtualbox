@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-os2.cpp 29027 2010-05-04 14:33:41Z vboxsync $ */
+/* $Id: memobj-r0drv-os2.cpp $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, OS/2.
  */

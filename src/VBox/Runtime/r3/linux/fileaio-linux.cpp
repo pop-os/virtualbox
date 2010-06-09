@@ -1,4 +1,4 @@
-/* $Id: fileaio-linux.cpp 29111 2010-05-05 20:28:30Z vboxsync $ */
+/* $Id: fileaio-linux.cpp $ */
 /** @file
  * IPRT - File async I/O, native implementation for the Linux host platform.
  */

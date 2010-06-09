@@ -1,4 +1,4 @@
-/* $Id: keyboard.c 29654 2010-05-18 21:37:32Z vboxsync $ */
+/* $Id: keyboard.c $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

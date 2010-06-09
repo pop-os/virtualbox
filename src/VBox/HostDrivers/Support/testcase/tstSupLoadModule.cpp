@@ -1,4 +1,4 @@
-/* $Id: tstSupLoadModule.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstSupLoadModule.cpp $ */
 /** @file
  * SUP Testcase - Test SUPR3LoadModule.
  */
@@ -92,7 +92,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 28800 $\n");
+                RTPrintf("$Revision: 60692 $\n");
                 return 0;
 
             default:

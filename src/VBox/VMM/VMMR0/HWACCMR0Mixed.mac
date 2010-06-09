@@ -1,4 +1,4 @@
-; $Id: HWACCMR0Mixed.mac 28800 2010-04-27 08:22:32Z vboxsync $
+; $Id: HWACCMR0Mixed.mac $
 ;; @file
 ; HWACCMR0Mixed.mac - Stuff that darwin needs to build two versions of.
 ;

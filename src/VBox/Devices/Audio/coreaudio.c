@@ -1,4 +1,4 @@
-/* $Id: coreaudio.c 29256 2010-05-09 18:13:03Z vboxsync $ */
+/* $Id: coreaudio.c $ */
 /** @file
  * VBox audio devices: Mac OS X CoreAudio audio driver
  */

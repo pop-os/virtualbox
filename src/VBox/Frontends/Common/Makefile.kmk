@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29654 2010-05-18 21:37:32Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level makefile for VBox frontends shared bits
 #
@@ -19,8 +19,10 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 # Include Sub-Makefiles
-ifeq ($(filter-out freebsd linux openbsd netbsd solaris,$(KBUILD_TARGET)),) # X11
- include $(PATH_SUB_CURRENT)/VBoxKeyboard/Makefile.kmk
+ifneq ($(VBOX_WITH_QTGUI)$(VBOX_WITH_VBOXSDL),)
+ ifeq ($(filter-out freebsd linux openbsd netbsd solaris,$(KBUILD_TARGET)),) # X11
+  include $(PATH_SUB_CURRENT)/VBoxKeyboard/Makefile.kmk
+ endif
 endif
 
 include $(KBUILD_PATH)/subfooter.kmk

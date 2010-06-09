@@ -1,4 +1,4 @@
-/* $Id: vboxfs_vfs.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: vboxfs_vfs.h $ */
 /** @file
  * VirtualBox File System for Solaris Guests, VFS header.
  */

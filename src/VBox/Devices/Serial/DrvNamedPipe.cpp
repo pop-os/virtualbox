@@ -1,4 +1,4 @@
-/* $Id: DrvNamedPipe.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvNamedPipe.cpp $ */
 /** @file
  * Named pipe / local socket stream driver.
  */

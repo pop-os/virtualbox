@@ -1,4 +1,4 @@
-/* $Id: UIActionsPool.cpp 29964 2010-06-01 17:48:14Z vboxsync $ */
+/* $Id: UIActionsPool.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

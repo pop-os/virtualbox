@@ -1,4 +1,4 @@
-/* $Id: tstMicroRC.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
+/* $Id: tstMicroRC.cpp $ */
 /** @file
  * Micro Testcase, profiling special CPU operations - GC Code (hacks).
  */

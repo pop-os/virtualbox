@@ -1,5 +1,5 @@
 #ifdef VBOX
-/* $Id: fdc.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: fdc.c $ */
 /** @file
  * VBox storage devices: Floppy disk controller
  */

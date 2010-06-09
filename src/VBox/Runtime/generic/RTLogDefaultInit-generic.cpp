@@ -1,4 +1,4 @@
-/* $Id: RTLogDefaultInit-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTLogDefaultInit-generic.cpp $ */
 /** @file
  * IPRT - Default Log Init, Generic Dummy.
  */

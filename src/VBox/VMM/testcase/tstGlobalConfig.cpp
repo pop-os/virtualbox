@@ -1,4 +1,4 @@
-/* $Id: tstGlobalConfig.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstGlobalConfig.cpp $ */
 /** @file
  * Ring-3 Management program for the GCFGM mock-up.
  */

@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-solaris.c 29027 2010-05-04 14:33:41Z vboxsync $ */
+/* $Id: memobj-r0drv-solaris.c $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Solaris.
  */

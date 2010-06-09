@@ -1,4 +1,4 @@
-/* $Id: packspu_getshaders.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: packspu_getshaders.c $ */
 
 /** @file
  * VBox OpenGL GLSL related functions

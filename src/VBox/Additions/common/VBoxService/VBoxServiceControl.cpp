@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceControl.cpp 29594 2010-05-18 07:45:58Z vboxsync $ */
+/* $Id: VBoxServiceControl.cpp $ */
 /** @file
  * VBoxServiceControl - Host-driven Guest Control.
  */
@@ -305,7 +305,7 @@ static DECLCALLBACK(void) VBoxServiceControlStop(void)
 
     /*
      * Ask the host service to cancel all pending requests so that we can
-     * shutdown properly here. 
+     * shutdown properly here.
      */
     if (g_GuestControlSvcClientID)
     {

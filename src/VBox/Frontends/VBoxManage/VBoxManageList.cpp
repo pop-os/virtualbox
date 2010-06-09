@@ -1,4 +1,4 @@
-/* $Id: VBoxManageList.cpp 29356 2010-05-11 14:03:35Z vboxsync $ */
+/* $Id: VBoxManageList.cpp $ */
 /** @file
  * VBoxManage - The 'list' command.
  */

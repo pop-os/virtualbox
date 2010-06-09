@@ -1,4 +1,4 @@
-/* $Id: tstLdrLoad.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstLdrLoad.cpp $ */
 /** @file
  * IPRT Testcase - Native Loader.
  */

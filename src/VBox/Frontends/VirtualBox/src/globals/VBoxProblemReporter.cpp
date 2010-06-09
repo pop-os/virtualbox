@@ -1,4 +1,4 @@
-/* $Id: VBoxProblemReporter.cpp 29803 2010-05-26 09:36:14Z vboxsync $ */
+/* $Id: VBoxProblemReporter.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

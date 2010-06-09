@@ -1,4 +1,4 @@
-/* $Id: DrvDedicatedNic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvDedicatedNic.cpp $ */
 /** @file
  * DrvDedicatedNic - Experimental network driver for using a dedicated (V)NIC.
  */

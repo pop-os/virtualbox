@@ -1,4 +1,4 @@
-/* $Id: RTAssertShouldPanic-vbox.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTAssertShouldPanic-vbox.cpp $ */
 /** @file
  * IPRT - Assertions, generic RTAssertShouldPanic.
  */

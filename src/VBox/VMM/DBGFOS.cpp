@@ -1,4 +1,4 @@
-/* $Id: DBGFOS.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DBGFOS.cpp $ */
 /** @file
  * DBGF - Debugger Facility, Guest OS Diggers.
  */

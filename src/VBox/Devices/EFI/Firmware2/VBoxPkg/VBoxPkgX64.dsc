@@ -1,4 +1,4 @@
-# $Id: VBoxPkgX64.dsc 26451 2010-02-11 18:40:00Z vboxsync $
+# $Id: VBoxPkgX64.dsc $
 
 #
 # Copyright (C) 2009-2010 Sun Microsystems, Inc.

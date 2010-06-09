@@ -1,4 +1,4 @@
-/* $Id: kHlpAlloc-iprt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ *//* $Id: kHlpAlloc-iprt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: kHlpAlloc-iprt.cpp $ */
 /** @file
  * kHlpAlloc - Memory Allocation, IPRT based implementation.
  */

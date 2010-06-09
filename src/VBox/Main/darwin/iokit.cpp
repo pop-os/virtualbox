@@ -1,4 +1,4 @@
-/* $Id: iokit.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: iokit.cpp $ */
 /** @file
  * Main - Darwin IOKit Routines.
  *

@@ -1,4 +1,4 @@
-/* $Id: hfs_format.h 29125 2010-05-06 09:43:05Z vboxsync $ */
+/* $Id: hfs_format.h $ */
 /** @file
  * hfs_format.h
  */

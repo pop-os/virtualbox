@@ -1,4 +1,4 @@
-/* $Id: vboxhgcm.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: vboxhgcm.c $ */
 
 /** @file
  * VBox HGCM connection

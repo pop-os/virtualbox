@@ -1,4 +1,4 @@
-/* $Id: pathhost-darwin.cpp 28919 2010-04-29 18:34:08Z vboxsync $ */
+/* $Id: pathhost-darwin.cpp $ */
 /** @file
  * IPRT - Path Convertions, Darwin.
  *

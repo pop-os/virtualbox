@@ -1,4 +1,4 @@
-/* $Id: slirp.c 29946 2010-06-01 12:53:39Z vboxsync $ */
+/* $Id: slirp.c $ */
 /** @file
  * NAT - slirp glue.
  */

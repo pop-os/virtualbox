@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-freebsd.c 29499 2010-05-14 21:19:32Z vboxsync $ */
+/* $Id: mp-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, FreeBSD.
  */

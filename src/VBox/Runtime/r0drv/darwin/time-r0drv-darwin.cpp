@@ -1,4 +1,4 @@
-/* $Id: time-r0drv-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: time-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Time, Ring-0 Driver, Darwin.
  */

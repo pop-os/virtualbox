@@ -1,4 +1,4 @@
-/* $Id: ATAController.h 29758 2010-05-24 08:38:48Z vboxsync $ */
+/* $Id: ATAController.h $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller types.
  */

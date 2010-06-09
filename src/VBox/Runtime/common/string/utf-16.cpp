@@ -1,4 +1,4 @@
-/* $Id: utf-16.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: utf-16.cpp $ */
 /** @file
  * IPRT - UTF-16.
  */

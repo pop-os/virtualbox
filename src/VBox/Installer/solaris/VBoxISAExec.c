@@ -1,4 +1,4 @@
-/* $Id: VBoxISAExec.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxISAExec.c $ */
 /** @file
  * VBoxISAExec, ISA exec wrapper, Solaris hosts.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile 29056 2010-05-05 08:44:58Z vboxsync $
+# $Id: Makefile $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #

@@ -1,4 +1,4 @@
-/* $Id: ldrNative-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ldrNative-win.cpp $ */
 /** @file
  * IPRT - Binary Image Loader, Win32 native.
  */

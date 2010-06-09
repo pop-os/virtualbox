@@ -1,4 +1,4 @@
-/* $Id: VMMDev.cpp 29751 2010-05-21 23:32:23Z vboxsync $ */
+/* $Id: VMMDev.cpp $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -470,22 +470,22 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         {
             if (pRequestHeader->size < sizeof(VMMDevReportGuestInfo))
             {
-                AssertMsgFailed(("VMMDev guest information structure has invalid size!\n"));
+                AssertMsgFailed(("VMMDev guest information structure has an invalid size!\n"));
                 pRequestHeader->rc = VERR_INVALID_PARAMETER;
             }
             else
             {
-                VMMDevReportGuestInfo *guestInfo = (VMMDevReportGuestInfo*)pRequestHeader;
+                VBoxGuestInfo *guestInfo = &((VMMDevReportGuestInfo*)pRequestHeader)->guestInfo;
 
-                if (memcmp (&pThis->guestInfo, &guestInfo->guestInfo, sizeof (guestInfo->guestInfo)) != 0)
+                if (memcmp (&pThis->guestInfo, guestInfo, sizeof(*guestInfo)) != 0)
                 {
                     /* make a copy of supplied information */
-                    pThis->guestInfo = guestInfo->guestInfo;
+                    pThis->guestInfo = *guestInfo;
 
                     /* Check additions version */
                     pThis->fu32AdditionsOk = VBOX_GUEST_ADDITIONS_VERSION_OK(pThis->guestInfo.additionsVersion);
 
-                    LogRel(("Guest Additions information report: additionsVersion = 0x%08X  osType = 0x%08X\n",
+                    LogRel(("Guest Additions information report: Interface = 0x%08X osType = 0x%08X\n",
                             pThis->guestInfo.additionsVersion,
                             pThis->guestInfo.osType));
                     pThis->pDrv->pfnUpdateGuestVersion(pThis->pDrv, &pThis->guestInfo);
@@ -499,6 +499,24 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                 {
                     pRequestHeader->rc = VERR_VERSION_MISMATCH;
                 }
+            }
+            break;
+        }
+
+        case VMMDevReq_ReportGuestInfo2:
+        {
+            if (pRequestHeader->size < sizeof(VMMDevReportGuestInfo2))
+            {
+                AssertMsgFailed(("VMMDev guest information 2 structure has an invalid size!\n"));
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                VBoxGuestInfo2 *guestInfo2 = &((VMMDevReportGuestInfo2*)pRequestHeader)->guestInfo;
+                LogRel(("Guest Additions information report: Version %d.%d.%d r%d %.*s\n",
+                        guestInfo2->additionsMajor, guestInfo2->additionsMinor, guestInfo2->additionsBuild,
+                        guestInfo2->additionsRevision, guestInfo2->szName, sizeof(guestInfo2->szName)));
+                pRequestHeader->rc = VINF_SUCCESS;
             }
             break;
         }
@@ -1772,7 +1790,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             else
             {
                 pRequestHeader->rc = PGMR3SharedModuleRegister(PDMDevHlpGetVM(pDevIns), pReqModule->enmGuestOS, pReqModule->szName, pReqModule->szVersion,
-                                                               pReqModule->GCBaseAddr, pReqModule->cbModule,                                                               
+                                                               pReqModule->GCBaseAddr, pReqModule->cbModule,
                                                                pReqModule->cRegions, pReqModule->aRegions);
             }
             break;
@@ -1788,7 +1806,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             }
             else
             {
-                pRequestHeader->rc = PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pDevIns), pReqModule->szName, pReqModule->szVersion, 
+                pRequestHeader->rc = PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pDevIns), pReqModule->szName, pReqModule->szVersion,
                                                                  pReqModule->GCBaseAddr, pReqModule->cbModule);
             }
             break;

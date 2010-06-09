@@ -1,4 +1,4 @@
-/* $Id: localipc-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: localipc-win.cpp $ */
 /** @file
  * IPRT - Local IPC, Windows Implementation Using Named Pipes.
  */

@@ -1,4 +1,4 @@
-/* $Id: fsw_hfs.c 29125 2010-05-06 09:43:05Z vboxsync $ */
+/* $Id: fsw_hfs.c $ */
 /** @file
  * fsw_hfs.c - HFS file system driver code, see
  *

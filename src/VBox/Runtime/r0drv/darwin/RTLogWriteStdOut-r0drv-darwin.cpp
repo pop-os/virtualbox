@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteStdOut-r0drv-darwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTLogWriteStdOut-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Log To StdOut, Ring-0 Driver, Darwin.
  */

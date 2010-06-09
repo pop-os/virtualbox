@@ -1,4 +1,4 @@
-/* $Id: tstR0ThreadPreemptionDriver.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstR0ThreadPreemptionDriver.cpp $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption, driver program.
  */

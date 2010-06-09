@@ -1,4 +1,4 @@
-/* $Id: VBoxVgaMiniPortDxe.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxVgaMiniPortDxe.c $ */
 /** @file
  * VBoxVgaMiniPortDxe.c - VgaMiniPort Protocol Implementation.
  */

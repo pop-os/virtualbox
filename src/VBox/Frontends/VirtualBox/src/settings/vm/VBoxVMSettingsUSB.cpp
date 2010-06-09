@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsUSB.cpp 28939 2010-04-30 14:31:54Z vboxsync $ */
+/* $Id: VBoxVMSettingsUSB.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

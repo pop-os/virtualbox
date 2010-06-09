@@ -1,4 +1,4 @@
-/* $Id: test.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: test.cpp $ */
 /** @file
  * IPRT - Testcase Framework.
  */

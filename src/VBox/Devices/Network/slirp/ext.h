@@ -1,4 +1,4 @@
-/** $Id: ext.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/** $Id: ext.h $ */
 /** @file
  * NAT - some externals helpers
  */

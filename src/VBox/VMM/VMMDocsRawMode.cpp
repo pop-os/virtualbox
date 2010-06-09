@@ -1,4 +1,4 @@
-/* $Id: VMMDocsRawMode.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VMMDocsRawMode.cpp $ */
 /** @file
  * This file contains the documentation of the raw-mode execution.
  */

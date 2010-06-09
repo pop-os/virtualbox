@@ -1,4 +1,4 @@
-/* $Id: tstRTMemEf.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstRTMemEf.cpp $ */
 /** @file
  * IPRT - Testcase for the RTMemEf* functions.
  */
