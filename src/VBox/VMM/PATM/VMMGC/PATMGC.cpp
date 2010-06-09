@@ -1,4 +1,4 @@
-/* $Id: PATMGC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PATMGC.cpp $ */
 /** @file
  * PATM - Dynamic Guest OS Patching Manager - Guest Context
  */

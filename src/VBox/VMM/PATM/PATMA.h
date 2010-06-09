@@ -1,4 +1,4 @@
-/* $Id: PATMA.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PATMA.h $ */
 /** @file
  * PATM macros & definitions (identical to PATMA.mac!!)
  */

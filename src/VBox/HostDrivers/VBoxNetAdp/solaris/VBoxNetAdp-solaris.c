@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxNetAdp-solaris.c $ */
 /** @file
  * VBoxNetAdapter - Network Adapter Driver (Host), Solaris Specific Code.
  */

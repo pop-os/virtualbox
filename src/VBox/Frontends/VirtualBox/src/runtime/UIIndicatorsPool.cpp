@@ -1,4 +1,4 @@
-/* $Id: UIIndicatorsPool.cpp 29734 2010-05-21 13:56:57Z vboxsync $ */
+/* $Id: UIIndicatorsPool.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

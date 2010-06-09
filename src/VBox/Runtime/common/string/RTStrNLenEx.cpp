@@ -1,4 +1,4 @@
-/* $Id: RTStrNLenEx.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTStrNLenEx.cpp $ */
 /** @file
  * IPRT - RTStrNLenEx.
  */

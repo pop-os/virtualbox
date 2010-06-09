@@ -1,4 +1,4 @@
-/* $Id: pdmnetinline.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: pdmnetinline.h $ */
 /** @file
  * PDM - Networking Helpers, Inlined Code. (DEV,++)
  *

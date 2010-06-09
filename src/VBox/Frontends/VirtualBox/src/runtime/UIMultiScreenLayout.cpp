@@ -1,4 +1,4 @@
-/* $Id: UIMultiScreenLayout.cpp 29078 2010-05-05 13:17:30Z vboxsync $ */
+/* $Id: UIMultiScreenLayout.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

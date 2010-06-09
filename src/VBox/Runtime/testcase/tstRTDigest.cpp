@@ -1,4 +1,4 @@
-/* $Id: tstRTDigest.cpp 29906 2010-05-31 13:01:17Z vboxsync $ */
+/* $Id: tstRTDigest.cpp $ */
 /** @file
  * IPRT Testcase - RTSha*, RTMd5, RTCrc*.
  */

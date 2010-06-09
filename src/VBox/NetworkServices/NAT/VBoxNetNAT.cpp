@@ -1,4 +1,4 @@
-/* $Id: VBoxNetNAT.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxNetNAT.cpp $ */
 /** @file
  * VBoxNetNAT - NAT Service for connecting to IntNet.
  */

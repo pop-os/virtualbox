@@ -1,4 +1,4 @@
-/* $Id: DevHPET.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
+/* $Id: DevHPET.cpp $ */
 /** @file
  * HPET virtual device - high precision event timer emulation
  */

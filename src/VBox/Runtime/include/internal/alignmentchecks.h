@@ -1,4 +1,4 @@
-/* $Id: alignmentchecks.h 29250 2010-05-09 17:53:58Z vboxsync $ */
+/* $Id: alignmentchecks.h $ */
 /** @file
  * IPRT - Internal header for hacking alignment checks on x86 and AMD64.
  */

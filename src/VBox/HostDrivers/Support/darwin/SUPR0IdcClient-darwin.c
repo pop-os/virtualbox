@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClient-darwin.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: SUPR0IdcClient-darwin.c $ */
 /** @file
  * VirtualBox Support Driver - IDC Client Lib, Darwin Specific Code.
  */

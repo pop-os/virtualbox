@@ -1,4 +1,4 @@
-/* $Id: tstMMHyperHeap.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstMMHyperHeap.cpp $ */
 /** @file
  * MM Hypervisor Heap testcase.
  */

@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.cpp 29686 2010-05-20 11:46:09Z vboxsync $ */
+/* $Id: StorageControllerImpl.cpp $ */
 
 /** @file
  *

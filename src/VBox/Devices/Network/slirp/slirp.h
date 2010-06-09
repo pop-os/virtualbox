@@ -1,4 +1,4 @@
-/* $Id: slirp.h 29656 2010-05-19 06:05:09Z vboxsync $ */
+/* $Id: slirp.h $ */
 /** @file
  * NAT - slirp (declarations/defines).
  */

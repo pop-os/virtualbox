@@ -1,4 +1,4 @@
-/* $Id: ioctl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: ioctl.h $ */
 /** @file
  * VBox L4/OSS audio - header for Linux IoCtls.
  */

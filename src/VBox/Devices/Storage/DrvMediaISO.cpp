@@ -1,4 +1,4 @@
-/* $Id: DrvMediaISO.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvMediaISO.cpp $ */
 /** @file
  * VBox storage devices: ISO image media driver
  */

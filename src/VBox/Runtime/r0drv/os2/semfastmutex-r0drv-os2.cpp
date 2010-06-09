@@ -1,4 +1,4 @@
-/* $Id: semfastmutex-r0drv-os2.cpp 25722 2010-01-11 14:22:03Z vboxsync $ */
+/* $Id: semfastmutex-r0drv-os2.cpp $ */
 /** @file
  * IPRT - Fast Mutex Semaphores, Ring-0 Driver, OS/2.
  */

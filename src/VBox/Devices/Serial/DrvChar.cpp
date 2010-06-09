@@ -1,4 +1,4 @@
-/* $Id: DrvChar.cpp 29846 2010-05-27 16:25:28Z vboxsync $ */
+/* $Id: DrvChar.cpp $ */
 /** @file
  * Driver that adapts PDMISTREAM into PDMICHARCONNECTOR / PDMICHARPORT.
  *

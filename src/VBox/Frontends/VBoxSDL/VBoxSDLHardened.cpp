@@ -1,4 +1,4 @@
-/* $Id: VBoxSDLHardened.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxSDLHardened.cpp $ */
 /** @file
  * VBoxSDL - Hardened main().
  */

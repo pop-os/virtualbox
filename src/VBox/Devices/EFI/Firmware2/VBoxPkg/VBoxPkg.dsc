@@ -1,4 +1,4 @@
-# $Id: VBoxPkg.dsc 26453 2010-02-11 19:11:02Z vboxsync $
+# $Id: VBoxPkg.dsc $
 ## @file
 # VBoxPkg.dsc - VirtualBox Flash Device.
 #

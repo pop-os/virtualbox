@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: semeventmulti-win.cpp $ */
 /** @file
  * IPRT - Multiple Release Event Semaphore, Windows.
  *

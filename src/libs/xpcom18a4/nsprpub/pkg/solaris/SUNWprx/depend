@@ -1,7 +1,7 @@
 # Copyright 2002 Microsystems, Inc.  All Rights Reserved.
 # Use is subject to license terms.
 #
-#	$Id: depend 1  vboxsync $
+#	$Id: depend $
 #
 # This package information file defines software dependencies associated
 # with the pkg.  You can define three types of pkg dependencies with this file:

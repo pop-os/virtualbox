@@ -1,4 +1,4 @@
-/* $Id: tstSemEvent.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstSemEvent.cpp $ */
 /** @file
  * IPRT Testcase - Event Semaphore Test.
  */

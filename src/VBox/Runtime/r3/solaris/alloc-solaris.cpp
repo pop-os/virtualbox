@@ -1,4 +1,4 @@
-/* $Id: alloc-solaris.cpp 29277 2010-05-09 23:25:51Z vboxsync $ */
+/* $Id: alloc-solaris.cpp $ */
 /** @file
  * IPRT - Memory Allocation, POSIX.
  */

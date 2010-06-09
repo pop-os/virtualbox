@@ -1,4 +1,4 @@
-/* $Id: RTSemEventMultiWait-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTSemEventMultiWait-generic.cpp $ */
 /** @file
  * IPRT - RTSemEventMultiWait, generic RTSemEventMultiWaitNoResume wrapper.
  */

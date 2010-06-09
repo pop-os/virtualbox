@@ -1,4 +1,4 @@
-; $Id: VBoxRT-openssl-ose.def 28800 2010-04-27 08:22:32Z vboxsync $
+; $Id: VBoxRT-openssl-ose.def $
 ;; @file
 ; IPRT - Windows OpenSSL exports.
 ;

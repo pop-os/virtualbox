@@ -1,4 +1,4 @@
-/* $Id: dbg.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: dbg.h $ */
 /** @file
  * IPRT - Debugging Routines.
  */

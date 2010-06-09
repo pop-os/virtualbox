@@ -1,4 +1,4 @@
-/* $Id: VBoxVMSettingsParallel.cpp 29972 2010-06-02 09:03:45Z vboxsync $ */
+/* $Id: VBoxVMSettingsParallel.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

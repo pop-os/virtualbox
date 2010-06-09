@@ -1,4 +1,4 @@
-/* $Id: RTLogWriteDebugger-r0drv-linux.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTLogWriteDebugger-r0drv-linux.c $ */
 /** @file
  * IPRT - Log To Debugger, Ring-0 Driver, Linux.
  */

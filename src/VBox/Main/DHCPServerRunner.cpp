@@ -1,4 +1,4 @@
-/* $Id: DHCPServerRunner.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DHCPServerRunner.cpp $ */
 /** @file
  * VirtualBox Main - interface for VBox DHCP server
  */

@@ -1,4 +1,4 @@
-/* $Id: RTThreadGetNativeState-linux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTThreadGetNativeState-linux.cpp $ */
 /** @file
  * IPRT - RTThreadGetNativeState, linux implementation.
  */

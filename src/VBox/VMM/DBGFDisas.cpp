@@ -1,4 +1,4 @@
-/* $Id: DBGFDisas.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DBGFDisas.cpp $ */
 /** @file
  * DBGF - Debugger Facility, Disassembler.
  */

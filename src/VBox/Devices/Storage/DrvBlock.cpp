@@ -1,4 +1,4 @@
-/* $Id: DrvBlock.cpp 29341 2010-05-11 11:15:22Z vboxsync $ */
+/* $Id: DrvBlock.cpp $ */
 /** @file
  * VBox storage devices: Generic block driver
  */

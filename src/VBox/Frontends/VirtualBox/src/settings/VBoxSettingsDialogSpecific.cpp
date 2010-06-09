@@ -1,4 +1,4 @@
-/* $Id: VBoxSettingsDialogSpecific.cpp 28940 2010-04-30 14:41:10Z vboxsync $ */
+/* $Id: VBoxSettingsDialogSpecific.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

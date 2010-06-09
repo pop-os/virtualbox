@@ -1,4 +1,4 @@
-/* $Id: s3.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: s3.cpp $ */
 /** @file
  * IPRT - S3 communication API.
  */

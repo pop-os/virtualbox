@@ -1,4 +1,4 @@
-/* $Id: DrvKeyboardQueue.cpp 28909 2010-04-29 16:34:17Z vboxsync $ */
+/* $Id: DrvKeyboardQueue.cpp $ */
 /** @file
  * VBox input devices: Keyboard queue driver
  */

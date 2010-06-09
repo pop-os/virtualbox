@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-linux.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: thread2-r0drv-linux.c $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Linux.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxGLSettingsGeneral.cpp 29921 2010-05-31 16:49:37Z vboxsync $ */
+/* $Id: VBoxGLSettingsGeneral.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

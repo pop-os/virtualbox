@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.cpp 29937 2010-06-01 08:41:32Z vboxsync $ */
+/* $Id: VirtualBoxImpl.cpp $ */
 
 /** @file
  * Implementation of IVirtualBox in VBoxSVC.

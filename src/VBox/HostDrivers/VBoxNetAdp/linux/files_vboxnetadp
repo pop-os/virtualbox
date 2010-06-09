@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Revision: 29250 $
+# $Revision: 61332 $
 ## @files
 # Shared file between Makefile.kmk and export_modules
 #

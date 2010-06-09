@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClient-solaris.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: SUPR0IdcClient-solaris.c $ */
 /** @file
  * VirtualBox Support Driver - IDC Client Lib, Solaris Specific Code.
  */

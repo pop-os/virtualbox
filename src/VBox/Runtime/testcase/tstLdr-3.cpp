@@ -1,4 +1,4 @@
-/* $Id: tstLdr-3.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstLdr-3.cpp $ */
 /** @file
  * IPRT - Testcase for parts of RTLdr*, manual inspection.
  */

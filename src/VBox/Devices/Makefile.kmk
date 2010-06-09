@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29590 2010-05-18 07:02:17Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level sub-makefile for the devices, drivers and services.
 #

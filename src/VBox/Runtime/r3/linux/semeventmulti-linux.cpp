@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-linux.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: semeventmulti-linux.cpp $ */
 /** @file
  * IPRT - Multiple Release Event Semaphore, Linux (2.6.x+).
  */

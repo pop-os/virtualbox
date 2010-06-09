@@ -1,4 +1,4 @@
-/* $Id: VMMGuruMeditation.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VMMGuruMeditation.cpp $ */
 /** @file
  * VMM - The Virtual Machine Monitor, Guru Meditation Code.
  */
@@ -490,17 +490,9 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
         { "cpumhost",       "verbose" },
         { "mode",           "all" },
         { "cpuid",          "verbose" },
-        { "gdt",            NULL },
-        { "ldt",            NULL },
-        //{ "tss",            NULL },
-        { "ioport",         NULL },
-        { "mmio",           NULL },
-        { "phys",           NULL },
-        //{ "pgmpd",          NULL }, - doesn't always work at init time...
+        { "handlers",       "phys virt hyper stats" },
         { "timers",         NULL },
         { "activetimers",   NULL },
-        { "handlers",       "phys virt hyper stats" },
-        { "cfgm",           NULL },
     };
     for (unsigned i = 0; i < RT_ELEMENTS(aInfo); i++)
     {
@@ -513,6 +505,17 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                         aInfo[i].pszInfo, aInfo[i].pszArgs);
         DBGFR3Info(pVM, aInfo[i].pszInfo, aInfo[i].pszArgs, pHlp);
     }
+
+    /* All other info items */
+    DBGFR3InfoMulti(pVM,
+                    "*",
+                    "mappings|hma|cpum|cpumguest|cpumguestinstr|cpumhyper|cpumhost|mode|cpuid"
+                    "|pgmpd|pgmcr3|timers|activetimers|handlers|help",
+                    "!!\n"
+                    "!! {%s}\n"
+                    "!!\n",
+                    pHlp);
+
 
     /* done */
     pHlp->pfnPrintf(pHlp,

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltBow-solaris.c 29709 2010-05-20 17:15:39Z vboxsync $ */
+/* $Id: VBoxNetFltBow-solaris.c $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Solaris Specific Code.
  */

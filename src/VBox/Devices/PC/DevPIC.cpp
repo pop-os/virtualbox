@@ -1,4 +1,4 @@
-/* $Id: DevPIC.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevPIC.cpp $ */
 /** @file
  * DevPIC - Intel 8259 Programmable Interrupt Controller (PIC) Device.
  */

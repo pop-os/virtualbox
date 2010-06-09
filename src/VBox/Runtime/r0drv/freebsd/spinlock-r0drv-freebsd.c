@@ -1,4 +1,4 @@
-/* $Id: spinlock-r0drv-freebsd.c 29500 2010-05-14 21:43:06Z vboxsync $ */
+/* $Id: spinlock-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Spinlocks, Ring-0 Driver, FreeBSD.
  */

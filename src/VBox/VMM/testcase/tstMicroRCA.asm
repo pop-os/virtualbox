@@ -1,4 +1,4 @@
-; $Id: tstMicroRCA.asm 28800 2010-04-27 08:22:32Z vboxsync $
+; $Id: tstMicroRCA.asm $
 ;; @file
 ; tstMicroRCA
 ;

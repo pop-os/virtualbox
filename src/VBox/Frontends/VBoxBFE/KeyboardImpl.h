@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: KeyboardImpl.h $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of Keyboard class and related things

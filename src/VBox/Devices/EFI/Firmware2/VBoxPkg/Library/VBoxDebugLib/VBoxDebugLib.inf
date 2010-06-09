@@ -1,4 +1,4 @@
-# $Id: VBoxDebugLib.inf 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: VBoxDebugLib.inf $
 ## @file
 # VBoxDebugLib - Debug logging and assertions support routines using DevEFI.
 #

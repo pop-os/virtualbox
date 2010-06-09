@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.c 29682 2010-05-20 11:16:03Z vboxsync $ */
+/* $Id: VBoxNetFlt-win.c $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
@@ -720,7 +720,7 @@ DECLHIDDEN(bool) vboxNetFltWinPostIntnet(PVBOXNETFLTINS pNetFltIf, PVOID pvPacke
 #else
         if(pSG)
         {
-            pNetFltIf->pSwitchPort->pfnRecv(pNetFltIf->pSwitchPort, pSG, NULL /* pvIf */, INTNETTRUNKDIR_HOST);
+            pNetFltIf->pSwitchPort->pfnRecv(pNetFltIf->pSwitchPort, NULL /* pvIf */, pSG, INTNETTRUNKDIR_HOST);
             STATISTIC_INCREASE(pAdapt->cTxSuccess);
         }
         else

@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.cpp 28909 2010-04-29 16:34:17Z vboxsync $ */
+/* $Id: KeyboardImpl.cpp $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -169,7 +169,7 @@ STDMETHODIMP Keyboard::PutScancode (LONG scancode)
     /* No enabled keyboard - throw the input away. */
     if (!pUpPort)
         return rc;
-    
+
     int vrc = pUpPort->pfnPutEvent(pUpPort, (uint8_t)scancode);
 
     if (RT_FAILURE(vrc))

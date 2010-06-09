@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePageSharing.cpp 29996 2010-06-02 13:12:21Z vboxsync $ */
+/* $Id: VBoxServicePageSharing.cpp $ */
 /** @file
  * VBoxService - Guest page sharing.
  */
@@ -24,6 +24,7 @@
 #include <iprt/asm.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>
+#include <iprt/file.h>
 #include <iprt/string.h>
 #include <iprt/semaphore.h>
 #include <iprt/system.h>
@@ -248,7 +249,7 @@ void VBoxServicePageSharingRegisterModule(PKNOWN_MODULE pModule, bool fValidateM
 //    AssertRC(rc);
     if (RT_FAILURE(rc))
         VBoxServiceVerbose(3, "VbglR3RegisterSharedModule failed with %d\n", rc);
-    
+
 end:
     RTMemFree(pVersionInfo);
     return;
@@ -290,7 +291,7 @@ void VBoxServicePageSharingInspectModules(DWORD dwProcessId, PAVLPVNODECORE *ppN
     {
         /** todo when changing this make sure VBoxService.exe is excluded! */
         char *pszDot = strrchr(ModuleInfo.szModule, '.');
-        if (    pszDot 
+        if (    pszDot
             &&  (pszDot[1] == 'e' || pszDot[1] == 'E'))
             continue;   /* ignore executables for now. */
 
@@ -373,14 +374,14 @@ void VBoxServicePageSharingInspectGuest()
         ULONG                cbBuffer = 0;
         PVOID                pBuffer = NULL;
         PRTL_PROCESS_MODULES pSystemModules;
-    
+
         NTSTATUS ret = ZwQuerySystemInformation(SystemModuleInformation, (PVOID)&cbBuffer, 0, &cbBuffer);
         if (!cbBuffer)
         {
             VBoxServiceVerbose(1, "ZwQuerySystemInformation returned length 0\n");
             goto skipkernelmodules;
         }
-        
+
         pBuffer = RTMemAllocZ(cbBuffer);
         if (!pBuffer)
             goto skipkernelmodules;
@@ -391,18 +392,17 @@ void VBoxServicePageSharingInspectGuest()
             VBoxServiceVerbose(1, "ZwQuerySystemInformation returned %x (1)\n", ret);
             goto skipkernelmodules;
         }
-    
+
         pSystemModules = (PRTL_PROCESS_MODULES)pBuffer;
         for (unsigned i = 0; i < pSystemModules->NumberOfModules; i++)
         {
+            VBoxServiceVerbose(4, "\n\n   KERNEL  MODULE NAME:     %s",     pSystemModules->Modules[i].FullPathName[pSystemModules->Modules[i].OffsetToFileName] );
+            VBoxServiceVerbose(4, "\n     executable     = %s",             pSystemModules->Modules[i].FullPathName );
+            VBoxServiceVerbose(4, "\n     flags          = 0x%08X\n",       pSystemModules->Modules[i].Flags);
+
             /* User-mode modules seem to have no flags set; skip them as we detected them above. */
             if (pSystemModules->Modules[i].Flags == 0)
                 continue;
-
-            char *pszDot = strrchr(pSystemModules->Modules[i].FullPathName, '.');
-            if (    pszDot 
-                &&  (pszDot[1] == 'e' || pszDot[1] == 'E'))
-                continue;   /* ignore executables for now. */
 
             /* Found it before? */
             PAVLPVNODECORE pRec = RTAvlPVGet(&pNewTree, pSystemModules->Modules[i].ImageBase);
@@ -425,20 +425,37 @@ void VBoxServicePageSharingInspectGuest()
                     char *lpPath = strchr(&pSystemModules->Modules[i].FullPathName[1], '\\');
                     if (!lpPath)
                     {
-                        VBoxServiceVerbose(1, "Unexpected kernel module name %s\n", pSystemModules->Modules[i].FullPathName);
-                        RTMemFree(pModule);
-                        break;
+                        /* Seen just file names in XP; try to locate the file in the system32 and system32\drivers directories. */
+                        strcat(szFullFilePath, "\\");
+                        strcat(szFullFilePath, pSystemModules->Modules[i].FullPathName);
+                        VBoxServiceVerbose(3, "Unexpected kernel module name try %s\n", szFullFilePath);
+                        if (RTFileExists(szFullFilePath) == false)
+                        {
+                            GetSystemDirectoryA(szFullFilePath, sizeof(szFullFilePath));
+                            strcat(szFullFilePath, "\\drivers\\");
+                            strcat(szFullFilePath, pSystemModules->Modules[i].FullPathName);
+                            VBoxServiceVerbose(3, "Unexpected kernel module name try %s\n", szFullFilePath);
+                            if (RTFileExists(szFullFilePath) == false)
+                            {
+                                VBoxServiceVerbose(1, "Unexpected kernel module name %s\n", pSystemModules->Modules[i].FullPathName);
+                                RTMemFree(pModule);
+                                continue;
+                            }
+                        }
                     }
-
-                    lpPath = strchr(lpPath+1, '\\');
-                    if (!lpPath)
+                    else
                     {
-                        VBoxServiceVerbose(1, "Unexpected kernel module name %s\n", pSystemModules->Modules[i].FullPathName);
-                        RTMemFree(pModule);
-                        break;
+                        lpPath = strchr(lpPath+1, '\\');
+                        if (!lpPath)
+                        {
+                            VBoxServiceVerbose(1, "Unexpected kernel module name %s (2)\n", pSystemModules->Modules[i].FullPathName);
+                            RTMemFree(pModule);
+                            continue;
+                        }
+
+                        strcat(szFullFilePath, lpPath);
                     }
 
-                    strcat(szFullFilePath, lpPath);
                     strcpy(pModule->Info.szExePath, szFullFilePath);
                     pModule->Info.modBaseAddr = (BYTE *)pSystemModules->Modules[i].ImageBase;
                     pModule->Info.modBaseSize = pSystemModules->Modules[i].ImageSize;
@@ -533,7 +550,7 @@ static DECLCALLBACK(int) VBoxServicePageSharingInit(void)
 
 #if defined(RT_OS_WINDOWS) && !defined(TARGET_NT4)
     hNtdll = LoadLibrary("ntdll.dll");
-    
+
     if (hNtdll)
         ZwQuerySystemInformation = (PFNZWQUERYSYSTEMINFORMATION)GetProcAddress(hNtdll, "ZwQuerySystemInformation");
 #endif
@@ -558,7 +575,7 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
      *
      * We have to use this feature as we can't simply execute all init code in our service process.
      *
-	 */
+     */
     int rc = RTSemEventMultiWait(g_PageSharingEvent, 60000);
     if (*pfShutdown)
         goto end;

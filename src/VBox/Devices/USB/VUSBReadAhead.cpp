@@ -1,4 +1,4 @@
-/* $Id: VUSBReadAhead.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VUSBReadAhead.cpp $ */
 /** @file
  * Virtual USB - Read-ahead buffering for periodic endpoints.
  */

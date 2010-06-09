@@ -1,4 +1,4 @@
-/* $Id: NetAdpInstall.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: NetAdpInstall.cpp $ */
 /** @file
  * NetAdpInstall - VBoxNetAdp installer command line tool
  */

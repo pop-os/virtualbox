@@ -1,4 +1,4 @@
-/* $Id: tstPin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstPin.cpp $ */
 /** @file
  * SUP Testcase - Memory locking interface (ring 3).
  */

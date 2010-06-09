@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHelp.cpp 29865 2010-05-28 14:53:07Z vboxsync $ */
+/* $Id: VBoxManageHelp.cpp $ */
 /** @file
  * VBoxManage - help and other message output.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt.c 29696 2010-05-20 13:21:05Z vboxsync $ */
+/* $Id: VBoxNetFlt.c $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Common Code.
  */

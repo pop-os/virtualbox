@@ -1,4 +1,4 @@
-/* $Id: DevPit-i8254.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
+/* $Id: DevPit-i8254.cpp $ */
 /** @file
  * DevPIT-i8254 - Intel 8254 Programmable Interval Timer (PIT) And Dummy Speaker Device.
  */

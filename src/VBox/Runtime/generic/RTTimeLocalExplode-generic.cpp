@@ -1,4 +1,4 @@
-/* $Id: RTTimeLocalExplode-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTTimeLocalExplode-generic.cpp $ */
 /** @file
  * IPRT - Time, generic RTTimeLocalExplode.
  */

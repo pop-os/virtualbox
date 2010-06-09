@@ -1,4 +1,4 @@
-/* $Id: VBoxDebugLib.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxDebugLib.h $ */
 /** @file
  * VBoxDebugLib.h - Debug and logging routines implemented by VBoxDebugLib.
  */

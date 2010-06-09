@@ -1,4 +1,4 @@
-/* $Id: Virtio.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Virtio.h $ */
 /** @file
  * Virtio.h - Virtio Declarations
  */

@@ -1,4 +1,4 @@
-/* $Id: UIFirstRunWzd.cpp 29942 2010-06-01 12:07:18Z vboxsync $ */
+/* $Id: UIFirstRunWzd.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

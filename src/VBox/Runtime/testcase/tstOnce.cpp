@@ -1,4 +1,4 @@
-/* $Id: tstOnce.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstOnce.cpp $ */
 /** @file
  * IPRT Testcase - RTOnce.
  */

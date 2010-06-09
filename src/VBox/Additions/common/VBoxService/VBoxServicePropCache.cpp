@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePropCache.cpp 29885 2010-05-31 09:04:43Z vboxsync $ */
+/* $Id: VBoxServicePropCache.cpp $ */
 /** @file
  * VBoxServicePropCache - Guest property cache.
  */
@@ -309,17 +309,17 @@ void VBoxServicePropCacheDestroy(PVBOXSERVICEVEPROPCACHE pCache)
         {
             if ((pNode->fFlags & VBOXSERVICEPROPCACHEFLAG_TEMPORARY) == 0)
                 VBoxServiceWritePropF(pCache->uClientID, pNode->pszName, pNode->pszValueReset);
-    
+
             AssertPtr(pNode->pszName);
             RTStrFree(pNode->pszName);
             RTStrFree(pNode->pszValue);
             RTStrFree(pNode->pszValueReset);
             pNode->fFlags = 0;
-    
+
             PVBOXSERVICEVEPROPCACHEENTRY pNext = RTListNodeGetNext(&pNode->Node, VBOXSERVICEVEPROPCACHEENTRY, Node);
             RTListNodeRemove(&pNode->Node);
             RTMemFree(pNode);
-    
+
             if (pNext && RTListNodeIsLast(&pCache->ListEntries, &pNext->Node))
                 break;
             pNode = pNext;

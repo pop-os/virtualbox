@@ -1,4 +1,4 @@
-/* $Id: server_texture.c 29857 2010-05-28 12:25:02Z vboxsync $ */
+/* $Id: server_texture.c $ */
 
 /** @file
  * VBox crOpenGL: teximage functions.

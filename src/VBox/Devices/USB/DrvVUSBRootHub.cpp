@@ -1,4 +1,4 @@
-/* $Id: DrvVUSBRootHub.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvVUSBRootHub.cpp $ */
 /** @file
  * Virtual USB - Root Hub Driver.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxSnapshotDetailsDlg.cpp 29354 2010-05-11 13:44:25Z vboxsync $ */
+/* $Id: VBoxSnapshotDetailsDlg.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

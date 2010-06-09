@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHostonly.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxManageHostonly.cpp $ */
 /** @file
  * VBoxManage - Implementation of hostonlyif command.
  */

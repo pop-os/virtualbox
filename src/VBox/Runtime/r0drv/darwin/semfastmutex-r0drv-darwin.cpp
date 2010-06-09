@@ -1,4 +1,4 @@
-/* $Id: semfastmutex-r0drv-darwin.cpp 29255 2010-05-09 18:11:24Z vboxsync $ */
+/* $Id: semfastmutex-r0drv-darwin.cpp $ */
 /** @file
  * IPRT - Fast Mutex Semaphores, Ring-0 Driver, Darwin.
  */

@@ -1,4 +1,4 @@
-/* $Id: server_muralfbo.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: server_muralfbo.c $ */
 
 /** @file
  * VBox crOpenGL: Window to FBO redirect support.

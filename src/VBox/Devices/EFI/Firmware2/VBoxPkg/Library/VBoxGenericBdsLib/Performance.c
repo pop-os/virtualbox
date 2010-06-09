@@ -1,4 +1,4 @@
-/* $Id: Performance.c 29125 2010-05-06 09:43:05Z vboxsync $ */
+/* $Id: Performance.c $ */
 /** @file
  * Performance.c - This file include the file which can help to get the
  * system performance, all the function will only include if the performance

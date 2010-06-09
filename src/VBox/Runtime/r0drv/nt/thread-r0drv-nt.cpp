@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-nt.cpp 29254 2010-05-09 18:11:22Z vboxsync $ */
+/* $Id: thread-r0drv-nt.cpp $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, NT.
  */
