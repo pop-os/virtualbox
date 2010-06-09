@@ -1,3 +1,9 @@
+virtualbox-ose (3.2.4-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 09 Jun 2010 15:31:05 +0200
+
 virtualbox-ose (3.2.2-dfsg-1) unstable; urgency=low
 
   * Imported Upstream version 3.2.2-dfsg (Closes: #584488, #585003)
