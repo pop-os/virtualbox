@@ -1,3 +1,10 @@
+virtualbox-ose (3.2.4-dfsg-2) UNRELEASED; urgency=low
+
+  * Do not use standard compiler optimization for vdfuse. (Closes:
+    #586265)
+
+ -- Michael Meskes <meskes@debian.org>  Mon, 21 Jun 2010 13:59:58 +0200
+
 virtualbox-ose (3.2.4-dfsg-1) unstable; urgency=low
 
   * New upstream release.
