@@ -22,7 +22,7 @@
 #include "version-generated.h"
 #include "product-generated.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 # include <linux/backing-dev.h>
 #endif
 
@@ -40,7 +40,7 @@ struct sf_glob_info {
         int fmode;
         int dmask;
         int fmask;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
         struct backing_dev_info bdi;
 #endif
 };
@@ -51,6 +51,8 @@ struct sf_inode_info {
         SHFLSTRING *path;
         /* some information was changed, update data on next revalidate */
         int force_restat;
+        /* directory content changed, update the whole directory on next sf_getdent */
+        int force_reread;
         /* file structure, only valid between open() and release() */
         struct file *file;
         /* handle valid if a file was created with sf_create_aux until it will
@@ -85,44 +87,34 @@ extern struct file_operations          sf_reg_fops;
 extern struct dentry_operations        sf_dentry_ops;
 extern struct address_space_operations sf_reg_aops;
 
-extern void
-sf_init_inode (struct sf_glob_info *sf_g, struct inode *inode,
-               RTFSOBJINFO *info);
-extern int
-sf_stat (const char *caller, struct sf_glob_info *sf_g,
-         SHFLSTRING *path, RTFSOBJINFO *result, int ok_to_fail);
-extern int
-sf_inode_revalidate (struct dentry *dentry);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 0)
-extern int
-sf_getattr (struct vfsmount *mnt, struct dentry *dentry, struct kstat *kstat);
-extern int
-sf_setattr (struct dentry *dentry, struct iattr *iattr);
+extern void sf_init_inode(struct sf_glob_info *sf_g, struct inode *inode,
+                          RTFSOBJINFO *info);
+extern int sf_stat(const char *caller, struct sf_glob_info *sf_g,
+                   SHFLSTRING *path, RTFSOBJINFO *result, int ok_to_fail);
+extern int sf_inode_revalidate(struct dentry *dentry);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+extern int sf_getattr(struct vfsmount *mnt, struct dentry *dentry,
+                      struct kstat *kstat);
+extern int sf_setattr(struct dentry *dentry, struct iattr *iattr);
 #endif
-extern int
-sf_path_from_dentry (const char *caller, struct sf_glob_info *sf_g,
-                     struct sf_inode_info *sf_i, struct dentry *dentry,
-                     SHFLSTRING **result);
-extern int
-sf_nlscpy (struct sf_glob_info *sf_g,
-           char *name, size_t name_bound_len,
-           const unsigned char *utf8_name, size_t utf8_len);
-extern void
-sf_dir_info_free (struct sf_dir_info *p);
-extern struct sf_dir_info *
-sf_dir_info_alloc (void);
-extern int
-sf_dir_read_all (struct sf_glob_info *sf_g, struct sf_inode_info *sf_i,
-                 struct sf_dir_info *sf_d, SHFLHANDLE handle);
-extern int
-sf_init_backing_dev (struct sf_glob_info *sf_g, const char *name);
-extern void
-sf_done_backing_dev (struct sf_glob_info *sf_g);
+extern int sf_path_from_dentry(const char *caller, struct sf_glob_info *sf_g,
+                               struct sf_inode_info *sf_i, struct dentry *dentry,
+                               SHFLSTRING **result);
+extern int sf_nlscpy(struct sf_glob_info *sf_g,
+                     char *name, size_t name_bound_len,
+                     const unsigned char *utf8_name, size_t utf8_len);
+extern void sf_dir_info_free(struct sf_dir_info *p);
+extern void sf_dir_info_empty(struct sf_dir_info *p);
+extern struct sf_dir_info *sf_dir_info_alloc(void);
+extern int sf_dir_read_all(struct sf_glob_info *sf_g, struct sf_inode_info *sf_i,
+                           struct sf_dir_info *sf_d, SHFLHANDLE handle);
+extern int sf_init_backing_dev(struct sf_glob_info *sf_g, const char *name);
+extern void sf_done_backing_dev(struct sf_glob_info *sf_g);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION (2, 6, 0)
-#define STRUCT_STATFS  struct statfs
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+# define STRUCT_STATFS  struct statfs
 #else
-#define STRUCT_STATFS  struct kstatfs
+# define STRUCT_STATFS  struct kstatfs
 #endif
 int sf_get_volume_info(struct super_block *sb,STRUCT_STATFS *stat);
 
@@ -132,26 +124,26 @@ int sf_get_volume_info(struct super_block *sb,STRUCT_STATFS *stat);
 # define CMC_API __attribute__ ((regparm (0)))
 #endif
 
-#define TRACE() LogFunc (("tracepoint\n"))
+#define TRACE() LogFunc(("tracepoint\n"))
 
 /* Following casts are here to prevent assignment of void * to
    pointers of arbitrary type */
-#if LINUX_VERSION_CODE < KERNEL_VERSION (2, 6, 0)
-#define GET_GLOB_INFO(sb) ((struct sf_glob_info *) (sb)->u.generic_sbp)
-#define SET_GLOB_INFO(sb, sf_g) (sb)->u.generic_sbp = sf_g
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
+# define GET_GLOB_INFO(sb)       ((struct sf_glob_info *) (sb)->u.generic_sbp)
+# define SET_GLOB_INFO(sb, sf_g) (sb)->u.generic_sbp = sf_g
 #else
-#define GET_GLOB_INFO(sb) ((struct sf_glob_info *) (sb)->s_fs_info)
-#define SET_GLOB_INFO(sb, sf_g) (sb)->s_fs_info = sf_g
+# define GET_GLOB_INFO(sb)       ((struct sf_glob_info *) (sb)->s_fs_info)
+# define SET_GLOB_INFO(sb, sf_g) (sb)->s_fs_info = sf_g
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 19) || defined(KERNEL_FC6)
 /* FC6 kernel 2.6.18, vanilla kernel 2.6.19+ */
-#define GET_INODE_INFO(i) ((struct sf_inode_info *) (i)->i_private)
-#define SET_INODE_INFO(i, sf_i) (i)->i_private = sf_i
+# define GET_INODE_INFO(i)       ((struct sf_inode_info *) (i)->i_private)
+# define SET_INODE_INFO(i, sf_i) (i)->i_private = sf_i
 #else
 /* vanilla kernel up to 2.6.18 */
-#define GET_INODE_INFO(i) ((struct sf_inode_info *) (i)->u.generic_ip)
-#define SET_INODE_INFO(i, sf_i) (i)->u.generic_ip = sf_i
+# define GET_INODE_INFO(i)       ((struct sf_inode_info *) (i)->u.generic_ip)
+# define SET_INODE_INFO(i, sf_i) (i)->u.generic_ip = sf_i
 #endif
 
 #endif /* vfsmod.h */

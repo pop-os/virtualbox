@@ -976,6 +976,8 @@ DECLINLINE(int) VDCFGQueryBytesAlloc(PVDINTERFACECONFIG pCfgIf,
     int rc = pCfgIf->pfnQuerySize(pvUser, pszName, &cb);
     if (RT_SUCCESS(rc))
     {
+        Assert(cb);
+
         char *pvData = (char *)RTMemAlloc(cb);
         if (pvData)
         {
@@ -983,7 +985,7 @@ DECLINLINE(int) VDCFGQueryBytesAlloc(PVDINTERFACECONFIG pCfgIf,
             if (RT_SUCCESS(rc))
             {
                 *ppvData = pvData;
-                *pcbData = cb;
+                *pcbData = cb - 1; /* Exclude terminator of the queried string. */
             }
             else
                 RTMemFree(pvData);
@@ -1057,15 +1059,23 @@ ion.
     DECLR3CALLBACKMEMBER(int, pfnRead, (RTSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead));
 
     /**
-     * Send data from a socket.
+     * Send data to a socket.
      *
      * @return  iprt status code.
      * @param   Sock        Socket descriptor.
      * @param   pvBuffer    Buffer to write data to socket.
      * @param   cbBuffer    How much to write.
-     * @param   pcbRead     Number of bytes read.
      */
     DECLR3CALLBACKMEMBER(int, pfnWrite, (RTSOCKET Sock, const void *pvBuffer, size_t cbBuffer));
+
+    /**
+     * Send data from scatter/gather buffer to a socket.
+     *
+     * @return  iprt status code.
+     * @param   Sock        Socket descriptor.
+     * @param   pSgBuf      Scatter/gather buffer to write data to socket.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSgWrite, (RTSOCKET Sock, PCRTSGBUF pSgBuf));
 
     /**
      * Flush socket write buffers.
@@ -1074,6 +1084,15 @@ ion.
      * @param   Sock        Socket descriptor.
      */
     DECLR3CALLBACKMEMBER(int, pfnFlush, (RTSOCKET Sock));
+
+    /**
+     * Enables or disables delaying sends to coalesce packets.
+     *
+     * @return  iprt status code.
+     * @param   Sock        Socket descriptor.
+     * @param   fEnable     When set to true enables coalescing.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetSendCoalescing, (RTSOCKET Sock, bool fEnable));
 
     /**
      * Gets the address of the local side.

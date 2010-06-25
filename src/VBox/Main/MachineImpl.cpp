@@ -3115,9 +3115,12 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
         treeLock.leave();
         alock.leave();
 
-        rc = medium->createDiffStorage(diff, MediumVariant_Standard,
-                                       pMediumLockList, NULL /* aProgress */,
-                                       true /* aWait */, &fNeedsSaveSettings);
+        rc = medium->createDiffStorage(diff,
+                                       MediumVariant_Standard,
+                                       pMediumLockList,
+                                       NULL /* aProgress */,
+                                       true /* aWait */,
+                                       &fNeedsSaveSettings);
 
         alock.enter();
         treeLock.enter();
@@ -3159,6 +3162,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
 
     if (fNeedsSaveSettings)
     {
+        // save the global settings; for that we should hold only the VirtualBox lock
         mediumLock.release();
         treeLock.leave();
         alock.release();
@@ -3253,6 +3257,7 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
 
         if (fNeedsGlobalSaveSettings)
         {
+            // save the global settings; for that we should hold only the VirtualBox lock
             alock.release();
             AutoWriteLock vboxlock(this COMMA_LOCKVAL_SRC_POS);
             mParent->saveSettings();
@@ -3652,6 +3657,7 @@ STDMETHODIMP Machine::SetExtraData(IN_BSTR aKey, IN_BSTR aValue)
 
         if (fNeedsGlobalSaveSettings)
         {
+            // save the global settings; for that we should hold only the VirtualBox lock
             alock.release();
             AutoWriteLock vboxlock(mParent COMMA_LOCKVAL_SRC_POS);
             mParent->saveSettings();
@@ -3687,6 +3693,7 @@ STDMETHODIMP Machine::SaveSettings()
 
     if (SUCCEEDED(rc) && fNeedsGlobalSaveSettings)
     {
+        // save the global settings; for that we should hold only the VirtualBox lock
         AutoWriteLock vlock(mParent COMMA_LOCKVAL_SRC_POS);
         rc = mParent->saveSettings();
     }
@@ -4065,15 +4072,15 @@ STDMETHODIMP Machine::GetGuestProperty(IN_BSTR aName,
 STDMETHODIMP Machine::GetGuestPropertyValue(IN_BSTR aName, BSTR *aValue)
 {
     ULONG64 dummyTimestamp;
-    BSTR dummyFlags;
-    return GetGuestProperty(aName, aValue, &dummyTimestamp, &dummyFlags);
+    Bstr dummyFlags;
+    return GetGuestProperty(aName, aValue, &dummyTimestamp, dummyFlags.asOutParam());
 }
 
 STDMETHODIMP Machine::GetGuestPropertyTimestamp(IN_BSTR aName, ULONG64 *aTimestamp)
 {
-    BSTR dummyValue;
-    BSTR dummyFlags;
-    return GetGuestProperty(aName, &dummyValue, aTimestamp, &dummyFlags);
+    Bstr dummyValue;
+    Bstr dummyFlags;
+    return GetGuestProperty(aName, dummyValue.asOutParam(), aTimestamp, dummyFlags.asOutParam());
 }
 
 #ifdef VBOX_WITH_GUEST_PROPS
@@ -4191,7 +4198,7 @@ HRESULT Machine::setGuestPropertyToVM(IN_BSTR aName, IN_BSTR aValue,
         ComPtr<IInternalSessionControl> directControl =
             mData->mSession.mDirectControl;
 
-        BSTR dummy = NULL;
+        BSTR dummy = NULL; /* will not be changed (setter) */
         ULONG64 dummy64;
         if (!directControl)
             rc = E_ACCESSDENIED;
@@ -4871,9 +4878,9 @@ STDMETHODIMP Machine::HotPlugCPU(ULONG aCpu)
     if (mHWData->mCPUAttached[aCpu])
         return setError(VBOX_E_OBJECT_IN_USE, tr("CPU %lu is already attached"), aCpu);
 
-    alock.leave();
+    alock.release();
     rc = onCPUChange(aCpu, false);
-    alock.enter();
+    alock.acquire();
     if (FAILED(rc)) return rc;
 
     setModified(IsModified_MachineData);
@@ -4882,7 +4889,7 @@ STDMETHODIMP Machine::HotPlugCPU(ULONG aCpu)
 
     /* Save settings if online */
     if (Global::IsOnline(mData->mMachineState))
-        SaveSettings();
+        saveSettings(NULL);
 
     return S_OK;
 }
@@ -4912,9 +4919,9 @@ STDMETHODIMP Machine::HotUnplugCPU(ULONG aCpu)
     if (aCpu == 0)
         return setError(E_INVALIDARG, tr("It is not possible to detach CPU 0"));
 
-    alock.leave();
+    alock.release();
     rc = onCPUChange(aCpu, true);
-    alock.enter();
+    alock.acquire();
     if (FAILED(rc)) return rc;
 
     setModified(IsModified_MachineData);
@@ -4923,7 +4930,7 @@ STDMETHODIMP Machine::HotUnplugCPU(ULONG aCpu)
 
     /* Save settings if online */
     if (Global::IsOnline(mData->mMachineState))
-        SaveSettings();
+        saveSettings(NULL);
 
     return S_OK;
 }
@@ -7713,6 +7720,9 @@ void Machine::copyMachineDataToSettings(settings::MachineConfigFile &config)
         Assert(!mSSData->mStateFilePath.isEmpty());
         /* try to make the file name relative to the settings file dir */
         calculateRelativePath(mSSData->mStateFilePath, config.strStateFile);
+        if (!config.strStateFile.length())
+            // path is not relative (e.g. because snapshot folder was changed to a non-default location):
+            config.strStateFile = mSSData->mStateFilePath;
     }
     else
     {
@@ -10790,8 +10800,7 @@ HRESULT SessionMachine::endSavingState(BOOL aSuccess)
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
 
-    /* saveSettings() needs mParent lock */
-    AutoMultiWriteLock2 alock(mParent, this COMMA_LOCKVAL_SRC_POS);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = S_OK;
 
@@ -11122,7 +11131,7 @@ HRESULT SessionMachine::setMachineState(MachineState_T aMachineState)
         {
             mData->mCurrentStateModified = TRUE;
             stsFlags |= SaveSTS_CurStateModified;
-            SaveSettings();
+            SaveSettings();     // @todo r=dj why the public method? why first SaveSettings and then saveStateSettings?
         }
     }
 

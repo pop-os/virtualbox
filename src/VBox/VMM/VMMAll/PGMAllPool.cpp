@@ -1331,7 +1331,7 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
             rc = PGMHandlerPhysicalPageTempOff(pVM, pPage->GCPhys, pPage->GCPhys);
             if (rc == VINF_SUCCESS)
             {
-                rc = PGMShwModifyPage(pVCpu, pvFault, 1, X86_PTE_RW, ~(uint64_t)X86_PTE_RW);
+                rc = PGMShwMakePageWritable(pVCpu, pvFault, PGM_MK_PG_IS_WRITE_FAULT);
                 AssertMsg(rc == VINF_SUCCESS
                         /* In the SMP case the page table might be removed while we wait for the PGM lock in the trap handler. */
                         ||  rc == VERR_PAGE_TABLE_NOT_PRESENT
@@ -2570,7 +2570,7 @@ int pgmPoolSyncCR3(PVMCPU pVCpu)
      */
 # ifdef IN_RING3 /* Don't flush in ring-0 or raw mode, it's taking too long. */
     if (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL)
-        pgmR3PoolClearAll(pVM);
+        pgmR3PoolClearAll(pVM, false /*fFlushRemTlb*/);
 # else  /* !IN_RING3 */
     if (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL)
     {

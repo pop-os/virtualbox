@@ -2209,6 +2209,7 @@ def snapshotCmd(ctx,args):
         else:
             desc = ""
         cmdAnyVm(ctx, mach, lambda ctx,mach,console,args: progressBar(ctx, console.takeSnapshot(name,desc)))
+        return 0
 
     if cmd == 'restore':
         if (len(args) < 4):
@@ -2237,7 +2238,6 @@ def snapshotCmd(ctx,args):
         return 0
 
     print "Command '%s' is unknown" %(cmd)
-
     return 0
 
 def natAlias(ctx, mach, nicnum, nat, args=[]):

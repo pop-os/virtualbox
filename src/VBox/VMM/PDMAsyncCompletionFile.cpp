@@ -38,6 +38,12 @@
 #include <iprt/thread.h>
 #include <iprt/path.h>
 
+#ifdef RT_OS_WINDOWS
+# define _WIN32_WINNT 0x0500
+# include <windows.h>
+# include <winioctl.h>
+#endif
+
 #include "PDMAsyncCompletionFileInternal.h"
 
 /**
@@ -181,16 +187,19 @@ int pdmacFileAioMgrAddEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLETIONENDPO
 {
     int rc;
 
+    LogFlowFunc(("pAioMgr=%#p pEndpoint=%#p{%s}\n", pAioMgr, pEndpoint, pEndpoint->Core.pszUri));
+
+    /* Update the assigned I/O manager. */
+    ASMAtomicWritePtr((void * volatile *)&pEndpoint->pAioMgr, pAioMgr);
+
     rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
     ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, pEndpoint);
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_ADD_ENDPOINT);
+    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, NULL);
 
     RTCritSectLeave(&pAioMgr->CritSectBlockingEvent);
-
-    if (RT_SUCCESS(rc))
-        ASMAtomicWritePtr((void * volatile *)&pEndpoint->pAioMgr, pAioMgr);
 
     return rc;
 }
@@ -204,6 +213,7 @@ static int pdmacFileAioMgrRemoveEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPL
 
     ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, pEndpoint);
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_REMOVE_ENDPOINT);
+    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, NULL);
 
     RTCritSectLeave(&pAioMgr->CritSectBlockingEvent);
 
@@ -219,6 +229,7 @@ static int pdmacFileAioMgrCloseEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLE
 
     ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, pEndpoint);
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_CLOSE_ENDPOINT);
+    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, NULL);
 
     RTCritSectLeave(&pAioMgr->CritSectBlockingEvent);
 
@@ -592,6 +603,74 @@ static const char *pdmacFileBackendTypeToName(PDMACFILEEPBACKEND enmBackendType)
     return NULL;
 }
 
+/**
+ * Get the size of the given file.
+ * Works for block devices too.
+ *
+ * @returns VBox status code.
+ * @param   hFile    The file handle.
+ * @param   pcbSize  Where to store the size of the file on success.
+ */
+static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
+{
+    int rc = VINF_SUCCESS;
+    uint64_t cbSize = 0;
+
+    rc = RTFileGetSize(hFile, &cbSize);
+    if (RT_SUCCESS(rc) && (cbSize != 0))
+        *pcbSize = cbSize;
+    else
+    {
+#ifdef RT_OS_WINDOWS
+        DISK_GEOMETRY DriveGeo;
+        DWORD cbDriveGeo;
+        if (DeviceIoControl((HANDLE)hFile,
+                            IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
+                            &DriveGeo, sizeof(DriveGeo), &cbDriveGeo, NULL))
+        {
+            if (   DriveGeo.MediaType == FixedMedia
+                || DriveGeo.MediaType == RemovableMedia)
+            {
+                cbSize =     DriveGeo.Cylinders.QuadPart
+                         *   DriveGeo.TracksPerCylinder
+                         *   DriveGeo.SectorsPerTrack
+                         *   DriveGeo.BytesPerSector;
+
+                GET_LENGTH_INFORMATION DiskLenInfo;
+                DWORD junk;
+                if (DeviceIoControl((HANDLE)hFile,
+                                    IOCTL_DISK_GET_LENGTH_INFO, NULL, 0,
+                                    &DiskLenInfo, sizeof(DiskLenInfo), &junk, (LPOVERLAPPED)NULL))
+                {
+                    /* IOCTL_DISK_GET_LENGTH_INFO is supported -- override cbSize. */
+                    cbSize = DiskLenInfo.Length.QuadPart;
+                }
+
+                rc = VINF_SUCCESS;
+            }
+            else
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+        }
+        else
+        {
+            rc = RTErrConvertFromWin32(GetLastError());
+        }
+#else
+        /* Could be a block device */
+        rc = RTFileSeek(hFile, 0, RTFILE_SEEK_END, &cbSize);
+
+#endif
+        if (RT_SUCCESS(rc) && (cbSize != 0))
+            *pcbSize = cbSize;
+        else if (RT_SUCCESS(rc))
+            rc = VERR_NOT_SUPPORTED;
+    }
+
+    return rc;
+}
+
 static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNODE pCfgNode)
 {
     int rc = VINF_SUCCESS;
@@ -647,6 +726,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
             {
                 LogRel(("AIOMgr: Linux does not support buffered async I/O, changing to non buffered\n"));
                 pEpClassFile->enmEpBackendDefault = PDMACFILEEPBACKEND_NON_BUFFERED;
+                pEpClassFile->enmMgrTypeOverride  = PDMACEPFILEMGRTYPE_ASYNC;
             }
 #endif
         }
@@ -741,7 +821,9 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
         {
             uint64_t cbSize;
 
-            rc = RTFileGetSize(File, &cbSize);
+            rc = pdmacFileEpNativeGetSize(File, &cbSize);
+            Assert(RT_FAILURE(rc) || cbSize != 0);
+
             if (RT_SUCCESS(rc) && ((cbSize % 512) == 0))
                 fFileFlags |= RTFILE_O_NO_CACHE;
             else
@@ -797,12 +879,8 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     {
         pEpFile->fFlags = fFileFlags;
 
-        rc = RTFileGetSize(pEpFile->File, (uint64_t *)&pEpFile->cbFile);
-        if (RT_SUCCESS(rc) && (pEpFile->cbFile == 0))
-        {
-            /* Could be a block device */
-            rc = RTFileSeek(pEpFile->File, 0, RTFILE_SEEK_END, (uint64_t *)&pEpFile->cbFile);
-        }
+        rc = pdmacFileEpNativeGetSize(pEpFile->File, (uint64_t *)&pEpFile->cbFile);
+        Assert(RT_FAILURE(rc) || pEpFile->cbFile != 0);
 
         if (RT_SUCCESS(rc))
         {
@@ -819,7 +897,15 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                 pEpFile->cTasksCached   = 0;
                 pEpFile->pBwMgr         = pEpClassFile->pBwMgr;
                 pEpFile->enmBackendType = enmEpBackend;
+                /*
+                 * Disable async flushes on Solaris for now.
+                 * They cause weird hangs which needs more investigations.
+                 */
+#ifndef RT_OS_SOLARIS
                 pEpFile->fAsyncFlushSupported = true;
+#else
+                pEpFile->fAsyncFlushSupported = false;
+#endif
                 pdmacFileBwRef(pEpFile->pBwMgr);
 
                 if (enmMgrType == PDMACEPFILEMGRTYPE_SIMPLE)
@@ -920,7 +1006,6 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
     {
         rc = pdmacFileEpCacheFlush(pEpFile);
         AssertRC(rc);
-        pdmacFileEpCacheDestroy(pEpFile);
     }
 
     /* Make sure that all tasks finished for this endpoint. */
@@ -930,6 +1015,10 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
     /* endpoint and real file size should better be equal now. */
     AssertMsg(pEpFile->cbFile == pEpFile->cbEndpoint,
               ("Endpoint and real file size should match now!\n"));
+
+    /* Destroy any per endpoint cache data */
+    if (pEpFile->fCaching)
+        pdmacFileEpCacheDestroy(pEpFile);
 
     /*
      * If the async I/O manager is in failsafe mode this is the only endpoint

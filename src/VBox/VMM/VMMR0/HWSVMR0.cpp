@@ -2741,7 +2741,8 @@ static int svmR0InterpretInvpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, ui
     if (enmMode != CPUMODE_16BIT)
     {
         RTGCPTR pbCode;
-        int rc = SELMValidateAndConvertCSAddr(pVM, pRegFrame->eflags, pRegFrame->ss, pRegFrame->cs, &pRegFrame->csHid, (RTGCPTR)pRegFrame->rip, &pbCode);
+        int rc = SELMValidateAndConvertCSAddr(pVM, pRegFrame->eflags, pRegFrame->ss, pRegFrame->cs,
+                                              &pRegFrame->csHid, (RTGCPTR)pRegFrame->rip, &pbCode);
         if (RT_SUCCESS(rc))
         {
             uint32_t     cbOp;
@@ -2859,21 +2860,19 @@ VMMR0DECL(int) SVMR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     int             rc;
     RTHCUINTREG     uOldEFlags;
 
-    /* @todo This code is not guest SMP safe (hyper stack and switchers) */
-    AssertReturn(pVM->cCpus == 1, VERR_TOO_MANY_CPUS);
     Assert(pfnHandler);
 
     /* Disable interrupts. */
     uOldEFlags = ASMIntDisableFlags();
 
-    CPUMSetHyperESP(pVCpu, VMMGetStackRC(pVM));
+    CPUMSetHyperESP(pVCpu, VMMGetStackRC(pVCpu));
     CPUMSetHyperEIP(pVCpu, pfnHandler);
     for (int i=(int)cbParam-1;i>=0;i--)
         CPUMPushHyper(pVCpu, paParam[i]);
 
     STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatWorldSwitch3264, z);
     /* Call switcher. */
-    rc = pVM->hwaccm.s.pfnHost32ToGuest64R0(pVM);
+    rc = pVM->hwaccm.s.pfnHost32ToGuest64R0(pVM, RT_OFFSETOF(VM, aCpus[pVCpu->idCpu].cpum) - RT_OFFSETOF(VM, cpum));
     STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatWorldSwitch3264, z);
 
     ASMSetFlags(uOldEFlags);

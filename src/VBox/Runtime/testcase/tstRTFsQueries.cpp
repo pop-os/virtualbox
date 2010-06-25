@@ -76,6 +76,16 @@ int main(int argc, char **argv)
             cErrors++;
         }
 
+        RTFSTYPE enmType;
+        rc = RTFsQueryType(argv[i], &enmType);
+        if (RT_SUCCESS(rc))
+            RTPrintf("tstRTFsQueries: file system type is '%s'\n", RTFsTypeName(enmType));
+        else
+        {
+            RTPrintf("tstRTFsQueries: RTFsQueryType failed, rc=%Rrc\n", rc);
+            cErrors++;
+        }
+
         RTFSPROPERTIES Props;
         rc = RTFsQueryProperties(argv[i], &Props);
         if (RT_SUCCESS(rc))

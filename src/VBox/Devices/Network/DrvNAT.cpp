@@ -152,7 +152,8 @@ typedef struct DRVNAT
     PRTREQQUEUE             pSlirpReqQueue;
     /** The guest IP for port-forwarding. */
     uint32_t                GuestIP;
-    uint32_t                alignment1;
+    /** Link state set when the VM is suspended. */
+    PDMNETWORKLINKSTATE     enmLinkStateWant;
 
 #ifdef VBOX_WITH_SLIRP_MT
     PPDMTHREAD              pGuestThread;
@@ -283,9 +284,7 @@ static DECLCALLBACK(void) drvNATUrgRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, in
     AssertRC(rc);
 
     slirp_ext_m_free(pThis->pNATState, m);
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     RTMemFree(pu8Buf);
-#endif
     if (ASMAtomicDecU32(&pThis->cUrgPkts) == 0)
     {
         drvNATRecvWakeup(pThis->pDrvIns, pThis->pRecvThread);
@@ -330,9 +329,7 @@ static DECLCALLBACK(void) drvNATRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, int c
 
 done_unlocked:
     slirp_ext_m_free(pThis->pNATState, m);
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     RTMemFree(pu8Buf);
-#endif
     ASMAtomicDecU32(&pThis->cPkts);
 
     drvNATNotifyNATThread(pThis, "drvNATRecvWorker");
@@ -597,8 +594,7 @@ static DECLCALLBACK(void) drvNATNetworkUp_SetPromiscuousMode(PPDMINETWORKUP pInt
  */
 static void drvNATNotifyLinkChangedWorker(PDRVNAT pThis, PDMNETWORKLINKSTATE enmLinkState)
 {
-    pThis->enmLinkState = enmLinkState;
-
+    pThis->enmLinkState = pThis->enmLinkStateWant = enmLinkState;
     switch (enmLinkState)
     {
         case PDMNETWORKLINKSTATE_UP:
@@ -630,9 +626,13 @@ static DECLCALLBACK(void) drvNATNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInte
 
     LogFlow(("drvNATNetworkUp_NotifyLinkChanged: enmLinkState=%d\n", enmLinkState));
 
-    /* don't queue new requests when the NAT thread is about to stop */
+    /* Don't queue new requests when the NAT thread is about to stop.
+     * But the VM could also be paused. So memorize the desired state. */
     if (pThis->pSlirpThread->enmState != PDMTHREADSTATE_RUNNING)
+    {
+        pThis->enmLinkStateWant = enmLinkState;
         return;
+    }
 
     PRTREQ pReq;
     int rc = RTReqCallEx(pThis->pSlirpReqQueue, &pReq, 0 /*cMillies*/, RTREQFLAGS_VOID,
@@ -673,6 +673,9 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
 
     if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
         return VINF_SUCCESS;
+
+    if (pThis->enmLinkStateWant != pThis->enmLinkState)
+        drvNATNotifyLinkChangedWorker(pThis, pThis->enmLinkStateWant);
 
     /*
      * Polling loop.
@@ -1122,10 +1125,8 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     GET_S32(rc, pThis, pCfg, "DNSProxy", fDNSProxy);
     int fUseHostResolver = 0;
     GET_S32(rc, pThis, pCfg, "UseHostResolver", fUseHostResolver);
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
     int MTU = 1500;
     GET_S32(rc, pThis, pCfg, "SlirpMTU", MTU);
-#endif
     int i32AliasMode = 0;
     int i32MainAliasMode = 0;
     GET_S32(rc, pThis, pCfg, "AliasMode", i32MainAliasMode);
@@ -1174,9 +1175,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         slirp_set_dhcp_TFTP_bootfile(pThis->pNATState, pThis->pszBootFile);
         slirp_set_dhcp_next_server(pThis->pNATState, pThis->pszNextServer);
         slirp_set_dhcp_dns_proxy(pThis->pNATState, !!fDNSProxy);
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
         slirp_set_mtu(pThis->pNATState, MTU);
-#endif
         char *pszBindIP = NULL;
         GET_STRING_ALLOC(rc, pThis, pCfg, "BindIP", pszBindIP);
         rc = slirp_set_binding_address(pThis->pNATState, pszBindIP);
@@ -1289,7 +1288,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
             AssertRC(rc);
 #endif
 
-            pThis->enmLinkState = PDMNETWORKLINKSTATE_UP;
+            pThis->enmLinkState = pThis->enmLinkStateWant = PDMNETWORKLINKSTATE_UP;
 
             /* might return VINF_NAT_DNS */
             return rc;

@@ -54,6 +54,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include "product-generated.h"
 
@@ -62,6 +63,9 @@ VBoxReadInput(InputInfoPtr pInfo)
 {
     uint32_t cx, cy, fFeatures;
 
+    /* Read a byte from the device to acknowledge the event */
+    char c;
+    read(pInfo->fd, &c, 1);
     /* The first test here is a workaround for an apparent bug in Xorg Server 1.5 */
     if (
 #if GET_ABI_MAJOR(ABI_XINPUT_VERSION) < 2
@@ -71,6 +75,7 @@ VBoxReadInput(InputInfoPtr pInfo)
 #endif
         &&  RT_SUCCESS(VbglR3GetMouseStatus(&fFeatures, &cx, &cy))
         && (fFeatures & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE))
+    {
 #if ABI_XINPUT_VERSION == SET_ABI_VERSION(2, 0)
         /* Bug in the 1.4 X server series - conversion_proc was no longer
          * called, but the server didn't yet do the conversion itself. */
@@ -79,6 +84,7 @@ VBoxReadInput(InputInfoPtr pInfo)
 #endif
         /* send absolute movement */
         xf86PostMotionEvent(pInfo->dev, 1, 0, 2, cx, cy);
+    }
 }
 
 static void

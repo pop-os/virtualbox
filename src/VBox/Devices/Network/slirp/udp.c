@@ -126,11 +126,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
      */
     len = RT_N2H_U16((u_int16_t)uh->uh_ulen);
     Assert((ip->ip_len == len));
-#ifndef VBOX_WITH_SLIRP_BSD_MBUF
-    Assert((ip->ip_len + iphlen == m->m_len));
-#else
     Assert((ip->ip_len + iphlen == m_length(m, NULL)));
-#endif
 
     if (ip->ip_len != len)
     {
@@ -164,11 +160,11 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         {
 
 #endif
-            if(cksum(m, len + iphlen))
+            if (cksum(m, len + iphlen))
             {
                 udpstat.udps_badsum++;
                 Log3(("NAT: IP(id: %hd) has bad (udp) cksum\n", ip->ip_id));
-                goto bad;
+                goto bad_free_mbuf;
             }
         }
 #if 0
@@ -181,7 +177,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     if (uh->uh_dport == RT_H2N_U16_C(BOOTP_SERVER))
     {
         bootp_input(pData, m);
-        goto done;
+        goto done_free_mbuf;
     }
 
     if (   pData->fUseHostResolver
@@ -193,12 +189,12 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         src.sin_port = uh->uh_dport;
         dst.sin_addr.s_addr = ip->ip_src.s_addr;
         dst.sin_port = uh->uh_sport;
-        /* udp_output2 will do opposite operations on mbuf*/
 
+        /* udp_output2() expects a pointer to the body of UDP packet. */
         m->m_data += sizeof(struct udpiphdr);
         m->m_len -= sizeof(struct udpiphdr);
         udp_output2(pData, NULL, m, &src, &dst, IPTOS_LOWDELAY);
-        goto done;
+        return;
     }
     /*
      *  handle TFTP
@@ -207,7 +203,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         && CTL_CHECK(RT_N2H_U32(ip->ip_dst.s_addr), CTL_TFTP))
     {
         tftp_input(pData, m);
-        goto done;
+        goto done_free_mbuf;
     }
 
     /*
@@ -246,14 +242,14 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         if ((so = socreate()) == NULL)
         {
             Log2(("NAT: IP(id: %hd) failed to create socket\n", ip->ip_id));
-            goto bad;
+            goto bad_free_mbuf;
         }
         if (udp_attach(pData, so, 0) == -1)
         {
             Log2(("NAT: IP(id: %hd) udp_attach errno = %d-%s\n",
                         ip->ip_id, errno, strerror(errno)));
             sofree(pData, so);
-            goto bad;
+            goto bad_free_mbuf;
         }
 
         /*
@@ -282,7 +278,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         && (uh->uh_dport == RT_H2N_U16_C(53)))
     {
         dnsproxy_query(pData, so, m, iphlen);
-        goto done;
+        goto done_free_mbuf;
     }
 
     iphlen += sizeof(struct udphdr);
@@ -301,7 +297,7 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
         m->m_data -= iphlen;
         *ip = save_ip;
         DEBUG_MISC((dfd,"NAT: UDP tx errno = %d-%s (on sent to %R[IP4])\n", errno,
-                strerror(errno), &ip->ip_dst));
+                   strerror(errno), &ip->ip_dst));
         icmp_error(pData, m, ICMP_UNREACH, ICMP_UNREACH_NET, 0, strerror(errno));
         /* in case we receive ICMP on this socket we'll aware that ICMP has been already sent to host*/
         so->so_m = NULL;
@@ -315,13 +311,13 @@ udp_input(PNATState pData, register struct mbuf *m, int iphlen)
     m->m_data -= iphlen;
     *ip = save_ip;
     so->so_m = m;         /* ICMP backup */
-
     return;
 
-bad:
+bad_free_mbuf:
     Log2(("NAT: UDP(id: %hd) datagram to %R[IP4] with size(%d) claimed as bad\n",
         ip->ip_id, &ip->ip_dst, ip->ip_len));
-done:
+
+done_free_mbuf:
     /* some services like bootp(built-in), dns(buildt-in) and dhcp don't need sockets
      * and create new m'buffers to send them to guest, so we'll free their incomming
      * buffers here.
@@ -330,12 +326,17 @@ done:
     return;
 }
 
+/**
+ * Output a UDP packet.
+ *
+ * @note This function will finally free m!
+ */
 int udp_output2(PNATState pData, struct socket *so, struct mbuf *m,
                 struct sockaddr_in *saddr, struct sockaddr_in *daddr,
                 int iptos)
 {
     register struct udpiphdr *ui;
-    int error = 0;
+    int error;
 
     DEBUG_CALL("udp_output");
     DEBUG_ARG("so = %lx", (long)so);
@@ -384,6 +385,9 @@ int udp_output2(PNATState pData, struct socket *so, struct mbuf *m,
     return error;
 }
 
+/**
+ * @note This function will free m!
+ */
 int udp_output(PNATState pData, struct socket *so, struct mbuf *m,
                struct sockaddr_in *addr)
 {

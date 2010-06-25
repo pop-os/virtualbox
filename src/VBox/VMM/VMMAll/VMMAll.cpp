@@ -25,7 +25,7 @@
 #include <VBox/vm.h>
 #include <VBox/vmm.h>
 #include <VBox/param.h>
-#include <VBox/hwaccm.h>
+#include <iprt/mp.h>
 
 
 /**
@@ -35,13 +35,10 @@
  * by a push/ret/whatever does it become writable.)
  *
  * @returns bottom of the stack.
- * @param   pVM         The VM handle.
+ * @param   pVCpu       The VMCPU handle.
  */
-VMMDECL(RTRCPTR) VMMGetStackRC(PVM pVM)
+VMMDECL(RTRCPTR) VMMGetStackRC(PVMCPU pVCpu)
 {
-    PVMCPU pVCpu = VMMGetCpu(pVM);
-    Assert(pVCpu);
-
     return (RTRCPTR)pVCpu->vmm.s.pbEMTStackBottomRC;
 }
 
@@ -61,7 +58,19 @@ VMMDECL(VMCPUID) VMMGetCpuId(PVM pVM)
 #elif defined(IN_RING0)
     if (pVM->cCpus == 1)
         return 0;
-    return HWACCMR0GetVMCPUId(pVM);
+
+    /* RTMpCpuId had better be cheap. */
+    RTCPUID idHostCpu = RTMpCpuId();
+
+    /** @todo optimize for large number of VCPUs when that becomes more common. */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+        if (pVCpu->idHostCpu == idHostCpu)
+            return pVCpu->idCpu;
+    }
+    return NIL_VMCPUID;
 
 #else /* RC: Always EMT(0) */
     return 0;
@@ -88,7 +97,19 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
 #elif defined(IN_RING0)
     if (pVM->cCpus == 1)
         return &pVM->aCpus[0];
-    return HWACCMR0GetVMCPU(pVM);
+
+    /* RTMpCpuId had better be cheap. */
+    RTCPUID idHostCpu = RTMpCpuId();
+
+    /** @todo optimize for large number of VCPUs when that becomes more common. */
+    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+        if (pVCpu->idHostCpu == idHostCpu)
+            return pVCpu;
+    }
+    return NULL;
 
 #else /* RC: Always EMT(0) */
     return &pVM->aCpus[0];

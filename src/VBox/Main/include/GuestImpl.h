@@ -121,38 +121,42 @@ private:
 # ifdef VBOX_WITH_GUEST_CONTROL
     struct CallbackContext
     {
-        uint32_t                    mContextID;
         eVBoxGuestCtrlCallbackType  mType;
+        /** Pointer to user-supplied data. */        
         void                       *pvData;
+        /** Size of user-supplied data. */
         uint32_t                    cbData;
-        /** Atomic flag whether callback was called. */
-        volatile bool               fCalled;
         /** Pointer to user-supplied IProgress. */
         ComObjPtr<Progress>         pProgress;
     };
-    typedef std::list< CallbackContext > CallbackList;
-    typedef std::list< CallbackContext >::iterator CallbackListIter;
-    typedef std::list< CallbackContext >::const_iterator CallbackListIterConst;
+    /*
+     * The map key is the context ID.
+     */
+    typedef std::map< uint32_t, CallbackContext > CallbackMap;
+    typedef std::map< uint32_t, CallbackContext >::iterator CallbackMapIter;
+    typedef std::map< uint32_t, CallbackContext >::const_iterator CallbackMapIterConst;
 
     struct GuestProcess
     {
-        uint32_t                    mPID;
         uint32_t                    mStatus;
         uint32_t                    mFlags;
         uint32_t                    mExitCode;
     };
-    typedef std::list< GuestProcess > GuestProcessList;
-    typedef std::list< GuestProcess >::iterator GuestProcessIter;
-    typedef std::list< GuestProcess >::const_iterator GuestProcessIterConst;
+    /*
+     * The map key is the PID (process identifier).
+     */
+    typedef std::map< uint32_t, GuestProcess > GuestProcessMap;
+    typedef std::map< uint32_t, GuestProcess >::iterator GuestProcessMapIter;
+    typedef std::map< uint32_t, GuestProcess >::const_iterator GuestProcessMapIterConst;
 
     int prepareExecuteEnv(const char *pszEnv, void **ppvList, uint32_t *pcbList, uint32_t *pcEnv);
     /** Handler for guest execution control notifications. */
     int notifyCtrlClientDisconnected(uint32_t u32Function, PCALLBACKDATACLIENTDISCONNECTED pData);
     int notifyCtrlExecStatus(uint32_t u32Function, PCALLBACKDATAEXECSTATUS pData);
     int notifyCtrlExecOut(uint32_t u32Function, PCALLBACKDATAEXECOUT pData);
-    CallbackListIter getCtrlCallbackContextByID(uint32_t u32ContextID);
-    GuestProcessIter getProcessByPID(uint32_t u32PID);
-    void destroyCtrlCallbackContext(CallbackListIter it);
+    CallbackMapIter getCtrlCallbackContextByID(uint32_t u32ContextID);
+    GuestProcessMapIter getProcessByPID(uint32_t u32PID);
+    void destroyCtrlCallbackContext(CallbackMapIter it);
     uint32_t addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void *pvData, uint32_t cbData, Progress* pProgress);
 # endif
 
@@ -181,8 +185,8 @@ private:
     HGCMSVCEXTHANDLE  mhExtCtrl;
 
     volatile uint32_t mNextContextID;
-    CallbackList mCallbackList;
-    GuestProcessList mGuestProcessList;
+    CallbackMap mCallbackMap;
+    GuestProcessMap mGuestProcessMap;
 # endif
 };
 

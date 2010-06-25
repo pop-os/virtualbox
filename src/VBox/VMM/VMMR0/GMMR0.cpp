@@ -675,7 +675,7 @@ GMMR0DECL(int) GMMR0Init(void)
         else
             SUPR0Printf("GMMR0Init: RTR0MemObjAllocPhysNC(,64K,Any) -> %d!\n", rc);
 #else
-# if defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS) || defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
+# if defined(RT_OS_WINDOWS) || (defined(RT_OS_SOLARIS) && ARCH_BITS == 64) || defined(RT_OS_LINUX) || defined(RT_OS_FREEBSD)
         pGMM->fLegacyAllocationMode = false;
 #  if ARCH_BITS == 32
         /* Don't reuse possibly partial chunks because of the virtual address space limitation. */
@@ -894,6 +894,10 @@ GMMR0DECL(void) GMMR0CleanupVM(PGVM pGVM)
                 SUPR0Printf("GMMR0CleanupVM: hGVM=%#x left %#x shared pages behind!\n", pGVM->hSelf, pGVM->gmm.s.cSharedPages);
                 pGMM->cLeftBehindSharedPages += pGVM->gmm.s.cSharedPages;
             }
+
+            /* Clean up balloon statistics in case the VM process crashed. */
+            Assert(pGMM->cBalloonedPages >= pGVM->gmm.s.cBalloonedPages);
+            pGMM->cBalloonedPages -= pGVM->gmm.s.cBalloonedPages;
 
             /*
              * Update the over-commitment management statistics.
@@ -3308,13 +3312,12 @@ static int gmmR0IsChunkMapped(PGVM pGVM, PGMMCHUNK pChunk, PRTR3PTR ppvR3)
  *
  * @returns VBox status code.
  * @param   pVM             The VM.
- * @param   idCpu           VCPU id
  * @param   idChunkMap      The chunk to map. NIL_GMM_CHUNKID if nothing to map.
  * @param   idChunkUnmap    The chunk to unmap. NIL_GMM_CHUNKID if nothing to unmap.
  * @param   ppvR3           Where to store the address of the mapped chunk. NULL is ok if nothing to map.
  * @thread  EMT
  */
-GMMR0DECL(int) GMMR0MapUnmapChunk(PVM pVM, VMCPUID idCpu, uint32_t idChunkMap, uint32_t idChunkUnmap, PRTR3PTR ppvR3)
+GMMR0DECL(int) GMMR0MapUnmapChunk(PVM pVM, uint32_t idChunkMap, uint32_t idChunkUnmap, PRTR3PTR ppvR3)
 {
     LogFlow(("GMMR0MapUnmapChunk: pVM=%p idChunkMap=%#x idChunkUnmap=%#x ppvR3=%p\n",
              pVM, idChunkMap, idChunkUnmap, ppvR3));
@@ -3325,7 +3328,7 @@ GMMR0DECL(int) GMMR0MapUnmapChunk(PVM pVM, VMCPUID idCpu, uint32_t idChunkMap, u
     PGMM pGMM;
     GMM_GET_VALID_INSTANCE(pGMM, VERR_INTERNAL_ERROR);
     PGVM pGVM;
-    int rc = GVMMR0ByVMAndEMT(pVM, idCpu, &pGVM);
+    int rc = GVMMR0ByVM(pVM, &pGVM);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -3400,10 +3403,9 @@ GMMR0DECL(int) GMMR0MapUnmapChunk(PVM pVM, VMCPUID idCpu, uint32_t idChunkMap, u
  *
  * @returns see GMMR0MapUnmapChunk.
  * @param   pVM             Pointer to the shared VM structure.
- * @param   idCpu           VCPU id
  * @param   pReq            The request packet.
  */
-GMMR0DECL(int)  GMMR0MapUnmapChunkReq(PVM pVM, VMCPUID idCpu, PGMMMAPUNMAPCHUNKREQ pReq)
+GMMR0DECL(int)  GMMR0MapUnmapChunkReq(PVM pVM, PGMMMAPUNMAPCHUNKREQ pReq)
 {
     /*
      * Validate input and pass it on.
@@ -3412,7 +3414,7 @@ GMMR0DECL(int)  GMMR0MapUnmapChunkReq(PVM pVM, VMCPUID idCpu, PGMMMAPUNMAPCHUNKR
     AssertPtrReturn(pReq, VERR_INVALID_POINTER);
     AssertMsgReturn(pReq->Hdr.cbReq == sizeof(*pReq), ("%#x != %#x\n", pReq->Hdr.cbReq, sizeof(*pReq)), VERR_INVALID_PARAMETER);
 
-    return GMMR0MapUnmapChunk(pVM, idCpu, pReq->idChunkMap, pReq->idChunkUnmap, &pReq->pvR3);
+    return GMMR0MapUnmapChunk(pVM, pReq->idChunkMap, pReq->idChunkUnmap, &pReq->pvR3);
 }
 
 
