@@ -385,6 +385,8 @@ Console::Console()
     , mVMDestroying(false)
     , mVMPoweredOff(false)
     , mVMIsAlreadyPoweringOff(false)
+    , mfSnapshotFolderSizeWarningShown(false)
+    , mfSnapshotFolderExt4WarningShown(false)
     , mVMMDev(NULL)
     , mAudioSniffer(NULL)
     , mVMStateChangeCallbackDisabled(false)
@@ -2864,7 +2866,7 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
         {
             ++cOperations;
 
-            // assume that creating a diff image takes as long as saving a 1 MB state
+            // assume that creating a diff image takes as long as saving a 1MB state
             // (note, the same value must be used in SessionMachine::BeginTakingSnapshot() on the server!)
             ulTotalOperationsWeight += 1;
         }
@@ -5041,6 +5043,12 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
         vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
         if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
             RTLogRelLogger(loggerRelease, 0, ~0U, "OS Service Pack: %s\n", szTmp);
+        vrc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_NAME, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(loggerRelease, 0, ~0U, "DMI Product Name: %s\n", szTmp);
+        vrc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_VERSION, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(loggerRelease, 0, ~0U, "DMI Product Version: %s\n", szTmp);
 
         ComPtr<IHost> host;
         virtualBox->COMGETTER(Host)(host.asOutParam());
@@ -5050,6 +5058,24 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
         host->COMGETTER(MemoryAvailable)(&cMbHostRamAvail);
         RTLogRelLogger(loggerRelease, 0, ~0U, "Host RAM: %uMB RAM, available: %uMB\n",
                        cMbHostRam, cMbHostRamAvail);
+
+#if defined(RT_OS_WINDOWS) && HC_ARCH_BITS == 32
+        /* @todo move this in RT, but too lazy now */
+        uint32_t maxRAMArch;
+        SYSTEM_INFO sysInfo;
+        GetSystemInfo(&sysInfo);
+
+        if (sysInfo.lpMaximumApplicationAddress >= (LPVOID)0xC0000000)   /* 3.0 GB */
+            maxRAMArch = UINT32_C(2560);
+        else
+        if (sysInfo.lpMaximumApplicationAddress > (LPVOID)0xA0000000)    /* 2.5 GB */
+            maxRAMArch = UINT32_C(2048);
+        else
+            maxRAMArch = UINT32_C(1500);
+
+        RTLogRelLogger(loggerRelease, 0, ~0U, "Maximum user application address: 0x%p\n", sysInfo.lpMaximumApplicationAddress);
+        RTLogRelLogger(loggerRelease, 0, ~0U, "Maximum allowed guest RAM size:   %dMB\n", maxRAMArch);
+#endif
 
         /* the package type is interesting for Linux distributions */
         char szExecName[RTPATH_MAX];
@@ -7731,7 +7757,7 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                 ++i)
             {
                 ComPtr<IStorageController> controller;
-                BSTR controllerName;
+                Bstr controllerName;
                 ULONG lInstance;
                 StorageControllerType_T enmController;
                 StorageBus_T enmBus;
@@ -7742,7 +7768,7 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                 * (g++ complains about not being able to pass non POD types through '...')
                 * so we have to query needed values here and pass them.
                 */
-                rc = atts[i]->COMGETTER(Controller)(&controllerName);
+                rc = atts[i]->COMGETTER(Controller)(controllerName.asOutParam());
                 if (FAILED(rc))
                     throw rc;
 

@@ -3384,11 +3384,9 @@ int pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk)
     Req.idChunkUnmap = NIL_GMM_CHUNKID;
     if (pVM->pgm.s.ChunkR3Map.c >= pVM->pgm.s.ChunkR3Map.cMax)
         Req.idChunkUnmap = pgmR3PhysChunkFindUnmapCandidate(pVM);
-/** @todo This is wrong. Any thread in the VM process should be able to do this,
- *        there are depenenecies on this.  What currently saves the day is that
- *        we don't unmap anything and that all non-zero memory will therefore
- *        be present when non-EMTs tries to access it.  */
-    rc = VMMR3CallR0(pVM, VMMR0_DO_GMM_MAP_UNMAP_CHUNK, 0, &Req.Hdr);
+
+    /* Must be callable from any thread, so can't use VMMR3CallR0. */
+    rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /* use CPU id 0; it must be a valid one */, VMMR0_DO_GMM_MAP_UNMAP_CHUNK, 0, &Req.Hdr);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -3865,7 +3863,7 @@ VMMR3DECL(int) PGMR3PhysTlbGCPhys2Ptr(PVM pVM, RTGCPHYS GCPhys, bool fWritable, 
             int rc2;
 
             /* Make sure what we return is writable. */
-            if (fWritable && rc != VINF_PGM_PHYS_TLB_CATCH_WRITE)
+            if (fWritable)
                 switch (PGM_PAGE_GET_STATE(pPage))
                 {
                     case PGM_PAGE_STATE_ALLOCATED:
@@ -3875,6 +3873,8 @@ VMMR3DECL(int) PGMR3PhysTlbGCPhys2Ptr(PVM pVM, RTGCPHYS GCPhys, bool fWritable, 
                         break;
                     case PGM_PAGE_STATE_ZERO:
                     case PGM_PAGE_STATE_SHARED:
+                        if (rc == VINF_PGM_PHYS_TLB_CATCH_WRITE)
+                            break;
                     case PGM_PAGE_STATE_WRITE_MONITORED:
                         rc2 = pgmPhysPageMakeWritable(pVM, pPage, GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK);
                         AssertLogRelRCReturn(rc2, rc2);

@@ -128,8 +128,6 @@ VMMR0DECL(int) VMXR0EnableCpu(PHWACCM_CPUINFO pCpu, PVM pVM, void *pvPageCpu, RT
     int rc = VMXEnable(pPageCpuPhys);
     if (RT_FAILURE(rc))
     {
-        if (pVM)
-            VMXR0CheckError(pVM, &pVM->aCpus[0], rc);
         ASMSetCR4(ASMGetCR4() & ~X86_CR4_VMXE);
         return VERR_VMX_VMXON_FAILED;
     }
@@ -148,6 +146,10 @@ VMMR0DECL(int) VMXR0DisableCpu(PHWACCM_CPUINFO pCpu, void *pvPageCpu, RTHCPHYS p
 {
     AssertReturn(pPageCpuPhys, VERR_INVALID_PARAMETER);
     AssertReturn(pvPageCpu, VERR_INVALID_PARAMETER);
+
+    /* If we're somehow not in VMX root mode, then we shouldn't dare leaving it. */
+    if (!(ASMGetCR4() & X86_CR4_VMXE))
+        return VERR_VMX_NOT_IN_VMX_ROOT_MODE;
 
     /* Leave VMX Root Mode. */
     VMXDisable();
@@ -4580,9 +4582,8 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     RTHCPHYS        pPageCpuPhys;
     RTHCUINTREG     uOldEFlags;
 
-    /* @todo This code is not guest SMP safe (hyper stack and switchers) */
-    AssertReturn(pVM->cCpus == 1, VERR_TOO_MANY_CPUS);
     AssertReturn(pVM->hwaccm.s.pfnHost32ToGuest64R0, VERR_INTERNAL_ERROR);
+    Assert(pfnHandler);
     Assert(pVCpu->hwaccm.s.vmx.VMCSCache.Write.cValidEntries <= RT_ELEMENTS(pVCpu->hwaccm.s.vmx.VMCSCache.Write.aField));
     Assert(pVCpu->hwaccm.s.vmx.VMCSCache.Read.cValidEntries <= RT_ELEMENTS(pVCpu->hwaccm.s.vmx.VMCSCache.Read.aField));
 
@@ -4608,14 +4609,14 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
 
     ASMSetCR4(ASMGetCR4() & ~X86_CR4_VMXE);
 
-    CPUMSetHyperESP(pVCpu, VMMGetStackRC(pVM));
+    CPUMSetHyperESP(pVCpu, VMMGetStackRC(pVCpu));
     CPUMSetHyperEIP(pVCpu, pfnHandler);
     for (int i=(int)cbParam-1;i>=0;i--)
         CPUMPushHyper(pVCpu, paParam[i]);
 
     STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatWorldSwitch3264, z);
     /* Call switcher. */
-    rc = pVM->hwaccm.s.pfnHost32ToGuest64R0(pVM);
+    rc = pVM->hwaccm.s.pfnHost32ToGuest64R0(pVM, RT_OFFSETOF(VM, aCpus[pVCpu->idCpu].cpum) - RT_OFFSETOF(VM, cpum));
     STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatWorldSwitch3264, z);
 
     /* Make sure the VMX instructions don't cause #UD faults. */
@@ -4625,8 +4626,6 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
     rc2 = VMXEnable(pPageCpuPhys);
     if (RT_FAILURE(rc2))
     {
-        if (pVM)
-            VMXR0CheckError(pVM, pVCpu, rc2);
         ASMSetCR4(ASMGetCR4() & ~X86_CR4_VMXE);
         ASMSetFlags(uOldEFlags);
         return VERR_VMX_VMXON_FAILED;

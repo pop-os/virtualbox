@@ -1,6 +1,6 @@
 #! /bin/sh
 # Sun VirtualBox
-# Linux Additions kernel module init script ($Revision: 61055 $)
+# Linux Additions kernel module init script ($Revision: 62854 $)
 #
 
 #
@@ -326,21 +326,28 @@ setup()
     begin "Building the VirtualBox Guest Additions kernel modules"
     if ! sh /usr/share/$PACKAGE/test/build_in_tmp \
         --no-dkms --no-print-directory > $LOG 2>&1; then
-        fail "`printf "Your system does not seem to be set up to build kernel modules.\nLook at $LOG to find out what went wrong"`"
+        fail_msg
+        printf "Your system does not seem to be set up to build kernel modules.\nLook at $LOG to find out what went wrong.  Once you have corrected it, you can\nrun\n\n  /etc/init.d/vboxadd setup\n\nto build them."
+        BUILDVBOXGUEST=""
+        BUILDVBOXSF=""
+        BUILDVBOXVIDEO=""
+    else
+        if ! sh /usr/share/$PACKAGE/test_drm/build_in_tmp \
+            --no-dkms --no-print-directory >> $LOG 2>&1; then
+            printf "\nYour guest system does not seem to have sufficient OpenGL support to enable\naccelerated 3D effects (this requires Linux 2.6.27 or later in the guest\nsystem).  This Guest Additions feature will be disabled.\n\n"
+            BUILDVBOXVIDEO=""
+        fi
     fi
     echo
-    if ! sh /usr/share/$PACKAGE/test_drm/build_in_tmp \
-        --no-dkms --no-print-directory >> $LOG 2>&1; then
-        printf "\nYour guest system does not seem to have sufficient OpenGL support to enable\naccelerated 3D effects (this requires Linux 2.6.27 or later in the guest\nsystem).  This Guest Additions feature will be disabled.\n\n"
-        BUILDVBOXVIDEO=""
+    if [ -n "$BUILDVBOXGUEST" ]; then
+        begin "Building the main Guest Additions module"
+        if ! $BUILDVBOXGUEST \
+            --save-module-symvers /tmp/vboxguest-Module.symvers \
+            --no-print-directory install >> $LOG 2>&1; then
+            fail "Look at $LOG to find out what went wrong"
+        fi
+        succ_msg
     fi
-    begin "Building the main Guest Additions module"
-    if ! $BUILDVBOXGUEST \
-        --save-module-symvers /tmp/vboxguest-Module.symvers \
-        --no-print-directory install >> $LOG 2>&1; then
-        fail "Look at $LOG to find out what went wrong"
-    fi
-    succ_msg
     if [ -n "$BUILDVBOXSF" ]; then
         begin "Building the shared folder support module"
         if ! $BUILDVBOXSF \
@@ -402,10 +409,12 @@ setup()
     chcon -u system_u -t mount_exec_t "$lib_path/$PACKAGE/mount.vboxsf" > /dev/null 2>&1
 
     succ_msg
-    if running_vboxguest || running_vboxadd; then
-        printf "You should restart your guest to make sure the new modules are actually used\n\n"
-    else
-        start
+    if [ -n "$BUILDVBOXGUEST" ]; then
+        if running_vboxguest || running_vboxadd; then
+            printf "You should restart your guest to make sure the new modules are actually used\n\n"
+        else
+            start
+        fi
     fi
 }
 

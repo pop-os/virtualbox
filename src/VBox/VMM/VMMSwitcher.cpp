@@ -34,6 +34,7 @@
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/ctype.h>
 
@@ -526,9 +527,19 @@ static void vmmR3SwitcherGenericRelocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR
                 break;
             }
 
+            /*
+             * Store the EFER or mask for the 32->64 bit switcher.
+             */
+            case FIX_EFER_OR_MASK:
+            {
+                uint32_t u32OrMask = MSR_K6_EFER_LME | MSR_K6_EFER_SCE;
+                /** note: we don't care if cpuid 0x8000001 isn't supported as that implies long mode isn't either, so this switcher would never be used. */
+                if (!!(ASMCpuId_EDX(0x80000001) & X86_CPUID_AMD_FEATURE_EDX_NX))
+                    u32OrMask |= MSR_K6_EFER_NXE;
 
-            ///@todo case FIX_CR4_MASK:
-            ///@todo case FIX_CR4_OSFSXR:
+                *uSrc.pu32 = u32OrMask;
+                break;
+            }
 
             /*
              * Insert relative jump to specified target it FXSAVE/FXRSTOR isn't supported by the cpu.

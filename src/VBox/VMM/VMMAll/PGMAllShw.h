@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,7 +117,7 @@
 *******************************************************************************/
 RT_C_DECLS_BEGIN
 PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
-PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask);
+PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags);
 RT_C_DECLS_END
 
 
@@ -176,7 +176,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     Pde.n.u1Accessed  &= Pml4e.n.u1Accessed & Pdpe.lm.u1Accessed;
     Pde.n.u1Write     &= Pml4e.n.u1Write & Pdpe.lm.u1Write;
     Pde.n.u1User      &= Pml4e.n.u1User & Pdpe.lm.u1User;
-    Pde.n.u1NoExecute &= Pml4e.n.u1NoExecute & Pdpe.lm.u1NoExecute;
+    Pde.n.u1NoExecute |= Pml4e.n.u1NoExecute | Pdpe.lm.u1NoExecute;
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE
     X86PDEPAE       Pde = pgmShwGetPaePDE(&pVCpu->pgm.s, GCPtr);
@@ -201,7 +201,28 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     if (!Pde.n.u1Present)
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
-    Assert(!Pde.b.u1Size);
+    /** Deal with large pages. */
+    if (Pde.b.u1Size)
+    {
+        /*
+         * Store the results.
+         * RW and US flags depend on the entire page translation hierarchy - except for
+         * legacy PAE which has a simplified PDPE.
+         */
+        if (pfFlags)
+        {
+            *pfFlags = (Pde.u & ~SHW_PDE_PG_MASK);
+# if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE)
+            if ((Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
+                *pfFlags |= X86_PTE_PAE_NX;
+# endif
+        }
+
+        if (pHCPhys)
+            *pHCPhys = (Pde.u & SHW_PDE_PG_MASK) + (GCPtr & (RT_BIT(SHW_PD_SHIFT) - 1) & X86_PAGE_4K_BASE_MASK);
+
+        return VINF_SUCCESS;
+    }
 
     /*
      * Get PT entry.
@@ -246,7 +267,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
                  & ((Pde.u & (X86_PTE_RW | X86_PTE_US)) | ~(uint64_t)(X86_PTE_RW | X86_PTE_US));
 # if PGM_WITH_NX(PGM_SHW_TYPE, PGM_SHW_TYPE)
         /* The NX bit is determined by a bitwise OR between the PT and PD */
-        if ((Pte.u & Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu)) /** @todo the code is ANDing not ORing NX like the comment says... */
+        if (((Pte.u | Pde.u) & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
             *pfFlags |= X86_PTE_PAE_NX;
 # endif
     }
@@ -271,9 +292,10 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
  * @param   fMask       The AND mask - page flags X86_PTE_*.
  *                      Be extremely CAREFUL with ~'ing values because they can be 32-bit!
+ * @param   fOpFlags    A combination of the PGM_MK_PK_XXX flags.
  * @remark  You must use PGMMapModifyPage() for pages in a mapping.
  */
-PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask)
+PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags)
 {
 # if PGM_SHW_TYPE == PGM_TYPE_NESTED
     return VERR_PAGE_TABLE_NOT_PRESENT;
@@ -339,6 +361,8 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
         if (!Pde.n.u1Present)
             return VERR_PAGE_TABLE_NOT_PRESENT;
 
+        AssertFatal(!Pde.b.u1Size);
+
         /*
          * Map the page table.
          */
@@ -352,11 +376,44 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
         {
             if (pPT->a[iPTE].n.u1Present)
             {
-                SHWPTE Pte;
+                SHWPTE const    OrgPte = pPT->a[iPTE];
+                SHWPTE          NewPte;
 
-                Pte.u = (pPT->a[iPTE].u & (fMask | SHW_PTE_PG_MASK)) | (fFlags & ~SHW_PTE_PG_MASK);
-                ASMAtomicWriteSize(&pPT->a[iPTE], Pte.u);
-                Assert(pPT->a[iPTE].n.u1Present);
+                NewPte.u = (OrgPte.u & (fMask | SHW_PTE_PG_MASK)) | (fFlags & ~SHW_PTE_PG_MASK);
+                Assert(NewPte.n.u1Present);
+                if (!NewPte.n.u1Present)
+                {
+                    /** @todo Some CSAM code path might end up here and upset
+                     *  the page pool. */
+                    AssertFailed();
+                }
+                else if (   NewPte.n.u1Write
+                         && !OrgPte.n.u1Write
+                         && !(fOpFlags & PGM_MK_PG_IS_MMIO2) )
+                {
+                    /** @todo Optimize \#PF handling by caching data.  We can
+                     *        then use this when PGM_MK_PG_IS_WRITE_FAULT is
+                     *        set instead of resolving the guest physical
+                     *        address yet again. */
+                    RTGCPHYS GCPhys;
+                    uint64_t fGstPte;
+                    rc = PGMGstGetPage(pVCpu, GCPtr, &fGstPte, &GCPhys);
+                    AssertRC(rc);
+                    if (RT_SUCCESS(rc))
+                    {
+                        Assert(fGstPte & X86_PTE_RW);
+                        PPGMPAGE pPage = pgmPhysGetPage(&pVCpu->CTX_SUFF(pVM)->pgm.s, GCPhys);
+                        Assert(pPage);
+                        if (pPage)
+                        {
+                            rc = pgmPhysPageMakeWritable(pVM, pPage, GCPhys);
+                            AssertRCReturn(rc, rc);
+                            Log(("%s: pgmPhysPageMakeWritable on %RGv / %RGp %R[pgmpage]\n", __PRETTY_FUNCTION__, GCPtr, GCPhys, pPage));
+                        }
+                    }
+                }
+
+                ASMAtomicWriteSize(&pPT->a[iPTE], NewPte.u);
 # if PGM_SHW_TYPE == PGM_TYPE_EPT
                 HWACCMInvalidatePhysPage(pVM, (RTGCPHYS)GCPtr);
 # else

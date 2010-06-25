@@ -204,7 +204,16 @@ STDMETHODIMP SystemProperties::COMGETTER(MaxGuestRAM)(ULONG *maxRAM)
     ULONG maxRAMArch = maxRAMSys;
 #if HC_ARCH_BITS == 32 && !defined(RT_OS_DARWIN)
 # ifdef RT_OS_WINDOWS
-    maxRAMArch = UINT32_C(1500);
+    SYSTEM_INFO sysInfo;
+    GetSystemInfo(&sysInfo);
+
+    if (sysInfo.lpMaximumApplicationAddress >= (LPVOID)0xC0000000)   /* 3.0 GB */
+        maxRAMArch = UINT32_C(2560);
+    else
+    if (sysInfo.lpMaximumApplicationAddress > (LPVOID)0xA0000000)    /* 2.5 GB */
+        maxRAMArch = UINT32_C(2048);
+    else
+        maxRAMArch = UINT32_C(1500);
 # else
     maxRAMArch = UINT32_C(2560);
 # endif

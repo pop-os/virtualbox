@@ -914,7 +914,10 @@ void RaiseSoapRuntimeFault(struct soap *soap,
 
     // allocated our own soap fault struct
     _vbox__RuntimeFault *ex = soap_new__vbox__RuntimeFault(soap, 1);
-    ex->resultCode = info.getResultCode();
+    // some old vbox methods return errors without setting an error in the error info,
+    // so use the error info code if it's set and the HRESULT from the method otherwise
+    if (S_OK == (ex->resultCode = info.getResultCode()))
+        ex->resultCode = apirc;
     ex->text = ConvertComString(info.getText());
     ex->component = ConvertComString(info.getComponent());
     ex->interfaceID = ConvertComString(info.getInterfaceID());
@@ -1504,7 +1507,9 @@ int __vbox__IManagedObjectRef_USCORErelease(
     WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
 
     do {
-        util::AutoReadLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
+        // findRefFromId needs read lock, and the delete call below requires
+        // the write lock, so get the write lock here
+        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         ManagedObjectRef *pRef;
         if ((rc = ManagedObjectRef::findRefFromId(req->_USCOREthis, &pRef, false)))

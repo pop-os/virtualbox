@@ -40,6 +40,32 @@
 #include <iprt/assert.h>
 #include "internal/fs.h"
 
+/* from ntdef.h */
+typedef LONG NTSTATUS;
+
+/* from ntddk.h */
+typedef struct _IO_STATUS_BLOCK {
+    union {
+        NTSTATUS Status;
+        PVOID Pointer;
+    };
+    ULONG_PTR Information;
+} IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
+
+typedef enum _FSINFOCLASS {
+    FileFsAttributeInformation = 5,
+} FS_INFORMATION_CLASS, *PFS_INFORMATION_CLASS;
+
+/* from ntifs.h */
+
+typedef struct _FILE_FS_ATTRIBUTE_INFORMATION {
+    ULONG FileSystemAttributes;
+    LONG MaximumComponentNameLength;
+    ULONG FIleSystemNameLength;
+    WCHAR FileSystemName[1];
+} FILE_FS_ATTRIBUTE_INFORMATION, *PFILE_FS_ATTRIBUTE_INFORMATION;
+
+extern "C" NTSTATUS NTAPI NtQueryVolumeInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FS_INFORMATION_CLASS);
 
 /**
  * Checks quickly if this is an correct root specification.
@@ -307,3 +333,87 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
     return rc;
 }
 
+
+/**
+ * Internal helper for comparing a WCHAR string with a char string.
+ *
+ * @returns @c true if equal, @c false if not.
+ * @param   pwsz1               The first string. 
+ * @param   cb1                 The length of the first string, in bytes.
+ * @param   psz2                The second string. 
+ * @param   cch2                The length of the second string. 
+ */
+static bool rtFsWinAreEqual(WCHAR const *pwsz1, size_t cch1, const char *psz2, size_t cch2)
+{
+    if (cch1 != cch2 * 2)
+        return false;
+    while (cch2-- > 0)
+    {
+        unsigned ch1 = *pwsz1++;
+        unsigned ch2 = (unsigned char)*psz2++;
+        if (ch1 != ch2)
+            return false;
+    }
+    return true;
+}
+
+
+RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
+{
+    *penmType = RTFSTYPE_UNKNOWN;
+
+    AssertPtrReturn(pszFsPath, VERR_INVALID_POINTER);
+    AssertReturn(*pszFsPath, VERR_INVALID_PARAMETER);
+
+    /*
+     * Convert the path and try open it.
+     */
+    PRTUTF16 pwszFsPath;
+    int rc = RTStrToUtf16(pszFsPath, &pwszFsPath);
+    if (RT_SUCCESS(rc))
+    {
+        HANDLE hFile = CreateFileW(pwszFsPath,
+                                   GENERIC_READ,
+                                   FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                   NULL,
+                                   OPEN_EXISTING,
+                                   FILE_FLAG_BACKUP_SEMANTICS,
+                                   NULL);
+        if (hFile != INVALID_HANDLE_VALUE)
+        {
+            /*
+             * Use the NT api directly to get the file system name.
+             */
+            char            abBuf[8192];
+            IO_STATUS_BLOCK Ios;
+            NTSTATUS        rcNt = NtQueryVolumeInformationFile(hFile, &Ios,
+                                                                abBuf, sizeof(abBuf),
+                                                                FileFsAttributeInformation);
+            if (rcNt >= 0)
+            {
+                PFILE_FS_ATTRIBUTE_INFORMATION pFsAttrInfo = (PFILE_FS_ATTRIBUTE_INFORMATION)abBuf;
+                if (pFsAttrInfo->FIleSystemNameLength)
+                {
+                }
+#define IS_FS(szName) \
+    rtFsWinAreEqual(pFsAttrInfo->FileSystemName, pFsAttrInfo->FIleSystemNameLength, szName, sizeof(szName) - 1)
+                if (IS_FS("NTFS"))
+                    *penmType = RTFSTYPE_NTFS;
+                else if (IS_FS("FAT"))
+                    *penmType = RTFSTYPE_FAT;
+                else if (IS_FS("FAT32"))
+                    *penmType = RTFSTYPE_FAT;
+                else if (IS_FS("VBoxSharedFolderFS"))
+                    *penmType = RTFSTYPE_VBOXSHF;
+#undef IS_FS
+            }
+            else
+                rc = RTErrConvertFromNtStatus(rcNt);
+            CloseHandle(hFile);
+        }
+        else
+            rc = RTErrConvertFromWin32(GetLastError());
+        RTUtf16Free(pwszFsPath);
+    }
+    return rc;
+}

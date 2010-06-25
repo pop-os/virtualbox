@@ -135,6 +135,15 @@ VMMR3DECL(int) PGMR3SharedModuleUnregister(PVM pVM, char *pszModuleName, char *p
  */
 static DECLCALLBACK(VBOXSTRICTRC) pgmR3SharedModuleRegRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
+    VMCPUID idCpu = *(VMCPUID *)pvUser;
+
+    /* Execute on the VCPU that issued the original request to make sure we're in the right cr3 context. */
+    if (pVCpu->idCpu != idCpu)
+    {
+        Assert(pVM->cCpus > 1);
+        return VINF_SUCCESS;
+    }
+
     /* Flush all pending handy page operations before changing any shared page assignments. */
     int rc = PGMR3PhysAllocateHandyPages(pVM);
     AssertRC(rc);
@@ -151,11 +160,12 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3SharedModuleRegRendezvous(PVM pVM, PVMCPU
  * Shared module check helper (called on the way out).
  *
  * @param   pVM         The VM handle.
+ * @param   VMCPUID     VCPU id
  */
-static DECLCALLBACK(void) pgmR3CheckSharedModulesHelper(PVM pVM)
+static DECLCALLBACK(void) pgmR3CheckSharedModulesHelper(PVM pVM, VMCPUID idCpu)
 {
     /* We must stall other VCPUs as we'd otherwise have to send IPI flush commands for every single change we make. */
-    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, pgmR3SharedModuleRegRendezvous, NULL);
+    int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONE_BY_ONE, pgmR3SharedModuleRegRendezvous, &idCpu);
     AssertRC(rc);
 }
 #endif
@@ -170,7 +180,60 @@ VMMR3DECL(int) PGMR3SharedModuleCheckAll(PVM pVM)
 {
 #ifdef VBOX_WITH_PAGE_SHARING
     /* Queue the actual registration as we are under the IOM lock right now. Perform this operation on the way out. */
-    return VMR3ReqCallNoWait(pVM, VMMGetCpuId(pVM), (PFNRT)pgmR3CheckSharedModulesHelper, 1, pVM);
+    return VMR3ReqCallNoWait(pVM, VMCPUID_ANY_QUEUE, (PFNRT)pgmR3CheckSharedModulesHelper, 2, pVM, VMMGetCpuId(pVM));
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
+
+/**
+ * Query the state of a page in a shared module
+ *
+ * @returns VBox status code.
+ * @param   pVM                 VM handle
+ * @param   GCPtrPage           Page address
+ * @param   pfShared            Shared status (out)
+ * @param   puPageFlags         Page flags (out)
+ */
+VMMR3DECL(int) PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *pfShared, uint64_t *puPageFlags)
+{
+#if defined(VBOX_WITH_PAGE_SHARING) && defined(DEBUG)
+    /* Debug only API for the page fusion testcase. */
+    RTGCPHYS GCPhys;
+    uint64_t fFlags;
+
+    pgmLock(pVM);
+
+    int rc = PGMGstGetPage(VMMGetCpu(pVM), GCPtrPage, &fFlags, &GCPhys);
+    switch (rc)
+    {
+    case VINF_SUCCESS:
+    {
+        PPGMPAGE pPage = pgmPhysGetPage(&pVM->pgm.s, GCPhys);
+        if (pPage)
+        {
+            *pfShared    = PGM_PAGE_IS_SHARED(pPage);
+            *puPageFlags = fFlags;
+        }
+        else
+            rc = VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS;
+        break;
+    }
+    case VERR_PAGE_NOT_PRESENT:
+    case VERR_PAGE_TABLE_NOT_PRESENT:
+    case VERR_PAGE_MAP_LEVEL4_NOT_PRESENT:
+    case VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT:
+        *pfShared = false;
+        *puPageFlags = 0;
+        rc = VINF_SUCCESS;
+        break;
+
+    default:
+        break;
+    }
+
+    pgmUnlock(pVM);
+    return rc;
 #else
     return VERR_NOT_IMPLEMENTED;
 #endif

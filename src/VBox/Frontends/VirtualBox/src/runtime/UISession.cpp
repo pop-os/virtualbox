@@ -749,6 +749,13 @@ void UISession::powerUp()
 # endif
 #endif
 
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    LogRel(("2D video acceleration is %s.\n",
+           machine.GetAccelerate2DVideoEnabled() && VBoxGlobal::isAcceleration2DVideoAvailable()
+                 ? "enabled"
+                 : "disabled"));
+#endif
+
     /* Warn listeners about machine was started: */
     emit sigMachineStarted();
 }
@@ -1523,7 +1530,15 @@ void UISession::preparePowerUp()
         vboxProblem().remindAboutAutoCapture();
 
     /* Shows first run wizard if necessary: */
-    if (isFirstTimeStarted())
+    const CMachine &machine = session().GetMachine();
+    /* Check if we are in teleportation waiting mode. In that case no first run
+     * wizard is necessary. */
+    KMachineState state = machine.GetState();
+    if (   isFirstTimeStarted()
+        && !((   state == KMachineState_PoweredOff
+              || state == KMachineState_Aborted
+              || state == KMachineState_Teleported)
+             && machine.GetTeleporterEnabled()))
     {
         UIFirstRunWzd wzd(mainMachineWindow(), session().GetMachine());
         wzd.exec();

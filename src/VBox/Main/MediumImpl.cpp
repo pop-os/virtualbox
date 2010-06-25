@@ -672,7 +672,9 @@ HRESULT Medium::FinalConstruct()
     m->vdIfCallsTcpNet.pfnSelectOne = RTTcpSelectOne;
     m->vdIfCallsTcpNet.pfnRead = RTTcpRead;
     m->vdIfCallsTcpNet.pfnWrite = RTTcpWrite;
+    m->vdIfCallsTcpNet.pfnSgWrite = RTTcpSgWrite;
     m->vdIfCallsTcpNet.pfnFlush = RTTcpFlush;
+    m->vdIfCallsTcpNet.pfnSetSendCoalescing = RTTcpSetSendCoalescing;
     m->vdIfCallsTcpNet.pfnGetLocalAddress = RTTcpGetLocalAddress;
     m->vdIfCallsTcpNet.pfnGetPeerAddress = RTTcpGetPeerAddress;
 
@@ -1440,11 +1442,9 @@ STDMETHODIMP Medium::COMSETTER(Type)(MediumType_T aType)
 
     m->type = aType;
 
+    // save the global settings; for that we should hold only the VirtualBox lock
     mlock.release();
-
-    // saveSettings needs vbox lock
     AutoWriteLock alock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-
     HRESULT rc = m->pVirtualBox->saveSettings();
 
     return rc;
@@ -1569,11 +1569,9 @@ STDMETHODIMP Medium::COMSETTER(AutoReset)(BOOL aAutoReset)
     {
         m->autoReset = !!aAutoReset;
 
+        // save the global settings; for that we should hold only the VirtualBox lock
         mlock.release();
-
-        // saveSettings needs vbox lock
         AutoWriteLock alock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-
         return m->pVirtualBox->saveSettings();
     }
 
@@ -1900,6 +1898,9 @@ STDMETHODIMP Medium::UnlockWrite(MediumState_T *aState)
 
 STDMETHODIMP Medium::Close()
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     // we're accessing parent/child and backrefs, so lock the tree first, then ourselves
     AutoMultiWriteLock2 multilock(&m->pVirtualBox->getMediaTreeLockHandle(),
                                   this->lockHandle()
@@ -1940,6 +1941,9 @@ STDMETHODIMP Medium::Close()
 
     // make a copy of VirtualBox pointer which gets nulled by uninit()
     ComObjPtr<VirtualBox> pVirtualBox(m->pVirtualBox);
+
+    // leave the AutoCaller, as otherwise uninit() will simply hang
+    autoCaller.release();
 
     /* Keep the locks held until after uninit, as otherwise the consistency
      * of the medium tree cannot be guaranteed. */
@@ -2005,9 +2009,8 @@ STDMETHODIMP Medium::SetProperty(IN_BSTR aName, IN_BSTR aValue)
     else
         it->second = aValue;
 
+    // save the global settings; for that we should hold only the VirtualBox lock
     mlock.release();
-
-    // saveSettings needs vbox lock
     AutoWriteLock alock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
     HRESULT rc = m->pVirtualBox->saveSettings();
 
@@ -2170,7 +2173,7 @@ STDMETHODIMP Medium::DeleteStorage(IProgress **aProgress)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     bool fNeedsSaveSettings = false;
-    ComObjPtr <Progress> pProgress;
+    ComObjPtr<Progress> pProgress;
 
     HRESULT rc = deleteStorage(&pProgress,
                                false /* aWait */,
@@ -2328,7 +2331,7 @@ STDMETHODIMP Medium::CloneTo(IMedium *aTarget,
             delete pSourceMediumLockList;
             delete pTargetMediumLockList;
             throw setError(rc,
-                           tr("Failed to lock source media '%ls'"),
+                           tr("Failed to lock source media '%s'"),
                            getLocationFull().raw());
         }
         rc = pTargetMediumLockList->Lock();
@@ -2337,7 +2340,7 @@ STDMETHODIMP Medium::CloneTo(IMedium *aTarget,
             delete pSourceMediumLockList;
             delete pTargetMediumLockList;
             throw setError(rc,
-                           tr("Failed to lock target media '%ls'"),
+                           tr("Failed to lock target media '%s'"),
                            pTarget->getLocationFull().raw());
         }
 
@@ -2416,7 +2419,7 @@ STDMETHODIMP Medium::Compact(IProgress **aProgress)
         {
             delete pMediumLockList;
             throw setError(rc,
-                           tr("Failed to lock media when compacting '%ls'"),
+                           tr("Failed to lock media when compacting '%s'"),
                            getLocationFull().raw());
         }
 
@@ -2511,7 +2514,7 @@ STDMETHODIMP Medium::Reset(IProgress **aProgress)
         {
             delete pMediumLockList;
             throw setError(rc,
-                           tr("Failed to lock media when resetting '%ls'"),
+                           tr("Failed to lock media when resetting '%s'"),
                            getLocationFull().raw());
         }
 
@@ -3130,6 +3133,9 @@ HRESULT Medium::createMediumLockList(bool fFailIfInaccessible,
                                      Medium *pToBeParent,
                                      MediumLockList &mediumLockList)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     HRESULT rc = S_OK;
 
     /* we access parent medium objects */
@@ -3846,6 +3852,9 @@ HRESULT Medium::deleteStorage(ComObjPtr<Progress> *aProgress,
 {
     AssertReturn(aProgress != NULL || aWait == true, E_FAIL);
 
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     HRESULT rc = S_OK;
     ComObjPtr<Progress> pProgress;
     Medium::Task *pTask = NULL;
@@ -3933,7 +3942,7 @@ HRESULT Medium::deleteStorage(ComObjPtr<Progress> *aProgress,
         {
             delete pMediumLockList;
             throw setError(rc,
-                           tr("Failed to lock media when deleting '%ls'"),
+                           tr("Failed to lock media when deleting '%s'"),
                            getLocationFull().raw());
         }
 
@@ -4495,7 +4504,7 @@ HRESULT Medium::prepareMergeTo(const ComObjPtr<Medium> &pTarget,
             {
                 AutoReadLock alock(pTarget COMMA_LOCKVAL_SRC_POS);
                 throw setError(rc,
-                               tr("Failed to lock media when merging to '%ls'"),
+                               tr("Failed to lock media when merging to '%s'"),
                                pTarget->getLocationFull().raw());
             }
         }
@@ -4607,6 +4616,9 @@ HRESULT Medium::mergeTo(const ComObjPtr<Medium> &pTarget,
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoCaller targetCaller(pTarget);
+    AssertComRCReturnRC(targetCaller.rc());
 
     HRESULT rc = S_OK;
     ComObjPtr <Progress> pProgress;
@@ -5192,11 +5204,9 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
                                NULL,
                                task.mVDOperationIfaces);
             if (RT_FAILURE(vrc))
-            {
                 throw setError(E_FAIL,
                             tr("Could not create the hard disk storage unit '%s'%s"),
                             location.raw(), vdError(vrc).raw());
-            }
 
             size = VDGetFileSize(hdd, 0);
             logicalSize = VDGetSize(hdd, 0) / _1M;
@@ -5415,10 +5425,15 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
             unconst(pTarget->m->id).clear();
     }
 
+    // deregister the task registered in createDiffStorage()
+    Assert(m->numCreateDiffTasks != 0);
+    --m->numCreateDiffTasks;
+
     if (task.isAsync())
     {
         if (fNeedsSaveSettings)
         {
+            // save the global settings; for that we should hold only the VirtualBox lock
             mediaLock.release();
             AutoWriteLock vboxlock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
             m->pVirtualBox->saveSettings();
@@ -5428,10 +5443,6 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
         // synchronous mode: report save settings result to caller
         if (task.m_pfNeedsSaveSettings)
             *task.m_pfNeedsSaveSettings = fNeedsSaveSettings;
-
-    /* deregister the task registered in createDiffStorage() */
-    Assert(m->numCreateDiffTasks != 0);
-    --m->numCreateDiffTasks;
 
     /* Note that in sync mode, it's the caller's responsibility to
      * unlock the hard disk */
@@ -5709,6 +5720,7 @@ HRESULT Medium::taskMergeHandler(Medium::MergeTask &task)
     if (task.isAsync())
     {
         // in asynchronous mode, save settings now
+        // for that we should hold only the VirtualBox lock
         AutoWriteLock vboxlock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
         m->pVirtualBox->saveSettings();
     }

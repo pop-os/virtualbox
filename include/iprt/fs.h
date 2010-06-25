@@ -180,6 +180,82 @@ RT_C_DECLS_BEGIN
 
 
 /**
+ * Filesystem type IDs returned by RTFsQueryType.
+ *
+ * This enum is subject to changes and must not be used as part of any ABI or
+ * binary format (file, network, etc).
+ *
+ * @remarks When adding new entries, please update RTFsTypeName().  Also, try
+ *          add them to the most natural group.
+ */
+typedef enum RTFSTYPE
+{
+    /** Unknown file system. */
+    RTFSTYPE_UNKNOWN = 0,
+
+    /** Universal Disk Format. */
+    RTFSTYPE_UDF,
+    /** ISO 9660, aka Compact Disc File System (CDFS). */
+    RTFSTYPE_ISO9660,
+    /** Filesystem in Userspace. */
+    RTFSTYPE_FUSE,
+    /** VirtualBox shared folders.  */
+    RTFSTYPE_VBOXSHF,
+
+    /* Linux: */
+    RTFSTYPE_EXT,
+    RTFSTYPE_EXT2,
+    RTFSTYPE_EXT3,
+    RTFSTYPE_EXT4,
+    RTFSTYPE_XFS,
+    RTFSTYPE_CIFS,
+    RTFSTYPE_SMBFS,
+    RTFSTYPE_TMPFS,
+    RTFSTYPE_SYSFS,
+    RTFSTYPE_PROC,
+
+    /* Windows: */
+    /** New Technology File System. */
+    RTFSTYPE_NTFS,
+    /** FAT12, FAT16 and FAT32 lumped into one basket.
+     * The partition size limit of FAT12 and FAT16 will be the factor
+     * limiting the file size (except, perhaps for the 64KB cluster case on
+     * non-Windows hosts). */
+    RTFSTYPE_FAT,
+
+    /* Solaris: */
+    /** Zettabyte File System.  */
+    RTFSTYPE_ZFS,
+    /** Unix File System. */
+    RTFSTYPE_UFS,
+    /** Network File System. */
+    RTFSTYPE_NFS,
+
+    /* Mac OS X: */
+    /** Hierarchical File System. */
+    RTFSTYPE_HFS,
+    /** @todo RTFSTYPE_HFS_PLUS? */
+    RTFSTYPE_AUTOFS,
+    RTFSTYPE_DEVFS,
+
+    /* *BSD: */
+
+    /* OS/2: */
+    /** High Performance File System. */
+    RTFSTYPE_HPFS,
+    /** Journaled File System (v2).  */
+    RTFSTYPE_JFS,
+
+    /** The end of valid Filesystem types IDs. */
+    RTFSTYPE_END,
+    /** The usual 32-bit type blow up. */
+    RTFSTYPE_32BIT_HACK = 0x7fffffff
+} RTFSTYPE;
+/** Pointer to a Filesystem type ID. */
+typedef RTFSTYPE *PRTFSTYPE;
+
+
+/**
  * The available additional information in a RTFSOBJATTR object.
  */
 typedef enum RTFSOBJATTRADD
@@ -384,7 +460,30 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial);
  */
 RTR3DECL(int) RTFsQueryDriver(const char *pszFsPath, char *pszFsDriver, size_t cbFsDriver);
 
+/**
+ * Query the name of the filesystem the file is located on.
+ *
+ * @returns iprt status code.
+ * @param   pszFsPath       Path within the mounted filesystem.  It must exist.
+ *                          In case this is a symlink, the file it refers to is
+ *                          evaluated.
+ * @param   penmType        Where to store the filesystem type, this is always
+ *                          set.  See RTFSTYPE for the values.
+ */
+RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType);
+
 #endif /* IN_RING3 */
+
+/**
+ * Gets the name of a filesystem type.
+ *
+ * @returns Pointer to a read-only string containing the name.
+ * @param   enmType         A valid filesystem ID.  If outside the valid range,
+ *                          the returned string will be pointing to a static
+ *                          memory buffer which will be changed on subsequent
+ *                          calls to this function by any thread.
+ */
+RTDECL(const char *) RTFsTypeName(RTFSTYPE enmType);
 
 /**
  * Filesystem properties.

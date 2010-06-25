@@ -31,6 +31,13 @@
 #define LOG_GROUP RTLOGGROUP_FS
 #include <sys/statvfs.h>
 #include <errno.h>
+#include <stdio.h>
+#ifdef RT_OS_LINUX
+# include <mntent.h>
+#endif
+#ifdef RT_OS_DARWIN
+# include <sys/mount.h>
+#endif
 
 #include <iprt/fs.h>
 #include "internal/iprt.h"
@@ -162,3 +169,131 @@ RTR3DECL(int) RTFsQueryProperties(const char *pszFsPath, PRTFSPROPERTIES pProper
     return VINF_SUCCESS;
 }
 
+
+RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
+{
+    *penmType = RTFSTYPE_UNKNOWN;
+
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(pszFsPath, VERR_INVALID_POINTER);
+    AssertReturn(*pszFsPath, VERR_INVALID_PARAMETER);
+
+    /*
+     * Convert the path and query the stats.
+     * We're simply return the device id.
+     */
+    char const *pszNativeFsPath;
+    int rc = rtPathToNative(&pszNativeFsPath, pszFsPath, NULL);
+    if (RT_SUCCESS(rc))
+    {
+        struct stat Stat;
+        if (!stat(pszNativeFsPath, &Stat))
+        {
+#if defined(RT_OS_LINUX)
+            FILE *mounted = setmntent("/proc/mounts", "r");
+            if (!mounted)
+                mounted = setmntent("/etc/mtab", "r");
+            if (mounted)
+            {
+                char            szBuf[1024];
+                struct stat     mntStat;
+                struct mntent   mntEnt;
+                while (getmntent_r(mounted, &mntEnt, szBuf, sizeof(szBuf)))
+                {
+                    if (!stat(mntEnt.mnt_dir, &mntStat))
+                    {
+                        if (mntStat.st_dev == Stat.st_dev)
+                        {
+                            if (!strcmp("ext4", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_EXT4;
+                            else if (!strcmp("ext3", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_EXT3;
+                            else if (!strcmp("ext2", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_EXT2;
+                            else if (!strcmp("jfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_JFS;
+                            else if (!strcmp("xfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_XFS;
+                            else if (   !strcmp("vfat", mntEnt.mnt_type)
+                                     || !strcmp("msdos", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_FAT;
+                            else if (!strcmp("ntfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_NTFS;
+                            else if (!strcmp("hpfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_HPFS;
+                            else if (!strcmp("ufs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_UFS;
+                            else if (!strcmp("tmpfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_TMPFS;
+                            else if (!strcmp("hfsplus", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_HFS;
+                            else if (!strcmp("udf", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_UDF;
+                            else if (!strcmp("iso9660", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_ISO9660;
+                            else if (!strcmp("smbfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_SMBFS;
+                            else if (!strcmp("cifs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_CIFS;
+                            else if (!strcmp("nfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_NFS;
+                            else if (!strcmp("nfs4", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_NFS;
+                            else if (!strcmp("sysfs", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_SYSFS;
+                            else if (!strcmp("proc", mntEnt.mnt_type))
+                                *penmType = RTFSTYPE_PROC;
+                            else if (   !strcmp("fuse", mntEnt.mnt_type)
+                                     || !strncmp("fuse.", mntEnt.mnt_type, 5))
+                                *penmType = RTFSTYPE_FUSE;
+                            else
+                            {
+                                /* sometimes there are more than one entry for the same partition */
+                                continue;
+                            }
+                            break;
+                        }
+                    }
+                }
+                endmntent(mounted);
+            }
+
+#elif defined(RT_OS_SOLARIS)
+            if (!strcmp("zfs", Stat.st_fstype))
+                *penmType = RTFSTYPE_ZFS;
+            else if (!strcmp("ufs", Stat.st_fstype))
+                *penmType = RTFSTYPE_UFS;
+            else if (!strcmp("nfs", Stat.st_fstype))
+                *penmType = RTFSTYPE_NFS;
+
+#elif defined(RT_OS_DARWIN)
+            struct statfs statfsBuf;
+            if (!statfs(pszNativeFsPath, &statfsBuf))
+            {
+                if (!strcmp("hfs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_HFS;
+                else if (   !strcmp("fat", statfsBuf.f_fstypename)
+                         || !strcmp("msdos", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_FAT;
+                else if (!strcmp("ntfs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_NTFS;
+                else if (!strcmp("autofs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_AUTOFS;
+                else if (!strcmp("devfs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_DEVFS;
+                else if (!strcmp("nfs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_NFS;
+            }
+            else
+                rc = RTErrConvertFromErrno(errno);
+#endif
+        }
+        else
+            rc = RTErrConvertFromErrno(errno);
+        rtPathFreeNative(pszNativeFsPath, pszFsPath);
+    }
+
+    return rc;
+}
