@@ -1,4 +1,4 @@
-virtualbox-ose (3.2.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.2.6-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * Do not use standard compiler optimization for vdfuse. (Closes:
