@@ -2,6 +2,7 @@ virtualbox-ose (3.2.6-dfsg-2) unstable; urgency=low
 
   * Added patch taken from FreeBSD to make DSDT files compile with
     latest versions of iasl. (Closes: #587609)
+  * Bump Standards-Version to 3.9.0, no changes needed.
 
  -- Michael Meskes <meskes@debian.org>  Fri, 02 Jul 2010 15:24:21 +0200
 
