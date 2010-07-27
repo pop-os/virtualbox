@@ -1,3 +1,10 @@
+virtualbox-ose (3.2.6-dfsg-3) UNRELEASED; urgency=low
+
+  * Replace the reference to /usr/share/common-licenses/BSD with the full text
+    of the license.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 27 Jul 2010 13:02:52 +0200
+
 virtualbox-ose (3.2.6-dfsg-2) unstable; urgency=low
 
   * Added patch taken from FreeBSD to make DSDT files compile with
