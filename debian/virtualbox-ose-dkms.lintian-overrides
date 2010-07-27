@@ -1,0 +1,1 @@
+virtualbox-ose-dkms: breaks-without-version virtualbox-ose-guest-dkms
