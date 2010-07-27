@@ -4,8 +4,9 @@ virtualbox-ose (3.2.6-dfsg-3) UNRELEASED; urgency=low
     of the license.
   * Override lintian warning breaks-without-version in the *-dkms packages;
     no need to use Conflicts.
+  * Bump Standards-Version to 3.9.1, no changes needed.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 27 Jul 2010 13:08:13 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 27 Jul 2010 13:13:07 +0200
 
 virtualbox-ose (3.2.6-dfsg-2) unstable; urgency=low
 
