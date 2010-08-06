@@ -2,8 +2,6 @@ virtualbox-ose (3.2.8-dfsg-1) UNRELEASED; urgency=low
 
   * Replace the reference to /usr/share/common-licenses/BSD with the full text
     of the license.
-  * Override lintian warning breaks-without-version in the *-dkms packages;
-    no need to use Conflicts.
   * Bump Standards-Version to 3.9.1, no changes needed.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 06 Aug 2010 21:31:30 +0200
