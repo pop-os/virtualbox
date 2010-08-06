@@ -1,4 +1,4 @@
-virtualbox-ose (3.2.6-dfsg-3) UNRELEASED; urgency=low
+virtualbox-ose (3.2.8-dfsg-1) UNRELEASED; urgency=low
 
   * Replace the reference to /usr/share/common-licenses/BSD with the full text
     of the license.
@@ -6,7 +6,7 @@ virtualbox-ose (3.2.6-dfsg-3) UNRELEASED; urgency=low
     no need to use Conflicts.
   * Bump Standards-Version to 3.9.1, no changes needed.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 27 Jul 2010 13:13:07 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 06 Aug 2010 21:31:30 +0200
 
 virtualbox-ose (3.2.6-dfsg-2) unstable; urgency=low
 
