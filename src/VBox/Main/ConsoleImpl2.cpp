@@ -434,6 +434,12 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     hrc = pMachine->COMGETTER(MemoryBalloonSize)(&ulBalloonSize);                       H();
     rc = CFGMR3InsertInteger(pRoot, "MemBalloonSize",       ulBalloonSize);             RC_CHECK();
 
+    /*
+     * CPUM values.
+     */
+    PCFGMNODE pCPUM;
+    rc = CFGMR3InsertNode(pRoot, "CPUM", &pCPUM);                                       RC_CHECK();
+
     /* cpuid leaf overrides. */
     static uint32_t const s_auCpuIdRanges[] =
     {
@@ -448,7 +454,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
             if (SUCCEEDED(hrc))
             {
                 PCFGMNODE pLeaf;
-                rc = CFGMR3InsertNodeF(pRoot, &pLeaf, "CPUM/HostCPUID/%RX32", uLeaf);   RC_CHECK();
+                rc = CFGMR3InsertNodeF(pCPUM, &pLeaf, "HostCPUID/%RX32", uLeaf);        RC_CHECK();
 
                 rc = CFGMR3InsertInteger(pLeaf, "eax", ulEax);                          RC_CHECK();
                 rc = CFGMR3InsertInteger(pLeaf, "ebx", ulEbx);                          RC_CHECK();
@@ -458,30 +464,24 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
             else if (hrc != E_INVALIDARG)                                               H();
         }
 
+    /* We must limit CPUID count for Windows NT 4, as otherwise it stops
+       with error 0x3e (MULTIPROCESSOR_CONFIGURATION_NOT_SUPPORTED). */
     if (osTypeId == "WindowsNT4")
     {
-        /*
-         * We must limit CPUID count for Windows NT 4, as otherwise it stops
-         * with error 0x3e (MULTIPROCESSOR_CONFIGURATION_NOT_SUPPORTED).
-         */
         LogRel(("Limiting CPUID leaf count for NT4 guests\n"));
-        PCFGMNODE pCPUM;
-        rc = CFGMR3InsertNode(pRoot, "CPUM", &pCPUM);                                   RC_CHECK();
         rc = CFGMR3InsertInteger(pCPUM, "NT4LeafLimit", true);                          RC_CHECK();
     }
 
+    /* Expose extended MWAIT features to Mac OS X guests. */
     if (fOsXGuest)
     {
-        /*
-         * Expose extended MWAIT features to Mac OS X guests.
-         */
         LogRel(("Using MWAIT extensions\n"));
-        PCFGMNODE pCPUM;
-        rc = CFGMR3InsertNode(pRoot, "CPUM", &pCPUM);                                   RC_CHECK();
         rc = CFGMR3InsertInteger(pCPUM, "MWaitExtensions", true);                       RC_CHECK();
     }
 
-    /* hardware virtualization extensions */
+    /*
+     * Hardware virtualization extensions.
+     */
     BOOL fHWVirtExEnabled;
     BOOL fHwVirtExtForced;
 #ifdef VBOX_WITH_RAW_MODE
@@ -2402,7 +2402,13 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
     ComPtr<IMedium> pMedium;
     hrc = pMediumAtt->COMGETTER(Medium)(pMedium.asOutParam());                          H();
 
-    if (lType == DeviceType_HardDisk)
+    /*
+     * 1. Only check this for hard disk images.
+     * 2. Only check during VM creation and not later, especially not during
+     *    taking an online snapshot!
+     */
+    if (   lType == DeviceType_HardDisk
+            && aMachineState == MachineState_Starting)
     {
         /*
          * Some sanity checks.
@@ -2621,9 +2627,11 @@ int Console::configMedium(PCFGMNODE pLunL0,
     PCFGMNODE pCfg = NULL;
 
     BOOL fHostDrive = FALSE;
+    MediumType_T mediumType  = MediumType_Normal;
     if (pMedium)
     {
         hrc = pMedium->COMGETTER(HostDrive)(&fHostDrive);                               H();
+        hrc = pMedium->COMGETTER(Type)(&mediumType);                                    H();
     }
 
     if (fHostDrive)
@@ -2730,10 +2738,14 @@ int Console::configMedium(PCFGMNODE pLunL0,
             hrc = pMedium->COMGETTER(Format)(bstr.asOutParam());                        H();
             rc = CFGMR3InsertStringW(pCfg, "Format", bstr.raw());                       RC_CHECK();
 
-            /* DVDs are always readonly */
+            /* DVDs are always readonly, floppies may be readonly */
             if (enmType == DeviceType_DVD)
             {
                 rc = CFGMR3InsertInteger(pCfg, "ReadOnly", 1);                          RC_CHECK();
+            }
+            else if (enmType == DeviceType_Floppy)
+            {
+                rc = CFGMR3InsertInteger(pCfg, "MaybeReadOnly", 1);                     RC_CHECK();
             }
 
             /* Start without exclusive write access to the images. */
@@ -2748,6 +2760,14 @@ int Console::configMedium(PCFGMNODE pLunL0,
             else if (aMachineState == MachineState_TeleportingIn)
             {
                 rc = CFGMR3InsertInteger(pCfg, "TempReadOnly", 1);                      RC_CHECK();
+            }
+
+            /* Flag for opening the medium for sharing between VMs. This
+             * is done at the moment only for the first (and only) medium
+             * in the chain, as shared media can have no diffs. */
+            if (mediumType == MediumType_Shareable)
+            {
+                rc = CFGMR3InsertInteger(pCfg, "Shareable", 1);                         RC_CHECK();
             }
 
             if (!fUseHostIOCache)

@@ -2070,13 +2070,15 @@ typedef struct PDMIHPETLEGACYNOTIFY
 #define VMMDEV_SETCREDENTIALS_JUDGE                         RT_BIT(15)
 /** @} */
 
-
-/** Forward declaration of the video accelerator command memory. */
-struct VBVAMEMORY;
 /** Forward declaration of the guest information structure. */
 struct VBoxGuestInfo;
 /** Forward declaration of the guest statistics structure */
 struct VBoxGuestStatistics;
+/** Forward declaration of the guest status structure */
+struct VBoxGuestStatus;
+
+/** Forward declaration of the video accelerator command memory. */
+struct VBVAMEMORY;
 /** Pointer to video accelerator command memory. */
 typedef struct VBVAMEMORY *PVBVAMEMORY;
 
@@ -2089,14 +2091,24 @@ typedef struct PDMIVMMDEVCONNECTOR *PPDMIVMMDEVCONNECTOR;
 typedef struct PDMIVMMDEVCONNECTOR
 {
     /**
-     * Report guest OS version.
-     * Called whenever the Additions issue a guest version report request.
+     * Reports the guest status.
+     * Called whenever the Additions issue a guest status report request.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pGuestStatus        Pointer to guest information structure
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnUpdateGuestStatus,(PPDMIVMMDEVCONNECTOR pInterface, const struct VBoxGuestStatus *pGuestStatus));
+
+    /**
+     * Reports the guest API and OS version.
+     * Called whenever the Additions issue a guest info report request.
      *
      * @param   pInterface          Pointer to this interface.
      * @param   pGuestInfo          Pointer to guest information structure
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnUpdateGuestVersion,(PPDMIVMMDEVCONNECTOR pInterface, struct VBoxGuestInfo *pGuestInfo));
+    DECLR3CALLBACKMEMBER(void, pfnUpdateGuestInfo,(PPDMIVMMDEVCONNECTOR pInterface, const struct VBoxGuestInfo *pGuestInfo));
 
     /**
      * Update the guest additions capabilities.

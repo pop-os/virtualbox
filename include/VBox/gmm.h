@@ -298,13 +298,10 @@ GMMR0DECL(int)  GMMR0SeedChunk(PVM pVM, VMCPUID idCpu, RTR3PTR pvR3);
 GMMR0DECL(int)  GMMR0RegisterSharedModule(PVM pVM, VMCPUID idCpu, VBOXOSFAMILY enmGuestOS, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule, unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
 GMMR0DECL(int)  GMMR0UnregisterSharedModule(PVM pVM, VMCPUID idCpu, char *pszModuleName, char *pszVersion, RTGCPTR GCBaseAddr, uint32_t cbModule);
 GMMR0DECL(int)  GMMR0UnregisterAllSharedModules(PVM pVM, VMCPUID idCpu);
-GMMR0DECL(int) GMMR0CheckSharedModules(PVM pVM, PVMCPU pVCpu);
+GMMR0DECL(int)  GMMR0CheckSharedModules(PVM pVM, PVMCPU pVCpu);
 GMMR0DECL(int)  GMMR0ResetSharedModules(PVM pVM, VMCPUID idCpu);
-#ifdef LOG_ENABLED
-GMMR0DECL(int) GMMR0CheckSharedModulesStart(PVM pVM);
-GMMR0DECL(int) GMMR0CheckSharedModulesEnd(PVM pVM);
-#endif
-
+GMMR0DECL(int)  GMMR0CheckSharedModulesStart(PVM pVM);
+GMMR0DECL(int)  GMMR0CheckSharedModulesEnd(PVM pVM);
 
 /**
  * Request buffer for GMMR0InitialReservationReq / VMMR0_DO_GMM_INITIAL_RESERVATION.
@@ -561,7 +558,7 @@ typedef struct GMMSHAREDPAGEDESC
 /** Pointer to a GMMSHAREDPAGEDESC. */
 typedef GMMSHAREDPAGEDESC *PGMMSHAREDPAGEDESC;
 
-GMMR0DECL(int) GMMR0SharedModuleCheckRange(PGVM pGVM, PGMMSHAREDMODULE pModule, unsigned idxRegion, unsigned cPages, PGMMSHAREDPAGEDESC paPageDesc);
+GMMR0DECL(int) GMMR0SharedModuleCheckPage(PGVM pGVM, PGMMSHAREDMODULE pModule, unsigned idxRegion, unsigned idxPage, PGMMSHAREDPAGEDESC pPageDesc);
 
 /**
  * Request buffer for GMMR0UnregisterSharedModuleReq / VMMR0_DO_GMM_UNREGISTER_SHARED_MODULE.
@@ -587,6 +584,25 @@ typedef GMMUNREGISTERSHAREDMODULEREQ *PGMMUNREGISTERSHAREDMODULEREQ;
 
 GMMR0DECL(int) GMMR0UnregisterSharedModuleReq(PVM pVM, VMCPUID idCpu, PGMMUNREGISTERSHAREDMODULEREQ pReq);
 
+#if defined(VBOX_STRICT) && HC_ARCH_BITS == 64
+/**
+ * Request buffer for GMMR0FindDuplicatePageReq / VMMR0_DO_GMM_FIND_DUPLICATE_PAGE.
+ * @see GMMR0FindDuplicatePage.
+ */
+typedef struct GMMFINDDUPLICATEPAGEREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR              Hdr;
+    /** Page id. */
+    uint32_t                    idPage;
+    /** Duplicate flag (out) */
+    bool                        fDuplicate;
+} GMMFINDDUPLICATEPAGEREQ;
+/** Pointer to a GMMR0FindDuplicatePageReq / VMMR0_DO_GMM_FIND_DUPLICATE_PAGE request buffer. */
+typedef GMMFINDDUPLICATEPAGEREQ *PGMMFINDDUPLICATEPAGEREQ;
+
+GMMR0DECL(int) GMMR0FindDuplicatePageReq(PVM pVM, PGMMFINDDUPLICATEPAGEREQ pReq);
+#endif /* VBOX_STRICT && HC_ARCH_BITS == 64 */
 
 #ifdef IN_RING3
 /** @defgroup grp_gmm_r3    The Global Memory Manager Ring-3 API Wrappers
@@ -615,6 +631,11 @@ GMMR3DECL(int)  GMMR3RegisterSharedModule(PVM pVM, PGMMREGISTERSHAREDMODULEREQ p
 GMMR3DECL(int)  GMMR3UnregisterSharedModule(PVM pVM, PGMMUNREGISTERSHAREDMODULEREQ pReq);
 GMMR3DECL(int)  GMMR3CheckSharedModules(PVM pVM);
 GMMR3DECL(int)  GMMR3ResetSharedModules(PVM pVM);
+
+# if defined(VBOX_STRICT) && HC_ARCH_BITS == 64
+GMMR3DECL(bool) GMMR3IsDuplicatePage(PVM pVM, uint32_t idPage);
+# endif
+
 /** @} */
 #endif /* IN_RING3 */
 

@@ -168,11 +168,13 @@ typedef struct VBOXHDDRAW
 /** Open image for asynchronous access.
  *  Only available if VD_CAP_ASYNC_IO is set
  *  Check with VDIsAsynchonousIoSupported wether
- *  asynchronous I/O is really supported for this file.
- */
+ *  asynchronous I/O is really supported for this file.  */
 #define VD_OPEN_FLAGS_ASYNC_IO      RT_BIT(4)
+/** Allow sharing of the image for writable images. May be ignored if the
+ * format backend doesn't support this type of concurrent access. */
+#define VD_OPEN_FLAGS_SHAREABLE     RT_BIT(5)
 /** Mask of valid flags. */
-#define VD_OPEN_FLAGS_MASK          (VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_HONOR_ZEROES | VD_OPEN_FLAGS_HONOR_SAME | VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_ASYNC_IO)
+#define VD_OPEN_FLAGS_MASK          (VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_HONOR_ZEROES | VD_OPEN_FLAGS_HONOR_SAME | VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE)
 /** @}*/
 
 
@@ -463,9 +465,11 @@ typedef DECLCALLBACK(int) FNVDCOMPLETED(void *pvUser, int rcReq);
 typedef FNVDCOMPLETED *PFNVDCOMPLETED;
 
 /** Open the storage readonly. */
-#define VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY RT_BIT(0)
+#define VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY  RT_BIT(0)
 /** Create the storage backend if it doesn't exist. */
-#define VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE RT_BIT(1)
+#define VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE    RT_BIT(1)
+/** Don't write lock the opened file. */
+#define VD_INTERFACEASYNCIO_OPEN_FLAGS_DONT_LOCK RT_BIT(2)
 
 /**
  * Support interface for asynchronous I/O

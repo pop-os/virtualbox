@@ -964,23 +964,24 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
 
             PVMCPU pVCpu = &pVM->aCpus[idCpu];
 
-            /* Select a valid VCPU context. */
-            ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
+            /* Initialize the r0 native thread handle on the fly. */
+            if (pVCpu->hNativeThreadR0 == NIL_RTNATIVETHREAD) 
+                pVCpu->hNativeThreadR0 = RTThreadNativeSelf(); 
 
 # ifdef DEBUG_sandervl
             /* Make sure that log flushes can jump back to ring-3; annoying to get an incomplete log (this is risky though as the code doesn't take this into account). */
+            /* Todo: this can have bad side effects for unexpected jumps back to r3. */
             int rc = GMMR0CheckSharedModulesStart(pVM);
             if (rc == VINF_SUCCESS)
             {
                 rc = vmmR0CallRing3SetJmp(&pVCpu->vmm.s.CallRing3JmpBufR0, GMMR0CheckSharedModules, pVM, pVCpu); /* this may resume code. */
+                Assert(     rc == VINF_SUCCESS
+                       ||   (rc == VINF_VMM_CALL_HOST && pVCpu->vmm.s.enmCallRing3Operation == VMMCALLRING3_VMM_LOGGER_FLUSH));
                 GMMR0CheckSharedModulesEnd(pVM);
             }
 # else
             int rc = GMMR0CheckSharedModules(pVM, pVCpu);
 # endif
-
-            /* Clear the VCPU context. */
-            ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
             return rc;
         }
 #endif
@@ -1240,24 +1241,30 @@ VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger)
     }
 
     PVMCPU pVCpu = VMMGetCpu(pVM);
-
-    /*
-     * Check that the jump buffer is armed.
-     */
-# ifdef RT_ARCH_X86
-    if (    !pVCpu->vmm.s.CallRing3JmpBufR0.eip
-        ||  pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
-# else
-    if (    !pVCpu->vmm.s.CallRing3JmpBufR0.rip
-        ||  pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
-# endif
+    if (pVCpu)
     {
-# ifdef DEBUG
-        SUPR0Printf("vmmR0LoggerFlush: Jump buffer isn't armed!\n");
+        /*
+         * Check that the jump buffer is armed.
+         */
+# ifdef RT_ARCH_X86
+        if (    !pVCpu->vmm.s.CallRing3JmpBufR0.eip
+            ||  pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
+# else
+        if (    !pVCpu->vmm.s.CallRing3JmpBufR0.rip
+            ||  pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
 # endif
-        return;
+        {
+# ifdef DEBUG
+            SUPR0Printf("vmmR0LoggerFlush: Jump buffer isn't armed!\n");
+# endif
+            return;
+        }
+        VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_VMM_LOGGER_FLUSH, 0);
     }
-    VMMRZCallRing3(pVM, pVCpu, VMMCALLRING3_VMM_LOGGER_FLUSH, 0);
+# ifdef DEBUG
+    else
+        SUPR0Printf("vmmR0LoggerFlush: invalid VCPU context!\n");
+# endif
 #endif
 }
 

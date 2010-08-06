@@ -929,7 +929,18 @@ int Console::VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const ch
     hrc = mMachine->GetExtraData(Bstr("VRDP/ProvideGuestCredentials"), value.asOutParam());
     if (SUCCEEDED(hrc) && value == "1")
     {
-        fProvideGuestCredentials = TRUE;
+        /* Provide credentials only if there are no logged in users. */
+        Bstr noLoggedInUsersValue;
+        ULONG64 ul64Timestamp = 0;
+        Bstr flags;
+
+        hrc = getGuestProperty(Bstr("/VirtualBox/GuestInfo/OS/NoLoggedInUsers"),
+                               noLoggedInUsersValue.asOutParam(), &ul64Timestamp, flags.asOutParam());
+
+        if (SUCCEEDED(hrc) && noLoggedInUsersValue != Bstr("false"))
+        {
+            fProvideGuestCredentials = TRUE;
+        }
     }
 
     if (   fProvideGuestCredentials
@@ -1355,15 +1366,7 @@ HRESULT Console::doEnumerateGuestProperties(CBSTR aPatterns,
 
     Utf8Str utf8Patterns(aPatterns);
     parm[0].type = VBOX_HGCM_SVC_PARM_PTR;
-    // mutableRaw() returns NULL for an empty string
-//     if ((parm[0].u.pointer.addr = utf8Patterns.mutableRaw()))
-//         parm[0].u.pointer.size = (uint32_t)utf8Patterns.length() + 1;
-//     else
-//     {
-//         parm[0].u.pointer.addr = (void*)"";
-//         parm[0].u.pointer.size = 1;
-//     }
-    parm[0].u.pointer.addr = utf8Patterns.mutableRaw();
+    parm[0].u.pointer.addr = (void*)utf8Patterns.c_str();
     parm[0].u.pointer.size = (uint32_t)utf8Patterns.length() + 1;
 
     /*
@@ -6211,7 +6214,7 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PVM aVM,
                     that->setMachineState(MachineState_Saved);
                     break;
                 case MachineState_TeleportingIn:
-                    /* Teleportation failed or was cancelled.  Back to powered off. */
+                    /* Teleportation failed or was canceled.  Back to powered off. */
                     that->setMachineState(MachineState_PoweredOff);
                     break;
                 case MachineState_TeleportingPausedVM:
@@ -7738,7 +7741,7 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
 
             pTask->mProgress->setCancelCallback(NULL, NULL);
             if (!pTask->mProgress->notifyPointOfNoReturn())
-                throw setError(E_FAIL, tr("Cancelled"));
+                throw setError(E_FAIL, tr("Canceled"));
             that->mptrCancelableProgress.setNull();
 
             // STEP 4: reattach hard disks

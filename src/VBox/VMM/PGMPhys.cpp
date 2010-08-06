@@ -51,7 +51,6 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 static DECLCALLBACK(int) pgmR3PhysRomWriteHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType, void *pvUser);
-static int pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPages, PPGMPAGE pPage, RTGCPHYS GCPhys);
 
 
 /*
@@ -1403,8 +1402,23 @@ int pgmR3PhysRamReset(PVM pVM)
     rc = GMMR3ResetSharedModules(pVM);
     AssertRC(rc);
 #endif
-    /* Reset counter. */
+    /* Reset counters. */
     pVM->pgm.s.cReusedSharedPages = 0;
+    pVM->pgm.s.cBalloonedPages    = 0;
+
+#if 1 /* temporary code for extra logging */
+    {
+        uint64_t cAllocPages, cMaxPages, cBalloonPages;
+
+        if (GMMR3QueryMemoryStats(pVM, &cAllocPages, &cMaxPages, &cBalloonPages) == VINF_SUCCESS)
+        {
+            LogRel(("GMM: Statistics:\n"
+                    "     Allocated pages: %RX64\n"
+                    "     Maximum   pages: %RX64\n"
+                    "     Ballooned pages: %RX64\n", cAllocPages, cMaxPages, cBalloonPages));
+        }
+    }
+#endif
 
     /*
      * We batch up pages that should be freed instead of calling GMM for
@@ -3509,7 +3523,7 @@ VMMR3DECL(int) PGMR3PhysAllocateLargeHandyPage(PVM pVM, RTGCPHYS GCPhys)
          * - page id (GCPhys) + 1 = page id (GCPhys + PAGE_SIZE)
          */
         rc = pgmPhysPageMapByPageID(pVM, idPage, HCPhys, &pv);
-        AssertLogRelMsg(RT_SUCCESS(rc), ("idPage=%#x HCPhysGCPhys=%RHp rc=%Rrc", idPage, HCPhys, rc));
+        AssertLogRelMsg(RT_SUCCESS(rc), ("idPage=%#x HCPhysGCPhys=%RHp rc=%Rrc\n", idPage, HCPhys, rc));
 
         if (RT_SUCCESS(rc))
         {
@@ -3610,6 +3624,14 @@ VMMR3DECL(int) PGMR3PhysAllocateHandyPages(PVM pVM)
             rc = VMMR3CallR0(pVM, VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES, 0, NULL);
     }
 
+    /* todo: we should split this up into an allocate and flush operation. sometimes you want to flush and not allocate more (which will trigger the vm account limit error) */
+    if (    rc == VERR_GMM_HIT_VM_ACCOUNT_LIMIT
+        &&  pVM->pgm.s.cHandyPages > 0)
+    {
+        /* Still handy pages left, so don't panic. */
+        rc = VINF_SUCCESS;
+    }
+
     if (RT_SUCCESS(rc))
     {
         AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", rc));
@@ -3625,7 +3647,7 @@ VMMR3DECL(int) PGMR3PhysAllocateHandyPages(PVM pVM)
             PGMMPAGEDESC pPage = &pVM->pgm.s.aHandyPages[iClear];
             void *pv;
             rc = pgmPhysPageMapByPageID(pVM, pPage->idPage, pPage->HCPhysGCPhys, &pv);
-            AssertLogRelMsgBreak(RT_SUCCESS(rc), ("idPage=%#x HCPhysGCPhys=%RHp rc=%Rrc", pPage->idPage, pPage->HCPhysGCPhys, rc));
+            AssertLogRelMsgBreak(RT_SUCCESS(rc), ("idPage=%#x HCPhysGCPhys=%RHp rc=%Rrc\n", pPage->idPage, pPage->HCPhysGCPhys, rc));
             ASMMemZeroPage(pv);
             iClear++;
             Log3(("PGMR3PhysAllocateHandyPages: idPage=%#x HCPhys=%RGp\n", pPage->idPage, pPage->HCPhysGCPhys));
@@ -3709,7 +3731,7 @@ VMMR3DECL(int) PGMR3PhysAllocateHandyPages(PVM pVM)
  *
  * @remarks The caller must own the PGM lock.
  */
-static int pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPages, PPGMPAGE pPage, RTGCPHYS GCPhys)
+int pgmPhysFreePage(PVM pVM, PGMMFREEPAGESREQ pReq, uint32_t *pcPendingPages, PPGMPAGE pPage, RTGCPHYS GCPhys)
 {
     /*
      * Assert sanity.

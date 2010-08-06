@@ -1795,6 +1795,7 @@ void SessionMachine::restoreSnapshotHandler(RestoreSnapshotTask &aTask)
                 alock.leave();
 
                 /* copy the state file */
+                RTFileDelete(stateFilePath.c_str());
                 int vrc = RTFileCopyEx(snapStateFilePath.c_str(),
                                        stateFilePath.c_str(),
                                        0,
@@ -2064,7 +2065,10 @@ STDMETHODIMP SessionMachine::DeleteSnapshot(IConsole *aInitiator,
             AutoReadLock mlock(pHD COMMA_LOCKVAL_SRC_POS);
 
             MediumType_T type = pHD->getType();
-            if (type != MediumType_Writethrough) // writethrough images are unaffected by snapshots, so do nothing for them
+            // writethrough and shareable images are unaffected by snapshots,
+            // so do nothing for them
+            if (   type != MediumType_Writethrough
+                && type != MediumType_Shareable)
             {
                 // normal or immutable media need attention
                 ++ulOpCount;
@@ -2280,10 +2284,12 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
             Assert(!pHD.isNull());
 
             {
-                // writethrough images are unaffected by snapshots, skip them
+                // writethrough and shareable images are unaffected by
+                // snapshots, skip them
                 AutoReadLock medlock(pHD COMMA_LOCKVAL_SRC_POS);
                 MediumType_T type = pHD->getType();
-                if (type == MediumType_Writethrough)
+                if (   type == MediumType_Writethrough
+                    || type == MediumType_Shareable)
                     continue;
             }
 
@@ -2754,8 +2760,10 @@ HRESULT SessionMachine::prepareDeleteSnapshotMedium(const ComObjPtr<Medium> &aHD
 
     AutoWriteLock alock(aHD COMMA_LOCKVAL_SRC_POS);
 
-    // Medium must not be writethrough at this point
-    AssertReturn(aHD->getType() != MediumType_Writethrough, E_FAIL);
+    // Medium must not be writethrough/shareable at this point
+    MediumType_T type = aHD->getType();
+    AssertReturn(   type != MediumType_Writethrough
+                 && type != MediumType_Shareable, E_FAIL);
 
     aMediumLockList = NULL;
     fNeedsOnlineMerge = false;

@@ -483,9 +483,11 @@ static int VBoxServiceControlExecProcLoop(PVBOXSERVICECTRLTHREAD pThread,
         rc = VbglR3GuestCtrlExecReportStatus(pThread->uClientID, pThread->uContextID,
                                              pData->uPID, uStatus, uFlags,
                                              NULL /* pvData */, 0 /* cbData */);
+        VBoxServiceVerbose(3, "ControlExec: Process loop ended with rc=%Rrc\n", rc);
     }
+    else
+        VBoxServiceError("ControlExec: Process loop failed with rc=%Rrc\n", rc);
     RTMemFree(StdInBuf.pch);
-    VBoxServiceVerbose(3, "ControlExec: Process loop ended with rc=%Rrc\n", rc);
     return rc;
 }
 
@@ -869,7 +871,7 @@ DECLCALLBACK(int) VBoxServiceControlExecProcessWorker(PVBOXSERVICECTRLTHREAD pTh
                                 /*
                                  * Tell the control thread that it can continue
                                  * spawning services. This needs to be done after the new
-                                 * process has been started because otherwise signal handling 
+                                 * process has been started because otherwise signal handling
                                  * on (Open) Solaris does not work correctly (see #5068).
                                  */
                                 int rc2 = RTThreadUserSignal(RTThreadSelf());
@@ -938,9 +940,9 @@ DECLCALLBACK(int) VBoxServiceControlExecProcessWorker(PVBOXSERVICECTRLTHREAD pTh
     VBoxServiceVerbose(3, "ControlExec: Thread of process \"%s\" (PID: %u) ended with rc=%Rrc\n",
                        pData->pszCmd, pData->uPID, rc);
 
-    /* 
+    /*
      * If something went wrong signal the user event so that others don't wait
-     * forever on this thread. 
+     * forever on this thread.
      */
     if (RT_FAILURE(rc) && !fSignalled)
         RTThreadUserSignal(RTThreadSelf());

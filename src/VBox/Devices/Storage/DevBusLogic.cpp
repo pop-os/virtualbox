@@ -275,9 +275,9 @@ typedef struct BUSLOGIC
     /** Pointer to the device instance - RC ptr. */
     PPDMDEVINSRC                    pDevInsRC;
 
-    /* Whether R0 is enabled. */
+    /** Whether R0 is enabled. */
     bool                            fR0Enabled;
-    /** Whether GC is enabled. */
+    /** Whether RC is enabled. */
     bool                            fGCEnabled;
 
     /** Base address of the I/O ports. */
@@ -361,9 +361,7 @@ typedef struct BUSLOGIC
     /** Queue to send tasks to R3. - RC ptr */
     RCPTRTYPE(PPDMQUEUE)            pNotifierQueueRC;
 
-#if HC_ARCH_BITS == 64
     uint32_t                        Alignment2;
-#endif
 
     /** Critical section protecting access to the interrupt status register. */
     PDMCRITSECT                     CritSectIntr;
@@ -379,19 +377,19 @@ typedef struct BUSLOGIC
 
     /** The base interface.
      * @todo use PDMDEVINS::IBase  */
-    PDMIBASE                       IBase;
+    PDMIBASE                        IBase;
     /** Status Port - Leds interface. */
-    PDMILEDPORTS                   ILeds;
+    PDMILEDPORTS                    ILeds;
     /** Partner of ILeds. */
-    R3PTRTYPE(PPDMILEDCONNECTORS)  pLedsConnector;
+    R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
 
 #if HC_ARCH_BITS == 64
-    uint32_t                       Alignment3;
+    uint32_t                        Alignment3;
 #endif
 
     /** Indicates that PDMDevHlpAsyncNotificationCompleted should be called when
      * a port is entering the idle state. */
-    bool volatile                  fSignalIdle;
+    bool volatile                   fSignalIdle;
 
 } BUSLOGIC, *PBUSLOGIC;
 
@@ -783,20 +781,22 @@ static void buslogicClearInterrupt(PBUSLOGIC pBusLogic)
 {
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
     pBusLogic->regInterrupt = 0;
-    PDMDevHlpPCISetIrqNoWait(pBusLogic->CTX_SUFF(pDevIns), 0, 0);
+    PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 0);
 }
 
 /**
  * Assert IRQ line of the BusLogic adapter.
  *
  * @returns nothing.
- * @param   pBusLogic  Pointer to the BusLogic device instance.
+ * @param   pBusLogic       Pointer to the BusLogic device instance.
+ * @param   fSuppressIrq    Flag to suppress IRQ generation regardless of fIRQEnabled
  */
-static void buslogicSetInterrupt(PBUSLOGIC pBusLogic)
+static void buslogicSetInterrupt(PBUSLOGIC pBusLogic, bool fSuppressIrq)
 {
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
     pBusLogic->regInterrupt |= BUSLOGIC_REGISTER_INTERRUPT_INTERRUPT_VALID;
-    PDMDevHlpPCISetIrqNoWait(pBusLogic->CTX_SUFF(pDevIns), 0, 1);
+    if (pBusLogic->fIRQEnabled && !fSuppressIrq)
+        PDMDevHlpPCISetIrq(pBusLogic->CTX_SUFF(pDevIns), 0, 1);
 }
 
 #if defined(IN_RING3)
@@ -840,7 +840,7 @@ static int buslogicHwReset(PBUSLOGIC pBusLogic)
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
 
     /* Reset registers to default value. */
-    pBusLogic->regStatus = BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY;
+    pBusLogic->regStatus = BUSLOGIC_REGISTER_STATUS_HOST_ADAPTER_READY | BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
     pBusLogic->regInterrupt = 0;
     pBusLogic->regGeometry = BUSLOGIC_REGISTER_GEOMETRY_EXTENTED_TRANSLATION_ENABLED;
     pBusLogic->uOperationCode = 0xff; /* No command executing. */
@@ -862,9 +862,10 @@ static int buslogicHwReset(PBUSLOGIC pBusLogic)
  * Resets the command state machine for the next command and notifies the guest.
  *
  * @returns nothing.
- * @param   pBusLogic   Pointer to the BusLogic device instance
+ * @param   pBusLogic       Pointer to the BusLogic device instance
+ * @param   fSuppressIrq    Flag to suppress IRQ generation regardless of current state
  */
-static void buslogicCommandComplete(PBUSLOGIC pBusLogic)
+static void buslogicCommandComplete(PBUSLOGIC pBusLogic, bool fSuppressIrq)
 {
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
 
@@ -873,15 +874,13 @@ static void buslogicCommandComplete(PBUSLOGIC pBusLogic)
     pBusLogic->iReply = 0;
 
     /* Modify I/O address does not generate an interrupt. */
-    if (   (pBusLogic->uOperationCode != BUSLOGICCOMMAND_MODIFY_IO_ADDRESS)
-        && (pBusLogic->uOperationCode != BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND))
+    if (pBusLogic->uOperationCode != BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND)
     {
         /* Notify that the command is complete. */
         pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_DATA_IN_REGISTER_READY;
         pBusLogic->regInterrupt |= BUSLOGIC_REGISTER_INTERRUPT_COMMAND_COMPLETE;
 
-        if (pBusLogic->fIRQEnabled)
-            buslogicSetInterrupt(pBusLogic);
+        buslogicSetInterrupt(pBusLogic, fSuppressIrq);
     }
 
     pBusLogic->uOperationCode = 0xff;
@@ -942,8 +941,7 @@ static void buslogicSendIncomingMailbox(PBUSLOGIC pBusLogic, PBUSLOGICTASKSTATE 
         pBusLogic->uMailboxIncomingPositionCurrent = 0;
 
     pBusLogic->regInterrupt |= BUSLOGIC_REGISTER_INTERRUPT_INCOMING_MAILBOX_LOADED;
-    if (pBusLogic->fIRQEnabled)
-        buslogicSetInterrupt(pBusLogic);
+    buslogicSetInterrupt(pBusLogic, false);
 
     PDMCritSectLeave(&pBusLogic->CritSectIntr);
 }
@@ -1266,6 +1264,7 @@ static int buslogicSenseBufferAlloc(PBUSLOGICTASKSTATE pTaskState)
 static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
 {
     int rc = VINF_SUCCESS;
+    bool fSuppressIrq = false;
 
     LogFlowFunc(("pBusLogic=%#p\n", pBusLogic));
     AssertMsg(pBusLogic->uOperationCode != 0xff, ("There is no command to execute\n"));
@@ -1291,12 +1290,17 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
                 Log(("Disabling ISA I/O ports.\n"));
                 pBusLogic->fISAEnabled = false;
             }
+            fSuppressIrq = true;
             break;
         }
         case BUSLOGICCOMMAND_INQUIRE_BOARD_ID:
         {
-            pBusLogic->aReplyBuffer[0] = '0'; /* @todo figure out what to write here. */
-            pBusLogic->aReplyBuffer[1] = '0'; /* @todo figure out what to write here. */
+            /* The special option byte is important: If it is '0' or 'B', Windows NT drivers
+             * for Adaptec AHA-154x may claim the adapter. The BusLogic drivers will claim
+             * the adapter only when the byte is *not* '0' or 'B'.
+             */
+            pBusLogic->aReplyBuffer[0] = 'A'; /* Firmware option bytes */
+            pBusLogic->aReplyBuffer[1] = 'A'; /* Special option byte */
 
             /* We report version 5.07B. This reply will provide the first two digits. */
             pBusLogic->aReplyBuffer[2] = '5'; /* Major version 5 */
@@ -1320,11 +1324,11 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
         {
             /* The reply length is set by the guest and is found in the first byte of the command buffer. */
             pBusLogic->cbReplyParametersLeft = pBusLogic->aCommandBuffer[0];
-            memset(pBusLogic->aReplyBuffer, 0, pBusLogic->cbReplyParametersLeft);
+            memset(pBusLogic->aReplyBuffer, ' ', pBusLogic->cbReplyParametersLeft);
             const char aModelName[] = "958";
-            int cCharsToTransfer =   (pBusLogic->cbReplyParametersLeft <= sizeof(aModelName))
+            int cCharsToTransfer =   (pBusLogic->cbReplyParametersLeft <= (sizeof(aModelName) - 1))
                                    ? pBusLogic->cbReplyParametersLeft
-                                   : sizeof(aModelName);
+                                   : sizeof(aModelName) - 1;
 
             for (int i = 0; i < cCharsToTransfer; i++)
                 pBusLogic->aReplyBuffer[i] = aModelName[i];
@@ -1351,10 +1355,13 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             PReplyInquireExtendedSetupInformation pReply = (PReplyInquireExtendedSetupInformation)pBusLogic->aReplyBuffer;
             memset(pReply, 0, sizeof(ReplyInquireExtendedSetupInformation));
 
+            //@todo: should this reflect the RAM contents (AutoSCSIRam)?
+            pReply->uBusType = 'E';         /* EISA style */
+            pReply->u16ScatterGatherLimit = 8192;
+            pReply->fLevelSensitiveInterrupt = true;
             pReply->fHostWideSCSI = true;
             pReply->fHostUltraSCSI = true;
-            pReply->u16ScatterGatherLimit = 8192;
-            pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
+            memcpy(pReply->aFirmwareRevision, "07B", sizeof(pReply->aFirmwareRevision));
 
             break;
         }
@@ -1392,6 +1399,7 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             Log(("GCPhysAddrMailboxOutgoingBase=%RGp\n", pBusLogic->GCPhysAddrMailboxIncomingBase));
             Log(("cMailboxes=%u\n", pBusLogic->cMailbox));
 
+            pBusLogic->regStatus &= ~BUSLOGIC_REGISTER_STATUS_INITIALIZATION_REQUIRED;
             pBusLogic->cbReplyParametersLeft = 0;
             break;
         }
@@ -1449,6 +1457,28 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
                 pBusLogic->fIRQEnabled = false;
             else
                 pBusLogic->fIRQEnabled = true;
+            /* No interrupt signaled regardless of enable/disable. */
+            fSuppressIrq = true;
+            break;
+        }
+        case BUSLOGICCOMMAND_ECHO_COMMAND_DATA:
+        {
+            pBusLogic->aReplyBuffer[0] = pBusLogic->aCommandBuffer[0];
+            pBusLogic->cbReplyParametersLeft = 1;
+            break;
+        }
+        case BUSLOGICCOMMAND_SET_PREEMPT_TIME_ON_BUS:
+        {
+            pBusLogic->cbReplyParametersLeft = 0;
+            pBusLogic->LocalRam.structured.autoSCSIData.uBusOnDelay = pBusLogic->aCommandBuffer[0];
+            Log(("Bus-on time: %d\n", pBusLogic->aCommandBuffer[0]));
+            break;
+        }
+        case BUSLOGICCOMMAND_SET_TIME_OFF_BUS:
+        {
+            pBusLogic->cbReplyParametersLeft = 0;
+            pBusLogic->LocalRam.structured.autoSCSIData.uBusOffDelay = pBusLogic->aCommandBuffer[0];
+            Log(("Bus-off time: %d\n", pBusLogic->aCommandBuffer[0]));
             break;
         }
         case BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND: /* Should be handled already. */
@@ -1456,13 +1486,13 @@ static int buslogicProcessCommand(PBUSLOGIC pBusLogic)
             AssertMsgFailed(("Invalid command %#x\n", pBusLogic->uOperationCode));
     }
 
-    Log(("cbReplyParametersLeft=%d\n", pBusLogic->cbReplyParametersLeft));
+    Log(("uOperationCode=%#x, cbReplyParametersLeft=%d\n", pBusLogic->uOperationCode, pBusLogic->cbReplyParametersLeft));
 
     /* Set the data in ready bit in the status register in case the command has a reply. */
     if (pBusLogic->cbReplyParametersLeft)
         pBusLogic->regStatus |= BUSLOGIC_REGISTER_STATUS_DATA_IN_REGISTER_READY;
     else
-        buslogicCommandComplete(pBusLogic);
+        buslogicCommandComplete(pBusLogic, fSuppressIrq);
 
     return rc;
 }
@@ -1505,13 +1535,14 @@ static int buslogicRegisterRead(PBUSLOGIC pBusLogic, unsigned iRegister, uint32_
             pBusLogic->iReply++;
             pBusLogic->cbReplyParametersLeft--;
 
+            LogFlowFunc(("cbReplyParametersLeft=%u\n", pBusLogic->cbReplyParametersLeft));
             if (!pBusLogic->cbReplyParametersLeft)
             {
                 /*
                  * Reply finished, set command complete bit, unset data in ready bit and
                  * interrupt the guest if enabled.
                  */
-                buslogicCommandComplete(pBusLogic);
+                buslogicCommandComplete(pBusLogic, false);
             }
             break;
         }
@@ -1619,6 +1650,9 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
                     case BUSLOGICCOMMAND_SET_CCB_FORMAT:
                     case BUSLOGICCOMMAND_INQUIRE_SYNCHRONOUS_PERIOD:
                     case BUSLOGICCOMMAND_DISABLE_HOST_ADAPTER_INTERRUPT:
+                    case BUSLOGICCOMMAND_ECHO_COMMAND_DATA:
+                    case BUSLOGICCOMMAND_SET_PREEMPT_TIME_ON_BUS:
+                    case BUSLOGICCOMMAND_SET_TIME_OFF_BUS:
                         pBusLogic->cbCommandParametersLeft = 1;
                         break;
                     case BUSLOGICCOMMAND_FETCH_HOST_ADAPTER_LOCAL_RAM:
@@ -1771,7 +1805,7 @@ static int  buslogicIsaIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
     Assert(cb == 1);
 
     if (!pBusLogic->fISAEnabled)
-        return VERR_IOM_IOPORT_UNUSED;
+        return VINF_SUCCESS;
 
     rc = vboxscsiReadRegister(&pBusLogic->VBoxSCSI, (Port - BUSLOGIC_ISA_IO_PORT), pu32);
 
@@ -1855,7 +1889,7 @@ static int buslogicIsaIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
     Assert(cb == 1);
 
     if (!pBusLogic->fISAEnabled)
-        return VERR_IOM_IOPORT_UNUSED;
+        return VINF_SUCCESS;
 
     rc = vboxscsiWriteRegister(&pBusLogic->VBoxSCSI, (Port - BUSLOGIC_ISA_IO_PORT), (uint8_t)u32);
     if (rc == VERR_MORE_DATA)

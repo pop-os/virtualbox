@@ -23,8 +23,10 @@ void WebLog(const char *pszFormat, ...);
 
 #define WEBDEBUG(a) if (g_fVerbose) { WebLog a; }
 
+#ifdef DEBUG
 #define LOG_GROUP LOG_GROUP_WEBSERVICE
 #include <VBox/log.h>
+#endif
 
 #include <VBox/com/VirtualBox.h>
 #include <VBox/com/Guid.h>
@@ -47,9 +49,8 @@ extern bool g_fVerbose;
 
 extern PRTSTREAM g_pstrLog;
 
-extern util::RWLockHandle  *g_pAuthLibLockHandle;
-
-extern util::RWLockHandle  *g_pSessionsLockHandle;
+extern util::WriteLockHandle  *g_pAuthLibLockHandle;
+extern util::WriteLockHandle  *g_pSessionsLockHandle;
 
 /****************************************************************************
  *
@@ -223,9 +224,8 @@ int findComPtrFromId(struct soap *soap,
                      ComPtr<T> &pComPtr,
                      bool fNullAllowed)
 {
-    // we're only reading the MOR maps, not modifying them, so a readlock is good enough
-    // (allow concurrency, this code gets called from everywhere in methodmaps.cpp)
-    util::AutoReadLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
+    // findRefFromId requires thelock
+    util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
     int rc;
     ManagedObjectRef *pRef;
@@ -269,11 +269,10 @@ WSDLT_ID createOrFindRefFromComPtr(const WSDLT_ID &idParent,
     // NULL comptr should return NULL MOR
     if (pc.isNull())
     {
-        WEBDEBUG(("   createOrFindRefFromComPtr(): returning empty MOR for NULL COM pointer\n"));
+        WEBDEBUG(("   createOrFindRefFromComPtr(): returning empty MOR for NULL %s pointer\n", pcszInterface));
         return "";
     }
 
-    // we might be modifying the MOR maps below, so request write lock now
     util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
     WebServiceSession *pSession;
     if ((pSession = WebServiceSession::findSessionFromRef(idParent)))

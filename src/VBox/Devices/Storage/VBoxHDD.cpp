@@ -571,8 +571,9 @@ static int vdReadHelper(PVBOXHDD pDisk, PVDIMAGE pImage, PVDIMAGE pImageParentOv
         /* No image in the chain contains the data for the block. */
         if (rc == VERR_VD_BLOCK_FREE)
         {
-            /* Fill the free space with 0 if we are told to do so. */
-            if (fHandleFreeBlocks)
+            /* Fill the free space with 0 if we are told to do so
+             * or a previous read returned valid data. */
+            if (fHandleFreeBlocks || !fAllFree)
                 memset(pvBuf, '\0', cbThisRead);
             else
                 cbBufClear += cbThisRead;
@@ -1500,6 +1501,7 @@ static int vdWriteHelperAsync(PVDIOCTX pIoCtx)
 
                 /* Set the state to growing. */
                 LogFlowFunc(("Disk is growing because of pIoCtx=%#p pIoCtxWrite=%#p\n",
+
                              pIoCtx, pIoCtxWrite));
                 ASMAtomicWriteBool(&pDisk->fGrowing, true);
 
@@ -1700,9 +1702,16 @@ static int vdAsyncIOOpen(void *pvUser, const char *pszLocation, unsigned uOpenFl
     uint32_t fOpen = 0;
 
     if (uOpenFlags & VD_INTERFACEASYNCIO_OPEN_FLAGS_READONLY)
-        fOpen |= RTFILE_O_READ      | RTFILE_O_DENY_NONE;
+        fOpen |= RTFILE_O_READ | RTFILE_O_DENY_NONE;
     else
-        fOpen |= RTFILE_O_READWRITE | RTFILE_O_DENY_WRITE;
+    {
+        fOpen |= RTFILE_O_READWRITE;
+
+        if (uOpenFlags & VD_INTERFACEASYNCIO_OPEN_FLAGS_DONT_LOCK)
+            fOpen |= RTFILE_O_DENY_NONE;
+        else
+            fOpen |= RTFILE_O_DENY_WRITE;
+    }
 
     if (uOpenFlags & VD_INTERFACEASYNCIO_OPEN_FLAGS_CREATE)
         fOpen |= RTFILE_O_CREATE;
@@ -2916,6 +2925,16 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
                     uImageFlags |= VD_IMAGE_FLAGS_DIFF;
             }
         }
+
+        /* Ensure we always get correct diff information, even if the backend
+         * doesn't actually have a stored flag for this. It must not return
+         * bogus information for the parent UUID if it is not a diff image. */
+        RTUUID parentUuid;
+        RTUuidClear(&parentUuid);
+        rc2 = pImage->Backend->pfnGetParentUuid(pImage->pvBackendData, &parentUuid);
+        if (RT_SUCCESS(rc2) && !RTUuidIsNull(&parentUuid))
+            uImageFlags |= VD_IMAGE_FLAGS_DIFF;
+
         pImage->uImageFlags = uImageFlags;
 
         /* Force sane optimization settings. It's not worth avoiding writes
@@ -5299,7 +5318,7 @@ VBOXDDU_DECL(int) VDGetImageFlags(PVBOXHDD pDisk, unsigned nImage,
         PVDIMAGE pImage = vdGetImageByNumber(pDisk, nImage);
         AssertPtrBreakStmt(pImage, rc = VERR_VD_IMAGE_NOT_FOUND);
 
-        *puImageFlags = pImage->Backend->pfnGetImageFlags(pImage->pvBackendData);
+        *puImageFlags = pImage->uImageFlags;
     } while (0);
 
     if (RT_UNLIKELY(fLockRead))
