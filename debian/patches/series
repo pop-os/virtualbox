@@ -8,4 +8,3 @@
 18-system-xorg.patch
 22-no-static-libstdcpp.patch
 23-remove-invalid-chars-check.patch
-24-dsdt.patch
