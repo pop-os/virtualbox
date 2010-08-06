@@ -37,6 +37,7 @@
 #include <iprt/string.h>
 #include <iprt/ldr.h>
 #include <iprt/semaphore.h>
+#include <iprt/time.h>
 
 // workaround for compile problems on gcc 4.1
 #ifdef __GNUC__
@@ -99,6 +100,7 @@ const char              *g_pcszBindToHost = NULL;       // host; NULL = current 
 unsigned int            g_uBindToPort = 18083;          // port
 unsigned int            g_uBacklog = 100;               // backlog = max queue size for requests
 unsigned int            g_cMaxWorkerThreads = 100;      // max. no. of worker threads
+unsigned int            g_cMaxKeepAlive = 100;          // maximum number of soap requests in one connection
 
 bool                    g_fVerbose = false;             // be verbose
 PRTSTREAM               g_pstrLog = NULL;
@@ -118,14 +120,20 @@ class SoapQ;
 SoapQ               *g_pSoapQ = NULL;
 
 // this mutex protects the auth lib and authentication
-util::RWLockHandle  *g_pAuthLibLockHandle;
+util::WriteLockHandle  *g_pAuthLibLockHandle;
 
 // this mutex protects all of the below
-util::RWLockHandle  *g_pSessionsLockHandle;
+util::WriteLockHandle  *g_pSessionsLockHandle;
 
 SessionsMap         g_mapSessions;
 ULONG64             g_iMaxManagedObjectID = 0;
 ULONG64             g_cManagedObjects = 0;
+
+// this mutex protects g_mapThreads
+util::RWLockHandle  *g_pThreadsLockHandle;
+
+// this mutex synchronizes logging
+util::WriteLockHandle *g_pWebLogLockHandle;
 
 // Threads map, so we can quickly map an RTTHREAD struct to a logger prefix
 typedef std::map<RTTHREAD, com::Utf8Str> ThreadsMap;
@@ -148,6 +156,7 @@ static const RTGETOPTDEF g_aOptions[]
         { "--timeout",          't', RTGETOPT_REQ_UINT32 },
         { "--check-interval",   'i', RTGETOPT_REQ_UINT32 },
         { "--threads",          'T', RTGETOPT_REQ_UINT32 },
+        { "--keepalive",        'k', RTGETOPT_REQ_UINT32 },
         { "--verbose",          'v', RTGETOPT_REQ_NOTHING },
         { "--logfile",          'F', RTGETOPT_REQ_STRING },
     };
@@ -170,41 +179,45 @@ void DisplayHelp()
         {
             case 'h':
                 pcszDescr = "Print this help message and exit.";
-            break;
+                break;
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
             case 'b':
                 pcszDescr = "Run in background (daemon mode).";
-            break;
+                break;
 #endif
 
             case 'H':
                 pcszDescr = "The host to bind to (localhost).";
-            break;
+                break;
 
             case 'p':
                 pcszDescr = "The port to bind to (18083).";
-            break;
+                break;
 
             case 't':
                 pcszDescr = "Session timeout in seconds; 0 = disable timeouts (" DEFAULT_TIMEOUT_SECS_STRING ").";
-            break;
+                break;
 
             case 'T':
                 pcszDescr = "Maximum number of worker threads to run in parallel (100).";
-            break;
+                break;
+                
+            case 'k':
+                pcszDescr = "Maximum number of requests before a socket will be closed (100).";
+                break;
 
             case 'i':
                 pcszDescr = "Frequency of timeout checks in seconds (5).";
-            break;
+                break;
 
             case 'v':
                 pcszDescr = "Be verbose.";
-            break;
+                break;
 
             case 'F':
                 pcszDescr = "Name of file to write log to (no file).";
-            break;
+                break;
         }
 
         RTStrmPrintf(g_pStdErr, "%-23s%s\n", str.c_str(), pcszDescr);
@@ -232,10 +245,22 @@ public:
                SoapQ &q,
                const struct soap *soap)
         : m_u(u),
+          m_strThread(com::Utf8StrFmt("SoapQWrk%02d", m_u)),
           m_pQ(&q)
     {
         // make a copy of the soap struct for the new thread
         m_soap = soap_copy(soap);
+
+        /* The soap.max_keep_alive value can be set to the maximum keep-alive calls allowed,
+         * which is important to avoid a client from holding a thread indefinitely.
+         * http://www.cs.fsu.edu/~engelen/soapdoc2.html#sec:keepalive
+         *
+         * Strings with 8-bit content can hold ASCII (default) or UTF8. The latter is
+         * possible by enabling the SOAP_C_UTFSTRING flag.
+         */
+        soap_set_omode(m_soap, SOAP_IO_KEEPALIVE | SOAP_C_UTFSTRING);
+        soap_set_imode(m_soap, SOAP_IO_KEEPALIVE | SOAP_C_UTFSTRING);
+        m_soap->max_keep_alive = g_cMaxKeepAlive;
 
         if (!RT_SUCCESS(RTThreadCreate(&m_pThread,
                                        fntWrapper,
@@ -243,7 +268,7 @@ public:
                                        0,               // cbStack,
                                        RTTHREADTYPE_MAIN_HEAVY_WORKER,
                                        0,
-                                       "SoapQWorker")))
+                                       m_strThread.c_str())))
         {
             RTStrmPrintf(g_pStdErr, "[!] Cannot start worker thread %d\n", u);
             exit(1);
@@ -266,10 +291,11 @@ public:
         return 0;
     }
 
-    size_t      m_u;            // thread number
-    SoapQ       *m_pQ;          // the single SOAP queue that all the threads service
-    struct soap *m_soap;        // copy of the soap structure for this thread (from soap_copy())
-    RTTHREAD    m_pThread;      // IPRT thread struct for this thread
+    size_t          m_u;            // thread number
+    com::Utf8Str    m_strThread;    // thread name ("SoapQWrkXX")
+    SoapQ           *m_pQ;          // the single SOAP queue that all the threads service
+    struct soap     *m_soap;        // copy of the soap structure for this thread (from soap_copy())
+    RTTHREAD        m_pThread;      // IPRT thread struct for this thread
 };
 
 /**
@@ -287,7 +313,7 @@ public:
      */
     SoapQ(const struct soap *pSoap)
         : m_soap(pSoap),
-          m_mutex(util::LOCKCLASS_OBJECTSTATE),
+          m_mutex(util::LOCKCLASS_OBJECTSTATE),     // lowest lock order, no other may be held while this is held
           m_cIdleThreads(0)
     {
         RTSemEventMultiCreate(&m_event);
@@ -321,6 +347,7 @@ public:
                                              *this,
                                              m_soap);
             m_llAllThreads.push_back(pst);
+            util::AutoWriteLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
             g_mapThreads[pst->m_pThread] = com::Utf8StrFmt("[%3u]", pst->m_u);
             ++m_cIdleThreads;
         }
@@ -450,22 +477,40 @@ void WebLog(const char *pszFormat, ...)
     va_end(args);
 
     const char *pcszPrefix = "[   ]";
+    util::AutoReadLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
     ThreadsMap::iterator it = g_mapThreads.find(RTThreadSelf());
     if (it != g_mapThreads.end())
         pcszPrefix = it->second.c_str();
+    thrLock.release();
 
+    // make a timestamp
+    RTTIMESPEC ts;
+    RTTimeLocalNow(&ts);
+    RTTIME t;
+    RTTimeExplode(&t, &ts);
+
+    com::Utf8StrFmt strPrefix("%04d-%02d-%02d %02d:%02d:%02d %s",
+                              t.i32Year, t.u8Month, t.u8MonthDay,
+                              t.u8Hour, t.u8Minute, t.u8Second,
+                              pcszPrefix);
+
+    // synchronize the actual output
+    util::AutoWriteLock logLock(g_pWebLogLockHandle COMMA_LOCKVAL_SRC_POS);
     // terminal
-    RTPrintf("%s %s", pcszPrefix, psz);
+    RTPrintf("%s %s", strPrefix.c_str(), psz);
 
     // log file
     if (g_pstrLog)
     {
-        RTStrmPrintf(g_pstrLog, "%s %s", pcszPrefix, psz);
+        RTStrmPrintf(g_pstrLog, "%s %s", strPrefix.c_str(), psz);
         RTStrmFlush(g_pstrLog);
     }
 
+#ifdef DEBUG
     // logger instance
     RTLogLoggerEx(LOG_INSTANCE, RTLOGGRPFLAGS_DJ, LOG_GROUP, "%s %s", pcszPrefix, psz);
+#endif
+    logLock.release();
 
     RTStrFree(psz);
 }
@@ -550,7 +595,9 @@ void doQueuesLoop()
 int fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
 {
     // store a log prefix for this thread
+    util::AutoWriteLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
     g_mapThreads[RTThreadSelf()] = "[ P ]";
+    thrLock.release();
 
     doQueuesLoop();
 
@@ -591,19 +638,19 @@ int main(int argc, char* argv[])
         {
             case 'H':
                 g_pcszBindToHost = ValueUnion.psz;
-            break;
+                break;
 
             case 'p':
                 g_uBindToPort = ValueUnion.u32;
-            break;
+                break;
 
             case 't':
                 g_iWatchdogTimeoutSecs = ValueUnion.u32;
-            break;
+                break;
 
             case 'i':
                 g_iWatchdogCheckInterval = ValueUnion.u32;
-            break;
+                break;
 
             case 'F':
             {
@@ -616,33 +663,37 @@ int main(int argc, char* argv[])
 
                 WebLog("Sun VirtualBox Webservice Version %s\n"
                        "Opened log file \"%s\"\n", VBOX_VERSION_STRING, ValueUnion.psz);
+                break;
             }
-            break;
 
             case 'T':
                 g_cMaxWorkerThreads = ValueUnion.u32;
-            break;
+                break;
+
+            case 'k':
+                g_cMaxKeepAlive = ValueUnion.u32;
+                break;
 
             case 'h':
                 DisplayHelp();
-            return 0;
+                return 0;
 
             case 'v':
                 g_fVerbose = true;
-            break;
+                break;
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
             case 'b':
                 g_fDaemonize = true;
-            break;
+                break;
 #endif
             case 'V':
                 RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
-            return 0;
+                return 0;
 
             default:
                 rc = RTGetOptPrintError(c, &ValueUnion);
-            return rc;
+                return rc;
         }
     }
 
@@ -692,8 +743,10 @@ int main(int argc, char* argv[])
     }
 
     // create the global mutexes
-    g_pAuthLibLockHandle = new util::RWLockHandle(util::LOCKCLASS_OBJECTSTATE);
-    g_pSessionsLockHandle = new util::RWLockHandle(util::LOCKCLASS_OBJECTSTATE);
+    g_pAuthLibLockHandle = new util::WriteLockHandle(util::LOCKCLASS_WEBSERVICE);
+    g_pSessionsLockHandle = new util::WriteLockHandle(util::LOCKCLASS_WEBSERVICE);
+    g_pThreadsLockHandle = new util::RWLockHandle(util::LOCKCLASS_OBJECTSTATE);
+    g_pWebLogLockHandle = new util::WriteLockHandle(util::LOCKCLASS_WEBSERVICE);
 
     // SOAP queue pumper thread
     RTTHREAD  tQPumper;
@@ -733,7 +786,7 @@ int main(int argc, char* argv[])
         // we have to process main event queue
         WEBDEBUG(("Pumping COM event queue\n"));
         int vrc = pQ->processEventQueue(RT_INDEFINITE_WAIT);
-        if (FAILED(vrc))
+        if (FAILED(vrc) && (vrc != VERR_TIMEOUT))
             com::GluePrintRCMessage(vrc);
     }
 
@@ -758,7 +811,9 @@ int main(int argc, char* argv[])
 int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
 {
     // store a log prefix for this thread
+    util::AutoWriteLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
     g_mapThreads[RTThreadSelf()] = "[W  ]";
+    thrLock.release();
 
     WEBDEBUG(("Watchdog thread started\n"));
 
@@ -770,8 +825,7 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser)
         time_t                      tNow;
         time(&tNow);
 
-        // lock the sessions while we're iterating; this blocks
-        // out the COM code from messing with it
+        // we're messing with sessions, so lock them
         util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
         WEBDEBUG(("Watchdog: checking %d sessions\n", g_mapSessions.size()));
 
@@ -923,7 +977,7 @@ void RaiseSoapRuntimeFault(struct soap *soap,
     ex->interfaceID = ConvertComString(info.getInterfaceID());
 
     // compose descriptive message
-    com::Utf8StrFmt str("VirtualBox error: %s (0x%RU32)", ex->text.c_str(), ex->resultCode);
+    com::Utf8StrFmt str("VirtualBox error: %s (0x%lX)", ex->text.c_str(), ex->resultCode);
 
     RaiseSoapFault(soap,
                    str.c_str(),
@@ -1012,7 +1066,7 @@ class WebServiceSessionPrivate
 /**
  * Constructor for the session object.
  *
- * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle.
  *
  * @param username
  * @param password
@@ -1033,7 +1087,7 @@ WebServiceSession::WebServiceSession()
 /**
  * Destructor. Cleans up and destroys all contained managed object references on the way.
  *
- * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle.
  */
 WebServiceSession::~WebServiceSession()
 {
@@ -1188,14 +1242,14 @@ int WebServiceSession::authenticate(const char *pcszUsername,
  *  ComPtr<IVirtualBox>, for example. As we store the ComPtr<IUnknown> in
  *  our private hash table, we must search for one too.
  *
- * Preconditions: Caller must have locked g_pSessionsLockHandle in read mode.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle.
  *
  * @param pcu pointer to a COM object.
  * @return The existing ManagedObjectRef that represents the COM object, or NULL if there's none yet.
  */
 ManagedObjectRef* WebServiceSession::findRefFromPtr(const ComPtr<IUnknown> &pcu)
 {
-    // Assert(g_pSessionsLockHandle->isReadLockOnCurrentThread());      // @todo
+    Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
 
     IUnknown *p = pcu;
     uintptr_t ulp = (uintptr_t)p;
@@ -1206,7 +1260,7 @@ ManagedObjectRef* WebServiceSession::findRefFromPtr(const ComPtr<IUnknown> &pcu)
     {
         pRef = it->second;
         WSDLT_ID id = pRef->toWSDL();
-        WEBDEBUG(("   %s: found existing ref %s for COM obj 0x%lX\n", __FUNCTION__, id.c_str(), ulp));
+        WEBDEBUG(("   %s: found existing ref %s (%s) for COM obj 0x%lX\n", __FUNCTION__, id.c_str(), pRef->getInterfaceName(), ulp));
     }
     else
         pRef = NULL;
@@ -1225,7 +1279,7 @@ ManagedObjectRef* WebServiceSession::findRefFromPtr(const ComPtr<IUnknown> &pcu)
  */
 WebServiceSession* WebServiceSession::findSessionFromRef(const WSDLT_ID &id)
 {
-    // Assert(g_pSessionsLockHandle->isReadLockOnCurrentThread()); // @todo
+    Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
 
     WebServiceSession *pSession = NULL;
     uint64_t sessid;
@@ -1310,7 +1364,7 @@ void WebServiceSession::DumpRefs()
  *  createRefFromObject() template function in vboxweb.h, which
  *  does perform that check.
  *
- * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle.
  *
  * @param pObj
  */
@@ -1345,7 +1399,7 @@ ManagedObjectRef::ManagedObjectRef(WebServiceSession &session,
  * Destructor; removes the instance from the global hash of
  * managed objects.
  *
- * Preconditions: Caller must have locked g_pSessionsLockHandle in write mode.
+ * Preconditions: Caller must have locked g_pSessionsLockHandle.
  */
 ManagedObjectRef::~ManagedObjectRef()
 {
@@ -1471,10 +1525,12 @@ int __vbox__IManagedObjectRef_USCOREgetInterfaceName(
     _vbox__IManagedObjectRef_USCOREgetInterfaceNameResponse *resp)
 {
     HRESULT rc = SOAP_OK;
-    WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
+    WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do {
-        util::AutoReadLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
+    do
+    {
+        // findRefFromId require the lock
+        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         ManagedObjectRef *pRef;
         if (!ManagedObjectRef::findRefFromId(req->_USCOREthis, &pRef, false))
@@ -1504,11 +1560,11 @@ int __vbox__IManagedObjectRef_USCORErelease(
     _vbox__IManagedObjectRef_USCOREreleaseResponse *resp)
 {
     HRESULT rc = SOAP_OK;
-    WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
+    WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do {
-        // findRefFromId needs read lock, and the delete call below requires
-        // the write lock, so get the write lock here
+    do
+    {
+        // findRefFromId and the delete call below require the lock
         util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         ManagedObjectRef *pRef;
@@ -1519,11 +1575,11 @@ int __vbox__IManagedObjectRef_USCORErelease(
         }
 
         WEBDEBUG(("   found reference; deleting!\n"));
+        // this removes the object from all stacks; since
+        // there's a ComPtr<> hidden inside the reference,
+        // this should also invoke Release() on the COM
+        // object
         delete pRef;
-            // this removes the object from all stacks; since
-            // there's a ComPtr<> hidden inside the reference,
-            // this should also invoke Release() on the COM
-            // object
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
@@ -1575,9 +1631,10 @@ int __vbox__IWebsessionManager_USCORElogon(
         _vbox__IWebsessionManager_USCORElogonResponse *resp)
 {
     HRESULT rc = SOAP_OK;
-    WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
+    WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do {
+    do 
+    {
         // WebServiceSession constructor tinkers with global MOR map and requires a write lock
         util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
@@ -1615,17 +1672,17 @@ int __vbox__IWebsessionManager_USCOREgetSessionObject(
         _vbox__IWebsessionManager_USCOREgetSessionObjectResponse *resp)
 {
     HRESULT rc = SOAP_OK;
-    WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
+    WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do {
-        // findSessionFromRef needs read lock
-        util::AutoReadLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
+    do
+    {
+        // findSessionFromRef needs lock
+        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         WebServiceSession* pSession;
         if ((pSession = WebServiceSession::findSessionFromRef(req->refIVirtualBox)))
-        {
             resp->returnval = pSession->getSessionObject();
-        }
+
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
@@ -1648,11 +1705,11 @@ int __vbox__IWebsessionManager_USCORElogoff(
         _vbox__IWebsessionManager_USCORElogoffResponse *resp)
 {
     HRESULT rc = SOAP_OK;
-    WEBDEBUG(("\n-- entering %s\n", __FUNCTION__));
+    WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do {
-        // findSessionFromRef needs read lock, and the session destructor requires
-        // the write lock, so get the write lock here
+    do
+    {
+        // findSessionFromRef and the session destructor require the lock
         util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         WebServiceSession* pSession;

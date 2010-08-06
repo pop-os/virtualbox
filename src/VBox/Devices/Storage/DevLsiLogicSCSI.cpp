@@ -29,6 +29,7 @@
 # include <iprt/mem.h>
 # include <iprt/param.h>
 # include <iprt/uuid.h>
+# include <iprt/time.h>
 #endif
 
 #include "DevLsiLogicSCSI.h"
@@ -43,6 +44,9 @@
 /** The saved state version used by VirtualBox 3.0 and earlier.  It does not
  * include the device config part. */
 #define LSILOGIC_SAVED_STATE_VERSION_VBOX_30  1
+
+/** Maximum number of entries in the release log. */
+#define MAX_REL_LOG_ERRORS 1024
 
 /**
  * Reply data.
@@ -952,9 +956,19 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv
         }
         case LSILOGIC_REG_REQUEST_QUEUE:
         {
-            ASMAtomicWriteU32(&pThis->CTX_SUFF(pRequestQueueBase)[pThis->uRequestQueueNextEntryFreeWrite], u32);
-            pThis->uRequestQueueNextEntryFreeWrite++;
-            pThis->uRequestQueueNextEntryFreeWrite %= pThis->cRequestQueueEntries;
+            uint32_t uNextWrite = ASMAtomicReadU32(&pThis->uRequestQueueNextEntryFreeWrite);
+
+            ASMAtomicWriteU32(&pThis->CTX_SUFF(pRequestQueueBase)[uNextWrite], u32);
+
+            /*
+             * Don't update the value in place. It can happen that we get preempted
+             * after the increment but before the modulo.
+             * Another EMT will read the wrong value when processing the queues
+             * and hang in an endless loop creating thousands of requests.
+             */
+            uNextWrite++;
+            uNextWrite %= pThis->cRequestQueueEntries;
+            ASMAtomicWriteU32(&pThis->uRequestQueueNextEntryFreeWrite, uNextWrite);
 
             /* Send notification to R3 if there is not one send already. */
             if (!ASMAtomicXchgBool(&pThis->fNotificationSend, true))
@@ -1896,23 +1910,6 @@ static int lsilogicProcessSCSIIORequest(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKST
 
     pTaskState->fBIOS = false;
 
-    uint32_t uChainOffset = pTaskState->GuestRequest.SCSIIO.u8ChainOffset;
-
-    if (uChainOffset)
-        uChainOffset = uChainOffset * sizeof(uint32_t) - sizeof(MptSCSIIORequest);
-
-    /* Create Scatter gather list. */
-    rc = lsilogicScatterGatherListCreate(pLsiLogic, pTaskState,
-                                         pTaskState->GCPhysMessageFrameAddr + sizeof(MptSCSIIORequest),
-                                         uChainOffset);
-    AssertRC(rc);
-
-#if 0
-    /* Map sense buffer. */
-    rc = lsilogicMapGCSenseBufferIntoR3(pLsiLogic, pTaskState);
-    AssertRC(rc);
-#endif
-
     if (RT_LIKELY(   (pTaskState->GuestRequest.SCSIIO.u8TargetID < pLsiLogic->cDeviceStates)
                   && (pTaskState->GuestRequest.SCSIIO.u8Bus == 0)))
     {
@@ -1921,6 +1918,25 @@ static int lsilogicProcessSCSIIORequest(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKST
 
         if (pTargetDevice->pDrvBase)
         {
+            uint32_t uChainOffset;
+
+            /* Create Scatter gather list. */
+            uChainOffset = pTaskState->GuestRequest.SCSIIO.u8ChainOffset;
+
+            if (uChainOffset)
+                uChainOffset = uChainOffset * sizeof(uint32_t) - sizeof(MptSCSIIORequest);
+
+            rc = lsilogicScatterGatherListCreate(pLsiLogic, pTaskState,
+                                                 pTaskState->GCPhysMessageFrameAddr + sizeof(MptSCSIIORequest),
+                                                 uChainOffset);
+            AssertRC(rc);
+
+#if 0
+            /* Map sense buffer. */
+            rc = lsilogicMapGCSenseBufferIntoR3(pLsiLogic, pTaskState);
+            AssertRC(rc);
+#endif
+
             /* Setup the SCSI request. */
             pTaskState->pTargetDevice                        = pTargetDevice;
             pTaskState->PDMScsiRequest.uLogicalUnit          = pTaskState->GuestRequest.SCSIIO.au8LUN[1];
@@ -1962,6 +1978,20 @@ static int lsilogicProcessSCSIIORequest(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKST
             pTaskState->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_BUS;
         else
             pTaskState->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_TARGETID;
+    }
+
+    static int g_cLogged = 0;
+
+    if (g_cLogged++ < MAX_REL_LOG_ERRORS)
+    {
+        LogRel(("LsiLogic#%d: %d/%d (Bus/Target) doesn't exist\n", pLsiLogic->CTX_SUFF(pDevIns)->iInstance,
+                pTaskState->GuestRequest.SCSIIO.u8TargetID, pTaskState->GuestRequest.SCSIIO.u8Bus));
+        /* Log the CDB too  */
+        LogRel(("LsiLogic#%d: Guest issued CDB {%#x",
+                pLsiLogic->CTX_SUFF(pDevIns)->iInstance, pTaskState->GuestRequest.SCSIIO.au8CDB[0]));
+        for (unsigned i = 1; i < pTaskState->GuestRequest.SCSIIO.u8CDBLength; i++)
+            LogRel((", %#x", pTaskState->GuestRequest.SCSIIO.au8CDB[i]));
+        LogRel(("}\n"));
     }
 
     /* The rest is equal to both errors. */
@@ -2835,6 +2865,8 @@ static int lsilogicProcessConfigurationRequest(PLSILOGICSCSI pLsiLogic, PMptConf
                 if (pConfigurationReq->SimpleSGElement.f64BitAddress)
                     GCPhysAddrPageBuffer |= (uint64_t)pConfigurationReq->SimpleSGElement.u32DataBufferAddressHigh << 32;
 
+                LogFlow(("cbBuffer=%u cbPage=%u\n", cbBuffer, cbPage));
+
                 PDMDevHlpPhysRead(pLsiLogic->CTX_SUFF(pDevIns), GCPhysAddrPageBuffer, pbPageData,
                                   RT_MIN(cbBuffer, cbPage));
             }
@@ -3399,11 +3431,11 @@ static DECLCALLBACK(bool) lsilogicNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQU
 
     LogFlowFunc(("pDevIns=%#p pItem=%#p\n", pDevIns, pItem));
 
-    /* Only process request which arrived before we received the notification. */
-    uint32_t uRequestQueueNextEntryWrite = ASMAtomicReadU32(&pLsiLogic->uRequestQueueNextEntryFreeWrite);
-
     /* Reset notification event. */
     ASMAtomicXchgBool(&pLsiLogic->fNotificationSend, false);
+
+    /* Only process request which arrived before we received the notification. */
+    uint32_t uRequestQueueNextEntryWrite = ASMAtomicReadU32(&pLsiLogic->uRequestQueueNextEntryFreeWrite);
 
     /* Go through the messages now and process them. */
     while (   RT_LIKELY(pLsiLogic->enmState == LSILOGICSTATE_OPERATIONAL)

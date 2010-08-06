@@ -139,6 +139,31 @@ static int vbglR3CloseAdditionsWinStoragePath(HKEY hKey)
 #endif /* RT_OS_WINDOWS */
 
 /**
+ * Reports the Guest Additions status of a certain facility to the host.
+ *
+ * @returns IPRT status value
+ * @param uFacility
+ * @param uStatus
+ * @param uFlags
+ */
+VBGLR3DECL(int) VbglR3ReportAdditionsStatus(VBoxGuestStatusFacility Facility, VBoxGuestStatusCurrent StatusCurrent, uint32_t uFlags)
+{
+    VMMDevReportGuestStatus Report;
+    RT_ZERO(Report);
+    int rc = vmmdevInitRequest((VMMDevRequestHeader*)&Report, VMMDevReq_ReportGuestStatus);
+    if (RT_SUCCESS(rc))
+    {
+
+        Report.guestStatus.facility = Facility;
+        Report.guestStatus.status = StatusCurrent;
+        Report.guestStatus.flags = uFlags;
+
+        rc = vbglR3GRPerform(&Report.header);
+    }
+    return rc;
+}
+
+/**
  * Retrieves the installed Guest Additions version and/or revision.
  *
  * @returns IPRT status value

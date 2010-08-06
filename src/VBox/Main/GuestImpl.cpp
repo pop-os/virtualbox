@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -105,8 +105,8 @@ HRESULT Guest::init (Console *aParent)
 }
 
 /**
- *  Uninitializes the instance and sets the ready flag to FALSE.
- *  Called either from FinalRelease() or by the parent when it gets destroyed.
+ * Uninitializes the instance and sets the ready flag to FALSE.
+ * Called either from FinalRelease() or by the parent when it gets destroyed.
  */
 void Guest::uninit()
 {
@@ -121,12 +121,12 @@ void Guest::uninit()
          * ref counts).
          */
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    
+
         /* Clean up callback data. */
         CallbackMapIter it;
         for (it = mCallbackMap.begin(); it != mCallbackMap.end(); it++)
             destroyCtrlCallbackContext(it);
-    
+
         /* Clear process map. */
         mGuestProcessMap.clear();
     }
@@ -382,7 +382,7 @@ STDMETHODIMP Guest::InternalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, UL
     return S_OK;
 }
 
-HRESULT Guest::SetStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
+HRESULT Guest::setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -504,7 +504,7 @@ DECLCALLBACK(int) Guest::doGuestCtrlNotification(void    *pvExtension,
     int rc = VINF_SUCCESS;
     if (u32Function == GUEST_DISCONNECTED)
     {
-        LogFlowFunc(("GUEST_DISCONNECTED\n"));
+        //LogFlowFunc(("GUEST_DISCONNECTED\n"));
 
         PCALLBACKDATACLIENTDISCONNECTED pCBData = reinterpret_cast<PCALLBACKDATACLIENTDISCONNECTED>(pvParms);
         AssertPtr(pCBData);
@@ -515,7 +515,7 @@ DECLCALLBACK(int) Guest::doGuestCtrlNotification(void    *pvExtension,
     }
     else if (u32Function == GUEST_EXEC_SEND_STATUS)
     {
-        LogFlowFunc(("GUEST_EXEC_SEND_STATUS\n"));
+        //LogFlowFunc(("GUEST_EXEC_SEND_STATUS\n"));
 
         PCALLBACKDATAEXECSTATUS pCBData = reinterpret_cast<PCALLBACKDATAEXECSTATUS>(pvParms);
         AssertPtr(pCBData);
@@ -526,7 +526,7 @@ DECLCALLBACK(int) Guest::doGuestCtrlNotification(void    *pvExtension,
     }
     else if (u32Function == GUEST_EXEC_SEND_OUTPUT)
     {
-        LogFlowFunc(("GUEST_EXEC_SEND_OUTPUT\n"));
+        //LogFlowFunc(("GUEST_EXEC_SEND_OUTPUT\n"));
 
         PCALLBACKDATAEXECOUT pCBData = reinterpret_cast<PCALLBACKDATAEXECOUT>(pvParms);
         AssertPtr(pCBData);
@@ -544,7 +544,7 @@ DECLCALLBACK(int) Guest::doGuestCtrlNotification(void    *pvExtension,
 int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
                                 PCALLBACKDATAEXECSTATUS pData)
 {
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -562,60 +562,72 @@ int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
         pCBData->u32Flags = pData->u32Flags;
         /** @todo Copy void* buffer contents! */
 
+        Utf8Str errMsg;
+
         /* Was progress canceled before? */
         BOOL fCanceled;
-        ComAssert(it->second.pProgress.isNotNull());
-        it->second.pProgress->COMGETTER(Canceled)(&fCanceled);
-
-        Utf8Str errMsg;
-        if (!fCanceled)
-        {            
+        ComAssert(!it->second.pProgress.isNull());
+        if (   SUCCEEDED(it->second.pProgress->COMGETTER(Canceled)(&fCanceled))
+            && !fCanceled)
+        {
             /* Do progress handling. */
+            HRESULT hr;
             switch (pData->u32Status)
             {
                 case PROC_STS_STARTED:
-                    rc = it->second.pProgress->SetNextOperation(BstrFmt(tr("Waiting for process to exit ...")), 1 /* Weight */);
-                    if (FAILED(rc))
-                        errMsg = Utf8StrFmt(Guest::tr("Cannot enter waiting for process exit stage! rc=%u"),
-                                            rc);
+                    LogRel(("Guest process (PID %u) started\n", pCBData->u32PID)); /** @todo Add process name */
+                    hr = it->second.pProgress->SetNextOperation(BstrFmt(tr("Waiting for process to exit ...")), 1 /* Weight */);
+                    AssertComRC(hr);
                     break;
-    
+
                 case PROC_STS_TEN: /* Terminated normally. */
-                    it->second.pProgress->notifyComplete(S_OK);
+                    LogRel(("Guest process (PID %u) exited normally\n", pCBData->u32PID)); /** @todo Add process name */
+                    hr = it->second.pProgress->notifyComplete(S_OK);
+                    AssertComRC(hr);
                     LogFlowFunc(("Proccess (context ID=%u, status=%u) terminated successfully\n",
                                  pData->hdr.u32ContextID, pData->u32Status));
                     break;
-    
+
                 case PROC_STS_TEA: /* Terminated abnormally. */
+                    LogRel(("Guest process (PID %u) terminated abnormally with exit code = %u\n",
+                            pCBData->u32PID, pCBData->u32Flags)); /** @todo Add process name */
                     errMsg = Utf8StrFmt(Guest::tr("Process terminated abnormally with status '%u'"),
                                         pCBData->u32Flags);
                     break;
-    
+
                 case PROC_STS_TES: /* Terminated through signal. */
+                    LogRel(("Guest process (PID %u) terminated through signal with exit code = %u\n",
+                            pCBData->u32PID, pCBData->u32Flags)); /** @todo Add process name */
                     errMsg = Utf8StrFmt(Guest::tr("Process terminated via signal with status '%u'"),
                                         pCBData->u32Flags);
                     break;
-    
+
                 case PROC_STS_TOK:
+                    LogRel(("Guest process (PID %u) timed out and was killed\n", pCBData->u32PID)); /** @todo Add process name */
                     errMsg = Utf8StrFmt(Guest::tr("Process timed out and was killed"));
                     break;
-    
+
                 case PROC_STS_TOA:
+                    LogRel(("Guest process (PID %u) timed out and could not be killed\n", pCBData->u32PID)); /** @todo Add process name */
                     errMsg = Utf8StrFmt(Guest::tr("Process timed out and could not be killed"));
                     break;
-    
+
                 case PROC_STS_DWN:
+                    LogRel(("Guest process (PID %u) exited because system is shutting down\n", pCBData->u32PID)); /** @todo Add process name */
                     errMsg = Utf8StrFmt(Guest::tr("Process exited because system is shutting down"));
                     break;
-    
+
                 case PROC_STS_ERROR:
+                    LogRel(("Guest process (PID %u) could not be started because of rc=%Rrc\n",
+                            pCBData->u32PID, pCBData->u32Flags)); /** @todo Add process name */
                     errMsg = Utf8StrFmt(Guest::tr("Process execution failed with rc=%Rrc"), pCBData->u32Flags);
                     break;
-    
+
                 default:
+                    vrc = VERR_INVALID_PARAMETER;
                     break;
             }
-            
+
             /* Handle process map. */
             /** @todo What happens on/deal with PID reuse? */
             /** @todo How to deal with multiple updates at once? */
@@ -629,7 +641,7 @@ int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
                     newProcess.mStatus = pCBData->u32Status;
                     newProcess.mExitCode = pCBData->u32Flags; /* Contains exit code. */
                     newProcess.mFlags = 0;
-        
+
                     mGuestProcessMap[pCBData->u32PID] = newProcess;
                 }
                 else /* Update map. */
@@ -642,22 +654,25 @@ int Guest::notifyCtrlExecStatus(uint32_t                u32Function,
         }
         else
             errMsg = Utf8StrFmt(Guest::tr("Process execution canceled"));
-       
+
         if (!it->second.pProgress->getCompleted())
         {
-            if (   errMsg.length() 
-                || fCanceled) /* If cancelled we have to report E_FAIL! */
+            if (   errMsg.length()
+                || fCanceled) /* If canceled we have to report E_FAIL! */
             {
-                it->second.pProgress->notifyComplete(VBOX_E_IPRT_ERROR, COM_IIDOF(IGuest),
-                                              (CBSTR)Guest::getComponentName(), errMsg.c_str());
+                HRESULT hr2 = it->second.pProgress->notifyComplete(VBOX_E_IPRT_ERROR, COM_IIDOF(IGuest),
+                                                                   Guest::getComponentName(),
+                                                                   "%s", errMsg.c_str());
+                AssertComRC(hr2);
                 LogFlowFunc(("Process (context ID=%u, status=%u) reported error: %s\n",
                              pData->hdr.u32ContextID, pData->u32Status, errMsg.c_str()));
             }
-        }        
+        }
     }
     else
         LogFlowFunc(("Unexpected callback (magic=%u, context ID=%u) arrived\n", pData->hdr.u32Magic, pData->hdr.u32ContextID));
-    return rc;
+    LogFlowFunc(("Returned with rc=%Rrc\n", vrc));
+    return vrc;
 }
 
 /* Function for handling the execution output notification. */
@@ -698,14 +713,16 @@ int Guest::notifyCtrlExecOut(uint32_t             u32Function,
 
         /* Was progress canceled before? */
         BOOL fCanceled;
-        ComAssert(it->second.pProgress.isNotNull());
-        it->second.pProgress->COMGETTER(Canceled)(&fCanceled);
-
-        if (!fCanceled)
-            it->second.pProgress->notifyComplete(S_OK);
+        ComAssert(!it->second.pProgress.isNull());
+        if (SUCCEEDED(it->second.pProgress->COMGETTER(Canceled)(&fCanceled)) && fCanceled)
+        {
+            it->second.pProgress->notifyComplete(VBOX_E_IPRT_ERROR,
+                                                 COM_IIDOF(IGuest),
+                                                 Guest::getComponentName(),
+                                                 Guest::tr("The output operation was canceled"));
+        }
         else
-            it->second.pProgress->notifyComplete(VBOX_E_IPRT_ERROR, COM_IIDOF(IGuest),
-                                          (CBSTR)Guest::getComponentName(), Guest::tr("The output operation was cancelled"));
+            it->second.pProgress->notifyComplete(S_OK);
     }
     else
         LogFlowFunc(("Unexpected callback (magic=%u, context ID=%u) arrived\n", pData->hdr.u32Magic, pData->hdr.u32ContextID));
@@ -729,7 +746,7 @@ int Guest::notifyCtrlClientDisconnected(uint32_t                        u32Funct
 
 Guest::CallbackMapIter Guest::getCtrlCallbackContextByID(uint32_t u32ContextID)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);  
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     return mCallbackMap.find(u32ContextID);
 }
 
@@ -742,35 +759,50 @@ Guest::GuestProcessMapIter Guest::getProcessByPID(uint32_t u32PID)
 /* No locking here; */
 void Guest::destroyCtrlCallbackContext(Guest::CallbackMapIter it)
 {
+    LogFlowFunc(("Destroying callback with CID=%u ...\n", it->first));
+
     if (it->second.pvData)
     {
-        LogFlowFunc(("Destroying callback with context ID=%u ...\n", it->first));
-
         RTMemFree(it->second.pvData);
         it->second.pvData = NULL;
         it->second.cbData = 0;
     }
 
     /* Notify outstanding waits for progress ... */
-    if (it->second.pProgress && it->second.pProgress.isNotNull())
+    if (    it->second.pProgress
+         && !it->second.pProgress.isNull())
     {
-        LogFlowFunc(("Handling progress of context ID=%u ...\n", it->first));
+        LogFlowFunc(("Handling progress for CID=%u ...\n", it->first));
 
-        BOOL fCompleted;
+        /*
+         * Assume we didn't complete to make sure we clean up even if the
+         * following call fails.
+         */
+        BOOL fCompleted = FALSE;
         it->second.pProgress->COMGETTER(Completed)(&fCompleted);
         if (!fCompleted)
         {
+            LogFlowFunc(("Progress of CID=%u *not* completed, cancelling ...\n", it->first));
+
             /* Only cancel if not canceled before! */
             BOOL fCanceled;
             if (SUCCEEDED(it->second.pProgress->COMGETTER(Canceled)(&fCanceled)) && !fCanceled)
-                it->second.pProgress->Cancel();        
+                it->second.pProgress->Cancel();
 
-            /* To get waitForCompletion notified we have to notify it if necessary. */
-            it->second.pProgress->notifyComplete(VBOX_E_IPRT_ERROR, COM_IIDOF(IGuest),
-                                          (CBSTR)Guest::getComponentName(), Guest::tr("The operation was canceled during shutdown"));
-        }        
+            /*
+             * To get waitForCompletion completed (unblocked) we have to notify it if necessary (only
+             * cancle won't work!). This could happen if the client thread (e.g. VBoxService, thread of a spawned process)
+             * is disconnecting without having the chance to sending a status message before, so we
+             * have to abort here to make sure the host never hangs/gets stuck while waiting for the
+             * progress object to become signalled.
+             */
+            it->second.pProgress->notifyComplete(VBOX_E_IPRT_ERROR,
+                                                 COM_IIDOF(IGuest),
+                                                 Guest::getComponentName(),
+                                                 Guest::tr("The operation was canceled because client is shutting down"));
+        }
         /*
-         * Do *not NULL pProgress here, because waiting function like executeProcess()
+         * Do *not* NULL pProgress here, because waiting function like executeProcess()
          * will still rely on this object for checking whether they have to give up!
          */
     }
@@ -794,13 +826,13 @@ uint32_t Guest::addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void 
     CallbackMapIter it;
     uint32_t uNewContext = 0;
     do
-    {    
+    {
         /* Create a new context ID ... */
         uNewContext = ASMAtomicIncU32(&mNextContextID);
         if (uNewContext == UINT32_MAX)
             ASMAtomicUoWriteU32(&mNextContextID, 1000);
         /* Is the context ID already used? */
-        it = getCtrlCallbackContextByID(uNewContext);       
+        it = getCtrlCallbackContextByID(uNewContext);
     } while(it != mCallbackMap.end());
 
     uint32_t nCallbacks = 0;
@@ -941,6 +973,9 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                     }
                 }
 
+                LogRel(("Executing guest process \"%s\" as user \"%s\" ...\n",
+                        Utf8Command.raw(), Utf8UserName.raw()));
+
                 if (RT_SUCCESS(vrc))
                 {
                     PCALLBACKDATAEXECSTATUS pData = (PCALLBACKDATAEXECSTATUS)RTMemAlloc(sizeof(CALLBACKDATAEXECSTATUS));
@@ -1001,7 +1036,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                 BOOL fCanceled = FALSE;
                 if (it != mCallbackMap.end())
                 {
-                    ComAssert(it->second.pProgress.isNotNull());
+                    ComAssert(!it->second.pProgress.isNull());
 
                     /*
                      * Wait for the first stage (=0) to complete (that is starting the process).
@@ -1016,12 +1051,12 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
 
                         if (!fCanceled)
                         {
-                            AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS); 
-    
+                            AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
                             pData = (PCALLBACKDATAEXECSTATUS)it->second.pvData;
                             Assert(it->second.cbData == sizeof(CALLBACKDATAEXECSTATUS));
                             AssertPtr(pData);
-    
+
                             /* Did we get some status? */
                             switch (pData->u32Status)
                             {
@@ -1029,7 +1064,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                                     /* Process is (still) running; get PID. */
                                     *aPID = pData->u32PID;
                                     break;
-        
+
                                 /* In any other case the process either already
                                  * terminated or something else went wrong, so no PID ... */
                                 case PROC_STS_TEN: /* Terminated normally. */
@@ -1038,17 +1073,17 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                                 case PROC_STS_TOK:
                                 case PROC_STS_TOA:
                                 case PROC_STS_DWN:
-                                    /* 
+                                    /*
                                      * Process (already) ended, but we want to get the
-                                     * PID anyway to retrieve the output in a later call. 
+                                     * PID anyway to retrieve the output in a later call.
                                      */
                                     *aPID = pData->u32PID;
                                     break;
-        
+
                                 case PROC_STS_ERROR:
                                     vrc = pData->u32Flags; /* u32Flags member contains IPRT error code. */
                                     break;
-        
+
                                 case PROC_STS_UNDEFINED:
                                     vrc = VERR_TIMEOUT;    /* Operation did not complete within time. */
                                     break;
@@ -1063,7 +1098,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                     }
                     else /* Operation did not complete within time. */
                         vrc = VERR_TIMEOUT;
-    
+
                     /*
                      * Do *not* remove the callback yet - we might wait with the IProgress object on something
                      * else (like end of process) ...
@@ -1085,7 +1120,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                             rc = setError(VBOX_E_IPRT_ERROR,
                                           tr("The file '%s' is not an executable format on guest"), Utf8Command.raw());
                         }
-                        else if (vrc == VERR_LOGON_FAILURE)
+                        else if (vrc == VERR_AUTHENTICATION_FAILURE)
                         {
                             rc = setError(VBOX_E_IPRT_ERROR,
                                           tr("The specified user '%s' was not able to logon on guest"), Utf8UserName.raw());
@@ -1113,7 +1148,7 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                             else
                                 rc = setError(E_UNEXPECTED,
                                               tr("The service call failed with error %Rrc"), vrc);
-                        }               
+                        }
                     }
                     else /* Execution went fine. */
                     {
@@ -1136,6 +1171,11 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                     rc = setError(VBOX_E_VM_ERROR,
                                   tr("The guest execution service is not ready"));
                 }
+                else if (vrc == VERR_HGCM_SERVICE_NOT_FOUND)
+                {
+                    rc = setError(VBOX_E_VM_ERROR,
+                                  tr("The guest execution service is not available"));
+                }
                 else /* HGCM call went wrong. */
                 {
                     rc = setError(E_UNEXPECTED,
@@ -1147,6 +1187,10 @@ STDMETHODIMP Guest::ExecuteProcess(IN_BSTR aCommand, ULONG aFlags,
                 RTMemFree(papszArgv[i]);
             RTMemFree(papszArgv);
         }
+
+        if (RT_FAILURE(vrc))
+            LogRel(("Executing guest process \"%s\" as user \"%s\" failed with %Rrc\n",
+                    Utf8Command.raw(), Utf8UserName.raw(), vrc));
     }
     catch (std::bad_alloc &)
     {
@@ -1181,7 +1225,7 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
          * Create progress object.
          * This progress object, compared to the one in executeProgress() above,
          * is only local and is used to determine whether the operation finished
-         * or got cancelled.
+         * or got canceled.
          */
         ComObjPtr <Progress> progress;
         rc = progress.createObject();
@@ -1250,12 +1294,12 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
             BOOL fCanceled = FALSE;
             if (it != mCallbackMap.end())
             {
-                ComAssert(it->second.pProgress.isNotNull());
+                ComAssert(!it->second.pProgress.isNull());
 
                 /* Wait until operation completed. */
                 rc = it->second.pProgress->WaitForCompletion(aTimeoutMS);
                 if (FAILED(rc)) throw rc;
-                
+
                 /* Was the operation canceled by one of the parties? */
                 rc = it->second.pProgress->COMGETTER(Canceled)(&fCanceled);
                 if (FAILED(rc)) throw rc;
@@ -1320,6 +1364,9 @@ STDMETHODIMP Guest::GetProcessOutput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS,
 
                 {
                     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+                    /*
+                     * Destroy locally used progress object.
+                     */
                     destroyCtrlCallbackContext(it);
                 }
 
@@ -1390,40 +1437,84 @@ STDMETHODIMP Guest::GetProcessStatus(ULONG aPID, ULONG *aExitCode, ULONG *aFlags
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
 
-void Guest::setAdditionsVersion(Bstr aVersion, VBOXOSTYPE aOsType)
+/**
+ * Sets the general Guest Additions information like
+ * API version and OS type.
+ *
+ * @param aVersion
+ * @param aOsType
+ */
+void Guest::setAdditionsInfo(Bstr aVersion, VBOXOSTYPE aOsType)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    /*
+     * Set the Guest Additions API (interface) version.
+     * Note that this is *not* the actual Guest Additions version and may differ!
+     */
     mData.mAdditionsVersion = aVersion;
+    /*
+     * Older Additions rely on the Additions API version whether they
+     * are assumed to be active or not. Newer additions will disable
+     * this immediately.
+     */
     mData.mAdditionsActive = !aVersion.isEmpty();
-    /* Older Additions didn't have this finer grained capability bit,
+    /*
+     * Older Additions didn't have this finer grained capability bit,
      * so enable it by default.  Newer Additions will disable it immediately
-     * if relevant. */
+     * if relevant.
+     */
     mData.mSupportsGraphics = mData.mAdditionsActive;
+
+    /*
+     * Note! There is a race going on between setting mAdditionsActive and
+     * mSupportsGraphics here and disabling/enabling it later according to
+     * its real status when using new(er) Guest Additions.
+     */
 
     mData.mOSTypeId = Global::OSTypeId (aOsType);
 }
 
-void Guest::setSupportsSeamless (BOOL aSupportsSeamless)
+/**
+ * Sets the status of a certain Guest Additions facility.
+ *
+ * @param Facility
+ * @param Status
+ * @param ulFlags
+ */
+void Guest::setAdditionsStatus (VBoxGuestStatusFacility Facility, VBoxGuestStatusCurrent Status, ULONG ulFlags)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mSupportsSeamless = aSupportsSeamless;
+    /*
+     * Only mark Guest Additions as active when VBoxService started up.
+     */
+    mData.mAdditionsActive = (   Facility == VBoxGuestStatusFacility_VBoxService
+                              && Status   == VBoxGuestStatusCurrent_Active) ? TRUE : FALSE;
 }
 
-void Guest::setSupportsGraphics (BOOL aSupportsGraphics)
+/**
+ * Sets the supported features (and whether they are active or not).
+ *
+ * @param ulCaps
+ * @param ulActive
+ */
+void Guest::setSupportedFeatures (ULONG64 ulCaps, ULONG64 ulActive)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid (autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mSupportsGraphics = aSupportsGraphics;
+    mData.mSupportsSeamless = (ulCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS);
+    /** @todo Add VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING */
+    mData.mSupportsGraphics = (ulCaps & VMMDEV_GUEST_SUPPORTS_GRAPHICS);
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */
+

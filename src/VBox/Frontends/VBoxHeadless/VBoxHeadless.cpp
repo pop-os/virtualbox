@@ -206,8 +206,8 @@ public:
         Utf8Str utf8Key = key;
         if (utf8Key == "/VirtualBox/GuestInfo/OS/NoLoggedInUsers")
         {
-            /* Check if the "disconnect on logout feature" is enabled. */
-            BOOL fDisconnectOnGuestLogout = FALSE;
+            /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
+            BOOL fProcessDisconnectOnGuestLogout = FALSE;
             ComPtr <IMachine> machine;
             HRESULT hrc = S_OK;
 
@@ -216,16 +216,21 @@ public:
                 hrc = gConsole->COMGETTER(Machine)(machine.asOutParam());
                 if (SUCCEEDED(hrc) && machine)
                 {
-                    Bstr value1;
-                    hrc = machine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout"), value1.asOutParam());
-                    if (SUCCEEDED(hrc) && value1 == "1")
+                    Bstr id;
+                    hrc = machine->COMGETTER(Id)(id.asOutParam());
+                    if (id == machineId)
                     {
-                        fDisconnectOnGuestLogout = TRUE;
+                        Bstr value1;
+                        hrc = machine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout"), value1.asOutParam());
+                        if (SUCCEEDED(hrc) && value1 == "1")
+                        {
+                            fProcessDisconnectOnGuestLogout = TRUE;
+                        }
                     }
                 }
             }
 
-            if (fDisconnectOnGuestLogout)
+            if (fProcessDisconnectOnGuestLogout)
             {
                 Utf8Str utf8Value = value;
                 if (utf8Value == "true")
@@ -1146,6 +1151,23 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         CHECK_ERROR_BREAK(console, PowerUp(progress.asOutParam()));
 
         /* wait for result because there can be errors */
+        /** @todo The error handling here is kind of peculiar, anyone care
+         *        to comment why this works just fine? */
+        for (;;)
+        {
+            rc = progress->WaitForCompletion(500);
+            if (FAILED(rc))
+                break;
+
+            /* Processing events is vital for teleportation targets. */
+            gEventQ->processEventQueue(0);
+
+            BOOL fCompleted;
+            rc = progress->COMGETTER(Completed)(&fCompleted);
+            if (FAILED(rc) || fCompleted)
+                break;
+        }
+
         if (SUCCEEDED(progress->WaitForCompletion(-1)))
         {
             LONG progressRc;

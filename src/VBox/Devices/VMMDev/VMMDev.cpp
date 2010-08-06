@@ -32,6 +32,7 @@
 #include <VBox/vm.h> /* for VM_IS_EMT */
 
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/buildconfig.h>
 #include <iprt/string.h>
@@ -468,7 +469,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
          */
         case VMMDevReq_ReportGuestInfo:
         {
-            if (pRequestHeader->size < sizeof(VMMDevReportGuestInfo))
+            if (pRequestHeader->size != sizeof(VMMDevReportGuestInfo))
             {
                 AssertMsgFailed(("VMMDev guest information structure has an invalid size!\n"));
                 pRequestHeader->rc = VERR_INVALID_PARAMETER;
@@ -488,7 +489,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                     LogRel(("Guest Additions information report: Interface = 0x%08X osType = 0x%08X\n",
                             pThis->guestInfo.additionsVersion,
                             pThis->guestInfo.osType));
-                    pThis->pDrv->pfnUpdateGuestVersion(pThis->pDrv, &pThis->guestInfo);
+                    pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
                 }
 
                 if (pThis->fu32AdditionsOk)
@@ -505,7 +506,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 
         case VMMDevReq_ReportGuestInfo2:
         {
-            if (pRequestHeader->size < sizeof(VMMDevReportGuestInfo2))
+            if (pRequestHeader->size != sizeof(VMMDevReportGuestInfo2))
             {
                 AssertMsgFailed(("VMMDev guest information 2 structure has an invalid size!\n"));
                 pRequestHeader->rc = VERR_INVALID_PARAMETER;
@@ -516,6 +517,23 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                 LogRel(("Guest Additions information report: Version %d.%d.%d r%d '%.*s'\n",
                         guestInfo2->additionsMajor, guestInfo2->additionsMinor, guestInfo2->additionsBuild,
                         guestInfo2->additionsRevision, sizeof(guestInfo2->szName), guestInfo2->szName));
+                pRequestHeader->rc = VINF_SUCCESS;
+            }
+            break;
+        }
+
+        case VMMDevReq_ReportGuestStatus:
+        {
+            if (pRequestHeader->size != sizeof(VMMDevReportGuestStatus))
+            {
+                AssertMsgFailed(("VMMDev guest status structure has an invalid size!\n"));
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                VBoxGuestStatus *guestStatus = &((VMMDevReportGuestStatus*)pRequestHeader)->guestStatus;
+                pThis->pDrv->pfnUpdateGuestStatus(pThis->pDrv, guestStatus);
+
                 pRequestHeader->rc = VINF_SUCCESS;
             }
             break;
@@ -1860,12 +1878,30 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             break;
         }
 #endif
+        /*
+         * Get a unique session id for this VM; the id will be different after each start, reset or restore of the VM
+         * This can be used for restore detection inside the guest.
+         */
+        case VMMDevReq_GetSessionId:
+        {
+            if (pRequestHeader->size != sizeof(VMMDevReqSessionId))
+            {
+                AssertMsgFailed(("VMMDevReq_GetSessionId request size too small.\n"));
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                VMMDevReqSessionId *pReq = (VMMDevReqSessionId *)pRequestHeader;
+                pReq->idSession = pThis->idSession;
+                pRequestHeader->rc = VINF_SUCCESS;
+            }
+            break;
+        }
+
         default:
         {
             pRequestHeader->rc = VERR_NOT_IMPLEMENTED;
-
             Log(("VMMDev unknown request type %d\n", pRequestHeader->requestType));
-
             break;
         }
     }
@@ -2547,7 +2583,7 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
                 pThis->guestInfo.additionsVersion,
                 pThis->guestInfo.osType));
         if (pThis->pDrv)
-            pThis->pDrv->pfnUpdateGuestVersion(pThis->pDrv, &pThis->guestInfo);
+            pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
     }
     if (pThis->pDrv)
         pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
@@ -2684,9 +2720,14 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
      * Call the update functions as required.
      */
     if (fVersionChanged)
-        pThis->pDrv->pfnUpdateGuestVersion(pThis->pDrv, &pThis->guestInfo);
+        pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
     if (fCapsChanged)
         pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
+
+    /* Generate a unique session id for this VM; it will be changed for each start, reset or restore. 
+     * This can be used for restore detection inside the guest.
+     */
+    pThis->idSession = ASMReadTSC();
 }
 
 
@@ -2908,6 +2949,10 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatMemBalloonChunks, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Memory balloon size", "/Devices/VMMDev/BalloonChunks");
 
+    /* Generate a unique session id for this VM; it will be changed for each start, reset or restore. 
+     * This can be used for restore detection inside the guest.
+     */
+    pThis->idSession = ASMReadTSC();
     return rc;
 }
 

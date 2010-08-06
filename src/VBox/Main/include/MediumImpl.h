@@ -156,6 +156,7 @@ public:
     // a caller and a read lock before calling them!)
     const Guid& getId() const;
     MediumState_T getState() const;
+    MediumVariant_T getVariant() const;
     const Utf8Str& getLocation() const;
     const Utf8Str& getLocationFull() const;
     const Utf8Str& getFormat() const;

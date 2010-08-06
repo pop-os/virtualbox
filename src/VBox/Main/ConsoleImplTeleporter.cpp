@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -286,12 +286,7 @@ Console::teleporterSrcReadACK(TeleporterStateSrc *pState, const char *pszWhich,
 HRESULT
 Console::teleporterSrcSubmitCommand(TeleporterStateSrc *pState, const char *pszCommand, bool fWaitForAck /*= true*/)
 {
-    size_t cchCommand = strlen(pszCommand);
-    int vrc = RTTcpWrite(pState->mhSocket, pszCommand, cchCommand);
-    if (RT_SUCCESS(vrc))
-        vrc = RTTcpWrite(pState->mhSocket, "\n", sizeof("\n") - 1);
-    if (RT_SUCCESS(vrc))
-        vrc = RTTcpFlush(pState->mhSocket);
+    int vrc = RTTcpSgWriteL(pState->mhSocket, 2, pszCommand, strlen(pszCommand), "\n", sizeof("\n") - 1);
     if (RT_FAILURE(vrc))
         return setError(E_FAIL, tr("Failed writing command '%s': %Rrc"), pszCommand, vrc);
     if (!fWaitForAck)
@@ -313,22 +308,13 @@ static DECLCALLBACK(int) teleporterTcpOpWrite(void *pvUser, uint64_t offStream, 
 
     for (;;)
     {
-        /* Write block header. */
         TELEPORTERTCPHDR Hdr;
         Hdr.u32Magic = TELEPORTERTCPHDR_MAGIC;
         Hdr.cb       = RT_MIN((uint32_t)cbToWrite, TELEPORTERTCPHDR_MAX_SIZE);
-        int rc = RTTcpWrite(pState->mhSocket, &Hdr, sizeof(Hdr));
+        int rc = RTTcpSgWriteL(pState->mhSocket, 2, &Hdr, sizeof(Hdr), pvBuf, (size_t)Hdr.cb);
         if (RT_FAILURE(rc))
         {
-            LogRel(("Teleporter/TCP: Header write error: %Rrc\n", rc));
-            return rc;
-        }
-
-        /* Write the data. */
-        rc = RTTcpWrite(pState->mhSocket, pvBuf, Hdr.cb);
-        if (RT_FAILURE(rc))
-        {
-            LogRel(("Teleporter/TCP: Data write error: %Rrc (cb=%#x)\n", rc, Hdr.cb));
+            LogRel(("Teleporter/TCP: Write error: %Rrc (cb=%#x)\n", rc, Hdr.cb));
             return rc;
         }
         pState->moffStream += Hdr.cb;
@@ -530,7 +516,7 @@ static DECLCALLBACK(int) teleporterTcpOpIsOk(void *pvUser)
 /**
  * @copydoc SSMSTRMOPS::pfnClose
  */
-static DECLCALLBACK(int) teleporterTcpOpClose(void *pvUser, bool fCancelled)
+static DECLCALLBACK(int) teleporterTcpOpClose(void *pvUser, bool fCanceled)
 {
     TeleporterState *pState = (TeleporterState *)pvUser;
 
@@ -538,10 +524,8 @@ static DECLCALLBACK(int) teleporterTcpOpClose(void *pvUser, bool fCancelled)
     {
         TELEPORTERTCPHDR EofHdr;
         EofHdr.u32Magic = TELEPORTERTCPHDR_MAGIC;
-        EofHdr.cb       = fCancelled ? UINT32_MAX : 0;
+        EofHdr.cb       = fCanceled ? UINT32_MAX : 0;
         int rc = RTTcpWrite(pState->mhSocket, &EofHdr, sizeof(EofHdr));
-        if (RT_SUCCESS(rc))
-            rc = RTTcpFlush(pState->mhSocket);
         if (RT_FAILURE(rc))
         {
             LogRel(("Teleporter/TCP: EOF Header write error: %Rrc\n", rc));
@@ -551,7 +535,6 @@ static DECLCALLBACK(int) teleporterTcpOpClose(void *pvUser, bool fCancelled)
     else
     {
         ASMAtomicWriteBool(&pState->mfStopReading, true);
-        RTTcpFlush(pState->mhSocket);
     }
 
     return VINF_SUCCESS;
@@ -601,9 +584,9 @@ static DECLCALLBACK(int) teleporterProgressCallback(PVM pVM, unsigned uPercent, 
         if (FAILED(hrc))
         {
             /* check if the failure was caused by cancellation. */
-            BOOL fCancelled;
-            hrc = pState->mptrProgress->COMGETTER(Canceled)(&fCancelled);
-            if (SUCCEEDED(hrc) && fCancelled)
+            BOOL fCanceled;
+            hrc = pState->mptrProgress->COMGETTER(Canceled)(&fCanceled);
+            if (SUCCEEDED(hrc) && fCanceled)
             {
                 SSMR3Cancel(pState->mpVM);
                 return VERR_SSM_CANCELLED;
@@ -642,21 +625,23 @@ Console::teleporterSrc(TeleporterStateSrc *pState)
      */
     { AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS); }
 
-    BOOL fCancelled = TRUE;
-    HRESULT hrc = pState->mptrProgress->COMGETTER(Canceled)(&fCancelled);
+    BOOL fCanceled = TRUE;
+    HRESULT hrc = pState->mptrProgress->COMGETTER(Canceled)(&fCanceled);
     if (FAILED(hrc))
         return hrc;
-    if (fCancelled)
-        return setError(E_FAIL, tr("cancelled"));
+    if (fCanceled)
+        return setError(E_FAIL, tr("canceled"));
 
     /*
-     * Try connect to the destination machine.
+     * Try connect to the destination machine, disable Nagle.
      * (Note. The caller cleans up mhSocket, so we can return without worries.)
      */
     int vrc = RTTcpClientConnect(pState->mstrHostname.c_str(), pState->muPort, &pState->mhSocket);
     if (RT_FAILURE(vrc))
         return setError(E_FAIL, tr("Failed to connect to port %u on '%s': %Rrc"),
                         pState->muPort, pState->mstrHostname.c_str(), vrc);
+    vrc = RTTcpSetSendCoalescing(pState->mhSocket, false /*fEnable*/);
+    AssertRC(vrc);
 
     /* Read and check the welcome message. */
     char szLine[RT_MAX(128, sizeof(g_szWelcome))];
@@ -789,7 +774,7 @@ Console::teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
     if (FAILED(hrc))
         pState->mptrProgress->notifyComplete(hrc);
 
-    /* We can no longer be cancelled (success), or it doesn't matter any longer (failure). */
+    /* We can no longer be canceled (success), or it doesn't matter any longer (failure). */
     pState->mptrProgress->setCancelCallback(NULL, NULL);
 
     /*
@@ -1136,9 +1121,9 @@ Console::teleporterTrg(PVM pVM, IMachine *pMachine, Utf8Str *pErrorMsg, bool fSt
                     }
                     else if (vrc == VERR_TCP_SERVER_SHUTDOWN)
                     {
-                        BOOL fCancelled = TRUE;
-                        hrc = pProgress->COMGETTER(Canceled)(&fCancelled);
-                        if (FAILED(hrc) || fCancelled)
+                        BOOL fCanceled = TRUE;
+                        hrc = pProgress->COMGETTER(Canceled)(&fCanceled);
+                        if (FAILED(hrc) || fCanceled)
                             hrc = setError(E_FAIL, tr("Teleporting canceled"));
                         else
                             hrc = setError(E_FAIL, tr("Teleporter timed out waiting for incoming connection"));
@@ -1208,7 +1193,6 @@ static int teleporterTcpWriteACK(TeleporterStateTrg *pState, bool fAutomaticUnlo
         if (fAutomaticUnlock)
             teleporterTrgUnlockMedia(pState);
     }
-    RTTcpFlush(pState->mhSocket);
     return rc;
 }
 
@@ -1235,7 +1219,6 @@ static int teleporterTcpWriteNACK(TeleporterStateTrg *pState, int32_t rc2, const
     int rc = RTTcpWrite(pState->mhSocket, szMsg, cch);
     if (RT_FAILURE(rc))
         LogRel(("Teleporter: RTTcpWrite(,%s,%zu) -> %Rrc\n", szMsg, cch, rc));
-    RTTcpFlush(pState->mhSocket);
     return rc;
 }
 
@@ -1252,9 +1235,11 @@ Console::teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser)
     pState->mhSocket = Sock;
 
     /*
-     * Say hello.
+     * Disable Nagle and say hello.
      */
-    int vrc = RTTcpWrite(Sock, g_szWelcome, sizeof(g_szWelcome) - 1);
+    int vrc = RTTcpSetSendCoalescing(pState->mhSocket, false /*fEnable*/);
+    AssertRC(vrc);
+    vrc = RTTcpWrite(Sock, g_szWelcome, sizeof(g_szWelcome) - 1);
     if (RT_FAILURE(vrc))
     {
         LogRel(("Teleporter: Failed to write welcome message: %Rrc\n", vrc));

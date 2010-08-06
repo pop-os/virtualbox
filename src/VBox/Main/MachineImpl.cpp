@@ -364,8 +364,10 @@ HRESULT Machine::init(VirtualBox *aParent,
 /**
  *  Initializes a new instance with data from machine XML (formerly Init_Registered).
  *  Gets called in two modes:
+ *
  *      -- from VirtualBox::initMachines() during VirtualBox startup; in that case, the
  *         UUID is specified and we mark the machine as "registered";
+ *
  *      -- from the public VirtualBox::OpenMachine() API, in which case the UUID is NULL
  *         and the machine remains unregistered until RegisterMachine() is called.
  *
@@ -455,7 +457,7 @@ HRESULT Machine::init(VirtualBox *aParent,
 
 /**
  *  Initializes a new instance from a machine config that is already in memory
- *  (import OVF import case). Since we are importing, the UUID in the machine
+ *  (import OVF case). Since we are importing, the UUID in the machine
  *  config is ignored and we always generate a fresh one.
  *
  *  @param strName  Name for the new machine; this overrides what is specified in config and is used
@@ -5015,6 +5017,7 @@ STDMETHODIMP Machine::ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSaf
             rc = setError(VBOX_E_IPRT_ERROR,
                           tr("Could not read log file '%s' (%Rrc)"),
                           log.raw(), vrc);
+        RTFileClose(LogFile);
     }
     else
         rc = setError(VBOX_E_IPRT_ERROR,
@@ -5254,10 +5257,6 @@ HRESULT Machine::openSession(IInternalSessionControl *aControl)
 
     if (SUCCEEDED(rc))
     {
-#ifdef VBOX_WITH_RESOURCE_USAGE_API
-        registerMetrics(mParent->performanceCollector(), this, pid);
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
-
         /*
          *  Set the session state to Spawning to protect against subsequent
          *  attempts to open a session and to unregister the machine after
@@ -9181,6 +9180,9 @@ void Machine::copyFrom(Machine *aThat)
 
 void Machine::registerMetrics(PerformanceCollector *aCollector, Machine *aMachine, RTPROCESS pid)
 {
+    AssertReturnVoid(isWriteLockOnCurrentThread());
+    AssertPtrReturnVoid(aCollector);
+
     pm::CollectorHAL *hal = aCollector->getHAL();
     /* Create sub metrics */
     pm::SubMetric *cpuLoadUser = new pm::SubMetric("CPU/Load/User",
@@ -9297,11 +9299,19 @@ void Machine::registerMetrics(PerformanceCollector *aCollector, Machine *aMachin
 
 void Machine::unregisterMetrics(PerformanceCollector *aCollector, Machine *aMachine)
 {
-    aCollector->unregisterMetricsFor(aMachine);
-    aCollector->unregisterBaseMetricsFor(aMachine);
+    AssertReturnVoid(isWriteLockOnCurrentThread());
+
+    if (aCollector)
+    {
+        aCollector->unregisterMetricsFor(aMachine);
+        aCollector->unregisterBaseMetricsFor(aMachine);
+    }
 
     if (mGuestHAL)
+    {
         delete mGuestHAL;
+        mGuestHAL = NULL;
+    }
 }
 
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
@@ -9607,9 +9617,10 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     // and others need mParent lock, and USB needs host lock.
     AutoMultiWriteLock3 multilock(mParent, mParent->host(), this COMMA_LOCKVAL_SRC_POS);
 
-#ifdef VBOX_WITH_RESOURCE_USAGE_API
-    unregisterMetrics(mParent->performanceCollector(), mPeer);
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+    // Trigger async cleanup tasks, avoid doing things here which are not
+    // vital to be done immediately and maybe need more locks. This calls
+    // Machine::unregisterMetrics().
+    mParent->onMachineUninit(mPeer);
 
     if (aReason == Uninit::Abnormal)
     {
@@ -9874,6 +9885,18 @@ STDMETHODIMP SessionMachine::EndPowerUp(LONG iResult)
     {
         mData->mSession.mProgress->notifyComplete((HRESULT)iResult);
         mData->mSession.mProgress.setNull();
+
+        if (SUCCEEDED((HRESULT)iResult))
+        {
+#ifdef VBOX_WITH_RESOURCE_USAGE_API
+            /* The VM has been powered up successfully, so it makes sense
+             * now to offer the performance metrics for a running machine
+             * object. Doing it earlier wouldn't be safe. */
+            registerMetrics(mParent->performanceCollector(), mPeer,
+                            mData->mSession.mPid);
+#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+
+        }
     }
     return S_OK;
 }
@@ -10350,7 +10373,7 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
                 mData->mGuestPropertiesModified = TRUE;
                 break;
             }
-        if (aValue != NULL)
+        if (aValue != NULL && aValue[0] != '\0')
         {
             HWData::GuestProperty property = { aName, aValue, aTimestamp, fFlags };
             mHWData->mGuestProperties.push_back(property);
@@ -10882,8 +10905,11 @@ HRESULT SessionMachine::lockMedia()
         // attached later.
         if (pMedium != NULL)
         {
-            bool fIsReadOnlyImage = (devType == DeviceType_DVD);
+            MediumType_T mediumType = pMedium->getType();
+            bool fIsReadOnlyImage =    devType == DeviceType_DVD
+                                    || mediumType == MediumType_Shareable;
             bool fIsVitalImage = (devType == DeviceType_HardDisk);
+
             mrc = pMedium->createMediumLockList(fIsVitalImage /* fFailIfInaccessible */,
                                                 !fIsReadOnlyImage /* fMediumLockWrite */,
                                                 NULL,

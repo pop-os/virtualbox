@@ -411,8 +411,12 @@ VBGLR3DECL(int)     VbglR3PidFile(const char *pszPath, PRTFILE phFile);
 VBGLR3DECL(void)    VbglR3ClosePidFile(const char *pszPath, RTFILE hFile);
 VBGLR3DECL(int)     VbglR3SetGuestCaps(uint32_t fOr, uint32_t fNot);
 VBGLR3DECL(int)     VbglR3WaitEvent(uint32_t fMask, uint32_t cMillies, uint32_t *pfEvents);
+
+VBGLR3DECL(int)     VbglR3ReportAdditionsStatus(VBoxGuestStatusFacility Facility, VBoxGuestStatusCurrent StatusCurrent, uint32_t uFlags);
 VBGLR3DECL(int)     VbglR3GetAdditionsVersion(char **ppszVer, char **ppszRev);
 VBGLR3DECL(int)     VbglR3GetAdditionsInstallationPath(char **ppszPath);
+VBGLR3DECL(int)     VbglR3GetSessionId(uint64_t *pu64IdSession);
+
 /** @} */
 
 /** @name Shared clipboard
@@ -559,6 +563,7 @@ VBGLR3DECL(int)     VbglR3RegisterSharedModule(char *pszModuleName, char *pszVer
 VBGLR3DECL(int)     VbglR3UnregisterSharedModule(char *pszModuleName, char *pszVersion, RTGCPTR64  GCBaseAddr, uint32_t cbModule);
 VBGLR3DECL(int)     VbglR3CheckSharedModules(void);
 VBGLR3DECL(bool)    VbglR3PageSharingIsEnabled(void);
+VBGLR3DECL(int)     VbglR3PageIsShared(RTGCPTR pPage, bool *pfShared, uint64_t *puPageFlags);
 /** @} */
 
 #endif /* IN_RING3 */
