@@ -7,8 +7,10 @@ virtualbox-ose (3.2.8-dfsg-1) UNRELEASED; urgency=low
   * Revert: virtualbox-ose-dkms and virtualbox-ose-guest-dkms break each other
     instead of conflicting.
   * Drop 24-dsdt.patch, applied upstream.
+  * Move "$@" to the first parameter of dh to be compatible with debhelper
+    compat level 8.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 07 Aug 2010 12:37:24 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 09 Aug 2010 18:55:04 +0200
 
 virtualbox-ose (3.2.6-dfsg-2) unstable; urgency=low
 

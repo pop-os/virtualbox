@@ -63,7 +63,7 @@ endif
 
 
 %:
-	dh --with quilt,python_central,dkms $@
+	dh $@ --with quilt,python_central,dkms
 
 override_dh_auto_configure:
 	mkdir -p out
