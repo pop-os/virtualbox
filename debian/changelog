@@ -9,8 +9,10 @@ virtualbox-ose (3.2.8-dfsg-1) UNRELEASED; urgency=low
   * Drop 24-dsdt.patch, applied upstream.
   * Move "$@" to the first parameter of dh to be compatible with debhelper
     compat level 8.
+  * Add 24-xserver-19-support.patch to make the guest additions compatible
+    with XServer 1.9.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 09 Aug 2010 18:55:04 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 10 Aug 2010 21:06:46 +0200
 
 virtualbox-ose (3.2.6-dfsg-2) unstable; urgency=low
 
