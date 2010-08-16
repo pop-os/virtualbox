@@ -1,4 +1,4 @@
-virtualbox-ose (3.2.8-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.2.8-dfsg-1) unstable; urgency=low
 
   * New upstream release. (LP: #614697)
   * Replace the reference to /usr/share/common-licenses/BSD with the full text
