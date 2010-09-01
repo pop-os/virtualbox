@@ -1,3 +1,9 @@
+virtualbox-ose (3.2.8-dfsg-2) UNRELEASED; urgency=low
+
+  * Fix FTBFS with recent libdrm-dev versions. (Closes: #594599)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Wed, 01 Sep 2010 16:09:05 +0200
+
 virtualbox-ose (3.2.8-dfsg-1) unstable; urgency=low
 
   * New upstream release. (LP: #614697)

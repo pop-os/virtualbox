@@ -4,7 +4,7 @@ Author: Michael Meskes <meskes@debian.org>, Felix Geyer <debfx-pkg@fobos.de>
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2009-10-07 13:44:19.145463290 +0200
-@@ -63,16 +63,11 @@
+@@ -63,16 +63,12 @@
  VBoxOGL_INCS           = .
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_INCS     += \
@@ -21,7 +21,8 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/common/crOpenGL/Makefi
 +	/usr/include/pixman-1 \
  	$(VBOX_MESA_INCS) \
 -	$(PATH_ROOT)/src/VBox/Additions/x11/x11include/libdrm-2.4.13
-+	/usr/include/drm
++	/usr/include/drm \
++	/usr/include/libdrm
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
@@ -217,7 +218,7 @@ diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile.k
  vboxvideo_drv_18_TEMPLATE = VBOXGUESTR3XORGMOD
  vboxvideo_drv_18_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
  vboxvideo_drv_18_DEFS := $(vboxvideo_drv_15_DEFS)
-@@ -261,6 +252,21 @@
+@@ -261,6 +252,22 @@
  vboxvideo_drv_18_SOURCES := $(vboxvideo_drv_15_SOURCES)
  
  
@@ -227,7 +228,8 @@ diff -Nur virtualbox-ose-3.1.4-dfsg~/src/VBox/Additions/x11/vboxvideo/Makefile.k
 +	/usr/include/x11 \
 +	/usr/include/pixman-1 \
 +	/usr/include/X11/dri \
-+	/usr/include/drm
++	/usr/include/drm \
++	/usr/include/libdrm
 +DLLS += vboxvideo_drv_$(XSERVER_VERSION)
 +
 +# required for lenny backports
