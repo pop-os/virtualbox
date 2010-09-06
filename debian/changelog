@@ -4,8 +4,11 @@ virtualbox-ose (3.2.8-dfsg-2) UNRELEASED; urgency=low
   * Make the kernel modules buildable with kernel 2.6.36. (Closes: #594602)
     - Add 25-vboxnetadp_kernel_2.6.36.patch
     - Add 26-vboxsf_kernel_2.6.36.patch
+  * Silently enable the host I/O cache when the image is on an ext4/XFS
+    partition. No need to warn users about it. (Closes: #595050)
+    - Add 27-hide-host-cache-warning.patch
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 06 Sep 2010 15:15:59 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 06 Sep 2010 17:33:07 +0200
 
 virtualbox-ose (3.2.8-dfsg-1) unstable; urgency=low
 
