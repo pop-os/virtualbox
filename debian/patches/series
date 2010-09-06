@@ -9,3 +9,5 @@
 22-no-static-libstdcpp.patch
 23-remove-invalid-chars-check.patch
 24-xserver-19-support.patch
+25-vboxnetadp_kernel_2.6.36.patch
+26-vboxsf_kernel_2.6.36.patch
