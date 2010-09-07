@@ -1,7 +1,8 @@
 virtualbox-ose (3.2.8-dfsg-2) UNRELEASED; urgency=low
 
   * Fix FTBFS with recent libdrm-dev versions. (Closes: #594599)
-  * Make the kernel modules buildable with kernel 2.6.36. (Closes: #594602)
+  * Make the kernel modules buildable with kernel 2.6.36.
+    (Closes: #594602; LP: #619497)
     - Add 25-vboxnetadp_kernel_2.6.36.patch
     - Add 26-vboxsf_kernel_2.6.36.patch
   * Silently enable the host I/O cache when the image is on an ext4/XFS
