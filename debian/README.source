@@ -24,3 +24,19 @@ cd ../virtualbox-ose-$VERSION
 debchange -v $VERSION-dfsg-1
 fakeroot debian/rules dfsg-free
 rm ../virtualbox-ose_$VERSION.orig.tar.bz2
+
+
+Generating manpages
+===================
+
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxHeadless | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VBoxHeadless.1
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxManage | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VBoxManage.1
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxSDL | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VBoxSDL.1
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info --no-discard-stderr vboxwebsrv | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > vboxwebsrv.1
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VirtualBox | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VirtualBox.1
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --help-option="-help" --no-info --no-discard-stderr vdfuse | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > vdfuse.1
+
+help2man --section=1 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxClient | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VBoxClient.1
+help2man --section=8 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxService | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VBoxService.8
+help2man --section=8 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info VBoxControl | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > VBoxControl.8
+help2man --section=8 --name="x86 virtualization solution" --version-string="VERSION_STRING" --no-info mount.vboxsf | sed -r 's/( VERSION_STRING|( Version)? [0-9]\.[0-9]\.[0-9]_OSE)//g' > mount.vboxsf.8

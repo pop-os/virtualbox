@@ -2,3 +2,5 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
 
 /usr/share/virtualbox/VBox.png /usr/share/icons/virtualbox.png
+
+/usr/share/man/man1/VirtualBox.1 /usr/share/man/man1/virtualbox.1

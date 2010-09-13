@@ -8,8 +8,9 @@ virtualbox-ose (3.2.8-dfsg-2) UNRELEASED; urgency=low
   * Silently enable the host I/O cache when the image is on an ext4/XFS
     partition. No need to warn users about it. (Closes: #595050)
     - Add 27-hide-host-cache-warning.patch
+  * Add man pages for all commands. (Closes: #440609; LP: #610895)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 06 Sep 2010 17:33:07 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Mon, 13 Sep 2010 11:29:12 +0200
 
 virtualbox-ose (3.2.8-dfsg-1) unstable; urgency=low
 
