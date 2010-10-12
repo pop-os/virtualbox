@@ -60,7 +60,7 @@ Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
 Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
 
 Package: virtualbox-ose-qt
-Architecture: amd64 i386 lpia
+Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          virtualbox-ose (= ${binary:Version})
@@ -74,7 +74,7 @@ Description: x86 virtualization solution - Qt based user interface
  Edition of VirtualBox.
 
 Package: virtualbox-ose
-Architecture: amd64 i386 lpia
+Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${python:Depends},
@@ -101,7 +101,7 @@ Description: x86 virtualization solution - base binaries
 Package: virtualbox-ose-dbg
 Section: debug
 Priority: extra
-Architecture: amd64 i386 lpia
+Architecture: amd64 i386
 Depends: ${misc:Depends},
          virtualbox-ose (= ${binary:Version}) | virtualbox-ose-guest-utils (= ${binary:Version})
 Description: x86 virtualization solution - debugging symbols
@@ -183,7 +183,7 @@ Description: x86 virtualization solution - guest addition module source
 
 Package: virtualbox-ose-guest-x11
 Section: x11
-Architecture: i386 amd64 lpia
+Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${xserver:Depends},
@@ -201,7 +201,7 @@ Description: x86 virtualization solution - X11 guest utilities
  They provide closer integration and improve the interactive performance.
 
 Package: virtualbox-ose-guest-utils
-Architecture: i386 amd64 lpia
+Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          pciutils
@@ -218,7 +218,7 @@ Description: x86 virtualization solution - non-X11 guest utilities
  between the host system and the virtual machine.
 
 Package: virtualbox-ose-fuse
-Architecture: i386 amd64 lpia
+Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          virtualbox-ose (= ${binary:Version})

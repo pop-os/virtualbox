@@ -5,8 +5,10 @@ virtualbox-ose (3.2.10-dfsg-1) UNRELEASED; urgency=low
     new upstream version.
   * Drop 25-vboxnetadp_kernel_2.6.36.patch and 26-vboxsf_kernel_2.6.36.patch,
     applied upstream.
+  * Drop lpia from the architectures as Ubuntu doesn't support it anymore and
+    Debian never has.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 12 Oct 2010 17:21:35 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 12 Oct 2010 23:54:04 +0200
 
 virtualbox-ose (3.2.8-dfsg-2) unstable; urgency=high
 
