@@ -837,6 +837,14 @@ static DECLCALLBACK(int) drvvdINIPGetPeerAddress(RTSOCKET Sock, PRTNETADDR pAddr
 }
 #endif /* VBOX_WITH_INIP */
 
+/* Need wrapper for IPRT function as we always want a forceful shutdown. */
+
+/** @copydoc VDINTERFACETCPNET::pfnClientClose */
+static DECLCALLBACK(int) drvvdTcpClientClose(RTSOCKET Sock)
+{
+    return RTTcpClientCloseEx(Sock, false /* fGracefulShutdown */);
+}
+
 
 /*******************************************************************************
 *   Media interface methods                                                    *
@@ -1440,7 +1448,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns,
             pThis->VDITcpNetCallbacks.cbSize = sizeof(VDINTERFACETCPNET);
             pThis->VDITcpNetCallbacks.enmInterface = VDINTERFACETYPE_TCPNET;
             pThis->VDITcpNetCallbacks.pfnClientConnect = RTTcpClientConnect;
-            pThis->VDITcpNetCallbacks.pfnClientClose = RTTcpClientClose;
+            pThis->VDITcpNetCallbacks.pfnClientClose = drvvdTcpClientClose;
             pThis->VDITcpNetCallbacks.pfnSelectOne = RTTcpSelectOne;
             pThis->VDITcpNetCallbacks.pfnRead = RTTcpRead;
             pThis->VDITcpNetCallbacks.pfnWrite = RTTcpWrite;

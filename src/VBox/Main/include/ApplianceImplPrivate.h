@@ -72,10 +72,14 @@ struct Appliance::Data
 
     std::list<Utf8Str>  llWarnings;
 
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
     Utf8Str             strManifestFile;    // on import, contains path of manifest file if it exists
+#endif
 
     ULONG               ulWeightForXmlOperation;
+#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
     ULONG               ulWeightForManifestOperation;
+#endif
     ULONG               ulTotalDisksMB;
     ULONG               cDisks;
     Utf8Str             strOVFSHA1Digest;

@@ -533,18 +533,22 @@ sfnode_lookup(
 	char *name,
 	vtype_t create,
 	sffs_stat_t *stat,
-	uint64_t stat_time)
+	uint64_t stat_time,
+	int *err)
 {
 	avl_index_t	where;
 	sfnode_t	template;
 	sfnode_t	*node;
-	int		error;
+	int		error = 0;
 	int		type;
 	char		*fullpath;
 	sfp_file_t	*fp;
 	sffs_stat_t	tmp_stat;
 
 	ASSERT(MUTEX_HELD(&sffs_lock));
+
+	if (err)
+		*err = error;
 
 	/*
 	 * handle referencing myself
@@ -604,6 +608,9 @@ sfnode_lookup(
 		else if (S_ISREG(m))
 			type = VREG;
 	}
+
+	if (err)
+		*err = error;
 
 	/*
 	 * If no errors, make a new node and return it.
@@ -695,7 +702,7 @@ sffs_readdir(
 		eofp = &dummy_eof;
 	*eofp = 0;
 
-	if (uiop->uio_loffset >= MAXOFF_T) {
+	if (uiop->uio_loffset >= MAXOFFSET_T) {
 		*eofp = 1;
 		return (0);
 	}
@@ -749,7 +756,7 @@ sffs_readdir(
 		} else {
 			node = sfnode_lookup(dir, dirent->d_name, VNON,
 			    &cur_stats->sf_stats[cur_snum],
-			    sfnode_cur_time_usec());
+			    sfnode_cur_time_usec(), NULL);
 			if (node == NULL)
 				panic("sffs_readdir() lookup failed");
 		}
@@ -946,8 +953,15 @@ sffs_read(
 		return (EISDIR);
 	if (vp->v_type != VREG)
 		return (EINVAL);
-	if (uio->uio_loffset >= MAXOFF_T)
-		return (0);
+	if (uio->uio_loffset >= MAXOFFSET_T)
+	{
+		proc_t *p = ttoproc(curthread);
+		mutex_enter(&p->p_lock);
+		(void) rctl_action(rctlproc_legacy[RLIMIT_FSIZE], p->p_rctls,
+			p, RCA_UNSAFE_SIGINFO);
+		mutex_exit(&p->p_lock);
+		return (EFBIG);
+	}
 	if (uio->uio_loffset < 0)
 		return (EINVAL);
 	total = uio->uio_resid;
@@ -1034,8 +1048,6 @@ sffs_write(
 	}
 	if (limit == RLIM64_INFINITY || limit > MAXOFFSET_T)
 		limit = MAXOFFSET_T;
-	if (limit > MAXOFF_T)
-		limit = MAXOFF_T;
 
 	if (uiop->uio_loffset >= limit) {
 		proc_t *p = ttoproc(curthread);
@@ -1047,7 +1059,7 @@ sffs_write(
 		return (EFBIG);
 	}
 
-	if (uiop->uio_loffset >= MAXOFF_T) {
+	if (uiop->uio_loffset >= MAXOFFSET_T) {
 		mutex_exit(&sffs_lock);
 		return (EFBIG);
 	}
@@ -1156,7 +1168,7 @@ sffs_lookup(
 	/*
 	 * Lookup the node.
 	 */
-	node = sfnode_lookup(VN2SFN(dvp), name, VNON, NULL, 0);
+	node = sfnode_lookup(VN2SFN(dvp), name, VNON, NULL, 0, NULL);
 	if (node != NULL)
 		*vpp = sfnode_get_vnode(node);
 	mutex_exit(&sffs_lock);
@@ -1251,7 +1263,7 @@ sffs_create(
 	 * Create a new node. First check for a race creating it.
 	 */
 	mutex_enter(&sffs_lock);
-	node = sfnode_lookup(VN2SFN(dvp), name, VNON, NULL, 0);
+	node = sfnode_lookup(VN2SFN(dvp), name, VNON, NULL, 0, NULL);
 	if (node != NULL) {
 		mutex_exit(&sffs_lock);
 		return (EEXIST);
@@ -1261,7 +1273,8 @@ sffs_create(
 	 * Doesn't exist yet and we have the lock, so create it.
 	 */
 	sfnode_invalidate_stat_cache(VN2SFN(dvp));
-	node = sfnode_lookup(VN2SFN(dvp), name, VREG, NULL, 0);
+	int lookuperr;
+	node = sfnode_lookup(VN2SFN(dvp), name, VREG, NULL, 0, &lookuperr);
 	if (node && (vap->va_mask & AT_MODE)) {
 		timestruc_t dummy;
 		error = sfprov_set_attr(node->sf_sffs->sf_handle, node->sf_path,
@@ -1271,12 +1284,12 @@ sffs_create(
 			    " rc=%d", node->sf_path, vap->va_mode, error);
 	}
 
-	if (node->sf_parent)
+	if (node && node->sf_parent)
 		sfnode_clear_dir_list(node->sf_parent);
 
 	mutex_exit(&sffs_lock);
 	if (node == NULL)
-		return (EINVAL);
+		return (lookuperr);
 	*vpp = sfnode_get_vnode(node);
 	return (0);
 }
@@ -1327,8 +1340,8 @@ sffs_mkdir(
 	}
 
 	sfnode_invalidate_stat_cache(VN2SFN(dvp));
-
-	node = sfnode_lookup(VN2SFN(dvp), nm, VDIR, NULL, 0);
+	int lookuperr = EACCES;
+	node = sfnode_lookup(VN2SFN(dvp), nm, VDIR, NULL, 0, &lookuperr);
 	if (node && (va->va_mask & AT_MODE)) {
 		timestruc_t dummy;
 		error = sfprov_set_attr(node->sf_sffs->sf_handle, node->sf_path,
@@ -1338,12 +1351,12 @@ sffs_mkdir(
 			    " rc=%d", node->sf_path, va->va_mode, error);
 	}
 
-	if (node->sf_parent)
+	if (node && node->sf_parent)
 		sfnode_clear_dir_list(node->sf_parent);
 
 	mutex_exit(&sffs_lock);
 	if (node == NULL)
-		return (EACCES);
+		return (lookuperr);
 	*vpp = sfnode_get_vnode(node);
 	return (0);
 }
@@ -1526,7 +1539,7 @@ sffs_rename(
 	if (error)
 		goto done;
 
-	node = sfnode_lookup(VN2SFN(old_dir), old_nm, VNON, NULL, 0);
+	node = sfnode_lookup(VN2SFN(old_dir), old_nm, VNON, NULL, 0, NULL);
 	if (node == NULL) {
 		error = ENOENT;
 		goto done;

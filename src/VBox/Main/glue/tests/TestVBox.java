@@ -1,4 +1,4 @@
-/* $Id:$ */
+/* $Id: TestVBox.java $ */
 /*
  * Copyright (C) 2010 Oracle Corporation
  *

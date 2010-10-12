@@ -4065,7 +4065,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
     gMachine->COMGETTER(Name)(name.asOutParam());
 
     RTStrPrintf(szTitle, sizeof(szTitle), "%s - " VBOX_PRODUCT,
-                name ? Utf8Str(name).raw() : "<noname>");
+                !name.isEmpty() ? Utf8Str(name).raw() : "<noname>");
 
     /* which mode are we in? */
     switch (mode)

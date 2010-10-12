@@ -267,6 +267,8 @@ private:
     static DECLCALLBACK(int) vdConfigQuery(void *pvUser, const char *pszName,
                                            char *pszValue, size_t cchValue);
 
+    static DECLCALLBACK(int) vdTcpClientClose(RTSOCKET Sock);
+
     class Task;
     class CreateBaseTask;
     class CreateDiffTask;

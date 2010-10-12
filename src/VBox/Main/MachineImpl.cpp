@@ -178,6 +178,7 @@ Machine::HWData::HWData()
     mHWVirtExLargePagesEnabled = false;
 #endif
     mHWVirtExVPIDEnabled = true;
+    mHWVirtExForceEnabled = false;
 #if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
     mHWVirtExExclusive = false;
 #else
@@ -1910,6 +1911,10 @@ STDMETHODIMP Machine::GetHWVirtExProperty(HWVirtExPropertyType_T property, BOOL 
             *aVal = mHWData->mHWVirtExLargePagesEnabled;
             break;
 
+        case HWVirtExPropertyType_Force:
+            *aVal = mHWData->mHWVirtExForceEnabled;
+            break;
+
         default:
             return E_INVALIDARG;
     }
@@ -1956,6 +1961,12 @@ STDMETHODIMP Machine::SetHWVirtExProperty(HWVirtExPropertyType_T property, BOOL 
             setModified(IsModified_MachineData);
             mHWData.backup();
             mHWData->mHWVirtExLargePagesEnabled = !!aVal;
+            break;
+
+        case HWVirtExPropertyType_Force:
+            setModified(IsModified_MachineData);
+            mHWData.backup();
+            mHWData->mHWVirtExForceEnabled = !!aVal;
             break;
 
         default:
@@ -6742,6 +6753,7 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
         mHWData->mHWVirtExNestedPagingEnabled = data.fNestedPaging;
         mHWData->mHWVirtExLargePagesEnabled   = data.fLargePages;
         mHWData->mHWVirtExVPIDEnabled         = data.fVPID;
+        mHWData->mHWVirtExForceEnabled        = data.fHardwareVirtForce;
         mHWData->mPAEEnabled                  = data.fPAE;
         mHWData->mSyntheticCpu                = data.fSyntheticCpu;
 
@@ -7832,6 +7844,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
         data.fNestedPaging          = !!mHWData->mHWVirtExNestedPagingEnabled;
         data.fLargePages            = !!mHWData->mHWVirtExLargePagesEnabled;
         data.fVPID                  = !!mHWData->mHWVirtExVPIDEnabled;
+        data.fHardwareVirtForce     = !!mHWData->mHWVirtExForceEnabled;
         data.fPAE                   = !!mHWData->mPAEEnabled;
         data.fSyntheticCpu          = !!mHWData->mSyntheticCpu;
 
@@ -9885,19 +9898,19 @@ STDMETHODIMP SessionMachine::EndPowerUp(LONG iResult)
     {
         mData->mSession.mProgress->notifyComplete((HRESULT)iResult);
         mData->mSession.mProgress.setNull();
-
-        if (SUCCEEDED((HRESULT)iResult))
-        {
-#ifdef VBOX_WITH_RESOURCE_USAGE_API
-            /* The VM has been powered up successfully, so it makes sense
-             * now to offer the performance metrics for a running machine
-             * object. Doing it earlier wouldn't be safe. */
-            registerMetrics(mParent->performanceCollector(), mPeer,
-                            mData->mSession.mPid);
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
-
-        }
     }
+
+    if (SUCCEEDED((HRESULT)iResult))
+    {
+#ifdef VBOX_WITH_RESOURCE_USAGE_API
+        /* The VM has been powered up successfully, so it makes sense
+         * now to offer the performance metrics for a running machine
+         * object. Doing it earlier wouldn't be safe. */
+        registerMetrics(mParent->performanceCollector(), mPeer,
+                        mData->mSession.mPid);
+#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+    }
+
     return S_OK;
 }
 
@@ -11136,6 +11149,7 @@ HRESULT SessionMachine::setMachineState(MachineState_T aMachineState)
         stsFlags |= SaveSTS_StateFilePath;
     }
 
+#ifdef VBOX_WITH_GUEST_PROPS
     if (   aMachineState == MachineState_PoweredOff
         || aMachineState == MachineState_Aborted
         || aMachineState == MachineState_Teleported)
@@ -11160,6 +11174,7 @@ HRESULT SessionMachine::setMachineState(MachineState_T aMachineState)
             SaveSettings();     // @todo r=dj why the public method? why first SaveSettings and then saveStateSettings?
         }
     }
+#endif
 
     rc = saveStateSettings(stsFlags);
 

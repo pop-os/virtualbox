@@ -81,32 +81,15 @@ static ISession *gSession = NULL;
 static IConsole *gConsole = NULL;
 static EventQueue *gEventQ = NULL;
 
+/* flag whether frontend should terminate */
+static volatile bool g_fTerminateFE = false;
+
 #ifdef VBOX_WITH_VNC
 static VNCFB *g_pFramebufferVNC;
 #endif
 
 
 ////////////////////////////////////////////////////////////////////////////////
-
-/**
- *  State change event.
- */
-class StateChangeEvent : public Event
-{
-public:
-    StateChangeEvent(MachineState_T state) : mState(state) {}
-protected:
-    void *handler()
-    {
-        LogFlow(("VBoxHeadless: StateChangeEvent: %d\n", mState));
-        /* post the termination event if the machine has been PoweredDown/Saved/Aborted */
-        if (mState < MachineState_Running)
-            gEventQ->postEvent(NULL);
-        return 0;
-    }
-private:
-    MachineState_T mState;
-};
 
 /**
  * Callback handler for VirtualBox events
@@ -345,7 +328,13 @@ public:
 
     STDMETHOD(OnStateChange)(MachineState_T machineState)
     {
-        gEventQ->postEvent(new StateChangeEvent(machineState));
+        /* Terminate any event wait operation if the machine has been
+         * PoweredDown/Saved/Aborted. */
+        if (machineState < MachineState_Running)
+        {
+            g_fTerminateFE = true;
+            gEventQ->interruptEventQueueProcessing();
+        }
         return S_OK;
     }
 
@@ -1150,30 +1139,35 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         ComPtr <IProgress> progress;
         CHECK_ERROR_BREAK(console, PowerUp(progress.asOutParam()));
 
-        /* wait for result because there can be errors */
-        /** @todo The error handling here is kind of peculiar, anyone care
-         *        to comment why this works just fine? */
+        /*
+         * Wait for the result because there can be errors.
+         *
+         * It's vital to process events while waiting (teleportation deadlocks),
+         * so we'll poll for the completion instead of waiting on it.
+         */
         for (;;)
         {
-            rc = progress->WaitForCompletion(500);
-            if (FAILED(rc))
-                break;
-
-            /* Processing events is vital for teleportation targets. */
-            gEventQ->processEventQueue(0);
-
             BOOL fCompleted;
             rc = progress->COMGETTER(Completed)(&fCompleted);
             if (FAILED(rc) || fCompleted)
                 break;
+
+            /* Process pending events, then wait for new ones. Note, this
+             * processes NULL events signalling event loop termination. */
+            gEventQ->processEventQueue(0);
+            if (!g_fTerminateFE)
+                gEventQ->processEventQueue(500);
         }
 
         if (SUCCEEDED(progress->WaitForCompletion(-1)))
         {
+            /* Figure out if the operation completed with a failed status
+             * and print the error message. Terminate immediately, and let
+             * the cleanup code take care of potentially pending events. */
             LONG progressRc;
             progress->COMGETTER(ResultCode)(&progressRc);
             rc = progressRc;
-            if (FAILED(progressRc))
+            if (FAILED(rc))
             {
                 com::ProgressErrorInfo info(progress);
                 if (info.isBasicAvailable())
@@ -1184,6 +1178,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 {
                     RTPrintf("Error: failed to start machine. No error message available!\n");
                 }
+                break;
             }
         }
 
@@ -1202,10 +1197,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         Log(("VBoxHeadless: Waiting for PowerDown...\n"));
 
-        Event *e;
-
-        while (gEventQ->waitForEvent(&e) && e)
-          gEventQ->handleEvent(e);
+        while (   !g_fTerminateFE
+               && RT_SUCCESS(gEventQ->processEventQueue(RT_INDEFINITE_WAIT)))
+            /* nothing */ ;
 
         Log(("VBoxHeadless: event loop has terminated...\n"));
 

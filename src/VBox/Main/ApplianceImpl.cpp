@@ -730,7 +730,9 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
     // compute the disks weight (this sets ulTotalDisksMB and cDisks in the instance data)
     disksWeight();
 
+#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
     m->ulWeightForManifestOperation = 0;
+#endif
 
     ULONG cOperations;
     ULONG ulTotalOperationsWeight;
@@ -754,13 +756,17 @@ HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
         case ImportFileNoManifest:
         break;
 
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
         case ImportFileWithManifest:
+#endif
         case WriteFile:
+#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
             ++cOperations;          // another one for creating the manifest
 
             // assume that checking or creating the manifest will take 10% of the time it takes to export the disks
             m->ulWeightForManifestOperation = m->ulTotalDisksMB / 10;
             ulTotalOperationsWeight += m->ulWeightForManifestOperation;
+#endif
         break;
 
         case ImportS3:

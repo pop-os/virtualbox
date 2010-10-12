@@ -39,6 +39,7 @@ VBGLR3DECL(int)     VbglR3Init(void)
     return VINF_SUCCESS;
 }
 
+#ifdef VBOX_WITH_GUEST_PROPS
 VBGLR3DECL(int)     VbglR3GuestPropConnect(uint32_t *pu32ClientId)
 {
     AssertPtrReturn(pu32ClientId, VERR_INVALID_POINTER);
@@ -188,4 +189,4 @@ VBGLR3DECL(int)     VbglR3GuestPropWait(uint32_t u32ClientId,
         *pcbBufActual = 256;
     return VINF_SUCCESS;
 }
-
+#endif

@@ -1,4 +1,4 @@
-/* $Id:  $ */
+/* $Id: DevVGATmpl.h $ */
 /** @file
  * DevVGA - VBox VGA/VESA device, code templates.
  */

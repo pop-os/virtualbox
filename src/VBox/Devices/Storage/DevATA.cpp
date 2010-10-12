@@ -98,6 +98,11 @@
 #define ATA_EVENT_STATUS_MEDIA_CHANGED          3    /**< medium was removed + new medium was inserted */
 #define ATA_EVENT_STATUS_MEDIA_EJECT_REQUESTED  4    /**< medium eject requested (eject button pressed) */
 
+/* Media track type */
+#define ATA_MEDIA_TYPE_UNKNOWN                  0    /**< unknown CD type */
+#define ATA_MEDIA_TYPE_DATA                     1    /**< Data CD */
+#define ATA_MEDIA_TYPE_CDDA                     2    /**< CD-DA  (audio) CD type */
+
 /**
  * Length of the configurable VPD data (without termination)
  */
@@ -206,7 +211,8 @@ typedef struct ATADevState
     /** The same for GET_EVENT_STATUS for mechanism */
     volatile uint32_t MediaEventStatus;
 
-    uint32_t Alignment0;
+    /** Media type if known. */
+    volatile uint32_t MediaTrackType;
 
     /** The status LED state for this drive. */
     PDMLED Led;
@@ -1429,7 +1435,7 @@ static void ataWarningDiskFull(PPDMDEVINS pDevIns)
 {
     int rc;
     LogRel(("PIIX3 ATA: Host disk full\n"));
-    rc = PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "DevATA_DISKFULL",
+    rc = PDMDevHlpVMSetRuntimeError(pDevIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DevATA_DISKFULL",
                                     N_("Host system reported disk full. VM execution is suspended. You can resume after freeing some space"));
     AssertRC(rc);
 }
@@ -1438,7 +1444,7 @@ static void ataWarningFileTooBig(PPDMDEVINS pDevIns)
 {
     int rc;
     LogRel(("PIIX3 ATA: File too big\n"));
-    rc = PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "DevATA_FILETOOBIG",
+    rc = PDMDevHlpVMSetRuntimeError(pDevIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DevATA_FILETOOBIG",
                                     N_("Host system reported that the file size limit of the host file system has been exceeded. VM execution is suspended. You need to move your virtual hard disk to a filesystem which allows bigger files"));
     AssertRC(rc);
 }
@@ -1447,59 +1453,41 @@ static void ataWarningISCSI(PPDMDEVINS pDevIns)
 {
     int rc;
     LogRel(("PIIX3 ATA: iSCSI target unavailable\n"));
-    rc = PDMDevHlpVMSetRuntimeError(pDevIns, 0 /*fFlags*/, "DevATA_ISCSIDOWN",
+    rc = PDMDevHlpVMSetRuntimeError(pDevIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DevATA_ISCSIDOWN",
                                     N_("The iSCSI target has stopped responding. VM execution is suspended. You can resume when it is available again"));
     AssertRC(rc);
 }
 
-/**
- * Suspend I/O operations on a controller. Also suspends EMT, because it's
- * waiting for I/O to make progress. The next attempt to perform an I/O
- * operation will be made when EMT is resumed up again (as the resume
- * callback below restarts I/O).
- *
- * @param pCtl      Controller for which to suspend I/O.
- */
-static void ataSuspendRedo(PATACONTROLLER pCtl)
-{
-    PPDMDEVINS  pDevIns = CONTROLLER_2_DEVINS(pCtl);
-    int         rc;
-
-    pCtl->fRedoIdle = true;
-    rc = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                         (PFNRT)PDMDevHlpVMSuspend, 1, pDevIns);
-    AssertReleaseRC(rc);
-}
-
-bool ataIsRedoSetWarning(ATADevState *s, int rc)
+static bool ataIsRedoSetWarning(ATADevState *s, int rc)
 {
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     Assert(!PDMCritSectIsOwner(&pCtl->lock));
     if (rc == VERR_DISK_FULL)
     {
+        pCtl->fRedoIdle = true;
         ataWarningDiskFull(ATADEVSTATE_2_DEVINS(s));
-        ataSuspendRedo(pCtl);
         return true;
     }
     if (rc == VERR_FILE_TOO_BIG)
     {
+        pCtl->fRedoIdle = true;
         ataWarningFileTooBig(ATADEVSTATE_2_DEVINS(s));
-        ataSuspendRedo(pCtl);
         return true;
     }
     if (rc == VERR_BROKEN_PIPE || rc == VERR_NET_CONNECTION_REFUSED)
     {
+        pCtl->fRedoIdle = true;
         /* iSCSI connection abort (first error) or failure to reestablish
          * connection (second error). Pause VM. On resume we'll retry. */
         ataWarningISCSI(ATADEVSTATE_2_DEVINS(s));
-        ataSuspendRedo(pCtl);
         return true;
     }
     return false;
 }
 
 
-static int ataReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf, uint32_t cSectors, bool *fRedo)
+static int ataReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf,
+                          uint32_t cSectors, bool *pfRedo)
 {
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     int rc;
@@ -1515,9 +1503,9 @@ static int ataReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf, uint3
     STAM_REL_COUNTER_ADD(&s->StatBytesRead, cSectors * 512);
 
     if (RT_SUCCESS(rc))
-        *fRedo = false;
+        *pfRedo = false;
     else
-        *fRedo = ataIsRedoSetWarning(s, rc);
+        *pfRedo = ataIsRedoSetWarning(s, rc);
 
     STAM_PROFILE_START(&pCtl->StatLockWait, a);
     PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
@@ -1526,7 +1514,8 @@ static int ataReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf, uint3
 }
 
 
-static int ataWriteSectors(ATADevState *s, uint64_t u64Sector, const void *pvBuf, uint32_t cSectors, bool *fRedo)
+static int ataWriteSectors(ATADevState *s, uint64_t u64Sector,
+                           const void *pvBuf, uint32_t cSectors, bool *pfRedo)
 {
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     int rc;
@@ -1550,9 +1539,9 @@ static int ataWriteSectors(ATADevState *s, uint64_t u64Sector, const void *pvBuf
     STAM_REL_COUNTER_ADD(&s->StatBytesWritten, cSectors * 512);
 
     if (RT_SUCCESS(rc))
-        *fRedo = false;
+        *pfRedo = false;
     else
-        *fRedo = ataIsRedoSetWarning(s, rc);
+        *pfRedo = ataIsRedoSetWarning(s, rc);
 
     STAM_PROFILE_START(&pCtl->StatLockWait, a);
     PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
@@ -1843,6 +1832,7 @@ static bool atapiReadSS(ATADevState *s)
             break;
     }
     STAM_PROFILE_ADV_STOP(&s->StatReads, r);
+    s->Led.Actual.s.fReading = 0;
 
     STAM_PROFILE_START(&pCtl->StatLockWait, a);
     PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
@@ -1850,7 +1840,6 @@ static bool atapiReadSS(ATADevState *s)
 
     if (RT_SUCCESS(rc))
     {
-        s->Led.Actual.s.fReading = 0;
         STAM_REL_COUNTER_ADD(&s->StatBytesRead, s->cbATAPISector * cSectors);
 
         /* The initial buffer end value has been set up based on the total
@@ -1877,6 +1866,13 @@ static bool atapiReadSS(ATADevState *s)
     return false;
 }
 
+/**
+ * Sets the given media track type.
+ */
+static uint32_t ataMediumTypeSet(ATADevState *s, uint32_t MediaTrackType)
+{
+    return ASMAtomicXchgU32(&s->MediaTrackType, MediaTrackType);
+}
 
 static bool atapiPassthroughSS(ATADevState *s)
 {
@@ -1934,7 +1930,7 @@ static bool atapiPassthroughSS(ATADevState *s)
                 break;
             case SCSI_READ_CD:
                 iATAPILBA = ataBE2H_U32(s->aATAPICmd + 2);
-                cSectors = ataBE2H_U24(s->aATAPICmd + 6) / s->cbATAPISector;
+                cSectors = ataBE2H_U24(s->aATAPICmd + 6);
                 break;
             case SCSI_READ_CD_MSF:
                 iATAPILBA = ataMSF2LBA(s->aATAPICmd + 3);
@@ -1975,8 +1971,8 @@ static bool atapiPassthroughSS(ATADevState *s)
                     ataH2BE_U32(aATAPICmd + 6, cReqSectors);
                     break;
                 case SCSI_READ_CD:
-                    ataH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U24(s->aATAPICmd + 6, cbCurrTX);
+                    ataH2BE_U32(aATAPICmd + 2, iATAPILBA);
+                    ataH2BE_U24(aATAPICmd + 6, cReqSectors);
                     break;
                 case SCSI_READ_CD_MSF:
                     ataLBA2MSF(aATAPICmd + 3, iATAPILBA);
@@ -2033,6 +2029,35 @@ static bool atapiPassthroughSS(ATADevState *s)
                 ataSCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 8, "VBOX", 8);
                 ataSCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 16, "CD-ROM", 16);
                 ataSCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 32, "1.0", 4);
+            }
+            else if (s->aATAPICmd[0] == SCSI_READ_TOC_PMA_ATIP)
+            {
+                /* Set the media type if we can detect it. */
+                uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
+
+                /** @todo: Implemented only for formatted TOC now. */
+                if (   (s->aATAPICmd[1] & 0xf) == 0
+                    && cbTransfer >= 6)
+                {
+                    uint32_t NewMediaType;
+                    uint32_t OldMediaType;
+
+                    if (pbBuf[5] & 0x4)
+                        NewMediaType = ATA_MEDIA_TYPE_DATA;
+                    else
+                        NewMediaType = ATA_MEDIA_TYPE_CDDA;
+
+                    OldMediaType = ataMediumTypeSet(s, NewMediaType);
+
+                    if (OldMediaType != NewMediaType)
+                        LogRel(("PIIX3 ATA: LUN#%d: CD-ROM passthrough, detected %s CD\n",
+                                s->iLUN,
+                                NewMediaType == ATA_MEDIA_TYPE_DATA
+                                ? "data"
+                                : "audio"));
+                }
+                else /* Play safe and set to unknown. */
+                    ataMediumTypeSet(s, ATA_MEDIA_TYPE_UNKNOWN);
             }
             if (cbTransfer)
                 Log3(("ATAPI PT data read (%d): %.*Rhxs\n", cbTransfer, cbTransfer, s->CTX_SUFF(pbIOBuffer)));
@@ -3163,7 +3188,7 @@ static void atapiParseCmdPassthrough(ATADevState *s)
             iATAPILBA = ataBE2H_U32(pbPacket + 2);
             cSectors = ataBE2H_U16(pbPacket + 7);
             Log2(("ATAPI PT: lba %d sectors %d\n", iATAPILBA, cSectors));
-            s->cbATAPISector = 2048; /**< @todo this size is not always correct */
+            s->cbATAPISector = 2048;
             cbTransfer = cSectors * s->cbATAPISector;
             uTxDir = PDMBLOCKTXDIR_FROM_DEVICE;
             goto sendcmd;
@@ -3171,7 +3196,7 @@ static void atapiParseCmdPassthrough(ATADevState *s)
             iATAPILBA = ataBE2H_U32(pbPacket + 2);
             cSectors = ataBE2H_U32(pbPacket + 6);
             Log2(("ATAPI PT: lba %d sectors %d\n", iATAPILBA, cSectors));
-            s->cbATAPISector = 2048; /**< @todo this size is not always correct */
+            s->cbATAPISector = 2048;
             cbTransfer = cSectors * s->cbATAPISector;
             uTxDir = PDMBLOCKTXDIR_FROM_DEVICE;
             goto sendcmd;
@@ -3188,18 +3213,49 @@ static void atapiParseCmdPassthrough(ATADevState *s)
             uTxDir = PDMBLOCKTXDIR_FROM_DEVICE;
             goto sendcmd;
         case SCSI_READ_CD:
-            s->cbATAPISector = 2048; /**< @todo this size is not always correct */
-            cbTransfer = ataBE2H_U24(pbPacket + 6) / s->cbATAPISector * s->cbATAPISector;
-            uTxDir = PDMBLOCKTXDIR_FROM_DEVICE;
-            goto sendcmd;
         case SCSI_READ_CD_MSF:
-            cSectors = ataMSF2LBA(pbPacket + 6) - ataMSF2LBA(pbPacket + 3);
-            if (cSectors > 32)
-                cSectors = 32; /* Limit transfer size to 64~74K. Safety first. In any case this can only harm software doing CDDA extraction. */
-            s->cbATAPISector = 2048; /**< @todo this size is not always correct */
-            cbTransfer = cSectors * s->cbATAPISector;
+        {
+            /* Get sector size based on the expected sector type field. */
+            switch ((pbPacket[1] >> 2) & 0x7)
+            {
+                case 0x0: /* All types. */
+                    if (ASMAtomicReadU32(&s->MediaTrackType) == ATA_MEDIA_TYPE_CDDA)
+                        s->cbATAPISector = 2352;
+                    else
+                        s->cbATAPISector = 2048; /* Might be incorrect if we couldn't determine the type. */
+                    break;
+                case 0x1: /* CD-DA */
+                    s->cbATAPISector = 2352;
+                    break;
+                case 0x2: /* Mode 1 */
+                    s->cbATAPISector = 2048;
+                    break;
+                case 0x3: /* Mode 2 formless */
+                    s->cbATAPISector = 2336;
+                    break;
+                case 0x4: /* Mode 2 form 1 */
+                    s->cbATAPISector = 2048;
+                    break;
+                case 0x5: /* Mode 2 form 2 */
+                    s->cbATAPISector = 2324;
+                    break;
+                default: /* Reserved */
+                    AssertMsgFailed(("Unknown sector type\n"));
+                    s->cbATAPISector = 0; /** @todo we should probably fail the command here already. */
+            }
+
+            if (pbPacket[0] == SCSI_READ_CD)
+                cbTransfer = ataBE2H_U24(pbPacket + 6) * s->cbATAPISector;
+            else /* SCSI_READ_MSF */
+            {
+                cSectors = ataMSF2LBA(pbPacket + 6) - ataMSF2LBA(pbPacket + 3);
+                if (cSectors > 32)
+                    cSectors = 32; /* Limit transfer size to 64~74K. Safety first. In any case this can only harm software doing CDDA extraction. */
+                cbTransfer = cSectors * s->cbATAPISector;
+            }
             uTxDir = PDMBLOCKTXDIR_FROM_DEVICE;
             goto sendcmd;
+        }
         case SCSI_READ_DISC_INFORMATION:
             cbTransfer = ataBE2H_U16(pbPacket + 7);
             uTxDir = PDMBLOCKTXDIR_FROM_DEVICE;
@@ -3434,7 +3490,6 @@ static void ataMediumInserted(ATADevState *s)
     } while (!ASMAtomicCmpXchgU32(&s->MediaEventStatus, NewStatus, OldStatus));
 }
 
-
 /**
  * Called when a media is mounted.
  *
@@ -3460,6 +3515,7 @@ static DECLCALLBACK(void) ataMountNotify(PPDMIMOUNTNOTIFY pInterface)
     if (pIf->cNotifiedMediaChange < 2)
         pIf->cNotifiedMediaChange = 2;
     ataMediumInserted(pIf);
+    ataMediumTypeSet(pIf, ATA_MEDIA_TYPE_UNKNOWN);
 }
 
 /**
@@ -3480,6 +3536,7 @@ static DECLCALLBACK(void) ataUnmountNotify(PPDMIMOUNTNOTIFY pInterface)
      */
     pIf->cNotifiedMediaChange = 4;
     ataMediumRemoved(pIf);
+    ataMediumTypeSet(pIf, ATA_MEDIA_TYPE_UNKNOWN);
 }
 
 static void ataPacketBT(ATADevState *s)
@@ -3496,6 +3553,7 @@ static void ataResetDevice(ATADevState *s)
     s->cMultSectors = ATA_MAX_MULT_SECTORS;
     s->cNotifiedMediaChange = 0;
     ASMAtomicWriteU32(&s->MediaEventStatus, ATA_EVENT_STATUS_UNCHANGED);
+    ASMAtomicWriteU32(&s->MediaTrackType, ATA_MEDIA_TYPE_UNKNOWN);
     ataUnsetIRQ(s);
 
     s->uATARegSelect = 0x20;
@@ -4847,7 +4905,6 @@ static DECLCALLBACK(int) ataAsyncIOLoop(RTTHREAD ThreadSelf, void *pvUser)
                     {
                         LogRel(("PIIX3 ATA: Ctl#%d: redo PIO operation\n", ATACONTROLLER_IDX(pCtl)));
                         ataAsyncIOPutRequest(pCtl, &g_ataPIORequest);
-                        ataSuspendRedo(pCtl);
                         break;
                     }
                     s->iIOBufferCur = 0;
@@ -5605,6 +5662,8 @@ static DECLCALLBACK(int) ataR3Destruct(PPDMDEVINS pDevIns)
         {
             ASMAtomicWriteU32(&pThis->aCts[i].fShutdown, true);
             rc = RTSemEventSignal(pThis->aCts[i].AsyncIOSem);
+            AssertRC(rc);
+            rc = RTSemEventSignal(pThis->aCts[i].SuspendIOSem);
             AssertRC(rc);
         }
     }

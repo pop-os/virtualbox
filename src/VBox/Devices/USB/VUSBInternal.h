@@ -364,6 +364,9 @@ typedef struct VUSBROOTHUB
     /** Version of the attached Host Controller. */
     uint32_t                fHcVersions;
 #ifdef VBOX_WITH_STATISTICS
+# if HC_ARCH_BITS == 32
+    uint32_t                Alignment0;
+# endif
     VUSBROOTHUBTYPESTATS    Total;
     VUSBROOTHUBTYPESTATS    aTypes[VUSBXFERTYPE_MSG];
     STAMCOUNTER             StatIsocReqPkts;
@@ -393,6 +396,16 @@ typedef struct VUSBROOTHUB
 /** Converts a pointer to VUSBROOTHUB::IRhConnector to a PVUSBROOTHUB. */
 #define VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface) (PVUSBROOTHUB)( (uintptr_t)(pInterface) - RT_OFFSETOF(VUSBROOTHUB, IRhConnector) )
 
+/**
+ * URB cancellation modes
+ */
+typedef enum CANCELMODE
+{
+    /** complete the URB with an error (CRC). */
+    CANCELMODE_FAIL = 0,
+    /** do not change the URB contents. */
+    CANCELMODE_UNDO
+} CANCELMODE;
 
 /* @} */
 
@@ -403,7 +416,7 @@ typedef struct VUSBROOTHUB
 int  vusbUrbSubmit(PVUSBURB pUrb);
 void vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete);
 void vusbUrbDoReapAsync(PVUSBURB pHead, RTMSINTERVAL cMillies);
-void vusbUrbCancel(PVUSBURB pUrb);
+void vusbUrbCancel(PVUSBURB pUrb, CANCELMODE mode);
 void vusbUrbRipe(PVUSBURB pUrb);
 void vusbUrbCompletionRh(PVUSBURB pUrb);
 

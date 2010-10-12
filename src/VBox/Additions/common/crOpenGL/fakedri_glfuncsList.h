@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: fakedri_glfuncsList.h $ */
 
 /** @file
  * VBox OpenGL list of opengl functions common in Mesa and vbox opengl stub

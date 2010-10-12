@@ -119,7 +119,14 @@ private:
     void addWarning(const char* aWarning, ...);
 
     void disksWeight();
-    enum SetUpProgressMode { ImportFileWithManifest, ImportFileNoManifest, ImportS3, WriteFile, WriteS3 };
+    enum SetUpProgressMode {
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
+            ImportFileWithManifest,
+#endif
+            ImportFileNoManifest,
+            ImportS3,
+            WriteFile,
+            WriteS3 };
     HRESULT setUpProgress(ComObjPtr<Progress> &pProgress,
                           const Bstr &bstrDescription,
                           SetUpProgressMode mode);
@@ -144,7 +151,9 @@ private:
                                      int32_t &lDevice);
 
     HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
     HRESULT manifestVerify(const LocationInfo &locInfo, const ovf::OVFReader &reader, ComObjPtr<Progress> &pProgress);
+#endif
 
     HRESULT importFS(const LocationInfo &locInfo, ComObjPtr<Progress> &aProgress);
 

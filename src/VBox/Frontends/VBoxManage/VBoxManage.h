@@ -163,12 +163,16 @@ int handleModifyVM(HandlerArg *a);
 
 /* VBoxManageGuestProp.cpp */
 extern void usageGuestProperty(void);
+
+/* VBoxManageGuestCtrl.cpp */
+extern void usageGuestControl(void);
+
 #ifndef VBOX_ONLY_DOCS
+/* VBoxManageGuestProp.cpp */
 extern int handleGuestProperty(HandlerArg *a);
 
 /* VBoxManageGuestCtrl.cpp */
 extern int handleGuestControl(HandlerArg *a);
-extern void usageGuestControl(void);
 
 /* VBoxManageVMInfo.cpp */
 void showSnapshots(ComPtr<ISnapshot> &rootSnapshot,

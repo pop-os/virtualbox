@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,7 +63,7 @@ HRESULT HostNetworkInterface::init (Bstr aInterfaceName, Guid aGuid, HostNetwork
     LogFlowThisFunc(("aInterfaceName={%ls}, aGuid={%s}\n",
                       aInterfaceName.raw(), aGuid.toString().raw()));
 
-    ComAssertRet(aInterfaceName, E_INVALIDARG);
+    ComAssertRet(!aInterfaceName.isEmpty(), E_INVALIDARG);
     ComAssertRet(!aGuid.isEmpty(), E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */

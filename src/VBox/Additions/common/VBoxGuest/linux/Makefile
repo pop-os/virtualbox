@@ -1,10 +1,10 @@
-# $Revision: 61105 $
+# $Revision: 65557 $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
 
 #
-# Copyright (C) 2006-2009 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -219,6 +219,7 @@ ifndef INCL
   KBUILD_EXTMOD := $(shell pwd)
  endif
  INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
+ INCL    += $(addprefix -I$(KBUILD_EXTMOD)/vboxguest,/ /include /r0drv/linux)
  export INCL
 endif
 KFLAGS   := -D__KERNEL__ -DMODULE \

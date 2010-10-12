@@ -57,7 +57,7 @@
 typedef struct DRVMAINVMMDEV
 {
     /** Pointer to the VMMDev object. */
-    VMMDev                     *pVMMDev;
+    VMMDev                      *pVMMDev;
     /** Pointer to the driver instance structure. */
     PPDMDRVINS                  pDrvIns;
     /** Pointer to the VMMDev port interface of the driver/device above us. */
@@ -128,7 +128,7 @@ PPDMIVMMDEVPORT VMMDev::getVMMDevPort()
 /**
  * Wait on event semaphore for guest credential judgement result.
  */
-int VMMDev::WaitCredentialsJudgement (uint32_t u32Timeout, uint32_t *pu32CredentialsFlags)
+int VMMDev::WaitCredentialsJudgement(uint32_t u32Timeout, uint32_t *pu32CredentialsFlags)
 {
     if (u32Timeout == 0)
     {
@@ -145,7 +145,7 @@ int VMMDev::WaitCredentialsJudgement (uint32_t u32Timeout, uint32_t *pu32Credent
     return rc;
 }
 
-int VMMDev::SetCredentialsJudgementResult (uint32_t u32Flags)
+int VMMDev::SetCredentialsJudgementResult(uint32_t u32Flags)
 {
     mu32CredentialsFlags = u32Flags;
 
@@ -172,8 +172,10 @@ DECLCALLBACK(void) vmmdevUpdateGuestStatus(PPDMIVMMDEVCONNECTOR pInterface, cons
     if (!guestStatus)
         return;
 
+    Console *pConsole = pDrv->pVMMDev->getParent();
+
     /* Store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
         return;
@@ -181,7 +183,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestStatus(PPDMIVMMDEVCONNECTOR pInterface, cons
     guest->setAdditionsStatus((VBoxGuestStatusFacility)guestStatus->facility,
                               (VBoxGuestStatusCurrent)guestStatus->status,
                               guestStatus->flags);
-    pDrv->pVMMDev->getParent()->onAdditionsStateChange();
+    pConsole->onAdditionsStateChange();
 }
 
 
@@ -201,8 +203,10 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
     if (!guestInfo)
         return;
 
+    Console *pConsole = pDrv->pVMMDev->getParent();
+
     /* Store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
         return;
@@ -217,10 +221,10 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
          * Tell the console interface about the event
          * so that it can notify its consumers.
          */
-        pDrv->pVMMDev->getParent()->onAdditionsStateChange();
+        pConsole->onAdditionsStateChange();
 
         if (guestInfo->additionsVersion < VMMDEV_VERSION)
-            pDrv->pVMMDev->getParent()->onAdditionsOutdated();
+            pConsole->onAdditionsOutdated();
     }
     else
     {
@@ -232,7 +236,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
         guest->setAdditionsStatus(VBoxGuestStatusFacility_Unknown,
                                   VBoxGuestStatusCurrent_Disabled,
                                   0); /* Flags; not used. */
-        pDrv->pVMMDev->getParent()->onAdditionsStateChange();
+        pConsole->onAdditionsStateChange();
     }
 }
 
@@ -248,9 +252,10 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
 DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t newCapabilities)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
     /* store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
         return;
@@ -264,7 +269,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface
      * Tell the console interface about the event
      * so that it can notify its consumers.
      */
-    pDrv->pVMMDev->getParent()->onAdditionsStateChange();
+    pConsole->onAdditionsStateChange();
 
 }
 
@@ -280,11 +285,13 @@ DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface
 DECLCALLBACK(void) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t newCapabilities)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
+
     /*
      * Tell the console interface about the event
      * so that it can notify its consumers.
      */
-    Mouse *pMouse = pDrv->pVMMDev->getParent()->getMouse();
+    Mouse *pMouse = pConsole->getMouse();
     if (pMouse)  /** @todo and if not?  Can that actually happen? */
     {
         pMouse->onVMMDevCanAbsChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE));
@@ -315,6 +322,7 @@ DECLCALLBACK(void) vmmdevUpdatePointerShape(PPDMIVMMDEVCONNECTOR pInterface, boo
                                             void *pShape)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
     /* tell the console about it */
     size_t cbShapeSize = 0;
@@ -327,20 +335,20 @@ DECLCALLBACK(void) vmmdevUpdatePointerShape(PPDMIVMMDEVCONNECTOR pInterface, boo
     com::SafeArray<BYTE> shapeData(cbShapeSize);
     if (pShape)
         ::memcpy(shapeData.raw(), pShape, cbShapeSize);
-    pDrv->pVMMDev->getParent()->onMousePointerShapeChange(fVisible, fAlpha,
-                                                          xHot, yHot, width, height, ComSafeArrayAsInParam(shapeData));
+    pConsole->onMousePointerShapeChange(fVisible, fAlpha, xHot, yHot, width, height, ComSafeArrayAsInParam(shapeData));
 }
 
 DECLCALLBACK(int) iface_VideoAccelEnable(PPDMIVMMDEVCONNECTOR pInterface, bool fEnable, VBVAMEMORY *pVbvaMemory)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
-    Display *display = pDrv->pVMMDev->getParent()->getDisplay();
+    Display *display = pConsole->getDisplay();
 
     if (display)
     {
         LogSunlover(("MAIN::VMMDevInterface::iface_VideoAccelEnable: %d, %p\n", fEnable, pVbvaMemory));
-        return display->VideoAccelEnable (fEnable, pVbvaMemory);
+        return display->VideoAccelEnable(fEnable, pVbvaMemory);
     }
 
     return VERR_NOT_SUPPORTED;
@@ -348,8 +356,9 @@ DECLCALLBACK(int) iface_VideoAccelEnable(PPDMIVMMDEVCONNECTOR pInterface, bool f
 DECLCALLBACK(void) iface_VideoAccelFlush(PPDMIVMMDEVCONNECTOR pInterface)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
-    Display *display = pDrv->pVMMDev->getParent()->getDisplay();
+    Display *display = pConsole->getDisplay();
 
     if (display)
     {
@@ -362,6 +371,7 @@ DECLCALLBACK(int) vmmdevVideoModeSupported(PPDMIVMMDEVCONNECTOR pInterface, uint
                                            uint32_t bpp, bool *fSupported)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
     if (!fSupported)
         return VERR_INVALID_PARAMETER;
@@ -371,7 +381,7 @@ DECLCALLBACK(int) vmmdevVideoModeSupported(PPDMIVMMDEVCONNECTOR pInterface, uint
     IFramebuffer *framebuffer = NULL;
     LONG xOrigin = 0;
     LONG yOrigin = 0;
-    HRESULT hrc = pDrv->pVMMDev->getParent()->getDisplay()->GetFramebuffer(display, &framebuffer, &xOrigin, &yOrigin);
+    HRESULT hrc = pConsole->getDisplay()->GetFramebuffer(display, &framebuffer, &xOrigin, &yOrigin);
     if (SUCCEEDED(hrc) && framebuffer)
     {
         framebuffer->VideoModeSupported(width, height, bpp, (BOOL*)fSupported);
@@ -390,10 +400,11 @@ DECLCALLBACK(int) vmmdevVideoModeSupported(PPDMIVMMDEVCONNECTOR pInterface, uint
 DECLCALLBACK(int) vmmdevGetHeightReduction(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *heightReduction)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
     if (!heightReduction)
         return VERR_INVALID_PARAMETER;
-    IFramebuffer *framebuffer = pDrv->pVMMDev->getParent()->getDisplay()->getFramebuffer();
+    IFramebuffer *framebuffer = pConsole->getDisplay()->getFramebuffer();
     if (framebuffer)
         framebuffer->COMGETTER(HeightReduction)((ULONG*)heightReduction);
     else
@@ -405,22 +416,24 @@ DECLCALLBACK(int) vmmdevSetCredentialsJudgementResult(PPDMIVMMDEVCONNECTOR pInte
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
 
-    int rc = pDrv->pVMMDev->SetCredentialsJudgementResult (u32Flags);
+    if (pDrv->pVMMDev)
+        return pDrv->pVMMDev->SetCredentialsJudgementResult (u32Flags);
 
-    return rc;
+    return VERR_GENERAL_FAILURE;
 }
 
 DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32_t cRect, PRTRECT pRect)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
     if (!cRect)
         return VERR_INVALID_PARAMETER;
 #ifdef MMSEAMLESS
     /* Forward to Display, which calls corresponding framebuffers. */
-    pDrv->pVMMDev->getParent()->getDisplay()->handleSetVisibleRegion(cRect, pRect);
+    pConsole->getDisplay()->handleSetVisibleRegion(cRect, pRect);
 #else
-    IFramebuffer *framebuffer = pDrv->pVMMDev->getParent()->getDisplay()->getFramebuffer();
+    IFramebuffer *framebuffer = pConsole->getDisplay()->getFramebuffer();
     if (framebuffer)
     {
         framebuffer->SetVisibleRegion((BYTE *)pRect, cRect);
@@ -428,7 +441,7 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
         {
             BOOL is3denabled;
 
-            pDrv->pVMMDev->getParent()->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
+            pConsole->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
 
             if (is3denabled)
             {
@@ -440,8 +453,8 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
                 parms[1].type = VBOX_HGCM_SVC_PARM_32BIT;
                 parms[1].u.uint32 = cRect;
 
-                int rc = pDrv->pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VISIBLE_REGION, 2, &parms[0]);
-                return rc;
+                if (pDrv->pVMMDev)
+                    return pDrv->pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VISIBLE_REGION, 2, &parms[0]);
             }
         }
 #endif
@@ -454,12 +467,13 @@ DECLCALLBACK(int) vmmdevSetVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32
 DECLCALLBACK(int) vmmdevQueryVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcRect, PRTRECT pRect)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
 #ifdef MMSEAMLESS
     /* Forward to Display, which calls corresponding framebuffers. */
-    pDrv->pVMMDev->getParent()->getDisplay()->handleQueryVisibleRegion(pcRect, pRect);
+    pConsole->getDisplay()->handleQueryVisibleRegion(pcRect, pRect);
 #else
-    IFramebuffer *framebuffer = pDrv->pVMMDev->getParent()->getDisplay()->getFramebuffer();
+    IFramebuffer *framebuffer = pConsole->getDisplay()->getFramebuffer();
     if (framebuffer)
     {
         ULONG cRect = 0;
@@ -483,16 +497,17 @@ DECLCALLBACK(int) vmmdevQueryVisibleRegion(PPDMIVMMDEVCONNECTOR pInterface, uint
 DECLCALLBACK(int) vmmdevQueryStatisticsInterval(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pulInterval)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
     ULONG          val = 0;
 
     if (!pulInterval)
         return VERR_INVALID_POINTER;
 
     /* store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
-        return VERR_INVALID_PARAMETER; /** @todo wrong error */
+        return VERR_GENERAL_FAILURE;
 
     guest->COMGETTER(StatisticsUpdateInterval)(&val);
     *pulInterval = val;
@@ -510,16 +525,17 @@ DECLCALLBACK(int) vmmdevQueryStatisticsInterval(PPDMIVMMDEVCONNECTOR pInterface,
 DECLCALLBACK(int) vmmdevQueryBalloonSize(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pcbBalloon)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
     ULONG          val = 0;
 
     if (!pcbBalloon)
         return VERR_INVALID_POINTER;
 
     /* store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
-        return VERR_INVALID_PARAMETER; /** @todo wrong error */
+        return VERR_GENERAL_FAILURE;
 
     guest->COMGETTER(MemoryBalloonSize)(&val);
     *pcbBalloon = val;
@@ -537,16 +553,17 @@ DECLCALLBACK(int) vmmdevQueryBalloonSize(PPDMIVMMDEVCONNECTOR pInterface, uint32
 DECLCALLBACK(int) vmmdevIsPageFusionEnabled(PPDMIVMMDEVCONNECTOR pInterface, bool *pfPageFusionEnabled)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
     BOOL           val = 0;
 
     if (!pfPageFusionEnabled)
         return VERR_INVALID_POINTER;
 
     /* store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
-        return VERR_INVALID_PARAMETER; /** @todo wrong error */
+        return VERR_GENERAL_FAILURE;
 
     guest->COMGETTER(PageFusionEnabled)(&val);
     *pfPageFusionEnabled = !!val;
@@ -564,16 +581,17 @@ DECLCALLBACK(int) vmmdevIsPageFusionEnabled(PPDMIVMMDEVCONNECTOR pInterface, boo
 DECLCALLBACK(int) vmmdevReportStatistics(PPDMIVMMDEVCONNECTOR pInterface, VBoxGuestStatistics *pGuestStats)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    Console *pConsole = pDrv->pVMMDev->getParent();
 
     Assert(pGuestStats);
     if (!pGuestStats)
         return VERR_INVALID_POINTER;
 
     /* store that information in IGuest */
-    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Guest* guest = pConsole->getGuest();
     Assert(guest);
     if (!guest)
-        return VERR_INVALID_PARAMETER; /** @todo wrong error */
+        return VERR_GENERAL_FAILURE;
 
     if (pGuestStats->u32StatCaps & VBOX_GUEST_STAT_CPU_LOAD_IDLE)
         guest->setStatistic(pGuestStats->u32CpuId, GUESTSTATTYPE_CPUIDLE, pGuestStats->u32CpuLoad_Idle);
@@ -623,12 +641,10 @@ static DECLCALLBACK(int) iface_hgcmConnect (PPDMIHGCMCONNECTOR pInterface, PVBOX
         return VERR_INVALID_PARAMETER;
     }
 
-    if (!pDrv->pVMMDev->hgcmIsActive ())
-    {
+    if (!pDrv->pVMMDev || !pDrv->pVMMDev->hgcmIsActive())
         return VERR_INVALID_STATE;
-    }
 
-    return HGCMGuestConnect (pDrv->pHGCMPort, pCmd, pServiceLocation->u.host.achName, pu32ClientID);
+    return HGCMGuestConnect(pDrv->pHGCMPort, pCmd, pServiceLocation->u.host.achName, pu32ClientID);
 }
 
 static DECLCALLBACK(int) iface_hgcmDisconnect (PPDMIHGCMCONNECTOR pInterface, PVBOXHGCMCMD pCmd, uint32_t u32ClientID)
@@ -637,12 +653,10 @@ static DECLCALLBACK(int) iface_hgcmDisconnect (PPDMIHGCMCONNECTOR pInterface, PV
 
     PDRVMAINVMMDEV pDrv = PDMIHGCMCONNECTOR_2_MAINVMMDEV(pInterface);
 
-    if (!pDrv->pVMMDev->hgcmIsActive ())
-    {
+    if (!pDrv->pVMMDev || !pDrv->pVMMDev->hgcmIsActive())
         return VERR_INVALID_STATE;
-    }
 
-    return HGCMGuestDisconnect (pDrv->pHGCMPort, pCmd, u32ClientID);
+    return HGCMGuestDisconnect(pDrv->pHGCMPort, pCmd, u32ClientID);
 }
 
 static DECLCALLBACK(int) iface_hgcmCall (PPDMIHGCMCONNECTOR pInterface, PVBOXHGCMCMD pCmd, uint32_t u32ClientID, uint32_t u32Function,
@@ -652,12 +666,10 @@ static DECLCALLBACK(int) iface_hgcmCall (PPDMIHGCMCONNECTOR pInterface, PVBOXHGC
 
     PDRVMAINVMMDEV pDrv = PDMIHGCMCONNECTOR_2_MAINVMMDEV(pInterface);
 
-    if (!pDrv->pVMMDev->hgcmIsActive ())
-    {
+    if (!pDrv->pVMMDev || !pDrv->pVMMDev->hgcmIsActive())
         return VERR_INVALID_STATE;
-    }
 
-    return HGCMGuestCall (pDrv->pHGCMPort, pCmd, u32ClientID, u32Function, cParms, paParms);
+    return HGCMGuestCall(pDrv->pHGCMPort, pCmd, u32ClientID, u32Function, cParms, paParms);
 }
 
 /**
@@ -670,7 +682,7 @@ static DECLCALLBACK(int) iface_hgcmCall (PPDMIHGCMCONNECTOR pInterface, PVBOXHGC
 static DECLCALLBACK(int) iface_hgcmSave(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
 {
     LogSunlover(("Enter\n"));
-    return HGCMHostSaveState (pSSM);
+    return HGCMHostSaveState(pSSM);
 }
 
 
@@ -691,32 +703,29 @@ static DECLCALLBACK(int) iface_hgcmLoad(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uin
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
-    return HGCMHostLoadState (pSSM);
+    return HGCMHostLoadState(pSSM);
 }
 
-int VMMDev::hgcmLoadService (const char *pszServiceLibrary, const char *pszServiceName)
+int VMMDev::hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName)
 {
-    if (!hgcmIsActive ())
-    {
+    if (!hgcmIsActive())
         return VERR_INVALID_STATE;
-    }
-    return HGCMHostLoad (pszServiceLibrary, pszServiceName);
+
+    return HGCMHostLoad(pszServiceLibrary, pszServiceName);
 }
 
-int VMMDev::hgcmHostCall (const char *pszServiceName, uint32_t u32Function,
-                          uint32_t cParms, PVBOXHGCMSVCPARM paParms)
+int VMMDev::hgcmHostCall(const char *pszServiceName, uint32_t u32Function,
+                         uint32_t cParms, PVBOXHGCMSVCPARM paParms)
 {
-    if (!hgcmIsActive ())
-    {
+    if (!hgcmIsActive())
         return VERR_INVALID_STATE;
-    }
     return HGCMHostCall (pszServiceName, u32Function, cParms, paParms);
 }
 
-void VMMDev::hgcmShutdown (void)
+void VMMDev::hgcmShutdown(void)
 {
     ASMAtomicWriteBool(&m_fHGCMActive, false);
-    HGCMHostShutdown ();
+    HGCMHostShutdown();
 }
 
 #endif /* HGCM */
@@ -752,9 +761,7 @@ DECLCALLBACK(void) VMMDev::drvDestruct(PPDMDRVINS pDrvIns)
     /* HGCM is shut down on the VMMDev destructor. */
 #endif /* VBOX_WITH_HGCM */
     if (pData->pVMMDev)
-    {
         pData->pVMMDev->mpDrv = NULL;
-    }
 }
 
 /**
@@ -844,8 +851,8 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
     pData->pVMMDev->mpDrv = pData;
 
 #ifdef VBOX_WITH_HGCM
-    rc = pData->pVMMDev->hgcmLoadService (VBOXSHAREDFOLDERS_DLL,
-                                          "VBoxSharedFolders");
+    rc = pData->pVMMDev->hgcmLoadService(VBOXSHAREDFOLDERS_DLL,
+                                         "VBoxSharedFolders");
     pData->pVMMDev->fSharedFolderActive = RT_SUCCESS(rc);
     if (RT_SUCCESS(rc))
     {

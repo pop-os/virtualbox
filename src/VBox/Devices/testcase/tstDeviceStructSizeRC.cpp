@@ -709,6 +709,7 @@ int main()
     GEN_CHECK_OFF(ATADevState, abATAPISense[ATAPI_SENSE_SIZE - 1]);
     GEN_CHECK_OFF(ATADevState, cNotifiedMediaChange);
     GEN_CHECK_OFF(ATADevState, MediaEventStatus);
+    GEN_CHECK_OFF(ATADevState, MediaTrackType);
     GEN_CHECK_OFF(ATADevState, Led);
     GEN_CHECK_OFF(ATADevState, cbIOBuffer);
     GEN_CHECK_OFF(ATADevState, pbIOBufferR3);
@@ -1218,6 +1219,8 @@ int main()
     GEN_CHECK_OFF(AHCIPort, szInquiryRevision);
     GEN_CHECK_OFF(AHCIPort, szInquiryRevision[AHCI_ATAPI_INQUIRY_REVISION_LENGTH]);
     GEN_CHECK_OFF(AHCIPort, cErrors);
+    GEN_CHECK_OFF(AHCIPort, fRedo);
+    GEN_CHECK_OFF(AHCIPort, cTasksToProcess);
 
     GEN_CHECK_SIZE(AHCI);
     GEN_CHECK_OFF(AHCI, dev);

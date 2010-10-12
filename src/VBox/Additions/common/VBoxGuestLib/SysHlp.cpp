@@ -1,4 +1,4 @@
-/* $Revision: 60692 $ */
+/* $Revision: 64889 $ */
 /** @file
  * VBoxGuestLibR0 - IDC with VBoxGuest and HGCM helpers.
  */
@@ -52,7 +52,9 @@
  */
 int vbglLockLinear (void **ppvCtx, void *pv, uint32_t u32Size, bool fWriteAccess, uint32_t fFlags)
 {
-    int rc = VINF_SUCCESS;
+    int         rc = VINF_SUCCESS;
+    RTR0MEMOBJ  MemObj = NIL_RTR0MEMOBJ;
+    uint32_t    fAccess;
 
     /* Zero size buffers shouldn't be locked. */
     if (u32Size == 0)
@@ -105,8 +107,7 @@ int vbglLockLinear (void **ppvCtx, void *pv, uint32_t u32Size, bool fWriteAccess
      *       we lock both kernel pages on all systems, even those where we
      *       know they aren't pagable.
      */
-    RTR0MEMOBJ  MemObj = NIL_RTR0MEMOBJ;
-    uint32_t    fAccess = RTMEM_PROT_READ | (fWriteAccess ? RTMEM_PROT_WRITE : 0);
+    fAccess = RTMEM_PROT_READ | (fWriteAccess ? RTMEM_PROT_WRITE : 0);
     if ((fFlags & VBGLR0_HGCMCALL_F_MODE_MASK) == VBGLR0_HGCMCALL_F_USER)
         rc = RTR0MemObjLockUser(&MemObj, (RTR3PTR)pv, u32Size, fAccess, NIL_RTR0PROCESS);
     else
@@ -123,9 +124,6 @@ int vbglLockLinear (void **ppvCtx, void *pv, uint32_t u32Size, bool fWriteAccess
 
 void vbglUnlockLinear (void *pvCtx, void *pv, uint32_t u32Size)
 {
-    NOREF(pv);
-    NOREF(u32Size);
-
 #ifdef RT_OS_WINDOWS
     PMDL pMdl = (PMDL)pvCtx;
 
@@ -142,6 +140,9 @@ void vbglUnlockLinear (void *pvCtx, void *pv, uint32_t u32Size)
     AssertRC(rc);
 
 #endif
+
+    NOREF(pv);
+    NOREF(u32Size);
 }
 
 #else  /* !VBGL_VBOXGUEST */

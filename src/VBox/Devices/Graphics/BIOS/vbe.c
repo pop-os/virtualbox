@@ -408,6 +408,8 @@ dispi_get_bpp:
 #else
   in   ax, dx
 #endif
+  cmp  al, #4
+  jbe  get_bpp_noinc
   mov  ah, al
   shr  ah, 3
   test al, #0x07
@@ -1484,10 +1486,9 @@ Bit16u *AX;Bit16u BX; Bit16u ES;Bit16u DI;
                 dispi_set_enable(VBE_DISPI_DISABLED);
 
 #ifdef VBE_NEW_DYN_LIST
-                data = in_word(VBE_EXTRA_PORT, &cur_info->mode);
-                if (data == VBE_VESA_MODE_800X600X4)
+                if (bpp == 4)
 #else
-                if (cur_info->mode == VBE_VESA_MODE_800X600X4)
+                if (cur_info->info.BitsPerPixel == 4)
 #endif
                 {
                   biosfn_set_video_mode(0x6a);

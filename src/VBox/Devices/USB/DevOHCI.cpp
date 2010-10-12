@@ -345,6 +345,8 @@ typedef struct OHCI
     uint32_t            uFrameRate;
     /** Idle detection flag; must be cleared at start of frame */
     bool                fIdle;
+    /** A flag indicating that the bulk list may have in-flight URBs. */
+    bool                fBulkNeedsCleaning;
 
     uint32_t            Alignment3;     /**< Align size on a 8 byte boundary. */
 } OHCI;
@@ -1584,6 +1586,24 @@ static bool ohciIsTdInFlight(POHCI pOhci, uint32_t GCPhysTD)
     return ohci_in_flight_find(pOhci, GCPhysTD) >= 0;
 }
 
+/**
+ * Returns a URB associated with an in-flight TD, if any.
+ *
+ * @returns pointer to URB if TD is in flight.
+ * @returns NULL if not in flight.
+ * @param   pOhci       OHCI instance data.
+ * @param   GCPhysTD    Physical address of the TD.
+ */
+static PVUSBURB ohciTdInFlightUrb(POHCI pOhci, uint32_t GCPhysTD)
+{
+    int i;
+
+    i = ohci_in_flight_find(pOhci, GCPhysTD);
+    if ( i >= 0 )
+        return pOhci->aInFlight[i].pUrb;
+    else
+        return NULL;
+}
 
 /**
  * Removes a in-flight TD.
@@ -2398,6 +2418,14 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
      * with the data copying, buffer pointer advancing and error handling.
      */
     int cFmAge = ohci_in_flight_remove_urb(pOhci, pUrb);
+    if (pUrb->enmStatus == VUSBSTATUS_UNDO)
+    {
+        /* Leave the TD alone - the HCD doesn't want us talking to the device. */
+        Log(("%s: ohciRhXferCompletion: CANCELED {ED=%#010x cTds=%d TD0=%#010x age %d}\n",
+             pUrb->pszDesc, pUrb->Hci.EdAddr, pUrb->Hci.cTds, pUrb->Hci.paTds[0].TdAddr, cFmAge));
+        STAM_COUNTER_INC(&pOhci->StatDroppedUrbs);
+        return;
+    }
     bool fHasBeenCanceled = false;
     if (    (Ed.HeadP & ED_HEAD_HALTED)
         ||  (Ed.hwinfo & ED_HWINFO_SKIP)
@@ -2420,7 +2448,7 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
 
     /*
      * Complete the TD updating and write the back.
-     * When appropirate also copy data back to the guest memory.
+     * When appropriate also copy data back to the guest memory.
      */
     if (pUrb->enmType == VUSBXFERTYPE_ISOC)
         ohciRhXferCompleteIsochronousURB(pOhci, pUrb, &Ed, cFmAge);
@@ -3111,6 +3139,19 @@ DECLINLINE(bool) ohciIsEdReady(PCOHCIED pEd)
 
 
 /**
+ * Checks if an endpoint has TDs queued (not necessarily ready to have them processed).
+ *
+ * @returns true if endpoint may have TDs queued.
+ * @param   pEd     The endpoint data.
+ */
+DECLINLINE(bool) ohciIsEdPresent(PCOHCIED pEd)
+{
+    return (pEd->HeadP & ED_PTR_MASK) != (pEd->TailP & ED_PTR_MASK)
+         && !(pEd->HeadP & ED_HEAD_HALTED);
+}
+
+
+/**
  * Services the bulk list.
  *
  * On the bulk list we must reassemble URBs from multiple TDs using heuristics
@@ -3131,6 +3172,7 @@ static void ohciServiceBulkList(POHCI pOhci)
      *   our way thru to the end each time.
      */
     pOhci->status &= ~OHCI_STATUS_BLF;
+    pOhci->fBulkNeedsCleaning = false;
     pOhci->bulk_cur = 0;
 
     uint32_t EdAddr = pOhci->bulk_head;
@@ -3142,6 +3184,7 @@ static void ohciServiceBulkList(POHCI pOhci)
         if (ohciIsEdReady(&Ed))
         {
             pOhci->status |= OHCI_STATUS_BLF;
+            pOhci->fBulkNeedsCleaning = true;
 
 #if 1
             /*
@@ -3180,6 +3223,20 @@ static void ohciServiceBulkList(POHCI pOhci)
             }
 #endif
         }
+        else
+        {
+            if (Ed.hwinfo & ED_HWINFO_SKIP)
+            {
+                LogFlow(("ohciServiceBulkList: Ed=%#010RX32 Ed.TailP=%#010RX32 SKIP\n", EdAddr, Ed.TailP));
+                /* If the ED is in 'skip' state, no transactions on it are allowed and we must
+                 * cancel outstanding URBs, if any.
+                 */
+                uint32_t TdAddr = Ed.HeadP & ED_PTR_MASK;
+                PVUSBURB pUrb = ohciTdInFlightUrb(pOhci, TdAddr);
+                if (pUrb)
+                    pOhci->RootHub.pIRhConn->pfnCancelUrbsEp(pOhci->RootHub.pIRhConn, pUrb);
+            }
+        }
 
         /* next end point */
         EdAddr = Ed.NextED & ED_PTR_MASK;
@@ -3190,6 +3247,48 @@ static void ohciServiceBulkList(POHCI pOhci)
     if (g_fLogBulkEPs)
         ohciDumpEdList(pOhci, pOhci->bulk_head, "Bulk after ", true);
 #endif
+}
+
+/**
+ * Abort outstanding transfers on the bulk list.
+ *
+ * If the guest disabled bulk list processing, we must abort any outstanding transfers
+ * (that is, cancel in-flight URBs associated with the list). This is required because
+ * there may be outstanding read URBs that will never get a response from the device
+ * and would block further communication.
+ */
+static void ohciUndoBulkList(POHCI pOhci)
+{
+#ifdef LOG_ENABLED
+    if (g_fLogBulkEPs)
+        ohciDumpEdList(pOhci, pOhci->bulk_head, "Bulk before", true);
+    if (pOhci->bulk_cur)
+        Log(("ohciUndoBulkList: bulk_cur=%#010x before list processing!!! HCD has positioned us!!!\n", pOhci->bulk_cur));
+#endif
+
+    /* This flag follows OHCI_STATUS_BLF, but BLF doesn't change when list processing is disabled. */
+    pOhci->fBulkNeedsCleaning = false;
+
+    uint32_t EdAddr = pOhci->bulk_head;
+    while (EdAddr)
+    {
+        OHCIED Ed;
+        ohciReadEd(pOhci, EdAddr, &Ed);
+        Assert(!(Ed.hwinfo & ED_HWINFO_ISO)); /* the guest is screwing us */
+        if (ohciIsEdPresent(&Ed))
+        {
+            uint32_t TdAddr = Ed.HeadP & ED_PTR_MASK;
+            if (ohciIsTdInFlight(pOhci, TdAddr))
+            {
+                LogFlow(("ohciUndoBulkList: Ed=%#010RX32 Ed.TailP=%#010RX32 UNDO\n", EdAddr, Ed.TailP));
+                PVUSBURB pUrb = ohciTdInFlightUrb(pOhci, TdAddr);
+                if (pUrb)
+                    pOhci->RootHub.pIRhConn->pfnCancelUrbsEp(pOhci->RootHub.pIRhConn, pUrb);
+            }
+        }
+        /* next endpoint */
+        EdAddr = Ed.NextED & ED_PTR_MASK;
+    }
 }
 
 
@@ -3471,6 +3570,9 @@ static void ohciStartOfFrame(POHCI pOhci)
     if (    (pOhci->ctl & OHCI_CTL_BLE)
         &&  (pOhci->status & OHCI_STATUS_BLF))
         ohciServiceBulkList(pOhci);
+    else if ((pOhci->status & OHCI_STATUS_BLF)
+        &&    pOhci->fBulkNeedsCleaning)
+        ohciUndoBulkList(pOhci);    /* If list disabled but not empty, abort endpoints. */
 
 #if 1
     /*
