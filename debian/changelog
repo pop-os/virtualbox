@@ -1,3 +1,10 @@
+virtualbox-ose (3.2.10-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+  * Adapt 27-hide-host-cache-warning.patch for new upstream version.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 12 Oct 2010 16:21:33 +0200
+
 virtualbox-ose (3.2.8-dfsg-2) unstable; urgency=high
 
   * Fix FTBFS with recent libdrm-dev versions. (Closes: #594599)
