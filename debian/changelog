@@ -2,8 +2,10 @@ virtualbox-ose (3.2.10-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Adapt 27-hide-host-cache-warning.patch for new upstream version.
+  * Drop 25-vboxnetadp_kernel_2.6.36.patch and 26-vboxsf_kernel_2.6.36.patch,
+    applied upstream.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 12 Oct 2010 16:21:33 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 12 Oct 2010 16:26:08 +0200
 
 virtualbox-ose (3.2.8-dfsg-2) unstable; urgency=high
 
