@@ -169,9 +169,6 @@ static DECLCALLBACK(int) VBoxServiceVMStatsInit(void)
 
 /**
  * Gathers VM statistics and reports them to the host.
- *
- * @returns
- * @param   oid                 .
  */
 static void VBoxServiceVMStatsReport(void)
 {
@@ -236,7 +233,7 @@ static void VBoxServiceVMStatsReport(void)
                                         | VBOX_GUEST_STAT_MEM_SYSTEM_CACHE;
         }
         else
-            VBoxServiceVerbose(3, "GetPerformanceInfo failed with %d\n", GetLastError());
+            VBoxServiceVerbose(3, "VBoxServiceVMStatsReport: GetPerformanceInfo failed with %d\n", GetLastError());
     }
 
     /* Query CPU load information */
@@ -268,6 +265,8 @@ static void VBoxServiceVMStatsReport(void)
         uint64_t deltaUser    = (pProcInfo->UserTime.QuadPart   - gCtx.au64LastCpuLoad_User[0]);
         deltaKernel          -= deltaIdle;  /* idle time is added to kernel time */
         uint64_t ullTotalTime = deltaIdle + deltaKernel + deltaUser;
+        if (ullTotalTime == 0) /* Prevent division through zero. */
+            ullTotalTime = 1;
 
         req.guestStats.u32CpuLoad_Idle      = (uint32_t)(deltaIdle  * 100 / ullTotalTime);
         req.guestStats.u32CpuLoad_Kernel    = (uint32_t)(deltaKernel* 100 / ullTotalTime);
@@ -414,6 +413,8 @@ static void VBoxServiceVMStatsReport(void)
                                             + u64DeltaSystem
                                             + u64DeltaUser
                                             + u64DeltaNice;
+                    if (u64DeltaAll == 0) /* Prevent division through zero. */
+                        u64DeltaAll = 1;
 
                     gCtx.au64LastCpuLoad_Idle[u32CpuId]   = u64Idle;
                     gCtx.au64LastCpuLoad_Kernel[u32CpuId] = u64System;
@@ -509,6 +510,7 @@ static void VBoxServiceVMStatsReport(void)
                     rc = kstat_read(pStatKern, pStatVMInfo, &VMInfo);
                     if (rc != -1)
                     {
+                        Assert(SysInfo.updates != 0);
                         u64PagedTotal = VMInfo.swap_avail / SysInfo.updates;
                     }
                 }
@@ -564,6 +566,8 @@ static void VBoxServiceVMStatsReport(void)
                 uint64_t u64DeltaUser   = u64User   - gCtx.au64LastCpuLoad_User[cCPUs];
 
                 uint64_t u64DeltaAll    = u64DeltaIdle + u64DeltaSystem + u64DeltaUser;
+                if (u64DeltaAll == 0) /* Prevent division through zero. */
+                    u64DeltaAll = 1;
 
                 gCtx.au64LastCpuLoad_Idle[cCPUs]   = u64Idle;
                 gCtx.au64LastCpuLoad_Kernel[cCPUs] = u64System;
@@ -666,7 +670,7 @@ DECLCALLBACK(int) VBoxServiceVMStatsWorker(bool volatile *pfShutdown)
             break;
         if (rc2 != VERR_TIMEOUT && RT_FAILURE(rc2))
         {
-            VBoxServiceError("RTSemEventMultiWait failed; rc2=%Rrc\n", rc2);
+            VBoxServiceError("VBoxServiceVMStatsWorker: RTSemEventMultiWait failed; rc2=%Rrc\n", rc2);
             rc = rc2;
             break;
         }

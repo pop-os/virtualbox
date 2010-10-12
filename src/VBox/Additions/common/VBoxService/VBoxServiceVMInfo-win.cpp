@@ -331,7 +331,11 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_
     NTSTATUS rcNt = LsaGetLogonSessionData(a_pSession, &pSessionData);
     if (rcNt != STATUS_SUCCESS)
     {
-        VBoxServiceError("VMInfo/Users: LsaGetLogonSessionData failed, LSA error %#x\n", LsaNtStatusToWinError(rcNt));
+        ULONG ulError = LsaNtStatusToWinError(rcNt);
+        /* Skip session data which is not valid anymore because it may have been
+         * already terminated. */
+        if (ulError != ERROR_NO_SUCH_LOGON_SESSION)
+            VBoxServiceError("VMInfo/Users: LsaGetLogonSessionData failed, LSA error %u\n", ulError);
         if (pSessionData)
             LsaFreeReturnBuffer(pSessionData);
         return false;
@@ -456,17 +460,26 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
 {
     PLUID       paSessions = NULL;
     ULONG       cSession = 0;
-    NTSTATUS    r = 0;
 
     /* This function can report stale or orphaned interactive logon sessions
        of already logged off users (especially in Windows 2000). */
-    r = LsaEnumerateLogonSessions(&cSession, &paSessions);
-    VBoxServiceVerbose(3, "VMInfo/Users: Found %ld users\n", cSession);
-    if (r != STATUS_SUCCESS)
+    NTSTATUS rcNt = LsaEnumerateLogonSessions(&cSession, &paSessions);
+    if (rcNt != STATUS_SUCCESS)
     {
-        VBoxServiceError("VMInfo/Users: LsaEnumerate failed with %lu\n", LsaNtStatusToWinError(r));
-        return RTErrConvertFromWin32(LsaNtStatusToWinError(r));
+        ULONG rcWin = LsaNtStatusToWinError(rcNt);
+
+        /* If we're about to shutdown when we were in the middle of enumerating the logon
+           sessions, skip the error to not confuse the user with an unnecessary log message. */
+        if (rcWin == ERROR_SHUTDOWN_IN_PROGRESS)
+        {
+            VBoxServiceVerbose(3, "VMInfo/Users: Shutdown in progress ...\n");
+            rcWin = ERROR_SUCCESS;
+        }
+        else
+            VBoxServiceError("VMInfo/Users: LsaEnumerate failed with %lu\n", rcWin);
+        return RTErrConvertFromWin32(rcWin);
     }
+    VBoxServiceVerbose(3, "VMInfo/Users: Found %ld users\n", cSession);
 
     PVBOXSERVICEVMINFOPROC  paProcs;
     DWORD                   cProcs;

@@ -1,6 +1,6 @@
 /* $Id: VBoxManageDisk.cpp $ */
 /** @file
- * VBoxManage - The disk delated commands.
+ * VBoxManage - The disk related commands.
  */
 
 /*
@@ -254,7 +254,7 @@ int handleCreateHardDisk(HandlerArg *a)
     }
 
     /* check the outcome */
-    if (   !filename
+    if (   filename.isEmpty()
         || sizeMB == 0)
         return errorSyntax(USAGE_CREATEHD, "Parameters --filename and --size are required");
 
@@ -778,7 +778,8 @@ int handleConvertFromRaw(int argc, char *argv[])
                 if (!srcfilename)
                 {
                     srcfilename = ValueUnion.psz;
-#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+// If you change the OS list here don't forget to update VBoxManageHelp.cpp.
+#ifndef RT_OS_WINDOWS
                     fReadFromStdIn = !strcmp(srcfilename, "stdin");
 #endif
                 }
@@ -1013,7 +1014,7 @@ int handleAddiSCSIDisk(HandlerArg *a)
     }
 
     /* check for required options */
-    if (!server || !target)
+    if (server.isEmpty() || target.isEmpty())
         return errorSyntax(USAGE_ADDISCSIDISK, "Parameters --server and --target are required");
 
     do
@@ -1203,7 +1204,7 @@ int handleShowHardDiskInfo(HandlerArg *a)
 
         Bstr description;
         hardDisk->COMGETTER(Description)(description.asOutParam());
-        if (description)
+        if (!description.isEmpty())
         {
             RTPrintf("Description:          %lS\n", description.raw());
         }

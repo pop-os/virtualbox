@@ -941,9 +941,12 @@ HRESULT Appliance::importImpl(const LocationInfo &aLocInfo,
     HRESULT rc = S_OK;
 
     SetUpProgressMode mode;
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
     m->strManifestFile.setNull();
+#endif
     if (aLocInfo.storageType == VFSType_File)
     {
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
         Utf8Str strMfFile = manifestFileName(aLocInfo.strPath);
         if (RTPathExists(strMfFile.c_str()))
         {
@@ -951,6 +954,7 @@ HRESULT Appliance::importImpl(const LocationInfo &aLocInfo,
             mode = ImportFileWithManifest;
         }
         else
+#endif
             mode = ImportFileNoManifest;
     }
     else
@@ -983,6 +987,7 @@ HRESULT Appliance::importImpl(const LocationInfo &aLocInfo,
  * @param reader
  * @return
  */
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
 HRESULT Appliance::manifestVerify(const LocationInfo &locInfo,
                                   const ovf::OVFReader &reader,
                                   ComObjPtr<Progress> &pProgress)
@@ -1062,9 +1067,9 @@ HRESULT Appliance::manifestVerify(const LocationInfo &locInfo,
             RTStrFree(pTestList[j].pszTestDigest);
         RTMemFree(pTestList);
     }
-
     return rc;
 }
+#endif
 
 /**
  * Actual worker code for importing OVF data into VirtualBox. This is called from Appliance::taskThreadImportOrExport()
@@ -1114,9 +1119,11 @@ HRESULT Appliance::importFS(const LocationInfo &locInfo,
 
     try
     {
+#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
         // if a manifest file exists, verify the content; we then need all files which are referenced by the OVF & the OVF itself
         rc = manifestVerify(locInfo, reader, pProgress);
         if (FAILED(rc)) throw rc;
+#endif
 
         // create a session for the machine + disks we manipulate below
         rc = stack.pSession.createInprocObject(CLSID_Session);

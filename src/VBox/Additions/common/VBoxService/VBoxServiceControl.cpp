@@ -118,6 +118,14 @@ static int VBoxServiceControlHandleCmdStartProcess(uint32_t u32ClientId, uint32_
     char szPassword[128];
     uint32_t uTimeLimitMS;
 
+#if 0 /* valgrind */
+    RT_ZERO(szCmd);
+    RT_ZERO(szArgs);
+    RT_ZERO(szEnv);
+    RT_ZERO(szUser);
+    RT_ZERO(szPassword);
+#endif
+
     if (uNumParms != 11)
         return VERR_INVALID_PARAMETER;
 
@@ -354,11 +362,12 @@ static DECLCALLBACK(void) VBoxServiceControlTerm(void)
     while (pNode)
     {
         PVBOXSERVICECTRLTHREAD pNext = RTListNodeGetNext(&pNode->Node, VBOXSERVICECTRLTHREAD, Node);
+        bool fLast = RTListNodeIsLast(&g_GuestControlExecThreads, &pNode->Node);
 
         RTListNodeRemove(&pNode->Node);
         RTMemFree(pNode);
 
-        if (pNext && RTListNodeIsLast(&g_GuestControlExecThreads, &pNext->Node))
+        if (fLast)
             break;
 
         pNode = pNext;

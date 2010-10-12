@@ -205,6 +205,7 @@ class PlatformMSCOM:
             import win32api
             from win32con import DUPLICATE_SAME_ACCESS
             from win32api import GetCurrentThread,GetCurrentThreadId,DuplicateHandle,GetCurrentProcess
+            import threading
             pid = GetCurrentProcess()
             self.tid = GetCurrentThreadId()
             handle = DuplicateHandle(pid, GetCurrentThread(), pid, 0, 0, DUPLICATE_SAME_ACCESS)
@@ -217,6 +218,8 @@ class PlatformMSCOM:
             win32com.client.gencache.EnsureDispatch('VirtualBox.Session')
             win32com.client.gencache.EnsureDispatch('VirtualBox.VirtualBox')
             win32com.client.gencache.EnsureDispatch('VirtualBox.CallbackWrapper')
+            self.oIntCv = threading.Condition()
+            self.fInterrupted = False;
 
     def getSessionObject(self, vbox):
         import win32com
@@ -276,28 +279,60 @@ class PlatformMSCOM:
 
     def waitForEvents(self, timeout):
         from win32api import GetCurrentThreadId
+        from win32event import INFINITE
         from win32event import MsgWaitForMultipleObjects, \
                                QS_ALLINPUT, WAIT_TIMEOUT, WAIT_OBJECT_0
         from pythoncom import PumpWaitingMessages
+        import types
 
+        if not isinstance(timeout, types.IntType):
+            raise TypeError("The timeout argument is not an integer")
         if (self.tid != GetCurrentThreadId()):
             raise Exception("wait for events from the same thread you inited!")
 
-        rc = MsgWaitForMultipleObjects(self.handles, 0, timeout, QS_ALLINPUT)
+        if timeout < 0:     cMsTimeout = INFINITE
+        else:               cMsTimeout = timeout
+        rc = MsgWaitForMultipleObjects(self.handles, 0, cMsTimeout, QS_ALLINPUT)
         if rc >= WAIT_OBJECT_0 and rc < WAIT_OBJECT_0+len(self.handles):
             # is it possible?
-            pass
+            rc = 2;
         elif rc==WAIT_OBJECT_0 + len(self.handles):
             # Waiting messages
             PumpWaitingMessages()
+            rc = 0;
         else:
             # Timeout
-            pass
+            rc = 1;
+
+        # check for interruption
+        self.oIntCv.acquire()
+        if self.fInterrupted:
+            self.fInterrupted = False
+            rc = 1;
+        self.oIntCv.release()
+
+        return rc;
 
     def interruptWaitEvents(self):
+        """
+        Basically a python implementation of EventQueue::postEvent().
+
+        The magic value must be in sync with the C++ implementation or this
+        won't work.
+
+        Note that because of this method we cannot easily make use of a
+        non-visible Window to handle the message like we would like to do.
+        """
         from win32api import PostThreadMessage
         from win32con import WM_USER
-        PostThreadMessage(self.tid, WM_USER, None, None)
+        self.oIntCv.acquire()
+        self.fInterrupted = True
+        self.oIntCv.release()
+        try:
+            PostThreadMessage(self.tid, WM_USER, None, 0xf241b819)
+        except:
+            return False;
+        return True;
 
     def deinit(self):
         import pythoncom
@@ -359,11 +394,11 @@ class PlatformXPCOM:
 
     def waitForEvents(self, timeout):
         import xpcom
-        xpcom._xpcom.WaitForEvents(timeout)
+        return xpcom._xpcom.WaitForEvents(timeout)
 
     def interruptWaitEvents(self):
         import xpcom
-        xpcom._xpcom.InterruptWait()
+        return xpcom._xpcom.InterruptWait()
 
     def deinit(self):
         import xpcom
@@ -438,11 +473,11 @@ class PlatformWEBSERVICE:
 
     def waitForEvents(self, timeout):
         # Webservices cannot do that yet
-        pass
+        return 2;
 
     def interruptWaitEvents(self, timeout):
         # Webservices cannot do that yet
-        pass
+        return False;
 
     def deinit(self):
         try:
@@ -527,9 +562,28 @@ class VirtualBoxManager:
         return self.platform.createCallback(iface, impl, arg)
 
     def waitForEvents(self, timeout):
+        """
+        Wait for events to arrive and process them.
+
+        The timeout is in milliseconds.  A negative value means waiting for
+        ever, while 0 does not wait at all.
+
+        Returns 0 if events was processed.
+        Returns 1 if timed out or interrupted in some way.
+        Returns 2 on error (like not supported for web services).
+
+        Raises an exception if the calling thread is not the main thread (the one
+        that initialized VirtualBoxManager) or if the time isn't an integer.
+        """
         return self.platform.waitForEvents(timeout)
 
     def interruptWaitEvents(self):
+        """
+        Interrupt a waitForEvents call.
+        This is normally called from a worker thread.
+
+        Returns True on success, False on failure.
+        """
         return self.platform.interruptWaitEvents()
 
     def getPerfCollector(self, vbox):

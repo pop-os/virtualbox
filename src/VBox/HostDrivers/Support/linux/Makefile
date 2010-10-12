@@ -1,4 +1,4 @@
-# $Revision: 60692 $
+# $Revision: 65557 $
 ## @file
 # Makefile for the VirtualBox Linux Host Driver.
 #
@@ -225,6 +225,7 @@ ifndef INCL
   KBUILD_EXTMOD := $(shell pwd)
  endif
  INCL    += $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
+ INCL    += $(addprefix -I$(KBUILD_EXTMOD)/vboxdrv,/ /include /r0drv/linux)
  export INCL
 endif
 KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING

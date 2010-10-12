@@ -20,6 +20,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "VBoxManage.h"
+#include <iprt/stream.h>
+
+#ifndef VBOX_ONLY_DOCS
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
@@ -35,7 +38,6 @@
 #include <VBox/log.h>
 #include <iprt/asm.h>
 #include <iprt/getopt.h>
-#include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
 #include <iprt/thread.h>
@@ -62,6 +64,8 @@ using namespace com;
 /** Set by the signal handler. */
 static volatile bool    g_fExecCanceled = false;
 
+#endif /* !VBOX_ONLY_DOCS */
+
 void usageGuestControl(void)
 {
     RTPrintf("VBoxManage guestcontrol     execute <vmname>|<uuid>\n"
@@ -73,6 +77,8 @@ void usageGuestControl(void)
              "                            [--verbose] [--wait-for exit,stdout,stderr||]\n"
              "\n");
 }
+
+#ifndef VBOX_ONLY_DOCS
 
 /**
  * Signal handler that sets g_fCanceled.
@@ -554,3 +560,5 @@ int handleGuestControl(HandlerArg *a)
     /* default: */
     return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
 }
+
+#endif /* !VBOX_ONLY_DOCS */

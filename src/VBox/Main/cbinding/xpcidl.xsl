@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- $Id: xpidl.xsl $ -->
+<!-- $Id: xpcidl.xsl $ -->
 
 <!--
  *  A template to generate a XPCOM IDL compatible interface definition file

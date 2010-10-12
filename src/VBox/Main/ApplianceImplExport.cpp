@@ -654,6 +654,7 @@ HRESULT Appliance::writeImpl(OVFFormat aFormat, const LocationInfo &aLocInfo, Co
  * Called from Appliance::writeFS() for each virtual system (machine) that needs XML written out.
  *
  * @param elmToAddVirtualSystemsTo XML element to append elements to.
+ * @param pllElementsWithUuidAttributes out: list of XML elements produced here with UUID attributes for quick fixing by caller later
  * @param vsdescThis The IVirtualSystemDescription instance for which to write XML.
  * @param enFormat OVF format (0.9 or 1.0).
  * @param stack Structure for temporary private data shared with caller.
@@ -1581,13 +1582,17 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
             // now, we might have other XML elements from vbox:Machine pointing to this image,
             // but those would refer to the UUID of the _source_ image (which we created the
             // export image from); those UUIDs need to be fixed to the export image
+            Utf8Str strGuidSourceCurly = guidSource.toStringCurly();
             for (std::list<xml::ElementNode*>::iterator eit = llElementsWithUuidAttributes.begin();
                  eit != llElementsWithUuidAttributes.end();
                  ++eit)
             {
                 xml::ElementNode *pelmImage = *eit;
-                // overwrite existing uuid attribute
-                pelmImage->setAttribute("uuid", guidTarget.toStringCurly());
+                Utf8Str strUUID;
+                pelmImage->getAttributeValue("uuid", strUUID);
+                if (strUUID == strGuidSourceCurly)
+                    // overwrite existing uuid attribute
+                    pelmImage->setAttribute("uuid", guidTarget.toStringCurly());
             }
         }
 
@@ -1595,6 +1600,7 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
         xml::XmlFileWriter writer(doc);
         writer.write(locInfo.strPath.c_str(), false /*fSafe*/);
 
+#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
         // Create & write the manifest file
         Utf8Str strMfFile = manifestFileName(locInfo.strPath.c_str());
         const char *pcszManifestFileOnly = RTPathFilename(strMfFile.c_str());
@@ -1615,6 +1621,7 @@ HRESULT Appliance::writeFS(const LocationInfo &locInfo, const OVFFormat enFormat
             throw setError(VBOX_E_FILE_ERROR,
                            tr("Could not create manifest file '%s' (%Rrc)"),
                            pcszManifestFileOnly, vrc);
+#endif
     }
     catch(xml::Error &x)
     {

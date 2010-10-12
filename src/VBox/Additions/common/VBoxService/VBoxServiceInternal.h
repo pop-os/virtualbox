@@ -199,8 +199,8 @@ typedef struct VBOXSERVICEVEPROPCACHE
 {
     /** The client ID for HGCM communication. */
     uint32_t    uClientID;
-    /** List of VBOXSERVICEVEPROPCACHEENTRY nodes. */
-    RTLISTNODE  ListEntries;
+    /** Head in a list of VBOXSERVICEVEPROPCACHEENTRY nodes. */
+    RTLISTNODE  NodeHead;
     /** Critical section for thread-safe use. */
     RTCRITSECT  CritSect;
 } VBOXSERVICEVEPROPCACHE;
@@ -212,8 +212,11 @@ typedef VBOXSERVICEVEPROPCACHE *PVBOXSERVICEVEPROPCACHE;
  */
 typedef struct VBOXSERVICEVEPROPCACHEENTRY
 {
-    /** Node. */
-    RTLISTNODE  Node;
+    /** Node to successor.
+     * @todo r=bird: This is not really the node to the successor, but
+     *       rather the OUR node in the list.  If it helps, remember that
+     *       its a doubly linked list. */
+    RTLISTNODE  NodeSucc;
     /** Name (and full path) of guest property. */
     char       *pszName;
     /** The last value stored (for reference). */

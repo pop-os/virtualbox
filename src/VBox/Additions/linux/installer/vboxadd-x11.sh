@@ -1,10 +1,10 @@
 #! /bin/sh
-# Sun VirtualBox
-# Linux Additions X11 setup init script ($Revision: 63031 $)
+#
+# Linux Additions X11 setup init script ($Revision: 66349 $)
 #
 
 #
-# Copyright (C) 2006-2009 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -312,17 +312,25 @@ setup()
 
     echo
     case $x_version in
-        1.8.99.* )
+        1.9.99.* )
             echo "Warning: unsupported pre-release version of X.Org Server installed.  Not"
             echo "installing the X.Org drivers."
             dox11config=""
+            ;;
+        1.8.99.* | 1.9.* )
+            begin "Installing X.Org Server 1.9 modules"
+            vboxvideo_src=vboxvideo_drv_19.so
+            vboxmouse_src=vboxmouse_drv_19.so
+            doxorgconfd="true"
+            # Fedora 14 looks likely to ship without vboxvideo detection
+            # test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.7.99.* | 1.8.* )
             begin "Installing X.Org Server 1.8 modules"
             vboxvideo_src=vboxvideo_drv_18.so
             vboxmouse_src=vboxmouse_drv_18.so
             doxorgconfd="true"
-            # Fedora 13 looks likely to ship without vboxvideo detection
+            # Fedora 13 shipped without vboxvideo detection
             test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.6.99.* | 1.7.* )
@@ -469,7 +477,7 @@ setup()
                 # This is normally silent.  I have purposely not redirected
                 # error output as I want to know if something goes wrong,
                 # particularly if the command syntax ever changes.
-                udevadm trigger --action=change
+                udevadm trigger --action=change --subsystem-match=misc --subsystem-match=input
             fi
             test -d /usr/share/X11/xorg.conf.d &&
                 install -o 0 -g 0 -m 0644 "$share_dir/50-vboxmouse.conf" /usr/share/X11/xorg.conf.d
@@ -617,7 +625,7 @@ EOF
     # Remove other files
     rm /etc/hal/fdi/policy/90-vboxguest.fdi 2>/dev/null
     rm /etc/udev/rules.d/70-xorg-vboxmouse.rules 2>/dev/null
-    udevadm trigger --action=change 2>/dev/null
+    udevadm trigger --action=change --subsystem-match=misc --subsystem-match=input 2>/dev/null
     rm /usr/lib/X11/xorg.conf.d/50-vboxmouse.conf 2>/dev/null
     rm /usr/share/X11/xorg.conf.d/50-vboxmouse.conf 2>/dev/null
     rm /usr/share/xserver-xorg/pci/vboxvideo.ids 2>/dev/null

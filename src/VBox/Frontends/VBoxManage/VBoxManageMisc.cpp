@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -230,7 +230,7 @@ int handleCreateVM(HandlerArg *a)
         else
             return errorSyntax(USAGE_CREATEVM, "Invalid parameter '%s'", Utf8Str(a->argv[i]).raw());
     }
-    if (!name)
+    if (name.isEmpty())
         return errorSyntax(USAGE_CREATEVM, "Parameter --name is required");
 
     if (!baseFolder.isEmpty() && !settingsFile.isEmpty())

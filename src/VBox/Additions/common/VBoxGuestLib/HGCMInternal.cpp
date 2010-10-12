@@ -1,4 +1,4 @@
-/* $Revision: 62913 $ */
+/* $Revision: 66065 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
@@ -306,6 +306,8 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
                     }
                     else
                     {
+                        bool fCopyIn;
+
                         if (cb > VBGLR0_MAX_HGCM_USER_PARM)
                         {
                             Log(("GstHGCMCall: id=%#x fn=%u parm=%u pv=%p cb=%#x > %#x -> out of range\n",
@@ -336,8 +338,8 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
                         /** @todo A more efficient strategy would be to combine buffers. However it
                          *        is probably going to be more massive than the current code, so
                          *        it can wait till later.   */
-                        bool fCopyIn = pSrcParm->type != VMMDevHGCMParmType_LinAddr_Out
-                                    && pSrcParm->type != VMMDevHGCMParmType_LinAddr_Locked_Out;
+                        fCopyIn =    pSrcParm->type != VMMDevHGCMParmType_LinAddr_Out
+                                  && pSrcParm->type != VMMDevHGCMParmType_LinAddr_Locked_Out;
                         if (cb <= PAGE_SIZE / 2 - 16)
                         {
                             pvSmallBuf = fCopyIn ? RTMemTmpAlloc(cb) : RTMemTmpAllocZ(cb);
@@ -706,7 +708,11 @@ static int vbglR0HGCMInternalDoCall(VMMDevHGCMCall *pHGCMCall, PFNVBGLHGCMCALLBA
                 uint32_t cMilliesToWait = rc2 == VERR_NOT_FOUND || rc2 == VERR_SEM_DESTROYED ? 500 : 2000;
                 uint64_t cElapsed       = 0;
                 if (rc2 != VERR_NOT_FOUND)
-                    LogRel(("vbglR0HGCMInternalDoCall: Failed to cancel the HGCM call on %Rrc: rc2=%Rrc\n", rc, rc2));
+                {
+                    static unsigned s_cErrors = 0;
+                    if (s_cErrors++ < 32)
+                        LogRel(("vbglR0HGCMInternalDoCall: Failed to cancel the HGCM call on %Rrc: rc2=%Rrc\n", rc, rc2));
+                }
                 else
                     Log(("vbglR0HGCMInternalDoCall: Cancel race rc=%Rrc rc2=%Rrc\n", rc, rc2));
 
@@ -812,12 +818,13 @@ static int vbglR0HGCMInternalCopyBackResult(VBoxGuestHGCMCallInfo *pCallInfo, VM
                     size_t cbOut = RT_MIN(pSrcParm->u.Pointer.size, pDstParm->u.Pointer.size);
                     if (cbOut)
                     {
+                        int rc2;
                         Assert(pParmInfo->aLockBufs[iLockBuf].iParm == iParm);
-                        int rc2 = RTR0MemUserCopyTo((RTR3PTR)pDstParm->u.Pointer.u.linearAddr,
-                                                    pParmInfo->aLockBufs[iLockBuf].pvSmallBuf
-                                                    ? pParmInfo->aLockBufs[iLockBuf].pvSmallBuf
-                                                    : RTR0MemObjAddress(pParmInfo->aLockBufs[iLockBuf].hObj),
-                                                    cbOut);
+                        rc2 = RTR0MemUserCopyTo((RTR3PTR)pDstParm->u.Pointer.u.linearAddr,
+                                                pParmInfo->aLockBufs[iLockBuf].pvSmallBuf
+                                                ? pParmInfo->aLockBufs[iLockBuf].pvSmallBuf
+                                                : RTR0MemObjAddress(pParmInfo->aLockBufs[iLockBuf].hObj),
+                                                cbOut);
                         if (RT_FAILURE(rc2))
                             return rc2;
                         iLockBuf++;
@@ -903,7 +910,11 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall(VBoxGuestHGCMCallInfo *pCallInfo, uint32_
             {
                 if (   rc != VERR_INTERRUPTED
                     && rc != VERR_TIMEOUT)
-                    LogRel(("VbglR0HGCMInternalCall: vbglR0HGCMInternalDoCall failed. rc=%Rrc\n", rc));
+                {
+                    static unsigned s_cErrors = 0;
+                    if (s_cErrors++ < 32)
+                        LogRel(("VbglR0HGCMInternalCall: vbglR0HGCMInternalDoCall failed. rc=%Rrc\n", rc));
+                }
             }
 
             if (!fLeakIt)
@@ -1042,10 +1053,18 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall32(VBoxGuestHGCMCallInfo *pCallInfo, uint3
             }
         }
         else
-            LogRel(("VbglR0HGCMInternalCall32: VbglR0HGCMInternalCall failed. rc=%Rrc\n", rc));
+        {
+            static unsigned s_cErrors = 0;
+            if (s_cErrors++ < 32)
+                LogRel(("VbglR0HGCMInternalCall32: VbglR0HGCMInternalCall failed. rc=%Rrc\n", rc));
+        }
     }
     else
-        LogRel(("VbglR0HGCMInternalCall32: failed. rc=%Rrc\n", rc));
+    {
+        static unsigned s_cErrors = 0;
+        if (s_cErrors++ < 32)
+            LogRel(("VbglR0HGCMInternalCall32: failed. rc=%Rrc\n", rc));
+    }
 
     RTMemTmpFree(pCallInfo64);
     return rc;

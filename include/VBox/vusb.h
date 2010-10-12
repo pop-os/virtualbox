@@ -489,6 +489,16 @@ typedef struct VUSBIROOTHUBCONNECTOR
     DECLR3CALLBACKMEMBER(void, pfnReapAsyncUrbs,(PVUSBIROOTHUBCONNECTOR pInterface, RTMSINTERVAL cMillies));
 
     /**
+     * Cancels and completes - with CRC failure - all URBs queued on an endpoint.
+     * This is done in response to guest URB cancellation.
+     *
+     * @returns VBox status code.
+     * @param   pInterface  Pointer to this struct.
+     * @param   pUrb        Pointer to a previously submitted URB.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCancelUrbsEp,(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUrb));
+
+    /**
      * Cancels and completes - with CRC failure - all in-flight async URBs.
      * This is typically done before saving a state.
      *
@@ -803,6 +813,8 @@ typedef enum VUSBSTATUS
     VUSBSTATUS_DATA_OVERRUN,
     /** The isochronous buffer hasn't been touched. */
     VUSBSTATUS_NOT_ACCESSED,
+    /** Canceled/undone URB (VUSB internal). */
+    VUSBSTATUS_UNDO,
     /** Invalid status. */
     VUSBSTATUS_INVALID = 0x7f
 } VUSBSTATUS;

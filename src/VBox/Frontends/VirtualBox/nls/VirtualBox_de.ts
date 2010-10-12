@@ -1297,11 +1297,6 @@
         <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
         <translation>Die empfohlene Hauptspeichergröße beträgt &lt;b&gt;%1&lt;/b&gt; MB.</translation>
     </message>
-    <message>
-        <source>MB</source>
-        <comment>size suffix MBytes=1024 KBytes</comment>
-        <translation>MB</translation>
-    </message>
 </context>
 <context>
     <name>UINewVMWzdPage4</name>
@@ -1363,11 +1358,6 @@
     <message>
         <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Klicken Sie auf &lt;b&gt;%1&lt;/b&gt;, wenn alle oben angegebenen Einstellungen richtig sind. Damit wird eine neue virtuelle Maschine erzeugt.&lt;/p&gt;&lt;/p&gt;Sie können diese und andere Einstellungen der virtuellen Maschine jederzeit im Dialog &lt;b&gt;Einstellungen&lt;/b&gt; ausgehend vom Hauptfenster ändern.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <comment>size suffix MBytes=1024KBytes</comment>
-        <translation>MB</translation>
     </message>
 </context>
 <context>
@@ -1486,11 +1476,6 @@
     <message>
         <source>Warnings:</source>
         <translation>Warnungen:</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <comment>size suffix MBytes=1024 KBytes</comment>
-        <translation>MB</translation>
     </message>
     <message>
         <source>Hard Disk Controller (SAS)</source>
@@ -1673,7 +1658,7 @@
     </message>
     <message>
         <source>&amp;Auto show Dock and Menubar in fullscreen</source>
-        <translation>&amp;Automatisch zeige Dock &amp;&amp; Menubar im Fullscreen-Modus</translation>
+        <translation>Dock &amp;&amp; Menubar im Vollbildmodus &amp;automatisch zeigen</translation>
     </message>
 </context>
 <context>
@@ -3070,11 +3055,6 @@
         <translation>Nested Paging</translation>
     </message>
     <message>
-        <source>^(?:(?:(\d+)(?:\s?(B|KB|MB|GB|TB|PB))?)|(?:(\d*)%1(\d{1,2})(?:\s?(KB|MB|GB|TB|PB))))$</source>
-        <comment>regexp for matching ####[.##] B|KB|MB|GB|TB|PB, %1=decimal point</comment>
-        <translation></translation>
-    </message>
-    <message>
         <source>B</source>
         <comment>size suffix Bytes</comment>
         <translation></translation>
@@ -3107,7 +3087,7 @@
     <message>
         <source>Shareable</source>
         <comment>DiskType</comment>
-        <translation type="unfinished"></translation>
+        <translation>Gemeinsam benutzbar</translation>
     </message>
     <message>
         <source>Unknown device</source>
@@ -3118,6 +3098,11 @@
         <source>SAS Port %1</source>
         <comment>New Storage UI : Slot Name</comment>
         <translation>SAS-Port %1</translation>
+    </message>
+    <message>
+        <source>MB</source>
+        <comment>size suffix MBytes=1024KBytes</comment>
+        <translation>MB</translation>
     </message>
 </context>
 <context>
@@ -3382,6 +3367,10 @@
     <message>
         <source>Close VM</source>
         <translation>VM beenden</translation>
+    </message>
+    <message>
+        <source>Minimize Window</source>
+        <translation>Anwendung minimieren</translation>
     </message>
 </context>
 <context>
@@ -5136,6 +5125,14 @@
         <source>&lt;qt&gt;%1&lt;/qt&gt;</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Specifies whether multiple simultaneous connections to the VM are permitted.</source>
+        <translation>Legt fest ob mehrere gleichzeitige Verbindungen zur VM erlaubt sind.</translation>
+    </message>
+    <message>
+        <source>Allow Multiple Connections</source>
+        <translation>Gleichzeitige Verbindungen erlauben</translation>
+    </message>
 </context>
 <context>
     <name>VBoxVMSettingsDlg</name>
@@ -5145,7 +5142,7 @@
     </message>
     <message>
         <source>Storage</source>
-        <translation>Plattenspeicher</translation>
+        <translation>Massenspeicher</translation>
     </message>
     <message>
         <source>Hard Disks</source>
@@ -5202,10 +5199,6 @@
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
         <translation>haben Sie ein 64-Bit-Gastbestriebssystem ausgewählt. Da solche Gäste Hardwarevirtualisierung benötigen (VT-x/AMD-V), wird diese VM-Einstellung automatisch aktiviert.</translation>
-    </message>
-    <message>
-        <source>you have selected a 64-bit guest OS type for this VM. VirtualBox does not currently support more than one virtual CPU for 64-bit guests executed on 32-bit hosts.</source>
-        <translation>haben Sie einen 64-Bit Gastbetriebssystem für diese VM ausgewählt. VirtualBox unterstützt momentan nur eine virtuelle CPU für 64-Bit-Gäste auf 32-Bit Hosts.</translation>
     </message>
     <message>
         <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
@@ -5514,20 +5507,12 @@
         <translation>SAS-Controller</translation>
     </message>
     <message>
-        <source>Storage Controller</source>
-        <translation></translation>
-    </message>
-    <message>
         <source>Allows to use host I/O caching capabilities.</source>
         <translation>Benutze den Host-I/O-Cache.</translation>
     </message>
     <message>
         <source>Use host I/O cache</source>
         <translation>Host I/O-Cache verwenden</translation>
-    </message>
-    <message>
-        <source>Storage Controller 1</source>
-        <translation>Speicher-Controller 1</translation>
     </message>
 </context>
 <context>

@@ -29,9 +29,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
-#include <iprt/mem.h>
+#ifndef VBOX_VBGLR3_XFREE86
+# include <iprt/mem.h>
+#endif
 #include <iprt/assert.h>
-#include <iprt/cpp/autores.h>
 #include <iprt/stdarg.h>
 #include <VBox/log.h>
 #include <VBox/HostServices/GuestPropertySvc.h>
@@ -642,6 +643,7 @@ VBGLR3DECL(int) VbglR3GuestPropEnum(uint32_t u32ClientId,
             rc = VERR_NO_MEMORY;
             break;
         }
+        memset(Buf.get(), 0, cchBuf);
         rc = VbglR3GuestPropEnumRaw(u32ClientId, Patterns.get(),
                                     Buf.get(), cchBuf, &cchBuf);
         if (rc != VERR_BUFFER_OVERFLOW)

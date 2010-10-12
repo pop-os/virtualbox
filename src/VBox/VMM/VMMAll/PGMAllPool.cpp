@@ -4016,11 +4016,13 @@ static void pgmPoolTracDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS 
                 pgmTrackDerefGCPhys(pPool, pPage, &pRam->aPages[iPage], iPte);
                 return;
             }
+            AssertFatalMsgFailed(("HCPhys=%RHp GCPhys=%RGp; found page index %x HCPhys=%RHp\n", HCPhys, GCPhys, iPage, PGM_PAGE_GET_HCPHYS(&pRam->aPages[iPage])));
             break;
         }
         pRam = pRam->CTX_SUFF(pNext);
     }
-    AssertFatalMsgFailed(("HCPhys=%RHp GCPhys=%RGp\n", HCPhys, GCPhys));
+    if (!pRam)
+        AssertFatalMsgFailed(("HCPhys=%RHp GCPhys=%RGp\n", HCPhys, GCPhys));
 }
 
 
@@ -4272,7 +4274,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDPae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86
             {
                 Log4(("pgmPoolTrackDerefPDPae: i=%d pde=%RX64 GCPhys=%RX64\n",
                       i, pShwPD->a[i].u & X86_PDE2M_PAE_PG_MASK, pPage->GCPhys));
-                pgmPoolTracDerefGCPhys(pPool, pPage, pShwPD->a[i].u & X86_PDE2M_PAE_PG_MASK, pPage->GCPhys /* == base of 2 MB page */, i);
+                pgmPoolTracDerefGCPhys(pPool, pPage, pShwPD->a[i].u & X86_PDE2M_PAE_PG_MASK, pPage->GCPhys + i * 2 * _1M /* pPage->GCPhys = base address of the memory described by the PD */, i);
             }
             else
 #endif
@@ -4380,7 +4382,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPT
             {
                 Log4(("pgmPoolTrackDerefPDEPT: i=%d pde=%RX64 GCPhys=%RX64\n",
                       i, pShwPD->a[i].u & X86_PDE2M_PAE_PG_MASK, pPage->GCPhys));
-                pgmPoolTracDerefGCPhys(pPool, pPage, pShwPD->a[i].u & X86_PDE2M_PAE_PG_MASK, pPage->GCPhys /* == base of 2 MB page */, i);
+                pgmPoolTracDerefGCPhys(pPool, pPage, pShwPD->a[i].u & X86_PDE2M_PAE_PG_MASK, pPage->GCPhys + i * 2 * _1M /* pPage->GCPhys = base address of the memory described by the PD */, i);
             }
             else
 #endif

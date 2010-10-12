@@ -328,7 +328,7 @@ STDMETHODIMP NetworkAdapter::COMGETTER(MACAddress)(BSTR *aMACAddress)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    ComAssertRet(!!mData->mMACAddress, E_FAIL);
+    ComAssertRet(!mData->mMACAddress.isEmpty(), E_FAIL);
 
     mData->mMACAddress.cloneTo(aMACAddress);
 

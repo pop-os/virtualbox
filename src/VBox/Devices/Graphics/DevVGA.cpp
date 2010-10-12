@@ -836,6 +836,7 @@ static void vbe_ioport_write_index(void *opaque, uint32_t addr, uint32_t val)
 static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
 {
     VGAState *s = (VGAState*)opaque;
+    uint32_t max_bank;
 
     if (s->vbe_index <= VBE_DISPI_INDEX_NB) {
 #ifdef DEBUG_BOCHS_VBE
@@ -908,8 +909,12 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
             }
             break;
         case VBE_DISPI_INDEX_BANK:
-            if (val > s->vbe_bank_max)
-                val = s->vbe_bank_max;
+            if (s->vbe_regs[VBE_DISPI_INDEX_BPP] <= 4)
+                max_bank = s->vbe_bank_max >> 2;    /* Each bank really covers 256K */
+            else
+                max_bank = s->vbe_bank_max;
+            if (val > max_bank)
+                val = max_bank;
             s->vbe_regs[s->vbe_index] = val;
             s->bank_offset = (val << 16);
 
@@ -2178,7 +2183,7 @@ static int vga_draw_graphic(VGAState *s, int full_update)
 #endif /* !VBOX */
 {
     int y1, y2, y, update, page_min, page_max, linesize, y_start, double_scan;
-    int width, height, shift_control, line_offset, page0, page1, bwidth;
+    int width, height, shift_control, line_offset, page0, page1, bwidth, bits;
     int disp_width, multi_run;
     uint8_t *d;
     uint32_t v, addr1, addr;
@@ -2210,6 +2215,7 @@ static int vga_draw_graphic(VGAState *s, int full_update)
         } else {
             v = VGA_DRAW_LINE4;
         }
+        bits = 4;
     } else if (shift_control == 1) {
         full_update |= update_palette16(s);
         if (s->sr[0x01] & 8) {
@@ -2218,28 +2224,35 @@ static int vga_draw_graphic(VGAState *s, int full_update)
         } else {
             v = VGA_DRAW_LINE2;
         }
+        bits = 4;
     } else {
         switch(s->get_bpp(s)) {
         default:
         case 0:
             full_update |= update_palette256(s);
             v = VGA_DRAW_LINE8D2;
+            bits = 4;
             break;
         case 8:
             full_update |= update_palette256(s);
             v = VGA_DRAW_LINE8;
+            bits = 8;
             break;
         case 15:
             v = VGA_DRAW_LINE15;
+            bits = 16;
             break;
         case 16:
             v = VGA_DRAW_LINE16;
+            bits = 16;
             break;
         case 24:
             v = VGA_DRAW_LINE24;
+            bits = 24;
             break;
         case 32:
             v = VGA_DRAW_LINE32;
+            bits = 32;
             break;
         }
     }
@@ -2281,12 +2294,7 @@ static int vga_draw_graphic(VGAState *s, int full_update)
 #ifndef VBOX
     bwidth = width * 4;
 #else /* VBOX */
-    /* The width of VRAM scanline. */
-    bwidth = s->line_offset;
-    /* In some cases the variable is not yet set, probably due to incomplete
-     * programming of the virtual hardware ports. Just return.
-     */
-    if (bwidth == 0) return VINF_SUCCESS;
+    bwidth = (width * bits + 7) / 8;    /* The visible width of a scanline. */
 #endif /* VBOX */
     y_start = -1;
     page_min = 0x7fffffff;
@@ -2701,7 +2709,7 @@ static int vga_load(QEMUFile *f, void *opaque, int version_id)
     qemu_get_be32s(f, &s->vbe_line_offset);
     if (version_id < 2)
         qemu_get_be32s(f, &u32Dummy);
-    s->vbe_bank_max = s->vram_size >> 16;
+    s->vbe_bank_max = (s->vram_size >> 16) - 1;
 #else
     if (is_vbe)
 # ifndef VBOX
@@ -2807,7 +2815,7 @@ int vga_initialize(PCIBus *bus, DisplayState *ds, uint8_t *vga_ram_base,
 
 #ifdef CONFIG_BOCHS_VBE
     s->vbe_regs[VBE_DISPI_INDEX_ID] = VBE_DISPI_ID0;
-    s->vbe_bank_max = s->vram_size >> 16;
+    s->vbe_bank_max = (s->vram_size >> 16) - 1;
 #if defined (TARGET_I386)
     register_ioport_read(0x1ce, 1, 2, vbe_ioport_read_index, s);
     register_ioport_read(0x1cf, 1, 2, vbe_ioport_read_data, s);
@@ -4746,6 +4754,33 @@ static DECLCALLBACK(void) vgaInfoDAC(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, con
     }
 }
 
+/**
+ * Info handler, device version. Dumps VBE registers.
+ *
+ * @param   pDevIns     Device instance which registered the info.
+ * @param   pHlp        Callback functions for doing output.
+ * @param   pszArgs     Argument string. Optional and specific to the handler.
+ */
+static DECLCALLBACK(void) vgaInfoVBE(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PVGASTATE   s = PDMINS_2_DATA(pDevIns, PVGASTATE);
+
+    if (!(s->vbe_regs[VBE_DISPI_INDEX_ENABLE] & VBE_DISPI_ENABLED))
+    {
+        pHlp->pfnPrintf(pHlp, "VBE disabled\n");
+        return;
+    }
+    
+    pHlp->pfnPrintf(pHlp, "VBE state (chip ID 0x%04x):\n", s->vbe_regs[VBE_DISPI_INDEX_ID]);
+    pHlp->pfnPrintf(pHlp, " Display resolution: %d x %d @ %dbpp\n",
+                    s->vbe_regs[VBE_DISPI_INDEX_XRES], s->vbe_regs[VBE_DISPI_INDEX_YRES],
+                    s->vbe_regs[VBE_DISPI_INDEX_BPP]);
+    pHlp->pfnPrintf(pHlp, " Virtual resolution: %d x %d\n",
+                    s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH], s->vbe_regs[VBE_DISPI_INDEX_VIRT_HEIGHT]);
+    pHlp->pfnPrintf(pHlp, " Display start addr: %d, %d\n",
+                    s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET], s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET]);
+    pHlp->pfnPrintf(pHlp, " Selected bank: 0x%04x\n", s->vbe_regs[VBE_DISPI_INDEX_BANK]);
+}
 
 /* -=-=-=-=-=- Ring 3: IBase -=-=-=-=-=- */
 
@@ -5808,7 +5843,7 @@ static DECLCALLBACK(void)  vgaR3Reset(PPDMDEVINS pDevIns)
 #ifdef CONFIG_BOCHS_VBE
     pThis->vbe_regs[VBE_DISPI_INDEX_ID] = VBE_DISPI_ID0;
     pThis->vbe_regs[VBE_DISPI_INDEX_VBOX_VIDEO] = 0;
-    pThis->vbe_bank_max   = pThis->vram_size >> 16;
+    pThis->vbe_bank_max   = (pThis->vram_size >> 16) - 1;
 #endif /* CONFIG_BOCHS_VBE */
 
     /*
@@ -6093,6 +6128,9 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (pThis->vram_size < VGA_VRAM_MIN)
         return PDMDevHlpVMSetError(pDevIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
                                    "VRamSize is too small, %#x, max %#x", pThis->vram_size, VGA_VRAM_MIN);
+    if (pThis->vram_size & (_256K - 1)) /* Make sure there are no partial banks even in planar modes. */
+        return PDMDevHlpVMSetError(pDevIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
+                                   "VRamSize is not a multiple of 256K (%#x)", pThis->vram_size);
 
     rc = CFGMR3QueryU32Def(pCfg, "MonitorCount", &pThis->cMonitors, 1);
     AssertLogRelRCReturn(rc, rc);
@@ -6596,6 +6634,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     PDMDevHlpDBGFInfoRegister(pDevIns, "vgasr", "Dump VGA Sequencer registers.", vgaInfoSR);
     PDMDevHlpDBGFInfoRegister(pDevIns, "vgaar", "Dump VGA Attribute Controller registers.", vgaInfoAR);
     PDMDevHlpDBGFInfoRegister(pDevIns, "vgadac", "Dump VGA DAC registers.", vgaInfoDAC);
+    PDMDevHlpDBGFInfoRegister(pDevIns, "vbe", "Dump VGA VBE registers.", vgaInfoVBE);
 
     /*
      * Construct the logo header.

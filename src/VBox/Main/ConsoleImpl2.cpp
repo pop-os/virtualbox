@@ -349,6 +349,9 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     /* Save the VM pointer in the machine object */
     pConsole->mpVM = pVM;
 
+    VMMDev *pVMMDev = pConsole->m_pVMMDev;
+    Assert(pVMMDev);
+
     ComPtr<IMachine> pMachine = pConsole->machine();
 
     int             rc;
@@ -483,11 +486,11 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
      * Hardware virtualization extensions.
      */
     BOOL fHWVirtExEnabled;
-    BOOL fHwVirtExtForced;
+    BOOL fHwVirtExtForced = false;
 #ifdef VBOX_WITH_RAW_MODE
     hrc = pMachine->GetHWVirtExProperty(HWVirtExPropertyType_Enabled, &fHWVirtExEnabled); H();
     if (cCpus > 1) /** @todo SMP: This isn't nice, but things won't work on mac otherwise. */
-        fHWVirtExEnabled = TRUE;
+        fHWVirtExEnabled = true;
 # ifdef RT_OS_DARWIN
     fHwVirtExtForced = fHWVirtExEnabled;
 # else
@@ -499,8 +502,13 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                         || cCpus > 1);
 # endif
 #else  /* !VBOX_WITH_RAW_MODE */
-    fHWVirtExEnabled = fHwVirtExtForced = TRUE;
+    fHWVirtExEnabled = fHwVirtExtForced = true;
 #endif /* !VBOX_WITH_RAW_MODE */
+    /* only honor the property value if there was no other reason to enable it */
+    if (!fHwVirtExtForced)
+    {
+        hrc = pMachine->GetHWVirtExProperty(HWVirtExPropertyType_Force, &fHwVirtExtForced); H();
+    }
     rc = CFGMR3InsertInteger(pRoot, "HwVirtExtForced",      fHwVirtExtForced);          RC_CHECK();
 
     PCFGMNODE pHWVirtExt;
@@ -877,7 +885,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     rc = CFGMR3InsertInteger(pCfg,  "LogoTime", logoDisplayTime);                       RC_CHECK();
     Bstr logoImagePath;
     hrc = biosSettings->COMGETTER(LogoImagePath)(logoImagePath.asOutParam());           H();
-    rc = CFGMR3InsertString(pCfg,   "LogoFile", logoImagePath ? Utf8Str(logoImagePath).c_str() : ""); RC_CHECK();
+    rc = CFGMR3InsertString(pCfg,   "LogoFile", !logoImagePath.isEmpty() ? Utf8Str(logoImagePath).c_str() : ""); RC_CHECK();
 
     /*
      * Boot menu
@@ -1439,7 +1447,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
          */
         Bstr macAddr;
         hrc = networkAdapter->COMGETTER(MACAddress)(macAddr.asOutParam());              H();
-        Assert(macAddr);
+        Assert(!macAddr.isEmpty());
         Utf8Str macAddrUtf8 = macAddr;
         char *macStr = (char*)macAddrUtf8.raw();
         Assert(strlen(macStr) == 12);
@@ -1624,7 +1632,6 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
     rc = CFGMR3InsertNode(pInst,    "LUN#0", &pLunL0);                                  RC_CHECK();
     rc = CFGMR3InsertString(pLunL0, "Driver",               "HGCM");                    RC_CHECK();
     rc = CFGMR3InsertNode(pLunL0,   "Config", &pCfg);                                   RC_CHECK();
-    VMMDev *pVMMDev = pConsole->mVMMDev;
     rc = CFGMR3InsertInteger(pCfg,  "Object", (uintptr_t)pVMMDev);                      RC_CHECK();
 
     /*
@@ -1946,7 +1953,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
         if (mode != ClipboardMode_Disabled)
         {
             /* Load the service */
-            rc = pConsole->mVMMDev->hgcmLoadService("VBoxSharedClipboard", "VBoxSharedClipboard");
+            rc = pVMMDev->hgcmLoadService("VBoxSharedClipboard", "VBoxSharedClipboard");
 
             if (RT_FAILURE(rc))
             {
@@ -1990,7 +1997,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                     }
                 }
 
-                pConsole->mVMMDev->hgcmHostCall("VBoxSharedClipboard", VBOX_SHARED_CLIPBOARD_HOST_FN_SET_MODE, 1, &parm);
+                pVMMDev->hgcmHostCall("VBoxSharedClipboard", VBOX_SHARED_CLIPBOARD_HOST_FN_SET_MODE, 1, &parm);
 
                 Log(("Set VBoxSharedClipboard mode\n"));
             }
@@ -2008,7 +2015,7 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
         if (fEnabled)
         {
             /* Load the service */
-            rc = pConsole->mVMMDev->hgcmLoadService("VBoxSharedCrOpenGL", "VBoxSharedCrOpenGL");
+            rc = pVMMDev->hgcmLoadService("VBoxSharedCrOpenGL", "VBoxSharedCrOpenGL");
             if (RT_FAILURE(rc))
             {
                 LogRel(("Failed to load Shared OpenGL service %Rrc\n", rc));
@@ -2026,15 +2033,15 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
                 parm.u.pointer.addr = (IConsole*) (Console*) pConsole;
                 parm.u.pointer.size = sizeof(IConsole *);
 
-                rc = pConsole->mVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_CONSOLE,
-                                                     SHCRGL_CPARMS_SET_CONSOLE, &parm);
+                rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_CONSOLE,
+                                           SHCRGL_CPARMS_SET_CONSOLE, &parm);
                 if (!RT_SUCCESS(rc))
                     AssertMsgFailed(("SHCRGL_HOST_FN_SET_CONSOLE failed with %Rrc\n", rc));
 
                 parm.u.pointer.addr = pVM;
                 parm.u.pointer.size = sizeof(pVM);
-                rc = pConsole->mVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VM,
-                                                     SHCRGL_CPARMS_SET_VM, &parm);
+                rc = pVMMDev->hgcmHostCall("VBoxSharedCrOpenGL", SHCRGL_HOST_FN_SET_VM,
+                                           SHCRGL_CPARMS_SET_VM, &parm);
                 if (!RT_SUCCESS(rc))
                     AssertMsgFailed(("SHCRGL_HOST_FN_SET_VM failed with %Rrc\n", rc));
             }
@@ -2527,46 +2534,54 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
              * Ext4 bug: Check if the host I/O cache is disabled and the disk image is located
              *           on an ext4 partition. Later we have to check the Linux kernel version!
              * This bug apparently applies to the XFS file system as well.
+             * Linux 2.6.36 is known to be fixed (tested with 2.6.36-rc4).
              */
+
+            char szOsRelease[128];
+            rc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szOsRelease, sizeof(szOsRelease));
+            bool fKernelHasODirectBug =    RT_FAILURE(rc)
+                                        || (RTStrVersionCompare(szOsRelease, "2.6.36-rc4") < 0);
+
             if (   (uCaps & MediumFormatCapabilities_Asynchronous)
                 && !fUseHostIOCache
-                && (   enmFsTypeFile == RTFSTYPE_EXT4
-                    || enmFsTypeFile == RTFSTYPE_XFS))
+                && fKernelHasODirectBug)
             {
-                setVMRuntimeErrorCallbackF(pVM, this, 0,
-                        "Ext4PartitionDetected",
-                        N_("The host I/O cache for at least one controller is disabled "
-                           "and the medium '%ls' for this VM "
-                           "is located on an %s partition. There is a known Linux "
-                           "kernel bug which can lead to the corruption of the virtual "
-                           "disk image under these conditions.\n"
-                           "Either enable the host I/O cache permanently in the VM "
-                           "settings or put the disk image and the snapshot folder "
-                           "onto a different file system.\n"
-                           "The host I/O cache will now be enabled for this medium"),
-                        strFile.raw(), enmFsTypeFile == RTFSTYPE_EXT4 ? "ext4" : "xfs");
-                fUseHostIOCache = true;
-            }
-            else if (   (uCaps & MediumFormatCapabilities_Asynchronous)
-                     && !fUseHostIOCache
-                     && (   enmFsTypeSnap == RTFSTYPE_EXT4
-                         || enmFsTypeSnap == RTFSTYPE_XFS)
-                     && !mfSnapshotFolderExt4WarningShown)
-            {
-                setVMRuntimeErrorCallbackF(pVM, this, 0,
-                        "Ext4PartitionDetected",
-                        N_("The host I/O cache for at least one controller is disabled "
-                           "and the snapshot folder for this VM "
-                           "is located on an %s partition. There is a known Linux "
-                           "kernel bug which can lead to the corruption of the virtual "
-                           "disk image under these conditions.\n"
-                           "Either enable the host I/O cache permanently in the VM "
-                           "settings or put the disk image and the snapshot folder "
-                           "onto a different file system.\n"
-                           "The host I/O cache will now be enabled for this medium"),
-                        enmFsTypeSnap == RTFSTYPE_EXT4 ? "ext4" : "xfs");
-                fUseHostIOCache = true;
-                mfSnapshotFolderExt4WarningShown = true;
+                if (   enmFsTypeFile == RTFSTYPE_EXT4
+                    || enmFsTypeFile == RTFSTYPE_XFS)
+                {
+                    setVMRuntimeErrorCallbackF(pVM, this, 0,
+                            "Ext4PartitionDetected",
+                            N_("The host I/O cache for at least one controller is disabled "
+                               "and the medium '%ls' for this VM "
+                               "is located on an %s partition. There is a known Linux "
+                               "kernel bug which can lead to the corruption of the virtual "
+                               "disk image under these conditions.\n"
+                               "Either enable the host I/O cache permanently in the VM "
+                               "settings or put the disk image and the snapshot folder "
+                               "onto a different file system.\n"
+                               "The host I/O cache will now be enabled for this medium"),
+                            strFile.raw(), enmFsTypeFile == RTFSTYPE_EXT4 ? "ext4" : "xfs");
+                    fUseHostIOCache = true;
+                }
+                else if (  (   enmFsTypeSnap == RTFSTYPE_EXT4
+                            || enmFsTypeSnap == RTFSTYPE_XFS)
+                         && !mfSnapshotFolderExt4WarningShown)
+                {
+                    setVMRuntimeErrorCallbackF(pVM, this, 0,
+                            "Ext4PartitionDetected",
+                            N_("The host I/O cache for at least one controller is disabled "
+                               "and the snapshot folder for this VM "
+                               "is located on an %s partition. There is a known Linux "
+                               "kernel bug which can lead to the corruption of the virtual "
+                               "disk image under these conditions.\n"
+                               "Either enable the host I/O cache permanently in the VM "
+                               "settings or put the disk image and the snapshot folder "
+                               "onto a different file system.\n"
+                               "The host I/O cache will now be enabled for this medium"),
+                            enmFsTypeSnap == RTFSTYPE_EXT4 ? "ext4" : "xfs");
+                    fUseHostIOCache = true;
+                    mfSnapshotFolderExt4WarningShown = true;
+                }
             }
 #endif
         }
@@ -3949,8 +3964,11 @@ int Console::configNetwork(const char *pszDevice, unsigned uInstance,
 /**
  * Set an array of guest properties
  */
-static void configSetProperties(VMMDev * const pVMMDev, void *names,
-                                void *values, void *timestamps, void *flags)
+static void configSetProperties(VMMDev * const pVMMDev,
+                                void *names,
+                                void *values,
+                                void *timestamps,
+                                void *flags)
 {
     VBOXHGCMSVCPARM parms[4];
 
@@ -3967,15 +3985,19 @@ static void configSetProperties(VMMDev * const pVMMDev, void *names,
     parms[3].u.pointer.addr = flags;
     parms[3].u.pointer.size = 0;  /* We don't actually care. */
 
-    pVMMDev->hgcmHostCall ("VBoxGuestPropSvc", guestProp::SET_PROPS_HOST, 4,
-                           &parms[0]);
+    pVMMDev->hgcmHostCall("VBoxGuestPropSvc",
+                          guestProp::SET_PROPS_HOST,
+                          4,
+                          &parms[0]);
 }
 
 /**
  * Set a single guest property
  */
-static void configSetProperty(VMMDev * const pVMMDev, const char *pszName,
-                              const char *pszValue, const char *pszFlags)
+static void configSetProperty(VMMDev * const pVMMDev,
+                              const char *pszName,
+                              const char *pszValue,
+                              const char *pszFlags)
 {
     VBOXHGCMSVCPARM parms[4];
 
@@ -4031,9 +4053,10 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
 #ifdef VBOX_WITH_GUEST_PROPS
     AssertReturn(pvConsole, VERR_GENERAL_FAILURE);
     ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
+    AssertReturn(pConsole->m_pVMMDev, VERR_GENERAL_FAILURE);
 
     /* Load the service */
-    int rc = pConsole->mVMMDev->hgcmLoadService("VBoxGuestPropSvc", "VBoxGuestPropSvc");
+    int rc = pConsole->m_pVMMDev->hgcmLoadService("VBoxGuestPropSvc", "VBoxGuestPropSvc");
 
     if (RT_FAILURE(rc))
     {
@@ -4051,10 +4074,10 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
          */
 
         /* Sysprep execution by VBoxService. */
-        configSetProperty(pConsole->mVMMDev,
+        configSetProperty(pConsole->m_pVMMDev,
                           "/VirtualBox/HostGuest/SysprepExec", "",
                           "TRANSIENT, RDONLYGUEST");
-        configSetProperty(pConsole->mVMMDev,
+        configSetProperty(pConsole->m_pVMMDev,
                           "/VirtualBox/HostGuest/SysprepArgs", "",
                           "TRANSIENT, RDONLYGUEST");
 
@@ -4107,7 +4130,7 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
                     papszFlags[i] = szEmpty;
             }
             if (RT_SUCCESS(rc))
-                configSetProperties(pConsole->mVMMDev,
+                configSetProperties(pConsole->m_pVMMDev,
                                     (void *)papszNames,
                                     (void *)papszValues,
                                     (void *)pau64Timestamps,
@@ -4135,10 +4158,10 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
          * will override them.
          */
         /* Set the VBox version string as a guest property */
-        configSetProperty(pConsole->mVMMDev, "/VirtualBox/HostInfo/VBoxVer",
+        configSetProperty(pConsole->m_pVMMDev, "/VirtualBox/HostInfo/VBoxVer",
                           VBOX_VERSION_STRING, "TRANSIENT, RDONLYGUEST");
         /* Set the VBox SVN revision as a guest property */
-        configSetProperty(pConsole->mVMMDev, "/VirtualBox/HostInfo/VBoxRev",
+        configSetProperty(pConsole->m_pVMMDev, "/VirtualBox/HostInfo/VBoxRev",
                           RTBldCfgRevisionStr(), "TRANSIENT, RDONLYGUEST");
 
         /*
@@ -4173,7 +4196,7 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
     ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
 
     /* Load the service */
-    int rc = pConsole->mVMMDev->hgcmLoadService("VBoxGuestControlSvc", "VBoxGuestControlSvc");
+    int rc = pConsole->m_pVMMDev->hgcmLoadService("VBoxGuestControlSvc", "VBoxGuestControlSvc");
 
     if (RT_FAILURE(rc))
     {

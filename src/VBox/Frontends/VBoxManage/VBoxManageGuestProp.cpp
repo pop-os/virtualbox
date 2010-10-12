@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "VBoxManage.h"
+#include <iprt/stream.h>
+
+#ifndef VBOX_ONLY_DOCS
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
@@ -32,7 +35,6 @@
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
-#include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
 #include <iprt/thread.h>
@@ -187,6 +189,8 @@ NS_DECL_CLASSINFO(GuestPropertyCallback)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestPropertyCallback, IVirtualBoxCallback)
 #endif /* VBOX_WITH_XPCOM */
 
+#endif /* !VBOX_ONLY_DOCS */
+
 void usageGuestProperty(void)
 {
     RTPrintf("VBoxManage guestproperty    get <vmname>|<uuid>\n"
@@ -202,6 +206,8 @@ void usageGuestProperty(void)
              "                            [--timeout <msec>] [--fail-on-timeout]\n"
              "\n");
 }
+
+#ifndef VBOX_ONLY_DOCS
 
 static int handleGetGuestProperty(HandlerArg *a)
 {
@@ -240,11 +246,11 @@ static int handleGetGuestProperty(HandlerArg *a)
         Bstr flags;
         CHECK_ERROR(machine, GetGuestProperty(Bstr(a->argv[1]), value.asOutParam(),
                                               &u64Timestamp, flags.asOutParam()));
-        if (!value)
+        if (value.isEmpty())
             RTPrintf("No value set!\n");
-        if (value)
+        else
             RTPrintf("Value: %lS\n", value.raw());
-        if (value && verbose)
+        if (!value.isEmpty() && verbose)
         {
             RTPrintf("Timestamp: %lld\n", u64Timestamp);
             RTPrintf("Flags: %lS\n", flags.raw());
@@ -516,3 +522,5 @@ int handleGuestProperty(HandlerArg *a)
     /* default: */
     return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 }
+
+#endif /* !VBOX_ONLY_DOCS */

@@ -1,10 +1,8 @@
 #!/usr/bin/perl -w
 #
-# Sun VirtualBox
-#
 # Guest Additions X11 config update script
 #
-# Copyright (C) 2006-2009 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -118,7 +116,7 @@ Section "InputDevice"
   Option      "Device" "$old_mouse_dev"
   Option      "Name" "VirtualBox Mouse"
   Option      "Protocol" "explorerps/2"
-  Option      "Vendor" "Sun Microsystems Inc"
+  Option      "Vendor" "Oracle Corporation"
   Option      "ZAxisMapping" "4 5"
   Option      "CorePointer"
 EndSection
@@ -143,7 +141,7 @@ Section "InputDevice"
   Option       "Device" "/dev/input/mice"
   Option       "Name" "VirtualBox Mouse Buttons"
   Option       "Protocol" "explorerps/2"
-  Option       "Vendor" "Sun Microsystems Inc"
+  Option       "Vendor" "Oracle Corporation"
   Option       "ZAxisMapping" "4 5"
   Option       "CorePointer"
 EndSection
@@ -153,7 +151,7 @@ Section "InputDevice"
   Identifier   "Mouse[2]"
   Option       "Device" "/dev/vboxguest"
   Option       "Name" "VirtualBox Mouse"
-  Option       "Vendor" "Sun Microsystems Inc"
+  Option       "Vendor" "Oracle Corporation"
   Option       "SendCoreEvents"
 EndSection
 
@@ -174,14 +172,14 @@ EOF
 Section "Monitor"
   Identifier   "Monitor[0]"
   ModelName    "VirtualBox Virtual Output"
-  VendorName   "Sun Microsystems Inc"
+  VendorName   "Oracle Corporation"
 EndSection
 
 Section "Device"
   BoardName    "VirtualBox Graphics"
   Driver       "vboxvideo"
   Identifier   "Device[0]"
-  VendorName   "Sun Microsystems Inc"
+  VendorName   "Oracle Corporation"
 EndSection
 
 Section "Screen"

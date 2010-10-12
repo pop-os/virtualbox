@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -118,7 +118,7 @@ void ErrorInfo::init (bool aKeepObj /* = false */)
                     if (NS_SUCCEEDED(rc))
                     {
                         mText = Bstr(pszMsg);
-                        nsMemory::Free(mText);
+                        nsMemory::Free(pszMsg);
                     }
 
                     if (gotSomething)

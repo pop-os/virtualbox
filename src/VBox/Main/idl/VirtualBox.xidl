@@ -255,7 +255,7 @@
         value is within the range but simply doesn't suit the current object
         state and there is a possibility that it will be accepted later (in such
         cases VirtualBox-specific codes are returned, for example,
-        <link to="VBOX_E_OBJECT_NOT_FOUND"/>).
+        VBOX_E_OBJECT_NOT_FOUND).
       </td>
       </tr>
       <tr><td>E_POINTER</td>
@@ -533,7 +533,7 @@
       executed), only a few machine settings can be modified. Methods working
       with such settings contain an explicit note about that. An attempt to
       change any oter setting or perform a modifying operation during this time
-      will result in the <link to="VBOX_E_INVALID_VM_STATE"/> error.
+      will result in the VBOX_E_INVALID_VM_STATE error.
 
       All online states except Running, Paused and Stuck are transitional: they
       represent temporary conditions of the virtual machine that will last as
@@ -675,7 +675,7 @@
       <desc>
         The machine is about to be teleported to a different host or process.
         It is possible to pause a machine in this state, but it will go to the
-        <link to="MachineState::PausedTeleporting"/> state and it will not be
+        <link to="MachineState_TeleportingPausedVM"/> state and it will not be
         possible to resume it again unless the teleportation fails.
       </desc>
     </const>
@@ -684,7 +684,7 @@
         A live snapshot is being taken.  The machine is running normally, but
         some of the runtime configuration options are inaccessible.  Also, if
         paused while in this state it will transition to
-        <link to="MachineState::Saving"/> and it will not be resume the
+        <link to="MachineState_Saving"/> and it will not be resume the
         execution until the snapshot operation has completed.
       </desc>
     </const>
@@ -716,7 +716,7 @@
       <desc>
         The machine is being teleported to another host or process, but it is
         not running.  This is the paused variant of the
-        <link to="MachineState::Teleporting"/> state.
+        <link to="MachineState_Teleporting"/> state.
       </desc>
     </const>
     <const name="TeleportingIn"         value="15">
@@ -886,6 +886,12 @@
     <const name="LargePages"          value="5">
       <desc>
         Whether large page allocation is enabled; requires nested paging and a 64 bits host.
+      </desc>
+    </const>
+    <const name="Force"               value="6">
+      <desc>
+        Whether the VM should fail to start if hardware virtualization (VT-x/AMD-V) cannot be used. If
+        not set, there will be an automatic fallback to software virtualization.
       </desc>
     </const>
   </enum>
@@ -1800,7 +1806,7 @@
         </pre>
 
         Note that if the resulting settings file already exists, this method
-        will fail with <link to="VBOX_E_FILE_ERROR"/>.
+        will fail with VBOX_E_FILE_ERROR.
 
         Optionally, you may specify an UUID of to assign to the created machine.
         However, this is not recommended and you should normally pass an empty
@@ -1864,7 +1870,7 @@
         saved to disk (and therefore no settings file is created)
         until <link to="IMachine::saveSettings"/> is called. If the
         specified settings file already exists, this method
-        will fail with <link to="VBOX_E_FILE_ERROR"/>.
+        will fail with VBOX_E_FILE_ERROR.
 
         See <link to="#createMachine"/> for more information.
 
@@ -4638,9 +4644,9 @@
       <desc>
         Current snapshot of this machine. This is @c null if the machine
         currently has no snapshots. If it is not @c null, then it was
-        set by one of <link to="Console::takeSnapshot" />,
-        <link to="Console::deleteSnapshot" />
-        or <link to="Console::restoreSnapshot" />, depending on which
+        set by one of <link to="IConsole::takeSnapshot" />,
+        <link to="IConsole::deleteSnapshot" />
+        or <link to="IConsole::restoreSnapshot" />, depending on which
         was called last. See <link to="ISnapshot"/> for details.
       </desc>
     </attribute>
@@ -4853,7 +4859,7 @@
 
         This method is intended for managing storage devices in general (it works
         for both fixed and removable media). For storage devices supporting removable
-        media (such as DVDs and floppies), you can also use <link to="IMedium::mountMedium"/>
+        media (such as DVDs and floppies), you can also use <link to="IMachine::mountMedium"/>
         for changing the media while the machine is running.
 
         In a VM's default configuration of virtual machines, the secondary
@@ -6377,7 +6383,7 @@
     <method name="onRemoteDisplayInfoChange">
       <desc>
         Notification when the status of the VRDP server changes. Interested callees
-        should use <link to="IConsole::RemoteDisplayInfo">IRemoteDisplayInfo</link>
+        should use <link to="IConsole::remoteDisplayInfo">IRemoteDisplayInfo</link>
         attributes to find out what is the current status.
         <result name="VBOX_E_DONT_CALL_AGAIN">
           Do not call again, this method is a NOP.
@@ -7883,7 +7889,7 @@
       </desc>
       <param name="name" type="wstring" dir="in">
         <desc>
-          Filter name. See <link to="IHostUSBDeviceFilter::name"/>
+          Filter name. See <link to="IUSBDeviceFilter::name"/>
           for more info.
         </desc>
       </param>
@@ -8268,7 +8274,7 @@
         format specified by this argument will be used.
 
         The list of supported medium formats may be obtained by the
-        <link  to="#mediaFormats"/> call. Note that the default medium
+        <link  to="#mediumFormats"/> call. Note that the default medium
         format must have a capability to create differencing media;
         otherwise operations that create media implicitly may fail
         unexpectedly.
@@ -8282,7 +8288,7 @@
         </note>
 
         <see>
-          <link to="#mediaFormats"/>,
+          <link to="#mediumFormats"/>,
           <link to="IMediumFormat::id"/>,
           <link to="IVirtualBox::createHardDisk"/>
         </see>
@@ -9962,7 +9968,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <note>
           For media whose state is <link to="#state"/> is <link
           to="MediumState_Inaccessible"/>, the value of this property is the
-          last known logical size. For <link to="MediumaState_NotCreated"/>
+          last known logical size. For <link to="MediumState_NotCreated"/>
           media, the returned value is zero.
         </note>
       </desc>
@@ -10844,7 +10850,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         format.
 
         The list of all supported medium formats can be obtained using
-        <link to="ISystemProperties::mediaFormats"/>.
+        <link to="ISystemProperties::mediumFormats"/>.
 
         <see>IMedium</see>
     </desc>
@@ -11754,16 +11760,32 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         </result>
 
       </desc>
-      <param name="screenId" type="unsigned long" dir="in"/>
-      <param name="address" type="octet" mod="ptr" dir="in"/>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+        </desc>
+          Monitor to take screenshot from.
+      </param>
+      <param name="address" type="octet" mod="ptr" dir="in">
+        <desc>
+          Address to store the screenshot to.
+        </desc>
+      </param>
       <param name="x" type="unsigned long" dir="in">
         <desc>Relative to the screen top left corner.</desc>
       </param>
       <param name="y" type="unsigned long" dir="in">
         <desc>Relative to the screen top left corner.</desc>
       </param>
-      <param name="width" type="unsigned long" dir="in"/>
-      <param name="height" type="unsigned long" dir="in"/>
+      <param name="width" type="unsigned long" dir="in">
+        <desc>
+          Desired image width.
+        </desc>
+      </param>
+      <param name="height" type="unsigned long" dir="in">
+        <desc>
+          Desired image height.
+        </desc>
+      </param>
     </method>
 
     <method name="invalidateAndUpdate">
@@ -12865,7 +12887,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       host's USB controller.
 
       <note>
-        The <link to="#remote"/> attribute is ignored by this type of
+        The <link to="IUSBDeviceFilter::remote"/> attribute is ignored by this type of
         filters, because it makes sense only for
         <link to="IUSBController::deviceFilters">machine USB filters</link>.
       </note>

@@ -1,4 +1,4 @@
-; $Id:  $
+; $Id: VBoxRT-win32.def $
 ;; @file
 ; IPRT - Win32 ASM exports.
 ;

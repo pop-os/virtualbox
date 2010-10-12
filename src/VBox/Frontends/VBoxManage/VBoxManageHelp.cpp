@@ -163,6 +163,7 @@ void printUsage(USAGECATEGORY u64Cmd)
                  "                            [--pae on|off]\n"
                  "                            [--hpet on|off]\n"
                  "                            [--hwvirtex on|off]\n"
+                 "                            [--hwvirtexexcl on|off]\n"
                  "                            [--nestedpaging on|off]\n"
                  "                            [--largepages on|off]\n"
                  "                            [--vtxvpid on|off]\n"
@@ -511,9 +512,11 @@ void printUsage(USAGECATEGORY u64Cmd)
         RTPrintf("VBoxManage convertfromraw   <filename> <outputfile>\n"
                  "                            [--format VDI|VMDK|VHD]\n"
                  "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+#ifndef RT_OS_WINDOWS
                  "VBoxManage convertfromraw   stdin <outputfile> <bytes>\n"
                  "                            [--format VDI|VMDK|VHD]\n"
                  "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+#endif
                  "\n");
     }
 

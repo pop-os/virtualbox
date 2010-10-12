@@ -1,4 +1,4 @@
-# $Id$
+# $Id: Makefile $
 #* @file
 # Makefile - assembling the iso image for experimenting with EFI.
 #/
