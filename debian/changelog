@@ -1,4 +1,4 @@
-virtualbox-ose (3.2.10-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.2.10-dfsg-1) unstable; urgency=low
 
   * New upstream release.
   * Adapt 18-system-xorg.patch and 27-hide-host-cache-warning.patch for
