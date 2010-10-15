@@ -1,4 +1,5 @@
 01-build-arch.patch
+02-fix-build-gcc45.patch
 04-vboxdrv-references.patch
 06-xsession.patch
 07-vboxnetflt-reference.patch

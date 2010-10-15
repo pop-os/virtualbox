@@ -1,0 +1,32 @@
+From 8c4aca59bd1db2fa278a575e7768ce129a89013d Mon Sep 17 00:00:00 2001
+From: Lubomir Rintel <lkundrak@v3.sk>
+Date: Mon, 12 Jul 2010 10:01:48 +0200
+Subject: [PATCH] Fix build with GCC 4.5.0
+
+Silence an -Wuninitialized warning which causes the build to fail,
+because we build with -Werror.
+---
+ src/VBox/VMM/VMMAll/PGMAllGst.h |    7 +++++++
+ 1 files changed, 7 insertions(+), 0 deletions(-)
+
+diff --git a/src/VBox/VMM/VMMAll/PGMAllGst.h b/src/VBox/VMM/VMMAll/PGMAllGst.h
+index 749fffd..6aea35a 100644
+--- a/src/VBox/VMM/VMMAll/PGMAllGst.h
++++ b/src/VBox/VMM/VMMAll/PGMAllGst.h
+@@ -81,6 +81,13 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
+     X86PDPE     Pdpe;
+     X86PDEPAE   Pde = pgmGstGetLongModePDEEx(&pVCpu->pgm.s, GCPtr, &pPml4e, &Pdpe);
+ 
++    Pdpe.n.u1Present =
++        Pdpe.lm.u1Write =
++        Pdpe.lm.u1User =
++        Pdpe.lm.u1Accessed =
++        Pdpe.lm.u1NoExecute =
++        0;
++
+     Assert(pPml4e);
+     if (!(pPml4e->n.u1Present & Pdpe.n.u1Present))
+         return VERR_PAGE_TABLE_NOT_PRESENT;
+-- 
+1.7.1.1
+
