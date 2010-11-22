@@ -6,4 +6,4 @@ Comment=Run several virtual systems on a single host computer
 Exec=virtualbox
 TryExec=virtualbox
 Icon=virtualbox
-Categories=Emulator;System;
+Categories=Emulator;Utilities;
