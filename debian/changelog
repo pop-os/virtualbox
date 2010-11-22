@@ -1,3 +1,12 @@
+virtualbox-ose (3.2.10-dfsg-2) unstable; urgency=low
+
+  * Added two patches from virtualbox-ose SVN/bug tracking to fix some
+    issues with kernels > 2.6.36. (Closes: #604259)
+  * Moved program to utilities where it belongs.
+  * Fixed typo in desktop file
+
+ -- Michael Meskes <meskes@debian.org>  Mon, 22 Nov 2010 12:28:19 +0100
+
 virtualbox-ose (3.2.10-dfsg-1) unstable; urgency=low
 
   * New upstream release.
