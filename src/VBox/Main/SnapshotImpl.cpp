@@ -2499,13 +2499,6 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                 bool fNeedsSave = false;
                 if (it->mfNeedsOnlineMerge)
                 {
-/// @todo VBoxHDD cannot handle backward merges where source==active disk yet
-                    if (!it->mfMergeForward && it->mChildrenToReparent.size() == 0)
-                        throw setError(E_NOTIMPL,
-                                       tr("Snapshot '%s' of the machine '%ls' cannot be deleted while a VM is running, as this case is not implemented yet. You can delete the snapshot when the VM is powered off"),
-                                       aTask.pSnapshot->getName().c_str(),
-                                       mUserData->mName.raw());
-
                     // online medium merge, in the direction decided earlier
                     rc = onlineMergeMedium(it->mpOnlineMediumAttachment,
                                            it->mpSource,
@@ -2603,13 +2596,21 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                     childSnapshotId = pChildSnapshot->getId();
                 }
                 pAtt = findAttachment(pMachine->mMediaData->mAttachments, it->mpSource);
-                // If no attachment is found do not change anything. The source
-                // medium might not have been attached to the snapshot.
                 if (pAtt)
                 {
                     AutoWriteLock attLock(pAtt COMMA_LOCKVAL_SRC_POS);
-                    pAtt->updateMedium(it->mpTarget, false /* aImplicit */);
+                    pAtt->updateMedium(it->mpTarget);
                     it->mpTarget->attachTo(pMachine->mData->mUuid, childSnapshotId);
+                }
+                else
+                {
+                    // If no attachment is found do not change anything. Maybe
+                    // the source medium was not attached to the snapshot.
+                    // If this is an online deletion the attachment was updated
+                    // already to allow the VM continue execution immediately.
+                    // Needs a bit of special treatment due to this difference.
+                    if (it->mfNeedsOnlineMerge)
+                        it->mpTarget->attachTo(pMachine->mData->mUuid, childSnapshotId);
                 }
             }
 
@@ -3174,11 +3175,17 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
     ComObjPtr<Medium> pSource(static_cast<Medium *>(aSource));
     ComObjPtr<Medium> pTarget(static_cast<Medium *>(aTarget));
     ComObjPtr<Medium> pParentForTarget(static_cast<Medium *>(aParentForTarget));
+    bool fSourceHasChildren = false;
 
     // all hard disks but the target were successfully deleted by
     // the merge; reparent target if necessary and uninitialize media
 
     AutoWriteLock treeLock(mParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+
+    // Declare this here to make sure the object does not get uninitialized
+    // before this method completes. Would normally happen as halfway through
+    // we delete the last reference to the no longer existing medium object.
+    ComObjPtr<Medium> targetChild;
 
     if (aMergeForward)
     {
@@ -3201,7 +3208,7 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
     else
     {
         Assert(pTarget->getChildren().size() == 1);
-        Medium *targetChild = pTarget->getChildren().front();
+        targetChild = pTarget->getChildren().front();
 
         // disconnect the deleted branch at the elder end
         targetChild->deparent();
@@ -3211,6 +3218,7 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
         com::SafeIfaceArray<IMedium> childrenToReparent(ComSafeArrayInArg(aChildrenToReparent));
         if (childrenToReparent.size() > 0)
         {
+            fSourceHasChildren = true;
             // Fix the parent UUID of the images which needs to be moved to
             // underneath target. The running machine has the images opened,
             // but only for reading since the VM is paused. If anything fails
@@ -3240,8 +3248,8 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
 
     /* unregister and uninitialize all hard disks removed by the merge */
     MediumLockList *pMediumLockList = NULL;
-    rc = mData->mSession.mLockedMedia.Get(static_cast<MediumAttachment *>(aMediumAttachment),
-                                          pMediumLockList);
+    MediumAttachment *pMediumAttachment = static_cast<MediumAttachment *>(aMediumAttachment);
+    rc = mData->mSession.mLockedMedia.Get(pMediumAttachment, pMediumLockList);
     const ComObjPtr<Medium> &pLast = aMergeForward ? pTarget : pSource;
     AssertReturn(SUCCEEDED(rc) && pMediumLockList, E_FAIL);
     MediumLockList::Base::iterator lockListBegin =
@@ -3316,6 +3324,15 @@ STDMETHODIMP SessionMachine::FinishOnlineMergeMedium(IMediumAttachment *aMediumA
          it->UpdateLock(it == lockListLast);
     }
 
+    /* If this is a backwards merge of the only remaining snapshot (i.e. the
+     * source has no children) then update the medium associated with the
+     * attachment, as the previously associated one (source) is now deleted.
+     * Without the immediate update the VM could not continue running. */
+    if (!aMergeForward && !fSourceHasChildren)
+    {
+        AutoWriteLock attLock(pMediumAttachment COMMA_LOCKVAL_SRC_POS);
+        pMediumAttachment->updateMedium(pTarget);
+    }
 
     return S_OK;
 }

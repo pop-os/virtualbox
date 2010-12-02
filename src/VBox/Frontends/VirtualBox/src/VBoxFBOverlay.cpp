@@ -40,6 +40,8 @@
 #endif
 #include <iprt/semaphore.h>
 
+#include <VBox/err.h>
+
 #include <QFile>
 #include <QTextStream>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -57,7 +59,8 @@
 #endif
 
 #define VBOXQGL_STATE_NAMEBASE "QGLVHWAData"
-#define VBOXQGL_STATE_VERSION 2
+#define VBOXQGL_STATE_VERSION           3
+#define VBOXQGL_STATE_VERSION_PIPESAVED 3
 
 #ifdef DEBUG
 VBoxVHWADbgTimer::VBoxVHWADbgTimer(uint32_t cPeriods) :
@@ -4236,6 +4239,14 @@ int VBoxQGLOverlay::onVHWACommand(struct _VBOXVHWACMD * pCmd)
             pCmd->rc = reset();
             return VINF_SUCCESS;
         }
+        case VBOXVHWACMD_TYPE_HH_ENABLE:
+            pCmd->Flags &= ~VBOXVHWACMD_FLAG_HG_ASYNCH;
+            pCmd->rc = VINF_SUCCESS;
+            return VINF_SUCCESS;
+        case VBOXVHWACMD_TYPE_HH_DISABLE:
+            pCmd->Flags &= ~VBOXVHWACMD_FLAG_HG_ASYNCH;
+            pCmd->rc = VINF_SUCCESS;
+            return VINF_SUCCESS;
         default:
             break;
     }
@@ -4685,12 +4696,25 @@ static DECLCALLBACK(int) vboxQGLOverlayLoadExec(PSSMHANDLE pSSM, void *pvUser, u
 
 int VBoxQGLOverlay::vhwaLoadExec(struct SSMHANDLE * pSSM, uint32_t u32Version)
 {
-    return VBoxVHWAImage::vhwaLoadExec(&mOnResizeCmdList, pSSM, u32Version);
+    int rc = VBoxVHWAImage::vhwaLoadExec(&mOnResizeCmdList, pSSM, u32Version);
+    AssertRC(rc);
+    if (RT_SUCCESS(rc))
+    {
+        if (u32Version >= VBOXQGL_STATE_VERSION_PIPESAVED)
+        {
+            rc = mCmdPipe.loadExec(pSSM, u32Version, mOverlayImage.vramBase());
+            AssertRC(rc);
+        }
+    }
+    return rc;
 }
 
 void VBoxQGLOverlay::vhwaSaveExec(struct SSMHANDLE * pSSM)
 {
+    mCmdPipe.lock();
     mOverlayImage.vhwaSaveExec(pSSM);
+    mCmdPipe.saveExec(pSSM, mOverlayImage.vramBase());
+    mCmdPipe.unlock();
 }
 
 int VBoxQGLOverlay::vhwaConstruct(struct _VBOXVHWACMD_HH_CONSTRUCT *pCmd)
@@ -5066,6 +5090,148 @@ void VBoxVHWACommandElementProcessor::reset(VBoxVHWACommandElement ** ppHead, VB
     RTCritSectLeave(&mCritSect);
 
     *ppHead = pipe.detachList(ppTail);
+}
+
+#define VBOXVHWACOMMANDELEMENTLISTBEGIN_MAGIC 0x89abcdef
+#define VBOXVHWACOMMANDELEMENTLISTEND_MAGIC   0xfedcba98
+
+int VBoxVHWACommandElementProcessor::loadExec (struct SSMHANDLE * pSSM, uint32_t u32Version, void *pvVRAM)
+{
+    uint32_t u32;
+    bool b;
+    int rc;
+    rc = SSMR3GetU32(pSSM, &u32); AssertRC(rc);
+    if (RT_SUCCESS(rc))
+    {
+        Assert(u32 == VBOXVHWACOMMANDELEMENTLISTBEGIN_MAGIC);
+        if (u32 == VBOXVHWACOMMANDELEMENTLISTBEGIN_MAGIC)
+        {
+            rc = SSMR3GetU32(pSSM, &u32);
+            rc = SSMR3GetBool(pSSM, &b);         AssertRC(rc);
+        //    m_NotifyObjectRefs = VBoxVHWARefCounter(u32);
+            bool bContinue = true;
+            do
+            {
+                rc = SSMR3GetU32(pSSM, &u32);         AssertRC(rc);
+                if (RT_SUCCESS(rc))
+                {
+                    bool bNewEvent;
+                    switch (u32)
+                    {
+                        case VBOXVHWA_PIPECMD_PAINT:
+                        {
+                            int x,y,w,h;
+                            rc = SSMR3GetS32(pSSM, &x);         AssertRC(rc);
+                            rc = SSMR3GetS32(pSSM, &y);         AssertRC(rc);
+                            rc = SSMR3GetS32(pSSM, &w);         AssertRC(rc);
+                            rc = SSMR3GetS32(pSSM, &h);         AssertRC(rc);
+
+                            rc = SSMR3GetBool(pSSM, &bNewEvent);         AssertRC(rc);
+
+                            if (RT_SUCCESS(rc))
+                            {
+                                postCmd(VBOXVHWA_PIPECMD_PAINT, &QRect(x,y,w,h), 0);
+                            }
+                            break;
+                        }
+                        case VBOXVHWA_PIPECMD_VHWA:
+                        {
+                            uint32_t offCmd;
+                            rc = SSMR3GetU32(pSSM, &offCmd);         AssertRC(rc);
+
+                            rc = SSMR3GetBool(pSSM, &bNewEvent);         AssertRC(rc);
+
+                            if (RT_SUCCESS(rc))
+                            {
+                                postCmd(VBOXVHWA_PIPECMD_VHWA, (VBOXVHWACMD*)(((uint8_t*)pvVRAM) + offCmd), 0);
+                            }
+                            break;
+                        }
+                        case VBOXVHWACOMMANDELEMENTLISTEND_MAGIC:
+                        {
+                            bContinue = false;
+                            break;
+                        }
+                        default:
+                            Assert(0);
+                            break;
+                    }
+
+                }
+
+            } while(bContinue && RT_SUCCESS(rc));
+        }
+        else
+        {
+            rc = VERR_INVALID_MAGIC;
+        }
+    }
+
+    return rc;
+}
+
+void VBoxVHWACommandElementProcessor::saveExec (struct SSMHANDLE * pSSM, void *pvVRAM)
+{
+    int rc;
+
+    rc = SSMR3PutU32(pSSM, VBOXVHWACOMMANDELEMENTLISTBEGIN_MAGIC);         AssertRC(rc);
+    rc = SSMR3PutU32(pSSM, m_NotifyObjectRefs.refs());         AssertRC(rc);
+    rc = SSMR3PutBool(pSSM, mbNewEvent);         AssertRC(rc);
+
+    const VBoxVHWACommandElement * pCur = m_CmdPipe.contentsRo(NULL);
+    for (;pCur; pCur = pCur->mpNext)
+    {
+        rc = SSMR3PutU32(pSSM, pCur->type());         AssertRC(rc);
+
+        switch (pCur->type())
+        {
+            case VBOXVHWA_PIPECMD_PAINT:
+                rc = SSMR3PutS32(pSSM, pCur->rect().x());         AssertRC(rc);
+                rc = SSMR3PutS32(pSSM, pCur->rect().y());         AssertRC(rc);
+                rc = SSMR3PutS32(pSSM, pCur->rect().width());         AssertRC(rc);
+                rc = SSMR3PutS32(pSSM, pCur->rect().height());         AssertRC(rc);
+                rc = SSMR3PutBool(pSSM, pCur->isNewEvent());         AssertRC(rc);
+                break;
+            case VBOXVHWA_PIPECMD_VHWA:
+            {
+                rc = SSMR3PutU32(pSSM, (uint32_t)((uintptr_t)((uint8_t*)pCur->vhwaCmd() - (uint8_t*)pvVRAM)));         AssertRC(rc);
+                rc = SSMR3PutBool(pSSM, pCur->isNewEvent());         AssertRC(rc);
+                break;
+            }
+            default:
+                Assert(0);
+                break;
+        }
+    }
+
+    rc = SSMR3PutU32(pSSM, VBOXVHWACOMMANDELEMENTLISTEND_MAGIC);         AssertRC(rc);
+}
+
+void VBoxVHWACommandElementProcessor::lock()
+{
+    RTCritSectEnter(&mCritSect);
+
+    if(mbProcessingList)
+    {
+        for(;;)
+        {
+            RTCritSectLeave(&mCritSect);
+            RTThreadSleep(2000); /* 2 ms */
+            RTCritSectEnter(&mCritSect);
+            /* it is assumed no one sends any new commands while reset is in progress */
+            if(!mbProcessingList)
+            {
+                break;
+            }
+        }
+    }
+
+    Assert(!mbProcessingList);
+}
+
+void VBoxVHWACommandElementProcessor::unlock()
+{
+    RTCritSectLeave(&mCritSect);
 }
 
 VBoxVHWATextureImage::VBoxVHWATextureImage(const QRect &size, const VBoxVHWAColorFormat &format, class VBoxVHWAGlProgramMngr * aMgr, VBOXVHWAIMG_TYPE flags) :

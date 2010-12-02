@@ -110,8 +110,12 @@ VMMR0DECL(int) ModuleInit(void)
                         rc = IntNetR0Init();
                         if (RT_SUCCESS(rc))
                         {
-                            LogFlow(("ModuleInit: returns success.\n"));
-                            return VINF_SUCCESS;
+                            rc = CPUMR0ModuleInit();
+                            if (RT_SUCCESS(rc))
+                            {
+                                LogFlow(("ModuleInit: returns success.\n"));
+                                return VINF_SUCCESS;
+                            }
                         }
 
                         /* bail out */
@@ -141,6 +145,11 @@ VMMR0DECL(int) ModuleInit(void)
 VMMR0DECL(void) ModuleTerm(void)
 {
     LogFlow(("ModuleTerm:\n"));
+
+    /*
+     * Terminate the CPUM module (Local APIC cleanup).
+     */
+    CPUMR0ModuleTerm();
 
     /*
      * Terminate the internal network service.
@@ -545,6 +554,11 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                 }
 #endif
 
+                RTCPUID idHostCpu = RTMpCpuId();
+#ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+                CPUMR0SetLApic(pVM, idHostCpu);
+#endif
+
                 /* We might need to disable VT-x if the active switcher turns off paging. */
                 rc = HWACCMR0EnterSwitcher(pVM, &fVTxDisabled);
                 if (RT_FAILURE(rc))
@@ -554,7 +568,7 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                     return;
                 }
 
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
+                ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
                 VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
 
                 TMNotifyStartOfExecution(pVCpu);
@@ -847,6 +861,11 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
 #endif
 
             RTCCUINTREG fFlags = ASMIntDisableFlags();
+
+#ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+            RTCPUID idHostCpu = RTMpCpuId();
+            CPUMR0SetLApic(pVM, idHostCpu);
+#endif
 
             /* We might need to disable VT-x if the active switcher turns off paging. */
             rc = HWACCMR0EnterSwitcher(pVM, &fVTxDisabled);

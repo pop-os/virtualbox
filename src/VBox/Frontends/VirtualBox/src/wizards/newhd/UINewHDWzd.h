@@ -108,10 +108,6 @@ public:
 
     UINewHDWzdPage3();
 
-signals:
-
-    void sigToUpdateSizeEditor(const QString &strNewSize);
-
 protected:
 
     void retranslateUi();

@@ -1509,11 +1509,8 @@ static void apicTimerSetInitialCount(APICDeviceInfo *dev, APICState *pThis, uint
      * Don't (re-)arm the timer if the it's masked or if it's
      * a zero length one-shot timer.
      */
-    /** @todo check the correct behavior of setting a 0 initial_count for a one-shot
-     *        timer. This is just copying the behavior of the original code. */
     if (    !(pThis->lvt[APIC_LVT_TIMER] & APIC_LVT_MASKED)
-        &&  (   (pThis->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC)
-             || u32NewInitialCount != 0))
+        &&  u32NewInitialCount > 0)
     {
         /*
          * Calculate the relative next time and perform a combined timer get/set
@@ -1526,6 +1523,7 @@ static void apicTimerSetInitialCount(APICDeviceInfo *dev, APICState *pThis, uint
         pThis->next_time = pThis->initial_count_load_time + cTicksNext;
         pThis->fTimerArmed = true;
         STAM_COUNTER_INC(&pThis->StatTimerSetInitialCountArm);
+        Log(("apicTimerSetInitialCount: cTicksNext=%'llu (%#llx) ic=%#x sh=%#x nxt=%#llx\n", cTicksNext, cTicksNext, u32NewInitialCount, pThis->count_shift, pThis->next_time));
     }
     else
     {
@@ -1537,6 +1535,7 @@ static void apicTimerSetInitialCount(APICDeviceInfo *dev, APICState *pThis, uint
             pThis->fTimerArmed = false;
         }
         pThis->initial_count_load_time = TMTimerGet(pThis->CTX_SUFF(pTimer));
+        Log(("apicTimerSetInitialCount: ic=%#x sh=%#x iclt=%#llx\n", u32NewInitialCount, pThis->count_shift, pThis->initial_count_load_time));
     }
 }
 
@@ -1593,11 +1592,14 @@ static void apicTimerSetLvt(APICDeviceInfo *dev, APICState *pThis, uint32_t fNew
         else if (pThis->fTimerArmed)
             STAM_COUNTER_INC(&pThis->StatTimerSetLvtArmed);
         /*
-         * If unmasked and not armed, we have to rearm the timer so it will
-         * fire at the end of the current period.
-         * This is code is currently RACING the virtual sync clock!
+         * If unmasked, not armed and with a valid initial count value (according
+         * to our interpretation of the spec), we will have to rearm the timer so
+         * it will fire at the end of the current period.
+         *
+         * N.B. This is code is currently RACING the virtual sync clock!
          */
-        else if (fOld & APIC_LVT_MASKED)
+        else if (   (fOld & APIC_LVT_MASKED)
+                 && pThis->initial_count > 0)
         {
             STAM_COUNTER_INC(&pThis->StatTimerSetLvtArm);
             for (unsigned cTries = 0; ; cTries++)
@@ -1622,6 +1624,7 @@ static void apicTimerSetLvt(APICDeviceInfo *dev, APICState *pThis, uint32_t fNew
                     TMTimerSet(pThis->CTX_SUFF(pTimer), NextTS);
                     pThis->next_time = NextTS;
                     pThis->fTimerArmed = true;
+                    Log(("apicTimerSetLvt: ic=%#x sh=%#x nxt=%#llx\n", pThis->initial_count, pThis->count_shift, pThis->next_time));
                     break;
                 }
                 STAM_COUNTER_INC(&pThis->StatTimerSetLvtArmRetries);
@@ -1651,13 +1654,15 @@ static DECLCALLBACK(void) apicTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer,
         LogFlow(("apic_timer: trigger irq\n"));
         apic_set_irq(dev, pThis, pThis->lvt[APIC_LVT_TIMER] & 0xff, APIC_TRIGGER_EDGE);
 
-        if (pThis->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC) {
+        if (   (pThis->lvt[APIC_LVT_TIMER] & APIC_LVT_TIMER_PERIODIC)
+            && pThis->initial_count > 0) {
             /* new interval. */
             pThis->next_time += (((uint64_t)pThis->initial_count + 1) << pThis->count_shift);
             TMTimerSet(pThis->CTX_SUFF(pTimer), pThis->next_time);
             pThis->fTimerArmed = true;
+            Log2(("apicTimerCallback: ic=%#x sh=%#x nxt=%#llx\n", pThis->initial_count, pThis->count_shift, pThis->next_time));
         } else {
-            /* single shot. */
+            /* single shot or disabled. */
             pThis->fTimerArmed = false;
         }
     } else {

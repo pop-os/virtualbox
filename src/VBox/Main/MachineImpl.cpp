@@ -417,6 +417,17 @@ HRESULT Machine::init(VirtualBox *aParent,
                 // load and parse machine XML; this will throw on XML or logic errors
                 mData->pMachineConfigFile = new settings::MachineConfigFile(&mData->m_strConfigFileFull);
 
+                // reject VM UUID duplicates, they can happen if someone
+                // tries to register an already known VM config again
+                if (aParent->findMachine(mData->pMachineConfigFile->uuid,
+                                         false /* aDoSetError */,
+                                         NULL) != VBOX_E_OBJECT_NOT_FOUND)
+                {
+                    throw setError(E_FAIL,
+                                   tr("Trying to open a VM config '%s' which has the same UUID as an existing virtual machine"),
+                                   mData->m_strConfigFile.c_str());
+                }
+
                 // use UUID from machine config
                 unconst(mData->mUuid) = mData->pMachineConfigFile->uuid;
 
@@ -3439,7 +3450,7 @@ STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
             oldmedium->detachFrom(mData->mUuid);
         if (!medium.isNull())
             medium->attachTo(mData->mUuid);
-        pAttach->updateMedium(medium, false /* aImplicit */);
+        pAttach->updateMedium(medium);
         setModified(IsModified_Storage);
     }
 
@@ -3463,7 +3474,7 @@ STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
         /* For non-hard disk media, re-attach straight away. */
         if (mediumType != DeviceType_HardDisk && !oldmedium.isNull())
             oldmedium->attachTo(mData->mUuid);
-        pAttach->updateMedium(oldmedium, false /* aImplicit */);
+        pAttach->updateMedium(oldmedium);
     }
 
     return rc;

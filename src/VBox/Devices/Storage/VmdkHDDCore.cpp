@@ -3058,7 +3058,7 @@ static int vmdkCreateExtents(PVMDKIMAGE pImage, unsigned cExtents)
 {
     int rc = VINF_SUCCESS;
     PVMDKEXTENT pExtents = (PVMDKEXTENT)RTMemAllocZ(cExtents * sizeof(VMDKEXTENT));
-    if (pImage)
+    if (pExtents)
     {
         for (unsigned i = 0; i < cExtents; i++)
         {
@@ -4859,6 +4859,7 @@ static int vmdkCreate(const char *pszFilename, uint64_t cbSize,
     pImage->pDescData = (char *)RTMemAllocZ(pImage->cbDescAlloc);
     if (!pImage->pDescData)
     {
+        RTMemFree(pImage);
         rc = VERR_NO_MEMORY;
         goto out;
     }

@@ -55,6 +55,10 @@
 /* moved to DevVGA.h */
 #endif
 
+/* WARNING!!! All defines that affetc VGAState should be placed to DevVGA.h !!!
+ *            NEVER place them here as this would lead to VGAState inconsistency
+ *            across different .cpp files !!!
+ */
 /** The size of the VGA GC mapping.
  * This is supposed to be all the VGA memory accessible to the guest.
  * The initial value was 256KB but NTAllInOne.iso appears to access more
@@ -69,14 +73,6 @@
 #endif /* VBOX_WITH_HGSMI */
 /** Converts a vga adaptor state pointer to a device instance pointer. */
 #define VGASTATE2DEVINS(pVgaState)    ((pVgaState)->CTX_SUFF(pDevIns))
-
-/** Use VBE bytewise I/O */
-#define VBE_BYTEWISE_IO
-
-/** Use VBE new dynamic mode list.
- * If this is not defined, no checks are carried out to see if the modes all
- * fit into the framebuffer! See the VRAM_SIZE_FIX define. */
-#define VBE_NEW_DYN_LIST
 
 /** Check that the video modes fit into virtual video memory.
  * Only works when VBE_NEW_DYN_LIST is defined! */
@@ -140,13 +136,15 @@
 #include <VBox/VBoxVideo.h>
 #include <VBox/bioslogo.h>
 
+/* should go BEFORE any other DevVGA include to make all DevVGA.h config defines be visible */
+#include "DevVGA.h"
+
 #if defined(VBE_NEW_DYN_LIST) && defined(IN_RING3) && !defined(VBOX_DEVICE_STRUCT_TESTCASE)
 # include "DevVGAModes.h"
 # include <stdio.h> /* sscan */
 #endif
 
 #include "vl_vbox.h"
-#include "DevVGA.h"
 #include "Builtins.h"
 #include "Builtins2.h"
 
@@ -827,6 +825,39 @@ static uint32_t vbe_ioport_read_data(void *opaque, uint32_t addr)
     return val;
 }
 
+#define VBE_PITCH_ALIGN     4       /* Align pitch to 32 bits - Qt requires that. */
+
+/* Calculate scanline pitch based on bit depth and width in pixels. */
+static uint32_t calc_line_pitch(uint16_t bpp, uint16_t width)
+{
+    uint32_t    pitch, aligned_pitch;
+
+    if (bpp <= 4)
+        pitch = width >> 1;
+    else
+        pitch = width * ((bpp + 7) >> 3);
+
+    /* Align the pitch to some sensible value. */
+    aligned_pitch = (pitch + (VBE_PITCH_ALIGN - 1)) & ~(VBE_PITCH_ALIGN - 1);
+    if (aligned_pitch != pitch)
+        Log(("VBE: Line pitch %d aligned to %d bytes\n", pitch, aligned_pitch));
+
+    return aligned_pitch;
+}
+
+/* Calculate line width in pixels based on bit depth and pitch. */
+static uint32_t calc_line_width(uint16_t bpp, uint32_t pitch)
+{
+    uint32_t    width;
+
+    if (bpp <= 4)
+        width = pitch << 1;
+    else
+        width = pitch / ((bpp + 7) >> 3);
+
+    return width;
+}
+
 static void vbe_ioport_write_index(void *opaque, uint32_t addr, uint32_t val)
 {
     VGAState *s = (VGAState*)opaque;
@@ -854,6 +885,8 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
 #ifdef VBOX
             if (val == VBE_DISPI_ID_VBOX_VIDEO) {
                 s->vbe_regs[s->vbe_index] = val;
+            } else if (val == VBE_DISPI_ID_ANYX) {
+                s->vbe_regs[s->vbe_index] = val;
             }
 #ifdef VBOX_WITH_HGSMI
             else if (val == VBE_DISPI_ID_HGSMI) {
@@ -863,15 +896,12 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
 #endif /* VBOX */
             break;
         case VBE_DISPI_INDEX_XRES:
-            if ((val <= VBE_DISPI_MAX_XRES) && ((val & 7) == 0)) {
+            if (val <= VBE_DISPI_MAX_XRES) {
                 s->vbe_regs[s->vbe_index] = val;
 #ifdef KEEP_SCAN_LINE_LENGTH
-                if (s->vbe_regs[VBE_DISPI_INDEX_BPP] == 4)
-                    s->vbe_line_offset = val >> 1;
-                else
-                    s->vbe_line_offset = val * ((s->vbe_regs[VBE_DISPI_INDEX_BPP] + 7) >> 3);
+                s->vbe_line_offset = calc_line_pitch(s->vbe_regs[VBE_DISPI_INDEX_BPP], val);
                 /* XXX: support weird bochs semantics ? */
-                s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH] = s->vbe_line_offset;
+                s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH] = calc_line_width(s->vbe_regs[VBE_DISPI_INDEX_BPP], s->vbe_line_offset);
                 s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET] = 0;
                 s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET] = 0;
                 s->vbe_start_addr = 0;
@@ -896,12 +926,9 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
                 val == 16 || val == 24 || val == 32) {
                 s->vbe_regs[s->vbe_index] = val;
 #ifdef KEEP_SCAN_LINE_LENGTH
-                if (val == 4)
-                    s->vbe_line_offset = s->vbe_regs[VBE_DISPI_INDEX_XRES] >> 1;
-                else
-                    s->vbe_line_offset = s->vbe_regs[VBE_DISPI_INDEX_XRES] * ((val + 7) >> 3);
+                s->vbe_line_offset = calc_line_pitch(val, s->vbe_regs[VBE_DISPI_INDEX_XRES]);
                 /* XXX: support weird bochs semantics ? */
-                s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH] = s->vbe_line_offset;
+                s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH] = calc_line_width(val, s->vbe_line_offset);
                 s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET] = 0;
                 s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET] = 0;
                 s->vbe_start_addr = 0;
@@ -972,11 +999,8 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
                 s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET] = 0;
                 s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET] = 0;
 
-                if (s->vbe_regs[VBE_DISPI_INDEX_BPP] == 4)
-                    s->vbe_line_offset = s->vbe_regs[VBE_DISPI_INDEX_XRES] >> 1;
-                else
-                    s->vbe_line_offset = s->vbe_regs[VBE_DISPI_INDEX_XRES] *
-                        ((s->vbe_regs[VBE_DISPI_INDEX_BPP] + 7) >> 3);
+                s->vbe_line_offset = calc_line_pitch(s->vbe_regs[VBE_DISPI_INDEX_BPP],
+                                                      s->vbe_regs[VBE_DISPI_INDEX_XRES]);
                 s->vbe_start_addr = 0;
 #endif  /* KEEP_SCAN_LINE_LENGTH not defined */
 
@@ -1064,10 +1088,7 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
                 if (val < s->vbe_regs[VBE_DISPI_INDEX_XRES])
                     return VINF_SUCCESS;
                 w = val;
-                if (s->vbe_regs[VBE_DISPI_INDEX_BPP] == 4)
-                    line_offset = w >> 1;
-                else
-                    line_offset = w * ((s->vbe_regs[VBE_DISPI_INDEX_BPP] + 7) >> 3);
+                line_offset = calc_line_pitch(s->vbe_regs[VBE_DISPI_INDEX_BPP], w);
                 h = s->vram_size / line_offset;
                 /* XXX: support weird bochs semantics ? */
                 if (h < s->vbe_regs[VBE_DISPI_INDEX_YRES])
@@ -3401,7 +3422,7 @@ static DECLCALLBACK(int) vgaR3IOPortHGSMIWrite(PPDMDEVINS pDevIns, void *pvUser,
         {
             case 0x3b0: /* Host */
             {
-#if defined(VBOX_WITH_VIDEOHWACCEL)
+#if defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOXVDMA) || defined(VBOX_WITH_WDDM)
                 if(u32 == HGSMIOFFSET_VOID)
                 {
                     PDMDevHlpPCISetIrq(pDevIns, 0, PDM_IRQ_LEVEL_LOW);
@@ -4951,6 +4972,14 @@ static DECLCALLBACK(int) vgaPortUpdateDisplayAll(PPDMIDISPLAYPORT pInterface)
     return rc;
 }
 
+static DECLCALLBACK(int) vgaR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+{
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    return vboxVBVASaveStateDone(pDevIns, pSSM);
+#else
+    return VINF_SUCCESS;
+#endif
+}
 
 /**
  * Sets the refresh rate and restart the timer.
@@ -6064,6 +6093,8 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
 #ifdef VBE_NEW_DYN_LIST
     uint32_t    cCustomModes;
     uint32_t    cyReduction;
+    uint32_t    cbPitch;
+    int         nPages;
     PVBEHEADER  pVBEDataHdr;
     ModeInfoListItem *pCurMode;
     unsigned    cb;
@@ -6154,7 +6185,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     PCIDevSetClassSub(  &pThis->Dev,   0x00);   /* VGA controller */
     PCIDevSetClassBase( &pThis->Dev,   0x03);
     PCIDevSetHeaderType(&pThis->Dev,   0x00);
-#if defined(VBOX_WITH_HGSMI) && defined(VBOX_WITH_VIDEOHWACCEL)
+#if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOXVDMA) || defined(VBOX_WITH_WDDM))
     PCIDevSetInterruptPin(&pThis->Dev, 1);
 #endif
 
@@ -6377,7 +6408,7 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
     /* save */
     rc = PDMDevHlpSSMRegisterEx(pDevIns, VGA_SAVEDSTATE_VERSION, sizeof(*pThis), NULL,
                                 NULL,          vgaR3LiveExec, NULL,
-                                vgaR3SavePrep, vgaR3SaveExec, NULL,
+                                vgaR3SavePrep, vgaR3SaveExec, vgaR3SaveDone,
                                 NULL,          vgaR3LoadExec, vgaR3LoadDone);
     if (RT_FAILURE(rc))
         return rc;
@@ -6532,10 +6563,9 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
                     AssertMsgFailed(("Configuration error: Invalid mode data '%s' for '%s'! cBits=%d\n", pszExtraData, szExtraDataKey, cBits));
                     return VERR_VGA_INVALID_CUSTOM_MODE;
                 }
-                /* Round up the X resolution to a multiple of eight. */
-                cx = (cx + 7) & ~7;
+                cbPitch = calc_line_pitch(cBits, cx);
 # ifdef VRAM_SIZE_FIX
-                if (cx * cy * cBits / 8 >= pThis->vram_size)
+                if (cy * cbPitch >= pThis->vram_size)
                 {
                     AssertMsgFailed(("Configuration error: custom video mode %dx%dx%dbits is too large for the virtual video memory of %dMb.  Please increase the video memory size.\n",
                                      cx, cy, cBits, pThis->vram_size / _1M));
@@ -6573,26 +6603,17 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
                 pCurMode->mode = u16CurMode++;
 
                 /* adjust defaults */
+                /* The "number of image pages" is really the max page index... */
+                nPages = pThis->vram_size / (cy * cbPitch) - 1;
+                Assert(nPages);
+                if (nPages > 255)
+                    nPages = 255;   /* 8-bit value. */
                 pCurMode->info.XResolution = cx;
                 pCurMode->info.YResolution = cy;
-
-                switch (cBits)
-                {
-                    case 16:
-                        pCurMode->info.BytesPerScanLine = cx * 2;
-                        pCurMode->info.LinBytesPerScanLine = cx * 2;
-                        break;
-
-                    case 24:
-                        pCurMode->info.BytesPerScanLine = cx * 3;
-                        pCurMode->info.LinBytesPerScanLine = cx * 3;
-                        break;
-
-                    case 32:
-                        pCurMode->info.BytesPerScanLine = cx * 4;
-                        pCurMode->info.LinBytesPerScanLine = cx * 4;
-                        break;
-                }
+                pCurMode->info.BytesPerScanLine    = cbPitch;
+                pCurMode->info.LinBytesPerScanLine = cbPitch;
+                pCurMode->info.NumberOfImagePages  = nPages;
+                pCurMode->info.LinNumberOfPages    = nPages;
 
                 /* commit it */
                 pCurMode++;

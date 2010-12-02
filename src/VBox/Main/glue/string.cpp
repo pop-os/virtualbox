@@ -52,14 +52,20 @@ void Utf8Str::cloneTo(char **pstr) const
 Utf8Str& Utf8Str::toLower()
 {
     if (length())
+    {
         ::RTStrToLower(m_psz);
+        jolt();
+    }
     return *this;
 }
 
 Utf8Str& Utf8Str::toUpper()
 {
     if (length())
+    {
         ::RTStrToUpper(m_psz);
+        jolt();
+    }
     return *this;
 }
 

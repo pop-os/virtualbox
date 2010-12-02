@@ -394,7 +394,10 @@ VMMR0DECL(int) VMXR0SetupVM(PVM pVM)
          */
         val  = pVM->hwaccm.s.vmx.msr.vmx_pin_ctls.n.disallowed0;
         /* External and non-maskable interrupts cause VM-exits. */
-        val  = val | VMX_VMCS_CTRL_PIN_EXEC_CONTROLS_EXT_INT_EXIT | VMX_VMCS_CTRL_PIN_EXEC_CONTROLS_NMI_EXIT;
+        val |= VMX_VMCS_CTRL_PIN_EXEC_CONTROLS_EXT_INT_EXIT | VMX_VMCS_CTRL_PIN_EXEC_CONTROLS_NMI_EXIT;
+        /* enable the preemption timer. */
+        if (pVM->hwaccm.s.vmx.fUsePreemptTimer)
+            val |= VMX_VMCS_CTRL_PIN_EXEC_CONTROLS_PREEMPT_TIMER;
         val &= pVM->hwaccm.s.vmx.msr.vmx_pin_ctls.n.allowed1;
 
         rc = VMXWriteVMCS(VMX_VMCS_CTRL_PIN_EXEC_CONTROLS, val);
@@ -1790,7 +1793,18 @@ VMMR0DECL(int) VMXR0LoadGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     rc   = VMXWriteVMCS(VMX_VMCS_GUEST_RFLAGS,           eflags.u32);
     AssertRC(rc);
 
-    if (TMCpuTickCanUseRealTSC(pVCpu, &pVCpu->hwaccm.s.vmx.u64TSCOffset))
+    bool fOffsettedTsc;
+    if (pVM->hwaccm.s.vmx.fUsePreemptTimer)
+    {
+        uint64_t cTicksToDeadline = TMCpuTickGetDeadlineAndTscOffset(pVCpu, &fOffsettedTsc, &pVCpu->hwaccm.s.vmx.u64TSCOffset);
+        cTicksToDeadline >>= pVM->hwaccm.s.vmx.cPreemptTimerShift;
+        uint32_t cPreemptionTickCount = (uint32_t)RT_MIN(cTicksToDeadline, UINT32_MAX - 16);
+        rc = VMXWriteVMCS(VMX_VMCS32_GUEST_PREEMPTION_TIMER_VALUE, cPreemptionTickCount);
+        AssertRC(rc);
+    }
+    else
+        fOffsettedTsc = TMCpuTickCanUseRealTSC(pVCpu, &pVCpu->hwaccm.s.vmx.u64TSCOffset);
+    if (fOffsettedTsc)
     {
         uint64_t u64CurTSC = ASMReadTSC();
         if (u64CurTSC + pVCpu->hwaccm.s.vmx.u64TSCOffset >= TMCpuTickGetLastSeen(pVCpu))
@@ -3917,7 +3931,10 @@ ResumeExecution:
 
     case VMX_EXIT_PREEMPTION_TIMER:     /* 52 VMX-preemption timer expired. The preemption timer counted down to zero. */
         STAM_PROFILE_ADV_STOP(&pVCpu->hwaccm.s.StatExit2Sub1, y1);
-        goto ResumeExecution;
+        if (!TMTimerPollBool(pVM, pVCpu))
+            goto ResumeExecution;
+        rc = VINF_EM_RAW_TIMER_PENDING;
+        break;
 
     default:
         /* The rest is handled after syncing the entire CPU state. */

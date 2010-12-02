@@ -1579,7 +1579,7 @@ static uint16_t e1kCSum16(const void *pvBuf, size_t cb)
 DECLINLINE(void) e1kPacketDump(E1KSTATE* pState, const uint8_t *cpPacket, size_t cb, const char *cszText)
 {
 #ifdef DEBUG
-    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY)) == VINF_SUCCESS)
+    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY) == VINF_SUCCESS))
     {
         E1kLog(("%s --- %s packet #%d: ---\n",
                 INSTANCE(pState), cszText, ++pState->u32PktNo));
@@ -1587,7 +1587,7 @@ DECLINLINE(void) e1kPacketDump(E1KSTATE* pState, const uint8_t *cpPacket, size_t
         e1kCsLeave(pState);
     }
 #else
-    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY)) == VINF_SUCCESS)
+    if (RT_LIKELY(e1kCsEnter(pState, VERR_SEM_BUSY) == VINF_SUCCESS))
     {
         E1kLogRel(("E1000: %s packet #%d, seq=%x ack=%x\n", cszText, pState->u32PktNo++, ntohl(*(uint32_t*)(cpPacket+0x26)), ntohl(*(uint32_t*)(cpPacket+0x2A))));
         e1kCsLeave(pState);
@@ -5416,6 +5416,25 @@ static DECLCALLBACK(void) e1kPowerOff(PPDMDEVINS pDevIns)
 }
 
 /**
+ * @copydoc FNPDMDEVRESET
+ */
+static DECLCALLBACK(void) e1kReset(PPDMDEVINS pDevIns)
+{
+    E1KSTATE *pState = PDMINS_2_DATA(pDevIns, E1KSTATE*);
+    e1kCancelTimer(pState, pState->CTX_SUFF(pIntTimer));
+    e1kCancelTimer(pState, pState->CTX_SUFF(pLUTimer));
+    e1kXmitFreeBuf(pState);
+    pState->u16TxPktLen  = 0;
+    pState->fIPcsum      = false;
+    pState->fTCPcsum     = false;
+    pState->fIntMaskUsed = false;
+    pState->fDelayInts   = false;
+    pState->fLocked      = false;
+    pState->u64AckedAt   = 0;
+    e1kHardReset(pState);
+}
+
+/**
  * @copydoc FNPDMDEVSUSPEND
  */
 static DECLCALLBACK(void) e1kSuspend(PPDMDEVINS pDevIns)
@@ -5939,7 +5958,7 @@ const PDMDEVREG g_DeviceE1000 =
     /* Power on notification - optional. */
     NULL,
     /* Reset notification - optional. */
-    NULL,
+    e1kReset,
     /* Suspend notification  - optional. */
     e1kSuspend,
     /* Resume notification - optional. */

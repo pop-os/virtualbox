@@ -375,7 +375,7 @@ HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
         if (mouseXAbs != mLastAbsX || mouseYAbs != mLastAbsY)
         {
             rc = reportAbsEventToVMMDev(mouseXAbs, mouseYAbs);
-            cJiggle = 1;
+            cJiggle = !fUsesVMMDevEvent;
         }
         rc = reportRelEventToMouseDev(cJiggle, 0, dz, dw, fButtons);
     }
@@ -503,7 +503,7 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
         AutoWriteLock aLock(this COMMA_LOCKVAL_SRC_POS);
 
         /** @todo rename that capability to VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE */
-        if (fVMMDevCanAbs && !(uHostCaps & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE))
+        if (!(uHostCaps & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE))
         {
             uHostCaps |= VMMDEV_MOUSE_HOST_CAN_ABSOLUTE;
             fUpdateCaps = TRUE;

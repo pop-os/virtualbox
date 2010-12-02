@@ -1037,7 +1037,10 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
             }
 
             LogRel(("HWACCM: MSR_IA32_VMX_MISC             = %RX64\n", pVM->hwaccm.s.vmx.msr.vmx_misc));
-            LogRel(("HWACCM:    MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT %x\n", MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT(pVM->hwaccm.s.vmx.msr.vmx_misc)));
+            if (MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT(pVM->hwaccm.s.vmx.msr.vmx_misc) == pVM->hwaccm.s.vmx.cPreemptTimerShift)
+                LogRel(("HWACCM:    MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT %x\n", MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT(pVM->hwaccm.s.vmx.msr.vmx_misc)));
+            else
+                LogRel(("HWACCM:    MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT %x - erratum detected, using %x instead\n", MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT(pVM->hwaccm.s.vmx.msr.vmx_misc), pVM->hwaccm.s.vmx.cPreemptTimerShift));
             LogRel(("HWACCM:    MSR_IA32_VMX_MISC_ACTIVITY_STATES %x\n", MSR_IA32_VMX_MISC_ACTIVITY_STATES(pVM->hwaccm.s.vmx.msr.vmx_misc)));
             LogRel(("HWACCM:    MSR_IA32_VMX_MISC_CR3_TARGET      %x\n", MSR_IA32_VMX_MISC_CR3_TARGET(pVM->hwaccm.s.vmx.msr.vmx_misc)));
             LogRel(("HWACCM:    MSR_IA32_VMX_MISC_MAX_MSR         %x\n", MSR_IA32_VMX_MISC_MAX_MSR(pVM->hwaccm.s.vmx.msr.vmx_misc)));
@@ -1207,6 +1210,18 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
                     }
                 }
                 LogRel(("HWACCM: TPR Patching %s.\n", (pVM->hwaccm.s.fTRPPatchingAllowed) ? "enabled" : "disabled"));
+
+                /*
+                 * Check for preemption timer config override and log the state of it.
+                 */
+                if (pVM->hwaccm.s.vmx.fUsePreemptTimer)
+                {
+                    PCFGMNODE pCfgHwAccM = CFGMR3GetChild(CFGMR3GetRoot(pVM), "HWACCM");
+                    int rc2 = CFGMR3QueryBoolDef(pCfgHwAccM, "UsePreemptTimer", &pVM->hwaccm.s.vmx.fUsePreemptTimer, true);
+                    AssertLogRelRC(rc2);
+                }
+                if (pVM->hwaccm.s.vmx.fUsePreemptTimer)
+                    LogRel(("HWACCM: Using the VMX-preemption timer (cPreemptTimerShift=%u)\n", pVM->hwaccm.s.vmx.cPreemptTimerShift));
             }
             else
             {

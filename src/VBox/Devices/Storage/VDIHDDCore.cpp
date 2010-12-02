@@ -268,7 +268,7 @@ static void vdiInitPreHeader(PVDIPREHEADER pPreHdr)
     pPreHdr->u32Signature = VDI_IMAGE_SIGNATURE;
     pPreHdr->u32Version = VDI_IMAGE_VERSION;
     memset(pPreHdr->szFileInfo, 0, sizeof(pPreHdr->szFileInfo));
-    strncat(pPreHdr->szFileInfo, VDI_IMAGE_FILE_INFO, sizeof(pPreHdr->szFileInfo));
+    strncat(pPreHdr->szFileInfo, VDI_IMAGE_FILE_INFO, sizeof(pPreHdr->szFileInfo)-1);
 }
 
 /**
@@ -327,45 +327,45 @@ static void vdiInitHeader(PVDIHEADER pHeader, uint32_t uImageFlags,
                           uint32_t cbBlock, uint32_t cbBlockExtra)
 {
     pHeader->uVersion = VDI_IMAGE_VERSION;
-    pHeader->u.v1.cbHeader = sizeof(VDIHEADER1);
-    pHeader->u.v1.u32Type = (uint32_t)vdiTranslateImageFlags2VDI(uImageFlags);
-    pHeader->u.v1.fFlags = (uImageFlags & VD_VDI_IMAGE_FLAGS_ZERO_EXPAND) ? 1 : 0;
+    pHeader->u.v1plus.cbHeader = sizeof(VDIHEADER1PLUS);
+    pHeader->u.v1plus.u32Type = (uint32_t)vdiTranslateImageFlags2VDI(uImageFlags);
+    pHeader->u.v1plus.fFlags = (uImageFlags & VD_VDI_IMAGE_FLAGS_ZERO_EXPAND) ? 1 : 0;
 #ifdef VBOX_STRICT
     char achZero[VDI_IMAGE_COMMENT_SIZE] = {0};
-    Assert(!memcmp(pHeader->u.v1.szComment, achZero, VDI_IMAGE_COMMENT_SIZE));
+    Assert(!memcmp(pHeader->u.v1plus.szComment, achZero, VDI_IMAGE_COMMENT_SIZE));
 #endif
-    pHeader->u.v1.szComment[0] = '\0';
+    pHeader->u.v1plus.szComment[0] = '\0';
     if (pszComment)
     {
-        AssertMsg(strlen(pszComment) < sizeof(pHeader->u.v1.szComment),
+        AssertMsg(strlen(pszComment) < sizeof(pHeader->u.v1plus.szComment),
                   ("HDD Comment is too long, cb=%d\n", strlen(pszComment)));
-        strncat(pHeader->u.v1.szComment, pszComment, sizeof(pHeader->u.v1.szComment));
+        strncat(pHeader->u.v1plus.szComment, pszComment, sizeof(pHeader->u.v1plus.szComment)-1);
     }
 
     /* Mark the legacy geometry not-calculated. */
-    pHeader->u.v1.LegacyGeometry.cCylinders = 0;
-    pHeader->u.v1.LegacyGeometry.cHeads = 0;
-    pHeader->u.v1.LegacyGeometry.cSectors = 0;
-    pHeader->u.v1.LegacyGeometry.cbSector = VDI_GEOMETRY_SECTOR_SIZE;
-    pHeader->u.v1.u32Dummy = 0; /* used to be the translation value */
+    pHeader->u.v1plus.LegacyGeometry.cCylinders = 0;
+    pHeader->u.v1plus.LegacyGeometry.cHeads = 0;
+    pHeader->u.v1plus.LegacyGeometry.cSectors = 0;
+    pHeader->u.v1plus.LegacyGeometry.cbSector = VDI_GEOMETRY_SECTOR_SIZE;
+    pHeader->u.v1plus.u32Dummy = 0; /* used to be the translation value */
 
-    pHeader->u.v1.cbDisk = cbDisk;
-    pHeader->u.v1.cbBlock = cbBlock;
-    pHeader->u.v1.cBlocks = (uint32_t)(cbDisk / cbBlock);
+    pHeader->u.v1plus.cbDisk = cbDisk;
+    pHeader->u.v1plus.cbBlock = cbBlock;
+    pHeader->u.v1plus.cBlocks = (uint32_t)(cbDisk / cbBlock);
     if (cbDisk % cbBlock)
-        pHeader->u.v1.cBlocks++;
-    pHeader->u.v1.cbBlockExtra = cbBlockExtra;
-    pHeader->u.v1.cBlocksAllocated = 0;
+        pHeader->u.v1plus.cBlocks++;
+    pHeader->u.v1plus.cbBlockExtra = cbBlockExtra;
+    pHeader->u.v1plus.cBlocksAllocated = 0;
 
     /* Init offsets. */
-    pHeader->u.v1.offBlocks = RT_ALIGN_32(sizeof(VDIPREHEADER) + sizeof(VDIHEADER1), VDI_GEOMETRY_SECTOR_SIZE);
-    pHeader->u.v1.offData = RT_ALIGN_32(pHeader->u.v1.offBlocks + (pHeader->u.v1.cBlocks * sizeof(VDIIMAGEBLOCKPOINTER)), VDI_GEOMETRY_SECTOR_SIZE);
+    pHeader->u.v1plus.offBlocks = RT_ALIGN_32(sizeof(VDIPREHEADER) + sizeof(VDIHEADER1), VDI_GEOMETRY_SECTOR_SIZE);
+    pHeader->u.v1plus.offData = RT_ALIGN_32(pHeader->u.v1plus.offBlocks + (pHeader->u.v1.cBlocks * sizeof(VDIIMAGEBLOCKPOINTER)), VDI_GEOMETRY_SECTOR_SIZE);
 
     /* Init uuids. */
-    RTUuidCreate(&pHeader->u.v1.uuidCreate);
-    RTUuidClear(&pHeader->u.v1.uuidModify);
-    RTUuidClear(&pHeader->u.v1.uuidLinkage);
-    RTUuidClear(&pHeader->u.v1.uuidParentModify);
+    RTUuidCreate(&pHeader->u.v1plus.uuidCreate);
+    RTUuidClear(&pHeader->u.v1plus.uuidModify);
+    RTUuidClear(&pHeader->u.v1plus.uuidLinkage);
+    RTUuidClear(&pHeader->u.v1plus.uuidParentModify);
 
     /* Mark LCHS geometry not-calculated. */
     pHeader->u.v1plus.LCHSGeometry.cCylinders = 0;
@@ -690,6 +690,7 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
             if (RT_FAILURE(rc))
             {
                 rc = vdiError(pImage, rc, RT_SRC_POS, N_("VDI: writing block failed for '%s'"), pImage->pszFilename);
+                RTMemTmpFree(pvBuf);
                 goto out;
             }
 
@@ -1127,6 +1128,7 @@ static int vdiCreate(const char *pszFilename, uint64_t cbSize,
 
     /* Check size. Maximum 2PB-3M (to be on the safe side). No tricks with
      * adjusting the 1M block size so far, which would extend the size. */
+    cbSize = RT_ALIGN_64(cbSize, _1M);
     if (    !cbSize
         ||  cbSize >= _1P * 2 - _1M * 3)
     {
@@ -1691,7 +1693,14 @@ static int vdiGetComment(void *pBackendData, char *pszComment,
     if (pImage)
     {
         char *pszTmp = getImageComment(&pImage->Header);
-        size_t cb = strlen(pszTmp);
+        /* Make this foolproof even if the image doesn't have the zero
+         * termination. With some luck the repaired header will be saved. */
+        size_t cb = RTStrNLen(pszTmp, VDI_IMAGE_COMMENT_SIZE);
+        if (cb == VDI_IMAGE_COMMENT_SIZE)
+        {
+            pszTmp[VDI_IMAGE_COMMENT_SIZE-1] = '\0';
+            cb--;
+        }
         if (cb < cbComment)
         {
             /* memcpy is much better than strncpy. */

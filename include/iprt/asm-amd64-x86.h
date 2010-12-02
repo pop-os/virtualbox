@@ -469,25 +469,25 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
 # if RT_INLINE_ASM_GNU_STYLE
 #  ifdef RT_ARCH_AMD64
     RTCCUINTREG uRAX, uRBX, uRCX, uRDX;
-    __asm__ ("cpuid\n\t"
-             : "=a" (uRAX),
-               "=b" (uRBX),
-               "=c" (uRCX),
-               "=d" (uRDX)
+    __asm__ __volatile__ ("cpuid\n\t"
+                          : "=a" (uRAX),
+                            "=b" (uRBX),
+                            "=c" (uRCX),
+                            "=d" (uRDX)
              : "0" (uOperator));
     *(uint32_t *)pvEAX = (uint32_t)uRAX;
     *(uint32_t *)pvEBX = (uint32_t)uRBX;
     *(uint32_t *)pvECX = (uint32_t)uRCX;
     *(uint32_t *)pvEDX = (uint32_t)uRDX;
 #  else
-    __asm__ ("xchgl %%ebx, %1\n\t"
-             "cpuid\n\t"
-             "xchgl %%ebx, %1\n\t"
-             : "=a" (*(uint32_t *)pvEAX),
-               "=r" (*(uint32_t *)pvEBX),
-               "=c" (*(uint32_t *)pvECX),
-               "=d" (*(uint32_t *)pvEDX)
-             : "0" (uOperator));
+    __asm__ __volatile__ ("xchgl %%ebx, %1\n\t"
+                          "cpuid\n\t"
+                          "xchgl %%ebx, %1\n\t"
+                         : "=a" (*(uint32_t *)pvEAX),
+                           "=r" (*(uint32_t *)pvEBX),
+                           "=c" (*(uint32_t *)pvECX),
+                           "=d" (*(uint32_t *)pvEDX)
+                         : "0" (uOperator));
 #  endif
 
 # elif RT_INLINE_ASM_USES_INTRIN
@@ -621,45 +621,41 @@ DECLINLINE(void) ASMCpuId_ECX_EDX(uint32_t uOperator, void *pvECX, void *pvEDX)
 
 
 /**
- * Performs the cpuid instruction returning edx.
+ * Performs the cpuid instruction returning eax.
  *
  * @param   uOperator   CPUID operation (eax).
- * @returns EDX after cpuid operation.
+ * @returns EAX after cpuid operation.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-DECLASM(uint32_t) ASMCpuId_EDX(uint32_t uOperator);
+DECLASM(uint32_t) ASMCpuId_EAX(uint32_t uOperator);
 #else
-DECLINLINE(uint32_t) ASMCpuId_EDX(uint32_t uOperator)
+DECLINLINE(uint32_t) ASMCpuId_EAX(uint32_t uOperator)
 {
-    RTCCUINTREG xDX;
+    RTCCUINTREG xAX;
 # if RT_INLINE_ASM_GNU_STYLE
 #  ifdef RT_ARCH_AMD64
-    RTCCUINTREG uSpill;
     __asm__ ("cpuid"
-             : "=a" (uSpill),
-               "=d" (xDX)
+             : "=a" (xAX)
              : "0" (uOperator)
-             : "rbx", "rcx");
+             : "rbx", "rcx", "rdx");
 #  elif (defined(PIC) || defined(__PIC__)) && defined(__i386__)
     __asm__ ("push  %%ebx\n\t"
              "cpuid\n\t"
              "pop   %%ebx\n\t"
-             : "=a" (uOperator),
-               "=d" (xDX)
+             : "=a" (xAX)
              : "0" (uOperator)
-             : "ecx");
+             : "ecx", "edx");
 #  else
     __asm__ ("cpuid"
-             : "=a" (uOperator),
-               "=d" (xDX)
+             : "=a" (xAX)
              : "0" (uOperator)
-             : "ebx", "ecx");
+             : "edx", "ecx", "ebx");
 #  endif
 
 # elif RT_INLINE_ASM_USES_INTRIN
     int aInfo[4];
     __cpuid(aInfo, uOperator);
-    xDX = aInfo[3];
+    xAX = aInfo[0];
 
 # else
     __asm
@@ -667,11 +663,68 @@ DECLINLINE(uint32_t) ASMCpuId_EDX(uint32_t uOperator)
         push    ebx
         mov     eax, [uOperator]
         cpuid
-        mov     [xDX], edx
+        mov     [xAX], eax
         pop     ebx
     }
 # endif
-    return (uint32_t)xDX;
+    return (uint32_t)xAX;
+}
+#endif
+
+
+/**
+ * Performs the cpuid instruction returning ebx.
+ *
+ * @param   uOperator   CPUID operation (eax).
+ * @returns EBX after cpuid operation.
+ */
+#if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
+DECLASM(uint32_t) ASMCpuId_EBX(uint32_t uOperator);
+#else
+DECLINLINE(uint32_t) ASMCpuId_EBX(uint32_t uOperator)
+{
+    RTCCUINTREG xBX;
+# if RT_INLINE_ASM_GNU_STYLE
+#  ifdef RT_ARCH_AMD64
+    RTCCUINTREG uSpill;
+    __asm__ ("cpuid"
+             : "=a" (uSpill),
+               "=b" (xBX)
+             : "0" (uOperator)
+             : "rdx", "rcx");
+#  elif (defined(PIC) || defined(__PIC__)) && defined(__i386__)
+    __asm__ ("push  %%ebx\n\t"
+             "cpuid\n\t"
+             "mov   %%ebx, %%edx\n\t"
+             "pop   %%ebx\n\t"
+             : "=a" (uOperator),
+               "=d" (xBX)
+             : "0" (uOperator)
+             : "ecx");
+#  else
+    __asm__ ("cpuid"
+             : "=a" (uOperator),
+               "=b" (xBX)
+             : "0" (uOperator)
+             : "edx", "ecx");
+#  endif
+
+# elif RT_INLINE_ASM_USES_INTRIN
+    int aInfo[4];
+    __cpuid(aInfo, uOperator);
+    xBX = aInfo[1];
+
+# else
+    __asm
+    {
+        push    ebx
+        mov     eax, [uOperator]
+        cpuid
+        mov     [xBX], ebx
+        pop     ebx
+    }
+# endif
+    return (uint32_t)xBX;
 }
 #endif
 
@@ -729,6 +782,62 @@ DECLINLINE(uint32_t) ASMCpuId_ECX(uint32_t uOperator)
     }
 # endif
     return (uint32_t)xCX;
+}
+#endif
+
+
+/**
+ * Performs the cpuid instruction returning edx.
+ *
+ * @param   uOperator   CPUID operation (eax).
+ * @returns EDX after cpuid operation.
+ */
+#if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
+DECLASM(uint32_t) ASMCpuId_EDX(uint32_t uOperator);
+#else
+DECLINLINE(uint32_t) ASMCpuId_EDX(uint32_t uOperator)
+{
+    RTCCUINTREG xDX;
+# if RT_INLINE_ASM_GNU_STYLE
+#  ifdef RT_ARCH_AMD64
+    RTCCUINTREG uSpill;
+    __asm__ ("cpuid"
+             : "=a" (uSpill),
+               "=d" (xDX)
+             : "0" (uOperator)
+             : "rbx", "rcx");
+#  elif (defined(PIC) || defined(__PIC__)) && defined(__i386__)
+    __asm__ ("push  %%ebx\n\t"
+             "cpuid\n\t"
+             "pop   %%ebx\n\t"
+             : "=a" (uOperator),
+               "=d" (xDX)
+             : "0" (uOperator)
+             : "ecx");
+#  else
+    __asm__ ("cpuid"
+             : "=a" (uOperator),
+               "=d" (xDX)
+             : "0" (uOperator)
+             : "ebx", "ecx");
+#  endif
+
+# elif RT_INLINE_ASM_USES_INTRIN
+    int aInfo[4];
+    __cpuid(aInfo, uOperator);
+    xDX = aInfo[3];
+
+# else
+    __asm
+    {
+        push    ebx
+        mov     eax, [uOperator]
+        cpuid
+        mov     [xDX], edx
+        pop     ebx
+    }
+# endif
+    return (uint32_t)xDX;
 }
 #endif
 
@@ -796,27 +905,27 @@ DECLINLINE(uint8_t) ASMGetApicId(void)
 # if RT_INLINE_ASM_GNU_STYLE
 #  ifdef RT_ARCH_AMD64
     RTCCUINTREG uSpill;
-    __asm__ ("cpuid"
-             : "=a" (uSpill),
-               "=b" (xBX)
-             : "0" (1)
-             : "rcx", "rdx");
+    __asm__ __volatile__ ("cpuid"
+                          : "=a" (uSpill),
+                            "=b" (xBX)
+                          : "0" (1)
+                          : "rcx", "rdx");
 #  elif (defined(PIC) || defined(__PIC__)) && defined(__i386__)
     RTCCUINTREG uSpill;
-    __asm__ ("mov   %%ebx,%1\n\t"
-             "cpuid\n\t"
-             "xchgl %%ebx,%1\n\t"
-             : "=a" (uSpill),
-               "=r" (xBX)
-             : "0" (1)
-             : "ecx", "edx");
+    __asm__ __volatile__ ("mov   %%ebx,%1\n\t"
+                          "cpuid\n\t"
+                          "xchgl %%ebx,%1\n\t"
+                          : "=a" (uSpill),
+                            "=rm" (xBX)
+                          : "0" (1)
+                          : "ecx", "edx");
 #  else
     RTCCUINTREG uSpill;
-    __asm__ ("cpuid"
-             : "=a" (uSpill),
-               "=b" (xBX)
-             : "0" (1)
-             : "ecx", "edx");
+    __asm__ __volatile__ ("cpuid"
+                          : "=a" (uSpill),
+                            "=b" (xBX)
+                          : "0" (1)
+                          : "ecx", "edx");
 #  endif
 
 # elif RT_INLINE_ASM_USES_INTRIN

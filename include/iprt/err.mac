@@ -34,7 +34,9 @@
 %define VERR_NOT_SUPPORTED    (-37)
 %define VERR_ACCESS_DENIED    (-38)
 %define VERR_INTERRUPTED    (-39)
+%define VINF_INTERRUPTED    39
 %define VERR_TIMEOUT    (-40)
+%define VINF_TIMEOUT    40
 %define VERR_BUFFER_OVERFLOW    (-41)
 %define VINF_BUFFER_OVERFLOW    41
 %define VERR_TOO_MUCH_DATA    (-42)
