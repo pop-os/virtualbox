@@ -470,7 +470,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
         case VHD_PLATFORM_CODE_W2KU:
             /* Update unicode absolute name. */
             pszTmp = (char*)RTMemTmpAllocZ(cbMaxLen);
-            if (!pvBuf)
+            if (!pszTmp)
             {
                 rc = VERR_NO_MEMORY;
                 goto out;
@@ -758,7 +758,10 @@ static int vhdLoadDynamicDisk(PVHDIMAGE pImage, uint64_t uDynamicDiskHeaderOffse
      */
     pImage->pBlockAllocationTable = (uint32_t *)RTMemAllocZ(pImage->cBlockAllocationTableEntries * sizeof(uint32_t));
     if (!pImage->pBlockAllocationTable)
+    {
+        RTMemFree(pBlockAllocationTable);
         return VERR_NO_MEMORY;
+    }
 
     for (i = 0; i < pImage->cBlockAllocationTableEntries; i++)
         pImage->pBlockAllocationTable[i] = RT_BE2H_U32(pBlockAllocationTable[i]);

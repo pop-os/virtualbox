@@ -19,13 +19,14 @@
  */
 
 /*
- * Sun LGPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Sun elects to use only
+ * Oracle LGPL Disclaimer: For the avoidance of doubt, except that if any license choice
+ * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
  * the Lesser General Public License version 2.1 (LGPLv2) at this time for any software where
  * a choice of LGPL license versions is made available with the language indicating
  * that LGPLv2 or any later version may be used, or where a choice of which version
  * of the LGPL is applied is otherwise unspecified.
  */
+
 #ifndef CPU_I386_H
 #define CPU_I386_H
 
@@ -494,8 +495,8 @@ typedef union {
 
 typedef union {
     uint8_t _b[8];
-    uint16_t _w[2];
-    uint32_t _l[1];
+    uint16_t _w[4];
+    uint32_t _l[2];
     float32 _s[2];
     uint64_t q;
 } MMXReg;

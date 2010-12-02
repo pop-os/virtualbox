@@ -235,6 +235,7 @@ public:
                                 hrc = machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
                                 if (SUCCEEDED(hrc) && vrdpServer)
                                 {
+                                    LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
                                     vrdpServer->COMSETTER(Enabled)(FALSE);
                                     vrdpServer->COMSETTER(Enabled)(TRUE);
                                 }
@@ -480,7 +481,7 @@ static void SaveState(int sig)
     RTPrintf("Signal received, saving state.\n");
 
     HRESULT rc = gConsole->SaveState(progress.asOutParam());
-    if (FAILED(S_OK))
+    if (FAILED(rc))
     {
         RTPrintf("Error saving state! rc = 0x%x\n", rc);
         return;

@@ -4,7 +4,7 @@
 #
 # This file gets included by all makefiles through the
 # include $(KBUILD_PATH)/header.kmk statement.
-# 
+#
 
 #
 # Copyright (C) 2006-2010 Oracle Corporation
@@ -148,7 +148,7 @@ VBOX_VERSION_MINOR = 2
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 10
+VBOX_VERSION_BUILD = 12
 # Full version string (may include more than just x.y.z, but no spaces or other problematic chars).
 VBOX_VERSION_STRING = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
 # Force the additions.sh script to get an exact additions build when we're doing the release.
@@ -537,6 +537,8 @@ endif
 ifdef VBOX_WITH_HARDENING
  if1of ($(KBUILD_TARGET), solaris)
   VBOX_PATH_APP_PRIVATE      = /opt/VirtualBox/$(if-expr $(KBUILD_TARGET_ARCH) == "amd64",amd64,i386)
+ else ifeq ($(KBUILD_TARGET),linux)
+  VBOX_PATH_APP_PRIVATE      = /opt/VirtualBox
  else ifeq ($(KBUILD_TARGET),darwin)
   VBOX_PATH_APP_PRIVATE      = /Applications/VirtualBox.app/Contents/MacOS
  else ifeq ($(KBUILD_TARGET),freebsd)
@@ -569,7 +571,7 @@ endif
 # depending on the location of the object.)
 #VBOX_WITH_RUNPATH = /usr/lib/virtualbox
 ifdef VBOX_WITH_HARDENING
- if1of ($(KBUILD_TARGET), freebsd solaris)
+ if1of ($(KBUILD_TARGET), freebsd linux solaris)
   VBOX_WITH_RUNPATH = $(VBOX_PATH_APP_PRIVATE)
  endif
 endif
@@ -577,12 +579,10 @@ endif
 # Because of the setuid usage on all ELF platforms when hardening the build
 # things gets a bit complicated since the $ORIGIN+setuid policy differs.
 #VBOX_WITH_ORIGIN=1
-ifdef VBOX_WITH_HARDENING
- if1of ($(KBUILD_TARGET), linux)
+ifndef VBOX_WITH_HARDENING
+ if1of ($(KBUILD_TARGET), linux solaris)
   VBOX_WITH_ORIGIN = 1
  endif
-else if1of ($(KBUILD_TARGET), linux solaris)
- VBOX_WITH_ORIGIN = 1
 endif
 # Enable the system wide support service/daemon.
 # Work in progress, but required for hardening on Windows.
@@ -634,6 +634,12 @@ VBOX_DO_STRIP_MODULES = 1
 ## @todo os2? Reconsider perhaps windows? (see defect) This should be made the default.
 if1of ($(KBUILD_TARGET), darwin freebsd linux solaris win)
  VBOX_WITH_VMMR0_DISABLE_PREEMPTION = 1
+endif
+# Mask all Local APIC interrupt vectors which are set up to NMI mode when switching
+# to/from the guest in raw mode. Modern Linux kernels use the performance counter
+# to raise an NMI from time to time.
+if1of ($(KBUILD_TARGET), linux)
+ VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI = 1
 endif
 ## For testing deadlock detection and lock order validation.
 # If issues are found, create high priority defects and temporarily comment
@@ -4220,7 +4226,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 66523 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 68302 $  )
  VBOX_SVN_DEP          := $(wildcard $(PATH_ROOT)/.svn/entries)
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

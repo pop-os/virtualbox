@@ -3654,7 +3654,7 @@ HRESULT VirtualBox::registerMachine(Machine *aMachine)
             AssertComRC(machCaller.rc());
 
             return setError(E_INVALIDARG,
-                            tr("Registered machine with UUID {%RTuuid} ('%ls') already exists"),
+                            tr("Registered machine with UUID {%RTuuid} ('%s') already exists"),
                             aMachine->getId().raw(),
                             pMachine->getSettingsFileFull().raw());
         }

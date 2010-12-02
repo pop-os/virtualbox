@@ -75,12 +75,25 @@ int mmR3HyperInit(PVM pVM)
     int rc = CFGMR3QueryU32(CFGMR3GetChild(CFGMR3GetRoot(pVM), "MM"), "cbHyperHeap", &cbHyperHeap);
     if (rc == VERR_CFGM_NO_PARENT || rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
+        bool fHwVirtExtForced = VMMIsHwVirtExtForced(pVM);
+
         if (pVM->cCpus > 1)
             cbHyperHeap = _2M + pVM->cCpus * _64K;
         else
-            cbHyperHeap = VMMIsHwVirtExtForced(pVM)
-                        ? 640*_1K
-                        : 1280*_1K;
+        if (fHwVirtExtForced)
+        {
+            uint64_t cbRam = 0;
+            CFGMR3QueryU64(CFGMR3GetRoot(pVM), "RamSize", &cbRam);
+
+            /* Need a bit more space for large memory guests. (@todo: only for shadow paging!) */
+            if (cbRam >= _4G)
+                cbHyperHeap = _1M;
+            else
+                cbHyperHeap = 640 * _1K;
+        }
+        else
+            /* Size must be kept like this for saved state compatibility (only for raw mode though). */
+            cbHyperHeap = 1280*_1K;
     }
     else
         AssertLogRelRCReturn(rc, rc);

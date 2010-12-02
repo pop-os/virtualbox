@@ -1818,11 +1818,14 @@ static int solarisWalkDeviceNodeForDVD(di_node_t Node, void *pvArg)
 {
     PSOLARISDVD *ppDrives = (PSOLARISDVD *)pvArg;
 
-    char *pszClass = NULL;
-    if (   di_prop_lookup_strings(DDI_DEV_T_ANY, Node, "class", &pszClass) > 0
-        && !strcmp(pszClass, "scsi"))                                                   /* SCSI */
+    /*
+     * Check for "removable-media" or "hotpluggable" instead of "SCSI" so that we also include USB CD-ROMs.
+     * As unfortunately the Solaris drivers only export these common properties.
+     */
+    int *pInt = NULL;
+    if (   di_prop_lookup_ints(DDI_DEV_T_ANY, Node, "removable-media", &pInt) >= 0
+        || di_prop_lookup_ints(DDI_DEV_T_ANY, Node, "hotpluggable", &pInt) >= 0)
     {
-        int *pInt = NULL;
         if (di_prop_lookup_ints(DDI_DEV_T_ANY, Node, "inquiry-device-type", &pInt) > 0
             && (   *pInt == DTYPE_RODIRECT                                              /* CDROM */
                 || *pInt == DTYPE_OPTICAL))                                             /* Optical Drive */

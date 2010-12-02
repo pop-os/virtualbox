@@ -16,9 +16,10 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
+rc=0
 currentzone=`zonename`
 if test "$currentzone" = "global"; then
-    ${BASEDIR}/opt/VirtualBox/pkginstall.sh --srv4
+    ${PKG_INSTALL_ROOT:=/}/opt/VirtualBox/pkginstall.sh --srv4
     rc=$?
 fi
 

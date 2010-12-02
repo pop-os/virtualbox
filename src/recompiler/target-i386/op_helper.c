@@ -19,13 +19,14 @@
  */
 
 /*
- * Sun LGPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Sun elects to use only
+ * Oracle LGPL Disclaimer: For the avoidance of doubt, except that if any license choice
+ * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
  * the Lesser General Public License version 2.1 (LGPLv2) at this time for any software where
  * a choice of LGPL license versions is made available with the language indicating
  * that LGPLv2 or any later version may be used, or where a choice of which version
  * of the LGPL is applied is otherwise unspecified.
  */
+
 #define CPU_NO_GLOBAL_REGS
 #include "exec.h"
 #include "host-utils.h"
@@ -6029,7 +6030,7 @@ void restore_raw_fp_state(CPUX86State *env, uint8_t *ptr)
 
         for(i = 0;i < 8; i++) {
             tmp = ST(i);
-            helper_fstt_raw(tmp, &fp->regs[i].reg[0]);
+            helper_fstt_raw(tmp, &fp->regs[i].au8[0]);
         }
     }
 }
@@ -6104,7 +6105,7 @@ void save_raw_fp_state(CPUX86State *env, uint8_t *ptr)
         }
         j = env->fpstt;
         for(i = 0;i < 8; i++) {
-            tmp = helper_fldt_raw(&fp->regs[i].reg[0]);
+            tmp = helper_fldt_raw(&fp->regs[i].au8[0]);
             ST(i) = tmp;
         }
     }

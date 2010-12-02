@@ -2247,12 +2247,12 @@ bool UIMachineView::x11Event(XEvent *pEvent)
         case XK_Pause:
             if (pEvent->xkey.state & ControlMask) /* Break */
             {
-                ks = XK_Break; 
-                flags |= KeyExtended; 
-                scan = 0x46; 
-            } 
-            else 
-                flags |= KeyPause; 
+                ks = XK_Break;
+                flags |= KeyExtended;
+                scan = 0x46;
+            }
+            else
+                flags |= KeyPause;
             break;
     }
 
@@ -2270,6 +2270,18 @@ bool UIMachineView::darwinKeyboardEvent(const void *pvCocoaEvent, EventRef inEve
         /* convert keycode to set 1 scan code. */
         UInt32 keyCode = ~0U;
         ::GetEventParameter(inEvent, kEventParamKeyCode, typeUInt32, NULL, sizeof (keyCode), NULL, &keyCode);
+        /* The usb keyboard driver translates these codes to different virtual
+         * key codes depending of the keyboard type. There are ANSI, ISO, JIS
+         * and unknown. For European keyboards (ISO) the key 0xa and 0x32 have
+         * to be switched. Here we are doing this at runtime, cause the user
+         * can have more than one keyboard (of different type), where he may
+         * switch at will all the time. Default is the ANSI standard as defined
+         * in g_aDarwinToSet1. Please note that the "~" on some English ISO
+         * keyboards will be wrongly swapped. This can maybe fixed by
+         * using a Apple keyboard layout in the guest. */
+        if (   (keyCode == 0xa || keyCode == 0x32)
+            && KBGetLayoutType(LMGetKbdType()) == kKeyboardISO)
+            keyCode = 0x3c - keyCode;
         unsigned scanCode = ::DarwinKeycodeToSet1Scancode(keyCode);
         if (scanCode)
         {

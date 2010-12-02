@@ -284,6 +284,8 @@ typedef enum
 #ifdef VBOXWDDM
     , VBOXVHWACMD_TYPE_SURF_GETINFO
 #endif
+    , VBOXVHWACMD_TYPE_HH_DISABLE
+ 	, VBOXVHWACMD_TYPE_HH_ENABLE
 } VBOXVHWACMD_TYPE;
 
 /* the command processing was asynch, set by the host to indicate asynch command completion

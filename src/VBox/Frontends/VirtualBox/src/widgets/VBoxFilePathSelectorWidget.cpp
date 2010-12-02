@@ -23,13 +23,13 @@
 #include "QIFileDialog.h"
 #include "QILabel.h"
 #include "QILineEdit.h"
+#include "VBoxGlobal.h"
 
 /* Qt includes */
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
-#include <QFileIconProvider>
 #include <QFocusEvent>
 #include <QLineEdit>
 #include <QPushButton>
@@ -63,7 +63,6 @@ static int differFrom (const QString &aS1, const QString &aS2)
 
 VBoxFilePathSelectorWidget::VBoxFilePathSelectorWidget (QWidget *aParent)
     : QIWithRetranslateUI<QComboBox> (aParent)
-    , mIconProvider (new QFileIconProvider())
     , mCopyAction (new QAction (this))
     , mMode (Mode_Folder)
     , mHomeDir (QDir::current().absolutePath())
@@ -104,7 +103,6 @@ VBoxFilePathSelectorWidget::VBoxFilePathSelectorWidget (QWidget *aParent)
 
 VBoxFilePathSelectorWidget::~VBoxFilePathSelectorWidget()
 {
-    delete mIconProvider;
 }
 
 void VBoxFilePathSelectorWidget::setMode (Mode aMode)
@@ -412,9 +410,9 @@ void VBoxFilePathSelectorWidget::selectPath()
 QIcon VBoxFilePathSelectorWidget::defaultIcon() const
 {
     if (mMode == Mode_Folder)
-        return mIconProvider->icon (QFileIconProvider::Folder);
+        return vboxGlobal().icon(QFileIconProvider::Folder);
     else
-        return mIconProvider->icon (QFileIconProvider::File);
+        return vboxGlobal().icon(QFileIconProvider::File);
 }
 
 QString VBoxFilePathSelectorWidget::fullPath (bool aAbsolute /* = true */) const
@@ -547,7 +545,7 @@ void VBoxFilePathSelectorWidget::refreshText()
 
         /* Attach corresponding icon */
         setItemIcon (PathId, QFileInfo (mPath).exists() ?
-                             mIconProvider->icon (QFileInfo (mPath)) :
+                             vboxGlobal().icon(QFileInfo (mPath)) :
                              defaultIcon());
 
         /* Set the tooltip */

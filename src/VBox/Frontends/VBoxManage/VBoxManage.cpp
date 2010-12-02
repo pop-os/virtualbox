@@ -71,26 +71,35 @@ static void showProgressSignalHandler(int iSignal)
     ASMAtomicWriteBool(&g_fCanceled, true);
 }
 
-
 /**
- * Print out progress on the console
+ * Print out progress on the console.
+ *
+ * This runs the main event queue every now and then to prevent piling up
+ * unhandled things (which doesn't cause real problems, just makes things
+ * react a little slower than in the ideal case).
  */
 HRESULT showProgress(ComPtr<IProgress> progress)
 {
     using namespace com;
 
-    BOOL fCompleted;
-    ULONG ulCurrentPercent;
+    BOOL fCompleted = FALSE;
+    ULONG ulCurrentPercent = 0;
     ULONG ulLastPercent = 0;
 
-    ULONG ulCurrentOperationPercent;
     ULONG ulLastOperationPercent = (ULONG)-1;
 
     ULONG ulLastOperation = (ULONG)-1;
     Bstr bstrOperationDescription;
 
-    ULONG cOperations;
-    progress->COMGETTER(OperationCount)(&cOperations);
+    EventQueue::getMainEventQueue()->processEventQueue(0);
+
+    ULONG cOperations = 1;
+    HRESULT hrc = progress->COMGETTER(OperationCount)(&cOperations);
+    if (FAILED(hrc))
+    {
+        RTPrintf("Progress object failure: %Rhrc\n", hrc);
+        return hrc;
+    }
 
     if (!g_fDetailedProgress)
     {
@@ -101,7 +110,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
     /* setup signal handling if cancelable */
     bool fCanceledAlready = false;
     BOOL fCancelable;
-    HRESULT hrc = progress->COMGETTER(Cancelable)(&fCancelable);
+    hrc = progress->COMGETTER(Cancelable)(&fCancelable);
     if (FAILED(hrc))
         fCancelable = FALSE;
     if (fCancelable)
@@ -112,19 +121,27 @@ HRESULT showProgress(ComPtr<IProgress> progress)
 #endif
     }
 
-    while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
+    hrc = progress->COMGETTER(Completed(&fCompleted));
+    while (SUCCEEDED(hrc))
     {
-        ULONG ulOperation;
-        progress->COMGETTER(Operation)(&ulOperation);
-
         progress->COMGETTER(Percent(&ulCurrentPercent));
-        progress->COMGETTER(OperationPercent(&ulCurrentOperationPercent));
 
         if (g_fDetailedProgress)
         {
+            ULONG ulOperation = 1;
+            hrc = progress->COMGETTER(Operation)(&ulOperation);
+            if (FAILED(hrc))
+                break;
+            ULONG ulCurrentOperationPercent = 0;
+            hrc = progress->COMGETTER(OperationPercent(&ulCurrentOperationPercent));
+            if (FAILED(hrc))
+                break;
+
             if (ulLastOperation != ulOperation)
             {
-                progress->COMGETTER(OperationDescription(bstrOperationDescription.asOutParam()));
+                hrc = progress->COMGETTER(OperationDescription(bstrOperationDescription.asOutParam()));
+                if (FAILED(hrc))
+                    break;
                 ulLastPercent = (ULONG)-1;        // force print
                 ulLastOperation = ulOperation;
             }
@@ -133,7 +150,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
                  || ulCurrentOperationPercent != ulLastOperationPercent
                )
             {
-                LONG lSecsRem;
+                LONG lSecsRem = 0;
                 progress->COMGETTER(TimeRemaining)(&lSecsRem);
 
                 RTPrintf("(%ld/%ld) %ls %ld%% => %ld%% (%d s remaining)\n", ulOperation + 1, cOperations, bstrOperationDescription.raw(), ulCurrentOperationPercent, ulCurrentPercent, lSecsRem);
@@ -173,6 +190,9 @@ HRESULT showProgress(ComPtr<IProgress> progress)
 
         /* make sure the loop is not too tight */
         progress->WaitForCompletion(100);
+
+        EventQueue::getMainEventQueue()->processEventQueue(0);
+        hrc = progress->COMGETTER(Completed(&fCompleted));
     }
 
     /* undo signal handling */
@@ -186,19 +206,28 @@ HRESULT showProgress(ComPtr<IProgress> progress)
 
     /* complete the line. */
     LONG iRc = E_FAIL;
-    if (SUCCEEDED(progress->COMGETTER(ResultCode)(&iRc)))
+    hrc = progress->COMGETTER(ResultCode)(&iRc);
+    if (SUCCEEDED(hrc))
     {
         if (SUCCEEDED(iRc))
             RTPrintf("100%%\n");
         else if (g_fCanceled)
             RTPrintf("CANCELED\n");
         else
-            RTPrintf("FAILED\n");
+        {
+            if (!g_fDetailedProgress)
+                RTPrintf("\n");
+            RTPrintf("Progress state: %Rhrc\n", iRc);
+        }
+        hrc = iRc;
     }
     else
-        RTPrintf("\n");
-    RTStrmFlush(g_pStdOut);
-    return iRc;
+    {
+        if (!g_fDetailedProgress)
+            RTPrintf("\n");
+        RTPrintf("Progress object failure: %Rhrc\n", hrc);
+    }
+    return hrc;
 }
 
 #endif /* !VBOX_ONLY_DOCS */

@@ -39,6 +39,15 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+/** Use VBE bytewise I/O. Only needed for Windows Longhorn/Vista betas and backwards compatibility. */
+#define VBE_BYTEWISE_IO
+
+/** Use VBE new dynamic mode list.
+ * If this is not defined, no checks are carried out to see if the modes all
+ * fit into the framebuffer! See the VRAM_SIZE_FIX define. */
+#define VBE_NEW_DYN_LIST
+
 #ifdef VBOX
 /** The default amount of VRAM. */
 # define VGA_VRAM_DEFAULT    (_4M)
@@ -97,6 +106,8 @@
 /* The VBOX interface id. Indicates support for VBVA shared memory interface. */
 #define VBE_DISPI_ID_HGSMI              0xBE01
 #endif /* VBOX_WITH_HGSMI */
+/* Indicates support for unrestricted horizontal resolutions (not multiple of 8). */
+#define VBE_DISPI_ID_ANYX               0xBE02
 #endif /* VBOX */
 
 #define VBE_DISPI_DISABLED              0x00
@@ -284,17 +295,21 @@ typedef struct VGAState {
     bool                        fRenderVRAM;
     bool                        Padding1[2];
 
-    uint32_t                    cMonitors;
+#if HC_ARCH_BITS == 64
+    uint32_t                    Padding2;
+#endif
 
 #ifdef VBOX_WITH_HGSMI
     R3PTRTYPE(PHGSMIINSTANCE)   pHGSMI;
 #endif /* VBOX_WITH_HGSMI */
 #ifdef VBOXVDMA
     R3PTRTYPE(PVBOXVDMAHOST)    pVdma;
+#else
+    RTR3PTR                     Padding2a;
 #endif
 
+    uint32_t                    cMonitors;
     /** Current refresh timer interval. */
-    uint32_t                    Padding2;
     uint32_t                    cMilliesRefreshInterval;
     /** Refresh timer handle - HC. */
     PTMTIMERR3                  RefreshTimer;
@@ -482,10 +497,10 @@ uint32_t HGSMIReset (PHGSMIINSTANCE pIns);
 # ifdef VBOX_WITH_VIDEOHWACCEL
 int vbvaVHWACommandCompleteAsynch(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
 int vbvaVHWAConstruct (PVGASTATE pVGAState);
-int vbvaVHWADisable (PVGASTATE pVGAState);
 int vbvaVHWAReset (PVGASTATE pVGAState);
 
 int vboxVBVASaveStatePrep (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+int vboxVBVASaveStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 # endif
 
 int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);

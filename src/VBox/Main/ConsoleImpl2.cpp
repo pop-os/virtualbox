@@ -2415,7 +2415,8 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
      *    taking an online snapshot!
      */
     if (   lType == DeviceType_HardDisk
-            && aMachineState == MachineState_Starting)
+            && (   aMachineState == MachineState_Starting
+                || aMachineState == MachineState_Restoring))
     {
         /*
          * Some sanity checks.
@@ -4173,7 +4174,7 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
                                          pvConsole);
 
 #ifdef VBOX_WITH_GUEST_PROPS_RDONLY_GUEST
-        rc = configSetGlobalPropertyFlags(pConsole->mVMMDev,
+        rc = configSetGlobalPropertyFlags(pConsole->m_pVMMDev,
                                           guestProp::RDONLYGUEST);
         AssertRCReturn(rc, rc);
 #endif

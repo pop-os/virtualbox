@@ -163,7 +163,8 @@ VBoxJXpcom-inst-jar_BLDDIRS += $(VBOX_JXPCOM_GEN)/java $(VBOX_JXPCOM_GEN)/java/g
 # For VBoxJXpcom, not currently used.
 #
 $(VBOX_JXPCOM_GENH): $$(VBOX_JXPCOM_JAR)
-	$(VBOX_JAVAH) -classpath $(VBOX_JXPCOM_JDEST) -d $(VBOX_JXPCOM_JDEST) \
+	$(call MSG_L1,Generating $@ from $<)
+	$(QUIET)$(VBOX_JAVAH) -classpath $(VBOX_JXPCOM_JDEST) -d $(VBOX_JXPCOM_JDEST) \
 		org.mozilla.xpcom.internal.XPCOMImpl \
 		org.mozilla.xpcom.internal.GREImpl \
 		org.mozilla.xpcom.internal.MozillaImpl \
@@ -175,7 +176,8 @@ $(VBOX_JXPCOM_GENH): $$(VBOX_JXPCOM_JAR)
 # Generate error constants.
 #
 $(VBOX_JXPCOM_NSERROR): $(VBOX_PATH_XPCOM_SRC)/xpcom/base/nsError.h $(VBOX_JXPCOM_SRC)/tools/gen-nsError.pl | $(VBOX_JXPCOM_GEN)/java/
-	perl $(VBOX_JXPCOM_SRC)/tools/gen-nsError.pl < $< > $@
+	$(call MSG_L1,Generating $@)
+	$(QUIET)perl $(VBOX_JXPCOM_SRC)/tools/gen-nsError.pl < $< > $@
 
 ifndef VBOX_WITH_JAVA_SUPPORT_IN_XPIDL
 #
@@ -183,7 +185,7 @@ ifndef VBOX_WITH_JAVA_SUPPORT_IN_XPIDL
 #
 VBOX_TEMP_HOME=$(shell echo /tmp/vboxhome$$$$)
 $(VBOX_JXPCOM_GEN)/jxpcomgen.list: $(GENJIFACES_BIN) $(PATH_TARGET)/VBox-xpcom-xpt-files/VBoxXPCOMBase.xpt | $(VBOX_JXPCOM_GEN)/java/
-	$(QUIET)echo Generating Java interface files
+	$(call MSG_L1,Generating Java interface files)
 	$(call preprocess_exebld,$(GENJIFACES_BIN))
 	$(QUIET) $(MKDIR) -p $(VBOX_TEMP_HOME)
 	VBOX_USER_HOME=$(VBOX_TEMP_HOME) $(GENJIFACES_BIN) -d $(VBOX_JXPCOM_GEN)/java

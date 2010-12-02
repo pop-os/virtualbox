@@ -330,8 +330,9 @@ sf_lookup(struct inode *parent, struct dentry *dentry
         err = sf_stat(__func__, sf_g, path, &fsinfo, 1);
         if (err) {
                 if (err == -ENOENT) {
-                        /* -ENOENT add NULL inode to dentry so it later can be
+                        /* -ENOENT: add NULL inode to dentry so it later can be
                            created via call to create/mkdir/open */
+                        kfree(path);
                         inode = NULL;
                 }
                 else goto fail1;

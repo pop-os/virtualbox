@@ -32,6 +32,7 @@
 #include <QStyle>
 #include <QProcess>
 #include <QHash>
+#include <QFileIconProvider>
 
 #ifdef Q_WS_X11
 # include <sys/wait.h>
@@ -657,6 +658,9 @@ public:
         return online ? mOnlineSnapshotIcon : mOfflineSnapshotIcon;
     }
 
+    QIcon icon(QFileIconProvider::IconType type) { return m_globalIconProvider.icon(type); }
+    QIcon icon(const QFileInfo &info) { return m_globalIconProvider.icon(info); }
+
     QPixmap warningIcon() const { return mWarningIcon; }
     QPixmap errorIcon() const { return mErrorIcon; }
 
@@ -994,6 +998,8 @@ private:
     QString mUserDefinedPortName;
 
     QPixmap mWarningIcon, mErrorIcon;
+
+    QFileIconProvider m_globalIconProvider;
 
     friend VBoxGlobal &vboxGlobal();
     friend class VBoxCallback;

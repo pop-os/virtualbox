@@ -491,6 +491,7 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl)
     mcAudioRefs = 0;
     mcVRDPClients = 0;
     mu32SingleRDPClientId = 0;
+    mcGuestCredentialsProvided = false;
 
     // VirtualBox 4.0: We no longer initialize the VMMDev instance here,
     // which starts the HGCM thread. Instead, this is now done in the
@@ -950,7 +951,11 @@ int Console::VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const ch
 
         if (SUCCEEDED(hrc) && noLoggedInUsersValue != Bstr("false"))
         {
-            fProvideGuestCredentials = TRUE;
+            /* And only if there are no connected clients. */
+            if (ASMAtomicCmpXchgBool(&mcGuestCredentialsProvided, true, false))
+            {
+                fProvideGuestCredentials = TRUE;
+            }
         }
     }
 
@@ -1068,6 +1073,11 @@ void Console::VRDPClientDisconnect(uint32_t u32ClientId,
 #ifdef VBOX_WITH_GUEST_PROPS
     updateGuestPropertiesVRDPDisconnect(u32ClientId);
 #endif /* VBOX_WITH_GUEST_PROPS */
+
+#ifdef VBOX_WITH_VRDP
+    if (u32Clients == 0)
+        mcGuestCredentialsProvided = false;
+#endif
 
     LogFlowFuncLeave();
     return;
@@ -4284,10 +4294,14 @@ HRESULT Console::getGuestProperty(IN_BSTR aName, BSTR *aValue,
                 Utf8Str strBuffer(pszBuffer);
                 strBuffer.cloneTo(aValue);
 
-                *aTimestamp = parm[2].u.uint64;
+                if (aTimestamp)
+                    *aTimestamp = parm[2].u.uint64;
 
-                size_t iFlags = strBuffer.length() + 1;
-                Utf8Str(pszBuffer + iFlags).cloneTo(aFlags);
+                if (aFlags)
+                {
+                    size_t iFlags = strBuffer.length() + 1;
+                    Utf8Str(pszBuffer + iFlags).cloneTo(aFlags);
+                }
             }
             else
                 aValue = NULL;
@@ -5428,7 +5442,8 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
             fCoreFlags |= RTCOREDUMPER_FLAGS_LIVE_CORE;
         }
 
-        const char *pszDumpDir = Utf8Str(coreDumpDir).c_str();
+        Utf8Str strDumpDir(coreDumpDir);
+        const char *pszDumpDir = strDumpDir.c_str();
         if (   pszDumpDir
             && *pszDumpDir == '\0')
             pszDumpDir = NULL;

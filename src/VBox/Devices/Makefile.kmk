@@ -213,11 +213,11 @@ ifdef VBOX_WITH_HGSMI
 endif
 
 ifdef VBOX_WITH_NETFLT
- VBoxDD_LIBS.win      += $(PATH_LIB)/WinNetConfig.lib
+ VBoxDD_LIBS.win       += $(PATH_LIB)/WinNetConfig.lib
 endif
 
 ifdef VBOX_WITH_EFI
- VBoxDD_LIBS          += $(PATH_LIB)/EfiThunkBin$(VBOX_SUFF_LIB)
+ VBoxDD_LIBS           += $(PATH_LIB)/EfiThunkBin$(VBOX_SUFF_LIB)
 endif
 
 ifeq ($(KBUILD_TARGET),solaris)
@@ -349,14 +349,13 @@ ifdef VBOX_WITH_HGSMI
 endif
 ifdef VBOXVDMA
  DevicesR3_DEFS        += VBOXVDMA
- DevicesR3_SOURCES      += \
+ DevicesR3_SOURCES     += \
 	Graphics/HGSMI/SHGSMIHost.cpp \
     Graphics/DevVGA_VDMA.cpp
 endif
 ifdef VBOXWDDM_WITH_VBVA
  DevicesR3_DEFS        += VBOXWDDM_WITH_VBVA
 endif
-
 ifdef VBOX_WITH_VIDEOHWACCEL
  DevicesR3_DEFS        += VBOX_WITH_VIDEOHWACCEL
 endif
@@ -583,7 +582,7 @@ ifdef VBOX_WITH_RAW_MODE
   VBoxDDGC_DEFS        += VBOXVDMA
  endif
  ifdef VBOXWDDM_WITH_VBVA
-  VBoxDDGC_DEFS         += VBOXWDDM_WITH_VBVA
+  VBoxDDGC_DEFS        += VBOXWDDM_WITH_VBVA
  endif
 
  ifdef VBOX_WITH_VUSB
@@ -599,16 +598,6 @@ ifdef VBOX_WITH_RAW_MODE
    VBoxDDGC_SOURCES    += \
  	USB/DevEHCI.cpp
   endif
- endif
-
- ifdef VBOX_WITH_HGSMI
-  VBoxDDGC_DEFS        += VBOX_WITH_HGSMI
- endif
- ifdef VBOXVDMA
-  VBoxDDGC_DEFS        += VBOXVDMA
- endif
- ifdef VBOXWDDM_WITH_VBVA
-  VBoxDDGC_DEFS         += VBOXWDDM_WITH_VBVA
  endif
 
  ifdef VBOX_WITH_VIDEOHWACCEL
@@ -733,19 +722,9 @@ VBoxDDR0_SOURCES       += \
 	Storage/DevLsiLogicSCSI.cpp
 endif
 
-ifdef VBOX_WITH_HGSMI
- VBoxDDR0_DEFS         += VBOX_WITH_HGSMI
-endif
 ifdef VBOX_WITH_VIDEOHWACCEL
  VBoxDDR0_DEFS         += VBOX_WITH_VIDEOHWACCEL
 endif
-ifdef VBOXVDMA
- VBoxDDR0_DEFS         += VBOXVDMA
-endif
-ifdef VBOXWDDM_WITH_VBVA
- VBoxDDR0_DEFS        += VBOXWDDM_WITH_VBVA
-endif
-
 
 ifdef VBOX_WITH_HPET
  VBoxDDR0_DEFS         += VBOX_WITH_HPET
