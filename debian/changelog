@@ -1,3 +1,10 @@
+virtualbox-ose (3.2.12-dfsg-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+  * Drop 03-2.6.37.patch and 24-xserver-19-support.patch, applied upstream.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 02 Dec 2010 21:18:36 +0100
+
 virtualbox-ose (3.2.10-dfsg-2) unstable; urgency=low
 
   * Added two patches from virtualbox-ose SVN/bug tracking to fix some

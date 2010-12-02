@@ -1,5 +1,4 @@
 01-build-arch.patch
-03-2.6.37.patch
 04-vboxdrv-references.patch
 06-xsession.patch
 07-vboxnetflt-reference.patch
@@ -9,5 +8,4 @@
 18-system-xorg.patch
 22-no-static-libstdcpp.patch
 23-remove-invalid-chars-check.patch
-24-xserver-19-support.patch
 27-hide-host-cache-warning.patch
