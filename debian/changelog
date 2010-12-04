@@ -1,4 +1,4 @@
-virtualbox-ose (3.2.12-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (3.2.12-dfsg-1) unstable; urgency=low
 
   * New upstream release.
   * Drop 03-2.6.37.patch and 24-xserver-19-support.patch, applied upstream.
