@@ -1,4 +1,4 @@
-/* $Id: ConsoleImpl.h $ */
+/* $Id: ConsoleImpl.h 35171 2010-12-16 10:53:50Z vboxsync $ */
 /** @file
  * VBox Console COM Class definition
  */
@@ -21,6 +21,7 @@
 #include "VirtualBoxBase.h"
 #include "SchemaDefs.h"
 #include "VBox/com/array.h"
+#include "EventImpl.h"
 
 class Guest;
 class Keyboard;
@@ -31,17 +32,25 @@ class TeleporterStateSrc;
 class OUSBDevice;
 class RemoteUSBDevice;
 class SharedFolder;
-class RemoteDisplayInfo;
+class VRDEServerInfo;
 class AudioSniffer;
 class ConsoleVRDPServer;
-class ConsoleCallbackRegistration;      /* See ConsoleImpl.cpp. */
 class VMMDev;
 class Progress;
+class BusAssignmentManager;
+COM_STRUCT_OR_CLASS(IEventListener);
+#ifdef VBOX_WITH_EXTPACK
+class ExtPackManager;
+#endif
 
-#include <VBox/vrdpapi.h>
+#include <VBox/RemoteDesktop/VRDE.h>
 #include <VBox/pdmdrv.h>
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>  /* For the property notification callback */
+#endif
+
+#ifdef RT_OS_WINDOWS
+# include "win/VBoxComEvents.h"
 #endif
 
 struct VUSBIRHCONFIG;
@@ -74,14 +83,14 @@ typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
 
 /** IConsole implementation class */
 class ATL_NO_VTABLE Console :
-    public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl<Console, IConsole>,
-    public VirtualBoxSupportTranslation<Console>,
+    public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(IConsole)
 {
     Q_OBJECT
 
 public:
+
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Console, IConsole)
 
     DECLARE_NOT_AGGREGATABLE(Console)
 
@@ -113,8 +122,10 @@ public:
     STDMETHOD(COMGETTER(Debugger))(IMachineDebugger **aDebugger);
     STDMETHOD(COMGETTER(USBDevices))(ComSafeArrayOut(IUSBDevice *, aUSBDevices));
     STDMETHOD(COMGETTER(RemoteUSBDevices))(ComSafeArrayOut(IHostUSBDevice *, aRemoteUSBDevices));
-    STDMETHOD(COMGETTER(RemoteDisplayInfo))(IRemoteDisplayInfo **aRemoteDisplayInfo);
+    STDMETHOD(COMGETTER(VRDEServerInfo))(IVRDEServerInfo **aVRDEServerInfo);
     STDMETHOD(COMGETTER(SharedFolders))(ComSafeArrayOut(ISharedFolder *, aSharedFolders));
+    STDMETHOD(COMGETTER(EventSource)) (IEventSource ** aEventSource);
+    STDMETHOD(COMGETTER(AttachedPciDevices))(ComSafeArrayOut(IPciDeviceAttachment *, aAttachments));
 
     // IConsole methods
     STDMETHOD(PowerUp)(IProgress **aProgress);
@@ -129,22 +140,20 @@ public:
     STDMETHOD(GetGuestEnteredACPIMode)(BOOL *aEntered);
     STDMETHOD(SaveState)(IProgress **aProgress);
     STDMETHOD(AdoptSavedState)(IN_BSTR aSavedStateFile);
-    STDMETHOD(ForgetSavedState)(BOOL aRemove);
+    STDMETHOD(DiscardSavedState)(BOOL aRemoveFile);
     STDMETHOD(GetDeviceActivity)(DeviceType_T aDeviceType,
                                 DeviceActivity_T *aDeviceActivity);
     STDMETHOD(AttachUSBDevice)(IN_BSTR aId);
     STDMETHOD(DetachUSBDevice)(IN_BSTR aId, IUSBDevice **aDevice);
     STDMETHOD(FindUSBDeviceByAddress)(IN_BSTR aAddress, IUSBDevice **aDevice);
     STDMETHOD(FindUSBDeviceById)(IN_BSTR aId, IUSBDevice **aDevice);
-    STDMETHOD(CreateSharedFolder)(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
+    STDMETHOD(CreateSharedFolder)(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
     STDMETHOD(RemoveSharedFolder)(IN_BSTR aName);
     STDMETHOD(TakeSnapshot)(IN_BSTR aName, IN_BSTR aDescription,
                             IProgress **aProgress);
     STDMETHOD(DeleteSnapshot)(IN_BSTR aId, IProgress **aProgress);
     STDMETHOD(RestoreSnapshot)(ISnapshot *aSnapshot, IProgress **aProgress);
     STDMETHOD(Teleport)(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxDowntime, IProgress **aProgress);
-    STDMETHOD(RegisterCallback)(IConsoleCallback *aCallback);
-    STDMETHOD(UnregisterCallback)(IConsoleCallback *aCallback);
 
     // public methods for internal purposes only
 
@@ -158,11 +167,12 @@ public:
     Mouse *getMouse() const { return mMouse; }
     Display *getDisplay() const { return mDisplay; }
     MachineDebugger *getMachineDebugger() const { return mDebugger; }
+    AudioSniffer *getAudioSniffer() const { return mAudioSniffer; }
 
     const ComPtr<IMachine> &machine() const { return mMachine; }
 
     /** Method is called only from ConsoleVRDPServer */
-    IVRDPServer *getVRDPServer() const { return mVRDPServer; }
+    IVRDEServer *getVRDEServer() const { return mVRDEServer; }
 
     ConsoleVRDPServer *consoleVRDPServer() const { return mConsoleVRDPServer; }
 
@@ -175,14 +185,20 @@ public:
     HRESULT onStorageControllerChange();
     HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onCPUChange(ULONG aCPU, BOOL aRemove);
-    HRESULT onVRDPServerChange(BOOL aRestart);
+    HRESULT onCPUExecutionCapChange(ULONG aExecutionCap);
+    HRESULT onVRDEServerChange(BOOL aRestart);
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange(BOOL aGlobal);
     HRESULT onUSBDeviceAttach(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
     HRESULT onUSBDeviceDetach(IN_BSTR aId, IVirtualBoxErrorInfo *aError);
-    HRESULT getGuestProperty(IN_BSTR aKey, BSTR *aValue, ULONG64 *aTimestamp, BSTR *aFlags);
+    HRESULT onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup);
+    HRESULT getGuestProperty(IN_BSTR aKey, BSTR *aValue, LONG64 *aTimestamp, BSTR *aFlags);
     HRESULT setGuestProperty(IN_BSTR aKey, IN_BSTR aValue, IN_BSTR aFlags);
-    HRESULT enumerateGuestProperties(IN_BSTR aPatterns, ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(BSTR, aValues), ComSafeArrayOut(ULONG64, aTimestamps), ComSafeArrayOut(BSTR, aFlags));
+    HRESULT enumerateGuestProperties(IN_BSTR aPatterns,
+                                     ComSafeArrayOut(BSTR, aNames),
+                                     ComSafeArrayOut(BSTR, aValues),
+                                     ComSafeArrayOut(LONG64, aTimestamps),
+                                     ComSafeArrayOut(BSTR, aFlags));
     HRESULT onlineMergeMedium(IMediumAttachment *aMediumAttachment,
                               ULONG aSourceIdx, ULONG aTargetIdx,
                               IMedium *aSource, IMedium *aTarget,
@@ -191,6 +207,10 @@ public:
                               IProgress *aProgress);
     VMMDev *getVMMDev() { return m_pVMMDev; }
     AudioSniffer *getAudioSniffer() { return mAudioSniffer; }
+#ifdef VBOX_WITH_EXTPACK
+    ExtPackManager *getExtPackManager();
+#endif
+    EventSource *getEventSource() { return mEventSource; }
 
     int VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const char *pszPassword, const char *pszDomain);
     void VRDPClientConnect(uint32_t u32ClientId);
@@ -199,7 +219,7 @@ public:
     void VRDPInterceptUSB(uint32_t u32ClientId, void **ppvIntercept);
     void VRDPInterceptClipboard(uint32_t u32ClientId);
 
-    void processRemoteUSBDevices(uint32_t u32ClientId, VRDPUSBDEVICEDESC *pDevList, uint32_t cbDevList);
+    void processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevList, uint32_t cbDevList);
 
     // callback callers (partly; for some events console callbacks are notified
     // directly from IInternalSessionControl event handlers declared above)
@@ -215,23 +235,21 @@ public:
     void onUSBDeviceStateChange(IUSBDevice *aDevice, bool aAttached,
                                 IVirtualBoxErrorInfo *aError);
     void onRuntimeError(BOOL aFatal, IN_BSTR aErrorID, IN_BSTR aMessage);
-    HRESULT onShowWindow(BOOL aCheck, BOOL *aCanShow, ULONG64 *aWinId);
-    void onRemoteDisplayInfoChange();
+    HRESULT onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId);
+    void onVRDEServerInfoChange();
 
     static const PDMDRVREG DrvStatusReg;
 
-    void reportAuthLibraryError(const char *filename, int rc)
-    {
-        setError(E_FAIL, tr("Could not load the external authentication library '%s' (%Rrc)"), filename, rc);
-    }
+    static HRESULT setErrorStatic(HRESULT aResultCode, const char *pcsz, ...);
+    HRESULT setInvalidMachineStateError();
 
     static HRESULT handleUnexpectedExceptions(RT_SRC_POS_DECL);
 
     static const char *convertControllerTypeToDev(StorageControllerType_T enmCtrlType);
     static HRESULT convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun);
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Console"; }
+    // Called from event listener
+    HRESULT onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
+                                 NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort, IN_BSTR aGuestIp, LONG aGuestPort);
 
 private:
 
@@ -295,14 +313,14 @@ private:
      *
      *  @sa SafeVMPtr, SafeVMPtrQuiet
      */
-    typedef AutoVMCallerBase <false, false> AutoVMCaller;
+    typedef AutoVMCallerBase<false, false> AutoVMCaller;
 
     /**
      *  Same as AutoVMCaller but doesn't set extended error info on failure.
      *
      *  @note Temporarily locks the argument for writing.
      */
-    typedef AutoVMCallerBase <true, false> AutoVMCallerQuiet;
+    typedef AutoVMCallerBase<true, false> AutoVMCallerQuiet;
 
     /**
      *  Same as AutoVMCaller but allows a null VM pointer (to trigger an error
@@ -310,7 +328,7 @@ private:
      *
      *  @note Temporarily locks the argument for writing.
      */
-    typedef AutoVMCallerBase <false, true> AutoVMCallerWeak;
+    typedef AutoVMCallerBase<false, true> AutoVMCallerWeak;
 
     /**
      *  Same as AutoVMCaller but doesn't set extended error info on failure
@@ -319,20 +337,24 @@ private:
      *
      *  @note Temporarily locks the argument for writing.
      */
-    typedef AutoVMCallerBase <true, true> AutoVMCallerQuietWeak;
+    typedef AutoVMCallerBase<true, true> AutoVMCallerQuietWeak;
 
     /**
      *  Base template for SaveVMPtr and SaveVMPtrQuiet.
      */
-    template <bool taQuiet = false>
-    class SafeVMPtrBase : public AutoVMCallerBase <taQuiet, true>
+    template<bool taQuiet = false>
+    class SafeVMPtrBase : public AutoVMCallerBase<taQuiet, true>
     {
-        typedef AutoVMCallerBase <taQuiet, true> Base;
+        typedef AutoVMCallerBase<taQuiet, true> Base;
     public:
         SafeVMPtrBase(Console *aThat) : Base(aThat), mpVM(NULL)
         {
             if (SUCCEEDED(Base::mRC))
+            {
                 mpVM = aThat->mpVM;
+                if (!mpVM)
+                    Base::mRC = E_FAIL; /** @todo use setError here. */
+            }
         }
         /** Smart SaveVMPtr to PVM cast operator */
         operator PVM() const { return mpVM; }
@@ -363,7 +385,7 @@ public:
      *
      *  @sa SafeVMPtrQuiet, AutoVMCaller
      */
-    typedef SafeVMPtrBase <false> SafeVMPtr;
+    typedef SafeVMPtrBase<false> SafeVMPtr;
 
     /**
      *  A deviation of SaveVMPtr that doesn't set the error info on failure.
@@ -380,20 +402,23 @@ public:
      *
      *  @sa SafeVMPtr, AutoVMCaller
      */
-    typedef SafeVMPtrBase <true> SafeVMPtrQuiet;
+    typedef SafeVMPtrBase<true> SafeVMPtrQuiet;
 
     class SharedFolderData
     {
     public:
         SharedFolderData() {}
-        SharedFolderData(Bstr aHostPath, BOOL aWritable)
+        SharedFolderData(Bstr aHostPath, BOOL aWritable, BOOL aAutoMount)
            : mHostPath(aHostPath)
-           , mWritable(aWritable) {}
+           , mWritable(aWritable)
+           , mAutoMount(aAutoMount) {}
         SharedFolderData(const SharedFolderData& aThat)
            : mHostPath(aThat.mHostPath)
-           , mWritable(aThat.mWritable) {}
+           , mWritable(aThat.mWritable)
+           , mAutoMount(aThat.mAutoMount) {}
         Bstr mHostPath;
         BOOL mWritable;
+        BOOL mAutoMount;
     };
     typedef std::map <Bstr, ComObjPtr<SharedFolder> > SharedFolderMap;
     typedef std::map <Bstr, SharedFolderData> SharedFolderDataMap;
@@ -437,12 +462,14 @@ private:
     HRESULT removeSharedFolder(CBSTR aName);
 
     static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
+    int configCfgmOverlay(PVM pVM, IVirtualBox *pVirtualBox, IMachine *pMachine);
 
     int configMediumAttachment(PCFGMNODE pCtlInst,
                                const char *pcszDevice,
                                unsigned uInstance,
                                StorageBus_T enmBus,
                                bool fUseHostIOCache,
+                               bool fBuiltinIoCache,
                                bool fSetupMerge,
                                unsigned uMergeSource,
                                unsigned uMergeTarget,
@@ -457,9 +484,11 @@ private:
                      bool fPassthrough,
                      DeviceType_T enmType,
                      bool fUseHostIOCache,
+                     bool fBuiltinIoCache,
                      bool fSetupMerge,
                      unsigned uMergeSource,
                      unsigned uMergeTarget,
+                     const char *pcszBwGroup,
                      IMedium *pMedium,
                      MachineState_T aMachineState,
                      HRESULT *phrc);
@@ -469,6 +498,7 @@ private:
                                                          unsigned uInstance,
                                                          StorageBus_T enmBus,
                                                          bool fUseHostIOCache,
+                                                         bool fBuiltinIoCache,
                                                          bool fSetupMerge,
                                                          unsigned uMergeSource,
                                                          unsigned uMergeTarget,
@@ -485,7 +515,8 @@ private:
 
     int configNetwork(const char *pszDevice, unsigned uInstance, unsigned uLun,
                       INetworkAdapter *aNetworkAdapter, PCFGMNODE pCfg,
-                      PCFGMNODE pLunL0, PCFGMNODE pInst, bool fAttachDetach);
+                      PCFGMNODE pLunL0, PCFGMNODE pInst,
+                      bool fAttachDetach, bool fIgnoreConnectFailure);
 
     static DECLCALLBACK(int) configGuestProperties(void *pvConsole);
     static DECLCALLBACK(int) configGuestControl(void *pvConsole);
@@ -497,13 +528,11 @@ private:
     HRESULT doCPURemove(ULONG aCpu);
     HRESULT doCPUAdd(ULONG aCpu);
 
-#ifdef VBOX_DYNAMIC_NET_ATTACH
     HRESULT doNetworkAdapterChange(const char *pszDevice, unsigned uInstance,
                                    unsigned uLun, INetworkAdapter *aNetworkAdapter);
     static DECLCALLBACK(int) changeNetworkAttachment(Console *pThis, const char *pszDevice,
                                                      unsigned uInstance, unsigned uLun,
                                                      INetworkAdapter *aNetworkAdapter);
-#endif /* VBOX_DYNAMIC_NET_ATTACH */
 
 #ifdef VBOX_WITH_USB
     HRESULT attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs);
@@ -535,6 +564,8 @@ private:
     static DECLCALLBACK(int)   saveStateThread(RTTHREAD Thread, void *pvUser);
     static DECLCALLBACK(int)   powerDownThread(RTTHREAD Thread, void *pvUser);
 
+    static DECLCALLBACK(int)    vmm2User_SaveState(PCVMM2USERMETHODS pThis, PVM pVM);
+
     static DECLCALLBACK(void *) drvStatus_QueryInterface(PPDMIBASE pInterface, const char *pszIID);
     static DECLCALLBACK(void)   drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface, unsigned iLUN);
     static DECLCALLBACK(void)   drvStatus_Destruct(PPDMDRVINS pDrvIns);
@@ -559,7 +590,7 @@ private:
     HRESULT                     doEnumerateGuestProperties(CBSTR aPatterns,
                                                            ComSafeArrayOut(BSTR, aNames),
                                                            ComSafeArrayOut(BSTR, aValues),
-                                                           ComSafeArrayOut(ULONG64, aTimestamps),
+                                                           ComSafeArrayOut(LONG64, aTimestamps),
                                                            ComSafeArrayOut(BSTR, aFlags));
 
     bool enabledGuestPropertiesVRDP(void);
@@ -583,7 +614,7 @@ private:
     const ComPtr<IMachine> mMachine;
     const ComPtr<IInternalMachineControl> mControl;
 
-    const ComPtr <IVRDPServer> mVRDPServer;
+    const ComPtr<IVRDEServer> mVRDEServer;
 
     ConsoleVRDPServer * const mConsoleVRDPServer;
 
@@ -592,7 +623,11 @@ private:
     const ComObjPtr<Mouse> mMouse;
     const ComObjPtr<Display> mDisplay;
     const ComObjPtr<MachineDebugger> mDebugger;
-    const ComObjPtr<RemoteDisplayInfo> mRemoteDisplayInfo;
+    const ComObjPtr<VRDEServerInfo> mVRDEServerInfo;
+    const ComObjPtr<EventSource> mEventSource;
+#ifdef VBOX_WITH_EXTPACK
+    const ComObjPtr<ExtPackManager> mptrExtPackManager;
+#endif
 
     USBDeviceList mUSBDevices;
     RemoteUSBDeviceList mRemoteUSBDevices;
@@ -617,16 +652,23 @@ private:
     bool mfSnapshotFolderSizeWarningShown : 1;
     /** true if we already showed the snapshot folder ext4/xfs bug warning. */
     bool mfSnapshotFolderExt4WarningShown : 1;
+    /** true if we already listed the disk type of the snapshot folder. */
+    bool mfSnapshotFolderDiskTypeShown : 1;
+
+    /** Pointer to the VMM -> User (that's us) callbacks.
+     * This structure is followed by a pointer to the Console object. */
+    PCVMM2USERMETHODS mpVmm2UserMethods;
 
     /** The current network attachment type in the VM.
-     * This doesn't have to match the network attachment type
-     * maintained in the NetworkAdapter. This is needed to
-     * change the network attachment dynamically.
+     * This doesn't have to match the network attachment type maintained in the
+     * NetworkAdapter. This is needed to change the network attachment
+     * dynamically.
      */
     NetworkAttachmentType_T meAttachmentType[SchemaDefs::NetworkAdapterCount];
 
     VMMDev * m_pVMMDev;
     AudioSniffer * const mAudioSniffer;
+    BusAssignmentManager* mBusMgr;
 
     enum
     {
@@ -662,12 +704,9 @@ private:
      * This is currently only used by Console::Teleport(), but is intended to later
      * be used by the live snapshot code path as well.  Actions like
      * Console::PowerDown, which automatically cancels out the running snapshot /
-     * teleportion operation, will cancel the teleportation / live snapshot
+     * teleportation operation, will cancel the teleportation / live snapshot
      * operation before starting. */
     ComObjPtr<Progress> mptrCancelableProgress;
-
-    typedef std::list<ConsoleCallbackRegistration> CallbackList;
-    CallbackList mCallbacks;
 
     struct
     {
@@ -716,6 +755,7 @@ private:
         }
     }
     mCallbackData;
+    COM_STRUCT_OR_CLASS(IEventListener) *mVmListner;
 
     friend struct VMTask;
 };

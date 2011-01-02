@@ -1,4 +1,4 @@
-/* $Id: thread-win.cpp $ */
+/* $Id: thread-win.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
 /** @file
  * IPRT - Threads, Win32.
  */
@@ -77,6 +77,13 @@ void rtThreadNativeDetach(void)
         rtThreadTerminate(pThread, 0);
         TlsSetValue(g_dwSelfTLS, NULL);
     }
+}
+
+
+void rtThreadNativeDestroy(PRTTHREADINT pThread)
+{
+    if (pThread == (PRTTHREADINT)TlsGetValue(g_dwSelfTLS))
+        TlsSetValue(g_dwSelfTLS, NULL);
 }
 
 
@@ -188,7 +195,7 @@ static int rtThreadGetCurrentProcessorNumber(void)
 RTR3DECL(int) RTThreadSetAffinity(uint64_t u64Mask)
 {
     Assert((DWORD_PTR)u64Mask == u64Mask || u64Mask == ~(uint64_t)0);
-    DWORD dwRet = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)u64Mask);
+    DWORD_PTR dwRet = SetThreadAffinityMask(GetCurrentThread(), (DWORD_PTR)u64Mask);
     if (dwRet)
         return VINF_SUCCESS;
 
@@ -208,10 +215,10 @@ RTR3DECL(uint64_t) RTThreadGetAffinity(void)
     if (GetProcessAffinityMask(GetCurrentProcess(), &dwProcAff, &dwIgnored))
     {
         HANDLE hThread = GetCurrentThread();
-        DWORD dwRet = SetThreadAffinityMask(hThread, dwProcAff);
+        DWORD_PTR dwRet = SetThreadAffinityMask(hThread, dwProcAff);
         if (dwRet)
         {
-            DWORD dwSet = SetThreadAffinityMask(hThread, dwRet);
+            DWORD_PTR dwSet = SetThreadAffinityMask(hThread, dwRet);
             Assert(dwSet == dwProcAff); NOREF(dwRet);
             return dwRet;
         }
@@ -222,3 +229,19 @@ RTR3DECL(uint64_t) RTThreadGetAffinity(void)
     return RTErrConvertFromWin32(iLastError);
 }
 
+
+RTR3DECL(int) RTThreadGetExecutionTimeMilli(uint64_t *pKernelTime, uint64_t *pUserTime)
+{
+    uint64_t u64CreationTime, u64ExitTime, u64KernelTime, u64UserTime;
+
+    if (GetThreadTimes(GetCurrentThread(), (LPFILETIME)&u64CreationTime, (LPFILETIME)&u64ExitTime, (LPFILETIME)&u64KernelTime, (LPFILETIME)&u64UserTime))
+    {
+        *pKernelTime = u64KernelTime / 10000;    /* GetThreadTimes returns time in 100 ns units */
+        *pUserTime   = u64UserTime / 10000;    /* GetThreadTimes returns time in 100 ns units */
+        return VINF_SUCCESS;
+    }
+
+    int iLastError = GetLastError();
+    AssertMsgFailed(("GetThreadTimes failed, LastError=%d\n", iLastError));
+    return RTErrConvertFromWin32(iLastError);
+}

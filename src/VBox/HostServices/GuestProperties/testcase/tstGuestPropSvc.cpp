@@ -1,4 +1,4 @@
-/* $Id: tstGuestPropSvc.cpp $ */
+/* $Id: tstGuestPropSvc.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * Testcase for the guest property service.
@@ -600,7 +600,7 @@ static const struct
     const char *pcchValue;
     /** What size should the value/flags array be? */
     uint32_t cchValue;
-    /** Should this proeprty exist? */
+    /** Should this property exist? */
     bool exists;
     /** Do we expect a particular timestamp? */
     bool hasTimestamp;
@@ -778,7 +778,7 @@ int testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
     return rc;
 }
 
-/** Paramters for the asynchronous guest notification call */
+/** Parameters for the asynchronous guest notification call */
 struct asyncNotification_
 {
     /** Call parameters */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 34913 2010-12-09 17:20:41Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxManage (the cli frontend).
 #
@@ -35,13 +35,14 @@ else # !VBOX_ONLY_DOCS
  	VBoxManage.cpp \
  	VBoxInternalManage.cpp \
  	VBoxManageControlVM.cpp \
+ 	VBoxManageDebugVM.cpp \
  	VBoxManageDHCPServer.cpp \
  	VBoxManageDisk.cpp \
  	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
 	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrl.cpp) \
  	VBoxManageHelp.cpp \
  	VBoxManageHostonly.cpp \
- 	VBoxManageImport.cpp \
+ 	VBoxManageAppliance.cpp \
  	VBoxManageInfo.cpp \
  	VBoxManageList.cpp \
  	VBoxManageMetrics.cpp \
@@ -49,12 +50,14 @@ else # !VBOX_ONLY_DOCS
  	VBoxManageModifyVM.cpp \
  	VBoxManageSnapshot.cpp \
  	VBoxManageStorageController.cpp \
- 	VBoxManageUSB.cpp
+ 	VBoxManageUSB.cpp \
+ 	VBoxManageBandwidthControl.cpp
 endif # !VBOX_ONLY_DOCS
 
 VBoxManage_DEFS      += \
  	$(if $(VBOX_WITH_AHCI), VBOX_WITH_AHCI) \
  	$(if $(VBOX_WITH_ALSA), VBOX_WITH_ALSA) \
+	$(if $(VBOX_WITH_COPYTOGUEST),VBOX_WITH_COPYTOGUEST) \
  	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000) \
  	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL) \
  	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS) \
@@ -68,9 +71,7 @@ VBoxManage_DEFS      += \
  	$(if $(VBOX_WITH_VBOXSDL), VBOX_WITH_VBOXSDL) \
  	$(if $(VBOX_WITH_VDE), VBOX_WITH_VDE) \
 	$(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL) \
- 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO) \
- 	$(if $(VBOX_WITH_VRDP), VBOX_WITH_VRDP) \
-	$(if $(VBOX_DYNAMIC_NET_ATTACH), VBOX_DYNAMIC_NET_ATTACH)
+ 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO)
 
 ifneq ($(KBUILD_TARGET),win)
  # Workaround for buggy gcc-4.3 compilers, see

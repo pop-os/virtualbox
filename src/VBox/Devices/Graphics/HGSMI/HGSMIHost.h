@@ -28,7 +28,7 @@
 struct _HGSMIINSTANCE;
 typedef struct _HGSMIINSTANCE *PHGSMIINSTANCE;
 
-/* Callback for the guest notifiation about a new host buffer. */
+/* Callback for the guest notification about a new host buffer. */
 typedef DECLCALLBACK(void) FNHGSMINOTIFYGUEST(void *pvCallback);
 typedef FNHGSMINOTIFYGUEST *PFNHGSMINOTIFYGUEST;
 
@@ -131,7 +131,7 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
 
 int HGSMIHostSaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM);
 
-#ifdef VBOXVDMA
+#ifdef VBOX_WITH_WDDM
 int HGSMICompleteGuestCommand(PHGSMIINSTANCE pIns, void *pvMem, bool bDoIrq);
 #endif
 

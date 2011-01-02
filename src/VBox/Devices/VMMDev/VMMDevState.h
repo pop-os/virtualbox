@@ -1,4 +1,4 @@
-/* $Id: VMMDevState.h $ */
+/* $Id: VMMDevState.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device, internal header.
  */
@@ -35,6 +35,7 @@ typedef struct DISPLAYCHANGEINFO
 typedef struct DISPLAYCHANGEREQUEST
 {
     bool fPending;
+    bool afAlignment[3];
     DISPLAYCHANGEINFO displayChangeRequest;
     DISPLAYCHANGEINFO lastReadDisplayChangeRequest;
 } DISPLAYCHANGEREQUEST;
@@ -46,9 +47,37 @@ typedef struct DISPLAYCHANGEDATA
 
     /** true if the guest responded to VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST at least once */
     bool fGuestSentChangeEventAck;
+    bool afAlignment[3];
 
     DISPLAYCHANGEREQUEST aRequests[64]; // @todo maxMonitors
 } DISPLAYCHANGEDATA;
+
+
+/**
+ * Credentials for automatic guest logon and host configured logon (?).
+ *
+ * This is not stored in the same block as the instance data in order to make it
+ * harder to access.
+ */
+typedef struct VMMDEVCREDS
+{
+    /** credentials for guest logon purposes */
+    struct
+    {
+        char szUserName[VMMDEV_CREDENTIALS_SZ_SIZE];
+        char szPassword[VMMDEV_CREDENTIALS_SZ_SIZE];
+        char szDomain[VMMDEV_CREDENTIALS_SZ_SIZE];
+        bool fAllowInteractiveLogon;
+    } Logon;
+
+    /** credentials for verification by guest */
+    struct
+    {
+        char szUserName[VMMDEV_CREDENTIALS_SZ_SIZE];
+        char szPassword[VMMDEV_CREDENTIALS_SZ_SIZE];
+        char szDomain[VMMDEV_CREDENTIALS_SZ_SIZE];
+    } Judge;
+} VMMDEVCREDS;
 
 
 /** device structure containing all state information */
@@ -71,6 +100,9 @@ typedef struct VMMDevState
     /** Does the guest currently want the host pointer to be shown? */
     uint32_t fHostCursorRequested;
 
+    /** Alignment padding. */
+    uint32_t u32Alignment0;
+
     /** Pointer to device instance. */
     PPDMDEVINSR3 pDevIns;
     /** LUN\#0 + Status: VMMDev port base interface. */
@@ -89,12 +121,16 @@ typedef struct VMMDevState
     /** HGCM connector interface */
     R3PTRTYPE(PPDMIHGCMCONNECTOR) pHGCMDrv;
 #endif
+    /** Alignment padding. */
+    RTR3PTR PtrR3Alignment1;
     /** message buffer for backdoor logging. */
     char szMsg[512];
     /** message buffer index. */
-    unsigned iMsg;
+    uint32_t iMsg;
     /** Base port in the assigned I/O space. */
     RTIOPORT PortBase;
+    /** Alignment padding.  */
+    RTIOPORT PortAlignment2;
 
     /** IRQ number assigned to the device */
     uint32_t irq;
@@ -109,11 +145,13 @@ typedef struct VMMDevState
     uint32_t u32NewGuestFilterMask;
     /** Flag whether u32NewGuestFilterMask is valid */
     bool fNewGuestFilterMask;
+    /** Alignment padding. */
+    bool afAlignment3[3];
 
-    /** R3 pointer to VMMDev RAM area */
-    R3PTRTYPE(VMMDevMemory *) pVMMDevRAMR3;
     /** GC physical address of VMMDev RAM area */
     RTGCPHYS32 GCPhysVMMDevRAM;
+    /** R3 pointer to VMMDev RAM area */
+    R3PTRTYPE(VMMDevMemory *) pVMMDevRAMR3;
 
     /** R3 pointer to VMMDev Heap RAM area
      */
@@ -140,22 +178,10 @@ typedef struct VMMDevState
 
     DISPLAYCHANGEDATA displayChangeData;
 
-    /** credentials for guest logon purposes */
-    struct
-    {
-        char szUserName[VMMDEV_CREDENTIALS_STRLEN];
-        char szPassword[VMMDEV_CREDENTIALS_STRLEN];
-        char szDomain[VMMDEV_CREDENTIALS_STRLEN];
-        bool fAllowInteractiveLogon;
-    } credentialsLogon;
+    /** Pointer to the credentials. */
+    R3PTRTYPE(VMMDEVCREDS *) pCredentials;
 
-    /** credentials for verification by guest */
-    struct
-    {
-        char szUserName[VMMDEV_CREDENTIALS_STRLEN];
-        char szPassword[VMMDEV_CREDENTIALS_STRLEN];
-        char szDomain[VMMDEV_CREDENTIALS_STRLEN];
-    } credentialsJudge;
+    bool afAlignment4[HC_ARCH_BITS == 32 ? 3 : 7];
 
     /* memory balloon change request */
     uint32_t    u32MemoryBalloonSize, u32LastMemoryBalloonSize;
@@ -171,13 +197,15 @@ typedef struct VMMDevState
 
     /* seamless mode change request */
     bool fLastSeamlessEnabled, fSeamlessEnabled;
+    bool afAlignment5[1];
 
     bool fVRDPEnabled;
     uint32_t u32VRDPExperienceLevel;
 
 #ifdef TIMESYNC_BACKDOOR
-    bool fTimesyncBackdoorLo;
     uint64_t hostTime;
+    bool fTimesyncBackdoorLo;
+    bool afAlignment6[3];
 #endif
     /** Set if GetHostTime should fail.
      * Loaded from the GetHostTimeDisabled configuration value. */
@@ -192,6 +220,17 @@ typedef struct VMMDevState
     /** Heap enabled. */
     bool fHeapEnabled;
 
+    /** Guest Core Dumping enabled. */
+    bool fGuestCoreDumpEnabled;
+
+    /** Guest Core Dump location. */
+    char szGuestCoreDumpDir[RTPATH_MAX];
+
+    /** Number of additional cores to keep around.   */
+    uint32_t cGuestCoreDumps;
+
+    bool afAlignment7[1];
+
 #ifdef VBOX_WITH_HGCM
     /** List of pending HGCM requests, used for saving the HGCM state. */
     R3PTRTYPE(PVBOXHGCMCMD) pHGCMCmdList;
@@ -199,6 +238,8 @@ typedef struct VMMDevState
     RTCRITSECT critsectHGCMCmdList;
     /** Whether the HGCM events are already automatically enabled. */
     uint32_t u32HGCMEnabled;
+    /** Alignment padding. */
+    uint32_t u32Alignment7;
 #endif /* VBOX_WITH_HGCM */
 
     /** Status LUN: Shared folders LED */
@@ -213,17 +254,66 @@ typedef struct VMMDevState
     } SharedFolders;
 
     /** FLag whether CPU hotplug events are monitored */
-    bool                 fCpuHotPlugEventsEnabled;
+    bool                fCpuHotPlugEventsEnabled;
+    /** Alignment padding. */
+    bool                afPadding8[3];
     /** CPU hotplug event */
-    VMMDevCpuEventType   enmCpuHotPlugEvent;
+    VMMDevCpuEventType  enmCpuHotPlugEvent;
     /** Core id of the CPU to change */
-    uint32_t             idCpuCore;
-    /** Package id of the CPU to changhe */
-    uint32_t             idCpuPackage;
+    uint32_t            idCpuCore;
+    /** Package id of the CPU to change */
+    uint32_t            idCpuPackage;
 
-    uint32_t             StatMemBalloonChunks;
+    uint32_t            StatMemBalloonChunks;
+
+    /** Set if RC/R0 is enabled. */
+    bool                fRZEnabled;
+    /** Set if testing is enabled. */
+    bool                fTestingEnabled;
+    /** Alignment padding. */
+    bool                afPadding9[HC_ARCH_BITS == 32 ? 2 : 6];
+#ifndef VBOX_WITHOUT_TESTING_FEATURES
+    /** The high timestamp value. */
+    uint32_t            u32TestingHighTimestamp;
+    /** The current testing command (VMMDEV_TESTING_CMD_XXX). */
+    uint32_t            u32TestingCmd;
+    /** The testing data offset (command specific). */
+    uint32_t            offTestingData;
+    /** For buffering the what comes in over the testing data port. */
+    union
+    {
+        char            padding[1024];
+
+        /** VMMDEV_TESTING_CMD_INIT, VMMDEV_TESTING_CMD_SUB_NEW,
+         *  VMMDEV_TESTING_CMD_FAILED. */
+        struct
+        {
+            char        sz[1024];
+        } String, Init, SubNew, Failed;
+
+        /** VMMDEV_TESTING_CMD_TERM, VMMDEV_TESTING_CMD_SUB_DONE. */
+        struct
+        {
+            uint32_t    c;
+        } Error, Term, SubDone;
+
+        /** VMMDEV_TESTING_CMD_VALUE. */
+        struct
+        {
+            RTUINT64U   u64Value;
+            uint32_t    u32Unit;
+            char        szName[1024 - 8 - 4];
+        } Value;
+    } TestingData;
+#endif /* !VBOX_WITHOUT_TESTING_FEATURES */
 } VMMDevState;
 AssertCompileMemberAlignment(VMMDevState, CritSect, 8);
+AssertCompileMemberAlignment(VMMDevState, cbGuestRAM, 8);
+AssertCompileMemberAlignment(VMMDevState, enmCpuHotPlugEvent, 4);
+#ifndef VBOX_WITHOUT_TESTING_FEATURES
+AssertCompileMemberAlignment(VMMDevState, TestingData.Value.u64Value, 8);
+#endif
+
 
 void VMMDevNotifyGuest (VMMDevState *pVMMDevState, uint32_t u32EventMask);
 void VMMDevCtlSetGuestFilterMask (VMMDevState *pVMMDevState,

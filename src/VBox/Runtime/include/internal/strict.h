@@ -1,4 +1,4 @@
-/* $Id: strict.h $ */
+/* $Id: strict.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Internal Header Defining Strictness Indicators.
  */

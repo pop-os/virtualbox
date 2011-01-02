@@ -1,12 +1,12 @@
-/* $Id: ConsoleVRDPServer.h $ */
+/* $Id: ConsoleVRDPServer.h 34906 2010-12-09 16:29:49Z vboxsync $ */
 
 /** @file
  *
- * VBox Console VRDP Helper class and implementation of IRemoteDisplayInfo
+ * VBox Console VRDE Server Helper class and implementation of IVRDEServerInfo
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@
 #include "RemoteUSBBackend.h"
 #include <hgcm/HGCM.h>
 
-#include <VBox/VRDPAuth.h>
+#include <VBox/VBoxAuth.h>
 
 #include <VBox/HostServices/VBoxClipboardExt.h>
 
@@ -32,7 +32,6 @@
 // ConsoleVRDPServer
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef VBOX_WITH_VRDP
 typedef struct _VRDPInputSynch
 {
     int cGuestNumLockAdaptions;
@@ -46,7 +45,6 @@ typedef struct _VRDPInputSynch
     bool fClientCapsLock;
     bool fClientScrollLock;
 } VRDPInputSynch;
-#endif /* VBOX_WITH_VRDP */
 
 /* Member of Console. Helper class for VRDP server management. Not a COM class. */
 class ConsoleVRDPServer
@@ -59,21 +57,16 @@ public:
 
     void NotifyAbsoluteMouse (bool fGuestWantsAbsolute)
     {
-#ifdef VBOX_WITH_VRDP
         m_fGuestWantsAbsolute = fGuestWantsAbsolute;
-#else
-        NOREF(fGuestWantsAbsolute);
-#endif /* VBOX_WITH_VRDP */
     }
 
     void NotifyKeyboardLedsChange (BOOL fNumLock, BOOL fCapsLock, BOOL fScrollLock)
     {
-#ifdef VBOX_WITH_VRDP
         bool fGuestNumLock    = (fNumLock != FALSE);
         bool fGuestCapsLock   = (fCapsLock != FALSE);
         bool fGuestScrollLock = (fScrollLock != FALSE);
 
-        /* Might need to resynch in case the guest itself changed the LED status. */
+        /* Might need to resync in case the guest itself changed the LED status. */
         if (m_InputSynch.fClientNumLock != fGuestNumLock)
         {
             m_InputSynch.cGuestNumLockAdaptions = 2;
@@ -87,23 +80,18 @@ public:
         m_InputSynch.fGuestNumLock    = fGuestNumLock;
         m_InputSynch.fGuestCapsLock   = fGuestCapsLock;
         m_InputSynch.fGuestScrollLock = fGuestScrollLock;
-#else
-        NOREF(fNumLock);
-        NOREF(fCapsLock);
-        NOREF(fScrollLock);
-#endif /* VBOX_WITH_VRDP */
     }
 
     void EnableConnections (void);
     void DisconnectClient (uint32_t u32ClientId, bool fReconnect);
-    void MousePointerUpdate (const VRDPCOLORPOINTER *pPointer);
+    void MousePointerUpdate (const VRDECOLORPOINTER *pPointer);
     void MousePointerHide (void);
 
     void Stop (void);
 
-    VRDPAuthResult Authenticate (const Guid &uuid, VRDPAuthGuestJudgement guestJudgement,
-                                 const char *pszUser, const char *pszPassword, const char *pszDomain,
-                                 uint32_t u32ClientId);
+    AuthResult Authenticate (const Guid &uuid, AuthGuestJudgement guestJudgement,
+                             const char *pszUser, const char *pszPassword, const char *pszDomain,
+                             uint32_t u32ClientId);
 
     void AuthDisconnect (const Guid &uuid, uint32_t u32ClientId);
 
@@ -133,11 +121,20 @@ public:
     void SendResize (void) const;
     void SendUpdateBitmap (unsigned uScreenId, uint32_t x, uint32_t y, uint32_t w, uint32_t h) const;
 
-    void SendAudioSamples (void *pvSamples, uint32_t cSamples, VRDPAUDIOFORMAT format) const;
+    void SendAudioSamples (void *pvSamples, uint32_t cSamples, VRDEAUDIOFORMAT format) const;
     void SendAudioVolume (uint16_t left, uint16_t right) const;
     void SendUSBRequest (uint32_t u32ClientId, void *pvParms, uint32_t cbParms) const;
 
     void QueryInfo (uint32_t index, void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut) const;
+
+    int SendAudioInputBegin(void **ppvUserCtx,
+                            void *pvContext,
+                            uint32_t cSamples,
+                            uint32_t iSampleHz,
+                            uint32_t cChannels,
+                            uint32_t cBits);
+
+    void SendAudioInputEnd(void *pvUserCtx);
 
 private:
     /* Note: This is not a ComObjPtr here, because the ConsoleVRDPServer object
@@ -145,18 +142,19 @@ private:
      */
     Console *mConsole;
 
-#ifdef VBOX_WITH_VRDP
-    HVRDPSERVER mhServer;
+    HVRDESERVER mhServer;
+    int mServerInterfaceVersion;
 
-    static bool loadVRDPLibrary (void);
+    static int loadVRDPLibrary (const char *pszLibraryName);
 
     /** Static because will never load this more than once! */
     static RTLDRMOD mVRDPLibrary;
 
-    static PFNVRDPCREATESERVER mpfnVRDPCreateServer;
+    static PFNVRDECREATESERVER mpfnVRDECreateServer;
 
-    static VRDPENTRYPOINTS_1 *mpEntryPoints;
-    static VRDPCALLBACKS_1 mCallbacks;
+    static VRDEENTRYPOINTS_3 mEntryPoints;
+    static VRDEENTRYPOINTS_3 *mpEntryPoints;
+    static VRDECALLBACKS_3 mCallbacks;
 
     static DECLCALLBACK(int)  VRDPCallbackQueryProperty     (void *pvCallback, uint32_t index, void *pvBuffer, uint32_t cbBuffer, uint32_t *pcbOut);
     static DECLCALLBACK(int)  VRDPCallbackClientLogon       (void *pvCallback, uint32_t u32ClientId, const char *pszUser, const char *pszPassword, const char *pszDomain);
@@ -165,11 +163,12 @@ private:
     static DECLCALLBACK(int)  VRDPCallbackIntercept         (void *pvCallback, uint32_t u32ClientId, uint32_t fu32Intercept, void **ppvIntercept);
     static DECLCALLBACK(int)  VRDPCallbackUSB               (void *pvCallback, void *pvIntercept, uint32_t u32ClientId, uint8_t u8Code, const void *pvRet, uint32_t cbRet);
     static DECLCALLBACK(int)  VRDPCallbackClipboard         (void *pvCallback, void *pvIntercept, uint32_t u32ClientId, uint32_t u32Function, uint32_t u32Format, const void *pvData, uint32_t cbData);
-    static DECLCALLBACK(bool) VRDPCallbackFramebufferQuery  (void *pvCallback, unsigned uScreenId, VRDPFRAMEBUFFERINFO *pInfo);
+    static DECLCALLBACK(bool) VRDPCallbackFramebufferQuery  (void *pvCallback, unsigned uScreenId, VRDEFRAMEBUFFERINFO *pInfo);
     static DECLCALLBACK(void) VRDPCallbackFramebufferLock   (void *pvCallback, unsigned uScreenId);
     static DECLCALLBACK(void) VRDPCallbackFramebufferUnlock (void *pvCallback, unsigned uScreenId);
     static DECLCALLBACK(void) VRDPCallbackInput             (void *pvCallback, int type, const void *pvInput, unsigned cbInput);
     static DECLCALLBACK(void) VRDPCallbackVideoModeHint     (void *pvCallback, unsigned cWidth, unsigned cHeight,  unsigned cBitsPerPixel, unsigned uScreenId);
+    static DECLCALLBACK(void) VRDECallbackAudioIn           (void *pvCallback, void *pvCtx, uint32_t u32ClientId, uint32_t u32Event, const void *pvData, uint32_t cbData);
 
     bool m_fGuestWantsAbsolute;
     int m_mousex;
@@ -177,12 +176,11 @@ private:
 
     IFramebuffer *maFramebuffers[SchemaDefs::MaxGuestMonitors];
 
-    IConsoleCallback *mConsoleCallback;
+    IEventListener *mConsoleListener;
 
     VRDPInputSynch m_InputSynch;
 
     int32_t mVRDPBindPort;
-#endif /* VBOX_WITH_VRDP */
 
     RTCRITSECT mCritSect;
 
@@ -222,34 +220,35 @@ private:
      * Authenticate method and unloaded at the object destructor.
      */
     RTLDRMOD mAuthLibrary;
-    PVRDPAUTHENTRY mpfnAuthEntry;
-    PVRDPAUTHENTRY2 mpfnAuthEntry2;
+    PAUTHENTRY mpfnAuthEntry;
+    PAUTHENTRY2 mpfnAuthEntry2;
+    PAUTHENTRY3 mpfnAuthEntry3;
+
+    uint32_t volatile mu32AudioInputClientId;
 };
 
 
 class Console;
 
-class ATL_NO_VTABLE RemoteDisplayInfo :
+class ATL_NO_VTABLE VRDEServerInfo :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<RemoteDisplayInfo, IRemoteDisplayInfo>,
-    public VirtualBoxSupportTranslation<RemoteDisplayInfo>,
-    VBOX_SCRIPTABLE_IMPL(IRemoteDisplayInfo)
+    VBOX_SCRIPTABLE_IMPL(IVRDEServerInfo)
 {
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (RemoteDisplayInfo)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VRDEServerInfo, IVRDEServerInfo)
 
-    DECLARE_NOT_AGGREGATABLE(RemoteDisplayInfo)
+    DECLARE_NOT_AGGREGATABLE(VRDEServerInfo)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
-    BEGIN_COM_MAP(RemoteDisplayInfo)
+    BEGIN_COM_MAP(VRDEServerInfo)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
-        COM_INTERFACE_ENTRY(IRemoteDisplayInfo)
+        COM_INTERFACE_ENTRY(IVRDEServerInfo)
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR (RemoteDisplayInfo)
+    DECLARE_EMPTY_CTOR_DTOR (VRDEServerInfo)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -258,17 +257,17 @@ public:
     HRESULT init (Console *aParent);
     void uninit();
 
-    /* IRemoteDisplayInfo properties */
+    /* IVRDEServerInfo properties */
     #define DECL_GETTER(_aType, _aName) STDMETHOD(COMGETTER(_aName)) (_aType *a##_aName)
         DECL_GETTER (BOOL,    Active);
         DECL_GETTER (LONG,    Port);
         DECL_GETTER (ULONG,   NumberOfClients);
         DECL_GETTER (LONG64,  BeginTime);
         DECL_GETTER (LONG64,  EndTime);
-        DECL_GETTER (ULONG64, BytesSent);
-        DECL_GETTER (ULONG64, BytesSentTotal);
-        DECL_GETTER (ULONG64, BytesReceived);
-        DECL_GETTER (ULONG64, BytesReceivedTotal);
+        DECL_GETTER (LONG64,  BytesSent);
+        DECL_GETTER (LONG64,  BytesSentTotal);
+        DECL_GETTER (LONG64,  BytesReceived);
+        DECL_GETTER (LONG64,  BytesReceivedTotal);
         DECL_GETTER (BSTR,    User);
         DECL_GETTER (BSTR,    Domain);
         DECL_GETTER (BSTR,    ClientName);
@@ -276,9 +275,6 @@ public:
         DECL_GETTER (ULONG,   ClientVersion);
         DECL_GETTER (ULONG,   EncryptionStyle);
     #undef DECL_GETTER
-
-    /* For VirtualBoxSupportErrorInfoImpl. */
-    static const wchar_t *getComponentName() { return L"RemoteDisplayInfo"; }
 
 private:
 

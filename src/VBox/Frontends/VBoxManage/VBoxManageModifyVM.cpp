@@ -1,10 +1,10 @@
-/* $Id: VBoxManageModifyVM.cpp $ */
+/* $Id: VBoxManageModifyVM.cpp 35239 2010-12-20 12:45:14Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of modifyvm command.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,9 +26,6 @@
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
-
-#include <vector>
-#include <list>
 #endif /* !VBOX_ONLY_DOCS */
 
 #include <iprt/cidr.h>
@@ -134,16 +131,25 @@ enum
     MODIFYVM_AUDIOCONTROLLER,
     MODIFYVM_AUDIO,
     MODIFYVM_CLIPBOARD,
-#ifdef VBOX_WITH_VRDP
-    MODIFYVM_VRDPPORT,
-    MODIFYVM_VRDPADDRESS,
-    MODIFYVM_VRDPAUTHTYPE,
-    MODIFYVM_VRDPMULTICON,
-    MODIFYVM_VRDPREUSECON,
-    MODIFYVM_VRDPVIDEOCHANNEL,
-    MODIFYVM_VRDPVIDEOCHANNELQUALITY,
-    MODIFYVM_VRDP,
-#endif
+    MODIFYVM_VRDPPORT,                /* VRDE: deprecated */
+    MODIFYVM_VRDPADDRESS,             /* VRDE: deprecated */
+    MODIFYVM_VRDPAUTHTYPE,            /* VRDE: deprecated */
+    MODIFYVM_VRDPMULTICON,            /* VRDE: deprecated */
+    MODIFYVM_VRDPREUSECON,            /* VRDE: deprecated */
+    MODIFYVM_VRDPVIDEOCHANNEL,        /* VRDE: deprecated */
+    MODIFYVM_VRDPVIDEOCHANNELQUALITY, /* VRDE: deprecated */
+    MODIFYVM_VRDP,                    /* VRDE: deprecated */
+    MODIFYVM_VRDEPROPERTY,
+    MODIFYVM_VRDEPORT,
+    MODIFYVM_VRDEADDRESS,
+    MODIFYVM_VRDEAUTHTYPE,
+    MODIFYVM_VRDEAUTHLIBRARY,
+    MODIFYVM_VRDEMULTICON,
+    MODIFYVM_VRDEREUSECON,
+    MODIFYVM_VRDEVIDEOCHANNEL,
+    MODIFYVM_VRDEVIDEOCHANNELQUALITY,
+    MODIFYVM_VRDE_EXTPACK,
+    MODIFYVM_VRDE,
     MODIFYVM_RTCUSEUTC,
     MODIFYVM_USBEHCI,
     MODIFYVM_USB,
@@ -156,7 +162,13 @@ enum
     MODIFYVM_HPET,
     MODIFYVM_IOCACHE,
     MODIFYVM_IOCACHESIZE,
-    MODIFYVM_IOBANDWIDTHMAX
+    MODIFYVM_FAULT_TOLERANCE,
+    MODIFYVM_FAULT_TOLERANCE_ADDRESS,
+    MODIFYVM_FAULT_TOLERANCE_PORT,
+    MODIFYVM_FAULT_TOLERANCE_PASSWORD,
+    MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL,
+    MODIFYVM_CPU_EXECTUION_CAP,
+    MODIFYVM_CHIPSET
 };
 
 static const RTGETOPTDEF g_aModifyVMOptions[] =
@@ -183,6 +195,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--cpuhotplug",               MODIFYVM_CPUHOTPLUG,                RTGETOPT_REQ_BOOL_ONOFF },
     { "--plugcpu",                  MODIFYVM_PLUGCPU,                   RTGETOPT_REQ_UINT32 },
     { "--unplugcpu",                MODIFYVM_UNPLUGCPU,                 RTGETOPT_REQ_UINT32 },
+    { "--cpuexecutioncap",          MODIFYVM_CPU_EXECTUION_CAP,         RTGETOPT_REQ_UINT32 },
     { "--rtcuseutc",                MODIFYVM_RTCUSEUTC,                 RTGETOPT_REQ_BOOL_ONOFF },
     { "--monitorcount",             MODIFYVM_MONITORCOUNT,              RTGETOPT_REQ_UINT32 },
     { "--accelerate3d",             MODIFYVM_ACCELERATE3D,              RTGETOPT_REQ_BOOL_ONOFF },
@@ -244,16 +257,25 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--audiocontroller",          MODIFYVM_AUDIOCONTROLLER,           RTGETOPT_REQ_STRING },
     { "--audio",                    MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING },
     { "--clipboard",                MODIFYVM_CLIPBOARD,                 RTGETOPT_REQ_STRING },
-#ifdef VBOX_WITH_VRDP
-    { "--vrdpport",                 MODIFYVM_VRDPPORT,                  RTGETOPT_REQ_STRING },
-    { "--vrdpaddress",              MODIFYVM_VRDPADDRESS,               RTGETOPT_REQ_STRING },
-    { "--vrdpauthtype",             MODIFYVM_VRDPAUTHTYPE,              RTGETOPT_REQ_STRING },
-    { "--vrdpmulticon",             MODIFYVM_VRDPMULTICON,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vrdpreusecon",             MODIFYVM_VRDPREUSECON,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vrdpvideochannel",         MODIFYVM_VRDPVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vrdpvideochannelquality",  MODIFYVM_VRDPVIDEOCHANNELQUALITY,   RTGETOPT_REQ_UINT32 },
-    { "--vrdp",                     MODIFYVM_VRDP,                      RTGETOPT_REQ_BOOL_ONOFF },
-#endif
+    { "--vrdpport",                 MODIFYVM_VRDPPORT,                  RTGETOPT_REQ_STRING },     /* deprecated */
+    { "--vrdpaddress",              MODIFYVM_VRDPADDRESS,               RTGETOPT_REQ_STRING },     /* deprecated */
+    { "--vrdpauthtype",             MODIFYVM_VRDPAUTHTYPE,              RTGETOPT_REQ_STRING },     /* deprecated */
+    { "--vrdpmulticon",             MODIFYVM_VRDPMULTICON,              RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
+    { "--vrdpreusecon",             MODIFYVM_VRDPREUSECON,              RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
+    { "--vrdpvideochannel",         MODIFYVM_VRDPVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
+    { "--vrdpvideochannelquality",  MODIFYVM_VRDPVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING },     /* deprecated */
+    { "--vrdp",                     MODIFYVM_VRDP,                      RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
+    { "--vrdeproperty",             MODIFYVM_VRDEPROPERTY,              RTGETOPT_REQ_STRING },
+    { "--vrdeport",                 MODIFYVM_VRDEPORT,                  RTGETOPT_REQ_STRING },
+    { "--vrdeaddress",              MODIFYVM_VRDEADDRESS,               RTGETOPT_REQ_STRING },
+    { "--vrdeauthtype",             MODIFYVM_VRDEAUTHTYPE,              RTGETOPT_REQ_STRING },
+    { "--vrdeauthlibrary",          MODIFYVM_VRDEAUTHLIBRARY,           RTGETOPT_REQ_STRING },
+    { "--vrdemulticon",             MODIFYVM_VRDEMULTICON,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdereusecon",             MODIFYVM_VRDEREUSECON,              RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdevideochannel",         MODIFYVM_VRDEVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF },
+    { "--vrdevideochannelquality",  MODIFYVM_VRDEVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING },
+    { "--vrdeextpack",              MODIFYVM_VRDE_EXTPACK,              RTGETOPT_REQ_STRING },
+    { "--vrde",                     MODIFYVM_VRDE,                      RTGETOPT_REQ_BOOL_ONOFF },
     { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--usb",                      MODIFYVM_USB,                       RTGETOPT_REQ_BOOL_ONOFF },
     { "--snapshotfolder",           MODIFYVM_SNAPSHOTFOLDER,            RTGETOPT_REQ_STRING },
@@ -266,15 +288,25 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--hpet",                     MODIFYVM_HPET,                      RTGETOPT_REQ_BOOL_ONOFF },
     { "--iocache",                  MODIFYVM_IOCACHE,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--iocachesize",              MODIFYVM_IOCACHESIZE,               RTGETOPT_REQ_UINT32 },
-    { "--iobandwidthmax",           MODIFYVM_IOBANDWIDTHMAX,            RTGETOPT_REQ_UINT32 },
+    { "--faulttolerance",           MODIFYVM_FAULT_TOLERANCE,           RTGETOPT_REQ_STRING },
+    { "--faulttoleranceaddress",    MODIFYVM_FAULT_TOLERANCE_ADDRESS,   RTGETOPT_REQ_STRING },
+    { "--faulttoleranceport",       MODIFYVM_FAULT_TOLERANCE_PORT,      RTGETOPT_REQ_UINT32 },
+    { "--faulttolerancepassword",   MODIFYVM_FAULT_TOLERANCE_PASSWORD,  RTGETOPT_REQ_STRING },
+    { "--faulttolerancesyncinterval", MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL, RTGETOPT_REQ_UINT32 },
+    { "--chipset",                  MODIFYVM_CHIPSET,                   RTGETOPT_REQ_STRING },
 };
+
+static void vrdeWarningDeprecatedOption(const char *pszOption)
+{
+    RTStrmPrintf(g_pStdErr, "Warning: '--vrdp%s' is deprecated. Use '--vrde%s'.\n", pszOption, pszOption);
+}
+
 
 int handleModifyVM(HandlerArg *a)
 {
     int c;
     HRESULT rc;
     Bstr name;
-    Bstr machineuuid (a->argv[0]);
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetOptState;
     ComPtr <IMachine> machine;
@@ -300,18 +332,11 @@ int handleModifyVM(HandlerArg *a)
     }
 
     /* try to find the given machine */
-    if (!Guid(machineuuid).isEmpty())
-    {
-        CHECK_ERROR_RET(a->virtualBox, GetMachine(machineuuid, machine.asOutParam()), 1);
-    }
-    else
-    {
-        CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()), 1);
-        machine->COMGETTER(Id)(machineuuid.asOutParam());
-    }
+    CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
+                                               machine.asOutParam()), 1);
 
     /* open a session for the VM */
-    CHECK_ERROR_RET(a->virtualBox, OpenSession(a->session, machineuuid), 1);
+    CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Write), 1);
 
     /* get the mutable session machine */
     a->session->COMGETTER(Machine)(machine.asOutParam());
@@ -327,20 +352,21 @@ int handleModifyVM(HandlerArg *a)
         {
             case MODIFYVM_NAME:
             {
-                CHECK_ERROR(machine, COMSETTER(Name)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(machine, COMSETTER(Name)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
             case MODIFYVM_OSTYPE:
             {
                 ComPtr<IGuestOSType> guestOSType;
-                CHECK_ERROR(a->virtualBox, GetGuestOSType(Bstr(ValueUnion.psz), guestOSType.asOutParam()));
+                CHECK_ERROR(a->virtualBox, GetGuestOSType(Bstr(ValueUnion.psz).raw(),
+                                                          guestOSType.asOutParam()));
                 if (SUCCEEDED(rc) && guestOSType)
                 {
-                    CHECK_ERROR(machine, COMSETTER(OSTypeId)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(machine, COMSETTER(OSTypeId)(Bstr(ValueUnion.psz).raw()));
                 }
                 else
                 {
-                    errorArgument("Invalid guest OS type '%s'", Utf8Str(ValueUnion.psz).raw());
+                    errorArgument("Invalid guest OS type '%s'", Utf8Str(ValueUnion.psz).c_str());
                     rc = E_FAIL;
                 }
                 break;
@@ -508,6 +534,12 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_CPU_EXECTUION_CAP:
+            {
+                CHECK_ERROR(machine, COMSETTER(CPUExecutionCap)(ValueUnion.u32));
+                break;
+            }
+
             case MODIFYVM_MONITORCOUNT:
             {
                 CHECK_ERROR(machine, COMSETTER(MonitorCount)(ValueUnion.u32));
@@ -548,7 +580,7 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_BIOSLOGOIMAGEPATH:
             {
-                CHECK_ERROR(biosSettings, COMSETTER(LogoImagePath)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(biosSettings, COMSETTER(LogoImagePath)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -614,106 +646,52 @@ int handleModifyVM(HandlerArg *a)
             }
 
             case MODIFYVM_HDA: // deprecated
-            {
-                if (!strcmp(ValueUnion.psz, "none"))
-                {
-                    machine->DetachDevice(Bstr("IDE Controller"), 0, 0);
-                }
-                else
-                {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(ValueUnion.psz);
-                    ComPtr<IMedium> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox,
-                                         OpenHardDisk(Bstr(ValueUnion.psz),
-                                                      AccessMode_ReadWrite, false, Bstr(""),
-                                                      false, Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
-                    if (hardDisk)
-                    {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        CHECK_ERROR(machine, AttachDevice(Bstr("IDE Controller"), 0, 0, DeviceType_HardDisk, uuid));
-                    }
-                    else
-                        rc = E_FAIL;
-                }
-                break;
-            }
-
             case MODIFYVM_HDB: // deprecated
-            {
-                if (!strcmp(ValueUnion.psz, "none"))
-                {
-                    machine->DetachDevice(Bstr("IDE Controller"), 0, 1);
-                }
-                else
-                {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(ValueUnion.psz);
-                    ComPtr<IMedium> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox,
-                                         OpenHardDisk(Bstr(ValueUnion.psz),
-                                                      AccessMode_ReadWrite, false, Bstr(""),
-                                                      false, Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
-                    if (hardDisk)
-                    {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        CHECK_ERROR(machine, AttachDevice(Bstr("IDE Controller"), 0, 1, DeviceType_HardDisk, uuid));
-                    }
-                    else
-                        rc = E_FAIL;
-                }
-                break;
-            }
-
             case MODIFYVM_HDD: // deprecated
+            case MODIFYVM_SATAPORT: // deprecated
             {
+                uint32_t u1 = 0, u2 = 0;
+                Bstr bstrController = L"IDE Controller";
+
+                switch (c)
+                {
+                    case MODIFYVM_HDA: // deprecated
+                        u1 = 0;
+                    break;
+
+                    case MODIFYVM_HDB: // deprecated
+                        u1 = 0;
+                        u2 = 1;
+                    break;
+
+                    case MODIFYVM_HDD: // deprecated
+                        u1 = 1;
+                        u2 = 1;
+                    break;
+
+                    case MODIFYVM_SATAPORT: // deprecated
+                        u1 = GetOptState.uIndex;
+                        bstrController = L"SATA";
+                    break;
+                }
+
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
-                    machine->DetachDevice(Bstr("IDE Controller"), 1, 1);
+                    machine->DetachDevice(bstrController.raw(), u1, u2);
                 }
                 else
                 {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(ValueUnion.psz);
                     ComPtr<IMedium> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox,
-                                         OpenHardDisk(Bstr(ValueUnion.psz),
-                                                      AccessMode_ReadWrite, false, Bstr(""),
-                                                      false, Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
+                    rc = findOrOpenMedium(a, ValueUnion.psz, DeviceType_HardDisk,
+                                          hardDisk, NULL);
+                    if (FAILED(rc))
+                        break;
                     if (hardDisk)
                     {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        CHECK_ERROR(machine, AttachDevice(Bstr("IDE Controller"), 1, 1, DeviceType_HardDisk, uuid));
+                        CHECK_ERROR(machine, AttachDevice(bstrController.raw(),
+                                                          u1, u2,
+                                                          DeviceType_HardDisk,
+                                                          hardDisk));
                     }
                     else
                         rc = E_FAIL;
@@ -724,7 +702,7 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_IDECONTROLLER: // deprecated
             {
                 ComPtr<IStorageController> storageController;
-                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("IDE Controller"),
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("IDE Controller").raw(),
                                                                  storageController.asOutParam()));
 
                 if (!RTStrICmp(ValueUnion.psz, "PIIX3"))
@@ -750,7 +728,8 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_SATAIDEEMULATION: // deprecated
             {
                 ComPtr<IStorageController> SataCtl;
-                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA").raw(),
+                                                                SataCtl.asOutParam()));
 
                 if (SUCCEEDED(rc))
                     CHECK_ERROR(SataCtl, SetIDEEmulationPort(GetOptState.uIndex, ValueUnion.u32));
@@ -760,48 +739,11 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_SATAPORTCOUNT: // deprecated
             {
                 ComPtr<IStorageController> SataCtl;
-                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA"), SataCtl.asOutParam()));
+                CHECK_ERROR(machine, GetStorageControllerByName(Bstr("SATA").raw(),
+                                                                SataCtl.asOutParam()));
 
                 if (SUCCEEDED(rc) && ValueUnion.u32 > 0)
                     CHECK_ERROR(SataCtl, COMSETTER(PortCount)(ValueUnion.u32));
-                break;
-            }
-
-            case MODIFYVM_SATAPORT: // deprecated
-            {
-                if (!strcmp(ValueUnion.psz, "none"))
-                {
-                    machine->DetachDevice(Bstr("SATA"), GetOptState.uIndex, 0);
-                }
-                else
-                {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(ValueUnion.psz);
-                    ComPtr<IMedium> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc =  a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox,
-                                        OpenHardDisk(Bstr(ValueUnion.psz), AccessMode_ReadWrite,
-                                                     false, Bstr(""), false,
-                                                     Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
-                    if (hardDisk)
-                    {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        CHECK_ERROR(machine,
-                                    AttachDevice(Bstr("SATA"), GetOptState.uIndex,
-                                                 0, DeviceType_HardDisk, uuid));
-                    }
-                    else
-                        rc = E_FAIL;
-                }
                 break;
             }
 
@@ -810,11 +752,13 @@ int handleModifyVM(HandlerArg *a)
                 if (!strcmp(ValueUnion.psz, "on") || !strcmp(ValueUnion.psz, "enable"))
                 {
                     ComPtr<IStorageController> ctl;
-                    CHECK_ERROR(machine, AddStorageController(Bstr("SATA"), StorageBus_SATA, ctl.asOutParam()));
+                    CHECK_ERROR(machine, AddStorageController(Bstr("SATA").raw(),
+                                                              StorageBus_SATA,
+                                                              ctl.asOutParam()));
                     CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_IntelAhci));
                 }
                 else if (!strcmp(ValueUnion.psz, "off") || !strcmp(ValueUnion.psz, "disable"))
-                    CHECK_ERROR(machine, RemoveStorageController(Bstr("SATA")));
+                    CHECK_ERROR(machine, RemoveStorageController(Bstr("SATA").raw()));
                 else
                     return errorArgument("Invalid --usb argument '%s'", ValueUnion.psz);
                 break;
@@ -824,38 +768,31 @@ int handleModifyVM(HandlerArg *a)
             {
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
-                    rc = machine->DetachDevice(Bstr("LsiLogic"), GetOptState.uIndex, 0);
+                    rc = machine->DetachDevice(Bstr("LsiLogic").raw(),
+                                               GetOptState.uIndex, 0);
                     if (FAILED(rc))
-                        CHECK_ERROR(machine, DetachDevice(Bstr("BusLogic"), GetOptState.uIndex, 0));
+                        CHECK_ERROR(machine, DetachDevice(Bstr("BusLogic").raw(),
+                                                          GetOptState.uIndex, 0));
                 }
                 else
                 {
-                    /* first guess is that it's a UUID */
-                    Bstr uuid(ValueUnion.psz);
                     ComPtr<IMedium> hardDisk;
-                    rc = a->virtualBox->GetHardDisk(uuid, hardDisk.asOutParam());
-                    /* not successful? Then it must be a filename */
-                    if (!hardDisk)
-                    {
-                        rc = a->virtualBox->FindHardDisk(Bstr(ValueUnion.psz), hardDisk.asOutParam());
-                        if (FAILED(rc))
-                        {
-                            /* open the new hard disk object */
-                            CHECK_ERROR(a->virtualBox,
-                                         OpenHardDisk(Bstr(ValueUnion.psz),
-                                                           AccessMode_ReadWrite, false, Bstr(""),
-                                                           false, Bstr(""), hardDisk.asOutParam()));
-                        }
-                    }
+                    rc = findOrOpenMedium(a, ValueUnion.psz, DeviceType_HardDisk,
+                                          hardDisk, NULL);
+                    if (FAILED(rc))
+                        break;
                     if (hardDisk)
                     {
-                        hardDisk->COMGETTER(Id)(uuid.asOutParam());
-                        rc = machine->AttachDevice(Bstr("LsiLogic"), GetOptState.uIndex, 0, DeviceType_HardDisk, uuid);
+                        rc = machine->AttachDevice(Bstr("LsiLogic").raw(),
+                                                   GetOptState.uIndex, 0,
+                                                   DeviceType_HardDisk,
+                                                   hardDisk);
                         if (FAILED(rc))
                             CHECK_ERROR(machine,
-                                         AttachDevice(Bstr("BusLogic"),
-                                                      GetOptState.uIndex, 0,
-                                                      DeviceType_HardDisk, uuid));
+                                        AttachDevice(Bstr("BusLogic").raw(),
+                                                     GetOptState.uIndex, 0,
+                                                     DeviceType_HardDisk,
+                                                     hardDisk));
                     }
                     else
                         rc = E_FAIL;
@@ -869,12 +806,12 @@ int handleModifyVM(HandlerArg *a)
 
                 if (!RTStrICmp(ValueUnion.psz, "LsiLogic"))
                 {
-                    rc = machine->RemoveStorageController(Bstr("BusLogic"));
+                    rc = machine->RemoveStorageController(Bstr("BusLogic").raw());
                     if (FAILED(rc))
-                        CHECK_ERROR(machine, RemoveStorageController(Bstr("LsiLogic")));
+                        CHECK_ERROR(machine, RemoveStorageController(Bstr("LsiLogic").raw()));
 
                     CHECK_ERROR(machine,
-                                 AddStorageController(Bstr("LsiLogic"),
+                                 AddStorageController(Bstr("LsiLogic").raw(),
                                                       StorageBus_SCSI,
                                                       ctl.asOutParam()));
 
@@ -883,12 +820,12 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "BusLogic"))
                 {
-                    rc = machine->RemoveStorageController(Bstr("LsiLogic"));
+                    rc = machine->RemoveStorageController(Bstr("LsiLogic").raw());
                     if (FAILED(rc))
-                        CHECK_ERROR(machine, RemoveStorageController(Bstr("BusLogic")));
+                        CHECK_ERROR(machine, RemoveStorageController(Bstr("BusLogic").raw()));
 
                     CHECK_ERROR(machine,
-                                 AddStorageController(Bstr("BusLogic"),
+                                 AddStorageController(Bstr("BusLogic").raw(),
                                                       StorageBus_SCSI,
                                                       ctl.asOutParam()));
 
@@ -906,29 +843,32 @@ int handleModifyVM(HandlerArg *a)
                 {
                     ComPtr<IStorageController> ctl;
 
-                    CHECK_ERROR(machine, AddStorageController(Bstr("BusLogic"), StorageBus_SCSI, ctl.asOutParam()));
+                    CHECK_ERROR(machine, AddStorageController(Bstr("BusLogic").raw(),
+                                                              StorageBus_SCSI,
+                                                              ctl.asOutParam()));
                     if (SUCCEEDED(rc))
                         CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_BusLogic));
                 }
                 else if (!strcmp(ValueUnion.psz, "off") || !strcmp(ValueUnion.psz, "disable"))
                 {
-                    rc = machine->RemoveStorageController(Bstr("BusLogic"));
+                    rc = machine->RemoveStorageController(Bstr("BusLogic").raw());
                     if (FAILED(rc))
-                        CHECK_ERROR(machine, RemoveStorageController(Bstr("LsiLogic")));
+                        CHECK_ERROR(machine, RemoveStorageController(Bstr("LsiLogic").raw()));
                 }
                 break;
             }
 
             case MODIFYVM_DVDPASSTHROUGH: // deprecated
             {
-                CHECK_ERROR(machine, PassthroughDevice(Bstr("IDE Controller"), 1, 0, !strcmp(ValueUnion.psz, "on")));
+                CHECK_ERROR(machine, PassthroughDevice(Bstr("IDE Controller").raw(),
+                                                       1, 0,
+                                                       !strcmp(ValueUnion.psz, "on")));
                 break;
             }
 
             case MODIFYVM_DVD: // deprecated
             {
                 ComPtr<IMedium> dvdMedium;
-                Bstr uuid(ValueUnion.psz);
 
                 /* unmount? */
                 if (!strcmp(ValueUnion.psz, "none"))
@@ -940,7 +880,8 @@ int handleModifyVM(HandlerArg *a)
                 {
                     ComPtr<IHost> host;
                     CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-                    rc = host->FindHostDVDDrive(Bstr(ValueUnion.psz + 5), dvdMedium.asOutParam());
+                    rc = host->FindHostDVDDrive(Bstr(ValueUnion.psz + 5).raw(),
+                                                dvdMedium.asOutParam());
                     if (!dvdMedium)
                     {
                         /* 2nd try: try with the real name, important on Linux+libhal */
@@ -951,7 +892,8 @@ int handleModifyVM(HandlerArg *a)
                             rc = E_FAIL;
                             break;
                         }
-                        rc = host->FindHostDVDDrive(Bstr(szPathReal), dvdMedium.asOutParam());
+                        rc = host->FindHostDVDDrive(Bstr(szPathReal).raw(),
+                                                    dvdMedium.asOutParam());
                         if (!dvdMedium)
                         {
                             errorArgument("Invalid host DVD drive name \"%s\"", ValueUnion.psz + 5);
@@ -962,20 +904,10 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    /* first assume it's a UUID */
-                    rc = a->virtualBox->GetDVDImage(uuid, dvdMedium.asOutParam());
-                    if (FAILED(rc) || !dvdMedium)
-                    {
-                        /* must be a filename, check if it's in the collection */
-                        rc = a->virtualBox->FindDVDImage(Bstr(ValueUnion.psz), dvdMedium.asOutParam());
-                        /* not registered, do that on the fly */
-                        if (!dvdMedium)
-                        {
-                            Bstr emptyUUID;
-                            CHECK_ERROR(a->virtualBox, OpenDVDImage(Bstr(ValueUnion.psz),
-                                         emptyUUID, dvdMedium.asOutParam()));
-                        }
-                    }
+                    rc = findOrOpenMedium(a, ValueUnion.psz, DeviceType_DVD,
+                                          dvdMedium, NULL);
+                    if (FAILED(rc))
+                        break;
                     if (!dvdMedium)
                     {
                         rc = E_FAIL;
@@ -983,34 +915,35 @@ int handleModifyVM(HandlerArg *a)
                     }
                 }
 
-                /** @todo generalize this, allow arbitrary number of DVD drives
-                 * and as a consequence multiple attachments and different
-                 * storage controllers. */
-                if (dvdMedium)
-                    dvdMedium->COMGETTER(Id)(uuid.asOutParam());
-                CHECK_ERROR(machine, MountMedium(Bstr("IDE Controller"), 1, 0, uuid, FALSE /* aForce */));
+                CHECK_ERROR(machine, MountMedium(Bstr("IDE Controller").raw(),
+                                                 1, 0,
+                                                 dvdMedium,
+                                                 FALSE /* aForce */));
                 break;
             }
 
             case MODIFYVM_FLOPPY: // deprecated
             {
-                Bstr uuid(ValueUnion.psz);
                 ComPtr<IMedium> floppyMedium;
                 ComPtr<IMediumAttachment> floppyAttachment;
-                machine->GetMediumAttachment(Bstr("Floppy Controller"), 0, 0, floppyAttachment.asOutParam());
+                machine->GetMediumAttachment(Bstr("Floppy Controller").raw(),
+                                             0, 0, floppyAttachment.asOutParam());
 
                 /* disable? */
                 if (!strcmp(ValueUnion.psz, "disabled"))
                 {
                     /* disable the controller */
                     if (floppyAttachment)
-                        CHECK_ERROR(machine, DetachDevice(Bstr("Floppy Controller"), 0, 0));
+                        CHECK_ERROR(machine, DetachDevice(Bstr("Floppy Controller").raw(),
+                                                          0, 0));
                 }
                 else
                 {
                     /* enable the controller */
                     if (!floppyAttachment)
-                        CHECK_ERROR(machine, AttachDevice(Bstr("Floppy Controller"), 0, 0, DeviceType_Floppy, NULL));
+                        CHECK_ERROR(machine, AttachDevice(Bstr("Floppy Controller").raw(),
+                                                          0, 0,
+                                                          DeviceType_Floppy, NULL));
 
                     /* unmount? */
                     if (    !strcmp(ValueUnion.psz, "none")
@@ -1023,7 +956,8 @@ int handleModifyVM(HandlerArg *a)
                     {
                         ComPtr<IHost> host;
                         CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-                        rc = host->FindHostFloppyDrive(Bstr(ValueUnion.psz + 5), floppyMedium.asOutParam());
+                        rc = host->FindHostFloppyDrive(Bstr(ValueUnion.psz + 5).raw(),
+                                                       floppyMedium.asOutParam());
                         if (!floppyMedium)
                         {
                             errorArgument("Invalid host floppy drive name \"%s\"", ValueUnion.psz + 5);
@@ -1033,30 +967,20 @@ int handleModifyVM(HandlerArg *a)
                     }
                     else
                     {
-                        /* first assume it's a UUID */
-                        rc = a->virtualBox->GetFloppyImage(uuid, floppyMedium.asOutParam());
-                        if (FAILED(rc) || !floppyMedium)
-                        {
-                            /* must be a filename, check if it's in the collection */
-                            rc = a->virtualBox->FindFloppyImage(Bstr(ValueUnion.psz), floppyMedium.asOutParam());
-                            /* not registered, do that on the fly */
-                            if (!floppyMedium)
-                            {
-                                Bstr emptyUUID;
-                                CHECK_ERROR(a->virtualBox,
-                                             OpenFloppyImage(Bstr(ValueUnion.psz),
-                                                             emptyUUID,
-                                                             floppyMedium.asOutParam()));
-                            }
-                        }
+                        rc = findOrOpenMedium(a, ValueUnion.psz, DeviceType_Floppy,
+                                              floppyMedium, NULL);
+                        if (FAILED(rc))
+                            break;
                         if (!floppyMedium)
                         {
                             rc = E_FAIL;
                             break;
                         }
                     }
-                    floppyMedium->COMGETTER(Id)(uuid.asOutParam());
-                    CHECK_ERROR(machine, MountMedium(Bstr("Floppy Controller"), 0, 0, uuid, FALSE /* aForce */));
+                    CHECK_ERROR(machine, MountMedium(Bstr("Floppy Controller").raw(),
+                                                     0, 0,
+                                                     floppyMedium,
+                                                     FALSE /* aForce */));
                 }
                 break;
             }
@@ -1068,7 +992,7 @@ int handleModifyVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
-                CHECK_ERROR(nic, COMSETTER(TraceFile)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(nic, COMSETTER(TraceFile)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -1235,6 +1159,7 @@ int handleModifyVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
+                /** @todo NULL string deprecated */
                 /* remove it? */
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
@@ -1242,7 +1167,7 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    CHECK_ERROR(nic, COMSETTER(HostInterface)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(nic, COMSETTER(HostInterface)(Bstr(ValueUnion.psz).raw()));
                 }
                 break;
             }
@@ -1254,6 +1179,7 @@ int handleModifyVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
+                /** @todo NULL string deprecated */
                 /* remove it? */
                 if (!strcmp(ValueUnion.psz, "none"))
                 {
@@ -1261,7 +1187,7 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    CHECK_ERROR(nic, COMSETTER(InternalNetwork)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(nic, COMSETTER(InternalNetwork)(Bstr(ValueUnion.psz).raw()));
                 }
                 break;
             }
@@ -1274,13 +1200,15 @@ int handleModifyVM(HandlerArg *a)
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
+                /** @todo NULL string deprecated */
+                /* remove it? */
                 if (!strcmp(ValueUnion.psz, "default"))
                 {
                     CHECK_ERROR(nic, COMSETTER(VDENetwork)(NULL));
                 }
                 else
                 {
-                    CHECK_ERROR(nic, COMSETTER(VDENetwork)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(nic, COMSETTER(VDENetwork)(Bstr(ValueUnion.psz).raw()));
                 }
                 break;
             }
@@ -1299,7 +1227,7 @@ int handleModifyVM(HandlerArg *a)
                 if (!strcmp("default", psz))
                     psz = "";
 
-                CHECK_ERROR(driver, COMSETTER(Network)(Bstr(psz)));
+                CHECK_ERROR(driver, COMSETTER(Network)(Bstr(psz).raw()));
                 break;
             }
 
@@ -1312,7 +1240,7 @@ int handleModifyVM(HandlerArg *a)
                 ASSERT(nic);
 
                 CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
-                CHECK_ERROR(driver, COMSETTER(HostIP)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(driver, COMSETTER(HostIP)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -1405,8 +1333,11 @@ int handleModifyVM(HandlerArg *a)
                         rc = E_FAIL;
                         break;
                     }
-                    CHECK_ERROR(driver, AddRedirect(Bstr(strName), proto, Bstr(strHostIp),
-                            RTStrToUInt16(strHostPort), Bstr(strGuestIp), RTStrToUInt16(strGuestPort)));
+                    CHECK_ERROR(driver, AddRedirect(Bstr(strName).raw(), proto,
+                                        Bstr(strHostIp).raw(),
+                                        RTStrToUInt16(strHostPort),
+                                        Bstr(strGuestIp).raw(),
+                                        RTStrToUInt16(strGuestPort)));
                 }
                 else
                 {
@@ -1415,7 +1346,7 @@ int handleModifyVM(HandlerArg *a)
                     vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
                     if (RT_FAILURE(vrc))
                         return errorSyntax(USAGE_MODIFYVM, "Not enough parameters");
-                    CHECK_ERROR(driver, RemoveRedirect(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(driver, RemoveRedirect(Bstr(ValueUnion.psz).raw()));
                 }
                 break;
             }
@@ -1464,7 +1395,7 @@ int handleModifyVM(HandlerArg *a)
                 ASSERT(nic);
 
                 CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
-                CHECK_ERROR(driver, COMSETTER(TftpPrefix)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(driver, COMSETTER(TftpPrefix)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -1477,7 +1408,7 @@ int handleModifyVM(HandlerArg *a)
                 ASSERT(nic);
 
                 CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
-                CHECK_ERROR(driver, COMSETTER(TftpBootFile)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(driver, COMSETTER(TftpBootFile)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -1490,7 +1421,7 @@ int handleModifyVM(HandlerArg *a)
                 ASSERT(nic);
 
                 CHECK_ERROR(nic, COMGETTER(NatDriver)(driver.asOutParam()));
-                CHECK_ERROR(driver, COMSETTER(TftpNextServer)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(driver, COMSETTER(TftpNextServer)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
             case MODIFYVM_NATDNSPASSDOMAIN:
@@ -1545,7 +1476,7 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    CHECK_ERROR(nic, COMSETTER(MACAddress)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(nic, COMSETTER(MACAddress)(Bstr(ValueUnion.psz).raw()));
                 }
                 break;
             }
@@ -1652,7 +1583,7 @@ int handleModifyVM(HandlerArg *a)
                                            "Missing or Invalid argument to '%s'",
                                            GetOptState.pDef->pszLong);
 
-                    CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz).raw()));
 
                     if (!strcmp(pszMode, "server"))
                     {
@@ -1671,7 +1602,7 @@ int handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz).raw()));
                     CHECK_ERROR(uart, COMSETTER(HostMode)(PortMode_HostDevice));
                 }
                 break;
@@ -1725,6 +1656,8 @@ int handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_SB16));
                 else if (!strcmp(ValueUnion.psz, "ac97"))
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_AC97));
+                else if (!strcmp(ValueUnion.psz, "hda"))
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_HDA));
                 else
                 {
                     errorArgument("Invalid --audiocontroller argument '%s'", ValueUnion.psz);
@@ -1849,106 +1782,202 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
-#ifdef VBOX_WITH_VRDP
-            case MODIFYVM_VRDPPORT:
+            case MODIFYVM_VRDE_EXTPACK:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
+
+                if (vrdeServer)
+                {
+                    if (strcmp(ValueUnion.psz, "default") != 0)
+                    {
+                        Bstr bstr(ValueUnion.psz);
+                        CHECK_ERROR(vrdeServer, COMSETTER(VRDEExtPack)(bstr.raw()));
+                    }
+                    else
+                        CHECK_ERROR(vrdeServer, COMSETTER(VRDEExtPack)(NULL));
+                }
+                break;
+            }
+
+            case MODIFYVM_VRDEPROPERTY:
+            {
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
+
+                if (vrdeServer)
+                {
+                    /* Parse 'name=value' */
+                    char *pszProperty = RTStrDup(ValueUnion.psz);
+                    if (pszProperty)
+                    {
+                        char *pDelimiter = strchr(pszProperty, '=');
+                        if (pDelimiter)
+                        {
+                            *pDelimiter = '\0';
+
+                            Bstr bstrName = pszProperty;
+                            Bstr bstrValue = &pDelimiter[1];
+                            CHECK_ERROR(vrdeServer, SetVRDEProperty(bstrName.raw(), bstrValue.raw()));
+                        }
+                        else
+                        {
+                            RTStrFree(pszProperty);
+
+                            errorArgument("Invalid --vrdeproperty argument '%s'", ValueUnion.psz);
+                            rc = E_FAIL;
+                            break;
+                        }
+                        RTStrFree(pszProperty);
+                    }
+                    else
+                    {
+                        RTStrmPrintf(g_pStdErr, "Error: Failed to allocate memory for VRDE property '%s'\n", ValueUnion.psz);
+                        rc = E_FAIL;
+                    }
+                }
+                break;
+            }
+
+            case MODIFYVM_VRDPPORT:
+                vrdeWarningDeprecatedOption("port");
+
+            case MODIFYVM_VRDEPORT:
+            {
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
                 if (!strcmp(ValueUnion.psz, "default"))
-                    CHECK_ERROR(vrdpServer, COMSETTER(Ports)(Bstr("0")));
+                    CHECK_ERROR(vrdeServer, SetVRDEProperty(Bstr("TCP/Ports").raw(), Bstr("0").raw()));
                 else
-                    CHECK_ERROR(vrdpServer, COMSETTER(Ports)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(vrdeServer, SetVRDEProperty(Bstr("TCP/Ports").raw(), Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
             case MODIFYVM_VRDPADDRESS:
-            {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                vrdeWarningDeprecatedOption("address");
 
-                CHECK_ERROR(vrdpServer, COMSETTER(NetAddress)(Bstr(ValueUnion.psz)));
+            case MODIFYVM_VRDEADDRESS:
+            {
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
+
+                CHECK_ERROR(vrdeServer, SetVRDEProperty(Bstr("TCP/Address").raw(), Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
             case MODIFYVM_VRDPAUTHTYPE:
+                vrdeWarningDeprecatedOption("authtype");
+            case MODIFYVM_VRDEAUTHTYPE:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
                 if (!strcmp(ValueUnion.psz, "null"))
                 {
-                    CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_Null));
+                    CHECK_ERROR(vrdeServer, COMSETTER(AuthType)(AuthType_Null));
                 }
                 else if (!strcmp(ValueUnion.psz, "external"))
                 {
-                    CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_External));
+                    CHECK_ERROR(vrdeServer, COMSETTER(AuthType)(AuthType_External));
                 }
                 else if (!strcmp(ValueUnion.psz, "guest"))
                 {
-                    CHECK_ERROR(vrdpServer, COMSETTER(AuthType)(VRDPAuthType_Guest));
+                    CHECK_ERROR(vrdeServer, COMSETTER(AuthType)(AuthType_Guest));
                 }
                 else
                 {
-                    errorArgument("Invalid --vrdpauthtype argument '%s'", ValueUnion.psz);
+                    errorArgument("Invalid --vrdeauthtype argument '%s'", ValueUnion.psz);
                     rc = E_FAIL;
                 }
                 break;
             }
 
-            case MODIFYVM_VRDPMULTICON:
+            case MODIFYVM_VRDEAUTHLIBRARY:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
-                CHECK_ERROR(vrdpServer, COMSETTER(AllowMultiConnection)(ValueUnion.f));
+                if (vrdeServer)
+                {
+                    if (strcmp(ValueUnion.psz, "default") != 0)
+                    {
+                        Bstr bstr(ValueUnion.psz);
+                        CHECK_ERROR(vrdeServer, COMSETTER(AuthLibrary)(bstr.raw()));
+                    }
+                    else
+                        CHECK_ERROR(vrdeServer, COMSETTER(AuthLibrary)(NULL));
+                }
+                break;
+            }
+
+            case MODIFYVM_VRDPMULTICON:
+                vrdeWarningDeprecatedOption("multicon");
+            case MODIFYVM_VRDEMULTICON:
+            {
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
+
+                CHECK_ERROR(vrdeServer, COMSETTER(AllowMultiConnection)(ValueUnion.f));
                 break;
             }
 
             case MODIFYVM_VRDPREUSECON:
+                vrdeWarningDeprecatedOption("reusecon");
+            case MODIFYVM_VRDEREUSECON:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
-                CHECK_ERROR(vrdpServer, COMSETTER(ReuseSingleConnection)(ValueUnion.f));
+                CHECK_ERROR(vrdeServer, COMSETTER(ReuseSingleConnection)(ValueUnion.f));
                 break;
             }
 
             case MODIFYVM_VRDPVIDEOCHANNEL:
+                vrdeWarningDeprecatedOption("videochannel");
+            case MODIFYVM_VRDEVIDEOCHANNEL:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
-                CHECK_ERROR(vrdpServer, COMSETTER(VideoChannel)(ValueUnion.f));
+                CHECK_ERROR(vrdeServer, SetVRDEProperty(Bstr("VideoChannel/Enabled").raw(),
+                                                        ValueUnion.f? Bstr("true").raw():  Bstr("false").raw()));
                 break;
             }
 
             case MODIFYVM_VRDPVIDEOCHANNELQUALITY:
+                vrdeWarningDeprecatedOption("videochannelquality");
+            case MODIFYVM_VRDEVIDEOCHANNELQUALITY:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
-                CHECK_ERROR(vrdpServer, COMSETTER(VideoChannelQuality)(ValueUnion.u32));
+                CHECK_ERROR(vrdeServer, SetVRDEProperty(Bstr("VideoChannel/Quality").raw(),
+                                                        Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
             case MODIFYVM_VRDP:
+                vrdeWarningDeprecatedOption("");
+            case MODIFYVM_VRDE:
             {
-                ComPtr<IVRDPServer> vrdpServer;
-                machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                ASSERT(vrdpServer);
+                ComPtr<IVRDEServer> vrdeServer;
+                machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                ASSERT(vrdeServer);
 
-                CHECK_ERROR(vrdpServer, COMSETTER(Enabled)(ValueUnion.f));
+                CHECK_ERROR(vrdeServer, COMSETTER(Enabled)(ValueUnion.f));
                 break;
             }
-#endif /* VBOX_WITH_VRDP */
 
             case MODIFYVM_USBEHCI:
             {
@@ -1973,7 +2002,7 @@ int handleModifyVM(HandlerArg *a)
                 if (!strcmp(ValueUnion.psz, "default"))
                     CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(NULL));
                 else
-                    CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(Bstr(ValueUnion.psz)));
+                    CHECK_ERROR(machine, COMSETTER(SnapshotFolder)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -1991,19 +2020,62 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_TELEPORTER_ADDRESS:
             {
-                CHECK_ERROR(machine, COMSETTER(TeleporterAddress)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(machine, COMSETTER(TeleporterAddress)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
             case MODIFYVM_TELEPORTER_PASSWORD:
             {
-                CHECK_ERROR(machine, COMSETTER(TeleporterPassword)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(machine, COMSETTER(TeleporterPassword)(Bstr(ValueUnion.psz).raw()));
+                break;
+            }
+
+            case MODIFYVM_FAULT_TOLERANCE:
+            {
+                if (!strcmp(ValueUnion.psz, "master"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(FaultToleranceState(FaultToleranceState_Master)));
+                }
+                else
+                if (!strcmp(ValueUnion.psz, "standby"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(FaultToleranceState(FaultToleranceState_Standby)));
+                }
+                else
+                {
+                    errorArgument("Invalid --faulttolerance argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_FAULT_TOLERANCE_ADDRESS:
+            {
+                CHECK_ERROR(machine, COMSETTER(FaultToleranceAddress)(Bstr(ValueUnion.psz).raw()));
+                break;
+            }
+
+            case MODIFYVM_FAULT_TOLERANCE_PORT:
+            {
+                CHECK_ERROR(machine, COMSETTER(FaultTolerancePort)(ValueUnion.u32));
+                break;
+            }
+
+            case MODIFYVM_FAULT_TOLERANCE_PASSWORD:
+            {
+                CHECK_ERROR(machine, COMSETTER(FaultTolerancePassword)(Bstr(ValueUnion.psz).raw()));
+                break;
+            }
+
+            case MODIFYVM_FAULT_TOLERANCE_SYNC_INTERVAL:
+            {
+                CHECK_ERROR(machine, COMSETTER(FaultToleranceSyncInterval)(ValueUnion.u32));
                 break;
             }
 
             case MODIFYVM_HARDWARE_UUID:
             {
-                CHECK_ERROR(machine, COMSETTER(HardwareUUID)(Bstr(ValueUnion.psz)));
+                CHECK_ERROR(machine, COMSETTER(HardwareUUID)(Bstr(ValueUnion.psz).raw()));
                 break;
             }
 
@@ -2025,9 +2097,28 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            case MODIFYVM_IOBANDWIDTHMAX:
+            case MODIFYVM_CHIPSET:
             {
-                CHECK_ERROR(machine, COMSETTER(IoBandwidthMax)(ValueUnion.u32));
+                if (!strcmp(ValueUnion.psz, "piix3"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(ChipsetType)(ChipsetType_PIIX3));
+                }
+                else if (!strcmp(ValueUnion.psz, "ich9"))
+                {
+                    CHECK_ERROR(machine, COMSETTER(ChipsetType)(ChipsetType_ICH9));
+                    BOOL fIoApic = FALSE;
+                    CHECK_ERROR(biosSettings, COMGETTER(IOAPICEnabled)(&fIoApic));
+                    if (!fIoApic)
+                    {
+                        RTStrmPrintf(g_pStdErr, "*** I/O APIC must be enabled for ICH9, enabling. ***\n");
+                        CHECK_ERROR(biosSettings, COMSETTER(IOAPICEnabled)(TRUE));
+                    }
+                }
+                else
+                {
+                    errorArgument("Invalid --chipset argument '%s' (valid: piix3,ich9)", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
                 break;
             }
 
@@ -2045,7 +2136,7 @@ int handleModifyVM(HandlerArg *a)
         CHECK_ERROR(machine, SaveSettings());
 
     /* it's important to always close sessions */
-    a->session->Close();
+    a->session->UnlockMachine();
 
     return SUCCEEDED(rc) ? 0 : 1;
 }

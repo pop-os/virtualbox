@@ -1,4 +1,4 @@
-; $Id: ASMMultU64ByU32DivByU32.asm $
+; $Id: ASMMultU64ByU32DivByU32.asm 33540 2010-10-28 09:27:05Z vboxsync $
 ;; @file
 ; IPRT - Assembly Functions, ASMMultU64ByU32DivByU32.
 ;
@@ -55,7 +55,7 @@ BEGINPROC_EXPORTED ASMMultU64ByU32DivByU32
 
 %else ; X86
     ;
-    ; This implementation is convered from the GCC inline
+    ; This implementation is converted from the GCC inline
     ; version of the code. Nothing additional has been done
     ; performance wise.
     ;

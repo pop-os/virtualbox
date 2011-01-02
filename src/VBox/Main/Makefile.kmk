@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 35284 2010-12-21 20:49:53Z vboxsync $
 ## @file
 # Makefile for the VBox Main module.
 #
@@ -57,6 +57,7 @@ endif
 VBOX_MAIN_DEFS += \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
 	$(if $(VBOX_WITH_NETFLT),VBOX_WITH_NETFLT,) \
+	$(if $(VBOX_WITH_COPYTOGUEST),VBOX_WITH_COPYTOGUEST,) \
 	$(if $(VBOX_WITH_CROGL),VBOX_WITH_CROGL,) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
 	$(if $(VBOX_WITH_GUEST_PROPS_RDONLY_GUEST),VBOX_WITH_GUEST_PROPS_RDONLY_GUEST,) \
@@ -117,9 +118,10 @@ $(VBOX_XIDL_FILE).ts +| $(VBOX_XIDL_FILE): \
 		$(VBOX_PATH_MAIN_SRC)/idl/docstrip.xsl \
 		| $$(dir $$@)
 # 	$(CP) -fv $< $(VBOX_XIDL_FILE).ts
-	$(VBOX_XSLTPROC) -o $(VBOX_XIDL_FILE).ts $(VBOX_PATH_MAIN_SRC)/idl/docstrip.xsl $<
-	$(CP) --changed -fv $(VBOX_XIDL_FILE).ts $(VBOX_XIDL_FILE)
+	$(QUIET)$(VBOX_XSLTPROC) -o $(VBOX_XIDL_FILE).ts $(VBOX_PATH_MAIN_SRC)/idl/docstrip.xsl $<
+	$(QUIET)$(CP) --changed -fv $(VBOX_XIDL_FILE).ts $(VBOX_XIDL_FILE)
 
+OTHER_CLEAN += $(VBOX_XIDL_FILE) $(VBOX_XIDL_FILE).ts
 
 #
 # The Main API documentation
@@ -188,6 +190,9 @@ VBOX_XML_SCHEMADEFS_H   = $(PATH_TARGET)/Main/SchemaDefs.h
 VBOX_XML_SCHEMADEFS_CPP = $(PATH_TARGET)/Main/SchemaDefs.cpp
 VBOX_XML_SCHEMADEFS_XSL = $(VBOX_PATH_MAIN_SRC)/xml/SchemaDefs.xsl
 
+VBOX_AUTOGEN_EVENT_H  = $(PATH_TARGET)/Main/VBoxEvents.h
+VBOX_AUTOGEN_EVENT_CPP  = $(PATH_TARGET)/Main/VBoxEvents.cpp
+
 testschemadefs: $(VBOX_XML_SCHEMADEFS_H) $(VBOX_XML_SCHEMADEFS_CPP)
 
 
@@ -201,7 +206,6 @@ VBoxSVC_DEFS = \
 	IN_VMM_STATIC \
 	$(VBOX_MAIN_DEFS) \
 	$(if $(VBOX_WITH_VBOXSDL),VBOX_WITH_VBOXSDL,) \
-	$(if $(VBOX_WITH_VRDP),VBOX_WITH_VRDP,) \
 	$(if $(VBOX_WITH_HEADLESS),VBOX_WITH_HEADLESS,) \
 	$(if $(VBOX_WITH_QTGUI),VBOX_WITH_QTGUI,) \
 	$(if $(VBOX_WITH_COCOA_QT),VBOX_WITH_COCOA_QT,) \
@@ -222,13 +226,14 @@ VBoxSVC_DEFS = \
 	$(if $(VBOX_USB_WITH_SYSFS),VBOX_USB_WITH_SYSFS,) \
 	$(if $(VBOX_USB_WITH_INOTIFY),VBOX_USB_WITH_INOTIFY,) \
 	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,) \
-	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,)
+	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK,) \
+	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,) \
+	$(if $(VBOX_WITH_S3),VBOX_WITH_S3,)
 ifdef VBOX_WITH_USB
  VBoxSVC_DEFS += \
-VBOX_WITH_USB \
+	VBOX_WITH_USB \
 	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI,) \
-	$(if $(VBOX_WITH_NEW_USB_CODE_ON_DARWIN),VBOX_WITH_NEW_USB_CODE_ON_DARWIN,) \
-	$(if $(VBOX_WITH_NEW_USB_CODE_ON_SOLARIS),VBOX_WITH_NEW_USB_CODE_ON_SOLARIS,)
+	$(if $(VBOX_WITH_NEW_USB_CODE_ON_DARWIN),VBOX_WITH_NEW_USB_CODE_ON_DARWIN,)
 endif
 VBoxSVC_DEFS.win += VBOX_COM_OUTOFPROC_MODULE
 VBoxSVC_DEFS.win.x86 += _WIN32_WINNT=0x0500
@@ -259,15 +264,18 @@ endif
 VBoxSVC_LIBS += \
 	$(PATH_LIB)/SSMStandalone$(VBOX_SUFF_LIB) \
 	$(LIB_DDU)
+VBoxSVC_SDKS = VBOX_LIBPNG VBOX_ZLIB
 VBoxSVC_LIBS.solaris = \
 	adm \
 	nsl \
 	devinfo \
-	socket
+	socket \
+        $(LIB_VMM)
 
 VBoxSVC_INTERMEDIATES = \
 	$(VBOX_MAIN_PREREQS) \
-	$(VBOX_XML_SCHEMADEFS_H)
+	$(VBOX_XML_SCHEMADEFS_H) \
+	$(VBOX_AUTOGEN_EVENT_H)
 
 VBoxSVC_SOURCES = \
 	Global.cpp \
@@ -278,11 +286,13 @@ VBoxSVC_SOURCES = \
 	VirtualBoxErrorInfoImpl.cpp \
 	VirtualBoxImpl.cpp \
 	ApplianceImpl.cpp \
+	ApplianceImplIO.cpp \
 	ApplianceImplExport.cpp \
 	ApplianceImplImport.cpp \
 	xml/ovfreader.cpp \
 	VFSExplorerImpl.cpp \
 	MachineImpl.cpp \
+	PciDeviceAttachmentImpl.cpp \
 	SnapshotImpl.cpp \
 	MediumImpl.cpp \
 	MediumLock.cpp \
@@ -306,9 +316,17 @@ VBoxSVC_SOURCES = \
 	SystemPropertiesImpl.cpp \
 	BIOSSettingsImpl.cpp \
 	HostPower.cpp \
-	$(if $(VBOX_WITH_VRDP),VRDPServerImpl.cpp,) \
+	EventImpl.cpp \
+	DisplayUtils.cpp \
+	DisplayPNGUtil.cpp \
+	DisplayResampleImage.cpp \
+	BandwidthControlImpl.cpp \
+	BandwidthGroupImpl.cpp \
+	$(VBOX_AUTOGEN_EVENT_CPP) \
+	VRDEServerImpl.cpp \
 	$(if $(VBOX_WITH_XPCOM),xpcom/server.cpp,) \
-	$(VBOX_XML_SCHEMADEFS_CPP)
+	$(VBOX_XML_SCHEMADEFS_CPP) \
+	$(if $(VBOX_WITH_EXTPACK),ExtPackManagerImpl.cpp ExtPackUtil.cpp,)
 
 VBoxSVC_SOURCES.darwin = \
 	darwin/iokit.cpp \
@@ -325,7 +343,8 @@ VBoxSVC_SOURCES.win = \
 	win/svcmain.cpp \
 	win/svchlp.cpp \
 	win/HostPowerWin.cpp \
-	win/VBoxSVC.rc
+	win/VBoxSVC.rc \
+        win/VBoxComEvents.cpp
 
 VBoxSVC_SOURCES.linux = \
 	linux/HostHardwareLinux.cpp
@@ -347,6 +366,7 @@ ifdef VBOX_WITH_USB
 	HostUSBDeviceImpl.cpp
  VBoxSVC_SOURCES.darwin  +=  darwin/USBProxyServiceDarwin.cpp
  VBoxSVC_SOURCES.linux   +=   linux/USBProxyServiceLinux.cpp
+ VBoxSVC_SOURCES.linux   +=   linux/USBGetDevices.cpp
  VBoxSVC_SOURCES.os2     +=     os2/USBProxyServiceOs2.cpp
  VBoxSVC_SOURCES.solaris += solaris/USBProxyServiceSolaris.cpp
  VBoxSVC_SOURCES.win     +=     win/USBProxyServiceWindows.cpp
@@ -416,6 +436,7 @@ $$(PATH_VBoxSVC)/VBoxSVC-icon.rc: $(MAKEFILE_CURRENT) $(VBOX_WINDOWS_ICON_FILE) 
 $$(PATH_VBoxSVC)/VBoxSVC.rgs: $(VBOX_PATH_MAIN_SRC)/win/VirtualBox_rgs.xsl $(VBOX_XIDL_FILE) | $$(dir $$(@D))
 	$(VBOX_XSLTPROC) --stringparam Module VBoxSVC -o $@ $< $(VBOX_XIDL_FILE)
 
+
 #
 # Embed XML Schema files to VBoxSVC
 #
@@ -443,23 +464,37 @@ $$(PATH_VBoxSVC)/xml_SettingsConverter_xsl.h: $(VBOX_XML_CONVERTER_TEMPLATE) $(V
 
 $(VBOX_XML_SCHEMADEFS_H): $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET)) $(VBOX_XML_SCHEMA_COMMON) | $$(dir $$@)
 	$(call MSG_GENERATE,SchemaDefs,$@,$<)
-	$(VBOX_XSLTPROC)  --stringparam mode declare -o $@ $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET))
+	$(QUIET)$(VBOX_XSLTPROC)  --stringparam mode declare -o $@ $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET))
 
 $(VBOX_XML_SCHEMADEFS_CPP): $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET)) $(VBOX_XML_SCHEMA_COMMON)  | $$(dir $$@)
 	$(call MSG_GENERATE,SchemaDefs,$@,$<)
-	$(VBOX_XSLTPROC)  --stringparam mode define  -o $@ $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET))
+	$(QUIET)$(VBOX_XSLTPROC)  --stringparam mode define  -o $@ $(VBOX_XML_SCHEMADEFS_XSL) $(VBOX_XML_SCHEMA.$(KBUILD_TARGET))
 
 OTHER_CLEAN += $(VBOX_XML_SCHEMADEFS_H) $(VBOX_XML_SCHEMADEFS_CPP)
 
 
+#
+# Generate some event stuff for VBoxSVC and VBoxC.
+#
+$(VBOX_AUTOGEN_EVENT_H): $(VBOX_PATH_MAIN_SRC)/idl/comimpl.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
+	$(call MSG_TOOL,xsltproc,autogen events,$<,$@)
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam G_kind VBoxEventHeader -o $@ $< $(VBOX_XIDL_FILE)
+
+$(VBOX_AUTOGEN_EVENT_CPP): $(VBOX_PATH_MAIN_SRC)/idl/comimpl.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
+	$(call MSG_TOOL,xsltproc,autogen events,$<,$@)
+	$(QUIET)$(VBOX_XSLTPROC) --stringparam G_kind VBoxEvent -o $@ $< $(VBOX_XIDL_FILE)
+
+OTHER_CLEAN += $(VBOX_AUTOGEN_EVENT_H) $(VBOX_AUTOGEN_EVENT_CPP)
+
+
+#
+# VBoxTestOGL - OpenGL support test app.
+# Note! Doesn't link with VBOX_WITH_DEBUG_VCC_CRT defined because it uses Qt.
+#
 if (   defined(VBOX_WITH_QTGUI) \
     && (defined(VBOX_WITH_CROGL) || defined(VBOX_WITH_VIDEOHWACCEL)) \
     && !defined(VBOX_WITH_DEBUG_VCC_CRT))
  ifneq ($(KBUILD_TARGET),darwin)
-  #
-  # VBoxTestOGL - OpenGL support test app.
-  # Note! Doesn't link with VBOX_WITH_DEBUG_VCC_CRT defined because it uses Qt.
-  #
   ifdef VBOX_WITH_VIDEOHWACCEL
    USES += qt4
   endif
@@ -519,8 +554,8 @@ $$(PATH_VBoxSVCM)/VBoxSVCM.def:
 	$(APPEND) $@ _NSGetModule
  endif
 VBoxSVCM_INTERMEDIATES += $(VBOX_IDL_HEADER.XPCOM)
-
 endif # VBOX_WITH_XPCOM
+
 
 #
 # VBoxC module
@@ -532,7 +567,6 @@ VBoxC_DEFS = \
 	IN_RING3 \
 	$(VBOX_MAIN_DEFS) \
 	VBOX_COM_INPROC \
-	$(if $(VBOX_WITH_VRDP),VBOX_WITH_VRDP,) \
 	$(if $(VBOX_WITH_VRDP_VIDEO_CHANNEL),VBOX_WITH_VRDP_VIDEO_CHANNEL,) \
 	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
 	$(if $(VBOX_MAIN_RELEASE_LOG),VBOX_MAIN_RELEASE_LOG LOG_ENABLED,) \
@@ -544,30 +578,15 @@ VBoxC_DEFS = \
 	$(if $(VBOX_WITH_E1000),VBOX_WITH_E1000,) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO,) \
 	$(if $(VBOX_WITH_EFI),VBOX_WITH_EFI,) \
-	$(if $(VBOX_WITH_HPET),VBOX_WITH_HPET,) \
-	$(if $(VBOX_WITH_SMC),VBOX_WITH_SMC,) \
-	$(if $(VBOX_WITH_LPC),VBOX_WITH_LPC,) \
 	$(if $(VBOX_WITH_PDM_ASYNC_COMPLETION),VBOX_WITH_PDM_ASYNC_COMPLETION,) \
 	$(if $(VBOX_WITH_LIVE_MIGRATION),VBOX_WITH_LIVE_MIGRATION,) \
-	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,)
-ifdef VBOX_WITH_USB
-VBoxC_DEFS += \
-	VBOX_WITH_USB \
-	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI,)
-endif
-ifdef VBOX_WITH_OLD_VBVA_LOCK
-VBoxC_DEFS += VBOX_WITH_OLD_VBVA_LOCK
-endif
-ifdef VBOX_WITH_HGSMI
-VBoxC_DEFS += VBOX_WITH_HGSMI
-endif
-ifdef VBOX_WITH_VIDEOHWACCEL
-VBoxC_DEFS += VBOX_WITH_VIDEOHWACCEL
-endif
-
-ifdef VBOX_DYNAMIC_NET_ATTACH
-VBoxC_DEFS += VBOX_DYNAMIC_NET_ATTACH
-endif
+	$(if $(VBOX_WITH_VUSB),VBOX_WITH_VUSB,) \
+	$(if $(VBOX_WITH_OLD_VBVA_LOCK),VBOX_WITH_OLD_VBVA_LOCK,) \
+	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
+	$(if $(VBOX_WITH_VIDEOHWACCEL),VBOX_WITH_VIDEOHWACCEL,) \
+	$(if $(VBOX_WITH_USB),VBOX_WITH_USB,) \
+	$(if-expr defined(VBOX_WITH_EHCI) && defined(VBOX_WITH_USB),VBOX_WITH_EHCI,) \
+	$(if $(VBOX_WITH_EXTPACK),VBOX_WITH_EXTPACK,)
 
 VBoxC_DEFS.darwin.x86 = VBOX_WITH_2X_4GB_ADDR_SPACE
 VBoxC_DEFS.win.x86 += _WIN32_WINNT=0x0500
@@ -602,40 +621,49 @@ ifdef VBOX_WITH_NETFLT
 	$(PATH_SDK_WINPSDK_LIB)/WbemUuid.Lib
 endif
 
-VBoxC_INTERMEDIATES = \
-	$(VBOX_MAIN_PREREQS) \
-	$(VBOX_XML_SCHEMADEFS_H)
+VBoxC_INTERMEDIATES =            \
+	$(VBOX_MAIN_PREREQS)     \
+	$(VBOX_XML_SCHEMADEFS_H) \
+	$(VBOX_AUTOGEN_EVENT_H)
 
 VBoxC_SOURCES = \
 	Global.cpp \
 	Logging.cpp \
-	VBoxDll.cpp \
 	USBDeviceImpl.cpp \
 	RemoteUSBDeviceImpl.cpp \
 	VirtualBoxBase.cpp \
 	VirtualBoxErrorInfoImpl.cpp \
+	VirtualBoxClientImpl.cpp \
 	ProgressImpl.cpp \
 	SharedFolderImpl.cpp \
 	SessionImpl.cpp \
-	VirtualBoxCallbackImpl.cpp \
 	ConsoleImpl.cpp \
 	ConsoleImpl2.cpp \
 	ConsoleImplTeleporter.cpp \
 	ConsoleVRDPServer.cpp \
 	GuestImpl.cpp \
+	GuestCtrlImpl.cpp \
 	KeyboardImpl.cpp \
 	MouseImpl.cpp \
 	DisplayImpl.cpp \
+	DisplayUtils.cpp \
+	DisplayPNGUtil.cpp \
 	DisplayResampleImage.cpp \
 	MachineDebuggerImpl.cpp \
 	VBoxDriversRegister.cpp \
 	AudioSnifferInterface.cpp \
 	VMMDevInterface.cpp \
-	$(VBOX_XML_SCHEMADEFS_CPP)
+	EventImpl.cpp \
+	BusAssignmentManager.cpp \
+	PciDeviceAttachmentImpl.cpp \
+	$(VBOX_AUTOGEN_EVENT_CPP) \
+	$(VBOX_XML_SCHEMADEFS_CPP) \
+	$(if $(VBOX_WITH_EXTPACK),ExtPackManagerImpl.cpp ExtPackUtil.cpp,)
 VBoxC_SOURCES.win = \
 	win/dllmain.cpp \
 	win/VBoxC.def \
 	win/VBoxC.rc
+
 
 ifdef VBOX_WITH_XPCOM
 VBoxC_SOURCES += \
@@ -647,6 +675,10 @@ VBoxC_SOURCES += \
 	hgcm/HGCMObjects.cpp \
 	hgcm/HGCMThread.cpp \
 	hgcm/HGCM.cpp
+endif
+
+ifdef VBOX_WITH_CRHGSMI
+VBoxC_DEFS += VBOX_WITH_CRHGSMI
 endif
 
 ifdef VBOX_WITH_USB
@@ -689,7 +721,6 @@ VBoxCOM_SOURCES         = \
 	glue/EventQueue.cpp \
 	glue/ErrorInfo.cpp \
 	glue/errorprint.cpp \
-	glue/SupportErrorInfo.cpp \
 	glue/VirtualBoxErrorInfo.cpp
 VBoxCOM_INCS          += \
 	include
@@ -702,6 +733,22 @@ else # !win
  VBoxCOM_SOURCES       += \
 	xpcom/helpers.cpp
 endif # !win
+
+
+#
+# The VBoxExtPackHelperApp.
+#
+ifdef VBOX_WITH_EXTPACK
+ PROGRAMS += VBoxExtPackHelperApp
+ VBoxExtPackHelperApp_TEMPLATE = VBoxR3SetUidToRoot
+ VBoxExtPackHelperApp_LDFLAGS.darwin = -framework Security
+ VBoxExtPackHelperApp_LDFLAGS.win = /SUBSYSTEM:windows
+ VBoxExtPackHelperApp_SOURCES = \
+	VBoxExtPackHelperApp.cpp \
+	ExtPackUtil.cpp
+ VBoxExtPackHelperApp_LIBS = \
+        $(LIB_RUNTIME)
+endif # VBOX_WITH_EXTPACK
 
 
 endif # !VBOX_ONLY_SDK (the ifndef is far above)
@@ -764,9 +811,6 @@ VBOX_MAIN_IDL ?= $(EXEC_X86_WIN32) $(call VBOX_FN_MAKE_WIN_PATH,$(firstword $(wi
 	$(PATH_DEVTOOLS)/win.x86/bin/midl.exe\
 	) Sorry_Cannot_Find_The_Midl_Compiler_In_The_PSDK))
 IDL_DEFS = /nologo
-ifdef VBOX_WITH_VRDP
- IDL_DEFS += /D VBOX_WITH_VRDP
-endif
 
 $(VBOX_IDL_FILE.MSCOM): $(VBOX_PATH_MAIN_SRC)/idl/midl.xsl $(VBOX_XIDL_FILE) | $$(dir $$@)
 	$(call MSG_TOOL,xsltproc,VBoxSVC,$<,$@)
@@ -851,7 +895,7 @@ $(VBOX_JMSCOM_GEN)/jmscomglue.list:  \
                 $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl \
                 $(VBOX_FILESPLIT)    \
 		| $(VBOX_JMSCOM_GEN)/java/
-	$(call MSG_L1,Generating Java glue files from XIDL)
+	$(call MSG_L1,Generating Java MSCOM glue files from XIDL)
 	$(QUIET)$(RM) -f $(wildcard $(VBOX_JMSCOM_GEN)/java/*.java)
 	$(QUIET)$(VBOX_XSLTPROC) \
               --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
@@ -872,6 +916,16 @@ $$(VBOX_JMSCOM_JAR): $(VBOX_JMSCOM_GEN)/jmscomglue.list | $$(dir $$@)
 	$(VBOX_JAR) cf $@ -C $(VBOX_JMSCOM_JDEST) .
 
 endif # VBOX_WITH_JMSCOM
+
+#
+# Install Java glue sample code.
+#
+INSTALLS += javagluesample
+javagluesample_INST = $(INST_SDK)bindings/glue/java
+javagluesample_MODE = a+rx,u+w
+javagluesample_SOURCES = \
+	$(VBOX_PATH_MAIN_SRC)/glue/tests/TestVBox.java=>TestVBox.java \
+	$(VBOX_PATH_MAIN_SRC)/glue/tests/Makefile.kmk=>Makefile.kmk
 
 updatenls::
 	$(VBOX_LUPDATE) $(VBoxSVC_SOURCES) $(VBoxSVC_VBOX_HEADERS) -ts $(VBoxSVC_VBOX_TRANSLATIONS)

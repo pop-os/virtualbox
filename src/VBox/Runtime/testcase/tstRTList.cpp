@@ -1,4 +1,4 @@
-/* $Id: tstRTList.cpp $ */
+/* $Id: tstRTList.cpp 34406 2010-11-26 16:45:34Z vboxsync $ */
 /** @file
  * IPRT Testcase - List interface.
  */
@@ -52,15 +52,15 @@ static void tstRTListOrder(RTTEST hTest, PRTLISTNODE pList, unsigned cElements,
                            unsigned idxFirst, unsigned idxLast, unsigned idxStep)
 {
     RTTEST_CHECK(hTest, RTListIsEmpty(pList) == false);
-    RTTEST_CHECK(hTest, RTListNodeGetFirst(pList, LISTELEM, Node) != NULL);
-    RTTEST_CHECK(hTest, RTListNodeGetLast(pList, LISTELEM, Node) != NULL);
+    RTTEST_CHECK(hTest, RTListGetFirst(pList, LISTELEM, Node) != NULL);
+    RTTEST_CHECK(hTest, RTListGetLast(pList, LISTELEM, Node) != NULL);
     if (cElements > 1)
-        RTTEST_CHECK(hTest, RTListNodeGetLast(pList, LISTELEM, Node) != RTListNodeGetFirst(pList, LISTELEM, Node));
+        RTTEST_CHECK(hTest, RTListGetLast(pList, LISTELEM, Node) != RTListGetFirst(pList, LISTELEM, Node));
     else
-        RTTEST_CHECK(hTest, RTListNodeGetLast(pList, LISTELEM, Node) == RTListNodeGetFirst(pList, LISTELEM, Node));
+        RTTEST_CHECK(hTest, RTListGetLast(pList, LISTELEM, Node) == RTListGetFirst(pList, LISTELEM, Node));
 
     /* Check that the order is right. */
-    PLISTELEM pNode = RTListNodeGetFirst(pList, LISTELEM, Node);
+    PLISTELEM pNode = RTListGetFirst(pList, LISTELEM, Node);
     for (unsigned i = idxFirst; i < idxLast; i += idxStep)
     {
         RTTEST_CHECK(hTest, pNode->idx == i);
@@ -68,11 +68,11 @@ static void tstRTListOrder(RTTEST hTest, PRTLISTNODE pList, unsigned cElements,
     }
 
     RTTEST_CHECK(hTest, pNode->idx == idxLast);
-    RTTEST_CHECK(hTest, RTListNodeGetLast(pList, LISTELEM, Node) == pNode);
+    RTTEST_CHECK(hTest, RTListGetLast(pList, LISTELEM, Node) == pNode);
     RTTEST_CHECK(hTest, RTListNodeIsLast(pList, &pNode->Node) == true);
 
     /* Check reverse order */
-    pNode = RTListNodeGetLast(pList, LISTELEM, Node);
+    pNode = RTListGetLast(pList, LISTELEM, Node);
     for (unsigned i = idxLast; i > idxFirst; i -= idxStep)
     {
         RTTEST_CHECK(hTest, pNode->idx == i);
@@ -80,7 +80,7 @@ static void tstRTListOrder(RTTEST hTest, PRTLISTNODE pList, unsigned cElements,
     }
 
     RTTEST_CHECK(hTest, pNode->idx == idxFirst);
-    RTTEST_CHECK(hTest, RTListNodeGetFirst(pList, LISTELEM, Node) == pNode);
+    RTTEST_CHECK(hTest, RTListGetFirst(pList, LISTELEM, Node) == pNode);
     RTTEST_CHECK(hTest, RTListNodeIsFirst(pList, &pNode->Node) == true);
 
     /* The list enumeration. */
@@ -105,14 +105,15 @@ static void tstRTListOrder(RTTEST hTest, PRTLISTNODE pList, unsigned cElements,
 
 static void tstRTListCreate(RTTEST hTest, unsigned cElements)
 {
-    RTTestISubF("RTList - Test with %u elements", cElements);
+    RTTestISubF("Creating and moving - %u elements", cElements);
+    Assert(cElements > 0);
 
     RTLISTNODE ListHead;
 
     RTListInit(&ListHead);
     RTTEST_CHECK(hTest, RTListIsEmpty(&ListHead) == true);
-    RTTEST_CHECK(hTest, RTListNodeGetFirst(&ListHead, LISTELEM, Node) == NULL);
-    RTTEST_CHECK(hTest, RTListNodeGetLast(&ListHead, LISTELEM, Node) == NULL);
+    RTTEST_CHECK(hTest, RTListGetFirst(&ListHead, LISTELEM, Node) == NULL);
+    RTTEST_CHECK(hTest, RTListGetLast(&ListHead, LISTELEM, Node) == NULL);
 
     /* Create the list */
     for (unsigned i = 0; i< cElements; i++)
@@ -134,18 +135,44 @@ static void tstRTListCreate(RTTEST hTest, unsigned cElements)
     RTListMove(&ListHeadNew, &ListHead);
 
     RTTEST_CHECK(hTest, RTListIsEmpty(&ListHead) == true);
-    RTTEST_CHECK(hTest, RTListNodeGetFirst(&ListHead, LISTELEM, Node) == NULL);
-    RTTEST_CHECK(hTest, RTListNodeGetLast(&ListHead, LISTELEM, Node) == NULL);
+    RTTEST_CHECK(hTest, RTListGetFirst(&ListHead, LISTELEM, Node) == NULL);
+    RTTEST_CHECK(hTest, RTListGetLast(&ListHead, LISTELEM, Node) == NULL);
 
     tstRTListOrder(hTest, &ListHeadNew, cElements, 0, cElements-1, 1);
 
-    /* Remove elements now  */
+    /*
+     * Safe iteration w/ removal.
+     */
+    RTTestISubF("Safe iteration w/ removal - %u elements", cElements);
+
+    /* Move it element by element. */
+    PLISTELEM pNode, pSafe;
+    RTListForEachSafe(&ListHeadNew, pNode, pSafe, LISTELEM, Node)
+    {
+        RTListNodeRemove(&pNode->Node);
+        RTListAppend(&ListHead, &pNode->Node);
+    }
+    RTTESTI_CHECK(RTListIsEmpty(&ListHeadNew) == true);
+    tstRTListOrder(hTest, &ListHead, cElements, 0, cElements-1, 1);
+
+    /* And the other way. */
+    RTListForEachReverseSafe(&ListHead, pNode, pSafe, LISTELEM, Node)
+    {
+        RTListNodeRemove(&pNode->Node);
+        RTListPrepend(&ListHeadNew, &pNode->Node);
+    }
+    RTTESTI_CHECK(RTListIsEmpty(&ListHead) == true);
+    tstRTListOrder(hTest, &ListHeadNew, cElements, 0, cElements-1, 1);
+
+    /*
+     * Remove elements now.
+     */
     if (cElements > 1)
     {
         /* Remove every second */
-        RTTestISub("Remove every second node");
+        RTTestISubF("Remove every second node - %u elements", cElements);
 
-        PLISTELEM pNode = RTListNodeGetFirst(&ListHeadNew, LISTELEM, Node);
+        pNode = RTListGetFirst(&ListHeadNew, LISTELEM, Node);
         for (unsigned i = 0; i < cElements; i++)
         {
             PLISTELEM pNext = RTListNodeGetNext(&pNode->Node, LISTELEM, Node);
@@ -167,8 +194,8 @@ static void tstRTListCreate(RTTEST hTest, unsigned cElements)
     }
 
     /* Remove the rest now. */
-    RTTestISub("Remove all nodes");
-    PLISTELEM pNode = RTListNodeGetFirst(&ListHeadNew, LISTELEM, Node);
+    RTTestISubF("Remove all nodes - %u elements", cElements);
+    pNode = RTListGetFirst(&ListHeadNew, LISTELEM, Node);
     for (unsigned i = 0; i < cElements; i++)
     {
         PLISTELEM pNext = RTListNodeGetNext(&pNode->Node, LISTELEM, Node);
@@ -180,8 +207,8 @@ static void tstRTListCreate(RTTEST hTest, unsigned cElements)
 
     /* List should be empty again */
     RTTEST_CHECK(hTest, RTListIsEmpty(&ListHeadNew) == true);
-    RTTEST_CHECK(hTest, RTListNodeGetFirst(&ListHeadNew, LISTELEM, Node) == NULL);
-    RTTEST_CHECK(hTest, RTListNodeGetLast(&ListHeadNew, LISTELEM, Node) == NULL);
+    RTTEST_CHECK(hTest, RTListGetFirst(&ListHeadNew, LISTELEM, Node) == NULL);
+    RTTEST_CHECK(hTest, RTListGetLast(&ListHeadNew, LISTELEM, Node) == NULL);
 }
 
 int main()

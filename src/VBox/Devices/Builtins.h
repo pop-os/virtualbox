@@ -1,4 +1,4 @@
-/* $Id: Builtins.h $ */
+/* $Id: Builtins.h 34876 2010-12-09 11:16:00Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1) header.
  */
@@ -35,14 +35,13 @@ extern const unsigned       g_cbEfiThunkBinary;
 
 
 extern const PDMDEVREG g_DevicePCI;
+extern const PDMDEVREG g_DevicePciIch9;
 extern const PDMDEVREG g_DevicePcArch;
 extern const PDMDEVREG g_DevicePcBios;
 extern const PDMDEVREG g_DevicePS2KeyboardMouse;
 extern const PDMDEVREG g_DeviceI8254;
 extern const PDMDEVREG g_DeviceI8259;
-#ifdef VBOX_WITH_HPET
 extern const PDMDEVREG g_DeviceHPET;
-#endif
 extern const PDMDEVREG g_DeviceMC146818;
 extern const PDMDEVREG g_DevicePIIX3IDE;
 extern const PDMDEVREG g_DeviceFloppyController;
@@ -60,6 +59,7 @@ extern const PDMDEVREG g_DeviceINIP;
 #endif
 extern const PDMDEVREG g_DeviceICHAC97;
 extern const PDMDEVREG g_DeviceSB16;
+extern const PDMDEVREG g_DeviceICH6_HDA;
 extern const PDMDEVREG g_DeviceAudioSniffer;
 extern const PDMDEVREG g_DeviceOHCI;
 extern const PDMDEVREG g_DeviceEHCI;
@@ -75,6 +75,7 @@ extern const PDMDEVREG g_DeviceAHCI;
 extern const PDMDEVREG g_DeviceBusLogic;
 #endif
 extern const PDMDEVREG g_DevicePCIBridge;
+extern const PDMDEVREG g_DevicePciIch9Bridge;
 #ifdef VBOX_WITH_LSILOGIC
 extern const PDMDEVREG g_DeviceLsiLogicSCSI;
 extern const PDMDEVREG g_DeviceLsiLogicSAS;
@@ -82,6 +83,7 @@ extern const PDMDEVREG g_DeviceLsiLogicSAS;
 #ifdef VBOX_WITH_EFI
 extern const PDMDEVREG g_DeviceEFI;
 #endif
+extern const PDMDEVREG g_DevicePciRaw;
 
 extern const PDMDRVREG g_DrvMouseQueue;
 extern const PDMDRVREG g_DrvKeyboardQueue;

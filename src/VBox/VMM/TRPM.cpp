@@ -1,4 +1,4 @@
-/* $Id: TRPM.cpp $ */
+/* $Id: TRPM.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
  * TRPM - The Trap Monitor.
  */
@@ -41,7 +41,7 @@
  * traps.  The latter group may be recoverable depending on when they happen and
  * whether there is a handler for it, otherwise it will cause a guru meditation.
  *
- * TRPM disgishishes the between the first two (virt and guest traps) and the
+ * TRPM distinguishes the between the first two (virt and guest traps) and the
  * latter (hyper) by checking the CPL of the trapping code, if CPL == 0 then
  * it's a hyper trap otherwise it's a virt/guest trap.  There are three trap
  * dispatcher tables, one ad-hoc for one time traps registered via
@@ -79,6 +79,7 @@
 #include <VBox/ssm.h>
 #include <VBox/pdmapi.h>
 #include <VBox/pgm.h>
+#include <include/internal/pgm.h>
 #include <VBox/dbgf.h>
 #include <VBox/mm.h>
 #include <VBox/stam.h>
@@ -528,7 +529,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     //STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x08],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/08",          STAMUNIT_TICKS_PER_CALL, "#DF - Double fault.");
     STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x09],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/09",          STAMUNIT_TICKS_PER_CALL, "#?? - Coprocessor segment overrun (obsolete).");
     STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x0a],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/0a",          STAMUNIT_TICKS_PER_CALL, "#TS - Task switch fault.");
-    STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x0b],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/0b",          STAMUNIT_TICKS_PER_CALL, "#NP - Segemnt not present.");
+    STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x0b],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/0b",          STAMUNIT_TICKS_PER_CALL, "#NP - Segment not present.");
     STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x0c],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/0c",          STAMUNIT_TICKS_PER_CALL, "#SS - Stack segment fault.");
     STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x0d],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/0d",          STAMUNIT_TICKS_PER_CALL, "#GP - General protection fault.");
     STAM_REG(pVM, &pVM->trpm.s.aStatGCTraps[0x0e],      STAMTYPE_PROFILE_ADV, "/TRPM/GC/Traps/0e",          STAMUNIT_TICKS_PER_CALL, "#PF - Page fault.");
@@ -652,7 +653,8 @@ VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      */
     CPUMSetHyperIDTR(pVCpu, VM_RC_ADDR(pVM, &pVM->trpm.s.aIdt[0]), sizeof(pVM->trpm.s.aIdt)-1);
 
-    if (!pVM->trpm.s.fDisableMonitoring)
+    if (    !pVM->trpm.s.fDisableMonitoring
+        &&  !VMMIsHwVirtExtForced(pVM))
     {
 #ifdef TRPM_TRACK_SHADOW_IDT_CHANGES
         if (pVM->trpm.s.pvMonShwIdtRC != RTRCPTR_MAX)
@@ -1377,7 +1379,7 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
     RTGCPTR   GCPtrIDTELast = GCPtrIDTE + (cEntries - 1) * sizeof(VBOXIDTE);
 
     /*
-     * Outer loop: interate pages.
+     * Outer loop: iterate pages.
      */
     while (GCPtrIDTE <= GCPtrIDTELast)
     {

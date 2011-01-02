@@ -1,4 +1,4 @@
-/* $Id: PDMR0Device.cpp $ */
+/* $Id: PDMR0Device.cpp 33799 2010-11-05 16:14:07Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, R0 Device parts.
  */
@@ -56,7 +56,7 @@ RT_C_DECLS_END
 *******************************************************************************/
 static void pdmR0IsaSetIrq(PVM pVM, int iIrq, int iLevel);
 static void pdmR0IoApicSetIrq(PVM pVM, int iIrq, int iLevel);
-
+static void pdmR0IoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue);
 
 
 
@@ -251,6 +251,33 @@ static DECLCALLBACK(PVMCPU) pdmR0DevHlp_GetVMCPU(PPDMDEVINS pDevIns)
 }
 
 
+/** @interface_method_impl{PDMDEVHLPR0,pfnTMTimeVirtGet} */
+static DECLCALLBACK(uint64_t) pdmR0DevHlp_TMTimeVirtGet(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_TMTimeVirtGet: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
+    return TMVirtualGet(pDevIns->Internal.s.pVMR0);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnTMTimeVirtGetFreq} */
+static DECLCALLBACK(uint64_t) pdmR0DevHlp_TMTimeVirtGetFreq(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_TMTimeVirtGetFreq: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
+    return TMVirtualGetFreq(pDevIns->Internal.s.pVMR0);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnTMTimeVirtGetNano} */
+static DECLCALLBACK(uint64_t) pdmR0DevHlp_TMTimeVirtGetNano(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_TMTimeVirtGetNano: caller='%p'/%d\n", pDevIns, pDevIns->iInstance));
+    return TMVirtualToNano(pDevIns->Internal.s.pVMR0, TMVirtualGet(pDevIns->Internal.s.pVMR0));
+}
+
+
 /**
  * The Ring-0 Device Helper Callbacks.
  */
@@ -271,6 +298,9 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_GetVM,
     pdmR0DevHlp_CanEmulateIoBlock,
     pdmR0DevHlp_GetVMCPU,
+    pdmR0DevHlp_TMTimeVirtGet,
+    pdmR0DevHlp_TMTimeVirtGetFreq,
+    pdmR0DevHlp_TMTimeVirtGetNano,
     PDM_DEVHLPR0_VERSION
 };
 
@@ -591,6 +621,13 @@ static DECLCALLBACK(void) pdmR0PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq,
     pdmR0IoApicSetIrq(pDevIns->Internal.s.pVMR0, iIrq, iLevel);
 }
 
+/** @interface_method_impl{PDMPCIHLPR0,pfnIoApicSendMsi} */
+static DECLCALLBACK(void) pdmR0PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    Log4(("pdmR0PciHlp_IoApicSendMsi: Address=%p Value=%d\n", GCAddr, uValue));
+    pdmR0IoApicSendMsi(pDevIns->Internal.s.pVMR0, GCAddr, uValue);
+}
 
 /** @interface_method_impl{PDMPCIHLPR0,pfnLock} */
 static DECLCALLBACK(int) pdmR0PciHlp_Lock(PPDMDEVINS pDevIns, int rc)
@@ -616,6 +653,7 @@ extern DECLEXPORT(const PDMPCIHLPR0) g_pdmR0PciHlp =
     PDM_PCIHLPR0_VERSION,
     pdmR0PciHlp_IsaSetIrq,
     pdmR0PciHlp_IoApicSetIrq,
+    pdmR0PciHlp_IoApicSendMsi,
     pdmR0PciHlp_Lock,
     pdmR0PciHlp_Unlock,
     PDM_PCIHLPR0_VERSION, /* the end */
@@ -716,6 +754,14 @@ static DECLCALLBACK(bool) pdmR0DrvHlp_AssertOther(PPDMDRVINS pDrvIns, const char
 }
 
 
+/** @interface_method_impl{PDMDRVHLPR0,pfnFTSetCheckpoint} */
+static DECLCALLBACK(int) pdmR0DrvHlp_FTSetCheckpoint(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return FTMSetCheckpoint(pDrvIns->Internal.s.pVMR0, enmType);
+}
+
+
 /**
  * The Ring-0 Context Driver Helper Callbacks.
  */
@@ -728,6 +774,7 @@ extern DECLEXPORT(const PDMDRVHLPR0) g_pdmR0DrvHlp =
     pdmR0DrvHlp_VMSetRuntimeErrorV,
     pdmR0DrvHlp_AssertEMT,
     pdmR0DrvHlp_AssertOther,
+    pdmR0DrvHlp_FTSetCheckpoint,
     PDM_DRVHLPRC_VERSION
 };
 
@@ -834,5 +881,22 @@ VMMR0_INT_DECL(int) PDMR0DeviceCallReqHandler(PVM pVM, PPDMDEVICECALLREQHANDLERR
     AssertPtrReturn(pfnReqHandlerR0, VERR_INVALID_POINTER);
 
     return pfnReqHandlerR0(pDevIns, pReq->uOperation, pReq->u64Arg);
+}
+
+/**
+ * Sends an MSI to I/O APIC.
+ *
+ * @param   pVM     The VM handle.
+ * @param   GCAddr  Address of the message.
+ * @param   uValue  Value of the message.
+ */
+static void pdmR0IoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue)
+{
+    if (pVM->pdm.s.IoApic.pDevInsR0)
+    {
+        pdmLock(pVM);
+        pVM->pdm.s.IoApic.pfnSendMsiR0(pVM->pdm.s.IoApic.pDevInsR0, GCAddr, uValue);
+        pdmUnlock(pVM);
+    }
 }
 

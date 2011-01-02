@@ -1,4 +1,4 @@
-/* $Id: VMMDev.cpp $ */
+/* $Id: VMMDev.cpp 34902 2010-12-09 16:16:51Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -24,12 +24,16 @@
 
 #define LOG_GROUP LOG_GROUP_DEV_VMM
 #include <VBox/VMMDev.h>
+#include <VBox/mm.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
-#include <VBox/mm.h>
+#include <iprt/path.h>
+#include <iprt/dir.h>
+#include <iprt/file.h>
 #include <VBox/pgm.h>
 #include <VBox/err.h>
 #include <VBox/vm.h> /* for VM_IS_EMT */
+#include <VBox/dbg.h>
 
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
@@ -48,6 +52,9 @@
 #ifdef VBOX_WITH_HGCM
 # include "VMMDevHGCM.h"
 #endif
+#ifndef VBOX_WITHOUT_TESTING_FEATURES
+# include "VMMDevTesting.h"
+#endif
 
 
 /*******************************************************************************
@@ -56,23 +63,23 @@
 #define PCIDEV_2_VMMDEVSTATE(pPciDev)              ( (VMMDevState *)(pPciDev) )
 #define VMMDEVSTATE_2_DEVINS(pVMMDevState)         ( (pVMMDevState)->pDevIns )
 
-#define VBOX_GUEST_ADDITIONS_VERSION_1_03(s) \
-    (   RT_HIWORD((s)->guestInfo.additionsVersion) == 1 \
-     && RT_LOWORD((s)->guestInfo.additionsVersion) == 3 )
+#define VBOX_GUEST_INTERFACE_VERSION_1_03(s) \
+    (   RT_HIWORD((s)->guestInfo.interfaceVersion) == 1 \
+     && RT_LOWORD((s)->guestInfo.interfaceVersion) == 3 )
 
-#define VBOX_GUEST_ADDITIONS_VERSION_OK(additionsVersion) \
+#define VBOX_GUEST_INTERFACE_VERSION_OK(additionsVersion) \
       (   RT_HIWORD(additionsVersion) == RT_HIWORD(VMMDEV_VERSION) \
        && RT_LOWORD(additionsVersion) <= RT_LOWORD(VMMDEV_VERSION) )
 
-#define VBOX_GUEST_ADDITIONS_VERSION_OLD(additionsVersion) \
+#define VBOX_GUEST_INTERFACE_VERSION_OLD(additionsVersion) \
       (   (RT_HIWORD(additionsVersion) < RT_HIWORD(VMMDEV_VERSION) \
        || (   RT_HIWORD(additionsVersion) == RT_HIWORD(VMMDEV_VERSION) \
            && RT_LOWORD(additionsVersion) <= RT_LOWORD(VMMDEV_VERSION) ) )
 
-#define VBOX_GUEST_ADDITIONS_VERSION_TOO_OLD(additionsVersion) \
+#define VBOX_GUEST_INTERFACE_VERSION_TOO_OLD(additionsVersion) \
       ( RT_HIWORD(additionsVersion) < RT_HIWORD(VMMDEV_VERSION) )
 
-#define VBOX_GUEST_ADDITIONS_VERSION_NEW(additionsVersion) \
+#define VBOX_GUEST_INTERFACE_VERSION_NEW(additionsVersion) \
       (   RT_HIWORD(additionsVersion) > RT_HIWORD(VMMDEV_VERSION) \
        || (   RT_HIWORD(additionsVersion) == RT_HIWORD(VMMDEV_VERSION) \
            && RT_LOWORD(additionsVersion) >  RT_LOWORD(VMMDEV_VERSION) ) )
@@ -182,7 +189,7 @@ static void vmmdevNotifyGuest_EMT (VMMDevState *pVMMDevState, uint32_t u32EventM
 {
     Log3(("VMMDevNotifyGuest_EMT: u32EventMask = 0x%08X.\n", u32EventMask));
 
-    if (VBOX_GUEST_ADDITIONS_VERSION_1_03 (pVMMDevState))
+    if (VBOX_GUEST_INTERFACE_VERSION_1_03 (pVMMDevState))
     {
         Log3(("VMMDevNotifyGuest_EMT: Old additions detected.\n"));
 
@@ -380,6 +387,7 @@ static DECLCALLBACK(int) vmmdevTimesyncBackdoorRead(PPDMDEVINS pDevIns, void *pv
 }
 #endif /* TIMESYNC_BACKDOOR */
 
+
 /**
  * Port I/O Handler for the generic request interface
  * @see FNIOMIOPORTOUT for details.
@@ -409,7 +417,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     {
         Log(("VMMDev request header size too small! size = %d\n", requestHeader.size));
         rcRet = VINF_SUCCESS;
-        goto end; /** @todo shouldn't (/ no need to) write back.*/
+        goto l_end; /** @todo shouldn't (/ no need to) write back.*/
     }
 
     /* check the version of the header structure */
@@ -417,18 +425,22 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     {
         Log(("VMMDev: guest header version (0x%08X) differs from ours (0x%08X)\n", requestHeader.version, VMMDEV_REQUEST_HEADER_VERSION));
         rcRet = VINF_SUCCESS;
-        goto end; /** @todo shouldn't (/ no need to) write back.*/
+        goto l_end; /** @todo shouldn't (/ no need to) write back.*/
     }
 
     Log2(("VMMDev request issued: %d\n", requestHeader.requestType));
 
-    if (    requestHeader.requestType != VMMDevReq_ReportGuestInfo
-        && !pThis->fu32AdditionsOk)
+    /* Newer additions starts with VMMDevReq_ReportGuestInfo2, older additions
+       started with VMMDevReq_ReportGuestInfo. */
+    if (   !pThis->fu32AdditionsOk
+        && requestHeader.requestType != VMMDevReq_ReportGuestInfo2
+        && requestHeader.requestType != VMMDevReq_ReportGuestInfo
+        && requestHeader.requestType != VMMDevReq_WriteCoreDump)
     {
         Log(("VMMDev: guest has not yet reported to us. Refusing operation.\n"));
         requestHeader.rc = VERR_NOT_SUPPORTED;
         rcRet = VINF_SUCCESS;
-        goto end;
+        goto l_end;
     }
 
     /* Check upper limit */
@@ -437,7 +449,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         LogRel(("VMMDev: request packet too big (%x). Refusing operation.\n", requestHeader.size));
         requestHeader.rc = VERR_NOT_SUPPORTED;
         rcRet = VINF_SUCCESS;
-        goto end;
+        goto l_end;
     }
 
     /* Read the entire request packet */
@@ -447,7 +459,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         Log(("VMMDev: RTMemAlloc failed!\n"));
         rcRet = VINF_SUCCESS;
         requestHeader.rc = VERR_NO_MEMORY;
-        goto end;
+        goto l_end;
     }
     PDMDevHlpPhysRead(pDevIns, (RTGCPHYS)u32, pRequestHeader, requestHeader.size);
 
@@ -484,10 +496,10 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                     pThis->guestInfo = *guestInfo;
 
                     /* Check additions version */
-                    pThis->fu32AdditionsOk = VBOX_GUEST_ADDITIONS_VERSION_OK(pThis->guestInfo.additionsVersion);
+                    pThis->fu32AdditionsOk = VBOX_GUEST_INTERFACE_VERSION_OK(pThis->guestInfo.interfaceVersion);
 
                     LogRel(("Guest Additions information report: Interface = 0x%08X osType = 0x%08X\n",
-                            pThis->guestInfo.additionsVersion,
+                            pThis->guestInfo.interfaceVersion,
                             pThis->guestInfo.osType));
                     pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
                 }
@@ -513,11 +525,65 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             }
             else
             {
-                VBoxGuestInfo2 *guestInfo2 = &((VMMDevReportGuestInfo2*)pRequestHeader)->guestInfo;
+                VBoxGuestInfo2 *pGuestInfo2 = &((VMMDevReportGuestInfo2*)pRequestHeader)->guestInfo;
+                AssertPtr(pGuestInfo2);
                 LogRel(("Guest Additions information report: Version %d.%d.%d r%d '%.*s'\n",
-                        guestInfo2->additionsMajor, guestInfo2->additionsMinor, guestInfo2->additionsBuild,
-                        guestInfo2->additionsRevision, sizeof(guestInfo2->szName), guestInfo2->szName));
+                        pGuestInfo2->additionsMajor, pGuestInfo2->additionsMinor, pGuestInfo2->additionsBuild,
+                        pGuestInfo2->additionsRevision, sizeof(pGuestInfo2->szName), pGuestInfo2->szName));
+                pThis->pDrv->pfnUpdateGuestInfo2(pThis->pDrv, pGuestInfo2);
                 pRequestHeader->rc = VINF_SUCCESS;
+            }
+            break;
+        }
+
+        case VMMDevReq_WriteCoreDump:
+        {
+            if (pRequestHeader->size != sizeof(VMMDevReqWriteCoreDump))
+            {
+                AssertMsgFailed(("VMMDev WriteCoreDump structure has an invalid size!\n"));
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                if (pThis->fGuestCoreDumpEnabled)
+                {
+                    /*
+                     * User makes sure the directory exists.
+                     */
+                    if (!RTDirExists(pThis->szGuestCoreDumpDir))
+                        return VERR_PATH_NOT_FOUND;
+
+                    char szCorePath[RTPATH_MAX];
+                    RTStrCopy(szCorePath, sizeof(szCorePath), pThis->szGuestCoreDumpDir);
+                    RTPathAppend(szCorePath, sizeof(szCorePath), "VBox.core");
+
+                    /*
+                     * Rotate existing cores based on number of additional cores to keep around.
+                     */
+                    if (pThis->cGuestCoreDumps > 0)
+                        for (int64_t i = pThis->cGuestCoreDumps - 1; i >= 0; i--)
+                        {
+                            char szFilePathOld[RTPATH_MAX];
+                            if (i == 0)
+                                RTStrCopy(szFilePathOld, sizeof(szFilePathOld), szCorePath);
+                            else
+                                RTStrPrintf(szFilePathOld, sizeof(szFilePathOld), "%s.%d", szCorePath, i);
+
+                            char szFilePathNew[RTPATH_MAX];
+                            RTStrPrintf(szFilePathNew, sizeof(szFilePathNew), "%s.%d", szCorePath, i + 1);
+                            int vrc = RTFileMove(szFilePathOld, szFilePathNew, RTFILEMOVE_FLAGS_REPLACE);
+                            if (vrc == VERR_FILE_NOT_FOUND)
+                                RTFileDelete(szFilePathNew);
+                        }
+
+                    /*
+                     * Write the core file.
+                     */
+                    PVM pVM = PDMDevHlpGetVM(pDevIns);
+                    pRequestHeader->rc = DBGFR3CoreWrite(pVM, szCorePath, true /*fReplaceFile*/);
+                }
+                else
+                    pRequestHeader->rc = VERR_ACCESS_DENIED;
             }
             break;
         }
@@ -685,7 +751,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         {
             if (pRequestHeader->size < sizeof(VMMDevReqMousePointer))
             {
-                AssertMsg(pRequestHeader->size == 0x10028 && pRequestHeader->version == 10000,  /* don't bitch about legacy!!! */
+                AssertMsg(pRequestHeader->size == 0x10028 && pRequestHeader->version == 10000,  /* don't complain about legacy!!! */
                           ("VMMDev mouse shape structure has invalid size %d (%#x) version=%d!\n",
                            pRequestHeader->size, pRequestHeader->size, pRequestHeader->size, pRequestHeader->version));
                 pRequestHeader->rc = VERR_INVALID_PARAMETER;
@@ -872,8 +938,16 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
 
                     case VMMDevPowerState_SaveState:
                     {
-                        /** @todo no API for that yet */
-                        pRequestHeader->rc = VERR_NOT_IMPLEMENTED;
+                        if (true /*pThis->fAllowGuestToSaveState*/)
+                        {
+                            LogRel(("Guest requests the VM to be saved and powered off\n"));
+                            pRequestHeader->rc = rcRet = PDMDevHlpVMSuspendSaveAndPowerOff(pDevIns);
+                        }
+                        else
+                        {
+                            LogRel(("Guest requests the VM to be saved and powered off, declined\n"));
+                            pRequestHeader->rc = VERR_ACCESS_DENIED;
+                        }
                         break;
                     }
 
@@ -1120,7 +1194,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             }
             else
             {
-                if (VBOX_GUEST_ADDITIONS_VERSION_1_03 (pThis))
+                if (VBOX_GUEST_INTERFACE_VERSION_1_03 (pThis))
                 {
                     vmmdevSetIRQ_Legacy_EMT (pThis);
                 }
@@ -1628,16 +1702,16 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                 VMMDevCredentials *credentials = (VMMDevCredentials*)pRequestHeader;
 
                 /* let's start by nulling out the data */
-                memset(credentials->szUserName, '\0', VMMDEV_CREDENTIALS_STRLEN);
-                memset(credentials->szPassword, '\0', VMMDEV_CREDENTIALS_STRLEN);
-                memset(credentials->szDomain, '\0', VMMDEV_CREDENTIALS_STRLEN);
+                memset(credentials->szUserName, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+                memset(credentials->szPassword, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+                memset(credentials->szDomain, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
 
                 /* should we return whether we got credentials for a logon? */
                 if (credentials->u32Flags & VMMDEV_CREDENTIALS_QUERYPRESENCE)
                 {
-                    if (   pThis->credentialsLogon.szUserName[0]
-                        || pThis->credentialsLogon.szPassword[0]
-                        || pThis->credentialsLogon.szDomain[0])
+                    if (   pThis->pCredentials->Logon.szUserName[0]
+                        || pThis->pCredentials->Logon.szPassword[0]
+                        || pThis->pCredentials->Logon.szDomain[0])
                     {
                         credentials->u32Flags |= VMMDEV_CREDENTIALS_PRESENT;
                     }
@@ -1650,13 +1724,13 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                 /* does the guest want to read logon credentials? */
                 if (credentials->u32Flags & VMMDEV_CREDENTIALS_READ)
                 {
-                    if (pThis->credentialsLogon.szUserName[0])
-                        strcpy(credentials->szUserName, pThis->credentialsLogon.szUserName);
-                    if (pThis->credentialsLogon.szPassword[0])
-                        strcpy(credentials->szPassword, pThis->credentialsLogon.szPassword);
-                    if (pThis->credentialsLogon.szDomain[0])
-                        strcpy(credentials->szDomain, pThis->credentialsLogon.szDomain);
-                    if (!pThis->credentialsLogon.fAllowInteractiveLogon)
+                    if (pThis->pCredentials->Logon.szUserName[0])
+                        strcpy(credentials->szUserName, pThis->pCredentials->Logon.szUserName);
+                    if (pThis->pCredentials->Logon.szPassword[0])
+                        strcpy(credentials->szPassword, pThis->pCredentials->Logon.szPassword);
+                    if (pThis->pCredentials->Logon.szDomain[0])
+                        strcpy(credentials->szDomain, pThis->pCredentials->Logon.szDomain);
+                    if (!pThis->pCredentials->Logon.fAllowInteractiveLogon)
                         credentials->u32Flags |= VMMDEV_CREDENTIALS_NOLOCALLOGON;
                     else
                         credentials->u32Flags &= ~VMMDEV_CREDENTIALS_NOLOCALLOGON;
@@ -1667,29 +1741,29 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                     /* does the caller want us to destroy the logon credentials? */
                     if (credentials->u32Flags & VMMDEV_CREDENTIALS_CLEAR)
                     {
-                        memset(pThis->credentialsLogon.szUserName, '\0', VMMDEV_CREDENTIALS_STRLEN);
-                        memset(pThis->credentialsLogon.szPassword, '\0', VMMDEV_CREDENTIALS_STRLEN);
-                        memset(pThis->credentialsLogon.szDomain, '\0', VMMDEV_CREDENTIALS_STRLEN);
+                        memset(pThis->pCredentials->Logon.szUserName, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+                        memset(pThis->pCredentials->Logon.szPassword, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+                        memset(pThis->pCredentials->Logon.szDomain, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
                     }
                 }
 
                 /* does the guest want to read credentials for verification? */
                 if (credentials->u32Flags & VMMDEV_CREDENTIALS_READJUDGE)
                 {
-                    if (pThis->credentialsJudge.szUserName[0])
-                        strcpy(credentials->szUserName, pThis->credentialsJudge.szUserName);
-                    if (pThis->credentialsJudge.szPassword[0])
-                        strcpy(credentials->szPassword, pThis->credentialsJudge.szPassword);
-                    if (pThis->credentialsJudge.szDomain[0])
-                        strcpy(credentials->szDomain, pThis->credentialsJudge.szDomain);
+                    if (pThis->pCredentials->Judge.szUserName[0])
+                        strcpy(credentials->szUserName, pThis->pCredentials->Judge.szUserName);
+                    if (pThis->pCredentials->Judge.szPassword[0])
+                        strcpy(credentials->szPassword, pThis->pCredentials->Judge.szPassword);
+                    if (pThis->pCredentials->Judge.szDomain[0])
+                        strcpy(credentials->szDomain, pThis->pCredentials->Judge.szDomain);
                 }
 
                 /* does the caller want us to destroy the judgement credentials? */
                 if (credentials->u32Flags & VMMDEV_CREDENTIALS_CLEARJUDGE)
                 {
-                    memset(pThis->credentialsJudge.szUserName, '\0', VMMDEV_CREDENTIALS_STRLEN);
-                    memset(pThis->credentialsJudge.szPassword, '\0', VMMDEV_CREDENTIALS_STRLEN);
-                    memset(pThis->credentialsJudge.szDomain, '\0', VMMDEV_CREDENTIALS_STRLEN);
+                    memset(pThis->pCredentials->Judge.szUserName, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+                    memset(pThis->pCredentials->Judge.szPassword, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+                    memset(pThis->pCredentials->Judge.szDomain, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
                 }
 
                 pRequestHeader->rc = VINF_SUCCESS;
@@ -1858,6 +1932,25 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             break;
         }
 
+        case VMMDevReq_DebugIsPageShared:
+        {
+# ifdef DEBUG
+            VMMDevPageIsSharedRequest *pReq = (VMMDevPageIsSharedRequest *)pRequestHeader;
+
+            if (pRequestHeader->size != sizeof(VMMDevPageIsSharedRequest))
+            {
+                pRequestHeader->rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                pRequestHeader->rc = PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pDevIns), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
+            }
+# else
+            pRequestHeader->rc = VERR_NOT_IMPLEMENTED;
+# endif
+            break;
+        }
+
 #endif
 
 #ifdef DEBUG
@@ -1878,6 +1971,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
             break;
         }
 #endif
+
         /*
          * Get a unique session id for this VM; the id will be different after each start, reset or restore of the VM
          * This can be used for restore detection inside the guest.
@@ -1906,7 +2000,7 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         }
     }
 
-end:
+l_end:
     /* Write the result back to guest memory */
     if (pRequestHeader)
     {
@@ -2125,12 +2219,12 @@ static DECLCALLBACK(int) vmmdevSetAbsoluteMouse(PPDMIVMMDEVPORT pInterface, uint
  * @returns VBox status code
  * @param   pCapabilities  Pointer of result value
  */
-static DECLCALLBACK(int) vmmdevQueryMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t *pCapabilities)
+static DECLCALLBACK(int) vmmdevQueryMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t *pfCaps)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
-    if (!pCapabilities)
+    if (!pfCaps)
         return VERR_INVALID_PARAMETER;
-    *pCapabilities = pThis->mouseCapabilities;
+    *pfCaps = pThis->mouseCapabilities;
     return VINF_SUCCESS;
 }
 
@@ -2140,20 +2234,21 @@ static DECLCALLBACK(int) vmmdevQueryMouseCapabilities(PPDMIVMMDEVPORT pInterface
  * @returns VBox status code
  * @param   capabilities  Capability mask
  */
-static DECLCALLBACK(int) vmmdevSetMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t capabilities)
+static DECLCALLBACK(int) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t fCapsAdded, uint32_t fCapsRemoved)
 {
     VMMDevState *pThis = IVMMDEVPORT_2_VMMDEVSTATE(pInterface);
     PDMCritSectEnter(&pThis->CritSect, VERR_SEM_BUSY);
 
-    bool bNotify = (   (capabilities & VMMDEV_MOUSE_NOTIFY_GUEST_MASK)
-                    != (pThis->mouseCapabilities & VMMDEV_MOUSE_NOTIFY_GUEST_MASK));
-
-    Log(("vmmdevSetMouseCapabilities: bNotify %d\n", bNotify));
-
-    pThis->mouseCapabilities &=   ~VMMDEV_MOUSE_HOST_MASK
+    uint32_t fOldCaps = pThis->mouseCapabilities;
+    pThis->mouseCapabilities &= ~(fCapsRemoved & VMMDEV_MOUSE_HOST_MASK);
+    pThis->mouseCapabilities |=   (fCapsAdded & VMMDEV_MOUSE_HOST_MASK)
                                 | VMMDEV_MOUSE_HOST_RECHECKS_NEEDS_HOST_CURSOR;
-    pThis->mouseCapabilities |= (capabilities & VMMDEV_MOUSE_HOST_MASK);
-    if (bNotify)
+    bool fNotify = fOldCaps != pThis->mouseCapabilities;
+
+    LogRelFlowFunc(("fCapsAdded=0x%x, fCapsRemoved=0x%x, fNotify %s\n",
+                    fCapsAdded, fCapsRemoved, fNotify ? "TRUE" : "FALSE"));
+
+    if (fNotify)
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_MOUSE_CAPABILITIES_CHANGED);
 
     PDMCritSectLeave(&pThis->CritSect);
@@ -2313,18 +2408,18 @@ static DECLCALLBACK(int) vmmdevSetCredentials(PPDMIVMMDEVPORT pInterface, const 
     if (u32Flags & VMMDEV_SETCREDENTIALS_GUESTLOGON)
     {
         /* memorize the data */
-        strcpy(pThis->credentialsLogon.szUserName, pszUsername);
-        strcpy(pThis->credentialsLogon.szPassword, pszPassword);
-        strcpy(pThis->credentialsLogon.szDomain,   pszDomain);
-        pThis->credentialsLogon.fAllowInteractiveLogon = !(u32Flags & VMMDEV_SETCREDENTIALS_NOLOCALLOGON);
+        strcpy(pThis->pCredentials->Logon.szUserName, pszUsername);
+        strcpy(pThis->pCredentials->Logon.szPassword, pszPassword);
+        strcpy(pThis->pCredentials->Logon.szDomain,   pszDomain);
+        pThis->pCredentials->Logon.fAllowInteractiveLogon = !(u32Flags & VMMDEV_SETCREDENTIALS_NOLOCALLOGON);
     }
     /* credentials verification mode? */
     else if (u32Flags & VMMDEV_SETCREDENTIALS_JUDGE)
     {
         /* memorize the data */
-        strcpy(pThis->credentialsJudge.szUserName, pszUsername);
-        strcpy(pThis->credentialsJudge.szPassword, pszPassword);
-        strcpy(pThis->credentialsJudge.szDomain,   pszDomain);
+        strcpy(pThis->pCredentials->Judge.szUserName, pszUsername);
+        strcpy(pThis->pCredentials->Judge.szPassword, pszPassword);
+        strcpy(pThis->pCredentials->Judge.szDomain,   pszDomain);
 
         VMMDevNotifyGuest (pThis, VMMDEV_EVENT_JUDGE_CREDENTIALS);
     }
@@ -2454,7 +2549,7 @@ static DECLCALLBACK(int) vmmdevSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutU32(pSSM, pThis->u32NewGuestFilterMask);
     SSMR3PutU32(pSSM, pThis->u32GuestFilterMask);
     SSMR3PutU32(pSSM, pThis->u32HostEventFlags);
-    /* The following is not strictly necessary as PGM restors MMIO2, keeping it for historical reasons. */
+    /* The following is not strictly necessary as PGM restores MMIO2, keeping it for historical reasons. */
     SSMR3PutMem(pSSM, &pThis->pVMMDevRAMR3->V, sizeof(pThis->pVMMDevRAMR3->V));
 
     SSMR3PutMem(pSSM, &pThis->guestInfo, sizeof (pThis->guestInfo));
@@ -2580,10 +2675,11 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
     if (pThis->fu32AdditionsOk)
     {
         LogRel(("Guest Additions information report: additionsVersion = 0x%08X, osType = 0x%08X\n",
-                pThis->guestInfo.additionsVersion,
+                pThis->guestInfo.interfaceVersion,
                 pThis->guestInfo.osType));
         if (pThis->pDrv)
             pThis->pDrv->pfnUpdateGuestInfo(pThis->pDrv, &pThis->guestInfo);
+/** @todo Missing pfnUpdateGuestInfo2 */
     }
     if (pThis->pDrv)
         pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
@@ -2659,21 +2755,21 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
     /* credentials have to go away (by default) */
     if (!pThis->fKeepCredentials)
     {
-        memset(pThis->credentialsLogon.szUserName, '\0', VMMDEV_CREDENTIALS_STRLEN);
-        memset(pThis->credentialsLogon.szPassword, '\0', VMMDEV_CREDENTIALS_STRLEN);
-        memset(pThis->credentialsLogon.szDomain, '\0', VMMDEV_CREDENTIALS_STRLEN);
+        memset(pThis->pCredentials->Logon.szUserName, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+        memset(pThis->pCredentials->Logon.szPassword, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+        memset(pThis->pCredentials->Logon.szDomain, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
     }
-    memset(pThis->credentialsJudge.szUserName, '\0', VMMDEV_CREDENTIALS_STRLEN);
-    memset(pThis->credentialsJudge.szPassword, '\0', VMMDEV_CREDENTIALS_STRLEN);
-    memset(pThis->credentialsJudge.szDomain, '\0', VMMDEV_CREDENTIALS_STRLEN);
+    memset(pThis->pCredentials->Judge.szUserName, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+    memset(pThis->pCredentials->Judge.szPassword, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
+    memset(pThis->pCredentials->Judge.szDomain, '\0', VMMDEV_CREDENTIALS_SZ_SIZE);
 
     /* Reset means that additions will report again. */
     const bool fVersionChanged = pThis->fu32AdditionsOk
-                              || pThis->guestInfo.additionsVersion
+                              || pThis->guestInfo.interfaceVersion
                               || pThis->guestInfo.osType != VBOXOSTYPE_Unknown;
     if (fVersionChanged)
         Log(("vmmdevReset: fu32AdditionsOk=%d additionsVersion=%x osType=%#x\n",
-             pThis->fu32AdditionsOk, pThis->guestInfo.additionsVersion, pThis->guestInfo.osType));
+             pThis->fu32AdditionsOk, pThis->guestInfo.interfaceVersion, pThis->guestInfo.osType));
     pThis->fu32AdditionsOk = false;
     memset (&pThis->guestInfo, 0, sizeof (pThis->guestInfo));
 
@@ -2724,10 +2820,42 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
     if (fCapsChanged)
         pThis->pDrv->pfnUpdateGuestCapabilities(pThis->pDrv, pThis->guestCaps);
 
-    /* Generate a unique session id for this VM; it will be changed for each start, reset or restore. 
+    /* Generate a unique session id for this VM; it will be changed for each start, reset or restore.
      * This can be used for restore detection inside the guest.
      */
     pThis->idSession = ASMReadTSC();
+}
+
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnRelocate}
+ */
+static DECLCALLBACK(void) vmmdevRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+{
+    NOREF(pDevIns);
+    NOREF(offDelta);
+}
+
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnDestruct}
+ */
+static DECLCALLBACK(int) vmmdevDestroy(PPDMDEVINS pDevIns)
+{
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
+
+    /*
+     * Wipe and free the credentials.
+     */
+    if (pThis->pCredentials)
+    {
+        RTMemWipeThoroughly(pThis->pCredentials, sizeof(*pThis->pCredentials), 10);
+        RTMemFree(pThis->pCredentials);
+        pThis->pCredentials = NULL;
+    }
+
+    return VINF_SUCCESS;
 }
 
 
@@ -2743,15 +2871,80 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
+     * Initialize data (most of it anyway).
+     */
+    /* Save PDM device instance data for future reference. */
+    pThis->pDevIns = pDevIns;
+
+    /* PCI vendor, just a free bogus value */
+    PCIDevSetVendorId(&pThis->dev, 0x80ee);
+    /* device ID */
+    PCIDevSetDeviceId(&pThis->dev, 0xcafe);
+    /* class sub code (other type of system peripheral) */
+    PCIDevSetClassSub(&pThis->dev, 0x80);
+    /* class base code (base system peripheral) */
+    PCIDevSetClassBase(&pThis->dev, 0x08);
+    /* header type */
+    PCIDevSetHeaderType(&pThis->dev, 0x00);
+    /* interrupt on pin 0 */
+    PCIDevSetInterruptPin(&pThis->dev, 0x01);
+
+    /*
+     * Interfaces
+     */
+    /* IBase */
+    pThis->IBase.pfnQueryInterface          = vmmdevPortQueryInterface;
+
+    /* VMMDev port */
+    pThis->IPort.pfnQueryAbsoluteMouse      = vmmdevQueryAbsoluteMouse;
+    pThis->IPort.pfnSetAbsoluteMouse        = vmmdevSetAbsoluteMouse;
+    pThis->IPort.pfnQueryMouseCapabilities  = vmmdevQueryMouseCapabilities;
+    pThis->IPort.pfnUpdateMouseCapabilities = vmmdevUpdateMouseCapabilities;
+    pThis->IPort.pfnRequestDisplayChange    = vmmdevRequestDisplayChange;
+    pThis->IPort.pfnSetCredentials          = vmmdevSetCredentials;
+    pThis->IPort.pfnVBVAChange              = vmmdevVBVAChange;
+    pThis->IPort.pfnRequestSeamlessChange   = vmmdevRequestSeamlessChange;
+    pThis->IPort.pfnSetMemoryBalloon        = vmmdevSetMemoryBalloon;
+    pThis->IPort.pfnSetStatisticsInterval   = vmmdevSetStatisticsInterval;
+    pThis->IPort.pfnVRDPChange              = vmmdevVRDPChange;
+    pThis->IPort.pfnCpuHotUnplug            = vmmdevCpuHotUnplug;
+    pThis->IPort.pfnCpuHotPlug              = vmmdevCpuHotPlug;
+
+    /* Shared folder LED */
+    pThis->SharedFolders.Led.u32Magic       = PDMLED_MAGIC;
+    pThis->SharedFolders.ILeds.pfnQueryStatusLed = vmmdevQueryStatusLed;
+
+#ifdef VBOX_WITH_HGCM
+    /* HGCM port */
+    pThis->IHGCMPort.pfnCompleted           = hgcmCompleted;
+#endif
+
+    pThis->pCredentials = (VMMDEVCREDS *)RTMemAllocZ(sizeof(*pThis->pCredentials));
+    if (!pThis->pCredentials)
+        return VERR_NO_MEMORY;
+
+
+    /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg,
-                              "GetHostTimeDisabled\0"
-                              "BackdoorLogDisabled\0"
-                              "KeepCredentials\0"
-                              "HeapEnabled\0"
-                              ))
-        return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns,
+                                  "GetHostTimeDisabled|"
+                                  "BackdoorLogDisabled|"
+                                  "KeepCredentials|"
+                                  "HeapEnabled|"
+                                  "RamSize|"
+                                  "RZEnabled|"
+                                  "GuestCoreDumpEnabled|"
+                                  "GuestCoreDumpDir|"
+                                  "GuestCoreDumpCount|"
+                                  "TestingEnabled"
+                                  ,
+                                  "");
+
+    rc = CFGMR3QueryU64(pCfg, "RamSize", &pThis->cbGuestRAM);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed querying \"RamSize\" as a 64-bit unsigned integer"));
 
     rc = CFGMR3QueryBoolDef(pCfg, "GetHostTimeDisabled", &pThis->fGetHostTimeDisabled, false);
     if (RT_FAILURE(rc))
@@ -2773,59 +2966,37 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Failed querying \"HeapEnabled\" as a boolean"));
 
-    /*
-     * Initialize data (most of it anyway).
-     */
-    /* Save PDM device instance data for future reference. */
-    pThis->pDevIns = pDevIns;
+    rc = CFGMR3QueryBoolDef(pCfg, "RZEnabled", &pThis->fRZEnabled, true);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed querying \"RZEnabled\" as a boolean"));
 
-    /* PCI vendor, just a free bogus value */
-    pThis->dev.config[0x00] = 0xee;
-    pThis->dev.config[0x01] = 0x80;
-    /* device ID */
-    pThis->dev.config[0x02] = 0xfe;
-    pThis->dev.config[0x03] = 0xca;
-    /* class sub code (other type of system peripheral) */
-    pThis->dev.config[0x0a] = 0x80;
-    /* class base code (base system peripheral) */
-    pThis->dev.config[0x0b] = 0x08;
-    /* header type */
-    pThis->dev.config[0x0e] = 0x00;
-    /* interrupt on pin 0 */
-    pThis->dev.config[0x3d] = 0x01;
+    rc = CFGMR3QueryBoolDef(pCfg, "GuestCoreDumpEnabled", &pThis->fGuestCoreDumpEnabled, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed querying \"GuestCoreDumpEnabled\" as a boolean"));
 
-    /*
-     * Interfaces
-     */
-    /* IBase */
-    pThis->IBase.pfnQueryInterface         = vmmdevPortQueryInterface;
+    char *pszGuestCoreDumpDir = NULL;
+    rc = CFGMR3QueryStringAlloc(pCfg, "GuestCoreDumpDir", &pszGuestCoreDumpDir);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed querying \"GuestCoreDumpDir\" as a string"));
 
-    /* VMMDev port */
-    pThis->IPort.pfnQueryAbsoluteMouse     = vmmdevQueryAbsoluteMouse;
-    pThis->IPort.pfnSetAbsoluteMouse       = vmmdevSetAbsoluteMouse;
-    pThis->IPort.pfnQueryMouseCapabilities = vmmdevQueryMouseCapabilities;
-    pThis->IPort.pfnSetMouseCapabilities   = vmmdevSetMouseCapabilities;
-    pThis->IPort.pfnRequestDisplayChange   = vmmdevRequestDisplayChange;
-    pThis->IPort.pfnSetCredentials         = vmmdevSetCredentials;
-    pThis->IPort.pfnVBVAChange             = vmmdevVBVAChange;
-    pThis->IPort.pfnRequestSeamlessChange  = vmmdevRequestSeamlessChange;
-    pThis->IPort.pfnSetMemoryBalloon       = vmmdevSetMemoryBalloon;
-    pThis->IPort.pfnSetStatisticsInterval  = vmmdevSetStatisticsInterval;
-    pThis->IPort.pfnVRDPChange             = vmmdevVRDPChange;
-    pThis->IPort.pfnCpuHotUnplug           = vmmdevCpuHotUnplug;
-    pThis->IPort.pfnCpuHotPlug             = vmmdevCpuHotPlug;
+    RTStrCopy(pThis->szGuestCoreDumpDir, sizeof(pThis->szGuestCoreDumpDir), pszGuestCoreDumpDir);
+    MMR3HeapFree(pszGuestCoreDumpDir);
 
-    /* Shared folder LED */
-    pThis->SharedFolders.Led.u32Magic      = PDMLED_MAGIC;
-    pThis->SharedFolders.ILeds.pfnQueryStatusLed = vmmdevQueryStatusLed;
+    rc = CFGMR3QueryU32Def(pCfg, "GuestCoreDumpCount", &pThis->cGuestCoreDumps, 3);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed querying \"GuestCoreDumpCount\" as a 32-bit unsigned integer"));
 
-#ifdef VBOX_WITH_HGCM
-    /* HGCM port */
-    pThis->IHGCMPort.pfnCompleted          = hgcmCompleted;
+#ifndef VBOX_WITHOUT_TESTING_FEATURES
+    rc = CFGMR3QueryBoolDef(pCfg, "TestingEnabled", &pThis->fTestingEnabled, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Failed querying \"TestingEnabled\" as a boolean"));
+    /** @todo image-to-load-filename? */
 #endif
-
-    /** @todo convert this into a config parameter like we do everywhere else! */
-    pThis->cbGuestRAM = MMR3PhysGetRamSize(PDMDevHlpGetVM(pDevIns));
 
     /*
      * Create the critical section for the device.
@@ -2871,7 +3042,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     rc = PDMDevHlpPCIRegister(pDevIns, &pThis->dev);
     if (RT_FAILURE(rc))
         return rc;
-    if (pThis->dev.devfn == 32 || iInstance != 0)
+    if (pThis->dev.devfn != 32 || iInstance != 0)
         Log(("!!WARNING!!: pThis->dev.devfn=%d (ignore if testcase or no started by Main)\n", pThis->dev.devfn));
     rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, 0x20, PCI_ADDRESS_SPACE_IO, vmmdevIOPortRegionMap);
     if (RT_FAILURE(rc))
@@ -2885,6 +3056,15 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         if (RT_FAILURE(rc))
             return rc;
     }
+
+#ifndef VBOX_WITHOUT_TESTING_FEATURES
+    /*
+     * Initialize testing.
+     */
+    rc = vmmdevTestingInitialize(pDevIns);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
 
     /*
      * Get the corresponding connector interface
@@ -2903,8 +3083,10 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         }
 #endif
         /* Query the initial balloon size. */
+        AssertPtr(pThis->pDrv->pfnQueryBalloonSize);
         rc = pThis->pDrv->pfnQueryBalloonSize(pThis->pDrv, &pThis->u32MemoryBalloonSize);
         AssertRC(rc);
+
         Log(("Initial balloon size %x\n", pThis->u32MemoryBalloonSize));
     }
     else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
@@ -2943,13 +3125,14 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     AssertRCReturn(rc, rc);
     pThis->u32HGCMEnabled = 0;
 #endif /* VBOX_WITH_HGCM */
+
     /* In this version of VirtualBox the GUI checks whether "needs host cursor"
      * changes. */
     pThis->mouseCapabilities |= VMMDEV_MOUSE_HOST_RECHECKS_NEEDS_HOST_CURSOR;
 
     PDMDevHlpSTAMRegisterF(pDevIns, &pThis->StatMemBalloonChunks, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Memory balloon size", "/Devices/VMMDev/BalloonChunks");
 
-    /* Generate a unique session id for this VM; it will be changed for each start, reset or restore. 
+    /* Generate a unique session id for this VM; it will be changed for each start, reset or restore.
      * This can be used for restore detection inside the guest.
      */
     pThis->idSession = ASMReadTSC();
@@ -2966,13 +3149,13 @@ extern "C" const PDMDEVREG g_DeviceVMMDev =
     /* szName */
     "VMMDev",
     /* szRCMod */
-    "",
+    "VBoxDDGC.gc",
     /* szR0Mod */
-    "",
+    "VBoxDDR0.r0",
     /* pszDescription */
     "VirtualBox VMM Device\n",
     /* fFlags */
-    PDM_DEVREG_FLAGS_HOST_BITS_DEFAULT | PDM_DEVREG_FLAGS_GUEST_BITS_DEFAULT,
+    PDM_DEVREG_FLAGS_HOST_BITS_DEFAULT | PDM_DEVREG_FLAGS_GUEST_BITS_DEFAULT | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0,
     /* fClass */
     PDM_DEVREG_CLASS_VMM_DEV,
     /* cMaxInstances */
@@ -2984,7 +3167,7 @@ extern "C" const PDMDEVREG g_DeviceVMMDev =
     /* pfnDestruct */
     NULL,
     /* pfnRelocate */
-    NULL,
+    vmmdevRelocate,
     /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
@@ -3011,4 +3194,3 @@ extern "C" const PDMDEVREG g_DeviceVMMDev =
     PDM_DEVREG_VERSION
 };
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
-

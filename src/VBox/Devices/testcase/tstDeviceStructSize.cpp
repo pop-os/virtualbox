@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSize.cpp $ */
+/* $Id: tstDeviceStructSize.cpp 32471 2010-09-14 10:26:07Z vboxsync $ */
 /** @file
  * tstDeviceStructSize - testcase for check structure sizes/alignment
  *                       and to verify that HC and RC uses the same
@@ -23,6 +23,8 @@
 #include <VBox/types.h>
 #include <VBox/x86.h>
 
+
+#define VBOX_WITH_HGCM                  /* grumble */
 #define VBOX_DEVICE_STRUCT_TESTCASE
 #undef LOG_GROUP
 #include "../Bus/DevPCI.cpp"
@@ -50,24 +52,20 @@
 #include "../PC/DevRTC.cpp"
 #undef LOG_GROUP
 #include "../PC/DevAPIC.cpp"
-#ifdef VBOX_WITH_HPET
-# undef LOG_GROUP
-# include "../PC/DevHPET.cpp"
-#endif
-#ifdef VBOX_WITH_LPC
-# undef LOG_GROUP
-# include "../PC/DevLPC.cpp"
-#endif
-#ifdef VBOX_WITH_SMC
-# undef LOG_GROUP
-# include "../PC/DevSMC.cpp"
-#endif
+#undef LOG_GROUP
+#include "../PC/DevHPET.cpp"
+#undef LOG_GROUP
+#include "../PC/DevLPC.cpp"
+#undef LOG_GROUP
+#include "../PC/DevSMC.cpp"
 #undef LOG_GROUP
 #include "../Storage/DevATA.cpp"
 #ifdef VBOX_WITH_USB
 # undef LOG_GROUP
 # include "../USB/DevOHCI.cpp"
-# include "../USB/DevEHCI.cpp"
+# ifdef VBOX_WITH_EHCI
+#  include "../USB/DevEHCI.cpp"
+# endif
 #endif
 #undef LOG_GROUP
 #include "../VMMDev/VMMDev.cpp"
@@ -170,7 +168,7 @@
 #define CHECK_PADDING(strct, member, align) \
     do \
     { \
-        strct *p; \
+        strct *p = NULL; NOREF(p); \
         if (sizeof(p->member.s) > sizeof(p->member.padding)) \
         { \
             printf("tstDeviceStructSize: error! padding of %s::%s is too small, padding=%d struct=%d correct=%d\n", #strct, #member, \
@@ -191,7 +189,7 @@
 #define CHECK_PADDING2(strct) \
     do \
     { \
-        strct *p; \
+        strct *p = NULL; NOREF(p); \
         if (sizeof(p->s) > sizeof(p->padding)) \
         { \
             printf("tstDeviceStructSize: error! padding of %s is too small, padding=%d struct=%d correct=%d\n", #strct, \
@@ -206,7 +204,7 @@
 #define CHECK_PADDING3(strct, member, pad_member) \
     do \
     { \
-        strct *p; \
+        strct *p = NULL; NOREF(p); \
         if (sizeof(p->member) > sizeof(p->pad_member)) \
         { \
             printf("tstDeviceStructSize: error! padding of %s::%s is too small, padding=%d struct=%d\n", #strct, #member, \
@@ -262,6 +260,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatReads, 8);
     CHECK_MEMBER_ALIGNMENT(ATACONTROLLER, lock, 8);
     CHECK_MEMBER_ALIGNMENT(ATACONTROLLER, StatAsyncOps, 8);
+    CHECK_MEMBER_ALIGNMENT(BUSLOGIC, CritSectIntr, 8);
     CHECK_MEMBER_ALIGNMENT(DEVPARALLELSTATE, CritSect, 8);
 #ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(DEVPIC, StatSetIrqGC, 8);
@@ -276,9 +275,11 @@ int main()
 #endif
     //CHECK_MEMBER_ALIGNMENT(E1KSTATE, csTx, 8);
 #ifdef VBOX_WITH_USB
+# ifdef VBOX_WITH_EHCI
     CHECK_MEMBER_ALIGNMENT(EHCI, RootHub, 8);
-# ifdef VBOX_WITH_STATISTICS
+#  ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(EHCI, StatCanceledIsocUrbs, 8);
+#  endif
 # endif
 #endif
     CHECK_MEMBER_ALIGNMENT(E1KSTATE, StatReceiveBytes, 8);

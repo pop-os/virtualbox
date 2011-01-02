@@ -1,4 +1,4 @@
-/* $Id: DevIchAc97.cpp $ */
+/* $Id: DevIchAc97.cpp 33676 2010-11-02 09:48:24Z vboxsync $ */
 /** @file
  * DevIchAc97 - VBox ICH AC97 Audio Controller.
  */
@@ -788,6 +788,7 @@ static void transfer_audio (AC97LinkState *s, int index, int elapsed)
                 temp = write_audio (s, r, elapsed, &stop);
                 written += temp;
                 elapsed -= temp;
+                Assert((temp & 1) == 0);    /* Else the following shift won't work */
                 r->picb -= (temp >> 1);
                 break;
 
@@ -795,6 +796,7 @@ static void transfer_audio (AC97LinkState *s, int index, int elapsed)
             case MC_INDEX:
                 temp = read_audio (s, r, elapsed, &stop);
                 elapsed -= temp;
+                Assert((temp & 1) == 0);    /* Else the following shift won't work */
                 r->picb -= (temp >> 1);
                 break;
         }
@@ -1576,7 +1578,8 @@ static DECLCALLBACK(int) ichac97Construct (PPDMDEVINS pDevIns, int iInstance,
     PCIDevSetVendorId           (&pThis->dev, 0x8086); /* 00 ro - intel. */             Assert (pThis->dev.config[0x00] == 0x86); Assert (pThis->dev.config[0x01] == 0x80);
     PCIDevSetDeviceId           (&pThis->dev, 0x2415); /* 02 ro - 82801 / 82801aa(?). */Assert (pThis->dev.config[0x02] == 0x15); Assert (pThis->dev.config[0x03] == 0x24);
     PCIDevSetCommand            (&pThis->dev, 0x0000); /* 04 rw,ro - pcicmd. */         Assert (pThis->dev.config[0x04] == 0x00); Assert (pThis->dev.config[0x05] == 0x00);
-    PCIDevSetStatus             (&pThis->dev, 0x0280); /* 06 rwc?,ro? - pcists. */      Assert (pThis->dev.config[0x06] == 0x80); Assert (pThis->dev.config[0x07] == 0x02);
+    PCIDevSetStatus             (&pThis->dev,
+           VBOX_PCI_STATUS_DEVSEL_MEDIUM |  VBOX_PCI_STATUS_FAST_BACK); /* 06 rwc?,ro? - pcists. */      Assert (pThis->dev.config[0x06] == 0x80); Assert (pThis->dev.config[0x07] == 0x02);
     PCIDevSetRevisionId         (&pThis->dev, 0x01);   /* 08 ro - rid. */               Assert (pThis->dev.config[0x08] == 0x01);
     PCIDevSetClassProg          (&pThis->dev, 0x00);   /* 09 ro - pi. */                Assert (pThis->dev.config[0x09] == 0x00);
     PCIDevSetClassSub           (&pThis->dev, 0x01);   /* 0a ro - scc; 01 == Audio. */  Assert (pThis->dev.config[0x0a] == 0x01);

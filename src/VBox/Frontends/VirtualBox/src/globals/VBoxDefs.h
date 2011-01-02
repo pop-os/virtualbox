@@ -22,6 +22,7 @@
 /* Qt includes */
 #include <QEvent>
 #include <QUuid>
+#include <QMetaType>
 
 #define LOG_GROUP LOG_GROUP_GUI
 #include <VBox/log.h>
@@ -45,21 +46,6 @@
 #ifndef SIZEOF_ARRAY
 #define SIZEOF_ARRAY(a) (sizeof(a) / sizeof(a[0]))
 #endif
-
-#if defined (VBOX_GUI_USE_QIMAGE) || \
-    defined (VBOX_GUI_USE_SDL) || \
-    defined (VBOX_GUI_USE_DDRAW)
-  #if !defined (VBOX_GUI_USE_EXT_FRAMEBUFFER)
-    #define VBOX_GUI_USE_EXT_FRAMEBUFFER
-  #endif
-#else
-  #if defined (VBOX_GUI_USE_EXT_FRAMEBUFFER)
-    #undef VBOX_GUI_USE_EXT_FRAMEBUFFER
-  #endif
-#endif
-
-/** Null UUID constant to be used as a default value for reference parameters */
-extern const QUuid QUuid_null;
 
 /** Common namespace for all enums */
 struct VBoxDefs
@@ -86,46 +72,19 @@ struct VBoxDefs
     /** Additional Qt event types. */
     enum
     {
-          AsyncEventType = QEvent::User + 100
-        , ResizeEventType
+          ResizeEventType = QEvent::User + 101
         , RepaintEventType
         , SetRegionEventType
-        , MouseCapabilityEventType
-        , MousePointerChangeEventType
-        , MachineStateChangeEventType
-        , AdditionsStateChangeEventType
-        , MediaDriveChangeEventType
-        , MachineDataChangeEventType
-        , MachineRegisteredEventType
-        , SessionStateChangeEventType
-        , SnapshotEventType
-        , CanShowRegDlgEventType
-        , CanShowUpdDlgEventType
-        , NetworkAdapterChangeEventType
-        , USBCtlStateChangeEventType
-        , USBDeviceStateChangeEventType
-        , SharedFolderChangeEventType
-        , RuntimeErrorEventType
         , ModifierKeyChangeEventType
         , MediaEnumEventType
 #if defined (Q_WS_WIN)
         , ShellExecuteEventType
 #endif
-        , ActivateMenuEventType /* remove when new core is active */
-        , ActivateActionEventType /* New name for new core */
+        , ActivateActionEventType
 #if defined (Q_WS_MAC)
         , ShowWindowEventType
 #endif
-        , ChangeGUILanguageEventType
-#if defined (VBOX_GUI_WITH_SYSTRAY)
-        , CanShowTrayIconEventType
-        , ShowTrayIconEventType
-        , TrayIconChangeEventType
-        , MainWindowCountChangeEventType
-#endif
         , AddVDMUrlsEventType
-        , ChangeDockIconUpdateEventType
-        , ChangePresentationmodeEventType
 #ifdef VBOX_GUI_USE_QGL
         , VHWACommandProcessType
 #endif
@@ -140,10 +99,16 @@ struct VBoxDefs
     };
 
     static const char* GUI_LastWindowPosition;
-    static const char* GUI_LastWindowPosition_Max;
+    static const char* GUI_LastNormalWindowPosition;
+    static const char* GUI_LastScaleWindowPosition;
+    static const char* GUI_LastWindowState_Max;
+    static const char* GUI_SplitterSizes;
+    static const char* GUI_Toolbar;
+    static const char* GUI_Statusbar;
     static const char* GUI_LastGuestSizeHint;
     static const char* GUI_Fullscreen;
     static const char* GUI_Seamless;
+    static const char* GUI_Scale;
     static const char* GUI_VirtualScreenToHostScreen;
     static const char* GUI_AutoresizeGuest;
     static const char* GUI_FirstRun;
@@ -155,6 +120,10 @@ struct VBoxDefs
     static const char* GUI_RestrictedCloseActions;
     static const char* GUI_SuppressMessages;
     static const char* GUI_PermanentSharedFoldersAtRuntime;
+    static const char* GUI_LanguageId;
+    static const char* GUI_PreviewUpdate;
+    static const char* GUI_DetailsPageBoxes;
+    static const char* GUI_SelectorVMPositions;
 #ifdef Q_WS_X11
     static const char* GUI_LicenseKey;
 #endif
@@ -168,6 +137,7 @@ struct VBoxDefs
     static const char* GUI_RenderMode;
 #ifdef VBOX_GUI_WITH_SYSTRAY
     static const char* GUI_TrayIconWinID;
+    static const char* GUI_TrayIconEnabled;
     static const char* GUI_MainWindowCount;
 #endif
 #ifdef Q_WS_MAC
@@ -182,6 +152,10 @@ struct VBoxDefs
     static const char* GUI_Export_Bucket;
     static const char* GUI_PreventBetaWarning;
 
+    static const char* GUI_RecentListHD;
+    static const char* GUI_RecentListCD;
+    static const char* GUI_RecentListFD;
+
 #ifdef VBOX_WITH_VIDEOHWACCEL
     static const char* GUI_Accelerate2D_StretchLinear;
     static const char* GUI_Accelerate2D_PixformatYV12;
@@ -189,9 +163,20 @@ struct VBoxDefs
     static const char* GUI_Accelerate2D_PixformatYUY2;
     static const char* GUI_Accelerate2D_PixformatAYUV;
 #endif
+
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    static const char* GUI_DbgEnabled;
+    static const char* GUI_DbgAutoShow;
+#endif
+
+    static QStringList VBoxFileExts;
+    static QStringList VBoxExtPackFileExts;
+    static QStringList OVFFileExts;
 };
+
+Q_DECLARE_METATYPE(VBoxDefs::MediumType);
 
 #define MAC_LEOPARD_STYLE defined(Q_WS_MAC) && (QT_VERSION >= 0x040300)
 
-#endif // __VBoxDefs_h__
+#endif /* __VBoxDefs_h__ */
 

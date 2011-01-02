@@ -1,6 +1,6 @@
-/* $Id: UsbMsd.cpp $ */
+/* $Id: UsbMsd.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
- * UsbMSD - USB Mass Stoage Device Emulation.
+ * UsbMSD - USB Mass Storage Device Emulation.
  */
 
 /*
@@ -225,7 +225,7 @@ typedef struct USBMSD
      *  time.  Only signalled when fSignalResetSem is set. */
     RTSEMEVENTMULTI     hEvtReset;
     /** The reset URB.
-     * This is waiting for SCSI requestion completion before finishing the reset. */
+     * This is waiting for SCSI request completion before finishing the reset. */
     PVUSBURB            pResetUrb;
 
     /**
@@ -745,7 +745,8 @@ static int usbMsdResetWorker(PUSBMSD pThis, PVUSBURB pUrb, bool fSetConfig)
 /**
  * @interface_method_impl{PDMISCSIPORT,pfnSCSIRequestCompleted}
  */
-static DECLCALLBACK(int) usbMsdLun0ScsiRequestCompleted(PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest, int rcCompletion)
+static DECLCALLBACK(int) usbMsdLun0ScsiRequestCompleted(PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
+                                                        int rcCompletion, bool fRedo, int rcReq)
 {
     PUSBMSD     pThis = RT_FROM_MEMBER(pInterface, USBMSD, Lun0.IScsiPort);
     PUSBMSDREQ  pReq  = RT_FROM_MEMBER(pSCSIRequest, USBMSDREQ, ScsiReq);
@@ -893,7 +894,7 @@ static int usbMsdScsiIllegalRequest(PUSBMSD pThis, PUSBMSDREQ pReq, uint8_t bAsc
     pReq->ScsiReqSense[12] = SCSI_ASC_INVALID_MESSAGE;
     pReq->ScsiReqSense[13] = 0; /* Should be ASCQ but it has the same value for success. */
 
-    usbMsdLun0ScsiRequestCompleted(&pThis->Lun0.IScsiPort, &pReq->ScsiReq, SCSI_STATUS_CHECK_CONDITION);
+    usbMsdLun0ScsiRequestCompleted(&pThis->Lun0.IScsiPort, &pReq->ScsiReq, SCSI_STATUS_CHECK_CONDITION, false, VINF_SUCCESS);
     return VINF_SUCCESS;
 }
 
@@ -945,7 +946,7 @@ static int usbMsdHandleScsiReqestSense(PUSBMSD pThis, PUSBMSDREQ pReq, PCUSBCBW 
     usbMsdReqPrepare(pReq, pCbw);
 
     /* Do normal completion.  */
-    usbMsdLun0ScsiRequestCompleted(&pThis->Lun0.IScsiPort, &pReq->ScsiReq, SCSI_STATUS_OK);
+    usbMsdLun0ScsiRequestCompleted(&pThis->Lun0.IScsiPort, &pReq->ScsiReq, SCSI_STATUS_OK, false, VINF_SUCCESS);
     return VINF_SUCCESS;
 }
 
@@ -1073,7 +1074,7 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                 return VINF_SUCCESS;
 
             /*
-             * Make sure we've got a request and a sufficent buffer space.
+             * Make sure we've got a request and a sufficient buffer space.
              *
              * Note! This will make sure the buffer is ZERO as well, thus
              *       saving us the trouble of clearing the output buffer on
@@ -1273,7 +1274,7 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                 usbMsdQueueAddTail(&pThis->ToHostQueue, pUrb);
                 LogFlow(("usbMsdHandleBulkDevToHost: Added %p:%s to the to-host queue\n", pUrb, pUrb->pszDesc));
 
-                usbMsdLun0ScsiRequestCompleted(&pThis->Lun0.IScsiPort, &pReq->ScsiReq, SCSI_STATUS_OK);
+                usbMsdLun0ScsiRequestCompleted(&pThis->Lun0.IScsiPort, &pReq->ScsiReq, SCSI_STATUS_OK, false, VINF_SUCCESS);
                 return VINF_SUCCESS;
             }
 

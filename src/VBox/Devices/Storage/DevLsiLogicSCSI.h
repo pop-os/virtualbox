@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.h $ */
+/* $Id: DevLsiLogicSCSI.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller - Defines and structures.
  */
@@ -92,7 +92,7 @@ typedef enum LSILOGICCTRLTYPE
 } LSILOGICCTRLTYPE, *PLSILOGICCTRLTYPE;
 
 /**
- * A simple SG element for a 64bit adress.
+ * A simple SG element for a 64bit address.
  */
 #pragma pack(1)
 typedef struct MptSGEntrySimple64
@@ -103,7 +103,7 @@ typedef struct MptSGEntrySimple64
     unsigned fEndOfList:          1;
     /** Flag whether the address is 32bit or 64bits wide. */
     unsigned f64BitAddress:       1;
-    /** Flag whether this buffer contains data to be transfered or is the destination. */
+    /** Flag whether this buffer contains data to be transferred or is the destination. */
     unsigned fBufferContainsData: 1;
     /** Flag whether this is a local address or a system address. */
     unsigned fLocalAddress:       1;
@@ -122,7 +122,7 @@ typedef struct MptSGEntrySimple64
 AssertCompileSize(MptSGEntrySimple64, 12);
 
 /**
- * A simple SG element for a 32bit adress.
+ * A simple SG element for a 32bit address.
  */
 #pragma pack(1)
 typedef struct MptSGEntrySimple32
@@ -133,7 +133,7 @@ typedef struct MptSGEntrySimple32
     unsigned fEndOfList:          1;
     /** Flag whether the address is 32bit or 64bits wide. */
     unsigned f64BitAddress:       1;
-    /** Flag whether this buffer contains data to be transfered or is the destination. */
+    /** Flag whether this buffer contains data to be transferred or is the destination. */
     unsigned fBufferContainsData: 1;
     /** Flag whether this is a local address or a system address. */
     unsigned fLocalAddress:       1;
@@ -225,6 +225,7 @@ AssertCompileSize(MptMessageHdr, 12);
 #define MPT_MESSAGE_HDR_FUNCTION_TARGET_ASSIST          (0x0B)
 #define MPT_MESSAGE_HDR_FUNCTION_TARGET_STATUS_SEND     (0x0C)
 #define MPT_MESSAGE_HDR_FUNCTION_TARGET_MODE_ABORT      (0x0D)
+#define MPT_MESSAGE_HDR_FUNCTION_FW_UPLOAD              (0x12)
 
 #ifdef DEBUG
 /**
@@ -495,7 +496,7 @@ typedef struct MptPortFactsReply
     uint16_t    u16PortSCSIID;
     /** Protocol flags. */
     uint16_t    u16ProtocolFlags;
-    /** Maxmimum number of target command buffers which can be posted to this port at a time. */
+    /** Maximum number of target command buffers which can be posted to this port at a time. */
     uint16_t    u16MaxPostedCmdBuffers;
     /** Maximum number of target IDs that remain persistent between power/reset cycles. */
     uint16_t    u16MaxPersistentIDs;
@@ -626,6 +627,119 @@ AssertCompileSize(MptEventNotificationReply, 32);
 #define MPT_EVENT_EVENT_CHANGE (0x0000000a)
 
 /**
+ * FW download request.
+ */
+#pragma pack(1)
+typedef struct MptFWDownloadRequest
+{
+    /** Switch - Turns event notification on and off. */
+    uint8_t     u8ImageType;
+    /** Reserved. */
+    uint8_t     u8Reserved1;
+    /** Chain offset. */
+    uint8_t     u8ChainOffset;
+    /** Function number. */
+    uint8_t     u8Function;
+    /** Reserved. */
+    uint8_t     u8Reserved2[3];
+    /** Message flags. */
+    uint8_t     u8MessageFlags;
+    /** Message context ID. */
+    uint32_t    u32MessageContext;
+} MptFWDownloadRequest, *PMptFWDownloadRequest;
+#pragma pack()
+AssertCompileSize(MptFWDownloadRequest, 12);
+
+#define MPT_FW_DOWNLOAD_REQUEST_IMAGE_TYPE_RESERVED 0
+#define MPT_FW_DOWNLOAD_REQUEST_IMAGE_TYPE_FIRMWARE 1
+#define MPT_FW_DOWNLOAD_REQUEST_IMAGE_TYPE_MPI_BIOS 2
+#define MPT_FW_DOWNLOAD_REQUEST_IMAGE_TYPE_NVDATA   3
+
+/**
+ * FW download reply.
+ */
+#pragma pack(1)
+typedef struct MptFWDownloadReply
+{
+    /** Reserved. */
+    uint16_t    u16Reserved1;
+    /** Message length. */
+    uint8_t     u8MessageLength;
+    /** Function number. */
+    uint8_t     u8Function;
+    /** Reserved. */
+    uint8_t     u8Reserved2[3];
+    /** Message flags. */
+    uint8_t     u8MessageFlags;
+    /** Message context ID. */
+    uint32_t    u32MessageContext;
+    /** Reserved. */
+    uint16_t    u16Reserved2;
+    /** IO controller status. */
+    uint16_t    u16IOCStatus;
+    /** IO controller log information. */
+    uint32_t    u32IOCLogInfo;
+} MptFWDownloadReply, *PMptFWDownloadReply;
+#pragma pack()
+AssertCompileSize(MptFWDownloadReply, 20);
+
+/**
+ * FW upload request.
+ */
+#pragma pack(1)
+typedef struct MptFWUploadRequest
+{
+    /** Requested image type. */
+    uint8_t     u8ImageType;
+    /** Reserved. */
+    uint8_t     u8Reserved1;
+    /** Chain offset. */
+    uint8_t     u8ChainOffset;
+    /** Function number. */
+    uint8_t     u8Function;
+    /** Reserved. */
+    uint8_t     u8Reserved2[3];
+    /** Message flags. */
+    uint8_t     u8MessageFlags;
+    /** Message context ID. */
+    uint32_t    u32MessageContext;
+} MptFWUploadRequest, *PMptFWUploadRequest;
+#pragma pack()
+AssertCompileSize(MptFWUploadRequest, 12);
+
+/**
+ * FW upload reply.
+ */
+#pragma pack(1)
+typedef struct MptFWUploadReply
+{
+    /** Image type. */
+    uint8_t     u8ImageType;
+    /** Reserved. */
+    uint8_t     u8Reserved1;
+    /** Message length. */
+    uint8_t     u8MessageLength;
+    /** Function number. */
+    uint8_t     u8Function;
+    /** Reserved. */
+    uint8_t     u8Reserved2[3];
+    /** Message flags. */
+    uint8_t     u8MessageFlags;
+    /** Message context ID. */
+    uint32_t    u32MessageContext;
+    /** Reserved. */
+    uint16_t    u16Reserved2;
+    /** IO controller status. */
+    uint16_t    u16IOCStatus;
+    /** IO controller log information. */
+    uint32_t    u32IOCLogInfo;
+    /** Uploaded image size. */
+    uint32_t    u32ActualImageSize;
+} MptFWUploadReply, *PMptFWUploadReply;
+#pragma pack()
+AssertCompileSize(MptFWUploadReply, 24);
+
+/**
  * SCSI IO Request
  */
 #pragma pack(1)
@@ -643,7 +757,7 @@ typedef struct MptSCSIIORequest
     uint8_t     u8CDBLength;
     /** Sense buffer length. */
     uint8_t     u8SenseBufferLength;
-    /** Rserved */
+    /** Reserved */
     uint8_t     u8Reserved;
     /** Message flags. */
     uint8_t     u8MessageFlags;
@@ -714,7 +828,7 @@ AssertCompileSize(MptSCSIIOErrorReply, 32);
 #define MPT_SCSI_IO_ERROR_SCSI_STATE_TERMINATED      (0x08)
 
 /**
- * IOC status codes sepcific to the SCSI I/O error reply.
+ * IOC status codes specific to the SCSI I/O error reply.
  */
 #define MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_BUS      (0x0041)
 #define MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_TARGETID (0x0042)
@@ -924,7 +1038,7 @@ typedef struct MptConfigurationRequest
     uint8_t    u8PageLength;
     /** Page number to access. */
     uint8_t    u8PageNumber;
-    /** Type of the page beeing accessed. */
+    /** Type of the page being accessed. */
     uint8_t    u8PageType;
     /** Page type dependent address. */
     MptConfigurationPageAddress PageAddress;
@@ -984,7 +1098,7 @@ typedef struct MptConfigurationReply
     uint8_t    u8PageLength;
     /** Page number to access. */
     uint8_t    u8PageNumber;
-    /** Type of the page beeing accessed. */
+    /** Type of the page being accessed. */
     uint8_t    u8PageType;
 } MptConfigurationReply, *PMptConfigurationReply;
 #pragma pack()
@@ -1012,6 +1126,8 @@ typedef union MptRequestUnion
     MptSCSIIORequest             SCSIIO;
     MptSCSITaskManagementRequest SCSITaskManagement;
     MptConfigurationRequest      Configuration;
+    MptFWDownloadRequest         FWDownload;
+    MptFWUploadRequest           FWUpload;
 } MptRequestUnion, *PMptRequestUnion;
 
 /**
@@ -1030,6 +1146,8 @@ typedef union MptReplyUnion
     MptSCSIIOErrorReply        SCSIIOError;
     MptSCSITaskManagementReply SCSITaskManagement;
     MptConfigurationReply      Configuration;
+    MptFWDownloadReply         FWDownload;
+    MptFWUploadReply           FWUpload;
 } MptReplyUnion, *PMptReplyUnion;
 
 
@@ -1365,7 +1483,7 @@ typedef struct MptConfigurationPageManufacturing7
             uint32_t                      u32Flags;
             /** Enclosure name */
             uint8_t                       szEnclosureName[16];
-            /** Nummber of PHYs */
+            /** Number of PHYs */
             uint8_t                       u8NumPhys;
             /** Reserved */
             uint8_t                       au8Reserved[3];
@@ -1660,7 +1778,7 @@ typedef struct MptConfigurationPageIOC0
         {
             /** The omnipresent header. */
             MptConfigurationPageHeader    Header;
-            /** Total ammount of NV memory in bytes. */
+            /** Total amount of NV memory in bytes. */
             uint32_t              u32TotalNVStore;
             /** Number of free bytes in the NV store. */
             uint32_t              u32FreeNVStore;
@@ -2128,7 +2246,7 @@ typedef struct MptConfigurationPageSCSISPIPort0
         {
             /** The omnipresent header. */
             MptConfigurationPageHeader    Header;
-            /** Flag whether this port is information unit trnafsers capable. */
+            /** Flag whether this port is information unit transfers capable. */
             unsigned              fInformationUnitTransfersCapable: 1;
             /** Flag whether the port is DT (Dual Transfer) capable. */
             unsigned              fDTCapable:                       1;
@@ -2392,11 +2510,11 @@ typedef struct MptConfigurationPageSCSISPIDevice2
             unsigned              fSecondaryDriverEnable:          1;
             /** Reserved. */
             unsigned              fReserved:                       1;
-            /** Slew reate controler. */
+            /** Slew create controller. */
             unsigned              u3SlewRateControler:             3;
-            /** Primary drive strength controler. */
+            /** Primary drive strength controller. */
             unsigned              u3PrimaryDriveStrengthControl:   3;
-            /** Secondary drive strength controler. */
+            /** Secondary drive strength controller. */
             unsigned              u3SecondaryDriveStrengthControl: 3;
             /** Reserved. */
             unsigned              u12Reserved:                    12;
@@ -2494,7 +2612,7 @@ typedef struct MptConfigurationPageSASIOUnit0
             MptExtendedConfigurationPageHeader    ExtHeader;
             /** Nvdata version default */
             uint16_t                              u16NvdataVersionDefault;
-            /** Nvdata version persisent */
+            /** Nvdata version persistent */
             uint16_t                              u16NvdataVersionPersistent;
             /** Number of physical ports */
             uint8_t                               u8NumPhys;

@@ -1,4 +1,4 @@
-/* $Id: VBoxMedium.cpp $ */
+/* $Id: VBoxMedium.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,7 @@ VBoxMedium& VBoxMedium::operator= (const VBoxMedium &aOther)
 }
 
 /**
- * Queries the medium state. Call this and then read the state field instad
+ * Queries the medium state. Call this and then read the state field instead
  * of calling GetState() on medium directly as it will properly handle the
  * situation when GetState() itself fails by setting state to Inaccessible
  * and memorizing the error info describing why GetState() failed.
@@ -167,7 +167,7 @@ void VBoxMedium::refresh()
     {
         mSize = vboxGlobal().formatSize (mMedium.GetSize());
         if (mType == VBoxDefs::MediumType_HardDisk)
-            mLogicalSize = vboxGlobal().formatSize (mMedium.GetLogicalSize() * _1M);
+            mLogicalSize = vboxGlobal().formatSize(mMedium.GetLogicalSize());
         else
             mLogicalSize = mSize;
     }
@@ -190,7 +190,7 @@ void VBoxMedium::refresh()
 
             for (QVector <QString>::ConstIterator it = machineIds.begin(); it != machineIds.end(); ++ it)
             {
-                CMachine machine = vbox.GetMachine (*it);
+                CMachine machine = vbox.FindMachine(*it);
 
                 QString sName = machine.GetName();
                 QString sSnapshots;
@@ -207,7 +207,7 @@ void VBoxMedium::refresh()
                         continue;
                     }
 
-                    CSnapshot snapshot = machine.GetSnapshot (*jt);
+                    CSnapshot snapshot = machine.FindSnapshot(*jt);
                     if (!snapshot.isNull())           // can be NULL while takeSnaphot is in progress
                     {
                         if (!sSnapshots.isNull())
@@ -260,7 +260,7 @@ void VBoxMedium::refresh()
             {
                 if (mResult.isOk())
                 {
-                    /* Not Accessibile */
+                    /* Not Accessible */
                     mToolTip += mRow.arg ("<hr>") + mRow.arg (VBoxGlobal::highlight (mLastAccessError, true /* aToolTip */));
                 }
                 else
@@ -364,7 +364,7 @@ QPixmap VBoxMedium::icon (bool aNoDiffs /* = false */, bool aCheckRO /* = false 
  * For hard disks, the details include the location, type and the logical size
  * of the hard disk. Note that if @a aNoDiffs is @c true, these properties are
  * queried on the root hard disk of the given hard disk because the primary
- * purpose of the returned string is to be human readabile (so that seeing a
+ * purpose of the returned string is to be human readable (so that seeing a
  * complex diff hard disk name is usually not desirable).
  *
  * For other media types, the location and the actual size are returned.

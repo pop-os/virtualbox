@@ -53,6 +53,7 @@ enum UIActionIndex
     UIActionIndex_Menu_Machine,
     UIActionIndex_Toggle_Fullscreen,
     UIActionIndex_Toggle_Seamless,
+    UIActionIndex_Toggle_Scale,
     UIActionIndex_Toggle_GuestAutoresize,
     UIActionIndex_Simple_AdjustWindow,
     UIActionIndex_Menu_MouseIntegration,
@@ -80,7 +81,7 @@ enum UIActionIndex
     UIActionIndex_Simple_NetworkAdaptersDialog,
     UIActionIndex_Menu_SharedFolders,
     UIActionIndex_Simple_SharedFoldersDialog,
-    UIActionIndex_Toggle_VRDP,
+    UIActionIndex_Toggle_VRDEServer,
     UIActionIndex_Simple_InstallGuestTools,
 
 #ifdef VBOX_WITH_DEBUGGER_GUI

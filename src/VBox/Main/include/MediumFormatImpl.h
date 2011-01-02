@@ -1,4 +1,4 @@
-/* $Id: MediumFormatImpl.h $ */
+/* $Id: MediumFormatImpl.h 33524 2010-10-27 16:44:37Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,68 +39,69 @@ struct VDBACKENDINFO;
  */
 class ATL_NO_VTABLE MediumFormat :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<MediumFormat, IMediumFormat>,
-    public VirtualBoxSupportTranslation<MediumFormat>,
     VBOX_SCRIPTABLE_IMPL(IMediumFormat)
 {
 public:
 
     struct Property
     {
-        Bstr name;
-        Bstr description;
-        DataType_T type;
-        ULONG flags;
-        Bstr defaultValue;
+        Utf8Str     strName;
+        Utf8Str     strDescription;
+        DataType_T  type;
+        ULONG       flags;
+        Utf8Str     strDefaultValue;
     };
 
-    typedef std::list <Bstr> BstrList;
-    typedef std::list <Property> PropertyList;
+    typedef std::list<Utf8Str>      StrList;
+    typedef std::list<DeviceType_T> DeviceTypeList;
+    typedef std::list<Property>     PropertyList;
 
     struct Data
     {
-        Data() : capabilities (0) {}
+        Data() : capabilities(0) {}
 
-        const Bstr id;
-        const Bstr name;
-        const BstrList fileExtensions;
-        const uint64_t capabilities;
-        const PropertyList properties;
+        const Utf8Str        strId;
+        const Utf8Str        strName;
+        const StrList        llFileExtensions;
+        const DeviceTypeList llDeviceTypes;
+        const uint64_t       capabilities;
+        const PropertyList   llProperties;
     };
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (MediumFormat)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(MediumFormat, IMediumFormat)
 
-    DECLARE_NOT_AGGREGATABLE (MediumFormat)
+    DECLARE_NOT_AGGREGATABLE(MediumFormat)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(MediumFormat)
-        COM_INTERFACE_ENTRY (ISupportErrorInfo)
-        COM_INTERFACE_ENTRY (IMediumFormat)
-        COM_INTERFACE_ENTRY (IDispatch)
+        COM_INTERFACE_ENTRY(ISupportErrorInfo)
+        COM_INTERFACE_ENTRY(IMediumFormat)
+        COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR (MediumFormat)
+    DECLARE_EMPTY_CTOR_DTOR(MediumFormat)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (const VDBACKENDINFO *aVDInfo);
+    HRESULT init(const VDBACKENDINFO *aVDInfo);
     void uninit();
 
     // IMediumFormat properties
-    STDMETHOD(COMGETTER(Id)) (BSTR *aId);
-    STDMETHOD(COMGETTER(Name)) (BSTR *aName);
-    STDMETHOD(COMGETTER(FileExtensions)) (ComSafeArrayOut (BSTR, aFileExtensions));
-    STDMETHOD(COMGETTER(Capabilities)) (ULONG *aCaps);
+    STDMETHOD(COMGETTER(Id))(BSTR *aId);
+    STDMETHOD(COMGETTER(Name))(BSTR *aName);
+    STDMETHOD(COMGETTER(Capabilities))(ULONG *aCaps);
 
     // IMediumFormat methods
-    STDMETHOD(DescribeProperties) (ComSafeArrayOut (BSTR, aNames),
-                                   ComSafeArrayOut (BSTR, aDescriptions),
-                                   ComSafeArrayOut (DataType_T, aTypes),
-                                   ComSafeArrayOut (ULONG, aFlags),
-                                   ComSafeArrayOut (BSTR, aDefaults));
+    STDMETHOD(DescribeFileExtensions)(ComSafeArrayOut(BSTR, aFileExtensions),
+                                      ComSafeArrayOut(DeviceType_T, aDeviceTypes));
+    STDMETHOD(DescribeProperties)(ComSafeArrayOut(BSTR, aNames),
+                                  ComSafeArrayOut(BSTR, aDescriptions),
+                                  ComSafeArrayOut(DataType_T, aTypes),
+                                  ComSafeArrayOut(ULONG, aFlags),
+                                  ComSafeArrayOut(BSTR, aDefaults));
 
     // public methods only for internal purposes
 
@@ -108,16 +109,13 @@ public:
     // (ensure there is a caller and a read lock before calling them!)
 
     /** Const, no need to lock */
-    const Bstr &id() const { return m.id; }
+    const Utf8Str& getId() const { return m.strId; }
     /** Const, no need to lock */
-    const BstrList &fileExtensions() const { return m.fileExtensions; }
+    const StrList& getFileExtensions() const { return m.llFileExtensions; }
     /** Const, no need to lock */
-    uint64_t capabilities() const { return m.capabilities; }
+    uint64_t getCapabilities() const { return m.capabilities; }
     /** Const, no need to lock */
-    const PropertyList &properties() const { return m.properties; }
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"MediumFormat"; }
+    const PropertyList& getProperties() const { return m.llProperties; }
 
 private:
 

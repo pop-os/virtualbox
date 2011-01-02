@@ -1,4 +1,4 @@
-/* $Id: errmsgxpcom.cpp $ */
+/* $Id: errmsgxpcom.cpp 34654 2010-12-02 19:59:22Z vboxsync $ */
 /** @file
  * IPRT - Status code messages for XPCOM.
  */
@@ -51,6 +51,7 @@ static const RTCOMERRMSG  g_aStatusMsgs[] =
     MY_ERR("NS_ERROR_INVALID_POINTER",              "Invalid pointer value",                        UINT32_C(0x80004003)),
     MY_ERR("NS_ERROR_ABORT",                        "Operation aborted",                            UINT32_C(0x80004004)),
     MY_ERR("NS_ERROR_FAILURE",                      "Operation failed",                             UINT32_C(0x80004005)),
+    MY_ERR("NS_ERROR_CALL_FAILED",                  "Call to remote object failed",                 UINT32_C(0x800706be)),
     MY_ERR("NS_ERROR_UNEXPECTED",                   "Unexpected error",                             UINT32_C(0x8000ffff)),
 
     MY_ERR("NS_ERROR_CANNOT_CONVERT_DATA",          "Cannot convert data",                          UINT32_C(0x80010001)),

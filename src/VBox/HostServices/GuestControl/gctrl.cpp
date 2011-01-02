@@ -1,4 +1,4 @@
-/* $Id: gctrl.cpp $ */
+/* $Id: gctrl.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Guest Control Service: Internal function used by service, Main and testcase.
  */
@@ -29,7 +29,7 @@
 /** @todo Remove unused header files below! */
 #include <iprt/alloca.h>
 #include <iprt/initterm.h>
-#include <iprt/crc32.h>
+#include <iprt/crc.h>
 #include <iprt/ctype.h>
 #include <iprt/env.h>
 #include <iprt/file.h>
@@ -57,7 +57,7 @@ namespace guestControl {
  * @todo
  *
  * @todo Respect spaces when quoting for arguments, e.g. "c:\\program files\\".
- * @todo Handle empty ("") argguments.
+ * @todo Handle empty ("") arguments.
  */
 int gctrlPrepareExecArgv(char *pszArgs, void **ppvList, uint32_t *pcbList, uint32_t *pcArgs)
 {

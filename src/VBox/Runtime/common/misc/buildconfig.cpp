@@ -1,4 +1,4 @@
-/* $Id: buildconfig.cpp $ */
+/* $Id: buildconfig.cpp 33680 2010-11-02 11:08:08Z vboxsync $ */
 /** @file
  * IPRT - Build Configuration Information.
  */
@@ -77,4 +77,66 @@ RTDECL(uint32_t) RTBldCfgVersionBuild(void)
     return IPRT_BLDCFG_VERSION_BUILD;
 }
 #endif
+
+
+#ifdef IPRT_BLDCFG_TARGET
+RTDECL(const char *) RTBldCfgTarget(void)
+{
+    return IPRT_BLDCFG_TARGET;
+}
+#endif
+
+
+#ifdef IPRT_BLDCFG_TARGET_ARCH
+RTDECL(const char *) RTBldCfgTargetArch(void)
+{
+    return IPRT_BLDCFG_TARGET_ARCH;
+}
+#endif
+
+
+#if defined(IPRT_BLDCFG_TARGET) && defined(IPRT_BLDCFG_TARGET_ARCH)
+RTDECL(const char *) RTBldCfgTargetDotArch(void)
+{
+    return IPRT_BLDCFG_TARGET "." IPRT_BLDCFG_TARGET_ARCH;
+}
+#endif
+
+
+#ifdef IPRT_BLDCFG_TYPE
+RTDECL(const char *) RTBldCfgType(void)
+{
+    return IPRT_BLDCFG_TYPE;
+}
+#endif
+
+
+RTDECL(const char *) RTBldCfgCompiler(void)
+{
+#ifdef IPRT_BLDCFG_COMPILER
+    return IPRT_BLDCFG_COMPILER;
+#elif defined(__INTEL_COMPILER)
+    return "intel";
+#elif defined(__GNUC__)
+    return "gcc";
+#elif defined(__llvm__)
+    return "llvm";
+#elif defined(__SUNPRO_CC) || defined(__SUNPRO_C)
+    return "sunpro";
+#elif defined(__IBMCPP__) || defined(__IBMC__)
+# if defined(__COMPILER_VER__)
+    return "ibmzosc";
+# elif defined(__xlC__) || defined(__xlc__)
+    return "ibmxlc";
+# else
+    return "vac";
+# endif
+#elif defined(_MSC_VER)
+    return "vcc";
+#elif defined(__WATCOMC__)
+    return "watcom";
+#else
+# error "Unknown compiler"
+#endif
+}
 

@@ -1,4 +1,4 @@
-/* $Id: VFSExplorerImpl.cpp $ */
+/* $Id: VFSExplorerImpl.cpp 35284 2010-12-21 20:49:53Z vboxsync $ */
 /** @file
  *
  * IVFSExplorer COM class implementations.
@@ -20,6 +20,7 @@
 #include <iprt/path.h>
 #include <iprt/file.h>
 #include <iprt/s3.h>
+#include <iprt/cpp/utils.h>
 
 #include <VBox/com/array.h>
 
@@ -33,6 +34,8 @@
 #include "AutoCaller.h"
 #include "Logging.h"
 
+#include <memory>
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // VFSExplorer definitions
@@ -44,12 +47,16 @@ struct VFSExplorer::Data
 {
     struct DirEntry
     {
-        DirEntry(Utf8Str aName, VFSFileType_T aType)
-          : name(aName)
-          , type(aType) {}
+        DirEntry(Utf8Str strName, VFSFileType_T fileType, uint64_t cbSize, uint32_t fMode)
+          : name(strName)
+          , type(fileType)
+          , size(cbSize)
+          , mode(fMode) {}
 
         Utf8Str name;
         VFSFileType_T type;
+        uint64_t size;
+        uint32_t mode;
     };
 
     VFSType_T storageType;
@@ -192,8 +199,8 @@ int VFSExplorer::TaskVFSExplorer::startThread()
                              0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
                              "Explorer::Task");
 
-    ComAssertMsgRCRet(vrc,
-                      ("Could not create taskThreadVFS (%Rrc)\n", vrc), E_FAIL);
+    if (RT_FAILURE(vrc))
+        return VFSExplorer::setErrorStatic(E_FAIL, Utf8StrFmt("Could not create taskThreadVFS (%Rrc)\n", vrc));
 
     return vrc;
 }
@@ -218,7 +225,11 @@ DECLCALLBACK(int) VFSExplorer::TaskVFSExplorer::taskThread(RTTHREAD /* aThread *
             if (pVFSExplorer->m->storageType == VFSType_File)
                 rc = pVFSExplorer->updateFS(task.get());
             else if (pVFSExplorer->m->storageType == VFSType_S3)
+#ifdef VBOX_WITH_S3
                 rc = pVFSExplorer->updateS3(task.get());
+#else
+                rc = VERR_NOT_IMPLEMENTED;
+#endif
             break;
         }
         case TaskVFSExplorer::Delete:
@@ -226,9 +237,16 @@ DECLCALLBACK(int) VFSExplorer::TaskVFSExplorer::taskThread(RTTHREAD /* aThread *
             if (pVFSExplorer->m->storageType == VFSType_File)
                 rc = pVFSExplorer->deleteFS(task.get());
             else if (pVFSExplorer->m->storageType == VFSType_S3)
+#ifdef VBOX_WITH_S3
                 rc = pVFSExplorer->deleteS3(task.get());
+#else
+                rc = VERR_NOT_IMPLEMENTED;
+#endif
             break;
         }
+        default:
+            AssertMsgFailed(("Invalid task type %u specified!\n", task->taskType));
+            break;
     }
 
     LogFlowFunc(("rc=%Rhrc\n", rc));
@@ -256,20 +274,25 @@ int VFSExplorer::TaskVFSExplorer::uploadProgress(unsigned uPercent, void *pvUser
 
 VFSFileType_T VFSExplorer::RTToVFSFileType(int aType) const
 {
-    VFSFileType_T t;
-    switch(aType)
-    {
-        default:
-        case RTDIRENTRYTYPE_UNKNOWN: t = VFSFileType_Unknown; break;
-        case RTDIRENTRYTYPE_FIFO: t = VFSFileType_Fifo; break;
-        case RTDIRENTRYTYPE_DEV_CHAR: t = VFSFileType_DevChar; break;
-        case RTDIRENTRYTYPE_DIRECTORY: t = VFSFileType_Directory; break;
-        case RTDIRENTRYTYPE_DEV_BLOCK: t = VFSFileType_DevBlock; break;
-        case RTDIRENTRYTYPE_FILE: t = VFSFileType_File; break;
-        case RTDIRENTRYTYPE_SYMLINK: t = VFSFileType_SymLink; break;
-        case RTDIRENTRYTYPE_SOCKET: t = VFSFileType_Socket; break;
-        case RTDIRENTRYTYPE_WHITEOUT: t = VFSFileType_WhiteOut; break;
-    }
+    int a = aType & RTFS_TYPE_MASK;
+    VFSFileType_T t = VFSFileType_Unknown;
+    if ((a & RTFS_TYPE_DIRECTORY) == RTFS_TYPE_DIRECTORY)
+        t = VFSFileType_Directory;
+    else if ((a & RTFS_TYPE_FILE) == RTFS_TYPE_FILE)
+        t = VFSFileType_File;
+    else if ((a & RTFS_TYPE_SYMLINK) == RTFS_TYPE_SYMLINK)
+        t = VFSFileType_SymLink;
+    else if ((a & RTFS_TYPE_FIFO) == RTFS_TYPE_FIFO)
+        t = VFSFileType_Fifo;
+    else if ((a & RTFS_TYPE_DEV_CHAR) == RTFS_TYPE_DEV_CHAR)
+        t = VFSFileType_DevChar;
+    else if ((a & RTFS_TYPE_DEV_BLOCK) == RTFS_TYPE_DEV_BLOCK)
+        t = VFSFileType_DevBlock;
+    else if ((a & RTFS_TYPE_SOCKET) == RTFS_TYPE_SOCKET)
+        t = VFSFileType_Socket;
+    else if ((a & RTFS_TYPE_WHITEOUT) == RTFS_TYPE_WHITEOUT)
+        t = VFSFileType_WhiteOut;
+
     return t;
 }
 
@@ -289,24 +312,22 @@ HRESULT VFSExplorer::updateFS(TaskVFSExplorer *aTask)
     PRTDIR pDir = NULL;
     try
     {
-        pszPath = RTStrDup(m->strPath.c_str());
-        RTPathStripFilename(pszPath);
-        int vrc = RTDirOpen(&pDir, pszPath);
+        int vrc = RTDirOpen(&pDir, m->strPath.c_str());
         if (RT_FAILURE(vrc))
             throw setError(VBOX_E_FILE_ERROR, tr ("Can't open directory '%s' (%Rrc)"), pszPath, vrc);
 
         if (aTask->progress)
             aTask->progress->SetCurrentOperationProgress(33);
-        RTDIRENTRY entry;
+        RTDIRENTRYEX entry;
         while (RT_SUCCESS(vrc))
         {
-            vrc = RTDirRead(pDir, &entry, NULL);
+            vrc = RTDirReadEx(pDir, &entry, NULL, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
             if (RT_SUCCESS(vrc))
             {
                 Utf8Str name(entry.szName);
-                if (name != "." &&
-                    name != "..")
-                    fileList.push_back(VFSExplorer::Data::DirEntry(name, RTToVFSFileType(entry.enmType)));
+                if (   name != "."
+                    && name != "..")
+                    fileList.push_back(VFSExplorer::Data::DirEntry(name, RTToVFSFileType(entry.Info.Attr.fMode), entry.Info.cbObject, entry.Info.Attr.fMode & (RTFS_UNIX_IRWXU | RTFS_UNIX_IRWXG | RTFS_UNIX_IRWXO)));
             }
         }
         if (aTask->progress)
@@ -362,12 +383,12 @@ HRESULT VFSExplorer::deleteFS(TaskVFSExplorer *aTask)
              it != aTask->filenames.end();
              ++it, ++i)
         {
-            memcpy(szPath, m->strPath.c_str(), strlen(m->strPath.c_str()) + 1);
-            RTPathStripFilename(szPath);
-            RTPathAppend(szPath, sizeof(szPath), (*it).c_str());
-            int vrc = RTFileDelete(szPath);
+            int vrc = RTPathJoin(szPath, sizeof(szPath), m->strPath.c_str(), (*it).c_str());
             if (RT_FAILURE(vrc))
-                throw setError(VBOX_E_FILE_ERROR, tr ("Can't delete file '%s' (%Rrc)"), szPath, vrc);
+                throw setError(E_FAIL, tr("Internal Error (%Rrc)"), vrc);
+            vrc = RTFileDelete(szPath);
+            if (RT_FAILURE(vrc))
+                throw setError(VBOX_E_FILE_ERROR, tr("Can't delete file '%s' (%Rrc)"), szPath, vrc);
             if (aTask->progress)
                 aTask->progress->SetCurrentOperationProgress((ULONG)(fPercentStep * i));
         }
@@ -388,6 +409,7 @@ HRESULT VFSExplorer::deleteFS(TaskVFSExplorer *aTask)
     return VINF_SUCCESS;
 }
 
+#ifdef VBOX_WITH_S3
 HRESULT VFSExplorer::updateS3(TaskVFSExplorer *aTask)
 {
     LogFlowFuncEnter();
@@ -419,7 +441,8 @@ HRESULT VFSExplorer::updateS3(TaskVFSExplorer *aTask)
             PCRTS3BUCKETENTRY pTmpBuckets = pBuckets;
             while (pBuckets)
             {
-                fileList.push_back(VFSExplorer::Data::DirEntry(pBuckets->pszName, VFSFileType_Directory));
+                /* Set always read/write permissions of the current logged in user. */
+                fileList.push_back(VFSExplorer::Data::DirEntry(pBuckets->pszName, VFSFileType_Directory, 0, RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR));
                 pBuckets = pBuckets->pNext;
             }
             RTS3BucketsDestroy(pTmpBuckets);
@@ -435,7 +458,8 @@ HRESULT VFSExplorer::updateS3(TaskVFSExplorer *aTask)
             while (pKeys)
             {
                 Utf8Str name(pKeys->pszName);
-                fileList.push_back(VFSExplorer::Data::DirEntry(pKeys->pszName, VFSFileType_File));
+                /* Set always read/write permissions of the current logged in user. */
+                fileList.push_back(VFSExplorer::Data::DirEntry(pKeys->pszName, VFSFileType_File, pKeys->cbFile, RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR));
                 pKeys = pKeys->pNext;
             }
             RTS3KeysDestroy(pTmpKeys);
@@ -516,6 +540,7 @@ HRESULT VFSExplorer::deleteS3(TaskVFSExplorer *aTask)
 
     return VINF_SUCCESS;
 }
+#endif /* VBOX_WITH_S3 */
 
 STDMETHODIMP VFSExplorer::Update(IProgress **aProgress)
 {
@@ -532,12 +557,13 @@ STDMETHODIMP VFSExplorer::Update(IProgress **aProgress)
     try
     {
         Bstr progressDesc = BstrFmt(tr("Update directory info for '%s'"),
-                                    m->strPath.raw());
+                                    m->strPath.c_str());
         /* Create the progress object */
         progress.createObject();
 
-        rc = progress->init(mVirtualBox, static_cast<IVFSExplorer*>(this),
-                            progressDesc,
+        rc = progress->init(mVirtualBox,
+                            static_cast<IVFSExplorer*>(this),
+                            progressDesc.raw(),
                             TRUE /* aCancelable */);
         if (FAILED(rc)) throw rc;
 
@@ -565,19 +591,38 @@ STDMETHODIMP VFSExplorer::Update(IProgress **aProgress)
 STDMETHODIMP VFSExplorer::Cd(IN_BSTR aDir, IProgress **aProgress)
 {
     CheckComArgStrNotEmptyOrNull(aDir);
-    CheckComArgOutPointerValid(aProgress);
 
-    return E_NOTIMPL;
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        m->strPath = aDir;
+    }
+
+    return Update(aProgress);
 }
 
 STDMETHODIMP VFSExplorer::CdUp(IProgress **aProgress)
 {
-    CheckComArgOutPointerValid(aProgress);
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    return E_NOTIMPL;
+    Utf8Str strUpPath;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        /* Remove lowest dir entry in a platform neutral way. */
+        char *pszNewPath = RTStrDup(m->strPath.c_str());
+        RTPathStripTrailingSlash(pszNewPath);
+        RTPathStripFilename(pszNewPath);
+        strUpPath = pszNewPath;
+        RTStrFree(pszNewPath);
+    }
+
+    return Cd(Bstr(strUpPath).raw(), aProgress);
 }
 
-STDMETHODIMP VFSExplorer::EntryList(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(VFSFileType_T, aTypes))
+STDMETHODIMP VFSExplorer::EntryList(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(VFSFileType_T, aTypes), ComSafeArrayOut(ULONG, aSizes), ComSafeArrayOut(ULONG, aModes))
 {
     if (ComSafeArrayOutIsNull(aNames) ||
         ComSafeArrayOutIsNull(aTypes))
@@ -588,8 +633,10 @@ STDMETHODIMP VFSExplorer::EntryList(ComSafeArrayOut(BSTR, aNames), ComSafeArrayO
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    com::SafeArray<BSTR> sfaNames((ULONG)m->entryList.size());
-    com::SafeArray<ULONG> sfaTypes((VFSFileType_T)m->entryList.size());
+    com::SafeArray<BSTR> sfaNames(m->entryList.size());
+    com::SafeArray<ULONG> sfaTypes(m->entryList.size());
+    com::SafeArray<ULONG> sfaSizes(m->entryList.size());
+    com::SafeArray<ULONG> sfaModes(m->entryList.size());
 
     std::list<VFSExplorer::Data::DirEntry>::const_iterator it;
     size_t i = 0;
@@ -601,10 +648,14 @@ STDMETHODIMP VFSExplorer::EntryList(ComSafeArrayOut(BSTR, aNames), ComSafeArrayO
         Bstr bstr(entry.name);
         bstr.cloneTo(&sfaNames[i]);
         sfaTypes[i] = entry.type;
+        sfaSizes[i] = entry.size;
+        sfaModes[i] = entry.mode;
     }
 
     sfaNames.detachTo(ComSafeArrayOutArg(aNames));
     sfaTypes.detachTo(ComSafeArrayOutArg(aTypes));
+    sfaSizes.detachTo(ComSafeArrayOutArg(aSizes));
+    sfaModes.detachTo(ComSafeArrayOutArg(aModes));
 
     return S_OK;
 }
@@ -621,14 +672,14 @@ STDMETHODIMP VFSExplorer::Exists(ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayOu
     com::SafeArray<IN_BSTR> sfaNames(ComSafeArrayInArg(aNames));
     std::list<BSTR> listExists;
 
-    std::list<VFSExplorer::Data::DirEntry>::const_iterator it;
-    for (it = m->entryList.begin();
-         it != m->entryList.end();
-         ++it)
+    for (size_t a=0; a < sfaNames.size(); ++a)
     {
-        const VFSExplorer::Data::DirEntry &entry = (*it);
-        for (size_t a=0; a < sfaNames.size(); ++a)
+        std::list<VFSExplorer::Data::DirEntry>::const_iterator it;
+        for (it = m->entryList.begin();
+             it != m->entryList.end();
+             ++it)
         {
+            const VFSExplorer::Data::DirEntry &entry = (*it);
             if (entry.name == RTPathFilename(Utf8Str(sfaNames[a]).c_str()))
             {
                 BSTR name;
@@ -666,7 +717,7 @@ STDMETHODIMP VFSExplorer::Remove(ComSafeArrayIn(IN_BSTR, aNames), IProgress **aP
         progress.createObject();
 
         rc = progress->init(mVirtualBox, static_cast<IVFSExplorer*>(this),
-                            Bstr(tr("Delete files")),
+                            Bstr(tr("Delete files")).raw(),
                             TRUE /* aCancelable */);
         if (FAILED(rc)) throw rc;
 

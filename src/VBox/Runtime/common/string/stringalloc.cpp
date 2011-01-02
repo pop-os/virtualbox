@@ -1,10 +1,10 @@
-/* $Id: stringalloc.cpp $ */
+/* $Id: stringalloc.cpp 34032 2010-11-12 16:20:25Z vboxsync $ */
 /** @file
  * IPRT - String Manipulation.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,19 +41,19 @@
 
 
 
-RTDECL(char *) RTStrAlloc(size_t cb)
+RTDECL(char *) RTStrAllocTag(size_t cb, const char *pszTag)
 {
-    char *psz = (char *)RTMemAlloc(RT_MAX(cb, 1));
+    char *psz = (char *)RTMemAllocTag(RT_MAX(cb, 1), pszTag);
     if (psz)
         *psz = '\0';
     return psz;
 }
-RT_EXPORT_SYMBOL(RTStrAlloc);
+RT_EXPORT_SYMBOL(RTStrAllocTag);
 
 
-RTDECL(int) RTStrAllocEx(char **ppsz, size_t cb)
+RTDECL(int) RTStrAllocExTag(char **ppsz, size_t cb, const char *pszTag)
 {
-    char *psz = *ppsz = (char *)RTMemAlloc(RT_MAX(cb, 1));
+    char *psz = *ppsz = (char *)RTMemAllocTag(RT_MAX(cb, 1), pszTag);
     if (psz)
     {
         *psz = '\0';
@@ -61,10 +61,10 @@ RTDECL(int) RTStrAllocEx(char **ppsz, size_t cb)
     }
     return VERR_NO_STR_MEMORY;
 }
-RT_EXPORT_SYMBOL(RTStrAlloc);
+RT_EXPORT_SYMBOL(RTStrAllocTag);
 
 
-RTDECL(int) RTStrRealloc(char **ppsz, size_t cbNew)
+RTDECL(int) RTStrReallocTag(char **ppsz, size_t cbNew, const char *pszTag)
 {
     char *pszOld = *ppsz;
     if (!cbNew)
@@ -74,7 +74,7 @@ RTDECL(int) RTStrRealloc(char **ppsz, size_t cbNew)
     }
     else if (pszOld)
     {
-        char *pszNew = (char *)RTMemRealloc(pszOld, cbNew);
+        char *pszNew = (char *)RTMemReallocTag(pszOld, cbNew, pszTag);
         if (!pszNew)
             return VERR_NO_STR_MEMORY;
         pszNew[cbNew - 1] = '\0';
@@ -82,7 +82,7 @@ RTDECL(int) RTStrRealloc(char **ppsz, size_t cbNew)
     }
     else
     {
-        char *pszNew = (char *)RTMemAlloc(cbNew);
+        char *pszNew = (char *)RTMemAllocTag(cbNew, pszTag);
         if (!pszNew)
             return VERR_NO_STR_MEMORY;
         pszNew[0] = '\0';
@@ -91,6 +91,7 @@ RTDECL(int) RTStrRealloc(char **ppsz, size_t cbNew)
     }
     return VINF_SUCCESS;
 }
+RT_EXPORT_SYMBOL(RTStrReallocTag);
 
 RTDECL(void)  RTStrFree(char *pszString)
 {
@@ -100,25 +101,25 @@ RTDECL(void)  RTStrFree(char *pszString)
 RT_EXPORT_SYMBOL(RTStrFree);
 
 
-RTDECL(char *) RTStrDup(const char *pszString)
+RTDECL(char *) RTStrDupTag(const char *pszString, const char *pszTag)
 {
     AssertPtr(pszString);
     size_t cch = strlen(pszString) + 1;
-    char *psz = (char *)RTMemAlloc(cch);
+    char *psz = (char *)RTMemAllocTag(cch, pszTag);
     if (psz)
         memcpy(psz, pszString, cch);
     return psz;
 }
-RT_EXPORT_SYMBOL(RTStrDup);
+RT_EXPORT_SYMBOL(RTStrDupTag);
 
 
-RTDECL(int)  RTStrDupEx(char **ppszString, const char *pszString)
+RTDECL(int)  RTStrDupExTag(char **ppszString, const char *pszString, const char *pszTag)
 {
     AssertPtr(ppszString);
     AssertPtr(pszString);
 
     size_t cch = strlen(pszString) + 1;
-    char *psz = (char *)RTMemAlloc(cch);
+    char *psz = (char *)RTMemAllocTag(cch, pszTag);
     if (psz)
     {
         memcpy(psz, pszString, cch);
@@ -127,15 +128,15 @@ RTDECL(int)  RTStrDupEx(char **ppszString, const char *pszString)
     }
     return VERR_NO_MEMORY;
 }
-RT_EXPORT_SYMBOL(RTStrDupEx);
+RT_EXPORT_SYMBOL(RTStrDupExTag);
 
 
-RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax)
+RTDECL(char *) RTStrDupNTag(const char *pszString, size_t cchMax, const char *pszTag)
 {
     AssertPtr(pszString);
     char const *pszEnd = RTStrEnd(pszString, cchMax);
     size_t      cch    = pszEnd ? (uintptr_t)pszEnd - (uintptr_t)pszString : cchMax;
-    char       *pszDst = (char *)RTMemAlloc(cch + 1);
+    char       *pszDst = (char *)RTMemAllocTag(cch + 1, pszTag);
     if (pszDst)
     {
         memcpy(pszDst, pszString, cch);
@@ -143,18 +144,18 @@ RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax)
     }
     return pszDst;
 }
-RT_EXPORT_SYMBOL(RTStrDupN);
+RT_EXPORT_SYMBOL(RTStrDupNTag);
 
 
-RTDECL(int) RTStrAAppend(char **ppsz, const char *pszAppend)
+RTDECL(int) RTStrAAppendTag(char **ppsz, const char *pszAppend, const char *pszTag)
 {
     if (!pszAppend)
         return VINF_SUCCESS;
-    return RTStrAAppendN(ppsz, pszAppend, RTSTR_MAX);
+    return RTStrAAppendNTag(ppsz, pszAppend, RTSTR_MAX, pszTag);
 }
 
 
-RTDECL(int) RTStrAAppendN(char **ppsz, const char *pszAppend, size_t cchAppend)
+RTDECL(int) RTStrAAppendNTag(char **ppsz, const char *pszAppend, size_t cchAppend, const char *pszTag)
 {
     if (!cchAppend)
         return VINF_SUCCESS;
@@ -164,7 +165,7 @@ RTDECL(int) RTStrAAppendN(char **ppsz, const char *pszAppend, size_t cchAppend)
         Assert(cchAppend == RTStrNLen(pszAppend, cchAppend));
 
     size_t const cchOrg = *ppsz ? strlen(*ppsz) : 0;
-    char *pszNew = (char *)RTMemRealloc(*ppsz, cchOrg + cchAppend + 1);
+    char *pszNew = (char *)RTMemReallocTag(*ppsz, cchOrg + cchAppend + 1, pszTag);
     if (!pszNew)
         return VERR_NO_STR_MEMORY;
 
@@ -181,14 +182,14 @@ RTDECL(int) RTStrAAppendN(char **ppsz, const char *pszAppend, size_t cchAppend)
 /* XXX Currently not needed anywhere. alloca() induces some linker problems for ring 0 code
  * with newer versions of VCC */
 
-RTDECL(int) RTStrAAppendExNV(char **ppsz, size_t cPairs, va_list va)
+RTDECL(int) RTStrAAppendExNVTag(char **ppsz, size_t cPairs, va_list va, const char *pszTag)
 {
     AssertPtr(ppsz);
     if (!cPairs)
         return VINF_SUCCESS;
 
     /*
-     * Determin the length of each string and calc the new total.
+     * Determine the length of each string and calc the new total.
      */
     struct RTStrAAppendExNVStruct
     {
@@ -218,7 +219,7 @@ RTDECL(int) RTStrAAppendExNV(char **ppsz, size_t cPairs, va_list va)
     /*
      * Try reallocate the string.
      */
-    char *pszNew = (char *)RTMemRealloc(*ppsz, cchNewTotal);
+    char *pszNew = (char *)RTMemReallocTag(*ppsz, cchNewTotal, pszTag);
     if (!pszNew)
         return VERR_NO_STR_MEMORY;
 
@@ -238,23 +239,12 @@ RTDECL(int) RTStrAAppendExNV(char **ppsz, size_t cPairs, va_list va)
     *ppsz = pszNew;
     return VINF_SUCCESS;
 }
-RT_EXPORT_SYMBOL(RTStrAAppendExNV);
-
-
-RTDECL(int) RTStrAAppendExN(char **ppsz, size_t cPairs, ...)
-{
-    va_list va;
-    va_start(va, cPairs);
-    int rc = RTStrAAppendExNV(ppsz, cPairs, va);
-    va_end(va);
-    return rc;
-}
-RT_EXPORT_SYMBOL(RTStrAAppendExN);
+RT_EXPORT_SYMBOL(RTStrAAppendExNVTag);
 
 #endif
 
 
-RTDECL(int) RTStrATruncate(char **ppsz, size_t cchNew)
+RTDECL(int) RTStrATruncateTag(char **ppsz, size_t cchNew, const char *pszTag)
 {
     char *pszOld = *ppsz;
     if (!cchNew)
@@ -262,7 +252,7 @@ RTDECL(int) RTStrATruncate(char **ppsz, size_t cchNew)
         if (pszOld && *pszOld)
         {
             *pszOld = '\0';
-            char *pszNew = (char *)RTMemRealloc(pszOld, 1);
+            char *pszNew = (char *)RTMemReallocTag(pszOld, 1, pszTag);
             if (pszNew)
                 *ppsz = pszNew;
         }
@@ -276,12 +266,12 @@ RTDECL(int) RTStrATruncate(char **ppsz, size_t cchNew)
         pszOld[cchNew] = '\0';
         if (!pszZero)
         {
-            char *pszNew = (char *)RTMemRealloc(pszOld,  cchNew + 1);
+            char *pszNew = (char *)RTMemReallocTag(pszOld,  cchNew + 1, pszTag);
             if (pszNew)
                 *ppsz = pszNew;
         }
     }
     return VINF_SUCCESS;
 }
-RT_EXPORT_SYMBOL(RTStrATruncate);
+RT_EXPORT_SYMBOL(RTStrATruncateTag);
 

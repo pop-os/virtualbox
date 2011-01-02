@@ -1,4 +1,4 @@
-/* $Id: VBoxManageUSB.cpp $ */
+/* $Id: VBoxManageUSB.cpp 33294 2010-10-21 10:45:26Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -121,12 +121,12 @@ class Nullable
 {
 public:
 
-    Nullable() : mIsNull (true) {}
-    Nullable (const T &aValue, bool aIsNull = false)
-        : mIsNull (aIsNull), mValue (aValue) {}
+    Nullable() : mIsNull(true) {}
+    Nullable(const T &aValue, bool aIsNull = false)
+        : mIsNull(aIsNull), mValue(aValue) {}
 
     bool isNull() const { return mIsNull; };
-    void setNull (bool aIsNull = true) { mIsNull = aIsNull; }
+    void setNull(bool aIsNull = true) { mIsNull = aIsNull; }
 
     operator const T&() const { return mValue; }
 
@@ -148,8 +148,8 @@ struct USBFilterCmd
 {
     struct USBFilter
     {
-        USBFilter ()
-            : mAction (USBDeviceFilterAction_Null)
+        USBFilter()
+            : mAction(USBDeviceFilterAction_Null)
             {}
 
         Bstr mName;
@@ -167,7 +167,7 @@ struct USBFilterCmd
 
     enum Action { Invalid, Add, Modify, Remove };
 
-    USBFilterCmd() : mAction (Invalid), mIndex (0), mGlobal (false) {}
+    USBFilterCmd() : mAction(Invalid), mIndex(0), mGlobal(false) {}
 
     Action mAction;
     uint32_t mIndex;
@@ -178,7 +178,7 @@ struct USBFilterCmd
     USBFilter mFilter;
 };
 
-int handleUSBFilter (HandlerArg *a)
+int handleUSBFilter(HandlerArg *a)
 {
     HRESULT rc = S_OK;
     USBFilterCmd cmd;
@@ -197,7 +197,7 @@ int handleUSBFilter (HandlerArg *a)
         return errorSyntax(USAGE_USBFILTER, "Invalid parameter '%s'", a->argv[0]);
 
     /* which index? */
-    if (VINF_SUCCESS !=  RTStrToUInt32Full (a->argv[1], 10, &cmd.mIndex))
+    if (VINF_SUCCESS !=  RTStrToUInt32Full(a->argv[1], 10, &cmd.mIndex))
         return errorSyntax(USAGE_USBFILTER, "Invalid index '%s'", a->argv[1]);
 
     switch (cmd.mAction)
@@ -233,12 +233,8 @@ int handleUSBFilter (HandlerArg *a)
                     else
                     {
                         /* assume it's a UUID of a machine */
-                        rc = a->virtualBox->GetMachine(Bstr(a->argv[i]), cmd.mMachine.asOutParam());
-                        if (FAILED(rc) || !cmd.mMachine)
-                        {
-                            /* must be a name */
-                            CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[i]), cmd.mMachine.asOutParam()), 1);
-                        }
+                        CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[i]).raw(),
+                                                                   cmd.mMachine.asOutParam()), 1);
                     }
                 }
                 else if (   !strcmp(a->argv[i], "--name")
@@ -386,13 +382,8 @@ int handleUSBFilter (HandlerArg *a)
                         cmd.mGlobal = true;
                     else
                     {
-                        /* assume it's a UUID of a machine */
-                        rc = a->virtualBox->GetMachine(Bstr(a->argv[i]), cmd.mMachine.asOutParam());
-                        if (FAILED(rc) || !cmd.mMachine)
-                        {
-                            /* must be a name */
-                            CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[i]), cmd.mMachine.asOutParam()), 1);
-                        }
+                        CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[i]).raw(),
+                                                                   cmd.mMachine.asOutParam()), 1);
                     }
                 }
             }
@@ -412,17 +403,15 @@ int handleUSBFilter (HandlerArg *a)
     ComPtr <IHost> host;
     ComPtr <IUSBController> ctl;
     if (cmd.mGlobal)
-        CHECK_ERROR_RET (a->virtualBox, COMGETTER(Host) (host.asOutParam()), 1);
+        CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), 1);
     else
     {
-        Bstr uuid;
-        cmd.mMachine->COMGETTER(Id)(uuid.asOutParam());
         /* open a session for the VM */
-        CHECK_ERROR_RET (a->virtualBox, OpenSession(a->session, uuid), 1);
+        CHECK_ERROR_RET(cmd.mMachine, LockMachine(a->session, LockType_Write), 1);
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(cmd.mMachine.asOutParam());
         /* and get the USB controller */
-        CHECK_ERROR_RET (cmd.mMachine, COMGETTER(USBController) (ctl.asOutParam()), 1);
+        CHECK_ERROR_RET(cmd.mMachine, COMGETTER(USBController)(ctl.asOutParam()), 1);
     }
 
     switch (cmd.mAction)
@@ -432,51 +421,53 @@ int handleUSBFilter (HandlerArg *a)
             if (cmd.mGlobal)
             {
                 ComPtr <IHostUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK (host, CreateUSBDeviceFilter (f.mName, flt.asOutParam()));
+                CHECK_ERROR_BREAK(host, CreateUSBDeviceFilter(f.mName.raw(),
+                                                              flt.asOutParam()));
 
                 if (!f.mActive.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Active) (f.mActive));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Active)(f.mActive));
                 if (!f.mVendorId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(VendorId) (f.mVendorId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(VendorId)(f.mVendorId.raw()));
                 if (!f.mProductId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(ProductId) (f.mProductId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(ProductId)(f.mProductId.raw()));
                 if (!f.mRevision.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Revision) (f.mRevision));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Revision)(f.mRevision.raw()));
                 if (!f.mManufacturer.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Manufacturer) (f.mManufacturer));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Manufacturer)(f.mManufacturer.raw()));
                 if (!f.mSerialNumber.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(SerialNumber) (f.mSerialNumber));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(SerialNumber)(f.mSerialNumber.raw()));
                 if (!f.mMaskedInterfaces.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(MaskedInterfaces) (f.mMaskedInterfaces));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(MaskedInterfaces)(f.mMaskedInterfaces));
 
                 if (f.mAction != USBDeviceFilterAction_Null)
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Action) (f.mAction));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Action)(f.mAction));
 
-                CHECK_ERROR_BREAK (host, InsertUSBDeviceFilter (cmd.mIndex, flt));
+                CHECK_ERROR_BREAK(host, InsertUSBDeviceFilter(cmd.mIndex, flt));
             }
             else
             {
                 ComPtr <IUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK (ctl, CreateDeviceFilter (f.mName, flt.asOutParam()));
+                CHECK_ERROR_BREAK(ctl, CreateDeviceFilter(f.mName.raw(),
+                                                          flt.asOutParam()));
 
                 if (!f.mActive.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Active) (f.mActive));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Active)(f.mActive));
                 if (!f.mVendorId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(VendorId) (f.mVendorId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(VendorId)(f.mVendorId.raw()));
                 if (!f.mProductId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(ProductId) (f.mProductId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(ProductId)(f.mProductId.raw()));
                 if (!f.mRevision.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Revision) (f.mRevision));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Revision)(f.mRevision.raw()));
                 if (!f.mManufacturer.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Manufacturer) (f.mManufacturer));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Manufacturer)(f.mManufacturer.raw()));
                 if (!f.mRemote.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Remote) (f.mRemote));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Remote)(f.mRemote.raw()));
                 if (!f.mSerialNumber.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(SerialNumber) (f.mSerialNumber));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(SerialNumber)(f.mSerialNumber.raw()));
                 if (!f.mMaskedInterfaces.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(MaskedInterfaces) (f.mMaskedInterfaces));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(MaskedInterfaces)(f.mMaskedInterfaces));
 
-                CHECK_ERROR_BREAK (ctl, InsertDeviceFilter (cmd.mIndex, flt));
+                CHECK_ERROR_BREAK(ctl, InsertDeviceFilter(cmd.mIndex, flt));
             }
             break;
         }
@@ -485,55 +476,55 @@ int handleUSBFilter (HandlerArg *a)
             if (cmd.mGlobal)
             {
                 SafeIfaceArray <IHostUSBDeviceFilter> coll;
-                CHECK_ERROR_BREAK (host, COMGETTER(USBDeviceFilters) (ComSafeArrayAsOutParam(coll)));
+                CHECK_ERROR_BREAK(host, COMGETTER(USBDeviceFilters)(ComSafeArrayAsOutParam(coll)));
 
                 ComPtr <IHostUSBDeviceFilter> flt = coll[cmd.mIndex];
 
                 if (!f.mName.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Name) (f.mName));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Name)(f.mName.raw()));
                 if (!f.mActive.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Active) (f.mActive));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Active)(f.mActive));
                 if (!f.mVendorId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(VendorId) (f.mVendorId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(VendorId)(f.mVendorId.raw()));
                 if (!f.mProductId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(ProductId) (f.mProductId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(ProductId)(f.mProductId.raw()));
                 if (!f.mRevision.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Revision) (f.mRevision));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Revision)(f.mRevision.raw()));
                 if (!f.mManufacturer.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Manufacturer) (f.mManufacturer));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Manufacturer)(f.mManufacturer.raw()));
                 if (!f.mSerialNumber.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(SerialNumber) (f.mSerialNumber));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(SerialNumber)(f.mSerialNumber.raw()));
                 if (!f.mMaskedInterfaces.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(MaskedInterfaces) (f.mMaskedInterfaces));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(MaskedInterfaces)(f.mMaskedInterfaces));
 
                 if (f.mAction != USBDeviceFilterAction_Null)
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Action) (f.mAction));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Action)(f.mAction));
             }
             else
             {
                 SafeIfaceArray <IUSBDeviceFilter> coll;
-                CHECK_ERROR_BREAK (ctl, COMGETTER(DeviceFilters) (ComSafeArrayAsOutParam(coll)));
+                CHECK_ERROR_BREAK(ctl, COMGETTER(DeviceFilters)(ComSafeArrayAsOutParam(coll)));
 
                 ComPtr <IUSBDeviceFilter> flt = coll[cmd.mIndex];
 
                 if (!f.mName.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Name) (f.mName));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Name)(f.mName.raw()));
                 if (!f.mActive.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Active) (f.mActive));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Active)(f.mActive));
                 if (!f.mVendorId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(VendorId) (f.mVendorId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(VendorId)(f.mVendorId.raw()));
                 if (!f.mProductId.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(ProductId) (f.mProductId));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(ProductId)(f.mProductId.raw()));
                 if (!f.mRevision.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Revision) (f.mRevision));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Revision)(f.mRevision.raw()));
                 if (!f.mManufacturer.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Manufacturer) (f.mManufacturer));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Manufacturer)(f.mManufacturer.raw()));
                 if (!f.mRemote.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(Remote) (f.mRemote));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(Remote)(f.mRemote.raw()));
                 if (!f.mSerialNumber.isEmpty())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(SerialNumber) (f.mSerialNumber));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(SerialNumber)(f.mSerialNumber.raw()));
                 if (!f.mMaskedInterfaces.isNull())
-                    CHECK_ERROR_BREAK (flt, COMSETTER(MaskedInterfaces) (f.mMaskedInterfaces));
+                    CHECK_ERROR_BREAK(flt, COMSETTER(MaskedInterfaces)(f.mMaskedInterfaces));
             }
             break;
         }
@@ -542,12 +533,12 @@ int handleUSBFilter (HandlerArg *a)
             if (cmd.mGlobal)
             {
                 ComPtr <IHostUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK (host, RemoveUSBDeviceFilter (cmd.mIndex));
+                CHECK_ERROR_BREAK(host, RemoveUSBDeviceFilter(cmd.mIndex));
             }
             else
             {
                 ComPtr <IUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK (ctl, RemoveDeviceFilter (cmd.mIndex, flt.asOutParam()));
+                CHECK_ERROR_BREAK(ctl, RemoveDeviceFilter(cmd.mIndex, flt.asOutParam()));
             }
             break;
         }
@@ -557,15 +548,15 @@ int handleUSBFilter (HandlerArg *a)
 
     if (cmd.mMachine)
     {
-        if (SUCCEEDED (rc))
+        if (SUCCEEDED(rc))
         {
             /* commit the session */
             CHECK_ERROR(cmd.mMachine, SaveSettings());
         }
         /* close the session */
-        a->session->Close();
+        a->session->UnlockMachine();
     }
 
-    return SUCCEEDED (rc) ? 0 : 1;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

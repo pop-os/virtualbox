@@ -1,4 +1,4 @@
-/* $Id: the-freebsd-kernel.h $ */
+/* $Id: the-freebsd-kernel.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Driver, The FreeBSD Kernel Headers.
  */
@@ -71,7 +71,7 @@
 #include <machine/cpu.h>
 
 /**
- * Wrappers arount the sleepq_ KPI.
+ * Wrappers around the sleepq_ KPI.
  */
 #if __FreeBSD_version >= 800026
 # define SLEEPQ_TIMEDWAIT(EventInt) sleepq_timedwait(EventInt, 0)

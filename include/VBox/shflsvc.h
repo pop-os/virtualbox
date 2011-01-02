@@ -1,9 +1,9 @@
 /** @file
- * Shared Folders: Common header for host service and guest clients. (ADD,HSvc)
+ * Shared Folders: Common header for host service and guest clients.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -98,6 +98,12 @@
 #define SHFL_FN_SET_UTF8            (16)
 /** Map folder */
 #define SHFL_FN_MAP_FOLDER          (17)
+/** Read symlink destination (as of VBox 4.0) */
+#define SHFL_FN_READLINK            (18)
+/** Create symlink (as of VBox 4.0) */
+#define SHFL_FN_SYMLINK             (19)
+/** Ask host to show symlinks (as of VBox 4.0) */
+#define SHFL_FN_SET_SYMLINKS        (20)
 
 /** @} */
 
@@ -133,6 +139,8 @@ typedef uint64_t SHFLHANDLE;
 #define SHFL_HANDLE_NIL  ((SHFLHANDLE)~0LL)
 #define SHFL_HANDLE_ROOT ((SHFLHANDLE)0LL)
 
+/** Hardcoded maximum length (in chars) of a shared folder name. */
+#define SHFL_MAX_LEN         (256)
 /** Hardcoded maximum number of shared folder mapping available to the guest. */
 #define SHFL_MAX_MAPPINGS    (64)
 
@@ -165,12 +173,12 @@ typedef SHFLSTRING *PSHFLSTRING;
 typedef const SHFLSTRING *PCSHFLSTRING;
 
 /** Calculate size of the string. */
-DECLINLINE(uint32_t) ShflStringSizeOfBuffer (PCSHFLSTRING pString)
+DECLINLINE(uint32_t) ShflStringSizeOfBuffer(PCSHFLSTRING pString)
 {
     return pString? sizeof (SHFLSTRING) - sizeof (pString->String) + pString->u16Size: 0;
 }
 
-DECLINLINE(uint32_t) ShflStringLength (PCSHFLSTRING pString)
+DECLINLINE(uint32_t) ShflStringLength(PCSHFLSTRING pString)
 {
     return pString? pString->u16Length: 0;
 }
@@ -231,6 +239,212 @@ DECLINLINE(bool) ShflStringIsValidOrNull(PCSHFLSTRING pString, uint32_t cbBuf)
 }
 
 /** @} */
+
+
+/**
+ * The available additional information in a SHFLFSOBJATTR object.
+ */
+typedef enum SHFLFSOBJATTRADD
+{
+    /** No additional information is available / requested. */
+    SHFLFSOBJATTRADD_NOTHING = 1,
+    /** The additional unix attributes (SHFLFSOBJATTR::u::Unix) are
+     *  available / requested. */
+    SHFLFSOBJATTRADD_UNIX,
+    /** The additional extended attribute size (SHFLFSOBJATTR::u::EASize) is
+     *  available / requested. */
+    SHFLFSOBJATTRADD_EASIZE,
+    /** The last valid item (inclusive).
+     * The valid range is SHFLFSOBJATTRADD_NOTHING thru
+     * SHFLFSOBJATTRADD_LAST. */
+    SHFLFSOBJATTRADD_LAST = SHFLFSOBJATTRADD_EASIZE,
+
+    /** The usual 32-bit hack. */
+    SHFLFSOBJATTRADD_32BIT_SIZE_HACK = 0x7fffffff
+} SHFLFSOBJATTRADD;
+
+
+/* Assert sizes of the IRPT types we're using below. */
+AssertCompileSize(RTFMODE,      4);
+AssertCompileSize(RTFOFF,       8);
+AssertCompileSize(RTINODE,      8);
+AssertCompileSize(RTTIMESPEC,   8);
+AssertCompileSize(RTDEV,        4);
+AssertCompileSize(RTUID,        4);
+
+/**
+ * Shared folder filesystem object attributes.
+ */
+#pragma pack(1)
+typedef struct SHFLFSOBJATTR
+{
+    /** Mode flags (st_mode). RTFS_UNIX_*, RTFS_TYPE_*, and RTFS_DOS_*.
+     * @remarks We depend on a number of RTFS_ defines to remain unchanged.
+     *          Fortuntately, these are depending on windows, dos and unix
+     *          standard values, so this shouldn't be much of a pain. */
+    RTFMODE         fMode;
+
+    /** The additional attributes available. */
+    SHFLFSOBJATTRADD  enmAdditional;
+
+    /**
+     * Additional attributes.
+     *
+     * Unless explicitly specified to an API, the API can provide additional
+     * data as it is provided by the underlying OS.
+     */
+    union SHFLFSOBJATTRUNION
+    {
+        /** Additional Unix Attributes
+         * These are available when SHFLFSOBJATTRADD is set in fUnix.
+         */
+         struct SHFLFSOBJATTRUNIX
+         {
+            /** The user owning the filesystem object (st_uid).
+             * This field is ~0U if not supported. */
+            RTUID           uid;
+
+            /** The group the filesystem object is assigned (st_gid).
+             * This field is ~0U if not supported. */
+            RTGID           gid;
+
+            /** Number of hard links to this filesystem object (st_nlink).
+             * This field is 1 if the filesystem doesn't support hardlinking or
+             * the information isn't available.
+             */
+            uint32_t        cHardlinks;
+
+            /** The device number of the device which this filesystem object resides on (st_dev).
+             * This field is 0 if this information is not available. */
+            RTDEV           INodeIdDevice;
+
+            /** The unique identifier (within the filesystem) of this filesystem object (st_ino).
+             * Together with INodeIdDevice, this field can be used as a OS wide unique id
+             * when both their values are not 0.
+             * This field is 0 if the information is not available. */
+            RTINODE         INodeId;
+
+            /** User flags (st_flags).
+             * This field is 0 if this information is not available. */
+            uint32_t        fFlags;
+
+            /** The current generation number (st_gen).
+             * This field is 0 if this information is not available. */
+            uint32_t        GenerationId;
+
+            /** The device number of a character or block device type object (st_rdev).
+             * This field is 0 if the file isn't of a character or block device type and
+             * when the OS doesn't subscribe to the major+minor device idenfication scheme. */
+            RTDEV           Device;
+        } Unix;
+
+        /**
+         * Extended attribute size.
+         */
+        struct SHFLFSOBJATTREASIZE
+        {
+            /** Size of EAs. */
+            RTFOFF          cb;
+        } EASize;
+    } u;
+} SHFLFSOBJATTR;
+#pragma pack()
+AssertCompileSize(SHFLFSOBJATTR, 44);
+/** Pointer to a shared folder filesystem object attributes structure. */
+typedef SHFLFSOBJATTR *PSHFLFSOBJATTR;
+/** Pointer to a const shared folder filesystem object attributes structure. */
+typedef const SHFLFSOBJATTR *PCSHFLFSOBJATTR;
+
+
+/**
+ * Filesystem object information structure.
+ */
+#pragma pack(1)
+typedef struct SHFLFSOBJINFO
+{
+   /** Logical size (st_size).
+    * For normal files this is the size of the file.
+    * For symbolic links, this is the length of the path name contained
+    * in the symbolic link.
+    * For other objects this fields needs to be specified.
+    */
+   RTFOFF       cbObject;
+
+   /** Disk allocation size (st_blocks * DEV_BSIZE). */
+   RTFOFF       cbAllocated;
+
+   /** Time of last access (st_atime).
+    * @remarks  Here (and other places) we depend on the IPRT timespec to
+    *           remain unchanged. */
+   RTTIMESPEC   AccessTime;
+
+   /** Time of last data modification (st_mtime). */
+   RTTIMESPEC   ModificationTime;
+
+   /** Time of last status change (st_ctime).
+    * If not available this is set to ModificationTime.
+    */
+   RTTIMESPEC   ChangeTime;
+
+   /** Time of file birth (st_birthtime).
+    * If not available this is set to ChangeTime.
+    */
+   RTTIMESPEC   BirthTime;
+
+   /** Attributes. */
+   SHFLFSOBJATTR Attr;
+
+} SHFLFSOBJINFO;
+#pragma pack()
+AssertCompileSize(SHFLFSOBJINFO, 92);
+/** Pointer to a shared folder filesystem object information structure. */
+typedef SHFLFSOBJINFO *PSHFLFSOBJINFO;
+/** Pointer to a const shared folder filesystem object information
+ *  structure. */
+typedef const SHFLFSOBJINFO *PCSHFLFSOBJINFO;
+
+
+/**
+ * Copy file system objinfo from IPRT to shared folder format.
+ *
+ * @param   pDst                The shared folder structure.
+ * @param   pSrc                The IPRT structure.
+ */
+DECLINLINE(void) vbfsCopyFsObjInfoFromIprt(PSHFLFSOBJINFO pDst, PCRTFSOBJINFO pSrc)
+{
+    pDst->cbObject          = pSrc->cbObject;
+    pDst->cbAllocated       = pSrc->cbAllocated;
+    pDst->AccessTime        = pSrc->AccessTime;
+    pDst->ModificationTime  = pSrc->ModificationTime;
+    pDst->ChangeTime        = pSrc->ChangeTime;
+    pDst->BirthTime         = pSrc->BirthTime;
+    pDst->Attr.fMode        = pSrc->Attr.fMode;
+    RT_ZERO(pDst->Attr.u);
+    switch (pSrc->Attr.enmAdditional)
+    {
+        default:
+        case RTFSOBJATTRADD_NOTHING:
+            pDst->Attr.enmAdditional        = SHFLFSOBJATTRADD_NOTHING;
+            break;
+
+        case RTFSOBJATTRADD_UNIX:
+            pDst->Attr.enmAdditional        = SHFLFSOBJATTRADD_UNIX;
+            pDst->Attr.u.Unix.uid           = pSrc->Attr.u.Unix.uid;
+            pDst->Attr.u.Unix.gid           = pSrc->Attr.u.Unix.gid;
+            pDst->Attr.u.Unix.cHardlinks    = pSrc->Attr.u.Unix.cHardlinks;
+            pDst->Attr.u.Unix.INodeIdDevice = pSrc->Attr.u.Unix.INodeIdDevice;
+            pDst->Attr.u.Unix.INodeId       = pSrc->Attr.u.Unix.INodeId;
+            pDst->Attr.u.Unix.fFlags        = pSrc->Attr.u.Unix.fFlags;
+            pDst->Attr.u.Unix.GenerationId  = pSrc->Attr.u.Unix.GenerationId;
+            pDst->Attr.u.Unix.Device        = pSrc->Attr.u.Unix.Device;
+            break;
+
+        case RTFSOBJATTRADD_EASIZE:
+            pDst->Attr.enmAdditional        = SHFLFSOBJATTRADD_EASIZE;
+            pDst->Attr.u.EASize.cb          = pSrc->Attr.u.EASize.cb;
+            break;
+    }
+}
 
 
 /** Result of an open/create request.
@@ -352,7 +566,7 @@ typedef struct _SHFLCREATEPARMS
     /* Attributes of object to create and
      * returned actual attributes of opened/created object.
      */
-    RTFSOBJINFO Info;
+    SHFLFSOBJINFO Info;
 
 } SHFLCREATEPARMS;
 #pragma pack()
@@ -376,7 +590,7 @@ typedef struct _SHFLMAPPING
     /** Root handle. */
     SHFLROOT root;
 } SHFLMAPPING;
-
+/** Pointer to a SHFLMAPPING structure. */
 typedef SHFLMAPPING *PSHFLMAPPING;
 
 /** @} */
@@ -388,17 +602,79 @@ typedef SHFLMAPPING *PSHFLMAPPING;
 typedef struct _SHFLDIRINFO
 {
     /** Full information about the object. */
-    RTFSOBJINFO     Info;
+    SHFLFSOBJINFO   Info;
     /** The length of the short field (number of RTUTF16 chars).
      * It is 16-bit for reasons of alignment. */
     uint16_t        cucShortName;
-    /** The short name for 8.3 compatability.
+    /** The short name for 8.3 compatibility.
      * Empty string if not available.
      */
     RTUTF16         uszShortName[14];
     /** @todo malc, a description, please. */
     SHFLSTRING      name;
 } SHFLDIRINFO, *PSHFLDIRINFO;
+
+
+/**
+ * Shared folder filesystem properties.
+ */
+typedef struct SHFLFSPROPERTIES
+{
+    /** The maximum size of a filesystem object name.
+     * This does not include the '\\0'. */
+    uint32_t cbMaxComponent;
+
+    /** True if the filesystem is remote.
+     * False if the filesystem is local. */
+    bool    fRemote;
+
+    /** True if the filesystem is case sensitive.
+     * False if the filesystem is case insensitive. */
+    bool    fCaseSensitive;
+
+    /** True if the filesystem is mounted read only.
+     * False if the filesystem is mounted read write. */
+    bool    fReadOnly;
+
+    /** True if the filesystem can encode unicode object names.
+     * False if it can't. */
+    bool    fSupportsUnicode;
+
+    /** True if the filesystem is compresses.
+     * False if it isn't or we don't know. */
+    bool    fCompressed;
+
+    /** True if the filesystem compresses of individual files.
+     * False if it doesn't or we don't know. */
+    bool    fFileCompression;
+
+    /** @todo more? */
+} SHFLFSPROPERTIES;
+AssertCompileSize(SHFLFSPROPERTIES, 12);
+/** Pointer to a shared folder filesystem properties structure. */
+typedef SHFLFSPROPERTIES *PSHFLFSPROPERTIES;
+/** Pointer to a const shared folder filesystem properties structure. */
+typedef SHFLFSPROPERTIES const *PCSHFLFSPROPERTIES;
+
+
+/**
+ * Copy file system properties from IPRT to shared folder format.
+ *
+ * @param   pDst                The shared folder structure.
+ * @param   pSrc                The IPRT structure.
+ */
+DECLINLINE(void) vbfsCopyFsPropertiesFromIprt(PSHFLFSPROPERTIES pDst, PCRTFSPROPERTIES pSrc)
+{
+    RT_ZERO(*pDst);                     /* zap the implicit padding. */
+    pDst->cbMaxComponent   = pSrc->cbMaxComponent;
+    pDst->fRemote          = pSrc->fRemote;
+    pDst->fCaseSensitive   = pSrc->fCaseSensitive;
+    pDst->fReadOnly        = pSrc->fReadOnly;
+    pDst->fSupportsUnicode = pSrc->fSupportsUnicode;
+    pDst->fCompressed      = pSrc->fCompressed;
+    pDst->fFileCompression = pSrc->fFileCompression;
+}
+
 
 typedef struct _SHFLVOLINFO
 {
@@ -407,7 +683,7 @@ typedef struct _SHFLVOLINFO
     uint32_t       ulBytesPerAllocationUnit;
     uint32_t       ulBytesPerSector;
     uint32_t       ulSerial;
-    RTFSPROPERTIES fsProperties;
+    SHFLFSPROPERTIES fsProperties;
 } SHFLVOLINFO, *PSHFLVOLINFO;
 
 /** @} */
@@ -419,10 +695,15 @@ typedef struct _SHFLVOLINFO
 /**
  * SHFL_FN_QUERY_MAPPINGS
  */
-
-#define SHFL_MF_UCS2 (0x00000000)
+/** Validation mask.  Needs to be adjusted
+  * whenever a new SHFL_MF_ flag is added. */
+#define SHFL_MF_MASK       (0x00000011)
+/** UC2 enconded strings. */
+#define SHFL_MF_UCS2       (0x00000000)
 /** Guest uses UTF8 strings, if not set then the strings are unicode (UCS2). */
-#define SHFL_MF_UTF8 (0x00000001)
+#define SHFL_MF_UTF8       (0x00000001)
+/** Just handle the auto-mounted folders. */
+#define SHFL_MF_AUTOMOUNT  (0x00000010)
 
 /** Type of guest system. For future system dependent features. */
 #define SHFL_MF_SYSTEM_MASK    (0x0000FF00)
@@ -714,9 +995,9 @@ typedef struct _VBoxSFWrite
 #define SHFL_LOCK_MODE_MASK  (0x3)
 /** Cancel lock on the given range. */
 #define SHFL_LOCK_CANCEL     (0x0)
-/** Aquire read only lock. Prevent write to the range. */
+/** Acquire read only lock. Prevent write to the range. */
 #define SHFL_LOCK_SHARED     (0x1)
-/** Aquire write lock. Prevent both write and read to the range. */
+/** Acquire write lock. Prevent both write and read to the range. */
 #define SHFL_LOCK_EXCLUSIVE  (0x2)
 
 /** Do not wait for lock if it can not be acquired at the time. */
@@ -855,6 +1136,37 @@ typedef struct _VBoxSFList
 
 
 /**
+ * SHFL_FN_READLINK
+ */
+
+/** Parameters structure. */
+typedef struct _VBoxSFReadLink
+{
+    VBoxGuestHGCMCallInfo callInfo;
+
+    /** pointer, in: SHFLROOT
+     * Root handle of the mapping which name is queried.
+     */
+    HGCMFunctionParameter root;
+
+    /** pointer, in:
+     * Points to SHFLSTRING buffer.
+     */
+    HGCMFunctionParameter path;
+
+    /** pointer, out:
+     * Buffer to place data to.
+     */
+    HGCMFunctionParameter buffer;
+
+} VBoxSFReadLink;
+
+/** Number of parameters */
+#define SHFL_CPARMS_READLINK (3)
+
+
+
+/**
  * SHFL_FN_INFORMATION
  */
 
@@ -903,8 +1215,8 @@ typedef struct _VBoxSFInformation
     HGCMFunctionParameter cb;
 
     /** pointer, in/out:
-     * Information to be set/get (RTFSOBJINFO or SHFLSTRING).
-     * Do not forget to set the RTFSOBJINFO::Attr::enmAdditional for Get operation as well.
+     * Information to be set/get (SHFLFSOBJINFO or SHFLSTRING). Do not forget
+     * to set the SHFLFSOBJINFO::Attr::enmAdditional for Get operation as well.
      */
     HGCMFunctionParameter info;
 
@@ -920,6 +1232,7 @@ typedef struct _VBoxSFInformation
 
 #define SHFL_REMOVE_FILE        (0x1)
 #define SHFL_REMOVE_DIR         (0x2)
+#define SHFL_REMOVE_SYMLINK     (0x4)
 
 /** Parameters structure. */
 typedef struct _VBoxSFRemove
@@ -983,12 +1296,55 @@ typedef struct _VBoxSFRename
 
 #define SHFL_CPARMS_RENAME  (4)
 
+
+/**
+ * SHFL_FN_SYMLINK
+ */
+
+/** Parameters structure. */
+typedef struct _VBoxSFSymlink
+{
+    VBoxGuestHGCMCallInfo callInfo;
+
+    /** pointer, in: SHFLROOT
+     * Root handle of the mapping which name is queried.
+     */
+    HGCMFunctionParameter root;
+
+    /** pointer, in:
+     * Points to SHFLSTRING of path for the new symlink.
+     */
+    HGCMFunctionParameter newPath;
+
+    /** pointer, in:
+     * Points to SHFLSTRING of destination for symlink.
+     */
+    HGCMFunctionParameter oldPath;
+
+    /** pointer, out:
+     * Information about created symlink.
+     */
+    HGCMFunctionParameter info;
+
+} VBoxSFSymlink;
+
+#define SHFL_CPARMS_SYMLINK  (4)
+
+
+
 /**
  * SHFL_FN_ADD_MAPPING
  * Host call, no guest structure is used.
  */
 
 #define SHFL_CPARMS_ADD_MAPPING  (3)
+
+/**
+ * SHFL_FN_ADD_MAPPING, with auto-mount flag.
+ * Host call, no guest structure is used.
+ */
+
+#define SHFL_CPARMS_ADD_MAPPING2 (4)
 
 /**
  * SHFL_FN_REMOVE_MAPPING

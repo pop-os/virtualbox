@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromDarwinCOM.cpp $ */
+/* $Id: RTErrConvertFromDarwinCOM.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Convert Darwin COM returns codes to iprt status codes.
  */
@@ -36,7 +36,7 @@
 RTDECL(int) RTErrConvertFromDarwinCOM(int32_t iNativeCode)
 {
     /*
-     * 'optimzied' success case.
+     * 'optimized' success case.
      */
     if (iNativeCode == S_OK)
         return VINF_SUCCESS;

@@ -1,4 +1,4 @@
-/* $Id: misc.c $ */
+/* $Id: misc.c 34040 2010-11-12 18:52:01Z vboxsync $ */
 /** @file
  * NAT - helpers.
  */
@@ -142,6 +142,7 @@ static void *slirp_uma_alloc(uma_zone_t zone,
         if (!LIST_EMPTY(&zone->free_items))
         {
             it = LIST_FIRST(&zone->free_items);
+            Assert(it->magic == ITEM_MAGIC);
             rc = 0;
             if (zone->pfInit)
                 rc = zone->pfInit(zone->pData, (void *)&it[1], zone->size, M_DONTWAIT);
@@ -365,6 +366,7 @@ void zone_drain(uma_zone_t zone)
     while(!LIST_EMPTY(&zone->free_items))
     {
         it = LIST_FIRST(&zone->free_items);
+        Assert((it->magic == ITEM_MAGIC));
         RTCritSectEnter(&zone->csZone);
         LIST_REMOVE(it, list);
         zone->max_items--;
@@ -417,8 +419,12 @@ struct mbuf *slirp_ext_m_get(PNATState pData, size_t cbMin, void **ppvBuf, size_
     return m;
 }
 
-void slirp_ext_m_free(PNATState pData, struct mbuf *m)
+void slirp_ext_m_free(PNATState pData, struct mbuf *m, uint8_t *pu8Buf)
 {
+
+    if (   !pu8Buf
+        && pu8Buf != mtod(m, uint8_t *))
+        RTMemFree(pu8Buf); /* This buffer was allocated on heap */
     m_freem(pData, m);
 }
 

@@ -1,4 +1,4 @@
-/* $Id: tstMicro.cpp $ */
+/* $Id: tstMicro.cpp 32190 2010-09-02 12:20:06Z vboxsync $ */
 /** @file
  * Micro Testcase, profiling special CPU operations.
  */
@@ -254,7 +254,9 @@ static DECLCALLBACK(int) doit(PVM pVM)
         RTPrintf(TESTCASE ": PGMMapModifyPage -> rc=%Rra\n", rc);
         return rc;
     }
-    PGMR3DumpHierarchyHC(pVM, PGMGetHyperCR3(VMMGetCpu0(pVM)), X86_CR4_PSE, false, 4, NULL);
+    DBGFR3PagingDumpEx(pVM, 0 /*idCpu*/, DBGFPGDMP_FLAGS_CURRENT_CR3 | DBGFPGDMP_FLAGS_CURRENT_MODE
+                       | DBGFPGDMP_FLAGS_SHADOW | DBGFPGDMP_FLAGS_HEADER | DBGFPGDMP_FLAGS_PRINT_CR3,
+                       0 /*cr3*/, 0 /*u64FirstAddr*/, UINT64_MAX /*u64LastAddr*/, 99 /*cMaxDepth*/, NULL);
 
 #if 0
     /*
@@ -342,7 +344,7 @@ int main(int argc, char **argv)
      * Create empty VM.
      */
     PVM pVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, &pVM);
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
     if (RT_SUCCESS(rc))
     {
         /*

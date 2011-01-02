@@ -1,4 +1,4 @@
-/* $Id: initterm-r0drv.cpp $ */
+/* $Id: initterm-r0drv.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Initialization & Termination, R0 Driver, Common.
  */
@@ -56,7 +56,7 @@ static int32_t volatile g_crtR0Users = 0;
 
 
 /**
- * Initalizes the ring-0 driver runtime library.
+ * Initializes the ring-0 driver runtime library.
  *
  * @returns iprt status code.
  * @param   fReserved       Flags reserved for the future.

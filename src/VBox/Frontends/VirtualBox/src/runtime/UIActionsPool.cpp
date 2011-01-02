@@ -1,4 +1,4 @@
-/* $Id: UIActionsPool.cpp $ */
+/* $Id: UIActionsPool.cpp 34158 2010-11-18 09:56:36Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -17,14 +17,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
-#include <QtGlobal>
-#include <QHelpEvent>
-#include <QToolTip>
-
 /* Local includes */
 #include "UIActionsPool.h"
+#include "UIIconPool.h"
 #include "VBoxGlobal.h"
+
+/* Global includes */
+#include <QHelpEvent>
+#include <QToolTip>
+#include <QtGlobal>
 
 /* Extended QMenu class used in UIActions */
 class QIMenu : public QMenu
@@ -110,7 +111,16 @@ public:
         : UIAction(pParent, UIActionType_Simple)
     {
         if (!strIcon.isNull())
-            setIcon(VBoxGlobal::iconSet(strIcon.toLatin1().data(), strIconDis.toLatin1().data()));
+            setIcon(UIIconPool::iconSet(strIcon,
+                                        strIconDis));
+    }
+
+    UISimpleAction(QObject *pParent,
+                   const QIcon& icon)
+        : UIAction(pParent, UIActionType_Simple)
+    {
+        if (!icon.isNull())
+            setIcon(icon);
     }
 };
 
@@ -125,7 +135,8 @@ public:
         : UIAction(pParent, UIActionType_Toggle)
     {
         if (!strIcon.isNull())
-            setIcon(VBoxGlobal::iconSet(strIcon.toLatin1().data(), strIconDis.toLatin1().data()));
+            setIcon(UIIconPool::iconSet(strIcon,
+                                        strIconDis));
         init();
     }
 
@@ -134,8 +145,17 @@ public:
                    const QString &strIconOnDis, const QString &strIconOffDis)
         : UIAction(pParent, UIActionType_Toggle)
     {
-        setIcon(VBoxGlobal::iconSetOnOff(strIconOn.toLatin1().data(), strIconOff.toLatin1().data(),
-                                         strIconOnDis.toLatin1().data(), strIconOffDis.toLatin1().data()));
+        setIcon(UIIconPool::iconSetOnOff(strIconOn, strIconOff,
+                                         strIconOnDis, strIconOffDis));
+        init();
+    }
+
+    UIToggleAction(QObject *pParent,
+                   const QIcon &icon)
+        : UIAction(pParent, UIActionType_Toggle)
+    {
+        if (!icon.isNull())
+            setIcon(icon);
         init();
     }
 
@@ -166,7 +186,17 @@ public:
         : UIAction(pParent, UIActionType_Menu)
     {
         if (!strIcon.isNull())
-            setIcon(VBoxGlobal::iconSet(strIcon, strIconDis));
+            setIcon(UIIconPool::iconSet(strIcon,
+                                        strIconDis));
+        setMenu(new QIMenu);
+    }
+
+    UIMenuAction(QObject *pParent,
+                 const QIcon &icon)
+        : UIAction(pParent, UIActionType_Menu)
+    {
+        if (!icon.isNull())
+            setIcon(icon);
         setMenu(new QIMenu);
     }
 };
@@ -209,16 +239,8 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Enter &Fullscreen Mode"), "F"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Switch to fullscreen mode"));
-        }
-        else
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Exit &Fullscreen Mode"), "F"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Switch to normal mode"));
-        }
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Switch to &Fullscreen"), "F"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Switch between normal and fullscreen mode"));
     }
 };
 
@@ -240,16 +262,31 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Enter Seam&less Mode"), "L"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Switch to seamless desktop integration mode"));
-        }
-        else
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Exit Seam&less Mode"), "L"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Switch to normal mode"));
-        }
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Switch to Seam&less Mode"), "L"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Switch between normal and seamless desktop integration mode"));
+    }
+};
+
+class ToggleScaleModeAction : public UIToggleAction
+{
+    Q_OBJECT;
+
+public:
+
+    ToggleScaleModeAction(QObject *pParent)
+        : UIToggleAction(pParent,
+                         ":/scale_on_16px.png", ":/scale_16px.png",
+                         ":/scale_on_disabled_16px.png", ":/scale_disabled_16px.png")
+    {
+        retranslateUi();
+    }
+
+protected:
+
+    void retranslateUi()
+    {
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Switch to &Scale Mode"), "C"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Switch between normal and scale mode"));
     }
 };
 
@@ -271,16 +308,8 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Enable &Guest Display Auto-resize"), "G"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Automatically resize the guest display when the window is resized (requires Guest Additions)"));
-        }
-        else
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Disable &Guest Display Auto-resize"), "G"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Disable automatic resize of the guest display when the window is resized"));
-        }
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Auto-resize &Guest Display"), "G"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Automatically resize the guest display when the window is resized (requires Guest Additions)"));
     }
 };
 
@@ -343,16 +372,8 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Disable &Mouse Integration"), "I"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Temporarily disable host mouse pointer integration"));
-        }
-        else
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Enable &Mouse Integration"), "I"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Enable temporarily disabled host mouse pointer integration"));
-        }
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Disable &Mouse Integration"), "I"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Temporarily disable host mouse pointer integration"));
     }
 };
 
@@ -441,7 +462,7 @@ protected:
 
     void retranslateUi()
     {
-        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Session I&nformation Dialog"), "N"));
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "Session I&nformation"), "N"));
         setStatusTip(QApplication::translate("UIActionsPool", "Show Session Information Dialog"));
     }
 };
@@ -463,16 +484,8 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "&Pause"), "P"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Suspend the execution of the virtual machine"));
-        }
-        else
-        {
-            setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "R&esume"), "P"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Resume the execution of the virtual machine"));
-        }
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "&Pause"), "P"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Suspend the execution of the virtual machine"));
     }
 };
 
@@ -521,6 +534,7 @@ protected:
 #else /* Q_WS_MAC */
         setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "ACPI S&hutdown"), "H"));
 #endif /* !Q_WS_MAC */
+
         setStatusTip(QApplication::translate("UIActionsPool", "Send the ACPI Power Button press event to the virtual machine"));
     }
 };
@@ -543,7 +557,7 @@ protected:
 
     void retranslateUi()
     {
-        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "&Close..." ), "Q"));
+        setText(VBoxGlobal::insertKeyToActionText(QApplication::translate("UIActionsPool", "&Close..."), "Q"));
         setStatusTip(QApplication::translate("UIActionsPool", "Close the virtual machine"));
     }
 };
@@ -734,13 +748,13 @@ protected:
     }
 };
 
-class ToggleVRDPAction : public UIToggleAction
+class ToggleVRDEServerAction : public UIToggleAction
 {
     Q_OBJECT;
 
 public:
 
-    ToggleVRDPAction(QObject *pParent)
+    ToggleVRDEServerAction(QObject *pParent)
         : UIToggleAction(pParent,
                          ":/vrdp_on_16px.png", ":/vrdp_16px.png",
                          ":/vrdp_on_disabled_16px.png", ":/vrdp_disabled_16px.png")
@@ -752,16 +766,8 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-        {
-            setText(QApplication::translate("UIActionsPool", "&Enable Remote Display"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Enable remote desktop (RDP) connections to this machine"));
-        }
-        else
-        {
-            setText(QApplication::translate("UIActionsPool", "&Disable Remote Display"));
-            setStatusTip(QApplication::translate("UIActionsPool", "Disable remote desktop (RDP) connections to this machine"));
-        }
+        setText(QApplication::translate("UIActionsPool", "Enable R&emote Display"));
+        setStatusTip(QApplication::translate("UIActionsPool", "Enable remote desktop (RDP) connections to this machine"));
     }
 };
 
@@ -864,10 +870,7 @@ protected:
 
     void retranslateUi()
     {
-        if (!isChecked())
-            setText(QApplication::translate("UIActionsPool", "Enable &Logging...", "debug action"));
-        else
-            setText(QApplication::translate("UIActionsPool", "Disable &Logging...", "debug action"));
+        setText(QApplication::translate("UIActionsPool", "Enable &Logging...", "debug action"));
     }
 };
 #endif
@@ -900,7 +903,7 @@ public:
 
     ShowHelpAction(QObject *pParent)
         : UISimpleAction(pParent,
-                         ":/help_16px.png")
+                         UIIconPool::defaultIcon(UIIconPool::DialogHelpIcon))
     {
         retranslateUi();
     }
@@ -1117,6 +1120,7 @@ UIActionsPool::UIActionsPool(QObject *pParent)
     /* "Machine" menu actions: */
     m_actionsPool[UIActionIndex_Toggle_Fullscreen] = new ToggleFullscreenModeAction(this);
     m_actionsPool[UIActionIndex_Toggle_Seamless] = new ToggleSeamlessModeAction(this);
+    m_actionsPool[UIActionIndex_Toggle_Scale] = new ToggleScaleModeAction(this);
     m_actionsPool[UIActionIndex_Toggle_GuestAutoresize] = new ToggleGuestAutoresizeAction(this);
     m_actionsPool[UIActionIndex_Simple_AdjustWindow] = new PerformWindowAdjustAction(this);
     m_actionsPool[UIActionIndex_Toggle_MouseIntegration] = new ToggleMouseIntegrationAction(this);
@@ -1134,7 +1138,7 @@ UIActionsPool::UIActionsPool(QObject *pParent)
     /* "Devices" menu actions: */
     m_actionsPool[UIActionIndex_Simple_NetworkAdaptersDialog] = new ShowNetworkAdaptersDialogAction(this);
     m_actionsPool[UIActionIndex_Simple_SharedFoldersDialog] = new ShowSharedFoldersDialogAction(this);
-    m_actionsPool[UIActionIndex_Toggle_VRDP] = new ToggleVRDPAction(this);
+    m_actionsPool[UIActionIndex_Toggle_VRDEServer] = new ToggleVRDEServerAction(this);
     m_actionsPool[UIActionIndex_Simple_InstallGuestTools] = new PerformInstallGuestToolsAction(this);
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -1187,6 +1191,42 @@ void UIActionsPool::createMenus()
      * another QMenu or a QMenuBar. This means we have to recreate all QMenus
      * when creating a new QMenuBar. For simplicity we doing this on all
      * platforms right now. */
+    if (m_actionsPool[UIActionIndex_Simple_Help])
+        delete m_actionsPool[UIActionIndex_Simple_Help];
+    m_actionsPool[UIActionIndex_Simple_Help] = new ShowHelpAction(this);
+    if (m_actionsPool[UIActionIndex_Simple_Web])
+        delete m_actionsPool[UIActionIndex_Simple_Web];
+    m_actionsPool[UIActionIndex_Simple_Web] = new ShowWebAction(this);
+    if (m_actionsPool[UIActionIndex_Simple_ResetWarnings])
+        delete m_actionsPool[UIActionIndex_Simple_ResetWarnings];
+    m_actionsPool[UIActionIndex_Simple_ResetWarnings] = new PerformResetWarningsAction(this);
+#ifdef VBOX_WITH_REGISTRATION
+    if (m_actionsPool[UIActionIndex_Simple_Register])
+        delete m_actionsPool[UIActionIndex_Simple_Register]
+    m_actionsPool[UIActionIndex_Simple_Register] = new PerformRegisterAction(this);
+#endif /* VBOX_WITH_REGISTRATION */
+#if defined(Q_WS_MAC) && (QT_VERSION >= 0x040700)
+    /* For whatever reason, Qt doesn't fully remove items with a
+     * ApplicationSpecificRole from the application menu. Although the QAction
+     * itself is deleted, a dummy entry is leaved back in the menu. Hiding
+     * before deletion helps. */
+    m_actionsPool[UIActionIndex_Simple_Update]->setVisible(false);
+#endif /* Q_WS_MAC */
+    /* Delete the help items as well. This makes sure they are removed also
+     * from the Application menu. */
+#if !(defined(Q_WS_MAC) && (QT_VERSION < 0x040700))
+    if (m_actionsPool[UIActionIndex_Simple_About])
+        delete m_actionsPool[UIActionIndex_Simple_About];
+    m_actionsPool[UIActionIndex_Simple_About] = new ShowAboutAction(this);
+    if (m_actionsPool[UIActionIndex_Simple_Update])
+        delete m_actionsPool[UIActionIndex_Simple_Update];
+    m_actionsPool[UIActionIndex_Simple_Update] = new PerformUpdateAction(this);
+#endif
+    if (m_actionsPool[UIActionIndex_Simple_Close])
+        delete m_actionsPool[UIActionIndex_Simple_Close];
+    m_actionsPool[UIActionIndex_Simple_Close] = new PerformCloseAction(this);
+
+    /* Menus */
     if (m_actionsPool[UIActionIndex_Menu_Machine])
         delete m_actionsPool[UIActionIndex_Menu_Machine];
     m_actionsPool[UIActionIndex_Menu_Machine] = new MenuMachineAction(this);

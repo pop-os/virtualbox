@@ -1,4 +1,4 @@
-/* $Id: tstRTR0SemMutexDriver.cpp $ */
+/* $Id: tstRTR0SemMutexDriver.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT R0 Testcase - Thread Preemption, driver program.
  */
@@ -92,7 +92,7 @@ static DECLCALLBACK(int) tstThreadFn(RTTHREAD hThreadSelf, void *pvUser)
 /**
  * Performs a threaded test.
  *
- * @returns true on succes, false on failure.
+ * @returns true on success, false on failure.
  * @param   enmSetup            The setup operation number.
  * @param   enmDo               The do-it operation number.
  * @param   enmCleanup          The cleanup operation number.

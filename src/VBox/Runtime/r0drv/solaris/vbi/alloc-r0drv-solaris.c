@@ -1,10 +1,10 @@
-/* $Id: alloc-r0drv-solaris.c $ */
+/* $Id: alloc-r0drv-solaris.c 32708 2010-09-23 11:18:51Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #include <iprt/mem.h>
 
 #include <iprt/assert.h>
+#include <iprt/err.h>
 #include <iprt/log.h>
 #include <iprt/param.h>
 #include <iprt/thread.h>
@@ -43,32 +44,40 @@
 /**
  * OS specific allocation function.
  */
-PRTMEMHDR rtR0MemAlloc(size_t cb, uint32_t fFlags)
+int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 {
-    size_t cbAllocated = cb;
-    PRTMEMHDR pHdr;
+    size_t      cbAllocated = cb;
+    PRTMEMHDR   pHdr;
+
 #ifdef RT_ARCH_AMD64
     if (fFlags & RTMEMHDR_FLAG_EXEC)
     {
+        AssertReturn(!(fFlags & RTMEMHDR_FLAG_ANY_CTX), NULL);
         cbAllocated = RT_ALIGN_Z(cb + sizeof(*pHdr), PAGE_SIZE) - sizeof(*pHdr);
         pHdr = (PRTMEMHDR)vbi_text_alloc(cbAllocated + sizeof(*pHdr));
     }
     else
 #endif
-    if (fFlags & RTMEMHDR_FLAG_ZEROED)
-        pHdr = (PRTMEMHDR)kmem_zalloc(cb + sizeof(*pHdr), KM_SLEEP);
-    else
-        pHdr = (PRTMEMHDR)kmem_alloc(cb + sizeof(*pHdr), KM_SLEEP);
-    if (pHdr)
     {
-        pHdr->u32Magic  = RTMEMHDR_MAGIC;
-        pHdr->fFlags    = fFlags;
-        pHdr->cb        = cbAllocated;
-        pHdr->cbReq     = cb;
+        unsigned fKmFlags = fFlags & RTMEMHDR_FLAG_ANY_CTX_ALLOC ? KM_NOSLEEP : KM_SLEEP;
+        if (fFlags & RTMEMHDR_FLAG_ZEROED)
+            pHdr = (PRTMEMHDR)kmem_zalloc(cb + sizeof(*pHdr), fKmFlags);
+        else
+            pHdr = (PRTMEMHDR)kmem_alloc(cb + sizeof(*pHdr), fKmFlags);
     }
-    else
-        LogRel(("rtMemAlloc(%u, %#x) failed\n", (unsigned)cb + sizeof(*pHdr), fFlags));
-    return pHdr;
+    if (RT_UNLIKELY(!pHdr))
+    {
+        LogRel(("rtMemAllocEx(%u, %#x) failed\n", (unsigned)cb + sizeof(*pHdr), fFlags));
+        return VERR_NO_MEMORY;
+    }
+
+    pHdr->u32Magic  = RTMEMHDR_MAGIC;
+    pHdr->fFlags    = fFlags;
+    pHdr->cb        = cbAllocated;
+    pHdr->cbReq     = cb;
+
+    *ppHdr = pHdr;
+    return VINF_SUCCESS;
 }
 
 

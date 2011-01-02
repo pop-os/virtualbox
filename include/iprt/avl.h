@@ -123,6 +123,54 @@ RTDECL(int)             RTAvlULDestroy(PPAVLULNODECORE pTree, PAVLULCALLBACK pfn
 
 
 
+/** AVL tree of void pointer ranges.
+ * @{
+ */
+
+/**
+ * AVL key type
+ */
+typedef void *AVLRPVKEY;
+
+/**
+ * AVL Core node.
+ */
+typedef struct AVLRPVNodeCore
+{
+    AVLRPVKEY               Key;        /**< First key value in the range (inclusive). */
+    AVLRPVKEY               KeyLast;    /**< Last key value in the range (inclusive). */
+    struct AVLRPVNodeCore  *pLeft;      /**< Pointer to left leaf node. */
+    struct AVLRPVNodeCore  *pRight;     /**< Pointer to right leaf node. */
+    unsigned char           uchHeight;  /**< Height of this tree: max(height(left), height(right)) + 1 */
+} AVLRPVNODECORE, *PAVLRPVNODECORE, **PPAVLRPVNODECORE;
+
+/** A tree with void pointer keys. */
+typedef PAVLRPVNODECORE    AVLRPVTREE;
+/** Pointer to a tree with void pointer keys. */
+typedef PPAVLRPVNODECORE   PAVLRPVTREE;
+
+/** Callback function for AVLPVDoWithAll(). */
+typedef DECLCALLBACK(int) AVLRPVCALLBACK(PAVLRPVNODECORE, void *);
+/** Pointer to callback function for AVLPVDoWithAll(). */
+typedef AVLRPVCALLBACK *PAVLRPVCALLBACK;
+
+/*
+ * Functions.
+ */
+RTDECL(bool)            RTAvlrPVInsert(PAVLRPVTREE ppTree, PAVLRPVNODECORE pNode);
+RTDECL(PAVLRPVNODECORE) RTAvlrPVRemove(PAVLRPVTREE ppTree, AVLRPVKEY Key);
+RTDECL(PAVLRPVNODECORE) RTAvlrPVGet(PAVLRPVTREE ppTree, AVLRPVKEY Key);
+RTDECL(PAVLRPVNODECORE) RTAvlrPVRangeGet(PAVLRPVTREE ppTree, AVLRPVKEY Key);
+RTDECL(PAVLRPVNODECORE) RTAvlrPVRangeRemove(PAVLRPVTREE ppTree, AVLRPVKEY Key);
+RTDECL(PAVLRPVNODECORE) RTAvlrPVGetBestFit(PAVLRPVTREE ppTree, AVLRPVKEY Key, bool fAbove);
+RTDECL(PAVLRPVNODECORE) RTAvlrPVRemoveBestFit(PAVLRPVTREE ppTree, AVLRPVKEY Key, bool fAbove);
+RTDECL(int)             RTAvlrPVDoWithAll(PAVLRPVTREE ppTree, int fFromLeft, PAVLRPVCALLBACK pfnCallBack, void *pvParam);
+RTDECL(int)             RTAvlrPVDestroy(PAVLRPVTREE ppTree, PAVLRPVCALLBACK pfnCallBack, void *pvParam);
+
+/** @} */
+
+
+
 /** AVL tree of uint32_t
  * @{
  */
@@ -243,6 +291,54 @@ RTDECL(PAVLLU32NODECORE)    RTAvllU32GetBestFit(PPAVLLU32NODECORE ppTree, AVLLU3
 RTDECL(PAVLLU32NODECORE)    RTAvllU32RemoveBestFit(PPAVLLU32NODECORE ppTree, AVLLU32KEY Key, bool fAbove);
 RTDECL(int)                 RTAvllU32DoWithAll(PPAVLLU32NODECORE ppTree, int fFromLeft, PAVLLU32CALLBACK pfnCallBack, void *pvParam);
 RTDECL(int)                 RTAvllU32Destroy(PPAVLLU32NODECORE pTree, PAVLLU32CALLBACK pfnCallBack, void *pvParam);
+
+/** @} */
+
+
+
+/** AVL tree of uint64_t ranges.
+ * @{
+ */
+
+/**
+ * AVL key type
+ */
+typedef uint64_t AVLRU64KEY;
+
+/**
+ * AVL Core node.
+ */
+typedef struct AVLRU64NodeCore
+{
+    AVLRU64KEY               Key;        /**< First key value in the range (inclusive). */
+    AVLRU64KEY               KeyLast;    /**< Last key value in the range (inclusive). */
+    struct AVLRU64NodeCore  *pLeft;      /**< Pointer to left leaf node. */
+    struct AVLRU64NodeCore  *pRight;     /**< Pointer to right leaf node. */
+    unsigned char            uchHeight;  /**< Height of this tree: max(height(left), height(right)) + 1 */
+} AVLRU64NODECORE, *PAVLRU64NODECORE, **PPAVLRU64NODECORE;
+
+/** A tree with void pointer keys. */
+typedef PAVLRU64NODECORE    AVLRU64TREE;
+/** Pointer to a tree with void pointer keys. */
+typedef PPAVLRU64NODECORE   PAVLRU64TREE;
+
+/** Callback function for AVLRU64DoWithAll(). */
+typedef DECLCALLBACK(int) AVLRU64CALLBACK(PAVLRU64NODECORE, void *);
+/** Pointer to callback function for AVLU64DoWithAll(). */
+typedef AVLRU64CALLBACK *PAVLRU64CALLBACK;
+
+/*
+ * Functions.
+ */
+RTDECL(bool)             RTAvlrU64Insert(PAVLRU64TREE ppTree, PAVLRU64NODECORE pNode);
+RTDECL(PAVLRU64NODECORE) RTAvlrU64Remove(PAVLRU64TREE ppTree, AVLRU64KEY Key);
+RTDECL(PAVLRU64NODECORE) RTAvlrU64Get(PAVLRU64TREE ppTree, AVLRU64KEY Key);
+RTDECL(PAVLRU64NODECORE) RTAvlrU64RangeGet(PAVLRU64TREE ppTree, AVLRU64KEY Key);
+RTDECL(PAVLRU64NODECORE) RTAvlrU64RangeRemove(PAVLRU64TREE ppTree, AVLRU64KEY Key);
+RTDECL(PAVLRU64NODECORE) RTAvlrU64GetBestFit(PAVLRU64TREE ppTree, AVLRU64KEY Key, bool fAbove);
+RTDECL(PAVLRU64NODECORE) RTAvlrU64RemoveBestFit(PAVLRU64TREE ppTree, AVLRU64KEY Key, bool fAbove);
+RTDECL(int)              RTAvlrU64DoWithAll(PAVLRU64TREE ppTree, int fFromLeft, PAVLRU64CALLBACK pfnCallBack, void *pvParam);
+RTDECL(int)              RTAvlrU64Destroy(PAVLRU64TREE ppTree, PAVLRU64CALLBACK pfnCallBack, void *pvParam);
 
 /** @} */
 
@@ -908,6 +1004,54 @@ RTDECL(int)                     RTAvlHCPhysDoWithAll(PAVLHCPHYSTREE pTree, int f
 RTDECL(PAVLHCPHYSNODECORE)      RTAvlHCPhysGetBestFit(PAVLHCPHYSTREE ppTree, RTHCPHYS Key, bool fAbove);
 RTDECL(PAVLHCPHYSNODECORE)      RTAvlHCPhysRemoveBestFit(PAVLHCPHYSTREE ppTree, RTHCPHYS Key, bool fAbove);
 RTDECL(int)                     RTAvlHCPhysDestroy(PAVLHCPHYSTREE pTree, PAVLHCPHYSCALLBACK pfnCallBack, void *pvParam);
+
+/** @} */
+
+/** AVL tree of RTGCPHYSes.
+ * @{
+ */
+
+/**
+ * AVL 'pointer' type for the relative offset pointer scheme.
+ */
+typedef struct _AVLGCPhysNodeCore  *AVLGCPHYSPTR;
+
+/**
+ * AVL Core node.
+ */
+typedef struct _AVLGCPhysNodeCore
+{
+    /** Offset to the left leaf node, relative to this field. */
+    AVLGCPHYSPTR        pLeft;
+    /** Offset to the right leaf node, relative to this field. */
+    AVLGCPHYSPTR        pRight;
+    /** Key value. */
+    RTGCPHYS            Key;
+    /** Height of this tree: max(height(left), height(right)) + 1 */
+    unsigned char       uchHeight;
+} AVLGCPHYSNODECORE, *PAVLGCPHYSNODECORE;
+
+/** A offset base tree with RTGCPHYS keys. */
+typedef AVLGCPHYSPTR      AVLGCPHYSTREE;
+/** Pointer to a offset base tree with RTGCPHYS keys. */
+typedef AVLGCPHYSTREE    *PAVLGCPHYSTREE;
+
+/** Pointer to an internal tree pointer.
+ * In this case it's a pointer to a relative offset. */
+typedef AVLGCPHYSTREE    *PPAVLGCPHYSNODECORE;
+
+/** Callback function for RTAvlGCPhysDoWithAll() and RTAvlGCPhysDestroy(). */
+typedef DECLCALLBACK(int)   AVLGCPHYSCALLBACK(PAVLGCPHYSNODECORE pNode, void *pvUser);
+/** Pointer to callback function for RTAvlGCPhysDoWithAll() and RTAvlGCPhysDestroy(). */
+typedef AVLGCPHYSCALLBACK *PAVLGCPHYSCALLBACK;
+
+RTDECL(bool)                    RTAvlGCPhysInsert(PAVLGCPHYSTREE pTree, PAVLGCPHYSNODECORE pNode);
+RTDECL(PAVLGCPHYSNODECORE)      RTAvlGCPhysRemove(PAVLGCPHYSTREE pTree, RTGCPHYS Key);
+RTDECL(PAVLGCPHYSNODECORE)      RTAvlGCPhysGet(PAVLGCPHYSTREE pTree, RTGCPHYS Key);
+RTDECL(int)                     RTAvlGCPhysDoWithAll(PAVLGCPHYSTREE pTree, int fFromLeft, PAVLGCPHYSCALLBACK pfnCallBack, void *pvParam);
+RTDECL(PAVLGCPHYSNODECORE)      RTAvlGCPhysGetBestFit(PAVLGCPHYSTREE ppTree, RTGCPHYS Key, bool fAbove);
+RTDECL(PAVLGCPHYSNODECORE)      RTAvlGCPhysRemoveBestFit(PAVLGCPHYSTREE ppTree, RTGCPHYS Key, bool fAbove);
+RTDECL(int)                     RTAvlGCPhysDestroy(PAVLGCPHYSTREE pTree, PAVLGCPHYSCALLBACK pfnCallBack, void *pvParam);
 
 /** @} */
 

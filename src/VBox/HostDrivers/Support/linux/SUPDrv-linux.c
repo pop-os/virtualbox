@@ -1,4 +1,4 @@
-/* $Rev: 67695 $ */
+/* $Rev: 35294 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -136,7 +136,7 @@ static int force_async_tsc = 0;
 /** The module name. */
 #define DEVICE_NAME         "vboxdrv"
 
-#ifdef RT_ARCH_AMD64
+#if defined(RT_ARCH_AMD64) && !defined(CONFIG_DEBUG_SET_MODULE_RONX)
 /**
  * Memory for the executable memory heap (in IPRT).
  */
@@ -185,7 +185,7 @@ static struct dev_pm_ops gPlatformPMOps =
     .suspend = VBoxDrvSuspend,  /* before entering deep sleep */
     .resume  = VBoxDrvResume,   /* after wakeup from deep sleep */
     .freeze  = VBoxDrvSuspend,  /* before creating hibernation image */
-    .restore = VBoxDrvResume,   /* after wakeing up from hibernation */
+    .restore = VBoxDrvResume,   /* after waking up from hibernation */
 };
 # endif
 
@@ -306,8 +306,12 @@ static int __init VBoxDrvLinuxInit(void)
         if (RT_SUCCESS(rc))
         {
 #ifdef RT_ARCH_AMD64
+# ifdef CONFIG_DEBUG_SET_MODULE_RONX
+            rc = RTR0MemExecInit(1572864 /* 1.5MB */);
+# else
             rc = RTR0MemExecDonate(&g_abExecMemory[0], sizeof(g_abExecMemory));
             printk(KERN_DEBUG "VBoxDrv: dbg - g_abExecMemory=%p\n", (void *)&g_abExecMemory[0]);
+# endif
 #endif
             Log(("VBoxDrv::ModuleInit\n"));
 
@@ -326,13 +330,7 @@ static int __init VBoxDrvLinuxInit(void)
                     if (rc == 0)
 #endif
                     {
-                        printk(KERN_INFO DEVICE_NAME ": TSC mode is %s, kernel timer mode is "
-#ifdef VBOX_HRTIMER
-                               "'high-res'"
-#else
-                               "'normal'"
-#endif
-                               ".\n",
+                        printk(KERN_INFO DEVICE_NAME ": TSC mode is %s, kernel timer mode is 'normal'.\n",
                                g_DevExt.pGip->u32Mode == SUPGIPMODE_SYNC_TSC ? "'synchronous'" : "'asynchronous'");
                         LogFlow(("VBoxDrv::ModuleInit returning %#x\n", rc));
                         printk(KERN_DEBUG DEVICE_NAME ": Successfully loaded version "

@@ -80,9 +80,9 @@
 /** @name VBoxGuest IOCTL codes and structures.
  *
  * The range 0..15 is for basic driver communication.
- * The range 16..31 is for HGCM communcation.
+ * The range 16..31 is for HGCM communication.
  * The range 32..47 is reserved for future use.
- * The range 48..63 is for OS specific communcation.
+ * The range 48..63 is for OS specific communication.
  * The 7th bit is reserved for future hacks.
  * The 8th bit is reserved for distinguishing between 32-bit and 64-bit
  * processes in future 64-bit guest additions.
@@ -98,7 +98,7 @@
  *          to be valid.
  *
  *          For Solaris we will have to do something special though, 255 isn't
- *          sufficent for all we need. A 4KB restriction (BSD) is probably not
+ *          sufficient for all we need. A 4KB restriction (BSD) is probably not
  *          too problematic (yet) as a general one.
  *
  *          More info can be found in SUPDRVIOC.h and related sources.
@@ -115,6 +115,7 @@
 #else
 # error "dunno which arch this is!"
 #endif
+/** @} */
 
 /** Ring-3 request wrapper for big requests.
  *
@@ -150,7 +151,7 @@ typedef const VBGLBIGREQ *PCVBGLBIGREQ;
 # define IOCTL_CODE(DeviceType, Function, Method, Access, DataSize_ignored) \
   ( ((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method))
 # define VBOXGUEST_IOCTL_CODE_(Function, Size)      IOCTL_CODE(FILE_DEVICE_UNKNOWN, 2048 + (Function), METHOD_BUFFERED, FILE_WRITE_ACCESS, 0)
-# define VBOXGUEST_IOCTL_STRIP_SIZE_(Code)          (Code)
+# define VBOXGUEST_IOCTL_STRIP_SIZE(Code)           (Code)
 
 #elif defined(RT_OS_OS2)
   /* No automatic buffering, size not encoded. */
@@ -214,13 +215,13 @@ typedef struct VBoxGuestPortInfo
 /** @name Result codes for VBoxGuestWaitEventInfo::u32Result
  * @{
  */
-/** Successful completion, an event occured. */
+/** Successful completion, an event occurred. */
 #define VBOXGUEST_WAITEVENT_OK          (0)
 /** Successful completion, timed out. */
 #define VBOXGUEST_WAITEVENT_TIMEOUT     (1)
 /** Wait was interrupted. */
 #define VBOXGUEST_WAITEVENT_INTERRUPTED (2)
-/** An error occured while processing the request. */
+/** An error occurred while processing the request. */
 #define VBOXGUEST_WAITEVENT_ERROR       (3)
 /** @} */
 
@@ -233,17 +234,10 @@ typedef struct VBoxGuestWaitEventInfo
     uint32_t u32EventMaskIn;
     /** result code */
     uint32_t u32Result;
-    /** events occured */
+    /** events occurred */
     uint32_t u32EventFlagsOut;
 } VBoxGuestWaitEventInfo;
 AssertCompileSize(VBoxGuestWaitEventInfo, 16);
-
-
-/** IOCTL to VBoxGuest to interrupt (cancel) any pending WAITEVENTs and return.
- * Handled inside the guest additions and not seen by the host at all.
- * @see VBOXGUEST_IOCTL_WAITEVENT */
-#define VBOXGUEST_IOCTL_CANCEL_ALL_WAITEVENTS       VBOXGUEST_IOCTL_CODE_(5, 0)
-
 
 
 /** IOCTL to VBoxGuest to perform a VMM request
@@ -264,6 +258,14 @@ typedef struct VBoxGuestFilterMaskInfo
 AssertCompileSize(VBoxGuestFilterMaskInfo, 8);
 #pragma pack()
 
+/** IOCTL to VBoxGuest to interrupt (cancel) any pending WAITEVENTs and return.
+ * Handled inside the guest additions and not seen by the host at all.
+ * @see VBOXGUEST_IOCTL_WAITEVENT */
+#define VBOXGUEST_IOCTL_CANCEL_ALL_WAITEVENTS       VBOXGUEST_IOCTL_CODE_(5, 0)
+
+/** IOCTL to VBoxGuest to perform backdoor logging.
+ * The argument is a string buffer of the specified size. */
+#define VBOXGUEST_IOCTL_LOG(Size)                   VBOXGUEST_IOCTL_CODE_(6, (Size))
 
 /** IOCTL to VBoxGuest to check memory ballooning.
  * The guest kernel module / device driver will ask the host for the current size of
@@ -302,10 +304,17 @@ typedef struct VBoxGuestChangeBalloonInfo
 } VBoxGuestChangeBalloonInfo;
 AssertCompileSize(VBoxGuestChangeBalloonInfo, 16);
 
+/** IOCTL to VBoxGuest to write guest core. */
+#define VBOXGUEST_IOCTL_WRITE_CORE_DUMP             VBOXGUEST_IOCTL_CODE(9, sizeof(VBoxGuestWriteCoreDump))
 
-/** IOCTL to VBoxGuest to perform backdoor logging.
- * The argument is a string buffer of the specified size. */
-#define VBOXGUEST_IOCTL_LOG(Size)                   VBOXGUEST_IOCTL_CODE_(6, (Size))
+/** Input and output buffer layout of the VBOXGUEST_IOCTL_WRITE_CORE
+ *  request. */
+typedef struct VBoxGuestWriteCoreDump
+{
+    /** Flags (reserved, MBZ). */
+    uint32_t fFlags;
+} VBoxGuestWriteCoreDump;
+AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 
 
 #ifdef VBOX_WITH_HGCM

@@ -34,6 +34,8 @@ struct thread_info_t {
     ContextInfo *currentContext;
     CRPackContext *packer;
     int writeback;
+    GLboolean bInjectThread;
+    GLboolean inUse;
 };
 
 struct context_info_t {
@@ -58,8 +60,9 @@ typedef struct {
     char *name;
     int buffer_size;
 
-    int numThreads;
+    int numThreads; /*number of used threads in the next array, doesn't need to be cont*/
     ThreadInfo thread[MAX_THREADS];
+    int idxThreadInUse; /*index of any used thread*/
 
     int numContexts;
     ContextInfo context[CR_MAX_CONTEXTS];

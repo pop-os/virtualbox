@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,8 +66,9 @@ DECLSPEC void (SDLCALL *pTTF_Quit)(void);
 }
 #endif /* VBOX_SECURELABEL */
 
-static SDL_Surface *gWMIcon;                    /**< the application icon */
-static RTNATIVETHREAD gSdlNativeThread;         /**< the SDL thread */
+static bool gfSdlInitialized = false;           /**< if SDL was initialized */
+static SDL_Surface *gWMIcon = NULL;             /**< the application icon */
+static RTNATIVETHREAD gSdlNativeThread = NIL_RTNATIVETHREAD; /**< the SDL thread */
 
 //
 // Constructor / destructor
@@ -184,6 +185,7 @@ bool VBoxSDLFB::init(bool fShowSDLConfig)
         RTPrintf("SDL Error: '%s'\n", SDL_GetError());
         return false;
     }
+    gfSdlInitialized = true;
 
     const SDL_VideoInfo *videoInfo = SDL_GetVideoInfo();
     Assert(videoInfo);
@@ -239,12 +241,15 @@ bool VBoxSDLFB::init(bool fShowSDLConfig)
  */
 void VBoxSDLFB::uninit()
 {
-    AssertMsg(gSdlNativeThread == RTThreadNativeSelf(), ("Wrong thread! SDL is not threadsafe!\n"));
-    SDL_QuitSubSystem(SDL_INIT_VIDEO);
-    if (gWMIcon)
+    if (gfSdlInitialized)
     {
-        SDL_FreeSurface(gWMIcon);
-        gWMIcon = NULL;
+        AssertMsg(gSdlNativeThread == RTThreadNativeSelf(), ("Wrong thread! SDL is not threadsafe!\n"));
+        SDL_QuitSubSystem(SDL_INIT_VIDEO);
+        if (gWMIcon)
+        {
+            SDL_FreeSurface(gWMIcon);
+            gWMIcon = NULL;
+        }
     }
 }
 
@@ -417,7 +422,7 @@ STDMETHODIMP VBoxSDLFB::COMGETTER(Overlay)(IFramebufferOverlay **aOverlay)
  * @returns COM status code.
  * @param   winId Handle of associated window.
  */
-STDMETHODIMP VBoxSDLFB::COMGETTER(WinId)(uint64_t *winId)
+STDMETHODIMP VBoxSDLFB::COMGETTER(WinId)(int64_t *winId)
 {
     if (!winId)
         return E_POINTER;
@@ -873,12 +878,12 @@ void VBoxSDLFB::resizeSDL(void)
     SDL_SysWMinfo info;
     SDL_VERSION(&info.version);
     if (SDL_GetWMInfo(&info))
-        mWinId = (ULONG64) info.window;
+        mWinId = (LONG64) info.window;
 # elif defined (RT_OS_LINUX)
     SDL_SysWMinfo info;
     SDL_VERSION(&info.version);
     if (SDL_GetWMInfo(&info))
-        mWinId = (ULONG64) info.info.x11.wmwindow;
+        mWinId = (LONG64) info.info.x11.wmwindow;
 # else
     /* XXX ignore this for other architectures */
 # endif
@@ -1182,8 +1187,8 @@ void VBoxSDLFB::paintSecureLabel(int x, int y, int w, int h, bool fForce)
                            (mSecureLabelColorFG & 0x0000FF00) >> 8,
                            mSecureLabelColorFG & 0x000000FF, 0};
         SDL_Surface *sText = (pTTF_RenderUTF8_Blended != NULL)
-                                 ? pTTF_RenderUTF8_Blended(mLabelFont, mSecureLabelText.raw(), clrFg)
-                                 : pTTF_RenderUTF8_Solid(mLabelFont, mSecureLabelText.raw(), clrFg);
+                                 ? pTTF_RenderUTF8_Blended(mLabelFont, mSecureLabelText.c_str(), clrFg)
+                                 : pTTF_RenderUTF8_Solid(mLabelFont, mSecureLabelText.c_str(), clrFg);
         rect.x = 10;
         rect.y = mLabelOffs;
         SDL_BlitSurface(sText, NULL, mScreen, &rect);
@@ -1465,7 +1470,7 @@ STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Overlay)(IFramebufferOverlay **aOverlay
  * @returns COM status code
  * @param   winId Address of result buffer.
  */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(WinId)(ULONG64 *winId)
+STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(WinId)(LONG64 *winId)
 {
     LogFlow(("VBoxSDLFBOverlay::GetWinId\n"));
     if (!winId)

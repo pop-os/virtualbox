@@ -1,4 +1,4 @@
-/* $Id: VBoxBFE.cpp $ */
+/* $Id: VBoxBFE.cpp 33590 2010-10-29 08:55:09Z vboxsync $ */
 /** @file
  * Basic Frontend (BFE): VBoxBFE main routines.
  *
@@ -389,9 +389,7 @@ static void show_usage()
 #ifdef RT_OS_LINUX
              "  -tapfd<1-N> <fd>   Use existing TAP device, don't allocate\n"
 #endif
-#ifdef VBOX_WITH_VRDP
              "  -vrdp [port]       Listen for VRDP connections on port (default if not specified)\n"
-#endif
 #ifdef VBOX_SECURELABEL
              "  -securelabel       Display a secure VM label at the top of the screen\n"
              "  -seclabelfnt       TrueType (.ttf) font file for secure session label\n"
@@ -415,9 +413,7 @@ static void show_usage()
 extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char **envp)
 {
     bool fFullscreen = false;
-#ifdef VBOX_WITH_VRDP
     int32_t portVRDP = -1;
-#endif
 #ifdef VBOX_SECURELABEL
     bool fSecureLabel = false;
     uint32_t secureLabelPointSize = 12;
@@ -710,7 +706,6 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char **envp)
             g_aNetDevs[i].fHaveFd = true;
         }
 #endif /* RT_OS_LINUX */
-#ifdef VBOX_WITH_VRDP
         else if (strcmp(pszArg, "-vrdp") == 0)
         {
             // -vrdp might take a port number (positive).
@@ -724,7 +719,6 @@ extern "C" DECLEXPORT(int) TrustedMain (int argc, char **argv, char **envp)
                     return SyntaxError("vrdp port number is out of range: %RI32\n", portVRDP);
             }
         }
-#endif /* VBOX_WITH_VRDP */
 #ifdef VBOX_SECURELABEL
         else if (strcmp(pszArg, "-securelabel") == 0)
         {
@@ -1170,7 +1164,7 @@ DECLCALLBACK(int) VMPowerUpThread(RTTHREAD Thread, void *pvUser)
     /*
      * Create empty VM.
      */
-    rc = VMR3Create(1, setVMErrorCallback, NULL, vboxbfeConfigConstructor, NULL, &gpVM);
+    rc = VMR3Create(1, NULL, setVMErrorCallback, NULL, vboxbfeConfigConstructor, NULL, &gpVM);
     if (RT_FAILURE(rc))
     {
         RTPrintf("Error: VM creation failed with %Rrc.\n", rc);
@@ -1855,7 +1849,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
 #elif defined(RT_OS_OS2)
                     /*
                      * The TAP driver does all the opening and setting up,
-                     * as it was originally was ment to be (stupid fork() problems).
+                     * as it was originally was meant to be (stupid fork() problems).
                      */
                     rc = CFGMR3InsertString(pCfg, "Device", g_aNetDevs[ulInstance].pszName); UPDATE_RC();
                     if (g_aNetDevs[ulInstance].fHaveConnectTo)
@@ -1897,6 +1891,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
     rc = CFGMR3InsertInteger(pInst, "Trusted",        1);           /* boolean */   UPDATE_RC();
     rc = CFGMR3InsertInteger(pInst, "PCIDeviceNo",    4);                           UPDATE_RC();
     rc = CFGMR3InsertInteger(pInst, "PCIFunctionNo",  0);                           UPDATE_RC();
+    rc = CFGMR3InsertInteger(pCfg,  "RamSize",        g_u32MemorySizeMB * _1M);     UPDATE_RC();
 
     /* the VMM device's Main driver */
     rc = CFGMR3InsertNode(pInst,    "LUN#0",          &pLunL0);                     UPDATE_RC();

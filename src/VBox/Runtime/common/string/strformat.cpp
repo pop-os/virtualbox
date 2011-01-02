@@ -1,4 +1,4 @@
-/* $Id: strformat.cpp $ */
+/* $Id: strformat.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - String Formatter.
  */
@@ -189,7 +189,7 @@ static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, s
         fFlags &= ~RTSTR_F_THOUSAND_SEP;
 
     /*
-     * Determin value length
+     * Determine value length
      */
     cchValue = 0;
     if (ullValue.ulHi || (fFlags & RTSTR_F_64BIT))
@@ -484,7 +484,7 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
 
 #ifndef IN_RING3
                     case 'S':   /* Unicode string as current code page -> Unicode as UTF-8 in GC/R0. */
-                        chArgSize = 'l';
+                        chArgSize = 'l'; /** @todo this is nonsensical, isn't it? */
                         /* fall thru */
 #endif
                     case 's':   /* Unicode string as utf8 */

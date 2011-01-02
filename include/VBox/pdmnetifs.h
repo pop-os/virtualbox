@@ -137,6 +137,19 @@ typedef struct PDMINETWORKDOWN
     DECLR3CALLBACKMEMBER(int, pfnReceive,(PPDMINETWORKDOWN pInterface, const void *pvBuf, size_t cb));
 
     /**
+     * Receive data with segmentation context from the network.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pvBuf           The available data.
+     * @param   cb              Number of bytes available in the buffer.
+     * @param   pGso            Segmentation context.
+     *
+     * @thread  Non-EMT.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReceiveGso,(PPDMINETWORKDOWN pInterface, const void *pvBuf, size_t cb, PCPDMNETWORKGSO pGso));
+
+    /**
      * Do pending transmit work on the leaf driver's XMIT thread.
      *
      * When a PDMINETWORKUP::pfnBeginTransmit or PDMINETWORKUP::pfnAllocBuf call
@@ -151,7 +164,7 @@ typedef struct PDMINETWORKDOWN
     DECLR3CALLBACKMEMBER(void, pfnXmitPending,(PPDMINETWORKDOWN pInterface));
 
 } PDMINETWORKDOWN;
-/** PDMINETWORKDOWN inteface ID. */
+/** PDMINETWORKDOWN interface ID. */
 #define PDMINETWORKDOWN_IID                     "52b8cdbb-a087-493b-baa7-81ec3b803e06"
 
 
@@ -393,6 +406,17 @@ typedef struct PDMINETWORKCONFIG
 /** PDMINETWORKCONFIG interface ID. */
 #define PDMINETWORKCONFIG_IID                   "d6d909e8-716d-415d-b109-534e4478ff4e"
 
+typedef struct PDMINETWORKNATCONFIG
+{
+    /**
+     * Inform NAT about the adding/removing redirection rule
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRedirectRuleCommand ,(PDMINETWORKNATCONFIG *pInterface, bool fRemove,
+                                                       bool fUdp, const char *pHostIp, uint16_t u16HostPort,
+                                                       const char *pGuestIp, uint16_t u16GuestPort));
+
+} PDMINETWORKNATCONFIG, *PPDMINETWORKNATCONFIG;
+#define PDMINETWORKNATCONFIG_IID                "0f001d62-4d2f-11df-93b3-2fd0b3a36a6b"
 /** @} */
 
 RT_C_DECLS_END

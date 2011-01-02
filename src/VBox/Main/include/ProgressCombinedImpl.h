@@ -1,4 +1,4 @@
-/* $Id: ProgressCombinedImpl.h $ */
+/* $Id: ProgressCombinedImpl.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -58,22 +58,20 @@
  *      first one plus the percent value of the next (not yet complete)
  *      progress, normalized to 100%.
  *
- * @note It's the respoisibility of the combined progress object creator to
+ * @note It's the responsibility of the combined progress object creator to
  *       complete individual progresses in the right order: if, let's say, the
  *       last progress is completed before all previous ones,
  *       #WaitForCompletion(-1) will most likely give 100% CPU load because it
  *       will be in a loop calling a method that returns immediately.
  */
 class ATL_NO_VTABLE CombinedProgress :
-    public com::SupportErrorInfoDerived<ProgressBase, CombinedProgress, IProgress>,
-    public VirtualBoxSupportTranslation<CombinedProgress>
+    public Progress
 {
 
 public:
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(CombinedProgress, IProgress)
 
-    VIRTUALBOXSUPPORTTRANSLATION_OVERRIDE (CombinedProgress)
-
-    DECLARE_NOT_AGGREGATABLE (CombinedProgress)
+    DECLARE_NOT_AGGREGATABLE(CombinedProgress)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
@@ -180,9 +178,6 @@ public:
     }
 
     // public methods only for internal purposes
-
-    /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "CombinedProgress"; }
 
 private:
 

@@ -105,6 +105,15 @@ typedef struct CRMultiBuffer {
     void         *buf;  /* data buffer */
 } CRMultiBuffer;
 
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+typedef struct CRVBOXHGSMI_CLIENT {
+    struct VBOXUHGSMI *pHgsmi;
+    struct VBOXUHGSMI_BUFFER *pCmdBuffer;
+    struct VBOXUHGSMI_BUFFER *pHGBuffer;
+    void *pvHGBuffer;
+    struct CRBufferPool_t *bufpool;
+} CRVBOXHGSMI_CLIENT, *PCRVBOXHGSMI_CLIENT;
+#endif
 /**
  * Chromium network connection (bidirectional).
  */
@@ -166,6 +175,8 @@ struct CRConnection {
     /* logging */
     int total_bytes_sent;
     int total_bytes_recv;
+    int recv_count;
+    int opcodes_count;
 
     /* credits for flow control */
     int send_credits;
@@ -219,11 +230,19 @@ struct CRConnection {
     uint8_t  *pHostBuffer;
     uint32_t cbHostBufferAllocated;
     uint32_t cbHostBuffer;
+#ifdef IN_GUEST
+    uint32_t u32InjectClientID;
+# ifdef VBOX_WITH_CRHGSMI
+#  ifndef VBOX_CRHGSMI_WITH_D3DDEV
+    CRVBOXHGSMI_CLIENT HgsmiClient;
+#  endif
+# endif
+#endif
     /* Used on host side to indicate that we are not allowed to store above pointers for later use
-     * in crVBoxHGCMReceiveMessage. As those messages are going to be processed after the correspoding 
+     * in crVBoxHGCMReceiveMessage. As those messages are going to be processed after the corresponding 
      * HGCM call is finished and memory is freed. So we have to store a copy.
      * This happens when message processing for client associated with this connection 
-     * is blocked by another client, which has send us glBegin call and we're waiting to recieve glEnd.
+     * is blocked by another client, which has send us glBegin call and we're waiting to receive glEnd.
      */
     uint8_t  allow_redir_ptr;
 

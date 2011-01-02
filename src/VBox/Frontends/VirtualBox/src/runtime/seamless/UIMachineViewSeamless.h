@@ -26,15 +26,21 @@ class UIMachineViewSeamless : public UIMachineView
 {
     Q_OBJECT;
 
+public:
+
+    /* Public getters: */
+    QRegion lastVisibleRegion() const { return m_lastVisibleRegion; }
+
 protected:
 
-    /* Seamless machine view constructor/destructor: */
+    /* Seamless machine-view constructor: */
     UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
-                          , VBoxDefs::RenderMode renderMode
+                          , ulong uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                           , bool bAccelerate2DVideo
 #endif
-                          , ulong uMonitor);
+    );
+    /* Seamless machine-view destructor: */
     virtual ~UIMachineViewSeamless();
 
 private slots:
@@ -66,14 +72,13 @@ private:
     //void cleanupConsoleConnections() {}
     //void prepareConnections() {}
     //void cleanupFilters() {}
-    //void cleanupCommon();
+    //void cleanupCommon() {}
 
     /* Private helpers: */
     void normalizeGeometry(bool /* fAdjustPosition */) {}
     QRect workingArea();
     void calculateDesktopGeometry();
     void maybeRestrictMinimumSize() {}
-    QRegion lastVisibleRegion() const { return m_lastVisibleRegion; }
 
     /* Private variables: */
     bool m_fShouldWeDoResize : 1;

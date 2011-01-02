@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-darwin.cpp $ */
+/* $Id: thread2-r0drv-darwin.cpp 34256 2010-11-22 15:55:00Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Darwin.
  */
@@ -133,6 +133,12 @@ int rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
 int rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     return VERR_NOT_IMPLEMENTED;
+}
+
+
+void rtThreadNativeDestroy(PRTTHREADINT pThread)
+{
+    NOREF(pThread);
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: Builtins.cpp $ */
+/* $Id: Builtins.cpp 34877 2010-12-09 11:18:15Z vboxsync $ */
 /** @file
  * Built-in drivers & devices (part 1)
  */
@@ -59,6 +59,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePCI);
     if (RT_FAILURE(rc))
         return rc;
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePciIch9);
+    if (RT_FAILURE(rc))
+        return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePcArch);
     if (RT_FAILURE(rc))
         return rc;
@@ -77,11 +80,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceI8259);
     if (RT_FAILURE(rc))
         return rc;
-#ifdef VBOX_WITH_HPET
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceHPET);
     if (RT_FAILURE(rc))
         return rc;
-#endif
 #ifdef VBOX_WITH_EFI
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceEFI);
     if (RT_FAILURE(rc))
@@ -118,6 +119,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceSB16);
+    if (RT_FAILURE(rc))
+        return rc;
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceICH6_HDA);
     if (RT_FAILURE(rc))
         return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceAudioSniffer);
@@ -163,6 +167,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePCIBridge);
     if (RT_FAILURE(rc))
         return rc;
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePciIch9Bridge);
+    if (RT_FAILURE(rc))
+        return rc;
 #ifdef VBOX_WITH_LSILOGIC
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLsiLogicSCSI);
     if (RT_FAILURE(rc))
@@ -171,6 +178,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePciRaw);
+    if (RT_FAILURE(rc))
+        return rc;
 
     return VINF_SUCCESS;
 }
@@ -338,4 +348,3 @@ extern "C" DECLEXPORT(int) VBoxUsbRegister(PCPDMUSBREGCB pCallbacks, uint32_t u3
 
     return rc;
 }
-

@@ -1,4 +1,4 @@
-/* $Id: simplepattern.cpp $ */
+/* $Id: simplepattern.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - RTStrSimplePattern.
  */
@@ -52,7 +52,7 @@ RTDECL(bool) RTStrSimplePatternMatch(const char *pszPattern, const char *pszStri
 
             case '*':
             {
-                /* collapse '*' and '?', they are supurfluous */
+                /* collapse '*' and '?', they are superfluous */
                 while ((chPat = *++pszPattern) == '*' || chPat == '?')
                     /* nothing */;
 
@@ -109,7 +109,7 @@ RTDECL(bool) RTStrSimplePatternNMatch(const char *pszPattern, size_t cchPattern,
 
             case '*':
             {
-                /* Collapse '*' and '?', they are supurfluous. End of the pattern == match.  */
+                /* Collapse '*' and '?', they are superfluous. End of the pattern == match.  */
                 do
                 {
                     if (!--cchPattern)

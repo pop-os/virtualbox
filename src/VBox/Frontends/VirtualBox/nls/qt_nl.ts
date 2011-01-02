@@ -2,6 +2,37 @@
 <!DOCTYPE TS>
 <TS version="2.0" language="nl_NL">
 <context>
+    <name>MAC_APPLICATION_MENU</name>
+    <message>
+        <source>Services</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Verberg %1</translation>
+    </message>
+    <message>
+        <source>Hide Others</source>
+        <translation>Overige verbergen</translation>
+    </message>
+    <message>
+        <source>Show All</source>
+        <translation>Alles weergeven</translation>
+    </message>
+    <message>
+        <source>Preferences...</source>
+        <translation>Voorkeuren...</translation>
+    </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Stoppen %1</translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation>Over %1</translation>
+    </message>
+</context>
+<context>
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
@@ -4349,7 +4380,7 @@ Kies een andere bestandsnaam.</translation>
     </message>
     <message>
         <source>Quit</source>
-        <translation>Beenden</translation>
+        <translation>Stoppen</translation>
     </message>
     <message>
         <source>&amp;Next</source>

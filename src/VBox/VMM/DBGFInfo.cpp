@@ -1,4 +1,4 @@
-/* $Id: DBGFInfo.cpp $ */
+/* $Id: DBGFInfo.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Info.
  */
@@ -200,7 +200,7 @@ VMMR3DECL(PCDBGFINFOHLP) DBGFR3InfoLogRelHlp(void)
 
 /**
  * Handle registration worker.
- * This allocates the structure, initalizes the common fields and inserts into the list.
+ * This allocates the structure, initializes the common fields and inserts into the list.
  * Upon successful return the we're inside the crit sect and the caller must leave it.
  *
  * @returns VBox status code.

@@ -1,4 +1,4 @@
-/* $Id: BdsMisc.c $ */
+/* $Id: BdsMisc.c 33676 2010-11-02 09:48:24Z vboxsync $ */
 /** @file
  * BdsMisc.c - Misc BDS library function.
  */
@@ -152,7 +152,7 @@ BdsLibLoadDrivers (
 
 /**
   Get the Option Number that does not used.
-  Try to locate the specific option variable one by one utile find a free number.
+  Try to locate the specific option variable one by one until find a free number.
 
   @param  VariableName          Indicate if the boot#### or driver#### option
 
@@ -594,7 +594,12 @@ BdsLibBuildOptionFromVar (
     }
 
     Option              = BdsLibVariableToOption (BdsCommonOptionList, OptionName);
-    ASSERT (Option != NULL);
+    //ASSERT (Option != NULL);
+    if (!Option)
+    {
+        DEBUG((DEBUG_INFO, "%a:%d Option %s wasn't found \n", __FILE__, __LINE__, Option));
+        continue;
+    }
     Option->BootCurrent = OptionOrder[Index];
 
   }
@@ -1196,7 +1201,7 @@ BdsLibGetImageHeader (
 
 /**
 
-  This routine is a notification function for legayc boot or exit boot
+  This routine is a notification function for legacy boot or exit boot
   service event. It will adjust the memory information for different
   memory type and save them into the variables for next boot.
 
@@ -1273,7 +1278,7 @@ BdsSetMemoryTypeInformationVariable (
     Previous = PreviousMemoryTypeInformation[Index].NumberOfPages;
 
     //
-    // Write next varible to 125% * current and Inconsistent Memory Reserved across bootings may lead to S4 fail
+    // Write next variable to 125% * current and Inconsistent Memory Reserved across bootings may lead to S4 fail
     //
     if (Current > Previous) {
       Next = Current + (Current >> 2);
@@ -1328,7 +1333,7 @@ BdsLibSaveMemoryTypeInformation (
            &ReadyToBootEvent
            );
   if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR,"Bds Set Memory Type Informationa Variable Fails\n"));
+    DEBUG ((DEBUG_ERROR,"Bds Set Memory Type Information Variable Fails\n"));
   }
 
 }

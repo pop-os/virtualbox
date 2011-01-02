@@ -1,4 +1,4 @@
-/* $Id: PDMAll.cpp $ */
+/* $Id: PDMAll.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * PDM Critical Sections
  */
@@ -152,6 +152,28 @@ VMMDECL(int) PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level)
     }
     return VERR_PDM_NO_PIC_INSTANCE;
 }
+
+/**
+ * Send a MSI to an I/O APIC.
+ *
+ * @returns VBox status code.
+ * @param   pVM             VM handle.
+ * @param   GCAddr          Request address.
+ * @param   u8Value         Request value.
+ */
+VMMDECL(int) PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue)
+{
+    if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
+    {
+        Assert(pVM->pdm.s.IoApic.CTX_SUFF(pfnSendMsi));
+        pdmLock(pVM);
+        pVM->pdm.s.IoApic.CTX_SUFF(pfnSendMsi)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), GCAddr, uValue);
+        pdmUnlock(pVM);
+        return VINF_SUCCESS;
+    }
+    return VERR_PDM_NO_PIC_INSTANCE;
+}
+
 
 
 /**

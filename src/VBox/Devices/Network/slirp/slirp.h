@@ -1,4 +1,4 @@
-/* $Id: slirp.h $ */
+/* $Id: slirp.h 34103 2010-11-16 11:18:55Z vboxsync $ */
 /** @file
  * NAT - slirp (declarations/defines).
  */
@@ -77,6 +77,16 @@ typedef int socklen_t;
 # include <sys/timeb.h>
 # include <iphlpapi.h>
 
+/* We don't want the errno.h versions of these error defines. */
+# if defined(_MSC_VER) && _MSC_VER >= 1600
+#  include <errno.h>
+#  undef EWOULDBLOCK
+#  undef EINPROGRESS
+#  undef ENOTCONN
+#  undef EHOSTUNREACH
+#  undef ENETUNREACH
+#  undef ECONNREFUSED
+# endif
 # define EWOULDBLOCK WSAEWOULDBLOCK
 # define EINPROGRESS WSAEINPROGRESS
 # define ENOTCONN WSAENOTCONN
@@ -378,7 +388,7 @@ int sscanf(const char *s, const char *format, ...);
 #if defined(VBOX_SLIRP_ALIAS) || defined(VBOX_SLIRP_BSD)
 
 # define ip_next(ip) (void *)((uint8_t *)(ip) + ((ip)->ip_hl << 2))
-# define udp_next(udp) (void *)((uint8_t *)&((struct udphdr *)(udp))[1] )
+# define udp_next(udp) (void *)((uint8_t *)&((struct udphdr *)(udp))[1])
 # define bcopy(src, dst, len) memcpy((dst), (src), (len))
 # define bcmp(a1, a2, len) memcmp((a1), (a2), (len))
 # define NO_FW_PUNCH
@@ -449,5 +459,20 @@ int dns_alias_load(PNATState);
 int dns_alias_unload(PNATState);
 int slirp_arp_lookup_ip_by_ether(PNATState, const uint8_t *, uint32_t *);
 int slirp_arp_lookup_ether_by_ip(PNATState, uint32_t, uint8_t *);
+
+static inline size_t slirp_size(PNATState pData)
+{
+        if (if_mtu < MSIZE)
+            return MCLBYTES;
+        else if (if_mtu < MCLBYTES)
+            return MCLBYTES;
+        else if (if_mtu < MJUM9BYTES)
+            return MJUM9BYTES;
+        else if (if_mtu < MJUM16BYTES)
+            return MJUM16BYTES;
+        else
+            AssertMsgFailed(("Unsupported size"));
+        return 0;
+}
 #endif
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxApplianceEditorWgt.cpp $ */
+/* $Id: VBoxApplianceEditorWgt.cpp 30976 2010-07-22 10:06:58Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -405,6 +405,7 @@ QWidget * HardwareItem::createEditor (QWidget *aParent, const QStyleOptionViewIt
                     QComboBox *e = new QComboBox (aParent);
                     e->addItem (vboxGlobal().toString (KAudioControllerType_AC97), KAudioControllerType_AC97);
                     e->addItem (vboxGlobal().toString (KAudioControllerType_SB16), KAudioControllerType_SB16);
+                    e->addItem (vboxGlobal().toString (KAudioControllerType_HDA),  KAudioControllerType_HDA);
                     editor = e;
                     break;
                 }

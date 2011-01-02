@@ -1,4 +1,4 @@
-/* $Id: VBoxNetNAT.cpp $ */
+/* $Id: VBoxNetNAT.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxNetNAT - NAT Service for connecting to IntNet.
  */
@@ -117,7 +117,7 @@ static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser);
 static DECLCALLBACK(int) natSndThread(RTTHREAD pThread, void *pvUser);
 static DECLCALLBACK(int) natUrgSndThread(RTTHREAD pThread, void *pvUser);
 static void SendWorker(struct mbuf *m, size_t cb);
-static void IntNetSendWorker(bool urg, const void *pvFrame, size_t cbFrame, struct mbuf *m);
+static void IntNetSendWorker(bool urg, void *pvFrame, size_t cbFrame, struct mbuf *m);
 
 
 static void natNotifyNATThread(void)
@@ -378,7 +378,7 @@ static void SendWorker(struct mbuf *m, size_t cb)
     slirp_input(g_pNAT->m_pNATState, m, cb);
 }
 
-static void IntNetSendWorker(bool urg, const void *pvFrame, size_t cbFrame, struct mbuf *m)
+static void IntNetSendWorker(bool urg, void *pvFrame, size_t cbFrame, struct mbuf *m)
 {
     Log2(("VBoxNetNAT: going to send some bytes ... \n"));
     VBoxNetNAT         *pThis = g_pNAT;
@@ -428,10 +428,7 @@ static void IntNetSendWorker(bool urg, const void *pvFrame, size_t cbFrame, stru
             RTSemEventSignal(g_pNAT->m_EventSend);
     }
     natNotifyNATThread();
-    slirp_ext_m_free(pThis->m_pNATState, m);
-#ifdef VBOX_WITH_SLIRP_BSD_MBUF
-    RTMemFree((void *)pvFrame);
-#endif
+    slirp_ext_m_free(pThis->m_pNATState, m, (uint8_t *)pvFrame);
 }
 
 static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
@@ -452,7 +449,7 @@ static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
     for(;;)
     {
         /*
-         * To prevent concurent execution of sending/receving threads
+         * To prevent concurrent execution of sending/receiving threads
          */
 #ifndef RT_OS_WINDOWS
         nFDs = slirp_get_nsock(pThis->m_pNATState);
@@ -461,7 +458,7 @@ static DECLCALLBACK(int) AsyncIoThread(RTTHREAD pThread, void *pvUser)
         if (polls == NULL)
             return VERR_NO_MEMORY;
 
-        /* don't pass the managemant pipe */
+        /* don't pass the management pipe */
         slirp_select_fill(pThis->m_pNATState, &nFDs, &polls[1]);
         unsigned int cMsTimeout = slirp_get_timeout_ms(pThis->m_pNATState);
 

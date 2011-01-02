@@ -1,4 +1,4 @@
-/* $Id: darwin.cpp $ */
+/* $Id: darwin.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Shared Clipboard: Mac OS X host.
  */
@@ -210,7 +210,7 @@ void vboxClipboardFormatAnnounce (VBOXCLIPBOARDCLIENTDATA *pClient, uint32_t u32
     Log (("vboxClipboardFormatAnnounce u32Formats %02X\n", u32Formats));
     if (u32Formats == 0)
     {
-        /* This is just an automatism, not a genuine anouncement */
+        /* This is just an automatism, not a genuine announcement */
         return;
     }
 

@@ -1,4 +1,4 @@
-/* $Id: UIExportApplianceWzd.cpp $ */
+/* $Id: UIExportApplianceWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -29,8 +29,10 @@ class VMListWidgetItems : public QListWidgetItem
 {
 public:
 
-    VMListWidgetItems(QPixmap &pixIcon, QString &strText, QListWidget *pParent)
+    VMListWidgetItems(QPixmap &pixIcon, QString &strText, QString strUuid, bool fInSaveState, QListWidget *pParent)
         : QListWidgetItem(pixIcon, strText, pParent)
+        , m_strUuid(strUuid)
+        , m_fInSaveState(fInSaveState)
     {
     }
 
@@ -39,6 +41,13 @@ public:
     {
         return text().toLower() < other.text().toLower();
     }
+
+    QString uuid() { return m_strUuid; }
+    bool isInSaveState() { return m_fInSaveState; }
+
+private:
+    QString m_strUuid;
+    bool m_fInSaveState;
 };
 
 UIExportApplianceWzd::UIExportApplianceWzd(QWidget *pParent, const QString &strSelectName) : QIWizard(pParent)
@@ -142,13 +151,36 @@ void UIExportApplianceWzdPage1::initializePage()
 
 void UIExportApplianceWzdPage1::cleanupPage()
 {
-    /* Do NOT call superclass method, it will clean defailt (initially set) field - 'selectedVMName'! */
+    /* Do NOT call superclass method, it will clean default (initially set) field - 'selectedVMName'! */
 }
 
 bool UIExportApplianceWzdPage1::isComplete() const
 {
     /* There should be at least one vm selected! */
     return m_pVMSelector->selectedItems().size() > 0;
+}
+
+bool UIExportApplianceWzdPage1::validatePage()
+{
+    /* Ask user machines which are in save state currently. */
+    QStringList savedMachines;
+    QList<QListWidgetItem*> pItems = m_pVMSelector->selectedItems();
+    for (int i=0; i < pItems.size(); ++i)
+    {
+        if (static_cast<VMListWidgetItems*>(pItems.at(i))->isInSaveState())
+            savedMachines << pItems.at(i)->text();
+    }
+
+    if (!savedMachines.isEmpty())
+        return vboxProblem().confirmExportMachinesInSaveState(savedMachines, this);
+
+    return true;
+}
+
+int UIExportApplianceWzdPage1::nextId() const
+{
+    /* Skip next (3rd, storage-type) page for now! */
+    return wizard()->page(QIWizardPage::nextId())->nextId();
 }
 
 void UIExportApplianceWzdPage1::sltSelectedVMChanged()
@@ -160,7 +192,7 @@ void UIExportApplianceWzdPage1::sltSelectedVMChanged()
     foreach (QListWidgetItem *item, m_pVMSelector->selectedItems())
     {
         m_MachineNames << item->text();
-        m_MachineIDs << item->data(Qt::UserRole).toString();
+        m_MachineIDs << static_cast<VMListWidgetItems*>(item)->uuid();
     }
     /* Revalidate page */
     emit completeChanged();
@@ -174,25 +206,25 @@ void UIExportApplianceWzdPage1::populateVMSelectorItems()
         QPixmap pixIcon;
         QString strName;
         QString strUuid;
-        bool bEnabled;
+        bool fInSaveState = false;
+        bool fEnabled = false;
         if (m.GetAccessible())
         {
             pixIcon = vboxGlobal().vmGuestOSTypeIcon(m.GetOSTypeId()).scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
             strName = m.GetName();
             strUuid = m.GetId();
-            bEnabled = m.GetSessionState() == KSessionState_Closed;
+            fEnabled = m.GetSessionState() == KSessionState_Unlocked;
+            fInSaveState = m.GetState() == KMachineState_Saved;
         }
         else
         {
             QString settingsFile = m.GetSettingsFilePath();
             QFileInfo fi(settingsFile);
-            strName = fi.completeSuffix().toLower() == "xml" ? fi.completeBaseName() : fi.fileName();
+            strName = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxDefs::VBoxFileExts) ? fi.completeBaseName() : fi.fileName();
             pixIcon = QPixmap(":/os_other.png").scaled(16, 16, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-            bEnabled = false;
         }
-        QListWidgetItem *item = new VMListWidgetItems(pixIcon, strName, m_pVMSelector);
-        item->setData(Qt::UserRole, strUuid);
-        if (!bEnabled)
+        QListWidgetItem *item = new VMListWidgetItems(pixIcon, strName, strUuid, fInSaveState, m_pVMSelector);
+        if (!fEnabled)
             item->setFlags(0);
         m_pVMSelector->addItem(item);
     }
@@ -203,91 +235,6 @@ UIExportApplianceWzdPage2::UIExportApplianceWzdPage2()
 {
     /* Decorate page */
     Ui::UIExportApplianceWzdPage2::setupUi(this);
-
-    /* Register ExportAppliancePointer class */
-    qRegisterMetaType<ExportAppliancePointer>();
-
-    /* Register 'applianceWidget' field! */
-    registerField("applianceWidget", this, "applianceWidget");
-    m_pApplianceWidget = m_pSettingsCnt;
-}
-
-void UIExportApplianceWzdPage2::retranslateUi()
-{
-    /* Translate uic generated strings */
-    Ui::UIExportApplianceWzdPage2::retranslateUi(this);
-
-    /* Wizard page 2 title */
-    setTitle(tr("Appliance Export Settings"));
-}
-
-void UIExportApplianceWzdPage2::initializePage()
-{
-    /* Fill and translate */
-    retranslateUi();
-
-    /* We propose a filename the first time the second page is displayed */
-    prepareSettingsWidget();
-}
-
-void UIExportApplianceWzdPage2::cleanupPage()
-{
-    /* Do NOT call superclass method, it will clean defailt (initially set) field - 'applianceWidget'! */
-}
-
-int UIExportApplianceWzdPage2::nextId() const
-{
-    /* Skip next (3rd, storage-type) page for now! */
-    return wizard()->page(QIWizardPage::nextId())->nextId();
-}
-
-bool UIExportApplianceWzdPage2::prepareSettingsWidget()
-{
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    CAppliance *appliance = m_pSettingsCnt->init();
-    bool fResult = appliance->isOk();
-    if (fResult)
-    {
-        /* Iterate over all the selected machine ids */
-        QStringList uuids = field("machineIDs").toStringList();
-        foreach (const QString &uuid, uuids)
-        {
-            /* Get the machine with the uuid */
-            CMachine m = vbox.GetMachine(uuid);
-            fResult = m.isOk();
-            if (fResult)
-            {
-                /* Add the export description to our appliance object */
-                CVirtualSystemDescription vsd = m.Export(*appliance);
-                fResult = m.isOk();
-                if (!fResult)
-                {
-                    vboxProblem().cannotExportAppliance(m, appliance, this);
-                    return false;
-                }
-                /* Now add some new fields the user may change */
-                vsd.AddDescription(KVirtualSystemDescriptionType_Product, "", "");
-                vsd.AddDescription(KVirtualSystemDescriptionType_ProductUrl, "", "");
-                vsd.AddDescription(KVirtualSystemDescriptionType_Vendor, "", "");
-                vsd.AddDescription(KVirtualSystemDescriptionType_VendorUrl, "", "");
-                vsd.AddDescription(KVirtualSystemDescriptionType_Version, "", "");
-                vsd.AddDescription(KVirtualSystemDescriptionType_License, "", "");
-            }
-            else
-                break;
-        }
-        /* Make sure the settings widget get the new descriptions */
-        m_pSettingsCnt->populate();
-    }
-    if (!fResult)
-        vboxProblem().cannotExportAppliance(appliance, this);
-    return fResult;
-}
-
-UIExportApplianceWzdPage3::UIExportApplianceWzdPage3()
-{
-    /* Decorate page */
-    Ui::UIExportApplianceWzdPage3::setupUi(this);
 
     /* Register StorageType class */
     qRegisterMetaType<StorageType>();
@@ -329,16 +276,16 @@ UIExportApplianceWzdPage3::UIExportApplianceWzdPage3()
 #endif
 }
 
-void UIExportApplianceWzdPage3::retranslateUi()
+void UIExportApplianceWzdPage2::retranslateUi()
 {
     /* Translate uic generated strings */
-    Ui::UIExportApplianceWzdPage3::retranslateUi(this);
+    Ui::UIExportApplianceWzdPage2::retranslateUi(this);
 
     /* Wizard page 3 title */
     setTitle(tr("Appliance Export Settings"));
 }
 
-void UIExportApplianceWzdPage3::initializePage()
+void UIExportApplianceWzdPage2::initializePage()
 {
     /* Fill and translate */
     retranslateUi();
@@ -347,7 +294,7 @@ void UIExportApplianceWzdPage3::initializePage()
     m_pTypeLocalFilesystem->click();
 }
 
-void UIExportApplianceWzdPage3::sltStorageTypeChanged()
+void UIExportApplianceWzdPage2::sltStorageTypeChanged()
 {
     /* Update selected storage-type */
     if (m_pTypeLocalFilesystem->isChecked())
@@ -362,16 +309,16 @@ void UIExportApplianceWzdPage3::sltStorageTypeChanged()
     emit completeChanged();
 }
 
-UIExportApplianceWzdPage4::UIExportApplianceWzdPage4()
+UIExportApplianceWzdPage3::UIExportApplianceWzdPage3()
 {
     /* Decorate page */
-    Ui::UIExportApplianceWzdPage4::setupUi(this);
+    Ui::UIExportApplianceWzdPage3::setupUi(this);
 
     /* Configure the file selector */
     m_pFileSelector->setMode(VBoxFilePathSelectorWidget::Mode_File_Save);
     m_pFileSelector->setEditable(true);
     m_pFileSelector->setButtonPosition(VBoxEmptyFileSelector::RightPosition);
-    m_pFileSelector->setDefaultSaveExt("ovf");
+    m_pFileSelector->setDefaultSaveExt("ova");
 
     /* Complete validators for the file selector page */
     connect(m_pLeUsername, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
@@ -379,6 +326,15 @@ UIExportApplianceWzdPage4::UIExportApplianceWzdPage4()
     connect(m_pLeHostname, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
     connect(m_pLeBucket, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
     connect(m_pFileSelector, SIGNAL(pathChanged(const QString &)), this, SIGNAL(completeChanged()));
+
+    /* Register 'target' fields! */
+    registerField("OVF09Selected", this, "OVF09Selected");
+    registerField("manifestSelected", this, "manifestSelected");
+    registerField("username", this, "username");
+    registerField("password", this, "password");
+    registerField("hostname", this, "hostname");
+    registerField("bucket", this, "bucket");
+    registerField("path", this, "path");
 
 #if 0
     /* Load default attributes from GUI extra data */
@@ -388,10 +344,10 @@ UIExportApplianceWzdPage4::UIExportApplianceWzdPage4()
 #endif
 }
 
-void UIExportApplianceWzdPage4::retranslateUi()
+void UIExportApplianceWzdPage3::retranslateUi()
 {
     /* Translate uic generated strings */
-    Ui::UIExportApplianceWzdPage4::retranslateUi(this);
+    Ui::UIExportApplianceWzdPage3::retranslateUi(this);
 
     /* Wizard page 4 title */
     setTitle(tr("Appliance Export Settings"));
@@ -401,10 +357,10 @@ void UIExportApplianceWzdPage4::retranslateUi()
 
     /* Translate the file selector */
     m_pFileSelector->setFileDialogTitle(tr("Select a file to export into"));
-    m_pFileSelector->setFileFilters(tr("Open Virtualization Format (%1)").arg("*.ovf"));
+    m_pFileSelector->setFileFilters(tr("Open Virtualization Format Archive (%1)").arg("*.ova")  + ";;" + tr("Open Virtualization Format (%1)").arg("*.ovf"));
 }
 
-void UIExportApplianceWzdPage4::initializePage()
+void UIExportApplianceWzdPage3::initializePage()
 {
     /* Fill and translate */
     retranslateUi();
@@ -414,7 +370,15 @@ void UIExportApplianceWzdPage4::initializePage()
     switch (storageType)
     {
         case Filesystem:
-            m_pPage4Text1->setText(tr("Please choose a filename to export the OVF to."));
+        {
+            m_pPage4Text1->setText(tr("Please choose a filename to export the "
+                                      "OVF/OVA to. If you use an <i>ova</i> file name "
+                                      "extension, then all the files will be "
+                                      "combined into one Open Virtualization "
+                                      "Format Archive. If you use an <i>ovf</i> "
+                                      "extension, several files will be written "
+                                      "separately. Other extensions are not "
+                                      "allowed."));
             m_pTxUsername->setVisible(false);
             m_pLeUsername->setVisible(false);
             m_pTxPassword->setVisible(false);
@@ -427,7 +391,9 @@ void UIExportApplianceWzdPage4::initializePage()
             m_pFileSelector->setChooserVisible(true);
             m_pFileSelector->setFocus();
             break;
+        }
         case SunCloud:
+        {
             m_pPage4Text1->setText(tr("Please complete the additional fields like the username, password "
                                       "and the bucket, and provide a filename for the OVF target."));
             m_pTxUsername->setVisible(true);
@@ -443,7 +409,9 @@ void UIExportApplianceWzdPage4::initializePage()
             m_pFileSelector->setChooserVisible(false);
             m_pLeUsername->setFocus();
             break;
+        }
         case S3:
+        {
             m_pPage4Text1->setText(tr("Please complete the additional fields like the username, password, "
                                       "hostname and the bucket, and provide a filename for the OVF target."));
             m_pTxUsername->setVisible(true);
@@ -458,6 +426,7 @@ void UIExportApplianceWzdPage4::initializePage()
             m_pFileSelector->setChooserVisible(false);
             m_pLeUsername->setFocus();
             break;
+        }
     }
 
     if (!m_pFileSelector->path().isEmpty())
@@ -477,7 +446,7 @@ void UIExportApplianceWzdPage4::initializePage()
         if (field("machineNames").toStringList().size() == 1)
             strName = field("machineNames").toStringList()[0];
 
-        strName += ".ovf";
+        strName += ".ova";
 
         if (storageType == Filesystem)
             strName = QDir::toNativeSeparators(QString("%1/%2").arg(vboxGlobal().documentsPath()).arg(strName));
@@ -488,9 +457,10 @@ void UIExportApplianceWzdPage4::initializePage()
     field("applianceWidget").value<ExportAppliancePointer>()->prepareExport();
 }
 
-bool UIExportApplianceWzdPage4::isComplete() const
+bool UIExportApplianceWzdPage3::isComplete() const
 {
-    bool bComplete = m_pFileSelector->path().toLower().endsWith(".ovf");
+    const QString &strFile = m_pFileSelector->path().toLower();
+    bool bComplete = VBoxGlobal::hasAllowedExtension(strFile, VBoxDefs::OVFFileExts);
     StorageType storageType = field("storageType").value<StorageType>();
     switch (storageType)
     {
@@ -508,9 +478,91 @@ bool UIExportApplianceWzdPage4::isComplete() const
     return bComplete;
 }
 
+UIExportApplianceWzdPage4::UIExportApplianceWzdPage4()
+{
+    /* Decorate page */
+    Ui::UIExportApplianceWzdPage4::setupUi(this);
+
+    /* Register ExportAppliancePointer class */
+    qRegisterMetaType<ExportAppliancePointer>();
+
+    /* Register 'applianceWidget' field! */
+    registerField("applianceWidget", this, "applianceWidget");
+    m_pApplianceWidget = m_pSettingsCnt;
+}
+
+void UIExportApplianceWzdPage4::retranslateUi()
+{
+    /* Translate uic generated strings */
+    Ui::UIExportApplianceWzdPage4::retranslateUi(this);
+
+    /* Wizard page 2 title */
+    setTitle(tr("Appliance Export Settings"));
+}
+
+void UIExportApplianceWzdPage4::initializePage()
+{
+    /* Fill and translate */
+    retranslateUi();
+
+    /* We propose a filename the first time the second page is displayed */
+    prepareSettingsWidget();
+}
+
+void UIExportApplianceWzdPage4::cleanupPage()
+{
+    /* Do NOT call superclass method, it will clean default (initially set) field - 'applianceWidget'! */
+}
+
 bool UIExportApplianceWzdPage4::validatePage()
 {
-    return exportAppliance();
+    startProcessing();
+    bool fResult = exportAppliance();
+    endProcessing();
+    return fResult;
+}
+
+bool UIExportApplianceWzdPage4::prepareSettingsWidget()
+{
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CAppliance *appliance = m_pSettingsCnt->init();
+    bool fResult = appliance->isOk();
+    if (fResult)
+    {
+        /* Iterate over all the selected machine ids */
+        QStringList uuids = field("machineIDs").toStringList();
+        foreach (const QString &uuid, uuids)
+        {
+            /* Get the machine with the uuid */
+            CMachine m = vbox.FindMachine(uuid);
+            fResult = m.isOk();
+            if (fResult)
+            {
+                /* Add the export description to our appliance object */
+                CVirtualSystemDescription vsd = m.Export(*appliance, uri());
+                fResult = m.isOk();
+                if (!fResult)
+                {
+                    vboxProblem().cannotExportAppliance(m, appliance, this);
+                    return false;
+                }
+                /* Now add some new fields the user may change */
+                vsd.AddDescription(KVirtualSystemDescriptionType_Product, "", "");
+                vsd.AddDescription(KVirtualSystemDescriptionType_ProductUrl, "", "");
+                vsd.AddDescription(KVirtualSystemDescriptionType_Vendor, "", "");
+                vsd.AddDescription(KVirtualSystemDescriptionType_VendorUrl, "", "");
+                vsd.AddDescription(KVirtualSystemDescriptionType_Version, "", "");
+                vsd.AddDescription(KVirtualSystemDescriptionType_License, "", "");
+            }
+            else
+                break;
+        }
+        /* Make sure the settings widget get the new descriptions */
+        m_pSettingsCnt->populate();
+    }
+    if (!fResult)
+        vboxProblem().cannotExportAppliance(appliance, this);
+    return fResult;
 }
 
 bool UIExportApplianceWzdPage4::exportAppliance()
@@ -518,30 +570,36 @@ bool UIExportApplianceWzdPage4::exportAppliance()
     AssertMsg(!field("applianceWidget").value<ExportAppliancePointer>().isNull(),
               ("Appliance Widget Pointer is not set!\n"));
     CAppliance *appliance = field("applianceWidget").value<ExportAppliancePointer>()->appliance();
-    QFileInfo fi(m_pFileSelector->path());
-    QVector<QString> files;
-    files << fi.fileName();
     /* We need to know every filename which will be created, so that we can
      * ask the user for confirmation of overwriting. For that we iterating
      * over all virtual systems & fetch all descriptions of the type
-     * HardDiskImage. */
-    CVirtualSystemDescriptionVector vsds = appliance->GetVirtualSystemDescriptions();
-    for (int i = 0; i < vsds.size(); ++ i)
+     * HardDiskImage. Also add the manifest file to the check. In the ova
+     * case only the target file itself get checked. */
+    QFileInfo fi(field("path").toString());
+    QVector<QString> files;
+    files << fi.fileName();
+    if (fi.suffix().toLower() == "ovf")
     {
-        QVector<KVirtualSystemDescriptionType> types;
-        QVector<QString> refs, origValues, configValues, extraConfigValues;
-        vsds[i].GetDescriptionByType(KVirtualSystemDescriptionType_HardDiskImage, types,
-                                     refs, origValues, configValues, extraConfigValues);
-        foreach (const QString &s, origValues)
-            files << QString("%2").arg(s);
+        if (field("manifestSelected").toBool())
+            files << fi.baseName() + ".mf";
+        CVirtualSystemDescriptionVector vsds = appliance->GetVirtualSystemDescriptions();
+        for (int i = 0; i < vsds.size(); ++ i)
+        {
+            QVector<KVirtualSystemDescriptionType> types;
+            QVector<QString> refs, origValues, configValues, extraConfigValues;
+            vsds[i].GetDescriptionByType(KVirtualSystemDescriptionType_HardDiskImage, types,
+                                         refs, origValues, configValues, extraConfigValues);
+            foreach (const QString &s, origValues)
+                files << QString("%2").arg(s);
+        }
     }
-    CVFSExplorer explorer = appliance->CreateVFSExplorer(uri());
+    CVFSExplorer explorer = appliance->CreateVFSExplorer(uri(false /* fWithFile */));
     CProgress progress = explorer.Update();
     bool fResult = explorer.isOk();
     if (fResult)
     {
         /* Show some progress, so the user know whats going on */
-        vboxProblem().showModalProgressDialog(progress, tr("Checking files ..."), this);
+        vboxProblem().showModalProgressDialog(progress, tr("Checking files ..."), "", this);
         if (progress.GetCanceled())
             return false;
         if (!progress.isOk() || progress.GetResultCode() != 0)
@@ -562,7 +620,7 @@ bool UIExportApplianceWzdPage4::exportAppliance()
         if (fResult)
         {
             /* Show some progress, so the user know whats going on */
-            vboxProblem().showModalProgressDialog(progress1, tr("Removing files ..."), this);
+            vboxProblem().showModalProgressDialog(progress1, tr("Removing files ..."), "", this);
             if (progress1.GetCanceled())
                 return false;
             if (!progress1.isOk() || progress1.GetResultCode() != 0)
@@ -592,13 +650,13 @@ bool UIExportApplianceWzdPage4::exportAppliance()
 bool UIExportApplianceWzdPage4::exportVMs(CAppliance &appliance)
 {
     /* Write the appliance */
-    QString version = m_pSelectOVF09->isChecked() ? "ovf-0.9" : "ovf-1.0";
-    CProgress progress = appliance.Write(version, uri());
+    const QString version = field("OVF09Selected").toBool() ? "ovf-0.9" : "ovf-1.0";
+    CProgress progress = appliance.Write(version, field("manifestSelected").toBool() /* fManifest */, uri());
     bool fResult = appliance.isOk();
     if (fResult)
     {
         /* Show some progress, so the user know whats going on */
-        vboxProblem().showModalProgressDialog(progress, tr("Exporting Appliance ..."), this);
+        vboxProblem().showModalProgressDialog(progress, tr("Exporting Appliance ..."), ":/progress_export_90px.png", this, true);
         if (progress.GetCanceled())
             return false;
         if (!progress.isOk() || progress.GetResultCode() != 0)
@@ -614,37 +672,44 @@ bool UIExportApplianceWzdPage4::exportVMs(CAppliance &appliance)
     return false;
 }
 
-QString UIExportApplianceWzdPage4::uri() const
+QString UIExportApplianceWzdPage4::uri(bool fWithFile) const
 {
     StorageType type = field("storageType").value<StorageType>();
+
+    QString path = field("path").toString();
+    if (!fWithFile)
+    {
+        QFileInfo fi(path);
+        path = fi.path();
+    }
     switch (type)
     {
         case Filesystem:
         {
-            return m_pFileSelector->path();
+            return path;
         }
         case SunCloud:
         {
             QString uri("SunCloud://");
-            if (!m_pLeUsername->text().isEmpty())
-                uri = QString("%1%2").arg(uri).arg(m_pLeUsername->text());
-            if (!m_pLePassword->text().isEmpty())
-                uri = QString("%1:%2").arg(uri).arg(m_pLePassword->text());
-            if (!m_pLeUsername->text().isEmpty() || !m_pLePassword->text().isEmpty())
+            if (!field("username").toString().isEmpty())
+                uri = QString("%1%2").arg(uri).arg(field("username").toString());
+            if (!field("password").toString().isEmpty())
+                uri = QString("%1:%2").arg(uri).arg(field("password").toString());
+            if (!field("username").toString().isEmpty() || !field("username").toString().isEmpty())
                 uri = QString("%1@").arg(uri);
-            uri = QString("%1%2/%3/%4").arg(uri).arg("object.storage.network.com").arg(m_pLeBucket->text()).arg(m_pFileSelector->path());
+            uri = QString("%1%2/%3/%4").arg(uri).arg("object.storage.network.com").arg(field("bucket").toString()).arg(path);
             return uri;
         }
         case S3:
         {
             QString uri("S3://");
-            if (!m_pLeUsername->text().isEmpty())
-                uri = QString("%1%2").arg(uri).arg(m_pLeUsername->text());
-            if (!m_pLePassword->text().isEmpty())
-                uri = QString("%1:%2").arg(uri).arg(m_pLePassword->text());
-            if (!m_pLeUsername->text().isEmpty() || !m_pLePassword->text().isEmpty())
+            if (!field("username").toString().isEmpty())
+                uri = QString("%1%2").arg(uri).arg(field("username").toString());
+            if (!field("password").toString().isEmpty())
+                uri = QString("%1:%2").arg(uri).arg(field("password").toString());
+            if (!field("username").toString().isEmpty() || !field("password").toString().isEmpty())
                 uri = QString("%1@").arg(uri);
-            uri = QString("%1%2/%3/%4").arg(uri).arg(m_pLeHostname->text()).arg(m_pLeBucket->text()).arg(m_pFileSelector->path());
+            uri = QString("%1%2/%3/%4").arg(uri).arg(field("hostname").toString()).arg(field("bucket").toString()).arg(path);
             return uri;
         }
     }

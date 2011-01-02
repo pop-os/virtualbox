@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryDmiString-solaris.cpp $ */
+/* $Id: RTSystemQueryDmiString-solaris.cpp 29560 2010-05-17 15:08:09Z vboxsync $ */
 /** @file
  * IPRT - RTSystemQueryDmiString, solaris ring-3.
  */

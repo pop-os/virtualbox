@@ -1,4 +1,4 @@
-/* $Id: dbgmod.cpp $ */
+/* $Id: dbgmod.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Debug Module Interpreter.
  */
@@ -50,7 +50,7 @@
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
-/** Debug info interpreter regisration record. */
+/** Debug info interpreter registration record. */
 typedef struct RTDBGMODREGDBG
 {
     /** Pointer to the next record. */
@@ -62,7 +62,7 @@ typedef struct RTDBGMODREGDBG
 } RTDBGMODREGDBG;
 typedef RTDBGMODREGDBG *PRTDBGMODREGDBG;
 
-/** Image interpreter regisration record. */
+/** Image interpreter registration record. */
 typedef struct RTDBGMODREGIMG
 {
     /** Pointer to the next record. */
@@ -314,6 +314,7 @@ RT_EXPORT_SYMBOL(RTDbgModCreateDeferred);
 
 RTDECL(int)         RTDbgModCreateFromImage(PRTDBGMOD phDbgMod, const char *pszFilename, const char *pszName, uint32_t fFlags)
 {
+
     return VERR_NOT_IMPLEMENTED;
 }
 RT_EXPORT_SYMBOL(RTDbgModCreateFromImage);
@@ -522,7 +523,7 @@ RT_EXPORT_SYMBOL(RTDbgModRvaToSegOff);
 
 
 /**
- * Image size when mapped if segments are mapped adjecently.
+ * Image size when mapped if segments are mapped adjacently.
  *
  * For ELF, PE, and Mach-O images this is (usually) a natural query, for LX and
  * NE and such it's a bit odder and the answer may not make much sense for them.
@@ -651,8 +652,8 @@ RT_EXPORT_SYMBOL(RTDbgModSegmentAdd);
 /**
  * Gets the number of segments in the module.
  *
- * This is can be used to determin the range which can be passed to
- * RTDbgModSegmentByIndex and derivates.
+ * This is can be used to determine the range which can be passed to
+ * RTDbgModSegmentByIndex and derivatives.
  *
  * @returns The segment relative address.
  *          NIL_RTDBGSEGIDX if the handle is invalid.
@@ -757,7 +758,7 @@ RT_EXPORT_SYMBOL(RTDbgModSegmentRva);
  *
  * @returns IPRT status code.
  * @retval  VERR_NOT_SUPPORTED if the module interpret doesn't support adding
- *          custom symbols. This is a common place occurance.
+ *          custom symbols. This is a common place occurrence.
  * @retval  VERR_INVALID_HANDLE if hDbgMod is invalid.
  * @retval  VERR_DBG_SYMBOL_NAME_OUT_OF_RANGE if the symbol name is too long or
  *          short.
@@ -919,7 +920,7 @@ RT_EXPORT_SYMBOL(RTDbgModSymbolByOrdinalA);
 /**
  * Queries symbol information by address.
  *
- * The returned symbol is what the debug info interpreter consideres the symbol
+ * The returned symbol is what the debug info interpreter considers the symbol
  * most applicable to the specified address. This usually means a symbol with an
  * address equal or lower than the requested.
  *
@@ -980,7 +981,7 @@ RT_EXPORT_SYMBOL(RTDbgModSymbolByAddr);
 /**
  * Queries symbol information by address.
  *
- * The returned symbol is what the debug info interpreter consideres the symbol
+ * The returned symbol is what the debug info interpreter considers the symbol
  * most applicable to the specified address. This usually means a symbol with an
  * address equal or lower than the requested.
  *
@@ -1266,7 +1267,7 @@ RT_EXPORT_SYMBOL(RTDbgModLineByOrdinalA);
 /**
  * Queries line number information by address.
  *
- * The returned line number is what the debug info interpreter consideres the
+ * The returned line number is what the debug info interpreter considers the
  * one most applicable to the specified address. This usually means a line
  * number with an address equal or lower than the requested.
  *
@@ -1325,7 +1326,7 @@ RT_EXPORT_SYMBOL(RTDbgModLineByAddr);
 /**
  * Queries line number information by address.
  *
- * The returned line number is what the debug info interpreter consideres the
+ * The returned line number is what the debug info interpreter considers the
  * one most applicable to the specified address. This usually means a line
  * number with an address equal or lower than the requested.
  *

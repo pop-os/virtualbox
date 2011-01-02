@@ -1,4 +1,4 @@
-/* $Id: tstGuestControlSvc.cpp $ */
+/* $Id: tstGuestControlSvc.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  *
  * Testcase for the guest control service.
@@ -22,7 +22,7 @@
 #include <VBox/HostServices/GuestControlSvc.h>
 #include <iprt/alloca.h>
 #include <iprt/initterm.h>
-#include <iprt/crc32.h>
+#include <iprt/crc.h>
 #include <iprt/ctype.h>
 #include <iprt/env.h>
 #include <iprt/file.h>
@@ -1126,8 +1126,8 @@ int main(int argc, char **argv)
         return RTMsgInitFailure(rc);
 
     /* Save image name for later use. */
-    if (!RTProcGetExecutableName(g_szImageName, sizeof(g_szImageName)))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTProcGetExecutableName failed\n");
+    if (!RTProcGetExecutablePath(g_szImageName, sizeof(g_szImageName)))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTProcGetExecutablePath failed\n");
 
     VBOXHGCMSVCFNTABLE svcTable;
     VBOXHGCMSVCHELPERS svcHelpers;

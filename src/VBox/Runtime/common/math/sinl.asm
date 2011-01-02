@@ -1,4 +1,4 @@
-; $Id: sinl.asm $
+; $Id: sinl.asm 28800 2010-04-27 08:22:32Z vboxsync $
 ;; @file
 ; IPRT - No-CRT sinl - AMD64 & X86.
 ;

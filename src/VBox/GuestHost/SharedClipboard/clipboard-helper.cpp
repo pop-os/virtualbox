@@ -1,4 +1,4 @@
-/* $Id: clipboard-helper.cpp $ */
+/* $Id: clipboard-helper.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Shared Clipboard: Some helper function for converting between the various eol.
  */
@@ -19,7 +19,7 @@
 #include <VBox/log.h>
 #include <VBox/GuestHost/clipboard-helper.h>
 
-/** @todo use const where appropriate; delinuxifiy the code (*Lin* -> *Host*); use AssertLogRel*. */
+/** @todo use const where appropriate; delinuxify the code (*Lin* -> *Host*); use AssertLogRel*. */
 
 int vboxClipboardUtf16GetWinSize(PRTUTF16 pwszSrc, size_t cwSrc, size_t *pcwDest)
 {

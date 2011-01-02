@@ -18,10 +18,14 @@
 #include "MediumAttachmentImpl.h"
 #include "MachineImpl.h"
 #include "MediumImpl.h"
+#include "BandwidthGroupImpl.h"
 #include "Global.h"
 
+#include "AutoStateDep.h"
 #include "AutoCaller.h"
 #include "Logging.h"
+
+#include <iprt/cpp/utils.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -40,6 +44,7 @@ struct BackupableMediumAttachmentData
     { }
 
     ComObjPtr<Medium>   pMedium;
+    ComObjPtr<BandwidthGroup> pBwGroup;
     /* Since MediumAttachment is not a first class citizen when it
      * comes to managing settings, having a reference to the storage
      * controller will not work - when settings are changed it will point
@@ -49,8 +54,8 @@ struct BackupableMediumAttachmentData
     const LONG          lPort;
     const LONG          lDevice;
     const DeviceType_T  type;
-    bool                fPassthrough : 1;
-    bool                fImplicit : 1;
+    bool                fPassthrough;
+    bool                fImplicit;
 };
 
 struct MediumAttachment::Data
@@ -88,12 +93,13 @@ void MediumAttachment::FinalRelease()
 /**
  * Initializes the medium attachment object.
  *
- * @param aParent     Machine object.
- * @param aMedium     Medium object.
- * @param aController Controller the hard disk is attached to.
- * @param aPort       Port number.
- * @param aDevice     Device number on the port.
- * @param aPassthrough Wether accesses are directly passed to the host drive.
+ * @param aParent           Machine object.
+ * @param aMedium           Medium object.
+ * @param aController       Controller the hard disk is attached to.
+ * @param aPort             Port number.
+ * @param aDevice           Device number on the port.
+ * @param aPassthrough      Whether accesses are directly passed to the host drive.
+ * @param aBandwidthLimit   Bandwidth limit in Mbps
  */
 HRESULT MediumAttachment::init(Machine *aParent,
                                Medium *aMedium,
@@ -101,7 +107,8 @@ HRESULT MediumAttachment::init(Machine *aParent,
                                LONG aPort,
                                LONG aDevice,
                                DeviceType_T aType,
-                               bool aPassthrough)
+                               bool aPassthrough,
+                               BandwidthGroup *aBandwidthGroup)
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("aParent=%p aMedium=%p aControllerName=%ls aPort=%d aDevice=%d aType=%d aPassthrough=%d\n", aParent, aMedium, aControllerName.raw(), aPort, aDevice, aType, aPassthrough));
@@ -119,6 +126,9 @@ HRESULT MediumAttachment::init(Machine *aParent,
 
     m->bd.allocate();
     m->bd->pMedium = aMedium;
+    if (aBandwidthGroup)
+        aBandwidthGroup->reference();
+    m->bd->pBwGroup = aBandwidthGroup;
     unconst(m->bd->bstrControllerName) = aControllerName;
     unconst(m->bd->lPort)   = aPort;
     unconst(m->bd->lDevice) = aDevice;
@@ -269,6 +279,20 @@ STDMETHODIMP MediumAttachment::COMGETTER(Passthrough)(BOOL *aPassthrough)
     return S_OK;
 }
 
+STDMETHODIMP MediumAttachment::COMGETTER(BandwidthGroup) (IBandwidthGroup **aBwGroup)
+{
+    CheckComArgOutPointerValid(aBwGroup);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    m->bd->pBwGroup.queryInterfaceTo(aBwGroup);
+
+    return S_OK;
+}
+
 /**
  *  @note Locks this object for writing.
  */
@@ -347,6 +371,11 @@ bool MediumAttachment::getPassthrough() const
     return m->bd->fPassthrough;
 }
 
+const ComObjPtr<BandwidthGroup>& MediumAttachment::getBandwidthGroup() const
+{
+    return m->bd->pBwGroup;
+}
+
 bool MediumAttachment::matches(CBSTR aControllerName, LONG aPort, LONG aDevice)
 {
     return (    aControllerName == m->bd->bstrControllerName
@@ -354,13 +383,17 @@ bool MediumAttachment::matches(CBSTR aControllerName, LONG aPort, LONG aDevice)
              && aDevice == m->bd->lDevice);
 }
 
-/** Must be called from under this object's write lock. */
+/**
+ * Sets the medium of this attachment and unsets the "implicit" flag.
+ * @param aMedium
+ */
 void MediumAttachment::updateMedium(const ComObjPtr<Medium> &aMedium)
 {
     Assert(isWriteLockOnCurrentThread());
 
     m->bd.backup();
     m->bd->pMedium = aMedium;
+    m->bd->fImplicit = false;
 }
 
 /** Must be called from under this object's write lock. */
@@ -370,5 +403,20 @@ void MediumAttachment::updatePassthrough(bool aPassthrough)
 
     m->bd.backup();
     m->bd->fPassthrough = aPassthrough;
+}
+
+void MediumAttachment::updateBandwidthGroup(const ComObjPtr<BandwidthGroup> &aBandwidthGroup)
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    m->bd.backup();
+    if (!aBandwidthGroup.isNull())
+        aBandwidthGroup->reference();
+
+    if (!m->bd->pBwGroup.isNull())
+    {
+        m->bd->pBwGroup->release();
+    }
+    m->bd->pBwGroup = aBandwidthGroup;
 }
 

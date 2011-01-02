@@ -1,4 +1,4 @@
-/* $Id: tstLdr.cpp $ */
+/* $Id: tstLdr.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Testcase for parts of RTLdr*.
  */
@@ -44,7 +44,7 @@
 static bool     g_fDontBitchOnResolveFailure = false;
 /** Whether it's kernel model code or not.. */
 static bool     g_fKernel = true;
-/** Module architectur bit count. */
+/** Module architecture bit count. */
 static uint32_t g_cBits = HC_ARCH_BITS;
 
 

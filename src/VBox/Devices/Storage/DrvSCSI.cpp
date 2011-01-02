@@ -1,4 +1,4 @@
-/* $Id: DrvSCSI.cpp $ */
+/* $Id: DrvSCSI.cpp 34452 2010-11-29 11:20:09Z vboxsync $ */
 /** @file
  * VBox storage drivers: Generic SCSI command parser and execution driver
  */
@@ -24,6 +24,7 @@
 #include <VBox/pdmifs.h>
 #include <VBox/pdmthread.h>
 #include <VBox/vscsi.h>
+#include <VBox/scsi.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
@@ -106,9 +107,22 @@ typedef struct DRVSCSI
 } DRVSCSI, *PDRVSCSI;
 
 /** Converts a pointer to DRVSCSI::ISCSIConnector to a PDRVSCSI. */
-#define PDMISCSICONNECTOR_2_DRVSCSI(pInterface) ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, ISCSIConnector)) )
+#define PDMISCSICONNECTOR_2_DRVSCSI(pInterface)  ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, ISCSIConnector)) )
 /** Converts a pointer to DRVSCSI::IPortAsync to a PDRVSCSI. */
 #define PDMIBLOCKASYNCPORT_2_DRVSCSI(pInterface) ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, IPortAsync)) )
+/** Converts a pointer to DRVSCSI::IPort to a PDRVSCSI. */
+#define PDMIBLOCKPORT_2_DRVSCSI(pInterface)      ( (PDRVSCSI)((uintptr_t)pInterface - RT_OFFSETOF(DRVSCSI, IPort)) )
+
+static bool drvscsiIsRedoPossible(int rc)
+{
+    if (   rc == VERR_DISK_FULL
+        || rc == VERR_FILE_TOO_BIG
+        || rc == VERR_BROKEN_PIPE
+        || rc == VERR_NET_CONNECTION_REFUSED)
+        return true;
+
+    return false;
+}
 
 static int drvscsiProcessRequestOne(PDRVSCSI pThis, VSCSIIOREQ hVScsiIoReq)
 {
@@ -150,7 +164,7 @@ static int drvscsiProcessRequestOne(PDRVSCSI pThis, VSCSIIOREQ hVScsiIoReq)
                                                     paSeg->pvSeg, cbProcess);
                     pThis->pLed->Actual.s.fReading = 0;
                     if (RT_FAILURE(rc))
-                        AssertMsgFailed(("%s: Failed to read data %Rrc\n", __FUNCTION__, rc));
+                        break;
                     STAM_REL_COUNTER_ADD(&pThis->StatBytesRead, cbProcess);
                 }
                 else
@@ -160,7 +174,7 @@ static int drvscsiProcessRequestOne(PDRVSCSI pThis, VSCSIIOREQ hVScsiIoReq)
                                                     paSeg->pvSeg, cbProcess);
                     pThis->pLed->Actual.s.fWriting = 0;
                     if (RT_FAILURE(rc))
-                        AssertMsgFailed(("%s: Failed to write data %Rrc\n", __FUNCTION__, rc));
+                        break;
                     STAM_REL_COUNTER_ADD(&pThis->StatBytesWritten, cbProcess);
                 }
 
@@ -177,7 +191,10 @@ static int drvscsiProcessRequestOne(PDRVSCSI pThis, VSCSIIOREQ hVScsiIoReq)
             AssertMsgFailed(("Invalid transfer direction %d\n", enmTxDir));
     }
 
-    VSCSIIoReqCompleted(hVScsiIoReq, rc);
+    if (RT_SUCCESS(rc))
+        VSCSIIoReqCompleted(hVScsiIoReq, rc, false /* fRedoPossible */);
+    else
+        VSCSIIoReqCompleted(hVScsiIoReq, rc, drvscsiIsRedoPossible(rc));
 
     return VINF_SUCCESS;
 }
@@ -206,7 +223,37 @@ static int drvscsiTransferCompleteNotify(PPDMIBLOCKASYNCPORT pInterface, void *p
     else
         AssertMsg(enmTxDir == VSCSIIOREQTXDIR_FLUSH, ("Invalid transfer direction %u\n", enmTxDir));
 
-    VSCSIIoReqCompleted(hVScsiIoReq, rc);
+    if (RT_SUCCESS(rc))
+        VSCSIIoReqCompleted(hVScsiIoReq, rc, false /* fRedoPossible */);
+    else
+    {
+        pThis->cErrors++;
+        if (   pThis->cErrors < MAX_LOG_REL_ERRORS
+            && enmTxDir == VSCSIIOREQTXDIR_FLUSH)
+            LogRel(("SCSI#%u: Flush returned rc=%Rrc\n",
+                    pThis->pDrvIns->iInstance, rc));
+        else
+        {
+            uint64_t  uOffset    = 0;
+            size_t    cbTransfer = 0;
+            size_t    cbSeg      = 0;
+            PCRTSGSEG paSeg      = NULL;
+            unsigned  cSeg       = 0;
+
+            VSCSIIoReqParamsGet(hVScsiIoReq, &uOffset, &cbTransfer,
+                                &cSeg, &cbSeg, &paSeg);
+
+            LogRel(("SCSI#%u: %s at offset %llu (%u bytes left) returned rc=%Rrc\n",
+                    pThis->pDrvIns->iInstance,
+                    enmTxDir == VSCSIIOREQTXDIR_READ
+                    ? "Read"
+                    : "Write",
+                    uOffset,
+                    cbTransfer, rc));
+        }
+
+        VSCSIIoReqCompleted(hVScsiIoReq, rc, drvscsiIsRedoPossible(rc));
+    }
 
     return VINF_SUCCESS;
 }
@@ -294,7 +341,8 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
             else
                 AssertMsg(enmTxDir == VSCSIIOREQTXDIR_FLUSH, ("Invalid transfer direction %u\n", enmTxDir));
 
-            VSCSIIoReqCompleted(hVScsiIoReq, VINF_SUCCESS);
+            VSCSIIoReqCompleted(hVScsiIoReq, VINF_SUCCESS, false);
+            rc = VINF_SUCCESS;
         }
         else if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
             rc = VINF_SUCCESS;
@@ -307,7 +355,7 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
             else
                 AssertMsg(enmTxDir == VSCSIIOREQTXDIR_FLUSH, ("Invalid transfer direction %u\n", enmTxDir));
 
-            VSCSIIoReqCompleted(hVScsiIoReq, rc);
+            VSCSIIoReqCompleted(hVScsiIoReq, rc, drvscsiIsRedoPossible(rc));
             rc = VINF_SUCCESS;
         }
         else
@@ -324,14 +372,15 @@ static int drvscsiReqTransferEnqueue(VSCSILUN hVScsiLun,
 }
 
 static void drvscsiVScsiReqCompleted(VSCSIDEVICE hVScsiDevice, void *pVScsiDeviceUser,
-                                     void *pVScsiReqUser, int rcReq)
+                                     void *pVScsiReqUser, int rcScsiCode, bool fRedoPossible,
+                                     int rcReq)
 {
     PDRVSCSI pThis = (PDRVSCSI)pVScsiDeviceUser;
 
     ASMAtomicDecU32(&pThis->StatIoDepth);
 
     pThis->pDevScsiPort->pfnSCSIRequestCompleted(pThis->pDevScsiPort, (PPDMSCSIREQUEST)pVScsiReqUser,
-                                                 rcReq);
+                                                 rcScsiCode, fRedoPossible, rcReq);
 
     if (RT_UNLIKELY(pThis->fDummySignal) && !pThis->StatIoDepth)
         PDMDrvHlpAsyncNotificationCompleted(pThis->pDrvIns);
@@ -341,7 +390,7 @@ static void drvscsiVScsiReqCompleted(VSCSIDEVICE hVScsiDevice, void *pVScsiDevic
  * Dummy request function used by drvscsiReset to wait for all pending requests
  * to complete prior to the device reset.
  *
- * @param   pThis           Pointer to the instace data.
+ * @param   pThis           Pointer to the instance data.
  * @returns VINF_SUCCESS.
  */
 static int drvscsiAsyncIOLoopSyncCallback(PDRVSCSI pThis)
@@ -354,7 +403,7 @@ static int drvscsiAsyncIOLoopSyncCallback(PDRVSCSI pThis)
 /**
  * Request function to wakeup the thread.
  *
- * @param   pThis           Pointer to the instace data.
+ * @param   pThis           Pointer to the instance data.
  * @returns VWRN_STATE_CHANGED.
  */
 static int drvscsiAsyncIOLoopWakeupFunc(PDRVSCSI pThis)
@@ -438,12 +487,41 @@ static int drvscsiAsyncIOLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 
 /* -=-=-=-=- ISCSIConnector -=-=-=-=- */
 
+#ifdef DEBUG
+/**
+ * Dumps a SCSI request structure for debugging purposes.
+ *
+ * @returns nothing.
+ * @param   pRequest    Pointer to the request to dump.
+ */
+static void drvscsiDumpScsiRequest(PPDMSCSIREQUEST pRequest)
+{
+    Log(("Dump for pRequest=%#p Command: %s\n", pRequest, SCSICmdText(pRequest->pbCDB[0])));
+    Log(("cbCDB=%u\n", pRequest->cbCDB));
+    for (uint32_t i = 0; i < pRequest->cbCDB; i++)
+        Log(("pbCDB[%u]=%#x\n", i, pRequest->pbCDB[i]));
+    Log(("cbScatterGather=%u\n", pRequest->cbScatterGather));
+    Log(("cScatterGatherEntries=%u\n", pRequest->cScatterGatherEntries));
+    /* Print all scatter gather entries. */
+    for (uint32_t i = 0; i < pRequest->cScatterGatherEntries; i++)
+    {
+        Log(("ScatterGatherEntry[%u].cbSeg=%u\n", i, pRequest->paScatterGatherHead[i].cbSeg));
+        Log(("ScatterGatherEntry[%u].pvSeg=%#p\n", i, pRequest->paScatterGatherHead[i].pvSeg));
+    }
+    Log(("pvUser=%#p\n", pRequest->pvUser));
+}
+#endif
+
 /** @copydoc PDMISCSICONNECTOR::pfnSCSIRequestSend. */
 static DECLCALLBACK(int) drvscsiRequestSend(PPDMISCSICONNECTOR pInterface, PPDMSCSIREQUEST pSCSIRequest)
 {
     int rc;
     PDRVSCSI pThis = PDMISCSICONNECTOR_2_DRVSCSI(pInterface);
     VSCSIREQ hVScsiReq;
+
+#ifdef DEBUG
+    drvscsiDumpScsiRequest(pSCSIRequest);
+#endif
 
     rc = VSCSIDeviceReqCreate(pThis->hVScsiDevice, &hVScsiReq,
                               pSCSIRequest->uLogicalUnit,
@@ -479,6 +557,15 @@ static DECLCALLBACK(void *)  drvscsiQueryInterface(PPDMIBASE pInterface, const c
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKPORT, &pThis->IPort);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBLOCKASYNCPORT, &pThis->IPortAsync);
     return NULL;
+}
+
+static DECLCALLBACK(int) drvscsiQueryDeviceLocation(PPDMIBLOCKPORT pInterface, const char **ppcszController,
+                                                    uint32_t *piInstance, uint32_t *piLUN)
+{
+    PDRVSCSI pThis = PDMIBLOCKPORT_2_DRVSCSI(pInterface);
+
+    return pThis->pDevScsiPort->pfnQueryDeviceLocation(pThis->pDevScsiPort, ppcszController,
+                                                       piInstance, piLUN);
 }
 
 /**
@@ -647,6 +734,7 @@ static DECLCALLBACK(void) drvscsiDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    int rc = VINF_SUCCESS;
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
     LogFlowFunc(("pDrvIns=%#p pCfg=%#p\n", pDrvIns, pCfg));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
@@ -659,12 +747,29 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
 
     pDrvIns->IBase.pfnQueryInterface         = drvscsiQueryInterface;
 
+    pThis->IPort.pfnQueryDeviceLocation         = drvscsiQueryDeviceLocation;
     pThis->IPortAsync.pfnTransferCompleteNotify = drvscsiTransferCompleteNotify;
+
+    /* Query the SCSI port interface above. */
+    pThis->pDevScsiPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMISCSIPORT);
+    AssertMsgReturn(pThis->pDevScsiPort, ("Missing SCSI port interface above\n"), VERR_PDM_MISSING_INTERFACE);
+
+    /* Query the optional LED interface above. */
+    pThis->pLedPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMILEDPORTS);
+    if (pThis->pLedPort != NULL)
+    {
+        /* Get The Led. */
+        rc = pThis->pLedPort->pfnQueryStatusLed(pThis->pLedPort, 0, &pThis->pLed);
+        if (RT_FAILURE(rc))
+            pThis->pLed = &pThis->Led;
+    }
+    else
+        pThis->pLed = &pThis->Led;
 
     /*
      * Try attach driver below and query it's block interface.
      */
-    int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pThis->pDrvBase);
+    rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pThis->pDrvBase);
     AssertMsgReturn(RT_SUCCESS(rc), ("Attaching driver below failed rc=%Rrc\n", rc), rc);
 
     /*
@@ -683,23 +788,7 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
         return VERR_PDM_MISSING_INTERFACE;
     }
 
-    /* Query the SCSI port interface above. */
-    pThis->pDevScsiPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMISCSIPORT);
-    AssertMsgReturn(pThis->pDevScsiPort, ("Missing SCSI port interface above\n"), VERR_PDM_MISSING_INTERFACE);
-
     pThis->pDrvMount = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMOUNT);
-
-    /* Query the optional LED interface above. */
-    pThis->pLedPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMILEDPORTS);
-    if (pThis->pLedPort != NULL)
-    {
-        /* Get The Led. */
-        rc = pThis->pLedPort->pfnQueryStatusLed(pThis->pLedPort, 0, &pThis->pLed);
-        if (RT_FAILURE(rc))
-            pThis->pLed = &pThis->Led;
-    }
-    else
-        pThis->pLed = &pThis->Led;
 
     /* Try to get the optional async block interface. */
     pThis->pDrvBlockAsync = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIBLOCKASYNC);
@@ -745,7 +834,11 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
         rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pAsyncIOThread, pThis, drvscsiAsyncIOLoop,
                                    drvscsiAsyncIOLoopWakeup, 0, RTTHREADTYPE_IO, "SCSI async IO");
         AssertMsgReturn(RT_SUCCESS(rc), ("Failed to create async I/O thread rc=%Rrc\n"), rc);
+
+        LogRel(("SCSI#%d: using normal I/O\n", pDrvIns->iInstance));
     }
+    else
+        LogRel(("SCSI#%d: using async I/O\n", pDrvIns->iInstance));
 
     return VINF_SUCCESS;
 }

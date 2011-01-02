@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 29058 2010-05-05 08:49:52Z vboxsync $
 ## @file
 # Makefile for VBox PAM module for automated logons.
 #

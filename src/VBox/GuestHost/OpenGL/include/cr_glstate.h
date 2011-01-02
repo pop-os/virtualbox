@@ -97,7 +97,18 @@ typedef void (*CRStateFlushFunc)( void *arg );
 typedef struct _CRSharedState {
     CRHashTable *textureTable;  /* all texture objects */
     CRHashTable *dlistTable;    /* all display lists */
+    CRHashTable *buffersTable;  /* vbo/pbo */
+    CRHashTable *fbTable;       /* frame buffers */
+    CRHashTable *rbTable;       /* render buffers */
+
     GLint refCount;
+    GLint id;                   /*unique shared state id, it's not always matching some existing context id!*/
+    GLint saveCount;
+
+    /* Indicates that we have to resend data to GPU on first glMakeCurrent call with owning context */
+    GLboolean   bTexResyncNeeded;
+    GLboolean   bVBOResyncNeeded;
+    GLboolean   bFBOResyncNeeded;
 } CRSharedState;
 
 
@@ -195,7 +206,8 @@ DECLEXPORT(void) crStateApplyFBImage(CRContext *to);
 
 #ifndef IN_GUEST
 DECLEXPORT(int32_t) crStateSaveContext(CRContext *pContext, PSSMHANDLE pSSM);
-DECLEXPORT(int32_t) crStateLoadContext(CRContext *pContext, PSSMHANDLE pSSM);
+DECLEXPORT(int32_t) crStateLoadContext(CRContext *pContext, CRHashTable * pCtxTable, PSSMHANDLE pSSM);
+DECLEXPORT(void)    crStateFreeShared(CRSharedState *s);
 #endif
 
 
@@ -218,6 +230,11 @@ DECLEXPORT(void) STATE_APIENTRY
 crStateReadPixels( GLint x, GLint y, GLsizei width, GLsizei height,
                    GLenum format, GLenum type, GLvoid *pixels );
 
+DECLEXPORT(void) STATE_APIENTRY crStateShareContext(GLboolean value);
+DECLEXPORT(void) STATE_APIENTRY crStateSetSharedContext(CRContext *pCtx);
+DECLEXPORT(GLboolean) STATE_APIENTRY crStateContextIsShared(CRContext *pCtx);
+
+DECLEXPORT(void) STATE_APIENTRY crStateQueryHWState();
 #ifdef __cplusplus
 }
 #endif

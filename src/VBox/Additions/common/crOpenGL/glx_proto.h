@@ -1,4 +1,4 @@
-/* $Id: glx_proto.h $ */
+/* $Id: glx_proto.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VirtualBox guest OpenGL DRI GLX header C prototypes
@@ -32,7 +32,7 @@ typedef const char * (*PGLXFUNC_GetScreenDriver)(Display *dpy, int scrNum);
 typedef Display * (*PGLXFUNC_GetCurrentDisplayEXT)(void);
 typedef void (*PGLXFUNC_FreeContextEXT)(Display *dpy, GLXContext ctx);
 
-/*Mesa insternal*/
+/*Mesa internal*/
 typedef int (*PGLXFUNC_QueryContextInfoEXT)(Display *dpy, GLXContext ctx);
 typedef void * (*PGLXFUNC_AllocateMemoryMESA)(Display *dpy, int scrn,
                                                        size_t size, float readFreq,

@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-solaris.c $ */
+/* $Id: mpnotification-r0drv-solaris.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Solaris.
  */
@@ -42,7 +42,7 @@
 /** CPU watch callback handle. */
 static vbi_cpu_watch_t *g_hVbiCpuWatch = NULL;
 /** Set of online cpus that is maintained by the MP callback.
- * This avoids locking issues quering the set from the kernel as well as
+ * This avoids locking issues querying the set from the kernel as well as
  * eliminating any uncertainty regarding the online status during the
  * callback. */
 RTCPUSET g_rtMpSolarisCpuSet;

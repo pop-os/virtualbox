@@ -1,10 +1,10 @@
-/* $Id: USBControllerImpl.cpp $ */
+/* $Id: USBControllerImpl.cpp 33708 2010-11-02 18:46:46Z vboxsync $ */
 /** @file
  * Implementation of IUSBController.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,7 @@
 # include "USBDeviceImpl.h"
 # include "HostUSBDeviceImpl.h"
 # include "USBProxyService.h"
+# include "USBDeviceFilterImpl.h"
 #endif
 
 #include <iprt/string.h>
@@ -57,16 +58,18 @@ struct BackupableUSBData
 
 struct USBController::Data
 {
-    Data()
-        : pParent(NULL)
-    {};
+    Data(Machine *pMachine)
+        : pParent(pMachine),
+          pHost(pMachine->getVirtualBox()->host())
+    { }
 
     ~Data()
     {};
 
-    /** Parent object. */
     Machine * const                 pParent;
-    /** Peer object. */
+    Host * const                    pHost;
+
+    // peer machine's USB controller
     const ComObjPtr<USBController>  pPeer;
 
     Backupable<BackupableUSBData>   bd;
@@ -113,9 +116,8 @@ HRESULT USBController::init(Machine *aParent)
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    m = new Data();
+    m = new Data(aParent);
 
-    unconst(m->pParent) = aParent;
     /* mPeer is left null */
 
     m->bd.allocate();
@@ -151,9 +153,8 @@ HRESULT USBController::init(Machine *aParent, USBController *aPeer)
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    m = new Data();
+    m = new Data(aParent);
 
-    unconst(m->pParent) = aParent;
     unconst(m->pPeer) = aPeer;
 
     AutoWriteLock thatlock(aPeer COMMA_LOCKVAL_SRC_POS);
@@ -167,7 +168,7 @@ HRESULT USBController::init(Machine *aParent, USBController *aPeer)
     {
         ComObjPtr<USBDeviceFilter> filter;
         filter.createObject();
-        filter->init (this, *it);
+        filter->init(this, *it);
         m->llDeviceFilters->push_back(filter);
         ++ it;
     }
@@ -195,9 +196,8 @@ HRESULT USBController::initCopy(Machine *aParent, USBController *aPeer)
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    m = new Data();
+    m = new Data(aParent);
 
-    unconst(m->pParent) = aParent;
     /* mPeer is left null */
 
     AutoWriteLock thatlock(aPeer COMMA_LOCKVAL_SRC_POS);
@@ -391,9 +391,7 @@ STDMETHODIMP USBController::COMGETTER(USBStandard) (USHORT *aUSBStandard)
  */
 class ATL_NO_VTABLE USBDeviceFilter :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<USBDeviceFilter, IUSBDeviceFilter>,
-    public VirtualBoxSupportTranslation<USBDeviceFilter>,
-    public IUSBDeviceFilter
+    VBOX_SCRIPTABLE_IMPL(IUSBDeviceFilter)
 {
 public:
     DECLARE_NOT_AGGREGATABLE(USBDeviceFilter)
@@ -508,7 +506,6 @@ STDMETHODIMP USBController::InsertDeviceFilter(ULONG aPosition,
 
     ComObjPtr<USBDeviceFilter> filter = static_cast<USBDeviceFilter*>(aFilter);
     // @todo r=dj make sure the input object is actually from us
-//     ComObjPtr<USBDeviceFilter> filter = getDependentChild(aFilter);
 //     if (!filter)
 //         return setError (E_INVALIDARG,
 //             tr ("The given USB device filter is not created within "
@@ -537,7 +534,7 @@ STDMETHODIMP USBController::InsertDeviceFilter(ULONG aPosition,
     /* notify the proxy (only when it makes sense) */
     if (filter->getData().mActive && Global::IsOnline(adep.machineState()))
     {
-        USBProxyService *service = m->pParent->getVirtualBox()->host()->usbProxyService();
+        USBProxyService *service = m->pHost->usbProxyService();
         ComAssertRet(service, E_FAIL);
 
         ComAssertRet(filter->getId() == NULL, E_FAIL);
@@ -608,7 +605,7 @@ STDMETHODIMP USBController::RemoveDeviceFilter(ULONG aPosition,
     /* notify the proxy (only when it makes sense) */
     if (filter->getData().mActive && Global::IsOnline(adep.machineState()))
     {
-        USBProxyService *service = m->pParent->getVirtualBox()->host()->usbProxyService();
+        USBProxyService *service = m->pHost->usbProxyService();
         ComAssertRet(service, E_FAIL);
 
         ComAssertRet(filter->getId() != NULL, E_FAIL);
@@ -756,7 +753,7 @@ void USBController::rollback()
 
     if (m->llDeviceFilters.isBackedUp())
     {
-        USBProxyService *service = m->pParent->getVirtualBox()->host()->usbProxyService();
+        USBProxyService *service = m->pHost->usbProxyService();
         Assert(service);
 
         /* uninitialize all new filters (absent in the backed up list) */
@@ -1007,9 +1004,10 @@ HRESULT USBController::onDeviceFilterChange (USBDeviceFilter *aFilter,
 
     /* we don't modify our data fields -- no need to lock */
 
-    if (aFilter->mInList && m->pParent->isRegistered())
+    if (    aFilter->mInList
+         && m->pParent->isRegistered())
     {
-        USBProxyService *service = m->pParent->getVirtualBox()->host()->usbProxyService();
+        USBProxyService *service = m->pHost->usbProxyService();
         ComAssertRet(service, E_FAIL);
 
         if (aActiveChanged)
@@ -1201,7 +1199,7 @@ HRESULT USBController::notifyProxy (bool aInsertFilters)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    USBProxyService *service = m->pParent->getVirtualBox()->host()->usbProxyService();
+    USBProxyService *service = m->pHost->usbProxyService();
     AssertReturn(service, E_FAIL);
 
     DeviceFilterList::const_iterator it = m->llDeviceFilters->begin();

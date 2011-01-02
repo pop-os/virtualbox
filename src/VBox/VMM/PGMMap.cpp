@@ -1,4 +1,4 @@
-/* $Id: PGMMap.cpp $ */
+/* $Id: PGMMap.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * PGM - Page Manager, Guest Context Mappings.
  */
@@ -171,7 +171,7 @@ VMMR3DECL(int) PGMR3MapPT(PVM pVM, RTGCPTR GCPtr, uint32_t cb, uint32_t fFlags, 
          */
         pNew->aPTs[i].HCPhysPaePT0 = MMR3HyperHCVirt2HCPhys(pVM, pbPTs);
         pNew->aPTs[i].HCPhysPaePT1 = MMR3HyperHCVirt2HCPhys(pVM, pbPTs + PAGE_SIZE);
-        pNew->aPTs[i].paPaePTsR3 = (PX86PTPAE)pbPTs;
+        pNew->aPTs[i].paPaePTsR3 = (PPGMSHWPTPAE)pbPTs;
         pNew->aPTs[i].paPaePTsRC = MMHyperR3ToRC(pVM, pbPTs);
         pNew->aPTs[i].paPaePTsR0 = MMHyperR3ToR0(pVM, pbPTs);
         pbPTs += PAGE_SIZE * 2;
@@ -474,7 +474,7 @@ VMMR3DECL(int) PGMR3FinalizeMappings(PVM pVM)
 
 /**
  * Gets the size of the current guest mappings if they were to be
- * put next to oneanother.
+ * put next to one another.
  *
  * @returns VBox status code.
  * @param   pVM     The VM.
@@ -592,7 +592,7 @@ int pgmR3MappingsFixInternal(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb)
         unsigned iPdptLast = (GCPtrBase + cb - 1) >> X86_PDPT_SHIFT;
         if (iPdptBase != iPdptLast)
         {
-            LogRel(("PGMR3MappingsFix: Crosses PD boundrary; iPdptBase=%#x iPdptLast=%#x (GCPtrBase=%RGv cb=%#zx). The guest should retry.\n",
+            LogRel(("PGMR3MappingsFix: Crosses PD boundary; iPdptBase=%#x iPdptLast=%#x (GCPtrBase=%RGv cb=%#zx). The guest should retry.\n",
                     iPdptBase, iPdptLast, GCPtrBase, cb));
             return VERR_PGM_MAPPINGS_FIX_CONFLICT;
         }
@@ -1191,7 +1191,7 @@ bool pgmR3MapIsKnownConflictAddress(PPGMMAPPING pMapping, RTGCPTR GCPtr)
 int pgmR3SyncPTResolveConflict(PVM pVM, PPGMMAPPING pMapping, PX86PD pPDSrc, RTGCPTR GCPtrOldMapping)
 {
     STAM_REL_COUNTER_INC(&pVM->pgm.s.cRelocations);
-    STAM_PROFILE_START(&pVM->pgm.s.StatR3ResolveConflict, a);
+    STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3ResolveConflict, a);
 
     /* Raw mode only which implies one VCPU. */
     Assert(pVM->cCpus == 1);
@@ -1244,12 +1244,12 @@ int pgmR3SyncPTResolveConflict(PVM pVM, PPGMMAPPING pMapping, PX86PD pPDSrc, RTG
         if (pMapping->pfnRelocate(pVM, GCPtrOldMapping, GCPtrNewMapping, PGMRELOCATECALL_SUGGEST, pMapping->pvUser))
         {
             pgmR3MapRelocate(pVM, pMapping, GCPtrOldMapping, GCPtrNewMapping);
-            STAM_PROFILE_STOP(&pVM->pgm.s.StatR3ResolveConflict, a);
+            STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3ResolveConflict, a);
             return VINF_SUCCESS;
         }
     }
 
-    STAM_PROFILE_STOP(&pVM->pgm.s.StatR3ResolveConflict, a);
+    STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3ResolveConflict, a);
     AssertMsgFailed(("Failed to relocate page table mapping '%s' from %#x! (cPTs=%d)\n", pMapping->pszDesc, GCPtrOldMapping, cPTs));
     return VERR_PGM_NO_HYPERVISOR_ADDRESS;
 }
@@ -1279,7 +1279,7 @@ int pgmR3SyncPTResolveConflictPAE(PVM pVM, PPGMMAPPING pMapping, RTGCPTR GCPtrOl
     for (int iPDPTE = X86_PG_PAE_PDPE_ENTRIES - 1; iPDPTE >= 0; iPDPTE--)
     {
         unsigned  iPDSrc;
-        PX86PDPAE pPDSrc = pgmGstGetPaePDPtr(&pVCpu->pgm.s, (RTGCPTR32)iPDPTE << X86_PDPT_SHIFT, &iPDSrc, NULL);
+        PX86PDPAE pPDSrc = pgmGstGetPaePDPtr(pVCpu, (RTGCPTR32)iPDPTE << X86_PDPT_SHIFT, &iPDSrc, NULL);
 
         /*
          * Scan for free page directory entries.
@@ -1332,12 +1332,12 @@ int pgmR3SyncPTResolveConflictPAE(PVM pVM, PPGMMAPPING pMapping, RTGCPTR GCPtrOl
             if (pMapping->pfnRelocate(pVM, GCPtrOldMapping, GCPtrNewMapping, PGMRELOCATECALL_SUGGEST, pMapping->pvUser))
             {
                 pgmR3MapRelocate(pVM, pMapping, GCPtrOldMapping, GCPtrNewMapping);
-                STAM_PROFILE_STOP(&pVM->pgm.s.StatR3ResolveConflict, a);
+                STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3ResolveConflict, a);
                 return VINF_SUCCESS;
             }
         }
     }
-    STAM_PROFILE_STOP(&pVM->pgm.s.StatR3ResolveConflict, a);
+    STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3ResolveConflict, a);
     AssertMsgFailed(("Failed to relocate page table mapping '%s' from %#x! (cPTs=%d)\n", pMapping->pszDesc, GCPtrOldMapping, pMapping->cb >> X86_PD_PAE_SHIFT));
     return VERR_PGM_NO_HYPERVISOR_ADDRESS;
 }
@@ -1404,9 +1404,10 @@ VMMR3DECL(int) PGMR3MapRead(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t cb)
             unsigned iPTE = (off >> PAGE_SHIFT) & X86_PT_MASK;
             while (cb > 0 && iPTE < RT_ELEMENTS(CTXALLSUFF(pCur->aPTs[iPT].pPT)->a))
             {
-                if (!CTXALLSUFF(pCur->aPTs[iPT].paPaePTs)[iPTE / 512].a[iPTE % 512].n.u1Present)
+                PCPGMSHWPTEPAE pPte = &pCur->aPTs[iPT].CTXALLSUFF(paPaePTs)[iPTE / 512].a[iPTE % 512];
+                if (!PGMSHWPTEPAE_IS_P(*pPte))
                     return VERR_PAGE_NOT_PRESENT;
-                RTHCPHYS HCPhys = CTXALLSUFF(pCur->aPTs[iPT].paPaePTs)[iPTE / 512].a[iPTE % 512].u & X86_PTE_PAE_PG_MASK;
+                RTHCPHYS HCPhys = PGMSHWPTEPAE_GET_HCPHYS(*pPte);
 
                 /*
                  * Get the virtual page from the physical one.

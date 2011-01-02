@@ -1,4 +1,4 @@
-/* $Id: HWACCM.cpp $ */
+/* $Id: HWACCM.cpp 34564 2010-12-01 11:49:37Z vboxsync $ */
 /** @file
  * HWACCM - Intel/AMD VM Hardware Support Manager
  */
@@ -213,20 +213,20 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
     EXIT_REASON(SVM_EXIT_EXCEPTION_1D               , 93, "Exception Vector 29 (0x1D)."),
     EXIT_REASON(SVM_EXIT_EXCEPTION_1E               , 94, "Exception Vector 30 (0x1E)."),
     EXIT_REASON(SVM_EXIT_EXCEPTION_1F               , 95, "Exception Vector 31 (0x1F)."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_INTR             , 96, "Physical maskable interrupt."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_NMI              , 97, "Physical non-maskable interrupt."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_SMI              , 98, "System management interrupt."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_INIT             , 99, "Physical INIT signal."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_VINTR            ,100, "Visual interrupt."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_CR0_SEL_WRITE    ,101, "Write to CR0 that changed any bits other than CR0.TS or CR0.MP."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_IDTR_READ        ,102, "Read IDTR"),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_GDTR_READ        ,103, "Read GDTR"),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_LDTR_READ        ,104, "Read LDTR."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_TR_READ          ,105, "Read TR."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_TR_READ          ,106, "Write IDTR."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_TR_READ          ,107, "Write GDTR."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_TR_READ          ,108, "Write LDTR."),
-    EXIT_REASON(SVM_EXIT_EXCEPTION_TR_READ          ,109, "Write TR."),
+    EXIT_REASON(SVM_EXIT_INTR                       , 96, "Physical maskable interrupt."),
+    EXIT_REASON(SVM_EXIT_NMI                        , 97, "Physical non-maskable interrupt."),
+    EXIT_REASON(SVM_EXIT_SMI                        , 98, "System management interrupt."),
+    EXIT_REASON(SVM_EXIT_INIT                       , 99, "Physical INIT signal."),
+    EXIT_REASON(SVM_EXIT_VINTR                      ,100, "Virtual interrupt."),
+    EXIT_REASON(SVM_EXIT_CR0_SEL_WRITE              ,101, "Write to CR0 that changed any bits other than CR0.TS or CR0.MP."),
+    EXIT_REASON(SVM_EXIT_IDTR_READ                  ,102, "Read IDTR"),
+    EXIT_REASON(SVM_EXIT_GDTR_READ                  ,103, "Read GDTR"),
+    EXIT_REASON(SVM_EXIT_LDTR_READ                  ,104, "Read LDTR."),
+    EXIT_REASON(SVM_EXIT_TR_READ                    ,105, "Read TR."),
+    EXIT_REASON(SVM_EXIT_TR_READ                    ,106, "Write IDTR."),
+    EXIT_REASON(SVM_EXIT_TR_READ                    ,107, "Write GDTR."),
+    EXIT_REASON(SVM_EXIT_TR_READ                    ,108, "Write LDTR."),
+    EXIT_REASON(SVM_EXIT_TR_READ                    ,109, "Write TR."),
     EXIT_REASON(SVM_EXIT_RDTSC                      ,110, "RDTSC instruction."),
     EXIT_REASON(SVM_EXIT_RDPMC                      ,111, "RDPMC instruction."),
     EXIT_REASON(SVM_EXIT_PUSHF                      ,112, "PUSHF instruction."),
@@ -244,18 +244,18 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
     EXIT_REASON(SVM_EXIT_MSR                        ,124, "RDMSR or WRMSR access to protected MSR."),
     EXIT_REASON(SVM_EXIT_TASK_SWITCH                ,125, "Task switch."),
     EXIT_REASON(SVM_EXIT_FERR_FREEZE                ,126, "FP legacy handling enabled, and processor is frozen in an x87/mmx instruction waiting for an interrupt"),
-    EXIT_REASON(SVM_EXIT_TASK_SHUTDOWN              ,127, "Shutdown."),
-    EXIT_REASON(SVM_EXIT_TASK_VMRUN                 ,128, "VMRUN instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_VMCALL                ,129, "VMCALL instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_VMLOAD                ,130, "VMLOAD instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_VMSAVE                ,131, "VMSAVE instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_STGI                  ,132, "STGI instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_CLGI                  ,133, "CLGI instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_SKINIT                ,134, "SKINIT instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_RDTSCP                ,135, "RDTSCP instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_ICEBP                 ,136, "ICEBP instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_WBINVD                ,137, "WBINVD instruction."),
-    EXIT_REASON(SVM_EXIT_TASK_MONITOR               ,138, "MONITOR instruction."),
+    EXIT_REASON(SVM_EXIT_SHUTDOWN                   ,127, "Shutdown."),
+    EXIT_REASON(SVM_EXIT_VMRUN                      ,128, "VMRUN instruction."),
+    EXIT_REASON(SVM_EXIT_VMMCALL                    ,129, "VMCALL instruction."),
+    EXIT_REASON(SVM_EXIT_VMLOAD                     ,130, "VMLOAD instruction."),
+    EXIT_REASON(SVM_EXIT_VMSAVE                     ,131, "VMSAVE instruction."),
+    EXIT_REASON(SVM_EXIT_STGI                       ,132, "STGI instruction."),
+    EXIT_REASON(SVM_EXIT_CLGI                       ,133, "CLGI instruction."),
+    EXIT_REASON(SVM_EXIT_SKINIT                     ,134, "SKINIT instruction."),
+    EXIT_REASON(SVM_EXIT_RDTSCP                     ,135, "RDTSCP instruction."),
+    EXIT_REASON(SVM_EXIT_ICEBP                      ,136, "ICEBP instruction."),
+    EXIT_REASON(SVM_EXIT_WBINVD                     ,137, "WBINVD instruction."),
+    EXIT_REASON(SVM_EXIT_MONITOR                    ,138, "MONITOR instruction."),
     EXIT_REASON(SVM_EXIT_MWAIT_UNCOND               ,139, "MWAIT instruction unconditional."),
     EXIT_REASON(SVM_EXIT_MWAIT_ARMED                ,140, "MWAIT instruction when armed."),
     EXIT_REASON(SVM_EXIT_NPF                        ,1024, "Nested paging: host-level page fault occurred (EXITINFO1 contains fault errorcode; EXITINFO2 contains the guest physical address causing the fault)."),
@@ -270,6 +270,8 @@ static const char * const g_apszAmdVExitReasons[MAX_EXITREASON_STAT] =
 *******************************************************************************/
 static DECLCALLBACK(int) hwaccmR3Save(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int) hwaccmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+static int hwaccmR3InitCPU(PVM pVM);
+static int hwaccmR3TermCPU(PVM pVM);
 
 
 /**
@@ -289,18 +291,20 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     AssertCompile(sizeof(pVM->hwaccm.s) <= sizeof(pVM->hwaccm.padding));
 
     /* Some structure checks. */
-    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, u8Reserved3) == 0xC0, ("u8Reserved3 offset = %x\n", RT_OFFSETOF(SVM_VMCB, u8Reserved3)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, ctrl.EventInject) == 0xA8, ("ctrl.EventInject offset = %x\n", RT_OFFSETOF(SVM_VMCB, ctrl.EventInject)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, ctrl.ExitIntInfo) == 0x88, ("ctrl.ExitIntInfo offset = %x\n", RT_OFFSETOF(SVM_VMCB, ctrl.ExitIntInfo)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, ctrl.TLBCtrl) == 0x58, ("ctrl.TLBCtrl offset = %x\n", RT_OFFSETOF(SVM_VMCB, ctrl.TLBCtrl)));
 
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest) == 0x400, ("guest offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest)));
-    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved4) == 0x4A0, ("guest.u8Reserved4 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved4)));
-    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved6) == 0x4D8, ("guest.u8Reserved6 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved6)));
-    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved7) == 0x580, ("guest.u8Reserved7 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved7)));
-    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8Reserved9) == 0x648, ("guest.u8Reserved9 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8Reserved9)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.TR) == 0x490, ("guest.TR offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.TR)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u8CPL) == 0x4CB, ("guest.u8CPL offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u8CPL)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64EFER) == 0x4D0, ("guest.u64EFER offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64EFER)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64CR4) == 0x548, ("guest.u64CR4 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64CR4)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64RIP) == 0x578, ("guest.u64RIP offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64RIP)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64RSP) == 0x5D8, ("guest.u64RSP offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64RSP)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64CR2) == 0x640, ("guest.u64CR2 offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64CR2)));
     AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64GPAT) == 0x668, ("guest.u64GPAT offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64GPAT)));
-    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, u8Reserved10) == 0x698, ("u8Reserved3 offset = %x\n", RT_OFFSETOF(SVM_VMCB, u8Reserved10)));
+    AssertReleaseMsg(RT_OFFSETOF(SVM_VMCB, guest.u64LASTEXCPTO) == 0x690, ("guest.u64LASTEXCPTO offset = %x\n", RT_OFFSETOF(SVM_VMCB, guest.u64LASTEXCPTO)));
     AssertReleaseMsg(sizeof(SVM_VMCB) == 0x1000, ("SVM_VMCB size = %x\n", sizeof(SVM_VMCB)));
 
 
@@ -404,7 +408,7 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
     rc = CFGMR3QueryU32Def(pHWVirtExt, "MaxResumeLoops", &pVM->hwaccm.s.cMaxResumeLoops, 0 /* set by R0 later */);
     AssertRC(rc);
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /**
@@ -413,7 +417,7 @@ VMMR3DECL(int) HWACCMR3Init(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
+static int hwaccmR3InitCPU(PVM pVM)
 {
     LogFlow(("HWACCMR3InitCPU\n"));
 
@@ -549,6 +553,14 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatDRxContextSwitch,       "/HWACCM/CPU%d/Debug/ContextSwitch");
         HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatDRxIOCheck,             "/HWACCM/CPU%d/Debug/IOCheck");
 
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatLoadMinimal,            "/HWACCM/CPU%d/Load/Minimal");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatLoadFull,               "/HWACCM/CPU%d/Load/Full");
+
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatFpu64SwitchBack,        "/HWACCM/CPU%d/Switch64/Fpu");
+        HWACCM_REG_COUNTER(&pVCpu->hwaccm.s.StatDebug64SwitchBack,      "/HWACCM/CPU%d/Switch64/Debug");
+#endif
+
         for (unsigned j=0;j<RT_ELEMENTS(pVCpu->hwaccm.s.StatExitCRxWrite);j++)
         {
             rc = STAMR3RegisterF(pVM, &pVCpu->hwaccm.s.StatExitCRxWrite[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES, "Profiling of CRx writes",
@@ -614,6 +626,24 @@ VMMR3DECL(int) HWACCMR3InitCPU(PVM pVM)
     }
 #endif
     return VINF_SUCCESS;
+}
+
+/**
+ * Called when a init phase has completed.
+ *
+ * @returns VBox status code.
+ * @param   pVM                 The VM.
+ * @param   enmWhat             The phase that completed.
+ */
+VMMR3_INT_DECL(int) HWACCMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+{
+    switch (enmWhat)
+    {
+    case VMINITCOMPLETED_RING3:
+        return hwaccmR3InitCPU(pVM);
+    default:
+        return VINF_SUCCESS;
+    }
 }
 
 /**
@@ -738,6 +768,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
         pVM->hwaccm.s.fTRPPatchingAllowed = false;
     }
 
+    bool fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
     if (pVM->hwaccm.s.vmx.fSupported)
     {
         Log(("pVM->hwaccm.s.vmx.fSupported = %d\n", pVM->hwaccm.s.vmx.fSupported));
@@ -1346,6 +1377,7 @@ VMMR3DECL(int) HWACCMR3InitFinalizeR0(PVM pVM)
     }
     if (pVM->fHWACCMEnabled)
         LogRel(("HWACCM:    VT-x/AMD-V init method: %s\n", (pVM->hwaccm.s.fGlobalInit) ? "GLOBAL" : "LOCAL"));
+    RTLogRelSetBuffering(fOldBuffered);
     return VINF_SUCCESS;
 }
 
@@ -1496,20 +1528,17 @@ VMMR3DECL(int) HWACCMR3Term(PVM pVM)
         PDMR3VMMDevHeapFree(pVM, pVM->hwaccm.s.vmx.pRealModeTSS);
         pVM->hwaccm.s.vmx.pRealModeTSS       = 0;
     }
-    HWACCMR3TermCPU(pVM);
+    hwaccmR3TermCPU(pVM);
     return 0;
 }
 
 /**
  * Terminates the per-VCPU HWACCM.
  *
- * Termination means cleaning up and freeing all resources,
- * the VM it self is at this point powered off or suspended.
- *
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) HWACCMR3TermCPU(PVM pVM)
+static int hwaccmR3TermCPU(PVM pVM)
 {
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
@@ -1634,7 +1663,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3RemovePatches(PVM pVM, PVMCPU pVCpu, void *pv
 #ifdef LOG_ENABLED
         char            szOutput[256];
 
-        rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, CPUMGetGuestCS(pVCpu), pInstrGC, 0, szOutput, sizeof(szOutput), 0);
+        rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, CPUMGetGuestCS(pVCpu), pInstrGC, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                szOutput, sizeof(szOutput), NULL);
         if (RT_SUCCESS(rc))
             Log(("Patched instr: %s\n", szOutput));
 #endif
@@ -1657,7 +1687,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3RemovePatches(PVM pVM, PVMCPU pVCpu, void *pv
         AssertRC(rc);
 
 #ifdef LOG_ENABLED
-        rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, CPUMGetGuestCS(pVCpu), pInstrGC, 0, szOutput, sizeof(szOutput), 0);
+        rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, CPUMGetGuestCS(pVCpu), pInstrGC, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                szOutput, sizeof(szOutput), NULL);
         if (RT_SUCCESS(rc))
             Log(("Original instr: %s\n", szOutput));
 #endif
@@ -1880,7 +1911,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, void *
 
 #ifdef LOG_ENABLED
     char      szOutput[256];
-    rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
+    rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                            szOutput, sizeof(szOutput), NULL);
     if (RT_SUCCESS(rc))
         Log(("Failed to patch instr: %s\n", szOutput));
 #endif
@@ -1945,7 +1977,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
         pPatch = &pVM->hwaccm.s.aPatches[idx];
 
 #ifdef LOG_ENABLED
-        rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
+        rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                szOutput, sizeof(szOutput), NULL);
         if (RT_SUCCESS(rc))
             Log(("Original instr: %s\n", szOutput));
 #endif
@@ -2075,7 +2108,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
             {
                 uint32_t cb;
 
-                rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pInstr, 0, szOutput, sizeof(szOutput), &cb);
+                rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pInstr, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                        szOutput, sizeof(szOutput), &cb);
                 if (RT_SUCCESS(rc))
                     Log(("Patch instr %s\n", szOutput));
 
@@ -2094,7 +2128,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
             AssertRC(rc);
 
 #ifdef LOG_ENABLED
-            rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
+            rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                                    szOutput, sizeof(szOutput), NULL);
             if (RT_SUCCESS(rc))
                 Log(("Jump: %s\n", szOutput));
 #endif
@@ -2118,7 +2153,8 @@ DECLCALLBACK(VBOXSTRICTRC) hwaccmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void *pv
     uint32_t  idx = pVM->hwaccm.s.cPatches;
 
 #ifdef LOG_ENABLED
-    rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, 0, szOutput, sizeof(szOutput), 0);
+    rc = DBGFR3DisasInstrEx(pVM, pVCpu->idCpu, pCtx->cs, pCtx->rip, DBGF_DISAS_FLAGS_DEFAULT_MODE,
+                            szOutput, sizeof(szOutput), NULL);
     if (RT_SUCCESS(rc))
         Log(("Failed to patch instr: %s\n", szOutput));
 #endif
@@ -2249,6 +2285,13 @@ VMMR3DECL(bool) HWACCMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
                         return false;
                     }
                 }
+                /* VT-x also chokes on invalid tr or ldtr selectors (minix) */
+                if (    pCtx->gdtr.cbGdt
+                    &&  (   pCtx->tr > pCtx->gdtr.cbGdt
+                         || pCtx->ldtr > pCtx->gdtr.cbGdt))
+                {
+                        return false;
+                }
             }
         }
         else
@@ -2354,6 +2397,7 @@ VMMR3DECL(bool) HWACCMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx)
 {
     /** The VMM device heap is a requirement for emulating real mode or protected mode without paging when the unrestricted guest execution feature is missing. (VT-x only) */
     if (    pVM->hwaccm.s.vmx.fEnabled
+        &&  !pVM->hwaccm.s.vmx.fUnrestrictedGuest
         &&  !CPUMIsGuestInPagedProtectedModeEx(pCtx)
         &&  !PDMVMMDevHeapIsEnabled(pVM)
         &&  (pVM->hwaccm.s.fNestedPaging || CPUMIsGuestInRealModeEx(pCtx)))
@@ -2364,7 +2408,7 @@ VMMR3DECL(bool) HWACCMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx)
 
 
 /**
- * Notifcation from EM about a rescheduling into hardware assisted execution
+ * Notification from EM about a rescheduling into hardware assisted execution
  * mode.
  *
  * @param   pVCpu       Pointer to the current virtual cpu structure.
@@ -2375,7 +2419,7 @@ VMMR3DECL(void) HWACCMR3NotifyScheduled(PVMCPU pVCpu)
 }
 
 /**
- * Notifcation from EM about returning from instruction emulation (REM / EM).
+ * Notification from EM about returning from instruction emulation (REM / EM).
  *
  * @param   pVCpu       Pointer to the current virtual cpu structure.
  */
@@ -2427,6 +2471,19 @@ VMMR3DECL(bool) HWACCMR3IsVPIDActive(PVM pVM)
 VMMR3DECL(bool) HWACCMR3IsEventPending(PVMCPU pVCpu)
 {
     return HWACCMIsEnabled(pVCpu->pVMR3) && pVCpu->hwaccm.s.Event.fPending;
+}
+
+/**
+ * Checks if the VMX-preemption timer is being used.
+ *
+ * @returns true if it is, false if it isn't.
+ * @param   pVM         The VM handle.
+ */
+VMMR3DECL(bool) HWACCMR3IsVmxPreemptionTimerUsed(PVM pVM)
+{
+    return HWACCMIsEnabled(pVM)
+        && pVM->hwaccm.s.vmx.fEnabled
+        && pVM->hwaccm.s.vmx.fUsePreemptTimer;
 }
 
 /**
@@ -2749,7 +2806,7 @@ static DECLCALLBACK(int) hwaccmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersio
     }
 #endif
 
-    /* Recheck all VCPUs if we can go staight into hwaccm execution mode. */
+    /* Recheck all VCPUs if we can go straight into hwaccm execution mode. */
     if (HWACCMIsEnabled(pVM))
     {
         for (VMCPUID i = 0; i < pVM->cCpus; i++)

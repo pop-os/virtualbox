@@ -469,7 +469,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
 #ifndef VBOX
                     alsa_logerr (
                         err,
-                        "Could not get minmal period size for %s\n",
+                        "Could not get minimal period size for %s\n",
                         typ
                         );
 #else
@@ -482,7 +482,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
                         if ((in && conf.period_size_in_overriden)
                             || (!in && conf.period_size_out_overriden)) {
                             dolog ("%s period size(%d) is less "
-                                   "than minmal period size(%ld)\n",
+                                   "than minimal period size(%ld)\n",
                                    typ,
                                    period_size_f,
                                    minval);
@@ -532,7 +532,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
                 );
             if (err < 0) {
 #ifndef VBOX
-                alsa_logerr (err, "Could not get minmal buffer size for %s\n",
+                alsa_logerr (err, "Could not get minimal buffer size for %s\n",
                              typ);
 #else
                 LogRel(("ALSA: Could not get minimal buffer size for %s\n", typ));
@@ -637,7 +637,7 @@ static int alsa_open (int in, struct alsa_params_req *req,
     if (obt->fmt != req->fmt ||
         obt->nchannels != req->nchannels ||
         obt->freq != req->freq) {
-        dolog ("Audio paramters mismatch for %s\n", typ);
+        dolog ("Audio parameters mismatch for %s\n", typ);
         alsa_dump_info (req, obt);
     }
 #endif
@@ -658,6 +658,18 @@ static int alsa_recover (snd_pcm_t *handle)
     if (err < 0) {
         alsa_logerr (err, "Failed to prepare handle %p\n",
                      (void *) handle);
+        return -1;
+    }
+    return 0;
+}
+
+static int alsa_resume (snd_pcm_t *handle)
+{
+    int err = snd_pcm_resume (handle);
+    if (err < 0) {
+#ifndef VBOX
+        alsa_logerr (err, "Failed to resume handle %p\n", handle);
+#endif
         return -1;
     }
     return 0;
@@ -737,6 +749,22 @@ static int alsa_run_out (HWVoiceOut *hw)
                     }
                     if (conf.verbose) {
                         dolog ("Recovering from playback xrun\n");
+                    }
+                    continue;
+
+                case -ESTRPIPE:
+                    /* stream is suspended and waiting for an
+                       application recovery */
+                    if (alsa_resume (alsa->handle)) {
+#ifndef VBOX
+                        alsa_logerr (written, "Failed to write %d frames\n", len);
+#else
+                        LogRel(("ALSA: Failed to resume output stream\n"));
+#endif
+                        goto exit;
+                    }
+                    if (conf.verbose) {
+                        dolog ("Resuming suspended output stream\n");
                     }
                     continue;
 
@@ -952,8 +980,33 @@ static int alsa_run_in (HWVoiceIn *hw)
         return 0;
     }
 
-    if (!avail && (snd_pcm_state (alsa->handle) == SND_PCM_STATE_PREPARED)) {
-        avail = hw->samples;
+    if (!avail) {
+        snd_pcm_state_t state;
+        state = snd_pcm_state (alsa->handle);
+        switch (state) {
+            case SND_PCM_STATE_PREPARED:
+                avail = hw->samples;
+                break;
+            case SND_PCM_STATE_SUSPENDED:
+                /* stream is suspended and waiting for an application recovery */
+                if (alsa_resume (alsa->handle)) {
+#ifndef VBOX
+                    dolog ("Failed to resume suspended input stream\n");
+#else
+                    LogRel(("ALSA: Failed to resume input stream\n"));
+#endif
+                    return 0;
+                }
+                if (conf.verbose) {
+                    dolog ("Resuming suspended input stream\n");
+                }
+                break;
+            default:
+                if (conf.verbose) {
+                    dolog ("No frames available and ALSA state is %d\n", state);
+                }
+                return 0;
+        }
     }
 
     decr = audio_MIN (dead, avail);

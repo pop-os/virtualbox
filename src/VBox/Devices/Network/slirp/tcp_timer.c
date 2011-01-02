@@ -1,4 +1,4 @@
-/* $Id: tcp_timer.c $ */
+/* $Id: tcp_timer.c 34103 2010-11-16 11:18:55Z vboxsync $ */
 /** @file
  * NAT - TCP timers.
  */
@@ -65,7 +65,7 @@ tcp_fasttimo(PNATState pData)
     register struct socket *so, *so_next;
     register struct tcpcb *tp;
 
-    DEBUG_CALL("tcp_fasttimo");
+    LogFlow(("tcp_fasttimo:\n"));
 
     so = tcb.so_next;
     if (so)
@@ -95,7 +95,7 @@ tcp_slowtimo(PNATState pData)
     register struct tcpcb *tp;
     register int i;
 
-    DEBUG_CALL("tcp_slowtimo");
+    LogFlow(("tcp_slowtimo:\n"));
 
     /*
      * Search through tcb's and update active timers.
@@ -158,7 +158,7 @@ tcp_timers(PNATState pData, register struct tcpcb *tp, int timer)
 {
     register int rexmt;
 
-    DEBUG_CALL("tcp_timers");
+    LogFlow(("tcp_timers:\n"));
 
     switch (timer)
     {

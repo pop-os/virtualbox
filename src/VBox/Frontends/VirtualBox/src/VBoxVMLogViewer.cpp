@@ -1,4 +1,4 @@
-/* $Id: VBoxVMLogViewer.cpp $ */
+/* $Id: VBoxVMLogViewer.cpp 30356 2010-06-22 08:42:22Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -20,25 +20,26 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-#include "VBoxVMLogViewer.h"
+#include "QITabWidget.h"
+#include "UIIconPool.h"
+#include "UISpecialControls.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxSpecialControls.h"
 #include "VBoxUtils.h"
-#include "QITabWidget.h"
+#include "VBoxVMLogViewer.h"
 
 /* Qt includes */
+#include <QCheckBox>
+#include <QDateTime>
+#include <QDir>
+#include <QFileDialog>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QScrollBar>
 #include <QStyle>
 #include <QTextEdit>
-#include <QLineEdit>
-#include <QLabel>
-#include <QCheckBox>
-#include <QDir>
-#include <QScrollBar>
-#include <QFileDialog>
-#include <QDateTime>
-#include <QPushButton>
-#include <QKeyEvent>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxVMLogViewer::LogViewersMap VBoxVMLogViewer::mSelfArray = LogViewersMap();
@@ -80,8 +81,8 @@ VBoxVMLogViewer::VBoxVMLogViewer (QWidget *aParent,
     Ui::VBoxVMLogViewer::setupUi (this);
 
     /* Apply window icons */
-    setWindowIcon (vboxGlobal().iconSetFull (QSize (32, 32), QSize (16, 16),
-                                             ":/vm_show_logs_32px.png", ":/show_logs_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(QSize (32, 32), QSize (16, 16),
+                                          ":/vm_show_logs_32px.png", ":/show_logs_16px.png"));
 
     /* Enable size grip without using a status bar. */
     setSizeGripEnabled (true);
@@ -346,23 +347,24 @@ VBoxLogSearchPanel::VBoxLogSearchPanel (QWidget *aParent,
     , mCaseSensitive (0)
     , mWarningSpacer (0), mWarningIcon (0), mWarningString (0)
 {
-    mButtonClose = new VBoxMiniCancelButton (this);
+    mButtonClose = new UIMiniCancelButton (this);
     connect (mButtonClose, SIGNAL (clicked()), this, SLOT (hide()));
 
     mSearchName = new QLabel (this);
-    mSearchString = new VBoxSearchField (this);
+    mSearchString = new UISearchField (this);
     mSearchString->setSizePolicy (QSizePolicy::Preferred,
                                   QSizePolicy::Fixed);
     connect (mSearchString, SIGNAL (textChanged (const QString &)),
              this, SLOT (findCurrent (const QString &)));
 
-    mButtonsNextPrev = new VBoxSegmentedButton (2, this);
+    mButtonsNextPrev = new UIRoundRectSegmentedButton(2, this);
     mButtonsNextPrev->setEnabled (0, false);
-    mButtonsNextPrev->setIcon (0, VBoxGlobal::iconSet (":/list_movedown_16px.png",
-                                                       ":/list_movedown_disabled_16px.png"));
     mButtonsNextPrev->setEnabled (1, false);
-    mButtonsNextPrev->setIcon (1, VBoxGlobal::iconSet (":/list_moveup_16px.png",
-                                                       ":/list_moveup_disabled_16px.png"));
+#ifndef Q_WS_MAC
+    /* No icons on the Mac */
+    mButtonsNextPrev->setIcon(0, UIIconPool::defaultIcon(UIIconPool::ArrowBackIcon, this));
+    mButtonsNextPrev->setIcon(1, UIIconPool::defaultIcon(UIIconPool::ArrowForwardIcon, this));
+#endif /* !Q_WS_MAC */
     connect (mButtonsNextPrev, SIGNAL (clicked (int)), this, SLOT (find (int)));
 
     mCaseSensitive = new QCheckBox (this);
@@ -372,7 +374,7 @@ VBoxLogSearchPanel::VBoxLogSearchPanel (QWidget *aParent,
     mWarningIcon = new QLabel (this);
     mWarningIcon->hide();
 
-    QIcon icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxWarning);
+    QIcon icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, this);
     if (!icon.isNull())
         mWarningIcon->setPixmap (icon.pixmap (16, 16));
     mWarningString = new QLabel (this);
@@ -415,14 +417,13 @@ void VBoxLogSearchPanel::retranslateUi()
     mSearchName->setText (tr ("Find "));
     mSearchString->setToolTip (tr ("Enter a search string here"));
 
-    mButtonsNextPrev->setTitle (0, tr ("&Next"));
-    mButtonsNextPrev->setToolTip (0, tr ("Search for the next occurrence of "
-                                         "the string"));
-
-    mButtonsNextPrev->setTitle (1, tr ("&Previous"));
-    mButtonsNextPrev->setToolTip (1, tr ("Search for the previous occurrence "
+    mButtonsNextPrev->setTitle (0, tr ("&Previous"));
+    mButtonsNextPrev->setToolTip (0, tr ("Search for the previous occurrence "
                                          "of the string"));
 
+    mButtonsNextPrev->setTitle (1, tr ("&Next"));
+    mButtonsNextPrev->setToolTip (1, tr ("Search for the next occurrence of "
+                                         "the string"));
 
     mCaseSensitive->setText (tr ("C&ase Sensitive"));
     mCaseSensitive->setToolTip (tr ("Perform case sensitive search "
@@ -510,16 +511,16 @@ bool VBoxLogSearchPanel::eventFilter (QObject *aObject, QEvent *aEvent)
                  e->QInputEvent::modifiers() & Qt::KeypadModifier) &&
                 (e->key() == Qt::Key_Enter || e->key() == Qt::Key_Return))
             {
-                mButtonsNextPrev->animateClick (0);
+                mButtonsNextPrev->animateClick (1);
                 return true;
             }
             /* handle other search next/previous shortcuts */
             else if (e->key() == Qt::Key_F3)
             {
                 if (e->QInputEvent::modifiers() == 0)
-                    mButtonsNextPrev->animateClick (0);
-                else if (e->QInputEvent::modifiers() == Qt::ShiftModifier)
                     mButtonsNextPrev->animateClick (1);
+                else if (e->QInputEvent::modifiers() == Qt::ShiftModifier)
+                    mButtonsNextPrev->animateClick (0);
                 return true;
             }
             /* handle ctrl-f key combination as a shortcut to
@@ -587,8 +588,8 @@ void VBoxLogSearchPanel::toggleWarning (bool aHide)
 void VBoxLogSearchPanel::find (int aButton)
 {
     if (aButton == 0)
-        findNext();
-    else
         findBack();
+    else
+        findNext();
 }
 

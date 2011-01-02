@@ -1,4 +1,4 @@
-/* $Id: AudioSnifferInterface.cpp $ */
+/* $Id: AudioSnifferInterface.cpp 34906 2010-12-09 16:29:49Z vboxsync $ */
 /** @file
  * VirtualBox Driver Interface to Audio Sniffer device
  */
@@ -22,7 +22,7 @@
 #include "Logging.h"
 
 #include <VBox/pdmdrv.h>
-#include <VBox/vrdpapi.h>
+#include <VBox/RemoteDesktop/VRDE.h>
 #include <VBox/cfgm.h>
 #include <VBox/err.h>
 
@@ -98,7 +98,7 @@ DECLCALLBACK(void) iface_AudioSamplesOut (PPDMIAUDIOSNIFFERCONNECTOR pInterface,
     /*
      * Just call the VRDP server with the data.
      */
-    VRDPAUDIOFORMAT format = VRDP_AUDIO_FMT_MAKE(samplesPerSec, nChannels, bitsPerSample, !fUnsigned);
+    VRDEAUDIOFORMAT format = VRDE_AUDIO_FMT_MAKE(samplesPerSec, nChannels, bitsPerSample, !fUnsigned);
     pDrv->pAudioSniffer->getParent()->consoleVRDPServer()->SendAudioSamples(pvSamples, cSamples, format);
 }
 
@@ -110,6 +110,32 @@ DECLCALLBACK(void) iface_AudioVolumeOut (PPDMIAUDIOSNIFFERCONNECTOR pInterface, 
      * Just call the VRDP server with the data.
      */
     pDrv->pAudioSniffer->getParent()->consoleVRDPServer()->SendAudioVolume(left, right);
+}
+
+DECLCALLBACK(int) iface_AudioInputBegin (PPDMIAUDIOSNIFFERCONNECTOR pInterface,
+                                         void **ppvUserCtx,
+                                         void *pvContext,
+                                         uint32_t cSamples,
+                                         uint32_t iSampleHz,
+                                         uint32_t cChannels,
+                                         uint32_t cBits)
+{
+    PDRVAUDIOSNIFFER pDrv = PDMIAUDIOSNIFFERCONNECTOR_2_MAINAUDIOSNIFFER(pInterface);
+
+    return pDrv->pAudioSniffer->getParent()->consoleVRDPServer()->SendAudioInputBegin(ppvUserCtx,
+                                                                                      pvContext,
+                                                                                      cSamples,
+                                                                                      iSampleHz,
+                                                                                      cChannels,
+                                                                                      cBits);
+}
+
+DECLCALLBACK(void) iface_AudioInputEnd (PPDMIAUDIOSNIFFERCONNECTOR pInterface,
+                                        void *pvUserCtx)
+{
+    PDRVAUDIOSNIFFER pDrv = PDMIAUDIOSNIFFERCONNECTOR_2_MAINAUDIOSNIFFER(pInterface);
+
+    pDrv->pAudioSniffer->getParent()->consoleVRDPServer()->SendAudioInputEnd(pvUserCtx);
 }
 
 
@@ -174,6 +200,8 @@ DECLCALLBACK(int) AudioSniffer::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
     /* Audio Sniffer connector. */
     pThis->Connector.pfnAudioSamplesOut         = iface_AudioSamplesOut;
     pThis->Connector.pfnAudioVolumeOut          = iface_AudioVolumeOut;
+    pThis->Connector.pfnAudioInputBegin         = iface_AudioInputBegin;
+    pThis->Connector.pfnAudioInputEnd           = iface_AudioInputEnd;
 
     /*
      * Get the Audio Sniffer Port interface of the above driver/device.

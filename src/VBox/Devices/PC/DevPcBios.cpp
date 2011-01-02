@@ -1,4 +1,4 @@
-/* $Id: DevPcBios.cpp $ */
+/* $Id: DevPcBios.cpp 34458 2010-11-29 12:29:23Z vboxsync $ */
 /** @file
  * PC BIOS Device.
  */
@@ -177,6 +177,8 @@ typedef struct DEVPCBIOS
     uint16_t        au16NetBootDev[NET_BOOT_DEVS];
     /** Number of logical CPUs in guest */
     uint16_t        cCpus;
+    uint32_t        u32McfgBase;
+    uint32_t        cbMcfgLength;
 } DEVPCBIOS, *PDEVPCBIOS;
 
 
@@ -231,15 +233,8 @@ static void pcbiosCmosWrite(PPDMDEVINS pDevIns, int off, uint32_t u32Val)
     Assert(off < 256);
     Assert(u32Val < 256);
 
-#if 1
     int rc = PDMDevHlpCMOSWrite(pDevIns, off, u32Val);
     AssertRC(rc);
-#else
-    PVM pVM = PDMDevHlpGetVM(pDevIns);
-    IOMIOPortWrite(pVM, 0x70, off, 1);
-    IOMIOPortWrite(pVM, 0x71, u32Val, 1);
-    IOMIOPortWrite(pVM, 0x70, 0, 1);
-#endif
 }
 
 /* -=-=-=-=-=-=- based on code from pc.c -=-=-=-=-=-=- */
@@ -640,7 +635,6 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     return VINF_SUCCESS;
 }
 
-
 /**
  * Port I/O Handler for IN operations.
  *
@@ -654,11 +648,6 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) pcbiosIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    NOREF(pDevIns);
-    NOREF(pvUser);
-    NOREF(Port);
-    NOREF(pu32);
-    NOREF(cb);
     return VERR_IOM_IOPORT_UNUSED;
 }
 
@@ -844,6 +833,24 @@ static DECLCALLBACK(int) pcbiosDestruct(PPDMDEVINS pDevIns)
         pThis->pszLanBootFile = NULL;
     }
 
+    if (pThis->pszHDDevice)
+    {
+        MMR3HeapFree(pThis->pszHDDevice);
+        pThis->pszHDDevice = NULL;
+    }
+
+    if (pThis->pszFDDevice)
+    {
+        MMR3HeapFree(pThis->pszFDDevice);
+        pThis->pszFDDevice = NULL;
+    }
+
+    if (pThis->pszSataDevice)
+    {
+        MMR3HeapFree(pThis->pszSataDevice);
+        pThis->pszSataDevice = NULL;
+    }
+
     return VINF_SUCCESS;
 }
 
@@ -922,6 +929,8 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
                               "UUID\0"
                               "IOAPIC\0"
                               "NumCPUs\0"
+                              "McfgBase\0"
+                              "McfgLength\0"
                               "DmiBIOSVendor\0"
                               "DmiBIOSVersion\0"
                               "DmiBIOSReleaseDate\0"
@@ -967,6 +976,16 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("Configuration error: Querying \"NumCPUs\" as integer failed"));
+
+    rc = CFGMR3QueryU32Def(pCfg, "McfgBase", &pThis->u32McfgBase, 0);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Querying \"\" as integer failed"));
+    rc = CFGMR3QueryU32Def(pCfg, "McfgLength", &pThis->cbMcfgLength, 0);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Configuration error: Querying \"McfgLength\" as integer failed"));
+
 
     LogRel(("[SMP] BIOS with %u CPUs\n", pThis->cCpus));
 
@@ -1050,7 +1069,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
         FwCommonPlantMpsTable(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
                               _4K - VBOX_DMI_TABLE_SIZE, pThis->cCpus);
 
-    rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage,
+    rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage, _4K,
                               PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");
     if (RT_FAILURE(rc))
         return rc;
@@ -1080,6 +1099,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     else
     {
         PCFGMNODE   pCfgNetBootDevice;
+        uint8_t     u8PciBus;
         uint8_t     u8PciDev;
         uint8_t     u8PciFn;
         uint16_t    u16BusDevFn;
@@ -1090,6 +1110,17 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
         {
             szIndex[0] = '0' + i;
             pCfgNetBootDevice = CFGMR3GetChild(pCfgNetBoot, szIndex);
+
+            rc = CFGMR3QueryU8(pCfgNetBootDevice, "PCIBusNo", &u8PciBus);
+            if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
+            {
+                /* Do nothing and stop iterating. */
+                rc = VINF_SUCCESS;
+                break;
+            }
+            else if (RT_FAILURE(rc))
+                return PDMDEV_SET_ERROR(pDevIns, rc,
+                                        N_("Configuration error: Querying \"Netboot/x/PCIBusNo\" as integer failed"));
             rc = CFGMR3QueryU8(pCfgNetBootDevice, "PCIDeviceNo", &u8PciDev);
             if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
             {
@@ -1110,7 +1141,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
             else if (RT_FAILURE(rc))
                 return PDMDEV_SET_ERROR(pDevIns, rc,
                                         N_("Configuration error: Querying \"Netboot/x/PCIFunctionNo\" as integer failed"));
-            u16BusDevFn = ((u8PciDev & 0x1F) << 3) | (u8PciFn & 0x7);
+            u16BusDevFn = (((uint16_t)u8PciBus) << 8) | ((u8PciDev & 0x1F) << 3) | (u8PciFn & 0x7);
             pThis->au16NetBootDev[i] = u16BusDevFn;
         }
     }
@@ -1224,19 +1255,14 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     AssertReleaseMsg(RT_ALIGN_Z(cbPcBiosBinary, _64K) == cbPcBiosBinary,
                      ("cbPcBiosBinary=%#x\n", cbPcBiosBinary));
     cb = RT_MIN(cbPcBiosBinary, 128 * _1K); /* Effectively either 64 or 128K. */
-    rc = PDMDevHlpROMRegister(pDevIns, 0x00100000 - cb, cb, &pu8PcBiosBinary[cbPcBiosBinary - cb],
+    rc = PDMDevHlpROMRegister(pDevIns, 0x00100000 - cb, cb, &pu8PcBiosBinary[cbPcBiosBinary - cb], cb,
                               fFlags, "PC BIOS - 0xfffff");
     if (RT_FAILURE(rc))
         return rc;
-    rc = PDMDevHlpROMRegister(pDevIns, (uint32_t)-(int32_t)cbPcBiosBinary, cbPcBiosBinary, pu8PcBiosBinary,
+    rc = PDMDevHlpROMRegister(pDevIns, (uint32_t)-(int32_t)cbPcBiosBinary, cbPcBiosBinary, pu8PcBiosBinary, cbPcBiosBinary,
                               fFlags, "PC BIOS - 0xffffffff");
     if (RT_FAILURE(rc))
         return rc;
-
-    /*
-     * Call reset to set values and stuff.
-     */
-    pcbiosReset(pDevIns);
 
     /*
      * Get the LAN boot ROM file name.
@@ -1273,8 +1299,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
             rc = RTFileGetSize(FileLanBoot, &cbFileLanBoot);
             if (RT_SUCCESS(rc))
             {
-                if (    RT_ALIGN(cbFileLanBoot, _4K) != cbFileLanBoot
-                    ||  cbFileLanBoot > _64K)
+                if (cbFileLanBoot > _64K - (VBOX_LANBOOT_SEG << 4 & 0xffff))
                     rc = VERR_TOO_MUCH_DATA;
             }
         }
@@ -1299,7 +1324,7 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
         /*
          * Allocate buffer for the LAN boot ROM data.
          */
-        pThis->pu8LanBoot = (uint8_t *)PDMDevHlpMMHeapAlloc(pDevIns, cbFileLanBoot);
+        pThis->pu8LanBoot = (uint8_t *)PDMDevHlpMMHeapAllocZ(pDevIns, cbFileLanBoot);
         if (pThis->pu8LanBoot)
         {
             rc = RTFileRead(FileLanBoot, pThis->pu8LanBoot, cbFileLanBoot, NULL);
@@ -1337,22 +1362,19 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
 
     /*
      * Map the Network Boot ROM into memory.
-     * Currently there is a fixed mapping: 0x000c8000 to 0x000cffff contains
-     * the (up to) 32 kb ROM image.
+     * Currently there is a fixed mapping: 0x000d2000 to 0x000dffff contains
+     * the (up to) 56 kb ROM image.  The mapping size is fixed to trouble with
+     * the saved state (in PGM).
      */
     if (pu8LanBootBinary)
     {
         pThis->cbLanBoot = cbLanBootBinary;
 
-        rc = PDMDevHlpROMRegister(pDevIns, VBOX_LANBOOT_SEG << 4, cbLanBootBinary, pu8LanBootBinary,
+        rc = PDMDevHlpROMRegister(pDevIns, VBOX_LANBOOT_SEG << 4,
+                                  RT_MAX(cbLanBootBinary, _64K - (VBOX_LANBOOT_SEG << 4 & 0xffff)),
+                                  pu8LanBootBinary, cbLanBootBinary,
                                   PGMPHYS_ROM_FLAGS_SHADOWED, "Net Boot ROM");
-        if (RT_SUCCESS(rc))
-        {
-            rc = PDMDevHlpROMProtectShadow(pDevIns, VBOX_LANBOOT_SEG << 4, cbLanBootBinary, PGMROMPROT_READ_RAM_WRITE_RAM);
-            AssertRCReturn(rc, rc);
-            rc = PDMDevHlpPhysWrite(pDevIns, VBOX_LANBOOT_SEG << 4, pu8LanBootBinary, cbLanBootBinary);
-            AssertRCReturn(rc, rc);
-        }
+        AssertRCReturn(rc, rc);
     }
 
     rc = CFGMR3QueryU8Def(pCfg, "DelayBoot", &pThis->uBootDelay, 0);
@@ -1362,7 +1384,12 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
     if (pThis->uBootDelay > 15)
         pThis->uBootDelay = 15;
 
-    return rc;
+    /*
+     * Call reset plant tables and shadow the PXE ROM.
+     */
+    pcbiosReset(pDevIns);
+
+    return VINF_SUCCESS;
 }
 
 

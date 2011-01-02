@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,7 @@
 class Console;
 
 class ATL_NO_VTABLE SharedFolder :
-    public VirtualBoxBaseWithChildrenNEXT,
-    public VirtualBoxSupportErrorInfoImpl<SharedFolder, ISharedFolder>,
-    public VirtualBoxSupportTranslation<SharedFolder>,
+    public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(ISharedFolder)
 {
 public:
@@ -38,10 +36,11 @@ public:
         const Bstr name;
         const Bstr hostPath;
         BOOL       writable;
+        BOOL       autoMount;
         Bstr       lastAccessError;
     };
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (SharedFolder)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(SharedFolder, ISharedFolder)
 
     DECLARE_NOT_AGGREGATABLE(SharedFolder)
 
@@ -59,10 +58,10 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init(Machine *aMachine, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
+    HRESULT init(Machine *aMachine, CBSTR aName, CBSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
     HRESULT initCopy(Machine *aMachine, SharedFolder *aThat);
-    HRESULT init(Console *aConsole, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
-    HRESULT init(VirtualBox *aVirtualBox, CBSTR aName, CBSTR aHostPath, BOOL aWritable);
+    HRESULT init(Console *aConsole, CBSTR aName, CBSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
+    HRESULT init(VirtualBox *aVirtualBox, CBSTR aName, CBSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
     void uninit();
 
     // ISharedFolder properties
@@ -70,6 +69,7 @@ public:
     STDMETHOD(COMGETTER(HostPath)) (BSTR *aHostPath);
     STDMETHOD(COMGETTER(Accessible)) (BOOL *aAccessible);
     STDMETHOD(COMGETTER(Writable)) (BOOL *aWritable);
+    STDMETHOD(COMGETTER(AutoMount)) (BOOL *aAutoMount);
     STDMETHOD(COMGETTER(LastAccessError)) (BSTR *aLastAccessError);
 
     // public methods for internal purposes only
@@ -81,15 +81,13 @@ public:
     const Bstr& getName() const { return m.name; }
     const Bstr& getHostPath() const { return m.hostPath; }
     BOOL isWritable() const { return m.writable; }
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"SharedFolder"; }
+    BOOL isAutoMounted() const { return m.autoMount; }
 
 protected:
 
     HRESULT protectedInit(VirtualBoxBase *aParent,
-                          CBSTR aName, CBSTR aHostPath, BOOL aWritable);
-
+                          CBSTR aName, CBSTR aHostPath,
+                          BOOL aWritable, BOOL aAutoMount);
 private:
 
     VirtualBoxBase * const  mParent;

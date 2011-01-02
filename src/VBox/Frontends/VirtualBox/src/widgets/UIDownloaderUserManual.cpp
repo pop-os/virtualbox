@@ -1,4 +1,4 @@
-/* $Id: UIDownloaderUserManual.cpp $ */
+/* $Id: UIDownloaderUserManual.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -151,7 +151,7 @@ void UIDownloaderUserManual::downloadFinished(bool fError)
                                                                 tr("Select folder to save User Manual to"), true);
             /* If user reject to set save point: */
             if (target.isNull())
-                /* Just close the downloder: */
+                /* Just close the downloader: */
                 QTimer::singleShot(0, this, SLOT(suicide()));
             /* If user set correct save point: */
             else

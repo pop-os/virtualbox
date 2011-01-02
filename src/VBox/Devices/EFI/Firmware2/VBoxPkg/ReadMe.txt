@@ -1,4 +1,4 @@
-$Id: ReadMe.txt $
+$Id: ReadMe.txt 29156 2010-05-06 13:50:07Z vboxsync $
 
 Setting up the source trees
 ===========================

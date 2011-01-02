@@ -166,12 +166,17 @@ BOOL WINAPI wglMakeCurrent_prox( HDC hdc, HGLRC hglrc )
     context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
     window = stubGetWindowInfo(hdc);
 
+    if (hglrc!=0 && !context)
+    {
+        crWarning("wglMakeCurrent got unexpected hglrc 0x%x", hglrc);
+    }
+
     return stubMakeCurrent( window, context );
 }
 
 HGLRC WINAPI wglGetCurrentContext_prox( void )
 {
-    return (HGLRC) stub.currentContext;
+    return (HGLRC) (stub.currentContext ? stub.currentContext->id : 0);
 }
 
 HDC WINAPI wglGetCurrentDC_prox( void )
@@ -270,7 +275,7 @@ HGLRC WINAPI wglCreateContext_prox( HDC hdc )
 BOOL WINAPI
 wglSwapBuffers_prox( HDC hdc )
 {
-    const WindowInfo *window = stubGetWindowInfo(hdc);
+    WindowInfo *window = stubGetWindowInfo(hdc);
     stubSwapBuffers( window, 0 );
     return 1;
 }

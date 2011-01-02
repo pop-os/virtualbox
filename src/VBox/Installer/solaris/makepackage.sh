@@ -18,7 +18,7 @@
 
 #
 # Usage:
-#       makespackage.sh [--hardened] $(PATH_TARGET)/install packagename {$(KBUILD_TARGET_ARCH)|neutral} $(VBOX_SVN_REV) [VBIPackageName]
+#       makepackage.sh [--hardened] $(PATH_TARGET)/install packagename {$(KBUILD_TARGET_ARCH)|neutral} $(VBOX_SVN_REV) [VBIPackageName]
 
 
 # Parse options.
@@ -53,7 +53,7 @@ VBOX_SVN_REV=$4
 VBOX_PKGNAME=SUNWvbox
 VBOX_GGREP=/usr/sfw/bin/ggrep
 VBOX_AWK=/usr/bin/awk
-VBOX_GTAR=/usr/sfw/bin/gtar
+#VBOX_GTAR=/usr/sfw/bin/gtar
 
 # check for GNU grep we use which might not ship with all Solaris
 if test ! -f "$VBOX_GGREP" && test ! -h "$VBOX_GGREP"; then
@@ -62,10 +62,10 @@ if test ! -f "$VBOX_GGREP" && test ! -h "$VBOX_GGREP"; then
 fi
 
 # check for GNU tar we use which might not ship with all Solaris
-if test ! -f "$VBOX_GTAR" && test ! -h "$VBOX_GTAR"; then
-    echo "## GNU tar not found in $VBOX_GTAR."
-    exit 1
-fi
+#if test ! -f "$VBOX_GTAR" && test ! -h "$VBOX_GTAR"; then
+#    echo "## GNU tar not found in $VBOX_GTAR."
+#    exit 1
+#fi
 
 # bail out on non-zero exit status
 set -e
@@ -138,7 +138,7 @@ cd "$PKG_BASE_DIR"
 find . ! -type d | $VBOX_GGREP -v -E 'prototype|makepackage.sh|vbox.pkginfo|postinstall.sh|checkinstall.sh|preremove.sh|ReadMe.txt|vbox.space|vbox.depend|vbox.copyright|VirtualBoxKern' | pkgproto >> prototype
 
 # Include opt/VirtualBox and subdirectories as we want uninstall to clean up directory structure.
-# Inlcude var/svc for manifest class action script does not create them.
+# Include var/svc for manifest class action script does not create them.
 find . -type d | $VBOX_GGREP -E 'opt/VirtualBox|var/svc/manifest/application/virtualbox' | pkgproto >> prototype
 
 # fix up file permissions (owner/group)
@@ -233,16 +233,16 @@ pkgmk -p $VBOXPKG_TIMESTAMP -o -r .
 pkgtrans -s -o /var/spool/pkg "`pwd`/$VBOX_PKGFILE" "$VBOX_PKGNAME"
 
 # $5 if exist would contain the path to the VBI package to include in the .tar.gz
-if [ -f LICENSE ]; then
-    VBOX_LICENSEFILE=LICENSE
-fi
-if test -f "$5"; then
-    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" $VBOX_LICENSEFILE "$VBOX_PKGFILE" "$5" autoresponse ReadMe.txt
-else
-    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" $VBOX_LICENSEFILE "$VBOX_PKGFILE" autoresponse ReadMe.txt
-fi
+#if [ -f LICENSE ]; then
+#    VBOX_LICENSEFILE=LICENSE
+#fi
+#if test -f "$5"; then
+#    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" $VBOX_LICENSEFILE "$VBOX_PKGFILE" "$5" autoresponse ReadMe.txt
+#else
+#    $VBOX_GTAR zcvf "$VBOX_ARCHIVE" $VBOX_LICENSEFILE "$VBOX_PKGFILE" autoresponse ReadMe.txt
+#fi
 
-echo "## Packaging and transfer completed successfully!"
+echo "## Package file created successfully!"
 rm -rf "/var/spool/pkg/$VBOX_PKGNAME"
 
 exit $?

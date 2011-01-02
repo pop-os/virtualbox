@@ -26,6 +26,8 @@
 /* Local includes */
 #include "COMDefs.h"
 
+#include <iprt/cpp/utils.h>
+
 /**
  * Cache used to override some attributes in the user-friendly "don't show diffs" mode.
  */
@@ -179,7 +181,7 @@ public:
     /**
      * Returns @c true if this medium is attached to any VM (in the current
      * state or in a snapshot) in which case #usage() will contain a string with
-     * comma-sparated VM names (with snapshot names, if any, in parenthesis).
+     * comma-separated VM names (with snapshot names, if any, in parenthesis).
      */
     bool isUsed() const { return !mUsage.isNull(); }
 

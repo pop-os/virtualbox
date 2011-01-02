@@ -1,4 +1,4 @@
-/* $Id: CSAMInternal.h $ */
+/* $Id: CSAMInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * CSAM - Internal header file.
  */
@@ -73,6 +73,8 @@ typedef struct
     uint32_t             depth;  //call/jump depth
 
     PCSAMCALLEXITREC     pCallExitRec;
+
+    PGMPAGEMAPLOCK       Lock;
 } CSAMP2GLOOKUPREC, *PCSAMP2GLOOKUPREC;
 
 typedef struct
@@ -183,7 +185,7 @@ typedef struct CSAM
 
     /* Set when the IDT gates have been checked for the first time. */
     bool                fGatesChecked;
-    bool                Alignment1[HC_ARCH_BITS == 32 ? 6 : 2]; /**< Align the stats on an 8-byte boundrary. */
+    bool                Alignment1[HC_ARCH_BITS == 32 ? 6 : 2]; /**< Align the stats on an 8-byte boundary. */
 
     STAMCOUNTER         StatNrTraps;
     STAMCOUNTER         StatNrPages;

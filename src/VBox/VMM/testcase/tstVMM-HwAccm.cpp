@@ -1,4 +1,4 @@
-/* $Id: tstVMM-HwAccm.cpp $ */
+/* $Id: tstVMM-HwAccm.cpp 32190 2010-09-02 12:20:06Z vboxsync $ */
 /** @file
  * VMM Testcase.
  */
@@ -81,7 +81,7 @@ int main(int argc, char **argv)
      */
     RTPrintf(TESTCASE ": Initializing...\n");
     PVM pVM;
-    int rc = VMR3Create(1, NULL, NULL, CFGMConstructor, NULL, &pVM);
+    int rc = VMR3Create(1, NULL, NULL, NULL, CFGMConstructor, NULL, &pVM);
     if (RT_SUCCESS(rc))
     {
         /*

@@ -1,4 +1,4 @@
-/* $Id: VBoxConsole.c $ */
+/* $Id: VBoxConsole.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxConsole.c - Helper driver waiting for Ready to Boot event to switch graphic mode into user-defined one.
  */

@@ -1,4 +1,4 @@
-/* $Id: alloc-ef-cpp.cpp $ */
+/* $Id: alloc-ef-cpp.cpp 31252 2010-07-30 15:38:52Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, C++ electric fence.
  */
@@ -29,7 +29,8 @@
 *******************************************************************************/
 #include "alloc-ef.h"
 
-#if defined(RTALLOC_EFENCE_CPP) || defined(RTMEM_WRAP_TO_EF_APIS) /* rest of the file */
+#if defined(RTALLOC_EFENCE_CPP) \
+ || (defined(RTMEM_WRAP_TO_EF_APIS) && !defined(RTMEM_NO_WRAP_TO_EF_APIS)) /* rest of the file */
 
 #include <iprt/asm.h>
 #include <new>
@@ -57,7 +58,7 @@
 
 void *RT_EF_CDECL operator new(RT_EF_SIZE_T cb) throw(std::bad_alloc)
 {
-    void *pv = rtR3MemAlloc("new", RTMEMTYPE_NEW, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+    void *pv = rtR3MemAlloc("new", RTMEMTYPE_NEW, cb, cb, NULL, ASMReturnAddress(), NULL, 0, NULL);
     if (!pv)
         throw std::bad_alloc();
     return pv;
@@ -66,7 +67,7 @@ void *RT_EF_CDECL operator new(RT_EF_SIZE_T cb) throw(std::bad_alloc)
 
 void *RT_EF_CDECL operator new(RT_EF_SIZE_T cb, const std::nothrow_t &) throw()
 {
-    void *pv = rtR3MemAlloc("new nothrow", RTMEMTYPE_NEW, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+    void *pv = rtR3MemAlloc("new nothrow", RTMEMTYPE_NEW, cb, cb, NULL, ASMReturnAddress(), NULL, 0, NULL);
     return pv;
 }
 
@@ -93,7 +94,7 @@ void RT_EF_CDECL operator delete(void * pv, const std::nothrow_t &) throw()
 
 void *RT_EF_CDECL operator new[](RT_EF_SIZE_T cb) throw(std::bad_alloc)
 {
-    void *pv = rtR3MemAlloc("new[]", RTMEMTYPE_NEW_ARRAY, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+    void *pv = rtR3MemAlloc("new[]", RTMEMTYPE_NEW_ARRAY, cb, cb, NULL, ASMReturnAddress(), NULL, 0, NULL);
     if (!pv)
         throw std::bad_alloc();
     return pv;
@@ -102,7 +103,7 @@ void *RT_EF_CDECL operator new[](RT_EF_SIZE_T cb) throw(std::bad_alloc)
 
 void * RT_EF_CDECL operator new[](RT_EF_SIZE_T cb, const std::nothrow_t &) throw()
 {
-    void *pv = rtR3MemAlloc("new[] nothrow", RTMEMTYPE_NEW_ARRAY, cb, cb, ASMReturnAddress(), NULL, 0, NULL);
+    void *pv = rtR3MemAlloc("new[] nothrow", RTMEMTYPE_NEW_ARRAY, cb, cb, NULL, ASMReturnAddress(), NULL, 0, NULL);
     return pv;
 }
 

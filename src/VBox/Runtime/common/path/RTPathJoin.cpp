@@ -1,6 +1,6 @@
-/* $Id: RTPathJoin.cpp $ */
+/* $Id: RTPathJoin.cpp 33450 2010-10-26 09:24:32Z vboxsync $ */
 /** @file
- * IPRT - RTPathJoin
+ * IPRT - RTPathJoin.
  */
 
 /*
@@ -42,6 +42,7 @@ RTDECL(int) RTPathJoin(char *pszPathDst, size_t cbPathDst, const char *pszPathSr
 {
     AssertPtr(pszPathDst);
     AssertPtr(pszPathSrc);
+    AssertPtr(pszAppend);
 
     /*
      * The easy way: Copy the path into the buffer and call RTPathAppend.

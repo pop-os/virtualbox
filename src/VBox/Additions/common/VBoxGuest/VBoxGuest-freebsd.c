@@ -1,4 +1,4 @@
-/* $Id: VBoxGuest-freebsd.c $ */
+/* $Id: VBoxGuest-freebsd.c 34521 2010-11-30 14:35:40Z vboxsync $ */
 /** @file
  * VirtualBox Guest Additions Driver for FreeBSD.
  */
@@ -547,7 +547,12 @@ static int VBoxGuestFreeBSDAttach(device_t pDevice)
              */
             rc = VBoxGuestInitDevExt(&g_DevExt, pState->uIOPortBase,
                                      pState->pMMIOBase, pState->VMMDevMemSize,
-                                     VBOXOSTYPE_FreeBSD, VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
+#if ARCH_BITS == 64
+                                     VBOXOSTYPE_FreeBSD_x64,
+#else
+                                     VBOXOSTYPE_FreeBSD,
+#endif
+                                     VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
             if (RT_SUCCESS(rc))
             {
                 /*

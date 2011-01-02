@@ -1,4 +1,4 @@
-/* $Id: libXfixes.c $ */
+/* $Id: libXfixes.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * X.Org libXfixes.so linker stub

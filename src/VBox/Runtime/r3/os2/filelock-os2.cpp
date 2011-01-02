@@ -1,4 +1,4 @@
-/* $Id: filelock-os2.cpp $ */
+/* $Id: filelock-os2.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - File Locking, OS/2.
  */
@@ -98,7 +98,7 @@ RTR3DECL(int)  RTFileChangeLock(RTFILE File, unsigned fLock, int64_t offLock, ui
 {
     /** @todo copied from ../win/fileio-win.cpp for now but a proper solution
      * would probably be to modify kLIBC so that __fcntl_locking() first
-     * assmues a change lock request is made (e.g. the same region was
+     * assumes a change lock request is made (e.g. the same region was
      * previously F_RDLCK'ed and now needs to be F_WRLCK'ed or vice versa) and
      * tries to use atomic locking, and only if it fails, it does the regular
      * lock procedure. The alternative is to use DosSetFileLocks directly here

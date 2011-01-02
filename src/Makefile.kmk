@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 34662 2010-12-02 21:51:17Z vboxsync $
 ## @file
 # Top-level makefile for the src directory.
 #
@@ -18,21 +18,27 @@
 SUB_DEPTH = ..
 include $(KBUILD_PATH)/subheader.kmk
 
-ifdef VBOX_SINGLE_MAKEFILE
-
 if defined(VBOX_ONLY_ADDITIONS)
  include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
-
-else if defined(VBOX_ONLY_TESTSUITE)
- include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
- include $(PATH_SUB_CURRENT)/tests/Makefile.kmk
 
 else if defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK)
  include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
  include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
  include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
 
-else  # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
+else if defined(VBOX_ONLY_EXTPACKS)
+ include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
+ ifndef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
+  include $(PATH_SUB_CURRENT)/recompiler/Makefile.kmk
+ endif
+
+else if defined(VBOX_ONLY_TESTSUITE)
+ include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
+
+else  # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK && !VBOX_ONLY_TESTSUITE
  include $(PATH_SUB_CURRENT)/bldprogs/Makefile.kmk
  include $(PATH_SUB_CURRENT)/VBox/Makefile.kmk
  include $(PATH_SUB_CURRENT)/libs/Makefile.kmk
@@ -48,36 +54,7 @@ else  # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS && !VBOX
  ifdef VBOX_WITH_TESTCASES
   include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
  endif
-endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK
-
-else  # !VBOX_SINGLE_MAKEFILE
-DEPTH  = ..
-include $(KBUILD_PATH)/header.kmk
-
-ifdef VBOX_ONLY_ADDITIONS
- SUBDIRS = VBox
-
-else ifdef VBOX_ONLY_DOCS
- SUBDIRS = VBox/Runtime bldprogs libs VBox
-
-else ifdef VBOX_ONLY_SDK
- SUBDIRS = bldprogs libs VBox
-
-else  # !VBOX_ONLY_ADDITIONS
- # Build IPRT first because xpcom (IPC, nspr, python) depends on it.
- SUBDIRS = VBox/Runtime	bldprogs libs VBox recompiler
- ifneq ($(wildcard apps),)
-  SUBDIRS += apps
- endif
- ifdef VBOX_WITH_TESTSUITE
-  SUBDIRS += tests
- endif
- ifdef VBOX_WITH_TESTCASES
-  SUBDIRS += testcase
- endif
-endif # !VBOX_ONLY_ADDITIONS
-
-endif # !VBOX_SINGLE_MAKEFILE
+endif # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_DOCS && !VBOX_ONLY_SDK && !VBOX_ONLY_TESTSUITE
 
 include $(KBUILD_PATH)/subfooter.kmk
 

@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-generic.cpp $ */
+/* $Id: mpnotification-r0drv-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Notifications, Ring-0 Driver, Generic Stubs.
  */

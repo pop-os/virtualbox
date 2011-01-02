@@ -1,4 +1,4 @@
-/* $Id: VBoxGlobalSettings.cpp $ */
+/* $Id: VBoxGlobalSettings.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -32,7 +32,7 @@
 
 /** @class VBoxGlobalSettingsData
  *
- *  The VBoxGlobalSettingsData class incapsulates the global settings
+ *  The VBoxGlobalSettingsData class encapsulates the global settings
  *  of the VirtualBox.
  */
 
@@ -62,8 +62,8 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData()
     maxGuestRes = "auto";
     remapScancodes = QString::null;
     trayIconEnabled = false;
-    dockPreviewEnabled = true;
     presentationModeEnabled = false;
+    hostScreenSaverDisabled = false;
 }
 
 VBoxGlobalSettingsData::VBoxGlobalSettingsData (const VBoxGlobalSettingsData &that)
@@ -75,8 +75,8 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData (const VBoxGlobalSettingsData &th
     maxGuestRes = that.maxGuestRes;
     remapScancodes = that.remapScancodes;
     trayIconEnabled = that.trayIconEnabled;
-    dockPreviewEnabled = that.dockPreviewEnabled;
     presentationModeEnabled = that.presentationModeEnabled;
+    hostScreenSaverDisabled = that.hostScreenSaverDisabled;
 }
 
 VBoxGlobalSettingsData::~VBoxGlobalSettingsData()
@@ -93,8 +93,8 @@ bool VBoxGlobalSettingsData::operator== (const VBoxGlobalSettingsData &that) con
          maxGuestRes == that.maxGuestRes &&
          remapScancodes == that.remapScancodes &&
          trayIconEnabled == that.trayIconEnabled &&
-         dockPreviewEnabled == that.dockPreviewEnabled &&
-         presentationModeEnabled == that.presentationModeEnabled
+         presentationModeEnabled == that.presentationModeEnabled &&
+         hostScreenSaverDisabled == that.hostScreenSaverDisabled
         );
 }
 
@@ -124,9 +124,9 @@ gPropertyMap[] =
     { "GUI/RemapScancodes",                        "remapScancodes",          "(\\d+=\\d+,)*\\d+=\\d+", true },
     { "GUI/TrayIcon/Enabled",                      "trayIconEnabled",         "true|false", true },
 #ifdef Q_WS_MAC
-    { VBoxDefs::GUI_RealtimeDockIconUpdateEnabled, "dockPreviewEnabled",      "true|false", true },
-    { VBoxDefs::GUI_PresentationModeEnabled,       "presentationModeEnabled", "true|false", true }
+    { VBoxDefs::GUI_PresentationModeEnabled,       "presentationModeEnabled", "true|false", true },
 #endif /* Q_WS_MAC */
+    { "GUI/HostScreenSaverDisabled",               "hostScreenSaverDisabled",     "true|false", true }
 };
 
 void VBoxGlobalSettings::setHostKey (int key)
@@ -151,11 +151,11 @@ bool VBoxGlobalSettings::isFeatureActive (const char *aFeature) const
 /**
  *  Loads the settings from the (global) extra data area of VirtualBox.
  *
- *  If an error occures while accessing extra data area, the method immediately
+ *  If an error occurs while accessing extra data area, the method immediately
  *  returns and the vbox argument will hold all error info (and therefore
  *  vbox.isOk() will be false to indicate this).
  *
- *  If an error occures while setting the value of some property, the method
+ *  If an error occurs while setting the value of some property, the method
  *  also returns immediately. #operator !() will return false in this case
  *  and #lastError() will contain the error message.
  *
@@ -181,7 +181,7 @@ void VBoxGlobalSettings::load (CVirtualBox &vbox)
 /**
  *  Saves the settings to the (global) extra data area of VirtualBox.
  *
- *  If an error occures while accessing extra data area, the method immediately
+ *  If an error occurs while accessing extra data area, the method immediately
  *  returns and the vbox argument will hold all error info (and therefore
  *  vbox.isOk() will be false to indicate this).
  */
@@ -228,7 +228,7 @@ QString VBoxGlobalSettings::publicProperty (const QString &publicName) const
  *  This method (as opposed to #setProperty (const char *name, const QVariant& value))
  *  validates the value against the property's regexp.
  *
- *  If an error occures while setting the value of the property, #operator !()
+ *  If an error occurs while setting the value of the property, #operator !()
  *  will return false after this method returns true, and #lastError() will contain
  *  the error message.
  *

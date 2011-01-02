@@ -17,12 +17,12 @@
  * 2. GLX emulation interface - the glX*() functions are emulated here.
  *    When glXCreateContext() is called we may either create a real, native
  *    GLX context or a Chromium context (depending on match_window_title and
- *    mimimum_window_size).
+ *    minimum_window_size).
  *
  * 3. WGL emulation interface - the wgl*() functions are emulated here.
  *    When wglCreateContext() is called we may either create a real, native
  *    WGL context or a Chromium context (depending on match_window_title and
- *    mimimum_window_size).
+ *    minimum_window_size).
  *
  *
  */
@@ -43,8 +43,27 @@
 #include <X11/extensions/XShm.h>
 #include <sys/shm.h>
 #include <X11/extensions/Xdamage.h>
+#include <X11/extensions/Xcomposite.h>
+#include <X11/extensions/Xfixes.h>
 #endif
 
+#if defined(WINDOWS) || defined(Linux) || defined(SunOS)
+# define CR_NEWWINTRACK
+#endif
+
+#if !defined(CHROMIUM_THREADSAFE) && defined(CR_NEWWINTRACK)
+# error CHROMIUM_THREADSAFE have to be defined
+#endif
+
+/*#define VBOX_TEST_MEGOO*/
+
+#if 0 && defined(CR_NEWWINTRACK) && !defined(WINDOWS)
+#define XLOCK(dpy) XLockDisplay(dpy)
+#define XUNLOCK(dpy) XUnlockDisplay(dpy)
+#else
+#define XLOCK(dpy)
+#define XUNLOCK(dpy)
+#endif
 
 /* When we first create a rendering context we can't be sure whether
  * it'll be handled by Chromium or as a native GLX/WGL context.  So in
@@ -139,20 +158,26 @@ struct window_info_t
     ContextInfo *pOwner;     /* ctx which created this window */
     GLboolean mapped;
 #ifdef WINDOWS
-    HDC drawable;
-    HRGN hVisibleRegion;
-    DWORD dmPelsWidth;
-    DWORD dmPelsHeight;
-    HWND  hWnd;
+    HDC      drawable;
+    HRGN     hVisibleRegion;
+    DWORD    dmPelsWidth;
+    DWORD    dmPelsHeight;
+    HWND     hWnd;
 #elif defined(DARWIN)
     CGSConnectionID connection;
     CGSWindowID  drawable;
     CGSSurfaceID surface;
 #elif defined(GLX)
     Display *dpy;
+# ifdef CR_NEWWINTRACK
+    Display *syncDpy;
+# endif
     GLXDrawable drawable;
     XRectangle *pVisibleRegions;
     GLint cVisibleRegions;
+#endif
+#ifdef CR_NEWWINTRACK
+    uint32_t u32ClientID;
 #endif
 };
 
@@ -210,11 +235,26 @@ typedef struct {
     GLboolean       bShmInitFailed;
 
     CRHashTable     *pGLXPixmapsHash;
+
+    GLboolean       bXExtensionsChecked;
+    GLboolean       bHaveXComposite;
+    GLboolean       bHaveXFixes;
 #endif
 
 #ifdef WINDOWS
-    HHOOK       hMessageHook;
+# ifndef CR_NEWWINTRACK
+    HHOOK           hMessageHook;
+# endif
+# ifdef VBOX_WITH_WDDM
+    bool            bRunningUnderWDDM;
+# endif
 #endif
+
+#ifdef CR_NEWWINTRACK
+    RTTHREAD        hSyncThread;
+    bool volatile   bShutdownSyncThread;
+#endif
+
 } Stub;
 
 
@@ -252,7 +292,9 @@ extern WindowInfo *stubGetWindowInfo( CGSWindowID drawable );
 /* GLX versions */
 extern WindowInfo *stubGetWindowInfo( Display *dpy, GLXDrawable drawable );
 extern void stubUseXFont( Display *dpy, Font font, int first, int count, int listbase );
+extern Display* stubGetWindowDisplay(WindowInfo *pWindow);
 
+extern void stubCheckXExtensions(WindowInfo *pWindow);
 #endif
 
 
@@ -260,10 +302,10 @@ extern ContextInfo *stubNewContext( const char *dpyName, GLint visBits, ContextT
 extern void stubDestroyContext( unsigned long contextId );
 extern GLboolean stubMakeCurrent( WindowInfo *window, ContextInfo *context );
 extern GLint stubNewWindow( const char *dpyName, GLint visBits );
-extern void stubSwapBuffers( const WindowInfo *window, GLint flags );
-extern void stubGetWindowGeometry( const WindowInfo *win, int *x, int *y, unsigned int *w, unsigned int *h );
+extern void stubSwapBuffers(WindowInfo *window, GLint flags);
+extern void stubGetWindowGeometry(WindowInfo *win, int *x, int *y, unsigned int *w, unsigned int *h);
 extern GLboolean stubUpdateWindowGeometry(WindowInfo *pWindow, GLboolean bForceUpdate);
-extern GLboolean stubIsWindowVisible( const WindowInfo *win );
+extern GLboolean stubIsWindowVisible(WindowInfo *win);
 extern bool stubInit(void);
 
 extern void APIENTRY stub_GetChromiumParametervCR( GLenum target, GLuint index, GLenum type, GLsizei count, GLvoid *values );

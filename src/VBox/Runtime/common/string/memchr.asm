@@ -1,4 +1,4 @@
-; $Id: memchr.asm $
+; $Id: memchr.asm 28800 2010-04-27 08:22:32Z vboxsync $
 ;; @file
 ; IPRT - No-CRT memchr - AMD64 & X86.
 ;

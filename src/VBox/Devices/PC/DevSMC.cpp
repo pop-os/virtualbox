@@ -1,4 +1,4 @@
-/* $Id: DevSMC.cpp $ */
+/* $Id: DevSMC.cpp 29569 2010-05-17 15:37:01Z vboxsync $ */
 /** @file
  * DevSMC - SMC device emulation.
  */

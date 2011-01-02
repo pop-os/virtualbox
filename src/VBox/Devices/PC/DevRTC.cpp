@@ -1,4 +1,4 @@
-/* $Id: DevRTC.cpp $ */
+/* $Id: DevRTC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Motorola MC146818 RTC/CMOS Device with PIIX4 extensions.
  */
@@ -192,8 +192,11 @@ struct RTCState {
     R3PTRTYPE(PCPDMRTCHLP) pRtcHlpR3;
     /** Number of release log entries. Used to prevent flooding. */
     uint32_t cRelLogEntries;
-    /** The current/previous timer period. Used to prevent flooding changes. */
-    int32_t CurPeriod;
+    /** The current/previous logged timer period. */
+    int32_t CurLogPeriod;
+    /** The current/previous hinted timer period. */
+    int32_t CurHintPeriod;
+    uint32_t u32AlignmentPadding;
 
     /** HPET legacy mode notification interface. */
     PDMIHPETLEGACYNOTIFY  IHpetLegacyNotify;
@@ -224,11 +227,19 @@ static void rtc_timer_update(RTCState *s, int64_t current_time)
         s->next_periodic_time = ASMMultU64ByU32DivByU32(next_irq_clock, freq, 32768) + 1;
         TMTimerSet(s->CTX_SUFF(pPeriodicTimer), s->next_periodic_time);
 
-        if (period != s->CurPeriod)
+#ifdef IN_RING3
+        if (RT_UNLIKELY(period != s->CurLogPeriod))
+#else
+        if (RT_UNLIKELY(period != s->CurHintPeriod))
+#endif
         {
+#ifdef IN_RING3
             if (s->cRelLogEntries++ < 64)
                 LogRel(("RTC: period=%#x (%d) %u Hz\n", period, period, _32K / period));
-            s->CurPeriod = period;
+            s->CurLogPeriod  = period;
+#endif
+            s->CurHintPeriod = period;
+            TMTimerSetFrequencyHint(s->CTX_SUFF(pPeriodicTimer), _32K / period);
         }
     } else {
         if (TMTimerIsActive(s->CTX_SUFF(pPeriodicTimer)) && s->cRelLogEntries++ < 64)
@@ -747,10 +758,13 @@ static DECLCALLBACK(int) rtcLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
             period_code += 7;
         int period = 1 << (period_code - 1);
         LogRel(("RTC: period=%#x (%d) %u Hz (restore)\n", period, period, _32K / period));
-        pThis->CurPeriod = period;
+        TMTimerSetFrequencyHint(pThis->CTX_SUFF(pPeriodicTimer), _32K / period);
+        pThis->CurLogPeriod  = period;
+        pThis->CurHintPeriod = period;
     } else {
         LogRel(("RTC: stopped the periodic timer (restore)\n"));
-        pThis->CurPeriod = 0;
+        pThis->CurLogPeriod  = 0;
+        pThis->CurHintPeriod = 0;
     }
     pThis->cRelLogEntries = 0;
 
@@ -849,7 +863,7 @@ static DECLCALLBACK(int)  rtcInitComplete(PPDMDEVINS pDevIns)
     Tm.tm_year = Time.i32Year - 1900;
     Tm.tm_mon  = Time.u8Month - 1;
     Tm.tm_mday = Time.u8MonthDay;
-    Tm.tm_wday = (Time.u8WeekDay + 1 + 7) % 7; /* 0 = monday -> sunday */
+    Tm.tm_wday = (Time.u8WeekDay + 1 + 7) % 7; /* 0 = Monday -> Sunday */
     Tm.tm_yday = Time.u16YearDay - 1;
     Tm.tm_hour = Time.u8Hour;
     Tm.tm_min  = Time.u8Minute;

@@ -104,6 +104,8 @@ typedef enum VMMCALLRING3
     VMMCALLRING3_VM_R0_ASSERTION,
     /** Ring switch to force preemption. */
     VMMCALLRING3_VM_R0_PREEMPT,
+    /** Sync the FTM state with the standby node. */
+    VMMCALLRING3_FTM_SET_CHECKPOINT,
     /** The usual 32-bit hack. */
     VMMCALLRING3_32BIT_HACK = 0x7fffffff
 } VMMCALLRING3;
@@ -136,6 +138,38 @@ typedef DECLCALLBACK(VBOXSTRICTRC) FNVMMEMTRENDEZVOUS(PVM pVM, PVMCPU pVCpu, voi
 /** Pointer to a rendezvous callback function. */
 typedef FNVMMEMTRENDEZVOUS *PFNVMMEMTRENDEZVOUS;
 
+/**
+ * Method table that the VMM uses to call back the user of the VMM.
+ */
+typedef struct VMM2USERMETHODS
+{
+    /** Magic value (VMM2USERMETHODS_MAGIC). */
+    uint32_t    u32Magic;
+    /** Structure version (VMM2USERMETHODS_VERSION). */
+    uint32_t    u32Version;
+
+    /**
+     * Save the VM state.
+     *
+     * @returns VBox status code.
+     * @param   pThis       Pointer to the callback method table.
+     * @param   pVM         The VM handle.
+     *
+     * @remarks This member shall be set to NULL if the operation is not
+     *          supported.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSaveState,(PCVMM2USERMETHODS pThis, PVM pVM));
+    /** @todo Move pfnVMAtError and pfnCFGMConstructor here? */
+
+    /** Magic value (VMM2USERMETHODS_MAGIC) marking the end of the structure. */
+    uint32_t    u32EndMagic;
+} VMM2USERMETHODS;
+
+/** Magic value of the VMM2USERMETHODS (Franz Kafka). */
+#define VMM2USERMETHODS_MAGIC         UINT32_C(0x18830703)
+/** The VMM2USERMETHODS structure version. */
+#define VMM2USERMETHODS_VERSION       UINT32_C(0x00010000)
+
 
 VMMDECL(RTRCPTR)     VMMGetStackRC(PVMCPU pVCpu);
 VMMDECL(VMCPUID)     VMMGetCpuId(PVM pVM);
@@ -163,37 +197,35 @@ VMMDECL(void)        VMMTrashVolatileXMMRegs(void);
  * @ingroup grp_vmm
  * @{
  */
-VMMR3DECL(int)      VMMR3Init(PVM pVM);
-VMMR3DECL(int)      VMMR3InitCPU(PVM pVM);
-VMMR3DECL(int)      VMMR3InitFinalize(PVM pVM);
-VMMR3DECL(int)      VMMR3InitR0(PVM pVM);
-VMMR3DECL(int)      VMMR3InitRC(PVM pVM);
-VMMR3DECL(int)      VMMR3Term(PVM pVM);
-VMMR3DECL(int)      VMMR3TermCPU(PVM pVM);
-VMMR3DECL(void)     VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
-VMMR3DECL(int)      VMMR3UpdateLoggers(PVM pVM);
+VMMR3_INT_DECL(int)     VMMR3Init(PVM pVM);
+VMMR3_INT_DECL(int)     VMMR3InitR0(PVM pVM);
+VMMR3_INT_DECL(int)     VMMR3InitRC(PVM pVM);
+VMMR3_INT_DECL(int)     VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
+VMMR3_INT_DECL(int)     VMMR3Term(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
+VMMR3_INT_DECL(int)     VMMR3UpdateLoggers(PVM pVM);
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM);
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM);
-VMMR3DECL(int)      VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
-VMMR3DECL(int)      VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
-VMMR3DECL(int)      VMMR3DisableSwitcher(PVM pVM);
-VMMR3DECL(RTR0PTR)  VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
-VMMR3DECL(int)      VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(int)      VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(int)      VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
-VMMR3DECL(int)      VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
-VMMR3DECL(int)      VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
-VMMR3DECL(int)      VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(void)     VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr);
-VMMR3DECL(void)     VMMR3YieldSuspend(PVM pVM);
-VMMR3DECL(void)     VMMR3YieldStop(PVM pVM);
-VMMR3DECL(void)     VMMR3YieldResume(PVM pVM);
-VMMR3DECL(void)     VMMR3SendSipi(PVM pVM, VMCPUID idCpu, uint32_t uVector);
-VMMR3DECL(void)     VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu);
-VMMR3DECL(int)      VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
-VMMR3DECL(int)      VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
-VMMR3DECL(int)      VMMR3AtomicExecuteHandler(PVM pVM, PFNATOMICHANDLER pfnHandler, void *pvUser);
-VMMR3DECL(int)      VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS pfnRendezvous, void *pvUser);
+VMMR3_INT_DECL(int)     VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
+VMMR3_INT_DECL(int)     VMMR3SelectSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
+VMMR3_INT_DECL(int)     VMMR3DisableSwitcher(PVM pVM);
+VMMR3_INT_DECL(RTR0PTR) VMMR3GetHostToGuestSwitcher(PVM pVM, VMMSWITCHER enmSwitcher);
+VMMR3_INT_DECL(int)     VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu);
+VMMR3_INT_DECL(int)     VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)          VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...);
+VMMR3DECL(int)          VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list args);
+VMMR3DECL(int)          VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVMMR0REQHDR pReqHdr);
+VMMR3DECL(int)          VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(void)         VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr);
+VMMR3_INT_DECL(void)    VMMR3YieldSuspend(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3YieldStop(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3YieldResume(PVM pVM);
+VMMR3_INT_DECL(void)    VMMR3SendSipi(PVM pVM, VMCPUID idCpu, uint32_t uVector);
+VMMR3_INT_DECL(void)    VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu);
+VMMR3DECL(int)          VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
+VMMR3DECL(int)          VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem);
+VMMR3DECL(int)          VMMR3AtomicExecuteHandler(PVM pVM, PFNATOMICHANDLER pfnHandler, void *pvUser);
+VMMR3DECL(int)          VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS pfnRendezvous, void *pvUser);
 /** @defgroup grp_VMMR3EmtRendezvous_fFlags     VMMR3EmtRendezvous flags
  *  @{ */
 /** Execution type mask. */
@@ -217,8 +249,8 @@ VMMR3DECL(int)      VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZ
 /** The valid flags. */
 #define VMMEMTRENDEZVOUS_FLAGS_VALID_MASK           UINT32_C(0x0000000f)
 /** @} */
-VMMR3DECL(int)      VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(int)      VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead);
+VMMR3_INT_DECL(int)     VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu);
+VMMR3_INT_DECL(int)     VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead);
 /** @} */
 #endif /* IN_RING3 */
 
@@ -311,6 +343,8 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_GMM_RESET_SHARED_MODULES,
     /** Call GMMR0CheckSharedModules. */
     VMMR0_DO_GMM_CHECK_SHARED_MODULES,
+    /** Call GMMR0FindDuplicatePage. */
+    VMMR0_DO_GMM_FIND_DUPLICATE_PAGE,
 
     /** Set a GVMM or GMM configuration value. */
     VMMR0_DO_GCFGM_SET_VALUE,

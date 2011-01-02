@@ -1,4 +1,4 @@
-/* $Id: DevE1000.cpp $ */
+/* $Id: DevE1000.cpp 34483 2010-11-29 17:43:40Z vboxsync $ */
 /** @file
  * DevE1000 - Intel 82540EM Ethernet Controller Emulation.
  *
@@ -42,8 +42,9 @@
 //#define E1K_INT_STATS
 //#define E1K_REL_STATS
 //#define E1K_USE_SUPLIB_SEMEVENT
+//#define E1K_WITH_MSI
 
-#include <iprt/crc32.h>
+#include <iprt/crc.h>
 #include <iprt/ctype.h>
 #include <iprt/net.h>
 #include <iprt/semaphore.h>
@@ -53,8 +54,6 @@
 #include <VBox/pdmnetifs.h>
 #include <VBox/pdmnetinline.h>
 #include <VBox/param.h>
-#include <VBox/tm.h>
-#include <VBox/vm.h>
 #include "../Builtins.h"
 
 #include "DevEEPROM.h"
@@ -146,7 +145,14 @@ struct E1kChips
 } g_Chips[] =
 {
     /* Vendor Device SSVendor SubSys  Name */
-    { 0x8086, 0x100E, 0x8086, 0x001E, "82540EM" }, /* Intel 82540EM-A in Intel PRO/1000 MT Desktop */
+    { 0x8086,
+      /* Temporary code, as MSI-aware driver dislike 0x100E. How to do that right? */
+#ifdef E1K_WITH_MSI
+      0x105E,
+#else
+      0x100E,
+#endif
+                      0x8086, 0x001E, "82540EM" }, /* Intel 82540EM-A in Intel PRO/1000 MT Desktop */
     { 0x8086, 0x1004, 0x8086, 0x1004, "82543GC" }, /* Intel 82543GC   in Intel PRO/1000 T  Server */
     { 0x8086, 0x100F, 0x15AD, 0x0750, "82545EM" }  /* Intel 82545EM-A in VMWare Network Adapter */
 };
@@ -909,8 +915,8 @@ struct E1kState_st
     PPDMINETWORKUPR3        pDrvR3;              /**< Attached network driver - R3. */
     PTMTIMERR3              pRIDTimerR3;   /**< Receive Interrupt Delay Timer - R3. */
     PTMTIMERR3              pRADTimerR3;    /**< Receive Absolute Delay Timer - R3. */
-    PTMTIMERR3              pTIDTimerR3;  /**< Tranmsit Interrupt Delay Timer - R3. */
-    PTMTIMERR3              pTADTimerR3;   /**< Tranmsit Absolute Delay Timer - R3. */
+    PTMTIMERR3              pTIDTimerR3;  /**< Transmit Interrupt Delay Timer - R3. */
+    PTMTIMERR3              pTADTimerR3;   /**< Transmit Absolute Delay Timer - R3. */
     PTMTIMERR3              pIntTimerR3;            /**< Late Interrupt Timer - R3. */
     PTMTIMERR3              pLUTimerR3;               /**< Link Up(/Restore) Timer. */
     /** The scatter / gather buffer used for the current outgoing packet - R3. */
@@ -922,8 +928,8 @@ struct E1kState_st
     PPDMINETWORKUPR0        pDrvR0;              /**< Attached network driver - R0. */
     PTMTIMERR0              pRIDTimerR0;   /**< Receive Interrupt Delay Timer - R0. */
     PTMTIMERR0              pRADTimerR0;    /**< Receive Absolute Delay Timer - R0. */
-    PTMTIMERR0              pTIDTimerR0;  /**< Tranmsit Interrupt Delay Timer - R0. */
-    PTMTIMERR0              pTADTimerR0;   /**< Tranmsit Absolute Delay Timer - R0. */
+    PTMTIMERR0              pTIDTimerR0;  /**< Transmit Interrupt Delay Timer - R0. */
+    PTMTIMERR0              pTADTimerR0;   /**< Transmit Absolute Delay Timer - R0. */
     PTMTIMERR0              pIntTimerR0;            /**< Late Interrupt Timer - R0. */
     PTMTIMERR0              pLUTimerR0;          /**< Link Up(/Restore) Timer - R0. */
     /** The scatter / gather buffer used for the current outgoing packet - R0. */
@@ -935,14 +941,17 @@ struct E1kState_st
     PPDMINETWORKUPRC        pDrvRC;              /**< Attached network driver - RC. */
     PTMTIMERRC              pRIDTimerRC;   /**< Receive Interrupt Delay Timer - RC. */
     PTMTIMERRC              pRADTimerRC;    /**< Receive Absolute Delay Timer - RC. */
-    PTMTIMERRC              pTIDTimerRC;  /**< Tranmsit Interrupt Delay Timer - RC. */
-    PTMTIMERRC              pTADTimerRC;   /**< Tranmsit Absolute Delay Timer - RC. */
+    PTMTIMERRC              pTIDTimerRC;  /**< Transmit Interrupt Delay Timer - RC. */
+    PTMTIMERRC              pTADTimerRC;   /**< Transmit Absolute Delay Timer - RC. */
     PTMTIMERRC              pIntTimerRC;            /**< Late Interrupt Timer - RC. */
     PTMTIMERRC              pLUTimerRC;          /**< Link Up(/Restore) Timer - RC. */
     /** The scatter / gather buffer used for the current outgoing packet - RC. */
     RCPTRTYPE(PPDMSCATTERGATHER) pTxSgRC;
     RTRCPTR                 RCPtrAlignment;
 
+#if HC_ARCH_BITS == 32
+    uint32_t                Alignment1;
+#endif
     PDMCRITSECT cs;                  /**< Critical section - what is it protecting? */
 #ifndef E1K_GLOBAL_MUTEX
     PDMCRITSECT csRx;                                     /**< RX Critical section. */
@@ -1530,7 +1539,7 @@ PDMBOTHCBDECL(void) e1kHardReset(E1KSTATE *pState)
     Assert(GET_BITS(RCTL, BSIZE) == 0);
     pState->u16RxBSize = 2048;
 
-    /* Reset promiscous mode */
+    /* Reset promiscuous mode */
     if (pState->pDrvR3)
         pState->pDrvR3->pfnSetPromiscuousMode(pState->pDrvR3, false);
 }
@@ -1785,7 +1794,6 @@ PDMBOTHCBDECL(int) e1kRaiseInterrupt(E1KSTATE *pState, int rcBusy, uint32_t u32I
                 /* Got at least one unmasked interrupt cause */
                 pState->fIntRaised = true;
                 /* Raise(1) INTA(0) */
-                //PDMDevHlpPCISetIrqNoWait(pState->CTXSUFF(pInst), 0, 1);
                 //e1kMutexRelease(pState);
                 E1kLogRel(("E1000: irq RAISED icr&mask=0x%x, icr=0x%x\n", ICR & IMS, ICR));
                 PDMDevHlpPCISetIrq(pState->CTX_SUFF(pDevIns), 0, 1);
@@ -1833,8 +1841,8 @@ DECLINLINE(void) e1kAdvanceRDH(E1KSTATE *pState)
     if (++RDH * sizeof(E1KRXDESC) >= RDLEN)
         RDH = 0;
     /*
-     * Compute current recieve queue length and fire RXDMT0 interrupt
-     * if we are low on recieve buffers
+     * Compute current receive queue length and fire RXDMT0 interrupt
+     * if we are low on receive buffers
      */
     uint32_t uRQueueLen = RDH>RDT ? RDLEN/sizeof(E1KRXDESC)-RDH+RDT : RDT-RDH;
     /*
@@ -2050,13 +2058,13 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
 
     if (RDH == RDT)
     {
-        E1kLog(("%s Out of recieve buffers, dropping the packet",
+        E1kLog(("%s Out of receive buffers, dropping the packet",
                 INSTANCE(pState)));
     }
     /* Store the packet to receive buffers */
     while (RDH != RDT)
     {
-        /* Load the desciptor pointed by head */
+        /* Load the descriptor pointed by head */
         E1KRXDESC desc;
         PDMDevHlpPhysRead(pState->CTX_SUFF(pDevIns), e1kDescAddr(RDBAH, RDBAL, RDH),
                           &desc, sizeof(desc));
@@ -2106,7 +2114,7 @@ static int e1kHandleRxPacket(E1KSTATE* pState, const void *pvBuf, size_t cb, E1K
     }
 
     if (cb > 0)
-        E1kLog(("%s Out of recieve buffers, dropping %u bytes", INSTANCE(pState), cb));
+        E1kLog(("%s Out of receive buffers, dropping %u bytes", INSTANCE(pState), cb));
 
     pState->led.Actual.s.fReading = 0;
 
@@ -2241,7 +2249,7 @@ static int e1kRegWriteCTRL(E1KSTATE* pState, uint32_t offset, uint32_t index, ui
 static int e1kRegWriteEECD(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
 {
 #ifdef IN_RING3
-    /* So far we are conserned with lower byte only */
+    /* So far we are concerned with lower byte only */
     if ((EECD & EECD_EE_GNT) || pState->eChip == E1K_CHIP_82543GC)
     {
         /* Access to EEPROM granted -- forward 4-wire bits to EEPROM device */
@@ -2442,7 +2450,6 @@ static int e1kRegReadICR(E1KSTATE* pState, uint32_t offset, uint32_t index, uint
                 ICR = 0;
                 pState->fIntRaised = false;
                 /* Lower(0) INTA(0) */
-                //PDMDevHlpPCISetIrqNoWait(pState->CTX_SUFF(pDevIns), 0, 0);
                 //e1kMutexRelease(pState);
                 PDMDevHlpPCISetIrq(pState->CTX_SUFF(pDevIns), 0, 0);
                 //e1kMutexAcquire(pState, RT_SRC_POS);
@@ -2566,7 +2573,7 @@ static int e1kRegWriteIMC(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
  */
 static int e1kRegWriteRCTL(E1KSTATE* pState, uint32_t offset, uint32_t index, uint32_t value)
 {
-    /* Update promiscous mode */
+    /* Update promiscuous mode */
     bool fBecomePromiscous = !!(value & (RCTL_UPE | RCTL_MPE));
     if (fBecomePromiscous != !!( RCTL & (RCTL_UPE | RCTL_MPE)))
     {
@@ -2649,7 +2656,7 @@ static int e1kRegWriteRDT(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
  *        queuing thousands of items per second here in a normal transmit
  *        scenario.  Expect performance changes when fixing this! */
 #ifdef IN_RING3
-            /* Signal that we have more receive descriptors avalable. */
+            /* Signal that we have more receive descriptors available. */
             e1kWakeupReceive(pState->CTX_SUFF(pDevIns));
 #else
             PPDMQUEUEITEMCORE pItem = PDMQueueAlloc(pState->CTX_SUFF(pCanRxQueue));
@@ -2913,7 +2920,7 @@ DECLINLINE(void) e1kSetupGsoCtx(PPDMNETWORKGSO pGso, E1KTXCTX const *pCtx)
 
     /*
      * Because of internal networking using a 16-bit size field for GSO context
-     * pluss frame, we have to make sure we don't exceed this.
+     * plus frame, we have to make sure we don't exceed this.
      */
     if (RT_UNLIKELY( pCtx->dw3.u8HDRLEN + pCtx->dw2.u20PAYLEN > VBOX_MAX_GSO_SIZE ))
     {
@@ -3276,7 +3283,7 @@ static void e1kInsertChecksum(E1KSTATE* pState, uint8_t *pPkt, uint16_t u16PktLe
 /**
  * Add a part of descriptor's buffer to transmit frame.
  *
- * @remarks data.u64BufAddr is used uncoditionally for both data
+ * @remarks data.u64BufAddr is used unconditionally for both data
  *          and legacy descriptors since it is identical to
  *          legacy.u64BufAddr.
  *
@@ -3509,7 +3516,7 @@ static bool e1kAddToFrame(E1KSTATE *pThis, RTGCPHYS PhysAddr, uint32_t cbFragmen
  * Write the descriptor back to guest memory and notify the guest.
  *
  * @param   pState      The device state structure.
- * @param   pDesc       Pointer to the descriptor have been transmited.
+ * @param   pDesc       Pointer to the descriptor have been transmitted.
  * @param   addr        Physical address of the descriptor in guest memory.
  * @thread  E1000_TX
  */
@@ -3905,7 +3912,7 @@ static int e1kRegWriteTDT(E1KSTATE* pState, uint32_t offset, uint32_t index, uin
                  INSTANCE(pState), e1kGetTxLen(pState)));
         e1kCsTxLeave(pState);
 
-        /* Transmit pending packets if possible, defere it if we cannot do it
+        /* Transmit pending packets if possible, defer it if we cannot do it
            in the current context. */
 # ifndef IN_RING3
         if (!pState->CTX_SUFF(pDrv))
@@ -5129,7 +5136,7 @@ static DECLCALLBACK(int) e1kSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutBool(pSSM, pState->fTCPcsum);
     SSMR3PutMem(pSSM, &pState->contextTSE, sizeof(pState->contextTSE));
     SSMR3PutMem(pSSM, &pState->contextNormal, sizeof(pState->contextNormal));
-/**@todo GSO requres some more state here. */
+/**@todo GSO requires some more state here. */
     E1kLog(("%s State has been saved\n", INSTANCE(pState)));
     return VINF_SUCCESS;
 }
@@ -5266,7 +5273,7 @@ static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
         return rc;
 
-    /* Update promiscous mode */
+    /* Update promiscuous mode */
     if (pState->pDrvR3)
         pState->pDrvR3->pfnSetPromiscuousMode(pState->pDrvR3,
                                              !!(RCTL & (RCTL_UPE | RCTL_MPE)));
@@ -5290,9 +5297,8 @@ static DECLCALLBACK(int) e1kLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return VINF_SUCCESS;
 }
 
-/* -=-=-=-=- PDMDEVREG -=-=-=-=- */
 
-#ifdef VBOX_DYNAMIC_NET_ATTACH
+/* -=-=-=-=- PDMDEVREG -=-=-=-=- */
 
 /**
  * Detach notification.
@@ -5326,7 +5332,6 @@ static DECLCALLBACK(void) e1kDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t 
 
     PDMCritSectLeave(&pState->cs);
 }
-
 
 /**
  * Attach the Network attachment.
@@ -5403,8 +5408,6 @@ static DECLCALLBACK(int) e1kAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t f
     return rc;
 
 }
-
-#endif /* VBOX_DYNAMIC_NET_ATTACH */
 
 /**
  * @copydoc FNPDMDEVPOWEROFF
@@ -5568,7 +5571,8 @@ static DECLCALLBACK(void) e1kConfigurePCI(PCIDEVICE& pci, E1KCHIP eChip)
 
     e1kPCICfgSetU16(pci, VBOX_PCI_COMMAND,            0x0000);
     /* DEVSEL Timing (medium device), 66 MHz Capable, New capabilities */
-    e1kPCICfgSetU16(pci, VBOX_PCI_STATUS,             0x0230);
+    e1kPCICfgSetU16(pci, VBOX_PCI_STATUS,
+                    VBOX_PCI_STATUS_DEVSEL_MEDIUM | VBOX_PCI_STATUS_CAP_LIST |  VBOX_PCI_STATUS_66MHZ);
     /* Stepping A2 */
     e1kPCICfgSetU8( pci, VBOX_PCI_REVISION_ID,          0x02);
     /* Ethernet adapter */
@@ -5594,11 +5598,12 @@ static DECLCALLBACK(void) e1kConfigurePCI(PCIDEVICE& pci, E1KCHIP eChip)
 
     /* PCI Power Management Registers ****************************************/
     /* Capability ID: PCI Power Management Registers */
-    e1kPCICfgSetU8( pci, 0xDC,                          0x01);
+    e1kPCICfgSetU8( pci, 0xDC,                           VBOX_PCI_CAP_ID_PM);
     /* Next Item Pointer: PCI-X */
     e1kPCICfgSetU8( pci, 0xDC + 1,                      0xE4);
     /* Power Management Capabilities: PM disabled, DSI */
-    e1kPCICfgSetU16(pci, 0xDC + 2,                    0x0022);
+    e1kPCICfgSetU16(pci, 0xDC + 2,
+                    0x0002 | VBOX_PCI_PM_CAP_DSI);
     /* Power Management Control / Status Register: PM disabled */
     e1kPCICfgSetU16(pci, 0xDC + 4,                    0x0000);
     /* PMCSR_BSE Bridge Support Extensions: Not supported */
@@ -5608,12 +5613,17 @@ static DECLCALLBACK(void) e1kConfigurePCI(PCIDEVICE& pci, E1KCHIP eChip)
 
     /* PCI-X Configuration Registers *****************************************/
     /* Capability ID: PCI-X Configuration Registers */
-    e1kPCICfgSetU8( pci, 0xE4,                          0x07);
+    e1kPCICfgSetU8( pci, 0xE4,                           VBOX_PCI_CAP_ID_PCIX);
+#ifdef E1K_WITH_MSI
+    e1kPCICfgSetU8( pci, 0xE4 + 1,                      0x80);
+#else
     /* Next Item Pointer: None (Message Signalled Interrupts are disabled) */
     e1kPCICfgSetU8( pci, 0xE4 + 1,                      0x00);
+#endif
     /* PCI-X Command: Enable Relaxed Ordering */
-    e1kPCICfgSetU16(pci, 0xE4 + 2,                    0x0002);
+    e1kPCICfgSetU16(pci, 0xE4 + 2,                    VBOX_PCI_X_CMD_ERO);
     /* PCI-X Status: 32-bit, 66MHz*/
+    /// @todo: is this value really correct? fff8 doesn't look like actual PCI address
     e1kPCICfgSetU32(pci, 0xE4 + 4,                0x0040FFF8);
 }
 
@@ -5749,6 +5759,19 @@ static DECLCALLBACK(int) e1kConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     rc = PDMDevHlpPCIRegister(pDevIns, &pState->pciDevice);
     if (RT_FAILURE(rc))
         return rc;
+
+#ifdef E1K_WITH_MSI
+    PDMMSIREG aMsiReg;
+    aMsiReg.cVectors = 1;
+    aMsiReg.iCapOffset = 0x80;
+    aMsiReg.iNextOffset = 0x0;
+    aMsiReg.iMsiFlags = 0;
+    rc = PDMDevHlpPCIRegisterMsi(pDevIns, &aMsiReg);
+    AssertRC(rc);
+    if (RT_FAILURE (rc))
+        return rc;
+#endif
+
 
     /* Map our registers to memory space (region 0, see e1kConfigurePCI)*/
     rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, E1K_MM_SIZE,
@@ -5963,17 +5986,10 @@ const PDMDEVREG g_DeviceE1000 =
     e1kSuspend,
     /* Resume notification - optional. */
     NULL,
-#ifdef VBOX_DYNAMIC_NET_ATTACH
     /* Attach command - optional. */
     e1kAttach,
     /* Detach notification - optional. */
     e1kDetach,
-#else /* !VBOX_DYNAMIC_NET_ATTACH */
-    /* Attach command - optional. */
-    NULL,
-    /* Detach notification - optional. */
-    NULL,
-#endif /* !VBOX_DYNAMIC_NET_ATTACH */
     /* Query a LUN base interface - optional. */
     NULL,
     /* Init complete notification - optional. */
@@ -5988,4 +6004,3 @@ const PDMDEVREG g_DeviceE1000 =
 
 #endif /* IN_RING3 */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
-

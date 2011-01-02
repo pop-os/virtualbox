@@ -1,7 +1,5 @@
-/* $Id: VirtualBoxImpl.h $ */
-
+/* $Id: VirtualBoxImpl.h 34244 2010-11-22 14:31:02Z vboxsync $ */
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
@@ -41,6 +39,9 @@ class SystemProperties;
 class DHCPServer;
 class PerformanceCollector;
 class VirtualBoxCallbackRegistration; /* see VirtualBoxImpl.cpp */
+#ifdef VBOX_WITH_EXTPACK
+class ExtPackManager;
+#endif
 
 typedef std::list< ComObjPtr<SessionMachine> > SessionMachinesList;
 
@@ -53,29 +54,25 @@ struct VMClientWatcherData;
 namespace settings
 {
     class MainConfigFile;
+    struct MediaRegistry;
 }
 
 class ATL_NO_VTABLE VirtualBox :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<VirtualBox, IVirtualBox>,
-    public VirtualBoxSupportTranslation<VirtualBox>,
     VBOX_SCRIPTABLE_IMPL(IVirtualBox)
 #ifdef RT_OS_WINDOWS
     , public CComCoClass<VirtualBox, &CLSID_VirtualBox>
-    , public IConnectionPointContainerImpl<VirtualBox>
-    , public IConnectionPointImpl<VirtualBox, &IID_IVirtualBoxCallback, CComDynamicUnkArray>
 #endif
 {
 
 public:
 
-    typedef std::list< VirtualBoxCallbackRegistration > CallbackList;
     typedef std::list< ComPtr<IInternalSessionControl> > InternalControlList;
 
     class CallbackEvent;
     friend class CallbackEvent;
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VirtualBox)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VirtualBox, IVirtualBox)
 
     DECLARE_CLASSFACTORY_SINGLETON(VirtualBox)
 
@@ -88,14 +85,7 @@ public:
         COM_INTERFACE_ENTRY2(IDispatch, IVirtualBox)
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IVirtualBox)
-        COM_INTERFACE_ENTRY(IConnectionPointContainer)
     END_COM_MAP()
-
-#ifdef RT_OS_WINDOWS
-    BEGIN_CONNECTION_POINT_MAP(VirtualBox)
-         CONNECTION_POINT_ENTRY(IID_IVirtualBoxCallback)
-    END_CONNECTION_POINT_MAP()
-#endif
 
     // to postpone generation of the default ctor/dtor
     VirtualBox();
@@ -107,76 +97,61 @@ public:
     /* public initializer/uninitializer for internal purposes only */
     HRESULT init();
     HRESULT initMachines();
-    HRESULT initMedia();
+    HRESULT initMedia(const Guid &uuidMachineRegistry,
+                      const settings::MediaRegistry mediaRegistry,
+                      const Utf8Str &strMachineFolder);
     void uninit();
 
     /* IVirtualBox properties */
-    STDMETHOD(COMGETTER(Version)) (BSTR *aVersion);
-    STDMETHOD(COMGETTER(Revision)) (ULONG *aRevision);
-    STDMETHOD(COMGETTER(PackageType)) (BSTR *aPackageType);
-    STDMETHOD(COMGETTER(HomeFolder)) (BSTR *aHomeFolder);
-    STDMETHOD(COMGETTER(SettingsFilePath)) (BSTR *aSettingsFilePath);
-    STDMETHOD(COMGETTER(Host)) (IHost **aHost);
-    STDMETHOD(COMGETTER(SystemProperties)) (ISystemProperties **aSystemProperties);
-    STDMETHOD(COMGETTER(Machines)) (ComSafeArrayOut (IMachine *, aMachines));
-    STDMETHOD(COMGETTER(HardDisks)) (ComSafeArrayOut (IMedium *, aHardDisks));
-    STDMETHOD(COMGETTER(DVDImages)) (ComSafeArrayOut (IMedium *, aDVDImages));
-    STDMETHOD(COMGETTER(FloppyImages)) (ComSafeArrayOut (IMedium *, aFloppyImages));
-    STDMETHOD(COMGETTER(ProgressOperations)) (ComSafeArrayOut (IProgress *, aOperations));
-    STDMETHOD(COMGETTER(GuestOSTypes)) (ComSafeArrayOut (IGuestOSType *, aGuestOSTypes));
-    STDMETHOD(COMGETTER(SharedFolders)) (ComSafeArrayOut (ISharedFolder *, aSharedFolders));
-    STDMETHOD(COMGETTER(PerformanceCollector)) (IPerformanceCollector **aPerformanceCollector);
-    STDMETHOD(COMGETTER(DHCPServers)) (ComSafeArrayOut (IDHCPServer *, aDHCPServers));
+    STDMETHOD(COMGETTER(Version))               (BSTR *aVersion);
+    STDMETHOD(COMGETTER(Revision))              (ULONG *aRevision);
+    STDMETHOD(COMGETTER(PackageType))           (BSTR *aPackageType);
+    STDMETHOD(COMGETTER(HomeFolder))            (BSTR *aHomeFolder);
+    STDMETHOD(COMGETTER(SettingsFilePath))      (BSTR *aSettingsFilePath);
+    STDMETHOD(COMGETTER(Host))                  (IHost **aHost);
+    STDMETHOD(COMGETTER(SystemProperties))      (ISystemProperties **aSystemProperties);
+    STDMETHOD(COMGETTER(Machines))              (ComSafeArrayOut(IMachine *, aMachines));
+    STDMETHOD(COMGETTER(HardDisks))             (ComSafeArrayOut(IMedium *, aHardDisks));
+    STDMETHOD(COMGETTER(DVDImages))             (ComSafeArrayOut(IMedium *, aDVDImages));
+    STDMETHOD(COMGETTER(FloppyImages))          (ComSafeArrayOut(IMedium *, aFloppyImages));
+    STDMETHOD(COMGETTER(ProgressOperations))    (ComSafeArrayOut(IProgress *, aOperations));
+    STDMETHOD(COMGETTER(GuestOSTypes))          (ComSafeArrayOut(IGuestOSType *, aGuestOSTypes));
+    STDMETHOD(COMGETTER(SharedFolders))         (ComSafeArrayOut(ISharedFolder *, aSharedFolders));
+    STDMETHOD(COMGETTER(PerformanceCollector))  (IPerformanceCollector **aPerformanceCollector);
+    STDMETHOD(COMGETTER(DHCPServers))           (ComSafeArrayOut(IDHCPServer *, aDHCPServers));
+    STDMETHOD(COMGETTER(EventSource))           (IEventSource ** aEventSource);
+    STDMETHOD(COMGETTER(ExtensionPackManager))  (IExtPackManager **aExtPackManager);
 
     /* IVirtualBox methods */
-
-    STDMETHOD(CreateMachine) (IN_BSTR aName, IN_BSTR aOsTypeId, IN_BSTR aBaseFolder,
-                              IN_BSTR aId, BOOL aOverride, IMachine **aMachine);
-    STDMETHOD(CreateLegacyMachine) (IN_BSTR aName, IN_BSTR aOsTypeId, IN_BSTR aSettingsFile,
-                                    IN_BSTR aId, IMachine **aMachine);
+    STDMETHOD(ComposeMachineFilename) (IN_BSTR aName, IN_BSTR aBaseFolder, BSTR *aFilename);
+    STDMETHOD(CreateMachine) (IN_BSTR aSettingsFile,
+                              IN_BSTR aName,
+                              IN_BSTR aOsTypeId,
+                              IN_BSTR aId,
+                              BOOL forceOverwrite,
+                              IMachine **aMachine);
     STDMETHOD(OpenMachine) (IN_BSTR aSettingsFile, IMachine **aMachine);
     STDMETHOD(RegisterMachine) (IMachine *aMachine);
-    STDMETHOD(GetMachine) (IN_BSTR aId, IMachine **aMachine);
-    STDMETHOD(FindMachine) (IN_BSTR aName, IMachine **aMachine);
-    STDMETHOD(UnregisterMachine) (IN_BSTR aId, IMachine **aMachine);
+    STDMETHOD(FindMachine) (IN_BSTR aNameOrId, IMachine **aMachine);
     STDMETHOD(CreateAppliance) (IAppliance **anAppliance);
 
-    STDMETHOD(CreateHardDisk)(IN_BSTR aFormat, IN_BSTR aLocation,
-                               IMedium **aHardDisk);
-    STDMETHOD(OpenHardDisk) (IN_BSTR aLocation, AccessMode_T accessMode,
-                             BOOL aSetImageId, IN_BSTR aImageId,
-                             BOOL aSetParentId, IN_BSTR aParentId,
-                             IMedium **aHardDisk);
-    STDMETHOD(GetHardDisk) (IN_BSTR aId, IMedium **aHardDisk);
-    STDMETHOD(FindHardDisk) (IN_BSTR aLocation, IMedium **aHardDisk);
-
-    STDMETHOD(OpenDVDImage) (IN_BSTR aLocation, IN_BSTR aId,
-                             IMedium **aDVDImage);
-    STDMETHOD(GetDVDImage) (IN_BSTR aId, IMedium **aDVDImage);
-    STDMETHOD(FindDVDImage) (IN_BSTR aLocation, IMedium **aDVDImage);
-
-    STDMETHOD(OpenFloppyImage) (IN_BSTR aLocation, IN_BSTR aId,
-                                IMedium **aFloppyImage);
-    STDMETHOD(GetFloppyImage) (IN_BSTR aId, IMedium **aFloppyImage);
-    STDMETHOD(FindFloppyImage) (IN_BSTR aLocation, IMedium **aFloppyImage);
+    STDMETHOD(CreateHardDisk)(IN_BSTR aFormat,
+                              IN_BSTR aLocation,
+                              IMedium **aHardDisk);
+    STDMETHOD(OpenMedium)(IN_BSTR aLocation,
+                          DeviceType_T deviceType,
+                          AccessMode_T accessMode,
+                          IMedium **aMedium);
+    STDMETHOD(FindMedium)(IN_BSTR aLocation,
+                          DeviceType_T deviceType,
+                          IMedium **aMedium);
 
     STDMETHOD(GetGuestOSType) (IN_BSTR aId, IGuestOSType **aType);
-    STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable);
+    STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
     STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
     STDMETHOD(GetExtraDataKeys) (ComSafeArrayOut(BSTR, aKeys));
     STDMETHOD(GetExtraData) (IN_BSTR aKey, BSTR *aValue);
     STDMETHOD(SetExtraData) (IN_BSTR aKey, IN_BSTR aValue);
-    STDMETHOD(OpenSession) (ISession *aSession, IN_BSTR aMachineId);
-    STDMETHOD(OpenRemoteSession) (ISession *aSession, IN_BSTR aMachineId,
-                                  IN_BSTR aType, IN_BSTR aEnvironment,
-                                  IProgress **aProgress);
-    STDMETHOD(OpenExistingSession) (ISession *aSession, IN_BSTR aMachineId);
-
-    STDMETHOD(RegisterCallback) (IVirtualBoxCallback *aCallback);
-    STDMETHOD(UnregisterCallback) (IVirtualBoxCallback *aCallback);
-
-    STDMETHOD(WaitForPropertyChange) (IN_BSTR aWhat, ULONG aTimeout,
-                                      BSTR *aChanged, BSTR *aValues);
 
     STDMETHOD(CreateDHCPServer) (IN_BSTR aName, IDHCPServer ** aServer);
     STDMETHOD(FindDHCPServerByNetworkName) (IN_BSTR aName, IDHCPServer ** aServer);
@@ -185,16 +160,6 @@ public:
                                     BSTR * aUrl, BSTR * aFile, BOOL * aResult);
 
     /* public methods only for internal purposes */
-
-    /**
-     * Simple run-time type identification without having to enable C++ RTTI.
-     * The class IDs are defined in VirtualBoxBase.h.
-     * @return
-     */
-    virtual VBoxClsID getClassID() const
-    {
-        return clsidVirtualBox;
-    }
 
     /**
      * Override of the default locking class to be used for validating lock
@@ -225,8 +190,6 @@ public:
     void addProcessToReap (RTPROCESS pid);
     void updateClientWatcher();
 
-    void removeDeadCallback(const ComPtr<IVirtualBoxCallback> &aCallback);
-
     void onMachineStateChange(const Guid &aId, MachineState_T aState);
     void onMachineDataChange(const Guid &aId);
     BOOL onExtraDataCanChange(const Guid &aId, IN_BSTR aKey, IN_BSTR aValue,
@@ -241,56 +204,80 @@ public:
     void onGuestPropertyChange(const Guid &aMachineId, IN_BSTR aName, IN_BSTR aValue,
                                IN_BSTR aFlags);
     void onMachineUninit(Machine *aMachine);
+    void onNatRedirectChange(const Guid &aMachineId, ULONG ulSlot, bool fRemove, IN_BSTR aName,
+                                   NATProtocol_T aProto, IN_BSTR aHostIp, uint16_t aHostPort,
+                                   IN_BSTR aGuestIp, uint16_t aGuestPort);
 
     ComObjPtr<GuestOSType> getUnknownOSType();
 
     void getOpenedMachines(SessionMachinesList &aMachines,
                            InternalControlList *aControls = NULL);
 
-    bool isMachineIdValid(const Guid &aId)
-    {
-        return SUCCEEDED(findMachine(aId, false /* aSetError */, NULL));
-    }
+    HRESULT findMachine(const Guid &aId,
+                        bool fPermitInaccessible,
+                        bool aSetError,
+                        ComObjPtr<Machine> *machine = NULL);
 
-    HRESULT findMachine (const Guid &aId, bool aSetError,
-                         ComObjPtr<Machine> *machine = NULL);
-
-    HRESULT findHardDisk(const Guid *aId, CBSTR aLocation,
-                          bool aSetError, ComObjPtr<Medium> *aHardDisk = NULL);
-    HRESULT findDVDImage(const Guid *aId, CBSTR aLocation,
-                         bool aSetError, ComObjPtr<Medium> *aImage = NULL);
-    HRESULT findFloppyImage(const Guid *aId, CBSTR aLocation,
-                            bool aSetError, ComObjPtr<Medium> *aImage = NULL);
+    HRESULT findHardDiskById(const Guid &id,
+                             bool aSetError,
+                             ComObjPtr<Medium> *aHardDisk = NULL);
+    HRESULT findHardDiskByLocation(const Utf8Str &strLocation,
+                                   bool aSetError,
+                                   ComObjPtr<Medium> *aHardDisk = NULL);
+    HRESULT findDVDOrFloppyImage(DeviceType_T mediumType,
+                                 const Guid *aId,
+                                 const Utf8Str &aLocation,
+                                 bool aSetError,
+                                 ComObjPtr<Medium> *aImage = NULL);
+    HRESULT findRemoveableMedium(DeviceType_T mediumType,
+                                 const Guid &uuid,
+                                 bool fRefresh,
+                                 ComObjPtr<Medium> &pMedium);
 
     HRESULT findGuestOSType(const Bstr &bstrOSType,
                             GuestOSType*& pGuestOSType);
 
+    const Guid& getGlobalRegistryId() const;
+
     const ComObjPtr<Host>& host() const;
-    const ComObjPtr<SystemProperties>& systemProperties() const;
+    SystemProperties* getSystemProperties() const;
+#ifdef VBOX_WITH_EXTPACK
+    ExtPackManager* getExtPackManager() const;
+#endif
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
     const ComObjPtr<PerformanceCollector>& performanceCollector() const;
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
-    const Utf8Str& getDefaultMachineFolder() const;
-    const Utf8Str& getDefaultHardDiskFolder() const;
-    const Utf8Str& getDefaultHardDiskFormat() const;
+    void getDefaultMachineFolder(Utf8Str &str) const;
+    void getDefaultHardDiskFormat(Utf8Str &str) const;
 
     /** Returns the VirtualBox home directory */
     const Utf8Str& homeDir() const;
 
     int calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult);
-    void calculateRelativePath(const Utf8Str &strPath, Utf8Str &aResult);
+    void copyPathRelativeToConfig(const Utf8Str &strSource, Utf8Str &strTarget);
 
-    HRESULT registerHardDisk(Medium *aHardDisk, bool *pfNeedsSaveSettings);
-    HRESULT unregisterHardDisk(Medium *aHardDisk, bool *pfNeedsSaveSettings);
+    HRESULT registerHardDisk(Medium *aHardDisk, GuidList *pllRegistriesThatNeedSaving);
+    HRESULT unregisterHardDisk(Medium *aHardDisk, GuidList *pllRegistriesThatNeedSaving);
 
-    HRESULT registerImage(Medium *aImage, DeviceType_T argType, bool *pfNeedsSaveSettings);
-    HRESULT unregisterImage(Medium *aImage, DeviceType_T argType, bool *pfNeedsSaveSettings);
+    HRESULT registerImage(Medium *aImage, DeviceType_T argType, GuidList *pllRegistriesThatNeedSaving);
+    HRESULT unregisterImage(Medium *aImage, DeviceType_T argType, GuidList *pllRegistriesThatNeedSaving);
+
+    void pushMediumToListWithChildren(MediaList &llMedia, Medium *pMedium);
+    HRESULT unregisterMachineMedia(const Guid &id);
+
+    HRESULT unregisterMachine(Machine *pMachine, const Guid &id);
 
     void rememberMachineNameChangeForMedia(const Utf8Str &strOldConfigDir,
                                            const Utf8Str &strNewConfigDir);
 
+    void saveMediaRegistry(settings::MediaRegistry &mediaRegistry,
+                           const Guid &uuidRegistry,
+                           const Utf8Str &strMachineFolder);
     HRESULT saveSettings();
+
+    void addGuidToListUniquely(GuidList &llRegistriesThatNeedSaving, Guid uuid);
+    HRESULT saveRegistries(const GuidList &llRegistriesThatNeedSaving);
 
     static HRESULT ensureFilePathExists(const Utf8Str &strFileName);
 
@@ -300,15 +287,20 @@ public:
 
     RWLockHandle& getMediaTreeLockHandle();
 
-    /* for VirtualBoxSupportErrorInfoImpl */
-    static const wchar_t *getComponentName() { return L"VirtualBox"; }
-
 private:
 
-    HRESULT checkMediaForConflicts2(const Guid &aId, const Utf8Str &aLocation,
-                                    Utf8Str &aConflictType);
+    static HRESULT setErrorStatic(HRESULT aResultCode,
+                                  const Utf8Str &aText)
+    {
+        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
+    }
 
-    HRESULT registerMachine (Machine *aMachine);
+    HRESULT checkMediaForConflicts(const Guid &aId,
+                                   const Utf8Str &aLocation,
+                                   Utf8Str &aConflictType,
+                                   bool &fIdentical);
+
+    HRESULT registerMachine(Machine *aMachine);
 
     HRESULT registerDHCPServer(DHCPServer *aDHCPServer,
                                bool aSaveRegistry = true);
@@ -334,3 +326,4 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 #endif // !____H_VIRTUALBOXIMPL
+

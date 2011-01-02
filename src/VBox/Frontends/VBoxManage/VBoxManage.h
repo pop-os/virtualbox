@@ -1,4 +1,4 @@
-/* $Id: VBoxManage.h $ */
+/* $Id: VBoxManage.h 35239 2010-12-20 12:45:14Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox command-line interface, internal header file.
  */
@@ -26,6 +26,8 @@
 #endif /* !VBOX_ONLY_DOCS */
 
 #include <iprt/types.h>
+#include <iprt/message.h>
+#include <iprt/stream.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -46,13 +48,11 @@
 #define USAGE_CONTROLVM             RT_BIT_64(7)
 #define USAGE_DISCARDSTATE          RT_BIT_64(8)
 #define USAGE_SNAPSHOT              RT_BIT_64(9)
-#define USAGE_OPENMEDIUM            RT_BIT_64(10)
 #define USAGE_CLOSEMEDIUM           RT_BIT_64(11)
 #define USAGE_SHOWHDINFO            RT_BIT_64(12)
 #define USAGE_CREATEHD              RT_BIT_64(13)
 #define USAGE_MODIFYHD              RT_BIT_64(14)
 #define USAGE_CLONEHD               RT_BIT_64(15)
-#define USAGE_ADDISCSIDISK          RT_BIT_64(16)
 #define USAGE_CREATEHOSTIF          RT_BIT_64(17)
 #define USAGE_REMOVEHOSTIF          RT_BIT_64(18)
 #define USAGE_GETEXTRADATA          RT_BIT_64(19)
@@ -71,13 +71,13 @@
 #define USAGE_CONVERTFROMRAW        RT_BIT_64(32)
 #define USAGE_LISTPARTITIONS        RT_BIT_64(33)
 #define USAGE_CREATERAWVMDK         RT_BIT_64(34)
-#define USAGE_VM_STATISTICS         RT_BIT_64(35)
+#define USAGE_DEBUGVM               RT_BIT_64(35)
 #define USAGE_ADOPTSTATE            RT_BIT_64(36)
 #define USAGE_MODINSTALL            RT_BIT_64(37)
 #define USAGE_MODUNINSTALL          RT_BIT_64(38)
 #define USAGE_RENAMEVMDK            RT_BIT_64(39)
 #ifdef VBOX_WITH_GUEST_PROPS
-#define USAGE_GUESTPROPERTY         RT_BIT_64(40)
+# define USAGE_GUESTPROPERTY        RT_BIT_64(40)
 #endif  /* VBOX_WITH_GUEST_PROPS defined */
 #define USAGE_CONVERTTORAW          RT_BIT_64(41)
 #define USAGE_METRICS               RT_BIT_64(42)
@@ -90,8 +90,13 @@
 #define USAGE_STORAGEATTACH         RT_BIT_64(49)
 #define USAGE_STORAGECONTROLLER     RT_BIT_64(50)
 #ifdef VBOX_WITH_GUEST_CONTROL
-#define USAGE_GUESTCONTROL          RT_BIT_64(51)
+# define USAGE_GUESTCONTROL         RT_BIT_64(51)
 #endif  /* VBOX_WITH_GUEST_CONTROL defined */
+#define USAGE_DEBUGLOG              RT_BIT_64(52)
+#define USAGE_SETHDPARENTUUID       RT_BIT_64(53)
+#define USAGE_PASSWORDHASH          RT_BIT_64(54)
+#define USAGE_EXTPACK               RT_BIT_64(55)
+#define USAGE_BANDWIDTHCONTROL      RT_BIT_64(56)
 #define USAGE_ALL                   (~(uint64_t)0)
 /** @} */
 
@@ -137,19 +142,19 @@ extern bool g_fDetailedProgress;        // in VBoxManage.cpp
 ////////////////////////////////////////////////////////////////////////////////
 
 /* VBoxManageHelp.cpp */
-void printUsage(USAGECATEGORY u64Cmd);
-int errorSyntax(USAGECATEGORY u64Cmd, const char *pszFormat, ...);
-int errorGetOpt(USAGECATEGORY u64Cmd, int rc, union RTGETOPTUNION const *pValueUnion);
-int errorArgument(const char *pszFormat, ...);
+void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm);
+RTEXITCODE errorSyntax(USAGECATEGORY u64Cmd, const char *pszFormat, ...);
+RTEXITCODE errorGetOpt(USAGECATEGORY u64Cmd, int rc, union RTGETOPTUNION const *pValueUnion);
+RTEXITCODE errorArgument(const char *pszFormat, ...);
 
-void printUsageInternal(USAGECATEGORY u64Cmd);
+void printUsageInternal(USAGECATEGORY u64Cmd, PRTSTREAM pStrm);
 
 #ifndef VBOX_ONLY_DOCS
 HRESULT showProgress(ComPtr<IProgress> progress);
 #endif
 
 /* VBoxManage.cpp */
-void showLogo(void);
+void showLogo(PRTSTREAM pStrm);
 
 #ifndef VBOX_ONLY_DOCS
 int handleInternalCommands(HandlerArg *a);
@@ -161,11 +166,14 @@ int handleControlVM(HandlerArg *a);
 /* VBoxManageModifyVM.cpp */
 int handleModifyVM(HandlerArg *a);
 
+/* VBoxManageDebugVM.cpp */
+int handleDebugVM(HandlerArg *a);
+
 /* VBoxManageGuestProp.cpp */
-extern void usageGuestProperty(void);
+extern void usageGuestProperty(PRTSTREAM pStrm);
 
 /* VBoxManageGuestCtrl.cpp */
-extern void usageGuestControl(void);
+extern void usageGuestControl(PRTSTREAM pStrm);
 
 #ifndef VBOX_ONLY_DOCS
 /* VBoxManageGuestProp.cpp */
@@ -203,17 +211,22 @@ int handleGetExtraData(HandlerArg *a);
 int handleSetExtraData(HandlerArg *a);
 int handleSetProperty(HandlerArg *a);
 int handleSharedFolder(HandlerArg *a);
-int handleVMStatistics(HandlerArg *a);
+int handleExtPack(HandlerArg *a);
 
 /* VBoxManageDisk.cpp */
+HRESULT findMedium(HandlerArg *a, const char *pszFilenameOrUuid,
+                   DeviceType_T enmDevType, bool fSilent,
+                   ComPtr<IMedium> &pMedium);
+HRESULT findOrOpenMedium(HandlerArg *a, const char *pszFilenameOrUuid,
+                         DeviceType_T enmDevType, ComPtr<IMedium> &pMedium,
+                         bool *pfWasUnknown);
 int handleCreateHardDisk(HandlerArg *a);
 int handleModifyHardDisk(HandlerArg *a);
 int handleCloneHardDisk(HandlerArg *a);
-int handleConvertFromRaw(int argc, char *argv[]);
-int handleAddiSCSIDisk(HandlerArg *a);
+RTEXITCODE handleConvertFromRaw(int argc, char *argv[]);
 int handleShowHardDiskInfo(HandlerArg *a);
-int handleOpenMedium(HandlerArg *a);
 int handleCloseMedium(HandlerArg *a);
+int parseDiskType(const char *psz, MediumType_T *pDiskType);
 
 /* VBoxManageStorageController.cpp */
 int handleStorageAttach(HandlerArg *a);
@@ -234,6 +247,9 @@ int handleHostonlyIf(HandlerArg *a);
 
 /* VBoxManageHostonly.cpp */
 int handleDHCPServer(HandlerArg *a);
+
+/* VBoxManageBandwidthControl.cpp */
+int handleBandwidthControl(HandlerArg *a);
 
 #endif /* !VBOX_ONLY_DOCS */
 

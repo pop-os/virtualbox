@@ -1,4 +1,4 @@
-/* $Id: crc32.cpp $ */
+/* $Id: crc32.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - CRC32.
  */
@@ -48,7 +48,7 @@
  *  order from highest-order term to lowest-order term.  UARTs transmit
  *  characters in order from LSB to MSB.  By storing the CRC this way
  *  we hand it to the UART in the order low-byte to high-byte; the UART
- *  sends each low-bit to hight-bit; and the result is transmission bit
+ *  sends each low-bit to height-bit; and the result is transmission bit
  *  by bit from highest- to lowest-order term without requiring any bit
  *  shuffling on our part.  Reception works similarly
  *
@@ -74,7 +74,7 @@ __FBSDID("$FreeBSD: src/sys/libkern/crc32.c,v 1.2 2003/06/11 05:23:04 obrien Exp
 #include <sys/param.h>
 #include <sys/systm.h>
 #else
-# include <iprt/crc32.h>
+# include <iprt/crc.h>
 # include "internal/iprt.h"
 #endif
 

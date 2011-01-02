@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 34801 2010-12-07 16:25:14Z vboxsync $
 ## @file
 # Sub-Makefile for the common guest addition code library.
 #
@@ -44,6 +44,7 @@ ifndef VBOX_ONLY_TESTSUITE
   	VBoxGuestR3LibXFree86
  endif
 endif
+LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86
 
 
 #
@@ -60,9 +61,8 @@ VBoxGuestR0Lib_SOURCES      = \
 	Init.cpp \
 	VMMDev.cpp \
 	HGCM.cpp \
-	VBoxCalls.c \
+	VBoxGuestR0LibSharedFolders.c \
 	VbglR0CanUsePhysPageList.cpp
-
 
 #
 # VBoxGuestR0LibBase
@@ -87,12 +87,14 @@ VBoxGuestR3Lib_TEMPLATE    = VBOXGUESTR3LIB
 VBoxGuestR3Lib_DEFS        = \
 	VBOX_WITH_HGCM \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,) \
+	$(if $(VBOX_WITH_SHARED_FOLDERS),VBOX_WITH_SHARED_FOLDERS,) \
 	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL,)
 VBoxGuestR3Lib_SOURCES     = \
 	VBoxGuestR3Lib.cpp \
 	VBoxGuestR3LibAdditions.cpp \
 	VBoxGuestR3LibBalloon.cpp \
 	VBoxGuestR3LibClipboard.cpp \
+	VBoxGuestR3LibCoreDump.cpp \
 	VBoxGuestR3LibCpuHotPlug.cpp \
 	VBoxGuestR3LibCredentials.cpp \
 	VBoxGuestR3LibEvent.cpp \
@@ -114,6 +116,10 @@ ifdef VBOX_WITH_GUEST_PROPS
  	VBoxGuestR3LibGuestProp.cpp \
  	VBoxGuestR3LibHostVersion.cpp
 endif
+ifdef VBOX_WITH_SHARED_FOLDERS
+ VBoxGuestR3Lib_SOURCES   += \
+ 	VBoxGuestR3LibSharedFolders.cpp
+endif
 ifdef VBOX_WITH_GUEST_CONTROL
  VBoxGuestR3Lib_SOURCES   += \
  	VBoxGuestR3LibGuestCtrl.cpp
@@ -131,19 +137,23 @@ VBoxGuestR3LibShared_INST    := $(INST_ADDITIONS_LIB)
 
 
 #
+# VBoxGuestR3Lib-x86 - an x86 (32-bit) variant of VBoxGuestR3Lib for 64-bit Windows.
+#
+VBoxGuestR3Lib-x86_EXTENDS      := VBoxGuestR3Lib
+VBoxGuestR3Lib-x86_BLD_TRG_ARCH := x86
+
+
+#
 # VBoxGuestR3LibXFree86 - a reduced version of the guest library which uses
 # the X server runtime instead of IPRT, for use with old servers where the
 # C library is not available.
 #
-## @todo We're quite probably using the wrong template here.
-VBoxGuestR3LibXFree86_TEMPLATE = VBOXGUESTR3LIB
+VBoxGuestR3LibXFree86_TEMPLATE = VBOXGUESTR3XF86LIB
 VBoxGuestR3LibXFree86_DEFS     = \
 	VBOX_WITH_HGCM \
 	VBOX_VBGLR3_XFREE86 \
 	RTMEM_NO_WRAP_TO_EF_APIS \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBOX_WITH_GUEST_PROPS,)
-VBoxGuestR3LibXFree86_CXXFLAGS = \
-	$(VBOX_GCC_fno-stack-protector) -ffreestanding
 VBoxGuestR3LibXFree86_SOURCES  = \
 	VBoxGuestR3Lib.cpp \
 	VBoxGuestR3LibGR.cpp \

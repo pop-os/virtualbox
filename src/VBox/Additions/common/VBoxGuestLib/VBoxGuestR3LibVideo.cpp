@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibVideo.cpp $ */
+/* $Id: VBoxGuestR3LibVideo.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Video.
  */
@@ -98,7 +98,12 @@ VBGLR3DECL(int) VbglR3VideoAccelFlush(void)
 VBGLR3DECL(int) VbglR3SetPointerShape(uint32_t fFlags, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvImg, size_t cbImg)
 {
     VMMDevReqMousePointer *pReq;
-    int rc = vbglR3GRAlloc((VMMDevRequestHeader **)&pReq, RT_OFFSETOF(VMMDevReqMousePointer, pointerData) + cbImg, VMMDevReq_SetPointerShape);
+    size_t cbReq = vmmdevGetMousePointerReqSize(cx, cy);
+    AssertReturn(   !pvImg
+                 || cbReq == RT_OFFSETOF(VMMDevReqMousePointer, pointerData) + cbImg,
+                 VERR_INVALID_PARAMETER);
+    int rc = vbglR3GRAlloc((VMMDevRequestHeader **)&pReq, cbReq,
+                           VMMDevReq_SetPointerShape);
     if (RT_SUCCESS(rc))
     {
         pReq->fFlags = fFlags;
@@ -110,9 +115,9 @@ VBGLR3DECL(int) VbglR3SetPointerShape(uint32_t fFlags, uint32_t xHot, uint32_t y
             memcpy(pReq->pointerData, pvImg, cbImg);
 
         rc = vbglR3GRPerform(&pReq->header);
-        vbglR3GRFree(&pReq->header);
         if (RT_SUCCESS(rc))
             rc = pReq->header.rc;
+        vbglR3GRFree(&pReq->header);
     }
     return rc;
 }
@@ -149,10 +154,10 @@ VBGLR3DECL(int) VbglR3SetPointerShapeReq(VMMDevReqMousePointer *pReq)
  * @param   iDisplay    Where to store the display number the request was for
  *                      - 0 for the primary display, 1 for the first
  *                      secondary display, etc.
- * @param   fAck        whether or not to acknowlege the newest request sent by
+ * @param   fAck        whether or not to acknowledge the newest request sent by
  *                      the host.  If this is set, the function will return the
  *                      most recent host request, otherwise it will return the
- *                      last request to be acknowleged.
+ *                      last request to be acknowledged.
  *
  */
 VBGLR3DECL(int) VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits, uint32_t *piDisplay, bool fAck)
@@ -253,7 +258,7 @@ VBGLR3DECL(int) VbglR3RetrieveVideoMode(const char *pszName, uint32_t *pcx, uint
     using namespace guestProp;
 
 /*
- * First we retreive the video mode which is saved as a string in the
+ * First we retrieve the video mode which is saved as a string in the
  * guest property store.
  */
     /* The buffer for VbglR3GuestPropReadValue.  If this is too small then

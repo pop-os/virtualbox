@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHelp.cpp $ */
+/* $Id: VBoxManageHelp.cpp 35194 2010-12-16 15:36:09Z vboxsync $ */
 /** @file
  * VBoxManage - help and other message output.
  */
@@ -21,6 +21,7 @@
 *******************************************************************************/
 #include <VBox/version.h>
 
+#include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
 #include <iprt/err.h>
 #include <iprt/getopt.h>
@@ -30,22 +31,22 @@
 
 
 
-void showLogo(void)
+void showLogo(PRTSTREAM pStrm)
 {
     static bool s_fShown; /* show only once */
 
     if (!s_fShown)
     {
-        RTPrintf(VBOX_PRODUCT" Command Line Management Interface Version "
-                 VBOX_VERSION_STRING  "\n"
-                 "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                 "All rights reserved.\n"
-                 "\n");
+        RTStrmPrintf(pStrm, VBOX_PRODUCT " Command Line Management Interface Version "
+                     VBOX_VERSION_STRING "\n"
+                     "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+                     "All rights reserved.\n"
+                     "\n");
         s_fShown = true;
     }
 }
 
-void printUsage(USAGECATEGORY u64Cmd)
+void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
 {
     bool fDumpOpts = false;
 #ifdef RT_OS_LINUX
@@ -73,11 +74,6 @@ void printUsage(USAGECATEGORY u64Cmd)
 #else
     bool fDarwin = false;
 #endif
-#ifdef VBOX_WITH_VRDP
-    bool fVRDP = true;
-#else
-    bool fVRDP = false;
-#endif
 #ifdef VBOX_WITH_VBOXSDL
     bool fVBoxSDL = true;
 #else
@@ -92,668 +88,690 @@ void printUsage(USAGECATEGORY u64Cmd)
         fSolaris = true;
         fFreeBSD = true;
         fDarwin = true;
-        fVRDP = true;
         fVBoxSDL = true;
         u64Cmd = USAGE_ALL;
     }
 
-    RTPrintf("Usage:\n"
-             "\n");
+    RTStrmPrintf(pStrm,
+                 "Usage:\n"
+                 "\n");
 
     if (u64Cmd == USAGE_ALL)
-    {
-        RTPrintf("VBoxManage [-v|--version]    print version number and exit\n"
-                 "VBoxManage [-q|--nologo] ... suppress the logo\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage [-v|--version]    print version number and exit\n"
+                     "VBoxManage [-q|--nologo] ... suppress the logo\n"
+                     "\n");
 
     if (u64Cmd & USAGE_LIST)
-    {
-        RTPrintf("VBoxManage list [--long|-l] vms|runningvms|ostypes|hostdvds|hostfloppies|\n"
+        RTStrmPrintf(pStrm,
+                     "VBoxManage list [--long|-l] vms|runningvms|ostypes|hostdvds|hostfloppies|\n"
 #if defined(VBOX_WITH_NETFLT)
-                 "                            bridgedifs|hostonlyifs|dhcpservers|hostinfo|\n"
+                     "                            bridgedifs|hostonlyifs|dhcpservers|hostinfo|\n"
 #else
-                 "                            bridgedifs|dhcpservers|hostinfo|\n"
+                     "                            bridgedifs|dhcpservers|hostinfo|\n"
 #endif
-                 "                            hostcpuids|hddbackends|hdds|dvds|floppies|\n"
-                 "                            usbhost|usbfilters|systemproperties\n"
-                 "\n");
-    }
+                     "                            hostcpuids|hddbackends|hdds|dvds|floppies|\n"
+                     "                            usbhost|usbfilters|systemproperties|extpacks\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SHOWVMINFO)
-    {
-        RTPrintf("VBoxManage showvminfo       <uuid>|<name> [--details] [--statistics]\n"
-                 "                            [--machinereadable]\n"
-                 "VBoxManage showvminfo       <uuid>|<name> --log <idx>\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage showvminfo       <uuid>|<name> [--details] [--statistics]\n"
+                     "                            [--machinereadable]\n"
+                     "VBoxManage showvminfo       <uuid>|<name> --log <idx>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_REGISTERVM)
-    {
-        RTPrintf("VBoxManage registervm       <filename>\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage registervm       <filename>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_UNREGISTERVM)
-    {
-        RTPrintf("VBoxManage unregistervm     <uuid>|<name> [--delete]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage unregistervm     <uuid>|<name> [--delete]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_CREATEVM)
-    {
-        RTPrintf("VBoxManage createvm         --name <name>\n"
-                 "                            [--ostype <ostype>]\n"
-                 "                            [--register]\n"
-                 "                            [--basefolder <path> | --settingsfile <path>]\n"
-                 "                            [--uuid <uuid>]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage createvm         --name <name>\n"
+                     "                            [--ostype <ostype>]\n"
+                     "                            [--register]\n"
+                     "                            [--basefolder <path> | --settingsfile <path>]\n"
+                     "                            [--uuid <uuid>]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_MODIFYVM)
     {
-        RTPrintf("VBoxManage modifyvm         <uuid|name>\n"
-                 "                            [--name <name>]\n"
-                 "                            [--ostype <ostype>]\n"
-                 "                            [--memory <memorysize in MB>]\n"
-                 "                            [--pagefusion on|off]\n"
-                 "                            [--vram <vramsize in MB>]\n"
-                 "                            [--acpi on|off]\n"
-                 "                            [--ioapic on|off]\n"
-                 "                            [--pae on|off]\n"
-                 "                            [--hpet on|off]\n"
-                 "                            [--hwvirtex on|off]\n"
-                 "                            [--hwvirtexexcl on|off]\n"
-                 "                            [--nestedpaging on|off]\n"
-                 "                            [--largepages on|off]\n"
-                 "                            [--vtxvpid on|off]\n"
-                 "                            [--synthcpu on|off]\n"
-                 "                            [--cpuidset <leaf> <eax> <ebx> <ecx> <edx>]\n"
-                 "                            [--cpuidremove <leaf>]\n"
-                 "                            [--cpuidremoveall]\n"
-                 "                            [--hardwareuuid <uuid>]\n"
-                 "                            [--cpus <number>]\n"
-                 "                            [--cpuhotplug on|off]\n"
-                 "                            [--plugcpu <id>]\n"
-                 "                            [--unplugcpu <id>]\n"
-                 "                            [--rtcuseutc on|off]\n"
-                 "                            [--monitorcount <number>]\n"
-                 "                            [--accelerate3d on|off]\n"
+        RTStrmPrintf(pStrm,
+                     "VBoxManage modifyvm         <uuid|name>\n"
+                     "                            [--name <name>]\n"
+                     "                            [--ostype <ostype>]\n"
+                     "                            [--memory <memorysize in MB>]\n"
+                     "                            [--pagefusion on|off]\n"
+                     "                            [--vram <vramsize in MB>]\n"
+                     "                            [--acpi on|off]\n"
+                     "                            [--ioapic on|off]\n"
+                     "                            [--pae on|off]\n"
+                     "                            [--hpet on|off]\n"
+                     "                            [--hwvirtex on|off]\n"
+                     "                            [--hwvirtexexcl on|off]\n"
+                     "                            [--nestedpaging on|off]\n"
+                     "                            [--largepages on|off]\n"
+                     "                            [--vtxvpid on|off]\n"
+                     "                            [--synthcpu on|off]\n"
+                     "                            [--cpuidset <leaf> <eax> <ebx> <ecx> <edx>]\n"
+                     "                            [--cpuidremove <leaf>]\n"
+                     "                            [--cpuidremoveall]\n"
+                     "                            [--hardwareuuid <uuid>]\n"
+                     "                            [--cpus <number>]\n"
+                     "                            [--cpuhotplug on|off]\n"
+                     "                            [--plugcpu <id>]\n"
+                     "                            [--unplugcpu <id>]\n"
+                     "                            [--cpuexecutioncap <1-100>]\n"
+                     "                            [--rtcuseutc on|off]\n"
+                     "                            [--monitorcount <number>]\n"
+                     "                            [--accelerate3d on|off]\n"
 #ifdef VBOX_WITH_VIDEOHWACCEL
-                 "                            [--accelerate2dvideo on|off]\n"
+                     "                            [--accelerate2dvideo on|off]\n"
 #endif
-                 "                            [--firmware bios|efi|efi32|efi64]\n"
-                 "                            [--bioslogofadein on|off]\n"
-                 "                            [--bioslogofadeout on|off]\n"
-                 "                            [--bioslogodisplaytime <msec>]\n"
-                 "                            [--bioslogoimagepath <imagepath>]\n"
-                 "                            [--biosbootmenu disabled|menuonly|messageandmenu]\n"
-                 "                            [--biossystemtimeoffset <msec>]\n"
-                 "                            [--biospxedebug on|off]\n"
-                 "                            [--boot<1-4> none|floppy|dvd|disk|net>]\n"
-                 "                            [--nic<1-N> none|null|nat|bridged|intnet"
+                     "                            [--firmware bios|efi|efi32|efi64]\n"
+                     "                            [--chipset ich9|piix3]\n"
+                     "                            [--bioslogofadein on|off]\n"
+                     "                            [--bioslogofadeout on|off]\n"
+                     "                            [--bioslogodisplaytime <msec>]\n"
+                     "                            [--bioslogoimagepath <imagepath>]\n"
+                     "                            [--biosbootmenu disabled|menuonly|messageandmenu]\n"
+                     "                            [--biossystemtimeoffset <msec>]\n"
+                     "                            [--biospxedebug on|off]\n"
+                     "                            [--boot<1-4> none|floppy|dvd|disk|net>]\n"
+                     "                            [--nic<1-N> none|null|nat|bridged|intnet"
 #if defined(VBOX_WITH_NETFLT)
-                 "|hostonly"
+                     "|hostonly"
 #endif
 #ifdef VBOX_WITH_VDE
-                 "|\n"
-                 "                                        vde"
+                     "|\n"
+                     "                                        vde"
 #endif
-                 "]\n"
-                 "                            [--nictype<1-N> Am79C970A|Am79C973"
+                     "]\n"
+                     "                            [--nictype<1-N> Am79C970A|Am79C973"
 #ifdef VBOX_WITH_E1000
-              "|\n                                            82540EM|82543GC|82545EM"
+                  "|\n                                            82540EM|82543GC|82545EM"
 #endif
 #ifdef VBOX_WITH_VIRTIO
-              "|\n                                            virtio"
+                  "|\n                                            virtio"
 #endif /* VBOX_WITH_VIRTIO */
-                 "]\n"
-                 "                            [--cableconnected<1-N> on|off]\n"
-                 "                            [--nictrace<1-N> on|off]\n"
-                 "                            [--nictracefile<1-N> <filename>]\n"
-                 "                            [--nicspeed<1-N> <kbps>]\n"
-                 "                            [--nicbootprio<1-N> <priority>]\n"
-                 "                            [--bridgeadapter<1-N> none|<devicename>]\n"
+                     "]\n"
+                     "                            [--cableconnected<1-N> on|off]\n"
+                     "                            [--nictrace<1-N> on|off]\n"
+                     "                            [--nictracefile<1-N> <filename>]\n"
+                     "                            [--nicspeed<1-N> <kbps>]\n"
+                     "                            [--nicbootprio<1-N> <priority>]\n"
+                     "                            [--bridgeadapter<1-N> none|<devicename>]\n"
 #if defined(VBOX_WITH_NETFLT)
-                 "                            [--hostonlyadapter<1-N> none|<devicename>]\n"
+                     "                            [--hostonlyadapter<1-N> none|<devicename>]\n"
 #endif
-                 "                            [--intnet<1-N> <network name>]\n"
-                 "                            [--natnet<1-N> <network>|default]\n"
+                     "                            [--intnet<1-N> <network name>]\n"
+                     "                            [--natnet<1-N> <network>|default]\n"
 #ifdef VBOX_WITH_VDE
-                 "                            [--vdenet<1-N> <network>|default]\n"
+                     "                            [--vdenet<1-N> <network>|default]\n"
 #endif
-                 "                            [--natsettings<1-N> [<mtu>],[<socksnd>],\n"
-                 "                                                [<sockrcv>],[<tcpsnd>],\n"
-                 "                                                [<tcprcv>]]\n"
-                 "                            [--natpf<1-N> [<rulename>],tcp|udp,[<hostip>],\n"
-                 "                                          <hostport>,[<guestip>],<guestport>]\n"
-                 "                            [--natpf<1-N> delete <rulename>]\n"
-                 "                            [--nattftpprefix<1-N> <prefix>]\n"
-                 "                            [--nattftpfile<1-N> <file>]\n"
-                 "                            [--nattftpserver<1-N> <ip>]\n"
-                 "                            [--natdnspassdomain<1-N> on|off]\n"
-                 "                            [--natdnsproxy<1-N> on|off]\n"
-                 "                            [--natdnshostresolver<1-N> on|off]\n"
-                 "                            [--nataliasmode<1-N> default|[log],[proxyonly],\n"
-                 "                                                         [sameports]]\n"
-                 "                            [--macaddress<1-N> auto|<mac>]\n"
-                 "                            [--mouse ps2|usb|usbtablet\n"
-                 "                            [--keyboard ps2|usb\n"
-                 "                            [--uart<1-N> off|<I/O base> <IRQ>]\n"
-                 "                            [--uartmode<1-N> disconnected|\n"
-                 "                                             server <pipe>|\n"
-                 "                                             client <pipe>|\n"
-                 "                                             file <file>|\n"
-                 "                                             <devicename>]\n"
-                 "                            [--guestmemoryballoon <balloonsize in MB>]\n"
-                 "                            [--gueststatisticsinterval <seconds>]\n"
-                 );
-        RTPrintf("                            [--audio none|null");
+                     "                            [--natsettings<1-N> [<mtu>],[<socksnd>],\n"
+                     "                                                [<sockrcv>],[<tcpsnd>],\n"
+                     "                                                [<tcprcv>]]\n"
+                     "                            [--natpf<1-N> [<rulename>],tcp|udp,[<hostip>],\n"
+                     "                                          <hostport>,[<guestip>],<guestport>]\n"
+                     "                            [--natpf<1-N> delete <rulename>]\n"
+                     "                            [--nattftpprefix<1-N> <prefix>]\n"
+                     "                            [--nattftpfile<1-N> <file>]\n"
+                     "                            [--nattftpserver<1-N> <ip>]\n"
+                     "                            [--natdnspassdomain<1-N> on|off]\n"
+                     "                            [--natdnsproxy<1-N> on|off]\n"
+                     "                            [--natdnshostresolver<1-N> on|off]\n"
+                     "                            [--nataliasmode<1-N> default|[log],[proxyonly],\n"
+                     "                                                         [sameports]]\n"
+                     "                            [--macaddress<1-N> auto|<mac>]\n"
+                     "                            [--mouse ps2|usb|usbtablet\n"
+                     "                            [--keyboard ps2|usb\n"
+                     "                            [--uart<1-N> off|<I/O base> <IRQ>]\n"
+                     "                            [--uartmode<1-N> disconnected|\n"
+                     "                                             server <pipe>|\n"
+                     "                                             client <pipe>|\n"
+                     "                                             file <file>|\n"
+                     "                                             <devicename>]\n"
+                     "                            [--guestmemoryballoon <balloonsize in MB>]\n"
+                     "                            [--gueststatisticsinterval <seconds>]\n"
+                     "                            [--audio none|null");
         if (fWin)
         {
 #ifdef VBOX_WITH_WINMM
-            RTPrintf(                        "|winmm|dsound");
+            RTStrmPrintf(pStrm, "|winmm|dsound");
 #else
-            RTPrintf(                        "|dsound");
+            RTStrmPrintf(pStrm, "|dsound");
 #endif
         }
         if (fSolaris)
         {
-            RTPrintf(                        "|solaudio"
+            RTStrmPrintf(pStrm, "|solaudio"
 #ifdef VBOX_WITH_SOLARIS_OSS
-                                             "|oss"
+                                    "|oss"
 #endif
-                                              );
+                        );
         }
         if (fLinux)
         {
-            RTPrintf(                        "|oss"
+            RTStrmPrintf(pStrm, "|oss"
 #ifdef VBOX_WITH_ALSA
-                                             "|alsa"
+                                    "|alsa"
 #endif
 #ifdef VBOX_WITH_PULSE
-                                             "|pulse"
+                                    "|pulse"
 #endif
-                                             );
+                        );
         }
         if (fFreeBSD)
         {
             /* Get the line break sorted when dumping all option variants. */
             if (fDumpOpts)
             {
-                RTPrintf(                    "|\n"
-                 "                                     oss");
+                RTStrmPrintf(pStrm, "|\n"
+                     "                                     oss");
             }
             else
-                RTPrintf(                    "|oss");
+                RTStrmPrintf(pStrm, "|oss");
 #ifdef VBOX_WITH_PULSE
-            RTPrintf(                        "|pulse");
+            RTStrmPrintf(pStrm, "|pulse");
 #endif
         }
         if (fDarwin)
         {
-            RTPrintf(                        "|coreaudio");
+            RTStrmPrintf(pStrm, "|coreaudio");
         }
-        RTPrintf(                            "]\n");
-        RTPrintf("                            [--audiocontroller ac97|sb16]\n"
-                 "                            [--clipboard disabled|hosttoguest|guesttohost|\n"
-                 "                                         bidirectional]\n");
-        if (fVRDP)
-        {
-            RTPrintf("                            [--vrdp on|off]\n"
-                     "                            [--vrdpport default|<ports>]\n"
-                     "                            [--vrdpaddress <host>]\n"
-                     "                            [--vrdpauthtype null|external|guest]\n"
-                     "                            [--vrdpmulticon on|off]\n"
-                     "                            [--vrdpreusecon on|off]\n"
-                     "                            [--vrdpvideochannel on|off]\n"
-                     "                            [--vrdpvideochannelquality <percent>]\n");
-        }
-        RTPrintf("                            [--usb on|off]\n"
-                 "                            [--usbehci on|off]\n"
-                 "                            [--snapshotfolder default|<path>]\n"
-                 "                            [--teleporter on|off]\n"
-                 "                            [--teleporterport <port>]\n"
-                 "                            [--teleporteraddress <address|empty>\n"
-                 "                            [--teleporterpassword <password>]\n"
+        RTStrmPrintf(pStrm, "]\n");
+        RTStrmPrintf(pStrm,
+                     "                            [--audiocontroller ac97|hda|sb16]\n"
+                     "                            [--clipboard disabled|hosttoguest|guesttohost|\n"
+                     "                                         bidirectional]\n");
+        RTStrmPrintf(pStrm,
+                     "                            [--vrde on|off]\n"
+                     "                            [--vrdeextpack default|<name>\n"
+                     "                            [--vrdeproperty <name=[value]>]\n"
+                     "                            [--vrdeport <hostport>]\n"
+                     "                            [--vrdeaddress <hostip>]\n"
+                     "                            [--vrdeauthtype null|external|guest]\n"
+                     "                            [--vrdeauthlibrary default|<name>\n"
+                     "                            [--vrdemulticon on|off]\n"
+                     "                            [--vrdereusecon on|off]\n"
+                     "                            [--vrdevideochannel on|off]\n"
+                     "                            [--vrdevideochannelquality <percent>]\n");
+        RTStrmPrintf(pStrm,
+                     "                            [--usb on|off]\n"
+                     "                            [--usbehci on|off]\n"
+                     "                            [--snapshotfolder default|<path>]\n"
+                     "                            [--teleporter on|off]\n"
+                     "                            [--teleporterport <port>]\n"
+                     "                            [--teleporteraddress <address|empty>\n"
+                     "                            [--teleporterpassword <password>]\n"
 #if 0
-                 "                            [--iocache on|off]\n"
-                 "                            [--iocachesize <I/O cache size in MB>]\n"
-                 "                            [--iobandwidthmax <Maximum I/O bandwidth in MB/s>]\n"
+                     "                            [--iocache on|off]\n"
+                     "                            [--iocachesize <I/O cache size in MB>]\n"
 #endif
-                );
-        RTPrintf("\n");
+#if 0
+                     "                            [--faulttolerance master|standby]\n"
+                     "                            [--faulttoleranceaddress <name>]\n"
+                     "                            [--faulttoleranceport <port>]\n"
+                     "                            [--faulttolerancesyncinterval <msec>]\n"
+                     "                            [--faulttolerancepassword <password>]\n"
+#endif
+                     "\n");
     }
 
     if (u64Cmd & USAGE_IMPORTAPPLIANCE)
-    {
-        RTPrintf("VBoxManage import           <ovf> [--dry-run|-n] [more options]\n"
-                 "                            (run with -n to have options displayed\n"
-                 "                             for a particular OVF)\n\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage import           <ovf/ova> [--dry-run|-n] [more options]\n"
+                     "                            (run with -n to have options displayed\n"
+                     "                             for a particular OVF)\n\n");
 
     if (u64Cmd & USAGE_EXPORTAPPLIANCE)
-    {
-        RTPrintf("VBoxManage export           <machines> --output|-o <ovf>\n"
-                 "                            [--legacy09]\n"
-                 "                            [--vsys <number of virtual system>]\n"
-                 "                                    [--product <product name>]\n"
-                 "                                    [--producturl <product url>]\n"
-                 "                                    [--vendor <vendor name>]\n"
-                 "                                    [--vendorurl <vendor url>]\n"
-                 "                                    [--version <version info>]\n"
-                 "                                    [--eula <license text>]\n"
-                 "                                    [--eulafile <filename>]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage export           <machines> --output|-o <ovf/ova>\n"
+                     "                            [--legacy09]\n"
+                     "                            [--manifest]\n"
+                     "                            [--vsys <number of virtual system>]\n"
+                     "                                    [--product <product name>]\n"
+                     "                                    [--producturl <product url>]\n"
+                     "                                    [--vendor <vendor name>]\n"
+                     "                                    [--vendorurl <vendor url>]\n"
+                     "                                    [--version <version info>]\n"
+                     "                                    [--eula <license text>]\n"
+                     "                                    [--eulafile <filename>]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_STARTVM)
     {
-        RTPrintf("VBoxManage startvm          <uuid>|<name>\n");
-        RTPrintf("                            [--type gui");
+        RTStrmPrintf(pStrm,
+                     "VBoxManage startvm          <uuid>|<name>\n");
+        RTStrmPrintf(pStrm,
+                     "                            [--type gui");
         if (fVBoxSDL)
-            RTPrintf(                         "|sdl");
-        if (fVRDP)
-            RTPrintf(                         "|vrdp");
-        RTPrintf(                             "|headless]\n");
-        RTPrintf("\n");
+            RTStrmPrintf(pStrm, "|sdl");
+        RTStrmPrintf(pStrm, "|headless]\n");
+        RTStrmPrintf(pStrm,
+                     "\n");
     }
 
     if (u64Cmd & USAGE_CONTROLVM)
     {
-        RTPrintf("VBoxManage controlvm        <uuid>|<name>\n"
-                 "                            pause|resume|reset|poweroff|savestate|\n"
-                 "                            acpipowerbutton|acpisleepbutton|\n"
-                 "                            keyboardputscancode <hex> [<hex> ...]|\n"
-                 "                            injectnmi|\n"
-                 "                            setlinkstate<1-N> on|off |\n"
-#ifdef VBOX_DYNAMIC_NET_ATTACH
+        RTStrmPrintf(pStrm,
+                     "VBoxManage controlvm        <uuid>|<name>\n"
+                     "                            pause|resume|reset|poweroff|savestate|\n"
+                     "                            acpipowerbutton|acpisleepbutton|\n"
+                     "                            keyboardputscancode <hex> [<hex> ...]|\n"
+                     "                            setlinkstate<1-N> on|off |\n"
 #if defined(VBOX_WITH_NETFLT)
-                 "                            nic<1-N> null|nat|bridged|intnet|hostonly\n"
-                 "                                     [<devicename>] |\n"
+                     "                            nic<1-N> null|nat|bridged|intnet|hostonly\n"
+                     "                                     [<devicename>] |\n"
 #else /* !RT_OS_LINUX && !RT_OS_DARWIN */
-                 "                            nic<1-N> null|nat|bridged|intnet\n"
-                 "                                     [<devicename>] |\n"
+                     "                            nic<1-N> null|nat|bridged|intnet\n"
+                     "                                     [<devicename>] |\n"
 #endif /* !RT_OS_LINUX && !RT_OS_DARWIN  */
-                 "                            nictrace<1-N> on|off\n"
-                 "                            nictracefile<1-N> <filename>\n"
-#endif /* VBOX_DYNAMIC_NET_ATTACH */
-                 "                            guestmemoryballoon <balloonsize in MB>]\n"
-                 "                            gueststatisticsinterval <seconds>]\n"
-                 "                            usbattach <uuid>|<address> |\n"
-                 "                            usbdetach <uuid>|<address> |\n");
-        if (fVRDP)
-        {
-            RTPrintf("                            vrdp on|off |\n");
-            RTPrintf("                            vrdpport default|<ports> |\n"
-                     "                            vrdpvideochannelquality <percent>\n");
-        }
-        RTPrintf("                            setvideomodehint <xres> <yres> <bpp> [display] |\n"
-                 "                            setcredentials <username> <password> <domain>\n"
-                 "                                           [--allowlocallogon <yes|no>] |\n"
-                 "                            teleport --host <name> --port <port>\n"
-                 "                                   [--maxdowntime <msec>] [--password password]\n"
-                 "                            plugcpu <id>\n"
-                 "                            unplugcpu <id>\n"
-                 "\n");
+                     "                            nictrace<1-N> on|off\n"
+                     "                            nictracefile<1-N> <filename>\n"
+                     "                            natpf<1-N> [<rulename>],tcp|udp,[<hostip>],\n"
+                     "                                          <hostport>,[<guestip>],<guestport>\n"
+                     "                            natpf<1-N> delete <rulename>\n"
+                     "                            guestmemoryballoon <balloonsize in MB>]\n"
+                     "                            gueststatisticsinterval <seconds>]\n"
+                     "                            usbattach <uuid>|<address> |\n"
+                     "                            usbdetach <uuid>|<address> |\n");
+        RTStrmPrintf(pStrm,
+                     "                            vrde on|off |\n");
+        RTStrmPrintf(pStrm,
+                     "                            vrdeport <port> |\n"
+                     "                            vrdeproperty <name=[value]> |\n"
+                     "                            vrdevideochannelquality <percent>\n");
+        RTStrmPrintf(pStrm,
+                     "                            setvideomodehint <xres> <yres> <bpp> [display] |\n"
+                     "                            setcredentials <username> <password> <domain>\n"
+                     "                                           [--allowlocallogon <yes|no>] |\n"
+                     "                            teleport --host <name> --port <port>\n"
+                     "                                   [--maxdowntime <msec>] [--password password]\n"
+                     "                            plugcpu <id>\n"
+                     "                            unplugcpu <id>\n"
+                     "                            cpuexecutioncap <1-100>\n"
+                     "\n");
     }
 
     if (u64Cmd & USAGE_DISCARDSTATE)
-    {
-        RTPrintf("VBoxManage discardstate     <uuid>|<name>\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage discardstate     <uuid>|<name>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_ADOPTSTATE)
-    {
-        RTPrintf("VBoxManage adoptstate       <uuid>|<name> <state_file>\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage adoptstate       <uuid>|<name> <state_file>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SNAPSHOT)
-    {
-        RTPrintf("VBoxManage snapshot         <uuid>|<name>\n"
-                 "                            take <name> [--description <desc>] [--pause] |\n"
-                 "                            delete <uuid>|<name> |\n"
-                 "                            restore <uuid>|<name> |\n"
-                 "                            restorecurrent |\n"
-                 "                            edit <uuid>|<name>|--current\n"
-                 "                                 [--name <name>]\n"
-                 "                                 [--description <desc>] |\n"
-                 "                            showvminfo <uuid>|<name>\n"
-                 "\n");
-    }
-
-    if (u64Cmd & USAGE_OPENMEDIUM)
-    {
-        RTPrintf("VBoxManage openmedium       disk|dvd|floppy <filename>\n"
-                 "                            [--type normal|immutable|writethrough|\n"
-                 "                                    shareable] (disk only)\n"
-                 "                            [--uuid <uuid>]\n"
-                 "                            [--parentuuid <uuid>] (disk only)\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage snapshot         <uuid>|<name>\n"
+                     "                            take <name> [--description <desc>] [--pause] |\n"
+                     "                            delete <uuid>|<name> |\n"
+                     "                            restore <uuid>|<name> |\n"
+                     "                            restorecurrent |\n"
+                     "                            edit <uuid>|<name>|--current\n"
+                     "                                 [--name <name>]\n"
+                     "                                 [--description <desc>] |\n"
+                     "                            showvminfo <uuid>|<name>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_CLOSEMEDIUM)
-    {
-        RTPrintf("VBoxManage closemedium      disk|dvd|floppy <uuid>|<filename>\n"
-                 "                            [--delete]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage closemedium      disk|dvd|floppy <uuid>|<filename>\n"
+                     "                            [--delete]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_STORAGEATTACH)
-    {
-        RTPrintf("VBoxManage storageattach    <uuid|vmname>\n"
-                 "                            --storagectl <name>\n"
-                 "                            --port <number>\n"
-                 "                            --device <number>\n"
-                 "                            [--type dvddrive|hdd|fdd]\n"
-                 "                            [--medium none|emptydrive|\n"
-                 "                                      <uuid>|<filename>|host:<drive>]\n"
-                 "                            [--passthrough on|off]\n"
-                 "                            [--forceunmount]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage storageattach    <uuid|vmname>\n"
+                     "                            --storagectl <name>\n"
+                     "                            --port <number>\n"
+                     "                            --device <number>\n"
+                     "                            [--type dvddrive|hdd|fdd]\n"
+                     "                            [--medium none|emptydrive|\n"
+                     "                                      <uuid>|<filename>|host:<drive>|iscsi]\n"
+                     "                            [--mtype normal|writethrough|immutable|shareable|\n"
+                     "                                     readonly|multiattach]\n"
+                     "                            [--comment <text>]\n"
+                     "                            [--passthrough on|off]\n"
+                     "                            [--bandwidthgroup <name>]\n"
+                     "                            [--forceunmount]\n"
+                     "                            [--server <name>|<ip>]\n"
+                     "                            [--target <target>]\n"
+                     "                            [--port <port>]\n"
+                     "                            [--lun <lun>]\n"
+                     "                            [--encodedlun <lun>]\n"
+                     "                            [--username <username>]\n"
+                     "                            [--password <password>]\n"
+                     "                            [--intnet]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_STORAGECONTROLLER)
-    {
-        RTPrintf("VBoxManage storagectl       <uuid|vmname>\n"
-                 "                            --name <name>\n"
-                 "                            [--add ide|sata|scsi|floppy|sas]\n"
-                 "                            [--controller LSILogic|LSILogicSAS|BusLogic|\n"
-                 "                                          IntelAHCI|PIIX3|PIIX4|ICH6|I82078]\n"
-                 "                            [--sataideemulation<1-4> <1-30>]\n"
-                 "                            [--sataportcount <1-30>]\n"
-                 "                            [--hostiocache on|off]\n"
-                 "                            [--remove]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage storagectl       <uuid|vmname>\n"
+                     "                            --name <name>\n"
+                     "                            [--add ide|sata|scsi|floppy|sas]\n"
+                     "                            [--controller LSILogic|LSILogicSAS|BusLogic|\n"
+                     "                                          IntelAHCI|PIIX3|PIIX4|ICH6|I82078]\n"
+                     "                            [--sataideemulation<1-4> <1-30>]\n"
+                     "                            [--sataportcount <1-30>]\n"
+                     "                            [--hostiocache on|off]\n"
+                     "                            [--bootable on|off]\n"
+                     "                            [--remove]\n"
+                     "\n");
+
+    if (u64Cmd & USAGE_BANDWIDTHCONTROL)
+        RTStrmPrintf(pStrm,
+                     "VBoxManage bandwidthctl     <uuid|vmname>\n"
+                     "                            --name <name>\n"
+                     "                            [--add disk|network]\n"
+                     "                            [--limit <megabytes per second>\n"
+                     "                            [--delete]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SHOWHDINFO)
-    {
-        RTPrintf("VBoxManage showhdinfo       <uuid>|<filename>\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage showhdinfo       <uuid>|<filename>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_CREATEHD)
-    {
-        RTPrintf("VBoxManage createhd         --filename <filename>\n"
-                 "                            --size <megabytes>\n"
-                 "                            [--format VDI|VMDK|VHD] (default: VDI)\n"
-                 "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
-                 "                            [--type normal|writethrough|\n"
-                 "                                    shareable] (default: normal)\n"
-                 "                            [--comment <comment>]\n"
-                 "                            [--remember]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage createhd         --filename <filename>\n"
+                     "                            --size <megabytes>|--sizebyte <bytes>\n"
+                     "                            [--format VDI|VMDK|VHD] (default: VDI)\n"
+                     "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_MODIFYHD)
-    {
-        RTPrintf("VBoxManage modifyhd         <uuid>|<filename>\n"
-                 "                            [--type normal|writethrough|immutable|shareable]\n"
-                 "                            [--autoreset on|off]\n"
-                 "                            [--compact]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage modifyhd         <uuid>|<filename>\n"
+                     "                            [--type normal|writethrough|immutable|shareable|\n"
+                     "                                    readonly|multiattach]\n"
+                     "                            [--autoreset on|off]\n"
+                     "                            [--compact]\n"
+                     "                            [--resize <megabytes>|--resizebyte <bytes>]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_CLONEHD)
-    {
-        RTPrintf("VBoxManage clonehd          <uuid>|<filename> <outputfile>\n"
-                 "                            [--format VDI|VMDK|VHD|RAW|<other>]\n"
-                 "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
-                 "                            [--type normal|writethrough|immutable|shareable]\n"
-                 "                            [--remember] [--existing]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage clonehd          <uuid>|<filename> <outputfile>\n"
+                     "                            [--format VDI|VMDK|VHD|RAW|<other>]\n"
+                     "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+                     "                            [--existing]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_CONVERTFROMRAW)
-    {
-        RTPrintf("VBoxManage convertfromraw   <filename> <outputfile>\n"
-                 "                            [--format VDI|VMDK|VHD]\n"
-                 "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+        RTStrmPrintf(pStrm,
+                     "VBoxManage convertfromraw   <filename> <outputfile>\n"
+                     "                            [--format VDI|VMDK|VHD]\n"
+                     "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
 #ifndef RT_OS_WINDOWS
-                 "VBoxManage convertfromraw   stdin <outputfile> <bytes>\n"
-                 "                            [--format VDI|VMDK|VHD]\n"
-                 "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
+                     "VBoxManage convertfromraw   stdin <outputfile> <bytes>\n"
+                     "                            [--format VDI|VMDK|VHD]\n"
+                     "                            [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
 #endif
-                 "\n");
-    }
-
-    if (u64Cmd & USAGE_ADDISCSIDISK)
-    {
-        RTPrintf("VBoxManage addiscsidisk     --server <name>|<ip>\n"
-                 "                            --target <target>\n"
-                 "                            [--port <port>]\n"
-                 "                            [--lun <lun>]\n"
-                 "                            [--encodedlun <lun>]\n"
-                 "                            [--username <username>]\n"
-                 "                            [--password <password>]\n"
-                 "                            [--type normal|writethrough|immutable|shareable]\n"
-                 "                            [--intnet]\n"
-                 "\n");
-    }
+                     "\n");
 
     if (u64Cmd & USAGE_GETEXTRADATA)
-    {
-        RTPrintf("VBoxManage getextradata     global|<uuid>|<name>\n"
-                 "                            <key>|enumerate\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage getextradata     global|<uuid>|<name>\n"
+                     "                            <key>|enumerate\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SETEXTRADATA)
-    {
-        RTPrintf("VBoxManage setextradata     global|<uuid>|<name>\n"
-                 "                            <key>\n"
-                 "                            [<value>] (no value deletes key)\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage setextradata     global|<uuid>|<name>\n"
+                     "                            <key>\n"
+                     "                            [<value>] (no value deletes key)\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SETPROPERTY)
-    {
-        RTPrintf("VBoxManage setproperty      hdfolder default|<folder> |\n"
-                 "                            machinefolder default|<folder> |\n"
-                 "                            vrdpauthlibrary default|<library> |\n"
-                 "                            websrvauthlibrary default|null|<library> |\n"
-                 "                            loghistorycount <value>\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage setproperty      machinefolder default|<folder> |\n"
+                     "                            vrdeauthlibrary default|<library> |\n"
+                     "                            websrvauthlibrary default|null|<library> |\n"
+                     "                            vrdeextpack null|<library> |\n"
+                     "                            loghistorycount <value>\n"
+                     "\n");
 
     if (u64Cmd & USAGE_USBFILTER_ADD)
-    {
-        RTPrintf("VBoxManage usbfilter        add <index,0-N>\n"
-                 "                            --target <uuid>|<name>|global\n"
-                 "                            --name <string>\n"
-                 "                            --action ignore|hold (global filters only)\n"
-                 "                            [--active yes|no] (yes)\n"
-                 "                            [--vendorid <XXXX>] (null)\n"
-                 "                            [--productid <XXXX>] (null)\n"
-                 "                            [--revision <IIFF>] (null)\n"
-                 "                            [--manufacturer <string>] (null)\n"
-                 "                            [--product <string>] (null)\n"
-                 "                            [--remote yes|no] (null, VM filters only)\n"
-                 "                            [--serialnumber <string>] (null)\n"
-                 "                            [--maskedinterfaces <XXXXXXXX>]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage usbfilter        add <index,0-N>\n"
+                     "                            --target <uuid>|<name>|global\n"
+                     "                            --name <string>\n"
+                     "                            --action ignore|hold (global filters only)\n"
+                     "                            [--active yes|no] (yes)\n"
+                     "                            [--vendorid <XXXX>] (null)\n"
+                     "                            [--productid <XXXX>] (null)\n"
+                     "                            [--revision <IIFF>] (null)\n"
+                     "                            [--manufacturer <string>] (null)\n"
+                     "                            [--product <string>] (null)\n"
+                     "                            [--remote yes|no] (null, VM filters only)\n"
+                     "                            [--serialnumber <string>] (null)\n"
+                     "                            [--maskedinterfaces <XXXXXXXX>]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_USBFILTER_MODIFY)
-    {
-        RTPrintf("VBoxManage usbfilter        modify <index,0-N>\n"
-                 "                            --target <uuid>|<name>|global\n"
-                 "                            [--name <string>]\n"
-                 "                            [--action ignore|hold] (global filters only)\n"
-                 "                            [--active yes|no]\n"
-                 "                            [--vendorid <XXXX>|\"\"]\n"
-                 "                            [--productid <XXXX>|\"\"]\n"
-                 "                            [--revision <IIFF>|\"\"]\n"
-                 "                            [--manufacturer <string>|\"\"]\n"
-                 "                            [--product <string>|\"\"]\n"
-                 "                            [--remote yes|no] (null, VM filters only)\n"
-                 "                            [--serialnumber <string>|\"\"]\n"
-                 "                            [--maskedinterfaces <XXXXXXXX>]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage usbfilter        modify <index,0-N>\n"
+                     "                            --target <uuid>|<name>|global\n"
+                     "                            [--name <string>]\n"
+                     "                            [--action ignore|hold] (global filters only)\n"
+                     "                            [--active yes|no]\n"
+                     "                            [--vendorid <XXXX>|\"\"]\n"
+                     "                            [--productid <XXXX>|\"\"]\n"
+                     "                            [--revision <IIFF>|\"\"]\n"
+                     "                            [--manufacturer <string>|\"\"]\n"
+                     "                            [--product <string>|\"\"]\n"
+                     "                            [--remote yes|no] (null, VM filters only)\n"
+                     "                            [--serialnumber <string>|\"\"]\n"
+                     "                            [--maskedinterfaces <XXXXXXXX>]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_USBFILTER_REMOVE)
-    {
-        RTPrintf("VBoxManage usbfilter        remove <index,0-N>\n"
-                 "                            --target <uuid>|<name>|global\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage usbfilter        remove <index,0-N>\n"
+                     "                            --target <uuid>|<name>|global\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SHAREDFOLDER_ADD)
-    {
-        RTPrintf("VBoxManage sharedfolder     add <vmname>|<uuid>\n"
-                 "                            --name <name> --hostpath <hostpath>\n"
-                 "                            [--transient] [--readonly]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage sharedfolder     add <vmname>|<uuid>\n"
+                     "                            --name <name> --hostpath <hostpath>\n"
+                     "                            [--transient] [--readonly] [--automount]\n"
+                     "\n");
 
     if (u64Cmd & USAGE_SHAREDFOLDER_REMOVE)
-    {
-        RTPrintf("VBoxManage sharedfolder     remove <vmname>|<uuid>\n"
-                 "                            --name <name> [--transient]\n"
-                 "\n");
-    }
-
-    if (u64Cmd & USAGE_VM_STATISTICS)
-    {
-        RTPrintf("VBoxManage vmstatistics     <vmname>|<uuid> [--reset]\n"
-                 "                            [--pattern <pattern>] [--descriptions]\n"
-                 "\n");
-    }
+        RTStrmPrintf(pStrm,
+                     "VBoxManage sharedfolder     remove <vmname>|<uuid>\n"
+                     "                            --name <name> [--transient]\n"
+                     "\n");
 
 #ifdef VBOX_WITH_GUEST_PROPS
     if (u64Cmd & USAGE_GUESTPROPERTY)
-        usageGuestProperty();
+        usageGuestProperty(pStrm);
 #endif /* VBOX_WITH_GUEST_PROPS defined */
 
 #ifdef VBOX_WITH_GUEST_CONTROL
     if (u64Cmd & USAGE_GUESTCONTROL)
-        usageGuestControl();
+        usageGuestControl(pStrm);
 #endif /* VBOX_WITH_GUEST_CONTROL defined */
 
-    if (u64Cmd & USAGE_METRICS)
+    if (u64Cmd & USAGE_DEBUGVM)
     {
-        RTPrintf("VBoxManage metrics          list [*|host|<vmname> [<metric_list>]]\n"
-                 "                                                 (comma-separated)\n\n"
-                 "VBoxManage metrics          setup\n"
-                 "                            [--period <seconds>] (default: 1)\n"
-                 "                            [--samples <count>] (default: 1)\n"
-                 "                            [--list]\n"
-                 "                            [*|host|<vmname> [<metric_list>]]\n\n"
-                 "VBoxManage metrics          query [*|host|<vmname> [<metric_list>]]\n\n"
-                 "VBoxManage metrics          enable\n"
-                 "                            [--list]\n"
-                 "                            [*|host|<vmname> [<metric_list>]]\n\n"
-                 "VBoxManage metrics          disable\n"
-                 "                            [--list]\n"
-                 "                            [*|host|<vmname> [<metric_list>]]\n\n"
-                 "VBoxManage metrics          collect\n"
-                 "                            [--period <seconds>] (default: 1)\n"
-                 "                            [--samples <count>] (default: 1)\n"
-                 "                            [--list]\n"
-                 "                            [--detach]\n"
-                 "                            [*|host|<vmname> [<metric_list>]]\n"
-                 "\n");
+        RTStrmPrintf(pStrm,
+                     "VBoxManage debugvm          <uuid>|<name>\n"
+                     "                            dumpguestcore --filename <name> |\n"
+                     "                            injectnmi |\n"
+                     "                            statistics [--reset] [--pattern <pattern>]\n"
+                     "                            [--descriptions]\n"
+                     "\n");
     }
+    if (u64Cmd & USAGE_METRICS)
+        RTStrmPrintf(pStrm,
+                     "VBoxManage metrics          list [*|host|<vmname> [<metric_list>]]\n"
+                     "                                                 (comma-separated)\n\n"
+                     "VBoxManage metrics          setup\n"
+                     "                            [--period <seconds>] (default: 1)\n"
+                     "                            [--samples <count>] (default: 1)\n"
+                     "                            [--list]\n"
+                     "                            [*|host|<vmname> [<metric_list>]]\n\n"
+                     "VBoxManage metrics          query [*|host|<vmname> [<metric_list>]]\n\n"
+                     "VBoxManage metrics          enable\n"
+                     "                            [--list]\n"
+                     "                            [*|host|<vmname> [<metric_list>]]\n\n"
+                     "VBoxManage metrics          disable\n"
+                     "                            [--list]\n"
+                     "                            [*|host|<vmname> [<metric_list>]]\n\n"
+                     "VBoxManage metrics          collect\n"
+                     "                            [--period <seconds>] (default: 1)\n"
+                     "                            [--samples <count>] (default: 1)\n"
+                     "                            [--list]\n"
+                     "                            [--detach]\n"
+                     "                            [*|host|<vmname> [<metric_list>]]\n"
+                     "\n");
+
 #if defined(VBOX_WITH_NETFLT)
     if (u64Cmd & USAGE_HOSTONLYIFS)
     {
-        RTPrintf("VBoxManage hostonlyif       ipconfig <name>\n"
-                 "                            [--dhcp |\n"
-                 "                            --ip<ipv4> [--netmask<ipv4> (def: 255.255.255.0)] |\n"
-                 "                            --ipv6<ipv6> [--netmasklengthv6<length> (def: 64)]]\n"
+        RTStrmPrintf(pStrm,
+                     "VBoxManage hostonlyif       ipconfig <name>\n"
+                     "                            [--dhcp |\n"
+                     "                            --ip<ipv4> [--netmask<ipv4> (def: 255.255.255.0)] |\n"
+                     "                            --ipv6<ipv6> [--netmasklengthv6<length> (def: 64)]]\n"
 # if defined(RT_OS_WINDOWS)
-                 "                            create |\n"
-                 "                            remove <name>\n"
+                     "                            create |\n"
+                     "                            remove <name>\n"
 # endif
-                 "\n");
+                     "\n");
     }
 #endif
 
     if (u64Cmd & USAGE_DHCPSERVER)
     {
-        RTPrintf("VBoxManage dhcpserver       add|modify --netname <network_name> |\n"
+        RTStrmPrintf(pStrm,
+                     "VBoxManage dhcpserver       add|modify --netname <network_name> |\n"
 #if defined(VBOX_WITH_NETFLT)
-                 "                                       --ifname <hostonly_if_name>\n"
+                     "                                       --ifname <hostonly_if_name>\n"
 #endif
-                 "                                [--ip <ip_address>\n"
-                 "                                 --netmask <network_mask>\n"
-                 "                                 --lowerip <lower_ip>\n"
-                 "                                 --upperip <upper_ip>]\n"
-                 "                                [--enable | --disable]\n\n"
-                 "VBoxManage dhcpserver       remove --netname <network_name> |\n"
+                     "                            [--ip <ip_address>\n"
+                     "                            --netmask <network_mask>\n"
+                     "                            --lowerip <lower_ip>\n"
+                     "                            --upperip <upper_ip>]\n"
+                     "                            [--enable | --disable]\n\n"
+                     "VBoxManage dhcpserver       remove --netname <network_name> |\n"
 #if defined(VBOX_WITH_NETFLT)
-                 "                                   --ifname <hostonly_if_name>\n"
+                     "                                   --ifname <hostonly_if_name>\n"
 #endif
-                 "\n");
+                     "\n");
+    }
+    if (u64Cmd & USAGE_EXTPACK)
+    {
+        RTStrmPrintf(pStrm,
+                     "VBoxManage extpack          install <tarball> |\n"
+                     "                            uninstall [--force] <name> |\n"
+                     "                            cleanup\n"
+                     "\n");
     }
 }
 
 /**
  * Print a usage synopsis and the syntax error message.
+ * @returns RTEXITCODE_SYNTAX.
  */
-int errorSyntax(USAGECATEGORY u64Cmd, const char *pszFormat, ...)
+RTEXITCODE errorSyntax(USAGECATEGORY u64Cmd, const char *pszFormat, ...)
 {
     va_list args;
-    showLogo(); // show logo even if suppressed
+    showLogo(g_pStdErr); // show logo even if suppressed
 #ifndef VBOX_ONLY_DOCS
     if (g_fInternalMode)
-        printUsageInternal(u64Cmd);
+        printUsageInternal(u64Cmd, g_pStdErr);
     else
-        printUsage(u64Cmd);
+        printUsage(u64Cmd, g_pStdErr);
 #endif /* !VBOX_ONLY_DOCS */
     va_start(args, pszFormat);
-    RTPrintf("\n"
-             "Syntax error: %N\n", pszFormat, &args);
+    RTStrmPrintf(g_pStdErr, "\nSyntax error: %N\n", pszFormat, &args);
     va_end(args);
-    return 1;
+    return RTEXITCODE_SYNTAX;
 }
 
 /**
  * errorSyntax for RTGetOpt users.
  *
- * @returns 1.
+ * @returns RTEXITCODE_SYNTAX.
  *
  * @param   fUsageCategory  The usage category of the command.
  * @param   rc              The RTGetOpt return code.
  * @param   pValueUnion     The value union.
  */
-int errorGetOpt(USAGECATEGORY fUsageCategory, int rc, union RTGETOPTUNION const *pValueUnion)
+RTEXITCODE errorGetOpt(USAGECATEGORY fUsageCategory, int rc, union RTGETOPTUNION const *pValueUnion)
 {
-    showLogo(); // show logo even if suppressed
+    /*
+     * Check if it is an unhandled standard option.
+     */
+    if (rc == 'V')
+    {
+        RTPrintf("%sr%d\n", VBOX_VERSION_STRING, RTBldCfgRevision());
+        return RTEXITCODE_SUCCESS;
+    }
+
+    if (rc == 'h')
+    {
+        showLogo(g_pStdErr);
+#ifndef VBOX_ONLY_DOCS
+        if (g_fInternalMode)
+            printUsageInternal(fUsageCategory, g_pStdOut);
+        else
+            printUsage(fUsageCategory, g_pStdOut);
+#endif
+        return RTEXITCODE_SUCCESS;
+    }
+
+    /*
+     * General failure.
+     */
+    showLogo(g_pStdErr); // show logo even if suppressed
 #ifndef VBOX_ONLY_DOCS
     if (g_fInternalMode)
-        printUsageInternal(fUsageCategory);
+        printUsageInternal(fUsageCategory, g_pStdErr);
     else
-        printUsage(fUsageCategory);
+        printUsage(fUsageCategory, g_pStdErr);
 #endif /* !VBOX_ONLY_DOCS */
 
     if (rc == VINF_GETOPT_NOT_OPTION)
-        return RTPrintf("error: Invalid parameter '%s'\n", pValueUnion->psz);
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Invalid parameter '%s'", pValueUnion->psz);
     if (rc > 0)
     {
         if (RT_C_IS_PRINT(rc))
-            return RTPrintf("error: Invalid option -%c\n", rc);
-        return RTPrintf("error: Invalid option case %i\n", rc);
+            return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Invalid option -%c", rc);
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Invalid option case %i", rc);
     }
     if (rc == VERR_GETOPT_UNKNOWN_OPTION)
-        return RTPrintf("error: unknown option: %s\n", pValueUnion->psz);
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Unknown option: %s", pValueUnion->psz);
     if (pValueUnion->pDef)
-        return RTPrintf("error: %s: %Rrs\n", pValueUnion->pDef->pszLong, rc);
-    return RTPrintf("error: %Rrs\n", rc);
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "%s: %Rrs", pValueUnion->pDef->pszLong, rc);
+    return RTMsgErrorExit(RTEXITCODE_SYNTAX, "%Rrs", rc);
 }
 
 /**
  * Print an error message without the syntax stuff.
+ *
+ * @returns RTEXITCODE_SYNTAX.
  */
-int errorArgument(const char *pszFormat, ...)
+RTEXITCODE errorArgument(const char *pszFormat, ...)
 {
     va_list args;
     va_start(args, pszFormat);
-    RTPrintf("error: %N\n", pszFormat, &args);
+    RTMsgErrorV(pszFormat, args);
     va_end(args);
-    return 1;
+    return RTEXITCODE_SYNTAX;
 }

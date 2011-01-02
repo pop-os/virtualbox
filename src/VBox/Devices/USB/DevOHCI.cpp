@@ -1,4 +1,4 @@
-/* $Id: DevOHCI.cpp $ */
+/* $Id: DevOHCI.cpp 33813 2010-11-05 19:35:30Z vboxsync $ */
 /** @file
  * DevOHCI - Open Host Controller Interface for USB.
  */
@@ -55,7 +55,7 @@
  * that they may be modified in the roothub callbacks. Our completion
  * routine (ohciRhXferComplete) carries out a number of tasks:
  *      -# Retires the TD associated with the transfer, setting the
- *         relevent error code etc.
+ *         relevant error code etc.
  *      -# Updates done-queue interrupt timer and potentially causes
  *         a writeback of the done-queue.
  *      -# If the transfer was device-to-host, we copy the data in to
@@ -393,7 +393,7 @@ typedef struct OHCIED
     uint32_t TailP;
     /** HeadP - TD Queue head pointer. Bit 0 - Halted, Bit 1 - toggleCarry. Bit 2&3 - 0. */
     uint32_t HeadP;
-    /** NextED - Next Endpoint Desciptor. Bits 0-3 ignored / preserved. */
+    /** NextED - Next Endpoint Descriptor. Bits 0-3 ignored / preserved. */
     uint32_t NextED;
 } OHCIED, *POHCIED;
 typedef const OHCIED *PCOHCIED;
@@ -859,7 +859,7 @@ static DECLCALLBACK(int) ohciRhQueryStatusLed(PPDMILEDPORTS pInterface, unsigned
 
 
 /**
- * Get the number of avilable ports in the hub.
+ * Get the number of available ports in the hub.
  *
  * @returns The number of ports available.
  * @param   pInterface      Pointer to this structure.
@@ -1003,12 +1003,12 @@ static DECLCALLBACK(int) ohciRhReset(PVUSBIROOTHUBPORT pInterface, bool fResetOn
     pOhci->RootHub.desc_b = 0x0; /* Impl. specific */
 
     /*
-     * We're prending to _reattach_ the device without resetting them.
+     * We're pending to _reattach_ the device without resetting them.
      * Except, during VM reset where we use the opportunity to do a proper
      * reset before the guest comes along and expect things.
      *
      * However, it's very very likely that we're not doing the right thing
-     * here if comming from the guest (USB Reset state). The docs talks about
+     * here if coming from the guest (USB Reset state). The docs talks about
      * root hub resetting, however what exact behaviour in terms of root hub
      * status and changed bits, and HC interrupts aren't stated clearly. IF we
      * get trouble and see the guest doing "USB Resets" we will have to look
@@ -1110,7 +1110,8 @@ static void ohciDoReset(POHCI pOhci, uint32_t fNewMode, bool fResetOnLinux)
  */
 DECLINLINE(void) ohciPhysRead(POHCI pOhci, uint32_t Addr, void *pvBuf, size_t cbBuf)
 {
-    PDMDevHlpPhysRead(pOhci->CTX_SUFF(pDevIns), Addr, pvBuf, cbBuf);
+    if (cbBuf)
+        PDMDevHlpPhysRead(pOhci->CTX_SUFF(pDevIns), Addr, pvBuf, cbBuf);
 }
 
 /**
@@ -1118,7 +1119,8 @@ DECLINLINE(void) ohciPhysRead(POHCI pOhci, uint32_t Addr, void *pvBuf, size_t cb
  */
 DECLINLINE(void) ohciPhysWrite(POHCI pOhci, uint32_t Addr, const void *pvBuf, size_t cbBuf)
 {
-    PDMDevHlpPhysWrite(pOhci->CTX_SUFF(pDevIns), Addr, pvBuf, cbBuf);
+    if (cbBuf)
+        PDMDevHlpPhysWrite(pOhci->CTX_SUFF(pDevIns), Addr, pvBuf, cbBuf);
 }
 
 /**
@@ -1143,7 +1145,7 @@ DECLINLINE(void) ohciPutDWords(POHCI pOhci, uint32_t Addr, const uint32_t *pau32
 #else
     for (int i = 0; i < c32s; i++, pau32s++, Addr += sizeof(*pau32s))
     {
-        uint32_t u32Tmp = RT_H2LE_U32((*pau32s);
+        uint32_t u32Tmp = RT_H2LE_U32(*pau32s);
         ohciPhysWrite(pOhci, Addr, (uint8_t *)&u32Tmp, sizeof(u32Tmp));
     }
 #endif
@@ -1601,8 +1603,7 @@ static PVUSBURB ohciTdInFlightUrb(POHCI pOhci, uint32_t GCPhysTD)
     i = ohci_in_flight_find(pOhci, GCPhysTD);
     if ( i >= 0 )
         return pOhci->aInFlight[i].pUrb;
-    else
-        return NULL;
+    return NULL;
 }
 
 /**
@@ -1773,7 +1774,7 @@ static void ohciBufInit(POHCIBUF pBuf, uint32_t cbp, uint32_t be)
  *
  * This is called upon completion to adjust the sector lengths if
  * the total length has changed. (received less then we had space for
- * or a parital transfer.)
+ * or a partial transfer.)
  *
  * @param   pBuf        The buffer to update. cbTotal contains the new total on input.
  *                      While the aVecs[*].cb members is updated upon return.
@@ -1892,7 +1893,7 @@ static bool ohciUnlinkTds(POHCI pOhci, PVUSBURB pUrb, POHCIED pEd)
             else
             {
                 /*
-                 * It's proably somewhere in the list, not a unlikely situation with
+                 * It's probably somewhere in the list, not a unlikely situation with
                  * the current isochronous code.
                  */
                 if (!ohciUnlinkIsochronousTdInList(pOhci, ITdAddr, pITd, pEd))
@@ -2455,7 +2456,7 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
     else
         ohciRhXferCompleteGeneralURB(pOhci, pUrb, &Ed, cFmAge);
 
-    /* finaly write back the endpoint descriptor. */
+    /* finally write back the endpoint descriptor. */
     ohciWriteEd(pOhci, pUrb->Hci.EdAddr, &Ed);
 }
 
@@ -2464,7 +2465,7 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
  * Handle transfer errors.
  *
  * VUSB calls this when a transfer attempt failed. This function will respond
- * indicating wheter to retry or complete the URB with failure.
+ * indicating whether to retry or complete the URB with failure.
  *
  * @returns true if the URB should be retired.
  * @returns false if the URB should be retried.
@@ -2538,7 +2539,7 @@ static bool ohciServiceTd(POHCI pOhci, VUSBXFERTYPE enmType, PCOHCIED pEd, uint3
     *pNextTdAddr = Td.NextTD & ED_PTR_MASK;
 
     /*
-     * Determin the direction.
+     * Determine the direction.
      */
     VUSBDIRECTION enmDir;
     switch (pEd->hwinfo & ED_HWINFO_DIR)
@@ -2693,7 +2694,7 @@ static bool ohciServiceTdMultiple(POHCI pOhci, VUSBXFERTYPE enmType, PCOHCIED pE
     *pNextTdAddr = pTail->Td.NextTD & ED_PTR_MASK;
 
     /*
-     * Determin the direction.
+     * Determine the direction.
      */
     VUSBDIRECTION enmDir;
     switch (pEd->hwinfo & ED_HWINFO_DIR)
@@ -3012,7 +3013,7 @@ static void ohciServiceIsochronousEndpoint(POHCI pOhci, POHCIED pEd, uint32_t Ed
 {
     /*
      * We currently process this as if the guest follows the interrupt end point chaining
-     * hiearchy described in the documenation. This means that for an isochronous endpoint
+     * hierarchy described in the documenation. This means that for an isochronous endpoint
      * with a 1 ms interval we expect to find in-flight TDs at the head of the list. We will
      * skip over all in-flight TDs which timeframe has been exceed. Those which aren't in
      * flight but which are too late will be retired (possibly out of order, but, we don't
@@ -3082,7 +3083,7 @@ static void ohciServiceIsochronousEndpoint(POHCI pOhci, POHCIED pEd, uint32_t Ed
              * Don't remove in-flight TDs before they complete.
              * Windows will, upon the completion of another ITD it seems, check for if
              * any other TDs has been unlinked. If we unlink them before they really
-             * complete all the packet status codes will be NotAccesed and Windows
+             * complete all the packet status codes will be NotAccessed and Windows
              * will fail the URB with status USBD_STATUS_ISOCH_REQUEST_FAILED.
              *
              * I don't know if unlinking TDs out of order could cause similar problems,
@@ -3104,7 +3105,7 @@ static void ohciServiceIsochronousEndpoint(POHCI pOhci, POHCIED pEd, uint32_t Ed
              *
              * If it's in flight we will try unlink it from the list prematurely to
              * help the guest to move on and shorten the list we have to walk. We currently
-             * are successfull with the first URB but then it goes too slowly...
+             * are successful with the first URB but then it goes too slowly...
              */
             int iInFlight = ohci_in_flight_find(pOhci, ITdAddr);
             if (!ohciServiceIsochronousTdUnlink(pOhci, &ITd, ITdAddr, ITdAddrPrev,
@@ -3666,7 +3667,7 @@ static void ohciFrameBoundaryTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pv
 
     VUSBIRhReapAsyncUrbs(pOhci->RootHub.pIRhConn, 0);
 
-    /* Frame boundary, so do EOF stuf here */
+    /* Frame boundary, so do EOF stuff here */
     bump_frame_number(pOhci);
     if ( (pOhci->dqic != 0x7) && (pOhci->dqic != 0) )
         pOhci->dqic--;
@@ -4019,7 +4020,7 @@ static int HcInterruptDisable_w(POHCI pOhci, uint32_t iReg, uint32_t val)
           chg & RT_BIT(6)  ? "*" : "", (res >>  6) & 1,
           chg & RT_BIT(30) ? "*" : "", (res >> 30) & 1,
           chg & RT_BIT(31) ? "*" : "", (res >> 31) & 1));
-    /* Don't bitch about invalid bits here since it makes sense to disble
+    /* Don't bitch about invalid bits here since it makes sense to disable
      * interrupts you don't know about. */
 
     pOhci->intr &= ~val;
@@ -4205,7 +4206,7 @@ static int HcFmInterval_w(POHCI pOhci, uint32_t iReg, uint32_t val)
     if ( pOhci->fi != (val & OHCI_FMI_FI) )
     {
         Log(("ohci: FrameInterval: %#010x -> %#010x\n", pOhci->fi, val & OHCI_FMI_FI));
-        AssertMsg(pOhci->fit != ((val >> OHCI_FMI_FIT_SHIFT) & 1), ("HCD did't toggle the FIT bit!!!\n"));
+        AssertMsg(pOhci->fit != ((val >> OHCI_FMI_FIT_SHIFT) & 1), ("HCD didn't toggle the FIT bit!!!\n"));
     }
 
     /* update */
@@ -4274,7 +4275,7 @@ static int HcFmNumber_w(POHCI pOhci, uint32_t iReg, uint32_t val)
 
 /**
  * Read the HcPeriodicStart register.
- * The register determins when in a frame to switch from control&bulk to periodic lists.
+ * The register determines when in a frame to switch from control&bulk to periodic lists.
  */
 static int HcPeriodicStart_r(POHCI pOhci, uint32_t iReg, uint32_t *pu32Value)
 {
@@ -4285,7 +4286,7 @@ static int HcPeriodicStart_r(POHCI pOhci, uint32_t iReg, uint32_t *pu32Value)
 
 /**
  * Write to the HcPeriodicStart register.
- * The register determins when in a frame to switch from control&bulk to periodic lists.
+ * The register determines when in a frame to switch from control&bulk to periodic lists.
  */
 static int HcPeriodicStart_w(POHCI pOhci, uint32_t iReg, uint32_t val)
 {
@@ -4398,7 +4399,7 @@ static int HcRhDescriptorB_w(POHCI pOhci, uint32_t iReg, uint32_t val)
           chg >> 16    ? "!!!" : "", val >> 16));
 
     if ( pOhci->RootHub.desc_b != val )
-        Log(("ohci: %s: unsupported write to root decriptor B!!! 0x%.8x -> 0x%.8x\n",
+        Log(("ohci: %s: unsupported write to root descriptor B!!! 0x%.8x -> 0x%.8x\n",
                 pOhci->PciDev.name,
                 pOhci->RootHub.desc_b, val));
     pOhci->RootHub.desc_b = val;
@@ -4524,7 +4525,7 @@ static DECLCALLBACK(void) uchi_port_reset_done(PVUSBIDEVICE pDev, int rc, void *
         }
     if (!pPort)
     {
-        Assert(pPort); /* sometimes happends because of #1510 */
+        Assert(pPort); /* sometimes happens because of #1510 */
         return;
     }
 
@@ -4544,8 +4545,8 @@ static DECLCALLBACK(void) uchi_port_reset_done(PVUSBIDEVICE pDev, int rc, void *
             &&  VUSBIDevGetState(pPort->pDev) == VUSB_DEVICE_STATE_ATTACHED)
         {
             /*
-             * Damn, something weird happend during reset. We'll pretend the user did an
-             * incredible fast reconnect or something. (prolly not gonna work)
+             * Damn, something weird happened during reset. We'll pretend the user did an
+             * incredible fast reconnect or something. (probably not gonna work)
              */
             Log2(("uchi_port_reset_done: The reset failed (rc=%Rrc)!!! Pretending reconnect at the speed of light.\n", rc));
             pPort->fReg = OHCI_PORT_R_CURRENT_CONNECT_STATUS | OHCI_PORT_R_CONNECT_STATUS_CHANGE;
@@ -5041,7 +5042,7 @@ static DECLCALLBACK(int) ohciR3LoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
             *pOhci->pLoad = Load;
         }
     }
-    /* else: we ASSUME no device can be attached or detach in the periode
+    /* else: we ASSUME no device can be attached or detach in the period
      *       between a state load and the pLoad stuff is processed. */
     return rc;
 }
@@ -5378,16 +5379,18 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     pOhci->pDevInsR3 = pDevIns;
     pOhci->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pOhci->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    const uint16_t vid = 0x106b;
-    pOhci->PciDev.config[0x00] = vid & 0xff;
-    pOhci->PciDev.config[0x01] = (vid >> 8) & 0xff;
-    const uint16_t did = 0x003f;
-    pOhci->PciDev.config[0x02] = did & 0xff;
-    pOhci->PciDev.config[0x03] = (did >> 8) & 0xff;
-    pOhci->PciDev.config[0x09] = 0x10; /* OHCI */
-    pOhci->PciDev.config[0x0a] = 0x3;
-    pOhci->PciDev.config[0x0b] = 0xc;
-    pOhci->PciDev.config[0x3d] = 0x01;
+
+    PCIDevSetVendorId     (&pOhci->PciDev, 0x106b);
+    PCIDevSetDeviceId     (&pOhci->PciDev, 0x003f);
+    PCIDevSetClassProg    (&pOhci->PciDev, 0x10); /* OHCI */
+    PCIDevSetClassSub     (&pOhci->PciDev, 0x03);
+    PCIDevSetClassBase    (&pOhci->PciDev, 0x0c);
+    PCIDevSetInterruptPin (&pOhci->PciDev, 0x01);
+#ifdef VBOX_WITH_MSI_DEVICES
+    PCIDevSetStatus       (&pOhci->PciDev, VBOX_PCI_STATUS_CAP_LIST);
+    PCIDevSetCapabilityList(&pOhci->PciDev, 0x80);
+#endif
+
     pOhci->RootHub.pOhci                         = pOhci;
     pOhci->RootHub.IBase.pfnQueryInterface       = ohciRhQueryInterface;
     pOhci->RootHub.IRhPort.pfnGetAvailablePorts  = ohciRhGetAvailablePorts;
@@ -5408,6 +5411,20 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     rc = PDMDevHlpPCIRegister(pDevIns, &pOhci->PciDev);
     if (RT_FAILURE(rc))
         return rc;
+
+#ifdef VBOX_WITH_MSI_DEVICES
+    PDMMSIREG aMsiReg;
+    RT_ZERO(aMsiReg);
+    aMsiReg.cMsiVectors = 1;
+    aMsiReg.iMsiCapOffset = 0x80;
+    aMsiReg.iMsiNextOffset = 0x0;
+    rc = PDMDevHlpPCIRegisterMsi(pDevIns, &aMsiReg);
+    if (RT_FAILURE (rc))
+    {
+        PCIDevSetCapabilityList(&pOhci->PciDev, 0x0);
+        /* That's OK, we can work without MSI */
+    }
+#endif
 
     rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, 4096, PCI_ADDRESS_SPACE_MEM, ohciR3Map);
     if (RT_FAILURE(rc))
@@ -5558,4 +5575,3 @@ const PDMDEVREG g_DeviceOHCI =
 
 #endif /* IN_RING3 */
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
-

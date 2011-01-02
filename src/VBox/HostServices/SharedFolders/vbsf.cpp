@@ -27,6 +27,7 @@
 #include <iprt/file.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/symlink.h>
 #include <iprt/uni.h>
 #include <iprt/stream.h>
 #ifdef RT_OS_DARWIN
@@ -35,6 +36,8 @@
 
 #undef LogFlow
 #define LogFlow Log
+
+#define SHFL_RT_LINK(pClient) ((pClient)->fu32Flags & SHFL_CF_SYMLINKS ? RTPATH_F_ON_LINK : RTPATH_F_FOLLOW_LINK)
 
 /**
  * @todo find a better solution for supporting the execute bit for non-windows
@@ -99,7 +102,7 @@ void vbsfStripLastComponent (char *pszFullPath, uint32_t cbFullPathRoot)
     LogFlowFunc(("%s, %s, %s\n", pszFullPath, delimLast, delimSecondLast));
 }
 
-static int vbsfCorrectCasing(char *pszFullPath, char *pszStartComponent)
+static int vbsfCorrectCasing(SHFLCLIENTDATA *pClient, char *pszFullPath, char *pszStartComponent)
 {
     PRTDIRENTRYEX  pDirEntry = NULL;
     uint32_t       cbDirEntry, cbComponent;
@@ -138,7 +141,7 @@ static int vbsfCorrectCasing(char *pszFullPath, char *pszStartComponent)
     {
         size_t cbDirEntrySize = cbDirEntry;
 
-        rc = RTDirReadEx(hSearch, pDirEntry, &cbDirEntrySize, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+        rc = RTDirReadEx(hSearch, pDirEntry, &cbDirEntrySize, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
         if (rc == VERR_NO_MORE_FILES)
             break;
 
@@ -309,7 +312,7 @@ static int vbsfBuildFullPath (SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRIN
     {
 #ifdef RT_OS_DARWIN
 /** @todo This belongs in rtPathToNative or in the windows shared folder file system driver...
- * The question is simply whether the NFD normalization is actually applied on a (virtaul) file
+ * The question is simply whether the NFD normalization is actually applied on a (virtual) file
  * system level in darwin, or just by the user mode application libs. */
         SHFLSTRING *pPathParameter = pPath;
         size_t cbPathLength;
@@ -493,13 +496,13 @@ static int vbsfBuildFullPath (SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRIN
             }
 
             /** @todo don't check when creating files or directories; waste of time */
-            rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+            rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
             if (rc == VERR_FILE_NOT_FOUND || rc == VERR_PATH_NOT_FOUND)
             {
                 uint32_t len = (uint32_t)strlen(pszFullPath);
                 char    *src = pszFullPath + len - 1;
 
-                Log(("Handle case insenstive guest fs on top of host case sensitive fs for %s\n", pszFullPath));
+                Log(("Handle case insensitive guest fs on top of host case sensitive fs for %s\n", pszFullPath));
 
                 /* Find partial path that's valid */
                 while(src > pszFullPath)
@@ -507,7 +510,7 @@ static int vbsfBuildFullPath (SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRIN
                     if (*src == RTPATH_DELIMITER)
                     {
                         *src = 0;
-                        rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+                        rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
                         *src = RTPATH_DELIMITER;
                         if (rc == VINF_SUCCESS)
                         {
@@ -543,7 +546,7 @@ static int vbsfBuildFullPath (SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRIN
                         {
                             fEndOfString = false;
                             *end = 0;
-                            rc = RTPathQueryInfoEx(src, &info, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+                            rc = RTPathQueryInfoEx(src, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
                             Assert(rc == VINF_SUCCESS || rc == VERR_FILE_NOT_FOUND || rc == VERR_PATH_NOT_FOUND);
                         }
                         else
@@ -555,7 +558,7 @@ static int vbsfBuildFullPath (SHFLCLIENTDATA *pClient, SHFLROOT root, PSHFLSTRIN
                         if (rc == VERR_FILE_NOT_FOUND || rc == VERR_PATH_NOT_FOUND)
                         {
                             /* path component is invalid; try to correct the casing */
-                            rc = vbsfCorrectCasing(pszFullPath, src);
+                            rc = vbsfCorrectCasing(pClient, pszFullPath, src);
                             if (RT_FAILURE(rc))
                             {
                                 if (!fEndOfString)
@@ -601,7 +604,7 @@ static void vbsfFreeFullPath (char *pszFullPath)
  *
  * @returns iprt status code
  * @param  fShflFlags shared folder create flags
- * @param  fMode      file attibutes
+ * @param  fMode      file attributes
  * @retval pfOpen     iprt create flags
  */
 static int vbsfConvertFileOpenFlags(unsigned fShflFlags, RTFMODE fMode, SHFLHANDLE handleInitial, uint32_t *pfOpen)
@@ -825,6 +828,7 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, RTFMODE fMode, SHFLHAND
  * Open a file or create and open a new one.
  *
  * @returns IPRT status code
+ * @param  pClient               Data structure describing the client accessing the shared folder
  * @param  pszPath               Path to the file or folder on the host.
  * @param  pParms->CreateFlags   Creation or open parameters, see include/VBox/shflsvc.h
  * @param  pParms->Info          When a new file is created this specifies the initial parameters.
@@ -835,7 +839,7 @@ static int vbsfConvertFileOpenFlags(unsigned fShflFlags, RTFMODE fMode, SHFLHAND
  *                               created
  * @retval pParms->Info          On success the parameters of the file opened or created
  */
-static int vbsfOpenFile (const char *pszPath, SHFLCREATEPARMS *pParms)
+static int vbsfOpenFile (SHFLCLIENTDATA *pClient, const char *pszPath, SHFLCREATEPARMS *pParms)
 {
     LogFlow(("vbsfOpenFile: pszPath = %s, pParms = %p\n", pszPath, pParms));
     Log(("SHFL create flags %08x\n", pParms->CreateFlags));
@@ -883,12 +887,12 @@ static int vbsfOpenFile (const char *pszPath, SHFLCREATEPARMS *pParms)
             RTFSOBJINFO info;
 
             /** @todo Possible race left here. */
-            if (RT_SUCCESS(RTPathQueryInfoEx(pszPath, &info, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK)))
+            if (RT_SUCCESS(RTPathQueryInfoEx(pszPath, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient))))
             {
 #ifdef RT_OS_WINDOWS
                 info.Attr.fMode |= 0111;
 #endif
-                pParms->Info = info;
+                vbfsCopyFsObjInfoFromIprt(&pParms->Info, &info);
             }
             pParms->Result = SHFL_FILE_EXISTS;
 
@@ -902,7 +906,7 @@ static int vbsfOpenFile (const char *pszPath, SHFLCREATEPARMS *pParms)
                 LogRel(("SharedFolders host service: Cannot open '%s' -- too many open files.\n", pszPath));
 #if defined RT_OS_LINUX || RT_OS_SOLARIS
                 if (cErrors < 1)
-                    LogRel(("SharedFolders host service: Try to increase the limit for open files (ulimt -n)\n"));
+                    LogRel(("SharedFolders host service: Try to increase the limit for open files (ulimit -n)\n"));
 #endif
                 cErrors++;
             }
@@ -964,7 +968,7 @@ static int vbsfOpenFile (const char *pszPath, SHFLCREATEPARMS *pParms)
 #ifdef RT_OS_WINDOWS
             info.Attr.fMode |= 0111;
 #endif
-            pParms->Info = info;
+            vbfsCopyFsObjInfoFromIprt(&pParms->Info, &info);
         }
     }
     if (RT_FAILURE(rc))
@@ -1061,7 +1065,7 @@ static int vbsfOpenDir (const char *pszPath, SHFLCREATEPARMS *pParms)
                 rc = RTDirQueryInfo (pHandle->dir.Handle, &info, RTFSOBJATTRADD_NOTHING);
                 if (RT_SUCCESS(rc))
                 {
-                    pParms->Info = info;
+                    vbfsCopyFsObjInfoFromIprt(&pParms->Info, &info);
                 }
             }
             else
@@ -1151,12 +1155,12 @@ static int vbsfCloseFile (SHFLFILEHANDLE *pHandle)
  * @retval  pParms->Result Status of the operation (success or error)
  * @retval  pParms->Info   On success, information returned about the file
  */
-static int vbsfLookupFile(char *pszPath, SHFLCREATEPARMS *pParms)
+static int vbsfLookupFile(SHFLCLIENTDATA *pClient, char *pszPath, SHFLCREATEPARMS *pParms)
 {
     RTFSOBJINFO info;
     int rc;
 
-    rc = RTPathQueryInfoEx(pszPath, &info, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+    rc = RTPathQueryInfoEx(pszPath, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
     LogFlow(("SHFL_CF_LOOKUP\n"));
     /* Client just wants to know if the object exists. */
     switch (rc)
@@ -1166,7 +1170,7 @@ static int vbsfLookupFile(char *pszPath, SHFLCREATEPARMS *pParms)
 #ifdef RT_OS_WINDOWS
             info.Attr.fMode |= 0111;
 #endif
-            pParms->Info = info;
+            vbfsCopyFsObjInfoFromIprt(&pParms->Info, &info);
             pParms->Result = SHFL_FILE_EXISTS;
             break;
         }
@@ -1241,14 +1245,14 @@ int vbsfCreate (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint3
 
         if (BIT_FLAG(pParms->CreateFlags, SHFL_CF_LOOKUP))
         {
-            rc = vbsfLookupFile(pszFullPath, pParms);
+            rc = vbsfLookupFile(pClient, pszFullPath, pParms);
         }
         else
         {
             /* Query path information. */
             RTFSOBJINFO info;
 
-            rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+            rc = RTPathQueryInfoEx(pszFullPath, &info, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
             LogFlow(("RTPathQueryInfoEx returned %Rrc\n", rc));
 
             if (RT_SUCCESS(rc))
@@ -1307,7 +1311,7 @@ int vbsfCreate (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint3
                 }
                 else
                 {
-                    rc = vbsfOpenFile (pszFullPath, pParms);
+                    rc = vbsfOpenFile (pClient, pszFullPath, pParms);
                 }
             }
             else
@@ -1333,7 +1337,7 @@ int vbsfClose (SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle)
              pClient, Handle));
 
     SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE);
-    Assert(pHandle);
+    //Assert(pHandle);
     if (!pHandle)
         return VERR_INVALID_HANDLE;
 
@@ -1527,7 +1531,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
         {
             pDirEntry = pDirEntryOrg;
 
-            rc = RTDirReadEx(DirHandle, pDirEntry, &cbDirEntrySize, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
+            rc = RTDirReadEx(DirHandle, pDirEntry, &cbDirEntrySize, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
             if (rc == VERR_NO_MORE_FILES)
             {
                 *pIndex = 0; /* listing completed */
@@ -1537,7 +1541,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
             if (   rc != VINF_SUCCESS
                 && rc != VWRN_NO_DIRENT_INFO)
             {
-                AssertFailed();
+                //AssertFailed();
                 if (   rc == VERR_NO_TRANSLATION
                     || rc == VERR_INVALID_UTF8_ENCODING)
                     continue;
@@ -1568,7 +1572,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
 #ifdef RT_OS_WINDOWS
         pDirEntry->Info.Attr.fMode |= 0111;
 #endif
-        pSFDEntry->Info = pDirEntry->Info;
+        vbfsCopyFsObjInfoFromIprt(&pSFDEntry->Info, &pDirEntry->Info);
         pSFDEntry->cucShortName = 0;
 
         if (fUtf8)
@@ -1592,7 +1596,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
 
 #ifdef RT_OS_DARWIN
 /** @todo This belongs in rtPathToNative or in the windows shared folder file system driver...
- * The question is simply whether the NFD normalization is actually applied on a (virtaul) file
+ * The question is simply whether the NFD normalization is actually applied on a (virtual) file
  * system level in darwin, or just by the user mode application libs. */
             {
                 // Convert to
@@ -1650,14 +1654,45 @@ end:
     return rc;
 }
 
+int vbsfReadLink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32_t cbPath, uint8_t *pBuffer, uint32_t cbBuffer)
+{
+    int rc = VINF_SUCCESS;
+
+    if (pPath == 0 || pBuffer == 0)
+    {
+        AssertFailed();
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /* Build a host full path for the given path, handle file name case issues
+     * (if the guest expects case-insensitive paths but the host is
+     * case-sensitive) and convert ucs2 to utf8 if necessary.
+     */
+    char *pszFullPath = NULL;
+    uint32_t cbFullPathRoot = 0;
+
+    rc = vbsfBuildFullPath (pClient, root, pPath, cbPath, &pszFullPath, &cbFullPathRoot);
+
+    if (RT_SUCCESS (rc))
+    {
+        rc = RTSymlinkRead(pszFullPath, (char *) pBuffer, cbBuffer);
+
+        /* free the path string */
+        vbsfFreeFullPath(pszFullPath);
+    }
+
+    return rc;
+}
+
 int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags, uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
     SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE);
     int            rc = VINF_SUCCESS;
-    RTFSOBJINFO   *pObjInfo = (RTFSOBJINFO *)pBuffer;
+    SHFLFSOBJINFO   *pObjInfo = (SHFLFSOBJINFO *)pBuffer;
+    RTFSOBJINFO    fileinfo;
 
 
-    if (pHandle == 0 || pcbBuffer == 0 || pObjInfo == 0 || *pcbBuffer < sizeof(RTFSOBJINFO))
+    if (pHandle == 0 || pcbBuffer == 0 || pObjInfo == 0 || *pcbBuffer < sizeof(SHFLFSOBJINFO))
     {
         AssertFailed();
         return VERR_INVALID_PARAMETER;
@@ -1670,11 +1705,11 @@ int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle,
 
     if (pHandle->Header.u32Flags & SHFL_HF_TYPE_DIR)
     {
-        rc = RTDirQueryInfo(pHandle->dir.Handle, pObjInfo, RTFSOBJATTRADD_NOTHING);
+        rc = RTDirQueryInfo(pHandle->dir.Handle, &fileinfo, RTFSOBJATTRADD_NOTHING);
     }
     else
     {
-        rc = RTFileQueryInfo(pHandle->file.Handle, pObjInfo, RTFSOBJATTRADD_NOTHING);
+        rc = RTFileQueryInfo(pHandle->file.Handle, &fileinfo, RTFSOBJATTRADD_NOTHING);
 #ifdef RT_OS_WINDOWS
         if (RT_SUCCESS(rc) && RTFS_IS_FILE(pObjInfo->Attr.fMode))
             pObjInfo->Attr.fMode |= 0111;
@@ -1682,7 +1717,8 @@ int vbsfQueryFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle,
     }
     if (rc == VINF_SUCCESS)
     {
-        *pcbBuffer = sizeof(RTFSOBJINFO);
+        vbfsCopyFsObjInfoFromIprt(pObjInfo, &fileinfo);
+        *pcbBuffer = sizeof(SHFLFSOBJINFO);
     }
     else
         AssertFailed();
@@ -1694,16 +1730,16 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
 {
     SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_DIR|SHFL_HF_TYPE_FILE);
     int             rc = VINF_SUCCESS;
-    RTFSOBJINFO    *pSFDEntry;
+    SHFLFSOBJINFO  *pSFDEntry;
 
-    if (pHandle == 0 || pcbBuffer == 0 || pBuffer == 0 || *pcbBuffer < sizeof(RTFSOBJINFO))
+    if (pHandle == 0 || pcbBuffer == 0 || pBuffer == 0 || *pcbBuffer < sizeof(SHFLFSOBJINFO))
     {
         AssertFailed();
         return VERR_INVALID_PARAMETER;
     }
 
     *pcbBuffer  = 0;
-    pSFDEntry   = (RTFSOBJINFO *)pBuffer;
+    pSFDEntry   = (SHFLFSOBJINFO *)pBuffer;
 
     Assert(flags == (SHFL_INFO_SET | SHFL_INFO_FILE));
 
@@ -1732,7 +1768,7 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
         Log(("AccessTime       %RX64\n", RTTimeSpecGetNano(&pSFDEntry->AccessTime)));
         Log(("ModificationTime %RX64\n", RTTimeSpecGetNano(&pSFDEntry->ModificationTime)));
         Log(("ChangeTime       %RX64\n", RTTimeSpecGetNano(&pSFDEntry->ChangeTime)));
-        Log(("BirthTime        %RX64\n", RTTimeSpecGetNano(&pSFDEntry->AccessTime)));
+        Log(("BirthTime        %RX64\n", RTTimeSpecGetNano(&pSFDEntry->BirthTime)));
         /* temporary hack */
         rc = VINF_SUCCESS;
     }
@@ -1769,7 +1805,7 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
         rc = vbsfQueryFileInfo(pClient, root, Handle, SHFL_INFO_GET|SHFL_INFO_FILE, &bufsize, (uint8_t *)pSFDEntry);
         if (rc == VINF_SUCCESS)
         {
-            *pcbBuffer = sizeof(RTFSOBJINFO);
+            *pcbBuffer = sizeof(SHFLFSOBJINFO);
         }
         else
             AssertFailed();
@@ -1783,16 +1819,16 @@ static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE H
 {
     SHFLFILEHANDLE *pHandle = (SHFLFILEHANDLE *)vbsfQueryHandle(Handle, SHFL_HF_TYPE_FILE);
     int             rc = VINF_SUCCESS;
-    RTFSOBJINFO    *pSFDEntry;
+    SHFLFSOBJINFO  *pSFDEntry;
 
-    if (pHandle == 0 || pcbBuffer == 0 || pBuffer == 0 || *pcbBuffer < sizeof(RTFSOBJINFO))
+    if (pHandle == 0 || pcbBuffer == 0 || pBuffer == 0 || *pcbBuffer < sizeof(SHFLFSOBJINFO))
     {
         AssertFailed();
         return VERR_INVALID_PARAMETER;
     }
 
     *pcbBuffer  = 0;
-    pSFDEntry   = (RTFSOBJINFO *)pBuffer;
+    pSFDEntry   = (SHFLFSOBJINFO *)pBuffer;
 
     if (flags & SHFL_INFO_SIZE)
     {
@@ -1814,8 +1850,8 @@ static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE H
 #ifdef RT_OS_WINDOWS
             fileinfo.Attr.fMode |= 0111;
 #endif
-            *pSFDEntry = fileinfo;
-            *pcbBuffer = sizeof(RTFSOBJINFO);
+            vbfsCopyFsObjInfoFromIprt(pSFDEntry, &fileinfo);
+            *pcbBuffer = sizeof(SHFLFSOBJINFO);
         }
         else
             AssertFailed();
@@ -1856,9 +1892,11 @@ int vbsfQueryVolumeInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, uint32_t flags, 
         if (rc != VINF_SUCCESS)
             goto exit;
 
-        rc = RTFsQueryProperties(pszFullPath, &pSFDEntry->fsProperties);
+        RTFSPROPERTIES FsProperties;
+        rc = RTFsQueryProperties(pszFullPath, &FsProperties);
         if (rc != VINF_SUCCESS)
             goto exit;
+        vbfsCopyFsPropertiesFromIprt(&pSFDEntry->fsProperties, &FsProperties);
 
         *pcbBuffer = sizeof(SHFLVOLINFO);
     }
@@ -2007,7 +2045,7 @@ int vbsfRemove(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
     int rc = VINF_SUCCESS;
 
     /* Validate input */
-    if (   flags & ~(SHFL_REMOVE_FILE|SHFL_REMOVE_DIR)
+    if (   flags & ~(SHFL_REMOVE_FILE|SHFL_REMOVE_DIR|SHFL_REMOVE_SYMLINK)
         || cbPath == 0
         || pPath == 0)
     {
@@ -2031,7 +2069,9 @@ int vbsfRemove(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pPath, uint32
 
         if (RT_SUCCESS (rc))
         {
-            if (flags & SHFL_REMOVE_FILE)
+            if (flags & SHFL_REMOVE_SYMLINK)
+                rc = RTSymlinkDelete(pszFullPath);
+            else if (flags & SHFL_REMOVE_FILE)
                 rc = RTFileDelete(pszFullPath);
             else
                 rc = RTDirRemove(pszFullPath);
@@ -2103,6 +2143,30 @@ int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTR
     }
     /* free the path string */
     vbsfFreeFullPath(pszFullPathSrc);
+    return rc;
+}
+
+int vbsfSymlink(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pNewPath, SHFLSTRING *pOldPath, RTFSOBJINFO *pInfo)
+{
+    int rc = VINF_SUCCESS;
+
+    char *pszFullNewPath = NULL;
+    char *pszOldPath = NULL;
+
+    /* XXX: no support for UCS2 at the moment. */
+    if (!BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))
+        return VERR_NOT_IMPLEMENTED;
+
+    rc = vbsfBuildFullPath (pClient, root, pNewPath, pNewPath->u16Size, &pszFullNewPath, NULL);
+    if (rc != VINF_SUCCESS)
+        return rc;
+
+    rc = RTSymlinkCreate(pszFullNewPath, (const char *)pOldPath->String.utf8, RTSYMLINKTYPE_UNKNOWN);
+    if (RT_SUCCESS (rc))
+        rc = RTPathQueryInfoEx(pszFullNewPath, pInfo, RTFSOBJATTRADD_NOTHING, SHFL_RT_LINK(pClient));
+
+    vbsfFreeFullPath(pszFullNewPath);
+
     return rc;
 }
 

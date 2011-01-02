@@ -1,4 +1,4 @@
-/* $Id: DrvIntNet.cpp $ */
+/* $Id: DrvIntNet.cpp 34335 2010-11-24 17:49:09Z vboxsync $ */
 /** @file
  * DrvIntNet - Internal network transport driver.
  */
@@ -152,14 +152,14 @@ typedef struct DRVINTNET
 
     /** Number of GSO packets sent. */
     STAMCOUNTER                     StatSentGso;
-    /** Number of GSO packets recevied. */
+    /** Number of GSO packets received. */
     STAMCOUNTER                     StatReceivedGso;
     /** Number of packets send from ring-0. */
     STAMCOUNTER                     StatSentR0;
-    /** The number of times we've had to wake up the xmit thread to contine the
+    /** The number of times we've had to wake up the xmit thread to continue the
      *  ring-0 job. */
     STAMCOUNTER                     StatXmitWakeupR0;
-    /** The number of times we've had to wake up the xmit thread to contine the
+    /** The number of times we've had to wake up the xmit thread to continue the
      *  ring-3 job. */
     STAMCOUNTER                     StatXmitWakeupR3;
     /** The times the xmit thread has been told to process the ring. */
@@ -319,7 +319,7 @@ PDMBOTHCBDECL(int) drvIntNetUp_BeginXmit(PPDMINETWORKUP pInterface, bool fOnWork
         /** @todo Does this actually make sense if the other dude is an EMT and so
          *        forth?  I seriously think this is ring-0 only...
          * We might end up waking up the xmit thread unnecessarily here, even when in
-         * ring-0... This needs some more thought and opitmizations when the ring-0 bits
+         * ring-0... This needs some more thought and optimizations when the ring-0 bits
          * are working. */
 #ifdef IN_RING3
         if (    !fOnWorkerThread
@@ -368,7 +368,7 @@ PDMBOTHCBDECL(int) drvIntNetUp_AllocBuf(PPDMINETWORKUP pInterface, size_t cbMin,
      * Allocate room in the ring buffer.
      *
      * In ring-3 we may have to process the xmit ring before there is
-     * sufficient buffer space since we might've stacked up a few frames to the
+     * sufficient buffer space since we might have stacked up a few frames to the
      * trunk while in ring-0.  (There is not point of doing this in ring-0.)
      */
     PINTNETHDR pHdr = NULL;             /* gcc silliness */
@@ -479,6 +479,9 @@ PDMBOTHCBDECL(int) drvIntNetUp_SendBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGAT
     if (pSgBuf->pvUser)
         STAM_COUNTER_INC(&pThis->StatSentGso);
 
+    /* Set an FTM checkpoint as this operation changes the state permanently. */
+    PDMDrvHlpFTSetCheckpoint(pThis->CTX_SUFF(pDrvIns), FTMCHECKPOINTTYPE_NETWORK);
+
     /*
      * Commit the frame and push it thru the switch.
      */
@@ -563,7 +566,7 @@ static DECLCALLBACK(void) drvR3IntNetUp_NotifyLinkChanged(PPDMINETWORKUP pInterf
 /* -=-=-=-=- Transmit Thread -=-=-=-=- */
 
 /**
- * Async I/O thread for defered packet transmission.
+ * Async I/O thread for deferred packet transmission.
  *
  * @returns VBox status code. Returning failure will naturally terminate the thread.
  * @param   pDrvIns     The internal networking driver instance.
@@ -722,44 +725,53 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                     {
                         /*
                          * Generic segment offload frame (INTNETHDR_TYPE_GSO).
-                         *
-                         * This is where we do the offloading since we don't
-                         * emulate any NICs with large receive offload (LRO).
                          */
                         STAM_COUNTER_INC(&pThis->StatReceivedGso);
                         PCPDMNETWORKGSO pGso = IntNetHdrGetGsoContext(pHdr, pBuf);
                         if (PDMNetGsoIsValid(pGso, cbFrame, cbFrame - sizeof(PDMNETWORKGSO)))
                         {
-                            cbFrame -= sizeof(PDMNETWORKGSO);
+                            if (!pThis->pIAboveNet->pfnReceiveGso ||
+                                RT_FAILURE(pThis->pIAboveNet->pfnReceiveGso(pThis->pIAboveNet,
+                                                                            (uint8_t *)(pGso + 1),
+                                                                            pHdr->cbFrame - sizeof(PDMNETWORKGSO),
+                                                                            pGso)))
+                            {
+                                /*
+                                 *
+                                 * This is where we do the offloading since this NIC
+                                 * does not support large receive offload (LRO).
+                                 */
+                                cbFrame -= sizeof(PDMNETWORKGSO);
 
-                            uint8_t         abHdrScratch[256];
-                            uint32_t const  cSegs = PDMNetGsoCalcSegmentCount(pGso, cbFrame);
+                                uint8_t         abHdrScratch[256];
+                                uint32_t const  cSegs = PDMNetGsoCalcSegmentCount(pGso, cbFrame);
 #ifdef LOG_ENABLED
-                            if (LogIsEnabled())
-                            {
-                                uint64_t u64Now = RTTimeProgramNanoTS();
-                                LogFlow(("drvR3IntNetRecvRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu; GSO - %u segs\n",
-                                         cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS, cSegs));
-                                pThis->u64LastReceiveTS = u64Now;
-                                Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
-                                      "%.*Rhxd\n",
-                                      cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
-                                      cbFrame - sizeof(*pGso), pGso + 1));
-                            }
-#endif
-                            for (size_t iSeg = 0; iSeg < cSegs; iSeg++)
-                            {
-                                uint32_t cbSegFrame;
-                                void    *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)(pGso + 1), cbFrame, abHdrScratch,
-                                                                              iSeg, cSegs, &cbSegFrame);
-                                rc = drvR3IntNetRecvWaitForSpace(pThis);
-                                if (RT_FAILURE(rc))
+                                if (LogIsEnabled())
                                 {
-                                    Log(("drvR3IntNetRecvRun: drvR3IntNetRecvWaitForSpace -> %Rrc; iSeg=%u cSegs=%u\n", iSeg, cSegs));
-                                    break; /* we drop the rest. */
+                                    uint64_t u64Now = RTTimeProgramNanoTS();
+                                    LogFlow(("drvR3IntNetRecvRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu; GSO - %u segs\n",
+                                             cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS, cSegs));
+                                    pThis->u64LastReceiveTS = u64Now;
+                                    Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
+                                          "%.*Rhxd\n",
+                                          cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
+                                          cbFrame - sizeof(*pGso), pGso + 1));
                                 }
-                                rc = pThis->pIAboveNet->pfnReceive(pThis->pIAboveNet, pvSegFrame, cbSegFrame);
-                                AssertRC(rc);
+#endif
+                                for (size_t iSeg = 0; iSeg < cSegs; iSeg++)
+                                {
+                                    uint32_t cbSegFrame;
+                                    void    *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)(pGso + 1), cbFrame, abHdrScratch,
+                                                                                  iSeg, cSegs, &cbSegFrame);
+                                    rc = drvR3IntNetRecvWaitForSpace(pThis);
+                                    if (RT_FAILURE(rc))
+                                    {
+                                        Log(("drvR3IntNetRecvRun: drvR3IntNetRecvWaitForSpace -> %Rrc; iSeg=%u cSegs=%u\n", iSeg, cSegs));
+                                        break; /* we drop the rest. */
+                                    }
+                                    rc = pThis->pIAboveNet->pfnReceive(pThis->pIAboveNet, pvSegFrame, cbSegFrame);
+                                    AssertRC(rc);
+                                }
                             }
                         }
                         else
@@ -1156,6 +1168,10 @@ static DECLCALLBACK(void) drvR3IntNetDestruct(PPDMDRVINS pDrvIns)
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatYieldsNok);
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatLost);
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->cStatBadFrames);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->StatSend1);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->StatSend2);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->StatRecv1);
+        PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->pBufR3->StatRecv2);
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatReceivedGso);
         PDMDrvHlpSTAMDeregister(pDrvIns, &pThis->StatSentGso);
 #ifdef VBOX_WITH_STATISTICS
@@ -1209,6 +1225,7 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
 {
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
     bool f;
+    bool fIgnoreConnectFailure;
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
@@ -1258,6 +1275,7 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
                               "IgnoreTrunkWirePromisc\0"
                               "QuietlyIgnoreTrunkWirePromisc\0"
                               "IgnoreTrunkHostPromisc\0"
+                              "IgnoreConnectFailure\0"
                               "QuietlyIgnoreTrunkHostPromisc\0"
                               "IsService\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
@@ -1421,9 +1439,20 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
      *        connection in promiscuous mode. */
 
 
+    /** @cfgm{IgnoreConnectFailure, boolean, false}
+     * When set only raise a runtime error if we cannot connect to the internal
+     * network. */
+    rc = CFGMR3QueryBoolDef(pCfg, "IgnoreConnectFailure", &fIgnoreConnectFailure, false);
+    if (RT_FAILURE(rc))
+        return PDMDRV_SET_ERROR(pDrvIns, rc,
+                                N_("Configuration error: Failed to get the \"IgnoreConnectFailure\" value"));
+    if (f)
+        OpenReq.fFlags |= INTNET_OPEN_FLAGS_IGNORE_PROMISC;
+
+
     /** @cfgm{SharedMacOnWire, boolean, false}
      * Whether to shared the MAC address of the host interface when using the wire. When
-     * attaching to a wireless NIC this option is usally a requirement.
+     * attaching to a wireless NIC this option is usually a requirement.
      */
     bool fSharedMacOnWire;
     rc = CFGMR3QueryBoolDef(pCfg, "SharedMacOnWire", &fSharedMacOnWire, false);
@@ -1521,8 +1550,29 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     OpenReq.hIf = INTNET_HANDLE_INVALID;
     rc = PDMDrvHlpSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
     if (RT_FAILURE(rc))
-        return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-                                   N_("Failed to open/create the internal network '%s'"), pThis->szNetwork);
+    {
+        if (fIgnoreConnectFailure)
+        {
+            /*
+             * During VM restore it is fatal if the network is not available because the
+             * VM settings are locked and the user has no chance to fix network settings.
+             * Therefore don't abort but just raise a runtime warning.
+             */
+            PDMDrvHlpVMSetRuntimeError (pDrvIns, 0 /*fFlags*/, "HostIfNotConnecting",
+                                        N_ ("Cannot connect to the network interface '%s'. The virtual "
+                                            "network card will appear to work but the guest will not "
+                                            "be able to connect. Please choose a different network in the "
+                                            "network settings"), OpenReq.szTrunk);
+
+            return VERR_PDM_NO_ATTACHED_DRIVER;
+        }
+        else
+        {
+            return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
+                                       N_("Failed to open/create the internal network '%s'"), pThis->szNetwork);
+        }
+    }
+
     AssertRelease(OpenReq.hIf != INTNET_HANDLE_INVALID);
     pThis->hIf = OpenReq.hIf;
     Log(("IntNet%d: hIf=%RX32 '%s'\n", pDrvIns->iInstance, pThis->hIf, pThis->szNetwork));
@@ -1548,27 +1598,32 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /*
      * Register statistics.
      */
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cbStatWritten, "Bytes/Received",       STAMUNIT_BYTES, "Number of received bytes.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cbStatWritten, "Bytes/Sent",           STAMUNIT_BYTES, "Number of sent bytes.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cOverflows,    "Overflows/Recv",       STAMUNIT_COUNT, "Number overflows.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cOverflows,    "Overflows/Sent",       STAMUNIT_COUNT, "Number overflows.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cStatFrames,   "Packets/Received",     STAMUNIT_COUNT, "Number of received packets.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cStatFrames,   "Packets/Sent",         STAMUNIT_COUNT, "Number of sent packets.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatReceivedGso,            "Packets/Received-Gso", STAMUNIT_COUNT, "The GSO portion of the received packets.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatSentGso,                "Packets/Sent-Gso",     STAMUNIT_COUNT, "The GSO portion of the sent packets.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatSentR0,                 "Packets/Sent-R0",      STAMUNIT_COUNT, "The ring-0 portion of the sent packets.");
+    PDMDrvHlpSTAMRegCounterEx(pDrvIns, &pThis->pBufR3->Recv.cbStatWritten, "Bytes/Received", STAMUNIT_BYTES, "Number of received bytes.");
+    PDMDrvHlpSTAMRegCounterEx(pDrvIns, &pThis->pBufR3->Send.cbStatWritten, "Bytes/Sent",     STAMUNIT_BYTES, "Number of sent bytes.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cOverflows,    "Overflows/Recv",       "Number overflows.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cOverflows,    "Overflows/Sent",       "Number overflows.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Recv.cStatFrames,   "Packets/Received",     "Number of received packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->Send.cStatFrames,   "Packets/Sent",         "Number of sent packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatReceivedGso,            "Packets/Received-Gso", "The GSO portion of the received packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatSentGso,                "Packets/Sent-Gso",     "The GSO portion of the sent packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatSentR0,                 "Packets/Sent-R0",      "The ring-0 portion of the sent packets.");
 
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatLost,          "Packets/Lost",         STAMUNIT_COUNT, "Number of lost packets.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatYieldsNok,     "YieldOk",              STAMUNIT_COUNT, "Number of times yielding helped fix an overflow.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatYieldsOk,      "YieldNok",             STAMUNIT_COUNT, "Number of times yielding didn't help fix an overflow.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatBadFrames,     "BadFrames",            STAMUNIT_COUNT, "Number of bad frames seed by the consumers.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatLost,          "Packets/Lost",         "Number of lost packets.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatYieldsNok,     "YieldOk",              "Number of times yielding helped fix an overflow.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatYieldsOk,      "YieldNok",             "Number of times yielding didn't help fix an overflow.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->pBufR3->cStatBadFrames,     "BadFrames",            "Number of bad frames seed by the consumers.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->pBufR3->StatSend1,          "Send1",                "Profiling IntNetR0IfSend.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->pBufR3->StatSend2,          "Send2",                "Profiling sending to the trunk.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->pBufR3->StatRecv1,          "Recv1",                "Reserved for future receive profiling.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->pBufR3->StatRecv2,          "Recv2",                "Reserved for future receive profiling.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->pBufR3->StatReserved,       "Reserved",             "Reserved for future use.");
 #ifdef VBOX_WITH_STATISTICS
-    PDMDrvHlpSTAMRegProfileAdv(pDrvIns, &pThis->StatReceive,             "Receive",     STAMUNIT_TICKS_PER_CALL, "Profiling packet receive runs.");
-    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->StatTransmit,               "Transmit",    STAMUNIT_TICKS_PER_CALL, "Profiling packet transmit runs.");
+    PDMDrvHlpSTAMRegProfileAdv(pDrvIns, &pThis->StatReceive,             "Receive",              "Profiling packet receive runs.");
+    PDMDrvHlpSTAMRegProfile(pDrvIns, &pThis->StatTransmit,               "Transmit",             "Profiling packet transmit runs.");
 #endif
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitWakeupR0,           "XmitWakeup-R0",        STAMUNIT_COUNT, "Xmit thread wakeups from ring-0.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitWakeupR3,           "XmitWakeup-R3",        STAMUNIT_COUNT, "Xmit thread wakeups from ring-3.");
-    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitProcessRing,        "XmitProcessRing",      STAMUNIT_COUNT, "Time xmit thread was told to process the ring.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitWakeupR0,           "XmitWakeup-R0",        "Xmit thread wakeups from ring-0.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitWakeupR3,           "XmitWakeup-R3",        "Xmit thread wakeups from ring-3.");
+    PDMDrvHlpSTAMRegCounter(pDrvIns, &pThis->StatXmitProcessRing,        "XmitProcessRing",      "Time xmit thread was told to process the ring.");
 
     /*
      * Create the async I/O threads.

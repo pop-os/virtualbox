@@ -1,4 +1,4 @@
-/* $Id: NetIf-linux.cpp $ */
+/* $Id: NetIf-linux.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Main - NetIfList, Linux implementation.
  */
@@ -46,16 +46,16 @@ static int getDefaultIfaceName(char *pszName)
     char szGateway[129];
     char szMask[129];
     int  iTmp;
-    int  iFlags;
+    unsigned uFlags;
 
     if (fp)
     {
         while (fgets(szBuf, sizeof(szBuf)-1, fp))
         {
             int n = sscanf(szBuf, "%16s %128s %128s %X %d %d %d %128s %d %d %d\n",
-                           szIfName, szAddr, szGateway, &iFlags, &iTmp, &iTmp, &iTmp,
+                           szIfName, szAddr, szGateway, &uFlags, &iTmp, &iTmp, &iTmp,
                            szMask, &iTmp, &iTmp, &iTmp);
-            if (n < 10 || !(iFlags & RTF_UP))
+            if (n < 10 || !(uFlags & RTF_UP))
                 continue;
 
             if (strcmp(szAddr, "00000000") == 0 && strcmp(szMask, "00000000") == 0)
@@ -66,6 +66,7 @@ static int getDefaultIfaceName(char *pszName)
                 return VINF_SUCCESS;
             }
         }
+        fclose(fp);
     }
     return VERR_INTERNAL_ERROR;
 }
@@ -73,7 +74,7 @@ static int getDefaultIfaceName(char *pszName)
 static int getInterfaceInfo(int iSocket, const char *pszName, PNETIFINFO pInfo)
 {
     // Zeroing out pInfo is a bad idea as it should contain both short and long names at
-    // this point. So make sure the strucure is cleared by the caller if necessary!
+    // this point. So make sure the structure is cleared by the caller if necessary!
     // memset(pInfo, 0, sizeof(*pInfo));
     struct ifreq Req;
     memset(&Req, 0, sizeof(Req));

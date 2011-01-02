@@ -1,4 +1,4 @@
-/* $Id: DrvVDE.cpp $ */
+/* $Id: DrvVDE.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VDE network transport driver.
  */
@@ -207,6 +207,9 @@ static DECLCALLBACK(int) drvVDENetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
     Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC);
     Assert(RTCritSectIsOwner(&pThis->XmitLock));
 
+    /* Set an FTM checkpoint as this operation changes the state permanently. */
+    PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
+
     int rc;
     if (!pSgBuf->pvUser)
     {
@@ -362,7 +365,7 @@ static DECLCALLBACK(int) drvVDEAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
 
                 /*
                  * A return code != VINF_SUCCESS means that we were woken up during a VM
-                 * state transistion. Drop the packet and wait for the next one.
+                 * state transition. Drop the packet and wait for the next one.
                  */
                 if (RT_FAILURE(rc1))
                     continue;

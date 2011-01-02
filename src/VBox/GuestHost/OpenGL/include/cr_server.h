@@ -25,8 +25,10 @@
 extern "C" {
 #endif
 
+#define SHCROGL_SSM_VERSION 24
+
 #define CR_MAX_WINDOWS 100
-#define CR_MAX_CLIENTS 20
+#define CR_MAX_CLIENTS 64
 
 /*@todo must match MaxGuestMonitors from SchemaDefs.h*/
 #define CR_MAX_GUEST_MONITORS 8
@@ -75,13 +77,22 @@ typedef struct _crclient {
     int spu_id;        /**< id of the last SPU in the client's SPU chain */
     CRConnection *conn;       /**< network connection from the client */
     int number;        /**< a unique number for each client */
+    uint64_t pid;      /*guest pid*/
     GLint currentContextNumber;
     CRContext *currentCtx;
     GLint currentWindow;
     CRMuralInfo *currentMural;
     GLint windowList[CR_MAX_WINDOWS];
     GLint contextList[CR_MAX_CONTEXTS];
+#ifdef VBOXCR_LOGFPS
+    uint64_t timeUsed;
+#endif
 } CRClient;
+
+typedef struct _crclientnode {
+    CRClient *pClient;
+    struct _crclientnode *prev, *next;
+} CRClientNode;
 
 typedef struct CRPoly_t {
     int npoints;
@@ -121,6 +132,7 @@ typedef struct {
     int numClients;
     CRClient *clients[CR_MAX_CLIENTS];  /**< array [numClients] */
     CRClient *curClient;
+    CRClientNode *pCleanupClient;  /*list of clients with pending clean up*/
     CRCurrentStatePointers current;
 
     GLboolean firstCallCreateContext;
@@ -232,6 +244,7 @@ extern DECLEXPORT(void) crVBoxServerRemoveClient(uint32_t u32ClientID);
 extern DECLEXPORT(int32_t) crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t cbBuffer);
 extern DECLEXPORT(int32_t) crVBoxServerClientRead(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t *pcbBuffer);
 extern DECLEXPORT(int32_t) crVBoxServerClientSetVersion(uint32_t u32ClientID, uint32_t vMajor, uint32_t vMinor);
+extern DECLEXPORT(int32_t) crVBoxServerClientSetPID(uint32_t u32ClientID, uint64_t pid);
 
 extern DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM);
 extern DECLEXPORT(int32_t) crVBoxServerLoadState(PSSMHANDLE pSSM, uint32_t version);

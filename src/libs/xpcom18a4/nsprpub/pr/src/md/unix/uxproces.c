@@ -63,6 +63,13 @@ extern char **environ;
 static PRLock *_pr_vms_fork_lock = NULL;
 #endif
 
+#ifdef VBOX
+#include <iprt/err.h>
+#include <iprt/env.h>
+#include <iprt/file.h>
+#include <iprt/process.h>
+#endif
+
 /*
  **********************************************************************
  *
@@ -178,7 +185,7 @@ ForkAndExec(
     int flags;
 #ifdef VMS
     char VMScurdir[FILENAME_MAX+1] = { '\0' } ;
-#endif	
+#endif
 
     process = PR_NEW(PRProcess);
     if (!process) {
@@ -460,6 +467,10 @@ _MD_CreateUnixProcess(
     char *const *envp,
     const PRProcessAttr *attr)
 {
+#ifdef VBOX
+    /* 2010-10-11 Block this for good. */
+    return NULL;
+#endif
     struct pr_CreateProcOp *op;
     PRProcess *proc;
     int rv;
@@ -522,6 +533,10 @@ _MD_CreateUnixProcess(
     char *const *envp,
     const PRProcessAttr *attr)
 {
+#ifdef VBOX
+    /* 2010-10-11 Block this for good. */
+    return NULL;
+#endif
     if (PR_CallOnce(&pr_wp.once, _MD_InitProcesses) == PR_FAILURE) {
 	return NULL;
     }
@@ -529,6 +544,73 @@ _MD_CreateUnixProcess(
 }  /* _MD_CreateUnixProcess */
 
 #endif  /* _PR_SHARE_CLONES */
+
+#ifdef VBOX
+PRStatus
+_MD_CreateUnixProcessDetached(
+    const char *path,
+    char *const *argv,
+    char *const *envp,
+    const PRProcessAttr *attr)
+{
+    int vrc;
+    int nEnv, idx;
+    RTENV childEnv;
+    RTENV newEnv = RTENV_DEFAULT;
+
+    /* this code doesn't support all attributes */
+    PR_ASSERT(!attr || !attr->currentDirectory);
+    /* no custom environment, please */
+    PR_ASSERT(!envp);
+
+    childEnv = RTENV_DEFAULT;
+    if (attr && attr->fdInheritBuffer) {
+        vrc = RTEnvClone(&newEnv, childEnv);
+        if (RT_FAILURE(vrc))
+            return PR_FAILURE;
+        vrc = RTEnvPutEx(newEnv, attr->fdInheritBuffer);
+        if (RT_FAILURE(vrc))
+        {
+            RTEnvDestroy(newEnv);
+            return PR_FAILURE;
+        }
+        childEnv = newEnv;
+    }
+
+    PRTHANDLE pStdIn = NULL, pStdOut = NULL, pStdErr = NULL;
+    RTHANDLE hStdIn, hStdOut, hStdErr;
+    if (attr && attr->stdinFd)
+    {
+        hStdIn.enmType = RTHANDLETYPE_FILE;
+        RTFileFromNative(&hStdIn.u.hFile, attr->stdinFd->secret->md.osfd);
+        pStdIn = &hStdIn;
+    }
+    if (attr && attr->stdoutFd)
+    {
+        hStdOut.enmType = RTHANDLETYPE_FILE;
+        RTFileFromNative(&hStdOut.u.hFile, attr->stdoutFd->secret->md.osfd);
+        pStdOut = &hStdOut;
+    }
+    if (attr && attr->stderrFd)
+    {
+        hStdErr.enmType = RTHANDLETYPE_FILE;
+        RTFileFromNative(&hStdErr.u.hFile, attr->stderrFd->secret->md.osfd);
+        pStdErr = &hStdErr;
+    }
+
+    vrc = RTProcCreateEx(path, (const char **)argv, childEnv,
+                         RTPROC_FLAGS_DETACHED, pStdIn, pStdOut, pStdErr,
+                         NULL /* pszAsUser */, NULL /* pszPassword */,
+                         NULL /* phProcess */);
+    if (newEnv != RTENV_DEFAULT) {
+        RTEnvDestroy(newEnv);
+    }
+    if (RT_SUCCESS(vrc))
+        return PR_SUCCESS;
+    else
+        return PR_FAILURE;
+}  /* _MD_CreateUnixProcessDetached */
+#endif
 
 /*
  * The pid table is a hashtable.
@@ -629,7 +711,8 @@ ProcessReapedChildInternal(pid_t pid, int status)
          * variable. Treat it like a detached process. The proper fix would be
          * to port the NSPR to use IPRT, as currently this races with getting
          * the exit code, but that's pretty harmless. */
-        /** @todo fix this properly, by using IPRT for process management */
+        /* Since 2010-10-11 this code cannot be reached as IPRT took over
+         * what we need, and the rest is blocked. */
         if (_PR_PID_REAPED == pRec->state) {
             DeletePidTable(pRec);
             PR_DELETE(pRec);
@@ -678,6 +761,8 @@ static void WaitPidDaemonThread(void *unused)
 	         * make sure we wait only for child of our group
 	         * to ensure we do not interfere with RT
 	         */
+            /* Since 2010-10-11 this code cannot be reached as IPRT took over
+             * what we need, and the rest is blocked. */
 	        pid = waitpid((pid_t) 0, &status, 0);
 #else
 	        pid = waitpid((pid_t) -1, &status, 0);
@@ -687,7 +772,7 @@ static void WaitPidDaemonThread(void *unused)
             /*
              * waitpid() cannot return 0 because we did not invoke it
              * with the WNOHANG option.
-             */ 
+             */
 	    PR_ASSERT(0 != pid);
 
             /*
@@ -744,7 +829,7 @@ static void WaitPidDaemonThread(void *unused)
         }
 	PR_Lock(pr_wp.ml);
 #endif
-	    
+
         do {
             rv = read(pr_wp.pipefd[0], buf, sizeof(buf));
         } while (sizeof(buf) == rv || (-1 == rv && EINTR == errno));
@@ -776,6 +861,8 @@ static void WaitPidDaemonThread(void *unused)
 	         * make sure we wait only for child of our group
 	         * to ensure we do not interfere with RT
 	         */
+            /* Since 2010-10-11 this code cannot be reached as IPRT took over
+             * what we need, and the rest is blocked. */
 	        pid = waitpid((pid_t) 0, &status, WNOHANG);
 #else
 	        pid = waitpid((pid_t) -1, &status, WNOHANG);

@@ -1,4 +1,4 @@
-/* $Id: VBoxServicePageSharing.cpp $ */
+/* $Id: VBoxServicePageSharing.cpp 35036 2010-12-13 16:56:27Z vboxsync $ */
 /** @file
  * VBoxService - Guest page sharing.
  */
@@ -588,7 +588,6 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
      */
     for (;;)
     {
-        uint64_t idNewSession;
         BOOL fEnabled = VbglR3PageSharingIsEnabled();
 
         VBoxServiceVerbose(3, "VBoxServicePageSharingWorker: enabled=%d\n", fEnabled);
@@ -613,7 +612,7 @@ DECLCALLBACK(int) VBoxServicePageSharingWorker(bool volatile *pfShutdown)
             break;
         }
 #if defined(RT_OS_WINDOWS) && !defined(TARGET_NT4)
-        idNewSession = g_idSession;
+        uint64_t idNewSession = g_idSession;
         rc =  VbglR3GetSessionId(&idNewSession);
         AssertRC(rc);
 
@@ -680,25 +679,24 @@ DECLCALLBACK(int) VBoxServicePageSharingWorkerProcess(bool volatile *pfShutdown)
         BOOL fEnabled = VbglR3PageSharingIsEnabled();
         VBoxServiceVerbose(3, "VBoxServicePageSharingWorkerProcess: enabled=%d\n", fEnabled);
 
+        /*
+         * Start a 2nd VBoxService process to deal with page fusion as we do
+         * not wish to dummy load dlls into this process.  (First load with
+         * DONT_RESOLVE_DLL_REFERENCES, 2nd normal -> dll init routines not called!)
+         */
         if (    fEnabled
             &&  hProcess == NIL_RTPROCESS)
         {
             char szExeName[256];
-            char *pszExeName;
-            char *pszArgs[3];
-
-            pszExeName = RTProcGetExecutableName(szExeName, sizeof(szExeName));
-
+            char *pszExeName = RTProcGetExecutablePath(szExeName, sizeof(szExeName));
             if (pszExeName)
             {
-                pszArgs[0] = pszExeName;
-                pszArgs[1] = "-pagefusionfork";
-                pszArgs[2] = NULL;
-                /* Start a 2nd VBoxService process to deal with page fusion as we do not wish to dummy load
-                 * dlls into this process. (first load with DONT_RESOLVE_DLL_REFERENCES, 2nd normal -> dll init routines not called!)
-                 */
-                rc = RTProcCreate(pszExeName, pszArgs, RTENV_DEFAULT, 0 /* normal child */, &hProcess);
-                if (rc != VINF_SUCCESS)
+                char const *papszArgs[3];
+                papszArgs[0] = pszExeName;
+                papszArgs[1] = "--pagefusionfork";
+                papszArgs[2] = NULL;
+                rc = RTProcCreate(pszExeName, papszArgs, RTENV_DEFAULT, 0 /* normal child */, &hProcess);
+                if (RT_FAILURE(rc))
                     VBoxServiceError("VBoxServicePageSharingWorkerProcess: RTProcCreate %s failed; rc=%Rrc\n", pszExeName, rc);
             }
         }

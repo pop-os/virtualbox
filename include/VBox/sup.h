@@ -202,7 +202,7 @@ typedef enum SUPGIPMODE
 /** Pointer to the Global Information Page.
  *
  * This pointer is valid as long as SUPLib has a open session. Anyone using
- * the page must treat this pointer as higly volatile and not trust it beyond
+ * the page must treat this pointer as highly volatile and not trust it beyond
  * one transaction.
  *
  * @remark  The GIP page is read-only to everyone but the support driver and
@@ -344,7 +344,7 @@ SUPDECL(int) SUPSemEventCreate(PSUPDRVSESSION pSession, PSUPSEMEVENT phEvent);
  *
  * @returns VBox status code.
  * @retval  VINF_OBJECT_DESTROYED if the semaphore was destroyed.
- * @retval  VINF_SUCCESS if the handle was successfully closed but the sempahore
+ * @retval  VINF_SUCCESS if the handle was successfully closed but the semaphore
  *          object remained alive because of other references.
  *
  * @param   pSession            The session handle of the caller.
@@ -384,6 +384,35 @@ SUPDECL(int) SUPSemEventWait(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32
  */
 SUPDECL(int) SUPSemEventWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies);
 
+/**
+ * Waits on a single release event semaphore, interruptible.
+ *
+ * @returns VBox status code.
+ * @param   pSession            The session handle of the caller.
+ * @param   hEvent              The semaphore handle.
+ * @param   uNsTimeout          The deadline given on the RTTimeNanoTS() clock.
+ */
+SUPDECL(int) SUPSemEventWaitNsAbsIntr(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint64_t uNsTimeout);
+
+/**
+ * Waits on a single release event semaphore, interruptible.
+ *
+ * @returns VBox status code.
+ * @param   pSession            The session handle of the caller.
+ * @param   hEvent              The semaphore handle.
+ * @param   cNsTimeout          The number of nanoseconds to wait.
+ */
+SUPDECL(int) SUPSemEventWaitNsRelIntr(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint64_t cNsTimeout);
+
+/**
+ * Gets the best timeout resolution that SUPSemEventWaitNsAbsIntr and
+ * SUPSemEventWaitNsAbsIntr can do.
+ *
+ * @returns The resolution in nanoseconds.
+ * @param   pSession            The session handle of the caller.
+ */
+SUPDECL(uint32_t) SUPSemEventGetResolution(PSUPDRVSESSION pSession);
+
 
 /** Multiple release event semaphore handle. Ring-0 / ring-3. */
 typedef R0PTRTYPE(struct SUPSEMEVENTMULTIHANDLE *)  SUPSEMEVENTMULTI;
@@ -406,7 +435,7 @@ SUPDECL(int) SUPSemEventMultiCreate(PSUPDRVSESSION pSession, PSUPSEMEVENTMULTI p
  *
  * @returns VBox status code.
  * @retval  VINF_OBJECT_DESTROYED if the semaphore was destroyed.
- * @retval  VINF_SUCCESS if the handle was successfully closed but the sempahore
+ * @retval  VINF_SUCCESS if the handle was successfully closed but the semaphore
  *          object remained alive because of other references.
  *
  * @param   pSession            The session handle of the caller.
@@ -455,6 +484,35 @@ SUPDECL(int) SUPSemEventMultiWait(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEve
  */
 SUPDECL(int) SUPSemEventMultiWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies);
 
+/**
+ * Waits on a multiple release event semaphore, interruptible.
+ *
+ * @returns VBox status code.
+ * @param   pSession            The session handle of the caller.
+ * @param   hEventMulti         The semaphore handle.
+ * @param   uNsTimeout          The deadline given on the RTTimeNanoTS() clock.
+ */
+SUPDECL(int) SUPSemEventMultiWaitNsAbsIntr(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint64_t uNsTimeout);
+
+/**
+ * Waits on a multiple release event semaphore, interruptible.
+ *
+ * @returns VBox status code.
+ * @param   pSession            The session handle of the caller.
+ * @param   hEventMulti         The semaphore handle.
+ * @param   cNsTimeout          The number of nanoseconds to wait.
+ */
+SUPDECL(int) SUPSemEventMultiWaitNsRelIntr(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint64_t cNsTimeout);
+
+/**
+ * Gets the best timeout resolution that SUPSemEventMultiWaitNsAbsIntr and
+ * SUPSemEventMultiWaitNsRelIntr can do.
+ *
+ * @returns The resolution in nanoseconds.
+ * @param   pSession            The session handle of the caller.
+ */
+SUPDECL(uint32_t) SUPSemEventMultiGetResolution(PSUPDRVSESSION pSession);
+
 
 #ifdef IN_RING3
 
@@ -482,7 +540,7 @@ SUPR3DECL(int) SUPR3Uninstall(void);
  *
  * This is exported as "TrustedMain" by the dynamic libraries which contains the
  * "real" application binary for which the hardened stub is built.  The entry
- * point is invoked upon successfull initialization of the support library and
+ * point is invoked upon successful initialization of the support library and
  * runtime.
  *
  * @returns main kind of exit code.
@@ -517,7 +575,7 @@ typedef enum SUPINITOP
  * This is exported as "TrustedError" by the dynamic libraries which contains
  * the "real" application binary for which the hardened stub is built.
  *
- * @param   pszWhere        Where the error occured (function name).
+ * @param   pszWhere        Where the error occurred (function name).
  * @param   enmWhat         Which operation went wrong.
  * @param   rc              The status code.
  * @param   pszMsgFmt       Error message format string.
@@ -557,7 +615,7 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
 
 /**
  * Initializes the support library.
- * Each succesful call to SUPR3Init() must be countered by a
+ * Each successful call to SUPR3Init() must be countered by a
  * call to SUPR3Term(false).
  *
  * @returns VBox status code.
@@ -659,7 +717,7 @@ typedef enum SUPLOGGER
  * @param   enmWhich    Which logger.
  * @param   pszFlags    The flags settings.
  * @param   pszGroups   The groups settings.
- * @param   pszDest     The destionation specificier.
+ * @param   pszDest     The destination specificier.
  */
 SUPR3DECL(int) SUPR3LoggerSettings(SUPLOGGER enmWhich, const char *pszFlags, const char *pszGroups, const char *pszDest);
 
@@ -670,7 +728,7 @@ SUPR3DECL(int) SUPR3LoggerSettings(SUPLOGGER enmWhich, const char *pszFlags, con
  * @param   enmWhich    Which logger to create.
  * @param   pszFlags    The flags settings.
  * @param   pszGroups   The groups settings.
- * @param   pszDest     The destionation specificier.
+ * @param   pszDest     The destination specificier.
  */
 SUPR3DECL(int) SUPR3LoggerCreate(SUPLOGGER enmWhich, const char *pszFlags, const char *pszGroups, const char *pszDest);
 
@@ -834,9 +892,11 @@ SUPR3DECL(int) SUPR3LowFree(void *pv, size_t cPages);
  * @returns VBox status code.
  * @param   pszFilename     The path to the image file.
  * @param   pszModule       The module name. Max 32 bytes.
- * @param   ppvImageBase        Where to store the image address.
+ * @param   ppvImageBase    Where to store the image address.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
  */
-SUPR3DECL(int) SUPR3LoadModule(const char *pszFilename, const char *pszModule, void **ppvImageBase);
+SUPR3DECL(int) SUPR3LoadModule(const char *pszFilename, const char *pszModule, void **ppvImageBase, PRTERRINFO pErrInfo);
 
 /**
  * Load a module into R0 HC.
@@ -912,8 +972,60 @@ SUPR3DECL(int) SUPR3GipGetPhys(PRTHCPHYS pHCPhys);
  * @param   pszWhat         For the LogRel on failure.
  * @param   phFile          Where to store the handle to the opened file. This is optional, pass NULL
  *                          if the file should not be opened.
+ * @deprecated Write a new one.
  */
 SUPR3DECL(int) SUPR3HardenedVerifyFile(const char *pszFilename, const char *pszWhat, PRTFILE phFile);
+
+/**
+ * Verifies the integrity of a the current process, including the image
+ * location and that the invocation was absolute.
+ *
+ * This must currently be called after initializing the runtime.  The intended
+ * audience is set-uid-to-root applications, root services and similar.
+ *
+ * @returns VBox status code.  On failure
+ *          message.
+ * @param   pszArgv0        The first argument to main().
+ * @param   fInternal       Set this to @c true if this is an internal
+ *                          VirtualBox application.  Otherwise pass @c false.
+ * @param   pErrInfo        Where to return extended error information.
+ */
+SUPR3DECL(int) SUPR3HardenedVerifySelf(const char *pszArgv0, bool fInternal, PRTERRINFO pErrInfo);
+
+/**
+ * Verifies the integrity of an installation directory.
+ *
+ * The integrity check verifies that the directory cannot be tampered with by
+ * normal users on the system.  On Unix this translates to root ownership and
+ * no symbolic linking.
+ *
+ * @returns VBox status code. On failure a message will be stored in @a pszErr.
+ *
+ * @param   pszDirPath      The directory path.
+ * @param   fRecursive      Whether the check should be recursive or
+ *                          not.  When set, all sub-directores will be checked,
+ *                          including files (@a fCheckFiles is ignored).
+ * @param   fCheckFiles     Whether to apply the same basic integrity check to
+ *                          the files in the directory as the directory itself.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
+ */
+SUPR3DECL(int) SUPR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo);
+
+/**
+ * Verifies the integrity of a plug-in module.
+ *
+ * This is similar to SUPR3HardenedLdrLoad, except it does not load the module
+ * and that the module does not have to be shipped with VirtualBox.
+ *
+ * @returns VBox status code. On failure a message will be stored in @a pszErr.
+ *
+ * @param   pszFilename     The filename of the plug-in module (nothing can be
+ *                          omitted here).
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
+ */
+SUPR3DECL(int) SUPR3HardenedVerifyPlugIn(const char *pszFilename, PRTERRINFO pErrInfo);
 
 /**
  * Same as RTLdrLoad() but will verify the files it loads (hardened builds).
@@ -921,10 +1033,13 @@ SUPR3DECL(int) SUPR3HardenedVerifyFile(const char *pszFilename, const char *pszW
  * Will add dll suffix if missing and try load the file.
  *
  * @returns iprt status code.
- * @param   pszFilename Image filename. This must have a path.
- * @param   phLdrMod    Where to store the handle to the loaded module.
+ * @param   pszFilename     Image filename. This must have a path.
+ * @param   phLdrMod        Where to store the handle to the loaded module.
+ * @param   fFlags          See RTLDRLOAD_FLAGS_XXX.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
  */
-SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod);
+SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo);
 
 /**
  * Same as RTLdrLoadAppPriv() but it will verify the files it loads (hardened
@@ -934,11 +1049,28 @@ SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod)
  * architecture dependent application directory.
  *
  * @returns iprt status code.
- * @param   pszFilename Image filename.
- * @param   phLdrMod    Where to store the handle to the loaded module.
+ * @param   pszFilename     Image filename.
+ * @param   phLdrMod        Where to store the handle to the loaded module.
+ * @param   fFlags          See RTLDRLOAD_FLAGS_XXX.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
  */
-SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod);
+SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo);
 
+/**
+ * Same as RTLdrLoad() but will verify the files it loads (hardened builds).
+ *
+ * This differs from SUPR3HardenedLdrLoad() in that it can load modules from
+ * extension packs and anything else safely installed on the system, provided
+ * they pass the hardening tests.
+ *
+ * @returns iprt status code.
+ * @param   pszFilename     The full path to the module, with extension.
+ * @param   phLdrMod        Where to store the handle to the loaded module.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
+ */
+SUPR3DECL(int) SUPR3HardenedLdrLoadPlugIn(const char *pszFilename, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo);
 
 /**
  * Check if the host kernel can run in VMX root mode.
@@ -947,12 +1079,13 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD ph
  */
 SUPR3DECL(int) SUPR3QueryVTxSupported(void);
 
-
 /**
  * Return VT-x/AMD-V capabilities.
  *
  * @returns VINF_SUCCESS if supported, error code indicating why if not.
  * @param   pfCaps      Pointer to capability dword (out).
+ * @todo Intended for main, which means we need to relax the privilege requires
+ *       when accessing certain vboxdrv functions.
  */
 SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps);
 
@@ -1106,7 +1239,7 @@ typedef R0PTRTYPE(FNSUPR0SERVICEREQHANDLER *) PFNSUPR0SERVICEREQHANDLER;
 #define SUPDRV_IDC_VERSION      UINT32_C(0x00010000)
 
 /**
- * Inter-Driver Communcation Handle.
+ * Inter-Driver Communication Handle.
  */
 typedef union SUPDRVIDCHANDLE
 {

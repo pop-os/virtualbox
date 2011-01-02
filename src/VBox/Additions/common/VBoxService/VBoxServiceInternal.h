@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceInternal.h $ */
+/* $Id: VBoxServiceInternal.h 34867 2010-12-09 10:33:41Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Services.
  */
@@ -91,38 +91,68 @@ typedef VBOXSERVICE *PVBOXSERVICE;
 /** Pointer to a const VBOXSERVICE. */
 typedef VBOXSERVICE const *PCVBOXSERVICE;
 
-#ifdef RT_OS_WINDOWS
-
 /** The service name (needed for mutex creation on Windows). */
-# define VBOXSERVICE_NAME           "VBoxService"
+#define VBOXSERVICE_NAME            "VBoxService"
+
+#ifdef RT_OS_WINDOWS
 /** The friendly service name. */
 # define VBOXSERVICE_FRIENDLY_NAME  "VirtualBox Guest Additions Service"
 /** The service description (only W2K+ atm) */
 # define VBOXSERVICE_DESCRIPTION    "Manages VM runtime information, time synchronization, remote sysprep execution and miscellaneous utilities for guest operating systems."
 /** The following constant may be defined by including NtStatus.h. */
 # define STATUS_SUCCESS             ((NTSTATUS)0x00000000L)
-
 #endif /* RT_OS_WINDOWS */
+
 #ifdef VBOX_WITH_GUEST_CONTROL
-
-enum VBOXSERVICECTRLTHREADDATATYPE
+typedef enum VBOXSERVICECTRLTHREADDATATYPE
 {
-    VBoxServiceCtrlThreadDataUnknown = 0,
-    VBoxServiceCtrlThreadDataExec = 1
-};
+    kVBoxServiceCtrlThreadDataUnknown = 0,
+    kVBoxServiceCtrlThreadDataExec
+} VBOXSERVICECTRLTHREADDATATYPE;
 
+typedef enum VBOXSERVICECTRLPIPEID
+{
+    VBOXSERVICECTRLPIPEID_STDIN_ERROR  = 0,
+    VBOXSERVICECTRLPIPEID_STDIN_WRITABLE,
+    VBOXSERVICECTRLPIPEID_STDIN_INPUT_NOTIFY,
+    VBOXSERVICECTRLPIPEID_STDOUT,
+    VBOXSERVICECTRLPIPEID_STDERR
+} VBOXSERVICECTRLPIPEID;
+
+/**
+ * Structure for holding buffered pipe data.
+ */
 typedef struct
 {
+    /** The data buffer. */
     uint8_t    *pbData;
+    /** The amount of allocated buffer space. */
+    uint32_t    cbAllocated;
+    /** The actual used/occupied buffer space. */
     uint32_t    cbSize;
+    /** Helper variable for keeping track of what
+     *  already was processed and what not. */
     uint32_t    cbOffset;
-    uint32_t    cbRead;
+    /** Critical section protecting this buffer structure. */
     RTCRITSECT  CritSect;
+    /** Indicates the health condition of the child process. */
+    bool        fAlive;
+    /** Set if it's necessary to write to the notification pipe. */
+    bool        fNeedNotification;
+    /** Set if the pipe needs to be closed after the next read/write. */
+    bool        fPendingClose;
+    /** The notification pipe associated with this buffer.
+     * This is NIL_RTPIPE for output pipes. */
+    RTPIPE      hNotificationPipeW;
+    /** The other end of hNotificationPipeW. */
+    RTPIPE      hNotificationPipeR;
 } VBOXSERVICECTRLEXECPIPEBUF;
-/** Pointer to thread data. */
+/** Pointer to buffered pipe data. */
 typedef VBOXSERVICECTRLEXECPIPEBUF *PVBOXSERVICECTRLEXECPIPEBUF;
 
-/* Structure for holding guest exection relevant data. */
+/**
+ * Structure for holding guest exection relevant data.
+ */
 typedef struct
 {
     uint32_t  uPID;
@@ -136,6 +166,8 @@ typedef struct
     char     *pszPassword;
     uint32_t  uTimeLimitMS;
 
+    RTPIPE                     pipeStdInW;
+    VBOXSERVICECTRLEXECPIPEBUF stdIn;
     VBOXSERVICECTRLEXECPIPEBUF stdOut;
     VBOXSERVICECTRLEXECPIPEBUF stdErr;
 
@@ -167,28 +199,6 @@ typedef struct VBOXSERVICECTRLTHREAD
 } VBOXSERVICECTRLTHREAD;
 /** Pointer to thread data. */
 typedef VBOXSERVICECTRLTHREAD *PVBOXSERVICECTRLTHREAD;
-
-/**
- * For buffering process input supplied by the client.
- */
-typedef struct VBOXSERVICECTRLSTDINBUF
-{
-    /** The mount of buffered data. */
-    size_t  cb;
-    /** The current data offset. */
-    size_t  off;
-    /** The data buffer. */
-    char   *pch;
-    /** The amount of allocated buffer space. */
-    size_t  cbAllocated;
-    /** Send further input into the bit bucket (stdin is dead). */
-    bool    fBitBucket;
-    /** The CRC-32 for standard input (received part). */
-    uint32_t uCrc32;
-} VBOXSERVICECTRLSTDINBUF;
-/** Pointer to a standard input buffer. */
-typedef VBOXSERVICECTRLSTDINBUF *PVBOXSERVICECTRLSTDINBUF;
-
 #endif /* VBOX_WITH_GUEST_CONTROL */
 #ifdef VBOX_WITH_GUEST_PROPS
 
@@ -249,6 +259,9 @@ extern VBOXSERVICE  g_VMStatistics;
 #ifdef VBOX_WITH_PAGE_SHARING
 extern VBOXSERVICE  g_PageSharing;
 #endif
+#ifdef VBOX_WITH_SHARED_FOLDERS
+extern VBOXSERVICE  g_AutoMount;
+#endif
 
 extern RTEXITCODE   VBoxServiceSyntax(const char *pszFormat, ...);
 extern RTEXITCODE   VBoxServiceError(const char *pszFormat, ...);
@@ -265,30 +278,38 @@ extern RTEXITCODE   VBoxServiceWinEnterCtrlDispatcher(void);
 extern void         VBoxServiceWinSetStopPendingStatus(uint32_t uCheckPoint);
 #endif
 
+#ifdef VBOXSERVICE_TOOLBOX
+extern bool         VBoxServiceToolboxMain(int argc, char **argv, int *piExitCode);
+#endif
+
 #ifdef RT_OS_WINDOWS
 # ifdef VBOX_WITH_GUEST_PROPS
-extern int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList);
-extern int VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
+extern int          VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList);
+extern int          VBoxServiceWinGetComponentVersions(uint32_t uiClientID);
 # endif /* VBOX_WITH_GUEST_PROPS */
 #endif /* RT_OS_WINDOWS */
 
 #ifdef VBOX_WITH_GUEST_CONTROL
-extern int  VBoxServiceControlExecProcess(uint32_t uContext, const char *pszCmd, uint32_t uFlags,
-                                          const char *pszArgs, uint32_t uNumArgs,
-                                          const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
-                                          const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
-extern void VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
-extern int  VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
-                                                        uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
-extern int  VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
-                                                  uint8_t *pbData, uint32_t cbData);
-#endif
+extern int          VBoxServiceControlExecHandleCmdStartProcess(uint32_t u32ClientId, uint32_t uNumParms);
+extern int          VBoxServiceControlExecHandleCmdSetInput(uint32_t u32ClientId, uint32_t uNumParms, size_t cbMaxBufSize);
+extern int          VBoxServiceControlExecHandleCmdGetOutput(uint32_t u32ClientId, uint32_t uNumParms);
+extern int          VBoxServiceControlExecProcess(uint32_t uContext, const char *pszCmd, uint32_t uFlags,
+                                                  const char *pszArgs, uint32_t uNumArgs,
+                                                  const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
+                                                  const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
+extern void         VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
+extern void         VBoxServiceControlExecDeletePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf);
+extern int          VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
+                                                                uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
+extern int          VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
+                                                          uint8_t *pbData, uint32_t cbData, bool fPendingClose, uint32_t *pcbWritten);
+#endif /* VBOX_WITH_GUEST_CONTROL */
 
 #ifdef VBOXSERVICE_MANAGEMENT
-extern uint32_t VBoxServiceBalloonQueryPages(uint32_t cbPage);
+extern uint32_t     VBoxServiceBalloonQueryPages(uint32_t cbPage);
 #endif
 #if defined(VBOX_WITH_PAGE_SHARING) && defined(RT_OS_WINDOWS)
-extern RTEXITCODE VBoxServicePageSharingInitFork(void);
+extern RTEXITCODE   VBoxServicePageSharingInitFork(void);
 #endif
 
 RT_C_DECLS_END

@@ -1,4 +1,4 @@
-/* $Id: tstCompressionBenchmark.cpp $ */
+/* $Id: tstCompressionBenchmark.cpp 33550 2010-10-28 10:53:57Z vboxsync $ */
 /** @file
  * Compression Benchmark for SSM and PGM.
  */
@@ -239,7 +239,7 @@ int main(int argc, char **argv)
      */
     static const RTGETOPTDEF    s_aOptions[] =
     {
-        { "--interations",    'i', RTGETOPT_REQ_UINT32 },
+        { "--iterations",     'i', RTGETOPT_REQ_UINT32 },
         { "--num-pages",      'n', RTGETOPT_REQ_UINT32 },
         { "--page-at-a-time", 'c', RTGETOPT_REQ_UINT32 },
         { "--page-file",      'f', RTGETOPT_REQ_STRING },
@@ -297,7 +297,7 @@ int main(int argc, char **argv)
                          "Options:\n"
                          "  -h, --help\n"
                          "    Show this help page\n"
-                         "  -i, --interations <num>\n"
+                         "  -i, --iterations <num>\n"
                          "    The number of iterations.\n"
                          "  -n, --num-pages <pages>\n"
                          "    The number of pages.\n"
@@ -367,7 +367,7 @@ int main(int argc, char **argv)
 
     /*
      * Double loop compressing and uncompressing the data, where the outer does
-     * the specified number of interations while the inner applies the different
+     * the specified number of iterations while the inner applies the different
      * compression algorithms.
      */
     struct
@@ -382,9 +382,9 @@ int main(int argc, char **argv)
         int         rc;
         /** The compression style: block or stream. */
         bool        fBlock;
-        /** Compresstion type.  */
+        /** Compression type.  */
         RTZIPTYPE   enmType;
-        /** Compresison level.  */
+        /** Compression level.  */
         RTZIPLEVEL  enmLevel;
         /** Method name. */
         const char *pszName;

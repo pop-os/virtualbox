@@ -1,6 +1,6 @@
-/* $Id: pathhost-darwin.cpp $ */
+/* $Id: pathhost-darwin.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
- * IPRT - Path Convertions, Darwin.
+ * IPRT - Path Conversions, Darwin.
  *
  * On darwin path names on the disk are decomposed using normalization
  * form D (NFD).  Since this behavior is unique for the Mac, we will precompose
@@ -88,6 +88,19 @@ int rtPathFromNativeCopy(char *pszPath, size_t cbPath, const char *pszNativePath
     int rc = RTStrValidateEncodingEx(pszNativePath, RTSTR_MAX, 0 /*fFlags*/);
     if (RT_SUCCESS(rc))
         rc = RTStrCopyEx(pszPath, cbPath, pszNativePath, RTSTR_MAX);
+    NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
+    return rc;
+}
+
+
+int rtPathFromNativeDup(char **ppszPath, const char *pszNativePath, const char *pszBasePath)
+{
+    /** @todo We must compose the codepoints in the string here.  We get file names
+     *        in normalization form D so we'll end up with normalization form C
+     *        whatever approach we take. */
+    int rc = RTStrValidateEncodingEx(pszNativePath, RTSTR_MAX, 0 /*fFlags*/);
+    if (RT_SUCCESS(rc))
+        rc = RTStrDupEx(ppszPath, pszNativePath);
     NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
     return rc;
 }

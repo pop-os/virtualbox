@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 35206 2010-12-16 21:54:47Z vboxsync $
 ## @file
 # Makefile for the Linux installer.
 #
@@ -36,7 +36,7 @@ VBOX_LNX_INST_DEP_ON_MAKEFILE := $(MAKEFILE_CURRENT)
 
 BLDDIRS  += $(VBOX_LNX_INST_OUT_DIR) $(VBOX_LNX_INST_STAGE_DIR)
 PACKING  += $(PATH_BIN)/VirtualBox.tar.bz2
-if !defined(VBOX_NO_LINUX_RUN_INSTALLER) && !defined(VBOX_OSE)
+if !defined(VBOX_NO_LINUX_RUN_INSTALLER)
  PACKING += $(PATH_BIN)/$(VBOX_LNX_PACKAGE_NAME) \
             $(PATH_BIN)/VirtualBox-dbg.tar.bz2
 endif
@@ -65,6 +65,7 @@ linux-bin_INST = bin/
 linux-bin_MODE = a+rx,u+w
 linux-bin_SOURCES = \
         VBoxSysInfo.sh \
+        VBoxCreateUSBNode.sh \
 	VBox.sh=>VBox.sh \
 	$(if $(VBOX_WITH_PYTHON),$(PATH_ROOT)/src/VBox/Frontends/VBoxShell/vboxshell.py=>vboxshell.py,)
 
@@ -73,18 +74,27 @@ linux-misc_INST = bin/
 linux-misc_MODE = a+r,u+w
 linux-misc_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/$(if $(VBOX_OSE),OSE,NonOSE)/VirtualBox_32px.png=>VBox.png \
+	$(PATH_ROOT)/src/VBox/Installer/common/virtualbox.xml \
 	$(if $(VBOX_OSE),,$(VBOX_BRAND_LICENSE_TXT)=>LICENSE) \
 	$(if $(VBOX_WITH_QTGUI),$(PATH_linux-misc)/virtualbox.desktop,)
 linux-misc_CLEAN = $(PATH_linux-misc)/virtualbox.desktop
 
-$$(PATH_linux-misc)/virtualbox.desktop: $(PATH_SUB_CURRENT)/virtualbox.desktop $(VBOX_VERSION_STAMP) | $$(dir $$@)
+$$(PATH_linux-misc)/virtualbox.desktop: $(PATH_ROOT)/src/VBox/Installer/common/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
 ifdef VBOX_PATH_PACKAGE_DOCS
-	$(QUIET)$(SED) -e "s+\$$VBOX_DOC_PATH+$(VBOX_PATH_PACKAGE_DOCS)+" --output $@ $<
+	$(QUIET)$(SED) -e "s+@VBOX_DOC_PATH@+$(VBOX_PATH_PACKAGE_DOCS)+" \
+		-e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
+		--output $@ $<
 else
-	$(QUIET)$(SED) -e "s+\$$VBOX_DOC_PATH+/opt/VirtualBox+" --output $@ $<
+	$(QUIET)$(SED) -e "s+@VBOX_DOC_PATH@+/opt/VirtualBox+" \
+		-e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
+		--output $@ $<
 endif
 
+INSTALLS += linux-icons
+linux-icons_INST = bin/icons
+linux-icons_MODE = a+r,u+w
+linux-icons_SOURCES = $(VBOX_MIME_ICONS)
 
 
 #
@@ -144,8 +154,14 @@ VBOX_LNX_NO_STRIP = \
 	  components/VirtualBox_XPCOM.xpt) \
 	$(if $(VBOX_WITH_PYTHON),vboxshell.py,) \
 	VBoxSysInfo.sh \
+	VBoxCreateUSBNode.sh \
 	VBox.sh \
 	VBox.png
+
+ifdef VBOX_WITH_EXTPACK
+ VBOX_LNX_STRIP_BIN += \
+	VBoxExtPackHelperApp
+endif
 
 # Qt4 GUI
 ifdef VBOX_WITH_QTGUI
@@ -157,10 +173,12 @@ ifdef VBOX_WITH_QTGUI
 	$(if $(VBOX_WITH_DEBUGGER_GUI),VBoxDbg.so)
  VBOX_LNX_NO_STRIP += \
 	virtualbox.desktop \
+	virtualbox.xml \
 	$(VBOX_LICENSE_FILES) \
  	$(if $(VBOX_WITH_QT4_SUN),$(notdir $(wildcard $(PATH_BIN)/lib*VBox*)),) \
 	$(if $(VBOX_WITH_QT4_SUN),accessible/libqtaccessiblewidgets.so,) \
- 	$(foreach f,$(VBOX_APPROVED_GUI_LANGUAGES),nls/VirtualBox_$(f).qm nls/qt_$(f).qm)
+ 	$(foreach f,$(VBOX_APPROVED_GUI_LANGUAGES),nls/VirtualBox_$(f).qm nls/qt_$(f).qm) \
+	icons
 endif
 
 # Guest Additions
@@ -183,41 +201,46 @@ ifdef VBOX_WITH_DOCS_PACKING
 	$(if $(VBOX_WITH_KCHMVIEWER),kchmviewer,)
 endif
 
+# auth stuff
+VBOX_LNX_STRIP_BIN += \
+	VBoxAuth.so \
+	VBoxAuthSimple.so
+
 # VRDP
 ifdef VBOX_WITH_VRDP
- VBOX_LNX_STRIP_BIN += \
-	VBoxVRDP.so \
-	VRDPAuth.so \
-	VRDPAuthSimple.so
+ ifndef VBOX_WITH_EXTPACK_PUEL
+  VBOX_LNX_STRIP_BIN += \
+  	VBoxVRDP.so
+ endif
  ifdef VBOX_WITH_VRDP_RDESKTOP
   VBOX_LNX_NO_STRIP += \
-	rdesktop-vrdp.tar.gz
+  	rdesktop-vrdp.tar.gz
   VBOX_LNX_NO_STRIP += \
-	rdesktop-vrdp-keymaps
+  	rdesktop-vrdp-keymaps
   VBOX_LNX_STRIP_BIN += \
-	rdesktop-vrdp
+  	rdesktop-vrdp
  endif
 endif
 
 # Python XPCOM glue
 ifdef VBOX_WITH_PYTHON
-  VBOX_LNX_NO_STRIP += \
-	$(foreach f,$(notdir $(wildcard $(PATH_BIN)/sdk/bindings/xpcom/python/xpcom/*.py)),sdk/bindings/xpcom/python/xpcom/$(f)) \
-	sdk/bindings/xpcom/python/xpcom/client/__init__.py \
-        sdk/bindings/xpcom/python/xpcom/server/__init__.py \
-	sdk/bindings/xpcom/python/xpcom/server/enumerator.py \
-	sdk/bindings/xpcom/python/xpcom/server/factory.py \
-	sdk/bindings/xpcom/python/xpcom/server/loader.py \
-	sdk/bindings/xpcom/python/xpcom/server/module.py \
-	sdk/bindings/xpcom/python/xpcom/server/policy.py \
-	sdk/installer/vboxapisetup.py \
-	sdk/installer/vboxapi/__init__.py \
-	sdk/installer/vboxapi/VirtualBox_constants.py
+ VBOX_LNX_NO_STRIP += \
+ 	$(foreach f,$(notdir $(wildcard $(PATH_BIN)/sdk/bindings/xpcom/python/xpcom/*.py)),sdk/bindings/xpcom/python/xpcom/$(f)) \
+ 	sdk/bindings/xpcom/python/xpcom/client/__init__.py \
+ 	sdk/bindings/xpcom/python/xpcom/server/__init__.py \
+ 	sdk/bindings/xpcom/python/xpcom/server/enumerator.py \
+ 	sdk/bindings/xpcom/python/xpcom/server/factory.py \
+ 	sdk/bindings/xpcom/python/xpcom/server/loader.py \
+ 	sdk/bindings/xpcom/python/xpcom/server/module.py \
+ 	sdk/bindings/xpcom/python/xpcom/server/policy.py \
+ 	sdk/installer/vboxapisetup.py \
+ 	sdk/installer/vboxapi/__init__.py \
+ 	sdk/installer/vboxapi/VirtualBox_constants.py
 endif
 
 # Java XPCOM bridge
 ifdef VBOX_WITH_JXPCOM
-  VBOX_LNX_NO_STRIP += \
+ VBOX_LNX_NO_STRIP += \
 	sdk/bindings/xpcom/java/vboxjxpcom.jar
 endif
 
@@ -231,23 +254,29 @@ endif
 # BFE
 ifdef VBOX_WITH_BFE
  VBOX_LNX_STRIP_BIN += \
-	VBoxBFE \
-	$(if $(VBOX_WITH_HARDENING),VBoxBFE.so)
+ 	VBoxBFE \
+ 	$(if $(VBOX_WITH_HARDENING),VBoxBFE.so)
 endif
 
 # Webservices
 ifdef VBOX_WITH_WEBSERVICES
  VBOX_LNX_STRIP_BIN += \
-	vboxwebsrv \
-	webtest
+ 	vboxwebsrv \
+ 	webtest
 endif
 
 # EFI firmware
 ifdef VBOX_WITH_EFIFW_PACKING
-  VBOX_LNX_NO_STRIP += \
-	VBoxEFI32.fd \
-	VBoxEFI64.fd
+ VBOX_LNX_NO_STRIP += \
+ 	VBoxEFI32.fd \
+ 	VBoxEFI64.fd
 endif
+
+VBOX_MIME_ICONS = \
+	$(addprefix $(PATH_ROOT)/src/VBox/Resources/other/,\
+	    $(foreach f,ova ovf vbox vbox-extpack, \
+	        $(foreach s,16 20 24 32 48 64 72 96 128 256,\
+		    virtualbox-$(f)-$(s)px.png=>$(s)x$(s)/virtualbox-$(f).png)))
 
 #
 # All the bin files that goes into the archives.
@@ -297,6 +326,7 @@ $(VBOX_LNX_INST_OUT_DIR)/vboxdrv.sh: $(VBOX_PATH_LNX_INST_SRC)/vboxdrv.sh.in | $
 		-e "s|%NOLSB%|yes|g" \
 		-e "s|%DEBIAN%||g" \
 		-e "s|%PACKAGE%|virtualbox|g" \
+		-e "s|%GROUP%|$(if $(VBOX_WITHOUT_HARDENING),vboxusers,root)|g" \
 		--output $@ \
 		$<
 
@@ -308,7 +338,7 @@ $(VBOX_LNX_INST_OUT_DIR)/vboxweb-service.sh: $(VBOX_PATH_LNX_INST_SRC)/vboxweb-s
 		--output $@ \
 		$<
 
-$(VBOX_LNX_INST_OUT_DIR)/install.sh: $(VBOX_PATH_LNX_INST_SRC)/install.sh $(VBOX_VERSION_STAMP) | $$(dir $$@)
+$(VBOX_LNX_INST_OUT_DIR)/install.sh: $(VBOX_PATH_LNX_INST_SRC)/install.sh $(VBOX_VERSION_STAMP) $(VBOX_SVN_REV_KMK).ts | $$(dir $$@)
 	$(QUIET)$(SED) \
 		-e "s;_VERSION_;$(VBOX_VERSION_STRING);g" \
 		-e "s;_SVNREV_;$(VBOX_SVN_REV);g" \

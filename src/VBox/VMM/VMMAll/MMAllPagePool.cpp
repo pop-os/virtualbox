@@ -1,4 +1,4 @@
-/* $Id: MMAllPagePool.cpp $ */
+/* $Id: MMAllPagePool.cpp 32036 2010-08-27 10:14:39Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Page Pool.
  *
@@ -38,7 +38,7 @@
 #endif
 
 
-#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+#if !defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) && !defined(IN_RC)
 
 /**
  * Converts a pool physical address to a linear address.

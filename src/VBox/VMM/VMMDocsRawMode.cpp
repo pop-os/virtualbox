@@ -1,4 +1,4 @@
-/* $Id: VMMDocsRawMode.cpp $ */
+/* $Id: VMMDocsRawMode.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * This file contains the documentation of the raw-mode execution.
  */
@@ -20,7 +20,7 @@
 /** @page pg_raw                Raw-mode Code Execution
  *
  * This chapter describes the virtualization technique which we call raw-mode
- * and how VirtualBox makes use of it and implementes it.
+ * and how VirtualBox makes use of it and implements it.
  *
  * @todo Write raw-mode chapter!
  *

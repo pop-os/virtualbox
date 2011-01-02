@@ -1,10 +1,10 @@
-/* $Id: logrel.cpp $ */
+/* $Id: logrel.cpp 33704 2010-11-02 18:21:28Z vboxsync $ */
 /** @file
- * Runtime VBox - Logger.
+ * Runtime VBox - Release Logger.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,7 +61,7 @@
 *   Global Variables                                                           *
 *******************************************************************************/
 #ifdef IN_RC
-/** Default relese logger instance. */
+/** Default release logger instance. */
 extern "C" DECLIMPORT(RTLOGGERRC)   g_RelLogger;
 #else /* !IN_RC */
 /** Default release logger instance. */
@@ -95,7 +95,7 @@ RT_EXPORT_SYMBOL(RTLogRelDefaultInstance);
  */
 RTDECL(PRTLOGGER) RTLogRelSetDefaultInstance(PRTLOGGER pLogger)
 {
-    return (PRTLOGGER)ASMAtomicXchgPtr((void * volatile *)&g_pRelLogger, pLogger);
+    return ASMAtomicXchgPtrT(&g_pRelLogger, pLogger, PRTLOGGER);
 }
 RT_EXPORT_SYMBOL(RTLogRelSetDefaultInstance);
 #endif /* !IN_RC */
@@ -110,7 +110,7 @@ RT_EXPORT_SYMBOL(RTLogRelSetDefaultInstance);
  * @param   pLogger     Pointer to logger instance. If NULL the default release instance is attempted.
  * @param   fFlags      The logging flags.
  * @param   iGroup      The group.
- *                      The value ~0U is reserved for compatability with RTLogLogger[V] and is
+ *                      The value ~0U is reserved for compatibility with RTLogLogger[V] and is
  *                      only for internal usage!
  * @param   pszFormat   Format string.
  * @param   args        Format arguments.
@@ -144,4 +144,22 @@ RTDECL(void) RTLogRelPrintfV(const char *pszFormat, va_list args)
     RTLogRelLoggerV(NULL, 0, ~0U, pszFormat, args);
 }
 RT_EXPORT_SYMBOL(RTLogRelPrintfV);
+
+
+/**
+ * Changes the buffering setting of the default release logger.
+ *
+ * This can be used for optimizing longish logging sequences.
+ *
+ * @returns The old state.
+ * @param   fBuffered       The new state.
+ */
+RTDECL(bool) RTLogRelSetBuffering(bool fBuffered)
+{
+    PRTLOGGER pLogger = RTLogRelDefaultInstance();
+    if (pLogger)
+        return RTLogSetBuffering(pLogger, fBuffered);
+    return false;
+}
+RT_EXPORT_SYMBOL(RTLogRelSetBuffering);
 

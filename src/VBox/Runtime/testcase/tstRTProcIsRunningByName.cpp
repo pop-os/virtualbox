@@ -1,4 +1,4 @@
-/* $Id: tstRTProcIsRunningByName.cpp $ */
+/* $Id: tstRTProcIsRunningByName.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTProcIsRunningByName
  */
@@ -71,7 +71,7 @@ int main(int argc, char **argv)
     /*
      * Test 3: Check for our own process, filename only.
      */
-    if (RTProcGetExecutableName(szExecPath, RTPATH_MAX))
+    if (RTProcGetExecutablePath(szExecPath, RTPATH_MAX))
     {
         /* Strip any path components */
         char *pszFilename = RTPathFilename(szExecPath);
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     }
     else
     {
-        RTPrintf("tstRTProcIsRunningByName: FAILURE - RTProcGetExecutableName failed!\n");
+        RTPrintf("tstRTProcIsRunningByName: FAILURE - RTProcGetExecutablePath failed!\n");
         cErrors++;
     }
 

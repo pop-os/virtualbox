@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 32324 2010-09-08 15:43:32Z vboxsync $
 ## @file
 # Sub-Makefile for the VBox API testcases.
 #
@@ -22,9 +22,10 @@ include $(KBUILD_PATH)/subheader.kmk
 # Target and globals (small mess)
 #
 ifndef VBOX_ONLY_SDK
- if defined(VBOX_WITH_TESTCASES) || "$(USERNAME)" == "dmik"
+ if defined(VBOX_WITH_TESTCASES) || "$(USERNAME)" == "umoeller"
   PROGRAMS       += \
 	tstAPI \
+	$(if $(VBOX_OSE),,tstOVF) \
 	$(if $(VBOX_WITH_XPCOM),tstVBoxAPILinux,tstVBoxAPIWin) \
 	$(if $(VBOX_WITH_RESOURCE_USAGE_API),tstCollector,)
   PROGRAMS.linux += \
@@ -66,6 +67,34 @@ ifdef VBOX_WITH_RESOURCE_USAGE_API
 tstAPI_DEFS += VBOX_WITH_RESOURCE_USAGE_API
 endif
 
+#
+# tstOVF
+#
+tstOVF_TEMPLATE = VBOXMAINCLIENTEXE
+#tstOVF_INST = $(INST_SDK)bindings/gluecom/samples/
+tstOVF_SOURCES  = tstOVF.cpp
+ifeq ($(KBUILD_TARGET),win) ## @todo just add this to the template.
+tstOVF_DEPS = $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
+else
+tstOVF_DEPS = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
+endif
+ifdef VBOX_WITH_RESOURCE_USAGE_API
+tstOVF_DEFS += VBOX_WITH_RESOURCE_USAGE_API
+endif
+
+ifndef VBOX_OSE
+#
+# OVF test data.
+#
+INSTALLS += ovf-testcases
+ovf-testcases_MODE = a+r,u+w
+ovf-testcases_INST = $(INST_BIN)ovf-testcases/
+ovf-testcases_SOURCES = \
+	ovf-dummy.vmdk \
+	ovf-joomla-0.9/joomla-1.1.4-ovf.ovf=>ovf-joomla-0.9/joomla-1.1.4-ovf.ovf \
+	ovf-winhost-audio-nodisks/WinXP.ovf=>ovf-winhost-audio-nodisks/WinXP.ovf \
+	ovf-winxp-vbox-sharedfolders/winxp.ovf=>ovf-winxp-vbox-sharedfolders/winxp.ovf
+endif
 
 #
 # tstVBoxAPILinux
@@ -121,7 +150,8 @@ tstCollector_LDFLAGS.win     += psapi.lib powrprof.lib
 tstHostHardwareLinux_TEMPLATE  = VBOXR3TSTNPEXE
 tstHostHardwareLinux_SOURCES   = \
 	tstHostHardwareLinux.cpp \
-	../linux/HostHardwareLinux.cpp
+	../linux/HostHardwareLinux.cpp \
+	../linux/USBGetDevices.cpp
 tstHostHardwareLinux_INCS      = . ../include
 tstHostHardwareLinux_DEFS      = \
 	VBOX_TEST_USB_LINUX \

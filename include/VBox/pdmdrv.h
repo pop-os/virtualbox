@@ -33,12 +33,14 @@
 #include <VBox/pdmins.h>
 #include <VBox/pdmcommon.h>
 #include <VBox/pdmasynccompletion.h>
+#include <VBox/pdmblkcache.h>
 #include <VBox/tm.h>
 #include <VBox/ssm.h>
 #include <VBox/cfgm.h>
 #include <VBox/dbgf.h>
 #include <VBox/mm.h>
 #include <VBox/err.h>
+#include <VBox/ftm.h>
 #include <iprt/stdarg.h>
 
 RT_C_DECLS_BEGIN
@@ -627,11 +629,20 @@ typedef struct PDMDRVHLPRC
      */
     DECLRCCALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
 
+    /**
+     * Notify FTM about a checkpoint occurrence
+     *
+     * @param   pDrvIns             The driver instance.
+     * @param   enmType             Checkpoint type
+     * @thread  Any
+     */
+    DECLRCCALLBACKMEMBER(int, pfnFTSetCheckpoint,(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPRC;
 /** Current PDMDRVHLPRC version number. */
-#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 1, 0)
+#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 2, 0)
 
 
 /**
@@ -714,11 +725,20 @@ typedef struct PDMDRVHLPR0
      */
     DECLR0CALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
 
+    /**
+     * Notify FTM about a checkpoint occurrence
+     *
+     * @param   pDrvIns             The driver instance.
+     * @param   enmType             Checkpoint type
+     * @thread  Any
+     */
+    DECLR0CALLBACKMEMBER(int, pfnFTSetCheckpoint,(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR0;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 1, 0)
+#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 2, 0)
 
 
 #ifdef IN_RING3
@@ -965,6 +985,28 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnSSMDeregister,(PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance));
 
     /**
+     * Register an info handler with DBGF.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszName         Data unit name.
+     * @param   pszDesc         The description of the info and any arguments
+     *                          the handler may take.
+     * @param   pfnHandler      The handler function to be called to display the
+     *                          info.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDBGFInfoRegister,(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler));
+
+    /**
+     * Deregister an info handler from DBGF.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         Driver instance.
+     * @param   pszName         Data unit name.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDBGFInfoDeregister,(PPDMDRVINS pDrvIns, const char *pszName));
+
+    /**
      * Registers a statistics sample if statistics are enabled.
      *
      * @param   pDrvIns     Driver instance.
@@ -1195,11 +1237,35 @@ typedef struct PDMDRVHLPR3
      */
     DECLR3CALLBACKMEMBER(int, pfnCallR0,(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg));
 
+    /**
+     * Notify FTM about a checkpoint occurrence
+     *
+     * @param   pDrvIns             The driver instance.
+     * @param   enmType             Checkpoint type
+     * @thread  Any
+     */
+    DECLR3CALLBACKMEMBER(int, pfnFTSetCheckpoint,(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType));
+
+    /**
+     * Creates a block cache for a driver driver instance.
+     *
+     * @returns VBox status code.
+     * @param   pDrvIns         The driver instance.
+     * @param   ppBlkCache      Where to store the handle to the block cache.
+     * @param   pfnXferComplete The I/O transfer complete callback.
+     * @param   pfnXferEnqueue  The I/O request enqueue callback.
+     * @param   pcszId          Unique ID used to identify the user.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnBlkCacheRetain, (PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
+                                                  PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
+                                                  PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
+                                                  const char *pcszId));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR3;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 1, 0)
+#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 2, 0)
 
 #endif /* IN_RING3 */
 
@@ -1277,6 +1343,14 @@ DECLINLINE(int) PDMDrvHlpVMSetRuntimeErrorV(PPDMDRVINS pDrvIns, uint32_t fFlags,
 #else
 # define PDMDRV_ASSERT_OTHER(pDrvIns)  do { } while (0)
 #endif
+
+/**
+ * @copydoc PDMDRVHLP::pfnFTSetCheckpoint
+ */
+DECLINLINE(int) PDMDrvHlpFTSetCheckpoint(PPDMDRVINS pDrvIns, FTMCHECKPOINTTYPE enmType)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnFTSetCheckpoint(pDrvIns, enmType);
+}
 
 
 #ifdef IN_RING3
@@ -1431,6 +1505,22 @@ DECLINLINE(int) PDMDrvHlpSSMRegisterLoadDone(PPDMDRVINS pDrvIns, PFNSSMDRVLOADDO
 }
 
 /**
+ * @copydoc PDMDRVHLP::pfnDBGFInfoRegister
+ */
+DECLINLINE(int) PDMDrvHlpDBGFInfoRegister(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler)
+{
+    return pDrvIns->pHlpR3->pfnDBGFInfoRegister(pDrvIns, pszName, pszDesc, pfnHandler);
+}
+
+/**
+ * @copydoc PDMDRVHLP::pfnDBGFInfoDeregister
+ */
+DECLINLINE(int) PDMDrvHlpDBGFInfoDeregister(PPDMDRVINS pDrvIns, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler)
+{
+    return pDrvIns->pHlpR3->pfnDBGFInfoRegister(pDrvIns, pszName, pszDesc, pfnHandler);
+}
+
+/**
  * @copydoc PDMDRVHLP::pfnSTAMRegister
  */
 DECLINLINE(void) PDMDrvHlpSTAMRegister(PPDMDRVINS pDrvIns, void *pvSample, STAMTYPE enmType, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
@@ -1457,11 +1547,28 @@ DECLINLINE(void) PDMDrvHlpSTAMRegisterF(PPDMDRVINS pDrvIns, void *pvSample, STAM
  * @param   pCounter            Pointer to the counter variable.
  * @param   pszName             The name of the sample.  This is prefixed with
  *                              "/Drivers/<drivername>-<instance no>/".
+ * @param   enmUnit             The unit.
+ * @param   pszDesc             The description.
  */
-DECLINLINE(void) PDMDrvHlpSTAMRegCounter(PPDMDRVINS pDrvIns, PSTAMCOUNTER pCounter, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+DECLINLINE(void) PDMDrvHlpSTAMRegCounterEx(PPDMDRVINS pDrvIns, PSTAMCOUNTER pCounter, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
 {
     pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pCounter, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
                                       "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
+}
+
+/**
+ * Convenience wrapper that registers counter which is always visible and has
+ * the STAMUNIT_COUNT unit.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pCounter            Pointer to the counter variable.
+ * @param   pszName             The name of the sample.  This is prefixed with
+ *                              "/Drivers/<drivername>-<instance no>/".
+ * @param   pszDesc             The description.
+ */
+DECLINLINE(void) PDMDrvHlpSTAMRegCounter(PPDMDRVINS pDrvIns, PSTAMCOUNTER pCounter, const char *pszName, const char *pszDesc)
+{
+    PDMDrvHlpSTAMRegCounterEx(pDrvIns, pCounter, pszName, STAMUNIT_COUNT, pszDesc);
 }
 
 /**
@@ -1471,8 +1578,42 @@ DECLINLINE(void) PDMDrvHlpSTAMRegCounter(PPDMDRVINS pDrvIns, PSTAMCOUNTER pCount
  * @param   pProfile            Pointer to the profiling variable.
  * @param   pszName             The name of the sample.  This is prefixed with
  *                              "/Drivers/<drivername>-<instance no>/".
+ * @param   enmUnit             The unit.
+ * @param   pszDesc             The description.
  */
-DECLINLINE(void) PDMDrvHlpSTAMRegProfile(PPDMDRVINS pDrvIns, PSTAMPROFILE pProfile, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+DECLINLINE(void) PDMDrvHlpSTAMRegProfileEx(PPDMDRVINS pDrvIns, PSTAMPROFILE pProfile, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+{
+    pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pProfile, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
+                                      "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
+}
+
+/**
+ * Convenience wrapper that registers profiling sample which is always visible
+ * hand counts ticks per call (STAMUNIT_TICKS_PER_CALL).
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pProfile            Pointer to the profiling variable.
+ * @param   pszName             The name of the sample.  This is prefixed with
+ *                              "/Drivers/<drivername>-<instance no>/".
+ * @param   pszDesc             The description.
+ */
+DECLINLINE(void) PDMDrvHlpSTAMRegProfile(PPDMDRVINS pDrvIns, PSTAMPROFILE pProfile, const char *pszName, const char *pszDesc)
+{
+    PDMDrvHlpSTAMRegProfileEx(pDrvIns, pProfile, pszName, STAMUNIT_TICKS_PER_CALL, pszDesc);
+}
+
+/**
+ * Convenience wrapper that registers an advanced profiling sample which is
+ * always visible.
+ *
+ * @param   pDrvIns             The driver instance.
+ * @param   pProfile            Pointer to the profiling variable.
+ * @param   enmUnit             The unit.
+ * @param   pszName             The name of the sample.  This is prefixed with
+ *                              "/Drivers/<drivername>-<instance no>/".
+ * @param   pszDesc             The description.
+ */
+DECLINLINE(void) PDMDrvHlpSTAMRegProfileAdvEx(PPDMDRVINS pDrvIns, PSTAMPROFILEADV pProfile, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
 {
     pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pProfile, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
                                       "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
@@ -1486,11 +1627,11 @@ DECLINLINE(void) PDMDrvHlpSTAMRegProfile(PPDMDRVINS pDrvIns, PSTAMPROFILE pProfi
  * @param   pProfile            Pointer to the profiling variable.
  * @param   pszName             The name of the sample.  This is prefixed with
  *                              "/Drivers/<drivername>-<instance no>/".
+ * @param   pszDesc             The description.
  */
-DECLINLINE(void) PDMDrvHlpSTAMRegProfileAdv(PPDMDRVINS pDrvIns, PSTAMPROFILEADV pProfile, const char *pszName, STAMUNIT enmUnit, const char *pszDesc)
+DECLINLINE(void) PDMDrvHlpSTAMRegProfileAdv(PPDMDRVINS pDrvIns, PSTAMPROFILEADV pProfile, const char *pszName, const char *pszDesc)
 {
-    pDrvIns->pHlpR3->pfnSTAMRegisterF(pDrvIns, pProfile, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, enmUnit, pszDesc,
-                                      "/Drivers/%s-%u/%s", pDrvIns->pReg->szName, pDrvIns->iInstance, pszName);
+    PDMDrvHlpSTAMRegProfileAdvEx(pDrvIns, pProfile, pszName, STAMUNIT_TICKS_PER_CALL, pszDesc);
 }
 
 /**
@@ -1569,6 +1710,16 @@ DECLINLINE(int) PDMDrvHlpCallR0(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_
     return pDrvIns->pHlpR3->pfnCallR0(pDrvIns, uOperation, u64Arg);
 }
 
+/**
+ * @copydoc PDMDRVHLP::pfnBlkCacheRetain
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheRetain(PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
+                                        PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
+                                        PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
+                                        const char *pcszId)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheRetain(pDrvIns, ppBlkCache, pfnXferComplete, pfnXferEnqueue, pcszId);
+}
 
 /** Pointer to callbacks provided to the VBoxDriverRegister() call. */
 typedef struct PDMDRVREGCB *PPDMDRVREGCB;

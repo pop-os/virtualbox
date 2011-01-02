@@ -1,4 +1,4 @@
-/* $Id: USBControllerImpl.h $ */
+/* $Id: USBControllerImpl.h 30764 2010-07-09 14:12:12Z vboxsync $ */
 
 /** @file
  *
@@ -32,12 +32,10 @@ namespace settings
 
 class ATL_NO_VTABLE USBController :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<USBController, IUSBController>,
-    public VirtualBoxSupportTranslation<USBController>,
     VBOX_SCRIPTABLE_IMPL(IUSBController)
 {
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (USBController)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(USBController, IUSBController)
 
     DECLARE_NOT_AGGREGATABLE (USBController)
 
@@ -96,9 +94,6 @@ public:
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
     Machine* getMachine();
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"USBController"; }
 
 private:
 

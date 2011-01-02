@@ -1,4 +1,4 @@
-/* $Id: NATEngineImpl.h $ */
+/* $Id: NATEngineImpl.h 33825 2010-11-08 10:16:25Z vboxsync $ */
 
 /** @file
  *
@@ -31,8 +31,6 @@ namespace settings
 
 class ATL_NO_VTABLE NATEngine :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<NATEngine, INATEngine>,
-    public VirtualBoxSupportTranslation<NATEngine>,
     VBOX_SCRIPTABLE_IMPL(INATEngine)
 {
     public:
@@ -68,7 +66,7 @@ class ATL_NO_VTABLE NATEngine :
         /* Alias service */
         ULONG    mAliasMode;
     };
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (NATEngine)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(NATEngine, INATEngine)
 
     DECLARE_NOT_AGGREGATABLE(NATEngine)
 
@@ -83,9 +81,9 @@ class ATL_NO_VTABLE NATEngine :
     DECLARE_EMPTY_CTOR_DTOR (NATEngine)
 
     HRESULT FinalConstruct();
-    HRESULT init(Machine *aParent);
-    HRESULT init(Machine *aParent, NATEngine *aThat);
-    HRESULT initCopy(Machine *aParent, NATEngine *aThat);
+    HRESULT init(Machine *aParent, INetworkAdapter *aAdapter);
+    HRESULT init(Machine *aParent, INetworkAdapter *aAdapter, NATEngine *aThat);
+    HRESULT initCopy(Machine *aParent, INetworkAdapter *aAdapter, NATEngine *aThat);
     bool isModified();
     bool isReallyModified();
     bool rollback();
@@ -125,12 +123,12 @@ class ATL_NO_VTABLE NATEngine :
     STDMETHOD(AddRedirect)(IN_BSTR aName, NATProtocol_T aProto, IN_BSTR aBindIp, USHORT aHostPort, IN_BSTR aGuestIP, USHORT aGuestPort);
     STDMETHOD(RemoveRedirect)(IN_BSTR aName);
 
-    static const wchar_t *getComponentName() { return L"NATEngine"; }
 private:
     Backupable<Data> mData;
     bool m_fModified;
     const ComObjPtr<NATEngine> mPeer;
     Machine * const mParent;
     NATRuleMap mNATRules;
+    INetworkAdapter * const mAdapter;
 };
 #endif

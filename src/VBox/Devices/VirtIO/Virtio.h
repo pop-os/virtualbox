@@ -1,4 +1,4 @@
-/* $Id: Virtio.h $ */
+/* $Id: Virtio.h 33325 2010-10-21 20:34:14Z vboxsync $ */
 /** @file
  * Virtio.h - Virtio Declarations
  */
@@ -304,7 +304,7 @@ DECLINLINE(uint16_t) vringReadAvailIndex(PVPCISTATE pState, PVRING pVRing)
 }
 
 bool vqueueGet(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem);
-void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, uint32_t uLen);
+void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, uint32_t uLen, uint32_t uReserved = 0);
 void vqueueNotify(PVPCISTATE pState, PVQUEUE pQueue);
 void vqueueSync(PVPCISTATE pState, PVQUEUE pQueue);
 

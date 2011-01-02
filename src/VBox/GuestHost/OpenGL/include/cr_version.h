@@ -32,7 +32,7 @@
 #define CR_OPENGL_VERSION_2_0 1
 #define CR_OPENGL_VERSION_2_1 1
 
-/* Version (string) of OpenGL functionality suported by Chromium */
+/* Version (string) of OpenGL functionality supported by Chromium */
 #ifdef CR_OPENGL_VERSION_2_1
 # define CR_OPENGL_VERSION_STRING "2.1"
 #elif defined(CR_OPENGL_VERSION_2_0)
@@ -126,5 +126,9 @@
 
 #define CR_ARB_pixel_buffer_object 1
 #define CR_EXT_texture_sRGB 1
+
+#define CR_EXT_framebuffer_blit 1
+#define CR_EXT_blend_equation_separate 1
+#define CR_EXT_stencil_two_side 1
 
 #endif /* CR_VERSION_H */

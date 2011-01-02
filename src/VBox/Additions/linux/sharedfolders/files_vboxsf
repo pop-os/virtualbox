@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxsf $
+# $Id: files_vboxsf 33439 2010-10-25 19:35:58Z vboxsync $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #
@@ -36,6 +36,7 @@ FILES_VBOXSF_NOBIN=" \
     ${PATH_ROOT}/include/iprt/string.h=>include/iprt/string.h \
     ${PATH_ROOT}/include/iprt/time.h=>include/iprt/time.h \
     ${PATH_ROOT}/include/iprt/types.h=>include/iprt/types.h \
+    ${PATH_ROOT}/include/iprt/uni.h=>include/iprt/uni.h \
     ${PATH_ROOT}/include/VBox/cdefs.h=>include/VBox/cdefs.h \
     ${PATH_ROOT}/include/VBox/err.h=>include/VBox/err.h \
     ${PATH_ROOT}/include/VBox/hgcmsvc.h=>include/VBox/hgcmsvc.h \
@@ -56,8 +57,8 @@ FILES_VBOXSF_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/SysHlp.cpp=>SysHlp.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/SysHlp.h=>SysHlp.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBGLInternal.h=>VBGLInternal.h \
-    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBoxCalls.c=>VBoxCalls.c \
-    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBoxCalls.h=>VBoxCalls.h \
+    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.c=>VBoxGuestR0LibSharedFolders.c \
+    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h=>VBoxGuestR0LibSharedFolders.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VBoxGuestLog.h=>VBoxGuestLog.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VMMDev.cpp=>VMMDev.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuestLib/VbglR0CanUsePhysPageList.cpp=>VbglR0CanUsePhysPageList.c \
@@ -70,6 +71,7 @@ FILES_VBOXSF_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h=>r0drv/linux/the-linux-kernel.h \
     ${PATH_ROOT}/src/VBox/Additions/linux/sharedfolders/Makefile.module=>Makefile \
     ${PATH_ROOT}/src/VBox/Additions/linux/sharedfolders/dirops.c=>dirops.c \
+    ${PATH_ROOT}/src/VBox/Additions/linux/sharedfolders/lnkops.c=>lnkops.c \
     ${PATH_ROOT}/src/VBox/Additions/linux/sharedfolders/regops.c=>regops.c \
     ${PATH_ROOT}/src/VBox/Additions/linux/sharedfolders/utils.c=>utils.c \
     ${PATH_ROOT}/src/VBox/Additions/linux/sharedfolders/vbsfmount.h=>vbsfmount.h \

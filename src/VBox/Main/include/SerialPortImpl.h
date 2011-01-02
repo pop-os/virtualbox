@@ -1,4 +1,4 @@
-/* $Id: SerialPortImpl.h $ */
+/* $Id: SerialPortImpl.h 30764 2010-07-09 14:12:12Z vboxsync $ */
 
 /** @file
  *
@@ -31,12 +31,10 @@ namespace settings
 
 class ATL_NO_VTABLE SerialPort :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<SerialPort, ISerialPort>,
-    public VirtualBoxSupportTranslation<SerialPort>,
     VBOX_SCRIPTABLE_IMPL(ISerialPort)
 {
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (SerialPort)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(SerialPort, ISerialPort)
 
     DECLARE_NOT_AGGREGATABLE(SerialPort)
 
@@ -88,9 +86,6 @@ public:
 
     // public methods for internal purposes only
     // (ensure there is a caller and a read lock before calling them!)
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"SerialPort"; }
 
 private:
     HRESULT checkSetPath(const Utf8Str &str);

@@ -1,10 +1,10 @@
-/* $Id: PGMR0SharedPage.cpp $ */
+/* $Id: PGMR0SharedPage.cpp 31441 2010-08-06 14:13:01Z vboxsync $ */
 /** @file
- * PGM - Page Manager and Monitor, Ring-0.
+ * PGM - Page Manager and Monitor, Page Sharing, Ring-0.
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,7 +52,7 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
 
     Log(("PGMR0SharedModuleCheck: check %s %s base=%RGv size=%x\n", pModule->szName, pModule->szVersion, pModule->Core.Key, pModule->cbModule));
 
-    pgmLock(pVM);
+    Assert(PGMIsLockOwner(pVM));    /* This cannot fail as we grab the lock in pgmR3SharedModuleRegRendezvous before calling into ring-0. */
 
     /* Check every region of the shared module. */
     for (unsigned idxRegion = 0; idxRegion < cRegions; idxRegion++)
@@ -69,7 +69,7 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
             RTGCPHYS GCPhys;
             uint64_t fFlags;
 
-            /** todo: inefficient to fetch each guest page like this... */
+            /** @todo inefficient to fetch each guest page like this... */
             rc = PGMGstGetPage(pVCpu, GCRegion, &fFlags, &GCPhys);
             if (    rc == VINF_SUCCESS
                 &&  !(fFlags & X86_PTE_RW)) /* important as we make assumptions about this below! */
@@ -123,11 +123,11 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
             }
             else
             {
-                Assert(    rc == VINF_SUCCESS 
+                Assert(    rc == VINF_SUCCESS
                        ||  rc == VERR_PAGE_NOT_PRESENT
                        ||  rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT
                        ||  rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT
-                       ||  rc == VERR_PAGE_TABLE_NOT_PRESENT);  
+                       ||  rc == VERR_PAGE_TABLE_NOT_PRESENT);
                 rc = VINF_SUCCESS;  /* ignore error */
             }
 
@@ -137,7 +137,6 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVM pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHA
         }
     }
 
-    pgmUnlock(pVM);
     if (fFlushTLBs)
         PGM_INVL_ALL_VCPU_TLBS(pVM);
 

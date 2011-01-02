@@ -6,6 +6,7 @@
     <file alias="vm_delete_disabled_32px.png">images/vm_delete_disabled_32px.png</file>
     <file alias="vm_discard_32px.png">images/vm_discard_32px.png</file>
     <file alias="vm_discard_disabled_32px.png">images/vm_discard_disabled_32px.png</file>
+    <file alias="vm_add_16px.png">images/vm_add_16px.png</file>
     <file alias="vm_new_32px.png">images/vm_new_32px.png</file>
     <file alias="vm_new_disabled_32px.png">images/vm_new_disabled_32px.png</file>
     <file alias="vm_pause_32px.png">images/vm_pause_32px.png</file>
@@ -16,6 +17,10 @@
     <file alias="vm_show_logs_disabled_32px.png">images/vm_show_logs_disabled_32px.png</file>
     <file alias="vm_start_32px.png">images/vm_start_32px.png</file>
     <file alias="vm_start_disabled_32px.png">images/vm_start_disabled_32px.png</file>
+    <file alias="vm_open_filemanager_16px.png">images/vm_open_filemanager_16px.png</file>
+    <file alias="vm_open_filemanager_disabled_16px.png">images/vm_open_filemanager_disabled_16px.png</file>
+    <file alias="vm_create_shortcut_16px.png">images/vm_create_shortcut_16px.png</file>
+    <file alias="vm_create_shortcut_disabled_16px.png">images/vm_create_shortcut_disabled_16px.png</file>
     <file alias="state_aborted_16px.png">images/state_aborted_16px.png</file>
     <file alias="state_discarding_16px.png">images/state_discarding_16px.png</file>
     <file alias="state_paused_16px.png">images/state_paused_16px.png</file>
@@ -147,8 +152,8 @@
     <file alias="add_shared_folder_disabled_16px.png">images/add_shared_folder_disabled_16px.png</file>
     <file alias="edit_shared_folder_16px.png">images/edit_shared_folder_16px.png</file>
     <file alias="edit_shared_folder_disabled_16px.png">images/edit_shared_folder_disabled_16px.png</file>
-    <file alias="revome_shared_folder_16px.png">images/revome_shared_folder_16px.png</file>
-    <file alias="revome_shared_folder_disabled_16px.png">images/revome_shared_folder_disabled_16px.png</file>
+    <file alias="remove_shared_folder_16px.png">images/remove_shared_folder_16px.png</file>
+    <file alias="remove_shared_folder_disabled_16px.png">images/remove_shared_folder_disabled_16px.png</file>
     <file alias="shared_folder_16px.png">images/shared_folder_16px.png</file>
     <file alias="shared_folder_disabled_16px.png">images/shared_folder_disabled_16px.png</file>
     <file alias="shared_folder_32px.png">images/shared_folder_32px.png</file>

@@ -1,4 +1,4 @@
-/* $Id: coredumper-solaris.cpp $ */
+/* $Id: coredumper-solaris.cpp 34178 2010-11-18 15:18:05Z vboxsync $ */
 /** @file
  * IPRT Testcase - Core Dumper.
  */
@@ -167,7 +167,7 @@ static int WriteFileNoIntr(RTFILE hFile, const void *pcv, size_t cbToRead)
 
 
 /**
- * Read from a given offet in the process' address space.
+ * Read from a given offset in the process' address space.
  *
  * @param pVBoxProc         Pointer to the VBox process.
  * @param pv                Where to read the data into.
@@ -801,7 +801,7 @@ static int ProcReadThreads(PVBOXCORE pVBoxCore)
                 if (RT_SUCCESS(rc))
                 {
                     /*
-                     * Threre can still be more lwpsinfo_t's than lwpstatus_t's, build the
+                     * There can still be more lwpsinfo_t's than lwpstatus_t's, build the
                      * lists accordingly.
                      */
                     pStatus = (lwpstatus_t *)((uintptr_t)pStatusHdr + sizeof(prheader_t));
@@ -1161,7 +1161,7 @@ static int rtCoreDumperForEachThread(PVBOXCORE pVBoxCore,  uint64_t *pcThreads, 
             {
                 prheader_t *pHeader = (prheader_t *)pvInfoHdr;
                 lwpsinfo_t *pThreadInfo = (lwpsinfo_t *)((uintptr_t)pvInfoHdr + sizeof(prheader_t));
-                for (unsigned i = 0; i < pHeader->pr_nent; i++)
+                for (long i = 0; i < pHeader->pr_nent; i++)
                 {
                     pfnWorker(pVBoxCore, pThreadInfo);
                     pThreadInfo = (lwpsinfo_t *)((uintptr_t)pThreadInfo + pHeader->pr_entsize);
@@ -1954,7 +1954,7 @@ static int rtCoreDumperCreateCore(PVBOXCORE pVBoxCore, ucontext_t *pContext, con
     pVBoxProc->pCurThreadCtx  = pContext;
     pVBoxProc->CoreContent    = CC_CONTENT_DEFAULT;
 
-    RTProcGetExecutableName(pVBoxProc->szExecPath, sizeof(pVBoxProc->szExecPath));  /* this gets full path not just name */
+    RTProcGetExecutablePath(pVBoxProc->szExecPath, sizeof(pVBoxProc->szExecPath));  /* this gets full path not just name */
     pVBoxProc->pszExecName = RTPathFilename(pVBoxProc->szExecPath);
 
     /*

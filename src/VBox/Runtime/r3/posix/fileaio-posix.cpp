@@ -1,4 +1,4 @@
-/* $Id: fileaio-posix.cpp $ */
+/* $Id: fileaio-posix.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for POSIX compliant host platforms.
  */
@@ -95,7 +95,7 @@ typedef struct RTFILEAIOREQINTERNAL
     volatile bool                fCanceled;
     /** Opaque user data. */
     void                        *pvUser;
-    /** Number of bytes actually transfered. */
+    /** Number of bytes actually transferred. */
     size_t                       cbTransfered;
     /** Status code. */
     int                          Rc;
@@ -197,8 +197,7 @@ static int rtFileAioCtxProcessEvents(PRTFILEAIOCTXINTERNAL pCtxInt)
     {
         for (unsigned iSlot = 0; iSlot < RT_ELEMENTS(pCtxInt->apReqsNewHead); iSlot++)
         {
-            PRTFILEAIOREQINTERNAL pReqHead = (PRTFILEAIOREQINTERNAL)ASMAtomicXchgPtr((void* volatile*)&pCtxInt->apReqsNewHead[iSlot],
-                                                                                     NULL);
+            PRTFILEAIOREQINTERNAL pReqHead = ASMAtomicXchgPtrT(&pCtxInt->apReqsNewHead[iSlot], NULL, PRTFILEAIOREQINTERNAL);
 
             while (  (pCtxInt->iFirstFree < pCtxInt->cReqsWaitMax)
                    && pReqHead)
@@ -248,7 +247,7 @@ static int rtFileAioCtxProcessEvents(PRTFILEAIOCTXINTERNAL pCtxInt)
         }
 
         /* Check if a request needs to be canceled. */
-        PRTFILEAIOREQINTERNAL pReqToCancel = (PRTFILEAIOREQINTERNAL)ASMAtomicReadPtr((void* volatile*)&pCtxInt->pReqToCancel);
+        PRTFILEAIOREQINTERNAL pReqToCancel = ASMAtomicReadPtrT(&pCtxInt->pReqToCancel, PRTFILEAIOREQINTERNAL);
         if (pReqToCancel)
         {
             /* The request can be in the array waiting for completion or still in the list because it is full. */
@@ -486,14 +485,14 @@ RTDECL(int) RTFileAioReqCancel(RTFILEAIOREQ hReq)
                   ("Invalid state. Request was canceled but wasn't submitted\n"));
 
         Assert(!pCtxInt->pReqToCancel);
-        ASMAtomicWritePtr((void* volatile*)&pCtxInt->pReqToCancel, pReqInt);
+        ASMAtomicWritePtr(&pCtxInt->pReqToCancel, pReqInt);
         rtFileAioCtxWakeup(pCtxInt);
 
         /* Wait for acknowledge. */
         int rc = RTSemEventWait(pCtxInt->SemEventCancel, RT_INDEFINITE_WAIT);
         AssertRC(rc);
 
-        ASMAtomicWritePtr((void* volatile*)&pCtxInt->pReqToCancel, NULL);
+        ASMAtomicWriteNullPtr(&pCtxInt->pReqToCancel);
         pReqInt->Rc = VERR_FILE_AIO_CANCELED;
         RTFILEAIOREQ_SET_STATE(pReqInt, COMPLETED);
         return VINF_SUCCESS;
@@ -818,14 +817,13 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
          */
         unsigned iSlot = 0;
         while (  (iSlot < RT_ELEMENTS(pCtxInt->apReqsNewHead))
-               && !ASMAtomicCmpXchgPtr((void * volatile *)&pCtxInt->apReqsNewHead[iSlot], pHead, NULL))
+               && !ASMAtomicCmpXchgPtr(&pCtxInt->apReqsNewHead[iSlot], pHead, NULL))
             iSlot++;
 
         if (iSlot == RT_ELEMENTS(pCtxInt->apReqsNewHead))
         {
             /* Nothing found. */
-            PRTFILEAIOREQINTERNAL pOldHead = (PRTFILEAIOREQINTERNAL)ASMAtomicXchgPtr((void * volatile *)&pCtxInt->apReqsNewHead[0],
-                                                                                      NULL);
+            PRTFILEAIOREQINTERNAL pOldHead = ASMAtomicXchgPtrT(&pCtxInt->apReqsNewHead[0], NULL, PRTFILEAIOREQINTERNAL);
 
             /* Find the end of the current head and link the old list to the current. */
             PRTFILEAIOREQINTERNAL pTail = pHead;
@@ -834,7 +832,7 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
 
             pTail->pNext = pOldHead;
 
-            ASMAtomicXchgPtr((void * volatile *)&pCtxInt->apReqsNewHead[0], pHead);
+            ASMAtomicWritePtr(&pCtxInt->apReqsNewHead[0], pHead);
         }
 
         /* Set the internal wakeup flag and wakeup the thread if possible. */
@@ -947,7 +945,7 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL
                     if (rcReq == 0)
                     {
                         pReq->Rc = VINF_SUCCESS;
-                        /* Call aio_return() to free ressources. */
+                        /* Call aio_return() to free resources. */
                         pReq->cbTransfered = aio_return(&pReq->AioCB);
                     }
                     else

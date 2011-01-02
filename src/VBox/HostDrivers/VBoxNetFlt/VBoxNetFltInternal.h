@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltInternal.h $ */
+/* $Id: VBoxNetFltInternal.h 33141 2010-10-14 16:35:21Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Internal Header.
  */
@@ -158,7 +158,7 @@ typedef struct VBOXNETFLTINS
             /** @name Linux instance data
              * @{ */
             /** Pointer to the device. */
-            struct net_device volatile *pDev;
+            struct net_device * volatile pDev;
             /** Whether we've successfully put the interface into to promiscuous mode.
              * This is for dealing with the ENETDOWN case. */
             bool volatile fPromiscuousSet;
@@ -191,13 +191,13 @@ typedef struct VBOXNETFLTINS
             bool fReportedInfo;
 #  else
             /** Pointer to the bound IPv4 stream. */
-            void volatile *pvIp4Stream;
+            struct vboxnetflt_stream_t * volatile pIp4Stream;
             /** Pointer to the bound IPv6 stream. */
-            void volatile *pvIp6Stream;
+            struct vboxnetflt_stream_t * volatile pIp6Stream;
             /** Pointer to the bound ARP stream. */
-            void volatile *pvArpStream;
+            struct vboxnetflt_stream_t * volatile pArpStream;
             /** Pointer to the unbound promiscuous stream. */
-            void volatile *pvPromiscStream;
+            struct vboxnetflt_promisc_stream_t * volatile pPromiscStream;
             /** Whether we are attaching to IPv6 stream dynamically now. */
             bool volatile fAttaching;
             /** Whether this is a VLAN interface or not. */
@@ -207,7 +207,7 @@ typedef struct VBOXNETFLTINS
             /** The MAC address of the interface. */
             RTMAC MacAddr;
             /** Mutex protection used for loopback. */
-            RTSEMFASTMUTEX hFastMtx;
+            kmutex_t hMtx;
             /** Mutex protection used for dynamic IPv6 attaches. */
             RTSEMFASTMUTEX hPollMtx;
 #  endif

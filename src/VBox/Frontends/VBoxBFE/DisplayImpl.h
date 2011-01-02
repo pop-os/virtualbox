@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h $ */
+/* $Id: DisplayImpl.h 34754 2010-12-06 14:40:03Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of Display class
@@ -54,6 +54,8 @@ public:
     STDMETHODIMP InvalidateAndUpdate();
     STDMETHODIMP ResizeCompleted();
     STDMETHODIMP GetScreenResolution(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel);
+    void getFramebufferDimensions(int32_t *px1, int32_t *py1, int32_t *px2,
+                                  int32_t *py2);
 
     void resetFramebuffer();
 

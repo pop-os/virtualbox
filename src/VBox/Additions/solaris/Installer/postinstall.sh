@@ -220,7 +220,7 @@ if test ! -z "$xorgbin"; then
                 cp "$vboxadditions32_path/$vboxmouse_src" "$vboxmouse_dest"
                 cp "$vboxadditions32_path/$vboxvideo_src" "$vboxvideo_dest"
 
-                # Removing redundent names from pkg and files from disk
+                # Removing redundant names from pkg and files from disk
                 /usr/sbin/removef $PKGINST $vboxadditions32_path/vboxmouse_drv_* 1>/dev/null
                 /usr/sbin/removef $PKGINST $vboxadditions32_path/vboxvideo_drv_* 1>/dev/null
                 rm -f $vboxadditions32_path/vboxmouse_drv_*
@@ -236,7 +236,7 @@ if test ! -z "$xorgbin"; then
                 cp "$vboxadditions64_path/$vboxmouse_src" "$vboxmouse_dest"
                 cp "$vboxadditions64_path/$vboxvideo_src" "$vboxvideo_dest"
 
-                # Removing redundent names from pkg and files from disk
+                # Removing redundant names from pkg and files from disk
                 /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxmouse_drv_* 1>/dev/null
                 /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxvideo_drv_* 1>/dev/null
                 rm -f $vboxadditions64_path/vboxmouse_drv_*
@@ -267,7 +267,7 @@ if test ! -z "$xorgbin"; then
                 7.1.* | 7.2.* | 6.9.* | 7.0.* | 1.3.* )
                     $vboxadditions_path/x11config.pl
                     ;;
-                1.5.* | 1.6.* | 1.7.* )
+                1.4.* | 1.5.* | 1.6.* | 1.7.* )
                     $vboxadditions_path/x11config15sol.pl
                     ;;
             esac
@@ -336,6 +336,11 @@ if test -f "$vboxadditions32_path/$vboxfsmod"; then
     /usr/sbin/removef $PKGINST $vboxadditions32_path/$vboxfsunused 1>/dev/null
     rm -f $vboxadditions32_path/$vboxfsunused
 fi
+
+# Add a group "vboxsf" for Shared Folders access
+# All users which want to access the auto-mounted Shared Folders have to
+# be added to this group.
+groupadd vboxsf >/dev/null 2>&1
 
 # install openGL extensions for X.Org
 if test ! -z "$xorgbin"; then

@@ -1,4 +1,4 @@
-/* $Id: tcp_var.h $ */
+/* $Id: tcp_var.h 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * NAT - TCP (declarations).
  */

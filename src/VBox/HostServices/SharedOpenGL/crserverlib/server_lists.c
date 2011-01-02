@@ -22,7 +22,7 @@
  *
  * By zeroing the 'shared_display_lists' configuration option, we can tell
  * the server to make list K be unique for all N clients.  We do this by
- * translating K into a new, unique ID dependant on which client we're
+ * translating K into a new, unique ID dependent on which client we're
  * talking to (curClient->number).
  *
  * Same story for texture objects, vertex programs, etc.
@@ -40,16 +40,6 @@
 static GLuint TranslateListID( GLuint id )
 {
     if (!cr_server.sharedDisplayLists) {
-        int client = cr_server.curClient->number;
-        return id + client * 100000;
-    }
-    return id;
-}
-
-
-GLuint crServerTranslateTextureID( GLuint id )
-{
-    if (!cr_server.sharedTextureObjects && id) {
         int client = cr_server.curClient->number;
         return id + client * 100000;
     }
@@ -78,6 +68,11 @@ crServerDispatchNewList( GLuint list, GLenum mode )
     cr_server.head_spu->dispatch_table.NewList( list, mode );
 }
 
+void SERVER_DISPATCH_APIENTRY crServerDispatchEndList(void)
+{
+    cr_server.head_spu->dispatch_table.EndList();
+    crStateEndList();
+}
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchCallList( GLuint list )
@@ -88,6 +83,7 @@ crServerDispatchCallList( GLuint list )
         /* we're not compiling, so execute the list now */
         /* Issue the list as-is */
         cr_server.head_spu->dispatch_table.CallList( list );
+        crStateQueryHWState();
     }
     else {
         /* we're compiling glCallList into another list - just pass it through */
@@ -215,6 +211,7 @@ crServerDispatchCallLists( GLsizei n, GLenum type, const GLvoid *lists )
         /* we're not compiling, so execute the list now */
         /* Issue the list as-is */
         cr_server.head_spu->dispatch_table.CallLists( n, type, lists );
+        crStateQueryHWState();
     }
     else {
         /* we're compiling glCallList into another list - just pass it through */
@@ -247,56 +244,50 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteLists( GLuint list, GLsizei 
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchBindTexture( GLenum target, GLuint texture )
 {
-    texture = crServerTranslateTextureID( texture );
     crStateBindTexture( target, texture );
-    cr_server.head_spu->dispatch_table.BindTexture( target, texture );
+    cr_server.head_spu->dispatch_table.BindTexture(target, crStateGetTextureHWID(texture));
 }
-
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteTextures( GLsizei n, const GLuint *textures)
 {
-    if (!cr_server.sharedTextureObjects) {
-        GLuint *newTextures = (GLuint *) crAlloc(n * sizeof(GLuint));
-        GLint i;
-        if (!newTextures) {
-            crError("crServerDispatchDeleteTextures: out of memory");
-            return;
-        }
-        for (i = 0; i < n; i++) {
-            newTextures[i] = crServerTranslateTextureID( textures[i] );
-        }
-        crStateDeleteTextures( n, newTextures );
-        cr_server.head_spu->dispatch_table.DeleteTextures( n, newTextures );
-        crFree(newTextures);
+    GLuint *newTextures = (GLuint *) crAlloc(n * sizeof(GLuint));
+    GLint i;
+
+    if (!newTextures)
+    {
+        crError("crServerDispatchDeleteTextures: out of memory");
+        return;
     }
-    else {
-        crStateDeleteTextures( n, textures );
-        cr_server.head_spu->dispatch_table.DeleteTextures( n, textures );
+
+    for (i = 0; i < n; i++)
+    {
+        newTextures[i] = crStateGetTextureHWID(textures[i]);
     }
+
+    crStateDeleteTextures(n, textures);
+    cr_server.head_spu->dispatch_table.DeleteTextures(n, newTextures);
+    crFree(newTextures);
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchPrioritizeTextures( GLsizei n, const GLuint * textures, const GLclampf * priorities )
 {
-    if (!cr_server.sharedTextureObjects) 
+    GLuint *newTextures = (GLuint *) crAlloc(n * sizeof(GLuint));
+    GLint i;
+
+    if (!newTextures)
     {
-        GLuint *newTextures = (GLuint *) crAlloc(n * sizeof(GLuint));
-        GLint i;
-        if (!newTextures) {
-            crError("crServerDispatchDeleteTextures: out of memory");
-            return;
-        }
-        for (i = 0; i < n; i++) {
-            newTextures[i] = crServerTranslateTextureID( textures[i] );
-        }
-        crStatePrioritizeTextures(n, newTextures, priorities);
-        cr_server.head_spu->dispatch_table.PrioritizeTextures(n, newTextures, priorities);
-        crFree(newTextures);
+        crError("crServerDispatchDeleteTextures: out of memory");
+        return;
     }
-    else
+
+    for (i = 0; i < n; i++)
     {
-        crStatePrioritizeTextures(n, textures, priorities);
-        cr_server.head_spu->dispatch_table.PrioritizeTextures(n, textures, priorities);
+        newTextures[i] = crStateGetTextureHWID(textures[i]);
     }
+
+    crStatePrioritizeTextures(n, textures, priorities);
+    cr_server.head_spu->dispatch_table.PrioritizeTextures(n, newTextures, priorities);
+    crFree(newTextures);
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteProgramsARB(GLsizei n, const GLuint * programs)
@@ -319,8 +310,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteProgramsARB(GLsizei n, const
 GLboolean SERVER_DISPATCH_APIENTRY crServerDispatchIsTexture( GLuint texture )
 {
     GLboolean retval;
-    texture = crServerTranslateTextureID( texture );
-    retval = cr_server.head_spu->dispatch_table.IsTexture( texture );
+    retval = cr_server.head_spu->dispatch_table.IsTexture(crStateGetTextureHWID(texture));
     crServerReturnValue( &retval, sizeof(retval) );
     return retval; /* WILL PROBABLY BE IGNORED */
 }
@@ -329,7 +319,7 @@ GLboolean SERVER_DISPATCH_APIENTRY crServerDispatchIsTexture( GLuint texture )
 GLboolean SERVER_DISPATCH_APIENTRY crServerDispatchIsProgramARB( GLuint program )
 {
     GLboolean retval;
-    program = crServerTranslateTextureID(program);
+    program = crServerTranslateProgramID(program);
     retval = cr_server.head_spu->dispatch_table.IsProgramARB( program );
     crServerReturnValue( &retval, sizeof(retval) );
     return retval; /* WILL PROBABLY BE IGNORED */
@@ -340,21 +330,20 @@ crServerDispatchAreTexturesResident(GLsizei n, const GLuint *textures,
                                     GLboolean *residences)
 {
     GLboolean retval;
-    GLboolean *res = (GLboolean *) crAlloc(n * sizeof(GLboolean));
     GLsizei i;
+    GLboolean *res = (GLboolean *) crAlloc(n * sizeof(GLboolean));
+    GLuint *textures2 = (GLuint *) crAlloc(n * sizeof(GLuint));
 
     (void) residences;
+        
+    for (i = 0; i < n; i++)
+    {
+        textures2[i] = crStateGetTextureHWID(textures[i]);
+    }
+    retval = cr_server.head_spu->dispatch_table.AreTexturesResident(n, textures2, res);
 
-    if (!cr_server.sharedTextureObjects) {
-        GLuint *textures2 = (GLuint *) crAlloc(n * sizeof(GLuint));
-        for (i = 0; i < n; i++)
-            textures2[i] = crServerTranslateTextureID(textures[i]);
-        retval = cr_server.head_spu->dispatch_table.AreTexturesResident(n, textures2, res);
-        crFree(textures2);
-    }
-    else {
-        retval = cr_server.head_spu->dispatch_table.AreTexturesResident(n, textures, res);
-    }
+    crFree(textures2);
+
     crServerReturnValue(res, n * sizeof(GLboolean));
 
     crFree(res);

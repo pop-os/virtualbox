@@ -1,4 +1,4 @@
-/* $Id: timer-posix.cpp $ */
+/* $Id: timer-posix.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Timer, POSIX.
  */
@@ -113,7 +113,7 @@ typedef struct RTTIMER
                                 * we (might) have code assuming that signals doesn't screw around
                                 * on existing threads. (It would be sufficient to have one thread
                                 * per signal of course since the signal will be masked while it's
-                                * running, however, it may just cause more compilcations than its
+                                * running, however, it may just cause more complications than its
                                 * worth - sigwait/sigwaitinfo work atomically anyway...)
                                 * Also, must block the signal in the thread main procedure too. */
     /** The timer thread. */
@@ -149,11 +149,11 @@ typedef struct RTTIMER
 #ifdef IPRT_WITH_POSIX_TIMERS
 
 /**
- * RTOnce callback that initalizes the critical section.
+ * RTOnce callback that initializes the critical section.
  *
  * @returns RTCritSectInit return code.
- * @param   pvUser1     NULL, ignopred.
- * @param   pvUser2     NULL, ignopred.
+ * @param   pvUser1     NULL, ignored.
+ * @param   pvUser2     NULL, ignored.
  *
  */
 static DECLCALLBACK(int) rtTimerOnce(void *pvUser1, void *pvUser2)
@@ -396,7 +396,7 @@ static DECLCALLBACK(int) rttimerThread(RTTHREAD Thread, void *pvArg)
 }
 
 
-RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigned fFlags, PFNRTTIMER pfnTimer, void *pvUser)
+RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_t fFlags, PFNRTTIMER pfnTimer, void *pvUser)
 {
     /*
      * We don't support the fancy MP features.
@@ -808,5 +808,13 @@ RTDECL(int) RTTimerStop(PRTTIMER pTimer)
 #endif /* IPRT_WITH_POSIX_TIMERS */
 
     return rc;
+}
+
+
+RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
+{
+    AssertPtrReturn(pTimer, VERR_INVALID_POINTER);
+    AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_MAGIC);
+    return VERR_NOT_SUPPORTED;
 }
 

@@ -1,4 +1,4 @@
-/* $Id: NATEngineImpl.cpp $ */
+/* $Id: NATEngineImpl.cpp 34992 2010-12-13 11:36:38Z vboxsync $ */
 /** @file
  * Implementation of INATEngine in VBoxSVC.
  */
@@ -31,7 +31,7 @@
 // constructor / destructor
 ////////////////////////////////////////////////////////////////////////////////
 
-NATEngine::NATEngine():mParent(NULL){}
+NATEngine::NATEngine():mParent(NULL), mAdapter(NULL){}
 NATEngine::~NATEngine(){}
 
 HRESULT NATEngine::FinalConstruct()
@@ -39,7 +39,7 @@ HRESULT NATEngine::FinalConstruct()
     return S_OK;
 }
 
-HRESULT NATEngine::init(Machine *aParent)
+HRESULT NATEngine::init(Machine *aParent, INetworkAdapter *aAdapter)
 {
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
@@ -49,10 +49,11 @@ HRESULT NATEngine::init(Machine *aParent)
     mData->mNetwork.setNull();
     mData->mBindIP.setNull();
     unconst(mParent) = aParent;
+    unconst(mAdapter) = aAdapter;
     return S_OK;
 }
 
-HRESULT NATEngine::init(Machine *aParent, NATEngine *aThat)
+HRESULT NATEngine::init(Machine *aParent, INetworkAdapter *aAdapter, NATEngine *aThat)
 {
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
@@ -71,12 +72,13 @@ HRESULT NATEngine::init(Machine *aParent, NATEngine *aThat)
         mNATRules.insert(std::make_pair(it->first, it->second));
     }
     unconst(mParent) = aParent;
+    unconst(mAdapter) = aAdapter;
     unconst(mPeer) = aThat;
     autoInitSpan.setSucceeded();
     return S_OK;
 }
 
-HRESULT NATEngine::initCopy (Machine *aParent, NATEngine *aThat)
+HRESULT NATEngine::initCopy (Machine *aParent, INetworkAdapter *aAdapter, NATEngine *aThat)
 {
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
@@ -95,6 +97,7 @@ HRESULT NATEngine::initCopy (Machine *aParent, NATEngine *aThat)
     {
         mNATRules.insert(std::make_pair(it->first, it->second));
     }
+    unconst(mAdapter) = aAdapter;
     unconst(mParent) = aParent;
     autoInitSpan.setSucceeded();
     return S_OK;
@@ -223,7 +226,7 @@ NATEngine::SetNetworkSettings(ULONG aMtu, ULONG aSockSnd, ULONG aSockRcv, ULONG 
 }
 
 STDMETHODIMP
-NATEngine::COMGETTER(Redirects) (ComSafeArrayOut (BSTR , aNatRules))
+NATEngine::COMGETTER(Redirects)(ComSafeArrayOut(BSTR , aNatRules))
 {
     CheckComArgOutSafeArrayPointerValid(aNatRules);
 
@@ -240,9 +243,14 @@ NATEngine::COMGETTER(Redirects) (ComSafeArrayOut (BSTR , aNatRules))
          it != mNATRules.end(); ++it, ++i)
     {
         settings::NATRule r = it->second;
-        Utf8Str utf = Utf8StrFmt("%s,%d,%s,%d,%s,%d", r.strName.raw(), r.u32Proto,
-                        r.strHostIP.raw(), r.u16HostPort, r.strGuestIP.raw(), r.u16GuestPort);
-        utf.cloneTo(&sf[i]);
+        BstrFmt bstr("%s,%d,%s,%d,%s,%d",
+                     r.strName.c_str(),
+                     r.proto,
+                     r.strHostIP.c_str(),
+                     r.u16HostPort,
+                     r.strGuestIP.c_str(),
+                     r.u16GuestPort);
+        bstr.detachTo(&sf[i]);
     }
     sf.detachTo(ComSafeArrayOutArg(aNatRules));
     return S_OK;
@@ -259,24 +267,36 @@ NATEngine::AddRedirect(IN_BSTR aName, NATProtocol_T aProto, IN_BSTR aBindIp, USH
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     Utf8Str name = aName;
     settings::NATRule r;
-    if (name.isEmpty())
+    const char *proto;
+    switch (aProto)
     {
-        const char *proto;
-        switch (aProto)
-        {
-            case NATProtocol_TCP:
-                proto = "tcp";
-                break;
-            case NATProtocol_UDP:
-                proto = "udp";
-                break;
-            default:
-                return E_INVALIDARG;
-        }
-        name = Utf8StrFmt("%s_%d_%d", proto, aHostPort, aGuestPort);
+        case NATProtocol_TCP:
+            proto = "tcp";
+            break;
+        case NATProtocol_UDP:
+            proto = "udp";
+            break;
+        default:
+            return E_INVALIDARG;
     }
-    r.strName = name.raw();
-    r.u32Proto = aProto;
+    if (name.isEmpty())
+        name = Utf8StrFmt("%s_%d_%d", proto, aHostPort, aGuestPort);
+
+    NATRuleMap::iterator it;
+    for (it = mNATRules.begin(); it != mNATRules.end(); ++it)
+    {
+        r = it->second;
+        if (it->first == name)
+            return setError(E_INVALIDARG,
+                            tr("A NAT rule of this name does already exist"));
+        if (   r.strHostIP == Utf8Str(aBindIp)
+            && r.u16HostPort == aHostPort)
+            return setError(E_INVALIDARG,
+                            tr("A NAT rule for this host port and this host IP does already exist"));
+    }
+
+    r.strName = name.c_str();
+    r.proto = aProto;
     r.strHostIP = aBindIp;
     r.u16HostPort = aHostPort;
     r.strGuestIP = aGuestIP;
@@ -284,6 +304,12 @@ NATEngine::AddRedirect(IN_BSTR aName, NATProtocol_T aProto, IN_BSTR aBindIp, USH
     mNATRules.insert(std::make_pair(name, r));
     mParent->setModified(Machine::IsModified_NetworkAdapters);
     m_fModified = true;
+
+    ULONG ulSlot;
+    mAdapter->COMGETTER(Slot)(&ulSlot);
+
+    alock.release();
+    mParent->onNATRedirectRuleChange(ulSlot, FALSE, Bstr(name).raw(), aProto, Bstr(r.strHostIP).raw(), r.u16HostPort, Bstr(r.strGuestIP).raw(), r.u16GuestPort);
     return S_OK;
 }
 
@@ -294,14 +320,24 @@ NATEngine::RemoveRedirect(IN_BSTR aName)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Utf8Str rule;
     NATRuleMap::iterator it = mNATRules.find(aName);
     if (it == mNATRules.end())
         return E_INVALIDARG;
     mData.backup();
+    settings::NATRule r = it->second;
+    Utf8Str strHostIP = r.strHostIP;
+    Utf8Str strGuestIP = r.strGuestIP;
+    NATProtocol_T proto = r.proto;
+    uint16_t u16HostPort = r.u16HostPort;
+    uint16_t u16GuestPort = r.u16GuestPort;
+    ULONG ulSlot;
+    mAdapter->COMGETTER(Slot)(&ulSlot);
+
     mNATRules.erase(it);
     mParent->setModified(Machine::IsModified_NetworkAdapters);
     m_fModified = true;
+    alock.release();
+    mParent->onNATRedirectRuleChange(ulSlot, TRUE, aName, proto, Bstr(strHostIP).raw(), u16HostPort, Bstr(strGuestIP).raw(), u16GuestPort);
     return S_OK;
 }
 
@@ -361,13 +397,13 @@ HRESULT NATEngine::saveSettings(settings::NAT &data)
     data.strTftpBootFile = mData->mTftpBootFile;
     data.strTftpNextServer = mData->mTftpNextServer;
     /* DNS */
-    data.fDnsPassDomain = mData->mDnsPassDomain;
-    data.fDnsProxy = mData->mDnsProxy;
-    data.fDnsUseHostResolver = mData->mDnsUseHostResolver;
+    data.fDnsPassDomain = !!mData->mDnsPassDomain;
+    data.fDnsProxy = !!mData->mDnsProxy;
+    data.fDnsUseHostResolver = !!mData->mDnsUseHostResolver;
     /* Alias */
-    data.fAliasLog = mData->mAliasMode & NATAliasMode_AliasLog;
-    data.fAliasProxyOnly = mData->mAliasMode & NATAliasMode_AliasProxyOnly;
-    data.fAliasUseSamePorts = mData->mAliasMode & NATAliasMode_AliasUseSamePorts;
+    data.fAliasLog = !!(mData->mAliasMode & NATAliasMode_AliasLog);
+    data.fAliasProxyOnly = !!(mData->mAliasMode & NATAliasMode_AliasProxyOnly);
+    data.fAliasUseSamePorts = !!(mData->mAliasMode & NATAliasMode_AliasUseSamePorts);
 
     for (NATRuleMap::iterator it = mNATRules.begin();
         it != mNATRules.end(); ++it)
@@ -404,7 +440,7 @@ NATEngine::COMGETTER(Network)(BSTR *aNetwork)
     if (!mData->mNetwork.isEmpty())
     {
         mData->mNetwork.cloneTo(aNetwork);
-        Log(("Getter (this:%p) Network: %s\n", this, mData->mNetwork.raw()));
+        Log(("Getter (this:%p) Network: %s\n", this, mData->mNetwork.c_str()));
     }
     return S_OK;
 }
@@ -462,7 +498,7 @@ NATEngine::COMGETTER(TftpPrefix)(BSTR *aTftpPrefix)
     if (!mData->mTftpPrefix.isEmpty())
     {
         mData->mTftpPrefix.cloneTo(aTftpPrefix);
-        Log(("Getter (this:%p) TftpPrefix: %s\n", this, mData->mTftpPrefix.raw()));
+        Log(("Getter (this:%p) TftpPrefix: %s\n", this, mData->mTftpPrefix.c_str()));
     }
     return S_OK;
 }
@@ -493,7 +529,7 @@ NATEngine::COMGETTER(TftpBootFile)(BSTR *aTftpBootFile)
     if (!mData->mTftpBootFile.isEmpty())
     {
         mData->mTftpBootFile.cloneTo(aTftpBootFile);
-        Log(("Getter (this:%p) BootFile: %s\n", this, mData->mTftpBootFile.raw()));
+        Log(("Getter (this:%p) BootFile: %s\n", this, mData->mTftpBootFile.c_str()));
     }
     return S_OK;
 }
@@ -524,7 +560,7 @@ NATEngine::COMGETTER(TftpNextServer)(BSTR *aTftpNextServer)
     if (!mData->mTftpNextServer.isEmpty())
     {
         mData->mTftpNextServer.cloneTo(aTftpNextServer);
-        Log(("Getter (this:%p) NextServer: %s\n", this, mData->mTftpNextServer.raw()));
+        Log(("Getter (this:%p) NextServer: %s\n", this, mData->mTftpNextServer.c_str()));
     }
     return S_OK;
 }

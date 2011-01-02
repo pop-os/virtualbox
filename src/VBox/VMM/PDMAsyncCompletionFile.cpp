@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFile.cpp $ */
+/* $Id: PDMAsyncCompletionFile.cpp 35190 2010-12-16 15:24:55Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -26,6 +26,8 @@
 #include <VBox/vm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
+#include <VBox/dbg.h>
+#include <VBox/uvm.h>
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -38,13 +40,61 @@
 #include <iprt/thread.h>
 #include <iprt/path.h>
 
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
+# include <errno.h>
+# include <sys/ioctl.h>
+# include <sys/types.h>
+# include <sys/stat.h>
+# include <fcntl.h>
+# include <unistd.h>
+#endif
+
 #ifdef RT_OS_WINDOWS
 # define _WIN32_WINNT 0x0500
 # include <windows.h>
 # include <winioctl.h>
 #endif
+#ifdef RT_OS_DARWIN
+# include <sys/disk.h>
+#endif /* RT_OS_DARWIN */
+#ifdef RT_OS_SOLARIS
+# include <stropts.h>
+# include <sys/dkio.h>
+# include <sys/vtoc.h>
+#endif /* RT_OS_SOLARIS */
+#ifdef RT_OS_FREEBSD
+# include <sys/disk.h>
+#endif /* RT_OS_FREEBSD */
 
 #include "PDMAsyncCompletionFileInternal.h"
+
+
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
+#ifdef VBOX_WITH_DEBUGGER
+static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs, PDBGCVAR pResult);
+#endif
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+#ifdef VBOX_WITH_DEBUGGER
+static const DBGCVARDESC g_aInjectErrorArgs[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "direction",    "write/read." },
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "filename",     "Filename." },
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "errcode",      "IPRT error code." },
+};
+
+/** Command descriptors. */
+static const DBGCCMD g_aCmds[] =
+{
+    /* pszCmd,       cArgsMin, cArgsMax, paArgDesc,                cArgDescs,    pResultDesc,        fFlags,     pfnHandler          pszSyntax,          ....pszDescription */
+    { "injecterror",        3, 3,        &g_aInjectErrorArgs[0],           3,           NULL,             0,     pdmacEpFileErrorInject,        "",   "Inject error into I/O subsystem." },
+};
+#endif
 
 /**
  * Frees a task.
@@ -125,7 +175,7 @@ PPDMACTASKFILE pdmacFileEpGetNewTasks(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
     /*
      * Get pending tasks.
      */
-    pTasks = (PPDMACTASKFILE)ASMAtomicXchgPtr((void * volatile *)&pEndpoint->pTasksNewHead, NULL);
+    pTasks = ASMAtomicXchgPtrT(&pEndpoint->pTasksNewHead, NULL, PPDMACTASKFILE);
 
     /* Reverse the list to process in FIFO order. */
     if (pTasks)
@@ -190,14 +240,14 @@ int pdmacFileAioMgrAddEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLETIONENDPO
     LogFlowFunc(("pAioMgr=%#p pEndpoint=%#p{%s}\n", pAioMgr, pEndpoint, pEndpoint->Core.pszUri));
 
     /* Update the assigned I/O manager. */
-    ASMAtomicWritePtr((void * volatile *)&pEndpoint->pAioMgr, pAioMgr);
+    ASMAtomicWritePtr(&pEndpoint->pAioMgr, pAioMgr);
 
     rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
-    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, pEndpoint);
+    ASMAtomicWritePtr(&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, pEndpoint);
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_ADD_ENDPOINT);
-    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, NULL);
+    ASMAtomicWriteNullPtr(&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint);
 
     RTCritSectLeave(&pAioMgr->CritSectBlockingEvent);
 
@@ -211,9 +261,9 @@ static int pdmacFileAioMgrRemoveEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPL
     rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
-    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, pEndpoint);
+    ASMAtomicWritePtr(&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, pEndpoint);
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_REMOVE_ENDPOINT);
-    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, NULL);
+    ASMAtomicWriteNullPtr(&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint);
 
     RTCritSectLeave(&pAioMgr->CritSectBlockingEvent);
 
@@ -227,9 +277,9 @@ static int pdmacFileAioMgrCloseEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLE
     rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
-    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, pEndpoint);
+    ASMAtomicWritePtr(&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, pEndpoint);
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_CLOSE_ENDPOINT);
-    ASMAtomicWritePtr((void * volatile *)&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, NULL);
+    ASMAtomicWriteNullPtr(&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint);
 
     RTCritSectLeave(&pAioMgr->CritSectBlockingEvent);
 
@@ -257,9 +307,9 @@ int pdmacFileEpAddTask(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMACTASKFILE
     {
         pNext = pEndpoint->pTasksNewHead;
         pTask->pNext = pNext;
-    } while (!ASMAtomicCmpXchgPtr((void * volatile *)&pEndpoint->pTasksNewHead, (void *)pTask, (void *)pNext));
+    } while (!ASMAtomicCmpXchgPtr(&pEndpoint->pTasksNewHead, pTask, pNext));
 
-    pdmacFileAioMgrWakeup((PPDMACEPFILEMGR)ASMAtomicReadPtr((void * volatile *)&pEndpoint->pAioMgr));
+    pdmacFileAioMgrWakeup(ASMAtomicReadPtrT(&pEndpoint->pAioMgr, PPDMACEPFILEMGR));
 
     return VINF_SUCCESS;
 }
@@ -282,6 +332,21 @@ void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
         /* The first error will be returned. */
         if (RT_FAILURE(rc))
             ASMAtomicCmpXchgS32(&pTaskFile->rc, rc, VINF_SUCCESS);
+#ifdef VBOX_WITH_DEBUGGER
+        else
+        {
+            PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pTaskFile->Core.pEndpoint;
+
+            /* Overwrite with injected error code. */
+            if (pTask->enmTransferType == PDMACTASKFILETRANSFER_READ)
+                rc = ASMAtomicXchgS32(&pEpFile->rcReqRead, VINF_SUCCESS);
+            else
+                rc = ASMAtomicXchgS32(&pEpFile->rcReqWrite, VINF_SUCCESS);
+
+            if (RT_FAILURE(rc))
+                ASMAtomicCmpXchgS32(&pTaskFile->rc, rc, VINF_SUCCESS);
+        }
+#endif
 
         if (!(uOld - pTask->DataSeg.cbSeg)
             && !ASMAtomicXchgBool(&pTaskFile->fCompleted, true))
@@ -457,102 +522,13 @@ static void pdmacFileAioMgrDestroy(PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile, 
     rc = RTCritSectLeave(&pEpClassFile->CritSect);
     AssertRC(rc);
 
-    /* Free the ressources. */
+    /* Free the resources. */
     RTCritSectDelete(&pAioMgr->CritSectBlockingEvent);
     RTSemEventDestroy(pAioMgr->EventSem);
     if (pAioMgr->enmMgrType != PDMACEPFILEMGRTYPE_SIMPLE)
         pdmacFileAioMgrNormalDestroy(pAioMgr);
 
     MMR3HeapFree(pAioMgr);
-}
-
-static int pdmacFileBwMgrInitialize(PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile,
-                                    PCFGMNODE pCfgNode, PPPDMACFILEBWMGR ppBwMgr)
-{
-    int rc = VINF_SUCCESS;
-    PPDMACFILEBWMGR pBwMgr = NULL;
-
-    rc = MMR3HeapAllocZEx(pEpClassFile->Core.pVM, MM_TAG_PDM_ASYNC_COMPLETION,
-                          sizeof(PDMACFILEBWMGR),
-                          (void **)&pBwMgr);
-    if (RT_SUCCESS(rc))
-    {
-        /* Init I/O flow control. */
-        rc = CFGMR3QueryU32Def(pCfgNode, "VMTransferPerSecMax", &pBwMgr->cbVMTransferPerSecMax, UINT32_MAX);
-        AssertLogRelRCReturn(rc, rc);
-        rc = CFGMR3QueryU32Def(pCfgNode, "VMTransferPerSecStart", &pBwMgr->cbVMTransferPerSecStart, UINT32_MAX /*5 * _1M*/);
-        AssertLogRelRCReturn(rc, rc);
-        rc = CFGMR3QueryU32Def(pCfgNode, "VMTransferPerSecStep", &pBwMgr->cbVMTransferPerSecStep, _1M);
-        AssertLogRelRCReturn(rc, rc);
-
-        pBwMgr->cbVMTransferAllowed = pBwMgr->cbVMTransferPerSecStart;
-        pBwMgr->tsUpdatedLast       = RTTimeSystemNanoTS();
-
-        if (pBwMgr->cbVMTransferPerSecMax != UINT32_MAX)
-            LogRel(("AIOMgr: I/O bandwidth limited to %u bytes/sec\n", pBwMgr->cbVMTransferPerSecMax));
-        else
-            LogRel(("AIOMgr: I/O bandwidth not limited\n"));
-
-        *ppBwMgr = pBwMgr;
-    }
-
-    return rc;
-}
-
-static void pdmacFileBwMgrDestroy(PPDMACFILEBWMGR pBwMgr)
-{
-    MMR3HeapFree(pBwMgr);
-}
-
-static void pdmacFileBwRef(PPDMACFILEBWMGR pBwMgr)
-{
-    pBwMgr->cRefs++;
-}
-
-static void pdmacFileBwUnref(PPDMACFILEBWMGR pBwMgr)
-{
-    Assert(pBwMgr->cRefs > 0);
-    pBwMgr->cRefs--;
-}
-
-bool pdmacFileBwMgrIsTransferAllowed(PPDMACFILEBWMGR pBwMgr, uint32_t cbTransfer)
-{
-    bool fAllowed = false;
-
-    LogFlowFunc(("pBwMgr=%p cbTransfer=%u\n", pBwMgr, cbTransfer));
-
-    uint32_t cbOld = ASMAtomicSubU32(&pBwMgr->cbVMTransferAllowed, cbTransfer);
-    if (RT_LIKELY(cbOld >= cbTransfer))
-        fAllowed = true;
-    else
-    {
-        /* We are out of ressources  Check if we can update again. */
-        uint64_t tsNow          = RTTimeSystemNanoTS();
-        uint64_t tsUpdatedLast  = ASMAtomicUoReadU64(&pBwMgr->tsUpdatedLast);
-
-        if (tsNow - tsUpdatedLast >= (1000*1000*1000))
-        {
-            if (ASMAtomicCmpXchgU64(&pBwMgr->tsUpdatedLast, tsNow, tsUpdatedLast))
-            {
-                if (pBwMgr->cbVMTransferPerSecStart < pBwMgr->cbVMTransferPerSecMax)
-                {
-                   pBwMgr->cbVMTransferPerSecStart = RT_MIN(pBwMgr->cbVMTransferPerSecMax, pBwMgr->cbVMTransferPerSecStart + pBwMgr->cbVMTransferPerSecStep);
-                   LogFlow(("AIOMgr: Increasing maximum bandwidth to %u bytes/sec\n", pBwMgr->cbVMTransferPerSecStart));
-                }
-
-                /* Update */
-                ASMAtomicWriteU32(&pBwMgr->cbVMTransferAllowed, pBwMgr->cbVMTransferPerSecStart - cbTransfer);
-                fAllowed = true;
-                LogFlow(("AIOMgr: Refreshed bandwidth\n"));
-            }
-        }
-        else
-            ASMAtomicAddU32(&pBwMgr->cbVMTransferAllowed, cbTransfer);
-    }
-
-    LogFlowFunc(("fAllowed=%RTbool\n", fAllowed));
-
-    return fAllowed;
 }
 
 static int pdmacFileMgrTypeFromName(const char *pszVal, PPDMACEPFILEMGRTYPE penmMgrType)
@@ -657,11 +633,56 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
         {
             rc = RTErrConvertFromWin32(GetLastError());
         }
+#elif defined(RT_OS_DARWIN)
+        struct stat DevStat;
+        if (!fstat(hFile, &DevStat) && S_ISBLK(DevStat.st_mode))
+        {
+            uint64_t cBlocks;
+            uint32_t cbBlock;
+            if (!ioctl(hFile, DKIOCGETBLOCKCOUNT, &cBlocks))
+            {
+                if (!ioctl(hFile, DKIOCGETBLOCKSIZE, &cbBlock))
+                    cbSize = cBlocks * cbBlock;
+                else
+                    rc = RTErrConvertFromErrno(errno);
+            }
+            else
+                rc = RTErrConvertFromErrno(errno);
+        }
+        else
+            rc = VERR_INVALID_PARAMETER;
+#elif defined(RT_OS_SOLARIS)
+        struct stat DevStat;
+        if (!fstat(hFile, &DevStat) && (   S_ISBLK(DevStat.st_mode)
+                                        || S_ISCHR(DevStat.st_mode)))
+        {
+            struct dk_minfo mediainfo;
+            if (!ioctl(hFile, DKIOCGMEDIAINFO, &mediainfo))
+                cbSize = mediainfo.dki_capacity * mediainfo.dki_lbsize;
+            else
+                rc = RTErrConvertFromErrno(errno);
+        }
+        else
+            rc = VERR_INVALID_PARAMETER;
+#elif defined(RT_OS_FREEBSD)
+        struct stat DevStat;
+        if (!fstat(hFile, &DevStat) && S_ISCHR(DevStat.st_mode))
+        {
+            off_t cbMedia = 0;
+            if (!ioctl(hFile, DIOCGMEDIASIZE, &cbMedia))
+            {
+                cbSize = cbMedia;
+            }
+            else
+                rc = RTErrConvertFromErrno(errno);
+        }
+        else
+            rc = VERR_INVALID_PARAMETER;
 #else
         /* Could be a block device */
         rc = RTFileSeek(hFile, 0, RTFILE_SEEK_END, &cbSize);
-
 #endif
+
         if (RT_SUCCESS(rc) && (cbSize != 0))
             *pcbSize = cbSize;
         else if (RT_SUCCESS(rc))
@@ -670,6 +691,70 @@ static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
 
     return rc;
 }
+
+#ifdef VBOX_WITH_DEBUGGER
+/**
+ * Error inject callback.
+ */
+static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs, PDBGCVAR pResult)
+{
+    bool fWrite;
+    PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile;
+
+    /*
+     * Validate input.
+     */
+    if (!pVM)
+        return DBGCCmdHlpPrintf(pCmdHlp, "error: The command requires a VM to be selected.\n");
+    if (    cArgs != 3
+        ||  pArgs[0].enmType != DBGCVAR_TYPE_STRING
+        ||  pArgs[1].enmType != DBGCVAR_TYPE_STRING
+        ||  pArgs[2].enmType != DBGCVAR_TYPE_STRING)
+        return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: parser error, invalid arguments.\n");
+
+    pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
+
+    /* Syntax is "read|write <filename> <status code>" */
+    if (!RTStrCmp(pArgs[0].u.pszString, "read"))
+        fWrite = false;
+    else if (!RTStrCmp(pArgs[0].u.pszString, "write"))
+        fWrite = true;
+    else
+    {
+        DBGCCmdHlpPrintf(pCmdHlp, "error: invalid transefr direction '%s'.\n", pArgs[0].u.pszString);
+        return VINF_SUCCESS;
+    }
+
+    /* Search for the matching endpoint. */
+    RTCritSectEnter(&pEpClassFile->Core.CritSect);
+    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpClassFile->Core.pEndpointsHead;
+
+    while (pEpFile)
+    {
+        if (!RTStrCmp(pArgs[1].u.pszString, RTPathFilename(pEpFile->Core.pszUri)))
+            break;
+        pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpFile->Core.pNext;
+    }
+
+    if (pEpFile)
+    {
+        int rcToInject = RTStrToInt32(pArgs[2].u.pszString);
+
+        if (fWrite)
+            ASMAtomicXchgS32(&pEpFile->rcReqWrite, rcToInject);
+        else
+            ASMAtomicXchgS32(&pEpFile->rcReqRead, rcToInject);
+
+            DBGCCmdHlpPrintf(pCmdHlp, "Injected %Rrc into '%s' for %s\n",
+                             rcToInject, pArgs[1].u.pszString, pArgs[0].u.pszString);
+    }
+    else
+        DBGCCmdHlpPrintf(pCmdHlp, "No file with name '%s' found\n", NULL, pArgs[1].u.pszString);
+
+    RTCritSectLeave(&pEpClassFile->Core.CritSect);
+    return VINF_SUCCESS;
+}
+#endif
 
 static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNODE pCfgNode)
 {
@@ -726,7 +811,6 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
             {
                 LogRel(("AIOMgr: Linux does not support buffered async I/O, changing to non buffered\n"));
                 pEpClassFile->enmEpBackendDefault = PDMACFILEEPBACKEND_NON_BUFFERED;
-                pEpClassFile->enmMgrTypeOverride  = PDMACEPFILEMGRTYPE_ASYNC;
             }
 #endif
         }
@@ -734,6 +818,7 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
         {
             /* No configuration supplied, set defaults */
             pEpClassFile->enmEpBackendDefault = PDMACFILEEPBACKEND_NON_BUFFERED;
+            pEpClassFile->enmMgrTypeOverride  = PDMACEPFILEMGRTYPE_ASYNC;
         }
     }
 
@@ -757,11 +842,16 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
         }
         else
             LogRel(("AIOMgr: Cache was globally disabled\n"));
-
-        rc = pdmacFileBwMgrInitialize(pEpClassFile, pCfgNode, &pEpClassFile->pBwMgr);
-        if (RT_FAILURE(rc))
-            RTCritSectDelete(&pEpClassFile->CritSect);
     }
+
+#ifdef VBOX_WITH_DEBUGGER
+    /* Install the error injection handler. */
+    if (RT_SUCCESS(rc))
+    {
+        rc = DBGCRegisterCommands(&g_aCmds[0], 1);
+        AssertRC(rc);
+    }
+#endif
 
     return rc;
 }
@@ -782,7 +872,6 @@ static void pdmacFileTerminate(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals)
         pdmacFileCacheDestroy(pEpClassFile);
 
     RTCritSectDelete(&pEpClassFile->CritSect);
-    pdmacFileBwMgrDestroy(pEpClassFile->pBwMgr);
 }
 
 static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
@@ -915,7 +1004,6 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                 pEpFile->cbEndpoint     = pEpFile->cbFile;
                 pEpFile->pTasksFreeTail = pEpFile->pTasksFreeHead;
                 pEpFile->cTasksCached   = 0;
-                pEpFile->pBwMgr         = pEpClassFile->pBwMgr;
                 pEpFile->enmBackendType = enmEpBackend;
                 /*
                  * Disable async flushes on Solaris for now.
@@ -926,7 +1014,6 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
 #else
                 pEpFile->fAsyncFlushSupported = false;
 #endif
-                pdmacFileBwRef(pEpFile->pBwMgr);
 
                 if (enmMgrType == PDMACEPFILEMGRTYPE_SIMPLE)
                 {
@@ -978,7 +1065,6 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                     {
                         RTMemFree(pEpFile->AioMgr.pTreeRangesLocked);
                         MMR3HeapFree(pEpFile->pTasksFreeHead);
-                        pdmacFileBwUnref(pEpFile->pBwMgr);
                     }
                 }
             }
@@ -1056,9 +1142,6 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
         pTask = pTask->pNext;
         MMR3HeapFree(pTaskFree);
     }
-
-    /* Remove from the bandwidth manager */
-    pdmacFileBwUnref(pEpFile->pBwMgr);
 
     /* Destroy the locked ranges tree now. */
     RTAvlrFileOffsetDestroy(pEpFile->AioMgr.pTreeRangesLocked, pdmacFileEpRangesLockedDestroy, NULL);

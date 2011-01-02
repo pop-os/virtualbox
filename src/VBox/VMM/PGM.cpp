@@ -1,10 +1,10 @@
-/* $Id: PGM.cpp $ */
+/* $Id: PGM.cpp 34326 2010-11-24 14:03:55Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor. (Mixing stuff here, not good?)
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,8 @@
  * @section         sec_pgm_modes           Paging Modes
  *
  * There are three memory contexts: Host Context (HC), Guest Context (GC)
- * and intermediate context. When talking about paging HC can also be refered to
- * as "host paging", and GC refered to as "shadow paging".
+ * and intermediate context. When talking about paging HC can also be referred to
+ * as "host paging", and GC referred to as "shadow paging".
  *
  * We define three basic paging modes: 32-bit, PAE and AMD64. The host paging mode
  * is defined by the host operating system. The mode used in the shadow paging mode
@@ -130,7 +130,7 @@
  * rest of this section is going to be about these handlers.
  *
  * We'll go thru the life cycle of a handler and try make sense of it all, don't know
- * how successfull this is gonna be...
+ * how successful this is gonna be...
  *
  * 1. A handler is registered thru the PGMR3HandlerVirtualRegister and
  * PGMHandlerVirtualRegisterEx APIs. We check for conflicting virtual handlers
@@ -210,7 +210,7 @@
  * @subsection subsec_pgmPhys_Definitions       Definitions
  *
  * Allocation chunk - A RTR0MemObjAllocPhysNC object and the tracking
- * machinery assoicated with it.
+ * machinery associated with it.
  *
  *
  *
@@ -329,7 +329,7 @@
  * (global and guest page) easy to use and keeping them from eating too much
  * memory. We have limited virtual memory resources available when operating in
  * 32-bit kernel space (on 64-bit there'll it's quite a different story). The
- * tracking structures will be attemted designed such that we can deal with up
+ * tracking structures will be attempted designed such that we can deal with up
  * to 32GB of memory on a 32-bit system and essentially unlimited on 64-bit ones.
  *
  *
@@ -448,10 +448,10 @@
  *      - The over-commitment management, including the allocating/freeing
  *        chunks, is serialized by a ring-0 mutex lock (a fast one since the
  *        more mundane mutex implementation is broken on Linux).
- *      - A separeate mutex is protecting the set of allocation chunks so
+ *      - A separate mutex is protecting the set of allocation chunks so
  *        that pages can be shared or/and freed up while some other VM is
  *        allocating more chunks. This mutex can be take from under the other
- *        one, but not the otherway around.
+ *        one, but not the other way around.
  *
  *
  * @subsection subsec_pgmPhys_Request           VM Request interface
@@ -480,9 +480,11 @@
  *
  * In order to be able to map in and out memory and to be able to support
  * guest with more RAM than we've got virtual address space, we'll employing
- * a mapping cache. There is already a tiny one for GC (see PGMGCDynMapGCPageEx)
- * and we'll create a similar one for ring-0 unless we decide to setup a dedicate
- * memory context for the HWACCM execution.
+ * a mapping cache.  Normally ring-0 and ring-3 can share the same cache,
+ * however on 32-bit darwin the ring-0 code is running in a different memory
+ * context and therefore needs a separate cache.  In raw-mode context we also
+ * need a separate cache.  The 32-bit darwin mapping cache and the one for
+ * raw-mode context share a lot of code, see PGMRZDYNMAP.
  *
  *
  * @subsection subsec_pgmPhys_MappingCaches_R3  Ring-3
@@ -510,7 +512,7 @@
  * memory objects it contains. It will therefore require the first ring-0 mutex
  * discussed in @ref subsec_pgmPhys_Serializing. We
  * some double house keeping wrt to who has mapped what I think, since both
- * VMMR0.r0 and RTR0MemObj will keep track of mapping relataions
+ * VMMR0.r0 and RTR0MemObj will keep track of mapping relations
  *
  * The ring-3 part will be protected by the pgm critsect. For simplicity, we'll
  * require anyone that desires to do changes to the mapping cache to do that
@@ -558,7 +560,7 @@
  *
  * Whether we'll continue to use the current MM locked memory management
  * for this I don't quite know (I'd prefer not to and just ditch that all
- * togther), we'll see what's simplest to do.
+ * together), we'll see what's simplest to do.
  *
  *
  *
@@ -592,6 +594,7 @@
 #include <VBox/err.h>
 
 #include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/env.h>
 #include <iprt/mem.h>
@@ -601,23 +604,10 @@
 
 
 /*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-/** Saved state data unit version for 2.5.x and later. */
-#define PGM_SAVED_STATE_VERSION                 9
-/** Saved state data unit version for 2.2.2 and later. */
-#define PGM_SAVED_STATE_VERSION_2_2_2           8
-/** Saved state data unit version for 2.2.0. */
-#define PGM_SAVED_STATE_VERSION_RR_DESC         7
-/** Saved state data unit version. */
-#define PGM_SAVED_STATE_VERSION_OLD_PHYS_CODE   6
-
-
-/*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
 static int                pgmR3InitPaging(PVM pVM);
-static void               pgmR3InitStats(PVM pVM);
+static int                pgmR3InitStats(PVM pVM);
 static DECLCALLBACK(void) pgmR3PhysInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) pgmR3InfoMode(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
@@ -662,6 +652,15 @@ static const DBGCVARDESC g_aPgmPhysToFileArgs[] =
     {  0,           1,          DBGCVAR_CAT_STRING,     0,                              "nozero",       "If present, zero pages are skipped." },
 };
 
+# ifdef DEBUG_sandervl
+static const DBGCVARDESC g_aPgmCountPhysWritesArgs[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "enabled",      "on/off." },
+    {  1,           1,          DBGCVAR_CAT_NUMBER_NO_RANGE, 0,                         "interval",     "Interval in ms." },
+};
+# endif
+
 /** Command descriptors. */
 static const DBGCCMD    g_aCmds[] =
 {
@@ -670,9 +669,13 @@ static const DBGCCMD    g_aCmds[] =
     { "pgmsync",       0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdSync,       "",                     "Sync the CR3 page." },
     { "pgmerror",      0, 1,        &g_aPgmErrorArgs[0],      1,            NULL,               0,          pgmR3CmdError,      "",                     "Enables inject runtime of errors into parts of PGM." },
     { "pgmerroroff",   0, 1,        &g_aPgmErrorArgs[0],      1,            NULL,               0,          pgmR3CmdError,      "",                     "Disables inject runtime errors into parts of PGM." },
-#ifdef VBOX_STRICT
+# ifdef VBOX_STRICT
     { "pgmassertcr3",  0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdAssertCR3,  "",                     "Check the shadow CR3 mapping." },
-#endif
+#  if HC_ARCH_BITS == 64
+    { "pgmcheckduppages", 0, 0,     NULL,                     0,            NULL,               0,          pgmR3CmdCheckDuplicatePages,  "",           "Check for duplicate pages in all running VMs." },
+    { "pgmsharedmodules", 0, 0,     NULL,                     0,            NULL,               0,          pgmR3CmdShowSharedModules,  "",             "Print shared modules info." },
+#  endif
+# endif
     { "pgmsyncalways", 0, 0,        NULL,                     0,            NULL,               0,          pgmR3CmdSyncAlways, "",                     "Toggle permanent CR3 syncing." },
     { "pgmphystofile", 1, 2,        &g_aPgmPhysToFileArgs[0], 2,            NULL,               0,          pgmR3CmdPhysToFile, "",                     "Save the physical memory to file." },
 };
@@ -1208,10 +1211,15 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
 
         pPGM->GCPhysCR3        = NIL_RTGCPHYS;
 
+        pPGM->pGst32BitPdR3    = NULL;
         pPGM->pGstPaePdptR3    = NULL;
+        pPGM->pGstAmd64Pml4R3  = NULL;
 #ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
+        pPGM->pGst32BitPdR0    = NIL_RTR0PTR;
         pPGM->pGstPaePdptR0    = NIL_RTR0PTR;
+        pPGM->pGstAmd64Pml4R0  = NIL_RTR0PTR;
 #endif
+        pPGM->pGst32BitPdRC    = NIL_RTRCPTR;
         pPGM->pGstPaePdptRC    = NIL_RTRCPTR;
         for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->pgm.s.apGstPaePDsR3); i++)
         {
@@ -1240,10 +1248,10 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
                            );
     AssertLogRelRCReturn(rc, rc);
 
-#if HC_ARCH_BITS == 64 || 1 /** @todo 4GB/32-bit: remove || 1 later and adjust the limit. */
-    rc = CFGMR3QueryU32Def(pCfgPGM, "MaxRing3Chunks", &pVM->pgm.s.ChunkR3Map.cMax, UINT32_MAX);
-#else
+#ifdef PGM_WITH_LARGE_ADDRESS_SPACE_ON_32_BIT_HOST
     rc = CFGMR3QueryU32Def(pCfgPGM, "MaxRing3Chunks", &pVM->pgm.s.ChunkR3Map.cMax, _1G / GMM_CHUNK_SIZE);
+#else
+    rc = CFGMR3QueryU32Def(pCfgPGM, "MaxRing3Chunks", &pVM->pgm.s.ChunkR3Map.cMax, UINT32_MAX);
 #endif
     AssertLogRelRCReturn(rc, rc);
     for (uint32_t i = 0; i < RT_ELEMENTS(pVM->pgm.s.ChunkR3Map.Tlb.aEntries); i++)
@@ -1267,6 +1275,30 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
         AssertMsgFailed(("Configuration error: Failed to query integer \"RamSize\", rc=%Rrc.\n", rc));
         return rc;
     }
+
+#ifdef VBOX_WITH_STATISTICS
+    /*
+     * Allocate memory for the statistics before someone tries to use them.
+     */
+    size_t cbTotalStats = RT_ALIGN_Z(sizeof(PGMSTATS), 64) + RT_ALIGN_Z(sizeof(PGMCPUSTATS), 64) * pVM->cCpus;
+    void *pv;
+    rc = MMHyperAlloc(pVM, RT_ALIGN_Z(cbTotalStats, PAGE_SIZE), PAGE_SIZE, MM_TAG_PGM, &pv);
+    AssertRCReturn(rc, rc);
+
+    pVM->pgm.s.pStatsR3 = (PGMSTATS *)pv;
+    pVM->pgm.s.pStatsR0 = MMHyperCCToR0(pVM, pv);
+    pVM->pgm.s.pStatsRC = MMHyperCCToRC(pVM, pv);
+    pv = (uint8_t *)pv + RT_ALIGN_Z(sizeof(PGMSTATS), 64);
+
+    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
+    {
+        pVM->aCpus[iCpu].pgm.s.pStatsR3 = (PGMCPUSTATS *)pv;
+        pVM->aCpus[iCpu].pgm.s.pStatsR0 = MMHyperCCToR0(pVM, pv);
+        pVM->aCpus[iCpu].pgm.s.pStatsRC = MMHyperCCToRC(pVM, pv);
+
+        pv = (uint8_t *)pv + RT_ALIGN_Z(sizeof(PGMCPUSTATS), 64);
+    }
+#endif /* VBOX_WITH_STATISTICS */
 
     /*
      * Register callbacks, string formatters and the saved state data unit.
@@ -1306,7 +1338,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
         pVM->pgm.s.pTreesRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pTreesR3);
 
         /*
-         * Alocate the zero page.
+         * Allocate the zero page.
          */
         rc = MMHyperAlloc(pVM, PAGE_SIZE, PAGE_SIZE, MM_TAG_PGM, &pVM->pgm.s.pvZeroPgR3);
     }
@@ -1316,6 +1348,19 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
         pVM->pgm.s.pvZeroPgR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pvZeroPgR3);
         pVM->pgm.s.HCPhysZeroPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvZeroPgR3);
         AssertRelease(pVM->pgm.s.HCPhysZeroPg != NIL_RTHCPHYS);
+
+        /*
+         * Allocate the invalid MMIO page.
+         * (The invalid bits in HCPhysInvMmioPg are set later on init complete.)
+         */
+        rc = MMHyperAlloc(pVM, PAGE_SIZE, PAGE_SIZE, MM_TAG_PGM, &pVM->pgm.s.pvMmioPgR3);
+    }
+    if (RT_SUCCESS(rc))
+    {
+        ASMMemFill32(pVM->pgm.s.pvMmioPgR3, PAGE_SIZE, 0xfeedface);
+        pVM->pgm.s.HCPhysMmioPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvMmioPgR3);
+        AssertRelease(pVM->pgm.s.HCPhysMmioPg != NIL_RTHCPHYS);
+        pVM->pgm.s.HCPhysInvMmioPg = pVM->pgm.s.HCPhysMmioPg;
 
         /*
          * Init the paging.
@@ -1347,7 +1392,7 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
          */
         DBGFR3InfoRegisterInternal(pVM, "mode",
                                    "Shows the current paging mode. "
-                                   "Recognizes 'all', 'guest', 'shadow' and 'host' as arguments, defaulting to 'all' if nothing's given.",
+                                   "Recognizes 'all', 'guest', 'shadow' and 'host' as arguments, defaulting to 'all' if nothing is given.",
                                    pgmR3InfoMode);
         DBGFR3InfoRegisterInternal(pVM, "pgmcr3",
                                    "Dumps all the entries in the top level paging table. No arguments.",
@@ -1389,19 +1434,6 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
 
 
 /**
- * Initializes the per-VCPU PGM.
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- */
-VMMR3DECL(int) PGMR3InitCPU(PVM pVM)
-{
-    LogFlow(("PGMR3InitCPU\n"));
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Init paging.
  *
  * Since we need to check what mode the host is operating in before we can choose
@@ -1409,7 +1441,7 @@ VMMR3DECL(int) PGMR3InitCPU(PVM pVM)
  * been initialized.
  *
  * @returns VBox status code.
- * @param   pVM     VM handle.
+ * @param   pVM                 VM handle.
  */
 static int pgmR3InitPaging(PVM pVM)
 {
@@ -1542,7 +1574,6 @@ static int pgmR3InitPaging(PVM pVM)
                 MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[0]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[1]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[2]), MMPage2Phys(pVM, pVM->pgm.s.apInterPaePDs[3]),
                 MMPage2Phys(pVM, pVM->pgm.s.pInterPaePDPT64)));
 #endif
-
         return VINF_SUCCESS;
     }
 
@@ -1553,12 +1584,16 @@ static int pgmR3InitPaging(PVM pVM)
 
 /**
  * Init statistics
+ * @returns VBox status code.
  */
-static void pgmR3InitStats(PVM pVM)
+static int pgmR3InitStats(PVM pVM)
 {
     PPGM pPGM = &pVM->pgm.s;
     int  rc;
 
+    /*
+     * Release statistics.
+     */
     /* Common - misc variables */
     STAM_REL_REG(pVM, &pPGM->cAllPages,                          STAMTYPE_U32,     "/PGM/Page/cAllPages",                STAMUNIT_COUNT,     "The total number of pages.");
     STAM_REL_REG(pVM, &pPGM->cPrivatePages,                      STAMTYPE_U32,     "/PGM/Page/cPrivatePages",            STAMUNIT_COUNT,     "The number of private pages.");
@@ -1575,6 +1610,8 @@ static void pgmR3InitStats(PVM pVM)
     STAM_REL_REG(pVM, &pPGM->cRelocations,                       STAMTYPE_COUNTER, "/PGM/cRelocations",                  STAMUNIT_OCCURENCES,"Number of hypervisor relocations.");
     STAM_REL_REG(pVM, &pPGM->ChunkR3Map.c,                       STAMTYPE_U32,     "/PGM/ChunkR3Map/c",                  STAMUNIT_COUNT,     "Number of mapped chunks.");
     STAM_REL_REG(pVM, &pPGM->ChunkR3Map.cMax,                    STAMTYPE_U32,     "/PGM/ChunkR3Map/cMax",               STAMUNIT_COUNT,     "Maximum number of mapped chunks.");
+    STAM_REL_REG(pVM, &pPGM->cMappedChunks,                      STAMTYPE_U32,     "/PGM/ChunkR3Map/Mapped",             STAMUNIT_COUNT,     "Number of times we mapped a chunk.");
+    STAM_REL_REG(pVM, &pPGM->cUnmappedChunks,                    STAMTYPE_U32,     "/PGM/ChunkR3Map/Unmapped",           STAMUNIT_COUNT,     "Number of times we unmapped a chunk.");
 
     STAM_REL_REG(pVM, &pPGM->StatLargePageAlloc,                 STAMTYPE_COUNTER, "/PGM/LargePage/Alloc",               STAMUNIT_OCCURENCES, "The number of large pages we've used.");
     STAM_REL_REG(pVM, &pPGM->StatLargePageReused,                STAMTYPE_COUNTER, "/PGM/LargePage/Reused",              STAMUNIT_OCCURENCES, "The number of times we've reused a large page.");
@@ -1615,81 +1652,91 @@ static void pgmR3InitStats(PVM pVM)
         rc = STAMR3RegisterF(pVM, a, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, c, b); \
         AssertRC(rc);
 
-    PGM_REG_PROFILE(&pPGM->StatAllocLargePage,                "/PGM/LargePage/Prof/Alloc",          "Time spent by the host OS for large page allocation.");
-    PGM_REG_PROFILE(&pPGM->StatClearLargePage,                "/PGM/LargePage/Prof/Clear",          "Time spent clearing the newly allocated large pages.");
-    PGM_REG_PROFILE(&pPGM->StatR3IsValidLargePage,            "/PGM/LargePage/Prof/R3/IsValid",     "pgmPhysIsValidLargePage profiling - R3.");
-    PGM_REG_PROFILE(&pPGM->StatRZIsValidLargePage,            "/PGM/LargePage/Prof/RZ/IsValid",     "pgmPhysIsValidLargePage profiling - RZ.");
+    PGMSTATS *pStats = pVM->pgm.s.pStatsR3;
 
-    PGM_REG_COUNTER(&pPGM->StatR3DetectedConflicts,           "/PGM/R3/DetectedConflicts",          "The number of times PGMR3CheckMappingConflicts() detected a conflict.");
-    PGM_REG_PROFILE(&pPGM->StatR3ResolveConflict,             "/PGM/R3/ResolveConflict",            "pgmR3SyncPTResolveConflict() profiling (includes the entire relocation).");
-    PGM_REG_COUNTER(&pPGM->StatR3PhysRead,                    "/PGM/R3/Phys/Read",                  "The number of times PGMPhysRead was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatR3PhysReadBytes,         "/PGM/R3/Phys/Read/Bytes",            "The number of bytes read by PGMPhysRead.");
-    PGM_REG_COUNTER(&pPGM->StatR3PhysWrite,                   "/PGM/R3/Phys/Write",                 "The number of times PGMPhysWrite was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatR3PhysWriteBytes,        "/PGM/R3/Phys/Write/Bytes",           "The number of bytes written by PGMPhysWrite.");
-    PGM_REG_COUNTER(&pPGM->StatR3PhysSimpleRead,              "/PGM/R3/Phys/Simple/Read",           "The number of times PGMPhysSimpleReadGCPtr was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatR3PhysSimpleReadBytes,   "/PGM/R3/Phys/Simple/Read/Bytes",     "The number of bytes read by PGMPhysSimpleReadGCPtr.");
-    PGM_REG_COUNTER(&pPGM->StatR3PhysSimpleWrite,             "/PGM/R3/Phys/Simple/Write",          "The number of times PGMPhysSimpleWriteGCPtr was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatR3PhysSimpleWriteBytes,  "/PGM/R3/Phys/Simple/Write/Bytes",    "The number of bytes written by PGMPhysSimpleWriteGCPtr.");
+    PGM_REG_PROFILE(&pStats->StatAllocLargePage,                "/PGM/LargePage/Prof/Alloc",          "Time spent by the host OS for large page allocation.");
+    PGM_REG_PROFILE(&pStats->StatClearLargePage,                "/PGM/LargePage/Prof/Clear",          "Time spent clearing the newly allocated large pages.");
+    PGM_REG_COUNTER(&pStats->StatLargePageOverflow,             "/PGM/LargePage/Overflow",            "The number of times allocating a large page took too long.");
+    PGM_REG_PROFILE(&pStats->StatR3IsValidLargePage,            "/PGM/LargePage/Prof/R3/IsValid",     "pgmPhysIsValidLargePage profiling - R3.");
+    PGM_REG_PROFILE(&pStats->StatRZIsValidLargePage,            "/PGM/LargePage/Prof/RZ/IsValid",     "pgmPhysIsValidLargePage profiling - RZ.");
 
-    PGM_REG_COUNTER(&pPGM->StatRZChunkR3MapTlbHits,           "/PGM/ChunkR3Map/TlbHitsRZ",          "TLB hits.");
-    PGM_REG_COUNTER(&pPGM->StatRZChunkR3MapTlbMisses,         "/PGM/ChunkR3Map/TlbMissesRZ",        "TLB misses.");
-    PGM_REG_COUNTER(&pPGM->StatRZPageMapTlbHits,              "/PGM/RZ/Page/MapTlbHits",            "TLB hits.");
-    PGM_REG_COUNTER(&pPGM->StatRZPageMapTlbMisses,            "/PGM/RZ/Page/MapTlbMisses",          "TLB misses.");
-    PGM_REG_COUNTER(&pPGM->StatR3ChunkR3MapTlbHits,           "/PGM/ChunkR3Map/TlbHitsR3",          "TLB hits.");
-    PGM_REG_COUNTER(&pPGM->StatR3ChunkR3MapTlbMisses,         "/PGM/ChunkR3Map/TlbMissesR3",        "TLB misses.");
-    PGM_REG_COUNTER(&pPGM->StatR3PageMapTlbHits,              "/PGM/R3/Page/MapTlbHits",            "TLB hits.");
-    PGM_REG_COUNTER(&pPGM->StatR3PageMapTlbMisses,            "/PGM/R3/Page/MapTlbMisses",          "TLB misses.");
-    PGM_REG_COUNTER(&pPGM->StatPageMapTlbFlushes,             "/PGM/R3/Page/MapTlbFlushes",         "TLB flushes (all contexts).");
-    PGM_REG_COUNTER(&pPGM->StatPageMapTlbFlushEntry,          "/PGM/R3/Page/MapTlbFlushEntry",      "TLB entry flushes (all contexts).");
+    PGM_REG_COUNTER(&pStats->StatR3DetectedConflicts,           "/PGM/R3/DetectedConflicts",          "The number of times PGMR3CheckMappingConflicts() detected a conflict.");
+    PGM_REG_PROFILE(&pStats->StatR3ResolveConflict,             "/PGM/R3/ResolveConflict",            "pgmR3SyncPTResolveConflict() profiling (includes the entire relocation).");
+    PGM_REG_COUNTER(&pStats->StatR3PhysRead,                    "/PGM/R3/Phys/Read",                  "The number of times PGMPhysRead was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatR3PhysReadBytes,         "/PGM/R3/Phys/Read/Bytes",            "The number of bytes read by PGMPhysRead.");
+    PGM_REG_COUNTER(&pStats->StatR3PhysWrite,                   "/PGM/R3/Phys/Write",                 "The number of times PGMPhysWrite was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatR3PhysWriteBytes,        "/PGM/R3/Phys/Write/Bytes",           "The number of bytes written by PGMPhysWrite.");
+    PGM_REG_COUNTER(&pStats->StatR3PhysSimpleRead,              "/PGM/R3/Phys/Simple/Read",           "The number of times PGMPhysSimpleReadGCPtr was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatR3PhysSimpleReadBytes,   "/PGM/R3/Phys/Simple/Read/Bytes",     "The number of bytes read by PGMPhysSimpleReadGCPtr.");
+    PGM_REG_COUNTER(&pStats->StatR3PhysSimpleWrite,             "/PGM/R3/Phys/Simple/Write",          "The number of times PGMPhysSimpleWriteGCPtr was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatR3PhysSimpleWriteBytes,  "/PGM/R3/Phys/Simple/Write/Bytes",    "The number of bytes written by PGMPhysSimpleWriteGCPtr.");
 
-    PGM_REG_PROFILE(&pPGM->StatRZSyncCR3HandlerVirtualUpdate, "/PGM/RZ/SyncCR3/Handlers/VirtualUpdate", "Profiling of the virtual handler updates.");
-    PGM_REG_PROFILE(&pPGM->StatRZSyncCR3HandlerVirtualReset,  "/PGM/RZ/SyncCR3/Handlers/VirtualReset",  "Profiling of the virtual handler resets.");
-    PGM_REG_PROFILE(&pPGM->StatR3SyncCR3HandlerVirtualUpdate, "/PGM/R3/SyncCR3/Handlers/VirtualUpdate", "Profiling of the virtual handler updates.");
-    PGM_REG_PROFILE(&pPGM->StatR3SyncCR3HandlerVirtualReset,  "/PGM/R3/SyncCR3/Handlers/VirtualReset",  "Profiling of the virtual handler resets.");
+    PGM_REG_COUNTER(&pStats->StatRZChunkR3MapTlbHits,           "/PGM/ChunkR3Map/TlbHitsRZ",          "TLB hits.");
+    PGM_REG_COUNTER(&pStats->StatRZChunkR3MapTlbMisses,         "/PGM/ChunkR3Map/TlbMissesRZ",        "TLB misses.");
+    PGM_REG_PROFILE(&pStats->StatChunkAging,                    "/PGM/ChunkR3Map/Map/Aging",          "Chunk aging profiling.");
+    PGM_REG_PROFILE(&pStats->StatChunkFindCandidate,            "/PGM/ChunkR3Map/Map/Find",           "Chunk unmap find profiling.");
+    PGM_REG_PROFILE(&pStats->StatChunkUnmap,                    "/PGM/ChunkR3Map/Map/Unmap",          "Chunk unmap of address space profiling.");
+    PGM_REG_PROFILE(&pStats->StatChunkMap,                      "/PGM/ChunkR3Map/Map/Map",            "Chunk map of address space profiling.");
 
-    PGM_REG_COUNTER(&pPGM->StatRZPhysHandlerReset,            "/PGM/RZ/PhysHandlerReset",           "The number of times PGMHandlerPhysicalReset is called.");
-    PGM_REG_COUNTER(&pPGM->StatR3PhysHandlerReset,            "/PGM/R3/PhysHandlerReset",           "The number of times PGMHandlerPhysicalReset is called.");
-    PGM_REG_PROFILE(&pPGM->StatRZVirtHandlerSearchByPhys,     "/PGM/RZ/VirtHandlerSearchByPhys",    "Profiling of pgmHandlerVirtualFindByPhysAddr.");
-    PGM_REG_PROFILE(&pPGM->StatR3VirtHandlerSearchByPhys,     "/PGM/R3/VirtHandlerSearchByPhys",    "Profiling of pgmHandlerVirtualFindByPhysAddr.");
+    PGM_REG_COUNTER(&pStats->StatRZPageMapTlbHits,              "/PGM/RZ/Page/MapTlbHits",            "TLB hits.");
+    PGM_REG_COUNTER(&pStats->StatRZPageMapTlbMisses,            "/PGM/RZ/Page/MapTlbMisses",          "TLB misses.");
+    PGM_REG_COUNTER(&pStats->StatR3ChunkR3MapTlbHits,           "/PGM/ChunkR3Map/TlbHitsR3",          "TLB hits.");
+    PGM_REG_COUNTER(&pStats->StatR3ChunkR3MapTlbMisses,         "/PGM/ChunkR3Map/TlbMissesR3",        "TLB misses.");
+    PGM_REG_COUNTER(&pStats->StatR3PageMapTlbHits,              "/PGM/R3/Page/MapTlbHits",            "TLB hits.");
+    PGM_REG_COUNTER(&pStats->StatR3PageMapTlbMisses,            "/PGM/R3/Page/MapTlbMisses",          "TLB misses.");
+    PGM_REG_COUNTER(&pStats->StatPageMapTlbFlushes,             "/PGM/R3/Page/MapTlbFlushes",         "TLB flushes (all contexts).");
+    PGM_REG_COUNTER(&pStats->StatPageMapTlbFlushEntry,          "/PGM/R3/Page/MapTlbFlushEntry",      "TLB entry flushes (all contexts).");
 
-    PGM_REG_COUNTER(&pPGM->StatRZPageReplaceShared,           "/PGM/RZ/Page/ReplacedShared",        "Times a shared page was replaced.");
-    PGM_REG_COUNTER(&pPGM->StatRZPageReplaceZero,             "/PGM/RZ/Page/ReplacedZero",          "Times the zero page was replaced.");
-/// @todo    PGM_REG_COUNTER(&pPGM->StatRZPageHandyAllocs,             "/PGM/RZ/Page/HandyAllocs",               "Number of times we've allocated more handy pages.");
-    PGM_REG_COUNTER(&pPGM->StatR3PageReplaceShared,           "/PGM/R3/Page/ReplacedShared",        "Times a shared page was replaced.");
-    PGM_REG_COUNTER(&pPGM->StatR3PageReplaceZero,             "/PGM/R3/Page/ReplacedZero",          "Times the zero page was replaced.");
-/// @todo    PGM_REG_COUNTER(&pPGM->StatR3PageHandyAllocs,             "/PGM/R3/Page/HandyAllocs",               "Number of times we've allocated more handy pages.");
+    PGM_REG_PROFILE(&pStats->StatRZSyncCR3HandlerVirtualUpdate, "/PGM/RZ/SyncCR3/Handlers/VirtualUpdate", "Profiling of the virtual handler updates.");
+    PGM_REG_PROFILE(&pStats->StatRZSyncCR3HandlerVirtualReset,  "/PGM/RZ/SyncCR3/Handlers/VirtualReset",  "Profiling of the virtual handler resets.");
+    PGM_REG_PROFILE(&pStats->StatR3SyncCR3HandlerVirtualUpdate, "/PGM/R3/SyncCR3/Handlers/VirtualUpdate", "Profiling of the virtual handler updates.");
+    PGM_REG_PROFILE(&pStats->StatR3SyncCR3HandlerVirtualReset,  "/PGM/R3/SyncCR3/Handlers/VirtualReset",  "Profiling of the virtual handler resets.");
 
-    PGM_REG_COUNTER(&pPGM->StatRZPhysRead,                    "/PGM/RZ/Phys/Read",                  "The number of times PGMPhysRead was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRZPhysReadBytes,         "/PGM/RZ/Phys/Read/Bytes",            "The number of bytes read by PGMPhysRead.");
-    PGM_REG_COUNTER(&pPGM->StatRZPhysWrite,                   "/PGM/RZ/Phys/Write",                 "The number of times PGMPhysWrite was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRZPhysWriteBytes,        "/PGM/RZ/Phys/Write/Bytes",           "The number of bytes written by PGMPhysWrite.");
-    PGM_REG_COUNTER(&pPGM->StatRZPhysSimpleRead,              "/PGM/RZ/Phys/Simple/Read",           "The number of times PGMPhysSimpleReadGCPtr was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRZPhysSimpleReadBytes,   "/PGM/RZ/Phys/Simple/Read/Bytes",     "The number of bytes read by PGMPhysSimpleReadGCPtr.");
-    PGM_REG_COUNTER(&pPGM->StatRZPhysSimpleWrite,             "/PGM/RZ/Phys/Simple/Write",          "The number of times PGMPhysSimpleWriteGCPtr was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRZPhysSimpleWriteBytes,  "/PGM/RZ/Phys/Simple/Write/Bytes",    "The number of bytes written by PGMPhysSimpleWriteGCPtr.");
+    PGM_REG_COUNTER(&pStats->StatRZPhysHandlerReset,            "/PGM/RZ/PhysHandlerReset",           "The number of times PGMHandlerPhysicalReset is called.");
+    PGM_REG_COUNTER(&pStats->StatR3PhysHandlerReset,            "/PGM/R3/PhysHandlerReset",           "The number of times PGMHandlerPhysicalReset is called.");
+    PGM_REG_COUNTER(&pStats->StatRZPhysHandlerLookupHits,       "/PGM/RZ/PhysHandlerLookupHits",      "The number of cache hits when looking up physical handlers.");
+    PGM_REG_COUNTER(&pStats->StatR3PhysHandlerLookupHits,       "/PGM/R3/PhysHandlerLookupHits",      "The number of cache hits when looking up physical handlers.");
+    PGM_REG_COUNTER(&pStats->StatRZPhysHandlerLookupMisses,     "/PGM/RZ/PhysHandlerLookupMisses",    "The number of cache misses when looking up physical handlers.");
+    PGM_REG_COUNTER(&pStats->StatR3PhysHandlerLookupMisses,     "/PGM/R3/PhysHandlerLookupMisses",    "The number of cache misses when looking up physical handlers.");
+    PGM_REG_PROFILE(&pStats->StatRZVirtHandlerSearchByPhys,     "/PGM/RZ/VirtHandlerSearchByPhys",    "Profiling of pgmHandlerVirtualFindByPhysAddr.");
+    PGM_REG_PROFILE(&pStats->StatR3VirtHandlerSearchByPhys,     "/PGM/R3/VirtHandlerSearchByPhys",    "Profiling of pgmHandlerVirtualFindByPhysAddr.");
+
+    PGM_REG_COUNTER(&pStats->StatRZPageReplaceShared,           "/PGM/RZ/Page/ReplacedShared",        "Times a shared page was replaced.");
+    PGM_REG_COUNTER(&pStats->StatRZPageReplaceZero,             "/PGM/RZ/Page/ReplacedZero",          "Times the zero page was replaced.");
+/// @todo    PGM_REG_COUNTER(&pStats->StatRZPageHandyAllocs,             "/PGM/RZ/Page/HandyAllocs",               "Number of times we've allocated more handy pages.");
+    PGM_REG_COUNTER(&pStats->StatR3PageReplaceShared,           "/PGM/R3/Page/ReplacedShared",        "Times a shared page was replaced.");
+    PGM_REG_COUNTER(&pStats->StatR3PageReplaceZero,             "/PGM/R3/Page/ReplacedZero",          "Times the zero page was replaced.");
+/// @todo    PGM_REG_COUNTER(&pStats->StatR3PageHandyAllocs,             "/PGM/R3/Page/HandyAllocs",               "Number of times we've allocated more handy pages.");
+
+    PGM_REG_COUNTER(&pStats->StatRZPhysRead,                    "/PGM/RZ/Phys/Read",                  "The number of times PGMPhysRead was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRZPhysReadBytes,         "/PGM/RZ/Phys/Read/Bytes",            "The number of bytes read by PGMPhysRead.");
+    PGM_REG_COUNTER(&pStats->StatRZPhysWrite,                   "/PGM/RZ/Phys/Write",                 "The number of times PGMPhysWrite was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRZPhysWriteBytes,        "/PGM/RZ/Phys/Write/Bytes",           "The number of bytes written by PGMPhysWrite.");
+    PGM_REG_COUNTER(&pStats->StatRZPhysSimpleRead,              "/PGM/RZ/Phys/Simple/Read",           "The number of times PGMPhysSimpleReadGCPtr was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRZPhysSimpleReadBytes,   "/PGM/RZ/Phys/Simple/Read/Bytes",     "The number of bytes read by PGMPhysSimpleReadGCPtr.");
+    PGM_REG_COUNTER(&pStats->StatRZPhysSimpleWrite,             "/PGM/RZ/Phys/Simple/Write",          "The number of times PGMPhysSimpleWriteGCPtr was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRZPhysSimpleWriteBytes,  "/PGM/RZ/Phys/Simple/Write/Bytes",    "The number of bytes written by PGMPhysSimpleWriteGCPtr.");
 
     /* GC only: */
-    PGM_REG_COUNTER(&pPGM->StatRCDynMapCacheHits,             "/PGM/RC/DynMapCache/Hits" ,          "Number of dynamic page mapping cache hits.");
-    PGM_REG_COUNTER(&pPGM->StatRCDynMapCacheMisses,           "/PGM/RC/DynMapCache/Misses" ,        "Number of dynamic page mapping cache misses.");
-    PGM_REG_COUNTER(&pPGM->StatRCInvlPgConflict,              "/PGM/RC/InvlPgConflict",             "Number of times PGMInvalidatePage() detected a mapping conflict.");
-    PGM_REG_COUNTER(&pPGM->StatRCInvlPgSyncMonCR3,            "/PGM/RC/InvlPgSyncMonitorCR3",       "Number of times PGMInvalidatePage() ran into PGM_SYNC_MONITOR_CR3.");
+    PGM_REG_COUNTER(&pStats->StatRCInvlPgConflict,              "/PGM/RC/InvlPgConflict",             "Number of times PGMInvalidatePage() detected a mapping conflict.");
+    PGM_REG_COUNTER(&pStats->StatRCInvlPgSyncMonCR3,            "/PGM/RC/InvlPgSyncMonitorCR3",       "Number of times PGMInvalidatePage() ran into PGM_SYNC_MONITOR_CR3.");
 
-    PGM_REG_COUNTER(&pPGM->StatRCPhysRead,                    "/PGM/RC/Phys/Read",                  "The number of times PGMPhysRead was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRCPhysReadBytes,         "/PGM/RC/Phys/Read/Bytes",            "The number of bytes read by PGMPhysRead.");
-    PGM_REG_COUNTER(&pPGM->StatRCPhysWrite,                   "/PGM/RC/Phys/Write",                 "The number of times PGMPhysWrite was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRCPhysWriteBytes,        "/PGM/RC/Phys/Write/Bytes",           "The number of bytes written by PGMPhysWrite.");
-    PGM_REG_COUNTER(&pPGM->StatRCPhysSimpleRead,              "/PGM/RC/Phys/Simple/Read",           "The number of times PGMPhysSimpleReadGCPtr was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRCPhysSimpleReadBytes,   "/PGM/RC/Phys/Simple/Read/Bytes",     "The number of bytes read by PGMPhysSimpleReadGCPtr.");
-    PGM_REG_COUNTER(&pPGM->StatRCPhysSimpleWrite,             "/PGM/RC/Phys/Simple/Write",          "The number of times PGMPhysSimpleWriteGCPtr was called.");
-    PGM_REG_COUNTER_BYTES(&pPGM->StatRCPhysSimpleWriteBytes,  "/PGM/RC/Phys/Simple/Write/Bytes",    "The number of bytes written by PGMPhysSimpleWriteGCPtr.");
+    PGM_REG_COUNTER(&pStats->StatRCPhysRead,                    "/PGM/RC/Phys/Read",                  "The number of times PGMPhysRead was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRCPhysReadBytes,         "/PGM/RC/Phys/Read/Bytes",            "The number of bytes read by PGMPhysRead.");
+    PGM_REG_COUNTER(&pStats->StatRCPhysWrite,                   "/PGM/RC/Phys/Write",                 "The number of times PGMPhysWrite was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRCPhysWriteBytes,        "/PGM/RC/Phys/Write/Bytes",           "The number of bytes written by PGMPhysWrite.");
+    PGM_REG_COUNTER(&pStats->StatRCPhysSimpleRead,              "/PGM/RC/Phys/Simple/Read",           "The number of times PGMPhysSimpleReadGCPtr was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRCPhysSimpleReadBytes,   "/PGM/RC/Phys/Simple/Read/Bytes",     "The number of bytes read by PGMPhysSimpleReadGCPtr.");
+    PGM_REG_COUNTER(&pStats->StatRCPhysSimpleWrite,             "/PGM/RC/Phys/Simple/Write",          "The number of times PGMPhysSimpleWriteGCPtr was called.");
+    PGM_REG_COUNTER_BYTES(&pStats->StatRCPhysSimpleWriteBytes,  "/PGM/RC/Phys/Simple/Write/Bytes",    "The number of bytes written by PGMPhysSimpleWriteGCPtr.");
 
-    PGM_REG_COUNTER(&pPGM->StatTrackVirgin,                   "/PGM/Track/Virgin",                  "The number of first time shadowings");
-    PGM_REG_COUNTER(&pPGM->StatTrackAliased,                  "/PGM/Track/Aliased",                 "The number of times switching to cRef2, i.e. the page is being shadowed by two PTs.");
-    PGM_REG_COUNTER(&pPGM->StatTrackAliasedMany,              "/PGM/Track/AliasedMany",             "The number of times we're tracking using cRef2.");
-    PGM_REG_COUNTER(&pPGM->StatTrackAliasedLots,              "/PGM/Track/AliasedLots",             "The number of times we're hitting pages which has overflowed cRef2");
-    PGM_REG_COUNTER(&pPGM->StatTrackOverflows,                "/PGM/Track/Overflows",               "The number of times the extent list grows too long.");
-    PGM_REG_COUNTER(&pPGM->StatTrackNoExtentsLeft,            "/PGM/Track/NoExtentLeft",            "The number of times the extent list was exhausted.");
-    PGM_REG_PROFILE(&pPGM->StatTrackDeref,                    "/PGM/Track/Deref",                   "Profiling of SyncPageWorkerTrackDeref (expensive).");
+    PGM_REG_COUNTER(&pStats->StatTrackVirgin,                   "/PGM/Track/Virgin",                  "The number of first time shadowings");
+    PGM_REG_COUNTER(&pStats->StatTrackAliased,                  "/PGM/Track/Aliased",                 "The number of times switching to cRef2, i.e. the page is being shadowed by two PTs.");
+    PGM_REG_COUNTER(&pStats->StatTrackAliasedMany,              "/PGM/Track/AliasedMany",             "The number of times we're tracking using cRef2.");
+    PGM_REG_COUNTER(&pStats->StatTrackAliasedLots,              "/PGM/Track/AliasedLots",             "The number of times we're hitting pages which has overflowed cRef2");
+    PGM_REG_COUNTER(&pStats->StatTrackOverflows,                "/PGM/Track/Overflows",               "The number of times the extent list grows too long.");
+    PGM_REG_COUNTER(&pStats->StatTrackNoExtentsLeft,            "/PGM/Track/NoExtentLeft",            "The number of times the extent list was exhausted.");
+    PGM_REG_PROFILE(&pStats->StatTrackDeref,                    "/PGM/Track/Deref",                   "Profiling of SyncPageWorkerTrackDeref (expensive).");
 
 # undef PGM_REG_COUNTER
 # undef PGM_REG_PROFILE
@@ -1707,218 +1754,225 @@ static void pgmR3InitStats(PVM pVM)
         PPGMCPU pPgmCpu = &pVM->aCpus[idCpu].pgm.s;
 
 #define PGM_REG_COUNTER(a, b, c) \
-        rc = STAMR3RegisterF(pVM, a, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, c, b, idCpu); \
-        AssertRC(rc);
+    rc = STAMR3RegisterF(pVM, a, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, c, b, idCpu); \
+    AssertRC(rc);
 #define PGM_REG_PROFILE(a, b, c) \
-        rc = STAMR3RegisterF(pVM, a, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, c, b, idCpu); \
-        AssertRC(rc);
+    rc = STAMR3RegisterF(pVM, a, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, c, b, idCpu); \
+    AssertRC(rc);
 
         PGM_REG_COUNTER(&pPgmCpu->cGuestModeChanges, "/PGM/CPU%u/cGuestModeChanges",  "Number of guest mode changes.");
 
 #ifdef VBOX_WITH_STATISTICS
+        PGMCPUSTATS *pCpuStats = pVM->aCpus[idCpu].pgm.s.pStatsR3;
 
 # if 0 /* rarely useful; leave for debugging. */
         for (unsigned j = 0; j < RT_ELEMENTS(pPgmCpu->StatSyncPtPD); j++)
-            STAMR3RegisterF(pVM, &pPgmCpu->StatSyncPtPD[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+            STAMR3RegisterF(pVM, &pCpuStats->StatSyncPtPD[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
                             "The number of SyncPT per PD n.", "/PGM/CPU%u/PDSyncPT/%04X", i, j);
-        for (unsigned j = 0; j < RT_ELEMENTS(pPgmCpu->StatSyncPagePD); j++)
-            STAMR3RegisterF(pVM, &pPgmCpu->StatSyncPagePD[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+        for (unsigned j = 0; j < RT_ELEMENTS(pCpuStats->StatSyncPagePD); j++)
+            STAMR3RegisterF(pVM, &pCpuStats->StatSyncPagePD[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
                             "The number of SyncPage per PD n.", "/PGM/CPU%u/PDSyncPage/%04X", i, j);
 # endif
         /* R0 only: */
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapMigrateInvlPg,         "/PGM/CPU%u/R0/DynMapMigrateInvlPg",        "invlpg count in PGMDynMapMigrateAutoSet.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR0DynMapGCPageInl,             "/PGM/CPU%u/R0/DynMapPageGCPageInl",        "Calls to pgmR0DynMapGCPageInlined.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapGCPageInlHits,         "/PGM/CPU%u/R0/DynMapPageGCPageInl/Hits",   "Hash table lookup hits.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapGCPageInlMisses,       "/PGM/CPU%u/R0/DynMapPageGCPageInl/Misses", "Misses that falls back to code common with PGMDynMapHCPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapGCPageInlRamHits,      "/PGM/CPU%u/R0/DynMapPageGCPageInl/RamHits",   "1st ram range hits.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapGCPageInlRamMisses,    "/PGM/CPU%u/R0/DynMapPageGCPageInl/RamMisses", "1st ram range misses, takes slow path.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR0DynMapHCPageInl,             "/PGM/CPU%u/R0/DynMapPageHCPageInl",        "Calls to pgmR0DynMapHCPageInlined.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapHCPageInlHits,         "/PGM/CPU%u/R0/DynMapPageHCPageInl/Hits",   "Hash table lookup hits.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapHCPageInlMisses,       "/PGM/CPU%u/R0/DynMapPageHCPageInl/Misses", "Misses that falls back to code common with PGMDynMapHCPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPage,                  "/PGM/CPU%u/R0/DynMapPage",                 "Calls to pgmR0DynMapPage");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapSetOptimize,           "/PGM/CPU%u/R0/DynMapPage/SetOptimize",     "Calls to pgmDynMapOptimizeAutoSet.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapSetSearchFlushes,      "/PGM/CPU%u/R0/DynMapPage/SetSearchFlushes","Set search restorting to subset flushes.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapSetSearchHits,         "/PGM/CPU%u/R0/DynMapPage/SetSearchHits",   "Set search hits.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapSetSearchMisses,       "/PGM/CPU%u/R0/DynMapPage/SetSearchMisses", "Set search misses.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR0DynMapHCPage,                "/PGM/CPU%u/R0/DynMapPage/HCPage",          "Calls to PGMDynMapHCPage (ring-0).");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageHits0,             "/PGM/CPU%u/R0/DynMapPage/Hits0",           "Hits at iPage+0");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageHits1,             "/PGM/CPU%u/R0/DynMapPage/Hits1",           "Hits at iPage+1");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageHits2,             "/PGM/CPU%u/R0/DynMapPage/Hits2",           "Hits at iPage+2");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageInvlPg,            "/PGM/CPU%u/R0/DynMapPage/InvlPg",          "invlpg count in pgmR0DynMapPageSlow.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageSlow,              "/PGM/CPU%u/R0/DynMapPage/Slow",            "Calls to pgmR0DynMapPageSlow - subtract this from pgmR0DynMapPage to get 1st level hits.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageSlowLoopHits,      "/PGM/CPU%u/R0/DynMapPage/SlowLoopHits" ,   "Hits in the loop path.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageSlowLoopMisses,    "/PGM/CPU%u/R0/DynMapPage/SlowLoopMisses",  "Misses in the loop path. NonLoopMisses = Slow - SlowLoopHit - SlowLoopMisses");
-        //PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPageSlowLostHits,      "/PGM/CPU%u/R0/DynMapPage/SlowLostHits",    "Lost hits.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapSubsets,               "/PGM/CPU%u/R0/Subsets",                    "Times PGMDynMapPushAutoSubset was called.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR0DynMapPopFlushes,            "/PGM/CPU%u/R0/SubsetPopFlushes",           "Times PGMDynMapPopAutoSubset flushes the subset.");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[0],           "/PGM/CPU%u/R0/SetSize000..09",              "00-09% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[1],           "/PGM/CPU%u/R0/SetSize010..19",              "10-19% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[2],           "/PGM/CPU%u/R0/SetSize020..29",              "20-29% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[3],           "/PGM/CPU%u/R0/SetSize030..39",              "30-39% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[4],           "/PGM/CPU%u/R0/SetSize040..49",              "40-49% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[5],           "/PGM/CPU%u/R0/SetSize050..59",              "50-59% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[6],           "/PGM/CPU%u/R0/SetSize060..69",              "60-69% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[7],           "/PGM/CPU%u/R0/SetSize070..79",              "70-79% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[8],           "/PGM/CPU%u/R0/SetSize080..89",              "80-89% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[9],           "/PGM/CPU%u/R0/SetSize090..99",              "90-99% filled");
-        PGM_REG_COUNTER(&pPgmCpu->aStatR0DynMapSetSize[10],          "/PGM/CPU%u/R0/SetSize100",                 "100% filled");
+        PGM_REG_PROFILE(&pCpuStats->StatR0NpMiscfg,                      "/PGM/CPU%u/R0/NpMiscfg",                     "PGMR0Trap0eHandlerNPMisconfig() profiling.");
+        PGM_REG_COUNTER(&pCpuStats->StatR0NpMiscfgSyncPage,              "/PGM/CPU%u/R0/NpMiscfgSyncPage",             "SyncPage calls from PGMR0Trap0eHandlerNPMisconfig().");
 
         /* RZ only: */
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0e,                      "/PGM/CPU%u/RZ/Trap0e",                     "Profiling of the PGMTrap0eHandler() body.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTimeCheckPageFault,    "/PGM/CPU%u/RZ/Trap0e/Time/CheckPageFault", "Profiling of checking for dirty/access emulation faults.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTimeSyncPT,            "/PGM/CPU%u/RZ/Trap0e/Time/SyncPT",         "Profiling of lazy page table syncing.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTimeMapping,           "/PGM/CPU%u/RZ/Trap0e/Time/Mapping",        "Profiling of checking virtual mappings.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTimeOutOfSync,         "/PGM/CPU%u/RZ/Trap0e/Time/OutOfSync",      "Profiling of out of sync page handling.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTimeHandlers,          "/PGM/CPU%u/RZ/Trap0e/Time/Handlers",       "Profiling of checking handlers.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2CSAM,             "/PGM/CPU%u/RZ/Trap0e/Time2/CSAM",              "Profiling of the Trap0eHandler body when the cause is CSAM.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2DirtyAndAccessed, "/PGM/CPU%u/RZ/Trap0e/Time2/DirtyAndAccessedBits", "Profiling of the Trap0eHandler body when the cause is dirty and/or accessed bit emulation.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2GuestTrap,        "/PGM/CPU%u/RZ/Trap0e/Time2/GuestTrap",         "Profiling of the Trap0eHandler body when the cause is a guest trap.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2HndPhys,          "/PGM/CPU%u/RZ/Trap0e/Time2/HandlerPhysical",   "Profiling of the Trap0eHandler body when the cause is a physical handler.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2HndVirt,          "/PGM/CPU%u/RZ/Trap0e/Time2/HandlerVirtual",    "Profiling of the Trap0eHandler body when the cause is a virtual handler.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2HndUnhandled,     "/PGM/CPU%u/RZ/Trap0e/Time2/HandlerUnhandled",  "Profiling of the Trap0eHandler body when the cause is access outside the monitored areas of a monitored page.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2Misc,             "/PGM/CPU%u/RZ/Trap0e/Time2/Misc",              "Profiling of the Trap0eHandler body when the cause is not known.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2OutOfSync,        "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSync",         "Profiling of the Trap0eHandler body when the cause is an out-of-sync page.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2OutOfSyncHndPhys, "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSyncHndPhys",  "Profiling of the Trap0eHandler body when the cause is an out-of-sync physical handler page.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2OutOfSyncHndVirt, "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSyncHndVirt",  "Profiling of the Trap0eHandler body when the cause is an out-of-sync virtual handler page.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2OutOfSyncHndObs,  "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSyncObsHnd",   "Profiling of the Trap0eHandler body when the cause is an obsolete handler page.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZTrap0eTime2SyncPT,           "/PGM/CPU%u/RZ/Trap0e/Time2/SyncPT",            "Profiling of the Trap0eHandler body when the cause is lazy syncing of a PT.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eConflicts,             "/PGM/CPU%u/RZ/Trap0e/Conflicts",               "The number of times #PF was caused by an undetected conflict.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersMapping,       "/PGM/CPU%u/RZ/Trap0e/Handlers/Mapping",        "Number of traps due to access handlers in mappings.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersOutOfSync,     "/PGM/CPU%u/RZ/Trap0e/Handlers/OutOfSync",      "Number of traps due to out-of-sync handled pages.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersPhysical,      "/PGM/CPU%u/RZ/Trap0e/Handlers/Physical",       "Number of traps due to physical access handlers.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersVirtual,       "/PGM/CPU%u/RZ/Trap0e/Handlers/Virtual",        "Number of traps due to virtual access handlers.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersVirtualByPhys, "/PGM/CPU%u/RZ/Trap0e/Handlers/VirtualByPhys",  "Number of traps due to virtual access handlers by physical address.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersVirtualUnmarked,"/PGM/CPU%u/RZ/Trap0e/Handlers/VirtualUnmarked","Number of traps due to virtual access handlers by virtual address (without proper physical flags).");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersUnhandled,     "/PGM/CPU%u/RZ/Trap0e/Handlers/Unhandled",      "Number of traps due to access outside range of monitored page(s).");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eHandlersInvalid,       "/PGM/CPU%u/RZ/Trap0e/Handlers/Invalid",        "Number of traps due to access to invalid physical memory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eUSNotPresentRead,      "/PGM/CPU%u/RZ/Trap0e/Err/User/NPRead",         "Number of user mode not present read page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eUSNotPresentWrite,     "/PGM/CPU%u/RZ/Trap0e/Err/User/NPWrite",        "Number of user mode not present write page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eUSWrite,               "/PGM/CPU%u/RZ/Trap0e/Err/User/Write",          "Number of user mode write page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eUSReserved,            "/PGM/CPU%u/RZ/Trap0e/Err/User/Reserved",       "Number of user mode reserved bit page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eUSNXE,                 "/PGM/CPU%u/RZ/Trap0e/Err/User/NXE",            "Number of user mode NXE page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eUSRead,                "/PGM/CPU%u/RZ/Trap0e/Err/User/Read",           "Number of user mode read page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eSVNotPresentRead,      "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/NPRead",   "Number of supervisor mode not present read page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eSVNotPresentWrite,     "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/NPWrite",  "Number of supervisor mode not present write page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eSVWrite,               "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/Write",    "Number of supervisor mode write page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eSVReserved,            "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/Reserved", "Number of supervisor mode reserved bit page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eSNXE,                  "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/NXE",      "Number of supervisor mode NXE page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eGuestPF,               "/PGM/CPU%u/RZ/Trap0e/GuestPF",                 "Number of real guest page faults.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eGuestPFUnh,            "/PGM/CPU%u/RZ/Trap0e/GuestPF/Unhandled",       "Number of real guest page faults from the 'unhandled' case.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eGuestPFMapping,        "/PGM/CPU%u/RZ/Trap0e/GuestPF/InMapping",       "Number of real guest page faults in a mapping.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eWPEmulInRZ,            "/PGM/CPU%u/RZ/Trap0e/WP/InRZ",                 "Number of guest page faults due to X86_CR0_WP emulation.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZTrap0eWPEmulToR3,            "/PGM/CPU%u/RZ/Trap0e/WP/ToR3",                 "Number of guest page faults due to X86_CR0_WP emulation (forward to R3 for emulation).");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0e,                      "/PGM/CPU%u/RZ/Trap0e",                     "Profiling of the PGMTrap0eHandler() body.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2Ballooned,        "/PGM/CPU%u/RZ/Trap0e/Time2/Ballooned",         "Profiling of the Trap0eHandler body when the cause is read access to a ballooned page.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2CSAM,             "/PGM/CPU%u/RZ/Trap0e/Time2/CSAM",              "Profiling of the Trap0eHandler body when the cause is CSAM.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2DirtyAndAccessed, "/PGM/CPU%u/RZ/Trap0e/Time2/DirtyAndAccessedBits", "Profiling of the Trap0eHandler body when the cause is dirty and/or accessed bit emulation.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2GuestTrap,        "/PGM/CPU%u/RZ/Trap0e/Time2/GuestTrap",         "Profiling of the Trap0eHandler body when the cause is a guest trap.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2HndPhys,          "/PGM/CPU%u/RZ/Trap0e/Time2/HandlerPhysical",   "Profiling of the Trap0eHandler body when the cause is a physical handler.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2HndVirt,          "/PGM/CPU%u/RZ/Trap0e/Time2/HandlerVirtual",    "Profiling of the Trap0eHandler body when the cause is a virtual handler.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2HndUnhandled,     "/PGM/CPU%u/RZ/Trap0e/Time2/HandlerUnhandled",  "Profiling of the Trap0eHandler body when the cause is access outside the monitored areas of a monitored page.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2InvalidPhys,      "/PGM/CPU%u/RZ/Trap0e/Time2/InvalidPhys",       "Profiling of the Trap0eHandler body when the cause is access to an invalid physical guest address.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2MakeWritable,     "/PGM/CPU%u/RZ/Trap0e/Time2/MakeWritable",      "Profiling of the Trap0eHandler body when the cause is that a page needed to be made writeable.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2Mapping,          "/PGM/CPU%u/RZ/Trap0e/Time2/Mapping",           "Profiling of the Trap0eHandler body when the cause is related to the guest mappings.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2Misc,             "/PGM/CPU%u/RZ/Trap0e/Time2/Misc",              "Profiling of the Trap0eHandler body when the cause is not known.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2OutOfSync,        "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSync",         "Profiling of the Trap0eHandler body when the cause is an out-of-sync page.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2OutOfSyncHndPhys, "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSyncHndPhys",  "Profiling of the Trap0eHandler body when the cause is an out-of-sync physical handler page.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2OutOfSyncHndVirt, "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSyncHndVirt",  "Profiling of the Trap0eHandler body when the cause is an out-of-sync virtual handler page.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2OutOfSyncHndObs,  "/PGM/CPU%u/RZ/Trap0e/Time2/OutOfSyncObsHnd",   "Profiling of the Trap0eHandler body when the cause is an obsolete handler page.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2SyncPT,           "/PGM/CPU%u/RZ/Trap0e/Time2/SyncPT",            "Profiling of the Trap0eHandler body when the cause is lazy syncing of a PT.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZTrap0eTime2WPEmulation,      "/PGM/CPU%u/RZ/Trap0e/Time2/WPEmulation",       "Profiling of the Trap0eHandler body when the cause is CR0.WP emulation.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eConflicts,             "/PGM/CPU%u/RZ/Trap0e/Conflicts",               "The number of times #PF was caused by an undetected conflict.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersMapping,       "/PGM/CPU%u/RZ/Trap0e/Handlers/Mapping",        "Number of traps due to access handlers in mappings.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersOutOfSync,     "/PGM/CPU%u/RZ/Trap0e/Handlers/OutOfSync",      "Number of traps due to out-of-sync handled pages.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersPhysAll,       "/PGM/CPU%u/RZ/Trap0e/Handlers/PhysAll",        "Number of traps due to physical all-access handlers.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersPhysAllOpt,    "/PGM/CPU%u/RZ/Trap0e/Handlers/PhysAllOpt",     "Number of the physical all-access handler traps using the optimization.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersPhysWrite,     "/PGM/CPU%u/RZ/Trap0e/Handlers/PhysWrite",      "Number of traps due to physical write-access handlers.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersVirtual,       "/PGM/CPU%u/RZ/Trap0e/Handlers/Virtual",        "Number of traps due to virtual access handlers.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersVirtualByPhys, "/PGM/CPU%u/RZ/Trap0e/Handlers/VirtualByPhys",  "Number of traps due to virtual access handlers by physical address.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersVirtualUnmarked,"/PGM/CPU%u/RZ/Trap0e/Handlers/VirtualUnmarked","Number of traps due to virtual access handlers by virtual address (without proper physical flags).");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersUnhandled,     "/PGM/CPU%u/RZ/Trap0e/Handlers/Unhandled",      "Number of traps due to access outside range of monitored page(s).");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eHandlersInvalid,       "/PGM/CPU%u/RZ/Trap0e/Handlers/Invalid",        "Number of traps due to access to invalid physical memory.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eUSNotPresentRead,      "/PGM/CPU%u/RZ/Trap0e/Err/User/NPRead",         "Number of user mode not present read page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eUSNotPresentWrite,     "/PGM/CPU%u/RZ/Trap0e/Err/User/NPWrite",        "Number of user mode not present write page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eUSWrite,               "/PGM/CPU%u/RZ/Trap0e/Err/User/Write",          "Number of user mode write page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eUSReserved,            "/PGM/CPU%u/RZ/Trap0e/Err/User/Reserved",       "Number of user mode reserved bit page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eUSNXE,                 "/PGM/CPU%u/RZ/Trap0e/Err/User/NXE",            "Number of user mode NXE page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eUSRead,                "/PGM/CPU%u/RZ/Trap0e/Err/User/Read",           "Number of user mode read page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eSVNotPresentRead,      "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/NPRead",   "Number of supervisor mode not present read page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eSVNotPresentWrite,     "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/NPWrite",  "Number of supervisor mode not present write page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eSVWrite,               "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/Write",    "Number of supervisor mode write page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eSVReserved,            "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/Reserved", "Number of supervisor mode reserved bit page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eSNXE,                  "/PGM/CPU%u/RZ/Trap0e/Err/Supervisor/NXE",      "Number of supervisor mode NXE page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eGuestPF,               "/PGM/CPU%u/RZ/Trap0e/GuestPF",                 "Number of real guest page faults.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eGuestPFMapping,        "/PGM/CPU%u/RZ/Trap0e/GuestPF/InMapping",       "Number of real guest page faults in a mapping.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eWPEmulInRZ,            "/PGM/CPU%u/RZ/Trap0e/WP/InRZ",                 "Number of guest page faults due to X86_CR0_WP emulation.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZTrap0eWPEmulToR3,            "/PGM/CPU%u/RZ/Trap0e/WP/ToR3",                 "Number of guest page faults due to X86_CR0_WP emulation (forward to R3 for emulation).");
 #if 0 /* rarely useful; leave for debugging. */
-        for (unsigned j = 0; j < RT_ELEMENTS(pPgmCpu->StatRZTrap0ePD); j++)
-            STAMR3RegisterF(pVM, &pPgmCpu->StatRZTrap0ePD[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+        for (unsigned j = 0; j < RT_ELEMENTS(pCpuStats->StatRZTrap0ePD); j++)
+            STAMR3RegisterF(pVM, &pCpuStats->StatRZTrap0ePD[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
                             "The number of traps in page directory n.", "/PGM/CPU%u/RZ/Trap0e/PD/%04X", i, j);
 #endif
-        PGM_REG_COUNTER(&pPgmCpu->StatRZGuestCR3WriteHandled,        "/PGM/CPU%u/RZ/CR3WriteHandled",                "The number of times the Guest CR3 change was successfully handled.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZGuestCR3WriteUnhandled,      "/PGM/CPU%u/RZ/CR3WriteUnhandled",              "The number of times the Guest CR3 change was passed back to the recompiler.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZGuestCR3WriteConflict,       "/PGM/CPU%u/RZ/CR3WriteConflict",               "The number of times the Guest CR3 monitoring detected a conflict.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZGuestROMWriteHandled,        "/PGM/CPU%u/RZ/ROMWriteHandled",                "The number of times the Guest ROM change was successfully handled.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZGuestROMWriteUnhandled,      "/PGM/CPU%u/RZ/ROMWriteUnhandled",              "The number of times the Guest ROM change was passed back to the recompiler.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZGuestCR3WriteHandled,        "/PGM/CPU%u/RZ/CR3WriteHandled",                "The number of times the Guest CR3 change was successfully handled.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZGuestCR3WriteUnhandled,      "/PGM/CPU%u/RZ/CR3WriteUnhandled",              "The number of times the Guest CR3 change was passed back to the recompiler.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZGuestCR3WriteConflict,       "/PGM/CPU%u/RZ/CR3WriteConflict",               "The number of times the Guest CR3 monitoring detected a conflict.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZGuestROMWriteHandled,        "/PGM/CPU%u/RZ/ROMWriteHandled",                "The number of times the Guest ROM change was successfully handled.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZGuestROMWriteUnhandled,      "/PGM/CPU%u/RZ/ROMWriteUnhandled",              "The number of times the Guest ROM change was passed back to the recompiler.");
+
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapMigrateInvlPg,         "/PGM/CPU%u/RZ/DynMap/MigrateInvlPg",            "invlpg count in PGMR0DynMapMigrateAutoSet.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZDynMapGCPageInl,             "/PGM/CPU%u/RZ/DynMap/PageGCPageInl",            "Calls to pgmR0DynMapGCPageInlined.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapGCPageInlHits,         "/PGM/CPU%u/RZ/DynMap/PageGCPageInl/Hits",       "Hash table lookup hits.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapGCPageInlMisses,       "/PGM/CPU%u/RZ/DynMap/PageGCPageInl/Misses",     "Misses that falls back to the code common.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapGCPageInlRamHits,      "/PGM/CPU%u/RZ/DynMap/PageGCPageInl/RamHits",    "1st ram range hits.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapGCPageInlRamMisses,    "/PGM/CPU%u/RZ/DynMap/PageGCPageInl/RamMisses",  "1st ram range misses, takes slow path.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZDynMapHCPageInl,             "/PGM/CPU%u/RZ/DynMap/PageHCPageInl",            "Calls to pgmRZDynMapHCPageInlined.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapHCPageInlHits,         "/PGM/CPU%u/RZ/DynMap/PageHCPageInl/Hits",       "Hash table lookup hits.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapHCPageInlMisses,       "/PGM/CPU%u/RZ/DynMap/PageHCPageInl/Misses",     "Misses that falls back to the code common.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPage,                  "/PGM/CPU%u/RZ/DynMap/Page",                     "Calls to pgmR0DynMapPage");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapSetOptimize,           "/PGM/CPU%u/RZ/DynMap/Page/SetOptimize",         "Calls to pgmRZDynMapOptimizeAutoSet.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapSetSearchFlushes,      "/PGM/CPU%u/RZ/DynMap/Page/SetSearchFlushes",    "Set search restoring to subset flushes.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapSetSearchHits,         "/PGM/CPU%u/RZ/DynMap/Page/SetSearchHits",       "Set search hits.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapSetSearchMisses,       "/PGM/CPU%u/RZ/DynMap/Page/SetSearchMisses",     "Set search misses.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZDynMapHCPage,                "/PGM/CPU%u/RZ/DynMap/Page/HCPage",              "Calls to pgmRZDynMapHCPageCommon (ring-0).");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageHits0,             "/PGM/CPU%u/RZ/DynMap/Page/Hits0",               "Hits at iPage+0");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageHits1,             "/PGM/CPU%u/RZ/DynMap/Page/Hits1",               "Hits at iPage+1");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageHits2,             "/PGM/CPU%u/RZ/DynMap/Page/Hits2",               "Hits at iPage+2");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageInvlPg,            "/PGM/CPU%u/RZ/DynMap/Page/InvlPg",              "invlpg count in pgmR0DynMapPageSlow.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageSlow,              "/PGM/CPU%u/RZ/DynMap/Page/Slow",                "Calls to pgmR0DynMapPageSlow - subtract this from pgmR0DynMapPage to get 1st level hits.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageSlowLoopHits,      "/PGM/CPU%u/RZ/DynMap/Page/SlowLoopHits" ,       "Hits in the loop path.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageSlowLoopMisses,    "/PGM/CPU%u/RZ/DynMap/Page/SlowLoopMisses",      "Misses in the loop path. NonLoopMisses = Slow - SlowLoopHit - SlowLoopMisses");
+        //PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPageSlowLostHits,      "/PGM/CPU%u/R0/DynMap/Page/SlowLostHits",        "Lost hits.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapSubsets,               "/PGM/CPU%u/RZ/DynMap/Subsets",                  "Times PGMRZDynMapPushAutoSubset was called.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDynMapPopFlushes,            "/PGM/CPU%u/RZ/DynMap/SubsetPopFlushes",         "Times PGMRZDynMapPopAutoSubset flushes the subset.");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[0],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct000..09",      "00-09% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[1],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct010..19",      "10-19% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[2],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct020..29",      "20-29% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[3],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct030..39",      "30-39% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[4],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct040..49",      "40-49% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[5],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct050..59",      "50-59% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[6],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct060..69",      "60-69% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[7],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct070..79",      "70-79% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[8],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct080..89",      "80-89% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[9],      "/PGM/CPU%u/RZ/DynMap/SetFilledPct090..99",      "90-99% filled (RC: min(set-size, dynmap-size))");
+        PGM_REG_COUNTER(&pCpuStats->aStatRZDynMapSetFilledPct[10],     "/PGM/CPU%u/RZ/DynMap/SetFilledPct100",          "100% filled (RC: min(set-size, dynmap-size))");
 
         /* HC only: */
 
         /* RZ & R3: */
-        PGM_REG_PROFILE(&pPgmCpu->StatRZSyncCR3,                     "/PGM/CPU%u/RZ/SyncCR3",                        "Profiling of the PGMSyncCR3() body.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZSyncCR3Handlers,             "/PGM/CPU%u/RZ/SyncCR3/Handlers",               "Profiling of the PGMSyncCR3() update handler section.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3Global,               "/PGM/CPU%u/RZ/SyncCR3/Global",                 "The number of global CR3 syncs.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3NotGlobal,            "/PGM/CPU%u/RZ/SyncCR3/NotGlobal",              "The number of non-global CR3 syncs.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3DstCacheHit,          "/PGM/CPU%u/RZ/SyncCR3/DstChacheHit",           "The number of times we got some kind of a cache hit.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3DstFreed,             "/PGM/CPU%u/RZ/SyncCR3/DstFreed",               "The number of times we've had to free a shadow entry.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3DstFreedSrcNP,        "/PGM/CPU%u/RZ/SyncCR3/DstFreedSrcNP",          "The number of times we've had to free a shadow entry for which the source entry was not present.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3DstNotPresent,        "/PGM/CPU%u/RZ/SyncCR3/DstNotPresent",          "The number of times we've encountered a not present shadow entry for a present guest entry.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3DstSkippedGlobalPD,   "/PGM/CPU%u/RZ/SyncCR3/DstSkippedGlobalPD",     "The number of times a global page directory wasn't flushed.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncCR3DstSkippedGlobalPT,   "/PGM/CPU%u/RZ/SyncCR3/DstSkippedGlobalPT",     "The number of times a page table with only global entries wasn't flushed.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZSyncPT,                      "/PGM/CPU%u/RZ/SyncPT",                         "Profiling of the pfnSyncPT() body.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncPTFailed,                "/PGM/CPU%u/RZ/SyncPT/Failed",                  "The number of times pfnSyncPT() failed.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncPT4K,                    "/PGM/CPU%u/RZ/SyncPT/4K",                      "Nr of 4K PT syncs");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncPT4M,                    "/PGM/CPU%u/RZ/SyncPT/4M",                      "Nr of 4M PT syncs");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncPagePDNAs,               "/PGM/CPU%u/RZ/SyncPagePDNAs",                  "The number of time we've marked a PD not present from SyncPage to virtualize the accessed bit.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZSyncPagePDOutOfSync,         "/PGM/CPU%u/RZ/SyncPagePDOutOfSync",            "The number of time we've encountered an out-of-sync PD in SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZAccessedPage,                "/PGM/CPU%u/RZ/AccessedPage",               "The number of pages marked not present for accessed bit emulation.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZDirtyBitTracking,            "/PGM/CPU%u/RZ/DirtyPage",                  "Profiling the dirty bit tracking in CheckPageFault().");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtyPage,                   "/PGM/CPU%u/RZ/DirtyPage/Mark",             "The number of pages marked read-only for dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtyPageBig,                "/PGM/CPU%u/RZ/DirtyPage/MarkBig",          "The number of 4MB pages marked read-only for dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtyPageSkipped,            "/PGM/CPU%u/RZ/DirtyPage/Skipped",          "The number of pages already dirty or readonly.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtyPageTrap,               "/PGM/CPU%u/RZ/DirtyPage/Trap",             "The number of traps generated for dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtyPageStale,              "/PGM/CPU%u/RZ/DirtyPage/Stale",            "The number of traps generated for dirty bit tracking (stale tlb entries).");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtiedPage,                 "/PGM/CPU%u/RZ/DirtyPage/SetDirty",         "The number of pages marked dirty because of write accesses.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZDirtyTrackRealPF,            "/PGM/CPU%u/RZ/DirtyPage/RealPF",           "The number of real pages faults during dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZPageAlreadyDirty,            "/PGM/CPU%u/RZ/DirtyPage/AlreadySet",       "The number of pages already marked dirty because of write accesses.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZInvalidatePage,              "/PGM/CPU%u/RZ/InvalidatePage",             "PGMInvalidatePage() profiling.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePage4KBPages,      "/PGM/CPU%u/RZ/InvalidatePage/4KBPages",    "The number of times PGMInvalidatePage() was called for a 4KB page.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePage4MBPages,      "/PGM/CPU%u/RZ/InvalidatePage/4MBPages",    "The number of times PGMInvalidatePage() was called for a 4MB page.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePage4MBPagesSkip,  "/PGM/CPU%u/RZ/InvalidatePage/4MBPagesSkip","The number of times PGMInvalidatePage() skipped a 4MB page.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePagePDMappings,    "/PGM/CPU%u/RZ/InvalidatePage/PDMappings",  "The number of times PGMInvalidatePage() was called for a page directory containing mappings (no conflict).");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePagePDNAs,         "/PGM/CPU%u/RZ/InvalidatePage/PDNAs",       "The number of times PGMInvalidatePage() was called for a not accessed page directory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePagePDNPs,         "/PGM/CPU%u/RZ/InvalidatePage/PDNPs",       "The number of times PGMInvalidatePage() was called for a not present page directory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePagePDOutOfSync,   "/PGM/CPU%u/RZ/InvalidatePage/PDOutOfSync", "The number of times PGMInvalidatePage() was called for an out of sync page directory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZInvalidatePageSkipped,       "/PGM/CPU%u/RZ/InvalidatePage/Skipped",     "The number of times PGMInvalidatePage() was skipped due to not present shw or pending pending SyncCR3.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZPageOutOfSyncSupervisor,     "/PGM/CPU%u/RZ/OutOfSync/SuperVisor",       "Number of traps due to pages out of sync (P) and times VerifyAccessSyncPage calls SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZPageOutOfSyncUser,           "/PGM/CPU%u/RZ/OutOfSync/User",             "Number of traps due to pages out of sync (P) and times VerifyAccessSyncPage calls SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZPageOutOfSyncSupervisorWrite,"/PGM/CPU%u/RZ/OutOfSync/SuperVisorWrite",  "Number of traps due to pages out of sync (RW) and times VerifyAccessSyncPage calls SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZPageOutOfSyncUserWrite,      "/PGM/CPU%u/RZ/OutOfSync/UserWrite",        "Number of traps due to pages out of sync (RW) and times VerifyAccessSyncPage calls SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZPageOutOfSyncBallloon,       "/PGM/CPU%u/RZ/OutOfSync/Balloon",          "The number of times a ballooned page was accessed (read).");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZPrefetch,                    "/PGM/CPU%u/RZ/Prefetch",                   "PGMPrefetchPage profiling.");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZFlushTLB,                    "/PGM/CPU%u/RZ/FlushTLB",                   "Profiling of the PGMFlushTLB() body.");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZFlushTLBNewCR3,              "/PGM/CPU%u/RZ/FlushTLB/NewCR3",            "The number of times PGMFlushTLB was called with a new CR3, non-global. (switch)");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZFlushTLBNewCR3Global,        "/PGM/CPU%u/RZ/FlushTLB/NewCR3Global",      "The number of times PGMFlushTLB was called with a new CR3, global. (switch)");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZFlushTLBSameCR3,             "/PGM/CPU%u/RZ/FlushTLB/SameCR3",           "The number of times PGMFlushTLB was called with the same CR3, non-global. (flush)");
-        PGM_REG_COUNTER(&pPgmCpu->StatRZFlushTLBSameCR3Global,       "/PGM/CPU%u/RZ/FlushTLB/SameCR3Global",     "The number of times PGMFlushTLB was called with the same CR3, global. (flush)");
-        PGM_REG_PROFILE(&pPgmCpu->StatRZGstModifyPage,               "/PGM/CPU%u/RZ/GstModifyPage",              "Profiling of the PGMGstModifyPage() body.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZSyncCR3,                     "/PGM/CPU%u/RZ/SyncCR3",                        "Profiling of the PGMSyncCR3() body.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZSyncCR3Handlers,             "/PGM/CPU%u/RZ/SyncCR3/Handlers",               "Profiling of the PGMSyncCR3() update handler section.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3Global,               "/PGM/CPU%u/RZ/SyncCR3/Global",                 "The number of global CR3 syncs.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3NotGlobal,            "/PGM/CPU%u/RZ/SyncCR3/NotGlobal",              "The number of non-global CR3 syncs.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3DstCacheHit,          "/PGM/CPU%u/RZ/SyncCR3/DstChacheHit",           "The number of times we got some kind of a cache hit.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3DstFreed,             "/PGM/CPU%u/RZ/SyncCR3/DstFreed",               "The number of times we've had to free a shadow entry.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3DstFreedSrcNP,        "/PGM/CPU%u/RZ/SyncCR3/DstFreedSrcNP",          "The number of times we've had to free a shadow entry for which the source entry was not present.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3DstNotPresent,        "/PGM/CPU%u/RZ/SyncCR3/DstNotPresent",          "The number of times we've encountered a not present shadow entry for a present guest entry.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3DstSkippedGlobalPD,   "/PGM/CPU%u/RZ/SyncCR3/DstSkippedGlobalPD",     "The number of times a global page directory wasn't flushed.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncCR3DstSkippedGlobalPT,   "/PGM/CPU%u/RZ/SyncCR3/DstSkippedGlobalPT",     "The number of times a page table with only global entries wasn't flushed.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZSyncPT,                      "/PGM/CPU%u/RZ/SyncPT",                         "Profiling of the pfnSyncPT() body.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncPTFailed,                "/PGM/CPU%u/RZ/SyncPT/Failed",                  "The number of times pfnSyncPT() failed.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncPT4K,                    "/PGM/CPU%u/RZ/SyncPT/4K",                      "Nr of 4K PT syncs");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncPT4M,                    "/PGM/CPU%u/RZ/SyncPT/4M",                      "Nr of 4M PT syncs");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncPagePDNAs,               "/PGM/CPU%u/RZ/SyncPagePDNAs",                  "The number of time we've marked a PD not present from SyncPage to virtualize the accessed bit.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZSyncPagePDOutOfSync,         "/PGM/CPU%u/RZ/SyncPagePDOutOfSync",            "The number of time we've encountered an out-of-sync PD in SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZAccessedPage,                "/PGM/CPU%u/RZ/AccessedPage",               "The number of pages marked not present for accessed bit emulation.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZDirtyBitTracking,            "/PGM/CPU%u/RZ/DirtyPage",                  "Profiling the dirty bit tracking in CheckPageFault().");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtyPage,                   "/PGM/CPU%u/RZ/DirtyPage/Mark",             "The number of pages marked read-only for dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtyPageBig,                "/PGM/CPU%u/RZ/DirtyPage/MarkBig",          "The number of 4MB pages marked read-only for dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtyPageSkipped,            "/PGM/CPU%u/RZ/DirtyPage/Skipped",          "The number of pages already dirty or readonly.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtyPageTrap,               "/PGM/CPU%u/RZ/DirtyPage/Trap",             "The number of traps generated for dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtyPageStale,              "/PGM/CPU%u/RZ/DirtyPage/Stale",            "The number of traps generated for dirty bit tracking (stale tlb entries).");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtiedPage,                 "/PGM/CPU%u/RZ/DirtyPage/SetDirty",         "The number of pages marked dirty because of write accesses.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZDirtyTrackRealPF,            "/PGM/CPU%u/RZ/DirtyPage/RealPF",           "The number of real pages faults during dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZPageAlreadyDirty,            "/PGM/CPU%u/RZ/DirtyPage/AlreadySet",       "The number of pages already marked dirty because of write accesses.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZInvalidatePage,              "/PGM/CPU%u/RZ/InvalidatePage",             "PGMInvalidatePage() profiling.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePage4KBPages,      "/PGM/CPU%u/RZ/InvalidatePage/4KBPages",    "The number of times PGMInvalidatePage() was called for a 4KB page.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePage4MBPages,      "/PGM/CPU%u/RZ/InvalidatePage/4MBPages",    "The number of times PGMInvalidatePage() was called for a 4MB page.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePage4MBPagesSkip,  "/PGM/CPU%u/RZ/InvalidatePage/4MBPagesSkip","The number of times PGMInvalidatePage() skipped a 4MB page.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePagePDMappings,    "/PGM/CPU%u/RZ/InvalidatePage/PDMappings",  "The number of times PGMInvalidatePage() was called for a page directory containing mappings (no conflict).");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePagePDNAs,         "/PGM/CPU%u/RZ/InvalidatePage/PDNAs",       "The number of times PGMInvalidatePage() was called for a not accessed page directory.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePagePDNPs,         "/PGM/CPU%u/RZ/InvalidatePage/PDNPs",       "The number of times PGMInvalidatePage() was called for a not present page directory.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePagePDOutOfSync,   "/PGM/CPU%u/RZ/InvalidatePage/PDOutOfSync", "The number of times PGMInvalidatePage() was called for an out of sync page directory.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZInvalidatePageSkipped,       "/PGM/CPU%u/RZ/InvalidatePage/Skipped",     "The number of times PGMInvalidatePage() was skipped due to not present shw or pending pending SyncCR3.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZPageOutOfSyncSupervisor,     "/PGM/CPU%u/RZ/OutOfSync/SuperVisor",       "Number of traps due to pages out of sync (P) and times VerifyAccessSyncPage calls SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZPageOutOfSyncUser,           "/PGM/CPU%u/RZ/OutOfSync/User",             "Number of traps due to pages out of sync (P) and times VerifyAccessSyncPage calls SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZPageOutOfSyncSupervisorWrite,"/PGM/CPU%u/RZ/OutOfSync/SuperVisorWrite",  "Number of traps due to pages out of sync (RW) and times VerifyAccessSyncPage calls SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZPageOutOfSyncUserWrite,      "/PGM/CPU%u/RZ/OutOfSync/UserWrite",        "Number of traps due to pages out of sync (RW) and times VerifyAccessSyncPage calls SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZPageOutOfSyncBallloon,       "/PGM/CPU%u/RZ/OutOfSync/Balloon",          "The number of times a ballooned page was accessed (read).");
+        PGM_REG_PROFILE(&pCpuStats->StatRZPrefetch,                    "/PGM/CPU%u/RZ/Prefetch",                   "PGMPrefetchPage profiling.");
+        PGM_REG_PROFILE(&pCpuStats->StatRZFlushTLB,                    "/PGM/CPU%u/RZ/FlushTLB",                   "Profiling of the PGMFlushTLB() body.");
+        PGM_REG_COUNTER(&pCpuStats->StatRZFlushTLBNewCR3,              "/PGM/CPU%u/RZ/FlushTLB/NewCR3",            "The number of times PGMFlushTLB was called with a new CR3, non-global. (switch)");
+        PGM_REG_COUNTER(&pCpuStats->StatRZFlushTLBNewCR3Global,        "/PGM/CPU%u/RZ/FlushTLB/NewCR3Global",      "The number of times PGMFlushTLB was called with a new CR3, global. (switch)");
+        PGM_REG_COUNTER(&pCpuStats->StatRZFlushTLBSameCR3,             "/PGM/CPU%u/RZ/FlushTLB/SameCR3",           "The number of times PGMFlushTLB was called with the same CR3, non-global. (flush)");
+        PGM_REG_COUNTER(&pCpuStats->StatRZFlushTLBSameCR3Global,       "/PGM/CPU%u/RZ/FlushTLB/SameCR3Global",     "The number of times PGMFlushTLB was called with the same CR3, global. (flush)");
+        PGM_REG_PROFILE(&pCpuStats->StatRZGstModifyPage,               "/PGM/CPU%u/RZ/GstModifyPage",              "Profiling of the PGMGstModifyPage() body.");
 
-        PGM_REG_PROFILE(&pPgmCpu->StatR3SyncCR3,                     "/PGM/CPU%u/R3/SyncCR3",                        "Profiling of the PGMSyncCR3() body.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3SyncCR3Handlers,             "/PGM/CPU%u/R3/SyncCR3/Handlers",               "Profiling of the PGMSyncCR3() update handler section.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3Global,               "/PGM/CPU%u/R3/SyncCR3/Global",                 "The number of global CR3 syncs.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3NotGlobal,            "/PGM/CPU%u/R3/SyncCR3/NotGlobal",              "The number of non-global CR3 syncs.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3DstCacheHit,          "/PGM/CPU%u/R3/SyncCR3/DstChacheHit",           "The number of times we got some kind of a cache hit.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3DstFreed,             "/PGM/CPU%u/R3/SyncCR3/DstFreed",               "The number of times we've had to free a shadow entry.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3DstFreedSrcNP,        "/PGM/CPU%u/R3/SyncCR3/DstFreedSrcNP",          "The number of times we've had to free a shadow entry for which the source entry was not present.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3DstNotPresent,        "/PGM/CPU%u/R3/SyncCR3/DstNotPresent",          "The number of times we've encountered a not present shadow entry for a present guest entry.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3DstSkippedGlobalPD,   "/PGM/CPU%u/R3/SyncCR3/DstSkippedGlobalPD",     "The number of times a global page directory wasn't flushed.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncCR3DstSkippedGlobalPT,   "/PGM/CPU%u/R3/SyncCR3/DstSkippedGlobalPT",     "The number of times a page table with only global entries wasn't flushed.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3SyncPT,                      "/PGM/CPU%u/R3/SyncPT",                         "Profiling of the pfnSyncPT() body.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncPTFailed,                "/PGM/CPU%u/R3/SyncPT/Failed",                  "The number of times pfnSyncPT() failed.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncPT4K,                    "/PGM/CPU%u/R3/SyncPT/4K",                      "Nr of 4K PT syncs");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncPT4M,                    "/PGM/CPU%u/R3/SyncPT/4M",                      "Nr of 4M PT syncs");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncPagePDNAs,               "/PGM/CPU%u/R3/SyncPagePDNAs",                  "The number of time we've marked a PD not present from SyncPage to virtualize the accessed bit.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3SyncPagePDOutOfSync,         "/PGM/CPU%u/R3/SyncPagePDOutOfSync",            "The number of time we've encountered an out-of-sync PD in SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3AccessedPage,                "/PGM/CPU%u/R3/AccessedPage",               "The number of pages marked not present for accessed bit emulation.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3DirtyBitTracking,            "/PGM/CPU%u/R3/DirtyPage",                  "Profiling the dirty bit tracking in CheckPageFault().");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3DirtyPage,                   "/PGM/CPU%u/R3/DirtyPage/Mark",             "The number of pages marked read-only for dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3DirtyPageBig,                "/PGM/CPU%u/R3/DirtyPage/MarkBig",          "The number of 4MB pages marked read-only for dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3DirtyPageSkipped,            "/PGM/CPU%u/R3/DirtyPage/Skipped",          "The number of pages already dirty or readonly.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3DirtyPageTrap,               "/PGM/CPU%u/R3/DirtyPage/Trap",             "The number of traps generated for dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3DirtiedPage,                 "/PGM/CPU%u/R3/DirtyPage/SetDirty",         "The number of pages marked dirty because of write accesses.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3DirtyTrackRealPF,            "/PGM/CPU%u/R3/DirtyPage/RealPF",           "The number of real pages faults during dirty bit tracking.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3PageAlreadyDirty,            "/PGM/CPU%u/R3/DirtyPage/AlreadySet",       "The number of pages already marked dirty because of write accesses.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3InvalidatePage,              "/PGM/CPU%u/R3/InvalidatePage",             "PGMInvalidatePage() profiling.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePage4KBPages,      "/PGM/CPU%u/R3/InvalidatePage/4KBPages",    "The number of times PGMInvalidatePage() was called for a 4KB page.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePage4MBPages,      "/PGM/CPU%u/R3/InvalidatePage/4MBPages",    "The number of times PGMInvalidatePage() was called for a 4MB page.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePage4MBPagesSkip,  "/PGM/CPU%u/R3/InvalidatePage/4MBPagesSkip","The number of times PGMInvalidatePage() skipped a 4MB page.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePagePDMappings,    "/PGM/CPU%u/R3/InvalidatePage/PDMappings",  "The number of times PGMInvalidatePage() was called for a page directory containing mappings (no conflict).");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePagePDNAs,         "/PGM/CPU%u/R3/InvalidatePage/PDNAs",       "The number of times PGMInvalidatePage() was called for a not accessed page directory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePagePDNPs,         "/PGM/CPU%u/R3/InvalidatePage/PDNPs",       "The number of times PGMInvalidatePage() was called for a not present page directory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePagePDOutOfSync,   "/PGM/CPU%u/R3/InvalidatePage/PDOutOfSync", "The number of times PGMInvalidatePage() was called for an out of sync page directory.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3InvalidatePageSkipped,       "/PGM/CPU%u/R3/InvalidatePage/Skipped",     "The number of times PGMInvalidatePage() was skipped due to not present shw or pending pending SyncCR3.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3PageOutOfSyncSupervisor,     "/PGM/CPU%u/R3/OutOfSync/SuperVisor",       "Number of traps due to pages out of sync and times VerifyAccessSyncPage calls SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3PageOutOfSyncUser,           "/PGM/CPU%u/R3/OutOfSync/User",             "Number of traps due to pages out of sync and times VerifyAccessSyncPage calls SyncPage.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3PageOutOfSyncBallloon,       "/PGM/CPU%u/R3/OutOfSync/Balloon",          "The number of times a ballooned page was accessed (read).");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3Prefetch,                    "/PGM/CPU%u/R3/Prefetch",                   "PGMPrefetchPage profiling.");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3FlushTLB,                    "/PGM/CPU%u/R3/FlushTLB",                   "Profiling of the PGMFlushTLB() body.");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3FlushTLBNewCR3,              "/PGM/CPU%u/R3/FlushTLB/NewCR3",            "The number of times PGMFlushTLB was called with a new CR3, non-global. (switch)");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3FlushTLBNewCR3Global,        "/PGM/CPU%u/R3/FlushTLB/NewCR3Global",      "The number of times PGMFlushTLB was called with a new CR3, global. (switch)");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3FlushTLBSameCR3,             "/PGM/CPU%u/R3/FlushTLB/SameCR3",           "The number of times PGMFlushTLB was called with the same CR3, non-global. (flush)");
-        PGM_REG_COUNTER(&pPgmCpu->StatR3FlushTLBSameCR3Global,       "/PGM/CPU%u/R3/FlushTLB/SameCR3Global",     "The number of times PGMFlushTLB was called with the same CR3, global. (flush)");
-        PGM_REG_PROFILE(&pPgmCpu->StatR3GstModifyPage,               "/PGM/CPU%u/R3/GstModifyPage",              "Profiling of the PGMGstModifyPage() body.");
+        PGM_REG_PROFILE(&pCpuStats->StatR3SyncCR3,                     "/PGM/CPU%u/R3/SyncCR3",                        "Profiling of the PGMSyncCR3() body.");
+        PGM_REG_PROFILE(&pCpuStats->StatR3SyncCR3Handlers,             "/PGM/CPU%u/R3/SyncCR3/Handlers",               "Profiling of the PGMSyncCR3() update handler section.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3Global,               "/PGM/CPU%u/R3/SyncCR3/Global",                 "The number of global CR3 syncs.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3NotGlobal,            "/PGM/CPU%u/R3/SyncCR3/NotGlobal",              "The number of non-global CR3 syncs.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3DstCacheHit,          "/PGM/CPU%u/R3/SyncCR3/DstChacheHit",           "The number of times we got some kind of a cache hit.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3DstFreed,             "/PGM/CPU%u/R3/SyncCR3/DstFreed",               "The number of times we've had to free a shadow entry.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3DstFreedSrcNP,        "/PGM/CPU%u/R3/SyncCR3/DstFreedSrcNP",          "The number of times we've had to free a shadow entry for which the source entry was not present.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3DstNotPresent,        "/PGM/CPU%u/R3/SyncCR3/DstNotPresent",          "The number of times we've encountered a not present shadow entry for a present guest entry.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3DstSkippedGlobalPD,   "/PGM/CPU%u/R3/SyncCR3/DstSkippedGlobalPD",     "The number of times a global page directory wasn't flushed.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncCR3DstSkippedGlobalPT,   "/PGM/CPU%u/R3/SyncCR3/DstSkippedGlobalPT",     "The number of times a page table with only global entries wasn't flushed.");
+        PGM_REG_PROFILE(&pCpuStats->StatR3SyncPT,                      "/PGM/CPU%u/R3/SyncPT",                         "Profiling of the pfnSyncPT() body.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncPTFailed,                "/PGM/CPU%u/R3/SyncPT/Failed",                  "The number of times pfnSyncPT() failed.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncPT4K,                    "/PGM/CPU%u/R3/SyncPT/4K",                      "Nr of 4K PT syncs");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncPT4M,                    "/PGM/CPU%u/R3/SyncPT/4M",                      "Nr of 4M PT syncs");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncPagePDNAs,               "/PGM/CPU%u/R3/SyncPagePDNAs",                  "The number of time we've marked a PD not present from SyncPage to virtualize the accessed bit.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3SyncPagePDOutOfSync,         "/PGM/CPU%u/R3/SyncPagePDOutOfSync",            "The number of time we've encountered an out-of-sync PD in SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3AccessedPage,                "/PGM/CPU%u/R3/AccessedPage",               "The number of pages marked not present for accessed bit emulation.");
+        PGM_REG_PROFILE(&pCpuStats->StatR3DirtyBitTracking,            "/PGM/CPU%u/R3/DirtyPage",                  "Profiling the dirty bit tracking in CheckPageFault().");
+        PGM_REG_COUNTER(&pCpuStats->StatR3DirtyPage,                   "/PGM/CPU%u/R3/DirtyPage/Mark",             "The number of pages marked read-only for dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3DirtyPageBig,                "/PGM/CPU%u/R3/DirtyPage/MarkBig",          "The number of 4MB pages marked read-only for dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3DirtyPageSkipped,            "/PGM/CPU%u/R3/DirtyPage/Skipped",          "The number of pages already dirty or readonly.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3DirtyPageTrap,               "/PGM/CPU%u/R3/DirtyPage/Trap",             "The number of traps generated for dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3DirtiedPage,                 "/PGM/CPU%u/R3/DirtyPage/SetDirty",         "The number of pages marked dirty because of write accesses.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3DirtyTrackRealPF,            "/PGM/CPU%u/R3/DirtyPage/RealPF",           "The number of real pages faults during dirty bit tracking.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3PageAlreadyDirty,            "/PGM/CPU%u/R3/DirtyPage/AlreadySet",       "The number of pages already marked dirty because of write accesses.");
+        PGM_REG_PROFILE(&pCpuStats->StatR3InvalidatePage,              "/PGM/CPU%u/R3/InvalidatePage",             "PGMInvalidatePage() profiling.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePage4KBPages,      "/PGM/CPU%u/R3/InvalidatePage/4KBPages",    "The number of times PGMInvalidatePage() was called for a 4KB page.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePage4MBPages,      "/PGM/CPU%u/R3/InvalidatePage/4MBPages",    "The number of times PGMInvalidatePage() was called for a 4MB page.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePage4MBPagesSkip,  "/PGM/CPU%u/R3/InvalidatePage/4MBPagesSkip","The number of times PGMInvalidatePage() skipped a 4MB page.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePagePDMappings,    "/PGM/CPU%u/R3/InvalidatePage/PDMappings",  "The number of times PGMInvalidatePage() was called for a page directory containing mappings (no conflict).");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePagePDNAs,         "/PGM/CPU%u/R3/InvalidatePage/PDNAs",       "The number of times PGMInvalidatePage() was called for a not accessed page directory.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePagePDNPs,         "/PGM/CPU%u/R3/InvalidatePage/PDNPs",       "The number of times PGMInvalidatePage() was called for a not present page directory.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePagePDOutOfSync,   "/PGM/CPU%u/R3/InvalidatePage/PDOutOfSync", "The number of times PGMInvalidatePage() was called for an out of sync page directory.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3InvalidatePageSkipped,       "/PGM/CPU%u/R3/InvalidatePage/Skipped",     "The number of times PGMInvalidatePage() was skipped due to not present shw or pending pending SyncCR3.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3PageOutOfSyncSupervisor,     "/PGM/CPU%u/R3/OutOfSync/SuperVisor",       "Number of traps due to pages out of sync and times VerifyAccessSyncPage calls SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3PageOutOfSyncUser,           "/PGM/CPU%u/R3/OutOfSync/User",             "Number of traps due to pages out of sync and times VerifyAccessSyncPage calls SyncPage.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3PageOutOfSyncBallloon,       "/PGM/CPU%u/R3/OutOfSync/Balloon",          "The number of times a ballooned page was accessed (read).");
+        PGM_REG_PROFILE(&pCpuStats->StatR3Prefetch,                    "/PGM/CPU%u/R3/Prefetch",                   "PGMPrefetchPage profiling.");
+        PGM_REG_PROFILE(&pCpuStats->StatR3FlushTLB,                    "/PGM/CPU%u/R3/FlushTLB",                   "Profiling of the PGMFlushTLB() body.");
+        PGM_REG_COUNTER(&pCpuStats->StatR3FlushTLBNewCR3,              "/PGM/CPU%u/R3/FlushTLB/NewCR3",            "The number of times PGMFlushTLB was called with a new CR3, non-global. (switch)");
+        PGM_REG_COUNTER(&pCpuStats->StatR3FlushTLBNewCR3Global,        "/PGM/CPU%u/R3/FlushTLB/NewCR3Global",      "The number of times PGMFlushTLB was called with a new CR3, global. (switch)");
+        PGM_REG_COUNTER(&pCpuStats->StatR3FlushTLBSameCR3,             "/PGM/CPU%u/R3/FlushTLB/SameCR3",           "The number of times PGMFlushTLB was called with the same CR3, non-global. (flush)");
+        PGM_REG_COUNTER(&pCpuStats->StatR3FlushTLBSameCR3Global,       "/PGM/CPU%u/R3/FlushTLB/SameCR3Global",     "The number of times PGMFlushTLB was called with the same CR3, global. (flush)");
+        PGM_REG_PROFILE(&pCpuStats->StatR3GstModifyPage,               "/PGM/CPU%u/R3/GstModifyPage",              "Profiling of the PGMGstModifyPage() body.");
 #endif /* VBOX_WITH_STATISTICS */
 
 #undef PGM_REG_PROFILE
 #undef PGM_REG_COUNTER
 
     }
+
+    return VINF_SUCCESS;
 }
 
 
@@ -1979,32 +2033,91 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
     PPGMMAPPING pMapping = pgmGetMapping(pVM, pVM->pgm.s.pbDynPageMapBaseGC);
     AssertRelease(pMapping);
     const uintptr_t off = pVM->pgm.s.pbDynPageMapBaseGC - pMapping->GCPtr;
-    const unsigned iPT = off >> X86_PD_SHIFT;
+    const unsigned iPT =  off >> X86_PD_SHIFT;
     const unsigned iPG = (off >> X86_PT_SHIFT) & X86_PT_MASK;
     pVM->pgm.s.paDynPageMap32BitPTEsGC = pMapping->aPTs[iPT].pPTRC      + iPG * sizeof(pMapping->aPTs[0].pPTR3->a[0]);
     pVM->pgm.s.paDynPageMapPaePTEsGC   = pMapping->aPTs[iPT].paPaePTsRC + iPG * sizeof(pMapping->aPTs[0].paPaePTsR3->a[0]);
 
-    /* init cache */
+    /* init cache area */
     RTHCPHYS HCPhysDummy = MMR3PageDummyHCPhys(pVM);
-    for (unsigned i = 0; i < RT_ELEMENTS(pVM->pgm.s.aHCPhysDynPageMapCache); i++)
-        pVM->pgm.s.aHCPhysDynPageMapCache[i] = HCPhysDummy;
-
-    for (unsigned i = 0; i < MM_HYPER_DYNAMIC_SIZE; i += PAGE_SIZE)
+    for (uint32_t offDynMap = 0; offDynMap < MM_HYPER_DYNAMIC_SIZE; offDynMap += PAGE_SIZE)
     {
-        rc = PGMMap(pVM, pVM->pgm.s.pbDynPageMapBaseGC + i, HCPhysDummy, PAGE_SIZE, 0);
+        rc = PGMMap(pVM, pVM->pgm.s.pbDynPageMapBaseGC + offDynMap, HCPhysDummy, PAGE_SIZE, 0);
         AssertRCReturn(rc, rc);
+    }
+
+    /*
+     * Determine the max physical address width (MAXPHYADDR) and apply it to
+     * all the mask members and stuff.
+     */
+    uint32_t cMaxPhysAddrWidth;
+    uint32_t uMaxExtLeaf = ASMCpuId_EAX(0x80000000);
+    if (   uMaxExtLeaf >= 0x80000008
+        && uMaxExtLeaf <= 0x80000fff)
+    {
+        cMaxPhysAddrWidth = ASMCpuId_EAX(0x80000008) & 0xff;
+        LogRel(("PGM: The CPU physical address width is %u bits\n", cMaxPhysAddrWidth));
+        cMaxPhysAddrWidth = RT_MIN(52, cMaxPhysAddrWidth);
+        pVM->pgm.s.fLessThan52PhysicalAddressBits = cMaxPhysAddrWidth < 52;
+        for (uint32_t iBit = cMaxPhysAddrWidth; iBit < 52; iBit++)
+            pVM->pgm.s.HCPhysInvMmioPg |= RT_BIT_64(iBit);
+    }
+    else
+    {
+        LogRel(("PGM: ASSUMING CPU physical address width of 48 bits (uMaxExtLeaf=%#x)\n", uMaxExtLeaf));
+        cMaxPhysAddrWidth = 48;
+        pVM->pgm.s.fLessThan52PhysicalAddressBits = true;
+        pVM->pgm.s.HCPhysInvMmioPg |= UINT64_C(0x000f0000000000);
+    }
+
+    pVM->pgm.s.GCPhysInvAddrMask = 0;
+    for (uint32_t iBit = cMaxPhysAddrWidth; iBit < 64; iBit++)
+        pVM->pgm.s.GCPhysInvAddrMask |= RT_BIT_64(iBit);
+
+    /*
+     * Initialize the invalid paging entry masks, assuming NX is disabled.
+     */
+    uint64_t fMbzPageFrameMask = pVM->pgm.s.GCPhysInvAddrMask & UINT64_C(0x000ffffffffff000);
+    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[iCpu];
+
+        /** @todo The manuals are not entirely clear whether the physical
+         *        address width is relevant.  See table 5-9 in the intel
+         *        manual vs the PDE4M descriptions.  Write testcase (NP). */
+        pVCpu->pgm.s.fGst32BitMbzBigPdeMask   = ((uint32_t)(fMbzPageFrameMask >> (32 - 13)) & X86_PDE4M_PG_HIGH_MASK)
+                                              | X86_PDE4M_MBZ_MASK;
+
+        pVCpu->pgm.s.fGstPaeMbzPteMask        = fMbzPageFrameMask | X86_PTE_PAE_MBZ_MASK_NO_NX;
+        pVCpu->pgm.s.fGstPaeMbzPdeMask        = fMbzPageFrameMask | X86_PDE_PAE_MBZ_MASK_NO_NX;
+        pVCpu->pgm.s.fGstPaeMbzBigPdeMask     = fMbzPageFrameMask | X86_PDE2M_PAE_MBZ_MASK_NO_NX;
+        pVCpu->pgm.s.fGstPaeMbzPdpeMask       = fMbzPageFrameMask | X86_PDPE_PAE_MBZ_MASK;
+
+        pVCpu->pgm.s.fGstAmd64MbzPteMask      = fMbzPageFrameMask | X86_PTE_LM_MBZ_MASK_NO_NX;
+        pVCpu->pgm.s.fGstAmd64MbzPdeMask      = fMbzPageFrameMask | X86_PDE_LM_MBZ_MASK_NX;
+        pVCpu->pgm.s.fGstAmd64MbzBigPdeMask   = fMbzPageFrameMask | X86_PDE2M_LM_MBZ_MASK_NX;
+        pVCpu->pgm.s.fGstAmd64MbzPdpeMask     = fMbzPageFrameMask | X86_PDPE_LM_MBZ_MASK_NO_NX;
+        pVCpu->pgm.s.fGstAmd64MbzBigPdpeMask  = fMbzPageFrameMask | X86_PDPE1G_LM_MBZ_MASK_NO_NX;
+        pVCpu->pgm.s.fGstAmd64MbzPml4eMask    = fMbzPageFrameMask | X86_PML4E_MBZ_MASK_NO_NX;
+
+        pVCpu->pgm.s.fGst64ShadowedPteMask    = X86_PTE_P   | X86_PTE_RW   | X86_PTE_US   | X86_PTE_G | X86_PTE_A | X86_PTE_D;
+        pVCpu->pgm.s.fGst64ShadowedPdeMask    = X86_PDE_P   | X86_PDE_RW   | X86_PDE_US   | X86_PDE_A;
+        pVCpu->pgm.s.fGst64ShadowedBigPdeMask = X86_PDE4M_P | X86_PDE4M_RW | X86_PDE4M_US | X86_PDE4M_A;
+        pVCpu->pgm.s.fGst64ShadowedBigPde4PteMask =
+            X86_PDE4M_P | X86_PDE4M_RW | X86_PDE4M_US | X86_PDE4M_G | X86_PDE4M_A | X86_PDE4M_D;
+        pVCpu->pgm.s.fGstAmd64ShadowedPdpeMask  = X86_PDPE_P  | X86_PDPE_RW  | X86_PDPE_US  | X86_PDPE_A;
+        pVCpu->pgm.s.fGstAmd64ShadowedPml4eMask = X86_PML4E_P | X86_PML4E_RW | X86_PML4E_US | X86_PML4E_A;
     }
 
     /*
      * Note that AMD uses all the 8 reserved bits for the address (so 40 bits in total);
      * Intel only goes up to 36 bits, so we stick to 36 as well.
+     * Update: More recent intel manuals specifies 40 bits just like AMD.
      */
-    /** @todo How to test for the 40 bits support? Long mode seems to be the test criterium. */
     uint32_t u32Dummy, u32Features;
     CPUMGetGuestCpuId(VMMGetCpu(pVM), 1, &u32Dummy, &u32Dummy, &u32Dummy, &u32Features);
-
     if (u32Features & X86_CPUID_FEATURE_EDX_PSE36)
-        pVM->pgm.s.GCPhys4MBPSEMask = RT_BIT_64(36) - 1;
+        pVM->pgm.s.GCPhys4MBPSEMask = RT_BIT_64(RT_MAX(36, cMaxPhysAddrWidth)) - 1;
     else
         pVM->pgm.s.GCPhys4MBPSEMask = RT_BIT_64(32) - 1;
 
@@ -2098,8 +2211,23 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      * Dynamic page mapping area.
      */
     pVM->pgm.s.paDynPageMap32BitPTEsGC += offDelta;
-    pVM->pgm.s.paDynPageMapPaePTEsGC += offDelta;
-    pVM->pgm.s.pbDynPageMapBaseGC += offDelta;
+    pVM->pgm.s.paDynPageMapPaePTEsGC   += offDelta;
+    pVM->pgm.s.pbDynPageMapBaseGC      += offDelta;
+
+    if (pVM->pgm.s.pRCDynMap)
+    {
+        pVM->pgm.s.pRCDynMap += offDelta;
+        PPGMRCDYNMAP pDynMap = (PPGMRCDYNMAP)MMHyperRCToCC(pVM, pVM->pgm.s.pRCDynMap);
+
+        pDynMap->paPages     += offDelta;
+        PPGMRCDYNMAPENTRY paPages = (PPGMRCDYNMAPENTRY)MMHyperRCToCC(pVM, pDynMap->paPages);
+
+        for (uint32_t iPage = 0; iPage < pDynMap->cPages; iPage++)
+        {
+            paPages[iPage].pvPage  += offDelta;
+            paPages[iPage].uPte.pv += offDelta;
+        }
+    }
 
     /*
      * The Zero page.
@@ -2115,6 +2243,7 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      * Physical and virtual handlers.
      */
     RTAvlroGCPhysDoWithAll(&pVM->pgm.s.pTreesR3->PhysHandlers,     true, pgmR3RelocatePhysHandler,      &offDelta);
+    pVM->pgm.s.pLastPhysHandlerRC = NIL_RTRCPTR;
     RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->VirtHandlers,      true, pgmR3RelocateVirtHandler,      &offDelta);
     RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->HyperVirtHandlers, true, pgmR3RelocateHyperVirtHandler, &offDelta);
 
@@ -2122,6 +2251,15 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      * The page pool.
      */
     pgmR3PoolRelocate(pVM);
+
+#ifdef VBOX_WITH_STATISTICS
+    /*
+     * Statistics.
+     */
+    pVM->pgm.s.pStatsRC = MMHyperCCToRC(pVM, pVM->pgm.s.pStatsR3);
+    for (VMCPUID iCpu = 0; iCpu < pVM->cCpus; iCpu++)
+        pVM->aCpus[iCpu].pgm.s.pStatsRC = MMHyperCCToRC(pVM, pVM->aCpus[iCpu].pgm.s.pStatsR3);
+#endif
 }
 
 
@@ -2274,33 +2412,28 @@ VMMR3DECL(void) PGMR3Reset(PVM pVM)
      */
     pgmR3PoolReset(pVM);
 
+    /*
+     * Re-init various other members and clear the FFs that PGM owns.
+     */
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
-        PVMCPU  pVCpu = &pVM->aCpus[i];
+        PVMCPU pVCpu = &pVM->aCpus[i];
 
-        /*
-         * Re-init other members.
-         */
         pVCpu->pgm.s.fA20Enabled = true;
+        pVCpu->pgm.s.fGst32BitPageSizeExtension = false;
+        PGMNotifyNxeChanged(pVCpu, false);
 
-        /*
-         * Clear the FFs PGM owns.
-         */
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL);
     }
 
     /*
-     * Reset (zero) RAM pages.
+     * Reset (zero) RAM and shadow ROM pages.
      */
     rc = pgmR3PhysRamReset(pVM);
     if (RT_SUCCESS(rc))
-    {
-        /*
-         * Reset (zero) shadow ROM pages.
-         */
         rc = pgmR3PhysRomReset(pVM);
-    }
+
 
     pgmUnlock(pVM);
     AssertReleaseRC(rc);
@@ -2320,6 +2453,13 @@ static DECLCALLBACK(void) pgmR3ResetNoMorePhysWritesFlag(PVM pVM, VMSTATE enmSta
 }
 #endif
 
+/**
+ * Private API to reset fNoMorePhysWrites.
+ */
+VMMR3DECL(void) PGMR3ResetNoMorePhysWritesFlag(PVM pVM)
+{
+    pVM->pgm.s.fNoMorePhysWrites = false;
+}
 
 /**
  * Terminates the PGM.
@@ -2332,25 +2472,11 @@ VMMR3DECL(int) PGMR3Term(PVM pVM)
     /* Must free shared pages here. */
     pgmLock(pVM);
     pgmR3PhysRamTerm(pVM);
+    pgmR3PhysRomTerm(pVM);
     pgmUnlock(pVM);
 
     PGMDeregisterStringFormatTypes();
     return PDMR3CritSectDelete(&pVM->pgm.s.CritSect);
-}
-
-
-/**
- * Terminates the per-VCPU PGM.
- *
- * Termination means cleaning up and freeing all resources,
- * the VM it self is at this point powered off or suspended.
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- */
-VMMR3DECL(int) PGMR3TermCPU(PVM pVM)
-{
-    return 0;
 }
 
 
@@ -2461,7 +2587,7 @@ static DECLCALLBACK(void) pgmR3InfoCr3(PVM pVM, PCDBGFINFOHLP pHlp, const char *
     /*
      * Get page directory addresses.
      */
-    PX86PD     pPDSrc = pgmGstGet32bitPDPtr(&pVCpu->pgm.s);
+    PX86PD     pPDSrc = pgmGstGet32bitPDPtr(pVCpu);
     Assert(pPDSrc);
     Assert(PGMPhysGCPhys2R3PtrAssert(pVM, (RTGCPHYS)(CPUMGetGuestCR3(pVCpu) & X86_CR3_PAGE_MASK), sizeof(*pPDSrc)) == pPDSrc);
 
@@ -2830,7 +2956,6 @@ static void pgmR3ModeDataSwitch(PVM pVM, PVMCPU pVCpu, PGMMODE enmShw, PGMMODE e
     pVCpu->pgm.s.pfnR3BthInvalidatePage       = pModeData->pfnR3BthInvalidatePage;
     pVCpu->pgm.s.pfnR3BthSyncCR3              = pModeData->pfnR3BthSyncCR3;
     Assert(pVCpu->pgm.s.pfnR3BthSyncCR3);
-    pVCpu->pgm.s.pfnR3BthSyncPage             = pModeData->pfnR3BthSyncPage;
     pVCpu->pgm.s.pfnR3BthPrefetchPage         = pModeData->pfnR3BthPrefetchPage;
     pVCpu->pgm.s.pfnR3BthVerifyAccessSyncPage = pModeData->pfnR3BthVerifyAccessSyncPage;
 #ifdef VBOX_STRICT
@@ -2842,7 +2967,6 @@ static void pgmR3ModeDataSwitch(PVM pVM, PVMCPU pVCpu, PGMMODE enmShw, PGMMODE e
     pVCpu->pgm.s.pfnRCBthTrap0eHandler        = pModeData->pfnRCBthTrap0eHandler;
     pVCpu->pgm.s.pfnRCBthInvalidatePage       = pModeData->pfnRCBthInvalidatePage;
     pVCpu->pgm.s.pfnRCBthSyncCR3              = pModeData->pfnRCBthSyncCR3;
-    pVCpu->pgm.s.pfnRCBthSyncPage             = pModeData->pfnRCBthSyncPage;
     pVCpu->pgm.s.pfnRCBthPrefetchPage         = pModeData->pfnRCBthPrefetchPage;
     pVCpu->pgm.s.pfnRCBthVerifyAccessSyncPage = pModeData->pfnRCBthVerifyAccessSyncPage;
 #ifdef VBOX_STRICT
@@ -2854,7 +2978,6 @@ static void pgmR3ModeDataSwitch(PVM pVM, PVMCPU pVCpu, PGMMODE enmShw, PGMMODE e
     pVCpu->pgm.s.pfnR0BthTrap0eHandler        = pModeData->pfnR0BthTrap0eHandler;
     pVCpu->pgm.s.pfnR0BthInvalidatePage       = pModeData->pfnR0BthInvalidatePage;
     pVCpu->pgm.s.pfnR0BthSyncCR3              = pModeData->pfnR0BthSyncCR3;
-    pVCpu->pgm.s.pfnR0BthSyncPage             = pModeData->pfnR0BthSyncPage;
     pVCpu->pgm.s.pfnR0BthPrefetchPage         = pModeData->pfnR0BthPrefetchPage;
     pVCpu->pgm.s.pfnR0BthVerifyAccessSyncPage = pModeData->pfnR0BthVerifyAccessSyncPage;
 #ifdef VBOX_STRICT
@@ -3047,7 +3170,8 @@ static PGMMODE pgmR3CalcShadowMode(PVM pVM, PGMMODE enmGuestMode, SUPPAGINGMODE 
             return PGMMODE_INVALID;
     }
     /* Override the shadow mode is nested paging is active. */
-    if (HWACCMIsNestedPagingActive(pVM))
+    pVM->pgm.s.fNestedPaging = HWACCMIsNestedPagingActive(pVM);
+    if (pVM->pgm.s.fNestedPaging)
         enmShadowMode = HWACCMGetShwPagingMode(pVM);
 
     *penmSwitcher = enmSwitcher;
@@ -3393,616 +3517,6 @@ int pgmR3ReEnterShadowModeAfterPoolFlush(PVM pVM, PVMCPU pVCpu)
     return rc;
 }
 
-
-/**
- * Dumps a PAE shadow page table.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   pPT         Pointer to the page table.
- * @param   u64Address  The virtual address of the page table starts.
- * @param   fLongMode   Set if this a long mode table; clear if it's a legacy mode table.
- * @param   cMaxDepth   The maxium depth.
- * @param   pHlp        Pointer to the output functions.
- */
-static int  pgmR3DumpHierarchyHCPaePT(PVM pVM, PX86PTPAE pPT, uint64_t u64Address, bool fLongMode, unsigned cMaxDepth, PCDBGFINFOHLP pHlp)
-{
-    for (unsigned i = 0; i < RT_ELEMENTS(pPT->a); i++)
-    {
-        X86PTEPAE Pte = pPT->a[i];
-        if (Pte.n.u1Present)
-        {
-            pHlp->pfnPrintf(pHlp,
-                            fLongMode       /*P R  S  A  D  G  WT CD AT NX 4M a p ?  */
-                            ? "%016llx 3    | P %c %c %c %c %c %s %s %s %s 4K %c%c%c  %016llx\n"
-                            :  "%08llx 2   |  P %c %c %c %c %c %s %s %s %s 4K %c%c%c  %016llx\n",
-                            u64Address + ((uint64_t)i << X86_PT_PAE_SHIFT),
-                            Pte.n.u1Write       ? 'W'  : 'R',
-                            Pte.n.u1User        ? 'U'  : 'S',
-                            Pte.n.u1Accessed    ? 'A'  : '-',
-                            Pte.n.u1Dirty       ? 'D'  : '-',
-                            Pte.n.u1Global      ? 'G'  : '-',
-                            Pte.n.u1WriteThru   ? "WT" : "--",
-                            Pte.n.u1CacheDisable? "CD" : "--",
-                            Pte.n.u1PAT         ? "AT" : "--",
-                            Pte.n.u1NoExecute   ? "NX" : "--",
-                            Pte.u & PGM_PTFLAGS_TRACK_DIRTY   ? 'd' : '-',
-                            Pte.u & RT_BIT(10)                   ? '1' : '0',
-                            Pte.u & PGM_PTFLAGS_CSAM_VALIDATED? 'v' : '-',
-                            Pte.u & X86_PTE_PAE_PG_MASK);
-        }
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Dumps a PAE shadow page directory table.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   HCPhys      The physical address of the page directory table.
- * @param   u64Address  The virtual address of the page table starts.
- * @param   cr4         The CR4, PSE is currently used.
- * @param   fLongMode   Set if this a long mode table; clear if it's a legacy mode table.
- * @param   cMaxDepth   The maxium depth.
- * @param   pHlp        Pointer to the output functions.
- */
-static int  pgmR3DumpHierarchyHCPaePD(PVM pVM, RTHCPHYS HCPhys, uint64_t u64Address, uint32_t cr4, bool fLongMode, unsigned cMaxDepth, PCDBGFINFOHLP pHlp)
-{
-    PX86PDPAE pPD = (PX86PDPAE)MMPagePhys2Page(pVM, HCPhys);
-    if (!pPD)
-    {
-        pHlp->pfnPrintf(pHlp, "%0*llx error! Page directory at HCPhys=%RHp was not found in the page pool!\n",
-                        fLongMode ? 16 : 8, u64Address, HCPhys);
-        return VERR_INVALID_PARAMETER;
-    }
-    const bool fBigPagesSupported = fLongMode || !!(cr4 & X86_CR4_PSE);
-
-    int rc = VINF_SUCCESS;
-    for (unsigned i = 0; i < RT_ELEMENTS(pPD->a); i++)
-    {
-        X86PDEPAE Pde = pPD->a[i];
-        if (Pde.n.u1Present)
-        {
-            if (fBigPagesSupported && Pde.b.u1Size)
-                pHlp->pfnPrintf(pHlp,
-                                fLongMode       /*P R  S  A  D  G  WT CD AT NX 4M a p ?  */
-                                ? "%016llx 2   |  P %c %c %c %c %c %s %s %s %s 4M %c%c%c  %016llx\n"
-                                :  "%08llx 1  |   P %c %c %c %c %c %s %s %s %s 4M %c%c%c  %016llx\n",
-                                u64Address + ((uint64_t)i << X86_PD_PAE_SHIFT),
-                                Pde.b.u1Write       ? 'W'  : 'R',
-                                Pde.b.u1User        ? 'U'  : 'S',
-                                Pde.b.u1Accessed    ? 'A'  : '-',
-                                Pde.b.u1Dirty       ? 'D'  : '-',
-                                Pde.b.u1Global      ? 'G'  : '-',
-                                Pde.b.u1WriteThru   ? "WT" : "--",
-                                Pde.b.u1CacheDisable? "CD" : "--",
-                                Pde.b.u1PAT         ? "AT" : "--",
-                                Pde.b.u1NoExecute   ? "NX" : "--",
-                                Pde.u & RT_BIT_64(9)                ? '1' : '0',
-                                Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
-                                Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
-                                Pde.u & X86_PDE_PAE_PG_MASK);
-            else
-            {
-                pHlp->pfnPrintf(pHlp,
-                                fLongMode       /*P R  S  A  D  G  WT CD AT NX 4M a p ?  */
-                                ? "%016llx 2   |  P %c %c %c %c %c %s %s .. %s 4K %c%c%c  %016llx\n"
-                                :  "%08llx 1  |   P %c %c %c %c %c %s %s .. %s 4K %c%c%c  %016llx\n",
-                                u64Address + ((uint64_t)i << X86_PD_PAE_SHIFT),
-                                Pde.n.u1Write       ? 'W'  : 'R',
-                                Pde.n.u1User        ? 'U'  : 'S',
-                                Pde.n.u1Accessed    ? 'A'  : '-',
-                                Pde.n.u1Reserved0   ? '?'  : '.', /* ignored */
-                                Pde.n.u1Reserved1   ? '?'  : '.', /* ignored */
-                                Pde.n.u1WriteThru   ? "WT" : "--",
-                                Pde.n.u1CacheDisable? "CD" : "--",
-                                Pde.n.u1NoExecute   ? "NX" : "--",
-                                Pde.u & RT_BIT_64(9)                ? '1' : '0',
-                                Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
-                                Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
-                                Pde.u & X86_PDE_PAE_PG_MASK);
-                if (cMaxDepth >= 1)
-                {
-                    /** @todo what about using the page pool for mapping PTs? */
-                    uint64_t    u64AddressPT = u64Address + ((uint64_t)i << X86_PD_PAE_SHIFT);
-                    RTHCPHYS    HCPhysPT     = Pde.u & X86_PDE_PAE_PG_MASK;
-                    PX86PTPAE   pPT          = NULL;
-                    if (!(Pde.u & PGM_PDFLAGS_MAPPING))
-                        pPT = (PX86PTPAE)MMPagePhys2Page(pVM, HCPhysPT);
-                    else
-                    {
-                        for (PPGMMAPPING pMap = pVM->pgm.s.pMappingsR3; pMap; pMap = pMap->pNextR3)
-                        {
-                            uint64_t off = u64AddressPT - pMap->GCPtr;
-                            if (off < pMap->cb)
-                            {
-                                const int iPDE = (uint32_t)(off >> X86_PD_SHIFT);
-                                const int iSub = (int)((off >> X86_PD_PAE_SHIFT) & 1); /* MSC is a pain sometimes */
-                                if ((iSub ? pMap->aPTs[iPDE].HCPhysPaePT1 : pMap->aPTs[iPDE].HCPhysPaePT0) != HCPhysPT)
-                                    pHlp->pfnPrintf(pHlp, "%0*llx error! Mapping error! PT %d has HCPhysPT=%RHp not %RHp is in the PD.\n",
-                                                    fLongMode ? 16 : 8, u64AddressPT, iPDE,
-                                                    iSub ? pMap->aPTs[iPDE].HCPhysPaePT1 : pMap->aPTs[iPDE].HCPhysPaePT0, HCPhysPT);
-                                pPT = &pMap->aPTs[iPDE].paPaePTsR3[iSub];
-                            }
-                        }
-                    }
-                    int rc2 = VERR_INVALID_PARAMETER;
-                    if (pPT)
-                        rc2 = pgmR3DumpHierarchyHCPaePT(pVM, pPT, u64AddressPT, fLongMode, cMaxDepth - 1, pHlp);
-                    else
-                        pHlp->pfnPrintf(pHlp, "%0*llx error! Page table at HCPhys=%RHp was not found in the page pool!\n",
-                                        fLongMode ? 16 : 8, u64AddressPT, HCPhysPT);
-                    if (rc2 < rc && RT_SUCCESS(rc))
-                        rc = rc2;
-                }
-            }
-        }
-    }
-    return rc;
-}
-
-
-/**
- * Dumps a PAE shadow page directory pointer table.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   HCPhys      The physical address of the page directory pointer table.
- * @param   u64Address  The virtual address of the page table starts.
- * @param   cr4         The CR4, PSE is currently used.
- * @param   fLongMode   Set if this a long mode table; clear if it's a legacy mode table.
- * @param   cMaxDepth   The maxium depth.
- * @param   pHlp        Pointer to the output functions.
- */
-static int  pgmR3DumpHierarchyHCPaePDPT(PVM pVM, RTHCPHYS HCPhys, uint64_t u64Address, uint32_t cr4, bool fLongMode, unsigned cMaxDepth, PCDBGFINFOHLP pHlp)
-{
-    PX86PDPT pPDPT = (PX86PDPT)MMPagePhys2Page(pVM, HCPhys);
-    if (!pPDPT)
-    {
-        pHlp->pfnPrintf(pHlp, "%0*llx error! Page directory pointer table at HCPhys=%RHp was not found in the page pool!\n",
-                        fLongMode ? 16 : 8, u64Address, HCPhys);
-        return VERR_INVALID_PARAMETER;
-    }
-
-    int rc = VINF_SUCCESS;
-    const unsigned c = fLongMode ? RT_ELEMENTS(pPDPT->a) : X86_PG_PAE_PDPE_ENTRIES;
-    for (unsigned i = 0; i < c; i++)
-    {
-        X86PDPE Pdpe = pPDPT->a[i];
-        if (Pdpe.n.u1Present)
-        {
-            if (fLongMode)
-                pHlp->pfnPrintf(pHlp,         /*P R  S  A  D  G  WT CD AT NX 4M a p ?  */
-                                "%016llx 1  |   P %c %c %c %c %c %s %s %s %s .. %c%c%c  %016llx\n",
-                                u64Address + ((uint64_t)i << X86_PDPT_SHIFT),
-                                Pdpe.lm.u1Write       ? 'W'  : 'R',
-                                Pdpe.lm.u1User        ? 'U'  : 'S',
-                                Pdpe.lm.u1Accessed    ? 'A'  : '-',
-                                Pdpe.lm.u3Reserved & 1? '?'  : '.', /* ignored */
-                                Pdpe.lm.u3Reserved & 4? '!'  : '.', /* mbz */
-                                Pdpe.lm.u1WriteThru   ? "WT" : "--",
-                                Pdpe.lm.u1CacheDisable? "CD" : "--",
-                                Pdpe.lm.u3Reserved & 2? "!"  : "..",/* mbz */
-                                Pdpe.lm.u1NoExecute   ? "NX" : "--",
-                                Pdpe.u & RT_BIT(9)                   ? '1' : '0',
-                                Pdpe.u & PGM_PLXFLAGS_PERMANENT   ? 'p' : '-',
-                                Pdpe.u & RT_BIT(11)                  ? '1' : '0',
-                                Pdpe.u & X86_PDPE_PG_MASK);
-            else
-                pHlp->pfnPrintf(pHlp,      /*P             G  WT CD AT NX 4M a p ?  */
-                                "%08x 0 |    P             %c %s %s %s %s .. %c%c%c  %016llx\n",
-                                i << X86_PDPT_SHIFT,
-                                Pdpe.n.u4Reserved & 1? '!'  : '.', /* mbz */
-                                Pdpe.n.u4Reserved & 4? '!'  : '.', /* mbz */
-                                Pdpe.n.u1WriteThru   ? "WT" : "--",
-                                Pdpe.n.u1CacheDisable? "CD" : "--",
-                                Pdpe.n.u4Reserved & 2? "!"  : "..",/* mbz */
-                                Pdpe.u & RT_BIT(9)                   ? '1' : '0',
-                                Pdpe.u & PGM_PLXFLAGS_PERMANENT   ? 'p' : '-',
-                                Pdpe.u & RT_BIT(11)                  ? '1' : '0',
-                                Pdpe.u & X86_PDPE_PG_MASK);
-            if (cMaxDepth >= 1)
-            {
-                int rc2 = pgmR3DumpHierarchyHCPaePD(pVM, Pdpe.u & X86_PDPE_PG_MASK, u64Address + ((uint64_t)i << X86_PDPT_SHIFT),
-                                                    cr4, fLongMode, cMaxDepth - 1, pHlp);
-                if (rc2 < rc && RT_SUCCESS(rc))
-                    rc = rc2;
-            }
-        }
-    }
-    return rc;
-}
-
-
-/**
- * Dumps a 32-bit shadow page table.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   HCPhys      The physical address of the table.
- * @param   cr4         The CR4, PSE is currently used.
- * @param   cMaxDepth   The maxium depth.
- * @param   pHlp        Pointer to the output functions.
- */
-static int pgmR3DumpHierarchyHcPaePML4(PVM pVM, RTHCPHYS HCPhys, uint32_t cr4, unsigned cMaxDepth, PCDBGFINFOHLP pHlp)
-{
-    PX86PML4 pPML4 = (PX86PML4)MMPagePhys2Page(pVM, HCPhys);
-    if (!pPML4)
-    {
-        pHlp->pfnPrintf(pHlp, "Page map level 4 at HCPhys=%RHp was not found in the page pool!\n", HCPhys);
-        return VERR_INVALID_PARAMETER;
-    }
-
-    int rc = VINF_SUCCESS;
-    for (unsigned i = 0; i < RT_ELEMENTS(pPML4->a); i++)
-    {
-        X86PML4E Pml4e = pPML4->a[i];
-        if (Pml4e.n.u1Present)
-        {
-            uint64_t u64Address = ((uint64_t)i << X86_PML4_SHIFT) | (((uint64_t)i >> (X86_PML4_SHIFT - X86_PDPT_SHIFT - 1)) * 0xffff000000000000ULL);
-            pHlp->pfnPrintf(pHlp,         /*P R  S  A  D  G  WT CD AT NX 4M a p ?  */
-                            "%016llx 0 |    P %c %c %c %c %c %s %s %s %s .. %c%c%c  %016llx\n",
-                            u64Address,
-                            Pml4e.n.u1Write       ? 'W'  : 'R',
-                            Pml4e.n.u1User        ? 'U'  : 'S',
-                            Pml4e.n.u1Accessed    ? 'A'  : '-',
-                            Pml4e.n.u3Reserved & 1? '?'  : '.', /* ignored */
-                            Pml4e.n.u3Reserved & 4? '!'  : '.', /* mbz */
-                            Pml4e.n.u1WriteThru   ? "WT" : "--",
-                            Pml4e.n.u1CacheDisable? "CD" : "--",
-                            Pml4e.n.u3Reserved & 2? "!"  : "..",/* mbz */
-                            Pml4e.n.u1NoExecute   ? "NX" : "--",
-                            Pml4e.u & RT_BIT(9)                   ? '1' : '0',
-                            Pml4e.u & PGM_PLXFLAGS_PERMANENT   ? 'p' : '-',
-                            Pml4e.u & RT_BIT(11)                  ? '1' : '0',
-                            Pml4e.u & X86_PML4E_PG_MASK);
-
-            if (cMaxDepth >= 1)
-            {
-                int rc2 = pgmR3DumpHierarchyHCPaePDPT(pVM, Pml4e.u & X86_PML4E_PG_MASK, u64Address, cr4, true, cMaxDepth - 1, pHlp);
-                if (rc2 < rc && RT_SUCCESS(rc))
-                    rc = rc2;
-            }
-        }
-    }
-    return rc;
-}
-
-
-/**
- * Dumps a 32-bit shadow page table.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   pPT         Pointer to the page table.
- * @param   u32Address  The virtual address this table starts at.
- * @param   pHlp        Pointer to the output functions.
- */
-int  pgmR3DumpHierarchyHC32BitPT(PVM pVM, PX86PT pPT, uint32_t u32Address, PCDBGFINFOHLP pHlp)
-{
-    for (unsigned i = 0; i < RT_ELEMENTS(pPT->a); i++)
-    {
-        X86PTE Pte = pPT->a[i];
-        if (Pte.n.u1Present)
-        {
-            pHlp->pfnPrintf(pHlp,      /*P R  S  A  D  G  WT CD AT NX 4M a m d  */
-                            "%08x 1  |   P %c %c %c %c %c %s %s %s .. 4K %c%c%c  %08x\n",
-                            u32Address + (i << X86_PT_SHIFT),
-                            Pte.n.u1Write       ? 'W'  : 'R',
-                            Pte.n.u1User        ? 'U'  : 'S',
-                            Pte.n.u1Accessed    ? 'A'  : '-',
-                            Pte.n.u1Dirty       ? 'D'  : '-',
-                            Pte.n.u1Global      ? 'G'  : '-',
-                            Pte.n.u1WriteThru   ? "WT" : "--",
-                            Pte.n.u1CacheDisable? "CD" : "--",
-                            Pte.n.u1PAT         ? "AT" : "--",
-                            Pte.u & PGM_PTFLAGS_TRACK_DIRTY     ? 'd' : '-',
-                            Pte.u & RT_BIT(10)                     ? '1' : '0',
-                            Pte.u & PGM_PTFLAGS_CSAM_VALIDATED  ? 'v' : '-',
-                            Pte.u & X86_PDE_PG_MASK);
-        }
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Dumps a 32-bit shadow page directory and page tables.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   cr3         The root of the hierarchy.
- * @param   cr4         The CR4, PSE is currently used.
- * @param   cMaxDepth   How deep into the hierarchy the dumper should go.
- * @param   pHlp        Pointer to the output functions.
- */
-int  pgmR3DumpHierarchyHC32BitPD(PVM pVM, uint32_t cr3, uint32_t cr4, unsigned cMaxDepth, PCDBGFINFOHLP pHlp)
-{
-    PX86PD pPD = (PX86PD)MMPagePhys2Page(pVM, cr3 & X86_CR3_PAGE_MASK);
-    if (!pPD)
-    {
-        pHlp->pfnPrintf(pHlp, "Page directory at %#x was not found in the page pool!\n", cr3 & X86_CR3_PAGE_MASK);
-        return VERR_INVALID_PARAMETER;
-    }
-
-    int rc = VINF_SUCCESS;
-    for (unsigned i = 0; i < RT_ELEMENTS(pPD->a); i++)
-    {
-        X86PDE Pde = pPD->a[i];
-        if (Pde.n.u1Present)
-        {
-            const uint32_t u32Address = i << X86_PD_SHIFT;
-            if ((cr4 & X86_CR4_PSE) && Pde.b.u1Size)
-                pHlp->pfnPrintf(pHlp,      /*P R  S  A  D  G  WT CD AT NX 4M a m d  */
-                                "%08x 0 |    P %c %c %c %c %c %s %s %s .. 4M %c%c%c  %08x\n",
-                                u32Address,
-                                Pde.b.u1Write       ? 'W'  : 'R',
-                                Pde.b.u1User        ? 'U'  : 'S',
-                                Pde.b.u1Accessed    ? 'A'  : '-',
-                                Pde.b.u1Dirty       ? 'D'  : '-',
-                                Pde.b.u1Global      ? 'G'  : '-',
-                                Pde.b.u1WriteThru   ? "WT" : "--",
-                                Pde.b.u1CacheDisable? "CD" : "--",
-                                Pde.b.u1PAT         ? "AT" : "--",
-                                Pde.u & RT_BIT_64(9)                ? '1' : '0',
-                                Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
-                                Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
-                                Pde.u & X86_PDE4M_PG_MASK);
-            else
-            {
-                pHlp->pfnPrintf(pHlp,      /*P R  S  A  D  G  WT CD AT NX 4M a m d  */
-                                "%08x 0 |    P %c %c %c %c %c %s %s .. .. 4K %c%c%c  %08x\n",
-                                u32Address,
-                                Pde.n.u1Write       ? 'W'  : 'R',
-                                Pde.n.u1User        ? 'U'  : 'S',
-                                Pde.n.u1Accessed    ? 'A'  : '-',
-                                Pde.n.u1Reserved0   ? '?'  : '.', /* ignored */
-                                Pde.n.u1Reserved1   ? '?'  : '.', /* ignored */
-                                Pde.n.u1WriteThru   ? "WT" : "--",
-                                Pde.n.u1CacheDisable? "CD" : "--",
-                                Pde.u & RT_BIT_64(9)                ? '1' : '0',
-                                Pde.u & PGM_PDFLAGS_MAPPING     ? 'm' : '-',
-                                Pde.u & PGM_PDFLAGS_TRACK_DIRTY ? 'd' : '-',
-                                Pde.u & X86_PDE_PG_MASK);
-                if (cMaxDepth >= 1)
-                {
-                    /** @todo what about using the page pool for mapping PTs? */
-                    RTHCPHYS HCPhys = Pde.u & X86_PDE_PG_MASK;
-                    PX86PT pPT = NULL;
-                    if (!(Pde.u & PGM_PDFLAGS_MAPPING))
-                        pPT = (PX86PT)MMPagePhys2Page(pVM, HCPhys);
-                    else
-                    {
-                        for (PPGMMAPPING pMap = pVM->pgm.s.pMappingsR3; pMap; pMap = pMap->pNextR3)
-                            if (u32Address - pMap->GCPtr < pMap->cb)
-                            {
-                                int iPDE = (u32Address - pMap->GCPtr) >> X86_PD_SHIFT;
-                                if (pMap->aPTs[iPDE].HCPhysPT != HCPhys)
-                                    pHlp->pfnPrintf(pHlp, "%08x error! Mapping error! PT %d has HCPhysPT=%RHp not %RHp is in the PD.\n",
-                                                    u32Address, iPDE, pMap->aPTs[iPDE].HCPhysPT, HCPhys);
-                                pPT = pMap->aPTs[iPDE].pPTR3;
-                            }
-                    }
-                    int rc2 = VERR_INVALID_PARAMETER;
-                    if (pPT)
-                        rc2 = pgmR3DumpHierarchyHC32BitPT(pVM, pPT, u32Address, pHlp);
-                    else
-                        pHlp->pfnPrintf(pHlp, "%08x error! Page table at %#x was not found in the page pool!\n", u32Address, HCPhys);
-                    if (rc2 < rc && RT_SUCCESS(rc))
-                        rc = rc2;
-                }
-            }
-        }
-    }
-
-    return rc;
-}
-
-
-/**
- * Dumps a 32-bit shadow page table.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   pPT         Pointer to the page table.
- * @param   u32Address  The virtual address this table starts at.
- * @param   PhysSearch  Address to search for.
- */
-int pgmR3DumpHierarchyGC32BitPT(PVM pVM, PX86PT pPT, uint32_t u32Address, RTGCPHYS PhysSearch)
-{
-    for (unsigned i = 0; i < RT_ELEMENTS(pPT->a); i++)
-    {
-        X86PTE Pte = pPT->a[i];
-        if (Pte.n.u1Present)
-        {
-            Log((           /*P R  S  A  D  G  WT CD AT NX 4M a m d  */
-                 "%08x 1  |   P %c %c %c %c %c %s %s %s .. 4K %c%c%c  %08x\n",
-                 u32Address + (i << X86_PT_SHIFT),
-                 Pte.n.u1Write       ? 'W'  : 'R',
-                 Pte.n.u1User        ? 'U'  : 'S',
-                 Pte.n.u1Accessed    ? 'A'  : '-',
-                 Pte.n.u1Dirty       ? 'D'  : '-',
-                 Pte.n.u1Global      ? 'G'  : '-',
-                 Pte.n.u1WriteThru   ? "WT" : "--",
-                 Pte.n.u1CacheDisable? "CD" : "--",
-                 Pte.n.u1PAT         ? "AT" : "--",
-                 Pte.u & PGM_PTFLAGS_TRACK_DIRTY     ? 'd' : '-',
-                 Pte.u & RT_BIT(10)                     ? '1' : '0',
-                 Pte.u & PGM_PTFLAGS_CSAM_VALIDATED  ? 'v' : '-',
-                 Pte.u & X86_PDE_PG_MASK));
-
-            if ((Pte.u & X86_PDE_PG_MASK) == PhysSearch)
-            {
-                uint64_t fPageShw = 0;
-                RTHCPHYS pPhysHC = 0;
-
-                /** @todo SMP support!! */
-                PGMShwGetPage(&pVM->aCpus[0], (RTGCPTR)(u32Address + (i << X86_PT_SHIFT)), &fPageShw, &pPhysHC);
-                Log(("Found %RGp at %RGv -> flags=%llx\n", PhysSearch, (RTGCPTR)(u32Address + (i << X86_PT_SHIFT)), fPageShw));
-            }
-        }
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Dumps a 32-bit guest page directory and page tables.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   cr3         The root of the hierarchy.
- * @param   cr4         The CR4, PSE is currently used.
- * @param   PhysSearch  Address to search for.
- */
-VMMR3DECL(int) PGMR3DumpHierarchyGC(PVM pVM, uint64_t cr3, uint64_t cr4, RTGCPHYS PhysSearch)
-{
-    bool fLongMode = false;
-    const unsigned cch = fLongMode ? 16 : 8; NOREF(cch);
-    PX86PD pPD = 0;
-
-    int rc = PGM_GCPHYS_2_PTR(pVM, cr3 & X86_CR3_PAGE_MASK, &pPD);
-    if (RT_FAILURE(rc) || !pPD)
-    {
-        Log(("Page directory at %#x was not found in the page pool!\n", cr3 & X86_CR3_PAGE_MASK));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    Log(("cr3=%08x cr4=%08x%s\n"
-         "%-*s        P - Present\n"
-         "%-*s        | R/W - Read (0) / Write (1)\n"
-         "%-*s        | | U/S - User (1) / Supervisor (0)\n"
-         "%-*s        | | | A - Accessed\n"
-         "%-*s        | | | | D - Dirty\n"
-         "%-*s        | | | | | G - Global\n"
-         "%-*s        | | | | | | WT - Write thru\n"
-         "%-*s        | | | | | | |  CD - Cache disable\n"
-         "%-*s        | | | | | | |  |  AT - Attribute table (PAT)\n"
-         "%-*s        | | | | | | |  |  |  NX - No execute (K8)\n"
-         "%-*s        | | | | | | |  |  |  |  4K/4M/2M - Page size.\n"
-         "%-*s        | | | | | | |  |  |  |  |  AVL - a=allocated; m=mapping; d=track dirty;\n"
-         "%-*s        | | | | | | |  |  |  |  |  |     p=permanent; v=validated;\n"
-         "%-*s Level  | | | | | | |  |  |  |  |  |    Page\n"
-       /* xxxx n **** P R S A D G WT CD AT NX 4M AVL xxxxxxxxxxxxx
-                      - W U - - - -- -- -- -- -- 010 */
-         , cr3, cr4, fLongMode ? " Long Mode" : "",
-         cch, "", cch, "", cch, "", cch, "", cch, "", cch, "", cch, "",
-         cch, "", cch, "", cch, "", cch, "", cch, "", cch, "", cch, "Address"));
-
-    for (unsigned i = 0; i < RT_ELEMENTS(pPD->a); i++)
-    {
-        X86PDE Pde = pPD->a[i];
-        if (Pde.n.u1Present)
-        {
-            const uint32_t u32Address = i << X86_PD_SHIFT;
-
-            if ((cr4 & X86_CR4_PSE) && Pde.b.u1Size)
-                Log((           /*P R  S  A  D  G  WT CD AT NX 4M a m d  */
-                     "%08x 0 |    P %c %c %c %c %c %s %s %s .. 4M %c%c%c  %08x\n",
-                     u32Address,
-                     Pde.b.u1Write       ? 'W'  : 'R',
-                     Pde.b.u1User        ? 'U'  : 'S',
-                     Pde.b.u1Accessed    ? 'A'  : '-',
-                     Pde.b.u1Dirty       ? 'D'  : '-',
-                     Pde.b.u1Global      ? 'G'  : '-',
-                     Pde.b.u1WriteThru   ? "WT" : "--",
-                     Pde.b.u1CacheDisable? "CD" : "--",
-                     Pde.b.u1PAT         ? "AT" : "--",
-                     Pde.u & RT_BIT(9)      ? '1' : '0',
-                     Pde.u & RT_BIT(10)     ? '1' : '0',
-                     Pde.u & RT_BIT(11)     ? '1' : '0',
-                     pgmGstGet4MBPhysPage(&pVM->pgm.s, Pde)));
-            /** @todo PhysSearch */
-            else
-            {
-                Log((           /*P R  S  A  D  G  WT CD AT NX 4M a m d  */
-                     "%08x 0 |    P %c %c %c %c %c %s %s .. .. 4K %c%c%c  %08x\n",
-                     u32Address,
-                     Pde.n.u1Write       ? 'W'  : 'R',
-                     Pde.n.u1User        ? 'U'  : 'S',
-                     Pde.n.u1Accessed    ? 'A'  : '-',
-                     Pde.n.u1Reserved0   ? '?'  : '.', /* ignored */
-                     Pde.n.u1Reserved1   ? '?'  : '.', /* ignored */
-                     Pde.n.u1WriteThru   ? "WT" : "--",
-                     Pde.n.u1CacheDisable? "CD" : "--",
-                     Pde.u & RT_BIT(9)      ? '1' : '0',
-                     Pde.u & RT_BIT(10)     ? '1' : '0',
-                     Pde.u & RT_BIT(11)     ? '1' : '0',
-                     Pde.u & X86_PDE_PG_MASK));
-                ////if (cMaxDepth >= 1)
-                {
-                    /** @todo what about using the page pool for mapping PTs? */
-                    RTGCPHYS GCPhys = Pde.u & X86_PDE_PG_MASK;
-                    PX86PT pPT = NULL;
-
-                    rc = PGM_GCPHYS_2_PTR(pVM, GCPhys, &pPT);
-
-                    int rc2 = VERR_INVALID_PARAMETER;
-                    if (pPT)
-                        rc2 = pgmR3DumpHierarchyGC32BitPT(pVM, pPT, u32Address, PhysSearch);
-                    else
-                        Log(("%08x error! Page table at %#x was not found in the page pool!\n", u32Address, GCPhys));
-                    if (rc2 < rc && RT_SUCCESS(rc))
-                        rc = rc2;
-                }
-            }
-        }
-    }
-
-    return rc;
-}
-
-
-/**
- * Dumps a page table hierarchy use only physical addresses and cr4/lm flags.
- *
- * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
- * @param   cr3         The root of the hierarchy.
- * @param   cr4         The cr4, only PAE and PSE is currently used.
- * @param   fLongMode   Set if long mode, false if not long mode.
- * @param   cMaxDepth   Number of levels to dump.
- * @param   pHlp        Pointer to the output functions.
- */
-VMMR3DECL(int) PGMR3DumpHierarchyHC(PVM pVM, uint64_t cr3, uint64_t cr4, bool fLongMode, unsigned cMaxDepth, PCDBGFINFOHLP pHlp)
-{
-    if (!pHlp)
-        pHlp = DBGFR3InfoLogHlp();
-    if (!cMaxDepth)
-        return VINF_SUCCESS;
-    const unsigned cch = fLongMode ? 16 : 8;
-    pHlp->pfnPrintf(pHlp,
-                    "cr3=%08x cr4=%08x%s\n"
-                    "%-*s        P - Present\n"
-                    "%-*s        | R/W - Read (0) / Write (1)\n"
-                    "%-*s        | | U/S - User (1) / Supervisor (0)\n"
-                    "%-*s        | | | A - Accessed\n"
-                    "%-*s        | | | | D - Dirty\n"
-                    "%-*s        | | | | | G - Global\n"
-                    "%-*s        | | | | | | WT - Write thru\n"
-                    "%-*s        | | | | | | |  CD - Cache disable\n"
-                    "%-*s        | | | | | | |  |  AT - Attribute table (PAT)\n"
-                    "%-*s        | | | | | | |  |  |  NX - No execute (K8)\n"
-                    "%-*s        | | | | | | |  |  |  |  4K/4M/2M - Page size.\n"
-                    "%-*s        | | | | | | |  |  |  |  |  AVL - a=allocated; m=mapping; d=track dirty;\n"
-                    "%-*s        | | | | | | |  |  |  |  |  |     p=permanent; v=validated;\n"
-                    "%-*s Level  | | | | | | |  |  |  |  |  |    Page\n"
-                  /* xxxx n **** P R S A D G WT CD AT NX 4M AVL xxxxxxxxxxxxx
-                                 - W U - - - -- -- -- -- -- 010 */
-                    , cr3, cr4, fLongMode ? " Long Mode" : "",
-                    cch, "", cch, "", cch, "", cch, "", cch, "", cch, "", cch, "",
-                    cch, "", cch, "", cch, "", cch, "", cch, "", cch, "", cch, "Address");
-    if (cr4 & X86_CR4_PAE)
-    {
-        if (fLongMode)
-            return pgmR3DumpHierarchyHcPaePML4(pVM, cr3 & X86_CR3_PAGE_MASK, cr4, cMaxDepth, pHlp);
-        return pgmR3DumpHierarchyHCPaePDPT(pVM, cr3 & X86_CR3_PAE_PAGE_MASK, 0, cr4, false, cMaxDepth, pHlp);
-    }
-    return pgmR3DumpHierarchyHC32BitPD(pVM, cr3 & X86_CR3_PAGE_MASK, cr4, cMaxDepth, pHlp);
-}
-
 #ifdef VBOX_WITH_DEBUGGER
 
 /**
@@ -4102,13 +3616,14 @@ static DECLCALLBACK(int)  pgmR3CmdError(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM
 static DECLCALLBACK(int) pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
 {
     /** @todo SMP support */
-    PVMCPU pVCpu = &pVM->aCpus[0];
 
     /*
      * Validate input.
      */
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
+
+    PVMCPU pVCpu = &pVM->aCpus[0];
 
     /*
      * Force page directory sync.
@@ -4137,13 +3652,14 @@ static DECLCALLBACK(int) pgmR3CmdSync(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM p
 static DECLCALLBACK(int) pgmR3CmdAssertCR3(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs, PDBGCVAR pResult)
 {
     /** @todo SMP support!! */
-    PVMCPU pVCpu = &pVM->aCpus[0];
 
     /*
      * Validate input.
      */
     if (!pVM)
         return pCmdHlp->pfnPrintf(pCmdHlp, NULL, "error: The command requires a VM to be selected.\n");
+
+    PVMCPU pVCpu = &pVM->aCpus[0];
 
     int rc = pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Checking shadow CR3 page tables for consistency.\n");
     if (RT_FAILURE(rc))
@@ -4195,7 +3711,7 @@ static DECLCALLBACK(int) pgmR3CmdSyncAlways(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
 
 
 /**
- * The '.pgmsyncalways' command.
+ * The '.pgmphystofile' command.
  *
  * @returns VBox status.
  * @param   pCmd        Pointer to the command descriptor (as registered).
@@ -4471,7 +3987,7 @@ VMMR3DECL(int) PGMR3CheckIntegrity(PVM pVM)
      * Check the trees.
      */
     int cErrors = 0;
-    const static PGMCHECKINTARGS s_LeftToRight = { true, NULL, NULL, NULL, pVM };
+    const static PGMCHECKINTARGS s_LeftToRight = {  true, NULL, NULL, NULL, pVM };
     const static PGMCHECKINTARGS s_RightToLeft = { false, NULL, NULL, NULL, pVM };
     PGMCHECKINTARGS Args = s_LeftToRight;
     cErrors += RTAvlroGCPhysDoWithAll(&pVM->pgm.s.pTreesR3->PhysHandlers,       true,  pgmR3CheckIntegrityPhysHandlerNode, &Args);

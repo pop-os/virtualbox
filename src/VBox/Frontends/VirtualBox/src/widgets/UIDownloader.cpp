@@ -1,4 +1,4 @@
-/* $Id: UIDownloader.cpp $ */
+/* $Id: UIDownloader.cpp 30356 2010-06-22 08:42:22Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -22,7 +22,7 @@
 #include "QIHttp.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxSpecialControls.h"
+#include "UISpecialControls.h"
 
 /* Global includes */
 #include <QFile>
@@ -31,7 +31,7 @@
 UIMiniProcessWidget::UIMiniProcessWidget(QWidget *pParent /* = 0 */)
     : QWidget(pParent)
     , m_pProgressBar(new QProgressBar(this))
-    , m_pCancelButton(new VBoxMiniCancelButton(this))
+    , m_pCancelButton(new UIMiniCancelButton(this))
 {
     /* Progress Bar setup */
     m_pProgressBar->setFixedWidth(100);

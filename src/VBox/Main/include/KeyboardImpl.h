@@ -1,10 +1,10 @@
-/* $Id: KeyboardImpl.h $ */
+/* $Id: KeyboardImpl.h 33849 2010-11-08 14:36:38Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 
 #include "VirtualBoxBase.h"
 #include "ConsoleEvents.h"
+#include "EventImpl.h"
 
 #include <VBox/pdmdrv.h>
 
@@ -45,14 +46,11 @@ class Console;
 
 class ATL_NO_VTABLE Keyboard :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<Keyboard, IKeyboard>,
-    public VirtualBoxSupportTranslation<Keyboard>,
     VBOX_SCRIPTABLE_IMPL(IKeyboard)
 {
-
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (Keyboard)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Keyboard, IKeyboard)
 
     DECLARE_NOT_AGGREGATABLE(Keyboard)
 
@@ -64,22 +62,21 @@ public:
         COM_INTERFACE_ENTRY(IDispatch)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR (Keyboard)
+    DECLARE_EMPTY_CTOR_DTOR(Keyboard)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Console *aParent);
+    HRESULT init(Console *aParent);
     void uninit();
 
     STDMETHOD(PutScancode)(LONG scancode);
-    STDMETHOD(PutScancodes)(ComSafeArrayIn (LONG, scancodes),
+    STDMETHOD(PutScancodes)(ComSafeArrayIn(LONG, scancodes),
                             ULONG *codesStored);
     STDMETHOD(PutCAD)();
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Keyboard"; }
+    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
 
     static const PDMDRVREG  DrvReg;
 
@@ -102,6 +99,8 @@ private:
     PPDMDEVINS              mpVMMDev;
     /** Set after the first attempt to find the VMM Device. */
     bool                    mfVMMDevInited;
+
+    const ComObjPtr<EventSource> mEventSource;
 };
 
 #endif // !____H_KEYBOARDIMPL

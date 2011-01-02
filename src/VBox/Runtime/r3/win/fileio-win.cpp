@@ -1,4 +1,4 @@
-/* $Id: fileio-win.cpp $ */
+/* $Id: fileio-win.cpp 34579 2010-12-01 15:45:02Z vboxsync $ */
 /** @file
  * IPRT - File I/O, native implementation for the Windows host platform.
  */
@@ -340,6 +340,8 @@ RTR3DECL(int)  RTFileOpenBitBucket(PRTFILE phFile, uint32_t fAccess)
 
 RTR3DECL(int)  RTFileClose(RTFILE File)
 {
+    if (File == NIL_RTFILE)
+        return VINF_SUCCESS;
     if (CloseHandle((HANDLE)File))
         return VINF_SUCCESS;
     return RTErrConvertFromWin32(GetLastError());
@@ -474,7 +476,7 @@ RTR3DECL(int)  RTFileSetSize(RTFILE File, uint64_t cbSize)
          */
         if (MySetFilePointer(File, cbSize, NULL, FILE_BEGIN))
         {
-            /* file pointer setted */
+            /* set file pointer */
             if (SetEndOfFile((HANDLE)File))
             {
                 /*
@@ -487,7 +489,7 @@ RTR3DECL(int)  RTFileSetSize(RTFILE File, uint64_t cbSize)
             }
 
             /*
-             * Failed, try restore file pointer.
+             * Failed, try restoring the file pointer.
              */
             rc = GetLastError();
             MySetFilePointer(File, offCurrent, NULL, FILE_BEGIN);
@@ -679,9 +681,8 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE File, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD
      */
     switch (enmAdditionalAttribs)
     {
-        case RTFSOBJATTRADD_EASIZE:
-            pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_EASIZE;
-            pObjInfo->Attr.u.EASize.cb            = 0;
+        case RTFSOBJATTRADD_NOTHING:
+            pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_NOTHING;
             break;
 
         case RTFSOBJATTRADD_UNIX:
@@ -696,8 +697,21 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE File, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD
             pObjInfo->Attr.u.Unix.Device          = 0;
             break;
 
-        case RTFSOBJATTRADD_NOTHING:
-            pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_NOTHING;
+        case RTFSOBJATTRADD_UNIX_OWNER:
+            pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_UNIX_OWNER;
+            pObjInfo->Attr.u.UnixOwner.uid        = ~0U;
+            pObjInfo->Attr.u.UnixOwner.szName[0]  = '\0'; /** @todo return something sensible here. */
+            break;
+
+        case RTFSOBJATTRADD_UNIX_GROUP:
+            pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_UNIX_GROUP;
+            pObjInfo->Attr.u.UnixGroup.gid        = ~0U;
+            pObjInfo->Attr.u.UnixGroup.szName[0]  = '\0';
+            break;
+
+        case RTFSOBJATTRADD_EASIZE:
+            pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_EASIZE;
+            pObjInfo->Attr.u.EASize.cb            = 0;
             break;
 
         default:

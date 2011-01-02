@@ -217,7 +217,6 @@ class PlatformMSCOM:
             DispatchBaseClass.__dict__['__setattr__'] = CustomSetAttr
             win32com.client.gencache.EnsureDispatch('VirtualBox.Session')
             win32com.client.gencache.EnsureDispatch('VirtualBox.VirtualBox')
-            win32com.client.gencache.EnsureDispatch('VirtualBox.CallbackWrapper')
             self.oIntCv = threading.Condition()
             self.fInterrupted = False;
 
@@ -248,7 +247,7 @@ class PlatformMSCOM:
         import pythoncom
         pythoncom.CoUninitialize()
 
-    def createCallback(self, iface, impl, arg):
+    def createListener(self, impl, arg):
         d = {}
         d['BaseClass'] = impl
         d['arg'] = arg
@@ -257,23 +256,18 @@ class PlatformMSCOM:
         str += "import win32com.server.util\n"
         str += "import pythoncom\n"
 
-        str += "class "+iface+"Impl(BaseClass):\n"
-        str += "   _com_interfaces_ = ['"+iface+"']\n"
+        str += "class ListenerImpl(BaseClass):\n"
+        str += "   _com_interfaces_ = ['IEventListener']\n"
         str += "   _typelib_guid_ = tlb_guid\n"
         str += "   _typelib_version_ = 1, 0\n"
         str += "   _reg_clsctx_ = pythoncom.CLSCTX_INPROC_SERVER\n"
         # Maybe we'd better implement Dynamic invoke policy, to be more flexible here
         str += "   _reg_policy_spec_ = 'win32com.server.policy.EventHandlerPolicy'\n"
 
-        # generate capitalized version of callback methods -
-        # that's how Python COM looks them up
-        for m in dir(impl):
-           if m.startswith("on"):
-             str += "   "+ComifyName(m)+"=BaseClass."+m+"\n"
-
+        # capitalized version of listener method
+        str += "   HandleEvent=BaseClass.handleEvent\n"
         str += "   def __init__(self): BaseClass.__init__(self, arg)\n"
-        str += "result = win32com.client.Dispatch('VirtualBox.CallbackWrapper')\n"
-        str += "result.SetLocalObject(win32com.server.util.wrap("+iface+"Impl()))\n"
+        str += "result = win32com.server.util.wrap(ListenerImpl())\n"
         exec (str,d,d)
         return d['result']
 
@@ -345,6 +339,9 @@ class PlatformMSCOM:
         pythoncom.CoUninitialize()
         pass
 
+    def queryInterface(self, obj, klazzName):
+        from win32com.client import CastTo
+        return CastTo(obj, klazzName)
 
 class PlatformXPCOM:
     def __init__(self, params):
@@ -378,17 +375,16 @@ class PlatformXPCOM:
         import xpcom
         xpcom._xpcom.DetachThread()
 
-    def createCallback(self, iface, impl, arg):
+    def createListener(self, impl, arg):
         d = {}
         d['BaseClass'] = impl
         d['arg'] = arg
         str = ""
         str += "import xpcom.components\n"
-        str += "class "+iface+"Impl(BaseClass):\n"
-        str += "   _com_interfaces_ = xpcom.components.interfaces."+iface+"\n"
+        str += "class ListenerImpl(BaseClass):\n"
+        str += "   _com_interfaces_ = xpcom.components.interfaces.IEventListener\n"
         str += "   def __init__(self): BaseClass.__init__(self, arg)\n"
-        str += "result = xpcom.components.classes['@virtualbox.org/CallbackWrapper;1'].createInstance()\n"
-        str += "result.setLocalObject("+iface+"Impl())\n"
+        str += "result = ListenerImpl()\n"
         exec (str,d,d)
         return d['result']
 
@@ -404,11 +400,14 @@ class PlatformXPCOM:
         import xpcom
         xpcom._xpcom.DeinitCOM()
 
+    def queryInterface(self, obj, klazzName):
+        import xpcom.components
+        return obj.queryInterface(getattr(xpcom.components.interfaces, klazzName))
+
 class PlatformWEBSERVICE:
     def __init__(self, params):
         sys.path.append(os.path.join(VboxSdkDir,'bindings', 'webservice', 'python', 'lib'))
-        # not really needed, but just fail early if misconfigured
-        import VirtualBox_services
+        #import VirtualBox_services
         import VirtualBox_wrappers
         from VirtualBox_wrappers import IWebsessionManager2
 
@@ -468,8 +467,8 @@ class PlatformWEBSERVICE:
     def deinitPerThread(self):
         pass
 
-    def createCallback(self, iface, impl, arg):
-        raise Exception("no callbacks for webservices")
+    def createListener(self, impl, arg):
+        raise Exception("no active listeners for webservices")
 
     def waitForEvents(self, timeout):
         # Webservices cannot do that yet
@@ -484,6 +483,16 @@ class PlatformWEBSERVICE:
            disconnect()
         except:
            pass
+
+    def queryInterface(self, obj, klazzName):
+        d = {}
+        d['obj'] = obj
+        str = ""
+        str += "from VirtualBox_wrappers import "+klazzName+"\n"
+        str += "result = "+klazzName+"(obj.mgr,obj.handle)\n"
+        # wrong, need to test if class indeed implements this interface
+        exec (str,d,d)
+        return d['result']
 
 class SessionManager:
     def __init__(self, mgr):
@@ -543,23 +552,24 @@ class VirtualBoxManager:
     def initPerThread(self):
         self.platform.initPerThread()
 
-    def openMachineSession(self, machineId):
+    def openMachineSession(self, mach, permitSharing = True):
          session = self.mgr.getSessionObject(self.vbox)
-         try:
-             self.vbox.openExistingSession(session, machineId)
-         except:
-             self.vbox.openSession(session, machineId)
+         if permitSharing:
+             type = self.constants.LockType_Shared
+         else:
+             type = self.constants.LockType_Write
+         mach.lockMachine(session, type)
          return session
 
     def closeMachineSession(self, session):
         if session is not None:
-            session.close()
+            session.unlockMachine()
 
     def deinitPerThread(self):
         self.platform.deinitPerThread()
 
-    def createCallback(self, iface, impl, arg):
-        return self.platform.createCallback(iface, impl, arg)
+    def createListener(self, impl, arg = None):
+        return self.platform.createListener(impl, arg)
 
     def waitForEvents(self, timeout):
         """
@@ -596,3 +606,6 @@ class VirtualBoxManager:
     def getSdkDir(self):
         global VboxSdkDir
         return VboxSdkDir
+
+    def queryInterface(self, obj, klazzName):
+        return self.platform.queryInterface(obj, klazzName)

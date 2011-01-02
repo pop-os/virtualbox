@@ -1,4 +1,4 @@
-/* $Id: PGMShw.h $ */
+/* $Id: PGMShw.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow Paging Template.
  */
@@ -78,10 +78,10 @@
 # define SHW_POOL_ROOT_IDX      PGMPOOL_IDX_NESTED_ROOT      /* do not use! exception is real mode & protected mode without paging. */
 
 #else
-# define SHWPT                  X86PTPAE
-# define PSHWPT                 PX86PTPAE
-# define SHWPTE                 X86PTEPAE
-# define PSHWPTE                PX86PTEPAE
+# define SHWPT                  PGMSHWPTPAE
+# define PSHWPT                 PPGMSHWPTPAE
+# define SHWPTE                 PGMSHWPTEPAE
+# define PSHWPTE                PPGMSHWPTEPAE
 # define SHWPD                  X86PDPAE
 # define PSHWPD                 PX86PDPAE
 # define SHWPDE                 X86PDEPAE
@@ -187,12 +187,14 @@ PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
     PVM          pVM       = pVCpu->pVMR3;
     PPGMPOOL     pPool     = pVM->pgm.s.CTX_SUFF(pPool);
 
-    Assert(HWACCMIsNestedPagingActive(pVM));
+    Assert(HWACCMIsNestedPagingActive(pVM) == pVM->pgm.s.fNestedPaging);
+    Assert(pVM->pgm.s.fNestedPaging);
     Assert(!pVCpu->pgm.s.pShwPageCR3R3);
 
     pgmLock(pVM);
 
-    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOL_IDX_NESTED_ROOT, GCPhysCR3 >> PAGE_SHIFT, &pNewShwPageCR3, true /* lock page */);
+    int rc = pgmPoolAllocEx(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOLACCESS_DONTCARE, PGMPOOL_IDX_NESTED_ROOT,
+                            GCPhysCR3 >> PAGE_SHIFT, true /*fLockPage*/, &pNewShwPageCR3);
     AssertFatalRC(rc);
 
     pVCpu->pgm.s.iShwUser      = PGMPOOL_IDX_NESTED_ROOT;
@@ -215,7 +217,7 @@ PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
  *
  * @returns VBox status code.
  * @param   pVCpu       The VMCPU to operate on.
- * @param   offDelta    The reloation offset.
+ * @param   offDelta    The relocation offset.
  */
 PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
 {

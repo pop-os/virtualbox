@@ -41,6 +41,13 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
+/**
+ * Host max path (the reasonable value).
+ * @remarks defined both by iprt/param.h and iprt/path.h.
+ */
+#if !defined(___iprt_param_h) || defined(DOXYGEN_RUNNING)
+# define RTPATH_MAX         (4096 + 4)    /* (PATH_MAX + 1) on linux w/ some alignment */
+#endif
 
 /** @def RTPATH_SLASH
  * The preferred slash character.
@@ -123,7 +130,7 @@ RT_C_DECLS_BEGIN
 
 
 /** Validates a flags parameter containing RTPATH_F_*.
- * @remarks The parameters will be referneced multiple times. */
+ * @remarks The parameters will be referenced multiple times. */
 #define RTPATH_F_IS_VALID(fFlags, fIgnore) \
     (    ((fFlags) & ~(uint32_t)(fIgnore)) == RTPATH_F_ON_LINK \
       || ((fFlags) & ~(uint32_t)(fIgnore)) == RTPATH_F_FOLLOW_LINK )
@@ -259,7 +266,7 @@ RTDECL(void) RTPathStripExt(char *pszPath);
 RTDECL(size_t) RTPathStripTrailingSlash(char *pszPath);
 
 /**
- * Changes all the slahes in the specified path to DOS style.
+ * Changes all the slashes in the specified path to DOS style.
  *
  * Unless @a fForce is set, nothing will be done when on a UNIX flavored system
  * since paths wont work with DOS style slashes there.
@@ -271,7 +278,7 @@ RTDECL(size_t) RTPathStripTrailingSlash(char *pszPath);
 RTDECL(char *) RTPathChangeToDosSlashes(char *pszPath, bool fForce);
 
 /**
- * Changes all the slahes in the specified path to unix style.
+ * Changes all the slashes in the specified path to unix style.
  *
  * Unless @a fForce is set, nothing will be done when on a UNIX flavored system
  * since paths wont work with DOS style slashes there.
@@ -339,6 +346,15 @@ RTDECL(bool) RTPathHaveExt(const char *pszPath);
 RTDECL(bool) RTPathHavePath(const char *pszPath);
 
 /**
+ * Checks if the path starts with a root specifier or not.
+ *
+ * @returns @c true if it starts with root, @c false if not.
+ *
+ * @param   pszPath     Path to check.
+ */
+RTDECL(bool) RTPathStartsWithRoot(const char *pszPath);
+
+/**
  * Counts the components in the specified path.
  *
  * An empty string has zero components.  A lone root slash is considered have
@@ -385,9 +401,9 @@ RTDECL(int) RTPathCopyComponents(char *pszDst, size_t cbDst, const char *pszSrc,
  * @param   pszPath2    Path to compare (must be an absolute path).
  *
  * @remarks File system details are currently ignored. This means that you won't
- *          get case-insentive compares on unix systems when a path goes into a
+ *          get case-insensitive compares on unix systems when a path goes into a
  *          case-insensitive filesystem like FAT, HPFS, HFS, NTFS, JFS, or
- *          similar. For NT, OS/2 and similar you'll won't get case-sensitve
+ *          similar. For NT, OS/2 and similar you'll won't get case-sensitive
  *          compares on a case-sensitive file system.
  */
 RTDECL(int) RTPathCompare(const char *pszPath1, const char *pszPath2);
@@ -410,7 +426,7 @@ RTDECL(int) RTPathCompare(const char *pszPath1, const char *pszPath2);
  *                          No trailing directory slash!
  *
  * @remarks This API doesn't currently handle root directory compares in a
- *          manner consistant with the other APIs. RTPathStartsWith(pszSomePath,
+ *          manner consistent with the other APIs. RTPathStartsWith(pszSomePath,
  *          "/") will not work if pszSomePath isn't "/".
  */
 RTDECL(bool) RTPathStartsWith(const char *pszPath, const char *pszParentPath);
@@ -435,6 +451,32 @@ RTDECL(bool) RTPathStartsWith(const char *pszPath, const char *pszParentPath);
  * @param   pszAppend       The partial path to append to pszPath. This can be
  *                          NULL, in which case nothing is done.
  *
+ * @remarks See the RTPathAppendEx remarks.
+ */
+RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend);
+
+/**
+ * Appends one partial path to another.
+ *
+ * The main purpose of this function is to deal correctly with the slashes when
+ * concatenating the two partial paths.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the result is too big to fit within
+ *          cbPathDst bytes. No changes has been made.
+ * @retval  VERR_INVALID_PARAMETER if the string pointed to by pszPath is longer
+ *          than cbPathDst-1 bytes (failed to find terminator). Asserted.
+ *
+ * @param   pszPath         The path to append pszAppend to. This serves as both
+ *                          input and output. This can be empty, in which case
+ *                          pszAppend is just copied over.
+ * @param   cbPathDst       The size of the buffer pszPath points to, terminator
+ *                          included. This should NOT be strlen(pszPath).
+ * @param   pszAppend       The partial path to append to pszPath. This can be
+ *                          NULL, in which case nothing is done.
+ * @param   cchAppendMax    The maximum number or characters to take from @a
+ *                          pszAppend.  RTSTR_MAX is fine.
+ *
  * @remarks On OS/2, Window and similar systems, concatenating a drive letter
  *          specifier with a slash prefixed path will result in an absolute
  *          path. Meaning, RTPathAppend(strcpy(szBuf, "C:"), sizeof(szBuf),
@@ -446,7 +488,7 @@ RTDECL(bool) RTPathStartsWith(const char *pszPath, const char *pszParentPath);
  *          absolute path. Meaning, RTPathAppend(strcpy(szBuf, "C:"),
  *          sizeof(szBuf), "bar") will result in "C:bar".
  */
-RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend);
+RTDECL(int) RTPathAppendEx(char *pszPath, size_t cbPathDst, const char *pszAppend, size_t cchAppendMax);
 
 /**
  * Like RTPathAppend, but with the base path as a separate argument instead of
@@ -469,6 +511,45 @@ RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend)
  */
 RTDECL(int) RTPathJoin(char *pszPathDst, size_t cbPathDst, const char *pszPathSrc,
                        const char *pszAppend);
+
+/**
+ * Same as RTPathJoin, except that the output buffer is allocated.
+ *
+ * @returns Buffer containing the joined up path, call RTStrFree to free.  NULL
+ *          on allocation failure.
+ * @param   pszPathSrc      The base path to copy into @a pszPathDst before
+ *                          appending @a pszAppend.
+ * @param   pszAppend       The partial path to append to pszPathSrc. This can
+ *                          be NULL, in which case nothing is done.
+ *
+ */
+RTDECL(char *) RTPathJoinA(const char *pszPathSrc, const char *pszAppend);
+
+/**
+ * Extended version of RTPathJoin, both inputs can be specified as substrings.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the result is too big to fit within
+ *          cbPathDst bytes.
+ * @retval  VERR_INVALID_PARAMETER if the string pointed to by pszPath is longer
+ *          than cbPathDst-1 bytes (failed to find terminator). Asserted.
+ *
+ * @param   pszPathDst      Where to store the resulting path.
+ * @param   cbPathDst       The size of the buffer pszPathDst points to,
+ *                          terminator included.
+ * @param   pszPathSrc      The base path to copy into @a pszPathDst before
+ *                          appending @a pszAppend.
+ * @param   cchPathSrcMax   The maximum number of bytes to copy from @a
+ *                          pszPathSrc.  RTSTR_MAX is find.
+ * @param   pszAppend       The partial path to append to pszPathSrc. This can
+ *                          be NULL, in which case nothing is done.
+ * @param   cchAppendMax    The maximum number of bytes to copy from @a
+ *                          pszAppend.  RTSTR_MAX is find.
+ *
+ */
+RTDECL(int) RTPathJoinEx(char *pszPathDst, size_t cbPathDst,
+                         const char *pszPathSrc, size_t cchPathSrcMax,
+                         const char *pszAppend, size_t cchAppendMax);
 
 /**
  * Callback for RTPathTraverseList that's called for each element.
@@ -529,9 +610,10 @@ RTDECL(int) RTPathUserHome(char *pszPath, size_t cchPath);
  * Gets the directory of shared libraries.
  *
  * This is not the same as RTPathAppPrivateArch() as Linux depends all shared
- * libraries in a common global directory where ld.so can found them.
+ * libraries in a common global directory where ld.so can find them.
  *
  * Linux:    /usr/lib
+ * Solaris:  /opt/@<application@>/@<arch>@ or something
  * Windows:  @<program files directory@>/@<application@>
  * Old path: same as RTPathExecDir()
  *
@@ -546,6 +628,7 @@ RTDECL(int) RTPathSharedLibs(char *pszPath, size_t cchPath);
  * example NLS files, module sources, ...
  *
  * Linux:    /usr/shared/@<application@>
+ * Solaris:  /opt/@<application@>
  * Windows:  @<program files directory@>/@<application@>
  * Old path: same as RTPathExecDir()
  *
@@ -560,6 +643,7 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath);
  * example modules which can be loaded at runtime.
  *
  * Linux:    /usr/lib/@<application@>
+ * Solaris:  /opt/@<application@>/@<arch>@ or something
  * Windows:  @<program files directory@>/@<application@>
  * Old path: same as RTPathExecDir()
  *
@@ -570,9 +654,28 @@ RTDECL(int) RTPathAppPrivateNoArch(char *pszPath, size_t cchPath);
 RTDECL(int) RTPathAppPrivateArch(char *pszPath, size_t cchPath);
 
 /**
+ * Gets the toplevel directory for architecture-dependent application data.
+ *
+ * This differs from RTPathAppPrivateArch on Solaris only where it will work
+ * around the /opt/@<application@>/amd64 and /opt/@<application@>/i386 multi
+ * architecture installation style.
+ *
+ * Linux:    /usr/lib/@<application@>
+ * Solaris:  /opt/@<application@>
+ * Windows:  @<program files directory@>/@<application@>
+ * Old path: same as RTPathExecDir()
+ *
+ * @returns iprt status code.
+ * @param   pszPath     Buffer where to store the path.
+ * @param   cchPath     Buffer size in bytes.
+ */
+RTDECL(int) RTPathAppPrivateArchTop(char *pszPath, size_t cchPath);
+
+/**
  * Gets the directory for documentation.
  *
  * Linux:    /usr/share/doc/@<application@>
+ * Solaris:  /opt/@<application@>
  * Windows:  @<program files directory@>/@<application@>
  * Old path: same as RTPathExecDir()
  *
@@ -605,7 +708,8 @@ RTDECL(int) RTPathTemp(char *pszPath, size_t cchPath);
  *          parent directory exists).
  *
  * @param   pszPath     Path to the file system object.
- * @param   pObjInfo    Object information structure to be filled on successful return.
+ * @param   pObjInfo    Object information structure to be filled on successful
+ *                      return.
  * @param   enmAdditionalAttribs
  *                      Which set of additional attributes to request.
  *                      Use RTFSOBJATTRADD_NOTHING if this doesn't matter.
@@ -653,8 +757,8 @@ RTR3DECL(int) RTPathSetMode(const char *pszPath, RTFMODE fMode);
  * @param   pszPath     Path to the file system object.
  * @param   pfMode      Where to store the file mode, see @ref grp_rt_fs for details.
  *
- * @remark  This is wrapper around RTPathReal() + RTPathQueryInfo()
- *          and exists to complement RTPathSetMode().
+ * @remark  This is wrapper around RTPathQueryInfoEx(RTPATH_F_FOLLOW_LINK) and
+ *          exists to complement RTPathSetMode().
  */
 RTR3DECL(int) RTPathGetMode(const char *pszPath, PRTFMODE pfMode);
 
@@ -735,8 +839,10 @@ RTR3DECL(int) RTPathGetTimes(const char *pszPath, PRTTIMESPEC pAccessTime, PRTTI
  *
  * @returns iprt status code.
  * @param   pszPath     Path to the file system object.
- * @param   uid         The new file owner user id. Use -1 (or ~0) to leave this unchanged.
- * @param   gid         The new group id. Use -1 (or ~0) to leave this unchanged.
+ * @param   uid         The new file owner user id.  Pass NIL_RTUID to leave
+ *                      this unchanged.
+ * @param   gid         The new group id.  Pass NIL_RTGUID to leave this
+ *                      unchanged.
  */
 RTR3DECL(int) RTPathSetOwner(const char *pszPath, uint32_t uid, uint32_t gid);
 
@@ -745,8 +851,10 @@ RTR3DECL(int) RTPathSetOwner(const char *pszPath, uint32_t uid, uint32_t gid);
  *
  * @returns iprt status code.
  * @param   pszPath     Path to the file system object.
- * @param   uid         The new file owner user id. Use -1 (or ~0) to leave this unchanged.
- * @param   gid         The new group id. Use -1 (or ~0) to leave this unchanged.
+ * @param   uid         The new file owner user id.  Pass NIL_RTUID to leave
+ *                      this unchanged.
+ * @param   gid         The new group id.  Pass NIL_RTGID to leave this
+ *                      unchanged.
  * @param   fFlags      RTPATH_F_ON_LINK or RTPATH_F_FOLLOW_LINK.
  */
 RTR3DECL(int) RTPathSetOwnerEx(const char *pszPath, uint32_t uid, uint32_t gid, uint32_t fFlags);
@@ -768,6 +876,8 @@ RTR3DECL(int) RTPathGetOwner(const char *pszPath, uint32_t *pUid, uint32_t *pGid
 
 /** @name RTPathRename, RTDirRename & RTFileRename flags.
  * @{ */
+/** Do not replace anything. */
+#define RTPATHRENAME_FLAGS_NO_REPLACE   UINT32_C(0)
 /** This will replace attempt any target which isn't a directory. */
 #define RTPATHRENAME_FLAGS_REPLACE      RT_BIT(0)
 /** @} */

@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.cpp $ */
+/* $Id: NetworkAdapterImpl.cpp 33825 2010-11-08 10:16:25Z vboxsync $ */
 /** @file
  * Implementation of INetworkAdaptor in VBoxSVC.
  */
@@ -74,7 +74,7 @@ HRESULT NetworkAdapter::init(Machine *aParent, ULONG aSlot)
 
     unconst(mParent) = aParent;
     unconst(mNATEngine).createObject();
-    mNATEngine->init(aParent);
+    mNATEngine->init(aParent, this);
     /* mPeer is left null */
 
     m_fModified = false;
@@ -83,6 +83,9 @@ HRESULT NetworkAdapter::init(Machine *aParent, ULONG aSlot)
 
     /* initialize data */
     mData->mSlot = aSlot;
+
+    /* Default limit is not capped/unlimited. */
+    mData->mBandwidthLimit = 0;
 
     /* default to Am79C973 */
     mData->mAdapterType = NetworkAdapterType_Am79C973;
@@ -121,7 +124,7 @@ HRESULT NetworkAdapter::init(Machine *aParent, NetworkAdapter *aThat)
     unconst(mParent) = aParent;
     unconst(mPeer) = aThat;
     unconst(mNATEngine).createObject();
-    mNATEngine->init(aParent, aThat->mNATEngine);
+    mNATEngine->init(aParent, this, aThat->mNATEngine);
 
     AutoCaller thatCaller (aThat);
     AssertComRCReturnRC(thatCaller.rc());
@@ -156,7 +159,7 @@ HRESULT NetworkAdapter::initCopy(Machine *aParent, NetworkAdapter *aThat)
     /* mPeer is left null */
 
     unconst(mNATEngine).createObject();
-    mNATEngine->initCopy(aParent, aThat->mNATEngine);
+    mNATEngine->initCopy(aParent, this, aThat->mNATEngine);
 
     AutoCaller thatCaller (aThat);
     AssertComRCReturnRC(thatCaller.rc());
@@ -466,7 +469,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(HostInterface)(IN_BSTR aHostInterface)
 {
     Bstr bstrEmpty("");
     if (!aHostInterface)
-        aHostInterface = bstrEmpty;
+        aHostInterface = bstrEmpty.raw();
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -491,7 +494,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(HostInterface)(IN_BSTR aHostInterface)
         mlock.release();
 
         /* When changing the host adapter, adapt the CFGM logic to make this
-         * change immediately effect and to notifiy the guest that the network
+         * change immediately effect and to notify the guest that the network
          * might have changed, therefore changeAdapter=TRUE. */
         mParent->onNetworkAdapterChange(this, TRUE);
     }
@@ -547,7 +550,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(InternalNetwork) (IN_BSTR aInternalNetwor
         mlock.release();
 
         /* When changing the internal network, adapt the CFGM logic to make this
-         * change immediately effect and to notifiy the guest that the network
+         * change immediately effect and to notify the guest that the network
          * might have changed, therefore changeAdapter=TRUE. */
         mParent->onNetworkAdapterChange(this, TRUE);
     }
@@ -573,7 +576,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(NATNetwork) (IN_BSTR aNATNetwork)
 {
     Bstr bstrEmpty("");
     if (!aNATNetwork)
-        aNATNetwork = bstrEmpty;
+        aNATNetwork = bstrEmpty.raw();
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -629,7 +632,7 @@ STDMETHODIMP NetworkAdapter::COMSETTER(VDENetwork) (IN_BSTR aVDENetwork)
 #if defined(VBOX_WITH_VDE)
     Bstr bstrEmpty("");
     if (!aVDENetwork)
-        aVDENetwork = bstrEmpty;
+        aVDENetwork = bstrEmpty.raw();
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -745,6 +748,47 @@ STDMETHODIMP NetworkAdapter::COMSETTER(LineSpeed) (ULONG aSpeed)
         mParent->onNetworkAdapterChange(this, FALSE);
     }
 
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::COMGETTER(BandwidthLimit) (ULONG *aLimit)
+{
+    CheckComArgOutPointerValid(aLimit);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aLimit = mData->mBandwidthLimit;
+    return S_OK;
+}
+
+STDMETHODIMP NetworkAdapter::COMSETTER(BandwidthLimit) (ULONG aLimit)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* the machine doesn't need to be mutable */
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (aLimit != mData->mBandwidthLimit)
+    {
+        mData.backup();
+        mData->mBandwidthLimit = aLimit;
+
+        m_fModified = true;
+        // leave the lock before informing callbacks
+        alock.release();
+
+        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);       // mParent is const, no need to lock
+        mParent->setModified(Machine::IsModified_NetworkAdapters);
+        mlock.release();
+
+        /* No change in CFGM logic => changeAdapter=FALSE. */
+        mParent->onNetworkAdapterChange(this, FALSE);
+    }
     return S_OK;
 }
 
@@ -934,7 +978,7 @@ STDMETHODIMP NetworkAdapter::AttachToNAT()
         {
             /* If changing the attachment failed then we can't assume
              * that the previous attachment will attach correctly
-             * and thus return error along with dettaching all
+             * and thus return error along with detaching all
              * attachments.
              */
             Detach();
@@ -982,7 +1026,7 @@ STDMETHODIMP NetworkAdapter::AttachToBridgedInterface()
         {
             /* If changing the attachment failed then we can't assume that the
              * previous attachment will attach correctly and thus return error
-             * along with dettaching all attachments.
+             * along with detaching all attachments.
              */
             Detach();
             return rc;
@@ -1037,7 +1081,7 @@ STDMETHODIMP NetworkAdapter::AttachToInternalNetwork()
         {
             /* If changing the attachment failed then we can't assume
              * that the previous attachment will attach correctly
-             * and thus return error along with dettaching all
+             * and thus return error along with detaching all
              * attachments.
              */
             Detach();
@@ -1085,7 +1129,7 @@ STDMETHODIMP NetworkAdapter::AttachToHostOnlyInterface()
         {
             /* If changing the attachment failed then we can't assume
              * that the previous attachment will attach correctly
-             * and thus return error along with dettaching all
+             * and thus return error along with detaching all
              * attachments.
              */
             Detach();
@@ -1128,7 +1172,7 @@ STDMETHODIMP NetworkAdapter::AttachToVDE()
         {
             /* If changing the attachment failed then we can't assume
              * that the previous attachment will attach correctly
-             * and thus return error along with dettaching all
+             * and thus return error along with detaching all
              * attachments.
              */
             Detach();
@@ -1206,7 +1250,7 @@ HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
     mData->mAdapterType = data.type;
     mData->mEnabled = data.fEnabled;
     /* MAC address (can be null) */
-    rc = COMSETTER(MACAddress)(Bstr(data.strMACAddress));
+    rc = COMSETTER(MACAddress)(Bstr(data.strMACAddress).raw());
     if (FAILED(rc)) return rc;
     /* cable (required) */
     mData->mCableConnected = data.fCableConnected;
@@ -1217,6 +1261,8 @@ HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
     mData->mTraceFile = data.strTraceFile;
     /* boot priority (defaults to 0, i.e. lowest) */
     mData->mBootPriority = data.ulBootPriority;
+    /* Bandwidth limit in Mbps. */
+    mData->mBandwidthLimit = data.ulBandwidthLimit;
 
     switch (data.mode)
     {
@@ -1227,7 +1273,7 @@ HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
         break;
 
         case NetworkAttachmentType_Bridged:
-            rc = COMSETTER(HostInterface)(Bstr(data.strName));
+            rc = COMSETTER(HostInterface)(Bstr(data.strName).raw());
             if (FAILED(rc)) return rc;
             rc = AttachToBridgedInterface();
             if (FAILED(rc)) return rc;
@@ -1243,7 +1289,7 @@ HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
 
         case NetworkAttachmentType_HostOnly:
 #if defined(VBOX_WITH_NETFLT)
-            rc = COMSETTER(HostInterface)(Bstr(data.strName));
+            rc = COMSETTER(HostInterface)(Bstr(data.strName).raw());
             if (FAILED(rc)) return rc;
 #endif
             rc = AttachToHostOnlyInterface();
@@ -1275,7 +1321,7 @@ HRESULT NetworkAdapter::loadSettings(const settings::NetworkAdapter &data)
 /**
  *  Saves settings to the given adapter node.
  *
- *  Note that the given Adapter node is comletely empty on input.
+ *  Note that the given Adapter node is completely empty on input.
  *
  *  @param aAdapterNode <Adapter> node.
  *
@@ -1299,6 +1345,8 @@ HRESULT NetworkAdapter::saveSettings(settings::NetworkAdapter &data)
     data.strTraceFile = mData->mTraceFile;
 
     data.ulBootPriority = mData->mBootPriority;
+
+    data.ulBandwidthLimit = mData->mBandwidthLimit;
 
     data.type = mData->mAdapterType;
 
@@ -1525,7 +1573,7 @@ void NetworkAdapter::generateMACAddress()
     Guid guid;
     guid.create();
     RTStrPrintf (strMAC, sizeof(strMAC), "080027%02X%02X%02X",
-                 guid.ptr()->au8[0], guid.ptr()->au8[1], guid.ptr()->au8[2]);
+                 guid.raw()->au8[0], guid.raw()->au8[1], guid.raw()->au8[2]);
     LogFlowThisFunc(("generated MAC: '%s'\n", strMAC));
     mData->mMACAddress = strMAC;
 }

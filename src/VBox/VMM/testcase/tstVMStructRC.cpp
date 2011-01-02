@@ -1,4 +1,4 @@
-/* $Id: tstVMStructRC.cpp $ */
+/* $Id: tstVMStructRC.cpp 34163 2010-11-18 12:16:43Z vboxsync $ */
 /** @file
  * tstVMMStructRC - Generate structure member and size checks from the
  *                  RC perspective.
@@ -460,7 +460,7 @@ int main()
     GEN_CHECK_OFF(PGMCPU, offVM);
     GEN_CHECK_OFF(PGMCPU, offVCpu);
     GEN_CHECK_OFF(PGMCPU, offPGM);
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE) || defined(VBOX_WITH_RAW_MODE)
     GEN_CHECK_OFF(PGMCPU, AutoSet);
 #endif
     GEN_CHECK_OFF(PGMCPU, GCPhysA20Mask);
@@ -509,23 +509,27 @@ int main()
     GEN_CHECK_OFF(PGMCPU, pfnR3BthRelocate);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthSyncCR3);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthInvalidatePage);
-    GEN_CHECK_OFF(PGMCPU, pfnR3BthSyncPage);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthPrefetchPage);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthVerifyAccessSyncPage);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthAssertCR3);
     GEN_CHECK_OFF(PGMCPU, pfnRCBthTrap0eHandler);
     GEN_CHECK_OFF(PGMCPU, pfnRCBthInvalidatePage);
-    GEN_CHECK_OFF(PGMCPU, pfnRCBthSyncPage);
     GEN_CHECK_OFF(PGMCPU, pfnRCBthPrefetchPage);
     GEN_CHECK_OFF(PGMCPU, pfnRCBthVerifyAccessSyncPage);
     GEN_CHECK_OFF(PGMCPU, pfnRCBthAssertCR3);
+    GEN_CHECK_OFF(PGMCPU, pfnR0BthTrap0eHandler);
+    GEN_CHECK_OFF(PGMCPU, pfnR0BthInvalidatePage);
+    GEN_CHECK_OFF(PGMCPU, pfnR0BthPrefetchPage);
+    GEN_CHECK_OFF(PGMCPU, pfnR0BthVerifyAccessSyncPage);
+    GEN_CHECK_OFF(PGMCPU, pfnR0BthAssertCR3);
     GEN_CHECK_OFF(PGMCPU, DisState);
     GEN_CHECK_OFF(PGMCPU, cGuestModeChanges);
 #ifdef VBOX_WITH_STATISTICS
+    GEN_CHECK_OFF(PGMCPU, pStatsR0);
     GEN_CHECK_OFF(PGMCPU, pStatTrap0eAttributionR0);
+    GEN_CHECK_OFF(PGMCPU, pStatsRC);
     GEN_CHECK_OFF(PGMCPU, pStatTrap0eAttributionRC);
-    GEN_CHECK_OFF(PGMCPU, StatSyncPtPD);
-    GEN_CHECK_OFF(PGMCPU, StatR3Prefetch);
+    GEN_CHECK_OFF(PGMCPU, pStatsR3);
 #endif
     GEN_CHECK_OFF(PGM, offVM);
     GEN_CHECK_OFF(PGM, offVCpuPGM);
@@ -563,15 +567,12 @@ int main()
     GEN_CHECK_OFF(PGM, HCPhysInterPaePDPT);
     GEN_CHECK_OFF(PGM, HCPhysInterPaePML4);
     GEN_CHECK_OFF(PGM, pbDynPageMapBaseGC);
-    GEN_CHECK_OFF(PGM, iDynPageMapLast);
-    GEN_CHECK_OFF(PGM, aHCPhysDynPageMapCache);
+    GEN_CHECK_OFF(PGM, pRCDynMap);
     GEN_CHECK_OFF(PGM, pvR0DynMapUsed);
     GEN_CHECK_OFF(PGM, GCPhys4MBPSEMask);
     GEN_CHECK_OFF(PGMCPU, GCPhysA20Mask);
     GEN_CHECK_OFF(PGMCPU, fA20Enabled);
     GEN_CHECK_OFF(PGMCPU, fSyncFlags);
-    GEN_CHECK_OFF(PGM, aHCPhysDynPageMapCache);
-    GEN_CHECK_OFF(PGM, aLockedDynPageMapCache);
     GEN_CHECK_OFF(PGM, CritSect);
     GEN_CHECK_OFF(PGM, pPoolR3);
     GEN_CHECK_OFF(PGM, pPoolR0);
@@ -611,6 +612,11 @@ int main()
     GEN_CHECK_OFF(PGM, cWriteLockedPages);
     GEN_CHECK_OFF(PGM, cReadLockedPages);
     GEN_CHECK_OFF(PGM, cRelocations);
+#ifdef VBOX_WITH_STATISTICS
+    GEN_CHECK_OFF(PGMCPU, pStatsR0);
+    GEN_CHECK_OFF(PGMCPU, pStatsRC);
+    GEN_CHECK_OFF(PGMCPU, pStatsR3);
+#endif
 
     GEN_CHECK_SIZE(PGMMAPPING);
     GEN_CHECK_OFF(PGMMAPPING, pNextR3);
@@ -637,6 +643,8 @@ int main()
     GEN_CHECK_SIZE(((PPGMPHYSHANDLER)0)->Core);
     GEN_CHECK_OFF(PGMPHYSHANDLER, enmType);
     GEN_CHECK_OFF(PGMPHYSHANDLER, cPages);
+    GEN_CHECK_OFF(PGMPHYSHANDLER, cAliasedPages);
+    GEN_CHECK_OFF(PGMPHYSHANDLER, cTmpOffPages);
     GEN_CHECK_OFF(PGMPHYSHANDLER, pfnHandlerR3);
     GEN_CHECK_OFF(PGMPHYSHANDLER, pvUserR3);
     GEN_CHECK_OFF(PGMPHYSHANDLER, pfnHandlerR0);
@@ -685,6 +693,7 @@ int main()
     GEN_CHECK_OFF(PGMROMRANGE, GCPhysLast);
     GEN_CHECK_OFF(PGMROMRANGE, cb);
     GEN_CHECK_OFF(PGMROMRANGE, fFlags);
+    GEN_CHECK_OFF(PGMROMRANGE, cbOriginal);
     GEN_CHECK_OFF(PGMROMRANGE, pvOriginal);
     GEN_CHECK_OFF(PGMROMRANGE, pszDesc);
     GEN_CHECK_OFF(PGMROMRANGE, aPages);
@@ -778,6 +787,28 @@ int main()
     GEN_CHECK_OFF(PGMPOOL, aPages);
     GEN_CHECK_OFF(PGMPOOL, aPages[1]);
     GEN_CHECK_OFF(PGMPOOL, aPages[PGMPOOL_IDX_FIRST - 1]);
+    GEN_CHECK_SIZE(PGMRCDYNMAP);
+    GEN_CHECK_OFF(PGMRCDYNMAP, u32Magic);
+    GEN_CHECK_OFF(PGMRCDYNMAP, paPages);
+    GEN_CHECK_OFF(PGMRCDYNMAP, cPages);
+    GEN_CHECK_OFF(PGMRCDYNMAP, fLegacyMode);
+    GEN_CHECK_OFF(PGMRCDYNMAP, cLoad);
+    GEN_CHECK_OFF(PGMRCDYNMAP, cMaxLoad);
+    GEN_CHECK_OFF(PGMRCDYNMAP, cGuardPages);
+    GEN_CHECK_OFF(PGMRCDYNMAP, cUsers);
+    GEN_CHECK_SIZE(PGMRCDYNMAPENTRY);
+    GEN_CHECK_OFF(PGMRCDYNMAPENTRY, HCPhys);
+    GEN_CHECK_OFF(PGMRCDYNMAPENTRY, pvPage);
+    GEN_CHECK_OFF(PGMRCDYNMAPENTRY, cRefs);
+    GEN_CHECK_OFF(PGMRCDYNMAPENTRY, uPte.pLegacy);
+    GEN_CHECK_OFF(PGMRCDYNMAPENTRY, uPte.pPae);
+    GEN_CHECK_OFF(PGMRCDYNMAPENTRY, uPte.pv);
+    GEN_CHECK_OFF(PGMMAPSETENTRY, pvPage);
+    GEN_CHECK_OFF(PGMMAPSETENTRY, iPage);
+    GEN_CHECK_OFF(PGMMAPSETENTRY, cRefs);
+    GEN_CHECK_OFF(PGMMAPSETENTRY, cInlinedRefs);
+    GEN_CHECK_OFF(PGMMAPSETENTRY, cUnrefs);
+    GEN_CHECK_OFF(PGMMAPSETENTRY, HCPhys);
 
     GEN_CHECK_SIZE(REM);
     GEN_CHECK_OFF(REM, pCtx);
@@ -924,14 +955,15 @@ int main()
     GEN_CHECK_OFF(TMTIMER, offScheduleNext);
     GEN_CHECK_OFF(TMTIMER, offNext);
     GEN_CHECK_OFF(TMTIMER, offPrev);
+    GEN_CHECK_OFF(TMTIMER, pVMR0);
+    GEN_CHECK_OFF(TMTIMER, pVMR3);
+    GEN_CHECK_OFF(TMTIMER, pVMRC);
+    GEN_CHECK_OFF(TMTIMER, uHzHint);
     GEN_CHECK_OFF(TMTIMER, pvUser);
     GEN_CHECK_OFF(TMTIMER, pCritSect);
     GEN_CHECK_OFF(TMTIMER, pBigNext);
     GEN_CHECK_OFF(TMTIMER, pBigPrev);
     GEN_CHECK_OFF(TMTIMER, pszDesc);
-    GEN_CHECK_OFF(TMTIMER, pVMR0);
-    GEN_CHECK_OFF(TMTIMER, pVMR3);
-    GEN_CHECK_OFF(TMTIMER, pVMRC);
     GEN_CHECK_SIZE(TMTIMERQUEUE);
     GEN_CHECK_OFF(TMTIMERQUEUE, offActive);
     GEN_CHECK_OFF(TMTIMERQUEUE, offSchedule);
@@ -960,6 +992,7 @@ int main()
     GEN_CHECK_OFF(VMM, cbRCLogger);
     GEN_CHECK_OFF(VMM, fRCLoggerFlushingDisabled);
     GEN_CHECK_OFF(VMM, fStackGuardsStationed);
+    GEN_CHECK_OFF(VMM, fUsePeriodicPreemptionTimers);
     GEN_CHECK_OFF(VMM, pYieldTimer);
     GEN_CHECK_OFF(VMM, cYieldResumeMillies);
     GEN_CHECK_OFF(VMM, cYieldEveryMillies);
@@ -1106,7 +1139,7 @@ int main()
     GEN_CHECK_OFF(PATCHINFO, uState);
     GEN_CHECK_OFF(PATCHINFO, uOldState);
     GEN_CHECK_OFF(PATCHINFO, uOpMode);
-    GEN_CHECK_OFF(PATCHINFO, pPrivInstrHC);
+    GEN_CHECK_OFF(PATCHINFO, unusedHC);
     GEN_CHECK_OFF(PATCHINFO, pPrivInstrGC);
     GEN_CHECK_OFF(PATCHINFO, aPrivInstr);
     GEN_CHECK_OFF(PATCHINFO, aPrivInstr[1]);
@@ -1128,11 +1161,11 @@ int main()
     GEN_CHECK_OFF(PATCHINFO, Patch2GuestAddrTree);
     GEN_CHECK_OFF(PATCHINFO, Guest2PatchAddrTree);
     GEN_CHECK_OFF(PATCHINFO, nrPatch2GuestRecs);
-    GEN_CHECK_OFF(PATCHINFO, cacheRec);
-    GEN_CHECK_OFF(PATCHINFO, cacheRec.pPatchLocStartHC);
-    GEN_CHECK_OFF(PATCHINFO, cacheRec.pPatchLocEndHC);
-    GEN_CHECK_OFF(PATCHINFO, cacheRec.pGuestLoc);
-    GEN_CHECK_OFF(PATCHINFO, cacheRec.opsize);
+    GEN_CHECK_OFF(PATCHINFO, unused);
+    GEN_CHECK_OFF(PATCHINFO, unused.pPatchLocStartHC);
+    GEN_CHECK_OFF(PATCHINFO, unused.pPatchLocEndHC);
+    GEN_CHECK_OFF(PATCHINFO, unused.pGuestLoc);
+    GEN_CHECK_OFF(PATCHINFO, unused.opsize);
     GEN_CHECK_OFF(PATCHINFO, pTempInfo);
     GEN_CHECK_OFF(PATCHINFO, cCodeWrites);
     GEN_CHECK_OFF(PATCHINFO, cTraps);

@@ -1,10 +1,10 @@
-/* $Revision: 60692 $ */
+/* $Revision: 34972 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -190,9 +190,9 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - Nothing.
+ *          - None.
  */
-#define SUPDRV_IOC_VERSION                              0x00140001
+#define SUPDRV_IOC_VERSION                              0x00160000
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -284,7 +284,7 @@ typedef struct SUPLDROPEN
     {
         struct
         {
-            /** Size of the image we'll be loading (includeing tables). */
+            /** Size of the image we'll be loading (including tables). */
             uint32_t        cbImageWithTabs;
             /** The size of the image bits. (Less or equal to cbImageWithTabs.) */
             uint32_t        cbImageBits;
@@ -294,7 +294,7 @@ typedef struct SUPLDROPEN
             char            szName[32];
             /** Image file name.
              * This can be used to load the image using a native loader. */
-            char            szFilename[196];
+            char            szFilename[260];
         } In;
         struct
         {
@@ -771,7 +771,7 @@ typedef struct SUPPAGEUNLOCK
     {
         struct
         {
-            /** Start of page range of a range previuosly pinned. */
+            /** Start of page range of a range previously pinned. */
             RTR3PTR         pvR3;
         } In;
     } u;
@@ -780,7 +780,7 @@ typedef struct SUPPAGEUNLOCK
 
 
 /** @name SUP_IOCTL_CONT_ALLOC
- * Allocate contious memory.
+ * Allocate continuous memory.
  * @{
  */
 #define SUP_IOCTL_CONT_ALLOC                            SUP_CTL_CODE_SIZE(16, SUP_IOCTL_CONT_ALLOC_SIZE)
@@ -816,7 +816,7 @@ typedef struct SUPCONTALLOC
 /** @name SUP_IOCTL_CONT_FREE Input.
  * @{
  */
-/** Free contious memory. */
+/** Free continuous memory. */
 #define SUP_IOCTL_CONT_FREE                             SUP_CTL_CODE_SIZE(17, SUP_IOCTL_CONT_FREE_SIZE)
 #define SUP_IOCTL_CONT_FREE_SIZE                        sizeof(SUPCONTFREE)
 #define SUP_IOCTL_CONT_FREE_SIZE_IN                     sizeof(SUPCONTFREE)
@@ -1016,45 +1016,16 @@ typedef struct SUPLOGGERSETTINGS
 /** @} */
 
 
-/** @name SUP_IOCTL_SEM_CREATE
- * Create a semaphore
- * @{
- */
-#define SUP_IOCTL_SEM_CREATE                            SUP_CTL_CODE_SIZE(24, SUP_IOCTL_SEM_CREATE_SIZE)
-#define SUP_IOCTL_SEM_CREATE_SIZE                       sizeof(SUPSEMCREATE)
-#define SUP_IOCTL_SEM_CREATE_SIZE_IN                    sizeof(SUPSEMCREATE)
-#define SUP_IOCTL_SEM_CREATE_SIZE_OUT                   sizeof(SUPSEMCREATE)
-typedef struct SUPSEMCREATE
-{
-    /** The header. */
-    SUPREQHDR               Hdr;
-    union
-    {
-        struct
-        {
-            /** The semaphore type. */
-            uint32_t        uType;
-        } In;
-        struct
-        {
-            /** The handle of the created semaphore. */
-            uint32_t        hSem;
-        } Out;
-    } u;
-} SUPSEMCREATE, *PSUPSEMCREATE;
-
-/** @} */
-
-
-/** @name SUP_IOCTL_SEM_OP
+/** @name SUP_IOCTL_SEM_OP2
  * Semaphore operations.
+ * @remarks This replaces the old SUP_IOCTL_SEM_OP interface.
  * @{
  */
-#define SUP_IOCTL_SEM_OP                                SUP_CTL_CODE_SIZE(25, SUP_IOCTL_SEM_OP_SIZE)
-#define SUP_IOCTL_SEM_OP_SIZE                           sizeof(SUPSEMOP)
-#define SUP_IOCTL_SEM_OP_SIZE_IN                        sizeof(SUPSEMOP)
-#define SUP_IOCTL_SEM_OP_SIZE_OUT                       sizeof(SUPREQHDR)
-typedef struct SUPSEMOP
+#define SUP_IOCTL_SEM_OP2                               SUP_CTL_CODE_SIZE(24, SUP_IOCTL_SEM_OP2_SIZE)
+#define SUP_IOCTL_SEM_OP2_SIZE                          sizeof(SUPSEMOP2)
+#define SUP_IOCTL_SEM_OP2_SIZE_IN                       sizeof(SUPSEMOP2)
+#define SUP_IOCTL_SEM_OP2_SIZE_OUT                      sizeof(SUPREQHDR)
+typedef struct SUPSEMOP2
 {
     /** The header. */
     SUPREQHDR               Hdr;
@@ -1068,27 +1039,99 @@ typedef struct SUPSEMOP
             uint32_t        hSem;
             /** The operation. */
             uint32_t        uOp;
+            /** Reserved, must be zero. */
+            uint32_t        uReserved;
             /** The number of milliseconds to wait if it's a wait operation. */
-            uint32_t        cMillies;
+            union
+            {
+                /** Absolute timeout (RTTime[System]NanoTS).
+                 * Used by SUPSEMOP2_WAIT_NS_ABS. */
+                uint64_t    uAbsNsTimeout;
+                /** Relative nanosecond timeout.
+                 * Used by SUPSEMOP2_WAIT_NS_REL. */
+                uint64_t    cRelNsTimeout;
+                /** Relative millisecond timeout.
+                 * Used by SUPSEMOP2_WAIT_MS_REL. */
+                uint32_t    cRelMsTimeout;
+                /** Generic 64-bit accessor.
+                 * ASSUMES little endian!  */
+                uint64_t    u64;
+            } uArg;
         } In;
     } u;
-} SUPSEMOP, *PSUPSEMOP;
+} SUPSEMOP2, *PSUPSEMOP2;
 
-/** Wait for a number of millisecons. */
-#define SUPSEMOP_WAIT       0
+/** Wait for a number of milliseconds. */
+#define SUPSEMOP2_WAIT_MS_REL       0
+/** Wait until the specified deadline is reached. */
+#define SUPSEMOP2_WAIT_NS_ABS       1
+/** Wait for a number of nanoseconds. */
+#define SUPSEMOP2_WAIT_NS_REL       2
 /** Signal the semaphore. */
-#define SUPSEMOP_SIGNAL     1
-/** Reset the sempahore (only applicable to SUP_SEM_TYPE_EVENT_MULTI). */
-#define SUPSEMOP_RESET      2
+#define SUPSEMOP2_SIGNAL            3
+/** Reset the semaphore (only applicable to SUP_SEM_TYPE_EVENT_MULTI). */
+#define SUPSEMOP2_RESET             4
 /** Close the semaphore handle. */
-#define SUPSEMOP_CLOSE      3
-
+#define SUPSEMOP2_CLOSE             5
 /** @} */
 
-/** @name SUP_IOCTL_VT_CAPS Input.
+/** @name SUP_IOCTL_SEM_OP3
+ * Semaphore operations.
  * @{
  */
-/** Free contious memory. */
+#define SUP_IOCTL_SEM_OP3                               SUP_CTL_CODE_SIZE(25, SUP_IOCTL_SEM_OP3_SIZE)
+#define SUP_IOCTL_SEM_OP3_SIZE                          sizeof(SUPSEMOP3)
+#define SUP_IOCTL_SEM_OP3_SIZE_IN                       sizeof(SUPSEMOP3)
+#define SUP_IOCTL_SEM_OP3_SIZE_OUT                      sizeof(SUPSEMOP3)
+typedef struct SUPSEMOP3
+{
+    /** The header. */
+    SUPREQHDR               Hdr;
+    union
+    {
+        struct
+        {
+            /** The semaphore type. */
+            uint32_t        uType;
+            /** The semaphore handle. */
+            uint32_t        hSem;
+            /** The operation. */
+            uint32_t        uOp;
+            /** Reserved, must be zero. */
+            uint32_t        u32Reserved;
+            /** Reserved for future use. */
+            uint64_t        u64Reserved;
+        } In;
+        union
+        {
+            /** The handle of the created semaphore.
+             * Used by SUPSEMOP3_CREATE. */
+            uint32_t        hSem;
+            /** The semaphore resolution in nano seconds.
+             * Used by SUPSEMOP3_GET_RESOLUTION. */
+            uint32_t        cNsResolution;
+            /** The 32-bit view. */
+            uint32_t        u32;
+            /** Reserved some space for later expansion. */
+            uint64_t        u64Reserved;
+        } Out;
+    } u;
+} SUPSEMOP3, *PSUPSEMOP3;
+
+/** Get the wait resolution.  */
+#define SUPSEMOP3_CREATE            0
+/** Get the wait resolution.  */
+#define SUPSEMOP3_GET_RESOLUTION    1
+/** @} */
+
+/** @name SUP_IOCTL_VT_CAPS
+ * Get the VT-x/AMD-V capabilities.
+ *
+ * @todo Intended for main, which means we need to relax the privilege requires
+ *       when accessing certain vboxdrv functions.
+ *
+ * @{
+ */
 #define SUP_IOCTL_VT_CAPS                               SUP_CTL_CODE_SIZE(26, SUP_IOCTL_VT_CAPS_SIZE)
 #define SUP_IOCTL_VT_CAPS_SIZE                          sizeof(SUPVTCAPS)
 #define SUP_IOCTL_VT_CAPS_SIZE_IN                       sizeof(SUPREQHDR)

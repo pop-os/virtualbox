@@ -1,4 +1,4 @@
-/* $Id: ProgressProxyImpl.cpp $ */
+/* $Id: ProgressProxyImpl.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IProgress implementation for Machine::openRemoteSession in VBoxSVC.
  */
@@ -55,7 +55,7 @@ HRESULT ProgressProxy::FinalConstruct()
 }
 
 /**
- * Initalize it as a one operation Progress object.
+ * Initialize it as a one operation Progress object.
  *
  * This is used by SessionMachine::OnSessionEnd.
  */
@@ -163,7 +163,7 @@ HRESULT ProgressProxy::notifyComplete(HRESULT aResultCode)
  *  the result locally. */
 HRESULT ProgressProxy::notifyComplete(HRESULT aResultCode,
                                       const GUID &aIID,
-                                      const Bstr &aComponent,
+                                      const char *pcszComponent,
                                       const char *aText,
                                       ...)
 {
@@ -175,7 +175,7 @@ HRESULT ProgressProxy::notifyComplete(HRESULT aResultCode,
     {
         va_list va;
         va_start(va, aText);
-        hrc = Progress::notifyCompleteV(aResultCode, aIID, aComponent, aText, va);
+        hrc = Progress::notifyCompleteV(aResultCode, aIID, pcszComponent, aText, va);
         va_end(va);
     }
     return hrc;
@@ -226,7 +226,7 @@ bool ProgressProxy::setOtherProgressObject(IProgress *pOtherProgress)
 
         muOtherProgressStartWeight = m_ulOperationsCompletedWeight + m_ulCurrentOperationWeight;
         muOtherProgressWeight      = m_ulTotalOperationsWeight - muOtherProgressStartWeight;
-        Progress::SetNextOperation(bstrOperationDescription, muOtherProgressWeight);
+        Progress::SetNextOperation(bstrOperationDescription.raw(), muOtherProgressWeight);
 
         muOtherProgressStartOperation = m_ulCurrentOperation;
         m_cOperations = cOperations + m_ulCurrentOperation;
@@ -291,7 +291,7 @@ bool ProgressProxy::setOtherProgressObject(IProgress *pOtherProgress)
  */
 void ProgressProxy::clearOtherProgressObjectInternal(bool fEarly)
 {
-    if (mptrOtherProgress.isNotNull())
+    if (!mptrOtherProgress.isNull())
     {
         ComPtr<IProgress> ptrOtherProgress = mptrOtherProgress;
         mptrOtherProgress.setNull();
@@ -373,12 +373,17 @@ void ProgressProxy::copyProgressInfo(IProgress *pOtherProgress, bool fEarly)
 
                         Utf8Str strText(bstrText);
                         LogFlowThisFunc(("Got ErrorInfo(%s); hrcResult=%Rhrc\n", strText.c_str(), hrcResult));
-                        Progress::notifyComplete((HRESULT)hrcResult, Guid(bstrIID), bstrComponent, "%s", strText.c_str());
+                        Progress::notifyComplete((HRESULT)hrcResult,
+                                                 Guid(bstrIID).ref(),
+                                                 Utf8Str(bstrComponent).c_str(),
+                                                 "%s", strText.c_str());
                     }
                     else
                     {
                         LogFlowThisFunc(("ErrorInfo failed with hrc=%Rhrc; hrcResult=%Rhrc\n", hrc, hrcResult));
-                        Progress::notifyComplete((HRESULT)hrcResult, COM_IIDOF(IProgress), Bstr("ProgressProxy"),
+                        Progress::notifyComplete((HRESULT)hrcResult,
+                                                 COM_IIDOF(IProgress),
+                                                 "ProgressProxy",
                                                  tr("No error info"));
                     }
                 }
@@ -503,7 +508,7 @@ STDMETHODIMP ProgressProxy::COMGETTER(Canceled)(BOOL *aCanceled)
         hrc = Progress::COMGETTER(Canceled)(aCanceled);
         if (   SUCCEEDED(hrc)
             && !*aCanceled
-            && mptrOtherProgress.isNotNull()
+            && !mptrOtherProgress.isNull()
             && mCancelable)
         {
             hrc = mptrOtherProgress->COMGETTER(Canceled)(aCanceled);

@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp $ */
+/* $Id: UINewVMWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -17,13 +17,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Global includes */
+#include <QDir>
+
 /* Local includes */
-#include "UINewVMWzd.h"
+#include "UIIconPool.h"
 #include "UINewHDWzd.h"
-#include "VBoxGlobal.h"
+#include "UINewVMWzd.h"
+#include "QIFileDialog.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxMediaManagerDlg.h"
-#include "VBoxVMSettingsHD.h"
+#include "UIMachineSettingsStorage.h"
 
 /* Globals */
 struct osTypePattern
@@ -44,8 +47,8 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("Wi.*95", Qt::CaseInsensitive), "Windows95" },
     { QRegExp("Wi.*Me", Qt::CaseInsensitive), "WindowsMe" },
     { QRegExp("(Wi.*NT)|(NT4)", Qt::CaseInsensitive), "WindowsNT4" },
-    { QRegExp("((Wi.*XP)|(XP)).*64", Qt::CaseInsensitive), "WindowsXP_64" },
-    { QRegExp("(Wi.*XP)|(XP)", Qt::CaseInsensitive), "WindowsXP" },
+    { QRegExp("((Wi.*XP)|(\\bXP\\b)).*64", Qt::CaseInsensitive), "WindowsXP_64" },
+    { QRegExp("(Wi.*XP)|(\\bXP\\b)", Qt::CaseInsensitive), "WindowsXP" },
     { QRegExp("((Wi.*2003)|(W2K3).*64", Qt::CaseInsensitive), "Windows2003_64" },
     { QRegExp("(Wi.*2003)|(W2K3)", Qt::CaseInsensitive), "Windows2003" },
     { QRegExp("((Wi.*V)|(Vista)).*64", Qt::CaseInsensitive), "WindowsVista_64" },
@@ -53,14 +56,14 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("((Wi.*2008)|(W2K8)).*64", Qt::CaseInsensitive), "Windows2008_64" },
     { QRegExp("(Wi.*2008)|(W2K8)", Qt::CaseInsensitive), "Windows2008" },
     { QRegExp("(Wi.*2)|(W2K)", Qt::CaseInsensitive), "Windows2000" },
-    { QRegExp("Wi.*7.*64", Qt::CaseInsensitive), "Windows7_64" },
-    { QRegExp("Wi.*7", Qt::CaseInsensitive), "Windows7" },
+    { QRegExp("(Wi.*7.*64)|(W7.*64)", Qt::CaseInsensitive), "Windows7_64" },
+    { QRegExp("(Wi.*7)|(W7)", Qt::CaseInsensitive), "Windows7" },
     { QRegExp("Wi.*3", Qt::CaseInsensitive), "Windows31" },
     { QRegExp("Wi", Qt::CaseInsensitive), "WindowsXP" },
 
     /* Solaris */
-    { QRegExp("((Op.*So)|(os20[01][0-9])).*64", Qt::CaseInsensitive), "OpenSolaris_64" },
-    { QRegExp("(Op.*So)|(os20[01][0-9])", Qt::CaseInsensitive), "OpenSolaris" },
+    { QRegExp("((Op.*So)|(os20[01][0-9])|(So.*1[01])|(India)|(Neva)).*64", Qt::CaseInsensitive), "OpenSolaris_64" },
+    { QRegExp("(Op.*So)|(os20[01][0-9])|(So.*1[01])|(India)|(Neva)", Qt::CaseInsensitive), "OpenSolaris" },
     { QRegExp("So.*64", Qt::CaseInsensitive), "Solaris_64" },
     { QRegExp("So", Qt::CaseInsensitive), "Solaris" },
 
@@ -122,6 +125,7 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp("((Mac)|(Tig)|(Leop)|(osx)).*64", Qt::CaseInsensitive), "MacOS_64" },
     { QRegExp("(Mac)|(Tig)|(Leop)|(osx)", Qt::CaseInsensitive), "MacOS" },
     { QRegExp("Net", Qt::CaseInsensitive), "Netware" },
+    { QRegExp("Rocki", Qt::CaseInsensitive), "JRockitVE" },
     { QRegExp("Ot", Qt::CaseInsensitive), "Other" },
 };
 
@@ -197,6 +201,7 @@ UINewVMWzdPage2::UINewVMWzdPage2()
     /* Register 'name' & 'type' fields */
     registerField("name*", m_pNameEditor);
     registerField("type*", m_pTypeSelector, "type", SIGNAL(osTypeChanged()));
+    registerField("machineFolder", this, "machineFolder");
 
     connect(m_pNameEditor, SIGNAL(textChanged(const QString&)),
             this, SLOT(sltNameChanged(const QString&)));
@@ -205,24 +210,6 @@ UINewVMWzdPage2::UINewVMWzdPage2()
 
     /* Setup contents */
     m_pTypeSelector->activateLayout();
-}
-
-void UINewVMWzdPage2::retranslateUi()
-{
-    /* Translate uic generated strings */
-    Ui::UINewVMWzdPage2::retranslateUi(this);
-
-    /* Wizard page 2 title */
-    setTitle(tr("VM Name and OS Type"));
-}
-
-void UINewVMWzdPage2::initializePage()
-{
-    /* Fill and translate */
-    retranslateUi();
-
-    /* 'Name' field should have focus initially */
-    m_pNameEditor->setFocus();
 }
 
 void UINewVMWzdPage2::sltNameChanged(const QString &strNewText)
@@ -245,6 +232,80 @@ void UINewVMWzdPage2::sltOsTypeChanged()
      * type guessing anymore. So simply disconnect the text edit signal. */
     disconnect(m_pNameEditor, SIGNAL(textChanged(const QString&)),
                this, SLOT(sltNameChanged(const QString&)));
+}
+
+void UINewVMWzdPage2::retranslateUi()
+{
+    /* Translate uic generated strings */
+    Ui::UINewVMWzdPage2::retranslateUi(this);
+
+    /* Wizard page 2 title */
+    setTitle(tr("VM Name and OS Type"));
+}
+
+void UINewVMWzdPage2::initializePage()
+{
+    /* Fill and translate */
+    retranslateUi();
+
+    /* 'Name' field should have focus initially */
+    m_pNameEditor->setFocus();
+}
+
+void UINewVMWzdPage2::cleanupPage()
+{
+    cleanupMachineFolder();
+}
+
+bool UINewVMWzdPage2::validatePage()
+{
+    return createMachineFolder();
+}
+
+bool UINewVMWzdPage2::createMachineFolder()
+{
+    /* Cleanup old folder if present: */
+    cleanupMachineFolder();
+    /* Get VBox: */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    /* Get default machines directory: */
+    QString strDefaultMachinesFolder = vbox.GetSystemProperties().GetDefaultMachineFolder();
+    /* Compose machine filename name: */
+    QString strMachineFilename = vbox.ComposeMachineFilename(field("name").toString(), strDefaultMachinesFolder);
+    QFileInfo fileInfo(strMachineFilename);
+    /* Get machine directory: */
+    QString strMachineFolder = fileInfo.absolutePath();
+    /* Try to create this machine directory (and it's predecessors): */
+    bool fMachineFolderCreated = QDir().mkpath(strMachineFolder);
+    /* Initialize machine dir value: */
+    if (fMachineFolderCreated)
+        m_strMachineFolder = strMachineFolder;
+    /* Return creation result: */
+    return fMachineFolderCreated;
+}
+
+bool UINewVMWzdPage2::cleanupMachineFolder()
+{
+    /* Return if machine folder was NOT set: */
+    if (m_strMachineFolder.isEmpty())
+        return false;
+    /* Try to cleanup this machine directory (and it's predecessors): */
+    bool fMachineFolderRemoved = QDir().rmpath(m_strMachineFolder);
+    /* Reset machine dir value: */
+    if (fMachineFolderRemoved)
+        m_strMachineFolder = QString();
+    /* Return cleanup result: */
+    return fMachineFolderRemoved;
+}
+
+QString UINewVMWzdPage2::machineFolder() const
+{
+    return m_strMachineFolder;
+}
+
+void UINewVMWzdPage2::setMachineFolder(const QString &strMachineFolder)
+{
+    m_strMachineFolder = strMachineFolder;
 }
 
 UINewVMWzdPage3::UINewVMWzdPage3()
@@ -348,14 +409,15 @@ UINewVMWzdPage4::UINewVMWzdPage4()
     m_pDiskSelector->repopulate();
 
     /* Setup medium-manager button */
-    m_pVMMButton->setIcon(VBoxGlobal::iconSet(":/select_file_16px.png", ":/select_file_dis_16px.png"));
+    m_pVMMButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png",
+                                              ":/select_file_dis_16px.png"));
 
     /* Setup page connections */
     connect(m_pBootHDCnt, SIGNAL(toggled(bool)), this, SLOT(hardDiskSourceChanged()));
     connect(m_pDiskCreate, SIGNAL(toggled(bool)), this, SLOT(hardDiskSourceChanged()));
     connect(m_pDiskPresent, SIGNAL(toggled(bool)), this, SLOT(hardDiskSourceChanged()));
     connect(m_pDiskSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(hardDiskSourceChanged()));
-    connect(m_pVMMButton, SIGNAL(clicked()), this, SLOT(getWithMediaManager()));
+    connect(m_pVMMButton, SIGNAL(clicked()), this, SLOT(getWithFileOpenDialog()));
 
     /* Initialise page connections */
     hardDiskSourceChanged();
@@ -371,8 +433,8 @@ void UINewVMWzdPage4::retranslateUi()
 
     /* Translate recommended 'hdd' field value */
     QString strRecommendedHDD = field("type").value<CGuestOSType>().isNull() ? QString() :
-                                QString::number(field("type").value<CGuestOSType>().GetRecommendedHDD());
-    m_pPage4Text2->setText (tr ("The recommended size of the boot hard disk is <b>%1</b> MB.").arg (strRecommendedHDD));
+                                VBoxGlobal::formatSize(field("type").value<CGuestOSType>().GetRecommendedHDD());
+    m_pPage4Text2->setText (tr ("The recommended size of the boot hard disk is <b>%1</b>.").arg (strRecommendedHDD));
 }
 
 void UINewVMWzdPage4::initializePage()
@@ -434,7 +496,7 @@ void UINewVMWzdPage4::ensureNewHardDiskDeleted()
     CProgress progress = m_HardDisk.DeleteStorage();
     if (m_HardDisk.isOk())
     {
-        vboxProblem().showModalProgressDialog(progress, windowTitle(), this);
+        vboxProblem().showModalProgressDialog(progress, windowTitle(), ":/progress_media_delete_90px.png", this, true);
         if (progress.isOk() && progress.GetResultCode() == S_OK)
             success = true;
     }
@@ -470,21 +532,19 @@ void UINewVMWzdPage4::hardDiskSourceChanged()
     emit completeChanged();
 }
 
-void UINewVMWzdPage4::getWithMediaManager()
+void UINewVMWzdPage4::getWithFileOpenDialog()
 {
-    VBoxMediaManagerDlg dlg(this);
-    dlg.setup(VBoxDefs::MediumType_HardDisk, true);
-
-    if (dlg.exec() == QDialog::Accepted)
+    /* Get opened vboxMedium id: */
+    QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(VBoxDefs::MediumType_HardDisk, this);
+    if (!strMediumId.isNull())
     {
-        QString newId = dlg.selectedId();
-        if (m_pDiskSelector->id() != newId)
-            m_pDiskSelector->setCurrentItem(newId);
+        /* Update medium-combo if necessary: */
+        m_pDiskSelector->setCurrentItem(strMediumId);
+        /* Update hard disk source: */
+        hardDiskSourceChanged();
+        /* Focus on hard disk combo: */
+        m_pDiskSelector->setFocus();
     }
-
-    hardDiskSourceChanged();
-
-    m_pDiskSelector->setFocus();
 }
 
 bool UINewVMWzdPage4::getWithNewHardDiskWizard()
@@ -492,6 +552,7 @@ bool UINewVMWzdPage4::getWithNewHardDiskWizard()
     UINewHDWzd dlg(this);
     dlg.setRecommendedName(field("name").toString());
     dlg.setRecommendedSize(field("type").value<CGuestOSType>().GetRecommendedHDD());
+    dlg.setDefaultPath(field("machineFolder").toString());
 
     if (dlg.exec() == QDialog::Accepted)
     {
@@ -626,8 +687,11 @@ void UINewVMWzdPage5::initializePage()
 
 bool UINewVMWzdPage5::validatePage()
 {
+    startProcessing();
     /* Try to construct machine */
-    return constructMachine();
+    bool fResult = constructMachine();
+    endProcessing();
+    return fResult;
 }
 
 bool UINewVMWzdPage5::constructMachine()
@@ -642,7 +706,11 @@ bool UINewVMWzdPage5::constructMachine()
     /* Create a machine with the default settings file location */
     if (m_Machine.isNull())
     {
-        m_Machine = vbox.CreateMachine(field("name").toString(), typeId, QString::null, QString::null, false);
+        m_Machine = vbox.CreateMachine(QString::null,       // auto-compose filename
+                                       field("name").toString(),
+                                       typeId,
+                                       QString::null,       // machine ID
+                                       false);              // forceOverwrite
         if (!vbox.isOk())
         {
             vboxProblem().cannotCreateMachine(vbox, this);
@@ -655,7 +723,6 @@ bool UINewVMWzdPage5::constructMachine()
             m_Machine.SetExtraData(VBoxDefs::GUI_FirstRun, "yes");
     }
 
-
     /* RAM size */
     m_Machine.SetMemorySize(field("ram").toInt());
 
@@ -663,6 +730,11 @@ bool UINewVMWzdPage5::constructMachine()
     m_Machine.SetVRAMSize (qMax (type.GetRecommendedVRAM(),
                                 (ULONG) (VBoxGlobal::requiredVideoMemory(&m_Machine) / _1M)));
 
+    /* Selecting recommended chipset type */
+    m_Machine.SetChipsetType(type.GetRecommendedChipset());
+
+    /* Selecting recommended Audio Controller */
+    m_Machine.GetAudioAdapter().SetAudioController(type.GetRecommendedAudioController());
     /* Enabling audio by default */
     m_Machine.GetAudioAdapter().SetEnabled(true);
 
@@ -672,7 +744,19 @@ bool UINewVMWzdPage5::constructMachine()
         && usbController.GetProxyAvailable())
     {
         usbController.SetEnabled(true);
-        usbController.SetEnabledEhci(true);
+
+        /*
+         * USB 2.0 is only available if the proper ExtPack is installed.
+         *
+         * Note. Configuring EHCI here and providing messages about
+         * the missing extpack isn't exactly clean, but it is a
+         * necessary evil to patch over legacy compatability issues
+         * introduced by the new distribution model.
+         */
+        static const char *s_pszUsbExtPackName = "Oracle VM VirtualBox Extension Pack";
+        CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
+        if (manager.IsExtPackUsable(s_pszUsbExtPackName))
+            usbController.SetEnabledEhci(true);
     }
 
     /* Create recommended DVD storage controller */
@@ -754,19 +838,22 @@ bool UINewVMWzdPage5::constructMachine()
         {
             CMachine m = session.GetMachine();
 
+            QString strId = field("hardDiskId").toString();
             /* Boot hard disk */
-            if (!field("hardDiskId").toString().isNull())
+            if (!strId.isNull())
             {
-                m.AttachDevice(ctrHdName, 0, 0, KDeviceType_HardDisk, field("hardDiskId").toString());
+                VBoxMedium vmedium = vboxGlobal().findMedium(strId);
+                CMedium medium = vmedium.medium();              // @todo r=dj can this be cached somewhere?
+                m.AttachDevice(ctrHdName, 0, 0, KDeviceType_HardDisk, medium);
                 if (!m.isOk())
-                    vboxProblem().cannotAttachDevice(this, m, VBoxDefs::MediumType_HardDisk,
-                                                     field("hardDiskLocation").toString(), ctrHdBus, 0, 0);
+                    vboxProblem().cannotAttachDevice(m, VBoxDefs::MediumType_HardDisk, field("hardDiskLocation").toString(),
+                                                     StorageSlot(ctrHdBus, 0, 0), this);
             }
 
             /* Attach empty CD/DVD ROM Device */
-            m.AttachDevice(ctrDvdName, 1, 0, KDeviceType_DVD, QString(""));
+            m.AttachDevice(ctrDvdName, 1, 0, KDeviceType_DVD, CMedium());
             if (!m.isOk())
-                vboxProblem().cannotAttachDevice(this, m, VBoxDefs::MediumType_DVD, QString(), ctrDvdBus, 1, 0);
+                vboxProblem().cannotAttachDevice(m, VBoxDefs::MediumType_DVD, QString(), StorageSlot(ctrDvdBus, 1, 0), this);
 
             if (m.isOk())
             {
@@ -777,14 +864,17 @@ bool UINewVMWzdPage5::constructMachine()
                     vboxProblem().cannotSaveMachineSettings(m, this);
             }
 
-            session.Close();
+            session.UnlockMachine();
         }
         if (!success)
         {
             /* Unregister on failure */
-            vbox.UnregisterMachine(machineId);
+            QVector<CMedium> aMedia = m_Machine.Unregister(KCleanupMode_UnregisterOnly);   //  @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
             if (vbox.isOk())
-                m_Machine.DeleteSettings();
+            {
+                CProgress progress = m_Machine.Delete(aMedia);
+                progress.WaitForCompletion(-1);         // @todo do this nicely with a progress dialog, this can delete lots of files
+            }
             return false;
         }
     }
@@ -803,7 +893,7 @@ QString UINewVMWzdPage5::getNextControllerName(KStorageBus type)
     {
         case KStorageBus_IDE:
         {
-            strControllerName = VBoxVMSettingsHD::tr("IDE Controller");
+            strControllerName = UIMachineSettingsStorage::tr("IDE Controller");
             ++m_iIDECount;
             if (m_iIDECount > 1)
                 strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iIDECount);
@@ -811,7 +901,7 @@ QString UINewVMWzdPage5::getNextControllerName(KStorageBus type)
         }
         case KStorageBus_SATA:
         {
-            strControllerName = VBoxVMSettingsHD::tr("SATA Controller");
+            strControllerName = UIMachineSettingsStorage::tr("SATA Controller");
             ++m_iSATACount;
             if (m_iSATACount > 1)
                 strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSATACount);
@@ -819,7 +909,7 @@ QString UINewVMWzdPage5::getNextControllerName(KStorageBus type)
         }
         case KStorageBus_SCSI:
         {
-            strControllerName = VBoxVMSettingsHD::tr("SCSI Controller");
+            strControllerName = UIMachineSettingsStorage::tr("SCSI Controller");
             ++m_iSCSICount;
             if (m_iSCSICount > 1)
                 strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSCSICount);
@@ -827,7 +917,7 @@ QString UINewVMWzdPage5::getNextControllerName(KStorageBus type)
         }
         case KStorageBus_Floppy:
         {
-            strControllerName = VBoxVMSettingsHD::tr("Floppy Controller");
+            strControllerName = UIMachineSettingsStorage::tr("Floppy Controller");
             ++m_iFloppyCount;
             if (m_iFloppyCount > 1)
                 strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iFloppyCount);
@@ -835,7 +925,7 @@ QString UINewVMWzdPage5::getNextControllerName(KStorageBus type)
         }
         case KStorageBus_SAS:
         {
-            strControllerName = VBoxVMSettingsHD::tr("SAS Controller");
+            strControllerName = UIMachineSettingsStorage::tr("SAS Controller");
             ++m_iSASCount;
             if (m_iSASCount > 1)
                 strControllerName = QString("%1 %2").arg(strControllerName).arg(m_iSASCount);
@@ -856,4 +946,3 @@ void UINewVMWzdPage5::setMachine(const CMachine &machine)
 {
     m_Machine = machine;
 }
-

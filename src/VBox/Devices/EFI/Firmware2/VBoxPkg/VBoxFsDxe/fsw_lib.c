@@ -1,4 +1,4 @@
-/* $Id: fsw_lib.c $ */
+/* $Id: fsw_lib.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * fsw_lib.c - Core file system wrapper library functions.
  */
@@ -324,7 +324,7 @@ fsw_u16 fsw_to_lower(fsw_u16 ch)
         return fsw_latin_case_fold[ch];
 #if 0
     /*
-     * Uncomment this along with above huuuge table (fsw_lower_case_table)
+     * Uncomment this along with above huge table (fsw_lower_case_table)
      * for full UTF-16 case insensitivity
      */
     temp = fsw_lower_case_table[ch>>8];
@@ -458,7 +458,7 @@ fsw_status_t fsw_strdup_coerce(struct fsw_string *dest, int type, struct fsw_str
 }
 
 /**
- * Splits a string at the first occurence of the separator character.
+ * Splits a string at the first occurrence of the separator character.
  * The buffer string is searched for the separator character. If it is found, the
  * element string descriptor is filled to point at the part of the buffer string
  * before the separator. The buffer string itself is adjusted to point at the

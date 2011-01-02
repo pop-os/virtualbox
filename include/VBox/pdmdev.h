@@ -57,7 +57,7 @@ RT_C_DECLS_BEGIN
  * @param   iInstance   Instance number. Use this to figure out which registers
  *                      and such to use. The instance number is also found in
  *                      pDevIns->iInstance, but since it's likely to be
- *                      freqently used PDM passes it as parameter.
+ *                      frequently used PDM passes it as parameter.
  * @param   pCfg        Configuration node handle for the driver.  This is
  *                      expected to be in high demand in the constructor and is
  *                      therefore passed as an argument.  When using it at other
@@ -398,6 +398,8 @@ typedef PDMDEVREG const *PCPDMDEVREG;
 #define PDM_DEVREG_CLASS_SERIAL                 RT_BIT(16)
 /** Parallel controller device */
 #define PDM_DEVREG_CLASS_PARALLEL               RT_BIT(17)
+/** Host PCI pass-through device */
+#define PDM_DEVREG_CLASS_HOST_DEV               RT_BIT(18)
 /** Misc devices (always last). */
 #define PDM_DEVREG_CLASS_MISC                   RT_BIT(31)
 /** @} */
@@ -410,10 +412,34 @@ typedef PDMDEVREG const *PCPDMDEVREG;
 #define PDM_IRQ_LEVEL_HIGH                      RT_BIT(0)
 /** Deassert the IRQ (can assume value 0). */
 #define PDM_IRQ_LEVEL_LOW                       0
-/** flip-flop - assert and then deassert it again immediately. */
+/** flip-flop - deassert and then assert the IRQ again immediately. */
 #define PDM_IRQ_LEVEL_FLIP_FLOP                 (RT_BIT(1) | PDM_IRQ_LEVEL_HIGH)
 /** @} */
 
+/**
+ * Registration record for MSI.
+ */
+typedef struct PDMMSIREG
+{
+    /** Number of MSI interrupt vectors, 0 if MSI not supported */
+    uint16_t   cMsiVectors;
+    /** Offset of MSI capability */
+    uint8_t    iMsiCapOffset;
+    /** Offset of next capability to MSI */
+    uint8_t    iMsiNextOffset;
+    /** If we support 64-bit MSI addressing */
+    bool       fMsi64bit;
+
+    /** Number of MSI-X interrupt vectors, 0 if MSI-X not supported */
+    uint16_t   cMsixVectors;
+    /** Offset of MSI-X capability */
+    uint8_t    iMsixCapOffset;
+    /** Offset of next capability to MSI-X */
+    uint8_t    iMsixNextOffset;
+    /** Value of PCI BAR (base addresss register) assigned by device for MSI-X page access */
+    uint8_t    iMsixBar;
+} PDMMSIREG;
+typedef PDMMSIREG *PPDMMSIREG;
 
 /**
  * PCI Bus registration structure.
@@ -437,6 +463,16 @@ typedef struct PDMPCIBUSREG
      *                          If negative, the pci bus device will assign one.
      */
     DECLR3CALLBACKMEMBER(int, pfnRegisterR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, const char *pszName, int iDev));
+
+    /**
+     * Initialize MSI support in a PCI device.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns         Device instance of the PCI Bus.
+     * @param   pPciDev         The PCI device structure.
+     * @param   pMsiReg         MSI registration structure
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRegisterMsiR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, PPDMMSIREG pMsiReg));
 
     /**
      * Registers a I/O region (memory mapped or I/O ports) for a PCI device.
@@ -520,7 +556,7 @@ typedef struct PDMPCIBUSREG
 typedef PDMPCIBUSREG *PPDMPCIBUSREG;
 
 /** Current PDMPCIBUSREG version number. */
-#define PDM_PCIBUSREG_VERSION                   PDM_VERSION_MAKE(0xfffe, 1, 0)
+#define PDM_PCIBUSREG_VERSION                   PDM_VERSION_MAKE(0xfffe, 2, 0)
 
 /**
  * PCI Bus RC helpers.
@@ -551,6 +587,17 @@ typedef struct PDMPCIHLPRC
     DECLRCCALLBACKMEMBER(void,  pfnIoApicSetIrq,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
 
     /**
+     * Send an MSI.
+     *
+     * @param   pDevIns         PCI device instance.
+     * @param   GCAddr          Physical address MSI request was written.
+     * @param   uValue          Value written.
+     * @thread  EMT only.
+     */
+    DECLRCCALLBACKMEMBER(void,  pfnIoApicSendMsi,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+
+
+    /**
      * Acquires the PDM lock.
      *
      * @returns VINF_SUCCESS on success.
@@ -575,8 +622,8 @@ typedef RCPTRTYPE(PDMPCIHLPRC *) PPDMPCIHLPRC;
 /** Pointer to const PCI helpers. */
 typedef RCPTRTYPE(const PDMPCIHLPRC *) PCPDMPCIHLPRC;
 
-/** Current PDMPCIHLPR3 version number. */
-#define PDM_PCIHLPRC_VERSION                    PDM_VERSION_MAKE(0xfffd, 1, 0)
+/** Current PDMPCIHLPRC version number. */
+#define PDM_PCIHLPRC_VERSION                    PDM_VERSION_MAKE(0xfffd, 2, 0)
 
 
 /**
@@ -608,6 +655,17 @@ typedef struct PDMPCIHLPR0
     DECLR0CALLBACKMEMBER(void,  pfnIoApicSetIrq,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
 
     /**
+     * Send an MSI.
+     *
+     * @param   pDevIns         PCI device instance.
+     * @param   GCAddr          Physical address MSI request was written.
+     * @param   uValue          Value written.
+     * @thread  EMT only.
+     */
+    DECLR0CALLBACKMEMBER(void,  pfnIoApicSendMsi,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+
+
+    /**
      * Acquires the PDM lock.
      *
      * @returns VINF_SUCCESS on success.
@@ -633,7 +691,7 @@ typedef R0PTRTYPE(PDMPCIHLPR0 *) PPDMPCIHLPR0;
 typedef R0PTRTYPE(const PDMPCIHLPR0 *) PCPDMPCIHLPR0;
 
 /** Current PDMPCIHLPR0 version number. */
-#define PDM_PCIHLPR0_VERSION                    PDM_VERSION_MAKE(0xfffc, 1, 0)
+#define PDM_PCIHLPR0_VERSION                    PDM_VERSION_MAKE(0xfffc, 2, 0)
 
 /**
  * PCI device helpers.
@@ -662,6 +720,16 @@ typedef struct PDMPCIHLPR3
      * @thread  EMT only.
      */
     DECLR3CALLBACKMEMBER(void,  pfnIoApicSetIrq,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+
+    /**
+     * Send an MSI.
+     *
+     * @param   pDevIns         PCI device instance.
+     * @param   GCAddr          Physical address MSI request was written.
+     * @param   uValue          Value written.
+     * @thread  EMT only.
+     */
+    DECLR3CALLBACKMEMBER(void,  pfnIoApicSendMsi,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
 
     /**
      * Checks if the given address is an MMIO2 base address or not.
@@ -723,7 +791,7 @@ typedef R3PTRTYPE(PDMPCIHLPR3 *) PPDMPCIHLPR3;
 typedef R3PTRTYPE(const PDMPCIHLPR3 *) PCPDMPCIHLPR3;
 
 /** Current PDMPCIHLPR3 version number. */
-#define PDM_PCIHLPR3_VERSION                    PDM_VERSION_MAKE(0xfffb, 1, 0)
+#define PDM_PCIHLPR3_VERSION                    PDM_VERSION_MAKE(0xfffb, 2, 0)
 
 
 /**
@@ -1421,12 +1489,27 @@ typedef struct PDMIOAPICREG
 
     /** The name of the R0 SetIrq entry point. */
     const char         *pszSetIrqR0;
+
+    /**
+     * Send a MSI.
+     *
+     * @param   pDevIns         Device instance of the I/O APIC.
+     * @param   GCPhys          Request address.
+     * @param   uValue          Request value.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnSendMsiR3,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+
+    /** The name of the GC SendMsi entry point. */
+    const char         *pszSendMsiRC;
+
+    /** The name of the R0 SendMsi entry point. */
+    const char         *pszSendMsiR0;
 } PDMIOAPICREG;
 /** Pointer to an APIC registration structure. */
 typedef PDMIOAPICREG *PPDMIOAPICREG;
 
 /** Current PDMAPICREG version number. */
-#define PDM_IOAPICREG_VERSION                   PDM_VERSION_MAKE(0xfff2, 1, 0)
+#define PDM_IOAPICREG_VERSION                   PDM_VERSION_MAKE(0xfff2, 2, 0)
 
 
 /**
@@ -2153,9 +2236,9 @@ typedef struct PDMDEVHLPR3
      * @param   pDevIns             The device owning the MMIO2 memory.
      * @param   iRegion             The region.
      * @param   off                 The offset into the region. Will be rounded down
-     *                              to closest page boundrary.
+     *                              to closest page boundary.
      * @param   cb                  The number of bytes to map. Will be rounded up
-     *                              to the closest page boundrary.
+     *                              to the closest page boundary.
      * @param   pszDesc             Mapping description.
      * @param   pRCPtr              Where to store the RC address.
      */
@@ -2195,15 +2278,16 @@ typedef struct PDMDEVHLPR3
      * @param   cbRange             The size of the range (in bytes).
      *                              Must be page aligned!
      * @param   pvBinary            Pointer to the binary data backing the ROM image.
-     *                              This must be cbRange bytes big.
-     *                              It will be copied and doesn't have to stick around if fShadow is clear.
+     * @param   cbBinary            The size of the binary pointer.  This must
+     *                              be equal or smaller than @a cbRange.
      * @param   fFlags              Shadow ROM flags, PGMPHYS_ROM_FLAGS_* in pgm.h.
      * @param   pszDesc             Pointer to description string. This must not be freed.
      *
      * @remark  There is no way to remove the rom, automatically on device cleanup or
      *          manually from the device yet. At present I doubt we need such features...
      */
-    DECLR3CALLBACKMEMBER(int, pfnROMRegister,(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, const void *pvBinary, uint32_t fFlags, const char *pszDesc));
+    DECLR3CALLBACKMEMBER(int, pfnROMRegister,(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange,
+                                              const void *pvBinary, uint32_t cbBinary, uint32_t fFlags, const char *pszDesc));
 
     /**
      * Changes the protection of shadowed ROM mapping.
@@ -2400,7 +2484,7 @@ typedef struct PDMDEVHLPR3
      * @param   pGCPhys             Where to store the GC physical address
      *                              corresponding to GCPtr.
      * @thread  The emulation thread.
-     * @remark  Careful with page boundraries.
+     * @remark  Careful with page boundaries.
      */
     DECLR3CALLBACKMEMBER(int, pfnPhysGCPtr2GCPhys, (PPDMDEVINS pDevIns, RTGCPTR GCPtr, PRTGCPHYS pGCPhys));
 
@@ -2594,6 +2678,15 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnPCIRegister,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev));
 
     /**
+     * Initialize MSI support in a PCI device.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns         The device instance.
+     * @param   pMsiReg         MSI registartion structure.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPCIRegisterMsi,(PPDMDEVINS pDevIns, PPDMMSIREG pMsiReg));
+
+    /**
      * Registers a I/O region (memory mapped or I/O ports) for a PCI device.
      *
      * @returns VBox status code.
@@ -2711,7 +2804,7 @@ typedef struct PDMDEVHLPR3
      * @param   pDevIns             The device instance.
      * @param   pCritSect           Pointer to the critical section.
      * @param   RT_SRC_POS_DECL     Use RT_SRC_POS.
-     * @param   pszNameFmt          Format string for namging the critical section.
+     * @param   pszNameFmt          Format string for naming the critical section.
      *                              For statistics and lock validation.
      * @param   va                  Arguments for the format string.
      */
@@ -3099,6 +3192,15 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnVMSuspend,(PPDMDEVINS pDevIns));
 
     /**
+     * Suspends, saves and powers off the VM.
+     *
+     * @returns The appropriate VBox status code to pass around.
+     * @param   pDevIns             The device instance.
+     * @thread  An emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnVMSuspendSaveAndPowerOff,(PPDMDEVINS pDevIns));
+
+    /**
      * Power off the VM.
      *
      * @returns The appropriate VBox status code to pass around on power off.
@@ -3141,6 +3243,31 @@ typedef struct PDMDEVHLPR3
      */
     DECLR3CALLBACKMEMBER(void, pfnGetCpuId,(PPDMDEVINS pDevIns, uint32_t iLeaf, uint32_t *pEax, uint32_t *pEbx, uint32_t *pEcx, uint32_t *pEdx));
 
+    /**
+     * Get the current virtual clock time in a VM. The clock frequency must be
+     * queried separately.
+     *
+     * @returns Current clock time.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGet,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the frequency of the virtual clock.
+     *
+     * @returns The clock frequency (not variable at run-time).
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetFreq,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the current virtual clock time in a VM, in nanoseconds.
+     *
+     * @returns Current clock time (in ns).
+     * @param   pDevIns             The device instance.
+     */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetNano,(PPDMDEVINS pDevIns));
+
     /** @} */
 
     /** Just a safety precaution. (PDM_DEVHLP_VERSION) */
@@ -3153,7 +3280,7 @@ typedef R3PTRTYPE(struct PDMDEVHLPR3 *) PPDMDEVHLPR3;
 typedef R3PTRTYPE(const struct PDMDEVHLPR3 *) PCPDMDEVHLPR3;
 
 /** Current PDMDEVHLPR3 version number. */
-#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 2, 0)
+#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 3, 0)
 
 
 /**
@@ -3298,6 +3425,31 @@ typedef struct PDMDEVHLPRC
      * @param   pDevIns             The device instance.
      */
     DECLRCCALLBACKMEMBER(PVMCPU, pfnGetVMCPU,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the current virtual clock time in a VM. The clock frequency must be
+     * queried separately.
+     *
+     * @returns Current clock time.
+     * @param   pDevIns             The device instance.
+     */
+    DECLRCCALLBACKMEMBER(uint64_t, pfnTMTimeVirtGet,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the frequency of the virtual clock.
+     *
+     * @returns The clock frequency (not variable at run-time).
+     * @param   pDevIns             The device instance.
+     */
+    DECLRCCALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetFreq,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the current virtual clock time in a VM, in nanoseconds.
+     *
+     * @returns Current clock time (in ns).
+     * @param   pDevIns             The device instance.
+     */
+    DECLRCCALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetNano,(PPDMDEVINS pDevIns));
 
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
@@ -3461,6 +3613,31 @@ typedef struct PDMDEVHLPR0
      * @param   pDevIns             The device instance.
      */
     DECLR0CALLBACKMEMBER(PVMCPU, pfnGetVMCPU,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the current virtual clock time in a VM. The clock frequency must be
+     * queried separately.
+     *
+     * @returns Current clock time.
+     * @param   pDevIns             The device instance.
+     */
+    DECLR0CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGet,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the frequency of the virtual clock.
+     *
+     * @returns The clock frequency (not variable at run-time).
+     * @param   pDevIns             The device instance.
+     */
+    DECLR0CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetFreq,(PPDMDEVINS pDevIns));
+
+    /**
+     * Get the current virtual clock time in a VM, in nanoseconds.
+     *
+     * @returns Current clock time (in ns).
+     * @param   pDevIns             The device instance.
+     */
+    DECLR0CALLBACKMEMBER(uint64_t, pfnTMTimeVirtGetNano,(PPDMDEVINS pDevIns));
 
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
@@ -3799,9 +3976,10 @@ DECLINLINE(int) PDMDevHlpMMIO2MapKernel(PPDMDEVINS pDevIns, uint32_t iRegion, RT
 /**
  * @copydoc PDMDEVHLPR3::pfnROMRegister
  */
-DECLINLINE(int) PDMDevHlpROMRegister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange, const void *pvBinary, uint32_t fFlags, const char *pszDesc)
+DECLINLINE(int) PDMDevHlpROMRegister(PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, RTUINT cbRange,
+                                     const void *pvBinary, uint32_t cbBinary, uint32_t fFlags, const char *pszDesc)
 {
-    return pDevIns->pHlpR3->pfnROMRegister(pDevIns, GCPhysStart, cbRange, pvBinary, fFlags, pszDesc);
+    return pDevIns->pHlpR3->pfnROMRegister(pDevIns, GCPhysStart, cbRange, pvBinary, cbBinary, fFlags, pszDesc);
 }
 
 /**
@@ -4100,6 +4278,15 @@ DECLINLINE(int) PDMDevHlpPCIIORegionRegister(PPDMDEVINS pDevIns, int iRegion, ui
 }
 
 /**
+ * @copydoc PDMDEVHLPR3::pfnPCIRegisterMsi
+ */
+DECLINLINE(int) PDMDevHlpPCIRegisterMsi(PPDMDEVINS pDevIns, PPDMMSIREG pMsiReg)
+{
+    return pDevIns->pHlpR3->pfnPCIRegisterMsi(pDevIns, pMsiReg);
+}
+
+
+/**
  * @copydoc PDMDEVHLPR3::pfnPCISetConfigCallbacks
  */
 DECLINLINE(void) PDMDevHlpPCISetConfigCallbacks(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, PFNPCICONFIGREAD pfnRead, PPFNPCICONFIGREAD ppfnReadOld,
@@ -4171,7 +4358,7 @@ DECLINLINE(int) PDMDevHlpQueueCreate(PPDMDEVINS pDevIns, RTUINT cbItem, RTUINT c
  * @param   pDevIns             The device instance.
  * @param   pCritSect           Pointer to the critical section.
  * @param   RT_SRC_POS_DECL     Use RT_SRC_POS.
- * @param   pszNameFmt          Format string for namging the critical section.
+ * @param   pszNameFmt          Format string for naming the critical section.
  *                              For statistics and lock validation.
  * @param   ...                 Arguments for the format string.
  */
@@ -4364,6 +4551,30 @@ DECLINLINE(PVMCPU) PDMDevHlpGetVMCPU(PPDMDEVINS pDevIns)
     return pDevIns->CTX_SUFF(pHlp)->pfnGetVMCPU(pDevIns);
 }
 
+/**
+ * @copydoc PDMDEVHLPR3::pfnTMTimeVirtGet
+ */
+DECLINLINE(uint64_t) PDMDevHlpTMTimeVirtGet(PPDMDEVINS pDevIns)
+{
+    return pDevIns->CTX_SUFF(pHlp)->pfnTMTimeVirtGet(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnTMTimeVirtGetFreq
+ */
+DECLINLINE(uint64_t) PDMDevHlpTMTimeVirtGetFreq(PPDMDEVINS pDevIns)
+{
+    return pDevIns->CTX_SUFF(pHlp)->pfnTMTimeVirtGetFreq(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnTMTimeVirtGetFreq
+ */
+DECLINLINE(uint64_t) PDMDevHlpTMTimeVirtGetNano(PPDMDEVINS pDevIns)
+{
+    return pDevIns->CTX_SUFF(pHlp)->pfnTMTimeVirtGetNano(pDevIns);
+}
+
 #ifdef IN_RING3
 
 /**
@@ -4396,6 +4607,14 @@ DECLINLINE(int) PDMDevHlpVMReset(PPDMDEVINS pDevIns)
 DECLINLINE(int) PDMDevHlpVMSuspend(PPDMDEVINS pDevIns)
 {
     return pDevIns->pHlpR3->pfnVMSuspend(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnVMSuspendSaveAndPowerOff
+ */
+DECLINLINE(int) PDMDevHlpVMSuspendSaveAndPowerOff(PPDMDEVINS pDevIns)
+{
+    return pDevIns->pHlpR3->pfnVMSuspendSaveAndPowerOff(pDevIns);
 }
 
 /**

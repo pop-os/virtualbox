@@ -1,4 +1,4 @@
-/* $Id: NetworkAdapterImpl.h $ */
+/* $Id: NetworkAdapterImpl.h 31287 2010-08-02 12:13:00Z vboxsync $ */
 
 /** @file
  *
@@ -32,8 +32,6 @@ namespace settings
 
 class ATL_NO_VTABLE NetworkAdapter :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<NetworkAdapter, INetworkAdapter>,
-    public VirtualBoxSupportTranslation<NetworkAdapter>,
     VBOX_SCRIPTABLE_IMPL(INetworkAdapter)
 {
 public:
@@ -70,9 +68,10 @@ public:
 #endif
         Bstr mNATNetwork;
         ULONG mBootPriority;
+        ULONG mBandwidthLimit;
     };
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (NetworkAdapter)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(NetworkAdapter, INetworkAdapter)
 
     DECLARE_NOT_AGGREGATABLE(NetworkAdapter)
 
@@ -123,6 +122,8 @@ public:
     STDMETHOD(COMGETTER(NatDriver)) (INATEngine **aNatDriver);
     STDMETHOD(COMGETTER(BootPriority)) (ULONG *aBootPriority);
     STDMETHOD(COMSETTER(BootPriority)) (ULONG aBootPriority);
+    STDMETHOD(COMGETTER(BandwidthLimit)) (ULONG *aLimit);
+    STDMETHOD(COMSETTER(BandwidthLimit)) (ULONG aLimit);
 
     // INetworkAdapter methods
     STDMETHOD(AttachToNAT)();
@@ -142,9 +143,6 @@ public:
     void commit();
     void copyFrom (NetworkAdapter *aThat);
     void applyDefaults (GuestOSType *aOsType);
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"NetworkAdapter"; }
 
 private:
 

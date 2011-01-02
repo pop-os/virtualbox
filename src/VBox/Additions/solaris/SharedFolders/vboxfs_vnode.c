@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -482,7 +482,7 @@ sfnode_rename(sfnode_t *node, sfnode_t *newparent, char *path)
 			 * - re-insert the AVL name
 			 */
 			ASSERT(strlen(n->sf_path) > old_len);
-			tail = n->sf_path + old_len; /* includes intial "/" */
+			tail = n->sf_path + old_len; /* includes initial "/" */
 			new_path = kmem_alloc(len + strlen(tail) + 1,
 			    KM_SLEEP);
 			strcpy(new_path, path);

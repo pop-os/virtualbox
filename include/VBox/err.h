@@ -171,7 +171,7 @@
 #define VINF_EM_LAST                        1120
 
 /** Reason for leaving GC: Guest trap which couldn't be handled in GC.
- * The trap is generally forwared to the REM and executed there. */
+ * The trap is generally forwarded to the REM and executed there. */
 #define VINF_EM_RAW_GUEST_TRAP              1121
 /** Reason for leaving GC: Interrupted by external interrupt.
  * The interrupt needed to be handled by the host OS. */
@@ -266,6 +266,16 @@
 #define VERR_DBGF_OS_NOT_DETCTED            (-1209)
 /** The OS was not detected. */
 #define VINF_DBGF_OS_NOT_DETCTED            1209
+/** Invalid register number. */
+#define VERR_DBGF_INVALID_REGISTER          (-1210)
+/** The value was truncated to fit.
+ * For queries this means that the register is wider than the queried value.
+ * For setters this means that the value is wider than the register. */
+#define VINF_DBGF_TRUNCATED_REGISTER        1211
+/** The value was zero extended to fit.
+ * For queries this means that the register is narrower than the queried value.
+ * For setters this means that the value is narrower than the register. */
+#define VINF_DBGF_ZERO_EXTENDED_REGISTER    1212
 /** @} */
 
 
@@ -366,7 +376,7 @@
 /** Invalid GC physical address. */
 #define VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS (-1605)
 /** Invalid GC physical range. Usually used when a specified range crosses
- * a RAM region boundrary. */
+ * a RAM region boundary. */
 #define VERR_PGM_INVALID_GC_PHYSICAL_RANGE  (-1606)
 /** Specified access handler was not found. */
 #define VERR_PGM_HANDLER_NOT_FOUND          (-1607)
@@ -486,10 +496,17 @@
  */
 /** Attempt to register a RAM range of which parts are already
  * covered by existing RAM ranges. */
-#define VERR_MM_RAM_CONFLICT                (-1700)
+#define VERR_MM_RAM_CONFLICT                    (-1700)
 /** Hypervisor memory allocation failed. */
-#define VERR_MM_HYPER_NO_MEMORY             (-1701)
+#define VERR_MM_HYPER_NO_MEMORY                 (-1701)
+/** @} */
 
+
+/** @name CPU Monitor (CPUM) Status Codes
+ * @{
+ */
+/** The caller shall raise an \#GP(0) exception. */
+#define VERR_CPUM_RAISE_GP_0                    (-1750)
 /** @} */
 
 
@@ -567,10 +584,10 @@
  * (There are certain PCI reconfiguration which the OS could potentially
  * do which can cause this problem. Check this out when it happens.) */
 #define VERR_SSM_LOAD_CONFIG_MISMATCH           (-1844)
-/** The virtual clock freqency differs too much.
+/** The virtual clock frequency differs too much.
  * The clock source for the virtual time isn't reliable or the code have changed. */
 #define VERR_SSM_VIRTUAL_CLOCK_HZ               (-1845)
-/** A timeout occured while waiting for async IDE operations to finish. */
+/** A timeout occurred while waiting for async IDE operations to finish. */
 #define VERR_SSM_IDE_ASYNC_TIMEOUT              (-1846)
 /** One of the structure magics was wrong. */
 #define VERR_SSM_STRUCTURE_MAGIC                (-1847)
@@ -640,7 +657,7 @@
 #define VERR_VM_ATRESET_NOT_FOUND               (-1900)
 /** Invalid VM request type.
  * For the VMR3ReqAlloc() case, the caller just specified an illegal enmType. For
- * all the other occurences it means indicates corruption, broken logic, or stupid
+ * all the other occurrences it means indicates corruption, broken logic, or stupid
  * interface user. */
 #define VERR_VM_REQUEST_INVALID_TYPE            (-1901)
 /** Invalid VM request state.
@@ -784,7 +801,7 @@
 /** Recompiler execution was interrupted by forced action. */
 #define VINF_REM_INTERRUPED_FF              2302
 /** Too many similar traps. This is a very useful debug only
- * check (we don't do double/tripple faults in REM). */
+ * check (we don't do double/triple faults in REM). */
 #define VERR_REM_TOO_MANY_TRAPS             (-2304)
 /** The REM is out of breakpoint slots. */
 #define VERR_REM_NO_MORE_BP_SLOTS           (-2305)
@@ -1229,12 +1246,24 @@
 #define VERR_VD_ISCSI_INVALID_TYPE                  (-3254)
 /** VHD: Invalid image file header. */
 #define VERR_VD_VHD_INVALID_HEADER                  (-3260)
+/** Parallels HDD: Invalid image file header. */
+#define VERR_VD_PARALLELS_INVALID_HEADER            (-3265)
+/** DMG: Invalid image file header. */
+#define VERR_VD_DMG_INVALID_HEADER                  (-3267)
 /** Raw: Invalid image file header. */
 #define VERR_VD_RAW_INVALID_HEADER                  (-3270)
 /** Raw: Invalid image file type. */
 #define VERR_VD_RAW_INVALID_TYPE                    (-3271)
 /** The backend needs more metadata before it can continue. */
 #define VERR_VD_NOT_ENOUGH_METADATA                 (-3272)
+/** Halt the current I/O context until further notification from the backend. */
+#define VERR_VD_IOCTX_HALT                          (-3273)
+/** The disk has a cache attached already. */
+#define VERR_VD_CACHE_ALREADY_EXISTS                (-3274)
+/** There is no cache attached to the disk. */
+#define VERR_VD_CACHE_NOT_FOUND                     (-3275)
+/** The cache is not up to date with the image. */
+#define VERR_VD_CACHE_NOT_UP_TO_DATE                (-3276)
 /** @} */
 
 
@@ -1318,6 +1347,53 @@
 #define VERR_SUPDRV_SERVICE_NOT_FOUND               (-3702)
 /** The host kernel is too old. */
 #define VERR_SUPDRV_KERNEL_TOO_OLD_FOR_VTX          (-3703)
+/** @} */
+
+
+/** @name Support Library Status Codes
+ * @{
+ */
+/** The specified path was not absolute (hardening). */
+#define VERR_SUPLIB_PATH_NOT_ABSOLUTE               (-3750)
+/** The specified path was not clean (hardening). */
+#define VERR_SUPLIB_PATH_NOT_CLEAN                  (-3751)
+/** The specified path is too long (hardening). */
+#define VERR_SUPLIB_PATH_TOO_LONG                   (-3752)
+/** The specified path is too short (hardening). */
+#define VERR_SUPLIB_PATH_TOO_SHORT                  (-3753)
+/** The specified path has too many components (hardening). */
+#define VERR_SUPLIB_PATH_TOO_MANY_COMPONENTS        (-3754)
+/** The specified path is a root path (hardening). */
+#define VERR_SUPLIB_PATH_IS_ROOT                    (-3755)
+/** Failed to enumerate directory (hardening). */
+#define VERR_SUPLIB_DIR_ENUM_FAILED                 (-3756)
+/** Failed to stat a file/dir during enumeration (hardening). */
+#define VERR_SUPLIB_STAT_ENUM_FAILED                (-3757)
+/** Failed to stat a file/dir (hardening). */
+#define VERR_SUPLIB_STAT_FAILED                     (-3758)
+/** Failed to fstat a native handle (hardening). */
+#define VERR_SUPLIB_FSTAT_FAILED                    (-3759)
+/** Found an illegal symbolic link (hardening). */
+#define VERR_SUPLIB_SYMLINKS_ARE_NOT_PERMITTED      (-3760)
+/** Found something which isn't a file nor a directory (hardening). */
+#define VERR_SUPLIB_NOT_DIR_NOT_FILE                (-3761)
+/** The specified path is a directory and not a file (hardening). */
+#define VERR_SUPLIB_IS_DIRECTORY                    (-3762)
+/** The specified path is a file and not a directory (hardening). */
+#define VERR_SUPLIB_IS_FILE                         (-3763)
+/** The path is not the same object as the native handle (hardening). */
+#define VERR_SUPLIB_NOT_SAME_OBJECT                 (-3764)
+/** The owner is not root (hardening). */
+#define VERR_SUPLIB_OWNER_NOT_ROOT                  (-3765)
+/** The group is a non-system group and it has write access (hardening). */
+#define VERR_SUPLIB_WRITE_NON_SYS_GROUP             (-3766)
+/** The file or directory is world writable (hardening). */
+#define VERR_SUPLIB_WORLD_WRITABLE                  (-3767)
+/** The argv[0] of an internal application does not match the executable image
+ * path (hardening). */
+#define VERR_SUPLIB_INVALID_ARGV0_INTERNAL          (-3768)
+/** The internal application does not reside in the correct place (hardening). */
+#define VERR_SUPLIB_INVALID_INTERNAL_APP_DIR        (-3769)
 /** @} */
 
 
@@ -1534,7 +1610,7 @@
 /** @name VBox CPU hotplug Status codes
  * @{
  */
-/** CPU hotplug events from VMMDev are not monitored by the guest */
+/** CPU hotplug events from VMMDev are not monitored by the guest. */
 #define VERR_CPU_HOTPLUG_NOT_MONITORED_BY_GUEST    (-4700)
 /** @} */
 
@@ -1548,29 +1624,37 @@
 /** @name VBox Virtual SCSI Status Codes
  * @{
  */
-/** LUN type is not supported */
+/** LUN type is not supported. */
 #define VERR_VSCSI_LUN_TYPE_NOT_SUPPORTED           (-4900)
-/** LUN is already/still attached to a device */
+/** LUN is already/still attached to a device. */
 #define VERR_VSCSI_LUN_ATTACHED_TO_DEVICE           (-4901)
-/** The specified LUN is invalid */
+/** The specified LUN is invalid. */
 #define VERR_VSCSI_LUN_INVALID                      (-4902)
-/** The LUN is not attached to the device */
+/** The LUN is not attached to the device. */
 #define VERR_VSCSI_LUN_NOT_ATTACHED                 (-4903)
 /** The LUN is still busy. */
 #define VERR_VSCSI_LUN_BUSY                         (-4904)
 /** @} */
 
-/** @name VBox FAM error codes
+/** @name VBox FAM Status Codes
  * @{
  */
-/** FAM failed to open a connection */
+/** FAM failed to open a connection. */
 #define VERR_FAM_OPEN_FAILED                        (-5000)
-/** FAM failed to add a file to the list to be monitored */
+/** FAM failed to add a file to the list to be monitored. */
 #define VERR_FAM_MONITOR_FILE_FAILED                (-5001)
-/** FAM failed to add a directory to the list to be monitored */
+/** FAM failed to add a directory to the list to be monitored. */
 #define VERR_FAM_MONITOR_DIRECTORY_FAILED           (-5002)
-/** The connection to the FAM daemon was lost */
+/** The connection to the FAM daemon was lost. */
 #define VERR_FAM_CONNECTION_LOST                    (-5003)
+/** @} */
+
+/** @name VBox Extension Pack Status Codes
+ * @{
+ */
+/** The host is not supported. Uninstall the extension pack.
+ * Returned by the VBOXEXTPACKREG::pfnInstalled. */
+#define VERR_EXTPACK_UNSUPPORTED_HOST_UNINSTALL     (-5000)
 /** @} */
 
 /* SED-END */

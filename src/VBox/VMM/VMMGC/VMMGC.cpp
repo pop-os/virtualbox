@@ -1,10 +1,10 @@
-/* $Id: VMMGC.cpp $ */
+/* $Id: VMMGC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VMM - Raw-mode Context.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -90,6 +90,8 @@ VMMRCDECL(int) VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...)
             rc = PGMRegisterStringFormatTypes();
             AssertRCReturn(rc, rc);
 
+            rc = PGMRCDynMapInit(pVM);
+            AssertRCReturn(rc, rc);
             return VINF_SUCCESS;
         }
 
@@ -221,7 +223,7 @@ VMMRCDECL(void) VMMGCGuestToHost(PVM pVM, int rc)
  * @param   uOperation  The testcase.
  * @param   uArg        The variation. See function description for odd / even details.
  *
- * @remark  Careful with the trap 08 testcase and WP, it will tripple
+ * @remark  Careful with the trap 08 testcase and WP, it will triple
  *          fault the box if the TSS, the Trap8 TSS and the fault TSS
  *          GDTE are in pages which are read-only.
  *          See bottom of SELMR3Init().
@@ -269,7 +271,7 @@ static int vmmGCTest(PVM pVM, unsigned uOperation, unsigned uArg)
 
         case VMMGC_DO_TESTCASE_TRAP_8:
         {
-#ifndef DEBUG_bird /** @todo dynamic check that this won't tripple fault... */
+#ifndef DEBUG_bird /** @todo dynamic check that this won't triple fault... */
             if (uArg & 1)
                 break;
 #endif

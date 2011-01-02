@@ -1,4 +1,4 @@
-/* $Id: logrelellipsis.cpp $ */
+/* $Id: logrelellipsis.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Runtime VBox - Logger, the release ellipsis variants.
  */
@@ -43,7 +43,7 @@
  * @param   pLogger     Pointer to logger instance.
  * @param   fFlags      The logging flags.
  * @param   iGroup      The group.
- *                      The value ~0U is reserved for compatability with RTLogLogger[V] and is
+ *                      The value ~0U is reserved for compatibility with RTLogLogger[V] and is
  *                      only for internal usage!
  * @param   pszFormat   Format string.
  * @param   ...         Format arguments.

@@ -1,4 +1,4 @@
-/* $Id: fileaio-solaris.cpp $ */
+/* $Id: fileaio-solaris.cpp 30238 2010-06-16 11:34:44Z vboxsync $ */
 /** @file
  * IPRT - File async I/O, native implementation for the Solaris host platform.
  */
@@ -474,7 +474,7 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL
     {
         port_event_t aPortEvents[AIO_MAXIMUM_REQUESTS_PER_CONTEXT];
         uint_t cRequests    = cMinReqs;
-        int cRequestsToWait = cMinReqs < AIO_MAXIMUM_REQUESTS_PER_CONTEXT ? cReqs : AIO_MAXIMUM_REQUESTS_PER_CONTEXT;
+        int cRequestsToWait = RT_MIN(cReqs, AIO_MAXIMUM_REQUESTS_PER_CONTEXT);
         int rcSol;
         uint64_t StartTime;
 

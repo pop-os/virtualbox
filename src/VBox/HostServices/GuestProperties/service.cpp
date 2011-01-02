@@ -1,4 +1,4 @@
-/* $Id: service.cpp $ */
+/* $Id: service.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Guest Property Service: Host service entry points.
  */
@@ -134,7 +134,7 @@ struct GuestCall
 
     /** The standard constructor */
     GuestCall() : mFunction(0) {}
-    /** The normal contructor */
+    /** The normal constructor */
     GuestCall(VBOXHGCMCALLHANDLE aHandle, uint32_t aFunction,
               VBOXHGCMSVCPARM aParms[], int aRc)
               : mHandle(aHandle), mFunction(aFunction), mParms(aParms),
@@ -146,7 +146,7 @@ typedef std::list <GuestCall> CallList;
 /**
  * Class containing the shared information service functionality.
  */
-class Service : public stdx::non_copyable
+class Service : public iprt::non_copyable
 {
 private:
     /** Type definition for use in callback functions */
@@ -1287,7 +1287,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
         else
         {
             std::auto_ptr<Service> apService;
-            /* No exceptions may propogate outside. */
+            /* No exceptions may propagate outside. */
             try {
                 apService = std::auto_ptr<Service>(new Service(ptable->pHelpers));
             } catch (int rcThrown) {

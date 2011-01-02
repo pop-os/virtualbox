@@ -1,4 +1,4 @@
-/* $Id: UIMachineViewFullscreen.cpp $ */
+/* $Id: UIMachineViewFullscreen.cpp 32174 2010-09-01 12:52:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -30,32 +30,35 @@
 #endif
 
 /* Local includes */
+#include "VBoxGlobal.h"
 #include "UISession.h"
 #include "UIActionsPool.h"
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
-#include "UIFrameBuffer.h"
 #include "UIMachineLogicFullscreen.h"
+#include "UIMachineWindow.h"
 #include "UIMachineViewFullscreen.h"
+#include "UIFrameBuffer.h"
 
 UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWindow
-                                                 , VBoxDefs::RenderMode renderMode
+                                                 , ulong uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                                                  , bool bAccelerate2DVideo
 #endif
-                                                 , ulong uMonitor)
+                                                 )
     : UIMachineView(  pMachineWindow
-                    , renderMode
+                    , uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                     , bAccelerate2DVideo
 #endif
-                    , uMonitor)
+                    )
     , m_bIsGuestAutoresizeEnabled(pMachineWindow->machineLogic()->actionsPool()->action(UIActionIndex_Toggle_GuestAutoresize)->isChecked())
     , m_fShouldWeDoResize(false)
     , m_pSyncBlocker(0)
 {
     /* Load machine view settings: */
     loadMachineViewSettings();
+
+    /* Prepare viewport: */
+    prepareViewport();
 
     /* Prepare frame buffer: */
     prepareFrameBuffer();
@@ -74,17 +77,12 @@ UIMachineViewFullscreen::UIMachineViewFullscreen(  UIMachineWindow *pMachineWind
 
     /* Initialization: */
     sltMachineStateChanged();
-    sltMousePointerShapeChanged();
-    sltMouseCapabilityChanged();
 }
 
 UIMachineViewFullscreen::~UIMachineViewFullscreen()
 {
     /* Cleanup fullscreen: */
     cleanupFullscreen();
-
-    /* Cleanup common things: */
-    cleanupCommon();
 
     /* Cleanup frame buffer: */
     cleanupFrameBuffer();
@@ -148,29 +146,66 @@ bool UIMachineViewFullscreen::event(QEvent *pEvent)
 {
     switch (pEvent->type())
     {
-        case QEvent::KeyPress:
-        case QEvent::KeyRelease:
-        {
-            /* Get key-event: */
-            QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
-
-            /* Process Host+Home for menu popup: */
-            if (isHostKeyPressed() && pEvent->type() == QEvent::KeyPress)
-            {
-                if (pKeyEvent->key() == Qt::Key_Home)
-                    QTimer::singleShot(0, machineWindowWrapper()->machineWindow(), SLOT(sltPopupMainMenu()));
-                else
-                    pEvent->ignore();
-            }
-        }
-
         case VBoxDefs::ResizeEventType:
         {
+            /* Some situations require framebuffer resize events to be ignored at all,
+             * leaving machine-window, machine-view and framebuffer sizes preserved: */
+            if (uisession()->isGuestResizeIgnored())
+                return true;
+
+            /* We are starting to perform machine-view resize,
+             * we should temporary ignore other if they are trying to be: */
+            bool fWasMachineWindowResizeIgnored = isMachineWindowResizeIgnored();
+            setMachineWindowResizeIgnored(true);
+
+            /* Get guest resize-event: */
+            UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
+
+            /* Perform framebuffer resize: */
+            frameBuffer()->resizeEvent(pResizeEvent);
+
+            /* Reapply maximum size restriction for machine-view: */
+            setMaximumSize(sizeHint());
+
+            /* Store the new size to prevent unwanted resize hints being sent back: */
+            storeConsoleSize(pResizeEvent->width(), pResizeEvent->height());
+
+            /* Perform machine-view resize: */
+            resize(pResizeEvent->width(), pResizeEvent->height());
+
+            /* May be we have to restrict minimum size? */
+            maybeRestrictMinimumSize();
+
+            /* Let our toplevel widget calculate its sizeHint properly: */
+            QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
+
+#ifdef Q_WS_MAC
+            machineLogic()->updateDockIconSize(screenId(), pResizeEvent->width(), pResizeEvent->height());
+#endif /* Q_WS_MAC */
+
+            /* Update machine-view sliders: */
+            updateSliders();
+
+            /* Report to the VM thread that we finished resizing: */
+            session().GetConsole().GetDisplay().ResizeCompleted(screenId());
+
+            /* We are finishing to perform machine-view resize: */
+            setMachineWindowResizeIgnored(fWasMachineWindowResizeIgnored);
+
+            /* We also recalculate the desktop geometry if this is determined
+             * automatically.  In fact, we only need this on the first resize,
+             * but it is done every time to keep the code simpler. */
+            calculateDesktopGeometry();
+
+            /* Emit a signal about guest was resized: */
+            emit resizeHintDone();
+
             /* Unlock after processing guest resize event: */
-            bool fResult = UIMachineView::event(pEvent);
             if (m_pSyncBlocker && m_pSyncBlocker->isRunning())
                 m_pSyncBlocker->quit();
-            return fResult;
+
+            pEvent->accept();
+            return true;
         }
 
         default:
@@ -216,6 +251,10 @@ void UIMachineViewFullscreen::prepareCommon()
     /* Base class common settings: */
     UIMachineView::prepareCommon();
 
+    /* Setup size-policy: */
+    setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
+    /* Maximum size to sizehint: */
+    setMaximumSize(sizeHint());
     /* Minimum size is ignored: */
     setMinimumSize(0, 0);
     /* No scrollbars: */
@@ -308,7 +347,7 @@ void UIMachineViewFullscreen::maybeRestrictMinimumSize()
      * Currently, the restriction is set only in SDL mode and only when the auto-resize feature is inactive.
      * We need to do that because we cannot correctly draw in a scrolled window in SDL mode.
      * In all other modes, or when auto-resize is in force, this function does nothing. */
-    if (mode() == VBoxDefs::SDLMode)
+    if (vboxGlobal().vmRenderMode() == VBoxDefs::SDLMode)
     {
         if (!uisession()->isGuestSupportsGraphics() || !m_bIsGuestAutoresizeEnabled)
             setMinimumSize(sizeHint());

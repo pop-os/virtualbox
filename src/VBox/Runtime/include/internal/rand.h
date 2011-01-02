@@ -1,4 +1,4 @@
-/* $Id: rand.h $ */
+/* $Id: rand.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Internal RTRand header
  */
@@ -112,7 +112,7 @@ typedef struct RTRANDINT
     /**
      * Restores the state of a pseudo generator.
      *
-     * The state must've been obtained using pfnGetState.
+     * The state must have been obtained using pfnGetState.
      *
      * @returns IPRT status code.
      * @retval  VERR_PARSE_ERROR if the state string is malformed.

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 33439 2010-10-25 19:35:58Z vboxsync $
 ## @file
 # Sub-Makefile for the vboxsf (linux shared folders module).
 #
@@ -38,8 +38,7 @@ vboxsf-sh_MODE        = a+rx,u+w
 vboxsf-sh_SOURCES     = $(subst ",,$(FILES_VBOXSF_BIN))
 vboxsf-sh_SOURCES    += \
 	$(PATH_vboxsf-sh)/build_in_tmp \
-	$(if $(VBOX_OSE),,\
-	  $(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers)
+	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
 vboxsf-sh_CLEAN      += $(PATH_vboxsf-sh)/build_in_tmp
 
 
@@ -62,6 +61,7 @@ vboxsf_SOURCES         = \
 	vfsmod.c \
 	utils.c \
 	dirops.c \
+	lnkops.c \
 	regops.c
 vboxsf_LIBS            = \
 	$(VBOX_LIB_VBGL_R0)
@@ -84,8 +84,8 @@ vboxsf_DEFS           += $(foreach inc,$(VBOX_LINUX_INCS),\
 mount.vboxsf_TEMPLATE    = VBOXGUESTR3EXE
 mount.vboxsf_DEFS        = _GNU_SOURCE
 mount.vboxsf_SOURCES     = \
-	mount.vboxsf.c
-
+	mount.vboxsf.c \
+	vbsfmount.c
 
 ## Scripts needed for building kernel modules
 

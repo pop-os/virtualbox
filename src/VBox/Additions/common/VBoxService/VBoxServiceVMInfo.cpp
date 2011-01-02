@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceVMInfo.cpp $ */
+/* $Id: VBoxServiceVMInfo.cpp 33554 2010-10-28 11:59:44Z vboxsync $ */
 /** @file
  * VBoxService - Virtual Machine Information for the Host.
  */
@@ -35,8 +35,10 @@
 # include <sys/socket.h>
 # include <net/if.h>
 # include <unistd.h>
-# ifndef RT_OS_FREEBSD
-#  include <utmpx.h> /* @todo FreeBSD 9 should have this. */
+# ifndef RT_OS_OS2
+#  ifndef RT_OS_FREEBSD
+#   include <utmpx.h> /* @todo FreeBSD 9 should have this. */
+#  endif
 # endif
 # ifdef RT_OS_SOLARIS
 #  include <sys/sockio.h>
@@ -66,7 +68,7 @@
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-/** The vminfo interval (millseconds). */
+/** The vminfo interval (milliseconds). */
 static uint32_t                 g_cMsVMInfoInterval = 0;
 /** The semaphore we're blocking on. */
 static RTSEMEVENTMULTI          g_hVMInfoEvent = NIL_RTSEMEVENTMULTI;
@@ -76,8 +78,8 @@ static uint32_t                 g_uVMInfoGuestPropSvcClientID = 0;
 static uint32_t                 g_cVMInfoLoggedInUsers = UINT32_MAX;
 /** The guest property cache. */
 static VBOXSERVICEVEPROPCACHE   g_VMInfoPropCache;
-/** The session ID. Changes whenever the VM is restored or resetted. */
-static uint64_t                 g_idSession;
+/** The VM session ID. Changes whenever the VM is restored or reset. */
+static uint64_t                 g_idVMInfoSession;
 
 
 /** @copydoc VBOXSERVICE::pfnPreInit */
@@ -114,9 +116,9 @@ static DECLCALLBACK(int) VBoxServiceVMInfoInit(void)
 
     int rc = RTSemEventMultiCreate(&g_hVMInfoEvent);
     AssertRCReturn(rc, rc);
-    
-    rc = VbglR3GetSessionId(&g_idSession);
-    /* The error ignored as this information is not available with VBox < 3.2.10. */
+
+    VbglR3GetSessionId(&g_idVMInfoSession);
+    /* The status code is ignored as this information is not available with VBox < 3.2.10. */
 
     rc = VbglR3GuestPropConnect(&g_uVMInfoGuestPropSvcClientID);
     if (RT_SUCCESS(rc))
@@ -232,13 +234,13 @@ static int vboxserviceVMInfoWriteUsers(void)
 # endif
 
 #elif defined(RT_OS_FREEBSD)
-    /** @todo FreeBSD: Port logged on user info retrival.
+    /** @todo FreeBSD: Port logged on user info retrieval.
      *                 However, FreeBSD 9 supports utmpx, so we could use the code
      *                 block below (?). */
     rc = VERR_NOT_IMPLEMENTED;
 
 #elif defined(RT_OS_OS2)
-    /** @todo OS/2: Port logged on (LAN/local/whatever) user info retrival. */
+    /** @todo OS/2: Port logged on (LAN/local/whatever) user info retrieval. */
     rc = VERR_NOT_IMPLEMENTED;
 
 #else
@@ -377,10 +379,19 @@ static int vboxserviceVMInfoWriteNetwork(void)
     SOCKET sd = WSASocket(AF_INET, SOCK_DGRAM, 0, 0, 0, 0);
     if (sd == SOCKET_ERROR) /* Socket invalid. */
     {
-        VBoxServiceError("VMInfo/Network: Failed to get a socket: Error %d\n", WSAGetLastError());
+        int wsaErr = WSAGetLastError();
+        /* Don't complain/bail out with an error if network stack is not up; can happen
+         * on NT4 due to start up when not connected shares dialogs pop up. */
+        if (WSAENETDOWN == wsaErr)
+        {
+            VBoxServiceVerbose(0, "VMInfo/Network: Network is not up yet.\n");
+            wsaErr = VINF_SUCCESS;
+        }
+        else
+            VBoxServiceError("VMInfo/Network: Failed to get a socket: Error %d\n", wsaErr);
         if (pAdpInfo)
             RTMemFree(pAdpInfo);
-        return RTErrConvertFromWin32(WSAGetLastError());
+        return RTErrConvertFromWin32(wsaErr);
     }
 
     INTERFACE_INFO InterfaceList[20] = {0};
@@ -628,24 +639,28 @@ static int vboxserviceVMInfoWriteNetwork(void)
             continue;
         }
 # else
+#  ifndef RT_OS_OS2 /** @todo port this to OS/2 */
         if (ioctl(sd, SIOCGIFHWADDR, &ifrequest[i]) < 0)
         {
             rc = RTErrConvertFromErrno(errno);
             VBoxServiceError("VMInfo/Network: Failed to ioctl(SIOCGIFHWADDR) on socket: Error %Rrc\n", rc);
             break;
         }
+#  endif
 # endif
 
+# ifndef RT_OS_OS2 /** @todo port this to OS/2 */
         char szMac[32];
-# if defined(RT_OS_SOLARIS)
+#  if defined(RT_OS_SOLARIS)
         uint8_t *pu8Mac = IfMac.au8;
-# else
+#  else
         uint8_t *pu8Mac = (uint8_t*)&ifrequest[i].ifr_hwaddr.sa_data[0];        /* @todo see above */
-# endif
+#  endif
         RTStrPrintf(szMac, sizeof(szMac), "%02X%02X%02X%02X%02X%02X",
                     pu8Mac[0], pu8Mac[1], pu8Mac[2], pu8Mac[3],  pu8Mac[4], pu8Mac[5]);
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%u/MAC", cIfacesReport);
         VBoxServicePropCacheUpdate(&g_VMInfoPropCache, szPropPath, "%s", szMac);
+# endif /* !OS/2*/
 
         RTStrPrintf(szPropPath, sizeof(szPropPath), "/VirtualBox/GuestInfo/Net/%u/Status", cIfacesReport);
         VBoxServicePropCacheUpdate(&g_VMInfoPropCache, szPropPath, fIfUp ? "Up" : "Down");
@@ -658,7 +673,7 @@ static int vboxserviceVMInfoWriteNetwork(void)
 
 #endif /* !RT_OS_WINDOWS */
 
-#if 0 /* Zapping not enabled yet, needds more testing first. */
+#if 0 /* Zapping not enabled yet, needs more testing first. */
     /*
      * Zap all stale network interface data if the former (saved) network ifaces count
      * is bigger than the current one.
@@ -740,14 +755,14 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
         /*
          * Flush all properties if we were restored.
          */
-        uint64_t idNewSession = g_idSession;
+        uint64_t idNewSession = g_idVMInfoSession;
         VbglR3GetSessionId(&idNewSession);
-        if (idNewSession != g_idSession)
+        if (idNewSession != g_idVMInfoSession)
         {
-            VBoxServiceVerbose(3, "VMInfo: Session ID changed, flushing all properties.\n");
+            VBoxServiceVerbose(3, "VMInfo: The VM session ID changed, flushing all properties.\n");
             vboxserviceVMInfoWriteFixedProperties();
             VBoxServicePropCacheFlush(&g_VMInfoPropCache);
-            g_idSession = idNewSession;
+            g_idVMInfoSession = idNewSession;
         }
 
         /*

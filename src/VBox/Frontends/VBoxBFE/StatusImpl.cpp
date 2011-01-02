@@ -1,4 +1,4 @@
-/* $Id: StatusImpl.cpp $ */
+/* $Id: StatusImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of VMStatus class

@@ -17,6 +17,8 @@
 
 #include "renderspu_cocoa_helper.h"
 
+#import <Cocoa/Cocoa.h>
+
 #include "chromium.h" /* For the visual bits of chromium */
 
 #include <iprt/thread.h>
@@ -67,7 +69,7 @@
                 case GL_STACK_UNDERFLOW: errStr = RTStrDup("GL_STACK_UNDERFLOW"); break;
                 case GL_OUT_OF_MEMORY: errStr = RTStrDup("GL_OUT_OF_MEMORY"); break;
                 case GL_TABLE_TOO_LARGE: errStr = RTStrDup("GL_TABLE_TOO_LARGE"); break;
-                default: errStr = RTStrDup("UNKOWN"); break;
+                default: errStr = RTStrDup("UNKNOWN"); break;
             }
             DEBUG_MSG(("%s:%d: glError %d (%s)\n", file, line, g, errStr));
             RTMemFree(errStr);
@@ -858,7 +860,7 @@ while(0);
     glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT,GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, m_FBODepthStencilPackedId);
     glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_STENCIL_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, m_FBODepthStencilPackedId);
 
-    /* Make sure the FBO was created succesfully. */
+    /* Make sure the FBO was created successfully. */
     if (GL_FRAMEBUFFER_COMPLETE_EXT != glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
         DEBUG_MSG(("Framebuffer Object creation or update failed!\n"));
 
@@ -891,7 +893,7 @@ while(0);
         /* Now attach texture to the FBO as its color destination */
         glFramebufferTexture2DEXT(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_RECTANGLE_ARB, m_FBOThumbTexId, 0);
 
-        /* Make sure the FBO was created succesfully. */
+        /* Make sure the FBO was created successfully. */
         if (GL_FRAMEBUFFER_COMPLETE_EXT != glCheckFramebufferStatusEXT(GL_FRAMEBUFFER_EXT))
             DEBUG_MSG(("Framebuffer Thumb Object creation or update failed!\n"));
 
@@ -1108,7 +1110,7 @@ while(0);
         {
             if ([m_pSharedGLCtx view] != self)
             {
-                DEBUG_MSG(("renderFBOToView: not currect view of shared ctx!"));
+                DEBUG_MSG(("renderFBOToView: not current view of shared ctx!"));
                 [m_pSharedGLCtx setView: self];
                 [self updateViewport];
             }
@@ -1250,7 +1252,7 @@ while(0);
 
 - (void)setVisibleRegions:(GLint)cRects paRects:(GLint*)paRects
 {
-    DEBUG_MSG_1(("New region recieved\n"));
+    DEBUG_MSG_1(("New region received\n"));
 
     [self clearVisibleRegions];
 
@@ -1301,7 +1303,7 @@ while(0);
 * OpenGL context management
 *
 ********************************************************************************/
-void cocoaGLCtxCreate(NativeGLCtxRef *ppCtx, GLbitfield fVisParams)
+void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1381,7 +1383,7 @@ void cocoaGLCtxCreate(NativeGLCtxRef *ppCtx, GLbitfield fVisParams)
     [pPool release];
 }
 
-void cocoaGLCtxDestroy(NativeGLCtxRef pCtx)
+void cocoaGLCtxDestroy(NativeNSOpenGLContextRef pCtx)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1395,7 +1397,7 @@ void cocoaGLCtxDestroy(NativeGLCtxRef pCtx)
 * View management
 *
 ********************************************************************************/
-void cocoaViewCreate(NativeViewRef *ppView, NativeViewRef pParentView, GLbitfield fVisParams)
+void cocoaViewCreate(NativeNSViewRef *ppView, NativeNSViewRef pParentView, GLbitfield fVisParams)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1413,7 +1415,7 @@ void cocoaViewCreate(NativeViewRef *ppView, NativeViewRef pParentView, GLbitfiel
     [pPool release];
 }
 
-void cocoaViewReparent(NativeViewRef pView, NativeViewRef pParentView)
+void cocoaViewReparent(NativeNSViewRef pView, NativeNSViewRef pParentView)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1441,7 +1443,7 @@ void cocoaViewReparent(NativeViewRef pView, NativeViewRef pParentView)
     [pPool release];
 }
 
-void cocoaViewDestroy(NativeViewRef pView)
+void cocoaViewDestroy(NativeNSViewRef pView)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1470,7 +1472,7 @@ void cocoaViewDestroy(NativeViewRef pView)
     [pPool release];
 }
 
-void cocoaViewShow(NativeViewRef pView, GLboolean fShowIt)
+void cocoaViewShow(NativeNSViewRef pView, GLboolean fShowIt)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1479,7 +1481,7 @@ void cocoaViewShow(NativeViewRef pView, GLboolean fShowIt)
     [pPool release];
 }
 
-void cocoaViewDisplay(NativeViewRef pView)
+void cocoaViewDisplay(NativeNSViewRef pView)
 {    
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1490,7 +1492,7 @@ void cocoaViewDisplay(NativeViewRef pView)
 
 }
 
-void cocoaViewSetPosition(NativeViewRef pView, NativeViewRef pParentView, int x, int y)
+void cocoaViewSetPosition(NativeNSViewRef pView, NativeNSViewRef pParentView, int x, int y)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1499,7 +1501,7 @@ void cocoaViewSetPosition(NativeViewRef pView, NativeViewRef pParentView, int x,
     [pPool release];
 }
 
-void cocoaViewSetSize(NativeViewRef pView, int w, int h)
+void cocoaViewSetSize(NativeNSViewRef pView, int w, int h)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1508,7 +1510,7 @@ void cocoaViewSetSize(NativeViewRef pView, int w, int h)
     [pPool release];
 }
 
-void cocoaViewGetGeometry(NativeViewRef pView, int *pX, int *pY, int *pW, int *pH)
+void cocoaViewGetGeometry(NativeNSViewRef pView, int *pX, int *pY, int *pW, int *pH)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1521,11 +1523,11 @@ void cocoaViewGetGeometry(NativeViewRef pView, int *pX, int *pY, int *pW, int *p
     [pPool release];
 }
 
-void cocoaViewMakeCurrentContext(NativeViewRef pView, NativeGLCtxRef pCtx)
+void cocoaViewMakeCurrentContext(NativeNSViewRef pView, NativeNSOpenGLContextRef pCtx)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    DEBUG_MSG(("cocoaViewMakeCurrentContext(%p, %p)\n", pView, pCtx));
+    DEBUG_MSG(("cocoaViewMakeCurrentContext(%p, %p)\n", (void*)pView, (void*)pCtx));
     
     [(OverlayView*)pView setGLCtx:pCtx];
     [(OverlayView*)pView makeCurrentFBO];
@@ -1533,7 +1535,7 @@ void cocoaViewMakeCurrentContext(NativeViewRef pView, NativeGLCtxRef pCtx)
     [pPool release];
 }
 
-void cocoaViewSetVisibleRegion(NativeViewRef pView, GLint cRects, GLint* paRects)
+void cocoaViewSetVisibleRegion(NativeNSViewRef pView, GLint cRects, GLint* paRects)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1547,7 +1549,7 @@ void cocoaViewSetVisibleRegion(NativeViewRef pView, GLint cRects, GLint* paRects
 * Additional OpenGL wrapper
 *
 ********************************************************************************/
-void cocoaFlush()
+void cocoaFlush(void)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
@@ -1574,7 +1576,7 @@ void cocoaFlush()
     [pPool release];
 }
 
-void cocoaFinish()
+void cocoaFinish(void)
 {
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 34484 2010-11-29 17:45:20Z vboxsync $
 ## @file
 # Sub-Makefile for the support library and the drivers/modules/kexts it uses.
 #
@@ -36,7 +36,9 @@ ifndef VBOX_ONLY_DOCS
   LIBRARIES += SUPR0
  endif
 endif
-if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
+if  !defined(VBOX_ONLY_DOCS) \
+ && !defined(VBOX_ONLY_EXTPACKS) \
+ && !defined(VBOX_ONLY_TESTSUITE)
  ifdef VBOX_WITH_SUPSVC
   PROGRAMS += VBoxSupSvc
  endif
@@ -65,7 +67,7 @@ if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
  ifeq ($(KBUILD_TARGET),freebsd)
   include $(PATH_SUB_CURRENT)/freebsd/files_vboxdrv
  endif
-endif # !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
+endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_TESTSUITE
 
 
 #
@@ -164,12 +166,14 @@ SUPR0IdcClient_SOURCES = \
 	SUPR0IdcClientStubs.c
 
 
-if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
+if  !defined(VBOX_ONLY_DOCS) \
+ && !defined(VBOX_ONLY_EXTPACKS) \
+ && !defined(VBOX_ONLY_TESTSUITE)
 
 #
 # VBoxDrv.sys - The Windows driver.
 #
-## @todo consoliate all the targets into a single mess.
+## @todo consolidate all the targets into a single mess.
 ifeq ($(KBUILD_TARGET),win)
 VBoxDrv_TEMPLATE      = VBOXR0DRV
 ifdef VBOX_SIGNING_MODE
@@ -268,8 +272,7 @@ vboxdrv-sh_MODE     = a+rx,u+w
 vboxdrv-sh_SOURCES  = $(subst ",,$(FILES_VBOXDRV_BIN)) #"
 vboxdrv-sh_SOURCES += \
 	$(PATH_vboxdrv-sh)/build_in_tmp \
-	$(if $(VBOX_OSE),,\
-	  $(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers)
+	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
 vboxdrv-sh_CLEAN    = \
 	$(PATH_TARGET)/vboxdrv-sh-1.dep \
 	$(PATH_vboxdrv-sh)/build_in_tmp
@@ -315,13 +318,23 @@ VBoxDrv_TEMPLATE    = VBOXR0DRV
 VBoxDrv_INST        = $(INST_VBOXDRV)Contents/MacOS/
 VBoxDrv_DEFS       := VBOX_WITH_HOST_VMX IN_RT_R0 IN_SUP_R0 SUPDRV_WITH_RELEASE_LOGGER VBOX_SVN_REV=$(VBOX_SVN_REV)
 VBoxDrv_DEFS.debug  = DEBUG_DARWIN_GIP
-VBoxDrv_INCS        = .
+VBoxDrv_INCS        = . $(VBoxDrv_0_OUTDIR)
 VBoxDrv_LIBS        = $(PATH_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB)
 #VBoxDrv_LDFLAGS     = -v -Wl,-whyload -Wl,-v -Wl,-whatsloaded
 VBoxDrv_SOURCES     = \
 	SUPDrv.c \
 	SUPDrvSem.c \
 	$(KBUILD_TARGET)/SUPDrv-$(KBUILD_TARGET).cpp
+
+ifdef VBOX_WITH_DTRACE_R0DRV
+ VBoxDrv_DEFS += VBOX_WITH_DTRACE
+ VBoxDrv_INTERMEDIATES += $(VBoxDrv_0_OUTDIR)/SUPDrv-dtrace.h
+ VBoxDrv_CLEAN         += $(VBoxDrv_0_OUTDIR)/SUPDrv-dtrace.h $(VBoxDrv_0_OUTDIR)/SUPDrv-dtrace.tmp
+ $$(VBoxDrv_0_OUTDIR)/SUPDrv-dtrace.h: $(PATH_SUB_CURRENT)/SUPDrv-dtrace.d | $$(dir $$@)
+	dtrace -C -h -o $@.tmp -s $<
+	$(SED) -e '/<unistd\.h>/d' $@.tmp --output $@
+	$(RM) -f $@.tmp
+endif
 
 INSTALLS += VBoxDrv.kext
 VBoxDrv.kext_INST     = $(INST_VBOXDRV)Contents/
@@ -449,6 +462,6 @@ endif # solaris
 SUPDrv.c_DEFS += VBOX_SVN_REV=$(VBOX_SVN_REV)
 
 
-endif # !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
+endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_TESTSUITE
 include $(KBUILD_PATH)/subfooter.kmk
 

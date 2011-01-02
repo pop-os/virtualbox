@@ -71,17 +71,17 @@ RT_C_DECLS_BEGIN
 
 typedef struct PATMGCSTATE
 {
-    // Virtual Flags register (IF + more later on)
+    /* Virtual Flags register (IF + more later on) */
     uint32_t  uVMFlags;
 
     /* Pending PATM actions (internal use only) */
     uint32_t  uPendingAction;
 
-    // Records the number of times all patches are called (indicating how many exceptions we managed to avoid)
+    /* Records the number of times all patches are called (indicating how many exceptions we managed to avoid) */
     uint32_t  uPatchCalls;
-    // Scratchpad dword
+    /* Scratchpad dword */
     uint32_t  uScratch;
-    // Debugging info
+    /* Debugging info */
     uint32_t  uIretEFlags, uIretCS, uIretEIP;
 
     /* PATM stack pointer */
@@ -109,11 +109,11 @@ typedef struct PATMGCSTATE
 
 typedef struct PATMTRAPREC
 {
-    // pointer to original guest code instruction (for emulation)
+    /* pointer to original guest code instruction (for emulation) */
     RTRCPTR pNewEIP;
-    // pointer to the next guest code instruction
+    /* pointer to the next guest code instruction */
     RTRCPTR pNextInstr;
-    //pointer to the corresponding next instruction in the patch block
+    /* pointer to the corresponding next instruction in the patch block */
     RTRCPTR pNextPatchInstr;
 } PATMTRAPREC, *PPATMTRAPREC;
 
@@ -134,7 +134,7 @@ typedef enum
  * Load virtualized flags.
  *
  * This function is called from CPUMRawEnter(). It doesn't have to update the
- * IF and IOPL eflags bits, the caller will enforce those to set and 0 repectively.
+ * IF and IOPL eflags bits, the caller will enforce those to set and 0 respectively.
  *
  * @param   pVM         VM handle.
  * @param   pCtxCore    The cpu context core.
@@ -257,7 +257,7 @@ VMMDECL(bool) PATMIsInt3Patch(PVM pVM, RTRCPTR pInstrGC, uint32_t *pOpcode, uint
  * Checks if the interrupt flag is enabled or not.
  *
  * @returns true if it's enabled.
- * @returns false if it's diabled.
+ * @returns false if it's disabled.
  *
  * @param   pVM         The VM handle.
  */
@@ -267,7 +267,7 @@ VMMDECL(bool) PATMAreInterruptsEnabled(PVM pVM);
  * Checks if the interrupt flag is enabled or not.
  *
  * @returns true if it's enabled.
- * @returns false if it's diabled.
+ * @returns false if it's disabled.
  *
  * @param   pVM         The VM handle.
  * @param   pCtxCore    CPU context

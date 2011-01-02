@@ -1,10 +1,10 @@
-/* $Id: PGMAllGst.h $ */
+/* $Id: PGMAllGst.h 32036 2010-08-27 10:14:39Z vboxsync $ */
 /** @file
  * VBox - Page Manager, Guest Paging Template - All context code.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,13 +20,227 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 RT_C_DECLS_BEGIN
-PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys);
-PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
-PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE);
+#if PGM_GST_TYPE == PGM_TYPE_32BIT \
+ || PGM_GST_TYPE == PGM_TYPE_PAE \
+ || PGM_GST_TYPE == PGM_TYPE_AMD64
+static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk);
+#endif
+PGM_GST_DECL(int,  GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys);
+PGM_GST_DECL(int,  ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
+PGM_GST_DECL(int,  GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE);
 PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4);
 RT_C_DECLS_END
 
 
+#if PGM_GST_TYPE == PGM_TYPE_32BIT \
+ || PGM_GST_TYPE == PGM_TYPE_PAE \
+ || PGM_GST_TYPE == PGM_TYPE_AMD64
+
+
+DECLINLINE(int) PGM_GST_NAME(WalkReturnNotPresent)(PVMCPU pVCpu, PGSTPTWALK pWalk, int iLevel)
+{
+    NOREF(iLevel);
+    pWalk->Core.fNotPresent     = true;
+    pWalk->Core.uLevel          = (uint8_t)iLevel;
+    return VERR_PAGE_TABLE_NOT_PRESENT;
+}
+
+DECLINLINE(int) PGM_GST_NAME(WalkReturnBadPhysAddr)(PVMCPU pVCpu, PGSTPTWALK pWalk, int rc, int iLevel)
+{
+    AssertMsg(rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS, ("%Rrc\n", rc));
+    pWalk->Core.fBadPhysAddr    = true;
+    pWalk->Core.uLevel          = (uint8_t)iLevel;
+    return VERR_PAGE_TABLE_NOT_PRESENT;
+}
+
+DECLINLINE(int) PGM_GST_NAME(WalkReturnRsvdError)(PVMCPU pVCpu, PGSTPTWALK pWalk, int iLevel)
+{
+    pWalk->Core.fRsvdError      = true;
+    pWalk->Core.uLevel          = (uint8_t)iLevel;
+    return VERR_PAGE_TABLE_NOT_PRESENT;
+}
+
+
+/**
+ * Performs a guest page table walk.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_PAGE_TABLE_NOT_PRESENT on failure.  Check pWalk for details.
+ *
+ * @param   pVCpu       The current CPU.
+ * @param   GCPtr       The guest virtual address to walk by.
+ * @param   pWalk       Where to return the walk result. This is always set.
+ */
+static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
+{
+    int rc;
+
+    /*
+     * Init the walking structure.
+     */
+    RT_ZERO(*pWalk);
+    pWalk->Core.GCPtr = GCPtr;
+
+# if PGM_GST_TYPE == PGM_TYPE_32BIT \
+  || PGM_GST_TYPE == PGM_TYPE_PAE
+    /*
+     * Boundary check for PAE and 32-bit (prevents trouble further down).
+     */
+    if (RT_UNLIKELY(GCPtr >= _4G))
+        return PGM_GST_NAME(WalkReturnNotPresent)(pVCpu, pWalk, 8);
+# endif
+
+    {
+# if PGM_GST_TYPE == PGM_TYPE_AMD64
+        /*
+         * The PMLE4.
+         */
+        rc = pgmGstGetLongModePML4PtrEx(pVCpu, &pWalk->pPml4);
+        if (RT_FAILURE(rc))
+            return PGM_GST_NAME(WalkReturnBadPhysAddr)(pVCpu, pWalk, 4, rc);
+
+        PX86PML4  register  pPml4 = pWalk->pPml4;
+        X86PML4E  register  Pml4e;
+        PX86PML4E register  pPml4e;
+
+        pWalk->pPml4e  = pPml4e  = &pPml4->a[(GCPtr >> X86_PML4_SHIFT) & X86_PML4_MASK];
+        pWalk->Pml4e.u = Pml4e.u = pPml4e->u;
+        if (!Pml4e.n.u1Present)
+            return PGM_GST_NAME(WalkReturnNotPresent)(pVCpu, pWalk, 4);
+        if (RT_UNLIKELY(!GST_IS_PML4E_VALID(pVCpu, Pml4e)))
+            return PGM_GST_NAME(WalkReturnRsvdError)(pVCpu, pWalk, 4);
+
+        /*
+         * The PDPE.
+         */
+        rc = PGM_GCPHYS_2_PTR_BY_VMCPU(pVCpu, Pml4e.u & X86_PML4E_PG_MASK, &pWalk->pPdpt);
+        if (RT_FAILURE(rc))
+            return PGM_GST_NAME(WalkReturnBadPhysAddr)(pVCpu, pWalk, 3, rc);
+
+# elif PGM_GST_TYPE == PGM_TYPE_PAE
+        rc = pgmGstGetPaePDPTPtrEx(pVCpu, &pWalk->pPdpt);
+        if (RT_FAILURE(rc))
+            return PGM_GST_NAME(WalkReturnBadPhysAddr)(pVCpu, pWalk, 8, rc);
+# endif
+    }
+    {
+# if PGM_GST_TYPE == PGM_TYPE_AMD64 || PGM_GST_TYPE == PGM_TYPE_PAE
+        PX86PDPT register   pPdpt = pWalk->pPdpt;
+        PX86PDPE register   pPdpe;
+        X86PDPE  register   Pdpe;
+
+        pWalk->pPdpe  = pPdpe  = &pPdpt->a[(GCPtr >> GST_PDPT_SHIFT) & GST_PDPT_MASK];
+        pWalk->Pdpe.u = Pdpe.u = pPdpe->u;
+        if (!Pdpe.n.u1Present)
+            return PGM_GST_NAME(WalkReturnNotPresent)(pVCpu, pWalk, 3);
+        if (RT_UNLIKELY(!GST_IS_PDPE_VALID(pVCpu, Pdpe)))
+            return PGM_GST_NAME(WalkReturnRsvdError)(pVCpu, pWalk, 3);
+
+        /*
+         * The PDE.
+         */
+        rc = PGM_GCPHYS_2_PTR_BY_VMCPU(pVCpu, Pdpe.u & X86_PDPE_PG_MASK, &pWalk->pPd);
+        if (RT_FAILURE(rc))
+            return PGM_GST_NAME(WalkReturnBadPhysAddr)(pVCpu, pWalk, 2, rc);
+# elif PGM_GST_TYPE == PGM_TYPE_32BIT
+        rc = pgmGstGet32bitPDPtrEx(pVCpu, &pWalk->pPd);
+        if (RT_FAILURE(rc))
+            return PGM_GST_NAME(WalkReturnBadPhysAddr)(pVCpu, pWalk, 8, rc);
+# endif
+    }
+    {
+        PGSTPD  register    pPd = pWalk->pPd;
+        PGSTPDE register    pPde;
+        GSTPDE              Pde;
+
+        pWalk->pPde  = pPde  = &pPd->a[(GCPtr >> GST_PD_SHIFT) & GST_PD_MASK];
+        pWalk->Pde.u = Pde.u = pPde->u;
+        if (!Pde.n.u1Present)
+            return PGM_GST_NAME(WalkReturnNotPresent)(pVCpu, pWalk, 2);
+        if (Pde.n.u1Size && GST_IS_PSE_ACTIVE(pVCpu))
+        {
+            if (RT_UNLIKELY(!GST_IS_BIG_PDE_VALID(pVCpu, Pde)))
+                return PGM_GST_NAME(WalkReturnRsvdError)(pVCpu, pWalk, 2);
+
+            pWalk->Core.GCPhys       = GST_GET_BIG_PDE_GCPHYS(pVCpu->CTX_SUFF(pVM), Pde)
+                                     | (GCPtr & GST_BIG_PAGE_OFFSET_MASK);
+            uint8_t fEffectiveXX     = (uint8_t)pWalk->Pde.u
+#  if PGM_GST_TYPE == PGM_TYPE_AMD64
+                                     & (uint8_t)pWalk->Pde.u
+                                     & (uint8_t)pWalk->Pml4e.u
+#  endif
+                                     ;
+            pWalk->Core.fEffectiveRW = !!(fEffectiveXX & X86_PTE_RW);
+            pWalk->Core.fEffectiveUS = !!(fEffectiveXX & X86_PTE_US);
+# if PGM_GST_TYPE == PGM_TYPE_AMD64 || PGM_GST_TYPE == PGM_TYPE_PAE
+            pWalk->Core.fEffectiveNX = (   pWalk->Pde.n.u1NoExecute
+#  if PGM_GST_TYPE == PGM_TYPE_AMD64
+                                        || pWalk->Pde.n.u1NoExecute
+                                        || pWalk->Pml4e.n.u1NoExecute
+#  endif
+                                       ) && GST_IS_NX_ACTIVE(pVCpu);
+# else
+            pWalk->Core.fEffectiveNX = false;
+# endif
+            pWalk->Core.fBigPage     = true;
+            pWalk->Core.fSucceeded   = true;
+            return VINF_SUCCESS;
+        }
+
+        if (RT_UNLIKELY(!GST_IS_PDE_VALID(pVCpu, Pde)))
+            return PGM_GST_NAME(WalkReturnRsvdError)(pVCpu, pWalk, 2);
+
+        /*
+         * The PTE.
+         */
+        rc = PGM_GCPHYS_2_PTR_BY_VMCPU(pVCpu, GST_GET_PDE_GCPHYS(Pde), &pWalk->pPt);
+        if (RT_FAILURE(rc))
+            return PGM_GST_NAME(WalkReturnBadPhysAddr)(pVCpu, pWalk, 1, rc);
+    }
+    {
+        PGSTPT  register    pPt = pWalk->pPt;
+        PGSTPTE register    pPte;
+        GSTPTE  register    Pte;
+
+        pWalk->pPte  = pPte  = &pPt->a[(GCPtr >> GST_PT_SHIFT) & GST_PT_MASK];
+        pWalk->Pte.u = Pte.u = pPte->u;
+        if (!Pte.n.u1Present)
+            return PGM_GST_NAME(WalkReturnNotPresent)(pVCpu, pWalk, 1);
+        if (RT_UNLIKELY(!GST_IS_PTE_VALID(pVCpu, Pte)))
+            return PGM_GST_NAME(WalkReturnRsvdError)(pVCpu, pWalk, 1);
+
+        /*
+         * We're done.
+         */
+        pWalk->Core.GCPhys       = GST_GET_PDE_GCPHYS(Pte)
+                                 | (GCPtr & PAGE_OFFSET_MASK);
+        uint8_t fEffectiveXX     = (uint8_t)pWalk->Pte.u
+                                 & (uint8_t)pWalk->Pde.u
+#  if PGM_GST_TYPE == PGM_TYPE_AMD64
+                                 & (uint8_t)pWalk->Pde.u
+                                 & (uint8_t)pWalk->Pml4e.u
+#  endif
+                                 ;
+        pWalk->Core.fEffectiveRW = !!(fEffectiveXX & X86_PTE_RW);
+        pWalk->Core.fEffectiveUS = !!(fEffectiveXX & X86_PTE_US);
+# if PGM_GST_TYPE == PGM_TYPE_AMD64 || PGM_GST_TYPE == PGM_TYPE_PAE
+        pWalk->Core.fEffectiveNX = (   pWalk->Pte.n.u1NoExecute
+                                    || pWalk->Pde.n.u1NoExecute
+#  if PGM_GST_TYPE == PGM_TYPE_AMD64
+                                    || pWalk->Pde.n.u1NoExecute
+                                    || pWalk->Pml4e.n.u1NoExecute
+#  endif
+                                   ) && GST_IS_NX_ACTIVE(pVCpu);
+# else
+        pWalk->Core.fEffectiveNX = false;
+# endif
+        pWalk->Core.fSucceeded   = true;
+        return VINF_SUCCESS;
+    }
+}
+
+#endif /* 32BIT, PAE, AMD64 */
 
 /**
  * Gets effective Guest OS page information.
@@ -56,102 +270,43 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
         *pGCPhys = GCPtr & PAGE_BASE_GC_MASK;
     return VINF_SUCCESS;
 
-#elif PGM_GST_TYPE == PGM_TYPE_32BIT || PGM_GST_TYPE == PGM_TYPE_PAE || PGM_GST_TYPE == PGM_TYPE_AMD64
+#elif PGM_GST_TYPE == PGM_TYPE_32BIT \
+   || PGM_GST_TYPE == PGM_TYPE_PAE \
+   || PGM_GST_TYPE == PGM_TYPE_AMD64
 
-#if PGM_GST_MODE != PGM_MODE_AMD64
-    /* Boundary check. */
-    if (GCPtr >= _4G)
-        return VERR_INVALID_ADDRESS;
-# endif
+    GSTPTWALK Walk;
+    int rc = PGM_GST_NAME(Walk)(pVCpu, GCPtr, &Walk);
+    if (RT_FAILURE(rc))
+        return rc;
 
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    /*
-     * Get the PDE.
-     */
-# if PGM_GST_TYPE == PGM_TYPE_32BIT
-    X86PDE      Pde = pgmGstGet32bitPDE(&pVCpu->pgm.s, GCPtr);
+    if (pGCPhys)
+        *pGCPhys = Walk.Core.GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
 
-#elif PGM_GST_TYPE == PGM_TYPE_PAE
-    /* pgmGstGetPaePDE will return 0 if the PDPTE is marked as not present.
-     * All the other bits in the PDPTE are only valid in long mode (r/w, u/s, nx). */
-    X86PDEPAE   Pde = pgmGstGetPaePDE(&pVCpu->pgm.s, GCPtr);
-
-#elif PGM_GST_TYPE == PGM_TYPE_AMD64
-    PX86PML4E   pPml4e;
-    X86PDPE     Pdpe;
-    X86PDEPAE   Pde = pgmGstGetLongModePDEEx(&pVCpu->pgm.s, GCPtr, &pPml4e, &Pdpe);
-
-    Assert(pPml4e);
-    if (!(pPml4e->n.u1Present & Pdpe.n.u1Present))
-        return VERR_PAGE_TABLE_NOT_PRESENT;
-
-    /* Merge accessed, write, user and no-execute bits into the PDE. */
-    Pde.n.u1Accessed  &= pPml4e->n.u1Accessed & Pdpe.lm.u1Accessed;
-    Pde.n.u1Write     &= pPml4e->n.u1Write & Pdpe.lm.u1Write;
-    Pde.n.u1User      &= pPml4e->n.u1User & Pdpe.lm.u1User;
-    Pde.n.u1NoExecute |= pPml4e->n.u1NoExecute | Pdpe.lm.u1NoExecute;
-# endif
-
-    /*
-     * Lookup the page.
-     */
-    if (!Pde.n.u1Present)
-        return VERR_PAGE_TABLE_NOT_PRESENT;
-
-    if (    !Pde.b.u1Size
-# if PGM_GST_TYPE == PGM_TYPE_32BIT
-        ||  !CPUMIsGuestPageSizeExtEnabled(pVCpu)
-# endif
-        )
+    if (pfFlags)
     {
-        PGSTPT pPT;
-        int rc = PGM_GCPHYS_2_PTR(pVM, Pde.u & GST_PDE_PG_MASK, &pPT);
-        if (RT_FAILURE(rc))
-            return rc;
-
-        /*
-         * Get PT entry and check presence.
-         */
-        const GSTPTE Pte = pPT->a[(GCPtr >> GST_PT_SHIFT) & GST_PT_MASK];
-        if (!Pte.n.u1Present)
-            return VERR_PAGE_NOT_PRESENT;
-
-        /*
-         * Store the result.
-         * RW and US flags depend on all levels (bitwise AND) - except for legacy PAE
-         * where the PDPE is simplified.
-         */
-        if (pfFlags)
-        {
-            *pfFlags = (Pte.u & ~GST_PTE_PG_MASK)
-                     & ((Pde.u & (X86_PTE_RW | X86_PTE_US)) | ~(uint64_t)(X86_PTE_RW | X86_PTE_US));
+        if (!Walk.Core.fBigPage)
+            *pfFlags = (Walk.Pte.u & ~(GST_PTE_PG_MASK | X86_PTE_RW | X86_PTE_US))                      /* NX not needed */
+                     | (Walk.Core.fEffectiveRW ? X86_PTE_RW : 0)
+                     | (Walk.Core.fEffectiveUS ? X86_PTE_US : 0)
 # if PGM_WITH_NX(PGM_GST_TYPE, PGM_GST_TYPE)
-            /* The NX bit is determined by a bitwise OR between the PT and PD */
-            if (((Pte.u | Pde.u) & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
-                *pfFlags |= X86_PTE_PAE_NX;
+                     | (Walk.Core.fEffectiveNX ? X86_PTE_PAE_NX : 0)
 # endif
-        }
-        if (pGCPhys)
-            *pGCPhys = Pte.u & GST_PTE_PG_MASK;
-    }
-    else
-    {
-        /*
-         * Map big to 4k PTE and store the result
-         */
-        if (pfFlags)
+                     ;
+        else
         {
-            *pfFlags = (Pde.u & ~(GST_PTE_PG_MASK | X86_PTE_PAT))
-                     | ((Pde.u & X86_PDE4M_PAT) >> X86_PDE4M_PAT_SHIFT);
+            *pfFlags = (Walk.Pde.u & ~(GST_PTE_PG_MASK | X86_PDE4M_RW | X86_PDE4M_US | X86_PDE4M_PS))   /* NX not needed */
+                     | ((Walk.Pde.u & X86_PDE4M_PAT) >> X86_PDE4M_PAT_SHIFT)
+                     | (Walk.Core.fEffectiveRW ? X86_PTE_RW : 0)
+                     | (Walk.Core.fEffectiveUS ? X86_PTE_US : 0)
 # if PGM_WITH_NX(PGM_GST_TYPE, PGM_GST_TYPE)
-            if ((Pde.u & X86_PTE_PAE_NX) && CPUMIsGuestNXEnabled(pVCpu))
-                *pfFlags |= X86_PTE_PAE_NX;
+                     | (Walk.Core.fEffectiveNX ? X86_PTE_PAE_NX : 0)
 # endif
+                     ;
         }
-        if (pGCPhys)
-            *pGCPhys = GST_GET_PDE_BIG_PG_GCPHYS(Pde) | (GCPtr & (~GST_PDE_BIG_PG_MASK ^ ~GST_PTE_PG_MASK));
     }
+
     return VINF_SUCCESS;
+
 #else
 # error "shouldn't be here!"
     /* something else... */
@@ -174,70 +329,32 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
  */
 PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask)
 {
+    Assert((cb & PAGE_OFFSET_MASK) == 0);
+
 #if PGM_GST_TYPE == PGM_TYPE_32BIT \
  || PGM_GST_TYPE == PGM_TYPE_PAE \
  || PGM_GST_TYPE == PGM_TYPE_AMD64
-
-    Assert((cb & PAGE_OFFSET_MASK) == 0);
-
-#if PGM_GST_MODE != PGM_MODE_AMD64
-    /* Boundary check. */
-    if (GCPtr >= _4G)
-        return VERR_INVALID_ADDRESS;
-# endif
-
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
     for (;;)
     {
-        /*
-         * Get the PD entry.
-         */
-# if PGM_GST_TYPE == PGM_TYPE_32BIT
-        PX86PDE pPde = pgmGstGet32bitPDEPtr(&pVCpu->pgm.s, GCPtr);
+        GSTPTWALK Walk;
+        int rc = PGM_GST_NAME(Walk)(pVCpu, GCPtr, &Walk);
+        if (RT_FAILURE(rc))
+            return rc;
 
-# elif PGM_GST_TYPE == PGM_TYPE_PAE
-        /* pgmGstGetPaePDEPtr will return 0 if the PDPTE is marked as not present
-         * All the other bits in the PDPTE are only valid in long mode (r/w, u/s, nx)
-         */
-        PX86PDEPAE pPde = pgmGstGetPaePDEPtr(&pVCpu->pgm.s, GCPtr);
-        Assert(pPde);
-        if (!pPde)
-            return VERR_PAGE_TABLE_NOT_PRESENT;
-# elif PGM_GST_TYPE == PGM_TYPE_AMD64
-        /** @todo Setting the r/w, u/s & nx bits might have no effect depending on the pdpte & pml4 values */
-        PX86PDEPAE pPde = pgmGstGetLongModePDEPtr(&pVCpu->pgm.s, GCPtr);
-        Assert(pPde);
-        if (!pPde)
-            return VERR_PAGE_TABLE_NOT_PRESENT;
-# endif
-        GSTPDE Pde = *pPde;
-        Assert(Pde.n.u1Present);
-        if (!Pde.n.u1Present)
-            return VERR_PAGE_TABLE_NOT_PRESENT;
-
-        if (    !Pde.b.u1Size
-# if PGM_GST_TYPE == PGM_TYPE_32BIT
-            ||  !CPUMIsGuestPageSizeExtEnabled(pVCpu)
-# endif
-            )
+        if (!Walk.Core.fBigPage)
         {
             /*
-             * 4KB Page table
+             * 4KB Page table, process
              *
-             * Walk page tables and pages till we're done.
+             * Walk pages till we're done.
              */
-            PGSTPT pPT;
-            int rc = PGM_GCPHYS_2_PTR(pVM, Pde.u & GST_PDE_PG_MASK, &pPT);
-            if (RT_FAILURE(rc))
-                return rc;
-
             unsigned iPTE = (GCPtr >> GST_PT_SHIFT) & GST_PT_MASK;
-            while (iPTE < RT_ELEMENTS(pPT->a))
+            while (iPTE < RT_ELEMENTS(Walk.pPt->a))
             {
-                GSTPTE Pte = pPT->a[iPTE];
+                GSTPTE Pte = Walk.pPt->a[iPTE];
                 Pte.u = (Pte.u & (fMask | X86_PTE_PAE_PG_MASK))
                       | (fFlags & ~GST_PTE_PG_MASK);
-                pPT->a[iPTE] = Pte;
+                Walk.pPt->a[iPTE] = Pte;
 
                 /* next page */
                 cb -= PAGE_SIZE;
@@ -250,16 +367,17 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
         else
         {
             /*
-             * 4MB Page table
+             * 2/4MB Page table
              */
+            GSTPDE PdeNew;
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
-            Pde.u = (Pde.u & (fMask | ((fMask & X86_PTE_PAT) << X86_PDE4M_PAT_SHIFT) | GST_PDE_BIG_PG_MASK | X86_PDE4M_PG_HIGH_MASK | X86_PDE4M_PS))
+            PdeNew.u = (Walk.Pde.u & (fMask | ((fMask & X86_PTE_PAT) << X86_PDE4M_PAT_SHIFT) | GST_PDE_BIG_PG_MASK | X86_PDE4M_PG_HIGH_MASK | X86_PDE4M_PS))
 # else
-            Pde.u = (Pde.u & (fMask | ((fMask & X86_PTE_PAT) << X86_PDE4M_PAT_SHIFT) | GST_PDE_BIG_PG_MASK | X86_PDE4M_PS))
+            PdeNew.u = (Walk.Pde.u & (fMask | ((fMask & X86_PTE_PAT) << X86_PDE4M_PAT_SHIFT) | GST_PDE_BIG_PG_MASK | X86_PDE4M_PS))
 # endif
-                  | (fFlags & ~GST_PTE_PG_MASK)
-                  | ((fFlags & X86_PTE_PAT) << X86_PDE4M_PAT_SHIFT);
-            *pPde = Pde;
+                     | (fFlags & ~GST_PTE_PG_MASK)
+                     | ((fFlags & X86_PTE_PAT) << X86_PDE4M_PAT_SHIFT);
+            *Walk.pPde = PdeNew;
 
             /* advance */
             const unsigned cbDone = GST_BIG_PAGE_SIZE - (GCPtr & GST_BIG_PAGE_OFFSET_MASK);
@@ -278,12 +396,12 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
 
 
 /**
- * Retrieve guest PDE information
+ * Retrieve guest PDE information.
  *
  * @returns VBox status code.
  * @param   pVCpu       The VMCPU handle.
- * @param   GCPtr       Guest context pointer
- * @param   pPDE        Pointer to guest PDE structure
+ * @param   GCPtr       Guest context pointer.
+ * @param   pPDE        Pointer to guest PDE structure.
  */
 PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
 {
@@ -291,22 +409,34 @@ PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
  || PGM_GST_TYPE == PGM_TYPE_PAE   \
  || PGM_GST_TYPE == PGM_TYPE_AMD64
 
-#if PGM_GST_MODE != PGM_MODE_AMD64
+# if PGM_GST_TYPE != PGM_TYPE_AMD64
     /* Boundary check. */
-    if (GCPtr >= _4G)
-        return VERR_INVALID_ADDRESS;
+    if (RT_UNLIKELY(GCPtr >= _4G))
+        return VERR_PAGE_TABLE_NOT_PRESENT;
 # endif
 
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
-    X86PDE    Pde = pgmGstGet32bitPDE(&pVCpu->pgm.s, GCPtr);
+    unsigned    iPd = (GCPtr >> GST_PD_SHIFT) & GST_PD_MASK;
+    PX86PD      pPd = pgmGstGet32bitPDPtr(pVCpu);
+
 # elif PGM_GST_TYPE == PGM_TYPE_PAE
-    X86PDEPAE Pde = pgmGstGetPaePDE(&pVCpu->pgm.s, GCPtr);
+    unsigned    iPd = 0;                /* shut up gcc */
+    PCX86PDPAE  pPd = pgmGstGetPaePDPtr(pVCpu, GCPtr, &iPd, NULL);
+
 # elif PGM_GST_TYPE == PGM_TYPE_AMD64
-    X86PDEPAE Pde = pgmGstGetLongModePDE(&pVCpu->pgm.s, GCPtr);
+    PX86PML4E   pPml4eIgn;
+    X86PDPE     PdpeIgn;
+    unsigned    iPd = 0;                /* shut up gcc */
+    PCX86PDPAE  pPd = pgmGstGetLongModePDPtr(pVCpu, GCPtr, &pPml4eIgn, &PdpeIgn, &iPd);
+    /* Note! We do not return an effective PDE here like we do for the PTE in GetPage method. */
 # endif
 
-    pPDE->u = (X86PGPAEUINT)Pde.u;
+    if (RT_LIKELY(pPd))
+        pPDE->u = (X86PGPAEUINT)pPd->a[iPd].u;
+    else
+        pPDE->u = 0;
     return VINF_SUCCESS;
+
 #else
     AssertFailed();
     return VERR_NOT_IMPLEMENTED;
@@ -332,41 +462,45 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
     PVMCPU          pVCpu  = pState->pVCpu;
     Assert(pCur->enmType != PGMVIRTHANDLERTYPE_HYPERVISOR);
 
-#if PGM_GST_TYPE == PGM_TYPE_32BIT
-    PX86PD          pPDSrc = pgmGstGet32bitPDPtr(&pVCpu->pgm.s);
-#endif
+# if PGM_GST_TYPE == PGM_TYPE_32BIT
+    PX86PD          pPDSrc = pgmGstGet32bitPDPtr(pVCpu);
+# endif
 
     RTGCPTR         GCPtr  = pCur->Core.Key;
-#if PGM_GST_MODE != PGM_MODE_AMD64
+# if PGM_GST_TYPE != PGM_TYPE_AMD64
     /* skip all stuff above 4GB if not AMD64 mode. */
-    if (GCPtr >= _4GB)
+    if (RT_UNLIKELY(GCPtr >= _4G))
         return 0;
-#endif
+# endif
 
     unsigned        offPage = GCPtr & PAGE_OFFSET_MASK;
     unsigned        iPage = 0;
     while (iPage < pCur->cPages)
     {
-#if PGM_GST_TYPE == PGM_TYPE_32BIT
-        X86PDE      Pde = pPDSrc->a[GCPtr >> X86_PD_SHIFT];
-#elif PGM_GST_TYPE == PGM_TYPE_PAE
-        X86PDEPAE   Pde = pgmGstGetPaePDE(&pVCpu->pgm.s, GCPtr);
-#elif PGM_GST_TYPE == PGM_TYPE_AMD64
-        X86PDEPAE   Pde = pgmGstGetLongModePDE(&pVCpu->pgm.s, GCPtr);
-#endif
-        if (Pde.n.u1Present)
-        {
-            if (    !Pde.b.u1Size
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
-                ||  !(pState->cr4 & X86_CR4_PSE)
+        X86PDE      Pde = pPDSrc->a[GCPtr >> X86_PD_SHIFT];
+# elif PGM_GST_TYPE == PGM_TYPE_PAE
+        X86PDEPAE   Pde = pgmGstGetPaePDE(pVCpu, GCPtr);
+# elif PGM_GST_TYPE == PGM_TYPE_AMD64
+        X86PDEPAE   Pde = pgmGstGetLongModePDE(pVCpu, GCPtr);
 # endif
-                )
+# if PGM_GST_TYPE == PGM_TYPE_32BIT
+        bool const  fBigPage = Pde.b.u1Size && (pState->cr4 & X86_CR4_PSE);
+# else
+        bool const  fBigPage = Pde.b.u1Size;
+# endif
+        if (    Pde.n.u1Present
+            &&  (  !fBigPage
+                 ? GST_IS_PDE_VALID(pVCpu, Pde)
+                 : GST_IS_BIG_PDE_VALID(pVCpu, Pde)) )
+        {
+            if (!fBigPage)
             {
                 /*
                  * Normal page table.
                  */
                 PGSTPT pPT;
-                int rc = PGM_GCPHYS_2_PTR(pVM, Pde.u & GST_PDE_PG_MASK, &pPT);
+                int rc = PGM_GCPHYS_2_PTR_V2(pVM, pVCpu, GST_GET_PDE_GCPHYS(Pde), &pPT);
                 if (RT_SUCCESS(rc))
                 {
                     for (unsigned iPTE = (GCPtr >> GST_PT_SHIFT) & GST_PT_MASK;
@@ -423,7 +557,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
                 /*
                  * 2/4MB page.
                  */
-                RTGCPHYS GCPhys = (RTGCPHYS)(Pde.u & GST_PDE_PG_MASK);
+                RTGCPHYS GCPhys = (RTGCPHYS)GST_GET_PDE_GCPHYS(Pde);
                 for (unsigned i4KB = (GCPtr >> GST_PT_SHIFT) & GST_PT_MASK;
                      i4KB < PAGE_SIZE / sizeof(GSTPDE) && iPage < pCur->cPages;
                      i4KB++, iPage++, GCPtr += PAGE_SIZE, offPage = 0)
@@ -447,7 +581,8 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
         }
         else
         {
-            /* not-present. */
+            /* not-present / invalid. */
+            Log(("VirtHandler: Not present / invalid Pde=%RX64\n", (uint64_t)Pde.u));
             for (unsigned cPages = (GST_PT_MASK + 1) - ((GCPtr >> GST_PT_SHIFT) & GST_PT_MASK);
                  cPages && iPage < pCur->cPages;
                  iPage++, GCPtr += PAGE_SIZE)
@@ -494,7 +629,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
     RTUINT      fTodo = 0;
 
     pgmLock(pVM);
-    STAM_PROFILE_START(&pVM->pgm.s.CTX_MID_Z(Stat,SyncCR3HandlerVirtualUpdate), a);
+    STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3HandlerVirtualUpdate), a);
 
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
@@ -509,7 +644,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
 
         fTodo |= State.fTodo;
     }
-    STAM_PROFILE_STOP(&pVM->pgm.s.CTX_MID_Z(Stat,SyncCR3HandlerVirtualUpdate), a);
+    STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3HandlerVirtualUpdate), a);
 
 
     /*
@@ -517,7 +652,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
      */
     if (fTodo & PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL)
     {
-        STAM_PROFILE_START(&pVM->pgm.s.CTX_MID_Z(Stat,SyncCR3HandlerVirtualReset), b);
+        STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3HandlerVirtualReset), b);
         Log(("HandlerVirtualUpdate: resets bits\n"));
         RTAvlroGCPtrDoWithAll(&pVM->pgm.s.CTX_SUFF(pTrees)->VirtHandlers, true, pgmHandlerVirtualResetOne, pVM);
 
@@ -527,7 +662,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
             pVCpu->pgm.s.fSyncFlags &= ~PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL;
         }
 
-        STAM_PROFILE_STOP(&pVM->pgm.s.CTX_MID_Z(Stat,SyncCR3HandlerVirtualReset), b);
+        STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncCR3HandlerVirtualReset), b);
     }
     pgmUnlock(pVM);
 

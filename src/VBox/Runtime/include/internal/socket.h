@@ -1,4 +1,4 @@
-/* $Id: socket.h $ */
+/* $Id: socket.h 32131 2010-08-31 11:55:27Z vboxsync $ */
 /** @file
  * IPRT - Internal Header for RTSocket.
  */
@@ -63,7 +63,7 @@ int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValu
 #ifdef RT_OS_WINDOWS
 int         rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PHANDLE ph);
 uint32_t    rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvents, bool fFinalEntry, bool fNoWait);
-uint32_t    rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry);
+uint32_t    rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, bool fHarvestEvents);
 #endif /* RT_OS_WINDOWS */
 
 RT_C_DECLS_END

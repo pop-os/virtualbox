@@ -1,4 +1,4 @@
-/* $Id: thread-os2.cpp $ */
+/* $Id: thread-os2.cpp 34256 2010-11-22 15:55:00Z vboxsync $ */
 /** @file
  * IPRT - Threads, OS/2.
  */
@@ -44,7 +44,7 @@
 #include <iprt/log.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
-#include <iprt/asm.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/string.h>
 #include <iprt/err.h>
 #include "internal/thread.h"
@@ -91,6 +91,13 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
 
     *g_ppCurThread = pThread;
     return VINF_SUCCESS;
+}
+
+
+void rtThreadNativeDestroy(PRTTHREADINT pThread)
+{
+    if (pThread == *g_ppCurThread)
+        *g_ppCurThread = NULL;
 }
 
 
@@ -292,3 +299,8 @@ RTR3DECL(int) RTTlsSet(RTTLS iTls, void *pvValue)
     return RTErrConvertFromErrno(errno);
 }
 
+
+RTR3DECL(int) RTThreadGetExecutionTimeMilli(uint64_t *pKernelTime, uint64_t *pUserTime)
+{
+    return VERR_NOT_IMPLEMENTED;
+}

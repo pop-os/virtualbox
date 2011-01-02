@@ -1,4 +1,4 @@
-/* $Id: EventQueue.cpp $ */
+/* $Id: EventQueue.cpp 33720 2010-11-03 10:54:42Z vboxsync $ */
 /** @file
  * MS COM / XPCOM Abstraction Layer:
  * Event and EventQueue class declaration
@@ -239,7 +239,11 @@ int EventQueue::uninit()
     Assert(sMainQueue);
     /* Must process all events to make sure that no NULL event is left
      * after this point. It would need to modify the state of sMainQueue. */
+#ifdef RT_OS_DARWIN /* Do not process the native runloop, the toolkit may not be ready for it. */
+    sMainQueue->mEventQ->ProcessPendingEvents();
+#else
     sMainQueue->processEventQueue(0);
+#endif
     delete sMainQueue;
     sMainQueue = NULL;
     return VINF_SUCCESS;

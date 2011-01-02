@@ -1,10 +1,10 @@
-/* $Id: RTTimerCreate-generic.cpp $ */
+/* $Id: RTTimerCreate-generic.cpp 32504 2010-09-15 10:12:38Z vboxsync $ */
 /** @file
  * IPRT - Timers, Generic RTTimerCreate() Implementation.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,10 +41,11 @@ RTDECL(int) RTTimerCreate(PRTTIMER *ppTimer, unsigned uMilliesInterval, PFNRTTIM
     if (RT_SUCCESS(rc))
     {
         rc = RTTimerStart(*ppTimer, 0);
-        if (RT_SUCCESS(rc))
-            return rc;
-        int rc2 = RTTimerDestroy(*ppTimer); AssertRC(rc2);
-        *ppTimer = NULL;
+        if (RT_FAILURE(rc))
+        {
+            int rc2 = RTTimerDestroy(*ppTimer); AssertRC(rc2);
+            *ppTimer = NULL;
+        }
     }
     return rc;
 }

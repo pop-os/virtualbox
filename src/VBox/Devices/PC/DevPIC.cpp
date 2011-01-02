@@ -1,4 +1,4 @@
-/* $Id: DevPIC.cpp $ */
+/* $Id: DevPIC.cpp 35073 2010-12-14 13:14:07Z vboxsync $ */
 /** @file
  * DevPIC - Intel 8259 Programmable Interrupt Controller (PIC) Device.
  */
@@ -135,6 +135,9 @@ typedef struct DEVPIC
     PPDMDEVINSRC            pDevInsRC;
     /** Pointer to the PIC RC helpers. */
     PCPDMPICHLPRC           pPicHlpRC;
+    /** Number of release log entries. Used to prevent flooding. */
+    uint32_t                cRelLogEntries;
+    uint32_t                u32AlignmentPadding;
 #ifdef VBOX_WITH_STATISTICS
     STAMCOUNTER             StatSetIrqGC;
     STAMCOUNTER             StatSetIrqHC;
@@ -186,6 +189,7 @@ static inline void pic_set_irq1(PicState *s, int irq, int level)
             }
             s->last_irr |= mask;
         } else {
+            s->irr &= ~mask;
             s->last_irr &= ~mask;
         }
     }
@@ -247,6 +251,8 @@ static int pic_update_irq(PDEVPIC pThis)
     if (irq2 >= 0) {
         /* if irq request by slave pic, signal master PIC */
         pic_set_irq1(&pics[0], 2, 1);
+    } else {
+        /* If not, clear the IR on the master PIC. */
         pic_set_irq1(&pics[0], 2, 0);
     }
     /* look at requested irq */
@@ -358,13 +364,17 @@ PDMBOTHCBDECL(void) picSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
     DumpPICState(&pThis->aPics[0], "picSetIrq");
     DumpPICState(&pThis->aPics[1], "picSetIrq");
     STAM_COUNTER_INC(&pThis->CTXSUFF(StatSetIrq));
-    pic_set_irq1(&pThis->aPics[iIrq >> 3], iIrq & 7, iLevel & PDM_IRQ_LEVEL_HIGH);
-    pic_update_irq(pThis);
     if ((iLevel & PDM_IRQ_LEVEL_FLIP_FLOP) == PDM_IRQ_LEVEL_FLIP_FLOP)
     {
+        /* A flip-flop lowers the IRQ line and immediately raises it, so
+         * that a rising edge is guaranteed to occur. Note that the IRQ
+         * line must be held high for a while to avoid spurious interrupts.
+         */
         pic_set_irq1(&pThis->aPics[iIrq >> 3], iIrq & 7, 0);
         pic_update_irq(pThis);
     }
+    pic_set_irq1(&pThis->aPics[iIrq >> 3], iIrq & 7, iLevel & PDM_IRQ_LEVEL_HIGH);
+    pic_update_irq(pThis);
 }
 
 
@@ -481,7 +491,8 @@ static int pic_ioport_write(void *opaque, uint32_t addr, uint32_t val)
             if (val & 0x02)
                 AssertReleaseMsgFailed(("single mode not supported"));
             if (val & 0x08)
-                AssertReleaseMsgFailed(("level sensitive irq not supported"));
+                if (pThis->cRelLogEntries++ < 64)
+                    LogRel(("pic_write: Level sensitive IRQ setting ignored.\n"));
         } else if (val & 0x08) {
             if (val & 0x04)
                 s->poll = 1;
@@ -936,6 +947,7 @@ static DECLCALLBACK(int)  picConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     pThis->aPics[1].pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pThis->aPics[0].pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
     pThis->aPics[1].pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
+    pThis->cRelLogEntries = 0;
 
     /*
      * Register us as the PIC with PDM.

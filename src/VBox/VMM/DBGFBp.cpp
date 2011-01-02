@@ -1,4 +1,4 @@
-/* $Id: DBGFBp.cpp $ */
+/* $Id: DBGFBp.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Breakpoint Management.
  */
@@ -98,7 +98,7 @@ int dbgfR3BpInit(PVM pVM)
 static PDBGFBP dbgfR3BpAlloc(PVM pVM, DBGFBPTYPE enmType)
 {
     /*
-     * Determin which array to search.
+     * Determine which array to search.
      */
     unsigned cBps;
     PRTUINT  pcBpsCur;
@@ -194,7 +194,7 @@ static PDBGFBP dbgfR3BpGet(PVM pVM, RTUINT iBp)
 static PDBGFBP dbgfR3BpGetByAddr(PVM pVM, DBGFBPTYPE enmType, RTGCUINTPTR GCPtr)
 {
     /*
-     * Determin which array to search.
+     * Determine which array to search.
      */
     unsigned cBps;
     PDBGFBP  paBps;

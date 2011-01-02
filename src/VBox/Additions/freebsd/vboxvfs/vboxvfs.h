@@ -1,10 +1,10 @@
-/* $Id: vboxvfs.h $ */
+/* $Id: vboxvfs.h 31012 2010-07-22 15:55:04Z vboxsync $ */
 /** @file
  * Description.
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@ struct vboxvfs_mount_info {
 
 #ifdef _KERNEL
 
-#include "../../common/VBoxGuestLib/VBoxCalls.h"
+#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
 #include <sys/mount.h>
 #include <sys/vnode.h>
 

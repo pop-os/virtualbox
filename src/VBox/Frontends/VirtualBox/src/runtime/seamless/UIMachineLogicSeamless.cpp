@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogicSeamless.cpp $ */
+/* $Id: UIMachineLogicSeamless.cpp 30936 2010-07-20 16:59:35Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -25,12 +25,11 @@
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 
+#include "UISession.h"
 #include "UIActionsPool.h"
 #include "UIMachineLogicSeamless.h"
-#include "UIMachineWindow.h"
 #include "UIMachineWindowSeamless.h"
 #include "UIMultiScreenLayout.h"
-#include "UISession.h"
 
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
@@ -44,8 +43,16 @@ UIMachineLogicSeamless::UIMachineLogicSeamless(QObject *pParent, UISession *pSes
 
 UIMachineLogicSeamless::~UIMachineLogicSeamless()
 {
-    /* Cleanup normal machine window: */
+#ifdef Q_WS_MAC
+    /* Cleanup the dock stuff before the machine window(s): */
+    cleanupDock();
+#endif /* Q_WS_MAC */
+
+    /* Cleanup machine window(s): */
     cleanupMachineWindows();
+
+    /* Cleanup handlers: */
+    cleanupHandlers();
 
     /* Cleanup actions groups: */
     cleanupActionGroups();
@@ -118,6 +125,9 @@ void UIMachineLogicSeamless::initialize()
     /* Prepare action connections: */
     prepareActionConnections();
 
+    /* Prepare handlers: */
+    prepareHandlers();
+
     /* Prepare normal machine window: */
     prepareMachineWindows();
 
@@ -133,6 +143,10 @@ void UIMachineLogicSeamless::initialize()
     sltMachineStateChanged();
     sltAdditionsStateChanged();
     sltMouseCapabilityChanged();
+
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    prepareDebugger();
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
     /* Retranslate logic part: */
     retranslateUi();
@@ -175,16 +189,17 @@ void UIMachineLogicSeamless::prepareMachineWindows()
     ::darwinSetFrontMostProcess();
 #endif /* Q_WS_MAC */
 
-    /* Update the multi screen layout */
+    /* Update the multi screen layout: */
     m_pScreenLayout->update();
 
     /* Create machine window(s): */
-    for (int screenId = 0; screenId < m_pScreenLayout->guestScreenCount(); ++screenId)
-        addMachineWindow(UIMachineWindow::create(this, visualStateType(), screenId));
+    for (int cScreenId = 0; cScreenId < m_pScreenLayout->guestScreenCount(); ++cScreenId)
+        addMachineWindow(UIMachineWindow::create(this, visualStateType(), cScreenId));
 
-    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+    /* Connect screen-layout change handler: */
+    for (int i = 0; i < machineWindows().size(); ++i)
         connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
-                static_cast<UIMachineWindowSeamless*>(pMachineWindow), SLOT(sltPlaceOnScreen()));
+                static_cast<UIMachineWindowSeamless*>(machineWindows()[i]), SLOT(sltPlaceOnScreen()));
 
     /* Remember what machine window(s) created: */
     setMachineWindowsCreated(true);
@@ -192,14 +207,11 @@ void UIMachineLogicSeamless::prepareMachineWindows()
 
 void UIMachineLogicSeamless::cleanupMachineWindows()
 {
-    /* Do not cleanup machine window if it is not present: */
+    /* Do not cleanup machine window(s) if not present: */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Base class cleanup: */
-    UIMachineLogic::cleanupMachineWindows();
-
-    /* Cleanup normal machine window: */
+    /* Cleanup machine window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 }

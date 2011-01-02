@@ -1,6 +1,6 @@
-/* $Id: HostImpl.h $ */
+/* $Id: HostImpl.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
- * Implemenation of IHost.
+ * Implementation of IHost.
  */
 
 /*
@@ -35,11 +35,10 @@ namespace settings
 
 class ATL_NO_VTABLE Host :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<Host, IHost>,
-    public VirtualBoxSupportTranslation<Host>,
     VBOX_SCRIPTABLE_IMPL(IHost)
 {
 public:
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Host, IHost)
 
     DECLARE_NOT_AGGREGATABLE(Host)
 
@@ -97,16 +96,6 @@ public:
     // public methods only for internal purposes
 
     /**
-     * Simple run-time type identification without having to enable C++ RTTI.
-     * The class IDs are defined in VirtualBoxBase.h.
-     * @return
-     */
-    virtual VBoxClsID getClassID() const
-    {
-        return clsidHost;
-    }
-
-    /**
      * Override of the default locking class to be used for validating lock
      * order with the standard member lock handle.
      */
@@ -118,8 +107,8 @@ public:
     HRESULT loadSettings(const settings::Host &data);
     HRESULT saveSettings(settings::Host &data);
 
-    HRESULT getDVDDrives(MediaList &ll);
-    HRESULT getFloppyDrives(MediaList &ll);
+    HRESULT getDrives(DeviceType_T mediumType, bool fRefresh, MediaList *&pll);
+    HRESULT findHostDrive(DeviceType_T mediumType, const Guid &uuid, bool fRefresh, ComObjPtr<Medium> &pMedium);
 
 #ifdef VBOX_WITH_USB
     typedef std::list< ComObjPtr<HostUSBDeviceFilter> > USBDeviceFilterList;
@@ -136,10 +125,10 @@ public:
     HRESULT checkUSBProxyService();
 #endif /* !VBOX_WITH_USB */
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Host"; }
-
 private:
+
+    HRESULT buildDVDDrivesList(MediaList &list);
+    HRESULT buildFloppyDrivesList(MediaList &list);
 
 #if defined(RT_OS_SOLARIS) && defined(VBOX_USE_LIBHAL)
     bool getDVDInfoFromHal(std::list< ComObjPtr<Medium> > &list);

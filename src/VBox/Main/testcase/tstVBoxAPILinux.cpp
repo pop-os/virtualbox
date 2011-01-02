@@ -36,7 +36,7 @@
  *    everywhere else) VirtualBox client application from the same source code
  *    (including common smart C++ templates for automatic interface pointer
  *    reference counter and string data management);
- * b) simpler XPCOM initialization and shutdown (only a signle method call
+ * b) simpler XPCOM initialization and shutdown (only a single method call
  *    that does everything right).
  *
  * Currently, there is no separate sample program that uses the VirtualBox MS
@@ -188,9 +188,13 @@ void createVM(IVirtualBox *virtualBox)
      * First create a unnamed new VM. It will be unconfigured and not be saved
      * in the configuration until we explicitely choose to do so.
      */
-    nsCOMPtr <IMachine> machine;
-    rc = virtualBox->CreateMachine(NS_LITERAL_STRING("A brand new name").get(),
-                                   nsnull, nsnull, nsnull, false, getter_AddRefs(machine));
+    nsCOMPtr<IMachine> machine;
+    rc = virtualBox->CreateMachine(NULL,        /* settings file */
+                                   NS_LITERAL_STRING("A brand new name").get(),
+                                   nsnull,      /* ostype */
+                                   nsnull,      /* machine uuid */
+                                   false,       /* forceOverwrite */
+                                   getter_AddRefs(machine));
     if (NS_FAILED(rc))
     {
         printf("Error: could not create machine! rc=%08X\n", rc);
@@ -214,7 +218,7 @@ void createVM(IVirtualBox *virtualBox)
      * its description (win2k would be "Windows 2000") by getting the
      * guest OS type collection and enumerating it.
      */
-    nsCOMPtr <IGuestOSType> osType;
+    nsCOMPtr<IGuestOSType> osType;
     rc = virtualBox->GetGuestOSType(NS_LITERAL_STRING("win2k").get(),
                                     getter_AddRefs(osType));
     if (NS_FAILED(rc))
@@ -261,16 +265,14 @@ void createVM(IVirtualBox *virtualBox)
                                                   getter_AddRefs(session));
         if (NS_FAILED(rc))
         {
-            printf("Error, could not instantiate Session object! rc=0x%x\n", rc);
+            printf("Error, could not instantiate session object! rc=0x%x\n", rc);
             return;
         }
 
-        nsXPIDLString machineUUID;
-        machine->GetId(getter_Copies(machineUUID));
-        rc = virtualBox->OpenSession(session, machineUUID);
+        rc = machine->LockMachine(session, LockType_Write);
         if (NS_FAILED(rc))
         {
-            printf("Error, could not open session! rc=0x%x\n", rc);
+            printf("Error, could not lock the machine for the session! rc=0x%x\n", rc);
             return;
         }
 
@@ -282,7 +284,7 @@ void createVM(IVirtualBox *virtualBox)
         rc = session->GetMachine(getter_AddRefs(machine));
         if (NS_FAILED(rc))
         {
-            printf("Error, could not get sessioned machine! rc=0x%x\n", rc);
+            printf("Error, could not get machine session! rc=0x%x\n", rc);
             return;
         }
     }
@@ -331,17 +333,13 @@ void createVM(IVirtualBox *virtualBox)
             else
             {
                 /*
-                 * Now that it's created, we can assign it to the VM. This is done
-                 * by UUID, so query that one fist. The UUID has been assigned automatically
-                 * when we've created the image.
+                 * Now that it's created, we can assign it to the VM.
                  */
-                nsXPIDLString vdiUUID;
-                hardDisk->GetId(getter_Copies(vdiUUID));
                 rc = machine->AttachDevice(NS_LITERAL_STRING("IDE Controller").get(), // controller identifier
                                            0,                              // channel number on the controller
                                            0,                              // device number on the controller
                                            DeviceType_HardDisk,
-                                           vdiUUID);
+                                           hardDisk);
                 if (NS_FAILED(rc))
                 {
                     printf("Error: could not attach hard disk! rc=%08X\n", rc);
@@ -357,25 +355,21 @@ void createVM(IVirtualBox *virtualBox)
      * as the boot device.
      */
     nsCOMPtr<IMedium> dvdImage;
-
-    rc = virtualBox->OpenDVDImage(NS_LITERAL_STRING("/home/vbox/isos/winnt4ger.iso").get(),
-                                  nsnull, /* NULL UUID, i.e. a new one will be created */
-                                  getter_AddRefs(dvdImage));
+    rc = virtualBox->OpenMedium(NS_LITERAL_STRING("/home/vbox/isos/winnt4ger.iso").get(),
+                                DeviceType_DVD,
+                                AccessMode_ReadOnly,
+                                getter_AddRefs(dvdImage));
     if (NS_FAILED(rc))
-    {
         printf("Error: could not open CD image! rc=%08X\n", rc);
-    }
     else
     {
         /*
          * Now assign it to our VM
          */
-        nsXPIDLString isoUUID;
-        dvdImage->GetId(getter_Copies(isoUUID));
         rc = machine->MountMedium(NS_LITERAL_STRING("IDE Controller").get(), // controller identifier
                                   2,                              // channel number on the controller
                                   0,                              // device number on the controller
-                                  isoUUID,
+                                  dvdImage,
                                   PR_FALSE);                      // aForce
         if (NS_FAILED(rc))
         {
@@ -407,7 +401,7 @@ void createVM(IVirtualBox *virtualBox)
      * It is always important to close the open session when it becomes not
      * necessary any more.
      */
-    session->Close();
+    session->UnlockMachine();
 }
 
 // main

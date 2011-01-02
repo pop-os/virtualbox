@@ -1,4 +1,4 @@
-/* $Id: DrvHostParallel.cpp $ */
+/* $Id: DrvHostParallel.cpp 32678 2010-09-21 17:14:02Z vboxsync $ */
 /** @file
  * VirtualBox Host Parallel Port Driver.
  *
@@ -276,6 +276,11 @@ static DECLCALLBACK(void) drvHostParallelDestruct(PPDMDRVINS pDrvIns)
         int rc = RTFileClose(pThis->FileDevice);
         AssertRC(rc);
         pThis->FileDevice = NIL_RTFILE;
+    }
+    if (pThis->pszDevicePath)
+    {
+        MMR3HeapFree(pThis->pszDevicePath);
+        pThis->pszDevicePath = NULL;
     }
 }
 

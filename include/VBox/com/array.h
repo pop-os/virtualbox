@@ -83,7 +83,7 @@
             LogFlow (("*** in[%u]=%d\n", i, in [i]));
 
         // Use SafeArray to create the return array (the same technique is used
-        // for output array paramters)
+        // for output array parameters)
 
         SafeArray <LONG> ret (in.size() * 2);
         for (size_t i = 0; i < in.size(); ++ i)
@@ -167,8 +167,6 @@
 #include "VBox/com/defs.h"
 #include "VBox/com/ptr.h"
 #include "VBox/com/assert.h"
-
-#include "iprt/cpp/utils.h"
 
 #if defined (VBOX_WITH_XPCOM)
 
@@ -949,6 +947,13 @@ public:
         AssertFailedReturn (*this);
     }
 
+    void cloneTo (SafeArray<T>& aOther) const
+    {
+        aOther.reset(size());
+        aOther.initFrom(*this);
+    }
+
+
     /**
      * Transfers the ownership of this array's data to the specified location
      * declared using the ComSafeArrayOut macro and makes this array a null
@@ -1002,6 +1007,9 @@ public:
 
         return *this;
     }
+
+    inline void initFrom(const com::SafeArray<T> & aRef);
+    inline void initFrom(const T* aPtr, size_t aSize);
 
     // Public methods for internal purposes only.
 
@@ -1201,6 +1209,37 @@ protected:
 
     Data m;
 };
+
+/* Few fast specializations for primitive array types */
+template<>
+inline void com::SafeArray<BYTE>::initFrom(const com::SafeArray<BYTE> & aRef)
+{
+    size_t sSize = aRef.size();
+    resize(sSize);
+    ::memcpy(raw(), aRef.raw(), sSize);
+}
+template<>
+inline void com::SafeArray<BYTE>::initFrom(const BYTE* aPtr, size_t aSize)
+{
+    resize(aSize);
+    ::memcpy(raw(), aPtr, aSize);
+}
+
+
+template<>
+inline void com::SafeArray<LONG>::initFrom(const com::SafeArray<LONG> & aRef)
+{
+    size_t sSize = aRef.size();
+    resize(sSize);
+    ::memcpy(raw(), aRef.raw(), sSize * sizeof(LONG));
+}
+template<>
+inline void com::SafeArray<LONG>::initFrom(const LONG* aPtr, size_t aSize)
+{
+    resize(aSize);
+    ::memcpy(raw(), aPtr, aSize * sizeof(LONG));
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1627,6 +1666,15 @@ public:
             Copy (it->second, Base::m.arr [i]);
 #else
             Copy (it->second, Base::m.raw [i]);
+#endif
+    }
+
+    void setElement(size_t iIdx, I* obj)
+    {
+#if defined (VBOX_WITH_XPCOM)
+        Copy (obj, Base::m.arr [iIdx]);
+#else
+        Copy (obj, Base::m.raw [iIdx]);
 #endif
     }
 };

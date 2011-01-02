@@ -1,10 +1,10 @@
-/* $Id: semeventmulti-r0drv-solaris.c $ */
+/* $Id: semeventmulti-r0drv-solaris.c 33155 2010-10-15 12:07:44Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, Solaris.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,28 +38,49 @@
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/err.h>
+#include <iprt/lockvalidator.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
 #include <iprt/thread.h>
+#include <iprt/time.h>
 #include "internal/magics.h"
+#include "semeventwait-r0drv-solaris.h"
+
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** @name fStateAndGen values
+ * @{ */
+/** The state bit number. */
+#define RTSEMEVENTMULTISOL_STATE_BIT        0
+/** The state mask. */
+#define RTSEMEVENTMULTISOL_STATE_MASK       RT_BIT_32(RTSEMEVENTMULTISOL_STATE_BIT)
+/** The generation mask. */
+#define RTSEMEVENTMULTISOL_GEN_MASK         ~RTSEMEVENTMULTISOL_STATE_MASK
+/** The generation shift. */
+#define RTSEMEVENTMULTISOL_GEN_SHIFT        1
+/** The initial variable value. */
+#define RTSEMEVENTMULTISOL_STATE_GEN_INIT   UINT32_C(0xfffffffc)
+/** @}  */
 
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /**
- * FreeBSD multiple release event semaphore.
+ * Solaris multiple release event semaphore.
  */
 typedef struct RTSEMEVENTMULTIINTERNAL
 {
     /** Magic value (RTSEMEVENTMULTI_MAGIC). */
     uint32_t volatile   u32Magic;
-    /** The number of waiting threads. */
-    uint32_t volatile   cWaiters;
-    /** Set if the event object is signaled. */
-    uint8_t volatile    fSignaled;
-    /** The number of threads in the process of waking up. */
-    uint32_t volatile   cWaking;
+    /** The number of references. */
+    uint32_t volatile   cRefs;
+    /** The object state bit and generation counter.
+     * The generation counter is incremented every time the object is
+     * signalled. */
+    uint32_t volatile   fStateAndGen;
     /** The Solaris mutex protecting this structure and pairing up the with the cv. */
     kmutex_t            Mtx;
     /** The Solaris condition variable. */
@@ -85,10 +106,9 @@ RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t 
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)RTMemAlloc(sizeof(*pThis));
     if (pThis)
     {
-        pThis->u32Magic = RTSEMEVENTMULTI_MAGIC;
-        pThis->cWaiters = 0;
-        pThis->cWaking = 0;
-        pThis->fSignaled = 0;
+        pThis->u32Magic     = RTSEMEVENTMULTI_MAGIC;
+        pThis->cRefs        = 1;
+        pThis->fStateAndGen = RTSEMEVENTMULTISOL_STATE_GEN_INIT;
         mutex_init(&pThis->Mtx, "IPRT Multiple Release Event Semaphore", MUTEX_DRIVER, (void *)ipltospl(DISP_LEVEL));
         cv_init(&pThis->Cnd, "IPRT CV", CV_DRIVER, NULL);
 
@@ -99,6 +119,45 @@ RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t 
 }
 
 
+/**
+ * Retain a reference to the semaphore.
+ *
+ * @param   pThis       The semaphore.
+ */
+DECLINLINE(void) rtR0SemEventMultiSolRetain(PRTSEMEVENTMULTIINTERNAL pThis)
+{
+    uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
+    Assert(cRefs && cRefs < 100000);
+}
+
+
+/**
+ * Destructor that is called when cRefs == 0.
+ *
+ * @param   pThis       The instance to destroy.
+ */
+static void rtSemEventMultiDtor(PRTSEMEVENTMULTIINTERNAL pThis)
+{
+    Assert(pThis->u32Magic != RTSEMEVENTMULTI_MAGIC);
+    cv_destroy(&pThis->Cnd);
+    mutex_destroy(&pThis->Mtx);
+    RTMemFree(pThis);
+}
+
+
+/**
+ * Release a reference, destroy the thing if necessary.
+ *
+ * @param   pThis       The semaphore.
+ */
+DECLINLINE(void) rtR0SemEventMultiSolRelease(PRTSEMEVENTMULTIINTERNAL pThis)
+{
+    if (RT_UNLIKELY(ASMAtomicDecU32(&pThis->cRefs) == 0))
+        rtSemEventMultiDtor(pThis);
+}
+
+
+
 RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
 {
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
@@ -106,33 +165,58 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
         return VINF_SUCCESS;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
+    AssertMsgReturn(pThis->cRefs > 0, ("pThis=%p cRefs=%d\n", pThis, pThis->cRefs), VERR_INVALID_HANDLE);
     RT_ASSERT_INTS_ON();
 
     mutex_enter(&pThis->Mtx);
-    ASMAtomicIncU32(&pThis->u32Magic); /* make the handle invalid */
-    if (pThis->cWaiters > 0)
-    {
-        /* abort waiting thread, last man cleans up. */
-        ASMAtomicXchgU32(&pThis->cWaking, pThis->cWaking + pThis->cWaiters);
-        cv_broadcast(&pThis->Cnd);
-        mutex_exit(&pThis->Mtx);
-    }
-    else if (pThis->cWaking)
-        /* the last waking thread is gonna do the cleanup */
-        mutex_exit(&pThis->Mtx);
-    else
-    {
-        mutex_exit(&pThis->Mtx);
-        cv_destroy(&pThis->Cnd);
-        mutex_destroy(&pThis->Mtx);
-        RTMemFree(pThis);
-    }
+
+    /* Invalidate the handle and wake up all threads that might be waiting on the semaphore. */
+    Assert(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
+    ASMAtomicWriteU32(&pThis->u32Magic, RTSEMEVENTMULTI_MAGIC_DEAD);
+    ASMAtomicAndU32(&pThis->fStateAndGen, RTSEMEVENTMULTISOL_GEN_MASK);
+    cv_broadcast(&pThis->Cnd);
+
+    /* Drop the reference from RTSemEventMultiCreateEx. */
+    mutex_exit(&pThis->Mtx);
+    rtR0SemEventMultiSolRelease(pThis);
 
     return VINF_SUCCESS;
 }
 
 
-RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
+RTDECL(int) RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
+{
+    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
+    RT_ASSERT_PREEMPT_CPUID_VAR();
+
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
+                    ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
+                    VERR_INVALID_HANDLE);
+    RT_ASSERT_INTS_ON();
+    rtR0SemEventMultiSolRetain(pThis);
+    rtR0SemSolWaitEnterMutexWithUnpinningHack(&pThis->Mtx);
+    Assert(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
+
+    /*
+     * Do the job.
+     */
+    uint32_t fNew = ASMAtomicUoReadU32(&pThis->fStateAndGen);
+    fNew += 1 << RTSEMEVENTMULTISOL_GEN_SHIFT;
+    fNew |= RTSEMEVENTMULTISOL_STATE_MASK;
+    ASMAtomicWriteU32(&pThis->fStateAndGen, fNew);
+
+    cv_broadcast(&pThis->Cnd);
+
+    mutex_exit(&pThis->Mtx);
+
+    rtR0SemEventMultiSolRelease(pThis);
+    RT_ASSERT_PREEMPT_CPUID();
+    return VINF_SUCCESS;
+}
+
+
+RTDECL(int) RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 {
     PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
     RT_ASSERT_PREEMPT_CPUID_VAR();
@@ -143,172 +227,120 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
                     VERR_INVALID_HANDLE);
     RT_ASSERT_INTS_ON();
 
-    /*
-     * If we're in interrupt context we need to unpin the underlying current
-     * thread as this could lead to a deadlock (see #4259 for the full explanation)
-     *
-     * Note! See remarks about preemption in RTSemEventSignal.
-     */
-    int fAcquired = mutex_tryenter(&pThis->Mtx);
-    if (!fAcquired)
-    {
-        if (curthread->t_intr && getpil() < DISP_LEVEL)
-        {
-            RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
-            RTThreadPreemptDisable(&PreemptState);
-            preempt();
-            RTThreadPreemptRestore(&PreemptState);
-        }
-        mutex_enter(&pThis->Mtx);
-    }
+    rtR0SemEventMultiSolRetain(pThis);
+    rtR0SemSolWaitEnterMutexWithUnpinningHack(&pThis->Mtx);
+    Assert(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC);
 
-    ASMAtomicXchgU8(&pThis->fSignaled, true);
-    if (pThis->cWaiters > 0)
-    {
-        ASMAtomicXchgU32(&pThis->cWaking, pThis->cWaking + pThis->cWaiters);
-        ASMAtomicXchgU32(&pThis->cWaiters, 0);
-        cv_broadcast(&pThis->Cnd);
-    }
+    /*
+     * Do the job (could be done without the lock, but play safe).
+     */
+    ASMAtomicAndU32(&pThis->fStateAndGen, ~RTSEMEVENTMULTISOL_STATE_MASK);
 
     mutex_exit(&pThis->Mtx);
+    rtR0SemEventMultiSolRelease(pThis);
 
     RT_ASSERT_PREEMPT_CPUID();
     return VINF_SUCCESS;
 }
 
 
-RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
+/**
+ * Worker for RTSemEventMultiWaitEx and RTSemEventMultiWaitExDebug.
+ *
+ * @returns VBox status code.
+ * @param   pThis           The event semaphore.
+ * @param   fFlags          See RTSemEventMultiWaitEx.
+ * @param   uTimeout        See RTSemEventMultiWaitEx.
+ * @param   pSrcPos         The source code position of the wait.
+ */
+static int rtR0SemEventMultiSolWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t fFlags, uint64_t uTimeout,
+                                    PCRTLOCKVALSRCPOS pSrcPos)
 {
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
-    RT_ASSERT_PREEMPT_CPUID_VAR();
-
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
-                    ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
-                    VERR_INVALID_HANDLE);
-    RT_ASSERT_INTS_ON();
+    uint32_t    fOrgStateAndGen;
+    int         rc;
 
     /*
-     * If we're in interrupt context we need to unpin the underlying current
-     * thread as this could lead to a deadlock (see #4259 for the full explanation)
-     *
-     * Note! See remarks about preemption in RTSemEventSignal.
+     * Validate the input.
      */
-    int fAcquired = mutex_tryenter(&pThis->Mtx);
-    if (!fAcquired)
-    {
-        if (curthread->t_intr && getpil() < DISP_LEVEL)
-        {
-            RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
-            RTThreadPreemptDisable(&PreemptState);
-            preempt();
-            RTThreadPreemptRestore(&PreemptState);
-        }
-        mutex_enter(&pThis->Mtx);
-    }
+    AssertPtrReturn(pThis, VERR_INVALID_PARAMETER);
+    AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("%p u32Magic=%RX32\n", pThis, pThis->u32Magic), VERR_INVALID_PARAMETER);
+    AssertReturn(RTSEMWAIT_FLAGS_ARE_VALID(fFlags), VERR_INVALID_PARAMETER);
+    rtR0SemEventMultiSolRetain(pThis);
+    mutex_enter(&pThis->Mtx); /* this could be moved down to the else, but play safe for now. */
 
-    ASMAtomicXchgU8(&pThis->fSignaled, false);
-    mutex_exit(&pThis->Mtx);
-
-    RT_ASSERT_PREEMPT_CPUID();
-    return VINF_SUCCESS;
-}
-
-
-static int rtSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies, bool fInterruptible)
-{
-    int rc;
-    PRTSEMEVENTMULTIINTERNAL pThis = (PRTSEMEVENTMULTIINTERNAL)hEventMultiSem;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC,
-                    ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic),
-                    VERR_INVALID_HANDLE);
-    if (cMillies)
-        RT_ASSERT_PREEMPTIBLE();
-
-    mutex_enter(&pThis->Mtx);
-
-    if (pThis->fSignaled)
+    /*
+     * Is the event already signalled or do we have to wait?
+     */
+    fOrgStateAndGen = ASMAtomicUoReadU32(&pThis->fStateAndGen);
+    if (fOrgStateAndGen & RTSEMEVENTMULTISOL_STATE_MASK)
         rc = VINF_SUCCESS;
-    else if (!cMillies)
-        rc = VERR_TIMEOUT;
     else
     {
-        ASMAtomicIncU32(&pThis->cWaiters);
-
         /*
-         * Translate milliseconds into ticks and go to sleep.
+         * We have to wait.
          */
-        if (cMillies != RT_INDEFINITE_WAIT)
+        RTR0SEMSOLWAIT Wait;
+        rc = rtR0SemSolWaitInit(&Wait, fFlags, uTimeout);
+        if (RT_SUCCESS(rc))
         {
-            clock_t cTicks = drv_usectohz((clock_t)(cMillies * 1000L));
-            clock_t cTimeout = ddi_get_lbolt();
-            cTimeout += cTicks;
-            if (fInterruptible)
-                rc = cv_timedwait_sig(&pThis->Cnd, &pThis->Mtx, cTimeout);
-            else
-                rc = cv_timedwait(&pThis->Cnd, &pThis->Mtx, cTimeout);
-        }
-        else
-        {
-            if (fInterruptible)
-                rc = cv_wait_sig(&pThis->Cnd, &pThis->Mtx);
-            else
+            for (;;)
             {
-                cv_wait(&pThis->Cnd, &pThis->Mtx);
-                rc = 1;
-            }
-        }
-        if (rc > 0)
-        {
-            /* Retured due to call to cv_signal() or cv_broadcast() */
-            if (RT_LIKELY(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC))
-            {
-                rc = VINF_SUCCESS;
-                ASMAtomicDecU32(&pThis->cWaking);
-            }
-            else
-            {
-                rc = VERR_SEM_DESTROYED;
-                if (!ASMAtomicDecU32(&pThis->cWaking))
+                /* The destruction test. */
+                if (RT_UNLIKELY(pThis->u32Magic != RTSEMEVENTMULTI_MAGIC))
+                    rc = VERR_SEM_DESTROYED;
+                else
                 {
-                    mutex_exit(&pThis->Mtx);
-                    cv_destroy(&pThis->Cnd);
-                    mutex_destroy(&pThis->Mtx);
-                    RTMemFree(pThis);
-                    return rc;
+                    /* Check the exit conditions. */
+                    if (RT_UNLIKELY(pThis->u32Magic != RTSEMEVENTMULTI_MAGIC))
+                        rc = VERR_SEM_DESTROYED;
+                    else if (ASMAtomicUoReadU32(&pThis->fStateAndGen) != fOrgStateAndGen)
+                        rc = VINF_SUCCESS;
+                    else if (rtR0SemSolWaitHasTimedOut(&Wait))
+                        rc = VERR_TIMEOUT;
+                    else if (rtR0SemSolWaitWasInterrupted(&Wait))
+                        rc = VERR_INTERRUPTED;
+                    else
+                    {
+                        /* Do the wait and then recheck the conditions. */
+                        rtR0SemSolWaitDoIt(&Wait, &pThis->Cnd, &pThis->Mtx);
+                        continue;
+                    }
                 }
+                break;
             }
-        }
-        else if (rc == -1)
-        {
-            /* Returned due to timeout being reached */
-            if (pThis->cWaiters > 0)
-                ASMAtomicDecU32(&pThis->cWaiters);
-            rc = VERR_TIMEOUT;
-        }
-        else
-        {
-            /* Returned due to pending signal */
-            if (pThis->cWaiters > 0)
-                ASMAtomicDecU32(&pThis->cWaiters);
-            rc = VERR_INTERRUPTED;
+            rtR0SemSolWaitDelete(&Wait);
         }
     }
 
     mutex_exit(&pThis->Mtx);
+    rtR0SemEventMultiSolRelease(pThis);
     return rc;
 }
 
 
-RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
+
+#undef RTSemEventMultiWaitEx
+RTDECL(int)  RTSemEventMultiWaitEx(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout)
 {
-    return rtSemEventMultiWait(hEventMultiSem, cMillies, false /* not interruptible */);
+#ifndef RTSEMEVENT_STRICT
+    return rtR0SemEventMultiSolWait(hEventMultiSem, fFlags, uTimeout, NULL);
+#else
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_NORMAL_API();
+    return rtR0SemEventMultiSolWait(hEventMultiSem, fFlags, uTimeout, &SrcPos);
+#endif
 }
 
 
-RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
+RTDECL(int)  RTSemEventMultiWaitExDebug(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout,
+                                        RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
-    return rtSemEventMultiWait(hEventMultiSem, cMillies, true /* interruptible */);
+    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_DEBUG_API();
+    return rtR0SemEventMultiSolWait(hEventMultiSem, fFlags, uTimeout, &SrcPos);
+}
+
+
+RTDECL(uint32_t) RTSemEventMultiGetResolution(void)
+{
+    return rtR0SemSolWaitGetResolution();
 }
 

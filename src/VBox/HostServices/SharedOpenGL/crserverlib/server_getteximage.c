@@ -24,8 +24,8 @@ crServerDispatchGetTexImage(GLenum target, GLint level, GLenum format,
     {
         GLvoid *pbo_offset;
 
-        /*pixels are actualy a pointer to location of 8byte network pointer in hgcm buffer
-          regarless of guest/host bitness we're using only 4lower bytes as there're no
+        /*pixels are actually a pointer to location of 8byte network pointer in hgcm buffer
+          regardless of guest/host bitness we're using only 4lower bytes as there're no
           pbo>4gb (yet?)
          */
         pbo_offset = (GLvoid*) ((uintptr_t) *((GLint*)pixels));
@@ -41,6 +41,40 @@ crServerDispatchGetTexImage(GLenum target, GLint level, GLenum format,
     cr_server.head_spu->dispatch_table.GetTexLevelParameteriv(target, level, GL_TEXTURE_DEPTH, &depth);
 
     size = crTextureSize(format, type, width, height, depth);
+
+#if 0
+    {
+        CRContext *ctx = crStateGetCurrent();
+        CRTextureObj *tobj;
+        CRTextureLevel *tl;
+        GLint id;
+
+        crDebug("GetTexImage: %d, %i, %d, %d", target, level, format, type);
+        crDebug("===StateTracker===");
+        crDebug("Current TU: %i", ctx->texture.curTextureUnit);
+
+        if (target==GL_TEXTURE_2D)
+        {
+            tobj = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D;
+            CRASSERT(tobj);
+            tl = &tobj->level[0][level];
+            crDebug("Texture %i(hw %i), w=%i, h=%i", tobj->id, tobj->hwid, tl->width, tl->height, tl->depth);
+        }
+        else
+        {
+            crDebug("Not 2D tex");
+        }
+
+        crDebug("===GPU===");
+        cr_server.head_spu->dispatch_table.GetIntegerv(GL_ACTIVE_TEXTURE, &id);
+        crDebug("Current TU: %i", id);
+        if (target==GL_TEXTURE_2D)
+        {
+            cr_server.head_spu->dispatch_table.GetIntegerv(GL_TEXTURE_BINDING_2D, &id);
+            crDebug("Texture: %i, w=%i, h=%i, d=%i", id, width, height, depth);
+        }
+    }
+#endif
 
     if (size && (buffer = crAlloc(size))) {
         /* Note, the other pixel PACK parameters (default values) should

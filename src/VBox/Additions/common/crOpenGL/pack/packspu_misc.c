@@ -7,6 +7,7 @@
 #include "cr_packfunctions.h"
 #include "packspu.h"
 #include "packspu_proto.h"
+#include "cr_mem.h"
 
 void PACKSPU_APIENTRY packspu_ChromiumParametervCR(GLenum target, GLenum type, GLsizei count, const GLvoid *values)
 {
@@ -74,7 +75,7 @@ void PACKSPU_APIENTRY packspu_DrawBuffer(GLenum mode)
 void PACKSPU_APIENTRY packspu_Finish( void )
 {
     GET_THREAD(thread);
-    GLint writeback = pack_spu.thread[0].netServer.conn->actual_network;
+    GLint writeback = pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network;
 
     if (pack_spu.swap)
     {
@@ -107,14 +108,46 @@ void PACKSPU_APIENTRY packspu_Flush( void )
     GET_THREAD(thread);
     int writeback = 1;
 
-    crPackFlush();
-
-    if (packspuSyncOnFlushes())
+    if (!thread->bInjectThread)
     {
-        crPackWriteback(&writeback);
-        packspuFlush( (void *) thread );
-        while (writeback)
-            crNetRecv();
+        crPackFlush();
+        if (packspuSyncOnFlushes())
+        {
+            crPackWriteback(&writeback);
+            packspuFlush( (void *) thread );
+            while (writeback)
+                crNetRecv();
+        }
+    }
+    else
+    {
+        int i;
+
+        crLockMutex(&_PackMutex);
+
+        /*Make sure we process commands in order they should appear, so flush thread being injected first*/
+        for (i=0; i<MAX_THREADS; ++i)
+        {
+            if (pack_spu.thread[i].inUse
+                && (thread != &pack_spu.thread[i]) && pack_spu.thread[i].netServer.conn
+                && (pack_spu.thread[i].netServer.conn->u32ClientID == thread->netServer.conn->u32InjectClientID)
+                && pack_spu.thread[i].packer && pack_spu.thread[i].packer->currentBuffer)
+            {
+                packspuFlush((void *) &pack_spu.thread[i]);
+                break;
+            }
+        }
+
+        if (i>=MAX_THREADS)
+        {
+            /*Thread we're supposed to inject commands for has been detached,
+              so there's nothing to sync with and we should just pass commands through our own connection.
+             */
+            thread->netServer.conn->u32InjectClientID=0;
+        }
+        crUnlockMutex(&_PackMutex);
+
+        packspuFlush((void *) thread);
     }
 }
 
@@ -122,7 +155,7 @@ GLint PACKSPU_APIENTRY packspu_WindowCreate( const char *dpyName, GLint visBits 
 {
     GET_THREAD(thread);
     static int num_calls = 0;
-    int writeback = pack_spu.thread[0].netServer.conn->actual_network;
+    int writeback = pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network;
     GLint return_val = (GLint) 0;
 
     if (!thread) {
@@ -169,7 +202,7 @@ packspu_AreTexturesResident( GLsizei n, const GLuint * textures,
     GLboolean return_val = GL_TRUE;
     GLsizei i;
 
-    if (!(pack_spu.thread[0].netServer.conn->actual_network))
+    if (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
         crError( "packspu_AreTexturesResident doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!" );
     }
@@ -210,7 +243,7 @@ packspu_AreProgramsResidentNV( GLsizei n, const GLuint * ids,
     GLboolean return_val = GL_TRUE;
     GLsizei i;
 
-    if (!(pack_spu.thread[0].netServer.conn->actual_network))
+    if (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
     {
         crError( "packspu_AreProgramsResidentNV doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!" );
     }
@@ -335,3 +368,218 @@ void PACKSPU_APIENTRY packspu_GetPixelMapusv( GLenum map, GLushort * values )
             crNetRecv();
     }
 }
+
+#ifdef CHROMIUM_THREADSAFE
+void PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(void)
+{
+    crLockMutex(&_PackMutex);
+    {
+        int i;
+        GET_THREAD(thread);
+        CRASSERT(!thread);
+        CRASSERT((pack_spu.numThreads>0) && (pack_spu.numThreads<MAX_THREADS));
+
+        for (i=0; i<MAX_THREADS; ++i)
+        {
+            if (!pack_spu.thread[i].inUse)
+            {
+                thread = &pack_spu.thread[i];
+                break;
+            }
+        }
+        CRASSERT(thread);
+
+        thread->inUse = GL_TRUE;
+        thread->id = crThreadID();
+        thread->currentContext = NULL;
+        thread->bInjectThread = GL_TRUE;
+
+        thread->netServer.name = crStrdup(pack_spu.name);
+        thread->netServer.buffer_size = 64 * 1024;
+
+        crNetNewClient(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn, &(thread->netServer));
+        CRASSERT(thread->netServer.conn);
+
+        CRASSERT(thread->packer == NULL);
+        thread->packer = crPackNewContext( pack_spu.swap );
+        CRASSERT(thread->packer);
+        crPackInitBuffer(&(thread->buffer), crNetAlloc(thread->netServer.conn),
+                         thread->netServer.conn->buffer_size, thread->netServer.conn->mtu);
+        thread->buffer.canBarf = thread->netServer.conn->Barf ? GL_TRUE : GL_FALSE;
+
+        crPackSetBuffer( thread->packer, &thread->buffer );
+        crPackFlushFunc( thread->packer, packspuFlush );
+        crPackFlushArg( thread->packer, (void *) thread );
+        crPackSendHugeFunc( thread->packer, packspuHuge );
+        crPackSetContext( thread->packer );
+
+        crSetTSD(&_PackTSD, thread);
+
+        pack_spu.numThreads++;
+    }
+    crUnlockMutex(&_PackMutex);
+}
+
+GLuint PACKSPU_APIENTRY packspu_VBoxPackGetInjectID(void)
+{
+    GLuint ret;
+
+    crLockMutex(&_PackMutex);
+    {
+        GET_THREAD(thread);
+        CRASSERT(thread && thread->netServer.conn && thread->netServer.conn->type==CR_VBOXHGCM);
+        ret = thread->netServer.conn->u32ClientID;
+    }
+    crUnlockMutex(&_PackMutex);
+
+    return ret;
+}
+
+void PACKSPU_APIENTRY packspu_VBoxPackSetInjectID(GLuint id)
+{
+    crLockMutex(&_PackMutex);
+    {
+        GET_THREAD(thread);
+
+        CRASSERT(thread && thread->netServer.conn && thread->netServer.conn->type==CR_VBOXHGCM && thread->bInjectThread);
+        thread->netServer.conn->u32InjectClientID = id;
+    }
+    crUnlockMutex(&_PackMutex);
+}
+
+void PACKSPU_APIENTRY packspu_VBoxPackAttachThread()
+{
+#if 0
+    int i;
+    GET_THREAD(thread);
+
+    for (i=0; i<MAX_THREADS; ++i)
+    {
+        if (pack_spu.thread[i].inUse && thread==&pack_spu.thread[i] && thread->id==crThreadID())
+        {
+            crError("2nd attach to same thread");
+        }
+    }
+#endif
+
+    crSetTSD(&_PackTSD, NULL);
+}
+
+void PACKSPU_APIENTRY packspu_VBoxPackDetachThread()
+{
+    int i;
+    GET_THREAD(thread);
+
+    if (thread)
+    {
+        crLockMutex(&_PackMutex);
+
+        for (i=0; i<MAX_THREADS; ++i)
+        {
+            if (pack_spu.thread[i].inUse && thread==&pack_spu.thread[i]
+                && thread->id==crThreadID() && thread->netServer.conn)
+            {
+                CRASSERT(pack_spu.numThreads>0);
+
+                packspuFlush((void *) thread);
+
+                if (pack_spu.thread[i].packer)
+                {
+                    CR_LOCK_PACKER_CONTEXT(thread->packer);
+                    crPackSetContext(NULL);
+                    CR_UNLOCK_PACKER_CONTEXT(thread->packer);
+                    crPackDeleteContext(pack_spu.thread[i].packer);
+                }
+                crNetFreeConnection(pack_spu.thread[i].netServer.conn);
+
+                pack_spu.numThreads--;
+                /*note can't shift the array here, because other threads have TLS references to array elements*/
+                crMemZero(&pack_spu.thread[i], sizeof(ThreadInfo));
+
+                crSetTSD(&_PackTSD, NULL);
+
+                if (i==pack_spu.idxThreadInUse)
+                {
+                    for (i=0; i<MAX_THREADS; ++i)
+                    {
+                        if (pack_spu.thread[i].inUse)
+                        {
+                            pack_spu.idxThreadInUse=i;
+                            break;
+                        }
+                    }
+                }
+
+                break;
+            }
+        }
+
+        crUnlockMutex(&_PackMutex);
+    }
+}
+
+#ifdef WINDOWS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
+{
+    (void) lpvReserved;
+
+    switch (fdwReason) 
+    {
+        case DLL_PROCESS_ATTACH:
+        {
+            crInitMutex(&_PackMutex);
+            break;
+        }
+
+        case DLL_PROCESS_DETACH:
+        {
+            crFreeMutex(&_PackMutex);
+            crNetTearDown();
+            break;
+        }
+
+        case DLL_THREAD_ATTACH:
+        {
+            packspu_VBoxPackAttachThread();
+            break;
+        }
+
+        case DLL_THREAD_DETACH:
+        {
+            packspu_VBoxPackDetachThread();
+            break;
+        }
+
+        default:
+            break;
+    }
+
+    return TRUE;
+}
+#endif
+
+#else  /*ifdef CHROMIUM_THREADSAFE*/
+void PACKSPU_APIENTRY packspu_VBoxPackSetInjectThread(void)
+{
+}
+
+GLuint PACKSPU_APIENTRY packspu_VBoxPackGetInjectID(void)
+{
+    return 0;
+}
+
+void PACKSPU_APIENTRY packspu_VBoxPackSetInjectID(GLuint id)
+{
+    (void) id;
+}
+
+void PACKSPU_APIENTRY packspu_VBoxPackAttachThread()
+{
+}
+
+void PACKSPU_APIENTRY packspu_VBoxPackDetachThread()
+{
+}
+#endif /*CHROMIUM_THREADSAFE*/

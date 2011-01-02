@@ -1,4 +1,4 @@
-/* $Id: PDM.cpp $ */
+/* $Id: PDM.cpp 34347 2010-11-24 22:34:21Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager.
  */
@@ -56,7 +56,7 @@
  *
  * The main purpose in having DevHlps rather than just giving all the devices
  * the VM handle and let them call the internal VM APIs directly, is both to
- * create a binary interface that can be supported accross releases and to
+ * create a binary interface that can be supported across releases and to
  * create a barrier between devices and the VM.  (The trusted / untrusted bit
  * hasn't turned out to be of much use btw., but it's easy to maintain so there
  * isn't any point in removing it.)
@@ -86,7 +86,7 @@
  * addresses in the process, and hands back the pointer to a set of helper
  * methods (PDMPICHLPR3).  The PCI device then queries the ring-0 and raw-mode
  * helpers using PDMPICHLPR3::pfnGetR0Helpers and PDMPICHLPR3::pfnGetRCHelpers.
- * The PCI device repeates ths pfnGetRCHelpers call in it's relocation method
+ * The PCI device repeats ths pfnGetRCHelpers call in it's relocation method
  * since the address changes when RC is relocated.
  *
  * @see grp_pdm_device
@@ -164,7 +164,7 @@
  *
  * @section sec_pdm_utils   Utilities
  *
- * As mentioned earlier, PDM is the location of any usful constrcts that doesn't
+ * As mentioned earlier, PDM is the location of any usful constructs that doesn't
  * quite fit into IPRT. The next subsections will discuss these.
  *
  * One thing these APIs all have in common is that resources will be associated
@@ -175,7 +175,7 @@
  * @subsection sec_pdm_async_completion     Async I/O
  *
  * The PDM Async I/O API provides a somewhat platform agnostic interface for
- * asynchronous I/O.  For reasons of performance and complexcity this does not
+ * asynchronous I/O.  For reasons of performance and complexity this does not
  * build upon any IPRT API.
  *
  * @todo more details.
@@ -193,7 +193,7 @@
  * @subsection sec_pdm_critsect     Critical Section
  *
  * The PDM Critical Section API is currently building on the IPRT API with the
- * same name.  It adds the posibility to use critical sections in ring-0 and
+ * same name.  It adds the possibility to use critical sections in ring-0 and
  * raw-mode as well as in ring-3.  There are certain restrictions on the RC and
  * R0 usage though since we're not able to wait on it, nor wake up anyone that
  * is waiting on it.  These restrictions origins with the use of a ring-3 event
@@ -208,7 +208,7 @@
  * @subsection sec_pdm_queue        Queue
  *
  * The PDM Queue API is for queuing one or more tasks for later consumption in
- * ring-3 by EMT, and optinally forcing a delayed or ASAP return to ring-3.  The
+ * ring-3 by EMT, and optionally forcing a delayed or ASAP return to ring-3.  The
  * queues can also be run on a timer basis as an alternative to the ASAP thing.
  * The queue will be flushed at forced action time.
  *
@@ -331,7 +331,7 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
     pVM->pdm.s.GCPhysVMMDevHeap = NIL_RTGCPHYS;
 
     /*
-     * Initialize sub compontents.
+     * Initialize sub components.
      */
     int rc = pdmR3CritSectInitStats(pVM);
     if (RT_SUCCESS(rc))
@@ -342,6 +342,8 @@ VMMR3DECL(int) PDMR3Init(PVM pVM)
     if (RT_SUCCESS(rc))
         rc = pdmR3AsyncCompletionInit(pVM);
 #endif
+    if (RT_SUCCESS(rc))
+        rc = pdmR3BlkCacheInit(pVM);
     if (RT_SUCCESS(rc))
         rc = pdmR3DrvInit(pVM);
     if (RT_SUCCESS(rc))
@@ -604,6 +606,11 @@ VMMR3DECL(int) PDMR3Term(PVM pVM)
      * Destroy all threads.
      */
     pdmR3ThreadDestroyAll(pVM);
+
+    /*
+     * Destroy the block cache.
+     */
+    pdmR3BlkCacheTerm(pVM);
 
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
     /*
@@ -889,7 +896,7 @@ static DECLCALLBACK(int) pdmR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersi
         if (u32Sep == UINT32_MAX)
             break;
         if (u32Sep != i)
-            AssertMsgFailedReturn(("Out of seqence. u32Sep=%#x i=%#x\n", u32Sep, i), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+            AssertMsgFailedReturn(("Out of sequence. u32Sep=%#x i=%#x\n", u32Sep, i), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
         /* Get the name and instance number. */
         char szName[RT_SIZEOFMEMB(PDMDEVREG, szName)];
@@ -1046,6 +1053,10 @@ VMMR3DECL(void) PDMR3PowerOn(PVM pVM)
         if (RT_SUCCESS(rc))
             rc = pdmR3PowerOnUsb(pUsbIns);
     }
+#endif
+
+#ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
+    pdmR3AsyncCompletionResume(pVM);
 #endif
 
     /*
@@ -1613,6 +1624,12 @@ VMMR3DECL(void) PDMR3Resume(PVM pVM)
         pdmR3ThreadResumeAll(pVM);
 
     /*
+     * Resume the block cache.
+     */
+    if (RT_SUCCESS(rc))
+        pdmR3BlkCacheResume(pVM);
+
+    /*
      * On failure, clean up via PDMR3Suspend.
      */
     if (RT_FAILURE(rc))
@@ -1821,7 +1838,7 @@ VMMR3DECL(void) PDMR3PowerOff(PVM pVM)
 
 
 /**
- * Queries the base interace of a device instance.
+ * Queries the base interface of a device instance.
  *
  * The caller can use this to query other interfaces the device implements
  * and use them to talk to the device.

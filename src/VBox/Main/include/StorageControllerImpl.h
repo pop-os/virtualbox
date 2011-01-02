@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.h $ */
+/* $Id: StorageControllerImpl.h 34010 2010-11-11 20:17:47Z vboxsync $ */
 
 /** @file
  *
@@ -24,13 +24,11 @@
 
 class ATL_NO_VTABLE StorageController :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<StorageController, IStorageController>,
-    public VirtualBoxSupportTranslation<StorageController>,
     VBOX_SCRIPTABLE_IMPL(IStorageController)
 {
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (StorageController)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(StorageController, IStorageController)
 
     DECLARE_NOT_AGGREGATABLE (StorageController)
 
@@ -52,7 +50,8 @@ public:
     HRESULT init(Machine *aParent,
                  const Utf8Str &aName,
                  StorageBus_T aBus,
-                 ULONG aInstance);
+                 ULONG aInstance,
+                 bool fBootable);
     HRESULT init(Machine *aParent,
                  StorageController *aThat,
                  bool aReshare = false);
@@ -74,6 +73,7 @@ public:
     STDMETHOD(COMSETTER(Instance)) (ULONG aInstance);
     STDMETHOD(COMGETTER(UseHostIOCache)) (BOOL *fUseHostIOCache);
     STDMETHOD(COMSETTER(UseHostIOCache)) (BOOL fUseHostIOCache);
+    STDMETHOD(COMGETTER(Bootable)) (BOOL *fBootable);
 
     // StorageController methods
     STDMETHOD(GetIDEEmulationPort) (LONG DevicePosition, LONG *aPortNumber);
@@ -85,6 +85,12 @@ public:
     StorageControllerType_T getControllerType() const;
     StorageBus_T getStorageBus() const;
     ULONG getInstance() const;
+    bool getBootable() const;
+
+    HRESULT checkPortAndDeviceValid(LONG aControllerPort,
+                                    LONG aDevice);
+
+    void setBootable(BOOL fBootable);
 
     void rollback();
     void commit();
@@ -98,9 +104,6 @@ public:
     Machine* getMachine();
 
     ComObjPtr<StorageController> getPeer();
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"StorageController"; }
 
 private:
 

@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.h $ */
+/* $Id: ApplianceImpl.h 34101 2010-11-16 10:56:43Z vboxsync $ */
 
 /** @file
  *
@@ -23,10 +23,18 @@
 /* VBox includes */
 #include "VirtualBoxBase.h"
 
+/* Todo: This file needs massive cleanup. Split IAppliance in a public and
+ * private classes. */
+#include <iprt/tar.h>
+
 /* VBox forward declarations */
 class Progress;
 class VirtualSystemDescription;
 struct VirtualSystemDescriptionEntry;
+struct LocationInfo;
+typedef struct VDINTERFACE   *PVDINTERFACE;
+typedef struct VDINTERFACEIO *PVDINTERFACEIO;
+typedef struct SHA1STORAGE *PSHA1STORAGE;
 
 namespace ovf
 {
@@ -38,6 +46,7 @@ namespace ovf
 
 namespace xml
 {
+    class Document;
     class ElementNode;
 }
 
@@ -48,12 +57,10 @@ namespace settings
 
 class ATL_NO_VTABLE Appliance :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<Appliance, IAppliance>,
-    public VirtualBoxSupportTranslation<Appliance>,
     VBOX_SCRIPTABLE_IMPL(IAppliance)
 {
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (Appliance)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Appliance, IAppliance)
 
     DECLARE_NOT_AGGREGATABLE(Appliance)
 
@@ -81,13 +88,11 @@ public:
     HRESULT init(VirtualBox *aVirtualBox);
     void uninit();
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Appliance"; }
-
     /* IAppliance properties */
     STDMETHOD(COMGETTER(Path))(BSTR *aPath);
     STDMETHOD(COMGETTER(Disks))(ComSafeArrayOut(BSTR, aDisks));
     STDMETHOD(COMGETTER(VirtualSystemDescriptions))(ComSafeArrayOut(IVirtualSystemDescription*, aVirtualSystemDescriptions));
+    STDMETHOD(COMGETTER(Machines))(ComSafeArrayOut(BSTR, aMachines));
 
     /* IAppliance methods */
     /* Import methods */
@@ -96,53 +101,73 @@ public:
     STDMETHOD(ImportMachines)(IProgress **aProgress);
     /* Export methods */
     STDMETHOD(CreateVFSExplorer)(IN_BSTR aURI, IVFSExplorer **aExplorer);
-    STDMETHOD(Write)(IN_BSTR format, IN_BSTR path, IProgress **aProgress);
+    STDMETHOD(Write)(IN_BSTR format, BOOL fManifest, IN_BSTR path, IProgress **aProgress);
 
     STDMETHOD(GetWarnings)(ComSafeArrayOut(BSTR, aWarnings));
 
     /* public methods only for internal purposes */
+
+    static HRESULT setErrorStatic(HRESULT aResultCode,
+                                  const Utf8Str &aText)
+    {
+        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
+    }
 
     /* private instance data */
 private:
     /** weak VirtualBox parent */
     VirtualBox* const   mVirtualBox;
 
+    struct ImportStack;
+    struct TaskOVF;
     struct Data;            // opaque, defined in ApplianceImpl.cpp
     Data *m;
 
-    bool isApplianceIdle() const;
+    enum SetUpProgressMode { ImportFile, ImportS3, WriteFile, WriteS3 };
 
+    /*******************************************************************************
+     * General stuff
+     ******************************************************************************/
+
+    bool isApplianceIdle();
     HRESULT searchUniqueVMName(Utf8Str& aName) const;
     HRESULT searchUniqueDiskImageFilePath(Utf8Str& aName) const;
-    HRESULT getDefaultHardDiskFolder(Utf8Str &str) const;
-    void waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
-    void addWarning(const char* aWarning, ...);
-
-    void disksWeight();
-    enum SetUpProgressMode {
-#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
-            ImportFileWithManifest,
-#endif
-            ImportFileNoManifest,
-            ImportS3,
-            WriteFile,
-            WriteS3 };
     HRESULT setUpProgress(ComObjPtr<Progress> &pProgress,
                           const Bstr &bstrDescription,
                           SetUpProgressMode mode);
+    void waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis, ComPtr<IProgress> &pProgressAsync);
+    void addWarning(const char* aWarning, ...);
+    void disksWeight();
+    void parseBucket(Utf8Str &aPath, Utf8Str &aBucket);
 
-    struct LocationInfo;
-    void parseURI(Utf8Str strUri, LocationInfo &locInfo) const;
-    void parseBucket(Utf8Str &aPath, Utf8Str &aBucket) const;
-    Utf8Str manifestFileName(Utf8Str aPath) const;
+    static DECLCALLBACK(int) taskThreadImportOrExport(RTTHREAD aThread, void *pvUser);
+
+    /*******************************************************************************
+     * Read stuff
+     ******************************************************************************/
 
     HRESULT readImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
-    struct TaskOVF;
-    static DECLCALLBACK(int) taskThreadImportOrExport(RTTHREAD aThread, void *pvUser);
-
-    HRESULT readFS(const LocationInfo &locInfo);
+    HRESULT readFS(TaskOVF *pTask);
+    HRESULT readFSOVF(TaskOVF *pTask);
+    HRESULT readFSOVA(TaskOVF *pTask);
+    HRESULT readFSImpl(TaskOVF *pTask, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage);
     HRESULT readS3(TaskOVF *pTask);
+
+    /*******************************************************************************
+     * Import stuff
+     ******************************************************************************/
+
+    HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
+
+    HRESULT importFS(TaskOVF *pTask);
+    HRESULT importFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT importFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT importS3(TaskOVF *pTask);
+
+    HRESULT readManifestFile(const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage);
+    HRESULT readTarManifestFile(RTTAR tar, const Utf8Str &strFile, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage);
+    HRESULT verifyManifestFile(const Utf8Str &strFile, ImportStack &stack, void *pvBuf, size_t cbSize);
 
     void convertDiskAttachmentValues(const ovf::HardDiskController &hdc,
                                      uint32_t ulAddressOnParent,
@@ -150,42 +175,53 @@ private:
                                      int32_t &lControllerPort,
                                      int32_t &lDevice);
 
-    HRESULT importImpl(const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
-#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
-    HRESULT manifestVerify(const LocationInfo &locInfo, const ovf::OVFReader &reader, ComObjPtr<Progress> &pProgress);
-#endif
-
-    HRESULT importFS(const LocationInfo &locInfo, ComObjPtr<Progress> &aProgress);
-
-    struct ImportStack;
     void importOneDiskImage(const ovf::DiskImage &di,
                             const Utf8Str &strTargetPath,
-                            ComPtr<IMedium> &pTargetHD,
-                            ImportStack &stack);
+                            ComObjPtr<Medium> &pTargetHD,
+                            ImportStack &stack,
+                            PVDINTERFACEIO pCallbacks,
+                            PSHA1STORAGE pStorage);
     void importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                               ComObjPtr<VirtualSystemDescription> &vsdescThis,
                               ComPtr<IMachine> &pNewMachine,
-                              ImportStack &stack);
+                              ImportStack &stack,
+                              PVDINTERFACEIO pCallbacks,
+                              PSHA1STORAGE pStorage);
     void importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThis,
                            ComPtr<IMachine> &pNewMachine,
-                           ImportStack &stack);
+                           ImportStack &stack,
+                           PVDINTERFACEIO pCallbacks,
+                           PSHA1STORAGE pStorage);
+    void importMachines(ImportStack &stack,
+                        PVDINTERFACEIO pCallbacks,
+                        PSHA1STORAGE pStorage);
 
-    HRESULT importS3(TaskOVF *pTask);
+    /*******************************************************************************
+     * Write stuff
+     ******************************************************************************/
 
     HRESULT writeImpl(OVFFormat aFormat, const LocationInfo &aLocInfo, ComObjPtr<Progress> &aProgress);
 
+    HRESULT writeFS(TaskOVF *pTask);
+    HRESULT writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT writeFSOVA(TaskOVF *pTask, AutoWriteLockBase& writeLock);
+    HRESULT writeFSImpl(TaskOVF *pTask, AutoWriteLockBase& writeLock, PVDINTERFACEIO pCallbacks, PSHA1STORAGE pStorage);
+    HRESULT writeS3(TaskOVF *pTask);
+
     struct XMLStack;
-    void buildXMLForOneVirtualSystem(xml::ElementNode &elmToAddVirtualSystemsTo,
+    void buildXML(AutoWriteLockBase& writeLock, xml::Document &doc, XMLStack &stack, const Utf8Str &strPath, OVFFormat enFormat);
+    void buildXMLForOneVirtualSystem(AutoWriteLockBase& writeLock,
+                                     xml::ElementNode &elmToAddVirtualSystemsTo,
                                      std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
                                      ComObjPtr<VirtualSystemDescription> &vsdescThis,
                                      OVFFormat enFormat,
                                      XMLStack &stack);
 
-    HRESULT writeFS(const LocationInfo &locInfo, const OVFFormat enFormat, ComObjPtr<Progress> &pProgress);
-    HRESULT writeS3(TaskOVF *pTask);
 
     friend class Machine;
 };
+
+void parseURI(Utf8Str strUri, LocationInfo &locInfo);
 
 struct VirtualSystemDescriptionEntry
 {
@@ -203,14 +239,12 @@ struct VirtualSystemDescriptionEntry
 
 class ATL_NO_VTABLE VirtualSystemDescription :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<VirtualSystemDescription, IVirtualSystemDescription>,
-    public VirtualBoxSupportTranslation<VirtualSystemDescription>,
     VBOX_SCRIPTABLE_IMPL(IVirtualSystemDescription)
 {
     friend class Appliance;
 
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (VirtualSystemDescription)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VirtualSystemDescription, IVirtualSystemDescription)
 
     DECLARE_NOT_AGGREGATABLE(VirtualSystemDescription)
 
@@ -230,9 +264,6 @@ public:
 
     HRESULT init();
     void uninit();
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"VirtualSystemDescription"; }
 
     /* IVirtualSystemDescription properties */
     STDMETHOD(COMGETTER(Count))(ULONG *aCount);

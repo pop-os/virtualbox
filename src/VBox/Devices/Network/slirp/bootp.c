@@ -1,4 +1,4 @@
-/* $Id: bootp.c $ */
+/* $Id: bootp.c 33676 2010-11-02 09:48:24Z vboxsync $ */
 /** @file
  * NAT - BOOTP/DHCP server emulation.
  */
@@ -246,7 +246,7 @@ static int dhcp_do_ack_offer(PNATState pData, struct mbuf *m, BOOTPClient *bc, i
     q += 7; /* !cookie rfc 2132 + TYPE*/
 
     /*DHCP Offer specific*/
-    /* 
+    /*
      * we're care in built-in tftp server about existence/validness of the boot file.
      */
     if (bootp_filename)

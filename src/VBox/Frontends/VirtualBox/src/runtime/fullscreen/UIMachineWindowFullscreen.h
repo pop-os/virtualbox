@@ -25,9 +25,6 @@
 /* Local includes */
 #include "QIWithRetranslateUI.h"
 #include "UIMachineWindow.h"
-#ifdef Q_WS_X11
-# include <X11/Xlib.h>
-#endif
 
 /* Local forwards */
 class VBoxMiniToolBar;
@@ -77,7 +74,7 @@ private:
     /* Cleanup helpers: */
     void saveWindowSettings();
     void cleanupMachineView();
-    //void cleanupMiniToolBar() {}
+    void cleanupMiniToolBar();
     void cleanupMenu();
 
     /* Update routines: */

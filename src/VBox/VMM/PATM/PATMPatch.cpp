@@ -1,4 +1,4 @@
-/* $Id: PATMPatch.cpp $ */
+/* $Id: PATMPatch.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * PATMPatch - Dynamic Guest OS Instruction patches
  *
@@ -213,7 +213,7 @@ static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATC
                     dest = (uintptr_t)pPB - (uintptr_t)pVM->patm.s.pPatchMemHC + pAsmRecord->size;
                     break;
 
-                case PATM_CALLTARGET:   /* relative to patch address; no fixup requird */
+                case PATM_CALLTARGET:   /* relative to patch address; no fixup required */
                     Assert(pCallInfo && pAsmRecord->uReloc[i] >= PATM_NO_FIXUP);
 
                     /* Address must be filled in later. (see patmr3SetBranchTargets)  */

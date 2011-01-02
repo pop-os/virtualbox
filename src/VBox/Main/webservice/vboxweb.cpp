@@ -24,7 +24,7 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
-#include <VBox/VRDPAuth.h>
+#include <VBox/VBoxAuth.h>
 #include <VBox/version.h>
 
 #include <iprt/buildconfig.h>
@@ -109,6 +109,8 @@ PRTSTREAM               g_pStrmLog = NULL;
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 bool                    g_fDaemonize = false;           // run in background.
 #endif
+
+const WSDLT_ID          g_EmptyWSDLID;                  // for NULL MORs
 
 /****************************************************************************
  *
@@ -360,7 +362,7 @@ public:
         }
 
         // enqueue the socket of this connection and post eventsem so that
-        // one of the threads (possibly the one just creatd) can pick it up
+        // one of the threads (possibly the one just created) can pick it up
         m_llSocketsQ.push_back(s);
         cItems = m_llSocketsQ.size();
         qlock.release();
@@ -446,7 +448,7 @@ void SoapThread::process()
     while (1)
     {
         // wait for a socket to arrive on the queue
-        size_t cIdleThreads, cThreads;
+        size_t cIdleThreads = 0, cThreads = 0;
         m_soap->socket = m_pQ->get(cIdleThreads, cThreads);
 
         WebLog("Processing connection from IP=%lu.%lu.%lu.%lu socket=%d (%d out of %d threads idle)\n",
@@ -623,7 +625,7 @@ int fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
  */
 int main(int argc, char* argv[])
 {
-    // intialize runtime
+    // initialize runtime
     int rc = RTR3Init();
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
@@ -715,7 +717,7 @@ int main(int argc, char* argv[])
     }
 #endif
 
-    // intialize COM/XPCOM
+    // initialize COM/XPCOM
     HRESULT hrc = com::Initialize();
     if (FAILED(hrc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to initialize COM! hrc=%Rhrc\n", hrc);
@@ -925,10 +927,7 @@ void RaiseSoapInvalidObjectFault(struct soap *soap,
 std::string ConvertComString(const com::Bstr &bstr)
 {
     com::Utf8Str ustr(bstr);
-    const char *pcsz;
-    if ((pcsz = ustr.raw()))
-        return pcsz;
-    return "";
+    return ustr.c_str();        // @todo r=dj since the length is known, we can probably use a better std::string allocator
 }
 
 /**
@@ -940,22 +939,21 @@ std::string ConvertComString(const com::Bstr &bstr)
 std::string ConvertComString(const com::Guid &uuid)
 {
     com::Utf8Str ustr(uuid.toString());
-    const char *pcsz;
-    if ((pcsz = ustr.raw()))
-        return pcsz;
-    return "";
+    return ustr.c_str();        // @todo r=dj since the length is known, we can probably use a better std::string allocator
 }
 
 /**
- * Raises a SOAP runtime fault.
+ * Raises a SOAP runtime fault. Implementation for the RaiseSoapRuntimeFault template
+ * function in vboxweb.h.
  *
  * @param pObj
  */
-void RaiseSoapRuntimeFault(struct soap *soap,
-                           HRESULT apirc,
-                           IUnknown *pObj)
+void RaiseSoapRuntimeFault2(struct soap *soap,
+                            HRESULT apirc,
+                            IUnknown *pObj,
+                            const com::Guid &iid)
 {
-    com::ErrorInfo info(pObj);
+    com::ErrorInfo info(pObj, iid.ref());
 
     WEBDEBUG(("   error, raising SOAP exception\n"));
 
@@ -1118,7 +1116,7 @@ WebServiceSession::~WebServiceSession()
 }
 
 /**
- *  Authenticate the username and password against an authentification authority.
+ *  Authenticate the username and password against an authentication authority.
  *
  *  @return 0 if the user was successfully authenticated, or an error code
  *  otherwise.
@@ -1132,8 +1130,9 @@ int WebServiceSession::authenticate(const char *pcszUsername,
     util::AutoReadLock lock(g_pAuthLibLockHandle COMMA_LOCKVAL_SRC_POS);
 
     static bool fAuthLibLoaded = false;
-    static PVRDPAUTHENTRY pfnAuthEntry = NULL;
-    static PVRDPAUTHENTRY2 pfnAuthEntry2 = NULL;
+    static PAUTHENTRY pfnAuthEntry = NULL;
+    static PAUTHENTRY2 pfnAuthEntry2 = NULL;
+    static PAUTHENTRY3 pfnAuthEntry3 = NULL;
 
     if (!fAuthLibLoaded)
     {
@@ -1155,20 +1154,23 @@ int WebServiceSession::authenticate(const char *pcszUsername,
             RTLDRMOD hlibAuth = 0;
             do
             {
-                rc = RTLdrLoad(filename.raw(), &hlibAuth);
+                rc = RTLdrLoad(filename.c_str(), &hlibAuth);
                 if (RT_FAILURE(rc))
                 {
                     WEBDEBUG(("%s() Failed to load external authentication library. Error code: %Rrc\n", __FUNCTION__, rc));
                     break;
                 }
 
-                if (RT_FAILURE(rc = RTLdrGetSymbol(hlibAuth, "VRDPAuth2", (void**)&pfnAuthEntry2)))
-                    WEBDEBUG(("%s(): Could not resolve import '%s'. Error code: %Rrc\n", __FUNCTION__, "VRDPAuth2", rc));
+                if (RT_FAILURE(rc = RTLdrGetSymbol(hlibAuth, AUTHENTRY3_NAME, (void**)&pfnAuthEntry3)))
+                    WEBDEBUG(("%s(): Could not resolve import '%s'. Error code: %Rrc\n", __FUNCTION__, AUTHENTRY3_NAME, rc));
 
-                if (RT_FAILURE(rc = RTLdrGetSymbol(hlibAuth, "VRDPAuth", (void**)&pfnAuthEntry)))
-                    WEBDEBUG(("%s(): Could not resolve import '%s'. Error code: %Rrc\n", __FUNCTION__, "VRDPAuth", rc));
+                if (RT_FAILURE(rc = RTLdrGetSymbol(hlibAuth, AUTHENTRY2_NAME, (void**)&pfnAuthEntry2)))
+                    WEBDEBUG(("%s(): Could not resolve import '%s'. Error code: %Rrc\n", __FUNCTION__, AUTHENTRY2_NAME, rc));
 
-                if (pfnAuthEntry || pfnAuthEntry2)
+                if (RT_FAILURE(rc = RTLdrGetSymbol(hlibAuth, AUTHENTRY_NAME, (void**)&pfnAuthEntry)))
+                    WEBDEBUG(("%s(): Could not resolve import '%s'. Error code: %Rrc\n", __FUNCTION__, AUTHENTRY_NAME, rc));
+
+                if (pfnAuthEntry || pfnAuthEntry2 || pfnAuthEntry3)
                     fAuthLibLoaded = true;
 
             } while (0);
@@ -1176,19 +1178,26 @@ int WebServiceSession::authenticate(const char *pcszUsername,
     }
 
     rc = VERR_WEB_NOT_AUTHENTICATED;
-    VRDPAuthResult result;
-    if (pfnAuthEntry2)
+    AuthResult result;
+    if (pfnAuthEntry3)
     {
-        result = pfnAuthEntry2(NULL, VRDPAuthGuestNotAsked, pcszUsername, pcszPassword, NULL, true, 0);
+        result = pfnAuthEntry3("webservice", NULL, AuthGuestNotAsked, pcszUsername, pcszPassword, NULL, true, 0);
+        WEBDEBUG(("%s(): result of AuthEntry(): %d\n", __FUNCTION__, result));
+        if (result == AuthResultAccessGranted)
+            rc = 0;
+    }
+    else if (pfnAuthEntry2)
+    {
+        result = pfnAuthEntry2(NULL, AuthGuestNotAsked, pcszUsername, pcszPassword, NULL, true, 0);
         WEBDEBUG(("%s(): result of VRDPAuth2(): %d\n", __FUNCTION__, result));
-        if (result == VRDPAuthAccessGranted)
+        if (result == AuthResultAccessGranted)
             rc = 0;
     }
     else if (pfnAuthEntry)
     {
-        result = pfnAuthEntry(NULL, VRDPAuthGuestNotAsked, pcszUsername, pcszPassword, NULL);
+        result = pfnAuthEntry(NULL, AuthGuestNotAsked, pcszUsername, pcszPassword, NULL);
         WEBDEBUG(("%s(): result of VRDPAuth(%s, [%d]): %d\n", __FUNCTION__, pcszUsername, strlen(pcszPassword), result));
-        if (result == VRDPAuthAccessGranted)
+        if (result == AuthResultAccessGranted)
             rc = 0;
     }
     else if (fAuthLibLoaded)
@@ -1197,7 +1206,7 @@ int WebServiceSession::authenticate(const char *pcszUsername,
         rc = 0;
     else
     {
-        WEBDEBUG(("Could not resolve VRDPAuth2 or VRDPAuth entry point"));
+        WEBDEBUG(("Could not resolve AuthEntry, VRDPAuth2 or VRDPAuth entry point"));
     }
 
     lock.release();
@@ -1215,13 +1224,17 @@ int WebServiceSession::authenticate(const char *pcszUsername,
                 break;
             }
 
-            _pISession = new ManagedObjectRef(*this, g_pcszISession, session);
+            ComPtr<IUnknown> p2 = session;
+            _pISession = new ManagedObjectRef(*this,
+                                              p2,                               // IUnknown *pobjUnknown
+                                              session,                          // void *pobjInterface
+                                              com::Guid(COM_IIDOF(ISession)),
+                                              g_pcszISession);
 
             if (g_fVerbose)
             {
                 ISession *p = session;
-                std::string strMOR = _pISession->toWSDL();
-                WEBDEBUG(("   * %s: created session object with comptr 0x%lX, MOR = %s\n", __FUNCTION__, p, strMOR.c_str()));
+                WEBDEBUG(("   * %s: created session object with comptr 0x%lX, MOR = %s\n", __FUNCTION__, p, _pISession->getWSDLID().c_str()));
             }
         } while (0);
     }
@@ -1244,24 +1257,21 @@ int WebServiceSession::authenticate(const char *pcszUsername,
  * @param pcu pointer to a COM object.
  * @return The existing ManagedObjectRef that represents the COM object, or NULL if there's none yet.
  */
-ManagedObjectRef* WebServiceSession::findRefFromPtr(const ComPtr<IUnknown> &pcu)
+ManagedObjectRef* WebServiceSession::findRefFromPtr(const IUnknown *pObject)
 {
     Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
 
-    IUnknown *p = pcu;
-    uintptr_t ulp = (uintptr_t)p;
-    ManagedObjectRef *pRef;
+    uintptr_t ulp = (uintptr_t)pObject;
     // WEBDEBUG(("   %s: looking up 0x%lX\n", __FUNCTION__, ulp));
     ManagedObjectsMapByPtr::iterator it = _pp->_mapManagedObjectsByPtr.find(ulp);
     if (it != _pp->_mapManagedObjectsByPtr.end())
     {
-        pRef = it->second;
-        WSDLT_ID id = pRef->toWSDL();
-        WEBDEBUG(("   %s: found existing ref %s (%s) for COM obj 0x%lX\n", __FUNCTION__, id.c_str(), pRef->getInterfaceName(), ulp));
+        ManagedObjectRef *pRef = it->second;
+        WEBDEBUG(("   %s: found existing ref %s (%s) for COM obj 0x%lX\n", __FUNCTION__, pRef->getWSDLID().c_str(), pRef->getInterfaceName(), ulp));
+        return pRef;
     }
-    else
-        pRef = NULL;
-    return pRef;
+
+    return NULL;
 }
 
 /**
@@ -1294,9 +1304,9 @@ WebServiceSession* WebServiceSession::findSessionFromRef(const WSDLT_ID &id)
 /**
  *
  */
-WSDLT_ID WebServiceSession::getSessionObject() const
+const WSDLT_ID& WebServiceSession::getSessionWSDLID() const
 {
-    return _pISession->toWSDL();
+    return _pISession->getWSDLID();
 }
 
 /**
@@ -1313,25 +1323,6 @@ void WebServiceSession::touch()
     time(&_tLastObjectLookup);
 }
 
-/**
- *
- */
-void WebServiceSession::DumpRefs()
-{
-    WEBDEBUG(("   dumping object refs:\n"));
-    ManagedObjectsIteratorById
-        iter = _pp->_mapManagedObjectsById.begin(),
-        end = _pp->_mapManagedObjectsById.end();
-    for (;
-        iter != end;
-        ++iter)
-    {
-        ManagedObjectRef *pRef = iter->second;
-        uint64_t id = pRef->getID();
-        void *p = pRef->getComPtr();
-        WEBDEBUG(("     objid %llX: comptr 0x%lX\n", id, p));
-    }
-}
 
 /****************************************************************************
  *
@@ -1356,24 +1347,46 @@ void WebServiceSession::DumpRefs()
  *      createRefFromObject() to quickly figure out whether an
  *      instance already exists for a given COM pointer.
  *
+ *  This constructor calls AddRef() on the given COM object, and
+ *  the destructor will call Release(). We require two input pointers
+ *  for that COM object, one generic IUnknown* pointer which is used
+ *  as the map key, and a specific interface pointer (e.g. IMachine*)
+ *  which must support the interface given in guidInterface. All
+ *  three values are returned by getPtr(), which gives future callers
+ *  a chance to reuse the specific interface pointer without having
+ *  to call QueryInterface, which can be expensive.
+ *
  *  This does _not_ check whether another instance already
  *  exists in the hash. This gets called only from the
- *  createRefFromObject() template function in vboxweb.h, which
+ *  createOrFindRefFromComPtr() template function in vboxweb.h, which
  *  does perform that check.
  *
  * Preconditions: Caller must have locked g_pSessionsLockHandle.
  *
- * @param pObj
+ * @param session Session to which the MOR will be added.
+ * @param pobjUnknown Pointer to IUnknown* interface for the COM object; this will be used in the hashes.
+ * @param pobjInterface Pointer to a specific interface for the COM object, described by guidInterface.
+ * @param guidInterface Interface which pobjInterface points to.
+ * @param pcszInterface String representation of that interface (e.g. "IMachine") for readability and logging.
  */
 ManagedObjectRef::ManagedObjectRef(WebServiceSession &session,
-                                   const char *pcszInterface,
-                                   const ComPtr<IUnknown> &pc)
+                                   IUnknown *pobjUnknown,
+                                   void *pobjInterface,
+                                   const com::Guid &guidInterface,
+                                   const char *pcszInterface)
     : _session(session),
-      _pObj(pc),
+      _pobjUnknown(pobjUnknown),
+      _pobjInterface(pobjInterface),
+      _guidInterface(guidInterface),
       _pcszInterface(pcszInterface)
 {
-    ComPtr<IUnknown> pcUnknown(pc);
-    _ulp = (uintptr_t)(IUnknown*)pcUnknown;
+    Assert(pobjUnknown);
+    Assert(pobjInterface);
+
+    // keep both stubs alive while this MOR exists (matching Release() calls are in destructor)
+    uint32_t cRefs1 = pobjUnknown->AddRef();
+    uint32_t cRefs2 = ((IUnknown*)pobjInterface)->AddRef();
+    _ulp = (uintptr_t)pobjUnknown;
 
     Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
     _id = ++g_iMaxManagedObjectID;
@@ -1389,12 +1402,20 @@ ManagedObjectRef::ManagedObjectRef(WebServiceSession &session,
 
     session.touch();
 
-    WEBDEBUG(("   * %s: MOR created for ulp 0x%lX (%s), new ID is %llX; now %lld objects total\n", __FUNCTION__, _ulp, pcszInterface, _id, cTotal));
+    WEBDEBUG(("   * %s: MOR created for %s*=0x%lX (IUnknown*=0x%lX; COM refcount now %RI32/%RI32), new ID is %llX; now %lld objects total\n",
+              __FUNCTION__,
+              pcszInterface,
+              pobjInterface,
+              pobjUnknown,
+              cRefs1,
+              cRefs2,
+              _id,
+              cTotal));
 }
 
 /**
  * Destructor; removes the instance from the global hash of
- * managed objects.
+ * managed objects. Calls Release() on the contained COM object.
  *
  * Preconditions: Caller must have locked g_pSessionsLockHandle.
  */
@@ -1403,7 +1424,14 @@ ManagedObjectRef::~ManagedObjectRef()
     Assert(g_pSessionsLockHandle->isWriteLockOnCurrentThread());
     ULONG64 cTotal = --g_cManagedObjects;
 
-    WEBDEBUG(("   * %s: deleting MOR for ID %llX (%s); now %lld objects total\n", __FUNCTION__, _id, _pcszInterface, cTotal));
+    Assert(_pobjUnknown);
+    Assert(_pobjInterface);
+
+    // we called AddRef() on both interfaces, so call Release() on
+    // both as well, but in reverse order
+    uint32_t cRefs2 = ((IUnknown*)_pobjInterface)->Release();
+    uint32_t cRefs1 = _pobjUnknown->Release();
+    WEBDEBUG(("   * %s: deleting MOR for ID %llX (%s; COM refcount now %RI32/%RI32); now %lld objects total\n", __FUNCTION__, _id, _pcszInterface, cRefs1, cRefs2, cTotal));
 
     // if we're being destroyed from the session's destructor,
     // then that destructor is iterating over the maps, so
@@ -1415,17 +1443,6 @@ ManagedObjectRef::~ManagedObjectRef()
         if (_session._pp->_mapManagedObjectsByPtr.erase(_ulp) != 1)
             WEBDEBUG(("   WARNING: could not find %llX in _mapManagedObjectsByPtr\n", _ulp));
     }
-}
-
-/**
- * Converts the ID of this managed object reference to string
- * form, for returning with SOAP data or similar.
- *
- * @return The ID in string form.
- */
-WSDLT_ID ManagedObjectRef::toWSDL() const
-{
-    return _strID;
 }
 
 /**
@@ -1471,7 +1488,6 @@ int ManagedObjectRef::findRefFromId(const WSDLT_ID &id,
             break;
         }
 
-        WEBDEBUG(("   %s(): sessid %llX, objid %llX\n", __FUNCTION__, sessid, objid));
         SessionsMapIterator it = g_mapSessions.find(sessid);
         if (it == g_mapSessions.end())
         {
@@ -1647,8 +1663,13 @@ int __vbox__IWebsessionManager_USCORElogon(
             // global VirtualBox object; this encodes the session ID in the MOR so
             // that it will be implicitly be included in all future requests of this
             // webservice client
-            ManagedObjectRef *pRef = new ManagedObjectRef(*pSession, g_pcszIVirtualBox, g_pVirtualBox);
-            resp->returnval = pRef->toWSDL();
+            ComPtr<IUnknown> p2 = g_pVirtualBox;
+            ManagedObjectRef *pRef = new ManagedObjectRef(*pSession,
+                                                          p2,                       // IUnknown *pobjUnknown
+                                                          g_pVirtualBox,            // void *pobjInterface
+                                                          COM_IIDOF(IVirtualBox),
+                                                          g_pcszIVirtualBox);
+            resp->returnval = pRef->getWSDLID();
             WEBDEBUG(("VirtualBox object ref is %s\n", resp->returnval.c_str()));
         }
     } while (0);
@@ -1678,7 +1699,7 @@ int __vbox__IWebsessionManager_USCOREgetSessionObject(
 
         WebServiceSession* pSession;
         if ((pSession = WebServiceSession::findSessionFromRef(req->refIVirtualBox)))
-            resp->returnval = pSession->getSessionObject();
+            resp->returnval = pSession->getSessionWSDLID();
 
     } while (0);
 
@@ -1724,3 +1745,4 @@ int __vbox__IWebsessionManager_USCORElogoff(
         return SOAP_FAULT;
     return SOAP_OK;
 }
+

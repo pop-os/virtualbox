@@ -1,3 +1,4 @@
+/* $Id: tstVBoxAPIWin.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * tstVBoxAPIWin - sample program to illustrate the VirtualBox
@@ -40,7 +41,7 @@
  *    everywhere else) VirtualBox client application from the same source code
  *    (including common smart C++ templates for automatic interface pointer
  *    reference counter and string data management);
- * b) simpler XPCOM initialization and shutdown (only a signle method call
+ * b) simpler XPCOM initialization and shutdown (only a single method call
  *    that does everything right).
  *
  * Currently, there is no separate sample program that uses the VirtualBox MS
@@ -207,8 +208,8 @@ int testStartVM(IVirtualBox *virtualBox)
             }
 
             /* Start a VM session using the delivered VBox GUI. */
-            rc = virtualBox->OpenRemoteSession (session, guid, sessiontype,
-                                                NULL, &progress);
+            rc = machine->LaunchVMProcess(session, sessiontype,
+                                          NULL, &progress);
             if (!SUCCEEDED(rc))
             {
                 printf("Could not open remote session! rc = 0x%x\n", rc);
@@ -236,7 +237,7 @@ int testStartVM(IVirtualBox *virtualBox)
             rc = progress->WaitForCompletion (-1);
 
             /* Close the session. */
-            rc = session->Close();
+            rc = session->UnlockMachine();
 
         } while (0);
 

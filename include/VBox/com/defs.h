@@ -37,22 +37,27 @@
 
 #if defined (RT_OS_OS2)
 
-#if defined(RT_MAX) && RT_MAX != 22
-# error RT_MAX already defined by <iprt/cdefs.h>! Make sure <VBox/com/defs.h> \
-        is included before it.
-#endif
+# if defined(RT_MAX) && RT_MAX != 22
+#  undef RT_MAX
+#  define REDEFINE_RT_MAX
+# endif
+# undef RT_MAX
 
 /* Make sure OS/2 Toolkit headers are pulled in to have BOOL/ULONG/etc. typedefs
- * already defined in order to be able to redefine them using #define. It's
- * also important to do it before iprt/cdefs.h, otherwise we'll lose RT_MAX in
- * all code that uses COM Glue. */
-#define INCL_BASE
-#define INCL_PM
-#include <os2.h>
+ * already defined in order to be able to redefine them using #define. */
+# define INCL_BASE
+# define INCL_PM
+# include <os2.h>
 
 /* OS/2 Toolkit defines TRUE and FALSE */
-#undef FALSE
-#undef TRUE
+# undef FALSE
+# undef TRUE
+
+/* */
+# undef RT_MAX
+# ifdef REDEFINE_RT_MAX
+#  define RT_MAX(Value1, Value2)                  ( (Value1) >= (Value2) ? (Value1) : (Value2) )
+# endif
 
 #endif /* defined (RT_OS_OS2) */
 
@@ -224,7 +229,16 @@ typedef const OLECHAR *CBSTR;
  *
  *  @param i    interface class
  */
-#define COM_IIDOF(I) _ATL_IIDOF (I)
+#define COM_IIDOF(I) _ATL_IIDOF(I)
+
+/**
+ * For using interfaces before including the interface definitions. This will
+ * deal with XPCOM using 'class' and COM using 'struct' when defining
+ * interfaces.
+ *
+ * @param   I   interface name.
+ */
+#define COM_STRUCT_OR_CLASS(I)  struct I
 
 #else /* defined (RT_OS_WINDOWS) */
 
@@ -263,7 +277,9 @@ typedef const OLECHAR *CBSTR;
 
 #define SUCCEEDED_WARNING(rc)   (NS_SUCCEEDED (rc) && (rc) != NS_OK)
 
-#define FAILED_DEAD_INTERFACE(rc) (false) /**< @todo */
+#define FAILED_DEAD_INTERFACE(rc)  (   (rc) == NS_ERROR_ABORT \
+                                    || (rc) == NS_ERROR_CALL_FAILED \
+                                   )
 
 #define IUnknown nsISupports
 
@@ -348,7 +364,9 @@ typedef nsIID   IID;
 #define STDMETHOD(a) NS_IMETHOD a
 #define STDMETHODIMP NS_IMETHODIMP
 
-#define COM_IIDOF(I) NS_GET_IID (I)
+#define COM_IIDOF(I) NS_GET_IID(I)
+
+#define COM_STRUCT_OR_CLASS(I) class I
 
 /* A few very simple ATL emulator classes to provide
  * FinalConstruct()/FinalRelease() functionality on Linux. */
@@ -477,118 +495,6 @@ _InstanceClass##Constructor(nsISupports *aOuter, REFNSIID aIID,               \
 
 namespace com
 {
-
-/**
- * "First worst" result type.
- *
- * Variables of this class are used instead of HRESULT variables when it is
- * desirable to memorize the "first worst" result code instead of the last
- * assigned one. In other words, an assignment operation to a variable of this
- * class will succeed only if the result code to assign has worse severity. The
- * following table demonstrate this (the first column lists the previous result
- * code stored in the variable, the first row lists the new result code being
- * assigned, 'A' means the assignment will take place, '> S_OK' means a warning
- * result code):
- *
- * {{{
- *             FAILED    > S_OK    S_OK
- * FAILED        -         -         -
- * > S_OK        A         -         -
- * S_OK          A         A         -
- *
- * }}}
- *
- * In practice, you will need to use a FWResult variable when you call some COM
- * method B after another COM method A fails and want to return the result code
- * of A even if B also fails, but want to return the failed result code of B if
- * A issues a warning or succeeds.
- */
-class FWResult
-{
-
-public:
-
-    /**
-     * Constructs a new variable. Note that by default this constructor sets the
-     * result code to E_FAIL to make sure a failure is returned to the caller if
-     * the variable is never assigned another value (which is considered as the
-     * improper use of this class).
-     */
-    FWResult (HRESULT aRC = E_FAIL) : mRC (aRC) {}
-
-    FWResult &operator= (HRESULT aRC)
-    {
-        if ((FAILED (aRC) && !FAILED (mRC)) ||
-            (mRC == S_OK && aRC != S_OK))
-            mRC = aRC;
-
-        return *this;
-    }
-
-    operator HRESULT() const { return mRC; }
-
-    HRESULT *operator&() { return &mRC; }
-
-private:
-
-    HRESULT mRC;
-};
-
-/**
- * "Last worst" result type.
- *
- * Variables of this class are used instead of HRESULT variables when it is
- * desirable to memorize the "last worst" result code instead of the last
- * assigned one. In other words, an assignment operation to a variable of this
- * class will succeed only if the result code to assign has the same or worse
- * severity. The following table demonstrate this (the first column lists the
- * previous result code stored in the variable, the first row lists the new
- * assigned, 'A' means the assignment will take place, '> S_OK' means a warning
- * result code):
- *
- * {{{
- *             FAILED    > S_OK    S_OK
- * FAILED        A         -         -
- * > S_OK        A         A         -
- * S_OK          A         A         -
- *
- * }}}
- *
- * In practice, you will need to use a LWResult variable when you call some COM
- * method B after COM method A fails and want to return the result code of B
- * if B also fails, but still want to return the failed result code of A if B
- * issues a warning or succeeds.
- */
-class LWResult
-{
-
-public:
-
-    /**
-     * Constructs a new variable. Note that by default this constructor sets the
-     * result code to E_FAIL to make sure a failure is returned to the caller if
-     * the variable is never assigned another value (which is considered as the
-     * improper use of this class).
-     */
-    LWResult (HRESULT aRC = E_FAIL) : mRC (aRC) {}
-
-    LWResult &operator= (HRESULT aRC)
-    {
-        if (FAILED (aRC) ||
-            (SUCCEEDED (mRC) && aRC != S_OK))
-            mRC = aRC;
-
-        return *this;
-    }
-
-    operator HRESULT() const { return mRC; }
-
-    HRESULT *operator&() { return &mRC; }
-
-private:
-
-    HRESULT mRC;
-};
 
 // use this macro to implement scriptable interfaces
 #ifdef RT_OS_WINDOWS

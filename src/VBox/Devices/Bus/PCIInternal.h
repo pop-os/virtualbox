@@ -1,4 +1,4 @@
-/* $Id: PCIInternal.h $ */
+/* $Id: PCIInternal.h 34331 2010-11-24 16:24:17Z vboxsync $ */
 /** @file
  * DevPCI - PCI Internal header - Only for hiding bits of PCIDEVICE.
  */
@@ -23,8 +23,8 @@
  */
 typedef struct PCIIOREGION
 {
-    /** Current PCI mapping address.
-     * -1 means not mapped. Memory addresses are relative to pci_mem_base. */
+    /** Current PCI mapping address, 0xffffffff means not mapped.
+        @todo: make address and size 64-bit. */
     uint32_t                        addr;
     uint32_t                        size;
     uint8_t                         type; /* PCIADDRESSSPACE */
@@ -68,6 +68,27 @@ typedef FNPCIBRIDGECONFIGWRITE *PFNPCIBRIDGECONFIGWRITE;
 /** Pointer to a PFNPCICONFIGWRITE. */
 typedef PFNPCIBRIDGECONFIGWRITE *PPFNPCIBRIDGECONFIGWRITE;
 
+/* Forward declaration */
+struct PCIBus;
+
+enum {
+    /** Set if the specific device function was requested by PDM.
+     * If clear the device and it's functions can be relocated to satisfy the slot request of another device. */
+    PCIDEV_FLAG_REQUESTED_DEVFUNC  = 1<<0,
+    /** Flag whether the device is a pci-to-pci bridge.
+     * This is set prior to device registration.  */
+    PCIDEV_FLAG_PCI_TO_PCI_BRIDGE  = 1<<1,
+    /** Flag whether the device is a PCI Express device.
+     * This is set prior to device registration.  */
+    PCIDEV_FLAG_PCI_EXPRESS_DEVICE = 1<<2,
+    /** Flag whether the device is capable of MSI.
+     * This one is set by MsiInit().  */
+    PCIDEV_FLAG_MSI_CAPABLE        = 1<<3,
+    /** Flag whether the device is capable of MSI-X.
+     * This one is set by MsixInit().  */
+    PCIDEV_FLAG_MSIX_CAPABLE       = 1<<4
+};
+
 /**
  * PCI Device - Internal data.
  */
@@ -85,19 +106,40 @@ typedef struct PCIDEVICEINT
     RTRCPTR                         Alignment0;
 #endif
 
+    /* Page used for MSI-X state.             - R3 ptr */
+    R3PTRTYPE(void*)                pMsixPageR3;
+    /* Page used for MSI-X state.             - R0 ptr */
+    R0PTRTYPE(void*)                pMsixPageR0;
+    /* Page used for MSI-X state.             - RC ptr */
+    RCPTRTYPE(void*)                pMsixPageRC;
+#if HC_ARCH_BITS == 64
+    RTRCPTR                         Alignment1;
+#endif
+
+
     /** Read config callback. */
     R3PTRTYPE(PFNPCICONFIGREAD)     pfnConfigRead;
     /** Write config callback. */
     R3PTRTYPE(PFNPCICONFIGWRITE)    pfnConfigWrite;
 
-    /** Set if the specific device fun was requested by PDM.
-     * If clear the device and it's functions can be relocated to satisfy the slot request of another device. */
-    bool                            fRequestedDevFn;
-    /** Flag whether the device is a pci-to-pci bridge.
-     * This is set prior to device registration.  */
-    bool                            fPciToPciBridge;
+    /* Flags of this PCI device, see PCIDEV_FLAG_ constants */
+    uint32_t                        uFlags;
     /** Current state of the IRQ pin of the device. */
     int32_t                         uIrqPinState;
+
+    /* Offset of MSI PCI capability in config space, or 0 */
+    uint8_t                         u8MsiCapOffset;
+    /* Size of MSI PCI capability in config space, or 0 */
+    uint8_t                         u8MsiCapSize;
+    /* Offset of MSI-X PCI capability in config space, or 0 */
+    uint8_t                         u8MsixCapOffset;
+    /* Size of MSI-X PCI capability in config space, or 0 */
+    uint8_t                         u8MsixCapSize;
+
+    uint32_t                        Alignment2;
+
+    /* Pointer to bus specific data.                 - R3 ptr */
+    R3PTRTYPE(const void*)          pPciBusPtrR3;
 
     /** Read config callback for PCI bridges to pass requests
      *  to devices on another bus.

@@ -1,4 +1,4 @@
-/* $Id: UIIndicatorsPool.cpp $ */
+/* $Id: UIIndicatorsPool.cpp 33394 2010-10-24 16:17:56Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -279,9 +279,9 @@ public:
         uint64_t u64Now = RTTimeSpecGetNano(RTTimeNow(&time));
 
         QString strFlags, strCount;
-        ULONG64 uTimestamp;
-        machine.GetGuestProperty("/VirtualBox/GuestInfo/Net/Count", strCount, uTimestamp, strFlags);
-        bool fPropsValid = (u64Now - uTimestamp < UINT64_C(60000000000)); /* timeout beacon */
+        LONG64 iTimestamp;
+        machine.GetGuestProperty("/VirtualBox/GuestInfo/Net/Count", strCount, iTimestamp, strFlags);
+        bool fPropsValid = (u64Now - iTimestamp < UINT64_C(60000000000)); /* timeout beacon */
 
         QStringList ipList, macList;
         if (fPropsValid)
@@ -478,13 +478,13 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorVRDPDisks : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorVRDEDisks : public QIWithRetranslateUI<QIStateIndicator>
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorVRDPDisks(CSession &session)
+    UIIndicatorVRDEDisks(CSession &session)
       : QIWithRetranslateUI<QIStateIndicator>()
       , m_session(session)
     {
@@ -501,19 +501,19 @@ public:
 
     void updateAppearance()
     {
-        const CVRDPServer &vrdpsrv = m_session.GetMachine().GetVRDPServer();
-        if (!vrdpsrv.isNull())
+        CVRDEServer srv = m_session.GetMachine().GetVRDEServer();
+        if (!srv.isNull())
         {
             /* update menu&status icon state */
-            bool fVRDPEnabled = vrdpsrv.GetEnabled();
+            bool fEnabled = srv.GetEnabled();
 
-            setState(fVRDPEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
+            setState(fEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
 
-            QString tip = QApplication::translate("UIIndicatorsPool", "Indicates whether the Remote Display (VRDP Server) "
+            QString tip = QApplication::translate("UIIndicatorsPool", "Indicates whether the Remote Desktop Server "
                              "is enabled (<img src=:/vrdp_16px.png/>) or not "
                              "(<img src=:/vrdp_disabled_16px.png/>).");
-            if (vrdpsrv.GetEnabled())
-                tip += QApplication::translate("UIIndicatorsPool", "<hr>The VRDP Server is listening on port %1").arg(vrdpsrv.GetPorts());
+            if (srv.GetEnabled())
+                tip += QApplication::translate("UIIndicatorsPool", "<hr>The Remote Desktop Server is listening on port %1").arg(srv.GetVRDEProperty("TCP/Ports"));
             setToolTip(tip);
         }
     }
@@ -728,4 +728,3 @@ QIStateIndicator* UIIndicatorsPool::indicator(UIIndicatorIndex index)
 }
 
 #include "UIIndicatorsPool.moc"
-

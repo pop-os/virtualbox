@@ -1,4 +1,4 @@
-/* $Id: mp-darwin.cpp $ */
+/* $Id: mp-darwin.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Darwin.
  */
@@ -46,7 +46,7 @@
 
 
 /**
- * Internal worker that determins the max possible CPU count.
+ * Internal worker that determines the max possible CPU count.
  *
  * @returns Max cpus.
  */
@@ -179,7 +179,7 @@ RTDECL(uint32_t) RTMpGetMaxFrequency(RTCPUID idCpu)
         return (CpuFrequencyMax + 999999) / 1000000;
 
     /*
-     * Use the depricated one.
+     * Use the deprecated one.
      */
     int aiMib[2];
     aiMib[0] = CTL_HW;

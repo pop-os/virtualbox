@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceVMInfo-win.cpp $ */
+/* $Id: VBoxServiceVMInfo-win.cpp 33895 2010-11-09 12:41:28Z vboxsync $ */
 /** @file
  * VBoxService - Virtual Machine Information for the Host, Windows specifics.
  */
@@ -19,7 +19,11 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <windows.h>
+#if defined(_WIN32_WINNT) && _WIN32_WINNT < 0x0502
+# undef  _WIN32_WINNT
+# define _WIN32_WINNT 0x0502 /* CachedRemoteInteractive in recent SDKs. */
+#endif
+#include <Windows.h>
 #include <wtsapi32.h>       /* For WTS* calls. */
 #include <psapi.h>          /* EnumProcesses. */
 #include <Ntsecapi.h>       /* Needed for process security information. */
@@ -36,6 +40,9 @@
 #include "VBoxServiceUtils.h"
 
 
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
 /** Structure for storing the looked up user information. */
 typedef struct
 {
@@ -43,12 +50,14 @@ typedef struct
     WCHAR wszAuthenticationPackage[_MAX_PATH];
     WCHAR wszLogonDomain[_MAX_PATH];
 } VBOXSERVICEVMINFOUSER, *PVBOXSERVICEVMINFOUSER;
+
 /** Structure for the file information lookup. */
 typedef struct
 {
     char *pszFilePath;
     char *pszFileName;
 } VBOXSERVICEVMINFOFILE, *PVBOXSERVICEVMINFOFILE;
+
 /** Structure for process information lookup. */
 typedef struct
 {
@@ -65,10 +74,6 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_
 int  VBoxServiceVMInfoWinProcessesEnumerate(PVBOXSERVICEVMINFOPROC *ppProc, DWORD *pdwCount);
 void VBoxServiceVMInfoWinProcessesFree(PVBOXSERVICEVMINFOPROC paProcs);
 
-
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
 
 
 #ifndef TARGET_NT4
@@ -241,7 +246,7 @@ void VBoxServiceVMInfoWinProcessesFree(PVBOXSERVICEVMINFOPROC paProcs)
 }
 
 /**
- * Determins whether the specified session has processes on the system.
+ * Determines whether the specified session has processes on the system.
  *
  * @returns true if it has, false if it doesn't.
  * @param   pSession        The session.
@@ -417,7 +422,7 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_
                                                &pBuffer,
                                                &cbRet))
                 {
-                    if(cbRet)
+                    if (cbRet)
                         iState = *pBuffer;
                     VBoxServiceVerbose(3, "VMInfo/Users:  Account User=%ls, WTSConnectState=%d\n",
                                        a_pUserInfo->wszUser, iState);
@@ -436,7 +441,7 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_
                 }
                 else
                 {
-                    VBoxServiceVerbose(3, "VMInfo/Users:  Account User=%ls, WTSConnectState returnd %ld\n",
+                    VBoxServiceVerbose(3, "VMInfo/Users:  Account User=%ls, WTSConnectState returned %ld\n",
                                        a_pUserInfo->wszUser, GetLastError());
 
                     /*
@@ -460,8 +465,8 @@ bool VBoxServiceVMInfoWinIsLoggedIn(PVBOXSERVICEVMINFOUSER a_pUserInfo, PLUID a_
  * user count.
  *
  * @returns VBox status code.
- * @param   ppszUserList    Where to store the user list (separated by commas).  Must be
- *                          freed with RTStrFree().
+ * @param   ppszUserList    Where to store the user list (separated by commas).
+ *                          Must be freed with RTStrFree().
  * @param   pcUsersInList   Where to store the number of users in the list.
  */
 int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
@@ -504,7 +509,7 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
                 if (*pcUsersInList > 0)
                 {
                     rc = RTStrAAppend(ppszUserList, ",");
-                    AssertRCReturn(rc, rc);
+                    AssertRCBreakStmt(rc, RTStrFree(*ppszUserList));
                 }
 
                 *pcUsersInList += 1;
@@ -515,10 +520,10 @@ int VBoxServiceVMInfoWinWriteUsers(char **ppszUserList, uint32_t *pcUsersInList)
                 {
                     rc = RTStrAAppend(ppszUserList, pszTemp);
                     RTMemFree(pszTemp);
-                    AssertRCReturn(rc, rc);
                 }
                 else
-                    RTStrAAppend(ppszUserList, "<string-convertion-error>");
+                    rc = RTStrAAppend(ppszUserList, "<string-conversion-error>");
+                AssertRCBreakStmt(rc, RTStrFree(*ppszUserList));
             }
         }
         VBoxServiceVMInfoWinProcessesFree(paProcs);

@@ -1,4 +1,4 @@
-/* $Id: StorageControllerImpl.cpp $ */
+/* $Id: StorageControllerImpl.cpp 34010 2010-11-11 20:17:47Z vboxsync $ */
 
 /** @file
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 #include "StorageControllerImpl.h"
 #include "MachineImpl.h"
 #include "VirtualBoxImpl.h"
+#include "SystemPropertiesImpl.h"
 
 #include <iprt/string.h>
 #include <iprt/cpp/utils.h>
@@ -45,6 +46,7 @@ struct BackupableStorageControllerData
           mInstance(0),
           mPortCount(2),
           fUseHostIOCache(true),
+          fBootable(false),
           mPortIde0Master(0),
           mPortIde0Slave(1),
           mPortIde1Master(2),
@@ -53,7 +55,7 @@ struct BackupableStorageControllerData
 
     /** Unique name of the storage controller. */
     Utf8Str strName;
-    /** The connection type of thestorage controller. */
+    /** The connection type of the storage controller. */
     StorageBus_T mStorageBus;
     /** Type of the Storage controller. */
     StorageControllerType_T mStorageControllerType;
@@ -63,6 +65,8 @@ struct BackupableStorageControllerData
     ULONG mPortCount;
     /** Whether to use the host IO caches. */
     BOOL fUseHostIOCache;
+    /** Whether it is possible to boot from disks attached to this controller. */
+    BOOL fBootable;
 
     /** The following is only for the SATA controller atm. */
     /** Port which acts as primary master for ide emulation. */
@@ -77,9 +81,17 @@ struct BackupableStorageControllerData
 
 struct StorageController::Data
 {
-    Data()
-        : pParent(NULL)
-    { }
+    Data(Machine * const aMachine)
+        : pVirtualBox(NULL),
+          pSystemProperties(NULL),
+          pParent(aMachine)
+    {
+        unconst(pVirtualBox) = aMachine->getVirtualBox();
+        unconst(pSystemProperties) = pVirtualBox->getSystemProperties();
+    }
+
+    VirtualBox * const                  pVirtualBox;
+    SystemProperties * const            pSystemProperties;
 
     Machine * const                     pParent;
     const ComObjPtr<StorageController>  pPeer;
@@ -114,10 +126,10 @@ void StorageController::FinalRelease()
 HRESULT StorageController::init(Machine *aParent,
                                 const Utf8Str &aName,
                                 StorageBus_T aStorageBus,
-                                ULONG aInstance)
+                                ULONG aInstance, bool fBootable)
 {
     LogFlowThisFunc(("aParent=%p aName=\"%s\" aInstance=%u\n",
-                     aParent, aName.raw(), aInstance));
+                     aParent, aName.c_str(), aInstance));
 
     ComAssertRet(aParent && !aName.isEmpty(), E_INVALIDARG);
     if (   (aStorageBus <= StorageBus_Null)
@@ -125,23 +137,31 @@ HRESULT StorageController::init(Machine *aParent,
         return setError(E_INVALIDARG,
                         tr("Invalid storage connection type"));
 
+    ULONG maxInstances;
+    ChipsetType_T chipsetType;
+    HRESULT rc = aParent->COMGETTER(ChipsetType)(&chipsetType);
+    if (FAILED(rc))
+        return rc;
+    rc = aParent->getVirtualBox()->getSystemProperties()->GetMaxInstancesOfStorageBus(chipsetType, aStorageBus, &maxInstances);
+    if (FAILED(rc))
+        return rc;
+    if (aInstance >= maxInstances)
+        return setError(E_INVALIDARG,
+                        tr("Too many storage controllers of this type"));
+
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    m = new Data();
+    m = new Data(aParent);
 
-    unconst(m->pParent) = aParent;
     /* m->pPeer is left null */
-
-    /* register with parent early, since uninit() will unconditionally
-     * unregister on failure */
-    m->pParent->addDependentChild(this);
 
     m->bd.allocate();
 
     m->bd->strName = aName;
     m->bd->mInstance = aInstance;
+    m->bd->fBootable = fBootable;
     m->bd->mStorageBus = aStorageBus;
     if (   aStorageBus != StorageBus_IDE
         && aStorageBus != StorageBus_Floppy)
@@ -164,7 +184,6 @@ HRESULT StorageController::init(Machine *aParent,
             m->bd->mStorageControllerType = StorageControllerType_LsiLogic;
             break;
         case StorageBus_Floppy:
-            /** @todo allow 2 floppies later */
             m->bd->mPortCount = 1;
             m->bd->mStorageControllerType = StorageControllerType_I82078;
             break;
@@ -209,16 +228,10 @@ HRESULT StorageController::init(Machine *aParent,
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    m = new Data();
-
-    unconst(m->pParent) = aParent;
-
-    /* register with parent early, since uninit() will unconditionally
-     * unregister on failure */
-    m->pParent->addDependentChild(this);
+    m = new Data(aParent);
 
     /* sanity */
-    AutoCaller thatCaller (aThat);
+    AutoCaller thatCaller(aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
     if (aReshare)
@@ -257,12 +270,8 @@ HRESULT StorageController::initCopy(Machine *aParent, StorageController *aThat)
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    m = new Data();
-
-    unconst(m->pParent) = aParent;
+    m = new Data(aParent);
     /* m->pPeer is left null */
-
-    m->pParent->addDependentChild(this);
 
     AutoCaller thatCaller(aThat);
     AssertComRCReturnRC(thatCaller.rc());
@@ -291,8 +300,6 @@ void StorageController::uninit()
         return;
 
     m->bd.free();
-
-    m->pParent->removeDependentChild(this);
 
     unconst(m->pPeer) = NULL;
     unconst(m->pParent) = NULL;
@@ -411,18 +418,8 @@ STDMETHODIMP StorageController::COMGETTER(MaxDevicesPerPortCount) (ULONG *aMaxDe
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = m->pSystemProperties->GetMaxDevicesPerPortForStorageBus(m->bd->mStorageBus, aMaxDevices);
 
-    ComPtr<IVirtualBox> VBox;
-    HRESULT rc = m->pParent->COMGETTER(Parent)(VBox.asOutParam());
-    if (FAILED(rc))
-        return rc;
-
-    ComPtr<ISystemProperties> sysProps;
-    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
-    if (FAILED(rc))
-        return rc;
-
-    rc = sysProps->GetMaxDevicesPerPortForStorageBus(m->bd->mStorageBus, aMaxDevices);
     return rc;
 }
 
@@ -434,18 +431,8 @@ STDMETHODIMP StorageController::COMGETTER(MinPortCount) (ULONG *aMinPortCount)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = m->pSystemProperties->GetMinPortCountForStorageBus(m->bd->mStorageBus, aMinPortCount);
 
-    ComPtr<IVirtualBox> VBox;
-    HRESULT rc = m->pParent->COMGETTER(Parent)(VBox.asOutParam());
-    if (FAILED(rc))
-        return rc;
-
-    ComPtr<ISystemProperties> sysProps;
-    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
-    if (FAILED(rc))
-        return rc;
-
-    rc = sysProps->GetMinPortCountForStorageBus(m->bd->mStorageBus, aMinPortCount);
     return rc;
 }
 
@@ -457,18 +444,8 @@ STDMETHODIMP StorageController::COMGETTER(MaxPortCount) (ULONG *aMaxPortCount)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = m->pSystemProperties->GetMaxPortCountForStorageBus(m->bd->mStorageBus, aMaxPortCount);
 
-    ComPtr<IVirtualBox> VBox;
-    HRESULT rc = m->pParent->COMGETTER(Parent)(VBox.asOutParam());
-    if (FAILED(rc))
-        return rc;
-
-    ComPtr<ISystemProperties> sysProps;
-    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
-    if (FAILED(rc))
-        return rc;
-
-    rc = sysProps->GetMaxPortCountForStorageBus(m->bd->mStorageBus, aMaxPortCount);
     return rc;
 }
 
@@ -530,7 +507,6 @@ STDMETHODIMP StorageController::COMSETTER(PortCount) (ULONG aPortCount)
         }
         case StorageBus_Floppy:
         {
-            /** @todo allow 2 floppies later */
             /*
              * The port count is fixed to 1.
              */
@@ -649,6 +625,20 @@ STDMETHODIMP StorageController::COMSETTER(UseHostIOCache) (BOOL fUseHostIOCache)
     return S_OK;
 }
 
+STDMETHODIMP StorageController::COMGETTER(Bootable) (BOOL *fBootable)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* The machine doesn't need to be mutable. */
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *fBootable = m->bd->fBootable;
+
+    return S_OK;
+}
+
 // IStorageController methods
 /////////////////////////////////////////////////////////////////////////////
 
@@ -748,6 +738,53 @@ StorageBus_T StorageController::getStorageBus() const
 ULONG StorageController::getInstance() const
 {
     return m->bd->mInstance;
+}
+
+bool StorageController::getBootable() const
+{
+    return !!m->bd->fBootable;
+}
+
+/**
+ * Returns S_OK if the given port and device numbers are within the range supported
+ * by this controller. If not, it sets an error and returns E_INVALIDARG.
+ * @param ulPort
+ * @param ulDevice
+ * @return
+ */
+HRESULT StorageController::checkPortAndDeviceValid(LONG aControllerPort,
+                                                   LONG aDevice)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    ULONG portCount = m->bd->mPortCount;
+    ULONG devicesPerPort;
+    HRESULT rc = m->pSystemProperties->GetMaxDevicesPerPortForStorageBus(m->bd->mStorageBus, &devicesPerPort);
+    if (FAILED(rc)) return rc;
+
+    if (   (aControllerPort < 0)
+        || (aControllerPort >= (LONG)portCount)
+        || (aDevice < 0)
+        || (aDevice >= (LONG)devicesPerPort)
+       )
+        return setError(E_INVALIDARG,
+                        tr("The port and/or count parameter are out of range [%lu:%lu]"),
+                        portCount,
+                        devicesPerPort);
+
+    return S_OK;
+}
+
+/** @note Locks objects for writing! */
+void StorageController::setBootable(BOOL fBootable)
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid(autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    m->bd.backup();
+    m->bd->fBootable = fBootable;
 }
 
 /** @note Locks objects for writing! */

@@ -19,7 +19,7 @@
 #include "VBox/com/defs.h"
 
 #include <SessionImpl.h>
-#include <VirtualBoxCallbackImpl.h>
+#include <VirtualBoxClientImpl.h>
 
 #include <atlbase.h>
 #include <atlcom.h>
@@ -30,7 +30,7 @@ CComModule _Module;
 
 BEGIN_OBJECT_MAP(ObjectMap)
     OBJECT_ENTRY(CLSID_Session, Session)
-    OBJECT_ENTRY(CLSID_CallbackWrapper, CallbackWrapper)
+    OBJECT_ENTRY(CLSID_VirtualBoxClient, VirtualBoxClient)
 END_OBJECT_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
@@ -48,7 +48,9 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpReserved*/)
         RTR3Init();
     }
     else if (dwReason == DLL_PROCESS_DETACH)
+    {
         _Module.Term();
+    }
     return TRUE;
 }
 

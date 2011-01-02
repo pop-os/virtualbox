@@ -99,7 +99,7 @@ static void outputChromiumMessage( FILE *output, char *str )
             );
     fflush( output );
 
-#if defined(DEBUG) && defined(WINDOWS)
+#if defined(DEBUG) && defined(WINDOWS) && !defined(DEBUG_misha)
     OutputDebugString(str);
     OutputDebugString("\n");
 #endif
@@ -128,7 +128,7 @@ static void crRedirectIOToConsole()
 #endif
 
 
-DECLEXPORT(void) crError( char *format, ... )
+DECLEXPORT(void) crError(const char *format, ... )
 {
     va_list args;
     static char txt[8092];
@@ -196,7 +196,7 @@ DECLEXPORT(void) crError( char *format, ... )
         va_end( args );
 #ifdef WINDOWS
     }
-#if !defined(DEBUG_leo) && !defined(DEBUG_ll158262)
+#if !defined(DEBUG_leo) && !defined(DEBUG_ll158262) && !(defined(DEBUG_misha) && defined(IN_GUEST))
     if (crGetenv( "CR_DEBUG_ON_ERROR" ) != NULL)
 #endif
     {
@@ -217,7 +217,7 @@ void crEnableWarnings(int onOff)
     warnings_enabled = onOff;
 }
 
-DECLEXPORT(void) crWarning( char *format, ... )
+DECLEXPORT(void) crWarning(const char *format, ... )
 {
     if (warnings_enabled) {
         va_list args;
@@ -240,13 +240,13 @@ DECLEXPORT(void) crWarning( char *format, ... )
 #endif
         va_end( args );
 
-#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST)
+#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST) && !defined(DEBUG_misha)
         DebugBreak();
 #endif
     }
 }
 
-DECLEXPORT(void) crInfo( char *format, ... )
+DECLEXPORT(void) crInfo(const char *format, ... )
 {
     va_list args;
     static char txt[8092];
@@ -269,7 +269,7 @@ DECLEXPORT(void) crInfo( char *format, ... )
     va_end( args );
 }
 
-DECLEXPORT(void) crDebug( char *format, ... )
+DECLEXPORT(void) crDebug(const char *format, ... )
 {
     va_list args;
     static char txt[8092];
@@ -284,6 +284,18 @@ DECLEXPORT(void) crDebug( char *format, ... )
     if (first_time)
     {
         const char *fname = crGetenv( "CR_DEBUG_FILE" );
+        char str[1024];
+
+#if defined(Linux) && defined(IN_GUEST) && defined(DEBUG_leo)
+        if (!fname)
+        {
+            char pname[1024];
+            crGetProcName(pname, 1024);
+            sprintf(str, "/home/leo/crlog_%s.txt", pname);
+            fname = &str[0];
+        }
+#endif
+
         first_time = 0;
         if (fname)
         {
@@ -309,7 +321,7 @@ DECLEXPORT(void) crDebug( char *format, ... )
 #endif
             output = stderr;
         }
-#ifndef DEBUG
+#if !defined(DEBUG) || defined(DEBUG_misha)
         /* Release mode: only emit crDebug messages if CR_DEBUG
          * or CR_DEBUG_FILE is set.
          */
@@ -367,7 +379,7 @@ DECLEXPORT(void) crDebug( char *format, ... )
 #if defined(IN_GUEST)
     outputChromiumMessage( output, txt );
 #else
-# if defined(DEBUG) && defined(DEBUG_leo)
+# if defined(DEBUG) && (defined(DEBUG_leo) || defined(DEBUG_ll158262))
     outputChromiumMessage( output, txt );
 # endif
     if (output==stderr)

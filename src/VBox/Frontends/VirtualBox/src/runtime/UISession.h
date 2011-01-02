@@ -33,7 +33,6 @@ class QMenuBar;
 
 /* Local forwards */
 class UIActionsPool;
-class UIConsoleCallback;
 class UIFrameBuffer;
 class UIMachine;
 class UIMachineLogic;
@@ -53,8 +52,8 @@ enum UIConsoleEventType
     /* Not used: UIConsoleEventType_StorageControllerChange, */
     UIConsoleEventType_MediumChange,
     /* Not used: UIConsoleEventType_CPUChange, */
-    UIConsoleEventType_VRDPServerChange,
-    UIConsoleEventType_RemoteDisplayInfoChange,
+    UIConsoleEventType_VRDEServerChange,
+    UIConsoleEventType_VRDEServerInfoChange,
     UIConsoleEventType_USBControllerChange,
     UIConsoleEventType_USBDeviceStateChange,
     UIConsoleEventType_SharedFolderChange,
@@ -101,9 +100,10 @@ public:
     bool isIgnoreRuntimeMediumsChanging() const { return m_fIsIgnoreRuntimeMediumsChanging; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
     bool isSeamlessModeRequested() const { return m_fIsSeamlessModeRequested; }
+    bool isAutoCaptureDisabled() const { return m_fIsAutoCaptureDisabled; }
 
     /* Guest additions state getters: */
-    bool isGuestAdditionsActive() const { return m_fIsGuestAdditionsActive; }
+    bool isGuestAdditionsActive() const { return (m_ulGuestAdditionsRunLevel > AdditionsRunLevelType_None); }
     bool isGuestSupportsGraphics() const { return isGuestAdditionsActive() && m_fIsGuestSupportsGraphics; }
     bool isGuestSupportsSeamless() const { return isGuestSupportsGraphics() && m_fIsGuestSupportsSeamless; }
 
@@ -129,13 +129,14 @@ public:
     bool setPause(bool fOn);
     void setGuestResizeIgnored(bool fIsGuestResizeIgnored) { m_fIsGuestResizeIgnored = fIsGuestResizeIgnored; }
     void setSeamlessModeRequested(bool fIsSeamlessModeRequested) { m_fIsSeamlessModeRequested = fIsSeamlessModeRequested; }
+    void setAutoCaptureDisabled(bool fIsAutoCaptureDisabled) { m_fIsAutoCaptureDisabled = fIsAutoCaptureDisabled; }
 
     /* Keyboard setters: */
     void setNumLockAdaptionCnt(uint uNumLockAdaptionCnt) { m_uNumLockAdaptionCnt = uNumLockAdaptionCnt; }
     void setCapsLockAdaptionCnt(uint uCapsLockAdaptionCnt) { m_uCapsLockAdaptionCnt = uCapsLockAdaptionCnt; }
 
     /* Mouse setters: */
-    void setMouseCaptured(bool fIsMouseCaptured) { m_fIsMouseCaptured = fIsMouseCaptured; emit sigMouseCapturedStatusChanged(); }
+    void setMouseCaptured(bool fIsMouseCaptured) { m_fIsMouseCaptured = fIsMouseCaptured; }
     void setMouseIntegrated(bool fIsMouseIntegrated) { m_fIsMouseIntegrated = fIsMouseIntegrated; }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -156,13 +157,7 @@ signals:
     void sigMachineStateChange();
     void sigAdditionsStateChange();
     void sigNetworkAdapterChange(const CNetworkAdapter &networkAdapter);
-    /* Not used: void sigSerialPortChange(const CSerialPort &serialPort); */
-    /* Not used: void sigParallelPortChange(const CParallelPort &parallelPort); */
-    /* Not used: void sigStorageControllerChange(); */
     void sigMediumChange(const CMediumAttachment &mediumAttachment);
-    /* Not used: void sigCPUChange(ulong uCPU, bool bRemove); */
-    /* Not used: void sigVRDPServerChange(); */
-    /* Not used: void sigRemoteDisplayInfoChange(); */
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(const CUSBDevice &device, bool bIsAttached, const CVirtualBoxErrorInfo &error);
     void sigSharedFolderChange();
@@ -173,7 +168,6 @@ signals:
 
     /* Session signals: */
     void sigMachineStarted();
-    void sigMouseCapturedStatusChanged();
 
 public slots:
 
@@ -184,13 +178,17 @@ private slots:
     /* Close uisession handler: */
     void sltCloseVirtualSession();
 
+    /* Console events slots */
+    void sltMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
+    void sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fNeedsHostCursor);
+    void sltKeyboardLedsChangeEvent(bool fNumLock, bool fCapsLock, bool fScrollLock);
+    void sltStateChange(KMachineState state);
+    void sltAdditionsChange();
+
 private:
 
     /* Private getters: */
     UIMachine* uimachine() const { return m_pMachine; }
-
-    /* Event handlers: */
-    bool event(QEvent *pEvent);
 
     /* Prepare helpers: */
     void prepareMenuPool();
@@ -209,7 +207,6 @@ private:
     /* Private variables: */
     UIMachine *m_pMachine;
     CSession &m_session;
-    const CConsoleCallback m_callback;
 
     UIMachineMenuBar *m_pMenuPool;
 
@@ -233,11 +230,12 @@ private:
     bool m_fIsIgnoreRuntimeMediumsChanging : 1;
     bool m_fIsGuestResizeIgnored : 1;
     bool m_fIsSeamlessModeRequested : 1;
+    bool m_fIsAutoCaptureDisabled : 1;
 
     /* Guest additions flags: */
-    bool m_fIsGuestAdditionsActive : 1;
-    bool m_fIsGuestSupportsGraphics : 1;
-    bool m_fIsGuestSupportsSeamless : 1;
+    ULONG m_ulGuestAdditionsRunLevel;
+    bool  m_fIsGuestSupportsGraphics : 1;
+    bool  m_fIsGuestSupportsSeamless : 1;
 
     /* Keyboard flags: */
     bool m_fNumLock : 1;
@@ -256,8 +254,7 @@ private:
     bool m_fIsHidingHostPointer : 1;
 
     /* Friend classes: */
-    friend class UIConsoleCallback;
+    friend class UIConsoleEventHandler;
 };
 
 #endif // !___UIConsole_h___
-

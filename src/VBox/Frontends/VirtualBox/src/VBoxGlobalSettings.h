@@ -44,8 +44,8 @@ private:
     QString maxGuestRes;
     QString remapScancodes;
     bool trayIconEnabled;
-    bool dockPreviewEnabled;
     bool presentationModeEnabled;
+    bool hostScreenSaverDisabled;
 
     friend class VBoxGlobalSettings;
 };
@@ -62,8 +62,8 @@ class VBoxGlobalSettings : public QObject, public CIShared <VBoxGlobalSettingsDa
     Q_PROPERTY (QString maxGuestRes READ maxGuestRes WRITE setMaxGuestRes)
     Q_PROPERTY (QString remapScancodes READ remapScancodes WRITE setRemapScancodes)
     Q_PROPERTY (bool trayIconEnabled READ trayIconEnabled WRITE setTrayIconEnabled)
-    Q_PROPERTY (bool dockPreviewEnabled READ dockPreviewEnabled WRITE setDockPreviewEnabled)
     Q_PROPERTY (bool presentationModeEnabled READ presentationModeEnabled WRITE setPresentationModeEnabled)
+    Q_PROPERTY (bool hostScreenSaverDisabled READ hostScreenSaverDisabled WRITE setHostScreenSaverDisabled)
 
 public:
 
@@ -120,20 +120,17 @@ public:
         mData()->trayIconEnabled = enabled;
     }
 
-    bool dockPreviewEnabled() const { return data()->dockPreviewEnabled; }
-    void setDockPreviewEnabled (bool enabled)
-    {
-        mData()->dockPreviewEnabled = enabled;
-    }
-
     bool presentationModeEnabled() const { return data()->presentationModeEnabled; }
     void setPresentationModeEnabled (bool enabled)
     {
         mData()->presentationModeEnabled = enabled;
     }
 
-
-    //
+    bool hostScreenSaverDisabled() const { return data()->hostScreenSaverDisabled; }
+    void setHostScreenSaverDisabled (bool disabled)
+    {
+        mData()->hostScreenSaverDisabled = disabled;
+    }
 
     void load (CVirtualBox &vbox);
     void save (CVirtualBox &vbox) const;

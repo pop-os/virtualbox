@@ -1,4 +1,4 @@
-/* $Id: PDMAllCritSect.cpp $ */
+/* $Id: PDMAllCritSect.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * PDM - Critical Sections, All Contexts.
  */
@@ -35,6 +35,9 @@
 #ifdef IN_RING3
 # include <iprt/lockvalidator.h>
 # include <iprt/semaphore.h>
+#endif
+#if defined(IN_RING3) || defined(IN_RING0)
+# include <iprt/thread.h>
 #endif
 
 
@@ -77,7 +80,7 @@ DECL_FORCE_INLINE(RTNATIVETHREAD) pdmCritSectGetNativeSelf(PCPDMCRITSECT pCritSe
 
 
 /**
- * Tail code called when we've wont the battle for the lock.
+ * Tail code called when we've won the battle for the lock.
  *
  * @returns VINF_SUCCESS.
  *
@@ -90,6 +93,7 @@ DECL_FORCE_INLINE(int) pdmCritSectEnterFirst(PPDMCRITSECT pCritSect, RTNATIVETHR
     Assert(!(pCritSect->s.Core.fFlags & PDMCRITSECT_FLAGS_PENDING_UNLOCK));
 
     ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, 1);
+    Assert(pCritSect->s.Core.cNestings == 1);
     ASMAtomicWriteHandle(&pCritSect->s.Core.NativeThreadOwner, hNativeSelf);
 
 # ifdef PDMCRITSECT_STRICT
@@ -101,35 +105,41 @@ DECL_FORCE_INLINE(int) pdmCritSectEnterFirst(PPDMCRITSECT pCritSect, RTNATIVETHR
 }
 
 
-#ifdef IN_RING3
+#if defined(IN_RING3) || defined(IN_RING0)
 /**
- * Deals with the contended case in ring-3.
+ * Deals with the contended case in ring-3 and ring-0.
  *
  * @returns VINF_SUCCESS or VERR_SEM_DESTROYED.
  * @param   pCritSect           The critsect.
  * @param   hNativeSelf         The native thread handle.
  */
-static int pdmR3CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD hNativeSelf, PCRTLOCKVALSRCPOS pSrcPos)
+static int pdmR3R0CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD hNativeSelf, PCRTLOCKVALSRCPOS pSrcPos)
 {
     /*
      * Start waiting.
      */
     if (ASMAtomicIncS32(&pCritSect->s.Core.cLockers) == 0)
         return pdmCritSectEnterFirst(pCritSect, hNativeSelf, pSrcPos);
+# ifdef IN_RING3
     STAM_COUNTER_INC(&pCritSect->s.StatContentionR3);
+# else
+    STAM_COUNTER_INC(&pCritSect->s.StatContentionRZLock);
+# endif
 
     /*
      * The wait loop.
      */
     PSUPDRVSESSION  pSession    = pCritSect->s.CTX_SUFF(pVM)->pSession;
     SUPSEMEVENT     hEvent      = (SUPSEMEVENT)pCritSect->s.Core.EventSem;
-# ifdef PDMCRITSECT_STRICT
+# ifdef IN_RING3
+#  ifdef PDMCRITSECT_STRICT
     RTTHREAD        hThreadSelf = RTThreadSelfAutoAdopt();
     int rc2 = RTLockValidatorRecExclCheckOrder(pCritSect->s.Core.pValidatorRec, hThreadSelf, pSrcPos, RT_INDEFINITE_WAIT);
     if (RT_FAILURE(rc2))
         return rc2;
-# else
+#  else
     RTTHREAD        hThreadSelf = RTThreadSelf();
+#  endif
 # endif
     for (;;)
     {
@@ -139,11 +149,13 @@ static int pdmR3CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD hN
                                                       RT_INDEFINITE_WAIT, RTTHREADSTATE_CRITSECT, true);
         if (RT_FAILURE(rc9))
             return rc9;
-# else
+# elif defined(IN_RING3)
         RTThreadBlocking(hThreadSelf, RTTHREADSTATE_CRITSECT, true);
 # endif
         int rc = SUPSemEventWaitNoResume(pSession, hEvent, RT_INDEFINITE_WAIT);
+# ifdef IN_RING3
         RTThreadUnblocked(hThreadSelf, RTTHREADSTATE_CRITSECT);
+# endif
 
         if (RT_UNLIKELY(pCritSect->s.Core.u32Magic != RTCRITSECT_MAGIC))
             return VERR_SEM_DESTROYED;
@@ -153,7 +165,7 @@ static int pdmR3CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD hN
     }
     /* won't get here */
 }
-#endif /* IN_RING3 */
+#endif /* IN_RING3 || IN_RING0 */
 
 
 /**
@@ -170,6 +182,7 @@ static int pdmR3CritSectEnterContended(PPDMCRITSECT pCritSect, RTNATIVETHREAD hN
 DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRTLOCKVALSRCPOS pSrcPos)
 {
     Assert(pCritSect->s.Core.cNestings < 8);  /* useful to catch incorrect locking */
+    Assert(pCritSect->s.Core.cNestings >= 0);
 
     /*
      * If the critical section has already been destroyed, then inform the caller.
@@ -191,6 +204,7 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
     {
         ASMAtomicIncS32(&pCritSect->s.Core.cLockers);
         ASMAtomicIncS32(&pCritSect->s.Core.cNestings);
+        Assert(pCritSect->s.Core.cNestings > 1);
         ASMAtomicAndU32(&pCritSect->s.Core.fFlags, ~PDMCRITSECT_FLAGS_PENDING_UNLOCK);
         return VINF_SUCCESS;
     }
@@ -217,15 +231,65 @@ DECL_FORCE_INLINE(int) pdmCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy, PCRT
     /*
      * Take the slow path.
      */
-    return pdmR3CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
-#else
+    return pdmR3R0CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
+
+#elif defined(IN_RING0)
+    /** @todo If preemption is disabled it means we're in VT-x/AMD-V context
+     *        and would be better off switching out of that while waiting for
+     *        the lock.  Several of the locks jumps back to ring-3 just to
+     *        get the lock, the ring-3 code will then call the kernel to do
+     *        the lock wait and when the call return it will call ring-0
+     *        again and resume via in setjmp style.  Not very efficient. */
+# if 0
+    if (ASMIntAreEnabled()) /** @todo this can be handled as well by changing
+                             * callers not prepared for longjmp/blocking to
+                             * use PDMCritSectTryEnter. */
+    {
+        /*
+         * Leave HWACCM context while waiting if necessary.
+         */
+        int rc;
+        if (RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+        {
+            STAM_REL_COUNTER_ADD(&pCritSect->s.StatContentionRZLock,    1000000);
+            rc = pdmR3R0CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
+        }
+        else
+        {
+            STAM_REL_COUNTER_ADD(&pCritSect->s.StatContentionRZLock, 1000000000);
+            PVM     pVM   = pCritSect->s.CTX_SUFF(pVM);
+            PVMCPU  pVCpu = VMMGetCpu(pVM);
+            HWACCMR0Leave(pVM, pVCpu);
+            RTThreadPreemptRestore(NIL_RTTHREAD, ????);
+
+            rc = pdmR3R0CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
+
+            RTThreadPreemptDisable(NIL_RTTHREAD, ????);
+            HWACCMR0Enter(pVM, pVCpu);
+        }
+        return rc;
+    }
+# else
+    /*
+     * We preemption hasn't been disabled, we can block here in ring-0.
+     */
+    if (   RTThreadPreemptIsEnabled(NIL_RTTHREAD)
+        && ASMIntAreEnabled())
+        return pdmR3R0CritSectEnterContended(pCritSect, hNativeSelf, pSrcPos);
+# endif
+
+    STAM_REL_COUNTER_INC(&pCritSect->s.StatContentionRZLock);
+    LogFlow(("PDMCritSectEnter: locked => R3 (%Rrc)\n", rcBusy));
+    return rcBusy;
+
+#else  /* IN_RC */
     /*
      * Return busy.
      */
     STAM_REL_COUNTER_INC(&pCritSect->s.StatContentionRZLock);
     LogFlow(("PDMCritSectEnter: locked => R3 (%Rrc)\n", rcBusy));
     return rcBusy;
-#endif
+#endif /* IN_RC */
 }
 
 
@@ -266,7 +330,7 @@ VMMDECL(int) PDMCritSectEnter(PPDMCRITSECT pCritSect, int rcBusy)
  * @param   pszFile             The file where the lock is being acquired from.
  *                              Optional.
  * @param   iLine               The line number in that file.  Optional (0).
- * @param   pszFunction         The functionn where the lock is being acquired
+ * @param   pszFunction         The function where the lock is being acquired
  *                              from.  Optional.
  */
 VMMDECL(int) PDMCritSectEnterDebug(PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL)
@@ -312,6 +376,7 @@ static int pdmCritSectTryEnter(PPDMCRITSECT pCritSect, PCRTLOCKVALSRCPOS pSrcPos
     {
         ASMAtomicIncS32(&pCritSect->s.Core.cLockers);
         ASMAtomicIncS32(&pCritSect->s.Core.cNestings);
+        Assert(pCritSect->s.Core.cNestings > 1);
         ASMAtomicAndU32(&pCritSect->s.Core.fFlags, ~PDMCRITSECT_FLAGS_PENDING_UNLOCK);
         return VINF_SUCCESS;
     }
@@ -366,7 +431,7 @@ VMMDECL(int) PDMCritSectTryEnter(PPDMCRITSECT pCritSect)
  * @param   pszFile             The file where the lock is being acquired from.
  *                              Optional.
  * @param   iLine               The line number in that file.  Optional (0).
- * @param   pszFunction         The functionn where the lock is being acquired
+ * @param   pszFunction         The function where the lock is being acquired
  *                              from.  Optional.
  */
 VMMDECL(int) PDMCritSectTryEnterDebug(PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL)
@@ -422,6 +487,7 @@ VMMDECL(void) PDMCritSectLeave(PPDMCRITSECT pCritSect)
     if (pCritSect->s.Core.cNestings > 1)
     {
         ASMAtomicDecS32(&pCritSect->s.Core.cNestings);
+        Assert(pCritSect->s.Core.cNestings >= 1);
         ASMAtomicDecS32(&pCritSect->s.Core.cLockers);
         return;
     }
@@ -451,6 +517,7 @@ VMMDECL(void) PDMCritSectLeave(PPDMCRITSECT pCritSect)
         ASMAtomicAndU32(&pCritSect->s.Core.fFlags, ~PDMCRITSECT_FLAGS_PENDING_UNLOCK);
         ASMAtomicWriteHandle(&pCritSect->s.Core.NativeThreadOwner, NIL_RTNATIVETHREAD);
         ASMAtomicDecS32(&pCritSect->s.Core.cNestings);
+        Assert(pCritSect->s.Core.cNestings == 0);
 
         /* stop and decrement lockers. */
         STAM_PROFILE_ADV_STOP(&pCritSect->s.StatLocked, l);
@@ -501,6 +568,7 @@ VMMDECL(void) PDMCritSectLeave(PPDMCRITSECT pCritSect)
             /* darn, someone raced in on us. */
             ASMAtomicWriteHandle(&pCritSect->s.Core.NativeThreadOwner, hNativeThread);
             STAM_PROFILE_ADV_START(&pCritSect->s.StatLocked, l);
+            Assert(pCritSect->s.Core.cNestings == 0);
             ASMAtomicWriteS32(&pCritSect->s.Core.cNestings, 1);
         }
         ASMAtomicOrU32(&pCritSect->s.Core.fFlags, PDMCRITSECT_FLAGS_PENDING_UNLOCK);
@@ -617,7 +685,7 @@ VMMDECL(bool) PDMCritSectIsOwned(PCPDMCRITSECT pCritSect)
 /**
  * Checks if anyone is waiting on the critical section we own.
  *
- * @returns true if someone is waitings.
+ * @returns true if someone is waiting.
  * @returns false if no one is waiting.
  * @param   pCritSect   The critical section.
  */

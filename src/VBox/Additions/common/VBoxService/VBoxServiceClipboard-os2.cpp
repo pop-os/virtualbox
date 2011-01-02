@@ -1,4 +1,4 @@
-/** $Id: VBoxServiceClipboard-os2.cpp $ */
+/** $Id: VBoxServiceClipboard-os2.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Clipboard Service, OS/2.
  */
@@ -366,12 +366,12 @@ static void *VBoxServiceClipboardOs2ConvertToPM(uint32_t fFormat, USHORT usFmt, 
             if (RT_SUCCESS(rc))
             {
                 size_t cbPM = strlen(pszLocale) + 1;
-                APIRET rc = DosAllocSharedMem(&pvPM, NULL, cbPM, OBJ_GIVEABLE | OBJ_GETTABLE | OBJ_TILE | PAG_READ | PAG_WRITE | PAG_COMMIT);
-                if (rc == NO_ERROR)
+                APIRET orc = DosAllocSharedMem(&pvPM, NULL, cbPM, OBJ_GIVEABLE | OBJ_GETTABLE | OBJ_TILE | PAG_READ | PAG_WRITE | PAG_COMMIT);
+                if (orc == NO_ERROR)
                     memcpy(pvPM, pszLocale, cbPM);
                 else
                 {
-                    VBoxServiceError("DosAllocSharedMem(,,%#x,,) -> %ld\n", cb + sizeof(CLIPHEADER), rc);
+                    VBoxServiceError("DosAllocSharedMem(,,%#x,,) -> %ld\n", cb + sizeof(CLIPHEADER), orc);
                     pvPM = NULL;
                 }
                 RTStrFree(pszLocale);
@@ -403,7 +403,7 @@ static void VBoxServiceClipboardOS2RenderFormat(USHORT usFmt)
     bool fSucceeded = false;
 
     /*
-     * Determin which format.
+     * Determine which format.
      */
     uint32_t fFormat;
     if (    usFmt == CF_TEXT
@@ -740,7 +740,7 @@ static MRESULT EXPENTRY VBoxServiceClipboardOS2WinProc(HWND hwnd, ULONG msg, MPA
                 &&  g_enmState != kClipboardState_Polling)
                 break;
 
-            /* Lost the position as clipboard viwer?*/
+            /* Lost the position as clipboard viewer?*/
             if (g_enmState == kClipboardState_Viewer)
             {
                 if (WinQueryClipbrdViewer(g_habWorker) == hwnd)

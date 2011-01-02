@@ -1,4 +1,4 @@
-/* $Id: DBGFModule.cpp $ */
+/* $Id: DBGFModule.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DBGF - Debugger Facility, Module & Segment Management.
  */
@@ -198,7 +198,7 @@ typedef struct DBGFMODVTDBG
     /**
      * Queries symbol information by address.
      *
-     * The returned symbol is what the debug info interpreter consideres the symbol
+     * The returned symbol is what the debug info interpreter considers the symbol
      * most applicable to the specified address. This usually means a symbol with an
      * address equal or lower than the requested.
      *

@@ -1,4 +1,4 @@
-/* $Id: DrvHostSerial.cpp $ */
+/* $Id: DrvHostSerial.cpp 34215 2010-11-19 17:41:49Z vboxsync $ */
 /** @file
  * VBox stream I/O devices: Host serial driver
  */
@@ -106,7 +106,7 @@ typedef struct DRVHOSTSERIAL
     PPDMTHREAD                  pSendThread;
     /** Status lines monitor thread. */
     PPDMTHREAD                  pMonitorThread;
-    /** Send event semephore */
+    /** Send event semaphore */
     RTSEMEVENT                  SendSem;
 
     /** the device path */
@@ -594,7 +594,7 @@ static DECLCALLBACK(int) drvHostSerialSendThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
                     dwRet = WaitForMultipleObjects(2, haWait, FALSE, INFINITE);
                     if (dwRet != WAIT_OBJECT_0)
                     {
-                        AssertMsg(pThread->enmState != PDMTHREADSTATE_RUNNING, ("The halt event sempahore is set but the thread is still in running state\n"));
+                        AssertMsg(pThread->enmState != PDMTHREADSTATE_RUNNING, ("The halt event semaphore is set but the thread is still in running state\n"));
                         break;
                     }
                 }
@@ -790,7 +790,7 @@ static DECLCALLBACK(int) drvHostSerialRecvThread(PPDMDRVINS pDrvIns, PPDMTHREAD 
                     if (dwRet != WAIT_OBJECT_0)
                     {
                         /* notification to terminate */
-                        AssertMsg(pThread->enmState != PDMTHREADSTATE_RUNNING, ("The halt event sempahore is set but the thread is still in running state\n"));
+                        AssertMsg(pThread->enmState != PDMTHREADSTATE_RUNNING, ("The halt event semaphore is set but the thread is still in running state\n"));
                         break;
                     }
                 }
@@ -1046,6 +1046,7 @@ static DECLCALLBACK(int) drvHostSerialSetModemLines(PPDMICHARCONNECTOR pInterfac
 
     if (modemStateClear)
         ioctl(pThis->DeviceFile, TIOCMBIC, &modemStateClear);
+
 #elif defined(RT_OS_WINDOWS)
     if (RequestToSend)
         EscapeCommFunction(pThis->hDeviceFile, SETRTS);
@@ -1056,6 +1057,7 @@ static DECLCALLBACK(int) drvHostSerialSetModemLines(PPDMICHARCONNECTOR pInterfac
         EscapeCommFunction(pThis->hDeviceFile, SETDTR);
     else
         EscapeCommFunction(pThis->hDeviceFile, CLRDTR);
+
 #endif
 
     return VINF_SUCCESS;

@@ -1,4 +1,4 @@
-/* $Id: UIMachine.cpp $ */
+/* $Id: UIMachine.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -131,6 +131,8 @@ public:
                 this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
         connect(m_pActionsPool->action(UIActionIndex_Toggle_Seamless), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToSeamlessMode()), Qt::QueuedConnection);
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Scale), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToScaleMode()), Qt::QueuedConnection);
 
         /* Initialize the logic object: */
         m_pMachineLogic->initialize();
@@ -148,6 +150,12 @@ private slots:
     {
         /* Change visual state to seamless: */
         emit sigChangeVisualState(UIVisualStateType_Seamless);
+    }
+
+    void sltGoToScaleMode()
+    {
+        /* Change visual state to scale: */
+        emit sigChangeVisualState(UIVisualStateType_Scale);
     }
 };
 
@@ -195,6 +203,8 @@ public:
                 this, SLOT(sltGoToNormalMode()), Qt::QueuedConnection);
         connect(m_pActionsPool->action(UIActionIndex_Toggle_Seamless), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToSeamlessMode()), Qt::QueuedConnection);
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Scale), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToScaleMode()), Qt::QueuedConnection);
 
         /* Initialize the logic object: */
         m_pMachineLogic->initialize();
@@ -213,6 +223,12 @@ private slots:
         /* Change visual state to seamless: */
         emit sigChangeVisualState(UIVisualStateType_Seamless);
     }
+
+    void sltGoToScaleMode()
+    {
+        /* Change visual state to scale: */
+        emit sigChangeVisualState(UIVisualStateType_Scale);
+    }
 };
 
 class UIVisualStateSeamless : public UIVisualState
@@ -227,7 +243,7 @@ public:
     {
         /* This visual state should take care of own action: */
         QAction *pActionSeamless = m_pActionsPool->action(UIActionIndex_Toggle_Seamless);
-        if (pActionSeamless->isChecked())
+        if (!pActionSeamless->isChecked())
         {
             pActionSeamless->blockSignals(true);
             pActionSeamless->setChecked(true);
@@ -255,10 +271,12 @@ public:
     void change()
     {
         /* Connect action handlers: */
-        connect(m_pActionsPool->action(UIActionIndex_Toggle_Fullscreen), SIGNAL(triggered(bool)),
-                this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
         connect(m_pActionsPool->action(UIActionIndex_Toggle_Seamless), SIGNAL(triggered(bool)),
                 this, SLOT(sltGoToNormalMode()), Qt::QueuedConnection);
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Scale), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToScaleMode()), Qt::QueuedConnection);
 
         /* Initialize the logic object: */
         m_pMachineLogic->initialize();
@@ -266,16 +284,94 @@ public:
 
 private slots:
 
+    void sltGoToNormalMode()
+    {
+        /* Change visual state to normal: */
+        emit sigChangeVisualState(UIVisualStateType_Normal);
+    }
+
     void sltGoToFullscreenMode()
     {
         /* Change visual state to fullscreen: */
         emit sigChangeVisualState(UIVisualStateType_Fullscreen);
     }
 
+    void sltGoToScaleMode()
+    {
+        /* Change visual state to scale: */
+        emit sigChangeVisualState(UIVisualStateType_Scale);
+    }
+};
+
+class UIVisualStateScale : public UIVisualState
+{
+    Q_OBJECT;
+
+public:
+
+    /* Scale visual state holder constructor: */
+    UIVisualStateScale(QObject *pParent, UISession *pSession, UIActionsPool *pActionsPool)
+        : UIVisualState(pParent, pSession, pActionsPool)
+    {
+        /* This visual state should take care of own action: */
+        QAction *pActionScale = m_pActionsPool->action(UIActionIndex_Toggle_Scale);
+        if (!pActionScale->isChecked())
+        {
+            pActionScale->blockSignals(true);
+            pActionScale->setChecked(true);
+            QTimer::singleShot(0, pActionScale, SLOT(sltUpdateAppearance()));
+            pActionScale->blockSignals(false);
+        }
+    }
+
+    /* Seamless visual state holder destructor: */
+    virtual ~UIVisualStateScale()
+    {
+        /* This visual state should take care of own action: */
+        QAction *pActionScale = m_pActionsPool->action(UIActionIndex_Toggle_Scale);
+        if (pActionScale->isChecked())
+        {
+            pActionScale->blockSignals(true);
+            pActionScale->setChecked(false);
+            QTimer::singleShot(0, pActionScale, SLOT(sltUpdateAppearance()));
+            pActionScale->blockSignals(false);
+        }
+    }
+
+    UIVisualStateType visualStateType() const { return UIVisualStateType_Scale; }
+
+    void change()
+    {
+        /* Connect action handlers: */
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Scale), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToNormalMode()), Qt::QueuedConnection);
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToFullscreenMode()), Qt::QueuedConnection);
+        connect(m_pActionsPool->action(UIActionIndex_Toggle_Seamless), SIGNAL(triggered(bool)),
+                this, SLOT(sltGoToSeamlessMode()), Qt::QueuedConnection);
+
+        /* Initialize the logic object: */
+        m_pMachineLogic->initialize();
+    }
+
+private slots:
+
     void sltGoToNormalMode()
     {
         /* Change visual state to normal: */
         emit sigChangeVisualState(UIVisualStateType_Normal);
+    }
+
+    void sltGoToFullscreenMode()
+    {
+        /* Change visual state to fullscreen: */
+        emit sigChangeVisualState(UIVisualStateType_Fullscreen);
+    }
+
+    void sltGoToSeamlessMode()
+    {
+        /* Change visual state to seamless: */
+        emit sigChangeVisualState(UIVisualStateType_Seamless);
     }
 };
 
@@ -321,7 +417,7 @@ UIMachine::~UIMachine()
     m_pSession = 0;
     delete m_pActionsPool;
     m_pActionsPool = 0;
-    m_session.Close();
+    m_session.UnlockMachine();
     m_session.detach();
     QApplication::quit();
 }
@@ -360,6 +456,12 @@ void UIMachine::sltChangeVisualState(UIVisualStateType visualStateType)
             pNewVisualState = new UIVisualStateSeamless(this, m_pSession, m_pActionsPool);
             break;
         }
+        case UIVisualStateType_Scale:
+        {
+            /* Create scale visual state: */
+            pNewVisualState = new UIVisualStateScale(this, m_pSession, m_pActionsPool);
+            break;
+        }
         default:
             break;
     }
@@ -393,7 +495,7 @@ void UIMachine::sltChangeVisualState(UIVisualStateType visualStateType)
     }
 }
 
-void UIMachine::closeVirtualMachine()
+void UIMachine::sltCloseVirtualMachine()
 {
     delete this;
 }
@@ -423,8 +525,20 @@ void UIMachine::loadMachineSettings()
          * But user can alter extra data manually in machine xml file and set there
          * more than one visual representation mode flags. Shame on such user!
          * There is no reason to enter in more than one visual representation mode
-         * at machine start, so we are chosing first of requested modes: */
+         * at machine start, so we are choosing first of requested modes: */
         bool fIsSomeExtendedModeChosen = false;
+
+        if (!fIsSomeExtendedModeChosen)
+        {
+            /* Test 'scale' flag: */
+            QString strScaleSettings = machine.GetExtraData(VBoxDefs::GUI_Scale);
+            if (strScaleSettings == "on")
+            {
+                fIsSomeExtendedModeChosen = true;
+                /* We can enter scale mode initially: */
+                initialStateType = UIVisualStateType_Scale;
+            }
+        }
 
         if (!fIsSomeExtendedModeChosen)
         {
@@ -460,6 +574,10 @@ void UIMachine::saveMachineSettings()
 
     /* Save extra-data settings: */
     {
+        /* Set 'scale' flag: */
+        machine.SetExtraData(VBoxDefs::GUI_Scale, m_pVisualState &&
+                             m_pVisualState->visualStateType() == UIVisualStateType_Scale ? "on" : QString());
+
         /* Set 'seamless' flag: */
         machine.SetExtraData(VBoxDefs::GUI_Seamless, m_pVisualState &&
                              m_pVisualState->visualStateType() == UIVisualStateType_Seamless ? "on" : QString());

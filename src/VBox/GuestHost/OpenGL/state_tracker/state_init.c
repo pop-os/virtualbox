@@ -18,6 +18,8 @@ CRContext *__currentContext = NULL;
 CRStateBits *__currentBits = NULL;
 GLboolean g_availableContexts[CR_MAX_CONTEXTS];
 
+static CRSharedState *gSharedState=NULL;
+
 static CRContext *defaultContext = NULL;
 
 
@@ -33,7 +35,11 @@ crStateAllocShared(void)
     if (s) {
         s->textureTable = crAllocHashtable();
         s->dlistTable = crAllocHashtable();
+        s->buffersTable = crAllocHashtable();
+        s->fbTable = crAllocHashtable();
+        s->rbTable = crAllocHashtable();
         s->refCount = 1; /* refcount is number of contexts using this state */
+        s->saveCount = 0;
     }
     return s;
 }
@@ -47,26 +53,96 @@ static void
 DeleteTextureCallback(void *texObj)
 {
 #ifndef IN_GUEST
-    diff_api.DeleteTextures(1, &((CRTextureObj *)texObj)->name);
+    diff_api.DeleteTextures(1, &((CRTextureObj *)texObj)->hwid);
 #endif
     crStateDeleteTextureObject((CRTextureObj *) texObj);
 }
 
-
 /**
  * Decrement shared state's refcount and delete when it hits zero.
  */
-static void
+DECLEXPORT(void)
 crStateFreeShared(CRSharedState *s)
 {
     s->refCount--;
     if (s->refCount <= 0) {
+        if (s==gSharedState)
+        {
+            gSharedState = NULL;
+        }
         crFreeHashtable(s->textureTable, DeleteTextureCallback);
         crFreeHashtable(s->dlistTable, crFree); /* call crFree for each entry */
+        crFreeHashtable(s->buffersTable, crStateFreeBufferObject);
+        crFreeHashtable(s->fbTable, crStateFreeFBO);
+        crFreeHashtable(s->rbTable, crStateFreeRBO);
         crFree(s);
     }
 }
 
+DECLEXPORT(void) STATE_APIENTRY
+crStateShareContext(GLboolean value)
+{
+    CRContext *pCtx = GetCurrentContext();
+    CRASSERT(pCtx && pCtx->shared);
+
+    if (value)
+    {
+        if (pCtx->shared == gSharedState)
+        {
+            return;
+        }
+
+        crDebug("Context(%i) shared", pCtx->id);
+
+        if (!gSharedState)
+        {
+            gSharedState = pCtx->shared;
+        }
+        else
+        {
+            crStateFreeShared(pCtx->shared);
+            pCtx->shared = gSharedState;
+            gSharedState->refCount++;
+        }
+    }
+    else
+    {
+        if (pCtx->shared != gSharedState)
+        {
+            return;
+        }
+
+        crDebug("Context(%i) unshared", pCtx->id);
+
+        if (gSharedState->refCount==1)
+        {
+            gSharedState = NULL;
+        }
+        else
+        {
+            pCtx->shared = crStateAllocShared();
+            pCtx->shared->id = pCtx->id;
+            crStateFreeShared(gSharedState);
+        }
+    }
+}
+
+DECLEXPORT(GLboolean) STATE_APIENTRY
+crStateContextIsShared(CRContext *pCtx)
+{
+    return pCtx->shared==gSharedState;
+}
+
+DECLEXPORT(void) STATE_APIENTRY
+crStateSetSharedContext(CRContext *pCtx)
+{
+    if (gSharedState)
+    {
+        crWarning("crStateSetSharedContext: shared is being changed from %p to %p", gSharedState, pCtx->shared);
+    }
+
+    gSharedState = pCtx->shared;
+}
 
 /*
  * Helper for crStateCreateContext, below.
@@ -100,6 +176,7 @@ crStateCreateContextId(int i, const CRLimitsState *limits,
     }
     else {
         ctx->shared = crStateAllocShared();
+        ctx->shared->id = ctx->id;
     }
 
     /* use Chromium's OpenGL defaults */
@@ -231,6 +308,11 @@ void crStateInit(void)
         /* Free the default/NULL context.
          * Ensures context bits are reset */
         crStateFreeContext(defaultContext);
+#ifdef CHROMIUM_THREADSAFE
+        crSetTSD(&__contextTSD, NULL);
+#else
+        __currentContext = NULL;
+#endif
     }
 
     /* Reset diff_api */

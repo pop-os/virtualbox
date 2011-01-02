@@ -1,4 +1,4 @@
-/* $Id: SUPLib-freebsd.cpp $ */
+/* $Id: SUPLib-freebsd.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - FreeBSD specific parts.
  */
@@ -130,7 +130,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
 int suplibOsTerm(PSUPLIBDATA pThis)
 {
     /*
-     * Check if we're initited at all.
+     * Check if we're inited at all.
      */
     if (pThis->hDevice != NIL_RTFILE)
     {

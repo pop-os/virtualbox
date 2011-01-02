@@ -1,4 +1,4 @@
-/* $Id: DevINIP.cpp $ */
+/* $Id: DevINIP.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DevINIP - Internal Network IP stack device/service.
  */
@@ -80,7 +80,7 @@ typedef struct DEVINTNETIP
     PPDMINETWORKUP   pDrv;
     /** Pointer to the device instance. */
     PPDMDEVINSR3            pDevIns;
-    /** MAC adress. */
+    /** MAC address. */
     RTMAC                   MAC;
     /** Static IP address of the interface. */
     char                   *pszIP;

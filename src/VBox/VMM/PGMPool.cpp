@@ -1,4 +1,4 @@
-/* $Id: PGMPool.cpp $ */
+/* $Id: PGMPool.cpp 34741 2010-12-06 12:12:23Z vboxsync $ */
 /** @file
  * PGM Shadow Page Pool.
  */
@@ -127,7 +127,7 @@ static const DBGCCMD    g_aCmds[] =
 #endif
 
 /**
- * Initalizes the pool
+ * Initializes the pool
  *
  * @returns VBox status code.
  * @param   pVM     The VM handle.
@@ -154,7 +154,7 @@ int pgmR3PoolInit(PVM pVM)
     if (cbRam >= UINT64_C(2) * _1G)
     {
         /* In the nested paging case we require 2 + 513 * (cbRam/1GB) pages to
-         * store the entire page table descriptors.
+         * store all page table descriptors.
          */
         uint64_t u64MaxPages = cbRam  / (_1G / UINT64_C(512));
         if (u64MaxPages > PGMPOOL_IDX_LAST)
@@ -173,6 +173,15 @@ int pgmR3PoolInit(PVM pVM)
     AssertLogRelMsgReturn(cMaxPages <= PGMPOOL_IDX_LAST && cMaxPages >= RT_ALIGN(PGMPOOL_IDX_FIRST, 16),
                           ("cMaxPages=%u (%#x)\n", cMaxPages, cMaxPages), VERR_INVALID_PARAMETER);
     cMaxPages = RT_ALIGN(cMaxPages, 16);
+
+    /** todo:
+     * We need to be much more careful with our allocation strategy here.
+     * For nested paging we don't need pool user info nor extents at all, but we can't check for nested paging here (too early during init to get a confirmation it can be used)
+     * The default for large memory configs is a bit large for shadow paging, so I've restricted the extent maximum to 2k (2k * 16 = 32k of hyper heap)
+     *
+     * Also when large page support is enabled, we typically don't need so much,
+     * although that depends on the availability of 2 MB chunks on the host.
+     */
 
     /** @cfgm{/PGM/Pool/MaxUsers, uint16_t, #users, MaxUsers, 32K, MaxPages*2}
      * The max number of shadow page user tracking records. Each shadow page has
@@ -196,7 +205,7 @@ int pgmR3PoolInit(PVM pVM)
                           ("cMaxPhysExts=%u (%#x)\n", cMaxPhysExts, cMaxPhysExts), VERR_INVALID_PARAMETER);
 
     /** @cfgm{/PGM/Pool/ChacheEnabled, bool, true}
-     * Enables or disabling caching of shadow pages. Chaching means that we will try
+     * Enables or disabling caching of shadow pages. Caching means that we will try
      * reuse shadow pages instead of recreating them everything SyncCR3, SyncPT or
      * SyncPage requests one. When reusing a shadow page, we can save time
      * reconstructing it and it's children.
@@ -648,7 +657,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                 case PGMPOOLKIND_EPT_PD_FOR_PHYS: /* Large pages reference 2 MB of physical memory, so we must clear them. */
                     if (pPage->cPresent)
                     {
-                        PX86PDPAE pShwPD = (PX86PDPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                        PX86PDPAE pShwPD = (PX86PDPAE)PGMPOOL_PAGE_2_PTR_V2(pPool->CTX_SUFF(pVM), pVCpu, pPage);
                         for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
                         {
                             if (    pShwPD->a[i].n.u1Present
@@ -668,9 +677,10 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                 case PGMPOOLKIND_PAE_PD_PHYS:   /* Large pages reference 2 MB of physical memory, so we must clear them. */
                     if (pPage->cPresent)
                     {
-                        PEPTPD pShwPD = (PEPTPD)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                        PEPTPD pShwPD = (PEPTPD)PGMPOOL_PAGE_2_PTR_V2(pPool->CTX_SUFF(pVM), pVCpu, pPage);
                         for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
                         {
+                            Assert((pShwPD->a[i].u & UINT64_C(0xfff0000000000f80)) == 0);
                             if (    pShwPD->a[i].n.u1Present
                                 &&  pShwPD->a[i].b.u1Size)
                             {
@@ -698,7 +708,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                 {
                     if (pPage->cPresent)
                     {
-                        void *pvShw = PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                        void *pvShw = PGMPOOL_PAGE_2_PTR_V2(pPool->CTX_SUFF(pVM), pVCpu, pPage);
                         STAM_PROFILE_START(&pPool->StatZeroPage, z);
 #if 0
                         /* Useful check for leaking references; *very* expensive though. */
@@ -711,7 +721,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                             case PGMPOOLKIND_PAE_PT_FOR_PHYS:
                             {
                                 bool fFoundFirst = false;
-                                PX86PTPAE pPT = (PX86PTPAE)pvShw;
+                                PPGMSHWPTPAE pPT = (PPGMSHWPTPAE)pvShw;
                                 for (unsigned ptIndex = 0; ptIndex < RT_ELEMENTS(pPT->a); ptIndex++)
                                 {
                                     if (pPT->a[ptIndex].u)
@@ -723,9 +733,9 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                                                 Log(("ptIndex = %d first present = %d\n", ptIndex, pPage->iFirstPresent));
                                             fFoundFirst = true;
                                         }
-                                        if (pPT->a[ptIndex].n.u1Present)
+                                        if (PGMSHWPTEPAE_IS_P(pPT->a[ptIndex]))
                                         {
-                                            pgmPoolTracDerefGCPhysHint(pPool, pPage, pPT->a[ptIndex].u & X86_PTE_PAE_PG_MASK, NIL_RTGCPHYS);
+                                            pgmPoolTracDerefGCPhysHint(pPool, pPage, PGMSHWPTEPAE_GET_HCPHYS(pPT->a[ptIndex]), NIL_RTGCPHYS);
                                             if (pPage->iFirstPresent == ptIndex)
                                                 pPage->iFirstPresent = NIL_PGMPOOL_PRESENT_INDEX;
                                         }
@@ -818,15 +828,15 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
     /* Note: we must do this *after* clearing all page references and shadow page tables as there might be stale references to
      *       recently removed MMIO ranges around that might otherwise end up asserting in pgmPoolTracDerefGCPhysHint
      */
-    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
     {
         PPGMPOOLPAGE pPage;
         unsigned     idxPage;
 
-        if (pPool->aIdxDirtyPages[i] == NIL_PGMPOOL_IDX)
+        if (pPool->aDirtyPages[i].uIdx == NIL_PGMPOOL_IDX)
             continue;
 
-        idxPage = pPool->aIdxDirtyPages[i];
+        idxPage = pPool->aDirtyPages[i].uIdx;
         AssertRelease(idxPage != NIL_PGMPOOL_IDX);
         pPage = &pPool->aPages[idxPage];
         Assert(pPage->idx == idxPage);
@@ -837,11 +847,11 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
         Log(("Reactivate dirty page %RGp\n", pPage->GCPhys));
 
         /* First write protect the page again to catch all write accesses. (before checking for changes -> SMP) */
-        int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys);
+        int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys & PAGE_BASE_GC_MASK);
         Assert(rc == VINF_SUCCESS);
         pPage->fDirty = false;
 
-        pPool->aIdxDirtyPages[i] = NIL_PGMPOOL_IDX;
+        pPool->aDirtyPages[i].uIdx = NIL_PGMPOOL_IDX;
     }
 
     /* Clear all dirty pages. */
@@ -882,6 +892,77 @@ void pgmR3PoolClearAll(PVM pVM, bool fFlushRemTlb)
     AssertRC(rc);
 }
 
+/**
+ * Protect all pgm pool page table entries to monitor writes
+ *
+ * @param   pVM         The VM handle.
+ *
+ * Remark: assumes the caller will flush all TLBs (!!)
+ */
+void pgmR3PoolWriteProtectPages(PVM pVM)
+{
+    Assert(PGMIsLockOwner(pVM));
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+    unsigned cLeft = pPool->cUsedPages;
+    unsigned iPage = pPool->cCurPages;
+    while (--iPage >= PGMPOOL_IDX_FIRST)
+    {
+        PPGMPOOLPAGE pPage = &pPool->aPages[iPage];
+        if (    pPage->GCPhys != NIL_RTGCPHYS
+            &&  pPage->cPresent)
+        {
+            union
+            {
+                void           *pv;
+                PX86PT          pPT;
+                PPGMSHWPTPAE    pPTPae;
+                PEPTPT          pPTEpt;
+            } uShw;
+            uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
+
+            switch (pPage->enmKind)
+            {
+                /*
+                 * We only care about shadow page tables.
+                 */
+                case PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT:
+                case PGMPOOLKIND_32BIT_PT_FOR_32BIT_4MB:
+                case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
+                    for (unsigned iShw = 0; iShw < RT_ELEMENTS(uShw.pPT->a); iShw++)
+                    {
+                        if (uShw.pPT->a[iShw].n.u1Present)
+                            uShw.pPT->a[iShw].n.u1Write = 0;
+                    }
+                    break;
+
+                case PGMPOOLKIND_PAE_PT_FOR_32BIT_PT:
+                case PGMPOOLKIND_PAE_PT_FOR_32BIT_4MB:
+                case PGMPOOLKIND_PAE_PT_FOR_PAE_PT:
+                case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
+                case PGMPOOLKIND_PAE_PT_FOR_PHYS:
+                    for (unsigned iShw = 0; iShw < RT_ELEMENTS(uShw.pPTPae->a); iShw++)
+                    {
+                        if (PGMSHWPTEPAE_IS_P(uShw.pPTPae->a[iShw]))
+                            PGMSHWPTEPAE_SET_RO(uShw.pPTPae->a[iShw]);
+                    }
+                    break;
+
+                case PGMPOOLKIND_EPT_PT_FOR_PHYS:
+                    for (unsigned iShw = 0; iShw < RT_ELEMENTS(uShw.pPTEpt->a); iShw++)
+                    {
+                        if (uShw.pPTEpt->a[iShw].n.u1Present)
+                            uShw.pPTEpt->a[iShw].n.u1Write = 0;
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+            if (!--cLeft)
+                break;
+        }
+    }
+}
 
 #ifdef VBOX_WITH_DEBUGGER
 /**
@@ -912,44 +993,47 @@ static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
         /* Todo: cover other paging modes too. */
         if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
         {
-            PX86PTPAE pShwPT = (PX86PTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
-            PX86PTPAE pGstPT;
-            int rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pGstPT); AssertReleaseRC(rc);
-
-            /* Check if any PTEs are out of sync. */
-            for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
+            PPGMSHWPTPAE pShwPT = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
             {
-                if (pShwPT->a[j].n.u1Present)
+                PX86PTPAE pGstPT;
+                PGMPAGEMAPLOCK LockPage;
+                int rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, pPage->GCPhys, (const void **)&pGstPT, &LockPage);     AssertReleaseRC(rc);
+
+                /* Check if any PTEs are out of sync. */
+                for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
                 {
-                    RTHCPHYS HCPhys = NIL_RTHCPHYS;
-                    rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[j].u & X86_PTE_PAE_PG_MASK, &HCPhys);
-                    if (    rc != VINF_SUCCESS
-                        ||  (pShwPT->a[j].u & X86_PTE_PAE_PG_MASK) != HCPhys)
+                    if (PGMSHWPTEPAE_IS_P(pShwPT->a[j]))
                     {
-                        if (fFirstMsg)
+                        RTHCPHYS HCPhys = NIL_RTHCPHYS;
+                        rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[j].u & X86_PTE_PAE_PG_MASK, &HCPhys);
+                        if (   rc != VINF_SUCCESS
+                            || PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[j]) != HCPhys)
                         {
-                            pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
-                            fFirstMsg = false;
+                            if (fFirstMsg)
+                            {
+                                pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
+                                fFirstMsg = false;
+                            }
+                            pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch HCPhys: rc=%Rrc idx=%d guest %RX64 shw=%RX64 vs %RHp\n", rc, j, pGstPT->a[j].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), HCPhys);
                         }
-                        pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch HCPhys: rc=%d idx=%d guest %RX64 shw=%RX64 vs %RHp\n", rc, j, pGstPT->a[j].u, pShwPT->a[j].u, HCPhys);
-                    }
-                    else
-                    if (    pShwPT->a[j].n.u1Write
-                        &&  !pGstPT->a[j].n.u1Write)
-                    {
-                        if (fFirstMsg)
+                        else if (   PGMSHWPTEPAE_IS_RW(pShwPT->a[j])
+                                 && !pGstPT->a[j].n.u1Write)
                         {
-                            pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
-                            fFirstMsg = false;
+                            if (fFirstMsg)
+                            {
+                                pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
+                                fFirstMsg = false;
+                            }
+                            pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch r/w gst/shw: idx=%d guest %RX64 shw=%RX64 vs %RHp\n", j, pGstPT->a[j].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), HCPhys);
                         }
-                        pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch r/w gst/shw: idx=%d guest %RX64 shw=%RX64 vs %RHp\n", j, pGstPT->a[j].u, pShwPT->a[j].u, HCPhys);
                     }
                 }
+                PGMPhysReleasePageMappingLock(pVM, &LockPage);
             }
 
             /* Make sure this page table can't be written to from any shadow mapping. */
             RTHCPHYS HCPhysPT = NIL_RTHCPHYS;
-            rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pPage->GCPhys, &HCPhysPT);
+            int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pPage->GCPhys, &HCPhysPT);
             AssertMsgRC(rc, ("PGMPhysGCPhys2HCPhys failed with rc=%d for %RGp\n", rc, pPage->GCPhys));
             if (rc == VINF_SUCCESS)
             {
@@ -959,23 +1043,22 @@ static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
 
                     if (pTempPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
                     {
-                        PX86PTPAE pShwPT2 = (PX86PTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pTempPage);
+                        PPGMSHWPTPAE pShwPT2 = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pTempPage);
 
                         for (unsigned k = 0; k < RT_ELEMENTS(pShwPT->a); k++)
                         {
-                            if (    pShwPT2->a[k].n.u1Present
-                                &&  pShwPT2->a[k].n.u1Write
+                            if (    PGMSHWPTEPAE_IS_P_RW(pShwPT2->a[k])
 # ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
                                 &&  !pPage->fDirty
 # endif
-                                &&  ((pShwPT2->a[k].u & X86_PTE_PAE_PG_MASK) == HCPhysPT))
+                                &&  PGMSHWPTEPAE_GET_HCPHYS(pShwPT2->a[k]) == HCPhysPT)
                             {
                                 if (fFirstMsg)
                                 {
                                     pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Check pool page %RGp\n", pPage->GCPhys);
                                     fFirstMsg = false;
                                 }
-                                pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch: r/w: GCPhys=%RGp idx=%d shw %RX64 %RX64\n", pTempPage->GCPhys, k, pShwPT->a[k].u, pShwPT2->a[k].u);
+                                pCmdHlp->pfnPrintf(pCmdHlp, NULL, "Mismatch: r/w: GCPhys=%RGp idx=%d shw %RX64 %RX64\n", pTempPage->GCPhys, k, PGMSHWPTEPAE_GET_LOG(pShwPT->a[k]), PGMSHWPTEPAE_GET_LOG(pShwPT2->a[k]));
                             }
                         }
                     }

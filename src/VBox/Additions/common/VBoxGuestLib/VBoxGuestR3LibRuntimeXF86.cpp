@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibRuntimeXF86.cpp $ */
+/* $Id: VBoxGuestR3LibRuntimeXF86.cpp 31159 2010-07-28 03:28:00Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions,
  *                  implements the minimum of runtime functions needed for
@@ -127,8 +127,9 @@ RTDECL(void) RTLogLoggerEx(PRTLOGGER, unsigned, unsigned, const char *pszFormat,
     va_end(args);
 }
 
-RTDECL(void *)  RTMemTmpAlloc(size_t cb)
+RTDECL(void *)  RTMemTmpAllocTag(size_t cb, const char *pszTag)
 {
+    NOREF(pszTag);
     return xalloc(cb);
 }
 

@@ -1,4 +1,4 @@
-/* $Id: DrvVUSBRootHub.cpp $ */
+/* $Id: DrvVUSBRootHub.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
  * Virtual USB - Root Hub Driver.
  */
@@ -31,9 +31,9 @@
  * @section sec_dev_vusb_urb     The Life of an URB
  *
  * The URB is created when the HCI calls the roothub (VUSB) method pfnNewUrb.
- * VUSB has a pool of URBs, if no free URBs are availabe a new one is
+ * VUSB has a pool of URBs, if no free URBs are available a new one is
  * allocated. The returned URB starts life in the ALLOCATED state and all
- * fields are initalized with sensible defaults.
+ * fields are initialized with sensible defaults.
  *
  * The HCI then copies any request data into the URB if it's an host2dev
  * transfer. It then submits the URB by calling the pfnSubmitUrb roothub
@@ -84,7 +84,7 @@
  * transfer directions the status of the transfer has to be kept around for
  * the STATUS stage.
  *
- * To complicate matters futher, VUSB must intercept and in some cases emulate
+ * To complicate matters further, VUSB must intercept and in some cases emulate
  * some of the standard requests in order to keep the virtual device state
  * correct and provide the correct virtualization of a device.
  *
@@ -866,6 +866,11 @@ static DECLCALLBACK(void) vusbRhDestruct(PPDMDRVINS pDrvIns)
         pUrb->VUsb.pNext = NULL;
         RTMemFree(pUrb);
     }
+    if (pRh->Hub.pszName)
+    {
+        RTStrFree(pRh->Hub.pszName);
+        pRh->Hub.pszName = NULL;
+    }
     RTCritSectDelete(&pRh->CritSect);
 }
 
@@ -877,7 +882,7 @@ static DECLCALLBACK(void) vusbRhDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    LogFlow(("vusbRhConstruct:\n"));
+    LogFlow(("vusbRhConstruct: Instance %d\n", pDrvIns->iInstance));
     PVUSBROOTHUB pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
@@ -920,6 +925,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     //pThis->hub.cPorts                - later
     pThis->Hub.cDevices                 = 0;
     pThis->Hub.Dev.pHub                 = &pThis->Hub;
+    RTStrAPrintf(&pThis->Hub.pszName, "RootHub#%d", pDrvIns->iInstance);
     /* misc */
     pThis->pDrvIns                      = pDrvIns;
     /* the connector */
@@ -1021,7 +1027,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatUrbsSubmitted, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of submitted URBs.",                      "/VUSB/%d/Bulk/Urbs",                   pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatUrbsFailed,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of failed URBs.",                         "/VUSB/%d/Bulk/UrbsFailed",             pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatUrbsCancelled, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of cancelled URBs.",                      "/VUSB/%d/Bulk/UrbsFailed/Cancelled",   pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transfered.",                    "/VUSB/%d/Bulk/ActBytes",               pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transferred.",                    "/VUSB/%d/Bulk/ActBytes",               pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatActReadBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Read.",                                          "/VUSB/%d/Bulk/ActBytes/Read",          pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatActWriteBytes, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Write.",                                         "/VUSB/%d/Bulk/ActBytes/Write",         pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_BULK].StatReqBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Requested number of bytes.",                     "/VUSB/%d/Bulk/ReqBytes",               pDrvIns->iInstance);
@@ -1032,7 +1038,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatUrbsSubmitted, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of submitted URBs.",                      "/VUSB/%d/Ctrl/Urbs",                   pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatUrbsFailed,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of failed URBs.",                         "/VUSB/%d/Ctrl/UrbsFailed",             pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatUrbsCancelled, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of cancelled URBs.",                      "/VUSB/%d/Ctrl/UrbsFailed/Cancelled",   pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transfered.",                    "/VUSB/%d/Ctrl/ActBytes",               pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transferred.",                    "/VUSB/%d/Ctrl/ActBytes",               pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatActReadBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Read.",                                          "/VUSB/%d/Ctrl/ActBytes/Read",          pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatActWriteBytes, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Write.",                                         "/VUSB/%d/Ctrl/ActBytes/Write",         pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_CTRL].StatReqBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Requested number of bytes.",                     "/VUSB/%d/Ctrl/ReqBytes",               pDrvIns->iInstance);
@@ -1043,7 +1049,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatUrbsSubmitted, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of submitted URBs.",                      "/VUSB/%d/Intr/Urbs",                   pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatUrbsFailed,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of failed URBs.",                         "/VUSB/%d/Intr/UrbsFailed",             pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatUrbsCancelled, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of cancelled URBs.",                      "/VUSB/%d/Intr/UrbsFailed/Cancelled",   pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transfered.",                    "/VUSB/%d/Intr/ActBytes",               pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transferred.",                    "/VUSB/%d/Intr/ActBytes",               pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatActReadBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Read.",                                          "/VUSB/%d/Intr/ActBytes/Read",          pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatActWriteBytes, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Write.",                                         "/VUSB/%d/Intr/ActBytes/Write",         pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_INTR].StatReqBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Requested number of bytes.",                     "/VUSB/%d/Intr/ReqBytes",               pDrvIns->iInstance);
@@ -1054,7 +1060,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatUrbsSubmitted, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of submitted URBs.",                      "/VUSB/%d/Isoc/Urbs",                   pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatUrbsFailed,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of failed URBs.",                         "/VUSB/%d/Isoc/UrbsFailed",             pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatUrbsCancelled, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "Number of cancelled URBs.",                      "/VUSB/%d/Isoc/UrbsFailed/Cancelled",   pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transfered.",                    "/VUSB/%d/Isoc/ActBytes",               pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatActBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Number of bytes transferred.",                    "/VUSB/%d/Isoc/ActBytes",               pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatActReadBytes,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Read.",                                          "/VUSB/%d/Isoc/ActBytes/Read",          pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatActWriteBytes, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Write.",                                         "/VUSB/%d/Isoc/ActBytes/Write",         pDrvIns->iInstance);
     PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aTypes[VUSBXFERTYPE_ISOC].StatReqBytes,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_BYTES, "Requested number of bytes.",                     "/VUSB/%d/Isoc/ReqBytes",               pDrvIns->iInstance);

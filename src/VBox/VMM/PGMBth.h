@@ -1,10 +1,10 @@
-/* $Id: PGMBth.h $ */
+/* $Id: PGMBth.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBox - Page Manager / Monitor, Shadow+Guest Paging Template.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,6 @@ PGM_BTH_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta);
 
 PGM_BTH_DECL(int, Trap0eHandler)(PVMCPU pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, bool *pfLockTaken);
 PGM_BTH_DECL(int, SyncCR3)(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal);
-PGM_BTH_DECL(int, SyncPage)(PVMCPU pVCpu, X86PDE PdeSrc, RTGCPTR GCPtrPage, unsigned cPages, unsigned uError);
 PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPU pVCpu, RTGCPTR Addr, unsigned fPage, unsigned uError);
 PGM_BTH_DECL(int, InvalidatePage)(PVMCPU pVCpu, RTGCPTR GCPtrPage);
 PGM_BTH_DECL(int, PrefetchPage)(PVMCPU pVCpu, RTGCPTR GCPtrPage);
@@ -53,7 +52,6 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
     pModeData->pfnR3BthRelocate             = PGM_BTH_NAME(Relocate);
     pModeData->pfnR3BthSyncCR3              = PGM_BTH_NAME(SyncCR3);
     pModeData->pfnR3BthInvalidatePage       = PGM_BTH_NAME(InvalidatePage);
-    pModeData->pfnR3BthSyncPage             = PGM_BTH_NAME(SyncPage);
     pModeData->pfnR3BthPrefetchPage         = PGM_BTH_NAME(PrefetchPage);
     pModeData->pfnR3BthVerifyAccessSyncPage = PGM_BTH_NAME(VerifyAccessSyncPage);
 #ifdef VBOX_STRICT
@@ -73,9 +71,7 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
         rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(InvalidatePage),      &pModeData->pfnRCBthInvalidatePage);
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(InvalidatePage), rc), rc);
         rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(SyncCR3),             &pModeData->pfnRCBthSyncCR3);
-        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(SyncPage), rc), rc);
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(SyncPage),            &pModeData->pfnRCBthSyncPage);
-        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(SyncPage), rc), rc);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(SyncCR3), rc), rc);
         rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(PrefetchPage),        &pModeData->pfnRCBthPrefetchPage);
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_RC_STR(PrefetchPage), rc), rc);
         rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_BTH_NAME_RC_STR(VerifyAccessSyncPage),&pModeData->pfnRCBthVerifyAccessSyncPage);
@@ -97,8 +93,6 @@ PGM_BTH_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(InvalidatePage), rc), rc);
         rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(SyncCR3),             &pModeData->pfnR0BthSyncCR3);
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(SyncCR3), rc), rc);
-        rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(SyncPage),            &pModeData->pfnR0BthSyncPage);
-        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(SyncPage), rc), rc);
         rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(PrefetchPage),        &pModeData->pfnR0BthPrefetchPage);
         AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_BTH_NAME_R0_STR(PrefetchPage), rc), rc);
         rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_BTH_NAME_R0_STR(VerifyAccessSyncPage),&pModeData->pfnR0BthVerifyAccessSyncPage);
@@ -135,9 +129,10 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
       && (   PGM_GST_TYPE == PGM_TYPE_REAL   \
           || PGM_GST_TYPE == PGM_TYPE_PROT))
 
-    PVM pVM   = pVCpu->pVMR3;
+    PVM pVM = pVCpu->pVMR3;
 
-    Assert(!HWACCMIsNestedPagingActive(pVM));
+    Assert(HWACCMIsNestedPagingActive(pVM) == pVM->pgm.s.fNestedPaging);
+    Assert(!pVM->pgm.s.fNestedPaging);
 
     pgmLock(pVM);
     /* Note: we only really need shadow paging in real and protected mode for VT-x and AMD-V (excluding nested paging/EPT modes),
@@ -163,11 +158,12 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
         pVCpu->pgm.s.iShwUserTable = 0;
     }
 
-    /* contruct a fake address. */
+    /* construct a fake address. */
     GCPhysCR3 = RT_BIT_64(63);
     pVCpu->pgm.s.iShwUser      = SHW_POOL_ROOT_IDX;
     pVCpu->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
-    int rc = pgmPoolAlloc(pVM, GCPhysCR3, BTH_PGMPOOLKIND_ROOT, pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable, &pVCpu->pgm.s.pShwPageCR3R3);
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, BTH_PGMPOOLKIND_ROOT, pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable,
+                          &pVCpu->pgm.s.pShwPageCR3R3);
     if (rc == VERR_PGM_POOL_FLUSHED)
     {
         Log(("Bth-Enter: PGM pool flushed -> signal sync cr3\n"));
@@ -202,7 +198,7 @@ PGM_BTH_DECL(int, Enter)(PVMCPU pVCpu, RTGCPHYS GCPhysCR3)
  * @returns VBox status code.
  * @param   pVM         The VM handle.
  * @param   pVCpu       The VMCPU to operate on.
- * @param   offDelta    The reloation offset.
+ * @param   offDelta    The relocation offset.
  */
 PGM_BTH_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
 {

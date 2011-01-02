@@ -1,4 +1,4 @@
-/* $Id: ConsoleImplTeleporter.cpp $ */
+/* $Id: ConsoleImplTeleporter.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBox Console COM Class implementation, The Teleporter Part.
  */
@@ -38,6 +38,7 @@
 #include <VBox/err.h>
 #include <VBox/version.h>
 #include <VBox/com/string.h>
+#include "VBox/com/ErrorInfo.h"
 
 
 /*******************************************************************************
@@ -109,7 +110,7 @@ public:
 
 
 /**
- * Teleporter state used by the destiation side.
+ * Teleporter state used by the destination side.
  */
 class TeleporterStateTrg : public TeleporterState
 {
@@ -954,7 +955,9 @@ Console::Teleport(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxD
     ComObjPtr<Progress> ptrProgress;
     HRESULT hrc = ptrProgress.createObject();
     if (FAILED(hrc)) return hrc;
-    hrc = ptrProgress->init(static_cast<IConsole *>(this), Bstr(tr("Teleporter")), TRUE /*aCancelable*/);
+    hrc = ptrProgress->init(static_cast<IConsole *>(this),
+                            Bstr(tr("Teleporter")).raw(),
+                            TRUE /*aCancelable*/);
     if (FAILED(hrc)) return hrc;
 
     TeleporterStateSrc *pState = new TeleporterStateSrc(this, mpVM, ptrProgress, mMachineState);
@@ -1091,7 +1094,7 @@ Console::teleporterTrg(PVM pVM, IMachine *pMachine, Utf8Str *pErrorMsg, bool fSt
             if (pProgress->setCancelCallback(teleporterProgressCancelCallback, pvUser))
             {
                 LogRel(("Teleporter: Waiting for incoming VM...\n"));
-                hrc = pProgress->SetNextOperation(Bstr(tr("Waiting for incoming VM")), 1);
+                hrc = pProgress->SetNextOperation(Bstr(tr("Waiting for incoming VM")).raw(), 1);
                 if (SUCCEEDED(hrc))
                 {
                     vrc = RTTcpServerListen(hServer, Console::teleporterTrgServeConnection, &theState);
@@ -1280,12 +1283,12 @@ Console::teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser)
     if (RT_SUCCESS(vrc))
     {
         LogRel(("Teleporter: Incoming VM from %RTnaddr!\n", &Addr));
-        hrc = pState->mptrProgress->SetNextOperation(Bstr(Utf8StrFmt(tr("Teleporting VM from %RTnaddr"), &Addr)), 8);
+        hrc = pState->mptrProgress->SetNextOperation(BstrFmt(tr("Teleporting VM from %RTnaddr"), &Addr).raw(), 8);
     }
     else
     {
         LogRel(("Teleporter: Incoming VM!\n"));
-        hrc = pState->mptrProgress->SetNextOperation(Bstr(tr("Teleporting VM")), 8);
+        hrc = pState->mptrProgress->SetNextOperation(Bstr(tr("Teleporting VM")).raw(), 8);
     }
     AssertMsg(SUCCEEDED(hrc) || hrc == E_FAIL, ("%Rhrc\n", hrc));
 

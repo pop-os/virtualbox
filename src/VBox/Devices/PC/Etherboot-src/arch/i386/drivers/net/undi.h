@@ -6,7 +6,7 @@ This file Copyright (C) 2003 Michael Brown <mbrown@fensystems.co.uk>
 of Fen Systems Ltd. (http://www.fensystems.co.uk/).  All rights
 reserved.
 
-$Id: undi.h $
+$Id: undi.h 33656 2010-11-01 14:18:11Z vboxsync $
 ***************************************************************************/
 
 /*

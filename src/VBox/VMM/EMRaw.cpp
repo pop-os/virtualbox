@@ -1,4 +1,4 @@
-/* $Id: EMRaw.cpp $ */
+/* $Id: EMRaw.cpp 32956 2010-10-06 16:06:53Z vboxsync $ */
 /** @file
  * EM - Execution Monitor / Manager - software virtualization
  */
@@ -53,6 +53,7 @@
 #include <VBox/pdmqueue.h>
 #include <VBox/patm.h>
 #include "EMInternal.h"
+#include "include/internal/em.h"
 #include <VBox/vm.h>
 #include <VBox/cpumdis.h>
 #include <VBox/dis.h>
@@ -689,7 +690,7 @@ static int emR3RawGuestTrap(PVM pVM, PVMCPU pVCpu)
                 AssertRC(rc);
 
                 uint32_t opsize;
-                rc = EMInterpretInstructionCPU(pVM, pVCpu, &cpu, CPUMCTX2CORE(pCtx), 0, &opsize);
+                rc = VBOXSTRICTRC_TODO(EMInterpretInstructionCPU(pVM, pVCpu, &cpu, CPUMCTX2CORE(pCtx), 0, EMCODETYPE_SUPERVISOR, &opsize));
                 if (RT_SUCCESS(rc))
                 {
                     pCtx->rip += cpu.opsize;
@@ -1183,7 +1184,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                     }
 #endif
 
-                    rc = EMInterpretInstructionCPU(pVM, pVCpu, &Cpu, CPUMCTX2CORE(pCtx), 0, &size);
+                    rc = VBOXSTRICTRC_TODO(EMInterpretInstructionCPU(pVM, pVCpu, &Cpu, CPUMCTX2CORE(pCtx), 0, EMCODETYPE_SUPERVISOR, &size));
                     if (RT_SUCCESS(rc))
                     {
                         pCtx->rip += Cpu.opsize;
@@ -1527,9 +1528,20 @@ int emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * Execute the code.
          */
         STAM_PROFILE_ADV_STOP(&pVCpu->em.s.StatRAWEntry, b);
-        STAM_PROFILE_START(&pVCpu->em.s.StatRAWExec, c);
-        rc = VMMR3RawRunGC(pVM, pVCpu);
-        STAM_PROFILE_STOP(&pVCpu->em.s.StatRAWExec, c);
+        if (RT_LIKELY(EMR3IsExecutionAllowed(pVM, pVCpu)))
+        {
+            STAM_PROFILE_START(&pVCpu->em.s.StatRAWExec, c);
+            rc = VMMR3RawRunGC(pVM, pVCpu);
+            STAM_PROFILE_STOP(&pVCpu->em.s.StatRAWExec, c);
+        }
+        else
+        {
+            /* Give up this time slice; virtual time continues */
+            STAM_REL_PROFILE_ADV_START(&pVCpu->em.s.StatCapped, u);
+            RTThreadSleep(5);
+            STAM_REL_PROFILE_ADV_STOP(&pVCpu->em.s.StatCapped, u);
+            rc = VINF_SUCCESS;
+        }
         STAM_PROFILE_ADV_START(&pVCpu->em.s.StatRAWTail, d);
 
         LogFlow(("RR0-E: %08X ESP=%08X IF=%d VMFlags=%x PIF=%d CPL=%d\n", pCtx->eip, pCtx->esp, pCtx->eflags.Bits.u1IF, pGCState->uVMFlags, pGCState->fPIF, (pCtx->ss & X86_SEL_RPL)));

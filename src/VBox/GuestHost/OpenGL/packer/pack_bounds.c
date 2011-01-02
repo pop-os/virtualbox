@@ -10,35 +10,41 @@
 
 void PACK_APIENTRY crPackBoundsInfoCR( const CRrecti *bounds, const GLbyte *payload, GLint len, GLint num_opcodes )
 {
-	GET_PACKER_CONTEXT(pc);
-	/* Don't get the buffered_ptr here because we've already 
-	 * verified that there's enough space for everything. */
+    CR_GET_PACKER_CONTEXT(pc);
+    /* Don't get the buffered_ptr here because we've already 
+     * verified that there's enough space for everything. */
 
-	unsigned char *data_ptr = pc->buffer.data_current;
-	int len_aligned     = ( len + 0x3 ) & ~0x3;
-	int total_len = 24 + len_aligned;
+    unsigned char *data_ptr;
+    int len_aligned, total_len;
 
-	WRITE_DATA( 0, int, total_len );
-	WRITE_DATA( 4, int, bounds->x1 );
-	WRITE_DATA( 8, int, bounds->y1 );
-	WRITE_DATA( 12, int, bounds->x2 );
-	WRITE_DATA( 16, int, bounds->y2 );
-	WRITE_DATA( 20, int, num_opcodes );
+    CR_LOCK_PACKER_CONTEXT(pc);
 
-	/* skip the BOUNDSINFO */
-	data_ptr += 24;
+    data_ptr = pc->buffer.data_current;
+    len_aligned     = ( len + 0x3 ) & ~0x3;
+    total_len = 24 + len_aligned;
 
-	/* put in padding opcodes (deliberately bogus) */
-	switch ( len_aligned - len )
-	{
-	  case 3: *data_ptr++ = 0xff; /* FALLTHROUGH */
-	  case 2: *data_ptr++ = 0xff; /* FALLTHROUGH */
-	  case 1: *data_ptr++ = 0xff; /* FALLTHROUGH */
-	  default: break;
-	}
+    WRITE_DATA( 0, int, total_len );
+    WRITE_DATA( 4, int, bounds->x1 );
+    WRITE_DATA( 8, int, bounds->y1 );
+    WRITE_DATA( 12, int, bounds->x2 );
+    WRITE_DATA( 16, int, bounds->y2 );
+    WRITE_DATA( 20, int, num_opcodes );
 
-	crMemcpy( data_ptr, payload, len );
+    /* skip the BOUNDSINFO */
+    data_ptr += 24;
 
-	WRITE_OPCODE( pc, CR_BOUNDSINFOCR_OPCODE );
-	pc->buffer.data_current += 24 + len_aligned;
+    /* put in padding opcodes (deliberately bogus) */
+    switch ( len_aligned - len )
+    {
+      case 3: *data_ptr++ = 0xff; /* FALLTHROUGH */
+      case 2: *data_ptr++ = 0xff; /* FALLTHROUGH */
+      case 1: *data_ptr++ = 0xff; /* FALLTHROUGH */
+      default: break;
+    }
+
+    crMemcpy( data_ptr, payload, len );
+
+    WRITE_OPCODE( pc, CR_BOUNDSINFOCR_OPCODE );
+    pc->buffer.data_current += 24 + len_aligned;
+    CR_UNLOCK_PACKER_CONTEXT(pc);
 }

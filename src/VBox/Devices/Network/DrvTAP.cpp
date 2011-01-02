@@ -1,6 +1,6 @@
-/* $Id: DrvTAP.cpp $ */
+/* $Id: DrvTAP.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
- * DrvTAP - Universial TAP network transport driver.
+ * DrvTAP - Universal TAP network transport driver.
  */
 
 /*
@@ -258,6 +258,9 @@ static DECLCALLBACK(int) drvTAPNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
     Assert((pSgBuf->fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC);
     Assert(RTCritSectIsOwner(&pThis->XmitLock));
 
+    /* Set an FTM checkpoint as this operation changes the state permanently. */
+    PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
+
     int rc;
     if (!pSgBuf->pvUser)
     {
@@ -279,6 +282,7 @@ static DECLCALLBACK(int) drvTAPNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
         uint8_t const  *pbFrame = (uint8_t const *)pSgBuf->aSegs[0].pvSeg;
         PCPDMNETWORKGSO pGso    = (PCPDMNETWORKGSO)pSgBuf->pvUser;
         uint32_t const  cSegs   = PDMNetGsoCalcSegmentCount(pGso, pSgBuf->cbUsed);  Assert(cSegs > 1);
+        rc = VINF_SUCCESS;
         for (size_t iSeg = 0; iSeg < cSegs; iSeg++)
         {
             uint32_t cbSegFrame;
@@ -416,7 +420,7 @@ static DECLCALLBACK(int) drvTAPAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
 
                 /*
                  * A return code != VINF_SUCCESS means that we were woken up during a VM
-                 * state transistion. Drop the packet and wait for the next one.
+                 * state transition. Drop the packet and wait for the next one.
                  */
                 if (RT_FAILURE(rc1))
                     continue;
@@ -664,11 +668,11 @@ static int SolarisOpenVNIC(PDRVTAP pThis)
                         }
                         else
                             rc = PDMDrvHlpVMSetError(pThis->pDrvIns, VERR_HOSTIF_INIT_FAILED, RT_SRC_POS,
-                                                     N_("Failed to set appropriate promiscous mode"));
+                                                     N_("Failed to set appropriate promiscuous mode"));
                     }
                     else
                         rc = PDMDrvHlpVMSetError(pThis->pDrvIns, VERR_HOSTIF_INIT_FAILED, RT_SRC_POS,
-                                                 N_("Failed to activate promiscous mode for VNIC"));
+                                                 N_("Failed to activate promiscuous mode for VNIC"));
                 }
                 else
                     rc = PDMDrvHlpVMSetError(pThis->pDrvIns, VERR_HOSTIF_INIT_FAILED, RT_SRC_POS,

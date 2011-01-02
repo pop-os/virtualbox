@@ -1,4 +1,4 @@
-/** @file $Id: vboxvideo_dri.c $
+/** @file $Id: vboxvideo_dri.c 35268 2010-12-20 23:30:58Z vboxsync $
  *
  * VirtualBox X11 Additions graphics driver, DRI support
  */
@@ -83,8 +83,8 @@ VBOXInitVisualConfigs(ScrnInfoPtr pScrn, VBOXPtr pVBox)
     TRACE_ENTRY();
     int cConfigs = 2;  /* With and without double buffering */
     __GLXvisualConfig *pConfigs = NULL;
-    pConfigs = (__GLXvisualConfig*) xcalloc(sizeof(__GLXvisualConfig),
-                                            cConfigs);
+    pConfigs = (__GLXvisualConfig*) calloc(sizeof(__GLXvisualConfig),
+                                           cConfigs);
     if (!pConfigs)
     {
         rc = FALSE;
@@ -132,7 +132,7 @@ VBOXInitVisualConfigs(ScrnInfoPtr pScrn, VBOXPtr pVBox)
         GlxSetVisualConfigs(cConfigs, pConfigs, NULL);
     }
     if (!rc && pConfigs)
-        xfree(pConfigs);
+        free(pConfigs);
     TRACE_LOG("returning %s\n", BOOL_STR(rc));
     return rc;
 }
@@ -174,7 +174,7 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
     if (   (pScrn->displayWidth == 0)
         || (pVBox->pciInfo == NULL)
         || (pVBox->base == NULL)
-        || (pVBox->mapSize == 0))
+        || (pVBox->cbFBMax == 0))
     {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%s: preconditions failed\n",
                    __PRETTY_FUNCTION__);
@@ -243,7 +243,7 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
 #ifdef PCIACCESS
         pDRIInfo->busIdString = DRICreatePCIBusID(pVBox->pciInfo);
 #else
-        pDRIInfo->busIdString = xalloc(64);
+        pDRIInfo->busIdString = alloc(64);
         sprintf(pDRIInfo->busIdString, "PCI:%d:%d:%d",
             ((pciConfigPtr)pVBox->pciInfo->thisCard)->busnum,
 	        ((pciConfigPtr)pVBox->pciInfo->thisCard)->devnum,
@@ -254,8 +254,8 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
         pDRIInfo->ddxDriverPatchVersion = 0;
         pDRIInfo->ddxDrawableTableEntry = VBOX_MAX_DRAWABLES;
         pDRIInfo->maxDrawableTableEntry = VBOX_MAX_DRAWABLES;
-        pDRIInfo->frameBufferPhysicalAddress = (pointer)pVBox->mapPhys;
-        pDRIInfo->frameBufferSize = pVBox->mapSize;
+        pDRIInfo->frameBufferPhysicalAddress = (pointer)pScrn->memPhysBase;
+        pDRIInfo->frameBufferSize = pVBox->cbFBMax;
         pDRIInfo->frameBufferStride =   pScrn->displayWidth
                                       * pScrn->bitsPerPixel / 8;
         pDRIInfo->SAREASize = SAREA_MAX;  /* we have no private bits yet. */
@@ -325,7 +325,7 @@ VBOXDRICloseScreen(ScreenPtr pScreen, VBOXPtr pVBox)
     DRIDestroyInfoRec(pVBox->pDRIInfo);
     pVBox->pDRIInfo=0;
     if (pVBox->pVisualConfigs)
-        xfree(pVBox->pVisualConfigs);
+        free(pVBox->pVisualConfigs);
     pVBox->cVisualConfigs = 0;
     pVBox->pVisualConfigs = NULL;
 }

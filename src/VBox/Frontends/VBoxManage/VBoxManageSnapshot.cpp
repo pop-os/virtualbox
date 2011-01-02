@@ -1,10 +1,10 @@
-/* $Id: VBoxManageSnapshot.cpp $ */
+/* $Id: VBoxManageSnapshot.cpp 33425 2010-10-25 14:30:43Z vboxsync $ */
 /** @file
  * VBoxManage - The 'snapshot' command.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -171,7 +171,7 @@ void DumpSnapshot(ComPtr<IMachine> &pMachine)
     {
         // get root snapshot
         ComPtr<ISnapshot> pSnapshot;
-        CHECK_ERROR_BREAK(pMachine, GetSnapshot(Bstr(""), pSnapshot.asOutParam()));
+        CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr("").raw(), pSnapshot.asOutParam()));
 
         // get current snapshot
         ComPtr<ISnapshot> pCurrentSnapshot;
@@ -226,24 +226,15 @@ int handleSnapshot(HandlerArg *a)
     /* the first argument must be the VM */
     Bstr bstrMachine(a->argv[0]);
     ComPtr<IMachine> pMachine;
-    /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(bstrMachine, pMachine.asOutParam());
-    if (FAILED(rc) || !pMachine)
-    {
-        /* must be a name */
-        CHECK_ERROR(a->virtualBox, FindMachine(bstrMachine, pMachine.asOutParam()));
-    }
+    CHECK_ERROR(a->virtualBox, FindMachine(bstrMachine.raw(),
+                                           pMachine.asOutParam()));
     if (!pMachine)
         return 1;
-    Bstr guidMachine;
-    pMachine->COMGETTER(Id)(guidMachine.asOutParam());
 
     do
     {
-        /* we have to open a session for this task. First try an existing session */
-        rc = a->virtualBox->OpenExistingSession(a->session, guidMachine);
-        if (FAILED(rc))
-            CHECK_ERROR_BREAK(a->virtualBox, OpenSession(a->session, guidMachine));
+        /* we have to open a session for this task (new or shared) */
+        rc = pMachine->LockMachine(a->session, LockType_Shared);
         ComPtr<IConsole> console;
         CHECK_ERROR_BREAK(a->session, COMGETTER(Console)(console.asOutParam()));
 
@@ -311,16 +302,17 @@ int handleSnapshot(HandlerArg *a)
             }
 
             ComPtr<IProgress> progress;
-            CHECK_ERROR_BREAK(console, TakeSnapshot(name, desc, progress.asOutParam()));
+            CHECK_ERROR_BREAK(console, TakeSnapshot(name.raw(), desc.raw(),
+                                                    progress.asOutParam()));
 
             rc = showProgress(progress);
             if (FAILED(rc))
             {
                 com::ProgressErrorInfo info(progress);
                 if (info.isBasicAvailable())
-                    RTPrintf("Error: failed to take snapshot. Error message: %lS\n", info.getText().raw());
+                    RTMsgError("Failed to take snapshot. Error message: %lS", info.getText().raw());
                 else
-                    RTPrintf("Error: failed to take snapshot. No error message available!\n");
+                    RTMsgError("Failed to take snapshot. No error message available!");
             }
 
             if (fPause)
@@ -365,24 +357,20 @@ int handleSnapshot(HandlerArg *a)
             if (fRestoreCurrent)
             {
                 CHECK_ERROR_BREAK(pMachine, COMGETTER(CurrentSnapshot)(pSnapshot.asOutParam()));
-                CHECK_ERROR_BREAK(pSnapshot, COMGETTER(Id)(bstrSnapGuid.asOutParam()));
             }
             else
             {
                 // restore or delete snapshot: then resolve cmd line argument to snapshot instance
-                // assume it's a UUID
-                bstrSnapGuid = a->argv[2];
-                if (FAILED(pMachine->GetSnapshot(bstrSnapGuid, pSnapshot.asOutParam())))
-                {
-                    // then it must be a name
-                    CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]), pSnapshot.asOutParam()));
-                    CHECK_ERROR_BREAK(pSnapshot, COMGETTER(Id)(bstrSnapGuid.asOutParam()));
-                }
+                CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                         pSnapshot.asOutParam()));
             }
+
+            CHECK_ERROR_BREAK(pSnapshot, COMGETTER(Id)(bstrSnapGuid.asOutParam()));
 
             if (fDelete)
             {
-                CHECK_ERROR_BREAK(console, DeleteSnapshot(bstrSnapGuid, pProgress.asOutParam()));
+                CHECK_ERROR_BREAK(console, DeleteSnapshot(bstrSnapGuid.raw(),
+                                                          pProgress.asOutParam()));
             }
             else
             {
@@ -396,9 +384,9 @@ int handleSnapshot(HandlerArg *a)
             {
                 com::ProgressErrorInfo info(pProgress);
                 if (info.isBasicAvailable())
-                    RTPrintf("Error: snapshot operation failed. Error message: %lS\n", info.getText().raw());
+                    RTMsgError("Snapshot operation failed. Error message: %lS", info.getText().raw());
                 else
-                    RTPrintf("Error: snapshot operation failed. No error message available!\n");
+                    RTMsgError("Snapshot operation failed. No error message available!");
             }
         }
         else if (!strcmp(a->argv[1], "edit"))
@@ -419,13 +407,8 @@ int handleSnapshot(HandlerArg *a)
             }
             else
             {
-                /* assume it's a UUID */
-                rc = pMachine->GetSnapshot(Bstr(a->argv[2]), snapshot.asOutParam());
-                if (FAILED(rc) || !snapshot)
-                {
-                    /* then it must be a name */
-                    CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]), snapshot.asOutParam()));
-                }
+                CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                         snapshot.asOutParam()));
             }
 
             /* parse options */
@@ -442,7 +425,7 @@ int handleSnapshot(HandlerArg *a)
                         break;
                     }
                     i++;
-                    snapshot->COMSETTER(Name)(Bstr(a->argv[i]));
+                    snapshot->COMSETTER(Name)(Bstr(a->argv[i]).raw());
                 }
                 else if (   !strcmp(a->argv[i], "--description")
                          || !strcmp(a->argv[i], "-description")
@@ -455,11 +438,11 @@ int handleSnapshot(HandlerArg *a)
                         break;
                     }
                     i++;
-                    snapshot->COMSETTER(Description)(Bstr(a->argv[i]));
+                    snapshot->COMSETTER(Description)(Bstr(a->argv[i]).raw());
                 }
                 else
                 {
-                    errorSyntax(USAGE_SNAPSHOT, "Invalid parameter '%s'", Utf8Str(a->argv[i]).raw());
+                    errorSyntax(USAGE_SNAPSHOT, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
                     rc = E_FAIL;
                     break;
                 }
@@ -478,13 +461,8 @@ int handleSnapshot(HandlerArg *a)
 
             ComPtr<ISnapshot> snapshot;
 
-            /* assume it's a UUID */
-            rc = pMachine->GetSnapshot(Bstr(a->argv[2]), snapshot.asOutParam());
-            if (FAILED(rc) || !snapshot)
-            {
-                /* then it must be a name */
-                CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]), snapshot.asOutParam()));
-            }
+            CHECK_ERROR_BREAK(pMachine, FindSnapshot(Bstr(a->argv[2]).raw(),
+                                                     snapshot.asOutParam()));
 
             /* get the machine of the given snapshot */
             ComPtr<IMachine> pMachine2;
@@ -492,17 +470,15 @@ int handleSnapshot(HandlerArg *a)
             showVMInfo(a->virtualBox, pMachine2, VMINFO_NONE, console);
         }
         else if (!strcmp(a->argv[1], "dump"))          // undocumented parameter to debug snapshot info
-        {
             DumpSnapshot(pMachine);
-        }
         else
         {
-            errorSyntax(USAGE_SNAPSHOT, "Invalid parameter '%s'", Utf8Str(a->argv[1]).raw());
+            errorSyntax(USAGE_SNAPSHOT, "Invalid parameter '%s'", Utf8Str(a->argv[1]).c_str());
             rc = E_FAIL;
         }
     } while (0);
 
-    a->session->Close();
+    a->session->UnlockMachine();
 
     return SUCCEEDED(rc) ? 0 : 1;
 }

@@ -1,4 +1,4 @@
-/* $Id: SUPLibInternal.h $ */
+/* $Id: SUPLibInternal.h 35188 2010-12-16 15:13:07Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Internal header.
  */
@@ -89,6 +89,8 @@
 # define supR3HardenedErrorV               supR3HardenedStaticErrorV
 # define supR3HardenedError                supR3HardenedStaticError
 # define supR3HardenedVerifyAll            supR3HardenedStaticVerifyAll
+# define supR3HardenedVerifyFixedDir       supR3HardenedStaticVerifyFixedDir
+# define supR3HardenedVerifyFixedFile      supR3HardenedStaticVerifyFixedFile
 # define supR3HardenedVerifyDir            supR3HardenedStaticVerifyDir
 # define supR3HardenedVerifyFile           supR3HardenedStaticVerifyFile
 # define supR3HardenedGetPreInitData       supR3HardenedStaticGetPreInitData
@@ -313,12 +315,14 @@ DECLHIDDEN(int)    supR3HardenedErrorV(int rc, bool fFatal, const char *pszForma
 /**
  * Display an error which may or may not be fatal.
  */
-DECLHIDDEN(int)    supR3HardenedError(int rc, bool fFatal, const char *pszFormat, ...);
-DECLHIDDEN(int)    supR3HardenedVerifyAll(bool fFatal, bool fLeaveFilesOpen, const char *pszProgName);
-DECLHIDDEN(int)    supR3HardenedVerifyDir(SUPINSTDIR enmDir, bool fFatal);
-DECLHIDDEN(int)    supR3HardenedVerifyFile(const char *pszFilename, bool fFatal);
-DECLHIDDEN(void)   supR3HardenedGetPreInitData(PSUPPREINITDATA pPreInitData);
-DECLHIDDEN(int)    supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
+DECLHIDDEN(int)     supR3HardenedError(int rc, bool fFatal, const char *pszFormat, ...);
+DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, bool fLeaveFilesOpen, const char *pszProgName);
+DECLHIDDEN(int)     supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal);
+DECLHIDDEN(int)     supR3HardenedVerifyFixedFile(const char *pszFilename, bool fFatal);
+DECLHIDDEN(int)     supR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)     supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNativeFile, PRTERRINFO pErrInfo);
+DECLHIDDEN(void)    supR3HardenedGetPreInitData(PSUPPREINITDATA pPreInitData);
+DECLHIDDEN(int)     supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
 
 
 SUPR3DECL(int)      supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages);

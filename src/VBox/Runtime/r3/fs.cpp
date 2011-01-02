@@ -1,4 +1,4 @@
-/* $Id: fs.cpp $ */
+/* $Id: fs.cpp 34015 2010-11-12 00:15:05Z vboxsync $ */
 /** @file
  * IPRT - File System.
  */
@@ -28,16 +28,6 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifndef RT_OS_WINDOWS
-# define RTTIME_INCL_TIMESPEC
-# include <sys/time.h>
-# include <sys/param.h>
-# ifndef DEV_BSIZE
-#  include <sys/stat.h>
-#  define DEV_BSIZE S_BLKSIZE /** @todo bird: add DEV_BSIZE to sys/param.h on OS/2. */
-# endif
-#endif
-
 #include <iprt/fs.h>
 #include "internal/iprt.h"
 
@@ -54,7 +44,7 @@
  * Converts dos-style attributes to Unix attributes.
  *
  * @returns
- * @param   fMode       The mode mask containing dos-style attibutes only.
+ * @param   fMode       The mode mask containing dos-style attributes only.
  * @param   pszName     The filename which this applies to (exe check).
  * @param   cbName      The length of that filename. (optional, set 0)
  */
@@ -90,6 +80,11 @@ RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName)
                 fMode |= RTFS_UNIX_IXUSR | RTFS_UNIX_IXGRP | RTFS_UNIX_IXOTH;
         }
     }
+
+    /* Is it really a symbolic link? */
+    if (fMode & RTFS_DOS_NT_REPARSE_POINT)
+        fMode = (fMode & ~RTFS_TYPE_MASK) | RTFS_TYPE_SYMLINK;
+
     /* writable? */
     if (!(fMode & RTFS_DOS_READONLY))
         fMode |= RTFS_UNIX_IWUSR | RTFS_UNIX_IWGRP | RTFS_UNIX_IWOTH;
@@ -101,7 +96,7 @@ RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName)
  * Converts Unix attributes to Dos-style attributes.
  *
  * @returns File mode mask.
- * @param   fMode       The mode mask containing dos-style attibutes only.
+ * @param   fMode       The mode mask containing dos-style attributes only.
  * @param   pszName     The filename which this applies to (hidden check).
  * @param   cbName      The length of that filename. (optional, set 0)
  */
@@ -185,116 +180,6 @@ bool rtFsModeIsValidPermissions(RTFMODE fMode)
     /** @todo more checks! */
     return true;
 }
-
-
-#ifndef RT_OS_WINDOWS
-/**
- * Internal worker function which setups RTFSOBJINFO based on a UNIX stat struct.
- *
- * @param   pObjInfo        The file system object info structure to setup.
- * @param   pStat           The stat structure to use.
- * @param   pszName         The filename which this applies to (exe/hidden check).
- * @param   cbName          The length of that filename. (optional, set 0)
- */
-void rtFsConvertStatToObjInfo(PRTFSOBJINFO pObjInfo, const struct stat *pStat, const char *pszName, unsigned cbName)
-{
-    pObjInfo->cbObject    = pStat->st_size;
-    pObjInfo->cbAllocated = pStat->st_blocks * DEV_BSIZE;
-
-#ifdef HAVE_STAT_NSEC
-    RTTimeSpecAddNano(RTTimeSpecSetSeconds(&pObjInfo->AccessTime,       pStat->st_atime),     pStat->st_atimensec);
-    RTTimeSpecAddNano(RTTimeSpecSetSeconds(&pObjInfo->ModificationTime, pStat->st_mtime),     pStat->st_mtimensec);
-    RTTimeSpecAddNano(RTTimeSpecSetSeconds(&pObjInfo->ChangeTime,       pStat->st_ctime),     pStat->st_ctimensec);
-#ifdef HAVE_STAT_BIRTHTIME
-    RTTimeSpecAddNano(RTTimeSpecSetSeconds(&pObjInfo->BirthTime,        pStat->st_birthtime), pStat->st_birthtimensec);
-#endif
-
-#elif defined(HAVE_STAT_TIMESPEC_BRIEF)
-    RTTimeSpecSetTimespec(&pObjInfo->AccessTime,       &pStat->st_atim);
-    RTTimeSpecSetTimespec(&pObjInfo->ModificationTime, &pStat->st_mtim);
-    RTTimeSpecSetTimespec(&pObjInfo->ChangeTime,       &pStat->st_ctim);
-# ifdef HAVE_STAT_BIRTHTIME
-    RTTimeSpecSetTimespec(&pObjInfo->BirthTime,        &pStat->st_birthtim);
-# endif
-
-#elif defined(HAVE_STAT_TIMESPEC)
-    RTTimeSpecSetTimespec(&pObjInfo->AccessTime,       pStat->st_atimespec);
-    RTTimeSpecSetTimespec(&pObjInfo->ModificationTime, pStat->st_mtimespec);
-    RTTimeSpecSetTimespec(&pObjInfo->ChangeTime,       pStat->st_ctimespec);
-# ifdef HAVE_STAT_BIRTHTIME
-    RTTimeSpecSetTimespec(&pObjInfo->BirthTime,        pStat->st_birthtimespec);
-# endif
-
-#else /* just the normal stuff */
-    RTTimeSpecSetSeconds(&pObjInfo->AccessTime,       pStat->st_atime);
-    RTTimeSpecSetSeconds(&pObjInfo->ModificationTime, pStat->st_mtime);
-    RTTimeSpecSetSeconds(&pObjInfo->ChangeTime,       pStat->st_ctime);
-# ifdef HAVE_STAT_BIRTHTIME
-    RTTimeSpecSetSeconds(&pObjInfo->BirthTime,        pStat->st_birthtime);
-# endif
-#endif
-#ifndef HAVE_STAT_BIRTHTIME
-    pObjInfo->BirthTime = pObjInfo->ChangeTime;
-#endif
-
-
-    /* the file mode */
-    RTFMODE fMode = pStat->st_mode & RTFS_UNIX_MASK;
-    Assert(RTFS_UNIX_ISUID == S_ISUID);
-    Assert(RTFS_UNIX_ISGID == S_ISGID);
-#ifdef S_ISTXT
-    Assert(RTFS_UNIX_ISTXT == S_ISTXT);
-#elif defined(S_ISVTX)
-    Assert(RTFS_UNIX_ISTXT == S_ISVTX);
-#else
-#error "S_ISVTX / S_ISTXT isn't defined"
-#endif
-    Assert(RTFS_UNIX_IRWXU == S_IRWXU);
-    Assert(RTFS_UNIX_IRUSR == S_IRUSR);
-    Assert(RTFS_UNIX_IWUSR == S_IWUSR);
-    Assert(RTFS_UNIX_IXUSR == S_IXUSR);
-    Assert(RTFS_UNIX_IRWXG == S_IRWXG);
-    Assert(RTFS_UNIX_IRGRP == S_IRGRP);
-    Assert(RTFS_UNIX_IWGRP == S_IWGRP);
-    Assert(RTFS_UNIX_IXGRP == S_IXGRP);
-    Assert(RTFS_UNIX_IRWXO == S_IRWXO);
-    Assert(RTFS_UNIX_IROTH == S_IROTH);
-    Assert(RTFS_UNIX_IWOTH == S_IWOTH);
-    Assert(RTFS_UNIX_IXOTH == S_IXOTH);
-    Assert(RTFS_TYPE_FIFO == S_IFIFO);
-    Assert(RTFS_TYPE_DEV_CHAR == S_IFCHR);
-    Assert(RTFS_TYPE_DIRECTORY == S_IFDIR);
-    Assert(RTFS_TYPE_DEV_BLOCK == S_IFBLK);
-    Assert(RTFS_TYPE_FILE == S_IFREG);
-    Assert(RTFS_TYPE_SYMLINK == S_IFLNK);
-    Assert(RTFS_TYPE_SOCKET == S_IFSOCK);
-#ifdef S_IFWHT
-    Assert(RTFS_TYPE_WHITEOUT == S_IFWHT);
-#endif
-    Assert(RTFS_TYPE_MASK == S_IFMT);
-
-    pObjInfo->Attr.fMode  = rtFsModeFromUnix(fMode, pszName, cbName);
-
-    /* additional unix attribs */
-    pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_UNIX;
-    pObjInfo->Attr.u.Unix.uid             = pStat->st_uid;
-    pObjInfo->Attr.u.Unix.gid             = pStat->st_gid;
-    pObjInfo->Attr.u.Unix.cHardlinks      = pStat->st_nlink;
-    pObjInfo->Attr.u.Unix.INodeIdDevice   = pStat->st_dev;
-    pObjInfo->Attr.u.Unix.INodeId         = pStat->st_ino;
-#ifdef HAVE_STAT_FLAGS
-    pObjInfo->Attr.u.Unix.fFlags          = pStat->st_flags;
-#else
-    pObjInfo->Attr.u.Unix.fFlags          = 0;
-#endif
-#ifdef HAVE_STAT_GEN
-    pObjInfo->Attr.u.Unix.GenerationId    = pStat->st_gen;
-#else
-    pObjInfo->Attr.u.Unix.GenerationId    = 0;
-#endif
-    pObjInfo->Attr.u.Unix.Device          = pStat->st_rdev;
-}
-#endif /* !RT_OS_WINDOWS */
 
 
 RTDECL(const char *) RTFsTypeName(RTFSTYPE enmType)

@@ -1,4 +1,4 @@
-/* $Id: SUPLib-darwin.cpp $ */
+/* $Id: SUPLib-darwin.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Darwin specific parts.
  */
@@ -234,7 +234,7 @@ int suplibOsTerm(PSUPLIBDATA pThis)
     }
 
     /*
-     * Check if we're initited at all.
+     * Check if we're inited at all.
      */
     if (pThis->hDevice != NIL_RTFILE)
     {

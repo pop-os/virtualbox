@@ -62,64 +62,6 @@ class ConfigFileError;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// Helper classes
-//
-////////////////////////////////////////////////////////////////////////////////
-
-// ExtraDataItem (used by both VirtualBox.xml and machines XML)
-typedef std::map<com::Utf8Str, com::Utf8Str> ExtraDataItemsMap;
-struct USBDeviceFilter;
-typedef std::list<USBDeviceFilter> USBDeviceFiltersList;
-
-/**
- * Common base class for both MainConfigFile and MachineConfigFile
- * which contains some common logic for both.
- */
-class ConfigFileBase
-{
-public:
-    bool fileExists();
-
-    void copyBaseFrom(const ConfigFileBase &b);
-
-protected:
-    ConfigFileBase(const com::Utf8Str *pstrFilename);
-    ~ConfigFileBase();
-
-    void parseUUID(com::Guid &guid,
-                   const com::Utf8Str &strUUID) const;
-    void parseTimestamp(RTTIMESPEC &timestamp,
-                        const com::Utf8Str &str) const;
-
-    com::Utf8Str makeString(const RTTIMESPEC &tm);
-
-    void readExtraData(const xml::ElementNode &elmExtraData,
-                       ExtraDataItemsMap &map);
-    void readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilters,
-                              USBDeviceFiltersList &ll);
-
-    void setVersionAttribute(xml::ElementNode &elm);
-    void createStubDocument();
-
-    void writeExtraData(xml::ElementNode &elmParent, const ExtraDataItemsMap &me);
-    void writeUSBDeviceFilters(xml::ElementNode &elmParent,
-                               const USBDeviceFiltersList &ll,
-                               bool fHostMode);
-
-    void clearDocument();
-
-    struct Data;
-    Data *m;
-
-private:
-    // prohibit copying (Data contains pointers to XML which cannot be copied)
-    ConfigFileBase(const ConfigFileBase&);
-
-    friend class ConfigFileError;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-//
 // Structures shared between Machine XML and VirtualBox.xml
 //
 ////////////////////////////////////////////////////////////////////////////////
@@ -156,6 +98,110 @@ struct USBDeviceFilter
     uint32_t                ulMaskedInterfaces;     // irrelevant for host USB objects
 };
 
+typedef std::map<com::Utf8Str, com::Utf8Str> StringsMap;
+
+// ExtraDataItem (used by both VirtualBox.xml and machines XML)
+struct USBDeviceFilter;
+typedef std::list<USBDeviceFilter> USBDeviceFiltersList;
+
+struct Medium;
+typedef std::list<Medium> MediaList;
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct Medium
+{
+    com::Guid       uuid;
+    com::Utf8Str    strLocation;
+    com::Utf8Str    strDescription;
+
+    // the following are for hard disks only:
+    com::Utf8Str    strFormat;
+    bool            fAutoReset;         // optional, only for diffs, default is false
+    StringsMap      properties;
+    MediumType_T    hdType;
+
+    MediaList       llChildren;         // only used with hard disks
+
+    bool operator==(const Medium &m) const;
+};
+
+/**
+ * A media registry. Starting with VirtualBox 3.3, this can appear in both the
+ * VirtualBox.xml file as well as machine XML files with settings version 1.11
+ * or higher, so these lists are now in ConfigFileBase.
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct MediaRegistry
+{
+    MediaList               llHardDisks,
+                            llDvdImages,
+                            llFloppyImages;
+
+    bool operator==(const MediaRegistry &m) const;
+};
+
+/**
+ * Common base class for both MainConfigFile and MachineConfigFile
+ * which contains some common logic for both.
+ */
+class ConfigFileBase
+{
+public:
+    bool fileExists();
+
+    void copyBaseFrom(const ConfigFileBase &b);
+
+protected:
+    ConfigFileBase(const com::Utf8Str *pstrFilename);
+    ~ConfigFileBase();
+
+    void parseUUID(com::Guid &guid,
+                   const com::Utf8Str &strUUID) const;
+    void parseTimestamp(RTTIMESPEC &timestamp,
+                        const com::Utf8Str &str) const;
+
+    com::Utf8Str makeString(const RTTIMESPEC &tm);
+
+    void readExtraData(const xml::ElementNode &elmExtraData,
+                       StringsMap &map);
+    void readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilters,
+                              USBDeviceFiltersList &ll);
+    typedef enum {Error, HardDisk, DVDImage, FloppyImage} MediaType;
+    void readMedium(MediaType t, const xml::ElementNode &elmMedium, MediaList &llMedia);
+    void readMediaRegistry(const xml::ElementNode &elmMediaRegistry, MediaRegistry &mr);
+
+    void setVersionAttribute(xml::ElementNode &elm);
+    void createStubDocument();
+
+    void buildExtraData(xml::ElementNode &elmParent, const StringsMap &me);
+    void buildUSBDeviceFilters(xml::ElementNode &elmParent,
+                               const USBDeviceFiltersList &ll,
+                               bool fHostMode);
+    void buildMedium(xml::ElementNode &elmMedium,
+                     DeviceType_T devType,
+                     const Medium &m,
+                     uint32_t level);
+    void buildMediaRegistry(xml::ElementNode &elmParent,
+                            const MediaRegistry &mr);
+    void clearDocument();
+
+    struct Data;
+    Data *m;
+
+private:
+    // prohibit copying (Data contains pointers to XML which cannot be copied)
+    ConfigFileBase(const ConfigFileBase&);
+
+    friend class ConfigFileError;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // VirtualBox.xml structures
@@ -176,29 +222,10 @@ struct SystemProperties
     com::Utf8Str            strDefaultMachineFolder;
     com::Utf8Str            strDefaultHardDiskFolder;
     com::Utf8Str            strDefaultHardDiskFormat;
-    com::Utf8Str            strRemoteDisplayAuthLibrary;
+    com::Utf8Str            strVRDEAuthLibrary;
     com::Utf8Str            strWebServiceAuthLibrary;
+    com::Utf8Str            strDefaultVRDEExtPack;
     uint32_t                ulLogHistoryCount;
-};
-
-typedef std::map<com::Utf8Str, com::Utf8Str> PropertiesMap;
-
-struct Medium;
-typedef std::list<Medium> MediaList;
-
-struct Medium
-{
-    com::Guid       uuid;
-    com::Utf8Str    strLocation;
-    com::Utf8Str    strDescription;
-
-    // the following are for hard disks only:
-    com::Utf8Str    strFormat;
-    bool            fAutoReset;         // optional, only for diffs, default is false
-    PropertiesMap   properties;
-    MediumType_T    hdType;
-
-    MediaList       llChildren;         // only used with hard disks
 };
 
 struct MachineRegistryEntry
@@ -224,25 +251,17 @@ class MainConfigFile : public ConfigFileBase
 public:
     MainConfigFile(const com::Utf8Str *pstrFilename);
 
-    typedef enum {Error, HardDisk, DVDImage, FloppyImage} MediaType;
-    void readMedium(MediaType t, const xml::ElementNode &elmMedium, MediaList &llMedia);
-    void readMediaRegistry(const xml::ElementNode &elmMediaRegistry);
     void readMachineRegistry(const xml::ElementNode &elmMachineRegistry);
     void readDHCPServers(const xml::ElementNode &elmDHCPServers);
 
-    void writeHardDisk(xml::ElementNode &elmMedium,
-                       const Medium &m,
-                       uint32_t level);
     void write(const com::Utf8Str strFilename);
 
     Host                    host;
     SystemProperties        systemProperties;
-    MediaList               llHardDisks,
-                            llDvdImages,
-                            llFloppyImages;
+    MediaRegistry           mediaRegistry;
     MachinesRegistry        llMachines;
     DHCPServersList         llDhcpServers;
-    ExtraDataItemsMap       mapExtraDataItems;
+    StringsMap              mapExtraDataItems;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,29 +275,26 @@ public:
  * the operator== which is used by MachineConfigFile::operator==(), or otherwise
  * your settings might never get saved.
  */
-struct VRDPSettings
+struct VRDESettings
 {
-    VRDPSettings()
+    VRDESettings()
         : fEnabled(true),
-          authType(VRDPAuthType_Null),
+          authType(AuthType_Null),
           ulAuthTimeout(5000),
           fAllowMultiConnection(false),
-          fReuseSingleConnection(false),
-          fVideoChannel(false),
-          ulVideoChannelQuality(75)
+          fReuseSingleConnection(false)
     {}
 
-    bool operator==(const VRDPSettings& v) const;
+    bool operator==(const VRDESettings& v) const;
 
     bool            fEnabled;
-    com::Utf8Str    strPort;
-    com::Utf8Str    strNetAddress;
-    VRDPAuthType_T  authType;
+    AuthType_T      authType;
     uint32_t        ulAuthTimeout;
+    com::Utf8Str    strAuthLibrary;
     bool            fAllowMultiConnection,
-                    fReuseSingleConnection,
-                    fVideoChannel;
-    uint32_t        ulVideoChannelQuality;
+                    fReuseSingleConnection;
+    com::Utf8Str    strVrdeExtPack;
+    StringsMap      mapProperties;
 };
 
 /**
@@ -333,11 +349,11 @@ struct USBController
 
  struct NATRule
  {
-     NATRule(): u32Proto(0),
+     NATRule(): proto(NATProtocol_TCP),
              u16HostPort(0),
              u16GuestPort(0){}
      com::Utf8Str            strName;
-     uint32_t                u32Proto;
+     NATProtocol_T           proto;
      uint16_t                u16HostPort;
      com::Utf8Str            strHostIP;
      uint16_t                u16GuestPort;
@@ -345,7 +361,7 @@ struct USBController
     bool operator==(const NATRule &r) const
     {
         return    strName == r.strName
-               && u32Proto == r.u32Proto
+               && proto == r.proto
                && u16HostPort == r.u16HostPort
                && strHostIP == r.strHostIP
                && u16GuestPort == r.u16GuestPort
@@ -366,7 +382,9 @@ struct USBController
              fDnsUseHostResolver(false),
              fAliasLog(false),
              fAliasProxyOnly(false),
-             fAliasUseSamePorts(false) {}
+             fAliasUseSamePorts(false)
+    {}
+
      com::Utf8Str            strNetwork;
      com::Utf8Str            strBindIP;
      uint32_t                u32Mtu;
@@ -421,7 +439,8 @@ struct NetworkAdapter
           fTraceEnabled(false),
           mode(NetworkAttachmentType_Null),
           ulBootPriority(0),
-          fHasDisabledNAT(false)
+          fHasDisabledNAT(false),
+          ulBandwidthLimit(0)
     {}
 
     bool operator==(const NetworkAdapter &n) const;
@@ -443,6 +462,7 @@ struct NetworkAdapter
                                                 // otherwise: network name (required)
     uint32_t                ulBootPriority;
     bool                    fHasDisabledNAT;
+    uint32_t                ulBandwidthLimit;
 };
 typedef std::list<NetworkAdapter> NetworkAdaptersList;
 
@@ -536,6 +556,7 @@ struct SharedFolder
 {
     SharedFolder()
         : fWritable(false)
+        , fAutoMount(false)
     {}
 
     bool operator==(const SharedFolder &a) const;
@@ -543,6 +564,7 @@ struct SharedFolder
     com::Utf8Str    strName,
                     strHostPath;
     bool            fWritable;
+    bool            fAutoMount;
 };
 typedef std::list<SharedFolder> SharedFoldersList;
 
@@ -628,20 +650,45 @@ typedef std::list<Cpu> CpuList;
  * the operator== which is used by MachineConfigFile::operator==(), or otherwise
  * your settings might never get saved.
  */
+struct BandwidthGroup
+{
+    BandwidthGroup()
+        : cMaxMbPerSec(0),
+          enmType(BandwidthGroupType_Null)
+    {}
+
+    bool operator==(const BandwidthGroup &i) const
+    {
+        return (   (strName      == i.strName)
+                && (cMaxMbPerSec == i.cMaxMbPerSec)
+                && (enmType      == i.enmType));
+    }
+
+    com::Utf8Str         strName;
+    uint32_t             cMaxMbPerSec;
+    BandwidthGroupType_T enmType;
+};
+typedef std::list<BandwidthGroup> BandwidthGroupList;
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct IoSettings
 {
     IoSettings();
 
     bool operator==(const IoSettings &i) const
     {
-        return (   (fIoCacheEnabled  == i.fIoCacheEnabled)
-                && (ulIoCacheSize    == i.ulIoCacheSize)
-                && (ulIoBandwidthMax == i.ulIoBandwidthMax));
+        return (   (fIoCacheEnabled   == i.fIoCacheEnabled)
+                && (ulIoCacheSize     == i.ulIoCacheSize)
+                && (llBandwidthGroups == i.llBandwidthGroups));
     }
 
-    bool            fIoCacheEnabled;
-    uint32_t        ulIoCacheSize;
-    uint32_t        ulIoBandwidthMax;
+    bool               fIoCacheEnabled;
+    uint32_t           ulIoCacheSize;
+    BandwidthGroupList llBandwidthGroups;
 };
 
 /**
@@ -673,6 +720,7 @@ struct Hardware
     bool                fCpuHotPlug;            // requires settings version 1.10 (VirtualBox 3.2)
     CpuList             llCpus;                 // requires settings version 1.10 (VirtualBox 3.2)
     bool                fHpetEnabled;           // requires settings version 1.10 (VirtualBox 3.2)
+    uint32_t            ulCpuExecutionCap;      // requires settings version 1.11 (VirtualBox 3.3)
 
     CpuIdLeafsList      llCpuIdLeafs;
 
@@ -689,7 +737,9 @@ struct Hardware
     PointingHidType_T   pointingHidType;        // requires settings version 1.10 (VirtualBox 3.2)
     KeyboardHidType_T   keyboardHidType;        // requires settings version 1.10 (VirtualBox 3.2)
 
-    VRDPSettings        vrdpSettings;
+    ChipsetType_T       chipsetType;            // requires settings version 1.11 (VirtualBox 4.0)
+
+    VRDESettings        vrdeSettings;
 
     BIOSSettings        biosSettings;
     USBController       usbController;
@@ -748,6 +798,9 @@ struct AttachedDevice
 
     // for DVDs and floppies, the attachment can also be a host device:
     com::Utf8Str        strHostDriveSrc;        // if != NULL, value of <HostDrive>/@src
+
+    // Bandwidth group the device is attached to.
+    com::Utf8Str        strBwGroup;
 };
 typedef std::list<AttachedDevice> AttachedDevicesList;
 
@@ -764,6 +817,7 @@ struct StorageController
           ulPortCount(2),
           ulInstance(0),
           fUseHostIOCache(true),
+          fBootable(true),
           lIDE0MasterEmulationPort(0),
           lIDE0SlaveEmulationPort(0),
           lIDE1MasterEmulationPort(0),
@@ -778,6 +832,7 @@ struct StorageController
     uint32_t                ulPortCount;
     uint32_t                ulInstance;
     bool                    fUseHostIOCache;
+    bool                    fBootable;
 
     // only for when controllerType == StorageControllerType_IntelAhci:
     int32_t                 lIDE0MasterEmulationPort,
@@ -829,6 +884,54 @@ struct Snapshot
     SnapshotsList   llChildSnapshots;
 };
 
+struct MachineUserData
+{
+    MachineUserData()
+        : fNameSync(true),
+          fTeleporterEnabled(false),
+          uTeleporterPort(0),
+          enmFaultToleranceState(FaultToleranceState_Inactive),
+          uFaultTolerancePort(0),
+          uFaultToleranceInterval(0),
+          fRTCUseUTC(false)
+    { }
+
+    bool operator==(const MachineUserData &c) const
+    {
+        return    (strName                    == c.strName)
+               && (fNameSync                  == c.fNameSync)
+               && (strDescription             == c.strDescription)
+               && (strOsType                  == c.strOsType)
+               && (strSnapshotFolder          == c.strSnapshotFolder)
+               && (fTeleporterEnabled         == c.fTeleporterEnabled)
+               && (uTeleporterPort            == c.uTeleporterPort)
+               && (strTeleporterAddress       == c.strTeleporterAddress)
+               && (strTeleporterPassword      == c.strTeleporterPassword)
+               && (enmFaultToleranceState     == c.enmFaultToleranceState)
+               && (uFaultTolerancePort        == c.uFaultTolerancePort)
+               && (uFaultToleranceInterval    == c.uFaultToleranceInterval)
+               && (strFaultToleranceAddress   == c.strFaultToleranceAddress)
+               && (strFaultTolerancePassword  == c.strFaultTolerancePassword)
+               && (fRTCUseUTC                 == c.fRTCUseUTC);
+    }
+
+    com::Utf8Str            strName;
+    bool                    fNameSync;
+    com::Utf8Str            strDescription;
+    com::Utf8Str            strOsType;
+    com::Utf8Str            strSnapshotFolder;
+    bool                    fTeleporterEnabled;
+    uint32_t                uTeleporterPort;
+    com::Utf8Str            strTeleporterAddress;
+    com::Utf8Str            strTeleporterPassword;
+    FaultToleranceState_T   enmFaultToleranceState;
+    uint32_t                uFaultTolerancePort;
+    com::Utf8Str            strFaultToleranceAddress;
+    com::Utf8Str            strFaultTolerancePassword;
+    uint32_t                uFaultToleranceInterval;
+    bool                    fRTCUseUTC;
+};
+
 /**
  * MachineConfigFile represents an XML machine configuration. All the machine settings
  * that go out to the XML (or are read from it) are in here.
@@ -841,33 +944,29 @@ class MachineConfigFile : public ConfigFileBase
 {
 public:
     com::Guid               uuid;
-    com::Utf8Str            strName;
-    bool                    fNameSync;
-    com::Utf8Str            strDescription;
-    com::Utf8Str            strOsType;
-    com::Utf8Str            strStateFile;
-    com::Guid               uuidCurrentSnapshot;
-    com::Utf8Str            strSnapshotFolder;
-    bool                    fTeleporterEnabled;
-    uint32_t                uTeleporterPort;
-    com::Utf8Str            strTeleporterAddress;
-    com::Utf8Str            strTeleporterPassword;
-    bool                    fRTCUseUTC;
 
+    MachineUserData         machineUserData;
+
+    com::Utf8Str            strStateFile;
     bool                    fCurrentStateModified;      // optional, default is true
     RTTIMESPEC              timeLastStateChange;        // optional, defaults to now
     bool                    fAborted;                   // optional, default is false
 
+    com::Guid               uuidCurrentSnapshot;
+
     Hardware                hardwareMachine;
     Storage                 storageMachine;
+    MediaRegistry           mediaRegistry;
 
-    ExtraDataItemsMap       mapExtraDataItems;
+    StringsMap              mapExtraDataItems;
 
     SnapshotsList           llFirstSnapshot;            // first snapshot or empty list if there's none
 
     MachineConfigFile(const com::Utf8Str *pstrFilename);
 
     bool operator==(const MachineConfigFile &m) const;
+
+    bool canHaveOwnMediaRegistry() const;
 
     void importMachineXML(const xml::ElementNode &elmMachine);
 
@@ -877,7 +976,9 @@ public:
     {
         BuildMachineXML_IncludeSnapshots = 0x01,
         BuildMachineXML_WriteVboxVersionAttribute = 0x02,
-        BuildMachineXML_SkipRemovableMedia = 0x02
+        BuildMachineXML_SkipRemovableMedia = 0x04,
+        BuildMachineXML_MediaRegistry = 0x08,
+        BuildMachineXML_SuppressSavedState = 0x10
     };
     void buildMachineXML(xml::ElementNode &elmMachine,
                          uint32_t fl,

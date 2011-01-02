@@ -1,4 +1,4 @@
-/* $Id: VBoxVMInformationDlg.cpp $ */
+/* $Id: VBoxVMInformationDlg.cpp 33386 2010-10-24 15:57:55Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -20,19 +20,21 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* Local Includes */
+#include "UIIconPool.h"
+#include "UIMachineLogic.h"
+#include "UIMachineView.h"
+#include "UIMachineWindow.h"
+#include "UISession.h"
+#include "VBoxGlobal.h"
+#include "VBoxVMInformationDlg.h"
+
 /* Global Includes */
 #include <QTimer>
 #include <QScrollBar>
 
-/* Local Includes */
-#include <VBoxVMInformationDlg.h>
-#include <VBoxGlobal.h>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
-#include "UIMachineView.h"
-#include "UISession.h"
 
 VBoxVMInformationDlg::InfoDlgMap VBoxVMInformationDlg::mSelfArray = InfoDlgMap();
 
@@ -71,11 +73,11 @@ VBoxVMInformationDlg::VBoxVMInformationDlg (UIMachineWindow *pMachineWindow, Qt:
 
 #ifdef Q_WS_MAC
     /* No icon for this window on the mac, cause this would act as proxy icon which isn't necessary here. */
-    setWindowIcon (QIcon());
+    setWindowIcon(QIcon());
 #else
     /* Apply window icons */
-    setWindowIcon (vboxGlobal().iconSetFull (QSize (32, 32), QSize (16, 16),
-                                             ":/session_info_32px.png", ":/session_info_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(QSize (32, 32), QSize (16, 16),
+                                          ":/session_info_32px.png", ":/session_info_16px.png"));
 #endif
 
     /* Enable size grip without using a status bar. */
@@ -464,33 +466,22 @@ void VBoxVMInformationDlg::refreshStatistics()
         QString nested = console.GetDebugger().GetHWVirtExNestedPagingEnabled() ?
             VBoxGlobal::tr ("Enabled", "details report (Nested Paging)") :
             VBoxGlobal::tr ("Disabled", "details report (Nested Paging)");
-        QString addVersion = m.GetGuestPropertyValue("/VirtualBox/GuestAdd/Version");
-        QString addRevision = m.GetGuestPropertyValue("/VirtualBox/GuestAdd/Revision");
-        QString addVersionStr;
-        if (!addVersion.isEmpty() && !addRevision.isEmpty())
-        {
-            QString addInfo = console.GetGuest().GetAdditionsVersion();
-            addVersionStr = (addInfo.isEmpty() ? "(" : "")
-                          + addVersion
-                          + " r"
-                          + m.GetGuestPropertyValue("/VirtualBox/GuestAdd/Revision")
-                          + (addInfo.isEmpty() ? ")" : "");
-        }
-        else
+        QString addVersionStr = console.GetGuest().GetAdditionsVersion();
+        if (addVersionStr.isEmpty())
             addVersionStr = tr ("Not Detected", "guest additions");
         QString osType = console.GetGuest().GetOSTypeId();
         if (osType.isEmpty())
             osType = tr ("Not Detected", "guest os type");
         else
             osType = vboxGlobal().vmGuestOSTypeDescription (osType);
-        int vrdpPort = console.GetRemoteDisplayInfo().GetPort();
-        QString vrdpInfo = (vrdpPort == 0 || vrdpPort == -1)?
-            tr ("Not Available", "details report (VRDP server port)") :
-            QString ("%1").arg (vrdpPort);
+        int vrdePort = console.GetVRDEServerInfo().GetPort();
+        QString vrdeInfo = (vrdePort == 0 || vrdePort == -1)?
+            tr ("Not Available", "details report (VRDE server port)") :
+            QString ("%1").arg (vrdePort);
 
         /* Searching for longest string */
         QStringList valuesList;
-        valuesList << resolution << virtualization << nested << addVersionStr << osType << vrdpInfo;
+        valuesList << resolution << virtualization << nested << addVersionStr << osType << vrdeInfo;
         int maxLength = 0;
         foreach (const QString &value, valuesList)
             maxLength = maxLength < fontMetrics().width (value) ?
@@ -502,7 +493,7 @@ void VBoxVMInformationDlg::refreshStatistics()
         result += formatValue (VBoxGlobal::tr ("Nested Paging", "details report"), nested, maxLength);
         result += formatValue (tr ("Guest Additions"), addVersionStr, maxLength);
         result += formatValue (tr ("Guest OS Type"), osType, maxLength);
-        result += formatValue (VBoxGlobal::tr ("Remote Display Server Port", "details report (VRDP Server)"), vrdpInfo, maxLength);
+        result += formatValue (VBoxGlobal::tr ("Remote Desktop Server Port", "details report (VRDE Server)"), vrdeInfo, maxLength);
         result += paragraph;
     }
 

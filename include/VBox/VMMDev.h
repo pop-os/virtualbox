@@ -177,6 +177,7 @@ typedef enum
     VMMDevReq_GetPageSharingStatus       = 215,
     VMMDevReq_DebugIsPageShared          = 216,
     VMMDevReq_GetSessionId               = 217, /* since version 3.2.8 */
+    VMMDevReq_WriteCoreDump              = 218,
     VMMDevReq_SizeHack                   = 0x7fffffff
 } VMMDevRequestType;
 
@@ -252,7 +253,7 @@ AssertCompileSize(VMMDevReqMouseStatus, 24+12);
 #define VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE                     RT_BIT(0)
 /** The host can (== wants to) send absolute coordinates.
  * (Input not captured.) */
-#define VMMDEV_MOUSE_HOST_CAN_ABSOLUTE                      RT_BIT(1)
+#define VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE                    RT_BIT(1)
 /** The guest can *NOT* switch to software cursor and therefore depends on the
  * host cursor.
  *
@@ -264,7 +265,7 @@ AssertCompileSize(VMMDevReqMouseStatus, 24+12);
  * This is for instance the case for the L4 console. */
 #define VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER                  RT_BIT(3)
 /** The guest can read VMMDev events to find out about pointer movement */
-#define VMMDEV_MOUSE_GUEST_USES_VMMDEV                      RT_BIT(4)
+#define VMMDEV_MOUSE_NEW_PROTOCOL                           RT_BIT(4)
 /** If the guest changes the status of the
  * VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR bit, the host will honour this */
 #define VMMDEV_MOUSE_HOST_RECHECKS_NEEDS_HOST_CURSOR        RT_BIT(5)
@@ -279,11 +280,11 @@ AssertCompileSize(VMMDevReqMouseStatus, 24+12);
       (VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE | VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR)
 /** The mask of all capabilities which the guest can legitimately change */
 #define VMMDEV_MOUSE_GUEST_MASK \
-      (VMMDEV_MOUSE_NOTIFY_HOST_MASK | VMMDEV_MOUSE_GUEST_USES_VMMDEV)
+      (VMMDEV_MOUSE_NOTIFY_HOST_MASK | VMMDEV_MOUSE_NEW_PROTOCOL)
 /** The mask of host capability changes for which notification events should
  * be sent */
 #define VMMDEV_MOUSE_NOTIFY_GUEST_MASK \
-      VMMDEV_MOUSE_HOST_CAN_ABSOLUTE
+      VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE
 /** The mask of all capabilities which the host can legitimately change */
 #define VMMDEV_MOUSE_HOST_MASK \
       (  VMMDEV_MOUSE_NOTIFY_GUEST_MASK \
@@ -340,6 +341,24 @@ typedef struct VMMDevReqMousePointer
     char pointerData[4];
 } VMMDevReqMousePointer;
 AssertCompileSize(VMMDevReqMousePointer, 24+24);
+
+/**
+ * Get the size that a VMMDevReqMousePointer request should have for a given
+ * size of cursor, including the trailing cursor image and mask data.
+ * @note an "empty" request still has the four preallocated bytes of data
+ *
+ * @returns the size
+ * @param  width   the cursor width
+ * @param  height  the cursor height
+ */
+DECLINLINE(size_t) vmmdevGetMousePointerReqSize(uint32_t width, uint32_t height)
+{
+    size_t cbBase = RT_OFFSETOF(VMMDevReqMousePointer, pointerData);
+    size_t cbMask = (width + 7) / 8 * height;
+    size_t cbArgb = width * height * 4;
+    return RT_MAX(cbBase + ((cbMask + 3) & ~3) + cbArgb,
+                  sizeof(VMMDevReqMousePointer));
+}
 
 /** @name VMMDevReqMousePointer::fFlags
  * @note The VBOX_MOUSE_POINTER_* flags are used in the guest video driver,
@@ -405,7 +424,7 @@ AssertCompileSize(VMMDevReqHostVersion, 24+16);
 
 
 /**
- * Guest capabilites structure.
+ * Guest capabilities structure.
  *
  * Used by VMMDevReq_ReportGuestCapabilities.
  */
@@ -419,7 +438,7 @@ typedef struct
 AssertCompileSize(VMMDevReqGuestCapabilities, 24+4);
 
 /**
- * Guest capabilites structure, version 2.
+ * Guest capabilities structure, version 2.
  *
  * Used by VMMDevReq_SetGuestCapabilities.
  */
@@ -588,8 +607,9 @@ AssertCompileSize(VMMDevCtlGuestFilterMask, 24+8);
  */
 typedef struct VBoxGuestInfo
 {
-    /** The VMMDev interface version expected by additions. */
-    uint32_t additionsVersion;
+    /** The VMMDev interface version expected by additions.
+      * *Deprecated*, do not use anymore! Will be removed. */
+    uint32_t interfaceVersion;
     /** Guest OS type. */
     VBOXOSTYPE osType;
 } VBoxGuestInfo;
@@ -627,10 +647,10 @@ typedef struct VBoxGuestInfo2
     uint32_t additionsRevision;
     /** Feature mask, currently unused. */
     uint32_t additionsFeatures;
-    /** some additional information, for example 'Beta 1' or something like that */
+    /** Some additional information, for example 'Beta 1' or something like that. */
     char     szName[128];
 } VBoxGuestInfo2;
-
+AssertCompileSize(VBoxGuestInfo2, 144);
 
 /**
  * Guest information report, version 2.
@@ -859,9 +879,9 @@ typedef struct
 AssertCompileSize(VMMDevGetStatisticsChangeRequest, 24+8);
 
 
-/** The length of a string field in the credentials request.
+/** The size of a string field in the credentials request (including '\\0').
  * @see VMMDevCredentials  */
-#define VMMDEV_CREDENTIALS_STRLEN           128
+#define VMMDEV_CREDENTIALS_SZ_SIZE          128
 
 /**
  * Credentials request structure.
@@ -876,11 +896,11 @@ typedef struct
     /** IN/OUT: Request flags. */
     uint32_t u32Flags;
     /** OUT: User name (UTF-8). */
-    char szUserName[VMMDEV_CREDENTIALS_STRLEN];
+    char szUserName[VMMDEV_CREDENTIALS_SZ_SIZE];
     /** OUT: Password (UTF-8). */
-    char szPassword[VMMDEV_CREDENTIALS_STRLEN];
+    char szPassword[VMMDEV_CREDENTIALS_SZ_SIZE];
     /** OUT: Domain name (UTF-8). */
-    char szDomain[VMMDEV_CREDENTIALS_STRLEN];
+    char szDomain[VMMDEV_CREDENTIALS_SZ_SIZE];
 } VMMDevCredentials;
 AssertCompileSize(VMMDevCredentials, 24+4+3*128);
 #pragma pack()
@@ -1281,6 +1301,22 @@ typedef struct
 } VMMDevReqSessionId;
 AssertCompileSize(VMMDevReqSessionId, 24+8);
 
+
+/**
+ * Write Core Dump request.
+ *
+ * Used by VMMDevReq_WriteCoreDump.
+ */
+typedef struct
+{
+    /** Header. */
+    VMMDevRequestHeader header;
+    /** Flags (reserved, MBZ). */
+    uint32_t            fFlags;
+} VMMDevReqWriteCoreDump;
+AssertCompileSize(VMMDevReqWriteCoreDump, 24+4);
+
+
 #pragma pack()
 
 
@@ -1634,7 +1670,7 @@ typedef struct
     uint32_t flags;        /**< VBOX_HGCM_F_PARM_*. */
     uint16_t offFirstPage; /**< Offset in the first page where data begins. */
     uint16_t cPages;       /**< Number of pages. */
-    RTGCPHYS64 aPages[1];  /**< Page addesses. */
+    RTGCPHYS64 aPages[1];  /**< Page addresses. */
 } HGCMPageListInfo;
 AssertCompileSize(HGCMPageListInfo, 4+2+2+8);
 
@@ -1880,7 +1916,7 @@ typedef struct VBVACMDHDR
 /**
  * VBVA record.
  */
-typedef struct
+typedef struct VBVARECORD
 {
     /** The length of the record. Changed by guest. */
     uint32_t cbRecord;
@@ -1960,7 +1996,6 @@ AssertCompileSize(VMMDevMemory, 8+8 + (12 + (_4M-_1K) + 4*64 + 12) );
 
 /** Version of VMMDevMemory structure (VMMDevMemory::u32Version). */
 #define VMMDEV_MEMORY_VERSION   (1)
-
 
 /** @} */
 RT_C_DECLS_END

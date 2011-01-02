@@ -1,12 +1,11 @@
-/* $Id: MediumFormatImpl.cpp $ */
-
+/* $Id: MediumFormatImpl.cpp 33567 2010-10-28 15:37:21Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,12 +20,14 @@
 #include "AutoCaller.h"
 #include "Logging.h"
 
-#include <VBox/VBoxHDD.h>
+#include <VBox/vd.h>
+
+#include <iprt/cpp/utils.h>
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR (MediumFormat)
+DEFINE_EMPTY_CTOR_DTOR(MediumFormat)
 
 HRESULT MediumFormat::FinalConstruct()
 {
@@ -46,32 +47,52 @@ void MediumFormat::FinalRelease()
  *
  * @param aVDInfo  Pointer to a backend info object.
  */
-HRESULT MediumFormat::init (const VDBACKENDINFO *aVDInfo)
+HRESULT MediumFormat::init(const VDBACKENDINFO *aVDInfo)
 {
-    LogFlowThisFunc (("aVDInfo=%p\n", aVDInfo));
+    LogFlowThisFunc(("aVDInfo=%p\n", aVDInfo));
 
     ComAssertRet(aVDInfo, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
-    AutoInitSpan autoInitSpan (this);
-    AssertReturn (autoInitSpan.isOk(), E_FAIL);
+    AutoInitSpan autoInitSpan(this);
+    AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     /* The ID of the backend */
-    unconst (m.id) = aVDInfo->pszBackend;
+    unconst(m.strId) = aVDInfo->pszBackend;
     /* The Name of the backend */
     /* Use id for now as long as VDBACKENDINFO hasn't any extra
      * name/description field. */
-    unconst (m.name) = aVDInfo->pszBackend;
+    unconst(m.strName) = aVDInfo->pszBackend;
     /* The capabilities of the backend */
-    unconst (m.capabilities) = aVDInfo->uBackendCaps;
+    unconst(m.capabilities) = aVDInfo->uBackendCaps;
     /* Save the supported file extensions in a list */
-    if (aVDInfo->papszFileExtensions)
+    if (aVDInfo->paFileExtensions)
     {
-        const char *const *papsz = aVDInfo->papszFileExtensions;
-        while (*papsz != NULL)
+        PCVDFILEEXTENSION papExtension = aVDInfo->paFileExtensions;
+        while (papExtension->pszExtension != NULL)
         {
-            unconst (m.fileExtensions).push_back (*papsz);
-            ++ papsz;
+            DeviceType_T devType;
+
+            unconst(m.llFileExtensions).push_back(papExtension->pszExtension);
+
+            switch(papExtension->enmType)
+            {
+                case VDTYPE_HDD:
+                    devType = DeviceType_HardDisk;
+                    break;
+                case VDTYPE_DVD:
+                    devType = DeviceType_DVD;
+                    break;
+                case VDTYPE_FLOPPY:
+                    devType = DeviceType_Floppy;
+                    break;
+                default:
+                    AssertMsgFailed(("Invalid enm type %d!\n", papExtension->enmType));
+                    return E_INVALIDARG;
+            }
+
+            unconst(m.llDeviceTypes).push_back(devType);
+            ++papExtension;
         }
     }
     /* Save a list of configure properties */
@@ -81,9 +102,9 @@ HRESULT MediumFormat::init (const VDBACKENDINFO *aVDInfo)
         /* Walk through all available keys */
         while (pa->pszKey != NULL)
         {
-            Utf8Str defaultValue ("");
+            Utf8Str defaultValue("");
             DataType_T dt;
-            ULONG flags = static_cast <ULONG> (pa->uKeyFlags);
+            ULONG flags = static_cast <ULONG>(pa->uKeyFlags);
             /* Check for the configure data type */
             switch (pa->enmValueType)
             {
@@ -125,16 +146,16 @@ HRESULT MediumFormat::init (const VDBACKENDINFO *aVDInfo)
             /// limit (or make the argument ULONG64 after checking that COM is
             /// capable of defining enums (used to represent bit flags) that
             /// contain 64-bit values)
-            ComAssertRet(pa->uKeyFlags == ((ULONG) pa->uKeyFlags), E_FAIL);
+            ComAssertRet(pa->uKeyFlags == ((ULONG)pa->uKeyFlags), E_FAIL);
 
             /* Create one property structure */
-            const Property prop = { Utf8Str (pa->pszKey),
-                                    Utf8Str (""),
+            const Property prop = { Utf8Str(pa->pszKey),
+                                    Utf8Str(""),
                                     dt,
                                     flags,
                                     defaultValue };
-            unconst (m.properties).push_back (prop);
-            ++ pa;
+            unconst(m.llProperties).push_back(prop);
+            ++pa;
         }
     }
 
@@ -150,18 +171,19 @@ HRESULT MediumFormat::init (const VDBACKENDINFO *aVDInfo)
  */
 void MediumFormat::uninit()
 {
-    LogFlowThisFunc (("\n"));
+    LogFlowThisFunc(("\n"));
 
     /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan (this);
+    AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
-    unconst (m.properties).clear();
-    unconst (m.fileExtensions).clear();
-    unconst (m.capabilities) = 0;
-    unconst (m.name).setNull();
-    unconst (m.id).setNull();
+    unconst(m.llProperties).clear();
+    unconst(m.llFileExtensions).clear();
+    unconst(m.llDeviceTypes).clear();
+    unconst(m.capabilities) = 0;
+    unconst(m.strName).setNull();
+    unconst(m.strId).setNull();
 }
 
 // IMediumFormat properties
@@ -175,7 +197,7 @@ STDMETHODIMP MediumFormat::COMGETTER(Id)(BSTR *aId)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* this is const, no need to lock */
-    m.id.cloneTo (aId);
+    m.strId.cloneTo(aId);
 
     return S_OK;
 }
@@ -188,26 +210,7 @@ STDMETHODIMP MediumFormat::COMGETTER(Name)(BSTR *aName)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* this is const, no need to lock */
-    m.name.cloneTo (aName);
-
-    return S_OK;
-}
-
-STDMETHODIMP MediumFormat::COMGETTER(FileExtensions)(ComSafeArrayOut(BSTR, aFileExtensions))
-{
-    CheckComArgOutSafeArrayPointerValid(aFileExtensions);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* this is const, no need to lock */
-    com::SafeArray<BSTR> fileExtentions(m.fileExtensions.size());
-    int i = 0;
-    for (BstrList::const_iterator it = m.fileExtensions.begin();
-         it != m.fileExtensions.end();
-         ++it, ++i)
-        (*it).cloneTo(&fileExtentions[i]);
-    fileExtentions.detachTo(ComSafeArrayOutArg(aFileExtensions));
+    m.strName.cloneTo(aName);
 
     return S_OK;
 }
@@ -225,18 +228,46 @@ STDMETHODIMP MediumFormat::COMGETTER(Capabilities)(ULONG *aCaps)
     /// limit (or make the argument ULONG64 after checking that COM is capable
     /// of defining enums (used to represent bit flags) that contain 64-bit
     /// values)
-    ComAssertRet(m.capabilities == ((ULONG) m.capabilities), E_FAIL);
+    ComAssertRet(m.capabilities == ((ULONG)m.capabilities), E_FAIL);
 
     *aCaps = (ULONG) m.capabilities;
 
     return S_OK;
 }
 
-STDMETHODIMP MediumFormat::DescribeProperties(ComSafeArrayOut (BSTR, aNames),
-                                                ComSafeArrayOut (BSTR, aDescriptions),
-                                                ComSafeArrayOut (DataType_T, aTypes),
-                                                ComSafeArrayOut (ULONG, aFlags),
-                                                ComSafeArrayOut (BSTR, aDefaults))
+STDMETHODIMP MediumFormat::DescribeFileExtensions(ComSafeArrayOut(BSTR, aFileExtensions),
+                                                  ComSafeArrayOut(DeviceType_T, aDeviceTypes))
+{
+    CheckComArgOutSafeArrayPointerValid(aFileExtensions);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* this is const, no need to lock */
+    com::SafeArray<BSTR> fileExtentions(m.llFileExtensions.size());
+    int i = 0;
+    for (StrList::const_iterator it = m.llFileExtensions.begin();
+         it != m.llFileExtensions.end();
+         ++it, ++i)
+        (*it).cloneTo(&fileExtentions[i]);
+    fileExtentions.detachTo(ComSafeArrayOutArg(aFileExtensions));
+
+    com::SafeArray<DeviceType_T> deviceTypes(m.llDeviceTypes.size());
+    i = 0;
+    for (DeviceTypeList::const_iterator it = m.llDeviceTypes.begin();
+         it != m.llDeviceTypes.end();
+         ++it, ++i)
+        deviceTypes[i] = (*it);
+    deviceTypes.detachTo(ComSafeArrayOutArg(aDeviceTypes));
+
+    return S_OK;
+}
+
+STDMETHODIMP MediumFormat::DescribeProperties(ComSafeArrayOut(BSTR, aNames),
+                                              ComSafeArrayOut(BSTR, aDescriptions),
+                                              ComSafeArrayOut(DataType_T, aTypes),
+                                              ComSafeArrayOut(ULONG, aFlags),
+                                              ComSafeArrayOut(BSTR, aDefaults))
 {
     CheckComArgOutSafeArrayPointerValid(aNames);
     CheckComArgOutSafeArrayPointerValid(aDescriptions);
@@ -248,23 +279,24 @@ STDMETHODIMP MediumFormat::DescribeProperties(ComSafeArrayOut (BSTR, aNames),
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* this is const, no need to lock */
-    com::SafeArray<BSTR>        propertyNames(m.properties.size());
-    com::SafeArray<BSTR>        propertyDescriptions (m.properties.size());
-    com::SafeArray<DataType_T>  propertyTypes(m.properties.size());
-    com::SafeArray<ULONG>       propertyFlags(m.properties.size());
-    com::SafeArray<BSTR>        propertyDefaults(m.properties.size());
+    size_t c = m.llProperties.size();
+    com::SafeArray<BSTR>        propertyNames(c);
+    com::SafeArray<BSTR>        propertyDescriptions(c);
+    com::SafeArray<DataType_T>  propertyTypes(c);
+    com::SafeArray<ULONG>       propertyFlags(c);
+    com::SafeArray<BSTR>        propertyDefaults(c);
 
     int i = 0;
-    for (PropertyList::const_iterator it = m.properties.begin();
-         it != m.properties.end();
+    for (PropertyList::const_iterator it = m.llProperties.begin();
+         it != m.llProperties.end();
          ++it, ++i)
     {
         const Property &prop = (*it);
-        prop.name.cloneTo(&propertyNames[i]);
-        prop.description.cloneTo(&propertyDescriptions[i]);
+        prop.strName.cloneTo(&propertyNames[i]);
+        prop.strDescription.cloneTo(&propertyDescriptions[i]);
         propertyTypes[i] = prop.type;
         propertyFlags[i] = prop.flags;
-        prop.defaultValue.cloneTo(&propertyDefaults[i]);
+        prop.strDefaultValue.cloneTo(&propertyDefaults[i]);
     }
 
     propertyNames.detachTo(ComSafeArrayOutArg(aNames));

@@ -1,4 +1,4 @@
-/* $Id: FramebufferVNC.cpp $ */
+/* $Id: FramebufferVNC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxHeadless - VNC server implementation for VirtualBox.
  *
@@ -92,8 +92,8 @@ HRESULT VNCFB::init(const char *pszName)
         vncServer->port = mVncPort;
     char *pszDesktopName;
     rc = RTStrAPrintf(&pszDesktopName, "%s - VirtualBox", pszName);
-    if (RT_SUCCESS(rc))
-        vncServer->desktopName = (const char*)pszDesktopName;
+    if (rc >= 0)
+        vncServer->desktopName = pszDesktopName;
     else
         vncServer->desktopName = "VirtualBox";
     if (mVncPassword)
@@ -514,7 +514,7 @@ STDMETHODIMP VNCFB::COMGETTER(Height) (ULONG *height)
  * Return the colour depth of our frame buffer.  Note that we actually
  * store the pixel format, not the colour depth internally, since
  * when display sets FramebufferPixelFormat_Opaque, it
- * wants to retreive FramebufferPixelFormat_Opaque and
+ * wants to retrieve FramebufferPixelFormat_Opaque and
  * nothing else.
  *
  * @returns            COM status code
@@ -615,7 +615,7 @@ STDMETHODIMP VNCFB::COMGETTER(Overlay) (IFramebufferOverlay **aOverlay)
  * @returns          COM status code
  * @retval  winId Associated window id
  */
-STDMETHODIMP VNCFB::COMGETTER(WinId) (ULONG64 *winId)
+STDMETHODIMP VNCFB::COMGETTER(WinId) (LONG64 *winId)
 {
     if (!winId)
         return E_POINTER;
@@ -682,4 +682,3 @@ STDMETHODIMP VNCFB::ProcessVHWACommand(BYTE *pCommand)
 NS_DECL_CLASSINFO(VNCFB)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VNCFB, IFramebuffer)
 #endif
-

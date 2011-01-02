@@ -129,6 +129,9 @@
       <xsl:value-of select="concat(../@name,'_',@name)"/>
       <xsl:text>,&#x0A;</xsl:text>
     </xsl:for-each>
+    <xsl:text>    </xsl:text>
+    <xsl:value-of select="concat('K',@name)"/>
+    <xsl:text>_Max&#x0A;</xsl:text>
     <xsl:text>};&#x0A;&#x0A;Q_DECLARE_METATYPE(</xsl:text>
     <xsl:value-of select="concat('K',@name)"/>
     <xsl:text>)&#x0A;&#x0A;</xsl:text>
@@ -181,10 +184,10 @@
 -->
 <xsl:template match="if" mode="begin">
   <xsl:if test="@target='xpidl'">
-    <xsl:text>#if !defined (Q_WS_WIN32)&#x0A;</xsl:text>
+    <xsl:text>#if !defined(Q_WS_WIN32)&#x0A;</xsl:text>
   </xsl:if>
   <xsl:if test="@target='midl'">
-    <xsl:text>#if defined (Q_WS_WIN32)&#x0A;</xsl:text>
+    <xsl:text>#if defined(Q_WS_WIN32)&#x0A;</xsl:text>
   </xsl:if>
 </xsl:template>
 <xsl:template match="if" mode="end">
@@ -233,7 +236,7 @@
       or
       (//param[@safearray='yes' and not(../@internal='yes') and @type=current()/@name])
     ">
-      <xsl:text>typedef QVector &lt;C</xsl:text>
+      <xsl:text>typedef QVector&lt;C</xsl:text>
       <xsl:value-of select="substring(@name,2)"/>
       <xsl:text>&gt; C</xsl:text>
       <xsl:value-of select="substring(@name,2)"/>
@@ -269,7 +272,7 @@
   <xsl:value-of select="@name"/>
   <xsl:text> wrapper&#x0A;&#x0A;class C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> : public CInterface &lt;</xsl:text>
+  <xsl:text> : public CInterface&lt;</xsl:text>
   <xsl:value-of select="@name"/>
   <!-- use the correct base if supportsErrorInfo -->
   <xsl:call-template name="tryComposeFetchErrorInfo">
@@ -278,7 +281,7 @@
   <xsl:text>&gt;&#x0A;{&#x0A;public:&#x0A;&#x0A;</xsl:text>
 
   <!-- generate the Base typedef-->
-  <xsl:text>    typedef CInterface &lt;</xsl:text>
+  <xsl:text>    typedef CInterface&lt;</xsl:text>
   <xsl:value-of select="@name"/>
   <!-- Use the correct base if supportsErrorInfo -->
   <xsl:call-template name="tryComposeFetchErrorInfo">
@@ -378,6 +381,27 @@
 
 </xsl:template>
 
+<xsl:template name="declareExtraDataHelpers">
+
+<xsl:text>    void SetExtraDataBool(const QString &amp;strKey, bool fValue);
+    bool GetExtraDataBool(const QString &amp;strKey, bool fDef = true);
+
+    void SetExtraDataInt(const QString &amp;strKey, int value);
+    int GetExtraDataInt(const QString &amp;strKey, int def = 0);
+
+    void SetExtraDataRect(const QString &amp;strKey, const QRect &amp;value);
+    QRect GetExtraDataRect(const QString &amp;strKey, const QRect &amp;def = QRect());
+
+    void SetExtraDataStringList(const QString &amp;strKey, const QStringList &amp;value);
+    QStringList GetExtraDataStringList(const QString &amp;strKey, QStringList def = QStringList());
+
+    void SetExtraDataIntList(const QString &amp;strKey, const QList&lt;int&gt; &amp;value);
+    QList&lt;int&gt; GetExtraDataIntList(const QString &amp;strKey, QList&lt;int&gt; def = QList&lt;int&gt;());
+
+</xsl:text>
+
+</xsl:template>
+
 <xsl:template name="declareMembers">
 
   <xsl:text>    // constructors and assignments taking CUnknown and </xsl:text>
@@ -385,17 +409,17 @@
   <!-- default constructor -->
   <xsl:text>    C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> () {}&#x0A;&#x0A;</xsl:text>
+  <xsl:text>() {}&#x0A;&#x0A;</xsl:text>
   <!-- constructor taking CWhatever -->
-  <xsl:text>    template &lt;class OI, class OB&gt; explicit C</xsl:text>
+  <xsl:text>    template&lt;class OI, class OB&gt; explicit C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-<xsl:text> (const CInterface &lt;OI, OB&gt; &amp; that)
+<xsl:text>(const CInterface&lt;OI, OB&gt; &amp; that)
     {
-        attach (that.raw());
-        if (SUCCEEDED (mRC))
+        attach(that.raw());
+        if (SUCCEEDED(mRC))
         {
             mRC = that.lastRC();
-            setErrorInfo (that.errorInfo());
+            setErrorInfo(that.errorInfo());
         }
     }
 </xsl:text>
@@ -403,29 +427,29 @@
   <!-- specialization for ourselves (copy constructor) -->
   <xsl:text>    C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> (const C</xsl:text>
+  <xsl:text>(const C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> &amp; that) : Base (that) {}&#x0A;&#x0A;</xsl:text>
+  <xsl:text> &amp; that) : Base(that) {}&#x0A;&#x0A;</xsl:text>
   <!-- constructor taking a raw iface pointer -->
-  <xsl:text>    template &lt;class OI&gt; explicit C</xsl:text>
+  <xsl:text>    template&lt;class OI&gt; explicit C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> (OI * aIface) { attach (aIface); }&#x0A;&#x0A;</xsl:text>
+  <xsl:text>(OI * aIface) { attach(aIface); }&#x0A;&#x0A;</xsl:text>
   <!-- specialization for ourselves -->
   <xsl:text>    explicit C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> (</xsl:text>
+  <xsl:text>(</xsl:text>
   <xsl:value-of select="@name"/>
-  <xsl:text> * aIface) : Base (aIface) {}&#x0A;&#x0A;</xsl:text>
+  <xsl:text> * aIface) : Base(aIface) {}&#x0A;&#x0A;</xsl:text>
   <!-- assignment taking CWhatever -->
-  <xsl:text>    template &lt;class OI, class OB&gt; C</xsl:text>
+  <xsl:text>    template&lt;class OI, class OB&gt; C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-<xsl:text> &amp; operator = (const CInterface &lt;OI, OB&gt; &amp; that)
+<xsl:text> &amp; operator=(const CInterface&lt;OI, OB&gt; &amp; that)
     {
-        attach (that.raw());
-        if (SUCCEEDED (mRC))
+        attach(that.raw());
+        if (SUCCEEDED(mRC))
         {
             mRC = that.lastRC();
-            setErrorInfo (that.errorInfo());
+            setErrorInfo(that.errorInfo());
         }
         return *this;
     }
@@ -434,21 +458,21 @@
   <!-- specialization for ourselves -->
   <xsl:text>    C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> &amp; operator = (const C</xsl:text>
+  <xsl:text> &amp; operator=(const C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
 <xsl:text> &amp; that)
     {
-        Base::operator= (that);
+        Base::operator=(that);
         return *this;
     }
 </xsl:text>
   <xsl:text>&#x0A;</xsl:text>
   <!-- assignment taking a raw iface pointer -->
-  <xsl:text>    template &lt;class OI&gt; C</xsl:text>
+  <xsl:text>    template&lt;class OI&gt; C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-<xsl:text> &amp; operator = (OI * aIface)
+<xsl:text> &amp; operator=(OI * aIface)
     {
-        attach (aIface);
+        attach(aIface);
         return *this;
     }
 </xsl:text>
@@ -456,11 +480,11 @@
   <!-- specialization for ourselves -->
   <xsl:text>    C</xsl:text>
   <xsl:value-of select="substring(@name,2)"/>
-  <xsl:text> &amp; operator = (</xsl:text>
+  <xsl:text> &amp; operator=(</xsl:text>
   <xsl:value-of select="@name"/>
 <xsl:text> * aIface)
     {
-        Base::operator= (aIface);
+        Base::operator=(aIface);
         return *this;
     }
 </xsl:text>
@@ -475,6 +499,13 @@
   <xsl:call-template name="declareMethods">
     <xsl:with-param name="iface" select="."/>
   </xsl:call-template>
+
+  <xsl:if test="@name='IVirtualBox' or @name='IMachine'">
+    <xsl:text>    // ExtraData helpers&#x0A;&#x0A;</xsl:text>
+    <xsl:call-template name="declareExtraDataHelpers">
+      <xsl:with-param name="iface" select="."/>
+    </xsl:call-template>
+  </xsl:if>
 
   <xsl:text>    // friend wrappers&#x0A;&#x0A;</xsl:text>
   <xsl:text>    friend class CUnknown;&#x0A;</xsl:text>
@@ -650,6 +681,160 @@
 
 </xsl:template>
 
+<xsl:template name="defineExtraDataHelpers">
+
+  <xsl:param name="iface"/>
+
+  <xsl:text>void C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::SetExtraDataBool(const QString &amp;strKey, bool fValue)</xsl:text>
+<xsl:text>
+{
+    SetExtraData(strKey, fValue == true ? "true" : "false");
+}
+
+</xsl:text>
+
+  <xsl:text>bool C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::GetExtraDataBool(const QString &amp;strKey, bool fDef /* = true */)</xsl:text>
+<xsl:text>
+{
+    bool fResult = fDef;
+    QString value = GetExtraData(strKey);
+    if (   value == "true"
+        || value == "on"
+        || value == "yes")
+        fResult = true;
+    else if (   value == "false"
+             || value == "off"
+             || value == "no")
+             fResult = false;
+    return fResult;
+}
+
+</xsl:text>
+
+  <xsl:text>void C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::SetExtraDataInt(const QString &amp;strKey, int value)</xsl:text>
+<xsl:text>
+{
+    SetExtraData(strKey, QString::number(value));
+}
+
+</xsl:text>
+
+  <xsl:text>int C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::GetExtraDataInt(const QString &amp;strKey, int def /* = 0 */)</xsl:text>
+<xsl:text>
+{
+    QString value = GetExtraData(strKey);
+    bool fOk;
+    int result = value.toInt(&amp;fOk);
+    if (fOk)
+        return result;
+    return def;
+}
+
+</xsl:text>
+
+  <xsl:text>void C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::SetExtraDataRect(const QString &amp;strKey, const QRect &amp;value)</xsl:text>
+<xsl:text>
+{
+    SetExtraData(strKey, QString("%1,%2,%3,%4")
+                         .arg(value.x())
+                         .arg(value.y())
+                         .arg(value.width())
+                         .arg(value.height()));
+}
+
+</xsl:text>
+
+  <xsl:text>QRect C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::GetExtraDataRect(const QString &amp;strKey, const QRect &amp;def /* = QRect() */)</xsl:text>
+<xsl:text>
+{
+    QRect result = def;
+    QList&lt;int&gt; intList = GetExtraDataIntList(strKey);
+    if (intList.size() == 4)
+    {
+        result.setRect(intList.at(0),
+                       intList.at(1),
+                       intList.at(2),
+                       intList.at(3));
+    }
+    return result;
+}
+
+</xsl:text>
+
+  <xsl:text>void C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::SetExtraDataStringList(const QString &amp;strKey, const QStringList &amp;value)</xsl:text>
+<xsl:text>
+{
+    SetExtraData(strKey, value.join(","));
+}
+
+</xsl:text>
+
+  <xsl:text>QStringList C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::GetExtraDataStringList(const QString &amp;strKey, QStringList def /* = QStringList() */)</xsl:text>
+<xsl:text>
+{
+    QString strValue = GetExtraData(strKey);
+    if (strValue.isEmpty())
+        return def;
+    else
+        return strValue.split(",");
+}
+
+</xsl:text>
+
+  <xsl:text>void C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::SetExtraDataIntList(const QString &amp;strKey, const QList&lt;int&gt; &amp;value)</xsl:text>
+<xsl:text>
+{
+    QStringList strList;
+    for (int i=0; i &lt; value.size(); ++i)
+        strList &lt;&lt; QString::number(value.at(i));
+    SetExtraDataStringList(strKey, strList);
+}
+
+</xsl:text>
+
+  <xsl:text>QList&lt;int&gt; C</xsl:text>
+  <xsl:value-of select="substring(@name,2)"/>
+  <xsl:text>::GetExtraDataIntList(const QString &amp;strKey, QList&lt;int&gt; def /* = QList&lt;int&gt;() */)</xsl:text>
+<xsl:text>
+{
+    QStringList strList = GetExtraDataStringList(strKey);
+    if (strList.size() > 0)
+    {
+        QList&lt;int&gt; intList;
+        bool fOk;
+        for (int i=0; i &lt; strList.size(); ++i)
+        {
+            intList &lt;&lt; strList.at(i).toInt(&amp;fOk);
+            if (!fOk)
+                return def;
+        }
+        return intList;
+    }
+    return def;
+}
+
+</xsl:text>
+
+</xsl:template>
+
 <xsl:template name="defineMembers">
   <xsl:call-template name="defineAttributes">
     <xsl:with-param name="iface" select="."/>
@@ -657,6 +842,12 @@
   <xsl:call-template name="defineMethods">
     <xsl:with-param name="iface" select="."/>
   </xsl:call-template>
+  <xsl:if test="@name='IVirtualBox' or @name='IMachine'">
+    <xsl:text>// ExtraData helpers&#x0A;&#x0A;</xsl:text>
+    <xsl:call-template name="defineExtraDataHelpers">
+      <xsl:with-param name="iface" select="."/>
+    </xsl:call-template>
+  </xsl:if>
 </xsl:template>
 
 <!-- attribute definitions -->
@@ -723,7 +914,7 @@
  *      - in <method> context, must not be specified (the default value
  *        will apply)
  *  @param define
- *      'yes' to procuce inlined definition outside the class
+ *      'yes' to produce inlined definition outside the class
  *      declaration, or
  *      empty string to produce method declaration only (w/o body)
  *  @param namespace
@@ -759,8 +950,7 @@
       <xsl:if test="$define">
         <xsl:text>&#x0A;{&#x0A;</xsl:text>
         <!-- iface assertion -->
-        <xsl:text>    Assert (mIface);&#x0A;</xsl:text>
-        <xsl:text>    if (!mIface)&#x0A;        return;&#x0A;</xsl:text>
+        <xsl:text>    AssertReturnVoid(mIface);&#x0A;</xsl:text>
         <!-- method call -->
         <xsl:call-template name="composeMethodCall">
           <xsl:with-param name="isSetter" select="'yes'"/>
@@ -799,12 +989,11 @@
         <xsl:apply-templates select="$return/@type" mode="initializer"/>
         <xsl:text>;&#x0A;</xsl:text>
         <!-- iface assertion -->
-        <xsl:text>    Assert (mIface);&#x0A;</xsl:text>
-        <xsl:text>    if (!mIface)&#x0A;        return a</xsl:text>
+        <xsl:text>    AssertReturn(mIface, a</xsl:text>
         <xsl:call-template name="capitalize">
           <xsl:with-param name="str" select="$return/@name"/>
         </xsl:call-template>
-        <xsl:text>;&#x0A;</xsl:text>
+        <xsl:text>);&#x0A;</xsl:text>
         <!-- method call -->
         <xsl:call-template name="composeMethodCall"/>
         <!-- return statement -->
@@ -842,7 +1031,7 @@
           <xsl:call-template name="capitalize">
             <xsl:with-param name="str" select="@name"/>
           </xsl:call-template>
-          <xsl:text> (</xsl:text>
+          <xsl:text>(</xsl:text>
           <!-- parameter -->
           <xsl:apply-templates select="@type" mode="param"/>
           <xsl:text> a</xsl:text>
@@ -857,7 +1046,7 @@
           <xsl:call-template name="capitalize">
             <xsl:with-param name="str" select="@name"/>
           </xsl:call-template>
-          <xsl:text> (</xsl:text>
+          <xsl:text>(</xsl:text>
           <!-- const method -->
           <xsl:text>) const</xsl:text>
         </xsl:otherwise>
@@ -869,7 +1058,7 @@
       <xsl:call-template name="capitalize">
         <xsl:with-param name="str" select="@name"/>
       </xsl:call-template>
-      <xsl:text> (</xsl:text>
+      <xsl:text>(</xsl:text>
       <!-- parameters -->
       <xsl:for-each select="param[@dir!='return']">
         <xsl:apply-templates select="@type" mode="param"/>
@@ -923,7 +1112,7 @@
       <xsl:call-template name="capitalize">
         <xsl:with-param name="str" select="@name"/>
       </xsl:call-template>
-      <xsl:text>) (</xsl:text>
+      <xsl:text>)(</xsl:text>
       <!-- parameter -->
       <xsl:call-template name="composeMethodCallParam">
         <xsl:with-param name="isIn" select="$isSetter"/>
@@ -936,7 +1125,7 @@
       <xsl:call-template name="capitalize">
         <xsl:with-param name="str" select="@name"/>
       </xsl:call-template>
-      <xsl:text> (</xsl:text>
+      <xsl:text>(</xsl:text>
       <!-- parameters -->
       <xsl:for-each select="param">
         <xsl:call-template name="composeMethodCallParam"/>
@@ -1010,10 +1199,10 @@
     </xsl:when>
     <xsl:otherwise>
       <xsl:if test="$supports='strict' or $supports='yes'">
-        <xsl:text>    if (mRC != S_OK)&#x0A;    {&#x0A;</xsl:text>
-        <xsl:text>        fetchErrorInfo (mIface, &amp;COM_IIDOF (Base::Iface));&#x0A;</xsl:text>
+        <xsl:text>    if (RT_UNLIKELY(mRC != S_OK))&#x0A;    {&#x0A;</xsl:text>
+        <xsl:text>        fetchErrorInfo(mIface, &amp;COM_IIDOF(Base::Iface));&#x0A;</xsl:text>
         <xsl:if test="$supports='strict'">
-          <xsl:text>        AssertMsg (errInfo.isFullAvailable(), </xsl:text>
+          <xsl:text>        AssertMsg(errInfo.isFullAvailable(), </xsl:text>
           <xsl:text>("for RC=0x%08X\n", mRC));&#x0A;</xsl:text>
         </xsl:if>
         <xsl:text>    }&#x0A;</xsl:text>
@@ -1034,12 +1223,12 @@
     <xsl:when test="@safearray='yes'">
       <xsl:choose>
         <xsl:when test="$isIn">
-          <xsl:text>ComSafeArrayAsInParam (</xsl:text>
+          <xsl:text>ComSafeArrayAsInParam(</xsl:text>
           <xsl:value-of select="@name"/>
           <xsl:text>)</xsl:text>
         </xsl:when>
         <xsl:when test="$isOut">
-          <xsl:text>ComSafeArrayAsOutParam (</xsl:text>
+          <xsl:text>ComSafeArrayAsOutParam(</xsl:text>
           <xsl:value-of select="@name"/>
           <xsl:text>)</xsl:text>
         </xsl:when>
@@ -1049,14 +1238,14 @@
     <xsl:when test="@type = 'wstring' or @type = 'uuid'">
       <xsl:choose>
         <xsl:when test="$isIn">
-          <xsl:text>BSTRIn (a</xsl:text>
+          <xsl:text>BSTRIn(a</xsl:text>
           <xsl:call-template name="capitalize">
             <xsl:with-param name="str" select="@name"/>
           </xsl:call-template>
           <xsl:text>)</xsl:text>
         </xsl:when>
         <xsl:when test="$isOut">
-          <xsl:text>BSTROut (a</xsl:text>
+          <xsl:text>BSTROut(a</xsl:text>
           <xsl:call-template name="capitalize">
             <xsl:with-param name="str" select="@name"/>
           </xsl:call-template>
@@ -1079,11 +1268,11 @@
           </xsl:call-template>
         </xsl:when>
         <xsl:when test="$isOut">
-          <xsl:text>ENUMOut &lt;K</xsl:text>
+          <xsl:text>ENUMOut&lt;K</xsl:text>
           <xsl:value-of select="@type"/>
           <xsl:text>, </xsl:text>
           <xsl:value-of select="@type"/>
-          <xsl:text>_T&gt; (a</xsl:text>
+          <xsl:text>_T&gt;(a</xsl:text>
           <xsl:call-template name="capitalize">
             <xsl:with-param name="str" select="@name"/>
           </xsl:call-template>
@@ -1199,7 +1388,7 @@
         </xsl:when>
         <xsl:when test="../@mod='string'">
           <xsl:if test="../@safearray">
-            <xsl:text>QVector &lt;</xsl:text>
+            <xsl:text>QVector&lt;</xsl:text>
           </xsl:if>
           <xsl:choose>
             <!-- standard types -->
@@ -1231,7 +1420,7 @@
     <!-- no modifiers -->
     <xsl:otherwise>
       <xsl:if test="../@safearray">
-        <xsl:text>QVector &lt;</xsl:text>
+        <xsl:text>QVector&lt;</xsl:text>
       </xsl:if>
       <xsl:choose>
         <!-- standard types -->
@@ -1633,10 +1822,10 @@
             <xsl:choose>
               <!-- interface types need special treatment here -->
               <xsl:when test="@type='$unknown' or $is_iface">
-                <xsl:text>    ToSafeIfaceArray (</xsl:text>
+                <xsl:text>    ToSafeIfaceArray(</xsl:text>
               </xsl:when>
               <xsl:otherwise>
-                <xsl:text>    ToSafeArray (</xsl:text>
+                <xsl:text>    ToSafeArray(</xsl:text>
               </xsl:otherwise>
             </xsl:choose>
             <xsl:text>a</xsl:text>
@@ -1659,10 +1848,10 @@
             <xsl:choose>
               <!-- interface types need special treatment here -->
               <xsl:when test="@type='$unknown' or $is_iface">
-                <xsl:text>    FromSafeIfaceArray (</xsl:text>
+                <xsl:text>    FromSafeIfaceArray(</xsl:text>
               </xsl:when>
               <xsl:otherwise>
-                <xsl:text>    FromSafeArray (</xsl:text>
+                <xsl:text>    FromSafeArray(</xsl:text>
               </xsl:otherwise>
             </xsl:choose>
             <xsl:value-of select="@name"/>

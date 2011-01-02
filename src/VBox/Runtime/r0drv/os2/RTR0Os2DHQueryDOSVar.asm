@@ -1,4 +1,4 @@
-; $Id: RTR0Os2DHQueryDOSVar.asm $
+; $Id: RTR0Os2DHQueryDOSVar.asm 8256 2008-04-21 20:53:28Z vboxsync $
 ;; @file
 ; IPRT - DevHelp_GetDOSVar, Ring-0 Driver, OS/2.
 ;

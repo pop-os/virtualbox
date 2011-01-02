@@ -35,6 +35,7 @@
  * @{
  */
 
+
 RT_C_DECLS_BEGIN
 
 
@@ -72,6 +73,38 @@ RTDECL(bool) RTLdrIsLoadable(const char *pszFilename);
  * @param   phLdrMod    Where to store the handle to the loader module.
  */
 RTDECL(int) RTLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod);
+
+/**
+ * Loads a dynamic load library (/shared object) image file using native
+ * OS facilities.
+ *
+ * The filename will be appended the default DLL/SO extension of
+ * the platform if it have been omitted. This means that it's not
+ * possible to load DLLs/SOs with no extension using this interface,
+ * but that's not a bad tradeoff.
+ *
+ * If no path is specified in the filename, the OS will usually search it's library
+ * path to find the image file.
+ *
+ * @returns iprt status code.
+ * @param   pszFilename Image filename.
+ * @param   phLdrMod    Where to store the handle to the loader module.
+ * @param   fFlags      See RTLDRLOAD_FLAGS_XXX.
+ * @param   pErrInfo    Where to return extended error information. Optional.
+ */
+RTDECL(int) RTLdrLoadEx(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo);
+
+/** @defgroup RTLDRLOAD_FLAGS_XXX RTLdrLoadEx flags.
+ * @{ */
+/** Symbols defined in this library are not made available to resolve
+ * references in subsequently loaded libraries (default). */
+#define RTLDRLOAD_FLAGS_LOCAL       UINT32_C(0)
+/** Symbols defined in this library will be made available for symbol
+ * resolution of subsequently loaded libraries. */
+#define RTLDRLOAD_FLAGS_GLOBAL      RT_BIT_32(0)
+/** The mask of valid flag bits. */
+#define RTLDRLOAD_FLAGS_VALID_MASK  UINT32_C(0x00000001)
+/** @} */
 
 /**
  * Loads a dynamic load library (/shared object) image file residing in the
@@ -253,7 +286,7 @@ RTDECL(int) RTLdrGetBits(RTLDRMOD hLdrMod, void *pvBits, RTUINTPTR BaseAddress, 
  * @returns iprt status code.
  * @param   hLdrMod             The loader module handle.
  * @param   pvBits              Where the image bits are.
- *                              Must've been passed to RTLdrGetBits().
+ *                              Must have been passed to RTLdrGetBits().
  * @param   NewBaseAddress      The new base address.
  * @param   OldBaseAddress      The old base address.
  * @param   pfnGetImport        Callback function for resolving imports one by one.

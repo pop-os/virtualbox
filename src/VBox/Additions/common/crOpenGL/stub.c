@@ -8,20 +8,49 @@
 #include "cr_error.h" 
 #include "cr_mem.h" 
 #include "stub.h"
-
-#ifdef GLX
-#include <X11/extensions/Xcomposite.h>
-#include <X11/extensions/Xfixes.h>
-#endif
+#include <iprt/thread.h>
 
 static void crForcedFlush()
 {
+#if 0
     GLint buffer;
     stub.spu->dispatch_table.GetIntegerv(GL_DRAW_BUFFER, &buffer);
     stub.spu->dispatch_table.DrawBuffer(GL_FRONT);
     stub.spu->dispatch_table.Flush();
     stub.spu->dispatch_table.DrawBuffer(buffer);
+#else
+    stub.spu->dispatch_table.Flush();
+#endif
 }
+
+#ifdef GLX
+Display* stubGetWindowDisplay(WindowInfo *pWindow)
+{
+#if defined(CR_NEWWINTRACK)
+    if ((NIL_RTTHREAD!=stub.hSyncThread) && (RTThreadNativeSelf()==RTThreadGetNative(stub.hSyncThread)))
+    {
+        if (pWindow && pWindow->dpy && !pWindow->syncDpy)
+        {
+            crDebug("going to XOpenDisplay(%s)", pWindow->dpyName);
+            pWindow->syncDpy = XOpenDisplay(pWindow->dpyName);
+            if (!pWindow->syncDpy)
+            {
+                crWarning("Failed to open display %s", pWindow->dpyName);
+            }
+            return pWindow->syncDpy;
+        }
+        else
+        {
+            return pWindow ? pWindow->syncDpy:NULL;
+        }
+    }
+    else
+#endif
+    {
+        return pWindow ? pWindow->dpy:NULL;
+    }
+}
+#endif
 
 /**
  * Returns -1 on error
@@ -76,7 +105,7 @@ GLint APIENTRY crGetCurrentWindow( void )
 
 void APIENTRY crSwapBuffers( GLint window, GLint flags )
 {
-    const WindowInfo *winInfo = (const WindowInfo *)
+    WindowInfo *winInfo = (WindowInfo *)
         crHashtableSearch(stub.windowTable, (unsigned int) window);
     if (winInfo)
         stubSwapBuffers(winInfo, flags);
@@ -95,8 +124,12 @@ void APIENTRY crWindowDestroy( GLint window )
 {
     WindowInfo *winInfo = (WindowInfo *)
         crHashtableSearch(stub.windowTable, (unsigned int) window);
-    if (winInfo && winInfo->type == CHROMIUM && stub.spu) {
+    if (winInfo && winInfo->type == CHROMIUM && stub.spu)
+    {
         stub.spu->dispatch_table.WindowDestroy( winInfo->spuWindow );
+#ifdef CR_NEWWINTRACK
+        crLockMutex(&stub.mutex);
+#endif
 #ifdef WINDOWS
         if (winInfo->hVisibleRegion != INVALID_HANDLE_VALUE)
         {
@@ -107,9 +140,17 @@ void APIENTRY crWindowDestroy( GLint window )
         {
             XFree(winInfo->pVisibleRegions);
         }
+# ifdef CR_NEWWINTRACK
+        if (winInfo->syncDpy)
+        {
+            XCloseDisplay(winInfo->syncDpy);
+        }
+# endif
+#endif
+#ifdef CR_NEWWINTRACK
+        crUnlockMutex(&stub.mutex);
 #endif
         crForcedFlush();
-
         crHashtableDelete(stub.windowTable, window, crFree);
     }
 }
@@ -173,7 +214,7 @@ void APIENTRY stub_GetChromiumParametervCR( GLenum target, GLuint index, GLenum 
 
 /*
  *  Updates geometry info for given spu window.
- *  Returns GL_TRUE if it changed since last call, GL_FALSE overwise.
+ *  Returns GL_TRUE if it changed since last call, GL_FALSE otherwise.
  *  bForceUpdate - forces dispatching of geometry info even if it's unchanged
  */
 GLboolean stubUpdateWindowGeometry(WindowInfo *pWindow, GLboolean bForceUpdate)
@@ -214,7 +255,7 @@ GLboolean stubUpdateWindowGeometry(WindowInfo *pWindow, GLboolean bForceUpdate)
 #ifdef WINDOWS
 /*
  *  Updates visible regions for given spu window.
- *  Returns GL_TRUE if regions changed since last call, GL_FALSE overwise.
+ *  Returns GL_TRUE if regions changed since last call, GL_FALSE otherwise.
  */
 GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
 {
@@ -226,9 +267,14 @@ GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
     int iret;
 
     if (!pWindow) return GL_FALSE;
-    hwnd = WindowFromDC(pWindow->drawable);
+    hwnd = pWindow->hWnd;
     if (!hwnd) return GL_FALSE;
 
+    if (hwnd!=WindowFromDC(pWindow->drawable))
+    {
+        crWarning("Window(%i) DC is no longer valid", pWindow->spuWindow);
+        return GL_FALSE;
+    }
     
     hVisRgn = CreateRectRgn(0,0,0,0);
     iret = GetRandomRgn(pWindow->drawable, hVisRgn, SYSRGN);
@@ -290,6 +336,7 @@ GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
     return GL_FALSE;
 }
 
+# ifndef CR_NEWWINTRACK
 static void stubCBCheckWindowsInfo(unsigned long key, void *data1, void *data2)
 {
     WindowInfo *winInfo = (WindowInfo *) data1;
@@ -392,24 +439,35 @@ void stubUninstallWindowMessageHook()
     if (stub.hMessageHook)
         UnhookWindowsHookEx(stub.hMessageHook);
 }
+# endif /*# ifndef CR_NEWWINTRACK*/
+
 #elif defined(GLX) //#ifdef WINDOWS
-static GLboolean stubCheckXExtensions(WindowInfo *pWindow)
+void stubCheckXExtensions(WindowInfo *pWindow)
 {
     int evb, erb, vmi=0, vma=0;
+    Display *dpy = stubGetWindowDisplay(pWindow);
 
-    if (XCompositeQueryExtension(pWindow->dpy, &evb, &erb) 
-        && XCompositeQueryVersion(pWindow->dpy, &vma, &vmi) 
+    stub.bXExtensionsChecked = GL_TRUE;
+    stub.trackWindowVisibleRgn = 0;
+
+    XLOCK(dpy);
+    if (XCompositeQueryExtension(dpy, &evb, &erb) 
+        && XCompositeQueryVersion(dpy, &vma, &vmi) 
         && (vma>0 || vmi>=4))
     {
+        stub.bHaveXComposite = GL_TRUE;
         crDebug("XComposite %i.%i", vma, vmi);
         vma=0;
         vmi=0;
-        if (XFixesQueryExtension(pWindow->dpy, &evb, &erb) 
-            && XFixesQueryVersion(pWindow->dpy, &vma, &vmi)
+        if (XFixesQueryExtension(dpy, &evb, &erb) 
+            && XFixesQueryVersion(dpy, &vma, &vmi)
             && vma>=2)
         {
             crDebug("XFixes %i.%i", vma, vmi);
-            return GL_TRUE;
+            stub.bHaveXFixes = GL_TRUE;
+            stub.trackWindowVisibleRgn = 1;
+            XUNLOCK(dpy);
+            return;
         }
         else
         {
@@ -420,48 +478,69 @@ static GLboolean stubCheckXExtensions(WindowInfo *pWindow)
     {
         crWarning("XComposite not found or old version (%i.%i), no VisibilityTracking", vma, vmi);
     }
-    return GL_FALSE;
+    XUNLOCK(dpy);
+    return;
 }
 
 /*
  *  Updates visible regions for given spu window.
- *  Returns GL_TRUE if regions changed since last call, GL_FALSE overwise.
+ *  Returns GL_TRUE if regions changed since last call, GL_FALSE otherwise.
  */
 GLboolean stubUpdateWindowVisibileRegions(WindowInfo *pWindow)
 {
-    static GLboolean bExtensionsChecked = GL_FALSE;
-
     XserverRegion xreg;
     int cRects, i;
     XRectangle *pXRects;
     GLint* pGLRects;
+    Display *dpy;
+    bool bNoUpdate = false;
 
-    if (bExtensionsChecked || stubCheckXExtensions(pWindow))
+    if (!stub.bXExtensionsChecked)
     {
-        bExtensionsChecked = GL_TRUE;
+        stubCheckXExtensions(pWindow);
+        if (!stub.trackWindowVisibleRgn)
+        {
+            return GL_FALSE;
+        }
     }
-    else
-    {
-        stub.trackWindowVisibleRgn = 0;
-        return GL_FALSE;
-    }
+
+    dpy = stubGetWindowDisplay(pWindow);
 
     /*@todo see comment regarding size/position updates and XSync, same applies to those functions but
     * it seems there's no way to get even based updates for this. Or I've failed to find the appropriate extension.
     */
-    xreg = XCompositeCreateRegionFromBorderClip(pWindow->dpy, pWindow->drawable);
-    pXRects = XFixesFetchRegion(pWindow->dpy, xreg, &cRects);
-    XFixesDestroyRegion(pWindow->dpy, xreg);
+    XLOCK(dpy);
+    xreg = XCompositeCreateRegionFromBorderClip(dpy, pWindow->drawable);
+    pXRects = XFixesFetchRegion(dpy, xreg, &cRects);
+    XFixesDestroyRegion(dpy, xreg);
+    XUNLOCK(dpy);
 
-    /* @todo For some odd reason *first* run of compiz on freshly booted VM gives us 0 cRects all the time.
-     * In (!pWindow->pVisibleRegions && cRects) "&& cRects" is a workaround for that case, especially as this
-     * information is useless for full screen composing managers anyway.
-     * If this is changed, make sure to change crVBoxServerLoadState accordingly.
-     */
-    if ((!pWindow->pVisibleRegions && cRects)
-        || pWindow->cVisibleRegions!=cRects 
-        || (pWindow->pVisibleRegions && crMemcmp(pWindow->pVisibleRegions, pXRects, cRects * sizeof(XRectangle))))
+    /* Check for compiz main window */
+    if (!pWindow->pVisibleRegions && !cRects)
     {
+#ifdef VBOX_TEST_MEGOO
+        XWindowAttributes attr;
+        XLOCK(dpy);
+        XSync(dpy, false);
+        XGetWindowAttributes(dpy, pWindow->drawable, &attr);
+        XUNLOCK(dpy);
+
+        bNoUpdate = attr.override_redirect;
+#else
+        bNoUpdate = true;
+#endif
+    }
+
+    if (!bNoUpdate
+        && (!pWindow->pVisibleRegions
+            || pWindow->cVisibleRegions!=cRects 
+            || (pWindow->pVisibleRegions && crMemcmp(pWindow->pVisibleRegions, pXRects, cRects * sizeof(XRectangle)))))
+    {
+        if (pWindow->pVisibleRegions)
+        {
+            XFree(pWindow->pVisibleRegions);
+        }
+
         pWindow->pVisibleRegions = pXRects;
         pWindow->cVisibleRegions = cRects;
 

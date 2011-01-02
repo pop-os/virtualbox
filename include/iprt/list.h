@@ -96,6 +96,28 @@ DECLINLINE(void) RTListPrepend(PRTLISTNODE pList, PRTLISTNODE pNode)
 }
 
 /**
+ * Inserts a node after the specified one.
+ *
+ * @param   pCurNode            The current node.
+ * @param   pNewNode            The node to insert.
+ */
+DECLINLINE(void) RTListNodeInsertAfter(PRTLISTNODE pCurNode, PRTLISTNODE pNewNode)
+{
+    RTListPrepend(pCurNode, pNewNode);
+}
+
+/**
+ * Inserts a node before the specified one.
+ *
+ * @param   pCurNode            The current node.
+ * @param   pNewNode            The node to insert.
+ */
+DECLINLINE(void) RTListNodeInsertBefore(PRTLISTNODE pCurNode, PRTLISTNODE pNewNode)
+{
+    RTListAppend(pCurNode, pNewNode);
+}
+
+/**
  * Remove a node from a list.
  *
  * @param   pNode               The node to remove.
@@ -196,7 +218,7 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  * @param   Type                Structure the list node is a member of.
  * @param   Member              The list node member.
  */
-#define RTListNodeGetFirst(pList, Type, Member) \
+#define RTListGetFirst(pList, Type, Member) \
     (!RTListIsEmpty(pList) ? RTListNodeGetNext(pList, Type, Member) : NULL)
 
 /**
@@ -209,8 +231,34 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  * @param   Type                Structure the list node is a member of.
  * @param   Member              The list node member.
  */
-#define RTListNodeGetLast(pList, Type, Member) \
+#define RTListGetLast(pList, Type, Member) \
     (!RTListIsEmpty(pList) ? RTListNodeGetPrev(pList, Type, Member) : NULL)
+
+/**
+ * Returns the next node in the list or NULL if the end has been reached.
+ *
+ * @returns The next node or NULL.
+ *
+ * @param   pList               The list @a pCurNode is linked on.
+ * @param   pCurNode            The current node, of type @a Type.
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member.
+ */
+#define RTListGetNext(pList, pCurNode, Type, Member) \
+    ( (pCurNode)->Member.pNext != (pList) ? RT_FROM_MEMBER((pCurNode)->Member.pNext, Type, Member) : NULL )
+
+/**
+ * Returns the previous node in the list or NULL if the start has been reached.
+ *
+ * @returns The previous node or NULL.
+ *
+ * @param   pList               The list @a pCurNode is linked on.
+ * @param   pCurNode            The current node, of type @a Type.
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member.
+ */
+#define RTListGetPrev(pList, pCurNode, Type, Member) \
+    ( (pCurNode)->Member.pPrev != (pList) ? RT_FROM_MEMBER((pCurNode)->Member.pPrev, Type, Member) : NULL )
 
 /**
  * Enumerate the list in head to tail order.
@@ -227,6 +275,25 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
 
 
 /**
+ * Enumerate the list in head to tail order, safe against removal of the
+ * current node.
+ *
+ * @param   pList               List to enumerate.
+ * @param   pIterator           The iterator variable name.
+ * @param   pIterNext           The name of the variable saving the pointer to
+ *                              the next element.
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member name.
+ */
+#define RTListForEachSafe(pList, pIterator, pIterNext, Type, Member) \
+    for (pIterator = RTListNodeGetNext(pList, Type, Member), \
+         pIterNext = RT_FROM_MEMBER((pIterator)->Member.pNext, Type, Member); \
+         !RTListNodeIsDummy(pList, pIterator, Type, Member); \
+         pIterator = pIterNext, \
+         pIterNext = RT_FROM_MEMBER((pIterator)->Member.pNext, Type, Member) )
+
+
+/**
  * Enumerate the list in reverse order (tail to head).
  *
  * @param   pList               List to enumerate.
@@ -238,6 +305,24 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
     for (pIterator = RTListNodeGetPrev(pList, Type, Member); \
          !RTListNodeIsDummy(pList, pIterator, Type, Member); \
          pIterator = RT_FROM_MEMBER((pIterator)->Member.pPrev, Type, Member) )
+
+
+/**
+ * Enumerate the list in reverse order (tail to head).
+ *
+ * @param   pList               List to enumerate.
+ * @param   pIterator           The iterator variable name.
+ * @param   pIterPrev           The name of the variable saving the pointer to
+ *                              the previous element.
+ * @param   Type                Structure the list node is a member of.
+ * @param   Member              The list node member name.
+ */
+#define RTListForEachReverseSafe(pList, pIterator, pIterPrev, Type, Member) \
+    for (pIterator = RTListNodeGetPrev(pList, Type, Member), \
+         pIterPrev = RT_FROM_MEMBER((pIterator)->Member.pPrev, Type, Member); \
+         !RTListNodeIsDummy(pList, pIterator, Type, Member); \
+         pIterator = pIterPrev, \
+         pIterPrev = RT_FROM_MEMBER((pIterator)->Member.pPrev, Type, Member) )
 
 
 /**

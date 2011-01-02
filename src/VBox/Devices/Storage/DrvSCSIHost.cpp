@@ -1,4 +1,4 @@
-/* $Id: DrvSCSIHost.cpp $ */
+/* $Id: DrvSCSIHost.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBox storage drivers: Host SCSI access driver.
  */
@@ -54,7 +54,7 @@ typedef struct DRVSCSIHOST
     /** The SCSI connector interface .   */
     PDMISCSICONNECTOR       ISCSIConnector;
 
-    /** PAth to the device file. */
+    /** Path to the device file. */
     char                   *pszDevicePath;
     /** Handle to the device. */
     RTFILE                  DeviceFile;
@@ -166,7 +166,7 @@ DECLINLINE(void) drvscsihostCmdOk(PPDMSCSIREQUEST pRequest)
  * in case the device does not provide this info.
  *
  * @returns transfer direction of the command.
- *          SCSIHOSTTXDIR_NONE if no data is transfered.
+ *          SCSIHOSTTXDIR_NONE if no data is transferred.
  *          SCSIHOSTTXDIR_FROM_DEVICE if the data is read from the device.
  *          SCSIHOSTTXDIR_TO_DEVICE   if the data is written to the device.
  * @param   uCommand The command byte.
@@ -315,7 +315,7 @@ static int drvscsihostProcessRequestOne(PDRVSCSIHOST pThis, PPDMSCSIREQUEST pReq
 #endif
     }
     /* Notify device that request finished. */
-    rc = pThis->pDevScsiPort->pfnSCSIRequestCompleted(pThis->pDevScsiPort, pRequest, SCSI_STATUS_OK);
+    rc = pThis->pDevScsiPort->pfnSCSIRequestCompleted(pThis->pDevScsiPort, pRequest, SCSI_STATUS_OK, false, VINF_SUCCESS);
     AssertMsgRC(rc, ("Notifying device above failed rc=%Rrc\n", rc));
 
     return rc;

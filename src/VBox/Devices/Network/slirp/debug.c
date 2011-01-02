@@ -1,4 +1,4 @@
-/* $Id: debug.c $ */
+/* $Id: debug.c 34305 2010-11-24 06:21:52Z vboxsync $ */
 /** @file
  * NAT - debug helpers.
  */
@@ -60,7 +60,7 @@ lprint(const char *pszFormat, ...)
 void
 ipstats(PNATState pData)
 {
-    lprint(" \n");
+    lprint("\n");
 
     lprint("IP stats:\n");
     lprint("  %6d total packets received (%d were unaligned)\n",
@@ -84,7 +84,7 @@ ipstats(PNATState pData)
 void
 tcpstats(PNATState pData)
 {
-    lprint(" \n");
+    lprint("\n");
 
     lprint("TCP stats:\n");
 
@@ -151,7 +151,7 @@ tcpstats(PNATState pData)
 void
 udpstats(PNATState pData)
 {
-    lprint(" \n");
+    lprint("\n");
 
     lprint("UDP stats:\n");
     lprint("  %6d datagrams received\n", udpstat.udps_ipackets);
@@ -165,7 +165,7 @@ udpstats(PNATState pData)
 void
 icmpstats(PNATState pData)
 {
-    lprint(" \n");
+    lprint("\n");
     lprint("ICMP stats:\n");
     lprint("  %6d ICMP packets received\n", icmpstat.icps_received);
     lprint("  %6d were too short\n", icmpstat.icps_tooshort);
@@ -191,7 +191,7 @@ sockstats(PNATState pData)
     size_t n;
     struct socket *so, *so_next;
 
-    lprint(" \n");
+    lprint("\n");
 
     lprint(
            "Proto[state]     Sock     Local Address, Port  Remote Address, Port RecvQ SendQ\n");
@@ -206,7 +206,7 @@ sockstats(PNATState pData)
                buff, so->s, inet_ntoa(so->so_laddr), RT_N2H_U16(so->so_lport));
         lprint("%15s %5d %5d %5d\n",
                 inet_ntoa(so->so_faddr), RT_N2H_U16(so->so_fport),
-                so->so_rcv.sb_cc, so->so_snd.sb_cc);
+                SBUF_LEN(&so->so_rcv), SBUF_LEN(&so->so_snd));
     LOOP_LABEL(tcp, so, so_next);
     }
 
@@ -220,7 +220,7 @@ sockstats(PNATState pData)
                 buff, so->s, inet_ntoa(so->so_laddr), RT_N2H_U16(so->so_lport));
         lprint("%15s %5d %5d %5d\n",
                 inet_ntoa(so->so_faddr), RT_N2H_U16(so->so_fport),
-                so->so_rcv.sb_cc, so->so_snd.sb_cc);
+                SBUF_LEN(&so->so_rcv), SBUF_LEN(&so->so_snd));
     LOOP_LABEL(udp, so, so_next);
     }
 }
@@ -278,24 +278,58 @@ print_socket(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
                 "socket is null");
     if (so->so_state == SS_NOFDREF || so->s == -1)
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                "socket(%d) SS_NODREF",so->s);
-    status = getsockname(so->s, &addr, &socklen);
+                "socket(%d) SS_NOFDREF", so->s);
 
+    status = getsockname(so->s, &addr, &socklen);
     if(status != 0 || addr.sa_family != AF_INET)
     {
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
-                "socket(%d) is invalid(probably closed)",so->s);
+                "socket(%d) is invalid(probably closed)", so->s);
     }
 
     in_addr = (struct sockaddr_in *)&addr;
     ip = RT_N2H_U32(so->so_faddr.s_addr);
-    return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "socket %4d:(proto:%u) "
+    return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "socket %d:(proto:%u) "
             "state=%04x ip=" IP4_ADDR_PRINTF_FORMAT ":%d "
             "name=" IP4_ADDR_PRINTF_FORMAT ":%d",
             so->s, so->so_type, so->so_state, IP4_ADDR_PRINTF_DECOMP(ip),
             RT_N2H_U16(so->so_fport),
             IP4_ADDR_PRINTF_DECOMP(RT_N2H_U32(in_addr->sin_addr.s_addr)),
             RT_N2H_U16(in_addr->sin_port));
+}
+
+/**
+ *  Print callback dumping TCP Control Block in terms of RFC 793.
+ */
+static DECLCALLBACK(size_t)
+printTcpcbRfc793(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, 
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cb = 0;
+    const struct tcpcb *tp = (const struct tcpcb *)pvValue; 
+    AssertReturn(RTStrCmp(pszType, "tcpcb793") == 0 && tp, 0);
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "TCB793[ SND(UNA: %x, NXT: %x, UP: %x, WND: %x, WL1:%x, WL2:%x, ISS:%x), ", 
+                      tp->snd_una, tp->snd_nxt, tp->snd_up, tp->snd_wnd, tp->snd_wl1, tp->snd_wl2, tp->iss);
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "RCV(WND: %x, NXT: %x, UP: %x, IRS:%x)]", tp->rcv_wnd, tp->rcv_nxt, tp->rcv_up, tp->irs);
+    return cb;
+}
+/*
+ * Prints TCP segment in terms of RFC 793.
+ */
+static DECLCALLBACK(size_t)
+printTcpSegmentRfc793(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, 
+                 const char *pszType, void const *pvValue,
+                 int cchWidth, int cchPrecision, unsigned fFlags,
+                 void *pvUser)
+{
+    size_t cb = 0;
+    const struct tcpiphdr *ti = (const struct tcpiphdr *)pvValue; 
+    AssertReturn(RTStrCmp(pszType, "tcpseg793") == 0 && ti, 0);
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, 0, "SEG[ACK: %x, SEQ: %x, LEN: %x, WND: %x, UP: %x]", 
+                      ti->ti_ack, ti->ti_seq, ti->ti_len, ti->ti_win, ti->ti_urp);
+    return cb;
 }
 
 static DECLCALLBACK(size_t)
@@ -367,6 +401,10 @@ debug_init()
         AssertRC(rc);
         rc = RTStrFormatTypeRegister("natwinnetevents",
             print_networkevents, NULL);
+        AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpcb793", printTcpcbRfc793, NULL);
+        AssertRC(rc);
+        rc = RTStrFormatTypeRegister("tcpseg793", printTcpSegmentRfc793, NULL);
         AssertRC(rc);
         g_fFormatRegistered = 1;
     }

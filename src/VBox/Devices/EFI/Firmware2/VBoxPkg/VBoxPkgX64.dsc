@@ -1,4 +1,4 @@
-# $Id: VBoxPkgX64.dsc $
+# $Id: VBoxPkgX64.dsc 33028 2010-10-11 06:23:00Z vboxsync $
 
 #
 # Copyright (C) 2009-2010 Oracle Corporation
@@ -330,8 +330,12 @@
   MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiBusDxe/ScsiBusDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiDiskDxe/ScsiDiskDxe.inf
-  IntelFrameworkModulePkg/Bus/Pci/IdeBusDxe/IdeBusDxe.inf
-  PcAtChipsetPkg/Bus/Pci/IdeControllerDxe/IdeControllerDxe.inf
+  #IntelFrameworkModulePkg/Bus/Pci/IdeBusDxe/IdeBusDxe.inf
+# VBOX
+  VBoxPkg/VBoxIdeBusDxe/VBoxIdeBusDxe.inf
+  VBoxPkg/VBoxIdeControllerDxe/VBoxIdeControllerDxe.inf
+# VBOX end
+  #PcAtChipsetPkg/Bus/Pci/IdeControllerDxe/IdeControllerDxe.inf
   MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
   MdeModulePkg/Universal/SetupBrowserDxe/SetupBrowserDxe.inf
 

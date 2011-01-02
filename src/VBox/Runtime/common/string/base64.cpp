@@ -1,4 +1,4 @@
-/* $Id: base64.cpp $ */
+/* $Id: base64.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Base64, MIME content transfer encoding.
  */
@@ -108,7 +108,8 @@ static void rtBase64Sanity(void)
                    || (     u8 == BASE64_PAD
                        &&   i  == '=')
                    || (     u8 == BASE64_SPACE
-                       &&   RT_C_IS_SPACE(i))
+                       &&   (   RT_C_IS_SPACE(i)
+                             || (i == '\r'))) /* Carriage return is handled as a space character as well. */
                    || (     u8 < 64
                        &&   (unsigned)g_szValToChar[u8] == i));
         }
@@ -227,12 +228,12 @@ RT_EXPORT_SYMBOL(RTBase64DecodedSize);
  *
  * @param   pszString       The Base64 string. Whether the entire string or
  *                          just the start of the string is in Base64 depends
- *                          on wther ppszEnd is specified or not.
+ *                          on whether ppszEnd is specified or not.
  * @param   pvData          Where to store the decoded data.
  * @param   cbData          The size of the output buffer that pvData points to.
  * @param   pcbActual       Where to store the actual number of bytes returned.
  *                          Optional.
- * @param   ppszEnd         Indicats that the string may contain other stuff
+ * @param   ppszEnd         Indicates that the string may contain other stuff
  *                          after the Base64 encoded data when not NULL. Will
  *                          be set to point to the first char that's not part of
  *                          the encoding. If NULL the entire string must be part

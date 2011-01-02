@@ -1,4 +1,4 @@
-/* $Id: tstRTProcCreateEx.cpp $ */
+/* $Id: tstRTProcCreateEx.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTProcCreateEx.
  */
@@ -153,7 +153,7 @@ static void tstRTCreateProcEx5(const char *pszUser, const char *pszPassword)
 
     /* Test for invalid logons. */
     RTTESTI_CHECK_RC_RETV(RTProcCreateEx(g_szExecName, apszArgs, RTENV_DEFAULT, 0 /*fFlags*/, NULL,
-                                         NULL, NULL, "non-existing-user", "wrong-password", &hProc), VERR_LOGON_FAILURE);
+                                         NULL, NULL, "non-existing-user", "wrong-password", &hProc), VERR_AUTHENTICATION_FAILURE);
     /* Test for invalid application. */
     RTTESTI_CHECK_RC_RETV(RTProcCreateEx("non-existing-app", apszArgs, RTENV_DEFAULT, 0 /*fFlags*/, NULL,
                                          NULL, NULL, NULL, NULL, &hProc), VERR_PATH_NOT_FOUND);
@@ -435,7 +435,7 @@ int main(int argc, char **argv)
         return rc;
     RTTestBanner(hTest);
 
-    if (!RTProcGetExecutableName(g_szExecName, sizeof(g_szExecName)))
+    if (!RTProcGetExecutablePath(g_szExecName, sizeof(g_szExecName)))
         RTStrCopy(g_szExecName, sizeof(g_szExecName), argv[0]);
 
     /*

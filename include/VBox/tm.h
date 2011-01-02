@@ -91,6 +91,11 @@ VMMR3DECL(int)          TMR3NotifyResume(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(int)          TMR3SetWarpDrive(PVM pVM, uint32_t u32Percent);
 #endif
 VMMDECL(uint32_t)       TMGetWarpDrive(PVM pVM);
+VMM_INT_DECL(uint32_t)  TMCalcHostTimerFrequency(PVM pVM, PVMCPU pVCpu);
+#ifdef IN_RING3
+VMMR3DECL(int)          TMR3GetCpuLoadTimes(PVM pVM, VMCPUID idCpu, uint64_t *pcNsTotal, uint64_t *pcNsExecuting,
+                                            uint64_t *pcNsHalted, uint64_t *pcNsOther);
+#endif
 
 
 /** @name Real Clock Methods
@@ -212,6 +217,7 @@ VMMDECL(int)            TMTimerSetRelative(PTMTIMER pTimer, uint64_t cTicksToNex
 VMMDECL(int)            TMTimerSetMillies(PTMTIMER pTimer, uint32_t cMilliesToNext);
 VMMDECL(int)            TMTimerSetMicro(PTMTIMER pTimer, uint64_t cMicrosToNext);
 VMMDECL(int)            TMTimerSetNano(PTMTIMER pTimer, uint64_t cNanosToNext);
+VMMDECL(int)            TMTimerSetFrequencyHint(PTMTIMER pTimer, uint32_t uHz);
 VMMDECL(uint64_t)       TMTimerGet(PTMTIMER pTimer);
 VMMDECL(uint64_t)       TMTimerGetNano(PTMTIMER pTimer);
 VMMDECL(uint64_t)       TMTimerGetMicro(PTMTIMER pTimer);
@@ -239,11 +245,9 @@ VMM_INT_DECL(uint64_t)  TMTimerPollGIP(PVM pVM, PVMCPU pVCpu, uint64_t *pu64Delt
  * @{
  */
 VMM_INT_DECL(int)       TMR3Init(PVM pVM);
-VMM_INT_DECL(int)       TMR3InitCPU(PVM pVM);
 VMM_INT_DECL(int)       TMR3InitFinalize(PVM pVM);
 VMM_INT_DECL(void)      TMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMM_INT_DECL(int)       TMR3Term(PVM pVM);
-VMM_INT_DECL(int)       TMR3TermCPU(PVM pVM);
 VMM_INT_DECL(void)      TMR3Reset(PVM pVM);
 VMM_INT_DECL(int)       TMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
 VMM_INT_DECL(int)       TMR3TimerCreateDevice(PVM pVM, PPDMDEVINS pDevIns, TMCLOCK enmClock, PFNTMTIMERDEV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer);

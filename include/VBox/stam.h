@@ -215,6 +215,8 @@ typedef enum STAMUNIT
     STAMUNIT_NS_PER_OCCURENCE,
     /** Percentage. */
     STAMUNIT_PCT,
+    /** Hertz. */
+    STAMUNIT_HZ,
     /** The end (exclusive). */
     STAMUNIT_END
 } STAMUNIT;
@@ -628,11 +630,48 @@ typedef STAMPROFILE *PSTAMPROFILE;
 typedef const STAMPROFILE *PCSTAMPROFILE;
 
 
+/** @def STAM_REL_PROFILE_ADD_PERIOD
+ * Adds a period.
+ *
+ * @param   pProfileAdv     Pointer to the STAMPROFILEADV structure to operate on.
+ * @param   cTicksInPeriod  The number of tick (or whatever) of the preiod
+ *                          being added.  This is only referenced once.
+ */
+#ifndef VBOX_WITHOUT_RELEASE_STATISTICS
+# define STAM_REL_PROFILE_ADD_PERIOD(pProfile, cTicksInPeriod) \
+    do { \
+        uint64_t const StamPrefix_cTicks = (cTicksInPeriod); \
+        (pProfile)->cTicks += StamPrefix_cTicks; \
+        (pProfile)->cPeriods++; \
+        if ((pProfile)->cTicksMax < StamPrefix_cTicks) \
+            (pProfile)->cTicksMax = StamPrefix_cTicks; \
+        if ((pProfile)->cTicksMin > StamPrefix_cTicks) \
+            (pProfile)->cTicksMin = StamPrefix_cTicks; \
+    } while (0)
+#else
+# define STAM_REL_PROFILE_ADD_PERIOD(pProfile, cTicksInPeriod) do { } while (0)
+#endif
+/** @def STAM_PROFILE_ADD_PERIOD
+ * Adds a period.
+ *
+ * @param   pProfileAdv     Pointer to the STAMPROFILEADV structure to operate on.
+ * @param   cTicksInPeriod  The number of tick (or whatever) of the preiod
+ *                          being added.  This is only referenced once.
+ */
+#ifdef VBOX_WITH_STATISTICS
+# define STAM_PROFILE_ADD_PERIOD(pProfile, cTicksInPeriod) STAM_REL_PROFILE_ADD_PERIOD(pProfile, cTicksInPeriod)
+#else
+# define STAM_PROFILE_ADD_PERIOD(pProfile, cTicksInPeriod) do { } while (0)
+#endif
+
+
 /** @def STAM_REL_PROFILE_START
  * Samples the start time of a profiling period.
  *
  * @param   pProfile    Pointer to the STAMPROFILE structure to operate on.
  * @param   Prefix      Identifier prefix used to internal variables.
+ *
+ * @remarks Declears a stack variable that will be used by related macros.
  */
 #ifndef VBOX_WITHOUT_RELEASE_STATISTICS
 # define STAM_REL_PROFILE_START(pProfile, Prefix) \
@@ -646,6 +685,8 @@ typedef const STAMPROFILE *PCSTAMPROFILE;
  *
  * @param   pProfile    Pointer to the STAMPROFILE structure to operate on.
  * @param   Prefix      Identifier prefix used to internal variables.
+ *
+ * @remarks Declears a stack variable that will be used by related macros.
  */
 #ifdef VBOX_WITH_STATISTICS
 # define STAM_PROFILE_START(pProfile, Prefix) STAM_REL_PROFILE_START(pProfile, Prefix)
@@ -663,9 +704,8 @@ typedef const STAMPROFILE *PCSTAMPROFILE;
 # define STAM_REL_PROFILE_STOP(pProfile, Prefix) \
     do { \
         uint64_t Prefix##_cTicks; \
-        uint64_t Prefix##_tsStop; \
-        STAM_GET_TS(Prefix##_tsStop); \
-        Prefix##_cTicks = Prefix##_tsStop - Prefix##_tsStart; \
+        STAM_GET_TS(Prefix##_cTicks); \
+        Prefix##_cTicks -= Prefix##_tsStart; \
         (pProfile)->cTicks += Prefix##_cTicks; \
         (pProfile)->cPeriods++; \
         if ((pProfile)->cTicksMax < Prefix##_cTicks) \
@@ -702,9 +742,8 @@ typedef const STAMPROFILE *PCSTAMPROFILE;
 # define STAM_REL_PROFILE_STOP_EX(pProfile, pProfile2, Prefix) \
     do { \
         uint64_t Prefix##_cTicks; \
-        uint64_t Prefix##_tsStop; \
-        STAM_GET_TS(Prefix##_tsStop); \
-        Prefix##_cTicks = Prefix##_tsStop - Prefix##_tsStart; \
+        STAM_GET_TS(Prefix##_cTicks); \
+        Prefix##_cTicks -= Prefix##_tsStart; \
         (pProfile)->cTicks += Prefix##_cTicks; \
         (pProfile)->cPeriods++; \
         if ((pProfile)->cTicksMax < Prefix##_cTicks) \
@@ -787,7 +826,8 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 
 
 /** @def STAM_REL_PROFILE_ADV_STOP
- * Samples the stop time of a profiling period and updates the sample.
+ * Samples the stop time of a profiling period (if running) and updates the
+ * sample.
  *
  * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
  * @param   Prefix      Identifier prefix used to internal variables.
@@ -795,11 +835,11 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 #ifndef VBOX_WITHOUT_RELEASE_STATISTICS
 # define STAM_REL_PROFILE_ADV_STOP(pProfileAdv, Prefix) \
     do { \
-        uint64_t Prefix##_tsStop; \
-        STAM_GET_TS(Prefix##_tsStop); \
         if ((pProfileAdv)->tsStart) \
         { \
-            uint64_t Prefix##_cTicks = Prefix##_tsStop - (pProfileAdv)->tsStart; \
+            uint64_t Prefix##_cTicks; \
+            STAM_GET_TS(Prefix##_cTicks); \
+            Prefix##_cTicks -= (pProfileAdv)->tsStart; \
             (pProfileAdv)->tsStart = 0; \
             (pProfileAdv)->Core.cTicks += Prefix##_cTicks; \
             (pProfileAdv)->Core.cPeriods++; \
@@ -813,7 +853,8 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 # define STAM_REL_PROFILE_ADV_STOP(pProfileAdv, Prefix) do { } while (0)
 #endif
 /** @def STAM_PROFILE_ADV_STOP
- * Samples the stop time of a profiling period and updates the sample.
+ * Samples the stop time of a profiling period (if running) and updates the
+ * sample.
  *
  * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
  * @param   Prefix      Identifier prefix used to internal variables.
@@ -822,6 +863,51 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 # define STAM_PROFILE_ADV_STOP(pProfileAdv, Prefix) STAM_REL_PROFILE_ADV_STOP(pProfileAdv, Prefix)
 #else
 # define STAM_PROFILE_ADV_STOP(pProfileAdv, Prefix) do { } while (0)
+#endif
+
+
+/** @def STAM_REL_PROFILE_ADV_STOP_START
+ * Stops one profile counter (if running) and starts another one.
+ *
+ * @param   pProfileAdv1    Pointer to the STAMPROFILEADV structure to stop.
+ * @param   pProfileAdv2    Pointer to the STAMPROFILEADV structure to start.
+ * @param   Prefix          Identifier prefix used to internal variables.
+ */
+#ifndef VBOX_WITHOUT_RELEASE_STATISTICS
+# define STAM_REL_PROFILE_ADV_STOP_START(pProfileAdv1, pProfileAdv2, Prefix) \
+    do { \
+        uint64_t Prefix##_cTicks; \
+        STAM_GET_TS(Prefix##_cTicks); \
+        (pProfileAdv2)->tsStart = Prefix##_cTicks; \
+        if ((pProfileAdv1)->tsStart) \
+        { \
+            Prefix##_cTicks -= (pProfileAdv1)->tsStart; \
+            (pProfileAdv1)->tsStart = 0; \
+            (pProfileAdv1)->Core.cTicks += Prefix##_cTicks; \
+            (pProfileAdv1)->Core.cPeriods++; \
+            if ((pProfileAdv1)->Core.cTicksMax < Prefix##_cTicks) \
+                (pProfileAdv1)->Core.cTicksMax = Prefix##_cTicks; \
+            if ((pProfileAdv1)->Core.cTicksMin > Prefix##_cTicks) \
+                (pProfileAdv1)->Core.cTicksMin = Prefix##_cTicks; \
+        } \
+    } while (0)
+#else
+# define STAM_REL_PROFILE_ADV_STOP_START(pProfileAdv1, pProfileAdv2, Prefix) \
+    do { } while (0)
+#endif
+/** @def STAM_PROFILE_ADV_STOP_START
+ * Samples the stop time of a profiling period (if running) and updates the
+ * sample.
+ *
+ * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
+ * @param   Prefix      Identifier prefix used to internal variables.
+ */
+#ifdef VBOX_WITH_STATISTICS
+# define STAM_PROFILE_ADV_STOP_START(pProfileAdv1, pProfileAdv2, Prefix) \
+    STAM_REL_PROFILE_ADV_STOP_START(pProfileAdv1, pProfileAdv2, Prefix)
+#else
+# define STAM_PROFILE_ADV_STOP_START(pProfileAdv1, pProfileAdv2, Prefix) \
+    do { } while (0)
 #endif
 
 
@@ -889,8 +975,8 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 
 
 /** @def STAM_REL_PROFILE_ADV_STOP_EX
- * Samples the stop time of a profiling period and updates both the sample
- * and an attribution sample.
+ * Samples the stop time of a profiling period (if running) and updates both
+ * the sample and an attribution sample.
  *
  * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
  * @param   pProfile2   Pointer to the STAMPROFILE structure which this
@@ -900,11 +986,11 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 #ifndef VBOX_WITHOUT_RELEASE_STATISTICS
 # define STAM_REL_PROFILE_ADV_STOP_EX(pProfileAdv, pProfile2, Prefix) \
     do { \
-        uint64_t Prefix##_tsStop; \
-        STAM_GET_TS(Prefix##_tsStop); \
         if ((pProfileAdv)->tsStart) \
         { \
-            uint64_t Prefix##_cTicks = Prefix##_tsStop - (pProfileAdv)->tsStart; \
+            uint64_t Prefix##_cTicks; \
+            STAM_GET_TS(Prefix##_cTicks); \
+            Prefix##_cTicks -= (pProfileAdv)->tsStart; \
             (pProfileAdv)->tsStart = 0; \
             (pProfileAdv)->Core.cTicks += Prefix##_cTicks; \
             (pProfileAdv)->Core.cPeriods++; \
@@ -927,8 +1013,8 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 # define STAM_REL_PROFILE_ADV_STOP_EX(pProfileAdv, pProfile2, Prefix) do { } while (0)
 #endif
 /** @def STAM_PROFILE_ADV_STOP_EX
- * Samples the stop time of a profiling period and updates both the sample
- * and an attribution sample.
+ * Samples the stop time of a profiling period (if running) and updates both
+ * the sample and an attribution sample.
  *
  * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
  * @param   pProfile2   Pointer to the STAMPROFILE structure which this
@@ -939,6 +1025,52 @@ typedef const STAMPROFILEADV *PCSTAMPROFILEADV;
 # define STAM_PROFILE_ADV_STOP_EX(pProfileAdv, pProfile2, Prefix) STAM_REL_PROFILE_ADV_STOP_EX(pProfileAdv, pProfile2, Prefix)
 #else
 # define STAM_PROFILE_ADV_STOP_EX(pProfileAdv, pProfile2, Prefix) do { } while (0)
+#endif
+
+/** @def STAM_REL_PROFILE_ADV_IS_RUNNING
+ * Checks if it is running.
+ *
+ * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
+ */
+#ifndef VBOX_WITHOUT_RELEASE_STATISTICS
+# define STAM_REL_PROFILE_ADV_IS_RUNNING(pProfileAdv)   (pProfileAdv)->tsStart
+#else
+# define STAM_REL_PROFILE_ADV_IS_RUNNING(pProfileAdv)   (false)
+#endif
+/** @def STAM_PROFILE_ADV_IS_RUNNING
+ * Checks if it is running.
+ *
+ * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
+ */
+#ifdef VBOX_WITH_STATISTICS
+# define STAM_PROFILE_ADV_IS_RUNNING(pProfileAdv) STAM_REL_PROFILE_ADV_IS_RUNNING(pProfileAdv)
+#else
+# define STAM_PROFILE_ADV_IS_RUNNING(pProfileAdv) (false)
+#endif
+
+/** @def STAM_REL_PROFILE_ADV_SET_STOPPED
+ * Marks the profile counter as stopped.
+ *
+ * This is for avoiding screwups in twisty code.
+ *
+ * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
+ */
+#ifndef VBOX_WITHOUT_RELEASE_STATISTICS
+# define STAM_REL_PROFILE_ADV_SET_STOPPED(pProfileAdv)   do { (pProfileAdv)->tsStart = 0; } while (0)
+#else
+# define STAM_REL_PROFILE_ADV_SET_STOPPED(pProfileAdv)   do { } while (0)
+#endif
+/** @def STAM_PROFILE_ADV_SET_STOPPED
+ * Marks the profile counter as stopped.
+ *
+ * This is for avoiding screwups in twisty code.
+ *
+ * @param   pProfileAdv Pointer to the STAMPROFILEADV structure to operate on.
+ */
+#ifdef VBOX_WITH_STATISTICS
+# define STAM_PROFILE_ADV_SET_STOPPED(pProfileAdv)      STAM_REL_PROFILE_ADV_SET_STOPPED(pProfileAdv)
+#else
+# define STAM_PROFILE_ADV_SET_STOPPED(pProfileAdv)      do { } while (0)
 #endif
 
 

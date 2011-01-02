@@ -1,4 +1,4 @@
-/* $Id: VMMR0.cpp $ */
+/* $Id: VMMR0.cpp 35298 2010-12-22 12:35:46Z vboxsync $ */
 /** @file
  * VMM - Host Context Ring 0.
  */
@@ -41,14 +41,13 @@
 
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
-#include <iprt/crc32.h>
+#include <iprt/crc.h>
 #include <iprt/mp.h>
 #include <iprt/once.h>
 #include <iprt/stdarg.h>
 #include <iprt/string.h>
-#ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
-# include <iprt/thread.h>
-#endif
+#include <iprt/thread.h>
+#include <iprt/timer.h>
 
 #if defined(_MSC_VER) && defined(RT_ARCH_AMD64) /** @todo check this with with VC7! */
 #  pragma intrinsic(_AddressOfReturnAddress)
@@ -61,6 +60,11 @@
 RT_C_DECLS_BEGIN
 VMMR0DECL(int) ModuleInit(void);
 VMMR0DECL(void) ModuleTerm(void);
+
+#if defined(RT_ARCH_X86) && (defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD))
+extern uint64_t __udivdi3(uint64_t, uint64_t);
+extern uint64_t __umoddi3(uint64_t, uint64_t);
+#endif // RT_ARCH_X86 && (RT_OS_SOLARIS || RT_OS_FREEBSD)
 RT_C_DECLS_END
 
 
@@ -72,9 +76,21 @@ RT_C_DECLS_END
 PFNRT g_VMMGCDeps[] =
 {
     (PFNRT)RTCrc32,
-    (PFNRT)RTOnce
+    (PFNRT)RTOnce,
+#if defined(RT_ARCH_X86) && (defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD))
+    (PFNRT)__udivdi3,
+    (PFNRT)__umoddi3,
+#endif // RT_ARCH_X86 && (RT_OS_SOLARIS || RT_OS_FREEBSD)
+    NULL
 };
 
+
+#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
+/* Increase the size of the image to work around the refusal of Win64 to
+ * load images in the 0x80000 range.
+ */
+static uint64_t u64BloatImage[8192] = {0};
+#endif
 
 /**
  * Initialize the module.
@@ -176,7 +192,7 @@ VMMR0DECL(void) ModuleTerm(void)
 
 
 /**
- * Initaties the R0 driver for a particular VM instance.
+ * Initiates the R0 driver for a particular VM instance.
  *
  * @returns VBox status code.
  *
@@ -220,14 +236,14 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev)
         LogCom(("vmmR0InitVM: after %p dereg\n", RTLogDefaultInstance()));
 
         pR0Logger->Logger.pfnLogger("hello ring-0 logger\n");
-        LogCom(("vmmR0InitVM: returned succesfully from direct logger call.\n"));
+        LogCom(("vmmR0InitVM: returned successfully from direct logger call.\n"));
         pR0Logger->Logger.pfnFlush(&pR0Logger->Logger);
-        LogCom(("vmmR0InitVM: returned succesfully from direct flush call.\n"));
+        LogCom(("vmmR0InitVM: returned successfully from direct flush call.\n"));
 
         RTLogSetDefaultInstanceThread(&pR0Logger->Logger, (uintptr_t)pVM->pSession);
         LogCom(("vmmR0InitVM: after %p reg2\n", RTLogDefaultInstance()));
         pR0Logger->Logger.pfnLogger("hello ring-0 logger\n");
-        LogCom(("vmmR0InitVM: returned succesfully from direct logger call (2). offScratch=%d\n", pR0Logger->Logger.offScratch));
+        LogCom(("vmmR0InitVM: returned successfully from direct logger call (2). offScratch=%d\n", pR0Logger->Logger.offScratch));
         RTLogSetDefaultInstanceThread(NULL, pVM->pSession);
         LogCom(("vmmR0InitVM: after %p dereg2\n", RTLogDefaultInstance()));
 
@@ -243,6 +259,13 @@ static int vmmR0InitVM(PVM pVM, uint32_t uSvnRev)
         pR0Logger->fRegistered = true;
     }
 #endif /* LOG_ENABLED */
+
+    /*
+     * Check if the host supports high resolution timers or not.
+     */
+    if (   pVM->vmm.s.fUsePeriodicPreemptionTimers
+        && !RTTimerCanDoHighResolution())
+        pVM->vmm.s.fUsePeriodicPreemptionTimers = false;
 
     /*
      * Initialize the per VM data for GVMM and GMM.
@@ -419,8 +442,33 @@ static void vmmR0RecordRC(PVM pVM, PVMCPU pVCpu, int rc)
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetRescheduleREM);
             break;
         case VINF_EM_RAW_TO_R3:
-            STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3);
+            if (VM_FF_ISPENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3TMVirt);
+            else
+            if (VM_FF_ISPENDING(pVM, VM_FF_PGM_NEED_HANDY_PAGES))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3HandyPages);
+            else
+            if (VM_FF_ISPENDING(pVM, VM_FF_PDM_QUEUES))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3PDMQueues);
+            else
+            if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Rendezvous);
+            else
+            if (VM_FF_ISPENDING(pVM, VM_FF_PDM_DMA))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3DMA);
+            else
+            if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TIMER))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Timer);
+            else
+            if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3CritSect);
+            else
+            if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_TO_R3))
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3);
+            else
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetToR3Unknown);
             break;
+
         case VINF_EM_RAW_TIMER_PENDING:
             STAM_COUNTER_INC(&pVM->vmm.s.StatRZRetTimerPending);
             break;
@@ -531,72 +579,71 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
          */
         case VMMR0_DO_RAW_RUN:
         {
-            /* Safety precaution as hwaccm disables the switcher. */
-            if (RT_LIKELY(!pVM->vmm.s.fSwitcherDisabled))
-            {
-                RTCCUINTREG uFlags = ASMIntDisableFlags();
-                int         rc;
-                bool        fVTxDisabled;
-
-                if (RT_UNLIKELY(pVM->cCpus > 1))
-                {
-                    pVCpu->vmm.s.iLastGZRc = VERR_RAW_MODE_INVALID_SMP;
-                    ASMSetFlags(uFlags);
-                    return;
-                }
-
+            /* Some safety precautions first. */
 #ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-                if (RT_UNLIKELY(!PGMGetHyperCR3(pVCpu)))
-                {
-                    pVCpu->vmm.s.iLastGZRc = VERR_PGM_NO_CR3_SHADOW_ROOT;
-                    ASMSetFlags(uFlags);
-                    return;
-                }
+            if (RT_LIKELY(   !pVM->vmm.s.fSwitcherDisabled /* hwaccm */
+                          && pVM->cCpus == 1               /* !smp */
+                          && PGMGetHyperCR3(pVCpu)))
+#else
+            if (RT_LIKELY(   !pVM->vmm.s.fSwitcherDisabled
+                          && pVM->cCpus == 1))
 #endif
-
+            {
+                /* Disable preemption and update the periodic preemption timer. */
+                RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
+                RTThreadPreemptDisable(&PreemptState);
                 RTCPUID idHostCpu = RTMpCpuId();
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
                 CPUMR0SetLApic(pVM, idHostCpu);
 #endif
+                ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
+                if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
+                    GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
 
                 /* We might need to disable VT-x if the active switcher turns off paging. */
-                rc = HWACCMR0EnterSwitcher(pVM, &fVTxDisabled);
-                if (RT_FAILURE(rc))
+                bool fVTxDisabled;
+                int rc = HWACCMR0EnterSwitcher(pVM, &fVTxDisabled);
+                if (RT_SUCCESS(rc))
                 {
+                    RTCCUINTREG uFlags = ASMIntDisableFlags();
+                    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
+
+                    TMNotifyStartOfExecution(pVCpu);
+                    rc = pVM->vmm.s.pfnHostToGuestR0(pVM);
                     pVCpu->vmm.s.iLastGZRc = rc;
+                    TMNotifyEndOfExecution(pVCpu);
+
+                    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
+
+                    /* Re-enable VT-x if previously turned off. */
+                    HWACCMR0LeaveSwitcher(pVM, fVTxDisabled);
+
+                    if (    rc == VINF_EM_RAW_INTERRUPT
+                        ||  rc == VINF_EM_RAW_INTERRUPT_HYPER)
+                        TRPMR0DispatchHostInterrupt(pVM);
+
                     ASMSetFlags(uFlags);
-                    return;
-                }
-
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
-                VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
-
-                TMNotifyStartOfExecution(pVCpu);
-                rc = pVM->vmm.s.pfnHostToGuestR0(pVM);
-                pVCpu->vmm.s.iLastGZRc = rc;
-                TMNotifyEndOfExecution(pVCpu);
-
-                VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
-                ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
-
-                /* Re-enable VT-x if previously turned off. */
-                HWACCMR0LeaveSwitcher(pVM, fVTxDisabled);
-
-                if (    rc == VINF_EM_RAW_INTERRUPT
-                    ||  rc == VINF_EM_RAW_INTERRUPT_HYPER)
-                    TRPMR0DispatchHostInterrupt(pVM);
-
-                ASMSetFlags(uFlags);
 
 #ifdef VBOX_WITH_STATISTICS
-                STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
-                vmmR0RecordRC(pVM, pVCpu, rc);
+                    STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
+                    vmmR0RecordRC(pVM, pVCpu, rc);
 #endif
+                }
+                else
+                    pVCpu->vmm.s.iLastGZRc = rc;
+                ASMAtomicWriteU32(&pVCpu->idHostCpu, NIL_RTCPUID);
+                RTThreadPreemptRestore(&PreemptState);
             }
             else
             {
                 Assert(!pVM->vmm.s.fSwitcherDisabled);
                 pVCpu->vmm.s.iLastGZRc = VERR_NOT_SUPPORTED;
+                if (pVM->cCpus != 1)
+                    pVCpu->vmm.s.iLastGZRc = VERR_RAW_MODE_INVALID_SMP;
+#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+                if (!PGMGetHyperCR3(pVCpu))
+                    pVCpu->vmm.s.iLastGZRc = VERR_PGM_NO_CR3_SHADOW_ROOT;
+#endif
             }
             break;
         }
@@ -610,10 +657,6 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
          */
         case VMMR0_DO_HWACC_RUN:
         {
-            int rc;
-
-            STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
-
 #ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
             RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
             RTThreadPreemptDisable(&PreemptState);
@@ -621,6 +664,8 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
             RTCCUINTREG uFlags = ASMIntDisableFlags();
 #endif
             ASMAtomicWriteU32(&pVCpu->idHostCpu, RTMpCpuId());
+            if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
+                GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
 
 #ifdef LOG_ENABLED
             if (pVCpu->idCpu > 0)
@@ -635,6 +680,7 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                 }
             }
 #endif
+            int rc;
             if (!HWACCMR0SuspendPending())
             {
                 rc = HWACCMR0Enter(pVM, pVCpu);
@@ -644,6 +690,7 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                     int rc2 = HWACCMR0Leave(pVM, pVCpu);
                     AssertRC(rc2);
                 }
+                STAM_COUNTER_INC(&pVM->vmm.s.StatRunRC);
             }
             else
             {
@@ -982,10 +1029,7 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
                 return VERR_INVALID_PARAMETER;
 
             PVMCPU pVCpu = &pVM->aCpus[idCpu];
-
-            /* Initialize the r0 native thread handle on the fly. */
-            if (pVCpu->hNativeThreadR0 == NIL_RTNATIVETHREAD) 
-                pVCpu->hNativeThreadR0 = RTThreadNativeSelf(); 
+            Assert(pVCpu->hNativeThreadR0 == RTThreadNativeSelf());
 
 # ifdef DEBUG_sandervl
             /* Make sure that log flushes can jump back to ring-3; annoying to get an incomplete log (this is risky though as the code doesn't take this into account). */
@@ -1002,6 +1046,15 @@ static int vmmR0EntryExWorker(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperatio
             int rc = GMMR0CheckSharedModules(pVM, pVCpu);
 # endif
             return rc;
+        }
+#endif
+
+#if defined(VBOX_STRICT) && HC_ARCH_BITS == 64
+        case VMMR0_DO_GMM_FIND_DUPLICATE_PAGE:
+        {
+            if (u64Arg)
+                return VERR_INVALID_PARAMETER;
+            return GMMR0FindDuplicatePageReq(pVM, (PGMMFINDDUPLICATEPAGEREQ)pReqHdr);
         }
 #endif
 
@@ -1288,7 +1341,7 @@ VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger)
 }
 
 /**
- * Interal R0 logger worker: Custom prefix.
+ * Internal R0 logger worker: Custom prefix.
  *
  * @returns Number of chars written.
  *
@@ -1319,8 +1372,8 @@ VMMR0DECL(size_t) vmmR0LoggerPrefix(PRTLOGGER pLogger, char *pchBuf, size_t cchB
 #endif
 }
 
-
 #ifdef LOG_ENABLED
+
 /**
  * Disables flushing of the ring-0 debug log.
  *
@@ -1345,7 +1398,8 @@ VMMR0DECL(void) VMMR0LogFlushEnable(PVMCPU pVCpu)
     if (pVCpu->vmm.s.pR0LoggerR0)
         pVCpu->vmm.s.pR0LoggerR0->fFlushingDisabled = false;
 }
-#endif
+
+#endif /* LOG_ENABLED */
 
 /**
  * Jump back to ring-3 if we're the EMT and the longjmp is armed.

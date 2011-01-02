@@ -1,4 +1,4 @@
-/* $Id: tstRTPath.cpp $ */
+/* $Id: tstRTPath.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * IPRT Testcase - Test various path functions.
  */
@@ -52,18 +52,18 @@ int main()
     RTTestBanner(hTest);
 
     /*
-     * RTPathExecDir, RTPathUserHome and RTProcGetExecutableName.
+     * RTPathExecDir, RTPathUserHome and RTProcGetExecutablePath.
      */
     RTTestSub(hTest, "RTPathExecDir");
     RTTESTI_CHECK_RC(RTPathExecDir(szPath, sizeof(szPath)), VINF_SUCCESS);
     if (RT_SUCCESS(rc))
         RTTestIPrintf(RTTESTLVL_INFO, "ExecDir={%s}\n", szPath);
 
-    RTTestSub(hTest, "RTProcGetExecutableName");
-    if (RTProcGetExecutableName(szPath, sizeof(szPath)) == szPath)
+    RTTestSub(hTest, "RTProcGetExecutablePath");
+    if (RTProcGetExecutablePath(szPath, sizeof(szPath)) == szPath)
         RTTestIPrintf(RTTESTLVL_INFO, "ExecutableName={%s}\n", szPath);
     else
-        RTTestIFailed("RTProcGetExecutableName -> NULL");
+        RTTestIFailed("RTProcGetExecutablePath -> NULL");
 
     RTTestSub(hTest, "RTPathUserHome");
     RTTESTI_CHECK_RC(RTPathUserHome(szPath, sizeof(szPath)), VINF_SUCCESS);
@@ -363,6 +363,32 @@ int main()
 
             RTTESTI_CHECK_RC(rc = RTPathJoin(szPath, cchResult, pszInput, pszAppend), VERR_BUFFER_OVERFLOW);
         }
+    }
+
+    /*
+     * RTPathJoinA - reuse the append tests.
+     */
+    RTTestSub(hTest, "RTPathJoinA");
+    for (unsigned i = 0; i < RT_ELEMENTS(s_apszAppendTests); i += 3)
+    {
+        const char *pszInput  = s_apszAppendTests[i];
+        const char *pszAppend = s_apszAppendTests[i + 1];
+        const char *pszExpect = s_apszAppendTests[i + 2];
+
+        char *pszPathDst;
+        RTTESTI_CHECK(pszPathDst = RTPathJoinA(pszInput, pszAppend));
+        if (!pszPathDst)
+            continue;
+        if (strcmp(pszPathDst, pszExpect))
+        {
+            RTTestIFailed("Unexpected result\n"
+                          "   input: '%s'\n"
+                          "  append: '%s'\n"
+                          "  output: '%s'\n"
+                          "expected: '%s'",
+                          pszInput, pszAppend, pszPathDst, pszExpect);
+        }
+        RTStrFree(pszPathDst);
     }
 
     /*

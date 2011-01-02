@@ -1,4 +1,4 @@
-# $Id: VBoxPkg.dsc $
+# $Id: VBoxPkg.dsc 33540 2010-10-28 09:27:05Z vboxsync $
 ## @file
 # VBoxPkg.dsc - VirtualBox Flash Device.
 #
@@ -357,8 +357,12 @@
   MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiBusDxe/ScsiBusDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiDiskDxe/ScsiDiskDxe.inf
-  IntelFrameworkModulePkg/Bus/Pci/IdeBusDxe/IdeBusDxe.inf
-  PcAtChipsetPkg/Bus/Pci/IdeControllerDxe/IdeControllerDxe.inf
+  # VBOX
+  VBoxPkg/VBoxIdeBusDxe/VBoxIdeBusDxe.inf 
+  VBoxPkg/VBoxIdeControllerDxe/VBoxIdeControllerDxe.inf
+  # VBOX end
+  #IntelFrameworkModulePkg/Bus/Pci/IdeBusDxe/IdeBusDxe.inf
+  #PcAtChipsetPkg/Bus/Pci/IdeControllerDxe/IdeControllerDxe.inf
   MdeModulePkg/Universal/HiiDatabaseDxe/HiiDatabaseDxe.inf
   MdeModulePkg/Universal/SetupBrowserDxe/SetupBrowserDxe.inf
 
@@ -397,14 +401,14 @@
  # add -DVBOX
  #
 [BuildOptions.common]
-  GCC:*_*_*_CC_FLAGS = -DVBOX -DARCH_BITS=32 -DHC_ARCH_BITS=32
+  GCC:*_*_*_CC_FLAGS = -DVBOX -DARCH_BITS=32 -DHC_ARCH_BITS=32 -DEFI_SPECIFICATION_VERSION=0x0002000A -DPI_SPECIFICATION_VERSION=0x00010000 -DTIANO_RELEASE_VERSION=0x00080006
   # 
   # mingw set 0x4000000 as a default image base that is the reason 
   # PCD module loaded in the middle of space grub supposed to load
   # boot images. 
-  # this base address choosen looking at 
+  # this base address chosen looking at 
   # Shell> memmap 
   # in the place where Image.c locates the rest of the modules.
-  GCC:*_*_*_DLINK_FLAGS = --image-base 0x1f000000
-  INTEL:*_*_*_CC_FLAGS = -DVBOX -DARCH_BITS=32 -DHC_ARCH_BITS=32
-  MSFT:*_*_*_CC_FLAGS = -DVBOX -DARCH_BITS=32 -DHC_ARCH_BITS=32
+  GCC:*_*_*_DLINK_FLAGS = --image-base 0x1f000000 
+  INTEL:*_*_*_CC_FLAGS = -DVBOX -DARCH_BITS=32 -DHC_ARCH_BITS=32 -DEFI_SPECIFICATION_VERSION=0x0002000A -DPI_SPECIFICATION_VERSION=0x00010000 -DTIANO_RELEASE_VERSION=0x00080006
+  MSFT:*_*_*_CC_FLAGS = -DVBOX -DARCH_BITS=32 -DHC_ARCH_BITS=32 -DEFI_SPECIFICATION_VERSION=0x0002000A -DPI_SPECIFICATION_VERSION=0x00010000 -DTIANO_RELEASE_VERSION=0x00080006

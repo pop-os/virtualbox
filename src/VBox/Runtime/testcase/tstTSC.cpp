@@ -1,4 +1,4 @@
-/* $Id: tstTSC.cpp $ */
+/* $Id: tstTSC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT Testcase - SMP TSC testcase.
  */
@@ -199,7 +199,7 @@ static int tstTSCCalcDrift(void)
     }
 
     /*
-     * Retry untill we get lucky (or give up).
+     * Retry until we get lucky (or give up).
      */
     for (unsigned cTries = 0; ; cTries++)
     {

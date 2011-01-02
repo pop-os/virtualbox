@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 33590 2010-10-29 08:55:09Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxBFE (a basic frontend which doesn't make use of Main).
 #
@@ -51,9 +51,6 @@ VBoxBFE_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBOXR3NP,VBOXR3NPEXE)
 #ifdef VBOX_WITH_SECURELABEL
 #VBoxBFE_DEFS += VBOX_SECURELABEL
 #endif
-ifdef VBOX_WITH_VRDP
-VBoxBFE_DEFS += VBOX_WITH_VRDP
-endif
 VBoxBFE_DEFS += VBOXBFE_WITHOUT_COM
 ifdef VBOX_WITH_LINUX_COMPILER_H
 VBoxBFE_DEFS += VBOX_WITH_LINUX_COMPILER_H
@@ -181,6 +178,9 @@ $(addprefix $$(PATH_VBoxBFE)/,$(VBOXBFE_MAIN_H)): \
 	$(call MSG_INST_FILE,$<,$@)
 	$(QUIET)$(CP_EXT) $< $@
 
+OTHER_CLEAN += \
+	$(addprefix $(PATH_VBoxBFE)/,$(VBOXBFE_MAIN_CPP)) \
+	$(addprefix $(PATH_VBoxBFE)/,$(VBOXBFE_MAIN_H))
 
 
 endif # !VBOX_WITH_HARDENING || !darwin

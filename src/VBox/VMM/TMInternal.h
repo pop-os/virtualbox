@@ -1,4 +1,4 @@
-/* $Id: TMInternal.h $ */
+/* $Id: TMInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * TM - Internal header file.
  */
@@ -168,6 +168,15 @@ typedef struct TMTIMER
     /** Timer relative offset to the previous timer in the chain. */
     int32_t                 offPrev;
 
+    /** Pointer to the VM the timer belongs to - R3 Ptr. */
+    PVMR3                   pVMR3;
+    /** Pointer to the VM the timer belongs to - R0 Ptr. */
+    PVMR0                   pVMR0;
+    /** Pointer to the VM the timer belongs to - RC Ptr. */
+    PVMRC                   pVMRC;
+    /** The timer frequency hint.  This is 0 if not hint was given. */
+    uint32_t volatile       uHzHint;
+
     /** User argument. */
     RTR3PTR                 pvUser;
     /** The critical section associated with the lock. */
@@ -179,14 +188,8 @@ typedef struct TMTIMER
     PTMTIMERR3              pBigPrev;
     /** Pointer to the timer description. */
     R3PTRTYPE(const char *) pszDesc;
-    /** Pointer to the VM the timer belongs to - R3 Ptr. */
-    PVMR3                   pVMR3;
-    /** Pointer to the VM the timer belongs to - R0 Ptr. */
-    PVMR0                   pVMR0;
-    /** Pointer to the VM the timer belongs to - RC Ptr. */
-    PVMRC                   pVMRC;
-#if HC_ARCH_BITS == 64
-    RTRCPTR                 padding0; /**< pad structure to multiple of 8 bytes. */
+#if HC_ARCH_BITS == 32
+    uint32_t                padding0; /**< pad structure to multiple of 8 bytes. */
 #endif
 } TMTIMER;
 AssertCompileMemberSize(TMTIMER, enmState, sizeof(uint32_t));
@@ -275,6 +278,33 @@ typedef TMTIMERQUEUE *PTMTIMERQUEUE;
 
 
 /**
+ * CPU load data set.
+ * Mainly used by tmR3CpuLoadTimer.
+ */
+typedef struct TMCPULOADSTATE
+{
+    /** The percent of the period spent executing guest code. */
+    uint8_t                 cPctExecuting;
+    /** The percent of the period spent halted. */
+    uint8_t                 cPctHalted;
+    /** The percent of the period spent on other things. */
+    uint8_t                 cPctOther;
+    /** Explicit alignment padding */
+    uint8_t                 au8Alignment[5];
+
+    /** Previous cNsTotal value. */
+    uint64_t                cNsPrevTotal;
+    /** Previous cNsExecuting value. */
+    uint64_t                cNsPrevExecuting;
+    /** Previous cNsHalted value. */
+    uint64_t                cNsPrevHalted;
+} TMCPULOADSTATE;
+AssertCompileSizeAlignment(TMCPULOADSTATE, 8);
+AssertCompileMemberAlignment(TMCPULOADSTATE, cNsPrevTotal, 8);
+/** Pointer to a CPU load data set. */
+typedef TMCPULOADSTATE *PTMCPULOADSTATE;
+
+/**
  * Converts a TM pointer into a VM pointer.
  * @returns Pointer to the VM structure the TM is part of.
  * @param   pTM   Pointer to TM instance data.
@@ -325,7 +355,7 @@ typedef struct TM
     bool volatile               fVirtualSyncTicking;
     /** Virtual timer synchronous time catch-up active. */
     bool volatile               fVirtualSyncCatchUp;
-    bool                        afAlignment[5]; /**< alignment padding */
+    bool                        afAlignment1[5]; /**< alignment padding */
     /** WarpDrive percentage.
      * 100% is normal (fVirtualSyncNormal == true). When other than 100% we apply
      * this percentage to the raw time source for the period it's been valid in,
@@ -380,7 +410,7 @@ typedef struct TM
 /** @def TM_MAX_CATCHUP_PERIODS
  * The number of catchup rates. */
 #define TM_MAX_CATCHUP_PERIODS  10
-    /** The agressivness of the catch-up relative to how far we've lagged behind.
+    /** The aggressiveness of the catch-up relative to how far we've lagged behind.
      * The idea is to have increasing catch-up percentage as the lag increases. */
     struct TMCATCHUPPERIOD
     {
@@ -388,6 +418,34 @@ typedef struct TM
         uint32_t                u32Percentage;  /**< The catch-up percent to apply. */
         uint32_t                u32Alignment;   /**< Structure alignment */
     }                           aVirtualSyncCatchUpPeriods[TM_MAX_CATCHUP_PERIODS];
+
+    /** The current max timer Hz hint. */
+    uint32_t volatile           uMaxHzHint;
+    /** Whether to recalulate the HzHint next time its queried. */
+    bool volatile               fHzHintNeedsUpdating;
+    /** Alignment */
+    bool                        afAlignment2[3];
+    /** @cfgm{TM/HostHzMax, uint32_t, Hz, 0, UINT32_MAX, 20000}
+     * The max host Hz frequency hint returned by TMCalcHostTimerFrequency.  */
+    uint32_t                    cHostHzMax;
+    /** @cfgm{TM/HostHzFudgeFactorTimerCpu, uint32_t, Hz, 0, UINT32_MAX, 111}
+     * The number of Hz TMCalcHostTimerFrequency adds for the timer CPU.  */
+    uint32_t                    cPctHostHzFudgeFactorTimerCpu;
+    /** @cfgm{TM/HostHzFudgeFactorOtherCpu, uint32_t, Hz, 0, UINT32_MAX, 110}
+     * The number of Hz TMCalcHostTimerFrequency adds for the other CPUs. */
+    uint32_t                    cPctHostHzFudgeFactorOtherCpu;
+    /** @cfgm{TM/HostHzFudgeFactorCatchUp100, uint32_t, Hz, 0, UINT32_MAX, 300}
+     *  The fudge factor (expressed in percent) that catch-up percentages below
+     * 100% is multiplied by. */
+    uint32_t                    cPctHostHzFudgeFactorCatchUp100;
+    /** @cfgm{TM/HostHzFudgeFactorCatchUp200, uint32_t, Hz, 0, UINT32_MAX, 250}
+     * The fudge factor (expressed in percent) that catch-up percentages
+     * 100%-199% is multiplied by. */
+    uint32_t                    cPctHostHzFudgeFactorCatchUp200;
+    /** @cfgm{TM/HostHzFudgeFactorCatchUp400, uint32_t, Hz, 0, UINT32_MAX, 200}
+     * The fudge factor (expressed in percent) that catch-up percentages
+     * 200%-399% is multiplied by. */
+    uint32_t                    cPctHostHzFudgeFactorCatchUp400;
 
     /** The UTC offset in ns.
      * This is *NOT* for converting UTC to local time. It is for converting real
@@ -418,8 +476,8 @@ typedef struct TM
      * Only accessible from the emulation thread. */
     PTMTIMERR3                  pCreated;
 
-    /** The schedulation timer timer handle (runtime timer).
-     * This timer will do freqent check on pending queue schedulations and
+    /** The schedule timer timer handle (runtime timer).
+     * This timer will do frequent check on pending queue schedules and
      * raise VM_FF_TIMER to pull EMTs attention to them.
      */
     R3PTRTYPE(PRTTIMER)         pTimer;
@@ -430,13 +488,16 @@ typedef struct TM
     bool volatile               fRunningQueues;
     /** Indicates that the virtual sync queue is being run. */
     bool volatile               fRunningVirtualSyncQueue;
-    /* Alignment */
-    bool                        u8Alignment[2];
+    /** Alignment */
+    bool                        afAlignment3[2];
 
     /** Lock serializing access to the timer lists. */
     PDMCRITSECT                 TimerCritSect;
     /** Lock serializing access to the VirtualSync clock. */
     PDMCRITSECT                 VirtualSyncLock;
+
+    /** CPU load state for all the virtual CPUs (tmR3CpuLoadTimer). */
+    TMCPULOADSTATE              CpuLoad;
 
     /** TMR3TimerQueuesDo
      * @{ */
@@ -571,6 +632,54 @@ typedef struct TMCPU
 
     /** The last seen TSC by the guest. */
     uint64_t                    u64TSCLastSeen;
+
+#ifndef VBOX_WITHOUT_NS_ACCOUNTING
+    /** The nanosecond timestamp of the CPU start or resume.
+     * This is recalculated when the VM is started so that
+     * cNsTotal = RTTimeNanoTS() - u64NsTsStartCpu. */
+    uint64_t                    u64NsTsStartTotal;
+    /** The nanosecond timestamp of the last start-execute notification. */
+    uint64_t                    u64NsTsStartExecuting;
+    /** The nanosecond timestamp of the last start-halt notification. */
+    uint64_t                    u64NsTsStartHalting;
+    /** The cNsXXX generation. */
+    uint32_t volatile           uTimesGen;
+    /** Explicit alignment padding.  */
+    uint32_t                    u32Alignment;
+    /** The number of nanoseconds total run time.
+     * @remarks This is updated when cNsExecuting and cNsHalted are updated. */
+    uint64_t                    cNsTotal;
+    /** The number of nanoseconds spent executing. */
+    uint64_t                    cNsExecuting;
+    /** The number of nanoseconds being halted. */
+    uint64_t                    cNsHalted;
+    /** The number of nanoseconds spent on other things.
+     * @remarks This is updated when cNsExecuting and cNsHalted are updated. */
+    uint64_t                    cNsOther;
+    /** The number of halts. */
+    uint64_t                    cPeriodsHalted;
+    /** The number of guest execution runs. */
+    uint64_t                    cPeriodsExecuting;
+# if defined(VBOX_WITH_STATISTICS) || defined(VBOX_WITH_NS_ACCOUNTING_STATS)
+    /** Resettable version of cNsTotal. */
+    STAMCOUNTER                 StatNsTotal;
+    /** Resettable version of cNsExecuting. */
+    STAMPROFILE                 StatNsExecuting;
+    /** Long execution intervals. */
+    STAMPROFILE                 StatNsExecLong;
+    /** Short execution intervals . */
+    STAMPROFILE                 StatNsExecShort;
+    /** Tiny execution intervals . */
+    STAMPROFILE                 StatNsExecTiny;
+    /** Resettable version of cNsHalted. */
+    STAMPROFILE                 StatNsHalted;
+    /** Resettable version of cNsOther. */
+    STAMPROFILE                 StatNsOther;
+# endif
+
+    /** CPU load state for this virtual CPU (tmR3CpuLoadTimer). */
+    TMCPULOADSTATE              CpuLoad;
+#endif
 } TMCPU;
 /** Pointer to TM VMCPU instance data. */
 typedef TMCPU *PTMCPU;

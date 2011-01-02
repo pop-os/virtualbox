@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -185,12 +185,9 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
  * The new process will not be a direct decendent of the parent and it will not
  * be possible to wait for it, i.e. @a phProcess shall be NULL. */
 #define RTPROC_FLAGS_DETACHED               RT_BIT(0)
-
-/** Daemonize the child process, without changing the directory.
- * @deprecated Dont use this for new code, it is not portable.  Use
- *             RTProcDaemonize instead. */
-#define RTPROC_FLAGS_DAEMONIZE_DEPRECATED   RT_BIT(1)
-
+/** Don't show the started process according to the specific
+ *  OS guidelines. */
+#define RTPROC_FLAGS_HIDDEN                 RT_BIT(1)
 /** Use special code path for starting child processes from
  * a service (daemon). On Windows this is required for services
  * because of the so called "Session 0" isolation which was
@@ -286,15 +283,21 @@ RTR3DECL(int) RTProcTerminate(RTPROCESS Process);
 RTR3DECL(uint64_t) RTProcGetAffinityMask(void);
 
 /**
- * Gets the executable image name of the current process.
+ * Gets the short process name.
  *
- *
- * @returns pszExecName on success. NULL on buffer overflow or other errors.
- *
- * @param   pszExecName     Where to store the name.
- * @param   cchExecName     The size of the buffer.
+ * @returns Pointer to read-only name string.
  */
-RTR3DECL(char *) RTProcGetExecutableName(char *pszExecName, size_t cchExecName);
+RTR3DECL(const char *) RTProcShortName(void);
+
+/**
+ * Gets the path to the executable image of the current process.
+ *
+ * @returns pszExecPath on success. NULL on buffer overflow or other errors.
+ *
+ * @param   pszExecPath     Where to store the path.
+ * @param   cbExecPath      The size of the buffer.
+ */
+RTR3DECL(char *) RTProcGetExecutablePath(char *pszExecPath, size_t cbExecPath);
 
 /**
  * Daemonize the current process, making it a background process.

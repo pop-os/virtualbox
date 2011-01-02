@@ -29,6 +29,8 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 
+struct PDMLED;
+
 RT_C_DECLS_BEGIN
 
 /** @defgroup grp_vusb  VBox USB API
@@ -353,6 +355,7 @@ typedef struct VUSBPORTBITMAP
 /** Pointer to a VBox USB port bitmap. */
 typedef VUSBPORTBITMAP *PVUSBPORTBITMAP;
 
+#ifndef RDESKTOP
 
 /**
  * The VUSB RootHub port interface provided by the HCI (down).
@@ -361,7 +364,7 @@ typedef VUSBPORTBITMAP *PVUSBPORTBITMAP;
 typedef struct VUSBIROOTHUBPORT
 {
     /**
-     * Get the number of avilable ports in the hub.
+     * Get the number of available ports in the hub.
      *
      * @returns The number of ports available.
      * @param   pInterface      Pointer to this structure.
@@ -419,7 +422,7 @@ typedef struct VUSBIROOTHUBPORT
      * Handle transfer errors.
      *
      * VUSB calls this when a transfer attempt failed. This function will respond
-     * indicating wheter to retry or complete the URB with failure.
+     * indicating whether to retry or complete the URB with failure.
      *
      * @returns Retry indicator.
      * @param   pInterface      Pointer to this structure.
@@ -620,6 +623,7 @@ DECLINLINE(int) VUSBIRhDestroyProxyDevice(PVUSBIRHCONFIG pInterface, PCRTUUID pU
 }
 #endif /* IN_RING3 */
 
+#endif /* ! RDESKTOP */
 
 
 /**
@@ -661,6 +665,7 @@ typedef enum VUSBDEVICESTATE
     VUSB_DEVICE_STATE_32BIT_HACK = 0x7fffffff
 } VUSBDEVICESTATE;
 
+#ifndef RDESKTOP
 
 /**
  * USB Device Interface (up).
@@ -790,6 +795,7 @@ DECLINLINE(VUSBDEVICESTATE) VUSBIDevGetState(PVUSBIDEVICE pInterface)
 }
 #endif /* IN_RING3 */
 
+#endif /* ! RDESKTOP */
 
 /** @name URB
  * @{ */
@@ -894,7 +900,7 @@ typedef struct VUSBURBISOCPKT
 {
     /** The size of the packet.
      * IN: The packet size. I.e. the number of bytes to the next packet or end of buffer.
-     * OUT: The actual size transfered. */
+     * OUT: The actual size transferred. */
     uint16_t        cb;
     /** The offset of the packet. (Relative to VUSBURB::abData[0].)
      * OUT: This can be changed by the USB device if it does some kind of buffer squeezing. */
@@ -920,6 +926,17 @@ typedef struct VUSBURB
     VUSBURBSTATE    enmState;
     /** URB description, can be null. intended for logging. */
     char           *pszDesc;
+
+#ifdef RDESKTOP
+    /** The next URB in rdesktop-vrdp's linked list */
+    PVUSBURB        pNext;
+    /** The previous URB in rdesktop-vrdp's linked list */
+    PVUSBURB        pPrev;
+    /** The vrdp handle for the URB */
+    uint32_t        handle;
+    /** Pointer used to find the usb proxy device */
+    struct VUSBDEV *pDev;
+#endif
 
     /** The VUSB data. */
     struct VUSBURBVUSB
@@ -983,9 +1000,11 @@ typedef struct VUSBURB
         PVUSBURB        pNext;
     } Dev;
 
+#ifndef RDESKTOP
     /** The USB device instance this belongs to.
      * This is NULL if the device address is invalid, in which case this belongs to the hub. */
     PPDMUSBINS      pUsbIns;
+#endif
     /** The device address.
      * This is set at allocation time. */
     uint8_t         DstAddress;

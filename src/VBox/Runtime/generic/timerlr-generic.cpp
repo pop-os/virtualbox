@@ -1,8 +1,8 @@
-/* $Id: timerlr-generic.cpp $ */
+/* $Id: timerlr-generic.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
 /** @file
  * IPRT - Low Resolution Timers, Generic.
  *
- * This code is more or less identicial to timer-generic.cpp, so
+ * This code is more or less identical to timer-generic.cpp, so
  * bugfixes goes into both files.
  */
 
@@ -304,7 +304,8 @@ static DECLCALLBACK(int) rtTimerLRThread(RTTHREAD hThread, void *pvUser)
                 cNanoSeconds = pThis->u64NextTS - u64NanoTS;
 
             /* block. */
-            int rc = RTSemEventWait(pThis->hEvent, cNanoSeconds < 1000000 ? 1 : cNanoSeconds / 1000000);
+            int rc = RTSemEventWait(pThis->hEvent,
+                                    (RTMSINTERVAL)(cNanoSeconds < 1000000 ? 1 : cNanoSeconds / 1000000));
             if (RT_FAILURE(rc) && rc != VERR_INTERRUPTED && rc != VERR_TIMEOUT)
             {
                 AssertRC(rc);

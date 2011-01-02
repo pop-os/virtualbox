@@ -1,4 +1,4 @@
-/* $Id $ */
+/* $Id: tstUSBLinux.h 30714 2010-07-07 16:20:03Z vboxsync $ */
 /** @file
  * VirtualBox USB Proxy Service class, test version for Linux hosts.
  */
@@ -38,10 +38,16 @@ enum { S_OK = 0, E_NOTIMPL = 1 };
 class USBProxyServiceLinux
 {
 public:
-    USBProxyServiceLinux() : mLastError(VINF_SUCCESS) {}
+    USBProxyServiceLinux()
+        : mLastError(VINF_SUCCESS)
+    {}
+
     HRESULT initSysfs(void);
     PUSBDEVICE getDevicesFromSysfs(void);
-    int getLastError(void) { return mLastError; }
+    int getLastError(void)
+    {
+        return mLastError;
+    }
 
 private:
     int start(void) { return VINF_SUCCESS; }

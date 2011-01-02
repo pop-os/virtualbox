@@ -1,4 +1,4 @@
-/* $Id: QIArrowButtonPress.cpp $ */
+/* $Id: QIArrowButtonPress.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -18,8 +18,8 @@
  */
 
 /* VBox includes */
-#include "VBoxGlobal.h"
 #include "QIArrowButtonPress.h"
+#include "UIIconPool.h"
 
 /* Qt includes */
 #include <QKeyEvent>
@@ -27,7 +27,7 @@
 
 /** @class QIArrowButtonPress
  *
- *  The QIArrowButtonPress class is an arrow tool-botton with text-label,
+ *  The QIArrowButtonPress class is an arrow tool-button with text-label,
  *  used as back/next buttons in QIMessageBox class.
  *
  */
@@ -48,8 +48,8 @@ QIArrowButtonPress::QIArrowButtonPress (bool aNext, const QString &aName, QWidge
 
 void QIArrowButtonPress::updateIcon()
 {
-    mButton->setIcon (VBoxGlobal::iconSet (mNext ?
-                      ":/arrow_right_10px.png" : ":/arrow_left_10px.png"));
+    mButton->setIcon(UIIconPool::iconSet(mNext ?
+                                         ":/arrow_right_10px.png" : ":/arrow_left_10px.png"));
 }
 
 bool QIArrowButtonPress::eventFilter (QObject *aObject, QEvent *aEvent)

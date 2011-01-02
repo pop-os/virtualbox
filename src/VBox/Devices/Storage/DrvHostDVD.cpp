@@ -1,4 +1,4 @@
-/* $Id: DrvHostDVD.cpp $ */
+/* $Id: DrvHostDVD.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DrvHostDVD - Host DVD block driver.
  */
@@ -22,6 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DRV_HOST_DVD
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
+
 #ifdef RT_OS_DARWIN
 # include <mach/mach.h>
 # include <Carbon/Carbon.h>
@@ -73,9 +74,19 @@
 # define USE_MEDIA_POLLING
 
 #elif defined(RT_OS_WINDOWS)
+# pragma warning(disable : 4163)
+# define _interlockedbittestandset      they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandset
+# define _interlockedbittestandreset    they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandreset
+# define _interlockedbittestandset64    they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandset64
+# define _interlockedbittestandreset64  they_messed_it_up_in_winnt_h_this_time_sigh__interlockedbittestandreset64
 # include <Windows.h>
 # include <winioctl.h>
 # include <ntddscsi.h>
+# pragma warning(default : 4163)
+# undef _interlockedbittestandset
+# undef _interlockedbittestandreset
+# undef _interlockedbittestandset64
+# undef _interlockedbittestandreset64
 # undef USE_MEDIA_POLLING
 
 #elif defined(RT_OS_FREEBSD)
@@ -90,6 +101,7 @@
 # error "Unsupported Platform."
 #endif
 
+#include <iprt/asm.h>
 #include <VBox/pdmdrv.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -221,7 +233,7 @@ static DECLCALLBACK(int) drvHostDvdUnmount(PPDMIMOUNT pInterface, bool fForce)
  */
 static DECLCALLBACK(int) drvHostDvdDoLock(PDRVHOSTBASE pThis, bool fLock)
 {
-#ifdef RT_OS_DARWIN
+#if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
     uint8_t abCmd[16] =
     {
         SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL, 0, 0, 0, fLock, 0,
@@ -330,7 +342,7 @@ DECLCALLBACK(int) drvHostDvdPoll(PDRVHOSTBASE pThis)
                  || (abSense[12] == 0x2a && abSense[13] == 0 /* parameters changed */)                        //???
                  || (abSense[12] == 0x3f && abSense[13] == 0 /* target operating conditions have changed */)  //???
                  || (abSense[12] == 0x3f && abSense[13] == 2 /* changed operating definition */)              //???
-                 || (abSense[12] == 0x3f && abSense[13] == 3 /* inquery parameters changed */)
+                 || (abSense[12] == 0x3f && abSense[13] == 3 /* inquiry parameters changed */)
                  || (abSense[12] == 0x3f && abSense[13] == 5 /* device identifier changed */)
                  )
             )
@@ -640,7 +652,7 @@ static int drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
 
 
 #ifdef VBOX_WITH_SUID_WRAPPER
-/* These functions would have to go into a seperate solaris binary with
+/* These functions would have to go into a separate solaris binary with
  * the setuid permission set, which would run the user-SCSI ioctl and
  * return the value. BUT... this might be prohibitively slow.
  */
@@ -648,7 +660,7 @@ static int drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
 
 /**
  * Checks if the current user is authorized using Solaris' role-based access control.
- * Made as a seperate function with so that it need not be invoked each time we need
+ * Made as a separate function with so that it need not be invoked each time we need
  * to gain root access.
  *
  * @returns VBox error code.

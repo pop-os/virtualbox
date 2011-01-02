@@ -1030,7 +1030,7 @@ static void do_interrupt_protected(int intno, int is_int, int error_code,
 #else
      /*
      * We must clear VIP/VIF too on interrupt entry, as otherwise FreeBSD
-     * gets confused by seeingingly changed EFLAGS. See #3491 and
+     * gets confused by seemingly changed EFLAGS. See #3491 and
      * public bug #2341.
      */
     env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK | VIF_MASK | VIP_MASK);
@@ -1306,7 +1306,7 @@ static void do_interrupt64(int intno, int is_int, int error_code,
 #else
     /*
      * We must clear VIP/VIF too on interrupt entry, as otherwise FreeBSD
-     * gets confused by seeingingly changed EFLAGS. See #3491 and
+     * gets confused by seemingly changed EFLAGS. See #3491 and
      * public bug #2341.
      */
     env->eflags &= ~(TF_MASK | VM_MASK | RF_MASK | NT_MASK | VIF_MASK | VIP_MASK);
@@ -1675,7 +1675,7 @@ void raise_interrupt(int intno, int is_int, int error_code,
                      int next_eip_addend)
 {
 #if defined(VBOX) && defined(DEBUG)
-    Log2(("raise_interrupt: %x %x %x %RGv\n", intno, is_int, error_code, env->eip + next_eip_addend));
+    Log2(("raise_interrupt: %x %x %x %RGv\n", intno, is_int, error_code, (RTGCPTR)env->eip + next_eip_addend));
 #endif
     if (!is_int) {
         helper_svm_check_intercept_param(SVM_EXIT_EXCP_BASE + intno, error_code);
@@ -3690,7 +3690,10 @@ void helper_rdtscp(void)
     val = cpu_get_tsc(env);
     EAX = (uint32_t)(val);
     EDX = (uint32_t)(val >> 32);
-    ECX = cpu_rdmsr(env, MSR_K8_TSC_AUX);
+    if (cpu_rdmsr(env, MSR_K8_TSC_AUX, &val) == 0)
+        ECX = (uint32_t)(val);
+    else
+        ECX = 0;
 }
 #endif
 
@@ -3743,7 +3746,9 @@ void helper_wrmsr(void)
         env->sysenter_eip = val;
         break;
     case MSR_IA32_APICBASE:
+#ifndef VBOX /* The CPUMSetGuestMsr call below does this now. */
         cpu_set_apic_base(env, val);
+#endif
         break;
     case MSR_EFER:
         {
@@ -3795,21 +3800,17 @@ void helper_wrmsr(void)
     default:
 #ifndef VBOX
         /* XXX: exception ? */
+#endif
         break;
-#else  /* VBOX */
+    }
+
+#ifdef VBOX
+    /* call CPUM. */
+    if (cpu_wrmsr(env, (uint32_t)ECX, val) != 0)
     {
-        uint32_t ecx = (uint32_t)ECX;
-        /* In X2APIC specification this range is reserved for APIC control. */
-        if (ecx >= MSR_APIC_RANGE_START && ecx < MSR_APIC_RANGE_END)
-            cpu_apic_wrmsr(env, ecx, val);
-        /** @todo else exception? */
-        break;
+        /** @todo be a brave man and raise a \#GP(0) here as we should... */
     }
-    case MSR_K8_TSC_AUX:
-            cpu_wrmsr(env, MSR_K8_TSC_AUX, val);
-            break;
-#endif /* VBOX */
-    }
+#endif
 }
 
 void helper_rdmsr(void)
@@ -3842,14 +3843,7 @@ void helper_rdmsr(void)
     case MSR_VM_HSAVE_PA:
         val = env->vm_hsave;
         break;
-#ifdef VBOX
-    case MSR_IA32_PERF_STATUS:
-    case MSR_IA32_PLATFORM_INFO:
-    case MSR_IA32_FSB_CLOCK_STS:
-    case MSR_IA32_THERM_STATUS:
-        val = CPUMGetGuestMsr(env->pVCpu, (uint32_t)ECX);
-        break;
-#else
+#ifndef VBOX /* forward to CPUMQueryGuestMsr. */
     case MSR_IA32_PERF_STATUS:
         /* tsc_increment_by_tick */
         val = 1000ULL;
@@ -3890,25 +3884,23 @@ void helper_rdmsr(void)
 #ifndef VBOX
         /* XXX: exception ? */
         val = 0;
-        break;
 #else  /* VBOX */
+        if (cpu_rdmsr(env, (uint32_t)ECX, &val) != 0)
         {
-            uint32_t ecx = (uint32_t)ECX;
-            /* In X2APIC specification this range is reserved for APIC control. */
-            if (ecx >= MSR_APIC_RANGE_START && ecx < MSR_APIC_RANGE_END)
-                val = cpu_apic_rdmsr(env, ecx);
-            else
-                val = 0; /** @todo else exception? */
-            break;
+            /** @todo be a brave man and raise a \#GP(0) here as we should... */
+            val = 0;
         }
-        case MSR_IA32_TSC:
-        case MSR_K8_TSC_AUX:
-            val = cpu_rdmsr(env, (uint32_t)ECX);
-            break;
-#endif /* VBOX */
+#endif
+        break;
     }
     EAX = (uint32_t)(val);
     EDX = (uint32_t)(val >> 32);
+
+#ifdef VBOX_STRICT
+    if (cpu_rdmsr(env, (uint32_t)ECX, &val) != 0)
+        val = 0;
+    AssertMsg(val == RT_MAKE_U64(EAX, EDX), ("idMsr=%#x val=%#llx eax:edx=%#llx\n", (uint32_t)ECX, val, RT_MAKE_U64(EAX, EDX)));
+#endif
 }
 #endif
 
@@ -5619,7 +5611,7 @@ uint32_t raw_compute_eflags(CPUX86State *env1)
 /**
  * Reads byte from virtual address in guest memory area.
  * XXX: is it working for any addresses? swapped out pages?
- * @returns readed data byte.
+ * @returns read data byte.
  * @param   env1    CPU environment.
  * @param   pvAddr  GC Virtual address.
  */
@@ -5636,7 +5628,7 @@ uint8_t read_byte(CPUX86State *env1, target_ulong addr)
 /**
  * Reads byte from virtual address in guest memory area.
  * XXX: is it working for any addresses? swapped out pages?
- * @returns readed data byte.
+ * @returns read data byte.
  * @param   env1    CPU environment.
  * @param   pvAddr  GC Virtual address.
  */
@@ -5653,7 +5645,7 @@ uint16_t read_word(CPUX86State *env1, target_ulong addr)
 /**
  * Reads byte from virtual address in guest memory area.
  * XXX: is it working for any addresses? swapped out pages?
- * @returns readed data byte.
+ * @returns read data byte.
  * @param   env1    CPU environment.
  * @param   pvAddr  GC Virtual address.
  */
@@ -5670,7 +5662,7 @@ uint32_t read_dword(CPUX86State *env1, target_ulong addr)
 /**
  * Writes byte to virtual address in guest memory area.
  * XXX: is it working for any addresses? swapped out pages?
- * @returns readed data byte.
+ * @returns read data byte.
  * @param   env1    CPU environment.
  * @param   pvAddr  GC Virtual address.
  * @param   val     byte value

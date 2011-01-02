@@ -1,4 +1,4 @@
-/* $Id: VSCSIInternal.h $ */
+/* $Id: VSCSIInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Virtual SCSI driver: Internal defines
  */
@@ -183,16 +183,18 @@ typedef struct VSCSILUNDESC
 #define VSCSI_DEVICE_LUN_MAX 128
 
 /**
- * Completesa SCSI request and calls the completion handler.
+ * Completes a SCSI request and calls the completion handler.
  *
  * @returns nothing.
  * @param   pVScsiDevice    The virtual SCSI device.
  * @param   pVScsiReq       The request which completed.
- * @param   rcReq           The status code
+ * @param   rcScsiCode      The status code
  *                          One of the SCSI_STATUS_* #defines.
+ * @param   fRedoPossible   Flag whether redo is possible.
+ * @param   rcReq           Informational return code of the request.
  */
 void vscsiDeviceReqComplete(PVSCSIDEVICEINT pVScsiDevice, PVSCSIREQINT pVScsiReq,
-                            int rcReq);
+                            int rcScsiCode, bool fRedoPossible, int rcReq);
 
 /**
  * Initialize a I/O memory context.
@@ -258,7 +260,7 @@ int vscsiReqSenseErrorSet(PVSCSIREQINT pVScsiReq, uint8_t uSCSISenseKey, uint8_t
 /**
  * Enqueues a new flush request
  *
- * @retruns VBox status code.
+ * @returns VBox status code.
  * @param   pVScsiLun    The LUN instance which issued the request.
  * @param   pVScsiReq    The virtual SCSI request associated with the flush.
  */

@@ -1,4 +1,4 @@
-/* $Id: UIImportApplianceWzd.cpp $ */
+/* $Id: UIImportApplianceWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -101,11 +101,20 @@ void UIImportLicenseViewer::sltSave()
     }
 }
 
-UIImportApplianceWzd::UIImportApplianceWzd(QWidget *pParent) : QIWizard(pParent)
+UIImportApplianceWzd::UIImportApplianceWzd(const QString &strFile /* = "" */, QWidget *pParent /* = 0 */)
+  : QIWizard(pParent)
 {
     /* Create & add pages */
-    addPage(new UIImportApplianceWzdPage1);
+    if (strFile.isEmpty())
+        addPage(new UIImportApplianceWzdPage1);
     addPage(new UIImportApplianceWzdPage2);
+    if (!strFile.isEmpty())
+    {
+        VBoxImportApplianceWgt *applianceWidget = field("applianceWidget").value<ImportAppliancePointer>();
+
+        if (!applianceWidget->setFile(strFile))
+            return;
+    }
 
     /* Initial translate */
     retranslateUi();
@@ -128,6 +137,15 @@ UIImportApplianceWzd::UIImportApplianceWzd(QWidget *pParent) : QIWizard(pParent)
     AssertMsg(!field("applianceWidget").value<ImportAppliancePointer>().isNull(), ("Appliance Widget is not set!\n"));
     connect(this, SIGNAL(customButtonClicked(int)), field("applianceWidget").value<ImportAppliancePointer>(), SLOT(restoreDefaults()));
     connect(this, SIGNAL(currentIdChanged(int)), this, SLOT(sltCurrentIdChanged(int)));
+}
+
+bool UIImportApplianceWzd::isValid() const
+{
+    bool fResult = false;
+    if (VBoxImportApplianceWgt *applianceWidget = field("applianceWidget").value<ImportAppliancePointer>())
+        fResult = applianceWidget->isValid();
+
+    return fResult;
 }
 
 void UIImportApplianceWzd::retranslateUi()
@@ -164,7 +182,7 @@ void UIImportApplianceWzdPage1::retranslateUi()
 
     /* Translate the file selector */
     m_pFileSelector->setFileDialogTitle(tr("Select an appliance to import"));
-    m_pFileSelector->setFileFilters(tr("Open Virtualization Format (%1)").arg("*.ovf"));
+    m_pFileSelector->setFileFilters(tr("Open Virtualization Format (%1)").arg("*.ova *.ovf"));
 
     /* Wizard page 1 title */
     setTitle(tr("Welcome to the Appliance Import Wizard!"));
@@ -184,7 +202,8 @@ void UIImportApplianceWzdPage1::initializePage()
 
 bool UIImportApplianceWzdPage1::isComplete() const
 {
-    return m_pFileSelector->path().toLower().endsWith(".ovf") && QFileInfo(m_pFileSelector->path()).exists();
+    const QString &strFile = m_pFileSelector->path().toLower();
+    return VBoxGlobal::hasAllowedExtension(strFile, VBoxDefs::OVFFileExts) && QFileInfo(m_pFileSelector->path()).exists();
 }
 
 bool UIImportApplianceWzdPage1::validatePage()
@@ -231,6 +250,14 @@ void UIImportApplianceWzdPage2::retranslateUi()
 }
 
 bool UIImportApplianceWzdPage2::validatePage()
+{
+    startProcessing();
+    bool fResult = import();
+    endProcessing();
+    return fResult;
+}
+
+bool UIImportApplianceWzdPage2::import()
 {
     /* Make sure the final values are puted back */
     m_pSettingsCnt->prepareImport();

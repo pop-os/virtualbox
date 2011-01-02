@@ -1,4 +1,4 @@
-/* $Id: RTProcDaemonize-generic.cpp $ */
+/* $Id: RTProcDaemonize-generic.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * IPRT - RTProcDaemonize, generic implementation.
  */
@@ -48,7 +48,7 @@ RTR3DECL(int) RTProcDaemonize(const char * const *papszArgs, const char *pszDaem
      * If this asserts, it's probably because RTR3Init hasn't been called.
      */
     char szExecPath[RTPATH_MAX];
-    AssertReturn(RTProcGetExecutableName(szExecPath, sizeof(szExecPath)) == szExecPath, VERR_WRONG_ORDER);
+    AssertReturn(RTProcGetExecutablePath(szExecPath, sizeof(szExecPath)) == szExecPath, VERR_WRONG_ORDER);
 
     /*
      * Create a copy of the argument list with the daemonized option appended.

@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: vboxconfig.sh $
+# $Id: vboxconfig.sh 35097 2010-12-14 15:54:47Z vboxsync $
 
 #
 # VirtualBox Configuration Script, Solaris host.
@@ -131,7 +131,7 @@ find_bin_path()
         errorprint "missing argument to find_bin_path()"
         exit 1
     fi
-    
+
     binfilename=`basename $1`
     binfilepath=`which $binfilename 2> /dev/null`
     if test -x "$binfilepath"; then
@@ -805,6 +805,19 @@ postinstall()
                 else
                     subprint "Loading Zone access service  ...FAILED."
                 fi
+            fi
+        fi
+
+        # Update mime and desktop databases to get the right menu entries
+        # and icons. There is still some delay until the GUI picks it up,
+        # but that cannot be helped.
+        if test -d $PKG_INSTALL_ROOT/usr/share/icons; then
+            infoprint "Installing MIME types and icons"
+            if test "$REMOTEINST" -eq 0; then
+                /usr/bin/update-mime-database /usr/share/mime >/dev/null 2>&1
+                /usr/bin/update-desktop-database -q 2>/dev/null
+            else
+                subprint "Skipped for targetted installs."
             fi
         fi
 

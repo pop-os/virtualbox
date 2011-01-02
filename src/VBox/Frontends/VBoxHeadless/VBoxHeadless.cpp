@@ -1,4 +1,4 @@
-/* $Id: VBoxHeadless.cpp $ */
+/* $Id: VBoxHeadless.cpp 35287 2010-12-22 08:37:34Z vboxsync $ */
 /** @file
  * VBoxHeadless - The VirtualBox Headless frontend for running VMs on servers.
  */
@@ -17,12 +17,14 @@
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
+#include <VBox/com/array.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
+#include <VBox/com/listeners.h>
 
 using namespace com;
 
@@ -30,9 +32,6 @@ using namespace com;
 
 #include <VBox/log.h>
 #include <VBox/version.h>
-#ifdef VBOX_WITH_VRDP
-# include <VBox/vrdpapi.h>
-#endif
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
 #include <iprt/initterm.h>
@@ -58,13 +57,12 @@ using namespace com;
 #include <signal.h>
 #endif
 
-#ifdef VBOX_WITH_VRDP
-# include "Framebuffer.h"
-#endif
+#include "Framebuffer.h"
 #ifdef VBOX_WITH_VNC
 # include "FramebufferVNC.h"
 #endif
 
+#include "NullFramebuffer.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +75,6 @@ using namespace com;
 ////////////////////////////////////////////////////////////////////////////////
 
 /* global weak references (for event handlers) */
-static ISession *gSession = NULL;
 static IConsole *gConsole = NULL;
 static EventQueue *gEventQ = NULL;
 
@@ -88,385 +85,288 @@ static volatile bool g_fTerminateFE = false;
 static VNCFB *g_pFramebufferVNC;
 #endif
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Callback handler for VirtualBox events
+ *  Handler for VirtualBoxClient events.
  */
-class VirtualBoxCallback :
-  VBOX_SCRIPTABLE_IMPL(IVirtualBoxCallback)
+class VirtualBoxClientEventListener
 {
 public:
-    VirtualBoxCallback()
+    VirtualBoxClientEventListener()
     {
-#ifndef VBOX_WITH_XPCOM
-        refcnt = 0;
-#endif
+    }
+
+    virtual ~VirtualBoxClientEventListener()
+    {
+    }
+
+    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent * aEvent)
+    {
+        switch (aType)
+        {
+            case VBoxEventType_OnVBoxSVCAvailabilityChanged:
+            {
+                ComPtr<IVBoxSVCAvailabilityChangedEvent> pVSACEv = aEvent;
+                Assert(pVSACEv);
+                BOOL fAvailable = FALSE;
+                pVSACEv->COMGETTER(Available)(&fAvailable);
+                if (!fAvailable)
+                {
+                    LogRel(("VBoxHeadless: VBoxSVC became unavailable, exiting.\n"));
+                    RTPrintf("VBoxSVC became unavailable, exiting.\n");
+                    /* Terminate the VM as cleanly as possible given that VBoxSVC
+                     * is no longer present. */
+                    g_fTerminateFE = true;
+                    gEventQ->interruptEventQueueProcessing();
+                }
+                break;
+            }
+            default:
+                AssertFailed();
+        }
+
+        return S_OK;
+    }
+
+private:
+};
+
+/**
+ *  Handler for global events.
+ */
+class VirtualBoxEventListener
+{
+public:
+    VirtualBoxEventListener()
+    {
         mfNoLoggedInUsers = true;
     }
 
-    virtual ~VirtualBoxCallback()
+    virtual ~VirtualBoxEventListener()
     {
     }
 
-#ifndef VBOX_WITH_XPCOM
-    STDMETHOD_(ULONG, AddRef)()
+    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent * aEvent)
     {
-        return ::InterlockedIncrement(&refcnt);
-    }
-    STDMETHOD_(ULONG, Release)()
-    {
-        long cnt = ::InterlockedDecrement(&refcnt);
-        if (cnt == 0)
-            delete this;
-        return cnt;
-    }
-#endif
-    VBOX_SCRIPTABLE_DISPATCH_IMPL(IVirtualBoxCallback)
-
-    NS_DECL_ISUPPORTS
-
-    STDMETHOD(OnMachineStateChange)(IN_BSTR machineId, MachineState_T state)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMachineDataChange)(IN_BSTR machineId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnExtraDataCanChange)(IN_BSTR machineId, IN_BSTR key, IN_BSTR value,
-                                    BSTR *error, BOOL *changeAllowed)
-    {
-        /* we never disagree */
-        if (!changeAllowed)
-            return E_INVALIDARG;
-        *changeAllowed = TRUE;
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnExtraDataChange)(IN_BSTR machineId, IN_BSTR key, IN_BSTR value)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMediumRegistered)(IN_BSTR mediaId, DeviceType_T mediaType,
-                                  BOOL registered)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMachineRegistered)(IN_BSTR machineId, BOOL registered)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSessionStateChange)(IN_BSTR machineId, SessionState_T state)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSnapshotTaken)(IN_BSTR aMachineId, IN_BSTR aSnapshotId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSnapshotDeleted)(IN_BSTR aMachineId, IN_BSTR aSnapshotId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSnapshotChange)(IN_BSTR aMachineId, IN_BSTR aSnapshotId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnGuestPropertyChange)(IN_BSTR machineId, IN_BSTR key, IN_BSTR value, IN_BSTR flags)
-    {
-#ifdef VBOX_WITH_GUEST_PROPS
-        Utf8Str utf8Key = key;
-        if (utf8Key == "/VirtualBox/GuestInfo/OS/NoLoggedInUsers")
+        switch (aType)
         {
-            /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
-            BOOL fProcessDisconnectOnGuestLogout = FALSE;
-            ComPtr <IMachine> machine;
-            HRESULT hrc = S_OK;
-
-            if (gConsole)
+            case VBoxEventType_OnGuestPropertyChanged:
             {
-                hrc = gConsole->COMGETTER(Machine)(machine.asOutParam());
-                if (SUCCEEDED(hrc) && machine)
-                {
-                    Bstr id;
-                    hrc = machine->COMGETTER(Id)(id.asOutParam());
-                    if (id == machineId)
-                    {
-                        Bstr value1;
-                        hrc = machine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout"), value1.asOutParam());
-                        if (SUCCEEDED(hrc) && value1 == "1")
-                        {
-                            fProcessDisconnectOnGuestLogout = TRUE;
-                        }
-                    }
-                }
-            }
+                ComPtr<IGuestPropertyChangedEvent> gpcev = aEvent;
+                Assert(gpcev);
 
-            if (fProcessDisconnectOnGuestLogout)
-            {
-                Utf8Str utf8Value = value;
-                if (utf8Value == "true")
-                {
-                    if (!mfNoLoggedInUsers) /* Only if the property really changes. */
-                    {
-                        mfNoLoggedInUsers = true;
+                Bstr aKey;
+                gpcev->COMGETTER(Name)(aKey.asOutParam());
 
-                        /* If there is a VRDP connection, drop it. */
-                        ComPtr<IRemoteDisplayInfo> info;
-                        hrc = gConsole->COMGETTER(RemoteDisplayInfo)(info.asOutParam());
-                        if (SUCCEEDED(hrc) && info)
+                if (aKey == Bstr("/VirtualBox/GuestInfo/OS/NoLoggedInUsers"))
+                {
+                    /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
+                    BOOL fProcessDisconnectOnGuestLogout = FALSE;
+                    ComPtr <IMachine> machine;
+                    HRESULT hrc = S_OK;
+
+                    if (gConsole)
+                    {
+                        hrc = gConsole->COMGETTER(Machine)(machine.asOutParam());
+                        if (SUCCEEDED(hrc) && machine)
                         {
-                            ULONG cClients = 0;
-                            hrc = info->COMGETTER(NumberOfClients)(&cClients);
-                            if (SUCCEEDED(hrc) && cClients > 0)
+                            Bstr id, machineId;
+                            hrc = machine->COMGETTER(Id)(id.asOutParam());
+                            gpcev->COMGETTER(MachineId)(machineId.asOutParam());
+                            if (id == machineId)
                             {
-                                ComPtr <IVRDPServer> vrdpServer;
-                                hrc = machine->COMGETTER(VRDPServer)(vrdpServer.asOutParam());
-                                if (SUCCEEDED(hrc) && vrdpServer)
+                                Bstr value1;
+                                hrc = machine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout").raw(),
+                                                            value1.asOutParam());
+                                if (SUCCEEDED(hrc) && value1 == "1")
                                 {
-                                    LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
-                                    vrdpServer->COMSETTER(Enabled)(FALSE);
-                                    vrdpServer->COMSETTER(Enabled)(TRUE);
+                                    fProcessDisconnectOnGuestLogout = TRUE;
                                 }
                             }
                         }
                     }
+
+                    if (fProcessDisconnectOnGuestLogout)
+                    {
+                        Bstr value;
+                        gpcev->COMGETTER(Value)(value.asOutParam());
+                        Utf8Str utf8Value = value;
+                        if (utf8Value == "true")
+                        {
+                            if (!mfNoLoggedInUsers) /* Only if the property really changes. */
+                            {
+                                mfNoLoggedInUsers = true;
+
+                                /* If there is a connection, drop it. */
+                                ComPtr<IVRDEServerInfo> info;
+                                hrc = gConsole->COMGETTER(VRDEServerInfo)(info.asOutParam());
+                                if (SUCCEEDED(hrc) && info)
+                                {
+                                    ULONG cClients = 0;
+                                    hrc = info->COMGETTER(NumberOfClients)(&cClients);
+                                    if (SUCCEEDED(hrc) && cClients > 0)
+                                    {
+                                        ComPtr <IVRDEServer> vrdeServer;
+                                        hrc = machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                                        if (SUCCEEDED(hrc) && vrdeServer)
+                                        {
+                                            LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
+                                            vrdeServer->COMSETTER(Enabled)(FALSE);
+                                            vrdeServer->COMSETTER(Enabled)(TRUE);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            mfNoLoggedInUsers = false;
+                        }
+                    }
                 }
-                else
-                {
-                    mfNoLoggedInUsers = false;
-                }
+                break;
             }
+            default:
+                AssertFailed();
         }
+
         return S_OK;
-#else  /* !VBOX_WITH_GUEST_PROPS */
-        return VBOX_E_DONT_CALL_AGAIN;
-#endif /* !VBOX_WITH_GUEST_PROPS */
     }
 
 private:
-#ifndef VBOX_WITH_XPCOM
-    long refcnt;
-#endif
-
     bool mfNoLoggedInUsers;
 };
 
 /**
- *  Callback handler for machine events.
+ *  Handler for machine events.
  */
-class ConsoleCallback : VBOX_SCRIPTABLE_IMPL(IConsoleCallback)
+class ConsoleEventListener
 {
 public:
-
-    ConsoleCallback()
+    ConsoleEventListener() :
+        mLastVRDEPort(-1),
+        m_fIgnorePowerOffEvents(false)
     {
-#ifndef VBOX_WITH_XPCOM
-        refcnt = 0;
-#endif
-        mLastVRDPPort = -1;
     }
 
-    virtual ~ConsoleCallback() {}
-
-    NS_DECL_ISUPPORTS
-
-#ifndef VBOX_WITH_XPCOM
-    STDMETHOD_(ULONG, AddRef)()
+    virtual ~ConsoleEventListener()
     {
-        return ::InterlockedIncrement(&refcnt);
-    }
-    STDMETHOD_(ULONG, Release)()
-    {
-        long cnt = ::InterlockedDecrement(&refcnt);
-        if (cnt == 0)
-            delete this;
-        return cnt;
-    }
-#endif
-    VBOX_SCRIPTABLE_DISPATCH_IMPL(IConsoleCallback)
-
-    STDMETHOD(OnMousePointerShapeChange)(BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
-                                         ULONG width, ULONG height, ComSafeArrayIn(BYTE,shape))
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
     }
 
-    STDMETHOD(OnMouseCapabilityChange)(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor)
+    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent * aEvent)
     {
-        /* Emit absolute mouse event to actually enable the host mouse cursor. */
-        if (supportsAbsolute && gConsole)
+        switch (aType)
         {
-            ComPtr<IMouse> mouse;
-            gConsole->COMGETTER(Mouse)(mouse.asOutParam());
-            if (mouse)
+            case VBoxEventType_OnMouseCapabilityChanged:
             {
-                mouse->PutMouseEventAbsolute(-1, -1, 0, 0 /* Horizontal wheel */, 0);
-            }
-        }
-#ifdef VBOX_WITH_VNC
-        if (g_pFramebufferVNC)
-            g_pFramebufferVNC->enableAbsMouse(supportsAbsolute);
-#endif
-        return S_OK;
-    }
 
-    STDMETHOD(OnKeyboardLedsChange)(BOOL fNumLock, BOOL fCapsLock, BOOL fScrollLock)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
+                ComPtr<IMouseCapabilityChangedEvent> mccev = aEvent;
+                Assert(mccev);
 
-    STDMETHOD(OnStateChange)(MachineState_T machineState)
-    {
-        /* Terminate any event wait operation if the machine has been
-         * PoweredDown/Saved/Aborted. */
-        if (machineState < MachineState_Running)
-        {
-            g_fTerminateFE = true;
-            gEventQ->interruptEventQueueProcessing();
-        }
-        return S_OK;
-    }
+                BOOL fSupportsAbsolute = false;
+                mccev->COMGETTER(SupportsAbsolute)(&fSupportsAbsolute);
 
-    STDMETHOD(OnExtraDataChange)(BSTR key)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnAdditionsStateChange)()
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnNetworkAdapterChange)(INetworkAdapter *aNetworkAdapter)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSerialPortChange)(ISerialPort *aSerialPort)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnParallelPortChange)(IParallelPort *aParallelPort)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnVRDPServerChange)()
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnRemoteDisplayInfoChange)()
-    {
-#ifdef VBOX_WITH_VRDP
-        if (gConsole)
-        {
-            ComPtr<IRemoteDisplayInfo> info;
-            gConsole->COMGETTER(RemoteDisplayInfo)(info.asOutParam());
-            if (info)
-            {
-                LONG port;
-                info->COMGETTER(Port)(&port);
-                if (port != mLastVRDPPort)
+                /* Emit absolute mouse event to actually enable the host mouse cursor. */
+                if (fSupportsAbsolute && gConsole)
                 {
-                    if (port == -1)
-                        RTPrintf("VRDP server is inactive.\n");
-                    else if (port == 0)
-                        RTPrintf("VRDP server failed to start.\n");
-                    else
-                        RTPrintf("Listening on port %d.\n", port);
-
-                    mLastVRDPPort = port;
+                    ComPtr<IMouse> mouse;
+                    gConsole->COMGETTER(Mouse)(mouse.asOutParam());
+                    if (mouse)
+                    {
+                        mouse->PutMouseEventAbsolute(-1, -1, 0, 0 /* Horizontal wheel */, 0);
+                    }
                 }
-            }
-        }
+#ifdef VBOX_WITH_VNC
+                if (g_pFramebufferVNC)
+                    g_pFramebufferVNC->enableAbsMouse(fSupportsAbsolute);
 #endif
+                break;
+            }
+            case VBoxEventType_OnStateChanged:
+            {
+                ComPtr<IStateChangedEvent> scev = aEvent;
+                Assert(scev);
+
+                MachineState_T machineState;
+                scev->COMGETTER(State)(&machineState);
+
+                /* Terminate any event wait operation if the machine has been
+                 * PoweredDown/Saved/Aborted. */
+                if (machineState < MachineState_Running && !m_fIgnorePowerOffEvents)
+                {
+                    g_fTerminateFE = true;
+                    gEventQ->interruptEventQueueProcessing();
+                }
+
+                break;
+            }
+            case VBoxEventType_OnVRDEServerInfoChanged:
+            {
+                ComPtr<IVRDEServerInfoChangedEvent> rdicev = aEvent;
+                Assert(rdicev);
+
+                if (gConsole)
+                {
+                    ComPtr<IVRDEServerInfo> info;
+                    gConsole->COMGETTER(VRDEServerInfo)(info.asOutParam());
+                    if (info)
+                    {
+                        LONG port;
+                        info->COMGETTER(Port)(&port);
+                        if (port != mLastVRDEPort)
+                        {
+                            if (port == -1)
+                                RTPrintf("VRDE server is inactive.\n");
+                            else if (port == 0)
+                                RTPrintf("VRDE server failed to start.\n");
+                            else
+                                RTPrintf("VRDE server is listening on port %d.\n", port);
+
+                            mLastVRDEPort = port;
+                        }
+                    }
+                }
+                break;
+            }
+            case VBoxEventType_OnCanShowWindow:
+            {
+                ComPtr<ICanShowWindowEvent> cswev = aEvent;
+                Assert(cswev);
+                cswev->AddVeto(NULL);
+                break;
+            }
+            case VBoxEventType_OnShowWindow:
+            {
+                ComPtr<IShowWindowEvent> swev = aEvent;
+                Assert(swev);
+                swev->COMSETTER(WinId)(0);
+                break;
+            }
+            default:
+                AssertFailed();
+        }
         return S_OK;
     }
 
-    STDMETHOD(OnUSBControllerChange)()
+    void ignorePowerOffEvents(bool fIgnore)
     {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnStorageControllerChange)()
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMediumChange)(IMediumAttachment * /* aMediumAttachment */)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnCPUChange)(ULONG /*aCPU*/, BOOL /* aRemove */)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnUSBDeviceStateChange)(IUSBDevice *aDevice, BOOL aAttached,
-                                      IVirtualBoxErrorInfo *aError)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSharedFolderChange)(Scope_T aScope)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnRuntimeError)(BOOL fatal, IN_BSTR id, IN_BSTR message)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnCanShowWindow)(BOOL *canShow)
-    {
-        if (!canShow)
-            return E_POINTER;
-        /* Headless windows should not be shown */
-        *canShow = FALSE;
-        return S_OK;
-    }
-
-    STDMETHOD(OnShowWindow)(ULONG64 *winId)
-    {
-        /* OnCanShowWindow() always returns FALSE, so this call should never
-         * happen. */
-        AssertFailed();
-        if (!winId)
-            return E_POINTER;
-        *winId = 0;
-        return E_NOTIMPL;
+        m_fIgnorePowerOffEvents = fIgnore;
     }
 
 private:
 
-#ifndef VBOX_WITH_XPCOM
-    long refcnt;
-#endif
-    long mLastVRDPPort;
+    long mLastVRDEPort;
+    bool m_fIgnorePowerOffEvents;
 };
 
-#ifdef VBOX_WITH_XPCOM
-NS_DECL_CLASSINFO(VirtualBoxCallback)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualBoxCallback, IVirtualBoxCallback)
-NS_DECL_CLASSINFO(ConsoleCallback)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ConsoleCallback, IConsoleCallback)
-#endif
+typedef ListenerImpl<VirtualBoxClientEventListener> VirtualBoxClientEventListenerImpl;
+typedef ListenerImpl<VirtualBoxEventListener> VirtualBoxEventListenerImpl;
+typedef ListenerImpl<ConsoleEventListener> ConsoleEventListenerImpl;
+
+VBOX_LISTENER_DECLARE(VirtualBoxClientEventListenerImpl)
+VBOX_LISTENER_DECLARE(VirtualBoxEventListenerImpl)
+VBOX_LISTENER_DECLARE(ConsoleEventListenerImpl)
 
 #ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
 static void SaveState(int sig)
@@ -538,14 +438,14 @@ static void show_usage()
              "   -m, --vncport <port>                  TCP port number to use for the VNC server\n"
              "   -o, --vncpass <pw>                    Set the VNC server password\n"
 #endif
-#ifdef VBOX_WITH_VRDP
-             "   -v, -vrdp, --vrdp on|off|config       Enable (default) or disable the VRDP\n"
+             "   -v, -vrde, --vrde on|off|config       Enable (default) or disable the VRDE\n"
              "                                         server or don't change the setting\n"
-             "   -p, -vrdpport, --vrdpport <ports>     Comma-separated list of ports the VRDP\n"
-             "                                         server can bind to. Use a dash between\n"
+             "   -e, -vrdeproperty, --vrdeproperty <name=[value]> Set a VRDE property:\n"
+             "                                         \"TCP/Ports\" - comma-separated list of ports\n"
+             "                                         the VRDE server can bind to. Use a dash between\n"
              "                                         two port numbers to specify a range\n"
-             "   -a, -vrdpaddress, --vrdpaddress <ip>  Interface IP the VRDP will bind to \n"
-#endif
+             "                                         \"TCP/Address\" - interface IP the VRDE server\n"
+             "                                         will bind to\n"
 #ifdef VBOX_FFMPEG
              "   -c, -capture, --capture               Record the VM screen output to a file\n"
              "   -w, --width                           Frame width when recording\n"
@@ -609,11 +509,11 @@ static void parse_environ(unsigned long *pulFrameWidth, unsigned long *pulFrameH
  */
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
-#ifdef VBOX_WITH_VRDP
-    const char *vrdpPort = NULL;
-    const char *vrdpAddress = NULL;
-    const char *vrdpEnabled = NULL;
-#endif
+    const char *vrdePort = NULL;
+    const char *vrdeAddress = NULL;
+    const char *vrdeEnabled = NULL;
+    unsigned cVRDEProperties = 0;
+    const char *aVRDEProperties[16];
 #ifdef VBOX_WITH_VNC
     bool        fVNCEnable      = false;
     unsigned    uVNCPort        = 0;          /* default port */
@@ -642,10 +542,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
               "(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
               "All rights reserved.\n\n");
 
-    Bstr id;
-    /* the below cannot be Bstr because on Linux Bstr doesn't work until XPCOM (nsMemory) is initialized */
-    const char *name = NULL;
-
 #ifdef VBOX_FFMPEG
     /* Parse the environment */
     parse_environ(&ulFrameWidth, &ulFrameHeight, &ulBitRate, &pszFileNameParam);
@@ -668,14 +564,16 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     {
         { "-startvm", 's', RTGETOPT_REQ_STRING },
         { "--startvm", 's', RTGETOPT_REQ_STRING },
-#ifdef VBOX_WITH_VRDP
-        { "-vrdpport", 'p', RTGETOPT_REQ_STRING },
-        { "--vrdpport", 'p', RTGETOPT_REQ_STRING },
-        { "-vrdpaddress", 'a', RTGETOPT_REQ_STRING },
-        { "--vrdpaddress", 'a', RTGETOPT_REQ_STRING },
-        { "-vrdp", 'v', RTGETOPT_REQ_STRING },
-        { "--vrdp", 'v', RTGETOPT_REQ_STRING },
-#endif /* VBOX_WITH_VRDP defined */
+        { "-vrdpport", 'p', RTGETOPT_REQ_STRING },     /* VRDE: deprecated. */
+        { "--vrdpport", 'p', RTGETOPT_REQ_STRING },    /* VRDE: deprecated. */
+        { "-vrdpaddress", 'a', RTGETOPT_REQ_STRING },  /* VRDE: deprecated. */
+        { "--vrdpaddress", 'a', RTGETOPT_REQ_STRING }, /* VRDE: deprecated. */
+        { "-vrdp", 'v', RTGETOPT_REQ_STRING },         /* VRDE: deprecated. */
+        { "--vrdp", 'v', RTGETOPT_REQ_STRING },        /* VRDE: deprecated. */
+        { "-vrde", 'v', RTGETOPT_REQ_STRING },
+        { "--vrde", 'v', RTGETOPT_REQ_STRING },
+        { "-vrdeproperty", 'e', RTGETOPT_REQ_STRING },
+        { "--vrdeproperty", 'e', RTGETOPT_REQ_STRING },
 #ifdef VBOX_WITH_VNC
         { "--vncport", 'm', RTGETOPT_REQ_INT32 },
         { "--vncpass", 'o', RTGETOPT_REQ_STRING },
@@ -709,6 +607,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         { "--comment", OPT_COMMENT, RTGETOPT_REQ_STRING }
     };
 
+    const char *pcszNameOrUUID = NULL;
+
     // parse the command line
     int ch;
     RTGETOPTUNION ValueUnion;
@@ -719,22 +619,25 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         switch(ch)
         {
             case 's':
-                id = asGuidStr(ValueUnion.psz);
-                /* If the argument was not a UUID, then it must be a name. */
-                if (id.isEmpty())
-                    name = ValueUnion.psz;
+                pcszNameOrUUID = ValueUnion.psz;
                 break;
-#ifdef VBOX_WITH_VRDP
             case 'p':
-                vrdpPort = ValueUnion.psz;
+                RTPrintf("Warning: '-p' or '-vrdpport' are deprecated. Use '-e \"TCP/Ports=%s\"'\n", ValueUnion.psz);
+                vrdePort = ValueUnion.psz;
                 break;
             case 'a':
-                vrdpAddress = ValueUnion.psz;
+                RTPrintf("Warning: '-a' or '-vrdpaddress' are deprecated. Use '-e \"TCP/Address=%s\"'\n", ValueUnion.psz);
+                vrdeAddress = ValueUnion.psz;
                 break;
             case 'v':
-                vrdpEnabled = ValueUnion.psz;
+                vrdeEnabled = ValueUnion.psz;
                 break;
-#endif /* VBOX_WITH_VRDP defined */
+            case 'e':
+                if (cVRDEProperties < RT_ELEMENTS(aVRDEProperties))
+                    aVRDEProperties[cVRDEProperties++] = ValueUnion.psz;
+                else
+                     RTPrintf("Warning: too many VRDE properties. Ignored: '%s'\n", ValueUnion.psz);
+                break;
 #ifdef VBOX_WITH_VNC
             case 'n':
                 fVNCEnable = true;
@@ -839,7 +742,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     RTStrPrintf(&pszMPEGFile[0], RTPATH_MAX, pszFileNameParam, RTProcSelf());
 #endif /* defined VBOX_FFMPEG */
 
-    if (id.isEmpty() && !name)
+    if (!pcszNameOrUUID)
     {
         show_usage();
         return 1;
@@ -854,25 +757,21 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         return 1;
     }
 
+    ComPtr<IVirtualBoxClient> pVirtualBoxClient;
     ComPtr<IVirtualBox> virtualBox;
     ComPtr<ISession> session;
+    ComPtr<IMachine> machine;
     bool fSessionOpened = false;
-    VirtualBoxCallback *vboxCallback = NULL;
+    IEventListener *vboxClientListener = NULL;
+    IEventListener *vboxListener = NULL;
+    ConsoleEventListenerImpl *consoleListener = NULL;
 
     do
     {
-        rc = virtualBox.createLocalObject(CLSID_VirtualBox);
-        if (FAILED(rc))
-            RTPrintf("VBoxHeadless: ERROR: failed to create the VirtualBox object!\n");
-        else
-        {
-            rc = session.createInprocObject(CLSID_Session);
-            if (FAILED(rc))
-                RTPrintf("VBoxHeadless: ERROR: failed to create a session object!\n");
-        }
-
+        rc = pVirtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
         if (FAILED(rc))
         {
+            RTPrintf("VBoxHeadless: ERROR: failed to create the VirtualBoxClient object!\n");
             com::ErrorInfo info;
             if (!info.isFullAvailable() && !info.isBasicAvailable())
             {
@@ -884,38 +783,48 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             break;
         }
 
-        /* find ID by name */
-        if (id.isEmpty())
+        rc = pVirtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+        if (FAILED(rc))
         {
-            ComPtr <IMachine> m;
-            rc = virtualBox->FindMachine(Bstr(name), m.asOutParam());
-            if (FAILED(rc))
-            {
-                LogError("Invalid machine name!\n", rc);
-                break;
-            }
-            m->COMGETTER(Id)(id.asOutParam());
-            AssertComRC(rc);
-            if (FAILED(rc))
-                break;
+            RTPrintf("Failed to get VirtualBox object (rc=%Rhrc)!\n", rc);
+            break;
+        }
+        rc = pVirtualBoxClient->COMGETTER(Session)(session.asOutParam());
+        if (FAILED(rc))
+        {
+            RTPrintf("Failed to get session object (rc=%Rhrc)!\n", rc);
+            break;
         }
 
+        ComPtr<IMachine> m;
+
+        rc = virtualBox->FindMachine(Bstr(pcszNameOrUUID).raw(), m.asOutParam());
+        if (FAILED(rc))
+        {
+            LogError("Invalid machine name or UUID!\n", rc);
+            break;
+        }
+        Bstr id;
+        m->COMGETTER(Id)(id.asOutParam());
+        AssertComRC(rc);
+        if (FAILED(rc))
+            break;
+
         Log(("VBoxHeadless: Opening a session with machine (id={%s})...\n",
-              Utf8Str(id).raw()));
+              Utf8Str(id).c_str()));
 
         // open a session
-        CHECK_ERROR_BREAK(virtualBox, OpenSession(session, id));
+        CHECK_ERROR_BREAK(m, LockMachine(session, LockType_Write));
         fSessionOpened = true;
 
         /* get the console */
-        ComPtr <IConsole> console;
+        ComPtr<IConsole> console;
         CHECK_ERROR_BREAK(session, COMGETTER(Console)(console.asOutParam()));
 
-        /* get the machine */
-        ComPtr <IMachine> machine;
+        /* get the mutable machine */
         CHECK_ERROR_BREAK(console, COMGETTER(Machine)(machine.asOutParam()));
 
-        ComPtr <IDisplay> display;
+        ComPtr<IDisplay> display;
         CHECK_ERROR_BREAK(console, COMGETTER(Display)(display.asOutParam()));
 
 #ifdef VBOX_FFMPEG
@@ -925,10 +834,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         if (fFFMPEG)
         {
-            int rrc = VINF_SUCCESS, rcc = S_OK;
+            HRESULT         rcc = S_OK;
+            int             rrc = VINF_SUCCESS;
+            RTERRINFOSTATIC ErrInfo;
 
             Log2(("VBoxHeadless: loading VBoxFFmpegFB shared library\n"));
-            rrc = SUPR3HardenedLdrLoadAppPriv("VBoxFFmpegFB", &hLdrFFmpegFB);
+            RTErrInfoInitStatic(&ErrInfo);
+            rrc = SUPR3HardenedLdrLoadAppPriv("VBoxFFmpegFB", &hLdrFFmpegFB, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
 
             if (RT_SUCCESS(rrc))
             {
@@ -939,7 +851,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     LogError("Failed to load the video capture extension, possibly due to a damaged file\n", rrc);
             }
             else
-                LogError("Failed to load the video capture extension\n", rrc);
+                LogError("Failed to load the video capture extension\n", rrc); /** @todo stupid function, no formatting options. */
             if (RT_SUCCESS(rrc))
             {
                 Log2(("VBoxHeadless: calling pfnRegisterFFmpegFB\n"));
@@ -949,13 +861,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     LogError("Failed to initialise video capturing - make sure that the file format\n"
                              "you wish to use is supported on your system\n", rcc);
             }
-            if (RT_SUCCESS(rrc) && (rcc == S_OK))
+            if (RT_SUCCESS(rrc) && rcc == S_OK)
             {
                 Log2(("VBoxHeadless: Registering framebuffer\n"));
                 pFramebuffer->AddRef();
                 display->SetFramebuffer(VBOX_VIDEO_PRIMARY_SCREEN, pFramebuffer);
             }
-            if (!RT_SUCCESS(rrc) || (rcc != S_OK))
+            if (!RT_SUCCESS(rrc) || rcc != S_OK)
                 rc = E_FAIL;
         }
         if (rc != S_OK)
@@ -966,10 +878,10 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 #ifdef VBOX_WITH_VNC
         if (fVNCEnable)
         {
-            Bstr name;
-            machine->COMGETTER(Name)(name.asOutParam());
+            Bstr machineName;
+            machine->COMGETTER(Name)(machineName.asOutParam());
             g_pFramebufferVNC = new VNCFB(console, uVNCPort, pszVNCPassword);
-            rc = g_pFramebufferVNC->init(name ? Utf8Str(name).raw() : "");
+            rc = g_pFramebufferVNC->init(machineName.raw() ? Utf8Str(machineName.raw()).c_str() : "");
             if (rc != S_OK)
             {
                 LogError("Failed to load the vnc server extension, possibly due to a damaged file\n", rc);
@@ -987,7 +899,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         ULONG cMonitors = 1;
         machine->COMGETTER(MonitorCount)(&cMonitors);
 
-#ifdef VBOX_WITH_VRDP
         unsigned uScreenId;
         for (uScreenId = 0; uScreenId < cMonitors; uScreenId++)
         {
@@ -1018,7 +929,23 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         {
             break;
         }
-#endif
+
+        // fill in remaining slots with null framebuffers
+        for (uScreenId = 0; uScreenId < cMonitors; uScreenId++)
+        {
+            ComPtr<IFramebuffer> fb;
+            LONG xOrigin, yOrigin;
+            HRESULT hrc2 = display->GetFramebuffer(uScreenId,
+                                                   fb.asOutParam(),
+                                                   &xOrigin, &yOrigin);
+            if (hrc2 == S_OK && fb.isNull())
+            {
+                NullFB *pNullFB =  new NullFB();
+                pNullFB->AddRef();
+                pNullFB->init();
+                display->SetFramebuffer(uScreenId, pNullFB);
+            }
+        }
 
         /* get the machine debugger (isn't necessarily available) */
         ComPtr <IMachineDebugger> machineDebugger;
@@ -1041,7 +968,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         {
             if (!machineDebugger)
             {
-                RTPrintf("Error: No debugger object; -%srawr3 cannot be executed!\n", fRawR0 ? "" : "no");
+                RTPrintf("Error: No debugger object; -%srawr3 cannot be executed!\n", fRawR3 ? "" : "no");
                 break;
             }
             machineDebugger->COMSETTER(RecompileUser)(!fRawR3);
@@ -1050,7 +977,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         {
             if (!machineDebugger)
             {
-                RTPrintf("Error: No debugger object; -%spatm cannot be executed!\n", fRawR0 ? "" : "no");
+                RTPrintf("Error: No debugger object; -%spatm cannot be executed!\n", fPATM ? "" : "no");
                 break;
             }
             machineDebugger->COMSETTER(PATMEnabled)(fPATM);
@@ -1059,82 +986,133 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         {
             if (!machineDebugger)
             {
-                RTPrintf("Error: No debugger object; -%scsam cannot be executed!\n", fRawR0 ? "" : "no");
+                RTPrintf("Error: No debugger object; -%scsam cannot be executed!\n", fCSAM ? "" : "no");
                 break;
             }
             machineDebugger->COMSETTER(CSAMEnabled)(fCSAM);
         }
 
         /* initialize global references */
-        gSession = session;
         gConsole = console;
         gEventQ = com::EventQueue::getMainEventQueue();
 
-        /* register a callback for machine events */
+        /* VirtualBoxClient events registration. */
         {
-            ConsoleCallback *callback = new ConsoleCallback();
-            callback->AddRef();
-            CHECK_ERROR(console, RegisterCallback(callback));
-            callback->Release();
-            if (FAILED(rc))
-                break;
+            ComPtr<IEventSource> pES;
+            CHECK_ERROR(pVirtualBoxClient, COMGETTER(EventSource)(pES.asOutParam()));
+            vboxClientListener = new VirtualBoxClientEventListenerImpl();
+            com::SafeArray <VBoxEventType_T> eventTypes;
+            eventTypes.push_back(VBoxEventType_OnVBoxSVCAvailabilityChanged);
+            CHECK_ERROR(pES, RegisterListener(vboxClientListener, ComSafeArrayAsInParam(eventTypes), true));
         }
 
-#ifdef VBOX_WITH_VRDP
-        /* default is to enable the RDP server (backward compatibility) */
-        BOOL fVRDPEnable = true;
-        BOOL fVRDPEnabled;
-        ComPtr <IVRDPServer> vrdpServer;
-        CHECK_ERROR_BREAK(machine, COMGETTER(VRDPServer)(vrdpServer.asOutParam()));
-        CHECK_ERROR_BREAK(vrdpServer, COMGETTER(Enabled)(&fVRDPEnabled));
-
-        if (vrdpEnabled != NULL)
+        /* Console events registration. */
         {
-            /* -vrdp on|off|config */
-            if (!strcmp(vrdpEnabled, "off") || !strcmp(vrdpEnabled, "disable"))
-                fVRDPEnable = false;
-            else if (!strcmp(vrdpEnabled, "config"))
+            ComPtr<IEventSource> es;
+            CHECK_ERROR(console, COMGETTER(EventSource)(es.asOutParam()));
+            consoleListener = new ConsoleEventListenerImpl();
+            com::SafeArray <VBoxEventType_T> eventTypes;
+            eventTypes.push_back(VBoxEventType_OnMouseCapabilityChanged);
+            eventTypes.push_back(VBoxEventType_OnStateChanged);
+            eventTypes.push_back(VBoxEventType_OnVRDEServerInfoChanged);
+            eventTypes.push_back(VBoxEventType_OnCanShowWindow);
+            eventTypes.push_back(VBoxEventType_OnShowWindow);
+            CHECK_ERROR(es, RegisterListener(consoleListener, ComSafeArrayAsInParam(eventTypes), true));
+        }
+
+        /* default is to enable the remote desktop server (backward compatibility) */
+        BOOL fVRDEEnable = true;
+        BOOL fVRDEEnabled;
+        ComPtr <IVRDEServer> vrdeServer;
+        CHECK_ERROR_BREAK(machine, COMGETTER(VRDEServer)(vrdeServer.asOutParam()));
+        CHECK_ERROR_BREAK(vrdeServer, COMGETTER(Enabled)(&fVRDEEnabled));
+
+        if (vrdeEnabled != NULL)
+        {
+            /* -vrdeServer on|off|config */
+            if (!strcmp(vrdeEnabled, "off") || !strcmp(vrdeEnabled, "disable"))
+                fVRDEEnable = false;
+            else if (!strcmp(vrdeEnabled, "config"))
             {
-                if (!fVRDPEnabled)
-                    fVRDPEnable = false;
+                if (!fVRDEEnabled)
+                    fVRDEEnable = false;
             }
-            else if (strcmp(vrdpEnabled, "on") && strcmp(vrdpEnabled, "enable"))
+            else if (strcmp(vrdeEnabled, "on") && strcmp(vrdeEnabled, "enable"))
             {
-                RTPrintf("-vrdp requires an argument (on|off|config)\n");
+                RTPrintf("-vrdeServer requires an argument (on|off|config)\n");
                 break;
             }
         }
 
-        if (fVRDPEnable)
+        if (fVRDEEnable)
         {
-            Log(("VBoxHeadless: Enabling VRDP server...\n"));
+            Log(("VBoxHeadless: Enabling VRDE server...\n"));
 
-            /* set VRDP port if requested by the user */
-            if (vrdpPort != NULL)
+            /* set VRDE port if requested by the user */
+            if (vrdePort != NULL)
             {
-                Bstr bstr = vrdpPort;
-                CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Ports)(bstr));
+                Bstr bstr = vrdePort;
+                CHECK_ERROR_BREAK(vrdeServer, SetVRDEProperty(Bstr("TCP/Ports").raw(), bstr.raw()));
             }
-            /* set VRDP address if requested by the user */
-            if (vrdpAddress != NULL)
+            /* set VRDE address if requested by the user */
+            if (vrdeAddress != NULL)
             {
-                CHECK_ERROR_BREAK(vrdpServer, COMSETTER(NetAddress)(Bstr(vrdpAddress)));
+                CHECK_ERROR_BREAK(vrdeServer, SetVRDEProperty(Bstr("TCP/Address").raw(), Bstr(vrdeAddress).raw()));
             }
-            /* enable VRDP server (only if currently disabled) */
-            if (!fVRDPEnabled)
+
+            /* Set VRDE properties. */
+            if (cVRDEProperties > 0)
             {
-                CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Enabled)(TRUE));
+                for (unsigned i = 0; i < cVRDEProperties; i++)
+                {
+                    /* Parse 'name=value' */
+                    char *pszProperty = RTStrDup(aVRDEProperties[i]);
+                    if (pszProperty)
+                    {
+                        char *pDelimiter = strchr(pszProperty, '=');
+                        if (pDelimiter)
+                        {
+                            *pDelimiter = '\0';
+
+                            Bstr bstrName = pszProperty;
+                            Bstr bstrValue = &pDelimiter[1];
+                            CHECK_ERROR_BREAK(vrdeServer, SetVRDEProperty(bstrName.raw(), bstrValue.raw()));
+                        }
+                        else
+                        {
+                            RTPrintf("Error: Invalid VRDE property '%s'\n", aVRDEProperties[i]);
+                            RTStrFree(pszProperty);
+                            rc = E_INVALIDARG;
+                            break;
+                        }
+                        RTStrFree(pszProperty);
+                    }
+                    else
+                    {
+                        RTPrintf("Error: Failed to allocate memory for VRDE property '%s'\n", aVRDEProperties[i]);
+                        rc = E_OUTOFMEMORY;
+                        break;
+                    }
+                }
+                if (FAILED(rc))
+                    break;
+            }
+
+            /* enable VRDE server (only if currently disabled) */
+            if (!fVRDEEnabled)
+            {
+                CHECK_ERROR_BREAK(vrdeServer, COMSETTER(Enabled)(TRUE));
             }
         }
         else
         {
-            /* disable VRDP server (only if currently enabled */
-            if (fVRDPEnabled)
+            /* disable VRDE server (only if currently enabled */
+            if (fVRDEEnabled)
             {
-                CHECK_ERROR_BREAK(vrdpServer, COMSETTER(Enabled)(FALSE));
+                CHECK_ERROR_BREAK(vrdeServer, COMSETTER(Enabled)(FALSE));
             }
         }
-#endif
+
         Log(("VBoxHeadless: Powering up the machine...\n"));
 
         ComPtr <IProgress> progress;
@@ -1183,13 +1161,15 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
         }
 
-        /* VirtualBox callback registration. */
-        vboxCallback = new VirtualBoxCallback();
-        vboxCallback->AddRef();
-        CHECK_ERROR(virtualBox, RegisterCallback(vboxCallback));
-        vboxCallback->Release();
-        if (FAILED(rc))
-            break;
+        /* VirtualBox events registration. */
+        {
+            ComPtr<IEventSource> es;
+            CHECK_ERROR(virtualBox, COMGETTER(EventSource)(es.asOutParam()));
+            vboxListener = new VirtualBoxEventListenerImpl();
+            com::SafeArray <VBoxEventType_T> eventTypes;
+            eventTypes.push_back(VBoxEventType_OnGuestPropertyChanged);
+            CHECK_ERROR(es, RegisterListener(vboxListener, ComSafeArrayAsInParam(eventTypes), true));
+        }
 
 #ifdef VBOX_WITH_SAVESTATE_ON_SIGNAL
         signal(SIGINT, SaveState);
@@ -1213,16 +1193,78 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
 #endif /* defined(VBOX_FFMPEG) */
 
-        /* we don't have to disable VRDP here because we don't save the settings of the VM */
+        /* we don't have to disable VRDE here because we don't save the settings of the VM */
     }
     while (0);
 
-    /* VirtualBox callback unregistration. */
-    if (vboxCallback)
+    /*
+     * Get the machine state.
+     */
+    MachineState_T machineState = MachineState_Aborted;
+    if (!machine.isNull())
+        machine->COMGETTER(State)(&machineState);
+
+    /*
+     * Turn off the VM if it's running
+     */
+    if (   gConsole
+        && (   machineState == MachineState_Running
+            || machineState == MachineState_Teleporting
+            || machineState == MachineState_LiveSnapshotting
+            /** @todo power off paused VMs too? */
+           )
+       )
+    do
     {
-        vboxCallback->AddRef();
-        CHECK_ERROR(virtualBox, UnregisterCallback(vboxCallback));
-        vboxCallback->Release();
+        consoleListener->getWrapped()->ignorePowerOffEvents(true);
+        ComPtr<IProgress> pProgress;
+        CHECK_ERROR_BREAK(gConsole, PowerDown(pProgress.asOutParam()));
+        CHECK_ERROR_BREAK(pProgress, WaitForCompletion(-1));
+        BOOL completed;
+        CHECK_ERROR_BREAK(pProgress, COMGETTER(Completed)(&completed));
+        ASSERT(completed);
+        LONG hrc;
+        CHECK_ERROR_BREAK(pProgress, COMGETTER(ResultCode)(&hrc));
+        if (FAILED(hrc))
+        {
+            RTPrintf("VBoxHeadless: ERROR: Failed to power down VM!");
+            com::ErrorInfo info;
+            if (!info.isFullAvailable() && !info.isBasicAvailable())
+                com::GluePrintRCMessage(hrc);
+            else
+                GluePrintErrorInfo(info);
+            break;
+        }
+    } while (0);
+
+    /* VirtualBox callback unregistration. */
+    if (vboxListener)
+    {
+        ComPtr<IEventSource> es;
+        CHECK_ERROR(virtualBox, COMGETTER(EventSource)(es.asOutParam()));
+        if (!es.isNull())
+            CHECK_ERROR(es, UnregisterListener(vboxListener));
+        vboxListener->Release();
+    }
+
+    /* Console callback unregistration. */
+    if (consoleListener)
+    {
+        ComPtr<IEventSource> es;
+        CHECK_ERROR(gConsole, COMGETTER(EventSource)(es.asOutParam()));
+        if (!es.isNull())
+            CHECK_ERROR(es, UnregisterListener(consoleListener));
+        consoleListener->Release();
+    }
+
+    /* VirtualBoxClient callback unregistration. */
+    if (consoleListener)
+    {
+        ComPtr<IEventSource> pES;
+        CHECK_ERROR(pVirtualBoxClient, COMGETTER(EventSource)(pES.asOutParam()));
+        if (!pES.isNull())
+            CHECK_ERROR(pES, UnregisterListener(vboxClientListener));
+        vboxClientListener->Release();
     }
 
     /* No more access to the 'console' object, which will be uninitialized by the next session->Close call. */
@@ -1235,12 +1277,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
          * unregister the callback we've registered before.
          */
         Log(("VBoxHeadless: Closing the session...\n"));
-        session->Close();
+        session->UnlockMachine();
     }
 
     /* Must be before com::Shutdown */
     session.setNull();
     virtualBox.setNull();
+    pVirtualBoxClient.setNull();
 
     com::Shutdown();
 
@@ -1277,3 +1320,8 @@ int main(int argc, char **argv, char **envp)
     return TrustedMain(argc, argv, envp);
 }
 #endif /* !VBOX_WITH_HARDENING */
+
+#ifdef VBOX_WITH_XPCOM
+NS_DECL_CLASSINFO(NullFB)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NullFB, IFramebuffer)
+#endif

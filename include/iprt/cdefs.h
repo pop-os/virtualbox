@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -954,7 +954,7 @@
  * @see RT_LIKELY
  */
 #if defined(__GNUC__)
-# if __GNUC__ >= 3
+# if __GNUC__ >= 3 && !defined(FORTIFY_RUNNING)
 #  define RT_LIKELY(expr)       __builtin_expect(!!(expr), 1)
 #  define RT_UNLIKELY(expr)     __builtin_expect(!!(expr), 0)
 # else
@@ -1140,6 +1140,7 @@
 
 /** @def RT_FROM_MEMBER
  * Convert a pointer to a structure member into a pointer to the structure.
+ *
  * @returns pointer to the structure.
  * @param   pMem    Pointer to the member.
  * @param   Type    Structure type.
@@ -1147,12 +1148,40 @@
  */
 #define RT_FROM_MEMBER(pMem, Type, Member)      ( (Type *) ((uint8_t *)(void *)(pMem) - RT_UOFFSETOF(Type, Member)) )
 
+/** @def RT_FROM_CPP_MEMBER
+ * Same as RT_FROM_MEMBER except it avoids the annoying g++ warnings about
+ * invalid access to non-static data member of NULL object.
+ *
+ * @returns pointer to the structure.
+ * @param   pMem    Pointer to the member.
+ * @param   Type    Structure type.
+ * @param   Member  Member name.
+ *
+ * @remarks Using the __builtin_offsetof does not shut up the compiler.
+ */
+#if defined(__GNUC__) && defined(__cplusplus)
+# define RT_FROM_CPP_MEMBER(pMem, Type, Member) \
+        ( (Type *) ((uintptr_t)(pMem) - (uintptr_t)&((Type *)0x1000)->Member + 0x1000U) )
+#else
+# define RT_FROM_CPP_MEMBER(pMem, Type, Member) RT_FROM_MEMBER(pMem, Type, Member)
+#endif
+
 /** @def RT_ELEMENTS
  * Calculates the number of elements in a statically sized array.
  * @returns Element count.
  * @param   aArray      Array in question.
  */
 #define RT_ELEMENTS(aArray)                     ( sizeof(aArray) / sizeof((aArray)[0]) )
+
+/**
+ * Checks if the value is a power of two.
+ *
+ * @returns true if power of two, false if not.
+ * @param   uVal                The value to test.
+ * @remarks 0 is a power of two.
+ * @see     VERR_NOT_POWER_OF_TWO
+ */
+#define RT_IS_POWER_OF_TWO(uVal)                ( ((uVal) & ((uVal) - 1)) == 0)
 
 #ifdef RT_OS_OS2
 /* Undefine RT_MAX since there is an unfortunate clash with the max
@@ -1191,6 +1220,13 @@
  * @param   Value       The value.
  */
 #define RT_ABS(Value)                           ( (Value) >= 0 ? (Value) : -(Value) )
+
+/** @def RT_BOOL
+ * Turn non-zero/zero into true/false
+ * @returns The resulting boolean value.
+ * @param   Value       The value.
+ */
+#define RT_BOOL(Value)                          ( !!(Value) )
 
 /** @def RT_LODWORD
  * Gets the low dword (=uint32_t) of something. */
@@ -1293,7 +1329,7 @@
                 |            (uint8_t)(b0) ))
 
 /** @def RT_MAKE_U16
- * Constructs a uint32_t value from two uint16_t values.
+ * Constructs a uint16_t value from two uint8_t values.
  */
 #define RT_MAKE_U16(Lo, Hi) \
     ((uint16_t)(  (uint16_t)((uint8_t)(Hi)) << 8 \
@@ -1710,8 +1746,10 @@
 #define _2M                     0x00200000
 /** 4 M (Mega)                 (4 194 304). */
 #define _4M                     0x00400000
-/** 1 G (Giga)             (1 073 741 824). */
+/** 1 G (Giga)             (1 073 741 824). (32-bit) */
 #define _1G                     0x40000000
+/** 1 G (Giga)             (1 073 741 824). (64-bit) */
+#define _1G64                   0x40000000LL
 /** 2 G (Giga)             (2 147 483 648). (32-bit) */
 #define _2G32                   0x80000000U
 /** 2 G (Giga)             (2 147 483 648). (64-bit) */
@@ -1727,6 +1765,99 @@
 /** 2 E (Exa)  (2 305 843 009 213 693 952). */
 #define _2E             0x2000000000000000ULL
 /** @} */
+
+
+/** @defgroup grp_rt_cdefs_time     Time Constants
+ * @{
+ */
+/** 1 hour expressed in nanoseconds (64-bit). */
+#define RT_NS_1HOUR             UINT64_C(3600000000000)
+/** 1 minute expressed in nanoseconds (64-bit). */
+#define RT_NS_1MIN              UINT64_C(60000000000)
+/** 1 second expressed in nanoseconds. */
+#define RT_NS_1SEC              UINT32_C(1000000000)
+/** 100 millsecond expressed in nanoseconds. */
+#define RT_NS_100MS             UINT32_C(100000000)
+/** 10 millsecond expressed in nanoseconds. */
+#define RT_NS_10MS              UINT32_C(10000000)
+/** 1 millsecond expressed in nanoseconds. */
+#define RT_NS_1MS               UINT32_C(1000000)
+/** 100 microseconds expressed in nanoseconds. */
+#define RT_NS_100US             UINT32_C(100000)
+/** 10 microseconds expressed in nanoseconds. */
+#define RT_NS_10US              UINT32_C(10000)
+/** 1 microsecond expressed in nanoseconds. */
+#define RT_NS_1US               UINT32_C(1000)
+
+/** 1 second expressed in nanoseconds - 64-bit type. */
+#define RT_NS_1SEC_64           UINT64_C(1000000000)
+/** 100 millsecond expressed in nanoseconds - 64-bit type. */
+#define RT_NS_100MS_64          UINT64_C(100000000)
+/** 10 millsecond expressed in nanoseconds - 64-bit type. */
+#define RT_NS_10MS_64           UINT64_C(10000000)
+/** 1 millsecond expressed in nanoseconds - 64-bit type. */
+#define RT_NS_1MS_64            UINT64_C(1000000)
+/** 100 microseconds expressed in nanoseconds - 64-bit type. */
+#define RT_NS_100US_64          UINT64_C(100000)
+/** 10 microseconds expressed in nanoseconds - 64-bit type. */
+#define RT_NS_10US_64           UINT64_C(10000)
+/** 1 microsecond expressed in nanoseconds - 64-bit type. */
+#define RT_NS_1US_64            UINT64_C(1000)
+
+/** 1 hour expressed in microseconds. */
+#define RT_US_1HOUR             UINT32_C(3600000000)
+/** 1 minute expressed in microseconds. */
+#define RT_US_1MIN              UINT32_C(60000000)
+/** 1 second expressed in microseconds. */
+#define RT_US_1SEC              UINT32_C(1000000)
+/** 100 millsecond expressed in microseconds. */
+#define RT_US_100MS             UINT32_C(100000)
+/** 10 millsecond expressed in microseconds. */
+#define RT_US_10MS              UINT32_C(10000)
+/** 1 millsecond expressed in microseconds. */
+#define RT_US_1MS               UINT32_C(1000)
+
+/** 1 hour expressed in microseconds - 64-bit type. */
+#define RT_US_1HOUR_64          UINT64_C(3600000000)
+/** 1 minute expressed in microseconds - 64-bit type. */
+#define RT_US_1MIN_64           UINT64_C(60000000)
+/** 1 second expressed in microseconds - 64-bit type. */
+#define RT_US_1SEC_64           UINT64_C(1000000)
+/** 100 millsecond expressed in microseconds - 64-bit type. */
+#define RT_US_100MS_64          UINT64_C(100000)
+/** 10 millsecond expressed in microseconds - 64-bit type. */
+#define RT_US_10MS_64           UINT64_C(10000)
+/** 1 millsecond expressed in microseconds - 64-bit type. */
+#define RT_US_1MS_64            UINT64_C(1000)
+
+/** 1 hour expressed in milliseconds. */
+#define RT_MS_1HOUR             UINT32_C(3600000)
+/** 1 minute expressed in milliseconds. */
+#define RT_MS_1MIN              UINT32_C(60000)
+/** 1 second expressed in milliseconds. */
+#define RT_MS_1SEC              UINT32_C(1000)
+
+/** 1 hour expressed in milliseconds - 64-bit type. */
+#define RT_MS_1HOUR_64          UINT64_C(3600000)
+/** 1 minute expressed in milliseconds - 64-bit type. */
+#define RT_MS_1MIN_64           UINT64_C(60000)
+/** 1 second expressed in milliseconds - 64-bit type. */
+#define RT_MS_1SEC_64           UINT64_C(1000)
+
+/** The number of seconds per week. */
+#define RT_SEC_1WEEK            UINT32_C(604800)
+/** The number of seconds per day. */
+#define RT_SEC_1DAY             UINT32_C(86400)
+/** The number of seconds per hour. */
+#define RT_SEC_1HOUR            UINT32_C(3600)
+
+/** The number of seconds per week - 64-bit type. */
+#define RT_SEC_1WEEK_64         UINT64_C(604800)
+/** The number of seconds per day - 64-bit type. */
+#define RT_SEC_1DAY_64          UINT64_C(86400)
+/** The number of seconds per hour - 64-bit type. */
+#define RT_SEC_1HOUR_64         UINT64_C(3600)
+/** @}  */
 
 
 /** @defgroup grp_rt_cdefs_dbgtype  Debug Info Types
@@ -1825,8 +1956,10 @@
 #elif defined(RT_ARCH_SPARC)
 # ifdef IN_RING3
 #  ifdef RT_OS_SOLARIS
-/** Sparc user mode: According to Figure 9.4 (sun4u) in solaris internals. */
-#   define RT_VALID_PTR(ptr)    ( (uintptr_t)(ptr) + 0x414000U >= 0x414000U + 0x10000U )
+/** Sparc user mode: According to
+ * http://cvs.opensolaris.org/source/xref/onnv/onnv-gate/usr/src/uts/sun4/os/startup.c#510 */
+#   define RT_VALID_PTR(ptr)    ( (uintptr_t)(ptr) + 0x400000U >= 0x400000U + 0x2000U )
+
 #  else
 #   error "Port me"
 #  endif
@@ -1912,7 +2045,7 @@
 /** @def RT_LOCK_STRICT
  * The \#define RT_LOCK_STRICT controls whether deadlock detection and related
  * checks are done in the lock and semaphore code.  It is by default enabled in
- * RT_STRICT builds, but this behavior can be overriden by defining
+ * RT_STRICT builds, but this behavior can be overridden by defining
  * RT_LOCK_NO_STRICT. */
 #if !defined(RT_LOCK_STRICT) && !defined(RT_LOCK_NO_STRICT) && defined(RT_STRICT)
 # define RT_LOCK_STRICT
@@ -1926,7 +2059,7 @@
 /** @def RT_LOCK_STRICT_ORDER
  * The \#define RT_LOCK_STRICT_ORDER controls whether locking order is checked
  * by the lock and semaphore code.  It is by default enabled in RT_STRICT
- * builds, but this behavior can be overriden by defining
+ * builds, but this behavior can be overridden by defining
  * RT_LOCK_NO_STRICT_ORDER. */
 #if !defined(RT_LOCK_STRICT_ORDER) && !defined(RT_LOCK_NO_STRICT_ORDER) && defined(RT_STRICT)
 # define RT_LOCK_STRICT_ORDER

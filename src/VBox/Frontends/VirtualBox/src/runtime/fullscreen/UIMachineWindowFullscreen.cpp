@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowFullscreen.cpp $ */
+/* $Id: UIMachineWindowFullscreen.cpp 31866 2010-08-23 14:52:35Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -28,12 +28,11 @@
 #include "VBoxGlobal.h"
 #include "VBoxMiniToolBar.h"
 
-#include "UIActionsPool.h"
-#include "UIMachineLogic.h"
-#include "UIMachineLogicFullscreen.h"
-#include "UIMachineView.h"
-#include "UIMachineWindowFullscreen.h"
 #include "UISession.h"
+#include "UIActionsPool.h"
+#include "UIMachineLogicFullscreen.h"
+#include "UIMachineWindowFullscreen.h"
+#include "UIMachineView.h"
 
 UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLogic, ulong uScreenId)
     : QIWithRetranslateUI2<QMainWindow>(0, Qt::FramelessWindowHint)
@@ -62,6 +61,9 @@ UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLog
 
     /* Prepare fullscreen machine view: */
     prepareMachineView();
+
+    /* Prepare handlers: */
+    prepareHandlers();
 
     /* Prepare mini tool-bar: */
     prepareMiniToolBar();
@@ -95,6 +97,12 @@ UIMachineWindowFullscreen::~UIMachineWindowFullscreen()
 {
     /* Save window settings: */
     saveWindowSettings();
+
+    /* Cleanup mini tool-bar: */
+    cleanupMiniToolBar();
+
+    /* Prepare handlers: */
+    cleanupHandlers();
 
     /* Cleanup machine view: */
     cleanupMachineView();
@@ -146,22 +154,7 @@ void UIMachineWindowFullscreen::retranslateUi()
 #ifdef Q_WS_X11
 bool UIMachineWindowFullscreen::x11Event(XEvent *pEvent)
 {
-    /* Qt bug: when the console view grabs the keyboard, FocusIn, FocusOut,
-     * WindowActivate and WindowDeactivate Qt events are not properly sent
-     * on top level window (i.e. this) deactivation. The fix is to substiute
-     * the mode in FocusOut X11 event structure to NotifyNormal to cause
-     * Qt to process it as desired. */
-    if (pEvent->type == FocusOut)
-    {
-        if (pEvent->xfocus.mode == NotifyWhileGrabbed  &&
-            (pEvent->xfocus.detail == NotifyAncestor ||
-             pEvent->xfocus.detail == NotifyInferior ||
-             pEvent->xfocus.detail == NotifyNonlinear))
-        {
-             pEvent->xfocus.mode = NotifyNormal;
-        }
-    }
-    return false;
+    return UIMachineWindow::x11Event(pEvent);
 }
 #endif
 
@@ -228,12 +221,12 @@ void UIMachineWindowFullscreen::prepareMachineView()
     centralWidget()->setLayout(m_pMachineViewContainer);
 
     m_pMachineView = UIMachineView::create(  this
-                                           , vboxGlobal().vmRenderMode()
+                                           , m_uScreenId
+                                           , machineLogic()->visualStateType()
 #ifdef VBOX_WITH_VIDEOHWACCEL
                                            , bAccelerate2DVideo
 #endif
-                                           , machineLogic()->visualStateType()
-                                           , m_uScreenId);
+                                           );
 
     /* Add machine view into layout: */
     m_pMachineViewContainer->addWidget(m_pMachineView, 1, 1, Qt::AlignVCenter | Qt::AlignHCenter);
@@ -267,6 +260,15 @@ void UIMachineWindowFullscreen::cleanupMachineView()
 
     UIMachineView::destroy(m_pMachineView);
     m_pMachineView = 0;
+}
+
+void UIMachineWindowFullscreen::cleanupMiniToolBar()
+{
+    if (m_pMiniToolBar)
+    {
+        delete m_pMiniToolBar;
+        m_pMiniToolBar = 0;
+    }
 }
 
 void UIMachineWindowFullscreen::cleanupMenu()

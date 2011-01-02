@@ -1,4 +1,4 @@
-/* $Id: tstSupLoadModule.cpp $ */
+/* $Id: tstSupLoadModule.cpp 35188 2010-12-16 15:13:07Z vboxsync $ */
 /** @file
  * SUP Testcase - Test SUPR3LoadModule.
  */
@@ -69,11 +69,13 @@ int main(int argc, char **argv)
         {
             case VINF_GETOPT_NOT_OPTION:
             {
-                void *pvImageBase;
-                rc = SUPR3LoadModule(ValueUnion.psz, RTPathFilename(ValueUnion.psz), &pvImageBase);
+                void           *pvImageBase;
+                RTERRINFOSTATIC ErrInfo;
+                RTErrInfoInitStatic(&ErrInfo);
+                rc = SUPR3LoadModule(ValueUnion.psz, RTPathFilename(ValueUnion.psz), &pvImageBase, &ErrInfo.Core);
                 if (RT_FAILURE(rc))
                 {
-                    RTMsgError("%Rrc when attempting to load '%s'\n", rc, ValueUnion.psz);
+                    RTMsgError("%Rrc when attempting to load '%s': %s\n", rc, ValueUnion.psz, ErrInfo.Core.pszMsg);
                     return 1;
                 }
                 RTPrintf("Loaded '%s' at %p\n", ValueUnion.psz, pvImageBase);
@@ -92,7 +94,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 60692 $\n");
+                RTPrintf("$Revision: 35188 $\n");
                 return 0;
 
             default:

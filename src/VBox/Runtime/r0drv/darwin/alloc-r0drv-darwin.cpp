@@ -1,10 +1,10 @@
-/* $Id: alloc-r0drv-darwin.cpp $ */
+/* $Id: alloc-r0drv-darwin.cpp 32708 2010-09-23 11:18:51Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, Darwin.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #include <iprt/mem.h>
 
 #include <iprt/assert.h>
+#include <iprt/err.h>
 #include <iprt/thread.h>
 #include "r0drv/alloc-r0drv.h"
 
@@ -40,19 +41,24 @@
 /**
  * OS specific allocation function.
  */
-PRTMEMHDR rtR0MemAlloc(size_t cb, uint32_t fFlags)
+int rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 {
+    if (RT_UNLIKELY(fFlags & RTMEMHDR_FLAG_ANY_CTX))
+        return VERR_NOT_SUPPORTED;
+
     PRTMEMHDR pHdr = (PRTMEMHDR)IOMalloc(cb + sizeof(*pHdr));
-    if (pHdr)
+    if (RT_UNLIKELY(!pHdr))
     {
-        pHdr->u32Magic  = RTMEMHDR_MAGIC;
-        pHdr->fFlags    = fFlags;
-        pHdr->cb        = cb;
-        pHdr->cbReq     = cb;
+        printf("rtR0MemAllocEx(%#zx, %#x) failed\n", cb + sizeof(*pHdr), fFlags);
+        return VERR_NO_MEMORY;
     }
-    else
-        printf("rmMemAlloc(%#zx, %#x) failed\n", cb + sizeof(*pHdr), fFlags);
-    return pHdr;
+
+    pHdr->u32Magic  = RTMEMHDR_MAGIC;
+    pHdr->fFlags    = fFlags;
+    pHdr->cb        = cb;
+    pHdr->cbReq     = cb;
+    *ppHdr = pHdr;;
+    return VINF_SUCCESS;
 }
 
 

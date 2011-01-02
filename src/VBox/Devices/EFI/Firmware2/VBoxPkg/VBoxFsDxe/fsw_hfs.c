@@ -1,4 +1,4 @@
-/* $Id: fsw_hfs.c $ */
+/* $Id: fsw_hfs.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * fsw_hfs.c - HFS file system driver code, see
  *
@@ -6,7 +6,7 @@
  *
  * Current limitations:
  *  - Doesn't support permissions
- *  - Complete Unicode case-insenstivness disabled (large tables)
+ *  - Complete Unicode case-insensitiveness disabled (large tables)
  *  - No links
  *  - Only supports pure HFS+ (i.e. no HFS, or HFS+ embedded to HFS)
  */

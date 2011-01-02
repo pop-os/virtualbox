@@ -1,4 +1,4 @@
-/* $Id: timer-r0drv-os2.cpp $ */
+/* $Id: timer-r0drv-os2.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, OS/2.
  */
@@ -62,7 +62,7 @@ typedef struct RTTIMER
     /** Flag indicating the timer is suspended. */
     uint8_t volatile        fSuspended;
     /** Cleared at the start of timer processing, set when calling pfnTimer.
-     * If any timer changes occures while doing the callback this will be used to resume the cycle. */
+     * If any timer changes occurs while doing the callback this will be used to resume the cycle. */
     bool                    fDone;
     /** Callback. */
     PFNRTTIMER              pfnTimer;
@@ -108,7 +108,7 @@ RT_C_DECLS_END
 
 
 
-RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigned fFlags, PFNRTTIMER pfnTimer, void *pvUser)
+RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_t fFlags, PFNRTTIMER pfnTimer, void *pvUser)
 {
     *ppTimer = NULL;
 
@@ -236,7 +236,7 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
         return VERR_TIMER_ACTIVE;
 
     /*
-     * Calc when it should start fireing and give the thread a kick so it get going.
+     * Calc when it should start firing and give the thread a kick so it get going.
      */
     u64First += RTTimeNanoTS();
 
@@ -285,6 +285,15 @@ RTDECL(int) RTTimerStop(PRTTIMER pTimer)
     RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
 
     return VINF_SUCCESS;
+}
+
+
+RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
+{
+    if (!rtTimerIsValid(pTimer))
+        return VERR_INVALID_HANDLE;
+
+    return VERR_NOT_SUPPORTED;
 }
 
 
@@ -369,5 +378,11 @@ RTDECL(int) RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32G
 RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
 {
     return VERR_NOT_SUPPORTED;
+}
+
+
+RTDECL(bool) RTTimerCanDoHighResolution(void)
+{
+    return false;
 }
 

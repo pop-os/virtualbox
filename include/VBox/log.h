@@ -61,7 +61,7 @@ typedef enum LOGGROUP
     LOG_GROUP_DEFAULT = RTLOGGROUP_FIRST_USER,
     /** CFGM group. */
     LOG_GROUP_CFGM,
-    /** Core Dumper group. */
+    /** Core Dumper group. **/
     LOG_GROUP_CORE_DUMPER,
     /** CPUM group. */
     LOG_GROUP_CPUM,
@@ -171,10 +171,6 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_HOST_SERIAL,
     /** The internal networking transport driver group. */
     LOG_GROUP_DRV_INTNET,
-    /** iSCSI Initiator driver group. */
-    LOG_GROUP_DRV_ISCSI,
-    /** iSCSI TCP transport driver group. */
-    LOG_GROUP_DRV_ISCSI_TRANSPORT_TCP,
     /** ISO (CD/DVD) media driver group. */
     LOG_GROUP_DRV_ISO,
     /** Keyboard Queue driver group. */
@@ -209,6 +205,8 @@ typedef enum LOGGROUP
     LOG_GROUP_DRV_VUSB,
     /** EM group. */
     LOG_GROUP_EM,
+    /** FTM group. */
+    LOG_GROUP_FTM,
     /** GMM group. */
     LOG_GROUP_GMM,
     /** GUI group. */
@@ -253,6 +251,8 @@ typedef enum LOGGROUP
     LOG_GROUP_PDM,
     /** PDM Async completion group. */
     LOG_GROUP_PDM_ASYNC_COMPLETION,
+    /** PDM Block cache group. */
+    LOG_GROUP_PDM_BLK_CACHE,
     /** PDM Device group. */
     LOG_GROUP_PDM_DEVICE,
     /** PDM Driver group. */
@@ -263,6 +263,8 @@ typedef enum LOGGROUP
     LOG_GROUP_PDM_QUEUE,
     /** PGM group. */
     LOG_GROUP_PGM,
+    /** PGM dynamic mapping group. */
+    LOG_GROUP_PGM_DYNMAP,
     /** PGM physical group. */
     LOG_GROUP_PGM_PHYS,
     /** PGM physical access group. */
@@ -321,6 +323,8 @@ typedef enum LOGGROUP
     LOG_GROUP_VD,
     /** iSCSI virtual disk backend. */
     LOG_GROUP_VD_ISCSI,
+    /** Parallels HDD virtual disk backend. */
+    LOG_GROUP_VD_PARALLELS,
     /** Raw virtual disk backend. */
     LOG_GROUP_VD_RAW,
     /** VDI virtual disk backend. */
@@ -361,7 +365,7 @@ typedef enum LOGGROUP
     RT_LOGGROUP_NAMES, \
     "DEFAULT",      \
     "CFGM",         \
-    "COREDUMPER",   \
+    "CORE_DUMPER",  \
     "CPUM",         \
     "CSAM",         \
     "DBGC",         \
@@ -416,8 +420,6 @@ typedef enum LOGGROUP
     "DRV_HOST_PARALLEL", \
     "DRV_HOST_SERIAL", \
     "DRV_INTNET",   \
-    "DRV_ISCSI",    \
-    "DRV_ISCSI_TRANSPORT_TCP", \
     "DRV_ISO",      \
     "DRV_KBD_QUEUE", \
     "DRV_LWIP",     \
@@ -435,6 +437,7 @@ typedef enum LOGGROUP
     "DRV_VSWITCH",  \
     "DRV_VUSB",     \
     "EM",           \
+    "FTM",          \
     "GMM",          \
     "GUI",          \
     "GVMM",         \
@@ -457,11 +460,13 @@ typedef enum LOGGROUP
     "PATM",         \
     "PDM",          \
     "PDM_ASYNC_COMPLETION", \
+    "PDM_BLK_CACHE", \
     "PDM_DEVICE",   \
     "PDM_DRIVER",   \
     "PDM_LDR",      \
     "PDM_QUEUE",    \
     "PGM",          \
+    "PGM_DYNMAP",   \
     "PGM_PHYS",     \
     "PGM_PHYS_ACCESS",\
     "PGM_POOL",     \
@@ -491,6 +496,7 @@ typedef enum LOGGROUP
     "USB_MSD",      \
     "VD",           \
     "VD_ISCSI",     \
+    "VD_PARALLELS", \
     "VD_RAW",       \
     "VD_VDI",       \
     "VD_VHD",       \

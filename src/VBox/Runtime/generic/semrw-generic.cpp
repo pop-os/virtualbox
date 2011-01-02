@@ -1,4 +1,4 @@
-/* $Id: semrw-generic.cpp $ */
+/* $Id: semrw-generic.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Read-Write Semaphore, Generic.
  *
@@ -393,7 +393,7 @@ DECL_FORCE_INLINE(int) rtSemRWRequestRead(RTSEMRW hRWSem, RTMSINTERVAL cMillies,
         }
 
         /*
-         * Re-take critsect and repeate the check we did before the loop.
+         * Re-take critsect and repeat the check we did before the loop.
          */
         rc = RTCritSectEnter(&pThis->CritSect);
         if (RT_FAILURE(rc))
@@ -684,7 +684,7 @@ DECL_FORCE_INLINE(int) rtSemRWRequestWrite(RTSEMRW hRWSem, RTMSINTERVAL cMillies
         }
 
         /*
-         * Re-take critsect and repeate the check we did prior to this loop.
+         * Re-take critsect and repeat the check we did prior to this loop.
          */
         rc = RTCritSectEnter(&pThis->CritSect);
         if (RT_FAILURE(rc))

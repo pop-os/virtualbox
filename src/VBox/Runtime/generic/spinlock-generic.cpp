@@ -1,10 +1,10 @@
-/* $Id: spinlock-generic.cpp $ */
+/* $Id: spinlock-generic.cpp 34239 2010-11-22 13:58:16Z vboxsync $ */
 /** @file
  * IPRT - Spinlock, generic implementation.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

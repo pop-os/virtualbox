@@ -1,4 +1,4 @@
-/* $Id: VBoxDDUDeps.cpp $ */
+/* $Id: VBoxDDUDeps.cpp 33567 2010-10-28 15:37:21Z vboxsync $ */
 /** @file
  * VBoxDDU - For dragging in library objects.
  */
@@ -19,6 +19,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/types.h>
+#include <VBox/vd.h>
 #ifdef VBOX_WITH_USB
 # include <VBox/usblib.h>
 # include <VBox/usbfilter.h>
@@ -33,6 +34,7 @@
  */
 PFNRT g_apfnVBoxDDUDeps[] =
 {
+    (PFNRT)VDInit,
 #ifdef VBOX_WITH_USB
     (PFNRT)USBFilterInit,
     (PFNRT)USBLibHashSerial,

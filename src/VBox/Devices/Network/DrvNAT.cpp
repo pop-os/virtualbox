@@ -1,4 +1,4 @@
-/* $Id: DrvNAT.cpp $ */
+/* $Id: DrvNAT.cpp 34890 2010-12-09 14:23:59Z vboxsync $ */
 /** @file
  * DrvNAT - NAT network transport driver.
  */
@@ -130,6 +130,8 @@ typedef struct DRVNAT
 {
     /** The network interface. */
     PDMINETWORKUP           INetworkUp;
+    /** The network NAT Engine configureation. */
+    PDMINETWORKNATCONFIG    INetworkNATCfg;
     /** The port we're attached to. */
     PPDMINETWORKDOWN        pIAboveNet;
     /** The network config of the port we're attached to. */
@@ -163,10 +165,6 @@ typedef struct DRVNAT
     RTFILE                  PipeWrite;
     /** The read end of the control pipe. */
     RTFILE                  PipeRead;
-# if HC_ARCH_BITS == 32
-    /** Alignment padding. */
-    uint32_t                alignment2;
-# endif
 #else
     /** for external notification */
     HANDLE                  hWakeupEvent;
@@ -283,8 +281,7 @@ static DECLCALLBACK(void) drvNATUrgRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, in
     rc = RTCritSectLeave(&pThis->DevAccessLock);
     AssertRC(rc);
 
-    slirp_ext_m_free(pThis->pNATState, m);
-    RTMemFree(pu8Buf);
+    slirp_ext_m_free(pThis->pNATState, m, pu8Buf);
     if (ASMAtomicDecU32(&pThis->cUrgPkts) == 0)
     {
         drvNATRecvWakeup(pThis->pDrvIns, pThis->pRecvThread);
@@ -328,8 +325,7 @@ static DECLCALLBACK(void) drvNATRecvWorker(PDRVNAT pThis, uint8_t *pu8Buf, int c
     AssertRC(rc);
 
 done_unlocked:
-    slirp_ext_m_free(pThis->pNATState, m);
-    RTMemFree(pu8Buf);
+    slirp_ext_m_free(pThis->pNATState, m, pu8Buf);
     ASMAtomicDecU32(&pThis->cPkts);
 
     drvNATNotifyNATThread(pThis, "drvNATRecvWorker");
@@ -351,7 +347,7 @@ static void drvNATFreeSgBuf(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
     if (pSgBuf->pvAllocator)
     {
         Assert(!pSgBuf->pvUser);
-        slirp_ext_m_free(pThis->pNATState, (struct mbuf *)pSgBuf->pvAllocator);
+        slirp_ext_m_free(pThis->pNATState, (struct mbuf *)pSgBuf->pvAllocator, NULL);
         pSgBuf->pvAllocator = NULL;
     }
     else if (pSgBuf->pvUser)
@@ -425,7 +421,7 @@ static void drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
     }
     drvNATFreeSgBuf(pThis, pSgBuf);
 
-    /** @todo Implement the VERR_TRY_AGAIN drvNATNetworkUp_AllocBuf sematics. */
+    /** @todo Implement the VERR_TRY_AGAIN drvNATNetworkUp_AllocBuf semantics. */
 }
 
 /**
@@ -533,6 +529,9 @@ static DECLCALLBACK(int) drvNATNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
     int rc;
     if (pThis->pSlirpThread->enmState == PDMTHREADSTATE_RUNNING)
     {
+        /* Set an FTM checkpoint as this operation changes the state permanently. */
+        PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
+
 #ifdef VBOX_WITH_SLIRP_MT
         PRTREQQUEUE pQueue = (PRTREQQUEUE)slirp_get_queue(pThis->pNATState);
 #else
@@ -648,6 +647,57 @@ static DECLCALLBACK(void) drvNATNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInte
     RTReqFree(pReq);
 }
 
+static void drvNATNotifyApplyPortForwardCommand(PDRVNAT pThis, bool fRemove,
+                                                bool fUdp, const char *pHostIp,
+                                                uint16_t u16HostPort, const char *pGuestIp, uint16_t u16GuestPort)
+{
+    RTMAC Mac;
+    RT_ZERO(Mac); /* can't get MAC here */
+    if (pThis->pIAboveConfig)
+        pThis->pIAboveConfig->pfnGetMac(pThis->pIAboveConfig, &Mac);
+
+    struct in_addr guestIp, hostIp;
+
+    if (   pHostIp == NULL
+        || inet_aton(pHostIp, &hostIp) == 0)
+        hostIp.s_addr = INADDR_ANY;
+
+    if (   pGuestIp == NULL
+        || inet_aton(pGuestIp, &guestIp) == 0)
+        guestIp.s_addr = pThis->GuestIP;
+
+    if (fRemove)
+        slirp_remove_redirect(pThis->pNATState, fUdp, hostIp, u16HostPort, guestIp, u16GuestPort);
+    else
+        slirp_add_redirect(pThis->pNATState, fUdp, hostIp, u16HostPort, guestIp, u16GuestPort, Mac.au8);
+}
+
+DECLCALLBACK(int) drvNATNetworkNatConfig_RedirectRuleCommand(PPDMINETWORKNATCONFIG pInterface, bool fRemove,
+                                                             bool fUdp, const char *pHostIp,
+                                                             uint16_t u16HostPort, const char *pGuestIp, uint16_t u16GuestPort)
+{
+    LogFlowFunc(("fRemove=%d, fUdp=%d, pHostIp=%s, u16HostPort=%u, pGuestIp=%s, u16GuestPort=%u\n",
+                 RT_BOOL(fRemove), RT_BOOL(fUdp), pHostIp, u16HostPort, pGuestIp,
+                 u16GuestPort));
+    PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkNATCfg);
+    PRTREQ pReq;
+    int rc = RTReqCallEx(pThis->pSlirpReqQueue, &pReq, 0 /*cMillies*/, RTREQFLAGS_VOID,
+                         (PFNRT)drvNATNotifyApplyPortForwardCommand, 7, pThis, fRemove,
+                         fUdp, pHostIp, u16HostPort, pGuestIp, u16GuestPort);
+    if (RT_LIKELY(rc == VERR_TIMEOUT))
+    {
+        drvNATNotifyNATThread(pThis, "drvNATNetworkNatConfig_RedirectRuleCommand");
+        rc = RTReqWait(pReq, RT_INDEFINITE_WAIT);
+        AssertRC(rc);
+    }
+    else
+        AssertRC(rc);
+
+    RTReqFree(pReq);
+    port_forwarding_done:
+    return rc;
+}
+
 /**
  * NAT thread handling the slirp stuff.
  *
@@ -683,7 +733,7 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
         /*
-         * To prevent concurent execution of sending/receving threads
+         * To prevent concurrent execution of sending/receiving threads
          */
 #ifndef RT_OS_WINDOWS
         nFDs = slirp_get_nsock(pThis->pNATState);
@@ -692,7 +742,7 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         if (polls == NULL)
             return VERR_NO_MEMORY;
 
-        /* don't pass the managemant pipe */
+        /* don't pass the management pipe */
         slirp_select_fill(pThis->pNATState, &nFDs, &polls[1]);
 
         polls[0].fd = pThis->PipeRead;
@@ -894,6 +944,7 @@ static DECLCALLBACK(void *) drvNATQueryInterface(PPDMIBASE pInterface, const cha
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKUP, &pThis->INetworkUp);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMINETWORKNATCONFIG, &pThis->INetworkNATCfg);
     return NULL;
 }
 
@@ -939,6 +990,16 @@ static DECLCALLBACK(void) drvNATPowerOn(PPDMDRVINS pDrvIns)
 
 
 /**
+ * Info handler.
+ */
+static DECLCALLBACK(void) drvNATInfo(PPDMDRVINS pDrvIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+    slirp_info(pThis->pNATState, pHlp, pszArgs);
+}
+
+
+/**
  * Sets up the redirectors.
  *
  * @returns VBox status code.
@@ -958,7 +1019,8 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
          * Validate the port forwarding config.
          */
         if (!CFGMR3AreValuesValid(pNode, "Protocol\0UDP\0HostPort\0GuestPort\0GuestIP\0BindIP\0"))
-            return PDMDRV_SET_ERROR(pThis->pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES, N_("Unknown configuration in port forwarding"));
+            return PDMDRV_SET_ERROR(pThis->pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
+                                    N_("Unknown configuration in port forwarding"));
 
         /* protocol type */
         bool fUDP;
@@ -981,6 +1043,10 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
                     N_("NAT#%d: Invalid configuration value for \"Protocol\": \"%s\""),
                     iInstance, szProtocol);
         }
+        else
+            return PDMDrvHlpVMSetError(pThis->pDrvIns, rc, RT_SRC_POS, 
+                                       N_("NAT#%d: configuration query for \"Protocol\" failed"),
+                                       iInstance);
         /* host port */
         int32_t iHostPort;
         GET_S32_STRICT(rc, pThis, pNode, "HostPort", iHostPort);
@@ -1004,7 +1070,7 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
          */
         struct in_addr BindIP;
         GETIP_DEF(rc, pThis, pNode, BindIP, INADDR_ANY);
-        if (slirp_redir(pThis->pNATState, fUDP, BindIP, iHostPort, GuestIP, iGuestPort, Mac.au8) < 0)
+        if (slirp_add_redirect(pThis->pNATState, fUDP, BindIP, iHostPort, GuestIP, iGuestPort, Mac.au8) < 0)
             return PDMDrvHlpVMSetError(pThis->pDrvIns, VERR_NAT_REDIR_SETUP, RT_SRC_POS,
                                        N_("NAT#%d: configuration error: failed to set up "
                                        "redirection of %d to %d. Probably a conflict with "
@@ -1109,6 +1175,9 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     pThis->INetworkUp.pfnEndXmit            = drvNATNetworkUp_EndXmit;
     pThis->INetworkUp.pfnSetPromiscuousMode = drvNATNetworkUp_SetPromiscuousMode;
     pThis->INetworkUp.pfnNotifyLinkChanged  = drvNATNetworkUp_NotifyLinkChanged;
+
+    /* NAT engine configuration */
+    pThis->INetworkNATCfg.pfnRedirectRuleCommand = drvNATNetworkNatConfig_RedirectRuleCommand;
 
     /*
      * Get the configuration settings.
@@ -1258,6 +1327,10 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 
             rc = RTCritSectInit(&pThis->XmitLock);
             AssertRCReturn(rc, rc);
+
+            char szTmp[128];
+            RTStrPrintf(szTmp, sizeof(szTmp), "nat%d", pDrvIns->iInstance);
+            PDMDrvHlpDBGFInfoRegister(pDrvIns, szTmp, "NAT info.", drvNATInfo);
 
 #ifndef RT_OS_WINDOWS
             /*

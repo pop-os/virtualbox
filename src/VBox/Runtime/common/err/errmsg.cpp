@@ -1,4 +1,4 @@
-/* $Id: errmsg.cpp $ */
+/* $Id: errmsg.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - Status code messages.
  */
