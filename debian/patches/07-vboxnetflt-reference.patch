@@ -1,15 +1,15 @@
 Description: Made error message tell about missing vboxnetflt module.
 Author: Michael Meskes <meskes@debian.org>
 
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Devices/Network/DrvIntNet.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/Devices/Network/DrvIntNet.cpp	2009-10-07 11:27:13.000000000 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp	2009-10-07 13:43:15.622989484 +0200
-@@ -1049,7 +1049,7 @@
-     rc = pDrvIns->pDrvHlp->pfnSUPCallVMMR0Ex(pDrvIns, VMMR0_DO_INTNET_OPEN, &OpenReq, sizeof(OpenReq));
-     if (RT_FAILURE(rc))
-         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
--                                   N_("Failed to open/create the internal network '%s'"), pThis->szNetwork);
-+                                   N_("Failed to open/create the internal network '%s' (you might need to modprobe vboxnetflt to make it accessible)"), pThis->szNetwork);
-     AssertRelease(OpenReq.hIf != INTNET_HANDLE_INVALID);
-     pThis->hIf = OpenReq.hIf;
-     Log(("IntNet%d: hIf=%RX32 '%s'\n", pDrvIns->iInstance, pThis->hIf, pThis->szNetwork));
+diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Devices/Network/DrvIntNet.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp
+--- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Devices/Network/DrvIntNet.cpp	2010-11-28 18:24:07.000000000 +0100
++++ virtualbox-ose-4.0.0-dfsg/src/VBox/Devices/Network/DrvIntNet.cpp	2011-01-01 23:39:33.408286663 +0100
+@@ -1569,7 +1569,7 @@
+         else
+         {
+             return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
+-                                       N_("Failed to open/create the internal network '%s'"), pThis->szNetwork);
++                                       N_("Failed to open/create the internal network '%s' (you might need to modprobe vboxnetflt to make it accessible)"), pThis->szNetwork);
+         }
+     }
+ 

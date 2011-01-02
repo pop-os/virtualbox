@@ -13,7 +13,7 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefil
   VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
  endif
 -#
--# Link aginst libstdc++.a. (http://www.trilithium.com/johan/2005/06/static-libstdc/).
+-# Link against libstdc++.a. (http://www.trilithium.com/johan/2005/06/static-libstdc/).
 -# (It would've been preferred to avoid features depending on libstdc++, of course...)
 -#
 -# Actually, this is darn annoying and will *NOT* be tolerated for any new code!
