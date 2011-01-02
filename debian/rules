@@ -169,6 +169,15 @@ else ifeq ($(INSTALL_XORGCONFD),old)
 	    /usr/lib/X11/xorg.conf.d
 endif
 
+	cp src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_16px.png \
+	    debian/virtualbox-ose-qt/usr/share/icons/hicolor/16x16/apps/virtualbox-ose.png
+	cp src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_32px.png \
+	    debian/virtualbox-ose-qt/usr/share/icons/hicolor/32x32/apps/virtualbox-ose.png
+	cp src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_48px.png \
+	    debian/virtualbox-ose-qt/usr/share/icons/hicolor/48x48/apps/virtualbox-ose.png
+	cp src/VBox/Frontends/VirtualBox/images/OSE/VirtualBox_64px.png \
+	    debian/virtualbox-ose-qt/usr/share/icons/hicolor/64x64/apps/virtualbox-ose.png
+
 override_dh_fixperms:
 	dh_fixperms
 

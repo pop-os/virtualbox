@@ -8,8 +8,9 @@ virtualbox-ose (4.0.0-dfsg-1) UNRELEASED; urgency=low
   * Set VBOX_JAVA_HOME to /usr/lib/jvm/default-java.
   * Add 28-no-selinux-fedora.patch so VirtualBox doesn't try to install
     selinux-fedora/vbox_x11.pp which is stripped by the dfsg-free target.
+  * Update install files.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 Jan 2011 19:26:51 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 Jan 2011 21:53:27 +0100
 
 virtualbox-ose (3.2.12-dfsg-1) unstable; urgency=low
 
