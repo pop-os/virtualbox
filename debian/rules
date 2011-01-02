@@ -87,10 +87,10 @@ override_dh_auto_build:
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
 
-	mkdir -p out/vdfuse
-	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
-	    $(shell pkg-config --cflags --libs fuse) -Iinclude $(addprefix out/bin/, \
-	    VBoxDD.so VBoxDD2.so VBoxDDU.so VBoxVMM.so VBoxREM.so VBoxRT.so)
+	#mkdir -p out/vdfuse
+	#gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
+	#    $(shell pkg-config --cflags --libs fuse) -Iinclude $(addprefix out/bin/, \
+	#    VBoxDD.so VBoxDD2.so VBoxDDU.so VBoxVMM.so VBoxREM.so VBoxRT.so)
 
 	xsltproc --nonet --stringparam section.autolabel 1 \
 	    -o debian/README.Debian.html \
