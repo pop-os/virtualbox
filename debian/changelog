@@ -2,8 +2,11 @@ virtualbox-ose (4.0.0-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Adapt patches for new upstream version.
+  * Add new required build-dependencies:
+    default-jdk, genisoimage, makeself, texlive-fonts-extra,
+    texlive-fonts-recommended, texlive-latex-extra, texlive-latex-recommended.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 Jan 2011 00:17:03 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 Jan 2011 19:22:56 +0100
 
 virtualbox-ose (3.2.12-dfsg-1) unstable; urgency=low
 
