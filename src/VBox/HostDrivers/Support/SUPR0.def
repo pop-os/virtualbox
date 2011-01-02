@@ -1,4 +1,4 @@
-; $Id: SUPR0.def $
+; $Id: SUPR0.def 33167 2010-10-15 18:16:59Z vboxsync $
 ;; @file
 ; VirtualBox Support Driver - Exports.
 ;
@@ -55,28 +55,34 @@ EXPORTS
     SUPSemEventSignal
     SUPSemEventWait
     SUPSemEventWaitNoResume
+    SUPSemEventWaitNsAbsIntr
+    SUPSemEventWaitNsRelIntr
+    SUPSemEventGetResolution
     SUPSemEventMultiCreate
     SUPSemEventMultiClose
     SUPSemEventMultiSignal
     SUPSemEventMultiReset
     SUPSemEventMultiWait
     SUPSemEventMultiWaitNoResume
+    SUPSemEventMultiWaitNsAbsIntr
+    SUPSemEventMultiWaitNsRelIntr
+    SUPSemEventMultiGetResolution
     SUPR0GetPagingMode
     SUPR0EnableVTx
     SUPGetGIP
-    RTMemAlloc
-    RTMemAllocZ
+    RTMemAllocTag
+    RTMemAllocZTag
     RTMemFree
-    RTMemRealloc
-    RTR0MemObjAllocLow
-    RTR0MemObjAllocPage
-    RTR0MemObjAllocPhys
-    RTR0MemObjAllocPhysEx
-    RTR0MemObjAllocPhysNC
-    RTR0MemObjAllocCont
-    RTR0MemObjLockUser
-    RTR0MemObjMapKernel
-    RTR0MemObjMapUser
+    RTMemReallocTag
+    RTR0MemObjAllocLowTag
+    RTR0MemObjAllocPageTag
+    RTR0MemObjAllocPhysTag
+    RTR0MemObjAllocPhysExTag
+    RTR0MemObjAllocPhysNCTag
+    RTR0MemObjAllocContTag
+    RTR0MemObjLockUserTag
+    RTR0MemObjMapKernelTag
+    RTR0MemObjMapUserTag
     RTR0MemObjAddress
     RTR0MemObjAddressR3
     RTR0MemObjSize
@@ -100,12 +106,18 @@ EXPORTS
     RTSemEventSignal
     RTSemEventWait
     RTSemEventWaitNoResume
+    RTSemEventWaitEx
+    RTSemEventWaitExDebug
+    RTSemEventGetResolution
     RTSemEventDestroy
     RTSemEventMultiCreate
     RTSemEventMultiSignal
     RTSemEventMultiReset
     RTSemEventMultiWait
     RTSemEventMultiWaitNoResume
+    RTSemEventMultiWaitEx
+    RTSemEventMultiWaitExDebug
+    RTSemEventMultiGetResolution
     RTSemEventMultiDestroy
     RTSemFastMutexCreate
     RTSemFastMutexDestroy
@@ -132,15 +144,32 @@ EXPORTS
     RTThreadPreemptRestore
     RTThreadPreemptPossible
     RTThreadIsInInterrupt
+    RTTimerCreate
+    RTTimerCreateEx
+    RTTimerDestroy
+    RTTimerStart
+    RTTimerStop
+    RTTimerChangeInterval
+    RTTimerGetSystemGranularity
+    RTTimerRequestSystemGranularity
+    RTTimerReleaseSystemGranularity
+    RTTimerCanDoHighResolution
+    RTMpCpuId
+    RTMpCpuIdFromSetIndex
+    RTMpCpuIdToSetIndex
+    RTMpGetArraySize
+    RTMpIsCpuPossible
+    RTMpGetCount
+    RTMpGetMaxCpuId
+    RTMpGetOnlineCount
+    RTMpGetOnlineSet
+    RTMpGetSet
+    RTMpIsCpuOnline
+    RTMpIsCpuWorkPending
     RTMpOnAll
     RTMpOnOthers
     RTMpOnSpecific
     RTMpPokeCpu
-    RTMpIsCpuOnline
-    RTMpGetCount
-    RTMpCpuIdToSetIndex
-    RTMpCpuId
-    RTMpIsCpuWorkPending
     RTPowerNotificationRegister
     RTPowerNotificationDeregister
     RTLogDefaultInstance

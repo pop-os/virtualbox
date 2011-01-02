@@ -1,4 +1,4 @@
-/* $Id: DrvDiskIntegrity.cpp $ */
+/* $Id: DrvDiskIntegrity.cpp 34932 2010-12-10 00:29:53Z vboxsync $ */
 /** @file
  * VBox storage devices: Disk integrity check.
  */
@@ -101,7 +101,7 @@ typedef struct DRVDISKSEGMENT
     size_t           cbSeg;
     /** Data for this segment */
     uint8_t         *pbSeg;
-    /** Numbner of entries in the I/O array. */
+    /** Number of entries in the I/O array. */
     unsigned         cIoLogEntries;
     /** Array of I/O log references. */
     PIOLOGENT        apIoLog[1];
@@ -132,6 +132,11 @@ typedef struct DRVDISKINTEGRITY
     PPDMIMEDIA              pDrvMedia;
     /** Our media interface */
     PDMIMEDIA               IMedia;
+
+    /** The media port interface above. */
+    PPDMIMEDIAPORT          pDrvMediaPort;
+    /** Media port interface */
+    PDMIMEDIAPORT           IMediaPort;
 
     /** Pointer to the media async driver below us.
      * This is NULL if the media is not mounted. */
@@ -489,7 +494,7 @@ static void drvdiskintIoReqRemove(PDRVDISKINTEGRITY pThis, PDRVDISKAIOREQ pIoReq
 
     Assert(pReqActive->pIoReq == pIoReq);
 
-    ASMAtomicXchgPtr((void * volatile *)&pReqActive->pIoReq, NULL);
+    ASMAtomicWriteNullPtr(&pReqActive->pIoReq);
 }
 
 /**
@@ -519,7 +524,7 @@ static int drvdiskIntIoReqExpiredCheck(RTTHREAD pThread, void *pvUser)
         for (unsigned i = 0; i < RT_ELEMENTS(pThis->apReqActive); i++)
         {
             PDRVDISKAIOREQACTIVE pReqActive = &pThis->apReqActive[i];
-            PDRVDISKAIOREQ pIoReq = (PDRVDISKAIOREQ)ASMAtomicReadPtr((void * volatile *)&pReqActive->pIoReq);
+            PDRVDISKAIOREQ pIoReq = ASMAtomicReadPtrT(&pReqActive->pIoReq, PDRVDISKAIOREQ);
 
             if (   pIoReq
                 && (tsCurr > pReqActive->tsStart)
@@ -667,6 +672,9 @@ static DECLCALLBACK(int) drvdiskintStartFlush(PPDMIMEDIAASYNC pInterface, void *
     PDRVDISKAIOREQ pIoReq = drvdiskintIoReqAlloc(DRVDISKAIOTXDIR_FLUSH, 0, NULL, 0, 0, pvUser);
     AssertPtr(pIoReq);
 
+    if (pThis->fTraceRequests)
+        drvdiskintIoReqAdd(pThis, pIoReq);
+
     return pThis->pDrvMediaAsync->pfnStartFlush(pThis->pDrvMediaAsync, pIoReq);
 }
 
@@ -768,6 +776,23 @@ static DECLCALLBACK(int) drvdiskintAsyncTransferCompleteNotify(PPDMIMEDIAASYNCPO
     return rc;
 }
 
+/* -=-=-=-=- IMediaPort -=-=-=-=- */
+
+/** Makes a PDRVBLOCK out of a PPDMIMEDIAPORT. */
+#define PDMIMEDIAPORT_2_DRVDISKINTEGRITY(pInterface)    ( (PDRVDISKINTEGRITY((uintptr_t)pInterface - RT_OFFSETOF(DRVDISKINTEGRITY, IMediaPort))) )
+
+/**
+ * @interface_method_impl{PDMIMEDIAPORT,pfnQueryDeviceLocation}
+ */
+static DECLCALLBACK(int) drvdiskintQueryDeviceLocation(PPDMIMEDIAPORT pInterface, const char **ppcszController,
+                                                       uint32_t *piInstance, uint32_t *piLUN)
+{
+    PDRVDISKINTEGRITY pThis = PDMIMEDIAPORT_2_DRVDISKINTEGRITY(pInterface);
+
+    return pThis->pDrvMediaPort->pfnQueryDeviceLocation(pThis->pDrvMediaPort, ppcszController,
+                                                        piInstance, piLUN);
+}
+
 /* -=-=-=-=- IBase -=-=-=-=- */
 
 /**
@@ -782,6 +807,7 @@ static DECLCALLBACK(void *)  drvdiskintQueryInterface(PPDMIBASE pInterface, cons
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIA, &pThis->IMedia);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAASYNC, pThis->pDrvMediaAsync ? &pThis->IMediaAsync : NULL);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAASYNCPORT, &pThis->IMediaAsyncPort);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAPORT, &pThis->IMediaPort);
     return NULL;
 }
 
@@ -893,6 +919,18 @@ static DECLCALLBACK(int) drvdiskintConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
     /* IMediaAsyncPort. */
     pThis->IMediaAsyncPort.pfnTransferCompleteNotify  = drvdiskintAsyncTransferCompleteNotify;
 
+    /* IMediaPort. */
+    pThis->IMediaPort.pfnQueryDeviceLocation = drvdiskintQueryDeviceLocation;
+
+    /* Query the media port interface above us. */
+    pThis->pDrvMediaPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMEDIAPORT);
+    if (!pThis->pDrvMediaPort)
+        return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_MISSING_INTERFACE_BELOW,
+                                N_("No media port inrerface above"));
+
+    /* Try to attach async media port interface above.*/
+    pThis->pDrvMediaAsyncPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMEDIAASYNCPORT);
+
     /*
      * Try attach driver below and query it's media interface.
      */
@@ -908,9 +946,6 @@ static DECLCALLBACK(int) drvdiskintConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
                                 N_("No media or async media interface below"));
 
     pThis->pDrvMediaAsync = PDMIBASE_QUERY_INTERFACE(pBase, PDMIMEDIAASYNC);
-
-    /* Try to attach async media port interface above.*/
-    pThis->pDrvMediaAsyncPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMEDIAASYNCPORT);
 
     if (pThis->fCheckConsistency)
     {

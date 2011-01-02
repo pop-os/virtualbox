@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- $Id: midl.xsl $ -->
+<!-- $Id: midl.xsl 31699 2010-08-16 15:05:04Z vboxsync $ -->
 
 <!--
  *  A template to generate a MS IDL compatible interface definition file
@@ -747,7 +747,11 @@
             <xsl:when test=".='long'">LONG *</xsl:when>
             <xsl:when test=".='long long'">LONG64 *</xsl:when>
             <xsl:when test=".='unsigned long'">ULONG *</xsl:when>
-            <xsl:when test=".='unsigned long long'">ULONG64 *</xsl:when>
+            <xsl:when test=".='unsigned long long'">
+              <xsl:message terminate="yes">
+                 <xsl:value-of select="'&quot;unsigned long long&quot; no longer supported'" />
+              </xsl:message>
+            </xsl:when>
             <xsl:otherwise>
               <xsl:message terminate="yes">
                 <xsl:value-of select="concat(../../../@name,'::',../../@name,'::',../@name,': ')"/>
@@ -796,7 +800,6 @@
         <xsl:when test=".='long'">LONG</xsl:when>
         <xsl:when test=".='long long'">LONG64</xsl:when>
         <xsl:when test=".='unsigned long'">ULONG</xsl:when>
-        <xsl:when test=".='unsigned long long'">ULONG64</xsl:when>
         <xsl:when test=".='char'">CHAR</xsl:when>
         <xsl:when test=".='string'">CHAR *</xsl:when>
         <xsl:when test=".='wchar'">OLECHAR</xsl:when>
@@ -805,6 +808,11 @@
         <xsl:when test=".='uuid'">GUID</xsl:when>
         <!-- system interface types -->
         <xsl:when test=".='$unknown'">IUnknown *</xsl:when>
+        <xsl:when test=".='unsigned long long'">
+          <xsl:message terminate="yes">
+            <xsl:value-of select="'&quot;unsigned long long&quot; no longer supported'" />
+          </xsl:message>
+        </xsl:when>
         <xsl:otherwise>
           <xsl:choose>
             <!-- enum types -->
@@ -837,4 +845,3 @@
 </xsl:template>
 
 </xsl:stylesheet>
-

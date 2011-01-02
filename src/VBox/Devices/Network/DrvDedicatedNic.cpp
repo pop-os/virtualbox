@@ -1,4 +1,4 @@
-/* $Id: DrvDedicatedNic.cpp $ */
+/* $Id: DrvDedicatedNic.cpp 31094 2010-07-26 08:14:34Z vboxsync $ */
 /** @file
  * DrvDedicatedNic - Experimental network driver for using a dedicated (V)NIC.
  */
@@ -210,7 +210,7 @@ PDMBOTHCBDECL(int) drvDedicatedNicUp_AllocBuf(PPDMINETWORKUP pInterface, size_t 
     /*
      * Are we busy or is the request too big?
      */
-    if (RT_UNLIKELY(pThis->XmitSg.fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC)
+    if (RT_UNLIKELY((pThis->XmitSg.fFlags & PDMSCATTERGATHER_FLAGS_MAGIC_MASK) == PDMSCATTERGATHER_FLAGS_MAGIC))
         return VERR_TRY_AGAIN;
     if (cbMin > sizeof(pThis->abXmitBuf))
         return VERR_NO_MEMORY;

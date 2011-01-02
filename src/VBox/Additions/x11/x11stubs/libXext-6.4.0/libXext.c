@@ -1,4 +1,4 @@
-/* $Id: libXext.c $ */
+/* $Id: libXext.c 28800 2010-04-27 08:22:32Z vboxsync $ */
 
 /** @file
  * X.Org libXext.so linker stub

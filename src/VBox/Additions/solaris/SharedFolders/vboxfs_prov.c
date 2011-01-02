@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
+
 /*
  * Provider interfaces for shared folder file system.
  */
@@ -43,7 +44,7 @@
 #ifdef u
 #undef u
 #endif
-#include "../../common/VBoxGuestLib/VBoxCalls.h"
+#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
 
 #define	SFPROV_VERSION	1
 
@@ -414,7 +415,7 @@ sfprov_fsync(sfp_file_t *fp)
 
 
 static int
-sfprov_getinfo(sfp_mount_t *mnt, char *path, RTFSOBJINFO *info)
+sfprov_getinfo(sfp_mount_t *mnt, char *path, PSHFLFSOBJINFO info)
 {
 	int rc;
 	SHFLCREATEPARMS parms;
@@ -493,7 +494,7 @@ int
 sfprov_get_mode(sfp_mount_t *mnt, char *path, mode_t *mode)
 {
 	int rc;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
@@ -506,7 +507,7 @@ int
 sfprov_get_size(sfp_mount_t *mnt, char *path, uint64_t *size)
 {
 	int rc;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
@@ -527,7 +528,7 @@ int
 sfprov_get_atime(sfp_mount_t *mnt, char *path, timestruc_t *time)
 {
 	int rc;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
@@ -540,7 +541,7 @@ int
 sfprov_get_mtime(sfp_mount_t *mnt, char *path, timestruc_t *time)
 {
 	int rc;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
@@ -553,7 +554,7 @@ int
 sfprov_get_ctime(sfp_mount_t *mnt, char *path, timestruc_t *time)
 {
 	int rc;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
@@ -573,7 +574,7 @@ sfprov_get_attr(
 	timestruc_t *ctime)
 {
 	int rc;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
@@ -613,7 +614,7 @@ sfprov_set_attr(
 	int rc, err;
 	SHFLCREATEPARMS parms;
 	SHFLSTRING *str;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 	uint32_t bytes;
 	int str_size;
 
@@ -711,7 +712,7 @@ sfprov_set_size(sfp_mount_t *mnt, char *path, uint64_t size)
 	int rc, err;
 	SHFLCREATEPARMS parms;
 	SHFLSTRING *str;
-	RTFSOBJINFO info;
+	SHFLFSOBJINFO info;
 	uint32_t bytes;
 	int str_size;
 

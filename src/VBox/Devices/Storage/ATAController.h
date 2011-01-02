@@ -1,4 +1,4 @@
-/* $Id: ATAController.h $ */
+/* $Id: ATAController.h 35214 2010-12-17 10:10:07Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller types.
  */
@@ -176,7 +176,7 @@ typedef struct AHCIATADevState {
     /** Pointer to the I/O buffer. */
     RCPTRTYPE(uint8_t *) pbIOBufferRC;
 
-    RTRCPTR Aligmnent1; /**< Align the statistics at an 8-byte boundrary. */
+    RTRCPTR Aligmnent1; /**< Align the statistics at an 8-byte boundary. */
 
     /*
      * No data that is part of the saved state after this point!!!!!
@@ -420,9 +420,11 @@ RT_C_DECLS_END
  * @param   szName         Name of the controller (Used to initialize the critical section).
  */
 int ataControllerInit(PPDMDEVINS pDevIns, PAHCIATACONTROLLER pCtl,
-                      unsigned iLUNMaster, PPDMIBASE pDrvBaseMaster,
-                      unsigned iLUNSlave, PPDMIBASE pDrvBaseSlave,
-                      uint32_t *pcbSSMState, const char *szName, PPDMLED pLed, PSTAMCOUNTER pStatBytesRead, PSTAMCOUNTER pStatBytesWritten);
+                      unsigned iLUNMaster, PPDMIBASE pDrvBaseMaster, PPDMLED pLedMaster,
+                      PSTAMCOUNTER pStatBytesReadMaster, PSTAMCOUNTER pStatBytesWrittenMaster,
+                      unsigned iLUNSlave, PPDMIBASE pDrvBaseSlave, PPDMLED pLedSlave,
+                      PSTAMCOUNTER pStatBytesReadSlave, PSTAMCOUNTER pStatBytesWrittenSlave,
+                      uint32_t *pcbSSMState, const char *szName);
 
 /**
  * Free all allocated resources for one controller instance.
@@ -458,7 +460,7 @@ void ataControllerReset(PAHCIATACONTROLLER pCtl);
 void ataControllerResume(PAHCIATACONTROLLER pCtl);
 
 /**
- * Relocate neccessary pointers.
+ * Relocate necessary pointers.
  *
  * @returns nothing.
  * @param   pCtl     The controller instance.

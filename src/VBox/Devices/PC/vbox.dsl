@@ -1,4 +1,4 @@
-// $Id: vbox.dsl $
+// $Id: vbox.dsl 33540 2010-10-28 09:27:05Z vboxsync $
 /// @file
 //
 // VirtualBox ACPI
@@ -116,40 +116,47 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
         Store (Arg0, PICM)
     }
 
+    // Declare indexed registers used for reading configuration information
+    OperationRegion (SYSI, SystemIO, 0x4048, 0x08)
+    Field (SYSI, DwordAcc, NoLock, Preserve)
+    {
+       IDX0, 32,
+       DAT0, 32,
+    }
+
+    IndexField (IDX0, DAT0, DwordAcc, NoLock, Preserve)
+    {
+        MEML,  32,
+        UIOA,  32, // if IO APIC enabled
+        UHPT,  32, // if HPET enabled
+        USMC,  32, // if SMC enabled
+        UFDC,  32, // if floppy controller enabled
+        // UCP0-UCP3 no longer used and only kept here for saved state compatibility
+        UCP0,  32,
+        UCP1,  32,
+        UCP2,  32,
+        UCP3,  32,
+        MEMH,  32,
+        URTC,  32, // if RTC shown in tables
+        CPUL,  32, // flag of CPU lock state
+        CPUC,  32, // CPU to check lock status
+        CPET,  32, // type of CPU hotplug event
+        CPEV,  32, // id of CPU event targets
+        NICA,  32, // Primary NIC PCI address
+        HDAA,  32, // HDA PCI address
+        PWRS,  32, // power states
+        IOCA,  32, // southbridge IO controller PCI address
+        HBCA,  32, // host bus controller address
+        PCIB,  32, // PCI MCFG base start
+        PCIL,  32, // PCI MCFG length
+        Offset (0x80),
+        ININ, 32,
+        Offset (0x200),
+        VAIN, 32,
+    }
+
     Scope (\_SB)
     {
-        OperationRegion (SYSI, SystemIO, 0x4048, 0x08)
-        Field (SYSI, DwordAcc, NoLock, Preserve)
-        {
-            IDX0, 32,
-            DAT0, 32,
-        }
-
-        IndexField (IDX0, DAT0, DwordAcc, NoLock, Preserve)
-        {
-            MEML,  32,
-            UIOA,  32,
-            UHPT,  32,
-            USMC,  32,
-            UFDC,  32,
-            // UCP0-UCP3 no longer used and only kept here for saved state compatibilty
-            UCP0,  32,
-            UCP1,  32,
-            UCP2,  32,
-            UCP3,  32,
-            MEMH,  32,
-            URTC,  32,
-            CPUL,  32,
-            CPUC,  32,
-            CPET,  32,
-            CPEV,  32,
-            NICA,  32,
-            Offset (0x80),
-            ININ, 32,
-            Offset (0x200),
-            VAIN, 32,
-        }
-
         Method (_INI, 0, NotSerialized)
         {
             Store (0xbadc0de, VAIN)
@@ -504,9 +511,13 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
         // PCI bus 0
         Device (PCI0)
         {
-            Name (_HID, EisaId ("PNP0A03"))
-            Name (_ADR, 0x00) // address
-            Name (_BBN, 0x00) // base bus adddress
+            
+            Name (_HID, EisaId ("PNP0A03")) // PCI bus PNP id
+            Method(_ADR, 0, NotSerialized)  // PCI address
+            {
+                 Return (HBCA)
+            }
+            Name (_BBN, 0x00) // base bus address (bus number)
             Name (_UID, 0x00)
 
             // Method that returns routing table; also opens PCI to I/O APIC 
@@ -530,8 +541,11 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
 
             Device (SBRG)
             {
-                // Address of the PIIX3 (device 1 function 0)
-                Name (_ADR, 0x00010000)
+                // Address of the southbridge device (PIIX or ICH9)
+                Method(_ADR, 0, NotSerialized)
+                {
+                     Return (IOCA)
+                }
                 OperationRegion (PCIC, PCI_Config, 0x00, 0xff)
 
                 Field (PCIC, ByteAcc, NoLock, Preserve)
@@ -541,6 +555,37 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                     Offset (0xde),
                     APDE,   8,
                 }
+              
+                // PCI MCFG MMIO ranges
+                Device (^PCIE)
+                {
+                    Name (_HID, EisaId ("PNP0C02"))
+                    Name (_UID, 0x11)
+                    Name (CRS, ResourceTemplate ()
+                    {
+                        Memory32Fixed (ReadOnly,
+                            0xdc000000,        // Address Base
+                            0x4000000,         // Address Length
+                            _Y13)
+                    })
+                    Method (_CRS, 0, NotSerialized)
+                    {
+                        CreateDWordField (CRS, \_SB.PCI0.PCIE._Y13._BAS, BAS1)
+                        CreateDWordField (CRS, \_SB.PCI0.PCIE._Y13._LEN, LEN1)
+                        Store (PCIB, BAS1)
+                        Store (PCIL, LEN1)
+                        Return (CRS)
+                    }
+                    Method (_STA, 0, NotSerialized)
+                    {
+                     if (LEqual (PCIB, Zero)) {
+                        Return (0x00)
+                     }
+                     else {
+                        Return (0x0E)
+                     }
+                    }
+                }               
 
                 // Keyboard device
                 Device (PS2K)
@@ -761,7 +806,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
             Device (GIGE)
             {
                 /**
-                 * Generic NIC, accoring to
+                 * Generic NIC, according to
                  * http://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/devids.txt
                  * Needed by some Windows guests.
                  */
@@ -793,6 +838,66 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                     }
                  }
             }
+
+            // HDA Audio card
+            Device (HDEF)
+            {
+                Method(_DSM, 4, NotSerialized)
+                {
+                    Store (Package (0x04)                                                                                                                              
+                    {                                                                                                                                              
+                        "layout-id",                                                                                                                               
+                        Buffer (0x04)                                                                                                                              
+                        {                                                                                                                                          
+                            /* 0000 */    0x07, 0x00, 0x00, 0x00                                                                                                   
+                        },                                                                                                                                         
+                                                                                                                                                                   
+                        "PinConfigurations",                                                                                                                       
+                        Buffer (Zero) {}                                                                                                                           
+                    }, Local0)                                                                                                                                     
+                    if (LEqual (Arg0, ToUUID("a0b5b7c6-1318-441c-b0c9-fe695eaf949b")))
+                    {
+                        If (LEqual (Arg1, One))
+                        {
+                            if (LEqual(Arg2, Zero))
+                            {
+                                    Store (Buffer (0x01)                                                                                                                              
+                                        {                                                                                                                                          
+                                            0x03
+                                        }
+                                    , Local0)                                                                                                                                     
+                                    Return (Local0)   
+                            }
+                            if (LEqual(Arg2, One))
+                            {
+                                    Return (Local0)   
+                            }
+                        }
+                    }
+                    Store (Buffer (0x01)                                                                                                                              
+                        {                                                                                                                                          
+                            0x0
+                        }
+                    , Local0)                                                                                                                                     
+                    Return (Local0)   
+                }
+
+                Method(_ADR, 0, NotSerialized)
+                {
+                     Return (HDAA)
+                }
+
+                Method (_STA, 0, NotSerialized)
+                {
+                 if (LEqual (HDAA, Zero)) {
+                        Return (0x00)
+                    }
+                    else {
+                        Return (0x0F)
+                    }
+                 }
+            }            
+
 
             // Control method battery
             Device (BAT0)
@@ -1283,6 +1388,21 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
         0x00,
         0x00,
     })
+
+    // Shift one by the power state number
+//    If (And(PWRS, ShiftLeft(One,1))) {
+        Name (_S1, Package (2) {
+            0x01,
+            0x01,
+        })
+//    }
+
+//    If (And(PWRS, ShiftLeft(One,4))) {
+        Name (_S4, Package (2) {
+            0x05,
+            0x05,
+        })
+//    }
 
     Name (_S5, Package (2) {
         0x05,

@@ -1,4 +1,4 @@
-/* $Id: QITreeView.cpp $ */
+/* $Id: QITreeView.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

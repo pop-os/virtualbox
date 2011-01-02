@@ -1,4 +1,4 @@
-/* $Id: NetAdpUninstall.cpp $ */
+/* $Id: NetAdpUninstall.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * NetAdpUninstall - VBoxNetAdp uninstaller command line tool
  */

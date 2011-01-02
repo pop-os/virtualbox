@@ -1,4 +1,4 @@
-/* $Id: VBoxMiniToolBar.cpp $ */
+/* $Id: VBoxMiniToolBar.cpp 35078 2010-12-14 13:42:28Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -17,26 +17,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Local includes */
+#include "UIIconPool.h"
+#include "VBoxGlobal.h"
+#include "VBoxMiniToolBar.h"
+
 /* Global includes */
 #include <QCursor>
 #include <QDesktopWidget>
 #include <QLabel>
 #include <QMenu>
-#include <QPainter>
 #include <QPaintEvent>
+#include <QPainter>
 #include <QPolygon>
 #include <QRect>
 #include <QRegion>
 #include <QTimer>
 #include <QToolButton>
 
-/* Local includes */
-#include "VBoxMiniToolBar.h"
-#include "VBoxGlobal.h"
-
 /* Mini-toolbar constructor */
 VBoxMiniToolBar::VBoxMiniToolBar(QWidget *pParent, Alignment alignment, bool fActive, bool fAutoHide)
-    : VBoxToolBar(pParent)
+    : UIToolBar(pParent)
     , m_pAutoHideAction(0)
     , m_pDisplayLabel(0)
     , m_pMinimizeAction(0)
@@ -70,7 +71,7 @@ VBoxMiniToolBar::VBoxMiniToolBar(QWidget *pParent, Alignment alignment, bool fAc
 
     /* Add pushpin: */
     m_pAutoHideAction = new QAction(this);
-    m_pAutoHideAction->setIcon(VBoxGlobal::iconSet(":/pin_16px.png"));
+    m_pAutoHideAction->setIcon(UIIconPool::iconSet(":/pin_16px.png"));
     m_pAutoHideAction->setToolTip(tr("Always show the toolbar"));
     m_pAutoHideAction->setCheckable(true);
     m_pAutoHideAction->setChecked(!m_fAutoHide);
@@ -97,21 +98,21 @@ VBoxMiniToolBar::VBoxMiniToolBar(QWidget *pParent, Alignment alignment, bool fAc
 
     /* Minimize action: */
     m_pMinimizeAction = new QAction(this);
-    m_pMinimizeAction->setIcon(VBoxGlobal::iconSet(":/minimize_16px.png"));
+    m_pMinimizeAction->setIcon(UIIconPool::iconSet(":/minimize_16px.png"));
     m_pMinimizeAction->setToolTip(tr("Minimize Window"));
     connect(m_pMinimizeAction, SIGNAL(triggered()), this, SIGNAL(minimizeAction()));
     addAction(m_pMinimizeAction);
 
     /* Exit action: */
     m_pRestoreAction = new QAction(this);
-    m_pRestoreAction->setIcon(VBoxGlobal::iconSet(":/restore_16px.png"));
+    m_pRestoreAction->setIcon(UIIconPool::iconSet(":/restore_16px.png"));
     m_pRestoreAction->setToolTip(tr("Exit Full Screen or Seamless Mode"));
     connect(m_pRestoreAction, SIGNAL(triggered()), this, SIGNAL(exitAction()));
     addAction(m_pRestoreAction);
 
     /* Close action: */
     m_pCloseAction = new QAction(this);
-    m_pCloseAction->setIcon(VBoxGlobal::iconSet(":/close_16px.png"));
+    m_pCloseAction->setIcon(UIIconPool::iconSet(":/close_16px.png"));
     m_pCloseAction->setToolTip(tr("Close VM"));
     connect(m_pCloseAction, SIGNAL(triggered()), this, SIGNAL(closeAction()));
     addAction(m_pCloseAction);
@@ -236,7 +237,7 @@ bool VBoxMiniToolBar::eventFilter(QObject *pObject, QEvent *pEvent)
         return true;
     }
     /* Base-class event-filter: */
-    return VBoxToolBar::eventFilter(pObject, pEvent);
+    return UIToolBar::eventFilter(pObject, pEvent);
 }
 
 /* Mouse-move event processor */
@@ -249,7 +250,7 @@ void VBoxMiniToolBar::mouseMoveEvent(QMouseEvent *pEvent)
         m_scrollTimer.start(m_iScrollDelay, this);
     }
     /* Base-class mouse-move event processing: */
-    VBoxToolBar::mouseMoveEvent(pEvent);
+    UIToolBar::mouseMoveEvent(pEvent);
 }
 
 /* Timer event processor
@@ -344,7 +345,7 @@ void VBoxMiniToolBar::showEvent(QShowEvent *pEvent)
         m_fPolished = true;
     }
     /* Base-class show event processing: */
-    VBoxToolBar::showEvent(pEvent);
+    UIToolBar::showEvent(pEvent);
 }
 
 /* Show event processor */
@@ -353,10 +354,10 @@ void VBoxMiniToolBar::paintEvent(QPaintEvent *pEvent)
     /* Paint background */
     QPainter painter;
     painter.begin(this);
-    painter.fillRect(pEvent->rect(), palette().brush(QPalette::Window));
+    painter.fillRect(pEvent->rect(), QApplication::palette().color(QPalette::Active, QPalette::Window));
     painter.end();
     /* Base-class paint event processing: */
-    VBoxToolBar::paintEvent(pEvent);
+    UIToolBar::paintEvent(pEvent);
 }
 
 /* Toggle push-pin */

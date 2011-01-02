@@ -1,4 +1,4 @@
-/* $Id: tstUtf8.cpp $ */
+/* $Id: tstUtf8.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
  * IPRT Testcase - UTF-8 and UTF-16 string conversions.
  */
@@ -28,18 +28,16 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
+
 #include <iprt/uni.h>
-#include <iprt/initterm.h>
 #include <iprt/uuid.h>
 #include <iprt/time.h>
 #include <iprt/stream.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
+#include <iprt/rand.h>
 #include <iprt/test.h>
-#include <iprt/cpp/ministring.h>
-
-#include <stdlib.h> /** @todo use our random. */
 
 
 
@@ -51,8 +49,8 @@ static RTUTF16 GetRandUtf16(void)
     RTUTF16 wc;
     do
     {
-        wc = (RTUTF16)((long long)rand() * 0xffff / RAND_MAX);
-    } while ((wc >= 0xd800 && wc <= 0xdfff) || wc == 0);
+        wc = (RTUTF16)RTRandU32Ex(1, 0xffff);
+    } while (wc >= 0xd800 && wc <= 0xdfff);
     return wc;
 }
 
@@ -76,17 +74,16 @@ static void test1(RTTEST hTest)
     RTTestSub(hTest, "Feeding bad UTF-8 to RTStrToUtf16");
     rc = RTStrToUtf16(s_szBadString1, &pwsz);
     RTTEST_CHECK_MSG(hTest, rc == VERR_NO_TRANSLATION || rc == VERR_INVALID_UTF8_ENCODING,
-                     (hTest, "Conversion of first bad UTF-8 string to UTF-16 apparantly succeeded. It shouldn't. rc=%Rrc\n", rc));
+                     (hTest, "Conversion of first bad UTF-8 string to UTF-16 apparently succeeded. It shouldn't. rc=%Rrc\n", rc));
     rc = RTStrToUtf16(s_szBadString2, &pwsz);
     RTTEST_CHECK_MSG(hTest, rc == VERR_NO_TRANSLATION || rc == VERR_INVALID_UTF8_ENCODING,
-                     (hTest, "Conversion of second bad UTF-8 strings to UTF-16 apparantly succeeded. It shouldn't. rc=%Rrc\n", rc));
+                     (hTest, "Conversion of second bad UTF-8 strings to UTF-16 apparently succeeded. It shouldn't. rc=%Rrc\n", rc));
 
     /*
-     * Test current CP convertion.
+     * Test current CP conversion.
      */
     RTTestSub(hTest, "Rand UTF-16 -> UTF-8 -> CP -> UTF-8");
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
-    srand((unsigned)RTTimeNanoTS());
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
     pwszRand[30] = 0;
@@ -119,7 +116,6 @@ static void test1(RTTEST hTest)
      */
     RTTestSub(hTest, "Random UTF-16 -> UTF-8 -> UTF-16");
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
-    srand((unsigned)RTTimeNanoTS());
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
     pwszRand[30] = 0;
@@ -153,7 +149,6 @@ static void test1(RTTEST hTest)
      */
     RTTestSub(hTest, "Random RTUtf16ToUtf8Ex + RTStrToUtf16");
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
-    srand((unsigned)RTTimeNanoTS());
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
     pwszRand[30] = 0;
@@ -188,7 +183,6 @@ static void test1(RTTEST hTest)
      */
     RTTestSub(hTest, "Random RTUtf16ToUtf8 + RTStrToUtf16Ex");
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
-    srand((unsigned)RTTimeNanoTS());
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
     pwszRand[30] = 0;
@@ -219,7 +213,6 @@ static void test1(RTTEST hTest)
         RTTestFailed(hTest, "%d: The first part of random UTF-16 -> UTF-8 -> fixed length UTF-16 failed with return value %Rrc.\n",
                      __LINE__, rc);
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
-    srand((unsigned)RTTimeNanoTS());
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
     pwszRand[30] = 0;
@@ -236,7 +229,6 @@ static void test1(RTTEST hTest)
      */
     RTTestSub(hTest, "Random RTUtf16ToUtf8 + RTStrToUtf16Ex");
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
-    srand((unsigned)RTTimeNanoTS());
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
     pwszRand[30] = 0;
@@ -642,7 +634,7 @@ void test2(RTTEST hTest)
  */
 void test3(RTTEST hTest)
 {
-    RTTestSub(hTest, "Case Sensitivitity");
+    RTTestSub(hTest, "Case Sensitivity");
 
     if (    RTUniCpToLower('a') != 'a'
         ||  RTUniCpToLower('A') != 'a'
@@ -997,102 +989,144 @@ static void testStrStr(RTTEST hTest)
 }
 
 
-void testMinistring(RTTEST hTest)
+void testUtf8Latin1(RTTEST hTest)
 {
-    RTTestSub(hTest, "class iprt::MiniString");
+    RTTestSub(hTest, "Latin-1 <-> Utf-8 conversion functions");
 
-#define CHECK(expr) \
-    do { \
-        if (!(expr)) \
-            RTTestFailed(hTest, "%d: FAILED %s", __LINE__, #expr); \
-    } while (0)
-
-#define CHECK_DUMP(expr, value) \
-    do { \
-        if (!(expr)) \
-            RTTestFailed(hTest, "%d: FAILED %s, got \"%s\"", __LINE__, #expr, value); \
-    } while (0)
-
-#define CHECK_DUMP_I(expr) \
-    do { \
-        if (!(expr)) \
-            RTTestFailed(hTest, "%d: FAILED %s, got \"%d\"", __LINE__, #expr, expr); \
-    } while (0)
-
-    iprt::MiniString empty;
-    CHECK( (empty.length() == 0) );
-    CHECK( (empty.capacity() == 0) );
-
-    iprt::MiniString sixbytes("12345");
-    CHECK( (sixbytes.length() == 5) );
-    CHECK( (sixbytes.capacity() == 6) );
-
-    sixbytes.append("678");
-    CHECK( (sixbytes.length() == 8) );
-    CHECK( (sixbytes.capacity() == 9) );
-
-    char *psz = sixbytes.mutableRaw();
-        // 12345678
-        //       ^
-        // 0123456
-    psz[6] = '\0';
-    sixbytes.jolt();
-    CHECK( (sixbytes.length() == 6) );
-    CHECK( (sixbytes.capacity() == 7) );
-
-    iprt::MiniString morebytes("tobereplaced");
-    morebytes = "newstring ";
-    morebytes.append(sixbytes);
-
-    CHECK_DUMP( (morebytes == "newstring 123456"), morebytes.c_str() );
-
-    iprt::MiniString third(morebytes);
-    third.reserve(100 * 1024);      // 100 KB
-    CHECK_DUMP( (third == "newstring 123456"), morebytes.c_str() );
-    CHECK( (third.capacity() == 100 * 1024) );
-    CHECK( (third.length() == morebytes.length()) );        // must not have changed
-
-    iprt::MiniString copy1(morebytes);
-    iprt::MiniString copy2 = morebytes;
-    CHECK( (copy1 == copy2) );
-
-    copy1 = NULL;
-    CHECK( (copy1.length() == 0) );
-
-    copy1 = "";
-    CHECK( (copy1.length() == 0) );
-
-    CHECK( (iprt::MiniString("abc") < iprt::MiniString("def")) );
-    CHECK( (iprt::MiniString("abc") != iprt::MiniString("def")) );
-    CHECK_DUMP_I( (iprt::MiniString("def") > iprt::MiniString("abc")) );
-
-    copy2.setNull();
-    for (int i = 0;
-         i < 100;
-         ++i)
+    /* Test Utf8 -> Latin1 */
+    size_t cch_szAll = 0;
+    size_t cbShort = RTStrCalcLatin1Len(g_szAll);
+    RTTEST_CHECK(hTest, cbShort == 0);
+    int rc = RTStrCalcLatin1LenEx(g_szAll, 383, &cch_szAll);
+    RTTEST_CHECK(hTest, (cch_szAll == 255));
+    rc = RTStrCalcLatin1LenEx(g_szAll, RTSTR_MAX, &cch_szAll);
+    RTTEST_CHECK_RC(hTest, rc, VERR_NO_TRANSLATION);
+    char *psz = NULL;
+    char szShort[256] = { 0 };
+    memcpy(szShort, g_szAll, 255);
+    cbShort = RTStrCalcLatin1Len(szShort);
+    RTTEST_CHECK(hTest, cbShort == 191);
+    rc = RTStrToLatin1(szShort, &psz);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
     {
-        copy2.reserve(50);      // should be ignored after 50 loops
-        copy2.append("1");
+        RTTEST_CHECK(hTest, (strlen(psz) == 191));
+        for (unsigned i = 0, j = 1; psz[i] != '\0'; ++i, ++j)
+            if (psz[i] != (char) j)
+            {
+                RTTestFailed(hTest, "conversion of g_szAll to Latin1 failed at position %u\n", i);
+                break;
+            }
     }
-    CHECK( (copy2.length() == 100) );
-
-    copy2.setNull();
-    for (int i = 0;
-         i < 100;
-         ++i)
+    RTStrFree(psz);
+    rc = RTStrToLatin1(g_szAll, &psz);
+    RTTEST_CHECK_RC(hTest, rc, VERR_NO_TRANSLATION);
+    char sz[512];
+    char *psz2 = &sz[0];
+    size_t cchActual = 0;
+    rc = RTStrToLatin1Ex(g_szAll, sizeof(sz) - 1, &psz2, sizeof(sz),
+                          &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_NO_TRANSLATION);
+    RTTEST_CHECK_MSG(hTest, cchActual == 0,
+                     (hTest, "cchActual=%lu\n", cchActual));
+    rc = RTStrToLatin1Ex(g_szAll, 383, &psz2, sizeof(sz),
+                          &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
     {
-        copy2.reserve(50);      // should be ignored after 50 loops
-        copy2.append('1');
+        RTTEST_CHECK(hTest, (cchActual == 255));
+        RTTEST_CHECK(hTest, (cchActual == strlen(sz)));
+        for (unsigned i = 0, j = 1; psz2[i] != '\0'; ++i, ++j)
+            if (psz2[i] != (char) j)
+            {
+                RTTestFailed(hTest, "second conversion of g_szAll to Latin1 failed at position %u\n", i);
+                break;
+            }
     }
-    CHECK( (copy2.length() == 100) );
+    rc = RTStrToLatin1Ex(g_szAll, 129, &psz2, 128, &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_BUFFER_OVERFLOW);
+    RTTEST_CHECK_MSG(hTest, cchActual == 128,
+                     (hTest, "cchActual=%lu\n", cchActual));
+    rc = RTStrToLatin1Ex(g_szAll, 383, &psz, 0, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cchActual == 255));
+        RTTEST_CHECK(hTest, (cchActual == strlen(psz)));
+        for (unsigned i = 0, j = 1; psz[i] != '\0'; ++i, ++j)
+            if (   ((j < 0x100) && (psz[i] != (char) j))
+                || ((j > 0xff) && psz[i] != '?'))
+            {
+                RTTestFailed(hTest, "third conversion of g_szAll to Latin1 failed at position %u\n", i);
+                break;
+            }
+    }
+    const char *pszBad = "Hello\xDC\xD8";
+    rc = RTStrToLatin1Ex(pszBad, RTSTR_MAX, &psz2, sizeof(sz),
+                           &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_INVALID_UTF8_ENCODING);
+    RTStrFree(psz);
 
-#undef CHECK
+    /* Test Latin1 -> Utf8 */
+    const char *pszLat1 = "\x01\x20\x40\x80\x81";
+    RTTEST_CHECK(hTest, RTLatin1CalcUtf8Len(pszLat1) == 7);
+    rc = RTLatin1CalcUtf8LenEx(pszLat1, 3, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest, cchActual == 3);
+    rc = RTLatin1CalcUtf8LenEx(pszLat1, RTSTR_MAX, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest, cchActual == 7);
+    char *pch = NULL;
+    char ch[8];
+    char *pch2 = &ch[0];
+    cchActual = 0;
+    rc = RTLatin1ToUtf8(pszLat1, &pch);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest, !strcmp(pch, "\x01\x20\x40\xC2\x80\xC2\x81"));
+    RTStrFree(pch);
+    rc = RTLatin1ToUtf8Ex(pszLat1, RTSTR_MAX, &pch, 0, &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cchActual == 7));
+        RTTEST_CHECK(hTest, !strcmp(pch, "\x01\x20\x40\xC2\x80\xC2\x81"));
+    }
+    RTStrFree(pch);
+    rc = RTLatin1ToUtf8Ex(pszLat1, RTSTR_MAX, &pch, 0, NULL);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+        RTTEST_CHECK(hTest, !strcmp(pch, "\x01\x20\x40\xC2\x80\xC2\x81"));
+    RTStrFree(pch);
+    rc = RTLatin1ToUtf8Ex(pszLat1, RTSTR_MAX, &pch2, RT_ELEMENTS(ch),
+                          &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cchActual == 7));
+        RTTEST_CHECK(hTest, !strcmp(pch2, "\x01\x20\x40\xC2\x80\xC2\x81"));
+    }
+    rc = RTLatin1ToUtf8Ex(pszLat1, 3, &pch2, RT_ELEMENTS(ch),
+                           &cchActual);
+    RTTEST_CHECK_RC_OK(hTest, rc);
+    if (RT_SUCCESS(rc))
+    {
+        RTTEST_CHECK(hTest, (cchActual == 3));
+        RTTEST_CHECK(hTest, !strcmp(pch2, "\x01\x20\x40"));
+    }
+    rc = RTLatin1ToUtf8Ex(pszLat1, RTSTR_MAX, &pch2, RT_ELEMENTS(ch) - 1,
+                          &cchActual);
+    RTTEST_CHECK_RC(hTest, rc, VERR_BUFFER_OVERFLOW);
+    RTTEST_CHECK(hTest, (cchActual == 7));
+    RTTestSubDone(hTest);
 }
 
 
-void testLatin1(RTTEST hTest)
+void testUtf16Latin1(RTTEST hTest)
 {
-    RTTestSub(hTest, "Latin1 conversion functions");
+    RTTestSub(hTest, "Latin-1 <-> Utf-16 conversion functions");
 
     /* Test Utf16 -> Latin1 */
     size_t cch_szAll = 0;
@@ -1171,15 +1205,15 @@ void testLatin1(RTTEST hTest)
 
     /* Test Latin1 -> Utf16 */
     const char *pszLat1 = "\x01\x20\x40\x80\x81";
-    RTTEST_CHECK(hTest, (RTLatin1CalcUtf16Len(pszLat1) == 5));
+    RTTEST_CHECK(hTest, RTLatin1CalcUtf16Len(pszLat1) == 5);
     rc = RTLatin1CalcUtf16LenEx(pszLat1, 3, &cchActual);
     RTTEST_CHECK_RC_OK(hTest, rc);
     if (RT_SUCCESS(rc))
-        RTTEST_CHECK(hTest, (cchActual == 3));
+        RTTEST_CHECK(hTest, cchActual == 3);
     rc = RTLatin1CalcUtf16LenEx(pszLat1, RTSTR_MAX, &cchActual);
     RTTEST_CHECK_RC_OK(hTest, rc);
     if (RT_SUCCESS(rc))
-        RTTEST_CHECK(hTest, (cchActual == 5));
+        RTTEST_CHECK(hTest, cchActual == 5);
     RTUTF16 *pwc = NULL;
     RTUTF16 wc[6];
     RTUTF16 *pwc2 = &wc[0];
@@ -1207,6 +1241,7 @@ void testLatin1(RTTEST hTest)
         RTTEST_CHECK(hTest,    (pwc[0] == 1) && (pwc[1] == 0x20)
                             && (pwc[2] == 0x40) && (pwc[3] == 0x80)
                             && (pwc[4] == 0x81) && (pwc[5] == '\0'));
+    RTUtf16Free(pwc);
     rc = RTLatin1ToUtf16Ex(pszLat1, RTSTR_MAX, &pwc2, RT_ELEMENTS(wc),
                            &cwActual);
     RTTEST_CHECK_RC_OK(hTest, rc);
@@ -1229,8 +1264,6 @@ void testLatin1(RTTEST hTest)
     rc = RTLatin1ToUtf16Ex(pszLat1, RTSTR_MAX, &pwc2, RT_ELEMENTS(wc) - 1,
                            &cwActual);
     RTTEST_CHECK_RC(hTest, rc, VERR_BUFFER_OVERFLOW);
-    /** @todo Either fix the documentation or fix the code - cchActual is
-     * set to the number of bytes actually encoded. */
     RTTEST_CHECK(hTest, (cwActual == 5));
     RTTestSubDone(hTest);
 }
@@ -1238,7 +1271,6 @@ void testLatin1(RTTEST hTest)
 
 static void testNoTransation(RTTEST hTest)
 {
-
     /*
      * Try trigger a VERR_NO_TRANSLATION error in convert to
      * current CP to latin-1.
@@ -1271,6 +1303,84 @@ static void testNoTransation(RTTEST hTest)
     RTTestSubDone(hTest);
 }
 
+static void testGetPut(RTTEST hTest)
+{
+    /*
+     * Test RTStrPutCp, RTStrGetCp and RTStrGetCpEx.
+     */
+    RTTestSub(hTest, "RTStrPutCp, RTStrGetCp and RTStrGetCpEx");
+
+    RTUNICP uc = 0;
+    while (uc <= 0x10fffd)
+    {
+        /* Figure the range - skip illegal ranges. */
+        RTUNICP ucFirst = uc;
+        if (ucFirst - UINT32_C(0xd800) <= 0x7ff)
+            ucFirst = 0xe000;
+        else if (ucFirst == UINT32_C(0xfffe) || ucFirst == UINT32_C(0xffff))
+            ucFirst = 0x10000;
+
+        RTUNICP ucLast  = ucFirst + 1023;
+        if (ucLast - UINT32_C(0xd800) <= 0x7ff)
+            ucLast = 0xd7ff;
+        else if (ucLast == UINT32_C(0xfffe) || ucLast == UINT32_C(0xffff))
+            ucLast = 0xfffd;
+
+        /* Encode the range into a string, decode each code point as we go along. */
+        char sz1[8192];
+        char *pszDst = sz1;
+        for (uc = ucFirst; uc <= ucLast; uc++)
+        {
+            char *pszBefore = pszDst;
+            pszDst = RTStrPutCp(pszDst, uc);
+            RTTESTI_CHECK(pszBefore - pszDst < 6);
+
+            RTUNICP uc2 = RTStrGetCp(pszBefore);
+            RTTESTI_CHECK_MSG(uc2 == uc, ("uc2=%#x uc=%#x\n", uc2, uc));
+
+            const char *pszSrc = pszBefore;
+            RTUNICP uc3 = 42;
+            RTTESTI_CHECK_RC(RTStrGetCpEx(&pszSrc, &uc3), VINF_SUCCESS);
+            RTTESTI_CHECK_MSG(uc3 == uc, ("uc3=%#x uc=%#x\n", uc3, uc));
+            RTTESTI_CHECK_MSG(pszSrc == pszDst, ("pszSrc=%p pszDst=%p\n", pszSrc, pszDst));
+        }
+
+        /* Decode and re-encode it. */
+        const char *pszSrc = pszDst = sz1;
+        for (uc = ucFirst; uc <= ucLast; uc++)
+        {
+            RTUNICP uc2 = RTStrGetCp(pszSrc);
+            RTTESTI_CHECK_MSG(uc2 == uc, ("uc2=%#x uc=%#x\n", uc2, uc));
+
+            RTUNICP uc3 = 42;
+            RTTESTI_CHECK_RC(RTStrGetCpEx(&pszSrc, &uc3), VINF_SUCCESS);
+            RTTESTI_CHECK_MSG(uc3 == uc, ("uc3=%#x uc=%#x\n", uc3, uc));
+
+            pszDst = RTStrPutCp(pszDst, uc);
+            RTTESTI_CHECK_MSG(pszSrc == pszDst, ("pszSrc=%p pszDst=%p\n", pszSrc, pszDst));
+            pszSrc = pszDst;
+        }
+
+        /* Decode and wipe it (checking compiler optimizations). */
+        pszSrc = pszDst = sz1;
+        for (uc = ucFirst; uc <= ucLast; uc++)
+        {
+            RTUNICP uc2 = RTStrGetCp(pszSrc);
+            RTTESTI_CHECK_MSG(uc2 == uc, ("uc2=%#x uc=%#x\n", uc2, uc));
+
+            RTUNICP uc3 = 42;
+            RTTESTI_CHECK_RC(RTStrGetCpEx(&pszSrc, &uc3), VINF_SUCCESS);
+            RTTESTI_CHECK_MSG(uc3 == uc, ("uc3=%#x uc=%#x\n", uc3, uc));
+
+            pszDst = RTStrPutCp(pszDst, 0);
+        }
+
+        /* advance */
+        uc = ucLast + 1;
+    }
+
+}
+
 
 int main()
 {
@@ -1278,13 +1388,13 @@ int main()
      * Init the runtime, test and say hello.
      */
     RTTEST hTest;
-    int rc = RTTestInitAndCreate("tstUtf8", &hTest);
-    if (rc)
-        return rc;
+    RTEXITCODE rcExit = RTTestInitAndCreate("tstUtf8", &hTest);
+    if (rcExit != RTEXITCODE_SUCCESS)
+        return rcExit;
     RTTestBanner(hTest);
 
     /*
-     * Run the test.
+     * Run the tests.
      */
     InitStrings();
     test1(hTest);
@@ -1294,9 +1404,10 @@ int main()
     TstRTStrPurgeEncoding(hTest);
     testStrEnd(hTest);
     testStrStr(hTest);
-    testMinistring(hTest);
-    testLatin1(hTest);
+    testUtf8Latin1(hTest);
+    testUtf16Latin1(hTest);
     testNoTransation(hTest);
+    testGetPut(hTest);
 
     Benchmarks(hTest);
 

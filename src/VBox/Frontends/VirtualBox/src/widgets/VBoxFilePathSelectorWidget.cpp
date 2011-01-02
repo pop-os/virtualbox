@@ -1,4 +1,4 @@
-/* $Id: VBoxFilePathSelectorWidget.cpp $ */
+/* $Id: VBoxFilePathSelectorWidget.cpp 33778 2010-11-04 15:25:25Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -17,20 +17,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
-#include "VBoxFilePathSelectorWidget.h"
-#include "VBoxGlobal.h"
+/* Local includes */
 #include "QIFileDialog.h"
 #include "QILabel.h"
 #include "QILineEdit.h"
+#include "UIIconPool.h"
+#include "VBoxFilePathSelectorWidget.h"
 #include "VBoxGlobal.h"
 
-/* Qt includes */
+/* Global includes */
+#include <iprt/assert.h>
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
 #include <QFocusEvent>
+#include <QHBoxLayout>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QTimer>
@@ -77,8 +79,8 @@ VBoxFilePathSelectorWidget::VBoxFilePathSelectorWidget (QWidget *aParent)
     insertItem (ResetId, "");
 
     /* Attaching known icons */
-    setItemIcon (SelectId, VBoxGlobal::iconSet (":/select_file_16px.png"));
-    setItemIcon (ResetId, VBoxGlobal::iconSet (":/eraser_16px.png"));
+    setItemIcon(SelectId, UIIconPool::iconSet(":/select_file_16px.png"));
+    setItemIcon(ResetId, UIIconPool::iconSet(":/eraser_16px.png"));
 
     /* Setup context menu */
     addAction (mCopyAction);
@@ -153,7 +155,7 @@ void VBoxFilePathSelectorWidget::setResetEnabled (bool aEnabled)
     else if (aEnabled && count() - 1 == ResetId - 1)
     {
         insertItem (ResetId, "");
-        setItemIcon (ResetId, VBoxGlobal::iconSet (":/eraser_16px.png"));
+        setItemIcon(ResetId, UIIconPool::iconSet(":/eraser_16px.png"));
     }
     retranslateUi();
 }
@@ -208,7 +210,7 @@ QString VBoxFilePathSelectorWidget::defaultSaveExt() const
  *
  * May be used in @c activated() signal handlers to distinguish between
  * non-path items like "Other..." or "Reset" that get temporarily activated
- * when performing the corresponding actiojn and the item that contains a
+ * when performing the corresponding action and the item that contains a
  * real selected file/folder path.
  */
 bool VBoxFilePathSelectorWidget::isPathSelected() const

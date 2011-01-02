@@ -145,7 +145,11 @@ Py_nsISupports::getattr(const char *name)
 Py_nsISupports::setattr(const char *name, PyObject *v)
 {
 	char buf[128];
+#ifdef VBOX
+	snprintf(buf, sizeof(buf), "%s has read-only attributes", ob_type->tp_name );
+#else
 	sprintf(buf, "%s has read-only attributes", ob_type->tp_name );
+#endif
 	PyErr_SetString(PyExc_TypeError, buf);
 	return -1;
 }
@@ -313,7 +317,9 @@ Py_nsISupports::PyObjectFromInterface(nsISupports *pis,
 	if (!bIsInternalCall) {
 #ifdef NS_DEBUG
 		nsISupports *queryResult = nsnull;
+		Py_BEGIN_ALLOW_THREADS;
 		pis->QueryInterface(riid, (void **)&queryResult);
+		Py_END_ALLOW_THREADS;
 		NS_ASSERTION(queryResult == pis, "QueryInterface needed");
 		NS_IF_RELEASE(queryResult);
 #endif

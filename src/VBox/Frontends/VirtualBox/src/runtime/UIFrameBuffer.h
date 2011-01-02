@@ -155,7 +155,7 @@ public:
     STDMETHOD(COMGETTER(UsesGuestVRAM)) (BOOL *pbUsesGuestVRAM);
     STDMETHOD(COMGETTER(HeightReduction)) (ULONG *puHeightReduction);
     STDMETHOD(COMGETTER(Overlay)) (IFramebufferOverlay **ppOverlay);
-    STDMETHOD(COMGETTER(WinId)) (ULONG64 *pWinId);
+    STDMETHOD(COMGETTER(WinId)) (LONG64 *pWinId);
 
     STDMETHOD(Lock)();
     STDMETHOD(Unlock)();
@@ -175,6 +175,9 @@ public:
 
     ulong width() { return m_width; }
     ulong height() { return m_height; }
+
+    virtual QSize scaledSize() const { return m_scaledSize; }
+    virtual void setScaledSize(const QSize &size = QSize()) { m_scaledSize = size; }
 
     virtual ulong pixelFormat()
     {
@@ -234,7 +237,8 @@ protected:
     RTCRITSECT m_critSect;
     int m_width;
     int m_height;
-    uint64_t m_uWinId;
+    QSize m_scaledSize;
+    int64_t m_WinId;
     bool m_fIsDeleted;
 
 #if defined (Q_OS_WIN32)
@@ -245,4 +249,3 @@ private:
 };
 
 #endif // !___UIFrameBuffer_h___
-

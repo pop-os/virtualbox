@@ -1,4 +1,4 @@
-/* $Id: VBoxService-win.cpp $ */
+/* $Id: VBoxService-win.cpp 29817 2010-05-26 13:54:41Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions Service Skeleton, Windows Specific Parts.
  */

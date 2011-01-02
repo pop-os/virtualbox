@@ -1,4 +1,4 @@
-/* $Id: PDMLdr.cpp $ */
+/* $Id: PDMLdr.cpp 35218 2010-12-17 12:45:16Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device Manager, module loader.
  */
@@ -34,8 +34,10 @@
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
-#include <iprt/alloc.h>
+#include <iprt/ctype.h>
+#include <iprt/file.h>
 #include <iprt/ldr.h>
+#include <iprt/mem.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 
@@ -60,10 +62,10 @@ typedef struct PDMGETIMPORTARGS
 *   Internal Functions                                                         *
 *******************************************************************************/
 static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol, unsigned uSymbol, RTUINTPTR *pValue, void *pvUser);
-static int      pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName);
-static char *   pdmR3FileRC(const char *pszFile);
-static char *   pdmR3FileR0(const char *pszFile);
-static char *   pdmR3File(const char *pszFile, const char *pszDefaultExt, bool fShared);
+static int      pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName, const char *pszSearchPath);
+static char    *pdmR3FileRC(const char *pszFile, const char *pszSearchPath);
+static char    *pdmR3FileR0(const char *pszFile, const char *pszSearchPath);
+static char    *pdmR3File(const char *pszFile, const char *pszDefaultExt, const char *pszSearchPath, bool fShared);
 
 
 
@@ -75,7 +77,7 @@ static char *   pdmR3File(const char *pszFile, const char *pszDefaultExt, bool f
  */
 VMMR3DECL(int) PDMR3LdrLoadVMMR0U(PUVM pUVM)
 {
-    return pdmR3LoadR0U(pUVM, NULL, VMMR0_MAIN_MODULE_NAME);
+    return pdmR3LoadR0U(pUVM, NULL, VMMR0_MAIN_MODULE_NAME, NULL);
 }
 
 
@@ -85,9 +87,9 @@ VMMR3DECL(int) PDMR3LdrLoadVMMR0U(PUVM pUVM)
  * This routine will load the Host Context Ring-0 and Guest
  * Context VMM modules.
  *
- * @returns VBox stutus code.
+ * @returns VBox status code.
  * @param   pUVM        Pointer to the user mode VM structure.
- * @param   pvVMMR0Mod  The opqaue returned by PDMR3LdrLoadVMMR0.
+ * @param   pvVMMR0Mod  The opaque returned by PDMR3LdrLoadVMMR0.
  */
 int pdmR3LdrInitU(PUVM pUVM)
 {
@@ -186,7 +188,7 @@ VMMR3DECL(void) PDMR3LdrRelocateU(PUVM pUVM, RTGCINTPTR offDelta)
     {
         /*
          * The relocation have to be done in two passes so imports
-         * can be correctely resolved. The first pass will update
+         * can be correctly resolved. The first pass will update
          * the ImageBase saving the current value in OldImageBase.
          * The second pass will do the actual relocation.
          */
@@ -285,16 +287,16 @@ int pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName)
     if (pModule)
     {
         pModule->eType = PDMMOD_TYPE_R3;
-        memcpy(pModule->szName, pszName, cchName); /* memory is zero'ed, no need to copy terminator :-) */
+        memcpy(pModule->szName, pszName, cchName); /* memory is zero'd, no need to copy terminator :-) */
         memcpy(pModule->szFilename, pszFilename, cchFilename);
         memcpy(&pModule->szFilename[cchFilename], pszSuff, cchSuff);
 
         /*
          * Load the loader item.
          */
-        rc = SUPR3HardenedVerifyFile(pModule->szFilename, "pdmR3LoadR3U", NULL);
-        if (RT_SUCCESS(rc))
-            rc = RTLdrLoad(pModule->szFilename, &pModule->hLdrMod);
+        RTERRINFOSTATIC ErrInfo;
+        RTErrInfoInitStatic(&ErrInfo);
+        rc = SUPR3HardenedLdrLoadPlugIn(pModule->szFilename, &pModule->hLdrMod, &ErrInfo.Core);
         if (RT_SUCCESS(rc))
         {
             pModule->pNext = pUVM->pdm.s.pModules;
@@ -303,7 +305,8 @@ int pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName)
         else
         {
             /* Something went wrong, most likely module not found. Don't consider other unlikely errors */
-            rc = VMSetError(pUVM->pVM, rc, RT_SRC_POS, N_("Unable to load R3 module %s (%s)"), pModule->szFilename, pszName);
+            rc = VMSetError(pUVM->pVM, rc, RT_SRC_POS,
+                            N_("Unable to load R3 module %s (%s): %s"), pModule->szFilename, pszName, ErrInfo.Core.pszMsg);
             RTMemFree(pModule);
         }
     }
@@ -458,7 +461,7 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
      */
     char *pszFile = NULL;
     if (!pszFilename)
-        pszFilename = pszFile = pdmR3FileRC(pszName);
+        pszFilename = pszFile = pdmR3FileRC(pszName, NULL);
 
     /*
      * Allocate the module list node.
@@ -480,9 +483,14 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
     /*
      * Open the loader item.
      */
-    int rc = SUPR3HardenedVerifyFile(pszFilename, "PDMR3LdrLoadRC", NULL);
+    RTERRINFOSTATIC ErrInfo;
+    RTErrInfoInitStatic(&ErrInfo);
+    int rc = SUPR3HardenedVerifyPlugIn(pszFilename, &ErrInfo.Core);
     if (RT_SUCCESS(rc))
+    {
+        RTErrInfoClear(&ErrInfo.Core);
         rc = RTLdrOpen(pszFilename, 0, RTLDRARCH_X86_32, &pModule->hLdrMod);
+    }
     if (RT_SUCCESS(rc))
     {
         /*
@@ -558,8 +566,10 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
     RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 
     /* Don't consider VERR_PDM_MODULE_NAME_CLASH and VERR_NO_MEMORY above as these are very unlikely. */
-    if (RT_FAILURE(rc))
-        rc = VMSetError(pVM, rc, RT_SRC_POS, N_("Cannot load GC module %s"), pszFilename);
+    if (RT_FAILURE(rc) && RTErrInfoIsSet(&ErrInfo.Core))
+        rc = VMSetError(pVM, rc, RT_SRC_POS, N_("Cannot load RC module %s: %s"), pszFilename, ErrInfo.Core.pszMsg);
+    else if (RT_FAILURE(rc))
+        rc = VMSetError(pVM, rc, RT_SRC_POS, N_("Cannot load RC module %s"), pszFilename);
 
     RTMemFree(pModule);
     RTMemTmpFree(pszFile);
@@ -575,8 +585,11 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
  * @param   pUVM            Pointer to the user mode VM structure.
  * @param   pszFilename     Filename of the module binary.
  * @param   pszName         Module name. Case sensitive and the length is limited!
+ * @param   pszSearchPath   List of directories to search if @a pszFilename is
+ *                          not specified.  Can be NULL, in which case the arch
+ *                          dependent install dir is searched.
  */
-static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName)
+static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName, const char *pszSearchPath)
 {
     /*
      * Validate input.
@@ -600,7 +613,7 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName)
      */
     char *pszFile = NULL;
     if (!pszFilename)
-        pszFilename = pszFile = pdmR3FileR0(pszName);
+        pszFilename = pszFile = pdmR3FileR0(pszName, pszSearchPath);
 
     /*
      * Allocate the module list node.
@@ -621,8 +634,10 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName)
     /*
      * Ask the support library to load it.
      */
-    void *pvImageBase;
-    int rc = SUPR3LoadModule(pszFilename, pszName, &pvImageBase);
+    void           *pvImageBase;
+    RTERRINFOSTATIC ErrInfo;
+    RTErrInfoInitStatic(&ErrInfo);
+    int rc = SUPR3LoadModule(pszFilename, pszName, &pvImageBase, &ErrInfo.Core);
     if (RT_SUCCESS(rc))
     {
         pModule->hLdrMod = NIL_RTLDRMOD;
@@ -649,11 +664,11 @@ static int pdmR3LoadR0U(PUVM pUVM, const char *pszFilename, const char *pszName)
 
     RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
     RTMemFree(pModule);
-    LogRel(("pdmR3LoadR0U: pszName=\"%s\" rc=%Rrc\n", pszName, rc));
+    LogRel(("pdmR3LoadR0U: pszName=\"%s\" rc=%Rrc szErr=\"%s\"\n", pszName, rc, ErrInfo.Core.pszMsg));
 
     /* Don't consider VERR_PDM_MODULE_NAME_CLASH and VERR_NO_MEMORY above as these are very unlikely. */
     if (RT_FAILURE(rc) && pUVM->pVM) /** @todo VMR3SetErrorU. */
-        rc = VMSetError(pUVM->pVM, rc, RT_SRC_POS, N_("Cannot load R0 module %s"), pszFilename);
+        rc = VMSetError(pUVM->pVM, rc, RT_SRC_POS, N_("Cannot load R0 module %s: %s"), pszFilename, ErrInfo.Core.pszMsg);
 
     RTMemTmpFree(pszFile); /* might be reference thru pszFilename in the above VMSetError call. */
     return rc;
@@ -769,11 +784,15 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0(PVM pVM, const char *pszModule, const char *p
  * @returns VBox status code.
  * @param   pVM             VM handle.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMR0.r0) is assumed.
+ * @param   pszSearchPath   List of directories to search if @a pszFile is
+ *                          not qualified with a path.  Can be NULL, in which
+ *                          case the arch dependent install dir is searched.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
  * @param   ppvValue        Where to store the symbol value.
  */
-VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const char *pszSymbol, PRTR0PTR ppvValue)
+VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const char *pszSearchPath, const char *pszSymbol,
+                                       PRTR0PTR ppvValue)
 {
 #ifdef PDMLDR_FAKE_MODE
     *ppvValue = 0xdeadbeef;
@@ -798,7 +817,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolR0Lazy(PVM pVM, const char *pszModule, const cha
         RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
         if (!pModule)
         {
-            int rc = pdmR3LoadR0U(pUVM, NULL, pszModule);
+            int rc = pdmR3LoadR0U(pUVM, NULL, pszModule, pszSearchPath);
             AssertMsgRCReturn(rc, ("pszModule=%s rc=%Rrc\n", pszModule, rc), VERR_MODULE_NOT_FOUND);
         }
     }
@@ -872,11 +891,15 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
  * @returns VBox status code.
  * @param   pVM             VM handle.
  * @param   pszModule       Module name. If NULL the main R0 module (VMMGC.gc) is assumes.
+ * @param   pszSearchPath   List of directories to search if @a pszFile is
+ *                          not qualified with a path.  Can be NULL, in which
+ *                          case the arch dependent install dir is searched.
  * @param   pszSymbol       Symbol name. If it's value is less than 64k it's treated like a
  *                          ordinal value rather than a string pointer.
  * @param   pRCPtrValue     Where to store the symbol value.
  */
-VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const char *pszSymbol, PRTRCPTR pRCPtrValue)
+VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const char *pszSearchPath, const char *pszSymbol,
+                                       PRTRCPTR pRCPtrValue)
 {
 #if defined(PDMLDR_FAKE_MODE) || !defined(VBOX_WITH_RAW_MODE)
     *pRCPtrValue = 0xfeedf00d;
@@ -901,7 +924,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
         RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
         if (!pModule)
         {
-            char *pszFilename = pdmR3FileRC(pszModule);
+            char *pszFilename = pdmR3FileRC(pszModule, pszSearchPath);
             AssertMsgReturn(pszFilename, ("pszModule=%s\n", pszModule), VERR_MODULE_NOT_FOUND);
             int rc = PDMR3LdrLoadRC(pVM, pszFilename, pszModule);
             RTMemTmpFree(pszFilename);
@@ -924,7 +947,7 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
  */
 char *pdmR3FileR3(const char *pszFile, bool fShared)
 {
-    return pdmR3File(pszFile, NULL, fShared);
+    return pdmR3File(pszFile, NULL, NULL, fShared);
 }
 
 
@@ -935,11 +958,14 @@ char *pdmR3FileR3(const char *pszFile, bool fShared)
  *          Caller must free this using RTMemTmpFree().
  * @returns NULL on failure.
  *
- * @param   pszFile     File name (no path).
+ * @param   pszFile         File name (no path).
+ * @param   pszSearchPath   List of directories to search if @a pszFile is
+ *                          not qualified with a path.  Can be NULL, in which
+ *                          case the arch dependent install dir is searched.
  */
-char *pdmR3FileR0(const char *pszFile)
+char *pdmR3FileR0(const char *pszFile, const char *pszSearchPath)
 {
-    return pdmR3File(pszFile, NULL, /*fShared=*/false);
+    return pdmR3File(pszFile, NULL, pszSearchPath, /*fShared=*/false);
 }
 
 
@@ -950,11 +976,14 @@ char *pdmR3FileR0(const char *pszFile)
  *          Caller must free this using RTMemTmpFree().
  * @returns NULL on failure.
  *
- * @param   pszFile     File name (no path).
+ * @param   pszFile         File name (no path).
+ * @param   pszSearchPath   List of directories to search if @a pszFile is
+ *                          not qualified with a path.  Can be NULL, in which
+ *                          case the arch dependent install dir is searched.
  */
-char *pdmR3FileRC(const char *pszFile)
+char *pdmR3FileRC(const char *pszFile, const char *pszSearchPath)
 {
-    return pdmR3File(pszFile, NULL, /*fShared=*/false);
+    return pdmR3File(pszFile, NULL, pszSearchPath, /*fShared=*/false);
 }
 
 
@@ -1013,19 +1042,78 @@ static char *pdmR3FileConstruct(const char *pszDir, const char *pszFile, const c
  * @returns NULL on failure.
  * @param   pszFile         File name (no path).
  * @param   pszDefaultExt   The default extention, NULL if none.
+ * @param   pszSearchPath   List of directories to search if @a pszFile is
+ *                          not qualified with a path.  Can be NULL, in which
+ *                          case the arch dependent install dir is searched.
  * @param   fShared         If true, search in the shared directory (/usr/lib on Unix), else
  *                          search in the private directory (/usr/lib/virtualbox on Unix).
  *                          Ignored if VBOX_PATH_SHARED_LIBS is not defined.
  * @todo    We'll have this elsewhere than in the root later!
  * @todo    Remove the fShared hack again once we don't need to link against VBoxDD anymore!
  */
-static char *pdmR3File(const char *pszFile, const char *pszDefaultExt, bool fShared)
+static char *pdmR3File(const char *pszFile, const char *pszDefaultExt, const char *pszSearchPath, bool fShared)
 {
     char szPath[RTPATH_MAX];
     int  rc;
 
-    rc = fShared ? RTPathSharedLibs(szPath, sizeof(szPath))
-                 : RTPathAppPrivateArch(szPath, sizeof(szPath));
+    AssertLogRelReturn(!fShared || !pszSearchPath, NULL);
+    Assert(!RTPathHavePath(pszFile));
+
+    /*
+     * If there is a path, search it.
+     */
+    if (   pszSearchPath
+        && *pszSearchPath)
+    {
+        /* Check the filename length. */
+        size_t const    cchFile = strlen(pszFile);
+        if (cchFile >= sizeof(szPath))
+            return NULL;
+
+        /*
+         * Walk the search path.
+         */
+        const char *psz = pszSearchPath;
+        while (*psz)
+        {
+            /* Skip leading blanks - no directories with leading spaces, thank you. */
+            while (RT_C_IS_BLANK(*psz))
+                psz++;
+
+            /* Find the end of this element. */
+            const char *pszNext;
+            const char *pszEnd = strchr(psz, ';');
+            if (!pszEnd)
+                pszEnd = pszNext = strchr(psz, '\0');
+            else
+                pszNext = pszEnd + 1;
+            if (pszEnd != psz)
+            {
+                rc = RTPathJoinEx(szPath, sizeof(szPath), psz, pszEnd - psz, pszFile, cchFile);
+                if (RT_SUCCESS(rc))
+                {
+                    if (RTFileExists(szPath))
+                    {
+                        size_t cchPath = strlen(szPath) + 1;
+                        char *pszRet = (char *)RTMemTmpAlloc(cchPath);
+                        if (pszRet)
+                            memcpy(pszRet, szPath, cchPath);
+                        return pszRet;
+                    }
+                }
+            }
+
+            /* advance */
+            psz = pszNext;
+        }
+    }
+
+    /*
+     * Use the default location.
+     */
+    rc = fShared
+       ? RTPathSharedLibs(    szPath, sizeof(szPath))
+       : RTPathAppPrivateArch(szPath, sizeof(szPath));
     if (!RT_SUCCESS(rc))
     {
         AssertMsgFailed(("RTPath[SharedLibs|AppPrivateArch](,%d) failed rc=%d!\n", sizeof(szPath), rc));
@@ -1323,8 +1411,10 @@ VMMR3DECL(int)  PDMR3LdrEnumModules(PVM pVM, PFNPDMR3ENUM pfnCallback, void *pvA
  * @param   pszModule       The module name.
  * @param   enmType         The module type.
  * @param   fLazy           Lazy loading the module if set.
+ * @param   pszSearchPath   Search path for use when lazy loading.
  */
-static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE enmType, bool fLazy)
+static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE enmType,
+                                  bool fLazy, const char *pszSearchPath)
 {
     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
     for (PPDMMOD pModule = pUVM->pdm.s.pModules; pModule; pModule = pModule->pNext)
@@ -1342,13 +1432,13 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
 #ifdef VBOX_WITH_RAW_MODE
             case PDMMOD_TYPE_RC:
             {
-                char *pszFilename = pdmR3FileRC(pszModule);
+                char *pszFilename = pdmR3FileRC(pszModule, pszSearchPath);
                 if (pszFilename)
                 {
                     int rc = PDMR3LdrLoadRC(pUVM->pVM, pszFilename, pszModule);
                     RTMemTmpFree(pszFilename);
                     if (RT_SUCCESS(rc))
-                        return pdmR3LdrFindModule(pUVM, pszModule, enmType, false);
+                        return pdmR3LdrFindModule(pUVM, pszModule, enmType, false, NULL);
                 }
                 break;
             }
@@ -1356,9 +1446,9 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
 
             case PDMMOD_TYPE_R0:
             {
-                int rc = pdmR3LoadR0U(pUVM, NULL, pszModule);
+                int rc = pdmR3LoadR0U(pUVM, NULL, pszModule, pszSearchPath);
                 if (RT_SUCCESS(rc))
-                    return pdmR3LdrFindModule(pUVM, pszModule, enmType, false);
+                    return pdmR3LdrFindModule(pUVM, pszModule, enmType, false, NULL);
                 break;
             }
 
@@ -1383,6 +1473,8 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
  *                          R0 or RC module (@a fRing0OrRC).  We'll attempt to
  *                          load the module if it isn't found in the module
  *                          list.
+ * @param   pszSearchPath   The module search path.  If NULL, search the
+ *                          architecture dependent install directory.
  * @param   pszSymPrefix    What to prefix the symbols in the list with.  The
  *                          idea is that you define a list that goes with an
  *                          interface (INTERFACE_SYM_LIST) and reuse it with
@@ -1406,8 +1498,9 @@ static PPDMMOD pdmR3LdrFindModule(PUVM pUVM, const char *pszModule, PDMMODTYPE e
  *                          it's raw-mode context interface.
  */
 VMMR3DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cbInterface,
-                                           const char *pszModule, const char *pszSymPrefix,
-                                           const char *pszSymList, bool fRing0)
+                                           const char *pszModule, const char *pszSearchPath,
+                                           const char *pszSymPrefix, const char *pszSymList,
+                                           bool fRing0)
 {
     /*
      * Find the module.
@@ -1416,7 +1509,7 @@ VMMR3DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size_t cb
     PPDMMOD pModule = pdmR3LdrFindModule(pVM->pUVM,
                                          pszModule ? pszModule : fRing0 ? "VMMR0.r0" : "VMMGC.gc",
                                          fRing0 ? PDMMOD_TYPE_R0 : PDMMOD_TYPE_RC,
-                                         true /*fLazy*/);
+                                         true /*fLazy*/, pszSearchPath);
     if (pModule)
     {
         /* Prep the symbol name. */

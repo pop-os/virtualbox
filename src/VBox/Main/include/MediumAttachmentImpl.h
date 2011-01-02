@@ -19,14 +19,14 @@
 #define ____H_MEDIUMATTACHMENTIMPL
 
 #include "VirtualBoxBase.h"
+#include "BandwidthGroupImpl.h"
 
 class ATL_NO_VTABLE MediumAttachment :
     public VirtualBoxBase,
-    public com::SupportErrorInfoImpl<MediumAttachment, IMediumAttachment>,
-    public VirtualBoxSupportTranslation<MediumAttachment>,
     VBOX_SCRIPTABLE_IMPL(IMediumAttachment)
 {
 public:
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(MediumAttachment, IMediumAttachment)
 
     DECLARE_NOT_AGGREGATABLE(MediumAttachment)
 
@@ -48,7 +48,8 @@ public:
                  LONG aPort,
                  LONG aDevice,
                  DeviceType_T aType,
-                 bool fPassthrough);
+                 bool fPassthrough,
+                 BandwidthGroup *aBandwidthGroup);
     void uninit();
 
     HRESULT FinalConstruct();
@@ -61,6 +62,7 @@ public:
     STDMETHOD(COMGETTER(Device))(LONG *aDevice);
     STDMETHOD(COMGETTER(Type))(DeviceType_T *aType);
     STDMETHOD(COMGETTER(Passthrough))(BOOL *aPassthrough);
+    STDMETHOD(COMGETTER(BandwidthGroup))(IBandwidthGroup **aBwGroup);
 
     // public internal methods
     void rollback();
@@ -77,6 +79,7 @@ public:
     LONG getDevice() const;
     DeviceType_T getType() const;
     bool getPassthrough() const;
+    const ComObjPtr<BandwidthGroup>& getBandwidthGroup() const;
 
     bool matches(CBSTR aControllerName, LONG aPort, LONG aDevice);
 
@@ -86,11 +89,11 @@ public:
     /** Must be called from under this object's write lock. */
     void updatePassthrough(bool aPassthrough);
 
+    /** Must be called from under this object's write lock. */
+    void updateBandwidthGroup(const ComObjPtr<BandwidthGroup> &aBandwidthGroup);
+
     /** Get a unique and somewhat descriptive name for logging. */
     const char* getLogName(void) const { return mLogName.c_str(); }
-
-    /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "MediumAttachment"; }
 
 private:
     struct Data;

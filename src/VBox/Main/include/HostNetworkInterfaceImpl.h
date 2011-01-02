@@ -1,4 +1,4 @@
-/* $Id: HostNetworkInterfaceImpl.h $ */
+/* $Id: HostNetworkInterfaceImpl.h 30739 2010-07-08 12:27:42Z vboxsync $ */
 
 /** @file
  *
@@ -31,13 +31,11 @@ struct NETIFINFO;
 
 class ATL_NO_VTABLE HostNetworkInterface :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<HostNetworkInterface, IHostNetworkInterface>,
-    public VirtualBoxSupportTranslation<HostNetworkInterface>,
     VBOX_SCRIPTABLE_IMPL(IHostNetworkInterface)
 {
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (HostNetworkInterface)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(HostNetworkInterface, IHostNetworkInterface)
 
     DECLARE_NOT_AGGREGATABLE (HostNetworkInterface)
 
@@ -81,10 +79,8 @@ public:
     STDMETHOD(EnableDynamicIpConfig) ();
     STDMETHOD(DhcpRediscover) ();
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"HostNetworkInterface"; }
-
     HRESULT setVirtualBox(VirtualBox *pVBox);
+
 private:
     const Bstr mInterfaceName;
     const Guid mGuid;

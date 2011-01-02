@@ -1,4 +1,4 @@
-/* $Id: SUPLib-solaris.cpp $ */
+/* $Id: SUPLib-solaris.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Solaris specific parts.
  */

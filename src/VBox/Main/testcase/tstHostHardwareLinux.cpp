@@ -1,4 +1,4 @@
-/* $Id: tstHostHardwareLinux.cpp $ */
+/* $Id: tstHostHardwareLinux.cpp 34341 2010-11-24 20:14:36Z vboxsync $ */
 /** @file
  *
  * Test executable for quickly excercising/debugging the Linux host hardware
@@ -18,6 +18,7 @@
  */
 
 #include <HostHardwareLinux.h>
+#include <USBGetDevices.h>
 
 #include <VBox/err.h>
 
@@ -51,6 +52,35 @@ int doHotplugEvent(VBoxMainHotplugWaiter *waiter, RTMSINTERVAL cMillies)
             break;
     }
     return rc;
+}
+
+void printDevices(PUSBDEVICE pDevices,
+                  const char *pcszDevices,
+                  const char *pcszMethod)
+{
+    PUSBDEVICE pDevice = pDevices;
+
+    RTPrintf("Enumerating usb devices using %s at %s\n", pcszMethod, pcszDevices);
+    while (pDevice)
+    {
+        RTPrintf("  Manufacturer: %s, product: %s, serial number string: %s\n",
+                    pDevice->pszManufacturer, pDevice->pszProduct,
+                    pDevice->pszSerialNumber);
+        RTPrintf("    Device address: %s\n", pDevice->pszAddress);
+        pDevice = pDevice->pNext;
+    }
+}
+
+void freeDevices(PUSBDEVICE pDevices)
+{
+    PUSBDEVICE pDevice = pDevices, pDeviceNext;
+
+    while (pDevice)
+    {
+        pDeviceNext = pDevice->pNext;
+        deviceFree(pDevice);
+        pDevice = pDeviceNext;
+    }
 }
 
 int main()
@@ -89,63 +119,24 @@ int main()
             RTPrintf (", description: %s", it->mDescription.c_str());
         RTPrintf ("\n");
     }
+    PCUSBDEVTREELOCATION pcLocation = USBProxyLinuxGetDeviceRoot(false);
+    if (pcLocation && !pcLocation->fUseSysfs)
+    {
+        PUSBDEVICE pDevice = USBProxyLinuxGetDevices(pcLocation->szDevicesRoot,
+                                                     false);
+        printDevices(pDevice, pcLocation->szDevicesRoot, "usbfs");
+        freeDevices(pDevice);
+    }
 #ifdef VBOX_USB_WITH_SYSFS
-    VBoxMainUSBDeviceInfo deviceInfo;
-    rc = deviceInfo.UpdateDevices();
-    if (RT_FAILURE(rc))
+    pcLocation = USBProxyLinuxGetDeviceRoot(true);
+    if (pcLocation && pcLocation->fUseSysfs)
     {
-        RTPrintf ("Failed to update the host USB device information, error %Rrc\n",
-                 rc);
-        return 1;
+        PUSBDEVICE pDevice = USBProxyLinuxGetDevices(pcLocation->szDevicesRoot,
+                                                     true);
+        printDevices(pDevice, pcLocation->szDevicesRoot, "sysfs");
+        freeDevices(pDevice);
     }
-    RTPrintf ("Listing USB devices detected:\n");
-    for (USBDeviceInfoList::const_iterator it = deviceInfo.DevicesBegin();
-         it != deviceInfo.DevicesEnd(); ++it)
-    {
-        char szProduct[1024];
-        if (RTLinuxSysFsReadStrFile(szProduct, sizeof(szProduct),
-                                    "%s/product", it->mSysfsPath.c_str()) == -1)
-        {
-            if (errno != ENOENT)
-            {
-                RTPrintf ("Failed to get the product name for device %s: error %s\n",
-                          it->mDevice.c_str(), strerror(errno));
-                return 1;
-            }
-            else
-                szProduct[0] = '\0';
-        }
-        RTPrintf ("  device: %s (%s), sysfs path: %s\n", szProduct, it->mDevice.c_str(),
-                  it->mSysfsPath.c_str());
-        RTPrintf ("    interfaces:\n");
-        for (USBInterfaceList::const_iterator it2 = it->mInterfaces.begin();
-             it2 != it->mInterfaces.end(); ++it2)
-        {
-            char szDriver[RTPATH_MAX];
-            strcpy(szDriver, "none");
-            ssize_t size = RTLinuxSysFsGetLinkDest(szDriver, sizeof(szDriver),
-                                                   "%s/driver", it2->c_str());
-            if (size == -1 && errno != ENOENT)
-            {
-                RTPrintf ("Failed to get the driver for interface %s of device %s: error %s\n",
-                          it2->c_str(), it->mDevice.c_str(), strerror(errno));
-                return 1;
-            }
-            if (RTLinuxSysFsExists("%s/driver", it2->c_str()) != (size != -1))
-            {
-                RTPrintf ("RTLinuxSysFsExists did not return the expected value for the driver link of interface %s of device %s.\n",
-                          it2->c_str(), it->mDevice.c_str());
-                return 1;
-            }
-            uint64_t u64InterfaceClass;
-            u64InterfaceClass = RTLinuxSysFsReadIntFile(16, "%s/bInterfaceClass",
-                                                        it2->c_str());
-            RTPrintf ("      sysfs path: %s, driver: %s, interface class: 0x%x\n",
-                      it2->c_str(), szDriver, u64InterfaceClass);
-        }
-    }
-    VBoxMainHotplugWaiter waiter;
-    RTPrintf ("Waiting for hotplug events.  Note that DBus often seems to deliver duplicate events in close succession.\n");
+    VBoxMainHotplugWaiter waiter(pcLocation->szDevicesRoot);
     RTPrintf ("Waiting for a hotplug event for five seconds...\n");
     doHotplugEvent(&waiter, 5000);
     RTPrintf ("Waiting for a hotplug event, Ctrl-C to abort...\n");

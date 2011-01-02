@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-solaris.c $ */
+/* $Id: thread2-r0drv-solaris.c 34256 2010-11-22 15:55:00Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Solaris.
  */
@@ -77,6 +77,12 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
     /* There is nothing special that needs doing here, but the
        user really better know what he's cooking. */
     return VINF_SUCCESS;
+}
+
+
+void rtThreadNativeDestroy(PRTTHREADINT pThread)
+{
+    NOREF(pThread);
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.cpp $ */
+/* $Id: KeyboardImpl.cpp 30594 2010-07-04 12:53:21Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Keyboard class and related things
@@ -191,6 +191,11 @@ DECLCALLBACK(void) keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PD
     /** @todo Implement me. */
 }
 
+/** @copydoc PDMIKEYBOARDCONNECTOR::pfnLedStatusChange */
+DECLCALLBACK(void) keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
+{
+    /** @todo Implement me. */
+}
 
 /**
  * Construct a keyboard driver instance.
@@ -217,6 +222,7 @@ DECLCALLBACK(int) Keyboard::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     pDrvIns->IBase.pfnQueryInterface        = Keyboard::drvQueryInterface;
 
     pData->Connector.pfnLedStatusChange     = keyboardLedStatusChange;
+    pData->Connector.pfnSetActive           = keyboardSetActive;
 
     /*
      * Get the IKeyboardPort interface of the above driver/device.

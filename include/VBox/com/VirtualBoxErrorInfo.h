@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxErrorInfo.h $ */
+/* $Id: VirtualBoxErrorInfo.h 30714 2010-07-07 16:20:03Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -143,10 +143,10 @@ protected:
 private:
 
     // IVirtualBoxErrorInfo properties
-    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_ResultCode_TO_OBJ (mReal)
-    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_InterfaceID_TO_OBJ (mReal)
-    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_Component_TO_OBJ (mReal)
-    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_Text_TO_OBJ (mReal)
+    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_ResultCode_TO_OBJ(mReal)
+    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_InterfaceID_TO_OBJ(mReal)
+    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_Component_TO_OBJ(mReal)
+    COM_FORWARD_IVirtualBoxErrorInfo_GETTER_Text_TO_OBJ(mReal)
     STDMETHOD(COMGETTER(Next)) (IVirtualBoxErrorInfo **aNext);
 
 #if !defined (VBOX_WITH_XPCOM)

@@ -1,4 +1,4 @@
-/* $Id: alloc-ef.h $ */
+/* $Id: alloc-ef.h 34291 2010-11-23 16:06:11Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, electric fence.
  */
@@ -85,17 +85,17 @@
 /** @def RTALLOC_EFENCE_FREE_FILL
  * This define will enable memset(,RTALLOC_EFENCE_FREE_FILL,)'ing the user memory
  * in the block before freeing/decommitting it. This is useful in GDB since GDB
- * appeares to be able to read the content of the page even after it's been
+ * appears to be able to read the content of the page even after it's been
  * decommitted.
  * Requires RTALLOC_EFENCE_TRACE.
  */
-#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(DOXYGEN_RUNNING)
 # define RTALLOC_EFENCE_FREE_FILL       'f'
 #endif
 
 /** @def RTALLOC_EFENCE_FILLER
  * This define will enable memset(,RTALLOC_EFENCE_FILLER,)'ing the allocated
- * memory when the API doesn't require it to be zero'ed.
+ * memory when the API doesn't require it to be zero'd.
  */
 #define RTALLOC_EFENCE_FILLER           0xef
 
@@ -165,6 +165,8 @@ typedef struct RTMEMBLOCK
     size_t          cbUnaligned;
     /** The aligned size of the block. */
     size_t          cbAligned;
+    /** The allocation tag (read-only string). */
+    const char     *pszTag;
     /** The return address of the allocator function. */
     void           *pvCaller;
     /** Line number of the alloc call. */
@@ -183,8 +185,9 @@ typedef struct RTMEMBLOCK
 ******************************************************************************/
 RT_C_DECLS_BEGIN
 RTDECL(void *)  rtR3MemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cbUnaligned, size_t cbAligned,
-                             void *pvCaller, RT_SRC_POS_DECL);
-RTDECL(void *)  rtR3MemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbNew, void *pvCaller, RT_SRC_POS_DECL);
+                             const char *pszTag, void *pvCaller, RT_SRC_POS_DECL);
+RTDECL(void *)  rtR3MemRealloc(const char *pszOp, RTMEMTYPE enmType, void *pvOld, size_t cbNew,
+                               const char *pszTag, void *pvCaller, RT_SRC_POS_DECL);
 RTDECL(void)    rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, RT_SRC_POS_DECL);
 RT_C_DECLS_END
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-solaris.c $ */
+/* $Id: VBoxNetFlt-solaris.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Solaris Specific Code.
  */
@@ -31,7 +31,7 @@
 #include <iprt/mem.h>
 #include <iprt/thread.h>
 #include <iprt/spinlock.h>
-#include <iprt/crc32.h>
+#include <iprt/crc.h>
 #include <iprt/err.h>
 #include <iprt/ctype.h>
 #define VBOXNETFLT_SOLARIS_IPV6_POLLING
@@ -64,15 +64,6 @@
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 #include <sys/sunldi.h>
-
-/*
- * Experimental: Using netinfo interfaces and queuing out packets.
- * This is for playing better with IPFilter.
- */
-#undef VBOXNETFLT_SOLARIS_USE_NETINFO
-#ifdef VBOXNETFLT_SOLARIS_USE_NETINFO
-# include <sys/neti.h>
-#endif
 
 // Workaround for very strange define in sys/user.h
 // #define u       (curproc->p_user)       /* user is now part of proc structure */
@@ -336,7 +327,7 @@ typedef struct vboxnetflt_stream_t
 typedef struct vboxnetflt_promisc_stream_t
 {
     vboxnetflt_stream_t Stream;           /* dedicated/promiscuous stream */
-    bool fPromisc;                        /* cached promiscous value */
+    bool fPromisc;                        /* cached promiscuous value */
     bool fRawMode;                        /* whether raw mode request was successful */
     uint32_t ModeReqId;                   /* track MIOCTLs for swallowing our fake request acknowledgements */
 #ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
@@ -784,14 +775,14 @@ static int VBoxNetFltSolarisModOpen(queue_t *pQueue, dev_t *pDev, int fOpenMode,
      * Pick up the current global VBOXNETFLTINS instance as
      * the one that we will associate this stream with.
      */
-    ASMAtomicUoWritePtr((void * volatile *)&pStream->pThis, pThis);
+    ASMAtomicUoWritePtr(&pStream->pThis, pThis);
     pStream->Type = g_VBoxNetFltSolarisStreamType;
     switch (pStream->Type)
     {
-        case kIp4Stream:        ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pvIp4Stream, pStream);        break;
-        case kIp6Stream:        ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pvIp6Stream, pStream);        break;
-        case kArpStream:        ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pvArpStream, pStream);        break;
-        case kPromiscStream:    ASMAtomicUoWritePtr((void * volatile *)&pThis->u.s.pvPromiscStream, pStream);    break;
+        case kIp4Stream:        ASMAtomicUoWritePtr(&pThis->u.s.pIp4Stream, pStream);        break;
+        case kIp6Stream:        ASMAtomicUoWritePtr(&pThis->u.s.pIp6Stream, pStream);        break;
+        case kArpStream:        ASMAtomicUoWritePtr(&pThis->u.s.pArpStream, pStream);        break;
+        case kPromiscStream:    ASMAtomicUoWritePtr(&pThis->u.s.pPromiscStream, pStream);    break;
         default:    /* Heh. */
         {
             LogRel((DEVICE_NAME ":VBoxNetFltSolarisModOpen huh!? Invalid stream type %d\n", pStream->Type));
@@ -917,8 +908,7 @@ static int VBoxNetFltSolarisModClose(queue_t *pQueue, int fOpenMode, cred_t *pCr
     {
         vboxnetflt_promisc_stream_t *pPromiscStream = (vboxnetflt_promisc_stream_t *)pStream;
 
-        int rc = RTSemFastMutexRequest(pStream->pThis->u.s.hFastMtx);
-        AssertRCReturn(rc, rc);
+        mutex_enter(&pStream->pThis->u.s.hMtx);
 
         /*
          * Free-up loopback buffers.
@@ -942,11 +932,11 @@ static int VBoxNetFltSolarisModClose(queue_t *pQueue, int fOpenMode, cred_t *pCr
         {
             RTTimerStop(pPromiscStream->pIp6Timer);
             RTTimerDestroy(pPromiscStream->pIp6Timer);
-            ASMAtomicUoWritePtr((void * volatile *)&pPromiscStream->pIp6Timer, NULL);
+            ASMAtomicUoWriteNullPtr(&pPromiscStream->pIp6Timer);
         }
 #endif
 
-        RTSemFastMutexRelease(pStream->pThis->u.s.hFastMtx);
+        mutex_exit(&pStream->pThis->u.s.hMtx);
     }
 
     /*
@@ -962,10 +952,10 @@ static int VBoxNetFltSolarisModClose(queue_t *pQueue, int fOpenMode, cred_t *pCr
      */
     switch (pStream->Type)
     {
-        case kIp4Stream:        ASMAtomicUoWritePtr(pStream->pThis->u.s.pvIp4Stream, NULL);     break;
-        case kIp6Stream:        ASMAtomicUoWritePtr(pStream->pThis->u.s.pvIp6Stream, NULL);     break;
-        case kArpStream:        ASMAtomicUoWritePtr(pStream->pThis->u.s.pvArpStream, NULL);     break;
-        case kPromiscStream:    ASMAtomicUoWritePtr(pStream->pThis->u.s.pvPromiscStream, NULL); break;
+        case kIp4Stream:        ASMAtomicUoWriteNullPtr(&pStream->pThis->u.s.pIp4Stream);     break;
+        case kIp6Stream:        ASMAtomicUoWriteNullPtr(&pStream->pThis->u.s.pIp6Stream);     break;
+        case kArpStream:        ASMAtomicUoWriteNullPtr(&pStream->pThis->u.s.pArpStream);     break;
+        case kPromiscStream:    ASMAtomicUoWriteNullPtr(&pStream->pThis->u.s.pPromiscStream); break;
         default:    /* Heh. */
         {
             AssertRelease(pStream->Type);
@@ -1017,7 +1007,7 @@ static int VBoxNetFltSolarisModReadPut(queue_t *pQueue, mblk_t *pMsg)
         && pStream->Type == kPromiscStream)
     {
         fSendUpstream = false;
-        pThis = ASMAtomicUoReadPtr((void * volatile *)&pStream->pThis);
+        pThis = ASMAtomicUoReadPtrT(&pStream->pThis, PVBOXNETFLTINS);
         if (RT_LIKELY(pThis))
         {
             /*
@@ -1127,7 +1117,7 @@ static int VBoxNetFltSolarisModReadPut(queue_t *pQueue, mblk_t *pMsg)
                         case DL_OK_ACK:
                         {
                             /*
-                             * Swallow our fake promiscous request acknowledgement.
+                             * Swallow our fake promiscuous request acknowledgement.
                              */
                             dl_ok_ack_t *pOkAck = (dl_ok_ack_t *)pMsg->b_rptr;
                             if (pOkAck->dl_correct_primitive == DL_PROMISCON_REQ)
@@ -1392,7 +1382,7 @@ static void vboxNetFltSolarisPromiscReqWrapExcl(queue_t *pQueue, mblk_t *pMsg)
 
 /**
  * Callback wrapper for qtimeout() to safely send promiscuous requests. This is
- * called at the inner perimenter with shared lock.
+ * called at the inner perimeter with shared lock.
  *
  * @param pvData            Pointer to vboxnetflt_promisc_params_t. See
  *                          vboxNetFltPortOsSetActive().
@@ -1403,7 +1393,7 @@ static void vboxNetFltSolarisPromiscReqWrap(void *pvData)
     if (RT_LIKELY(pParams))
     {
         PVBOXNETFLTINS pThis = pParams->pThis;
-        vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvPromiscStream);
+        vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtrT(&pThis->u.s.pPromiscStream, vboxnetflt_promisc_stream_t *);
         if (   pPromiscStream
             && pPromiscStream->Stream.pReadQueue)
         {
@@ -2102,7 +2092,7 @@ static int vboxNetFltSolarisAttachIp4(PVBOXNETFLTINS pThis, bool fAttach)
     LogFlowFunc((DEVICE_NAME ":vboxNetFltSolarisAttachIp4 pThis=%p fAttach=%d\n", pThis, fAttach));
 
     /*
-     * Statuatory Warning: Hackish code ahead.
+     * Statutory Warning: Hackish code ahead.
      */
     char *pszModName = DEVICE_NAME;
 
@@ -2369,7 +2359,7 @@ static int vboxNetFltSolarisAttachIp6(PVBOXNETFLTINS pThis, bool fAttach)
     LogFlowFunc((DEVICE_NAME ":vboxNetFltSolarisAttachIp6 pThis=%p fAttach=%d\n", pThis, fAttach));
 
     /*
-     * Statuatory Warning: Hackish code ahead.
+     * Statutory Warning: Hackish code ahead.
      */
     char *pszModName = DEVICE_NAME;
 
@@ -2569,7 +2559,7 @@ static void vboxNetFltSolarispIp6Timer(PRTTIMER pTimer, void *pvData, uint64_t i
     if (   RT_LIKELY(pThis)
         && RT_LIKELY(pTimer))
     {
-        vboxnetflt_stream_t *pIp6Stream  = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvIp6Stream);
+        vboxnetflt_stream_t *pIp6Stream = ASMAtomicUoReadPtrT(&pThis->u.s.pIp6Stream, vboxnetflt_stream_t *);
         bool fIp6Attaching = ASMAtomicUoReadBool(&pThis->u.s.fAttaching);
         if (   !pIp6Stream
             && !fIp6Attaching)
@@ -2605,7 +2595,7 @@ static int vboxNetFltSolarisSetupIp6Polling(PVBOXNETFLTINS pThis)
     LogFlowFunc((DEVICE_NAME ":vboxNetFltSolarisSetupIp6Polling pThis=%p\n", pThis));
 
     int rc = VERR_GENERAL_FAILURE;
-    vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvPromiscStream);
+    vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtrT(&pThis->u.s.pPromiscStream, vboxnetflt_promisc_stream_t *);
     if (RT_LIKELY(pPromiscStream))
     {
         if (RT_LIKELY(pPromiscStream->pIp6Timer == NULL))
@@ -2659,19 +2649,19 @@ static int vboxNetFltSolarisDetachFromInterface(PVBOXNETFLTINS pThis)
     ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
     vboxNetFltSolarisCloseStream(pThis);
     int rc = VINF_SUCCESS;
-    if (pThis->u.s.pvIp4Stream)
+    if (pThis->u.s.pIp4Stream)
         rc = vboxNetFltSolarisAttachIp4(pThis, false /* fAttach */);
-    if (pThis->u.s.pvIp6Stream)
+    if (pThis->u.s.pIp6Stream)
         rc = vboxNetFltSolarisAttachIp6(pThis, false /* fAttach */);
 
 #ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
-    vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvPromiscStream);
+    vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtrT(&pThis->u.s.pPromiscStream, vboxnetflt_promisc_stream_t *);
     if (   pPromiscStream
         && pPromiscStream->pIp6Timer == NULL)
     {
         RTTimerStop(pPromiscStream->pIp6Timer);
         RTTimerDestroy(pPromiscStream->pIp6Timer);
-        ASMAtomicUoWritePtr((void * volatile *)&pPromiscStream->pIp6Timer, NULL);
+        ASMAtomicUoWriteNullPtr(&pPromiscStream->pIp6Timer);
     }
 #endif
 
@@ -2709,7 +2699,7 @@ static int vboxNetFltSolarisAttachToInterface(PVBOXNETFLTINS pThis)
 #ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
             /*
              * If Ip6 interface is not plumbed and an Ip6 polling interval is specified, we need
-             * to begin polling to attach on the Ip6 interface whenver it comes up.
+             * to begin polling to attach on the Ip6 interface whenever it comes up.
              */
             if (   rc2 == VERR_INTNET_FLT_IF_NOT_FOUND
                 && g_VBoxNetFltSolarisPollInterval != -1)
@@ -3072,8 +3062,8 @@ static int vboxNetFltSolarisQueueLoopback(PVBOXNETFLTINS pThis, vboxnetflt_promi
     if (RT_UNLIKELY(cbMsg < sizeof(RTNETETHERHDR)))
         return VERR_NET_MSG_SIZE;
 
-    int rc = RTSemFastMutexRequest(pThis->u.s.hFastMtx);
-    AssertRCReturn(rc, rc);
+    int rc = VINF_SUCCESS;
+    mutex_enter(&pThis->u.s.hMtx);
 
     PVBOXNETFLTPACKETID pCur = NULL;
     if (pPromiscStream->cLoopback < VBOXNETFLT_LOOPBACK_SIZE
@@ -3164,7 +3154,7 @@ static int vboxNetFltSolarisQueueLoopback(PVBOXNETFLTINS pThis, vboxnetflt_promi
                 pPromiscStream->cLoopback));
     }
 
-    RTSemFastMutexRelease(pThis->u.s.hFastMtx);
+    mutex_exit(&pThis->u.s.hMtx);
 
     return rc;
 }
@@ -3197,8 +3187,7 @@ static bool vboxNetFltSolarisIsOurMBlk(PVBOXNETFLTINS pThis, vboxnetflt_promisc_
     if (cbMsg < sizeof(RTNETETHERHDR))
         return false;
 
-    int rc = RTSemFastMutexRequest(pThis->u.s.hFastMtx);
-    AssertRCReturn(rc, rc);
+    mutex_enter(&pThis->u.s.hMtx);
 
     PVBOXNETFLTPACKETID pPrev = NULL;
     PVBOXNETFLTPACKETID pCur = pPromiscStream->pHead;
@@ -3255,7 +3244,7 @@ static bool vboxNetFltSolarisIsOurMBlk(PVBOXNETFLTINS pThis, vboxnetflt_promisc_
     }
 
     LogFlow((DEVICE_NAME ":vboxNetFltSolarisIsOurMBlk returns %d.\n", fIsOurPacket));
-    RTSemFastMutexRelease(pThis->u.s.hFastMtx);
+    mutex_exit(&pThis->u.s.hMtx);
     return fIsOurPacket;
 }
 
@@ -3267,7 +3256,7 @@ DECLINLINE(bool) vboxNetFltPortSolarisIsHostMac(PVBOXNETFLTINS pThis, PCRTMAC pM
 {
     /*
      * MAC address change acknowledgements are intercepted on the read side
-     * hence theoritically we are always update to date with any changes.
+     * hence theoretically we are always update to date with any changes.
      */
     return pThis->u.s.MacAddr.au16[0] == pMac->au16[0]
         && pThis->u.s.MacAddr.au16[1] == pMac->au16[1]
@@ -3291,7 +3280,7 @@ static int vboxNetFltSolarisRecv(PVBOXNETFLTINS pThis, vboxnetflt_stream_t *pStr
     AssertCompile(sizeof(struct ether_header) == sizeof(RTNETETHERHDR));
     Assert(pStream->Type == kPromiscStream);
 
-    vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvPromiscStream);
+    vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtrT(&pThis->u.s.pPromiscStream, vboxnetflt_promisc_stream_t *);
     if (RT_UNLIKELY(!pPromiscStream))
     {
         LogRel((DEVICE_NAME ":Promiscuous stream missing!! Failing to receive packet.\n"));
@@ -3678,7 +3667,7 @@ void vboxNetFltPortOsSetActive(PVBOXNETFLTINS pThis, bool fActive)
         /*
          * See #5262 as to why we need to do all this qtimeout/qwriter tricks.
          */
-        vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvPromiscStream);
+        vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtrT(&pThis->u.s.pPromiscStream, vboxnetflt_promisc_stream_t *);
         if (   pPromiscStream
             && pPromiscStream->Stream.pReadQueue)
         {
@@ -3705,20 +3694,6 @@ int vboxNetFltOsDisconnectIt(PVBOXNETFLTINS pThis)
 
     vboxNetFltSolarisDetachFromInterface(pThis);
 
-    if (pThis->u.s.hFastMtx != NIL_RTSEMFASTMUTEX)
-    {
-        RTSemFastMutexDestroy(pThis->u.s.hFastMtx);
-        pThis->u.s.hFastMtx = NIL_RTSEMFASTMUTEX;
-    }
-
-#ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
-    if (pThis->u.s.hPollMtx != NIL_RTSEMFASTMUTEX)
-    {
-        RTSemFastMutexDestroy(pThis->u.s.hPollMtx);
-        pThis->u.s.hPollMtx = NIL_RTSEMFASTMUTEX;
-    }
-#endif
-
     return VINF_SUCCESS;
 }
 
@@ -3733,7 +3708,17 @@ int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 {
     LogFlowFunc((DEVICE_NAME ":vboxNetFltOsDeleteInstance pThis=%p\n", pThis));
-    /* Nothing to do here. */
+
+    mutex_destroy(&pThis->u.s.hMtx);
+
+#ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
+    if (pThis->u.s.hPollMtx != NIL_RTSEMFASTMUTEX)
+    {
+        RTSemFastMutexDestroy(pThis->u.s.hPollMtx);
+        pThis->u.s.hPollMtx = NIL_RTSEMFASTMUTEX;
+    }
+#endif
+
 }
 
 
@@ -3744,33 +3729,28 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     /*
      * Mutex used for loopback lockouts.
      */
-    int rc = RTSemFastMutexCreate(&pThis->u.s.hFastMtx);
+    int rc = VINF_SUCCESS;
+    mutex_init(&pThis->u.s.hMtx, NULL /* name */, MUTEX_DRIVER, NULL /* cookie */);
+#ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
+    rc = RTSemFastMutexCreate(&pThis->u.s.hPollMtx);
     if (RT_SUCCESS(rc))
     {
-#ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
-        rc = RTSemFastMutexCreate(&pThis->u.s.hPollMtx);
+#endif
+        rc = vboxNetFltSolarisAttachToInterface(pThis);
         if (RT_SUCCESS(rc))
-        {
-#endif
-            rc = vboxNetFltSolarisAttachToInterface(pThis);
-            if (RT_SUCCESS(rc))
-                return rc;
+            return rc;
 
-            LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachToInterface failed. rc=%Rrc\n", rc));
+        LogRel((DEVICE_NAME ":vboxNetFltSolarisAttachToInterface failed. rc=%Rrc\n", rc));
 
 #ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
-            RTSemFastMutexDestroy(pThis->u.s.hPollMtx);
-            pThis->u.s.hPollMtx = NIL_RTSEMFASTMUTEX;
-        }
-        else
-            LogRel((DEVICE_NAME ":vboxNetFltOsInitInstance failed to create poll mutex. rc=%Rrc\n", rc));
-#endif
-
-        RTSemFastMutexDestroy(pThis->u.s.hFastMtx);
-        pThis->u.s.hFastMtx = NIL_RTSEMFASTMUTEX;
+        RTSemFastMutexDestroy(pThis->u.s.hPollMtx);
+        pThis->u.s.hPollMtx = NIL_RTSEMFASTMUTEX;
     }
     else
-        LogRel((DEVICE_NAME ":vboxNetFltOsInitInstance failed to create mutex. rc=%Rrc\n", rc));
+        LogRel((DEVICE_NAME ":vboxNetFltOsInitInstance failed to create poll mutex. rc=%Rrc\n", rc));
+#endif
+
+    mutex_destroy(&pThis->u.s.hMtx);
 
     NOREF(pvContext);
     return rc;
@@ -3783,13 +3763,12 @@ int vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
      * Init. the solaris specific data.
      */
     pThis->u.s.hIface = NULL;
-    pThis->u.s.pvIp4Stream = NULL;
-    pThis->u.s.pvIp6Stream = NULL;
-    pThis->u.s.pvArpStream = NULL;
-    pThis->u.s.pvPromiscStream = NULL;
+    pThis->u.s.pIp4Stream = NULL;
+    pThis->u.s.pIp6Stream = NULL;
+    pThis->u.s.pArpStream = NULL;
+    pThis->u.s.pPromiscStream = NULL;
     pThis->u.s.fAttaching = false;
     pThis->u.s.fVLAN = false;
-    pThis->u.s.hFastMtx = NIL_RTSEMFASTMUTEX;
 #ifdef VBOXNETFLT_SOLARIS_IPV6_POLLING
     pThis->u.s.hPollMtx = NIL_RTSEMFASTMUTEX;
 #endif
@@ -3838,76 +3817,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
     int rc = VINF_SUCCESS;
     if (fDst & INTNETTRUNKDIR_WIRE)
     {
-#ifdef VBOXNETFLT_SOLARIS_USE_NETINFO
-        /*
-         * @todo try find a way for IPFilter to accept ethernet frames (currently silently drops them).
-         */
-        mblk_t *pMsg = vboxNetFltSolarisMBlkFromSG(pThis, pSG, fDst);
-        if (RT_LIKELY(pMsg))
-        {
-            PCRTNETETHERHDR pEthHdr = (PCRTNETETHERHDR)pMsg->b_rptr;
-            unsigned uProtocol;
-            if (pEthHdr->EtherType == RT_H2BE_U16(RTNET_ETHERTYPE_IPV6))
-                uProtocol = AF_INET6;
-            else if (pEthHdr->EtherType == RT_H2BE_U16(RTNET_ETHERTYPE_IPV4))
-                uProtocol = AF_INET;
-
-            /*
-             * Queue out using netinfo.
-             */
-            netstack_t *pNetStack = netstack_get_current();
-            if (pNetStack)
-            {
-                net_data_t pNetData = net_lookup_impl(NHF_INET, pNetStack);
-                if (pNetData)
-                {
-                    phy_if_t pInterface = net_phylookup(pNetData, pThis->szName);
-                    if (pInterface)
-                    {
-                        net_inject_t InjectData;
-                        InjectData.ni_packet = pMsg;
-                        InjectData.ni_physical = pInterface;
-                        bzero(&InjectData.ni_addr, sizeof(InjectData.ni_addr));
-                        InjectData.ni_addr.ss_family = uProtocol;
-
-                        /*
-                         * Queue out rather than direct out transmission.
-                         */
-                        int rc = net_inject(pNetData, NI_QUEUE_OUT, &InjectData);
-                        if (!rc)
-                            rc = VINF_SUCCESS;
-                        else
-                        {
-                            LogRel((DEVICE_NAME ":queuing IP packet for transmission failed. rc=%d\n", rc));
-                            rc = VERR_NET_IO_ERROR;
-                        }
-                    }
-                    else
-                    {
-                        LogRel((DEVICE_NAME ":vboxNetFltPortOsXmit failed to lookup physical interface.\n"));
-                        rc = VERR_NET_IO_ERROR;
-                    }
-                }
-                else
-                {
-                    LogRel((DEVICE_NAME ":vboxNetFltPortOsXmit failed to get IP hooks.\n"));
-                    rc = VERR_NET_IO_ERROR;
-                }
-                netstack_rele(pNetStack);
-            }
-            else
-            {
-                LogRel((DEVICE_NAME ":vboxNetFltPortOsXmit failed to get current net stack.\n"));
-                rc = VERR_NET_IO_ERROR;
-            }
-        }
-        else
-        {
-            LogRel((DEVICE_NAME ":vboxNetFltPortOsXmit vboxNetFltSolarisMBlkFromSG failed.\n"));
-            rc = VERR_NO_MEMORY;
-        }
-#else
-        vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvPromiscStream);
+        vboxnetflt_promisc_stream_t *pPromiscStream = ASMAtomicUoReadPtrT(&pThis->u.s.pPromiscStream, vboxnetflt_promisc_stream_t *);
         if (RT_LIKELY(pPromiscStream))
         {
             mblk_t *pMsg = vboxNetFltSolarisMBlkFromSG(pThis, pSG, fDst);
@@ -3924,7 +3834,6 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
                 return VERR_NO_MEMORY;
             }
         }
-#endif
     }
 
     if (fDst & INTNETTRUNKDIR_HOST)
@@ -3933,7 +3842,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
          * For unplumbed interfaces we would not be bound to IP or ARP.
          * We either bind to both or neither; so atomic reading one should be sufficient.
          */
-        vboxnetflt_stream_t *pIp4Stream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvIp4Stream);
+        vboxnetflt_stream_t *pIp4Stream = ASMAtomicUoReadPtrT(&pThis->u.s.pIp4Stream, vboxnetflt_stream_t *);
         if (!pIp4Stream)
             return rc;
 
@@ -3952,7 +3861,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
             {
                 LogFlow((DEVICE_NAME ":vboxNetFltPortOsXmit INTNETTRUNKDIR_HOST ARP\n"));
 
-                vboxnetflt_stream_t *pArpStream = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvArpStream);
+                vboxnetflt_stream_t *pArpStream = ASMAtomicUoReadPtrT(&pThis->u.s.pArpStream, vboxnetflt_stream_t *);
                 if (pArpStream)
                 {
                     /*
@@ -3979,7 +3888,7 @@ int vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, ui
             }
             else
             {
-                 vboxnetflt_stream_t *pIp6Stream  = ASMAtomicUoReadPtr((void * volatile *)&pThis->u.s.pvIp6Stream);
+                 vboxnetflt_stream_t *pIp6Stream = ASMAtomicUoReadPtrT(&pThis->u.s.pIp6Stream, vboxnetflt_stream_t *);
                  if (   pEthHdr->EtherType == RT_H2BE_U16(RTNET_ETHERTYPE_IPV6)
                      && pIp6Stream)
                  {

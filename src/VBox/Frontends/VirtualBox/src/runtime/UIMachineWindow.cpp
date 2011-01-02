@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindow.cpp $ */
+/* $Id: UIMachineWindow.cpp 34983 2010-12-13 10:14:08Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -30,16 +30,23 @@
 #include "COMDefs.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxCloseVMDlg.h"
 
-#include "UISession.h"
 #include "UIActionsPool.h"
+#include "UIKeyboardHandler.h"
 #include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
 #include "UIMachineView.h"
-#include "UIMachineWindowNormal.h"
+#include "UIMachineWindow.h"
 #include "UIMachineWindowFullscreen.h"
+#include "UIMachineWindowNormal.h"
+#include "UIMachineWindowScale.h"
 #include "UIMachineWindowSeamless.h"
+#include "UIMouseHandler.h"
+#include "UISession.h"
+#include "UIVMCloseDialog.h"
+
+#ifdef Q_WS_X11
+# include <X11/Xlib.h>
+#endif
 
 UIMachineWindow* UIMachineWindow::create(UIMachineLogic *pMachineLogic, UIVisualStateType visualStateType, ulong uScreenId)
 {
@@ -54,6 +61,9 @@ UIMachineWindow* UIMachineWindow::create(UIMachineLogic *pMachineLogic, UIVisual
             break;
         case UIVisualStateType_Seamless:
             window = new UIMachineWindowSeamless(pMachineLogic, uScreenId);
+            break;
+        case UIVisualStateType_Scale:
+            window = new UIMachineWindowScale(pMachineLogic, uScreenId);
             break;
     }
     return window;
@@ -71,7 +81,7 @@ void UIMachineWindow::sltTryClose()
         return;
 
     /* First close any open modal & popup widgets.
-     * Use a single shot with timeout 0 to allow the widgets to cleany close and test then again.
+     * Use a single shot with timeout 0 to allow the widgets to cleanly close and test then again.
      * If all open widgets are closed destroy ourself: */
     QWidget *widget = QApplication::activeModalWidget() ?
                       QApplication::activeModalWidget() :
@@ -128,6 +138,11 @@ CSession& UIMachineWindow::session() const
     return uisession()->session();
 }
 
+void UIMachineWindow::setMask(const QRegion &region)
+{
+    machineWindow()->setMask(region);
+}
+
 void UIMachineWindow::retranslateUi()
 {
 #ifdef VBOX_OSE
@@ -143,6 +158,29 @@ void UIMachineWindow::retranslateUi()
 #endif
     updateAppearanceOf(UIVisualElement_WindowCaption);
 }
+
+#ifdef Q_WS_X11
+bool UIMachineWindow::x11Event(XEvent *pEvent)
+{
+    // TODO: Check if that is still required!
+    /* Qt bug: when the machine-view grabs the keyboard,
+     * FocusIn, FocusOut, WindowActivate and WindowDeactivate Qt events are
+     * not properly sent on top level window deactivation.
+     * The fix is to substiute the mode in FocusOut X11 event structure
+     * to NotifyNormal to cause Qt to process it as desired. */
+    if (pEvent->type == FocusOut)
+    {
+        if (pEvent->xfocus.mode == NotifyWhileGrabbed  &&
+            (pEvent->xfocus.detail == NotifyAncestor ||
+             pEvent->xfocus.detail == NotifyInferior ||
+             pEvent->xfocus.detail == NotifyNonlinear))
+        {
+             pEvent->xfocus.mode = NotifyNormal;
+        }
+    }
+    return false;
+}
+#endif
 
 void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
 {
@@ -165,7 +203,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
             CMachine machine = session().GetMachine();
 
             /* Prepare close dialog: */
-            VBoxCloseVMDlg dlg(machineWindow());
+            UIVMCloseDialog dlg(machineWindow());
 
             /* Assign close-dialog pixmap: */
             dlg.pmIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(machine.GetOSTypeId()));
@@ -211,7 +249,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
             /* Check which button should be initially chosen: */
             QRadioButton *pRadioButton = 0;
 
-            /* If chosing 'last choice' is possible: */
+            /* If choosing 'last choice' is possible: */
             if (lastAction[0] == strSave && fIsStateSavingAllowed)
             {
                 pRadioButton = dlg.mRbSave;
@@ -281,7 +319,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
                         else
                         {
                             /* Show the "VM saving" progress dialog: */
-                            vboxProblem().showModalProgressDialog(progress, machine.GetName(), 0, 0);
+                            vboxProblem().showModalProgressDialog(progress, machine.GetName(), ":/progress_state_save_90px.png", 0, true);
                             if (progress.GetResultCode() != 0)
                                 vboxProblem().cannotSaveMachineState(progress);
                             else
@@ -313,7 +351,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
                         else
                         {
                             /* Show the power down progress dialog: */
-                            vboxProblem().showModalProgressDialog(progress, machine.GetName(), 0);
+                            vboxProblem().showModalProgressDialog(progress, machine.GetName(), ":/progress_poweroff_90px.png", 0, true);
                             if (progress.GetResultCode() != 0)
                                 vboxProblem().cannotStopMachine(progress);
                             else
@@ -332,7 +370,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
                                 else
                                 {
                                     /* Show the progress dialog: */
-                                    vboxProblem().showModalProgressDialog(progress, machine.GetName(), 0);
+                                    vboxProblem().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_discard_90px.png", 0, true);
                                     if (progress.GetResultCode() != 0)
                                         vboxProblem().cannotRestoreSnapshot(progress, snapshot.GetName());
                                 }
@@ -428,6 +466,24 @@ void UIMachineWindow::prepareMachineViewContainer()
     m_pMachineViewContainer->addItem(m_pBottomSpacer, 2, 1);
     m_pMachineViewContainer->addItem(m_pLeftSpacer, 1, 0);
     m_pMachineViewContainer->addItem(m_pRightSpacer, 1, 2);
+}
+
+void UIMachineWindow::prepareHandlers()
+{
+    /* Register keyboard-handler: */
+    machineLogic()->keyboardHandler()->prepareListener(m_uScreenId, this);
+
+    /* Register mouse-handler: */
+    machineLogic()->mouseHandler()->prepareListener(m_uScreenId, this);
+}
+
+void UIMachineWindow::cleanupHandlers()
+{
+    /* Unregister mouse-handler: */
+    machineLogic()->mouseHandler()->cleanupListener(m_uScreenId);
+
+    /* Unregister keyboard-handler: */
+    machineLogic()->keyboardHandler()->cleanupListener(m_uScreenId);
 }
 
 void UIMachineWindow::updateAppearanceOf(int iElement)

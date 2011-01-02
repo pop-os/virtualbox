@@ -1,4 +1,4 @@
-/* $Id: DHCPServerRunner.cpp $ */
+/* $Id: DHCPServerRunner.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * VirtualBox Main - interface for VBox DHCP server
  */
@@ -82,7 +82,7 @@ int DHCPServerRunner::start()
 
     /* get the path to the executable */
     char exePathBuf[RTPATH_MAX];
-    const char *exePath = RTProcGetExecutableName(exePathBuf, RTPATH_MAX);
+    const char *exePath = RTProcGetExecutablePath(exePathBuf, RTPATH_MAX);
     char *substrSl = strrchr(exePathBuf, '/');
     char *substrBs = strrchr(exePathBuf, '\\');
     char *suffix = substrSl ? substrSl : substrBs;
@@ -110,7 +110,7 @@ int DHCPServerRunner::start()
              * and thus check the mOptions string length here
              */
             if (mOptions[i].length())
-                args[index++] = mOptions[i].raw();  // value
+                args[index++] = mOptions[i].c_str();  // value
         }
     }
 

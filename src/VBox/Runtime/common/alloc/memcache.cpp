@@ -1,4 +1,4 @@
-/* $Id: memcache.cpp $ */
+/* $Id: memcache.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
 /** @file
  * IPRT - Memory Object Allocation Cache.
  */
@@ -162,8 +162,17 @@ RTDECL(int) RTMemCacheCreate(PRTMEMCACHE phMemCache, size_t cbObject, size_t cbA
 
     if (cbAlignment == 0)
     {
-        cbAlignment = (size_t)1 << ASMBitLastSetU32((uint32_t)cbObject);
-        if (cbAlignment > 64)
+        if (cbObject <= 2)
+            cbAlignment = cbObject;
+        else if (cbObject <= 4)
+            cbAlignment = 4;
+        else if (cbObject <= 8)
+            cbAlignment = 8;
+        else if (cbObject <= 16)
+            cbAlignment = 16;
+        else if (cbObject <= 32)
+            cbAlignment = 32;
+        else
             cbAlignment = 64;
     }
     else
@@ -189,9 +198,9 @@ RTDECL(int) RTMemCacheCreate(PRTMEMCACHE phMemCache, size_t cbObject, size_t cbA
     pThis->cbObject         = (uint32_t)RT_ALIGN_Z(cbObject, cbAlignment);
     pThis->cbAlignment      = (uint32_t)cbAlignment;
     pThis->cPerPage         = (uint32_t)((PAGE_SIZE - RT_ALIGN_Z(sizeof(RTMEMCACHEPAGE), cbAlignment)) / pThis->cbObject);
-    while (    RT_ALIGN_Z(sizeof(RTMEMCACHEPAGE), RT_MIN(cbAlignment, 8))
-             + pThis->cPerPage * pThis->cbObject
-             + RT_ALIGN(pThis->cPerPage, 64) / 8 * 2
+    while (  RT_ALIGN_Z(sizeof(RTMEMCACHEPAGE), 8)
+           + pThis->cPerPage * pThis->cbObject
+           + RT_ALIGN(pThis->cPerPage, 64) / 8 * 2
            > PAGE_SIZE)
         pThis->cPerPage--;
     pThis->cBits            = RT_ALIGN(pThis->cPerPage, 64);
@@ -208,6 +217,21 @@ RTDECL(int) RTMemCacheCreate(PRTMEMCACHE phMemCache, size_t cbObject, size_t cbA
     pThis->pPageHint        = NULL;
     pThis->pFreeTop         = NULL;
 
+    /** @todo
+     * Here is a puzzler (or maybe I'm just blind), the free list code breaks
+     * badly on my macbook pro (i7) (32-bit).
+     *
+     * I tried changing the reads from unordered to ordered to no avail.  Then I
+     * tried optimizing the code with the ASMAtomicCmpXchgExPtr function to
+     * avoid some reads - no change. Inserting pause instructions did nothing
+     * (as expected).  The only thing which seems to make a difference is
+     * reading the pFreeTop pointer twice in the the free code... This is weird
+     * or I'm overlooking something..
+     *
+     * No time to figure it out, so I'm disabling the broken code paths for
+     * now. */
+    pThis->fUseFreeList = false;
+
     *phMemCache = pThis;
     return VINF_SUCCESS;
 }
@@ -222,7 +246,7 @@ RTDECL(int) RTMemCacheDestroy(RTMEMCACHE hMemCache)
     AssertReturn(pThis->u32Magic == RTMEMCACHE_MAGIC, VERR_INVALID_HANDLE);
 #ifdef RT_STRICT
     uint32_t cFree = pThis->cFree;
-    for (PRTMEMCACHEFREEOBJ pFree = pThis->pFreeTop; pFree; pFree = pFree->pNext)
+    for (PRTMEMCACHEFREEOBJ pFree = pThis->pFreeTop; pFree && cFree < pThis->cTotal + 5; pFree = pFree->pNext)
         cFree++;
     AssertMsg(cFree == pThis->cTotal, ("cFree=%u cTotal=%u\n", cFree, pThis->cTotal));
 #endif
@@ -294,7 +318,6 @@ static int rtMemCacheGrow(RTMEMCACHEINT *pThis)
             uint8_t *pb = (uint8_t *)(pPage + 1);
             pb = RT_ALIGN_PT(pb, 8, uint8_t *);
             pPage->pbmCtor      = pb;
-            pb += pThis->cBits / 8 * 2;
             pb = (uint8_t *)pPage + PAGE_SIZE - pThis->cbObject * cObjects;
             pPage->pbObjects    = pb;   Assert(RT_ALIGN_P(pb, pThis->cbAlignment) == pb);
             pb -= pThis->cBits / 8;
@@ -307,17 +330,17 @@ static int rtMemCacheGrow(RTMEMCACHEINT *pThis)
                 ASMBitSet(pPage->pbmAlloc, iBit);
 
             /* Make it the hint. */
-            ASMAtomicWritePtr((void * volatile *)&pThis->pPageHint, pPage);
+            ASMAtomicWritePtr(&pThis->pPageHint, pPage);
 
             /* Link the page. */
             PRTMEMCACHEPAGE pPrevPage = pThis->pPageHead;
             if (!pPrevPage)
-                ASMAtomicWritePtr((void * volatile *)&pThis->pPageHead, pPage);
+                ASMAtomicWritePtr(&pThis->pPageHead, pPage);
             else
             {
                 while (pPrevPage->pNext)
                     pPrevPage = pPrevPage->pNext;
-                ASMAtomicWritePtr((void * volatile *)&pPrevPage->pNext, pPage);
+                ASMAtomicWritePtr(&pPrevPage->pNext, pPage);
             }
 
             /* Add it to the page counts. */
@@ -358,19 +381,23 @@ RTDECL(int) RTMemCacheAllocEx(RTMEMCACHE hMemCache, void **ppvObj)
     /*
      * Try grab a free object from the stack.
      */
-    PRTMEMCACHEFREEOBJ pObj = (PRTMEMCACHEFREEOBJ)ASMAtomicUoReadPtr((void * volatile *)&pThis->pFreeTop);
+    PRTMEMCACHEFREEOBJ pObj = ASMAtomicUoReadPtrT(&pThis->pFreeTop, PRTMEMCACHEFREEOBJ);
     if (pObj)
     {
-        PRTMEMCACHEFREEOBJ pNext;
         do
         {
-            pNext = (PRTMEMCACHEFREEOBJ)ASMAtomicUoReadPtr((void * volatile *)&pObj->pNext);
-            if (ASMAtomicCmpXchgPtr((void * volatile *)&pThis->pFreeTop, pNext, pObj))
+            PRTMEMCACHEFREEOBJ pNext = ASMAtomicUoReadPtrT(&pObj->pNext, PRTMEMCACHEFREEOBJ);
+            PRTMEMCACHEFREEOBJ pObjOld;
+            if (ASMAtomicCmpXchgExPtr(&pThis->pFreeTop, pNext, pObj, &pObjOld))
             {
+                Assert(pObjOld == pObj);
+                Assert(pNext != pObjOld);
+                pObj->pNext = NULL;
                 *ppvObj = pObj;
                 return VINF_SUCCESS;
             }
-            pObj = (PRTMEMCACHEFREEOBJ)ASMAtomicUoReadPtr((void * volatile *)&pThis->pFreeTop);
+            pObj = pObjOld;
+            ASMNopPause();
         } while (pObj);
     }
 
@@ -399,7 +426,7 @@ RTDECL(int) RTMemCacheAllocEx(RTMEMCACHE hMemCache, void **ppvObj)
     /*
      * Grab a free object at the page level.
      */
-    PRTMEMCACHEPAGE pPage = (PRTMEMCACHEPAGE)ASMAtomicReadPtr((void * volatile *)&pThis->pPageHint);
+    PRTMEMCACHEPAGE pPage = ASMAtomicReadPtrT(&pThis->pPageHint, PRTMEMCACHEPAGE);
     int32_t iObj = pPage ? rtMemCacheGrabObj(pPage) : -1;
     if (iObj < 0)
     {
@@ -411,7 +438,7 @@ RTDECL(int) RTMemCacheAllocEx(RTMEMCACHE hMemCache, void **ppvObj)
                 if (iObj >= 0)
                 {
                     if (iObj > 0)
-                        ASMAtomicWritePtr((void * volatile *)&pThis->pPageHint, pPage);
+                        ASMAtomicWritePtr(&pThis->pPageHint, pPage);
                     break;
                 }
             }
@@ -500,19 +527,23 @@ RTDECL(void) RTMemCacheFree(RTMEMCACHE hMemCache, void *pvObj)
         uintptr_t iObj   = offObj / pThis->cbObject;
         Assert(iObj * pThis->cbObject == offObj);
         Assert(iObj < pThis->cPerPage);
-        AssertReturnVoid(ASMBitTest(pPage->pbmAlloc, iObj));
+        AssertReturnVoid(ASMBitTest(pPage->pbmAlloc, (int32_t)iObj));
 # endif
 
         /*
          * Push it onto the free stack.
          */
         PRTMEMCACHEFREEOBJ pObj = (PRTMEMCACHEFREEOBJ)pvObj;
-        PRTMEMCACHEFREEOBJ pNext;
-        do
+        PRTMEMCACHEFREEOBJ pNext = ASMAtomicUoReadPtrT(&pThis->pFreeTop, PRTMEMCACHEFREEOBJ);
+        PRTMEMCACHEFREEOBJ pFreeTopOld;
+        pObj->pNext = pNext;
+        while (!ASMAtomicCmpXchgExPtr(&pThis->pFreeTop, pObj, pNext, &pFreeTopOld))
         {
-            pNext = (PRTMEMCACHEFREEOBJ)ASMAtomicUoReadPtr((void * volatile *)&pThis->pFreeTop);
+            pNext = pFreeTopOld;
+            Assert(pNext != pObj);
             pObj->pNext = pNext;
-        } while (!ASMAtomicCmpXchgPtr((void * volatile *)&pThis->pFreeTop, pObj, pNext));
+            ASMNopPause();
+        }
     }
     else
     {

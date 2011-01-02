@@ -1,4 +1,4 @@
-/* $Id: DrvNamedPipe.cpp $ */
+/* $Id: DrvNamedPipe.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Named pipe / local socket stream driver.
  */
@@ -39,6 +39,9 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 # include <sys/un.h>
+# ifndef SHUT_RDWR /* OS/2 */
+#  define SHUT_RDWR 3
+# endif
 #endif /* !RT_OS_WINDOWS */
 
 
@@ -214,7 +217,7 @@ static DECLCALLBACK(int) drvNamedPipeWrite(PPDMISTREAM pInterface, const void *p
             if (   uError == ERROR_PIPE_LISTENING
                 || uError == ERROR_PIPE_NOT_CONNECTED)
             {
-                /* No connection yet/anymore; just discard the write (pretening everything was written). */;
+                /* No connection yet/anymore; just discard the write (pretending everything was written). */;
             }
             else if (uError != ERROR_IO_PENDING)
             {

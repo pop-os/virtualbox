@@ -131,7 +131,8 @@ DECLCALLBACK(int) VMSaveThread(RTTHREAD Thread, void *pvUser)
 
     startProgressInfo("Saving");
     rc = VMR3ReqCallWait(gpVM, VMCPUID_ANY,
-                         (PFNRT)VMR3Save, 5, gpVM, g_pszStateFile, false /*fContinueAftewards*/, &callProgressInfo, (uintptr_t)NULL);
+                         (PFNRT)VMR3Save, 5, gpVM, g_pszStateFile,
+                         false /*fContinueAftewards*/, &callProgressInfo, (uintptr_t)NULL);
     AssertRC(rc);
     endProgressInfo();
     pfnQuit();

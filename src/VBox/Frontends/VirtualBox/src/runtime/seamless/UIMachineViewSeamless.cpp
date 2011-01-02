@@ -1,4 +1,4 @@
-/* $Id: UIMachineViewSeamless.cpp $ */
+/* $Id: UIMachineViewSeamless.cpp 32174 2010-09-01 12:52:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -32,29 +32,31 @@
 /* Local includes */
 #include "VBoxGlobal.h"
 #include "UISession.h"
-#include "UIMachineWindow.h"
-#include "UIMachineLogic.h"
-#include "UIFrameBuffer.h"
 #include "UIMachineLogicSeamless.h"
+#include "UIMachineWindow.h"
 #include "UIMachineViewSeamless.h"
+#include "UIFrameBuffer.h"
 
 UIMachineViewSeamless::UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
-                                             , VBoxDefs::RenderMode renderMode
+                                             , ulong uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                                              , bool bAccelerate2DVideo
 #endif
-                                             , ulong uMonitor)
+                                             )
     : UIMachineView(  pMachineWindow
-                    , renderMode
+                    , uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                     , bAccelerate2DVideo
 #endif
-                    , uMonitor)
+                    )
     , m_fShouldWeDoResize(false)
     , m_pSyncBlocker(0)
 {
     /* Load machine view settings: */
     loadMachineViewSettings();
+
+    /* Prepare viewport: */
+    prepareViewport();
 
     /* Prepare frame buffer: */
     prepareFrameBuffer();
@@ -77,17 +79,12 @@ UIMachineViewSeamless::UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
     /* Initialization: */
     sltMachineStateChanged();
     sltAdditionsStateChanged();
-    sltMousePointerShapeChanged();
-    sltMouseCapabilityChanged();
 }
 
 UIMachineViewSeamless::~UIMachineViewSeamless()
 {
     /* Cleanup seamless mode: */
     cleanupSeamless();
-
-    /* Cleanup common things: */
-    cleanupCommon();
 
     /* Cleanup frame buffer: */
     cleanupFrameBuffer();
@@ -160,29 +157,63 @@ bool UIMachineViewSeamless::event(QEvent *pEvent)
             return true;
         }
 
-        case QEvent::KeyPress:
-        case QEvent::KeyRelease:
-        {
-            /* Get key-event: */
-            QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
-
-            /* Process Host+Home for menu popup: */
-            if (isHostKeyPressed() && pEvent->type() == QEvent::KeyPress)
-            {
-                if (pKeyEvent->key() == Qt::Key_Home)
-                    QTimer::singleShot(0, machineWindowWrapper()->machineWindow(), SLOT(sltPopupMainMenu()));
-                else
-                    pEvent->ignore();
-            }
-        }
-
         case VBoxDefs::ResizeEventType:
         {
+            /* Some situations require framebuffer resize events to be ignored at all,
+             * leaving machine-window, machine-view and framebuffer sizes preserved: */
+            if (uisession()->isGuestResizeIgnored())
+                return true;
+
+            /* We are starting to perform machine-view resize,
+             * we should temporary ignore other if they are trying to be: */
+            bool fWasMachineWindowResizeIgnored = isMachineWindowResizeIgnored();
+            setMachineWindowResizeIgnored(true);
+
+            /* Get guest resize-event: */
+            UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
+
+            /* Perform framebuffer resize: */
+            frameBuffer()->resizeEvent(pResizeEvent);
+
+            /* Reapply maximum size restriction for machine-view: */
+            setMaximumSize(sizeHint());
+
+            /* Store the new size to prevent unwanted resize hints being sent back: */
+            storeConsoleSize(pResizeEvent->width(), pResizeEvent->height());
+
+            /* Perform machine-view resize: */
+            resize(pResizeEvent->width(), pResizeEvent->height());
+
+            /* Let our toplevel widget calculate its sizeHint properly: */
+            QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
+
+#ifdef Q_WS_MAC
+            machineLogic()->updateDockIconSize(screenId(), pResizeEvent->width(), pResizeEvent->height());
+#endif /* Q_WS_MAC */
+
+            /* Update machine-view sliders: */
+            updateSliders();
+
+            /* Report to the VM thread that we finished resizing: */
+            session().GetConsole().GetDisplay().ResizeCompleted(screenId());
+
+            /* We are finishing to perform machine-view resize: */
+            setMachineWindowResizeIgnored(fWasMachineWindowResizeIgnored);
+
+            /* We also recalculate the desktop geometry if this is determined
+             * automatically.  In fact, we only need this on the first resize,
+             * but it is done every time to keep the code simpler. */
+            calculateDesktopGeometry();
+
+            /* Emit a signal about guest was resized: */
+            emit resizeHintDone();
+
             /* Unlock after processing guest resize event: */
-            bool fResult = UIMachineView::event(pEvent);
             if (m_pSyncBlocker && m_pSyncBlocker->isRunning())
                 m_pSyncBlocker->quit();
-            return fResult;
+
+            pEvent->accept();
+            return true;
         }
 
         default:
@@ -228,6 +259,10 @@ void UIMachineViewSeamless::prepareCommon()
     /* Base class common settings: */
     UIMachineView::prepareCommon();
 
+    /* Setup size-policy: */
+    setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
+    /* Maximum size to sizehint: */
+    setMaximumSize(sizeHint());
     /* Minimum size is ignored: */
     setMinimumSize(0, 0);
     /* No scrollbars: */

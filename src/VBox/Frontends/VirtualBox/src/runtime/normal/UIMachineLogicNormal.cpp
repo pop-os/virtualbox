@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogicNormal.cpp $ */
+/* $Id: UIMachineLogicNormal.cpp 30936 2010-07-20 16:59:35Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -25,14 +25,15 @@
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 
-#include "UIActionsPool.h"
-#include "UIDownloaderAdditions.h"
-#include "UIMachineLogicNormal.h"
-#include "UIMachineView.h"
-#include "UIMachineWindow.h"
 #include "UISession.h"
+#include "UIActionsPool.h"
+#include "UIMachineLogicNormal.h"
+#include "UIMachineWindow.h"
+#include "UIDownloaderAdditions.h"
 
+#ifdef Q_WS_MAC
 #include "VBoxUtils.h"
+#endif /* Q_WS_MAC */
 
 UIMachineLogicNormal::UIMachineLogicNormal(QObject *pParent, UISession *pSession, UIActionsPool *pActionsPool)
     : UIMachineLogic(pParent, pSession, pActionsPool, UIVisualStateType_Normal)
@@ -41,8 +42,16 @@ UIMachineLogicNormal::UIMachineLogicNormal(QObject *pParent, UISession *pSession
 
 UIMachineLogicNormal::~UIMachineLogicNormal()
 {
-    /* Cleanup normal machine window: */
+#ifdef Q_WS_MAC
+    /* Cleanup the dock stuff before the machine window(s): */
+    cleanupDock();
+#endif /* Q_WS_MAC */
+
+    /* Cleanup machine window(s): */
     cleanupMachineWindow();
+
+    /* Cleanup handlers: */
+    cleanupHandlers();
 }
 
 void UIMachineLogicNormal::initialize()
@@ -60,6 +69,9 @@ void UIMachineLogicNormal::initialize()
 
     /* Prepare action connections: */
     prepareActionConnections();
+
+    /* Prepare handlers: */
+    prepareHandlers();
 
     /* Prepare normal machine window: */
     prepareMachineWindows();
@@ -81,6 +93,10 @@ void UIMachineLogicNormal::initialize()
     sltMachineStateChanged();
     sltAdditionsStateChanged();
     sltMouseCapabilityChanged();
+
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    prepareDebugger();
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
     /* Retranslate logic part: */
     retranslateUi();
@@ -130,9 +146,6 @@ void UIMachineLogicNormal::prepareMachineWindows()
     if (isMachineWindowsCreated())
         return;
 
-    /* Base class cleanup: */
-    UIMachineLogic::cleanupMachineWindows();
-
 #ifdef Q_WS_MAC // TODO: Is that really need here?
     /* We have to make sure that we are getting the front most process.
      * This is necessary for Qt versions > 4.3.3: */
@@ -154,11 +167,11 @@ void UIMachineLogicNormal::prepareMachineWindows()
 
 void UIMachineLogicNormal::cleanupMachineWindow()
 {
-    /* Do not cleanup machine window if it is not present: */
+    /* Do not cleanup machine window(s) if not present: */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Cleanup normal machine window: */
+    /* Cleanup machine window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 }

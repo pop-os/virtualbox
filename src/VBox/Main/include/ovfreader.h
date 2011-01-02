@@ -1,4 +1,4 @@
-/* $Id: ovfreader.h $ */
+/* $Id: ovfreader.h 35043 2010-12-13 20:31:13Z vboxsync $ */
 /** @file
  * OVF reader declarations.
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -146,6 +146,7 @@ enum CIMOSType_T
     CIMOSType_CIMOS_OracleEnterpriseLinux = 108,
     CIMOSType_CIMOS_OracleEnterpriseLinux_64 = 109,
     CIMOSType_CIMOS_eComStation = 110
+    // no new types added with CIM 2.26.0
 };
 
 
@@ -324,6 +325,8 @@ struct VirtualSystem
 
     CIMOSType_T         cimos;
     iprt::MiniString    strCimosDesc;           // readable description of the cimos type in the case of cimos = 0/1/102
+    iprt::MiniString    strTypeVbox;            // optional type from @vbox:ostype attribute (VirtualBox 4.0 or higher)
+
     iprt::MiniString    strVirtualSystemType;   // generic hardware description; OVF says this can be something like "vmx-4" or "xen";
                                                 // VMware Workstation 6.5 is "vmx-07"
 
@@ -360,7 +363,8 @@ struct VirtualSystem
                         *pelmVboxMachine;
 
     VirtualSystem()
-        : ullMemorySize(0),
+        : cimos(CIMOSType_CIMOS_Unknown),
+          ullMemorySize(0),
           cCPUs(1),
           fHasFloppyDrive(false),
           fHasCdromDrive(false),
@@ -402,6 +406,7 @@ struct VirtualSystem
 class OVFReader
 {
 public:
+    OVFReader(const void *pvBuf, size_t cbSize, const iprt::MiniString &path);
     OVFReader(const iprt::MiniString &path);
 
     // Data fields
@@ -412,6 +417,7 @@ public:
 private:
     xml::Document               m_doc;
 
+    void parse();
     void LoopThruSections(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pCurElem);
     void HandleDiskSection(const xml::ElementNode *pReferencesElem, const xml::ElementNode *pSectionElem);
     void HandleNetworkSection(const xml::ElementNode *pSectionElem);

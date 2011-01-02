@@ -1,4 +1,4 @@
-/* $Id: VBoxVgaI2c.h $ */
+/* $Id: VBoxVgaI2c.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxVgaI2c.h
  */
@@ -39,7 +39,7 @@
 /**
   Read one byte data on I2C Bus.
 
-  Read one byte data from the slave device connectet to I2C Bus.
+  Read one byte data from the slave device connected to I2C Bus.
   If Data is NULL, then ASSERT().
 
   @param  PciIo              The pointer to PCI_IO_PROTOCOL.
@@ -63,7 +63,7 @@ I2cReadByte (
 /**
   Write one byte data onto I2C Bus.
 
-  Write one byte data to the slave device connectet to I2C Bus.
+  Write one byte data to the slave device connected to I2C Bus.
   If Data is NULL, then ASSERT().
 
   @param  PciIo              The pointer to PCI_IO_PROTOCOL.

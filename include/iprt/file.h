@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,27 @@ RT_C_DECLS_BEGIN
 # define RTFILE_LINEFEED    "\r\n"
 #else
 # define RTFILE_LINEFEED    "\n"
+#endif
+
+/** Platform specific native standard input "handle". */
+#ifdef RT_OS_WINDOWS
+# define RTFILE_NATIVE_STDIN ((uint32_t)-10)
+#else
+# define RTFILE_NATIVE_STDIN 0
+#endif
+
+/** Platform specific native standard outt "handle". */
+#ifdef RT_OS_WINDOWS
+# define RTFILE_NATIVE_STDOUT ((uint32_t)-11)
+#else
+# define RTFILE_NATIVE_STDOUT 1
+#endif
+
+/** Platform specific native standard error "handle". */
+#ifdef RT_OS_WINDOWS
+# define RTFILE_NATIVE_STDERR ((uint32_t)-12)
+#else
+# define RTFILE_NATIVE_STDERR 2
 #endif
 
 
@@ -180,17 +201,18 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
  *
  *          On Windows the FILE_FLAG_NO_BUFFERING is used (see
  *          http://msdn.microsoft.com/en-us/library/cc644950(VS.85).aspx ).
- *          The buffer address, the transfer size and offset needs to be
- *          aligned to the sector size of the volume. Furthermore FILE_APPEND_DATA
- *          is disabled. To write beyond the size of file use RTFileSetSize prior
+ *          The buffer address, the transfer size and offset needs to be aligned
+ *          to the sector size of the volume.  Furthermore FILE_APPEND_DATA is
+ *          disabled.  To write beyond the size of file use RTFileSetSize prior
  *          writing the data to the file.
  *
- *          This flag does not work on Solaris if the target filesystem is ZFS. RTFileOpen will return an
- *          error with that configuration. When used with UFS the same alginment restrictions
- *          apply like Linux and Windows.
+ *          This flag does not work on Solaris if the target filesystem is ZFS.
+ *          RTFileOpen will return an error with that configuration.  When used
+ *          with UFS the same alginment restrictions apply like Linux and
+ *          Windows.
  *
- * @remarks This might not be implemented on all platforms,
- *          and will be ignored on those.
+ * @remarks This might not be implemented on all platforms, and will be ignored
+ *          on those.
  */
 #define RTFILE_O_NO_CACHE               UINT32_C(0x00080000)
 
@@ -503,7 +525,7 @@ RTDECL(int) RTFileCopyByHandles(RTFILE FileSrc, RTFILE FileDst);
  *                      This file will be created.
  * @param   fFlags      Flags (RTFILECOPY_*).
  * @param   pfnProgress Pointer to callback function for reporting progress.
- * @param   pvUser      User argument to pass to pfnProgress along with the completion precentage.
+ * @param   pvUser      User argument to pass to pfnProgress along with the completion percentage.
  */
 RTDECL(int) RTFileCopyEx(const char *pszSrc, const char *pszDst, uint32_t fFlags, PFNRTPROGRESS pfnProgress, void *pvUser);
 
@@ -518,7 +540,7 @@ RTDECL(int) RTFileCopyEx(const char *pszSrc, const char *pszDst, uint32_t fFlags
  *                      On successful returns the file position is at the end of the file.
  *                      On failures the file position and size is undefined.
  * @param   pfnProgress Pointer to callback function for reporting progress.
- * @param   pvUser      User argument to pass to pfnProgress along with the completion precentage.
+ * @param   pvUser      User argument to pass to pfnProgress along with the completion percentage.
  */
 RTDECL(int) RTFileCopyByHandlesEx(RTFILE FileSrc, RTFILE FileDst, PFNRTPROGRESS pfnProgress, void *pvUser);
 
@@ -578,7 +600,7 @@ RTDECL(int) RTFileMove(const char *pszSrc, const char *pszDst, unsigned fMove);
  *
  * Win32, OS/2: Locking is mandatory, since locks are enforced by the operating system.
  * I.e. when file region is locked in Read mode, any write in it will fail; in case of Write
- * lock - region can be readed and writed only by lock's owner.
+ * lock - region can be read and writed only by lock's owner.
  *
  * Win32: File size change (RTFileSetSize) is not controlled by locking at all (!) in the
  * operation system. Also see comments to RTFileChangeLock API call.
@@ -741,8 +763,10 @@ RTR3DECL(int) RTFileGetMode(RTFILE File, uint32_t *pfMode);
  *
  * @returns iprt status code.
  * @param   File        Handle to the file.
- * @param   uid         The new file owner user id. Use -1 (or ~0) to leave this unchanged.
- * @param   gid         The new group id. Use -1 (or ~0) to leave this unchanged.
+ * @param   uid         The new file owner user id.  Pass NIL_RTUID to leave
+ *                      this unchanged.
+ * @param   gid         The new group id.  Pass NIL_RTGID to leave this
+ *                      unchanged.
  */
 RTR3DECL(int) RTFileSetOwner(RTFILE File, uint32_t uid, uint32_t gid);
 
@@ -892,7 +916,7 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
  *
  * File operations are usually blocking the calling thread until
  * they completed making it impossible to let the thread do anything
- * else inbetween.
+ * else in-between.
  * The RT File async I/O API provides an easy and efficient way to
  * access files asynchronously using the native facilities provided
  * by each operating system.
@@ -906,7 +930,7 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
  * Requests are created with RTFileAioReqCreate() and destroyed with
  * RTFileAioReqDestroy().
  * Because creating a request may require allocating various operating
- * system dependent ressources and may be quite expensive it is possible
+ * system dependent resources and may be quite expensive it is possible
  * to use a request more than once to save CPU cycles.
  * A request is constructed with either RTFileAioReqPrepareRead()
  * which will set up a request to read from the given file or
@@ -918,7 +942,7 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
  * (see below for further information).
  * RTFileAioCtxWait() is used to wait for completion of requests which were
  * associated with the context. While waiting for requests the thread can not
- * respond to global state changes. Thatswhy the API provides a way to let
+ * respond to global state changes. That's why the API provides a way to let
  * RTFileAioCtxWait() return immediately no matter how many requests
  * have finished through RTFileAioCtxWakeup(). The return code is
  * VERR_INTERRUPTED to let the thread know that he got interrupted.
@@ -942,7 +966,7 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
  *
  * Submitted:
  * A prepared request can be submitted with RTFileAioCtxSubmit(). If the operation
- * succeeds it is not allowed to touch the request or free any ressources until
+ * succeeds it is not allowed to touch the request or free any resources until
  * it completed through RTFileAioCtxWait(). The only allowed method is RTFileAioReqCancel()
  * which tries to cancel the request. The request will go into the completed state
  * and RTFileAioReqGetRC() will return VERR_FILE_AIO_CANCELED.
@@ -953,7 +977,7 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
  * Completed:
  * The request will be in this state after it completed and returned through
  * RTFileAioCtxWait(). RTFileAioReqGetRC() returns the final result code
- * and the number of bytes transfered.
+ * and the number of bytes transferred.
  * The request can be used for new data transfers.
  *
  * @section sec_rt_asyncio_threading       Threading
@@ -1121,7 +1145,7 @@ RTDECL(int) RTFileAioReqCancel(RTFILEAIOREQ hReq);
  * @retval  VERR_FILE_AIO_IN_PROGRESS if the request isn't yet completed.
  *
  * @param   hReq            The request handle.
- * @param   pcbTransferred  Where to store the number of bytes transfered.
+ * @param   pcbTransferred  Where to store the number of bytes transferred.
  *                          Optional since it is not relevant for all kinds of
  *                          requests.
  */

@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxBase.cpp $ */
+/* $Id: VirtualBoxBase.cpp 34237 2010-11-22 13:24:35Z vboxsync $ */
 
 /** @file
  *
@@ -34,7 +34,8 @@
 #include "VirtualBoxErrorInfoImpl.h"
 #include "Logging.h"
 
-#include "objectslist.h"
+#include "VBox/com/ErrorInfo.h"
+#include "VBox/com/MultiResult.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -90,10 +91,10 @@ RWLockHandle *VirtualBoxBase::lockHandle() const
         // getLockingClass() is overridden by many subclasses to return
         // one of the locking classes listed at the top of AutoLock.h
         RWLockHandle *objLock = new RWLockHandle(getLockingClass());
-        if (!ASMAtomicCmpXchgPtr ((void * volatile *) &mObjectLock, objLock, NULL))
+        if (!ASMAtomicCmpXchgPtr(&mObjectLock, objLock, NULL))
         {
             delete objLock;
-            objLock = (RWLockHandle *) ASMAtomicReadPtr ((void * volatile *) &mObjectLock);
+            objLock = ASMAtomicReadPtrT(&mObjectLock, RWLockHandle *);
         }
         return objLock;
     }
@@ -103,7 +104,7 @@ RWLockHandle *VirtualBoxBase::lockHandle() const
 /**
  * Increments the number of calls to this object by one.
  *
- * After this method succeeds, it is guaranted that the object will remain
+ * After this method succeeds, it is guaranteed that the object will remain
  * in the Ready (or in the Limited) state at least until #releaseCaller() is
  * called.
  *
@@ -122,13 +123,13 @@ RWLockHandle *VirtualBoxBase::lockHandle() const
  * determines whether the caller represents this limited functionality or
  * not.
  *
- * This method succeeeds (and increments the number of callers) only if the
+ * This method succeeds (and increments the number of callers) only if the
  * current object's state is Ready. Otherwise, it will return E_ACCESSDENIED
  * to indicate that the object is not operational. There are two exceptions
  * from this rule:
  * <ol>
  *   <li>If the @a aLimited argument is |true|, then this method will also
- *       succeeed if the object's state is Limited (or Ready, of course).
+ *       succeed if the object's state is Limited (or Ready, of course).
  *   </li>
  *   <li>If this method is called from the same thread that placed
  *       the object to InInit or InUninit state (i.e. either from within the
@@ -147,13 +148,13 @@ RWLockHandle *VirtualBoxBase::lockHandle() const
  * and should return the failed result code to its own caller.
  *
  * @param aState        Where to store the current object's state (can be
- *                      used in overriden methods to determine the cause of
+ *                      used in overridden methods to determine the cause of
  *                      the failure).
  * @param aLimited      |true| to add a limited caller.
  *
  * @return              S_OK on success or E_ACCESSDENIED on failure.
  *
- * @note It is preferrable to use the #addLimitedCaller() rather than
+ * @note It is preferable to use the #addLimitedCaller() rather than
  *       calling this method with @a aLimited = |true|, for better
  *       self-descriptiveness.
  *
@@ -227,7 +228,7 @@ HRESULT VirtualBoxBase::addCaller(State *aState /* = NULL */,
                 if (mCallers == 0 && mState == InUninit)
                 {
                     /* inform AutoUninitSpan ctor there are no more callers */
-                    RTSemEventSignal (mZeroCallersSem);
+                    RTSemEventSignal(mZeroCallersSem);
                 }
             }
         }
@@ -235,6 +236,14 @@ HRESULT VirtualBoxBase::addCaller(State *aState /* = NULL */,
 
     if (aState)
         *aState = mState;
+
+    if (FAILED(rc))
+    {
+        if (mState == VirtualBoxBase::Limited)
+            rc = setError(rc, "The object functionality is limited");
+        else
+            rc = setError(rc, "The object is not ready");
+    }
 
     return rc;
 }
@@ -282,6 +291,222 @@ void VirtualBoxBase::releaseCaller()
     }
 
     AssertMsgFailed (("mState = %d!", mState));
+}
+
+/**
+ *  Sets error info for the current thread. This is an internal function that
+ *  gets eventually called by all public variants.  If @a aWarning is
+ *  @c true, then the highest (31) bit in the @a aResultCode value which
+ *  indicates the error severity is reset to zero to make sure the receiver will
+ *  recognize that the created error info object represents a warning rather
+ *  than an error.
+ */
+/* static */
+HRESULT VirtualBoxBase::setErrorInternal(HRESULT aResultCode,
+                                         const GUID &aIID,
+                                         const char *pcszComponent,
+                                         const Utf8Str &aText,
+                                         bool aWarning,
+                                         bool aLogIt)
+{
+    /* whether multi-error mode is turned on */
+    bool preserve = MultiResult::isMultiEnabled();
+
+    if (aLogIt)
+        LogRel(("%s [COM]: aRC=%Rhrc (%#08x) aIID={%RTuuid} aComponent={%s} aText={%s}, preserve=%RTbool\n",
+                aWarning ? "WARNING" : "ERROR",
+                aResultCode,
+                aResultCode,
+                &aIID,
+                pcszComponent,
+                aText.c_str(),
+                aWarning,
+                preserve));
+
+    /* these are mandatory, others -- not */
+    AssertReturn((!aWarning && FAILED(aResultCode)) ||
+                  (aWarning && aResultCode != S_OK),
+                  E_FAIL);
+    AssertReturn(!aText.isEmpty(), E_FAIL);
+
+    /* reset the error severity bit if it's a warning */
+    if (aWarning)
+        aResultCode &= ~0x80000000;
+
+    HRESULT rc = S_OK;
+
+    do
+    {
+        ComObjPtr<VirtualBoxErrorInfo> info;
+        rc = info.createObject();
+        if (FAILED(rc)) break;
+
+#if !defined (VBOX_WITH_XPCOM)
+
+        ComPtr<IVirtualBoxErrorInfo> curInfo;
+        if (preserve)
+        {
+            /* get the current error info if any */
+            ComPtr<IErrorInfo> err;
+            rc = ::GetErrorInfo (0, err.asOutParam());
+            if (FAILED(rc)) break;
+            rc = err.queryInterfaceTo(curInfo.asOutParam());
+            if (FAILED(rc))
+            {
+                /* create a IVirtualBoxErrorInfo wrapper for the native
+                 * IErrorInfo object */
+                ComObjPtr<VirtualBoxErrorInfo> wrapper;
+                rc = wrapper.createObject();
+                if (SUCCEEDED(rc))
+                {
+                    rc = wrapper->init (err);
+                    if (SUCCEEDED(rc))
+                        curInfo = wrapper;
+                }
+            }
+        }
+        /* On failure, curInfo will stay null */
+        Assert(SUCCEEDED(rc) || curInfo.isNull());
+
+        /* set the current error info and preserve the previous one if any */
+        rc = info->init(aResultCode, aIID, pcszComponent, aText, curInfo);
+        if (FAILED(rc)) break;
+
+        ComPtr<IErrorInfo> err;
+        rc = info.queryInterfaceTo(err.asOutParam());
+        if (SUCCEEDED(rc))
+            rc = ::SetErrorInfo (0, err);
+
+#else // !defined (VBOX_WITH_XPCOM)
+
+        nsCOMPtr <nsIExceptionService> es;
+        es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
+        if (NS_SUCCEEDED(rc))
+        {
+            nsCOMPtr <nsIExceptionManager> em;
+            rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
+            if (FAILED(rc)) break;
+
+            ComPtr<IVirtualBoxErrorInfo> curInfo;
+            if (preserve)
+            {
+                /* get the current error info if any */
+                ComPtr<nsIException> ex;
+                rc = em->GetCurrentException (ex.asOutParam());
+                if (FAILED(rc)) break;
+                rc = ex.queryInterfaceTo(curInfo.asOutParam());
+                if (FAILED(rc))
+                {
+                    /* create a IVirtualBoxErrorInfo wrapper for the native
+                     * nsIException object */
+                    ComObjPtr<VirtualBoxErrorInfo> wrapper;
+                    rc = wrapper.createObject();
+                    if (SUCCEEDED(rc))
+                    {
+                        rc = wrapper->init (ex);
+                        if (SUCCEEDED(rc))
+                            curInfo = wrapper;
+                    }
+                }
+            }
+            /* On failure, curInfo will stay null */
+            Assert(SUCCEEDED(rc) || curInfo.isNull());
+
+            /* set the current error info and preserve the previous one if any */
+            rc = info->init(aResultCode, aIID, pcszComponent, Bstr(aText), curInfo);
+            if (FAILED(rc)) break;
+
+            ComPtr<nsIException> ex;
+            rc = info.queryInterfaceTo(ex.asOutParam());
+            if (SUCCEEDED(rc))
+                rc = em->SetCurrentException (ex);
+        }
+        else if (rc == NS_ERROR_UNEXPECTED)
+        {
+            /*
+             *  It is possible that setError() is being called by the object
+             *  after the XPCOM shutdown sequence has been initiated
+             *  (for example, when XPCOM releases all instances it internally
+             *  references, which can cause object's FinalConstruct() and then
+             *  uninit()). In this case, do_GetService() above will return
+             *  NS_ERROR_UNEXPECTED and it doesn't actually make sense to
+             *  set the exception (nobody will be able to read it).
+             */
+            LogWarningFunc(("Will not set an exception because nsIExceptionService is not available "
+                            "(NS_ERROR_UNEXPECTED). XPCOM is being shutdown?\n"));
+            rc = NS_OK;
+        }
+
+#endif // !defined (VBOX_WITH_XPCOM)
+    }
+    while (0);
+
+    AssertComRC (rc);
+
+    return SUCCEEDED(rc) ? aResultCode : rc;
+}
+
+/**
+ * Shortcut instance method to calling the static setErrorInternal with the
+ * class interface ID and component name inserted correctly. This uses the
+ * virtual getClassIID() and getComponentName() methods which are automatically
+ * defined by the VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT macro.
+ * @param aResultCode
+ * @param pcsz
+ * @return
+ */
+HRESULT VirtualBoxBase::setError(HRESULT aResultCode, const char *pcsz, ...)
+{
+    va_list args;
+    va_start(args, pcsz);
+    HRESULT rc = setErrorInternal(aResultCode,
+                                  this->getClassIID(),
+                                  this->getComponentName(),
+                                  Utf8Str(pcsz, args),
+                                  false /* aWarning */,
+                                  true /* aLogIt */);
+    va_end(args);
+    return rc;
+}
+
+/**
+ * Like setError(), but sets the "warning" bit in the call to setErrorInternal().
+ * @param aResultCode
+ * @param pcsz
+ * @return
+ */
+HRESULT VirtualBoxBase::setWarning(HRESULT aResultCode, const char *pcsz, ...)
+{
+    va_list args;
+    va_start(args, pcsz);
+    HRESULT rc = setErrorInternal(aResultCode,
+                                  this->getClassIID(),
+                                  this->getComponentName(),
+                                  Utf8Str(pcsz, args),
+                                  true /* aWarning */,
+                                  true /* aLogIt */);
+    va_end(args);
+    return rc;
+}
+
+/**
+ * Like setError(), but disables the "log" flag in the call to setErrorInternal().
+ * @param aResultCode
+ * @param pcsz
+ * @return
+ */
+HRESULT VirtualBoxBase::setErrorNoLog(HRESULT aResultCode, const char *pcsz, ...)
+{
+    va_list args;
+    va_start(args, pcsz);
+    HRESULT rc = setErrorInternal(aResultCode,
+                                  this->getClassIID(),
+                                  this->getComponentName(),
+                                  Utf8Str(pcsz, args),
+                                  false /* aWarning */,
+                                  false /* aLogIt */);
+    va_end(args);
+    return rc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -471,9 +696,7 @@ AutoUninitSpan::AutoUninitSpan(VirtualBoxBase *aObj)
 
             /* otherwise, wait until another thread finishes uninitialization.
              * This is necessary to make sure that when this method returns, the
-             * object is NotReady and therefore can be deleted (for example).
-             * In particular, this is used by
-             * VirtualBoxBaseWithTypedChildrenNEXT::uninitDependentChildren(). */
+             * object is NotReady and therefore can be deleted (for example). */
 
             /* lazy semaphore creation */
             if (mObj->mInitUninitSem == NIL_RTSEMEVENTMULTI)
@@ -538,437 +761,38 @@ AutoUninitSpan::~AutoUninitSpan()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
-// VirtualBoxBase
+// MultiResult methods
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-/**
- *  Translates the given text string according to the currently installed
- *  translation table and current context. The current context is determined
- *  by the context parameter. Additionally, a comment to the source text
- *  string text can be given. This comment (which is NULL by default)
- *  is helpful in situations where it is necessary to distinguish between
- *  two or more semantically different roles of the same source text in the
- *  same context.
- *
- *  @param context      the context of the translation (can be NULL
- *                      to indicate the global context)
- *  @param sourceText   the string to translate
- *  @param comment      the comment to the string (NULL means no comment)
- *
- *  @return
- *      the translated version of the source string in UTF-8 encoding,
- *      or the source string itself if the translation is not found
- *      in the given context.
- */
-// static
-const char *VirtualBoxBase::translate (const char * /* context */, const char *sourceText,
-                                       const char * /* comment */)
-{
-#if 0
-    Log(("VirtualBoxBase::translate:\n"
-         "  context={%s}\n"
-         "  sourceT={%s}\n"
-         "  comment={%s}\n",
-         context, sourceText, comment));
-#endif
+RTTLS MultiResult::sCounter = NIL_RTTLS;
 
-    /// @todo (dmik) incorporate Qt translation file parsing and lookup
-    return sourceText;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// VirtualBoxSupportTranslationBase
-//
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- *  Modifies the given argument so that it will contain only a class name
- *  (null-terminated). The argument must point to a <b>non-constant</b>
- *  string containing a valid value, as it is generated by the
- *  __PRETTY_FUNCTION__ built-in macro of the GCC compiler, or by the
- *  __FUNCTION__ macro of any other compiler.
- *
- *  The function assumes that the macro is used within the member of the
- *  class derived from the VirtualBoxSupportTranslation<> template.
- *
- *  @param prettyFunctionName   string to modify
- *  @return
- *      true on success and false otherwise
- */
-bool VirtualBoxSupportTranslationBase::cutClassNameFrom__PRETTY_FUNCTION__ (char *fn)
-{
-    Assert(fn);
-    if (!fn)
-        return false;
-
-#if defined (__GNUC__)
-
-    // the format is like:
-    // VirtualBoxSupportTranslation<C>::VirtualBoxSupportTranslation() [with C = VirtualBox]
-
-    #define START " = "
-    #define END   "]"
-
-#elif defined (_MSC_VER)
-
-    // the format is like:
-    // VirtualBoxSupportTranslation<class VirtualBox>::__ctor
-
-    #define START "<class "
-    #define END   ">::"
-
-#endif
-
-    char *start = strstr(fn, START);
-    Assert(start);
-    if (start)
-    {
-        start += sizeof(START) - 1;
-        char *end = strstr(start, END);
-        Assert(end && (end > start));
-        if (end && (end > start))
-        {
-            size_t len = end - start;
-            memmove(fn, start, len);
-            fn[len] = 0;
-            return true;
-        }
-    }
-
-    #undef END
-    #undef START
-
-    return false;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//
-// VirtualBoxSupportErrorInfoImplBase
-//
-////////////////////////////////////////////////////////////////////////////////
-
-RTTLS VirtualBoxSupportErrorInfoImplBase::MultiResult::sCounter = NIL_RTTLS;
-
-void VirtualBoxSupportErrorInfoImplBase::MultiResult::init()
+/*static*/
+void MultiResult::incCounter()
 {
     if (sCounter == NIL_RTTLS)
     {
         sCounter = RTTlsAlloc();
-        AssertReturnVoid (sCounter != NIL_RTTLS);
+        AssertReturnVoid(sCounter != NIL_RTTLS);
     }
 
-    uintptr_t counter = (uintptr_t) RTTlsGet (sCounter);
-    ++ counter;
-    RTTlsSet (sCounter, (void *) counter);
+    uintptr_t counter = (uintptr_t)RTTlsGet(sCounter);
+    ++counter;
+    RTTlsSet(sCounter, (void*)counter);
 }
 
-VirtualBoxSupportErrorInfoImplBase::MultiResult::~MultiResult()
+/*static*/
+void MultiResult::decCounter()
 {
-    uintptr_t counter = (uintptr_t) RTTlsGet (sCounter);
-    AssertReturnVoid (counter != 0);
-    -- counter;
-    RTTlsSet (sCounter, (void *) counter);
+    uintptr_t counter = (uintptr_t)RTTlsGet(sCounter);
+    AssertReturnVoid(counter != 0);
+    --counter;
+    RTTlsSet(sCounter, (void*)counter);
 }
 
-/**
- *  Sets error info for the current thread. This is an internal function that
- *  gets eventually called by all public variants.  If @a aWarning is
- *  @c true, then the highest (31) bit in the @a aResultCode value which
- *  indicates the error severity is reset to zero to make sure the receiver will
- *  recognize that the created error info object represents a warning rather
- *  than an error.
- */
-/* static */
-HRESULT VirtualBoxSupportErrorInfoImplBase::setErrorInternal(HRESULT aResultCode,
-                                                             const GUID &aIID,
-                                                             const wchar_t *aComponent,
-                                                             const Bstr &aText,
-                                                             bool aWarning,
-                                                             bool aLogIt)
+/*static*/
+bool MultiResult::isMultiEnabled()
 {
-    /* whether multi-error mode is turned on */
-    bool preserve = ((uintptr_t)RTTlsGet(MultiResult::sCounter)) > 0;
-
-    Bstr bstrComponent((CBSTR)aComponent);
-
-    if (aLogIt)
-        LogRel(("ERROR [COM]: aRC=%Rhrc (%#08x) aIID={%RTuuid} aComponent={%ls} aText={%ls} "
-                "aWarning=%RTbool, preserve=%RTbool\n",
-                aResultCode, aResultCode, &aIID, bstrComponent.raw(), aText.raw(), aWarning,
-                preserve));
-
-    /* these are mandatory, others -- not */
-    AssertReturn((!aWarning && FAILED(aResultCode)) ||
-                  (aWarning && aResultCode != S_OK),
-                  E_FAIL);
-    AssertReturn(!aText.isEmpty(), E_FAIL);
-
-    /* reset the error severity bit if it's a warning */
-    if (aWarning)
-        aResultCode &= ~0x80000000;
-
-    HRESULT rc = S_OK;
-
-    do
-    {
-        ComObjPtr<VirtualBoxErrorInfo> info;
-        rc = info.createObject();
-        if (FAILED(rc)) break;
-
-#if !defined (VBOX_WITH_XPCOM)
-
-        ComPtr<IVirtualBoxErrorInfo> curInfo;
-        if (preserve)
-        {
-            /* get the current error info if any */
-            ComPtr<IErrorInfo> err;
-            rc = ::GetErrorInfo (0, err.asOutParam());
-            if (FAILED(rc)) break;
-            rc = err.queryInterfaceTo(curInfo.asOutParam());
-            if (FAILED(rc))
-            {
-                /* create a IVirtualBoxErrorInfo wrapper for the native
-                 * IErrorInfo object */
-                ComObjPtr<VirtualBoxErrorInfo> wrapper;
-                rc = wrapper.createObject();
-                if (SUCCEEDED(rc))
-                {
-                    rc = wrapper->init (err);
-                    if (SUCCEEDED(rc))
-                        curInfo = wrapper;
-                }
-            }
-        }
-        /* On failure, curInfo will stay null */
-        Assert(SUCCEEDED(rc) || curInfo.isNull());
-
-        /* set the current error info and preserve the previous one if any */
-        rc = info->init(aResultCode, aIID, bstrComponent, aText, curInfo);
-        if (FAILED(rc)) break;
-
-        ComPtr<IErrorInfo> err;
-        rc = info.queryInterfaceTo(err.asOutParam());
-        if (SUCCEEDED(rc))
-            rc = ::SetErrorInfo (0, err);
-
-#else // !defined (VBOX_WITH_XPCOM)
-
-        nsCOMPtr <nsIExceptionService> es;
-        es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
-        if (NS_SUCCEEDED(rc))
-        {
-            nsCOMPtr <nsIExceptionManager> em;
-            rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
-            if (FAILED(rc)) break;
-
-            ComPtr<IVirtualBoxErrorInfo> curInfo;
-            if (preserve)
-            {
-                /* get the current error info if any */
-                ComPtr<nsIException> ex;
-                rc = em->GetCurrentException (ex.asOutParam());
-                if (FAILED(rc)) break;
-                rc = ex.queryInterfaceTo(curInfo.asOutParam());
-                if (FAILED(rc))
-                {
-                    /* create a IVirtualBoxErrorInfo wrapper for the native
-                     * nsIException object */
-                    ComObjPtr<VirtualBoxErrorInfo> wrapper;
-                    rc = wrapper.createObject();
-                    if (SUCCEEDED(rc))
-                    {
-                        rc = wrapper->init (ex);
-                        if (SUCCEEDED(rc))
-                            curInfo = wrapper;
-                    }
-                }
-            }
-            /* On failure, curInfo will stay null */
-            Assert(SUCCEEDED(rc) || curInfo.isNull());
-
-            /* set the current error info and preserve the previous one if any */
-            rc = info->init(aResultCode, aIID, bstrComponent, aText, curInfo);
-            if (FAILED(rc)) break;
-
-            ComPtr<nsIException> ex;
-            rc = info.queryInterfaceTo(ex.asOutParam());
-            if (SUCCEEDED(rc))
-                rc = em->SetCurrentException (ex);
-        }
-        else if (rc == NS_ERROR_UNEXPECTED)
-        {
-            /*
-             *  It is possible that setError() is being called by the object
-             *  after the XPCOM shutdown sequence has been initiated
-             *  (for example, when XPCOM releases all instances it internally
-             *  references, which can cause object's FinalConstruct() and then
-             *  uninit()). In this case, do_GetService() above will return
-             *  NS_ERROR_UNEXPECTED and it doesn't actually make sense to
-             *  set the exception (nobody will be able to read it).
-             */
-            LogWarningFunc (("Will not set an exception because "
-                             "nsIExceptionService is not available "
-                             "(NS_ERROR_UNEXPECTED). "
-                             "XPCOM is being shutdown?\n"));
-            rc = NS_OK;
-        }
-
-#endif // !defined (VBOX_WITH_XPCOM)
-    }
-    while (0);
-
-    AssertComRC (rc);
-
-    return SUCCEEDED(rc) ? aResultCode : rc;
+    return ((uintptr_t)RTTlsGet(MultiResult::sCounter)) > 0;
 }
 
-
-/**
- * Uninitializes all dependent children registered on this object with
- * #addDependentChild().
- *
- * Must be called from within the AutoUninitSpan (i.e.
- * typically from this object's uninit() method) to uninitialize children
- * before this object goes out of service and becomes unusable.
- *
- * Note that this method will call uninit() methods of child objects. If
- * these methods need to call the parent object during uninitialization,
- * #uninitDependentChildren() must be called before the relevant part of the
- * parent is uninitialized: usually at the begnning of the parent
- * uninitialization sequence.
- *
- * Keep in mind that the uninitialized child objects may be no longer available
- * (i.e. may be deleted) after this method returns.
- *
- * @note Locks #childrenLock() for writing.
- *
- * @note May lock something else through the called children.
- */
-void VirtualBoxBaseWithChildrenNEXT::uninitDependentChildren()
-{
-    AutoCaller autoCaller(this);
-
-    /* sanity */
-    AssertReturnVoid (autoCaller.state() == InUninit ||
-                      autoCaller.state() == InInit);
-
-    AutoWriteLock chLock(childrenLock() COMMA_LOCKVAL_SRC_POS);
-
-    size_t count = mDependentChildren.size();
-
-    while (count != 0)
-    {
-        /* strongly reference the weak child from the map to make sure it won't
-         * be deleted while we've released the lock */
-        DependentChildren::iterator it = mDependentChildren.begin();
-        ComPtr<IUnknown> unk = it->first;
-        Assert(!unk.isNull());
-
-        VirtualBoxBase *child = it->second;
-
-        /* release the lock to let children stuck in removeDependentChild() go
-         * on (otherwise we'll deadlock in uninit() */
-        chLock.leave();
-
-        /* Note that if child->uninit() happens to be called on another
-         * thread right before us and is not yet finished, the second
-         * uninit() call will wait until the first one has done so
-         * (thanks to AutoUninitSpan). */
-        Assert(child);
-        if (child)
-            child->uninit();
-
-        chLock.enter();
-
-        /* uninit() is guaranteed to be done here so the child must be already
-         * deleted from the list by removeDependentChild() called from there.
-         * Do some checks to avoid endless loops when the user is forgetful */
-        -- count;
-        Assert(count == mDependentChildren.size());
-        if (count != mDependentChildren.size())
-            mDependentChildren.erase (it);
-
-        Assert(count == mDependentChildren.size());
-    }
-}
-
-/**
- * Returns a pointer to the dependent child (registered using
- * #addDependentChild()) corresponding to the given interface pointer or NULL if
- * the given pointer is unrelated.
- *
- * The relation is checked by using the given interface pointer as a key in the
- * map of dependent children.
- *
- * Note that ComPtr<IUnknown> is used as an argument instead of IUnknown * in
- * order to guarantee IUnknown identity and disambiguation by doing
- * QueryInterface (IUnknown) rather than a regular C cast.
- *
- * @param aUnk  Pointer to map to the dependent child object.
- * @return      Pointer to the dependent VirtualBoxBase child object.
- *
- * @note Locks #childrenLock() for reading.
- */
-VirtualBoxBase* VirtualBoxBaseWithChildrenNEXT::getDependentChild(const ComPtr<IUnknown> &aUnk)
-{
-    AssertReturn(!aUnk.isNull(), NULL);
-
-    AutoCaller autoCaller(this);
-
-    /* return NULL if uninitDependentChildren() is in action */
-    if (autoCaller.state() == InUninit)
-        return NULL;
-
-    AutoReadLock alock(childrenLock() COMMA_LOCKVAL_SRC_POS);
-
-    DependentChildren::const_iterator it = mDependentChildren.find (aUnk);
-    if (it == mDependentChildren.end())
-        return NULL;
-
-    return (*it).second;
-}
-
-/** Helper for addDependentChild(). */
-void VirtualBoxBaseWithChildrenNEXT::doAddDependentChild(IUnknown *aUnk,
-                                                         VirtualBoxBase *aChild)
-{
-    AssertReturnVoid (aUnk != NULL);
-    AssertReturnVoid (aChild != NULL);
-
-    AutoCaller autoCaller(this);
-
-    /* sanity */
-    AssertReturnVoid (autoCaller.state() == InInit ||
-                      autoCaller.state() == Ready ||
-                      autoCaller.state() == Limited);
-
-    AutoWriteLock alock(childrenLock() COMMA_LOCKVAL_SRC_POS);
-
-    std::pair <DependentChildren::iterator, bool> result =
-        mDependentChildren.insert (DependentChildren::value_type (aUnk, aChild));
-    AssertMsg (result.second, ("Failed to insert child %p to the map\n", aUnk));
-}
-
-/** Helper for removeDependentChild(). */
-void VirtualBoxBaseWithChildrenNEXT::doRemoveDependentChild (IUnknown *aUnk)
-{
-    AssertReturnVoid (aUnk);
-
-    AutoCaller autoCaller(this);
-
-    /* sanity */
-    AssertReturnVoid (autoCaller.state() == InUninit ||
-                      autoCaller.state() == InInit ||
-                      autoCaller.state() == Ready ||
-                      autoCaller.state() == Limited);
-
-    AutoWriteLock alock(childrenLock() COMMA_LOCKVAL_SRC_POS);
-
-    DependentChildren::size_type result = mDependentChildren.erase (aUnk);
-    AssertMsg (result == 1, ("Failed to remove child %p from the map\n", aUnk));
-    NOREF (result);
-}
-
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */

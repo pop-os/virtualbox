@@ -1,10 +1,10 @@
-/* $Id: timer-r0drv-nt.cpp $ */
+/* $Id: timer-r0drv-nt.cpp 33155 2010-10-15 12:07:44Z vboxsync $ */
 /** @file
  * IPRT - Timers, Ring-0 Driver, NT.
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -217,6 +217,9 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
 
     if (!ASMAtomicUoReadBool(&pTimer->fSuspended))
         return VERR_TIMER_ACTIVE;
+    if (   pTimer->fSpecificCpu
+        && !RTMpIsCpuOnline(pTimer->idCpu))
+        return VERR_CPU_OFFLINE;
 
     /*
      * Start the timer.
@@ -290,6 +293,15 @@ RTDECL(int) RTTimerStop(PRTTIMER pTimer)
 }
 
 
+RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
+{
+    AssertPtrReturn(pTimer, VERR_INVALID_HANDLE);
+    AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_HANDLE);
+
+    return VERR_NOT_SUPPORTED;
+}
+
+
 RTDECL(int) RTTimerDestroy(PRTTIMER pTimer)
 {
     /* It's ok to pass NULL pointer. */
@@ -299,7 +311,7 @@ RTDECL(int) RTTimerDestroy(PRTTIMER pTimer)
     AssertReturn(pTimer->u32Magic == RTTIMER_MAGIC, VERR_INVALID_HANDLE);
 
     /*
-     * Invalidate the timer, stop it if it's running and finally                   .
+     * Invalidate the timer, stop it if it's running and finally
      * free up the memory.
      */
     ASMAtomicWriteU32(&pTimer->u32Magic, ~RTTIMER_MAGIC);
@@ -311,7 +323,7 @@ RTDECL(int) RTTimerDestroy(PRTTIMER pTimer)
 }
 
 
-RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigned fFlags, PFNRTTIMER pfnTimer, void *pvUser)
+RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_t fFlags, PFNRTTIMER pfnTimer, void *pvUser)
 {
     *ppTimer = NULL;
 
@@ -322,10 +334,8 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigne
         return VERR_INVALID_PARAMETER;
     if (    (fFlags & RTTIMER_FLAGS_CPU_SPECIFIC)
         &&  (fFlags & RTTIMER_FLAGS_CPU_ALL) != RTTIMER_FLAGS_CPU_ALL
-        &&  !RTMpIsCpuOnline(fFlags & RTTIMER_FLAGS_CPU_MASK))
-        return (fFlags & RTTIMER_FLAGS_CPU_MASK) > RTMpGetMaxCpuId()
-             ? VERR_CPU_NOT_FOUND
-             : VERR_CPU_OFFLINE;
+        &&  !RTMpIsCpuPossible(RTMpCpuIdFromSetIndex(fFlags & RTTIMER_FLAGS_CPU_MASK)))
+        return VERR_CPU_NOT_FOUND;
 
     /*
      * Allocate the timer handler.
@@ -348,7 +358,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigne
     pTimer->fSuspended = true;
     pTimer->fSpecificCpu = (fFlags & RTTIMER_FLAGS_CPU_SPECIFIC) && (fFlags & RTTIMER_FLAGS_CPU_ALL) != RTTIMER_FLAGS_CPU_ALL;
     pTimer->fOmniTimer = (fFlags & RTTIMER_FLAGS_CPU_ALL) == RTTIMER_FLAGS_CPU_ALL;
-    pTimer->idCpu = fFlags & RTTIMER_FLAGS_CPU_MASK;
+    pTimer->idCpu = pTimer->fSpecificCpu ? RTMpCpuIdFromSetIndex(fFlags & RTTIMER_FLAGS_CPU_MASK) : NIL_RTCPUID;
     pTimer->cSubTimers = cSubTimers;
     pTimer->pfnTimer = pfnTimer;
     pTimer->pvUser = pvUser;
@@ -361,7 +371,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigne
          * to be the master.
          * ASSUMES that no cpus will ever go offline.
          */
-        pTimer->idCpu = NIL_RTCPUID; /* */
+        pTimer->idCpu = NIL_RTCPUID;
         for (unsigned iCpu = 0; iCpu < cSubTimers; iCpu++)
         {
             pTimer->aSubTimers[iCpu].iTick = 0;
@@ -400,28 +410,6 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigne
 }
 
 
-RTDECL(uint32_t) RTTimerGetSystemGranularity(void)
-{
-    /*
-     * Get the default/max timer increment value, return it if ExSetTimerResolution
-     * isn't available. Accoring to the sysinternals guys NtQueryTimerResolution
-     * is only available in userland and they find it equally annoying.
-     */
-    ULONG ulTimeInc = KeQueryTimeIncrement();
-    if (!g_pfnrtNtExSetTimerResolution)
-        return ulTimeInc * 100; /* The value is in 100ns, the funny NT unit. */
-
-    /*
-     * Use the value returned by ExSetTimerResolution. Since the kernel is keeping
-     * count of these calls, we have to do two calls that cancel each other out.
-     */
-    ULONG ulResolution1 = g_pfnrtNtExSetTimerResolution(ulTimeInc, TRUE);
-    ULONG ulResolution2 = g_pfnrtNtExSetTimerResolution(0 /*ignored*/, FALSE);
-    AssertMsg(ulResolution1 == ulResolution2, ("%ld, %ld\n", ulResolution1, ulResolution2)); /* not supposed to change it! */
-    return ulResolution2 * 100; /* NT -> ns */
-}
-
-
 RTDECL(int) RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32Granted)
 {
     if (!g_pfnrtNtExSetTimerResolution)
@@ -442,5 +430,11 @@ RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
     g_pfnrtNtExSetTimerResolution(0 /* ignored */, FALSE);
     NOREF(u32Granted);
     return VINF_SUCCESS;
+}
+
+
+RTDECL(bool) RTTimerCanDoHighResolution(void)
+{
+    return false;
 }
 

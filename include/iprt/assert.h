@@ -272,14 +272,44 @@ extern int RTASSERTVAR[1];
 RT_C_DECLS_END
 #endif
 
-/** @def AssertCompile
+/** @def RTASSERT_HAVE_STATIC_ASSERT
+ * Indicates that the compiler implements static_assert(expr, msg).
+ */
+#ifdef _MSC_VER
+# if _MSC_VER >= 1600 && defined(__cplusplus)
+#  define RTASSERT_HAVE_STATIC_ASSERT
+# endif
+#endif
+#if defined(__GNUC__) && defined(__GXX_EXPERIMENTAL_CXX0X__)
+# define RTASSERT_HAVE_STATIC_ASSERT
+#endif
+#ifdef DOXYGEN_RUNNING
+# define RTASSERT_HAVE_STATIC_ASSERT
+#endif
+
+/** @def AssertCompileNS
  * Asserts that a compile-time expression is true. If it's not break the build.
+ *
+ * This differs from AssertCompile in that it accepts some more expressions
+ * than what C++0x allows - NS = Non-standard.
+ *
  * @param   expr    Expression which should be true.
  */
 #ifdef __GNUC__
-# define AssertCompile(expr)    extern int RTASSERTVAR[1] __attribute__((unused)), RTASSERTVAR[(expr) ? 1 : 0] __attribute__((unused))
+# define AssertCompileNS(expr)  extern int RTASSERTVAR[1] __attribute__((unused)), RTASSERTVAR[(expr) ? 1 : 0] __attribute__((unused))
 #else
-# define AssertCompile(expr)    typedef int RTASSERTTYPE[(expr) ? 1 : 0]
+# define AssertCompileNS(expr)  typedef int RTASSERTTYPE[(expr) ? 1 : 0]
+#endif
+
+/** @def AssertCompile
+ * Asserts that a C++0x compile-time expression is true. If it's not break the
+ * build.
+ * @param   expr    Expression which should be true.
+ */
+#ifdef RTASSERT_HAVE_STATIC_ASSERT
+# define AssertCompile(expr)    static_assert(!!(expr), #expr)
+#else
+# define AssertCompile(expr)    AssertCompileNS(expr)
 #endif
 
 /** @def AssertCompileSize
@@ -390,6 +420,57 @@ RT_C_DECLS_END
 #else
 # define AssertCompileAdjacentMembers(type, member1, member2) \
     AssertCompile(RT_OFFSETOF(type, member1) + RT_SIZEOFMEMB(type, member1) == RT_OFFSETOF(type, member2))
+#endif
+
+/** @def AssertCompileMembersAtSameOffset
+ * Asserts that members of two different structures are at the same offset.
+ * @param   type1   The first type.
+ * @param   member1 The first member.
+ * @param   type2   The second type.
+ * @param   member2 The second member.
+ */
+#if defined(__GNUC__)
+# if __GNUC__ >= 4
+#  define AssertCompileMembersAtSameOffset(type1, member1, type2, member2) \
+    AssertCompile(__builtin_offsetof(type1, member1) == __builtin_offsetof(type2, member2))
+# else
+#  define AssertCompileMembersAtSameOffset(type1, member1, type2, member2) \
+    AssertCompile(RT_OFFSETOF(type1, member1) == RT_OFFSETOF(type2, member2))
+# endif
+#else
+# define AssertCompileMembersAtSameOffset(type1, member1, type2, member2) \
+    AssertCompile(RT_OFFSETOF(type1, member1) == RT_OFFSETOF(type2, member2))
+#endif
+
+/** @def AssertCompileMembersSameSize
+ * Asserts that members of two different structures have the same size.
+ * @param   type1   The first type.
+ * @param   member1 The first member.
+ * @param   type2   The second type.
+ * @param   member2 The second member.
+ */
+#define AssertCompileMembersSameSize(type1, member1, type2, member2) \
+    AssertCompile(RT_SIZEOFMEMB(type1, member1) == RT_SIZEOFMEMB(type2, member2))
+
+/** @def AssertCompileMembersSameSizeAndOffset
+ * Asserts that members of two different structures have the same size and are
+ * at the same offset.
+ * @param   type1   The first type.
+ * @param   member1 The first member.
+ * @param   type2   The second type.
+ * @param   member2 The second member.
+ */
+#if defined(__GNUC__)
+# if __GNUC__ >= 4
+#  define AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2) \
+    AssertCompile(__builtin_offsetof(type1, member1) == __builtin_offsetof(type2, member2) && RT_SIZEOFMEMB(type1, member1) == RT_SIZEOFMEMB(type2, member2))
+# else
+#  define AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2) \
+    AssertCompile(RT_OFFSETOF(type1, member1) == RT_OFFSETOF(type2, member2) && RT_SIZEOFMEMB(type1, member1) == RT_SIZEOFMEMB(type2, member2))
+# endif
+#else
+# define AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2) \
+    AssertCompile(RT_OFFSETOF(type1, member1) == RT_OFFSETOF(type2, member2) && RT_SIZEOFMEMB(type1, member1) == RT_SIZEOFMEMB(type2, member2))
 #endif
 
 /** @} */
@@ -1241,6 +1322,25 @@ RT_C_DECLS_END
         } \
     } while (0)
 
+/** @def AssertLogRelMsgStmt
+ * Assert that an expression is true, execute \a stmt and break if it isn't
+ * Strict builds will hit a breakpoint, non-strict will only do LogRel.
+ *
+ * @param   expr    Expression which should be true.
+ * @param   a       printf argument list (in parenthesis).
+ * @param   stmt    Statement to execute in case of a failed assertion.
+ */
+#define AssertLogRelMsgStmt(expr, a, stmt) \
+    do { \
+        if (RT_UNLIKELY(!(expr))) \
+        { \
+            RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
+            RTAssertLogRelMsg2(a); \
+            RTAssertPanic(); \
+            stmt; \
+        } \
+    } while (0)
+
 /** @def AssertLogRelMsgReturn
  * Assert that an expression is true, return \a rc if it isn't.
  * Strict builds will hit a breakpoint, non-strict will only do LogRel.
@@ -1256,6 +1356,29 @@ RT_C_DECLS_END
             RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
             RTAssertLogRelMsg2(a); \
             RTAssertPanic(); \
+            return (rc); \
+        } \
+    } while (0)
+
+/** @def AssertLogRelMsgReturnStmt
+ * Assert that an expression is true, execute \a stmt and return \a rc if it
+ * isn't.
+ * Strict builds will hit a breakpoint, non-strict will only do LogRel.
+ *
+ * @param   expr    Expression which should be true.
+ * @param   a       printf argument list (in parenthesis).
+ * @param   rc      What is to be presented to return.
+ * @param   stmt    Statement to execute before return in case of a failed
+ *                  assertion.
+ */
+#define AssertLogRelMsgReturnStmt(expr, a, rc, stmt) \
+    do { \
+        if (RT_UNLIKELY(!(expr))) \
+        { \
+            RTAssertLogRelMsg1(#expr, __LINE__, __FILE__, __PRETTY_FUNCTION__); \
+            RTAssertLogRelMsg2(a); \
+            RTAssertPanic(); \
+            stmt; \
             return (rc); \
         } \
     } while (0)
@@ -1858,6 +1981,16 @@ RT_C_DECLS_END
  */
 #define AssertRCReturnVoid(rc)      AssertMsgRCReturnVoid(rc, ("%Rra\n", (rc)))
 
+/** @def AssertReturnVoidStmt
+ * Asserts a iprt status code successful, bitch (RT_STRICT mode only), and
+ * execute the given statement/return if it isn't.
+ *
+ * @param   rc      iprt status code.
+ * @param   stmt    Statement to execute before returning on failure.
+ * @remark  rc is referenced multiple times. In release mode is NOREF()'ed.
+ */
+#define AssertRCReturnVoidStmt(rc, stmt) AssertMsgRCReturnVoidStmt(rc, ("%Rra\n", (rc)), stmt)
+
 /** @def AssertRCBreak
  * Asserts a iprt status code successful, bitch (RT_STRICT mode only) and break if it isn't.
  *
@@ -1912,6 +2045,19 @@ RT_C_DECLS_END
 #define AssertMsgRCReturnVoid(rc, msg) \
     do { AssertMsgReturnVoid(RT_SUCCESS_NP(rc), msg); NOREF(rc); } while (0)
 
+/** @def AssertMsgRCReturnVoidStmt
+ * Asserts a iprt status code successful and execute statement/break if it's not.
+ *
+ * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
+ *
+ * @param   rc      iprt status code.
+ * @param   msg     printf argument list (in parenthesis).
+ * @param   stmt    Statement to execute before break in case of a failed assertion.
+ * @remark  rc is referenced multiple times. In release mode is NOREF()'ed.
+ */
+#define AssertMsgRCReturnVoidStmt(rc, msg, stmt) \
+    do { AssertMsgReturnVoidStmt(RT_SUCCESS_NP(rc), msg, stmt); NOREF(rc); } while (0)
+
 /** @def AssertMsgRCBreak
  * Asserts a iprt status code successful and if it's not break.
  *
@@ -1925,7 +2071,7 @@ RT_C_DECLS_END
     if (1) { AssertMsgBreak(RT_SUCCESS(rc), msg); NOREF(rc); } else do {} while (0)
 
 /** @def AssertMsgRCBreakStmt
- * Asserts a iprt status code successful and break if it's not.
+ * Asserts a iprt status code successful and execute statement/break if it's not.
  *
  * If RT_STRICT is defined the message will be printed and a breakpoint hit before it returns
  *
@@ -1999,6 +2145,18 @@ RT_C_DECLS_END
  */
 #define AssertLogRelRCReturn(rc, rcRet)         AssertLogRelMsgRCReturn(rc, ("%Rra\n", (rc)), rcRet)
 
+/** @def AssertLogRelRCReturnStmt
+ * Asserts a iprt status code successful, executing \a stmt and returning \a rc
+ * if it isn't.
+ *
+ * @param   rc      iprt status code.
+ * @param   rcRet   What is to be presented to return.
+ * @param   stmt    Statement to execute before returning in case of a failed
+ *                  assertion.
+ * @remark  rc is referenced multiple times.
+ */
+#define AssertLogRelRCReturnStmt(rc, rcRet, stmt) AssertLogRelMsgRCReturnStmt(rc, ("%Rra\n", (rc)), rcRet, stmt)
+
 /** @def AssertLogRelRCReturnVoid
  * Asserts a iprt status code successful, returning (void) if it isn't.
  *
@@ -2042,6 +2200,18 @@ RT_C_DECLS_END
  * @remark  rc is referenced multiple times.
  */
 #define AssertLogRelMsgRCReturn(rc, msg, rcRet) AssertLogRelMsgReturn(RT_SUCCESS_NP(rc), msg, rcRet)
+
+/** @def AssertLogRelMsgRCReturnStmt
+ * Asserts a iprt status code successful, execute \a stmt and return on
+ * failure.
+ *
+ * @param   rc      iprt status code.
+ * @param   msg     printf argument list (in parenthesis).
+ * @param   rcRet   What is to be presented to return.
+ * @param   stmt    Statement to execute before break in case of a failed assertion.
+ * @remark  rc is referenced multiple times.
+ */
+#define AssertLogRelMsgRCReturnStmt(rc, msg, rcRet, stmt) AssertLogRelMsgReturnStmt(RT_SUCCESS_NP(rc), msg, rcRet, stmt)
 
 /** @def AssertLogRelMsgRCReturnVoid
  * Asserts a iprt status code successful.

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 32382 2010-09-10 09:53:03Z vboxsync $
 ## @file
 # Sub-Makefile for liblzf.
 #
@@ -21,8 +21,8 @@ include $(KBUILD_PATH)/subheader.kmk
 
 LIBRARIES += VBox-liblzf
 if1of ($(KBUILD_TARGET),os2 win)
- # only required for (now) disabled VBoxFidHdd
- # LIBRARIES += VBox-liblzf-static
+ # only required for vbox-img
+ LIBRARIES += VBox-liblzf-static
 endif
 VBox-liblzf_TEMPLATE = VBOXR3
 VBox-liblzf_BLD_TYPE = release # WARNING! Always optimizing this lib.

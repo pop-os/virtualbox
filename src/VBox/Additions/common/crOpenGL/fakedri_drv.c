@@ -1,4 +1,4 @@
-/* $Id: fakedri_drv.c $ */
+/* $Id: fakedri_drv.c 35263 2010-12-20 18:12:36Z vboxsync $ */
 
 /** @file
  * VBox OpenGL DRI driver functions
@@ -83,7 +83,19 @@
 # define DRI_ELFSYM Elf32_Sym
 #endif
 
-static struct _glapi_table vbox_glapi_table;
+#ifdef RT_ARCH_AMD64
+typedef struct _FAKEDRI_PatchNode
+{
+    const char* psFuncName;
+    void *pDstStart, *pDstEnd;
+    const void *pSrcStart, *pSrcEnd;
+
+    struct _FAKEDRI_PatchNode *pNext;
+} FAKEDRI_PatchNode;
+static FAKEDRI_PatchNode *g_pFreeList=NULL, *g_pRepatchList=NULL;
+#endif
+
+static struct _glapi_table* vbox_glapi_table = NULL;
 fakedri_glxapi_table glxim;
 
 static const __DRIextension **gppSwDriExternsion = NULL;
@@ -92,30 +104,51 @@ static const __DRIswrastExtension *gpSwDriSwrastExtension = NULL;
 
 extern const __DRIextension * __driDriverExtensions[];
 
-#define GLAPI_ENTRY(Func) pGLTable->Func = cr_gl##Func;
+#define VBOX_SET_MESA_FUNC(table, name, func) \
+    if (_glapi_get_proc_offset(name)>=0) SET_by_offset(table, _glapi_get_proc_offset(name), func); \
+    else crWarning("%s not found in mesa table", name)
+
+#define GLAPI_ENTRY(Func) VBOX_SET_MESA_FUNC(vbox_glapi_table, "gl"#Func, cr_gl##Func);
+
 static void
-vboxFillMesaGLAPITable(struct _glapi_table *pGLTable)
+vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd);
+
+static void
+vboxPatchMesaGLAPITable()
 {
+    void *pGLTable;
+
+    pGLTable = (void *)_glapi_get_dispatch();
+    vbox_glapi_table = crAlloc(_glapi_get_dispatch_table_size() * sizeof (void *));
+    if (!vbox_glapi_table)
+    {
+        crError("Not enough memory to allocate dispatch table");
+    }
+    crMemcpy(vbox_glapi_table, pGLTable, _glapi_get_dispatch_table_size() * sizeof (void *));
+
     #include "fakedri_glfuncsList.h"
 
-    pGLTable->SampleMaskSGIS = cr_glSampleMaskEXT;
-    pGLTable->SamplePatternSGIS = cr_glSamplePatternEXT;
-    pGLTable->WindowPos2dMESA = cr_glWindowPos2d;
-    pGLTable->WindowPos2dvMESA = cr_glWindowPos2dv;
-    pGLTable->WindowPos2fMESA = cr_glWindowPos2f;
-    pGLTable->WindowPos2fvMESA = cr_glWindowPos2fv;
-    pGLTable->WindowPos2iMESA = cr_glWindowPos2i;
-    pGLTable->WindowPos2ivMESA = cr_glWindowPos2iv;
-    pGLTable->WindowPos2sMESA = cr_glWindowPos2s;
-    pGLTable->WindowPos2svMESA = cr_glWindowPos2sv;
-    pGLTable->WindowPos3dMESA = cr_glWindowPos3d;
-    pGLTable->WindowPos3dvMESA = cr_glWindowPos3dv;
-    pGLTable->WindowPos3fMESA = cr_glWindowPos3f;
-    pGLTable->WindowPos3fvMESA = cr_glWindowPos3fv;
-    pGLTable->WindowPos3iMESA = cr_glWindowPos3i;
-    pGLTable->WindowPos3ivMESA = cr_glWindowPos3iv;
-    pGLTable->WindowPos3sMESA = cr_glWindowPos3s;
-    pGLTable->WindowPos3svMESA = cr_glWindowPos3sv;
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glBlendEquationSeparateEXT", cr_glBlendEquationSeparate);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glSampleMaskSGIS", cr_glSampleMaskEXT);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glSamplePatternSGIS", cr_glSamplePatternEXT);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2dMESA", cr_glWindowPos2d);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2dvMESA", cr_glWindowPos2dv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2fMESA", cr_glWindowPos2f);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2fvMESA", cr_glWindowPos2fv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2iMESA", cr_glWindowPos2i);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2ivMESA", cr_glWindowPos2iv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2sMESA", cr_glWindowPos2s);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos2svMESA", cr_glWindowPos2sv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3dMESA", cr_glWindowPos3d);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3dvMESA", cr_glWindowPos3dv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3fMESA", cr_glWindowPos3f);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3fvMESA", cr_glWindowPos3fv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3iMESA", cr_glWindowPos3i);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3ivMESA", cr_glWindowPos3iv);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3sMESA", cr_glWindowPos3s);
+    VBOX_SET_MESA_FUNC(vbox_glapi_table, "glWindowPos3svMESA", cr_glWindowPos3sv);
+
+    _glapi_set_dispatch(vbox_glapi_table);
 };
 #undef GLAPI_ENTRY
 
@@ -128,6 +161,42 @@ vboxFillGLXAPITable(fakedri_glxapi_table *pGLXTable)
 #undef GLXAPI_ENTRY
 
 static void
+vboxApplyPatch(const char* psFuncName, void *pDst, const void *pSrc, unsigned long size)
+{
+    void *alPatch;
+    int rv;
+
+    /* Get aligned start address we're going to patch*/
+    alPatch = (void*) ((uintptr_t)pDst & ~(uintptr_t)(PAGESIZE-1));
+
+#ifndef VBOX_NO_MESA_PATCH_REPORTS
+    crDebug("MProtecting: %p, %li", alPatch, pDst-alPatch+size);
+#endif
+
+    /* Get write access to mesa functions */
+    rv = RTMemProtect(alPatch, pDst-alPatch+size, RTMEM_PROT_READ|RTMEM_PROT_WRITE|RTMEM_PROT_EXEC);
+    if (RT_FAILURE(rv))
+    {
+        crError("mprotect failed with %x (%s)", rv, psFuncName);
+    }
+
+#ifndef VBOX_NO_MESA_PATCH_REPORTS
+    crDebug("Writing %li bytes to %p from %p", size, pDst, pSrc);
+#endif
+
+    crMemcpy(pDst, pSrc, size);
+
+    /*@todo Restore the protection, probably have to check what was it before us...*/
+    rv = RTMemProtect(alPatch, pDst-alPatch+size, RTMEM_PROT_READ|RTMEM_PROT_EXEC);
+    if (RT_FAILURE(rv))
+    {
+        crError("mprotect2 failed with %x (%s)", rv, psFuncName);
+    }
+}
+
+#define FAKEDRI_JMP64_PATCH_SIZE 13
+
+static void
 vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd)
 {
     Dl_info dlip;
@@ -135,8 +204,9 @@ vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd
     int rv;
     void *alPatch;
     void *pMesaEntry;
-    char patch[5];
+    char patch[FAKEDRI_JMP64_PATCH_SIZE];
     void *shift;
+    int ignore_size=false;
 
 #ifndef VBOX_NO_MESA_PATCH_REPORTS
     crDebug("\nvboxPatchMesaExport: %s", psFuncName);
@@ -166,93 +236,218 @@ vboxPatchMesaExport(const char* psFuncName, const void *pStart, const void *pEnd
         rv = dladdr1(pStart, &dlip1, (void**)&sym1, RTLD_DL_SYMENT);
         if (!rv || !sym1)
         {
-            crError("Failed to get size for %p", pStart);
+            crError("Failed to get size for vbox %p", pStart);
             return;
         }
 
         pEnd = pStart + sym1->st_size;
-#ifndef VBOX_NO_MESA_PATCH_REPORTS
-        crDebug("VBox Entry: %p, start: %p(%s:%s), size: %i", pStart, dlip1.dli_saddr, dlip1.dli_fname, dlip1.dli_sname, sym1->st_size);
-#endif
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+        crDebug("VBox Entry: %p, start: %p(%s:%s), size: %li", pStart, dlip1.dli_saddr, dlip1.dli_fname, dlip1.dli_sname, sym1->st_size);
+# endif
     }
 #endif
 
 #ifndef VBOX_NO_MESA_PATCH_REPORTS
-    crDebug("Mesa Entry: %p, start: %p(%s:%s), size: %i", pMesaEntry, dlip.dli_saddr, dlip.dli_fname, dlip.dli_sname, sym->st_size);
-    crDebug("Vbox code: start: %p, end %p, size: %i", pStart, pEnd, pEnd-pStart);
+    crDebug("Mesa Entry: %p, start: %p(%s:%s), size: %li", pMesaEntry, dlip.dli_saddr, dlip.dli_fname, dlip.dli_sname, sym->st_size);
+    crDebug("Vbox code: start: %p, end %p, size: %li", pStart, pEnd, pEnd-pStart);
 #endif
 
 #ifndef VBOX_OGL_GLX_USE_CSTUBS
     if (sym->st_size<(pEnd-pStart))
 #endif
     {
+#ifdef RT_ARCH_AMD64
+        int64_t offset;
+#endif
         /* Try to insert 5 bytes jmp/jmpq to our stub code */
 
-    	if (5>(pEnd-pStart))
+    	if (sym->st_size<5)
         {
-            crDebug("Can't patch size too small.(%s)", psFuncName);
-            return;
-        }
-
-        shift = (void*)((intptr_t)pStart-((intptr_t)dlip.dli_saddr+5));
-# ifndef VBOX_NO_MESA_PATCH_REPORTS
-        crDebug("Inserting jmp[q] with shift %p instead", shift);
-# endif
-
-#ifdef RT_ARCH_AMD64
-        {
-            int64_t offset = (intptr_t)shift;
-
-            if (offset>INT32_MAX || offset<INT32_MIN)
+            /*@todo we don't really know the size of targeted static function, but it's long enough in practice. We will also patch same place twice, but it's ok.*/
+            if (!crStrcmp(psFuncName, "glXDestroyContext") || !crStrcmp(psFuncName, "glXFreeContextEXT"))
             {
-                crDebug("Can't patch offset is too big.(%s)", psFuncName);
+                if (((unsigned char*)dlip.dli_saddr)[0]==0xEB)
+                {
+                    /*it's a rel8 jmp, so we're going to patch the place it targets instead of jmp itself*/
+                    dlip.dli_saddr = (void*) ((intptr_t)dlip.dli_saddr + ((char*)dlip.dli_saddr)[1] + 2);
+                    ignore_size = true;
+                }
+                else
+                {
+                    crError("Can't patch size is too small.(%s)", psFuncName);
+                    return;
+                }
+            }
+            else if (!crStrcmp(psFuncName, "glXCreateGLXPixmapMESA"))
+            {
+                /*@todo it's just a return 0, which we're fine with for now*/
+                return;
+            }
+            else
+            {
+                crError("Can't patch size is too small.(%s)", psFuncName);
                 return;
             }
         }
-#endif
 
-        patch[0] = 0xE9;
-        patch[1] = ((char*)&shift)[0];
-        patch[2] = ((char*)&shift)[1];
-        patch[3] = ((char*)&shift)[2];
-        patch[4] = ((char*)&shift)[3];
-
+        shift = (void*)((intptr_t)pStart-((intptr_t)dlip.dli_saddr+5));
+#ifdef RT_ARCH_AMD64
+        offset = (intptr_t)shift;
+        if (offset>INT32_MAX || offset<INT32_MIN)
+        {
+            /*try to insert 64bit abs jmp*/
+            if (sym->st_size>=FAKEDRI_JMP64_PATCH_SIZE || ignore_size)
+            {
 # ifndef VBOX_NO_MESA_PATCH_REPORTS
-        crDebug("Patch: E9 %x", *((int*)&patch[1]));
+                crDebug("Inserting movq/jmp instead");
 # endif
-        pStart = &patch[0];
-        pEnd = &patch[5];
+                /*add 64bit abs jmp*/
+                patch[0] = 0x49; /*movq %r11,imm64*/
+                patch[1] = 0xBB;
+                crMemcpy(&patch[2], &pStart, 8);
+                patch[10] = 0x41; /*jmp *%r11*/
+                patch[11] = 0xFF;
+                patch[12] = 0xE3;
+                pStart = &patch[0];
+                pEnd = &patch[FAKEDRI_JMP64_PATCH_SIZE];
+            }
+            else
+            {
+                FAKEDRI_PatchNode *pNode;
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+                crDebug("Can't patch offset is too big. Pushing for 2nd pass(%s)", psFuncName);
+# endif
+                /*Add patch node to repatch with chain jmps in 2nd pass*/
+                pNode = (FAKEDRI_PatchNode *)crAlloc(sizeof(FAKEDRI_PatchNode));
+                if (!pNode)
+                {
+                    crError("Not enough memory.");
+                    return;
+                }
+                pNode->psFuncName = psFuncName;
+                pNode->pDstStart = dlip.dli_saddr;
+                pNode->pDstEnd = dlip.dli_saddr+sym->st_size;
+                pNode->pSrcStart = pStart;
+                pNode->pSrcEnd = pEnd; 
+                pNode->pNext = g_pRepatchList;
+                g_pRepatchList = pNode;
+                return;
+            }
+        }
+        else
+#endif
+        {
+#ifndef VBOX_NO_MESA_PATCH_REPORTS
+            crDebug("Inserting jmp[q] with shift %p instead", shift);
+#endif
+            patch[0] = 0xE9;
+            crMemcpy(&patch[1], &shift, 4);
+            pStart = &patch[0];
+            pEnd = &patch[5];
+        }
     }
 
-    /* Get aligned start adress we're going to patch*/
-    alPatch = (void*) ((uintptr_t)dlip.dli_saddr & ~(uintptr_t)(PAGESIZE-1));
+    vboxApplyPatch(psFuncName, dlip.dli_saddr, pStart, pEnd-pStart);
 
-#ifndef VBOX_NO_MESA_PATCH_REPORTS
-    crDebug("MProtecting: %p, %i", alPatch, dlip.dli_saddr-alPatch+pEnd-pStart);
-#endif
-
-    /* Get write access to mesa functions */
-    rv = RTMemProtect(alPatch, dlip.dli_saddr-alPatch+pEnd-pStart, 
-                      RTMEM_PROT_READ|RTMEM_PROT_WRITE|RTMEM_PROT_EXEC);
-    if (RT_FAILURE(rv))
+#ifdef RT_ARCH_AMD64
+    /*Add rest of mesa function body to free list*/
+    if (sym->st_size-(pEnd-pStart)>=FAKEDRI_JMP64_PATCH_SIZE)
     {
-        crError("mprotect failed with %x (%s)", rv, psFuncName);
+        FAKEDRI_PatchNode *pNode = (FAKEDRI_PatchNode *)crAlloc(sizeof(FAKEDRI_PatchNode));
+        if (pNode)
+        {
+                pNode->psFuncName = psFuncName;
+                pNode->pDstStart = dlip.dli_saddr+(pEnd-pStart);
+                pNode->pDstEnd = dlip.dli_saddr+sym->st_size; 
+                pNode->pSrcStart = dlip.dli_saddr;
+                pNode->pSrcEnd = NULL;
+                pNode->pNext = g_pFreeList;
+                g_pFreeList = pNode;
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+                crDebug("Added free node %s, func start=%p, free start=%p, size=%#lx",
+                        psFuncName, pNode->pSrcStart, pNode->pDstStart, pNode->pDstEnd-pNode->pDstStart);
+# endif
+        }
     }
-
-#ifndef VBOX_NO_MESA_PATCH_REPORTS
-    crDebug("Writing %i bytes to %p from %p", pEnd-pStart, dlip.dli_saddr, pStart);
 #endif
+}
 
-    crMemcpy(dlip.dli_saddr, pStart, pEnd-pStart);
+#ifdef RT_ARCH_AMD64
+static void
+vboxRepatchMesaExports(void)
+{
+    FAKEDRI_PatchNode *pFreeNode, *pPatchNode;
+    int64_t offset;
+    char patch[FAKEDRI_JMP64_PATCH_SIZE];
 
-    /*@todo Restore the protection, probably have to check what was it before us...*/
-    rv = RTMemProtect(alPatch, dlip.dli_saddr-alPatch+pEnd-pStart, 
-                      RTMEM_PROT_READ|RTMEM_PROT_EXEC);
-    if (RT_FAILURE(rv))
+    pPatchNode = g_pRepatchList;
+    while (pPatchNode)
     {
-        crError("mprotect2 failed with %x (%s)", rv, psFuncName);
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+        crDebug("\nvboxRepatchMesaExports %s", pPatchNode->psFuncName);
+# endif
+        /*find free place in mesa functions, to place 64bit jump to our stub code*/
+        pFreeNode = g_pFreeList;
+        while (pFreeNode)
+        {
+            if (pFreeNode->pDstEnd-pFreeNode->pDstStart>=FAKEDRI_JMP64_PATCH_SIZE)
+            {
+                offset = ((intptr_t)pFreeNode->pDstStart-((intptr_t)pPatchNode->pDstStart+5));
+                if (offset<=INT32_MAX && offset>=INT32_MIN)
+                {
+                    break;
+                }
+            }
+            pFreeNode=pFreeNode->pNext;
+        }
+
+        if (!pFreeNode)
+        {
+            crError("Failed to find free space, to place repatch for %s.", pPatchNode->psFuncName);
+            return;
+        }
+
+        /*add 32bit rel jmp, from mesa orginal function to free space in other mesa function*/
+        patch[0] = 0xE9;
+        crMemcpy(&patch[1], &offset, 4);
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+        crDebug("Adding jmp from mesa %s to mesa %s+%#lx", pPatchNode->psFuncName, pFreeNode->psFuncName, 
+                pFreeNode->pDstStart-pFreeNode->pSrcStart);
+# endif
+        vboxApplyPatch(pPatchNode->psFuncName, pPatchNode->pDstStart, &patch[0], 5);
+
+        /*add 64bit abs jmp, from free space to our stub code*/
+        patch[0] = 0x49; /*movq %r11,imm64*/
+        patch[1] = 0xBB;
+        crMemcpy(&patch[2], &pPatchNode->pSrcStart, 8);
+        patch[10] = 0x41; /*jmp *%r11*/
+        patch[11] = 0xFF;
+        patch[12] = 0xE3;
+# ifndef VBOX_NO_MESA_PATCH_REPORTS
+        crDebug("Adding jmp from mesa %s+%#lx to vbox %s", pFreeNode->psFuncName, pFreeNode->pDstStart-pFreeNode->pSrcStart,
+                pPatchNode->psFuncName);
+# endif
+        vboxApplyPatch(pFreeNode->psFuncName, pFreeNode->pDstStart, &patch[0], FAKEDRI_JMP64_PATCH_SIZE);
+        /*mark this space as used*/
+        pFreeNode->pDstStart = pFreeNode->pDstStart+FAKEDRI_JMP64_PATCH_SIZE;
+
+        pPatchNode = pPatchNode->pNext;
     }
 }
+
+static void
+vboxFakeDriFreeList(FAKEDRI_PatchNode *pList)
+{
+    FAKEDRI_PatchNode *pNode;
+
+    while (pList)
+    {
+        pNode=pList;
+        pList=pNode->pNext;
+        crFree(pNode);
+    }
+}
+#endif
 
 #ifdef VBOX_OGL_GLX_USE_CSTUBS
 static void
@@ -266,6 +461,14 @@ vboxPatchMesaExports()
 {
     crDebug("Patching mesa glx entries");
     #include "fakedri_glxfuncsList.h"
+
+#ifdef RT_ARCH_AMD64
+    vboxRepatchMesaExports();
+    vboxFakeDriFreeList(g_pRepatchList);
+    g_pRepatchList = NULL;
+    vboxFakeDriFreeList(g_pFreeList);
+    g_pFreeList = NULL;
+#endif
 }
 #undef GLXAPI_ENTRY
 
@@ -333,12 +536,6 @@ bool vbox_load_sw_dri()
 
 void __attribute__ ((constructor)) vbox_install_into_mesa(void)
 {
-    if (!stubInit())
-    {
-        crDebug("vboxdriInitScreen: stubInit failed");
-        return;
-    }
-
     {
 #ifdef _X_ATTRIBUTE_PRINTF
         void (*pxf86Msg)(MessageType type, const char *format, ...) _X_ATTRIBUTE_PRINTF(2,3);
@@ -359,6 +556,12 @@ void __attribute__ ((constructor)) vbox_install_into_mesa(void)
         }
     }
 
+    if (!stubInit())
+    {
+        crDebug("vboxdriInitScreen: stubInit failed");
+        return;
+    }
+
     /* Load swrast_dri.so to proxy dri related calls there. */
     if (!vbox_load_sw_dri())
     {
@@ -370,13 +573,9 @@ void __attribute__ ((constructor)) vbox_install_into_mesa(void)
      * In the end application call would look like this:
      * app call glFoo->(mesa asm dispatch stub)->cr_glFoo(vbox asm dispatch stub)->SPU Foo function(packspuFoo or alike)
      * Note, we don't need to install extension functions via _glapi_add_dispatch, because we'd override glXGetProcAddress.
-     */    
-    /* We don't support all mesa's functions. Initialize our table to mesa dispatch first*/
-    crMemcpy(&vbox_glapi_table, _glapi_get_dispatch(), sizeof(struct _glapi_table));
-    /* Now install our assembly dispatch entries into table */
-    vboxFillMesaGLAPITable(&vbox_glapi_table);
-    /* Install our dispatch table into mesa */
-    _glapi_set_dispatch(&vbox_glapi_table);
+     */
+    /* Mesa's dispatch table is different across library versions, have to modify mesa's table using offset info functions*/
+    vboxPatchMesaGLAPITable();
 
     /* Handle glx api.
      * In the end application call would look like this:

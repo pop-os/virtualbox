@@ -1,4 +1,4 @@
-/* $Id: Performance.h $ */
+/* $Id: Performance.h 30847 2010-07-14 15:40:49Z vboxsync $ */
 
 /** @file
  *

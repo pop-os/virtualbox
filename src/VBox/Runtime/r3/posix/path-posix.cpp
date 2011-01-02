@@ -1,6 +1,6 @@
-/* $Id: path-posix.cpp $ */
+/* $Id: path-posix.cpp 34015 2010-11-12 00:15:05Z vboxsync $ */
 /** @file
- * IPRT - Path Manipulation, POSIX.
+ * IPRT - Path Manipulation, POSIX, Part 1.
  */
 
 /*
@@ -86,7 +86,7 @@ RTDECL(int) RTPathReal(const char *pszPath, char *pszRealPath, size_t cchRealPat
 
 /**
  * Cleans up a path specifier a little bit.
- * This includes removing duplicate slashes, uncessary single dots, and
+ * This includes removing duplicate slashes, unnecessary single dots, and
  * trailing slashes. Also, replaces all RTPATH_SLASH characters with '/'.
  *
  * @returns Number of bytes in the clean path.
@@ -302,283 +302,29 @@ RTDECL(int) RTPathAbs(const char *pszPath, char *pszAbsPath, size_t cchAbsPath)
 }
 
 
-#ifndef RT_OS_L4
-/**
- * Worker for RTPathUserHome that looks up the home directory
- * using the getpwuid_r api.
- *
- * @returns IPRT status code.
- * @param   pszPath     The path buffer.
- * @param   cchPath     The size of the buffer.
- * @param   uid         The User ID to query the home directory of.
- */
-static int rtPathUserHomeByPasswd(char *pszPath, size_t cchPath, uid_t uid)
+RTR3DECL(int) RTPathSetMode(const char *pszPath, RTFMODE fMode)
 {
-    /*
-     * The getpwuid_r function uses the passed in buffer to "allocate" any
-     * extra memory it needs. On some systems we should probably use the
-     * sysconf function to find the appropriate buffer size, but since it won't
-     * work everywhere we'll settle with a 5KB buffer and ASSUME that it'll
-     * suffice for even the lengthiest user descriptions...
-     */
-    char            achBuffer[5120];
-    struct passwd   Passwd;
-    struct passwd  *pPasswd;
-    memset(&Passwd, 0, sizeof(Passwd));
-    int rc = getpwuid_r(uid, &Passwd, &achBuffer[0], sizeof(achBuffer), &pPasswd);
-    if (rc != 0)
-        return RTErrConvertFromErrno(rc);
-    if (!pPasswd) /* uid not found in /etc/passwd */
-        return VERR_PATH_NOT_FOUND;
+    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+    AssertReturn(*pszPath, VERR_INVALID_PARAMETER);
 
-    /*
-     * Check that it isn't empty and that it exists.
-     */
-    struct stat st;
-    if (    !pPasswd->pw_dir
-        ||  !*pPasswd->pw_dir
-        ||  stat(pPasswd->pw_dir, &st)
-        ||  !S_ISDIR(st.st_mode))
-        return VERR_PATH_NOT_FOUND;
-
-    /*
-     * Convert it to UTF-8 and copy it to the return buffer.
-     */
-    return rtPathFromNativeCopy(pszPath, cchPath, pPasswd->pw_dir, NULL);
-}
-#endif
-
-
-/**
- * Worker for RTPathUserHome that looks up the home directory
- * using the HOME environment variable.
- *
- * @returns IPRT status code.
- * @param   pszPath     The path buffer.
- * @param   cchPath     The size of the buffer.
- */
-static int rtPathUserHomeByEnv(char *pszPath, size_t cchPath)
-{
-    /*
-     * Get HOME env. var it and validate it's existance.
-     */
-    int         rc      = VERR_PATH_NOT_FOUND;
-    const char *pszHome = RTEnvGet("HOME"); /** @todo Codeset confusion in RTEnv. */
-    if (pszHome)
-
-    {
-        struct stat st;
-        if (    !stat(pszHome, &st)
-            &&  S_ISDIR(st.st_mode))
-            rc = rtPathFromNativeCopy(pszPath, cchPath, pszHome, NULL);
-    }
-    return rc;
-}
-
-
-RTDECL(int) RTPathUserHome(char *pszPath, size_t cchPath)
-{
     int rc;
-#ifndef RT_OS_L4
-    /*
-     * We make an exception for the root user and use the system call
-     * getpwuid_r to determine their initial home path instead of
-     * reading it from the $HOME variable.  This is because the $HOME
-     * variable does not get changed by sudo (and possibly su and others)
-     * which can cause root-owned files to appear in user's home folders.
-     */
-     uid_t uid = geteuid();
-     if (!uid)
-         rc = rtPathUserHomeByPasswd(pszPath, cchPath, uid);
-     else
-         rc = rtPathUserHomeByEnv(pszPath, cchPath);
-
-     /*
-      * On failure, retry using the alternative method.
-      * (Should perhaps restrict the retry cases a bit more here...)
-      */
-     if (   RT_FAILURE(rc)
-         && rc != VERR_BUFFER_OVERFLOW)
-     {
-         if (!uid)
-             rc = rtPathUserHomeByEnv(pszPath, cchPath);
-         else
-             rc = rtPathUserHomeByPasswd(pszPath, cchPath, uid);
-     }
-#else  /* RT_OS_L4 */
-    rc = rtPathUserHomeByEnv(pszPath, cchPath);
-#endif /* RT_OS_L4 */
-
-    LogFlow(("RTPathUserHome(%p:{%s}, %u): returns %Rrc\n", pszPath,
-             RT_SUCCESS(rc) ? pszPath : "<failed>",  cchPath, rc));
-    return rc;
-}
-
-
-RTR3DECL(int) RTPathQueryInfo(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs)
-{
-    return RTPathQueryInfoEx(pszPath, pObjInfo, enmAdditionalAttribs, RTPATH_F_ON_LINK);
-}
-
-
-RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags)
-{
-    /*
-     * Validate input.
-     */
-    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
-    AssertReturn(*pszPath, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pObjInfo, VERR_INVALID_POINTER);
-    AssertMsgReturn(    enmAdditionalAttribs >= RTFSOBJATTRADD_NOTHING
-                    &&  enmAdditionalAttribs <= RTFSOBJATTRADD_LAST,
-                    ("Invalid enmAdditionalAttribs=%p\n", enmAdditionalAttribs),
-                    VERR_INVALID_PARAMETER);
-    AssertMsgReturn(RTPATH_F_IS_VALID(fFlags, 0), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
-
-    /*
-     * Convert the filename.
-     */
-    char const *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
-    if (RT_SUCCESS(rc))
+    fMode = rtFsModeNormalize(fMode, pszPath, 0);
+    if (rtFsModeIsValidPermissions(fMode))
     {
-        struct stat Stat;
-        if (fFlags & RTPATH_F_FOLLOW_LINK)
-            rc = stat(pszNativePath, &Stat);
-        else
-            rc = lstat(pszNativePath, &Stat); /** @todo how doesn't have lstat again? */
-        if (!rc)
+        char const *pszNativePath;
+        rc = rtPathToNative(&pszNativePath, pszPath, NULL);
+        if (RT_SUCCESS(rc))
         {
-            rtFsConvertStatToObjInfo(pObjInfo, &Stat, pszPath, 0);
-            switch (enmAdditionalAttribs)
-            {
-                case RTFSOBJATTRADD_EASIZE:
-                    /** @todo Use SGI extended attribute interface to query EA info. */
-                    pObjInfo->Attr.enmAdditional          = RTFSOBJATTRADD_EASIZE;
-                    pObjInfo->Attr.u.EASize.cb            = 0;
-                    break;
-
-                case RTFSOBJATTRADD_NOTHING:
-                case RTFSOBJATTRADD_UNIX:
-                    Assert(pObjInfo->Attr.enmAdditional == RTFSOBJATTRADD_UNIX);
-                    break;
-
-                default:
-                    AssertMsgFailed(("Impossible!\n"));
-                    return VERR_INTERNAL_ERROR;
-            }
+            if (chmod(pszNativePath, fMode & RTFS_UNIX_MASK) != 0)
+                rc = RTErrConvertFromErrno(errno);
+            rtPathFreeNative(pszNativePath, pszPath);
         }
-        else
-            rc = RTErrConvertFromErrno(errno);
-        rtPathFreeNative(pszNativePath, pszPath);
     }
-
-    LogFlow(("RTPathQueryInfo(%p:{%s}, pObjInfo=%p, %d): returns %Rrc\n",
-             pszPath, pszPath, pObjInfo, enmAdditionalAttribs, rc));
-    return rc;
-}
-
-
-RTR3DECL(int) RTPathSetTimes(const char *pszPath, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
-                             PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
-{
-    return RTPathSetTimesEx(pszPath, pAccessTime, pModificationTime, pChangeTime, pBirthTime, RTPATH_F_ON_LINK);
-}
-
-
-RTR3DECL(int) RTPathSetTimesEx(const char *pszPath, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
-                               PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime, uint32_t fFlags)
-{
-    /*
-     * Validate input.
-     */
-    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
-    AssertReturn(*pszPath, VERR_INVALID_PARAMETER);
-    AssertPtrNullReturn(pAccessTime, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pModificationTime, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pChangeTime, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pBirthTime, VERR_INVALID_POINTER);
-    AssertMsgReturn(RTPATH_F_IS_VALID(fFlags, 0), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
-
-    /*
-     * Convert the paths.
-     */
-    char const *pszNativePath;
-    int rc = rtPathToNative(&pszNativePath, pszPath, NULL);
-    if (RT_SUCCESS(rc))
+    else
     {
-        RTFSOBJINFO ObjInfo;
-
-        /*
-         * If it's a no-op, we'll only verify the existance of the file.
-         */
-        if (!pAccessTime && !pModificationTime)
-            rc = RTPathQueryInfoEx(pszPath, &ObjInfo, RTFSOBJATTRADD_NOTHING, fFlags);
-        else
-        {
-            /*
-             * Convert the input to timeval, getting the missing one if necessary,
-             * and call the API which does the change.
-             */
-            struct timeval aTimevals[2];
-            if (pAccessTime && pModificationTime)
-            {
-                RTTimeSpecGetTimeval(pAccessTime,       &aTimevals[0]);
-                RTTimeSpecGetTimeval(pModificationTime, &aTimevals[1]);
-            }
-            else
-            {
-                rc = RTPathQueryInfoEx(pszPath, &ObjInfo, RTFSOBJATTRADD_UNIX, fFlags);
-                if (RT_SUCCESS(rc))
-                {
-                    RTTimeSpecGetTimeval(pAccessTime        ? pAccessTime       : &ObjInfo.AccessTime,       &aTimevals[0]);
-                    RTTimeSpecGetTimeval(pModificationTime  ? pModificationTime : &ObjInfo.ModificationTime, &aTimevals[1]);
-                }
-                else
-                    Log(("RTPathSetTimes('%s',%p,%p,,): RTPathQueryInfo failed with %Rrc\n",
-                         pszPath, pAccessTime, pModificationTime, rc));
-            }
-            if (RT_SUCCESS(rc))
-            {
-                if (fFlags & RTPATH_F_FOLLOW_LINK)
-                {
-                    if (utimes(pszNativePath, aTimevals))
-                        rc = RTErrConvertFromErrno(errno);
-                }
-#if (defined(RT_OS_DARWIN) && MAC_OS_X_VERSION_MIN_REQUIRED >= 1050) \
- || defined(RT_OS_FREEBSD) \
- || defined(RT_OS_LINUX) \
- || defined(RT_OS_OS2) /** @todo who really has lutimes? */
-                else
-                {
-                    if (lutimes(pszNativePath, aTimevals))
-                        rc = RTErrConvertFromErrno(errno);
-                }
-#else
-                else
-                {
-                    if (pAccessTime && pModificationTime)
-                        rc = RTPathQueryInfoEx(pszPath, &ObjInfo, RTFSOBJATTRADD_UNIX, fFlags);
-                    if (RT_SUCCESS(rc) && RTFS_IS_SYMLINK(ObjInfo.Attr.fMode))
-                        rc = VERR_NS_SYMLINK_SET_TIME;
-                    else if (RT_SUCCESS(rc))
-                    {
-                        if (utimes(pszNativePath, aTimevals))
-                            rc = RTErrConvertFromErrno(errno);
-                    }
-                }
-#endif
-                if (RT_FAILURE(rc))
-                    Log(("RTPathSetTimes('%s',%p,%p,,): failed with %Rrc and errno=%d\n",
-                         pszPath, pAccessTime, pModificationTime, rc, errno));
-            }
-        }
-        rtPathFreeNative(pszNativePath, pszPath);
+        AssertMsgFailed(("Invalid file mode! %RTfmode\n", fMode));
+        rc = VERR_INVALID_FMODE;
     }
-
-    LogFlow(("RTPathSetTimes(%p:{%s}, %p:{%RDtimespec}, %p:{%RDtimespec}, %p:{%RDtimespec}, %p:{%RDtimespec}): return %Rrc\n",
-             pszPath, pszPath, pAccessTime, pAccessTime, pModificationTime, pModificationTime,
-             pChangeTime, pChangeTime, pBirthTime, pBirthTime));
     return rc;
 }
 
@@ -609,7 +355,7 @@ static bool rtPathSame(const char *pszNativeSrc, const char *pszNativeDst)
  *
  * @returns IPRT status code.
  * @param   pszSrc      The source path.
- * @param   pszDst      The destintation path.
+ * @param   pszDst      The destination path.
  * @param   fRename     The rename flags.
  * @param   fFileType   The filetype. We use the RTFMODE filetypes here. If it's 0,
  *                      anything goes. If it's RTFS_TYPE_DIRECTORY we'll check that the
@@ -634,7 +380,7 @@ DECLHIDDEN(int) rtPathPosixRename(const char *pszSrc, const char *pszDst, unsign
              * We have to check this first to avoid getting errnous VERR_ALREADY_EXISTS
              * errors from the next step.
              *
-             * There are race conditions here (perhaps unlikly ones but still), but I'm
+             * There are race conditions here (perhaps unlikely ones but still), but I'm
              * afraid there is little with can do to fix that.
              */
             struct stat SrcStat;

@@ -107,6 +107,10 @@ class HGCMService
 
         uint32_t *m_paClientIds;
 
+#ifdef VBOX_WITH_CRHGSMI
+        uint32_t m_cHandleAcquires;
+#endif
+
         HGCMSVCEXTHANDLE m_hExtension;
 
         int loadServiceDLL (void);
@@ -150,6 +154,12 @@ class HGCMService
         int DisconnectClient (uint32_t u32ClientId, bool fFromService);
 
         int HostCall (uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM *paParms);
+
+#ifdef VBOX_WITH_CRHGSMI
+        int HandleAcquired();
+        int HandleReleased();
+        int HostFastCallAsync (uint32_t u32Function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion);
+#endif
 
         uint32_t SizeOfClient (void) { return m_fntable.cbClient; };
 
@@ -225,6 +235,9 @@ HGCMService::HGCMService ()
     m_cClients   (0),
     m_cClientsAllocated (0),
     m_paClientIds (NULL),
+#ifdef VBOX_WITH_CRHGSMI
+    m_cHandleAcquires (0),
+#endif
     m_hExtension (NULL)
 {
     memset (&m_fntable, 0, sizeof (m_fntable));
@@ -248,7 +261,10 @@ int HGCMService::loadServiceDLL (void)
         return VERR_INVALID_PARAMETER;
     }
 
-    int rc = SUPR3HardenedLdrLoadAppPriv (m_pszSvcLibrary, &m_hLdrMod);
+    RTERRINFOSTATIC ErrInfo;
+    RTErrInfoInitStatic (&ErrInfo);
+
+    int rc = SUPR3HardenedLdrLoadAppPriv (m_pszSvcLibrary, &m_hLdrMod, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
 
     if (RT_SUCCESS(rc))
     {
@@ -303,7 +319,8 @@ int HGCMService::loadServiceDLL (void)
     }
     else
     {
-        LogRel(("HGCM: Failed to load the service library: [%s], rc = %Rrc. The service will be not available.\n", m_pszSvcLibrary, rc));
+        LogRel(("HGCM: Failed to load the service library: [%s], rc = %Rrc - %s. The service will be not available.\n",
+                m_pszSvcLibrary, rc, ErrInfo.Core.pszMsg));
         m_hLdrMod = NIL_RTLDRMOD;
     }
 
@@ -346,6 +363,9 @@ void HGCMService::unloadServiceDLL (void)
 #define SVC_MSG_QUIT       (8)  /* Terminate the thread. */
 #define SVC_MSG_REGEXT     (9)  /* pfnRegisterExtension */
 #define SVC_MSG_UNREGEXT   (10) /* pfnRegisterExtension */
+#ifdef VBOX_WITH_CRHGSMI
+# define SVC_MSG_HOSTFASTCALLASYNC (21) /* pfnHostCall */
+#endif
 
 class HGCMMsgSvcLoad: public HGCMMsgCore
 {
@@ -434,10 +454,27 @@ class HGCMMsgSvcUnregisterExtension: public HGCMMsgCore
         HGCMSVCEXTHANDLE handle;
 };
 
+#ifdef VBOX_WITH_CRHGSMI
+class HGCMMsgHostFastCallAsyncSvc: public HGCMMsgCore
+{
+    public:
+        /* function number */
+        uint32_t u32Function;
+        /* parameter */
+        VBOXHGCMSVCPARM Param;
+        /* completion info */
+        PHGCMHOSTFASTCALLCB pfnCompletion;
+        void *pvCompletion;
+};
+#endif
+
 static HGCMMsgCore *hgcmMessageAllocSvc (uint32_t u32MsgId)
 {
     switch (u32MsgId)
     {
+#ifdef VBOX_WITH_CRHGSMI
+        case SVC_MSG_HOSTFASTCALLASYNC: return new HGCMMsgHostFastCallAsyncSvc ();
+#endif
         case SVC_MSG_LOAD:        return new HGCMMsgSvcLoad ();
         case SVC_MSG_UNLOAD:      return new HGCMMsgSvcUnload ();
         case SVC_MSG_CONNECT:     return new HGCMMsgSvcConnect ();
@@ -482,6 +519,16 @@ DECLCALLBACK(void) hgcmServiceThread (HGCMTHREADHANDLE ThreadHandle, void *pvUse
 
         switch (u32MsgId)
         {
+#ifdef VBOX_WITH_CRHGSMI
+            case SVC_MSG_HOSTFASTCALLASYNC:
+            {
+                HGCMMsgHostFastCallAsyncSvc *pMsg = (HGCMMsgHostFastCallAsyncSvc *)pMsgCore;
+
+                LogFlowFunc(("SVC_MSG_HOSTFASTCALLASYNC u32Function = %d, pParm = %p\n", pMsg->u32Function, &pMsg->Param));
+
+                rc = pSvc->m_fntable.pfnHostCall (pSvc->m_fntable.pvService, pMsg->u32Function, 1, &pMsg->Param);
+            } break;
+#endif
             case SVC_MSG_LOAD:
             {
                 LogFlowFunc(("SVC_MSG_LOAD\n"));
@@ -865,7 +912,7 @@ int HGCMService::loadClientState (uint32_t u32ClientId, PSSMHANDLE pSSM)
 
 /** The method creates a service and references it.
  *
- * @param pszServcieLibrary  The library to be loaded.
+ * @param pszServiceLibrary  The library to be loaded.
  * @param pszServiceName     The name of the service.
  * @return VBox rc.
  * @thread main HGCM
@@ -1074,7 +1121,18 @@ void HGCMService::ReleaseService (void)
             pSvc->DisconnectClient (pSvc->m_paClientIds[0], false);
         }
 
+#ifdef VBOX_WITH_CRHGSMI
+        /* @todo: could this actually happen that the service is destroyed on ReleaseService? */
+        HGCMService *pNextSvc = pSvc->m_pSvcNext;
+        while (pSvc->m_cHandleAcquires)
+        {
+            pSvc->HandleReleased ();
+            pSvc->ReleaseService ();
+        }
+        pSvc = pNextSvc;
+#else
         pSvc = pSvc->m_pSvcNext;
+#endif
     }
 
     g_fResetting = false;
@@ -1516,6 +1574,63 @@ int HGCMService::HostCall (uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPAR
     return rc;
 }
 
+#ifdef VBOX_WITH_CRHGSMI
+static DECLCALLBACK(void) hgcmMsgFastCallCompletionCallback (int32_t result, HGCMMsgCore *pMsgCore)
+{
+    /* Call the VMMDev port interface to issue IRQ notification. */
+    LogFlow(("MAIN::hgcmMsgFastCallCompletionCallback: message %p\n", pMsgCore));
+
+    HGCMMsgHostFastCallAsyncSvc *pMsg = (HGCMMsgHostFastCallAsyncSvc *)pMsgCore;
+    if (pMsg->pfnCompletion)
+    {
+        pMsg->pfnCompletion (result, pMsg->u32Function, &pMsg->Param, pMsg->pvCompletion);
+    }
+}
+
+int HGCMService::HandleAcquired()
+{
+    ++m_cHandleAcquires;
+    return VINF_SUCCESS;
+}
+
+int HGCMService::HandleReleased()
+{
+    Assert(m_cHandleAcquires);
+    if (m_cHandleAcquires)
+    {
+        --m_cHandleAcquires;
+        return VINF_SUCCESS;
+    }
+    return VERR_INVALID_STATE;
+}
+
+int HGCMService::HostFastCallAsync (uint32_t u32Function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion)
+{
+    LogFlowFunc(("%s u32Function = %d, pParm = %p\n",
+                 m_pszSvcName, u32Function, pParm));
+
+    HGCMMSGHANDLE hMsg = 0;
+    int rc = hgcmMsgAlloc (m_thread, &hMsg, SVC_MSG_HOSTFASTCALLASYNC, hgcmMessageAllocSvc);
+
+    if (RT_SUCCESS(rc))
+    {
+        HGCMMsgHostFastCallAsyncSvc *pMsg = (HGCMMsgHostFastCallAsyncSvc *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
+        AssertRelease(pMsg);
+
+        pMsg->u32Function      = u32Function;
+        pMsg->Param = *pParm;
+        pMsg->pfnCompletion = pfnCompletion;
+        pMsg->pvCompletion = pvCompletion;
+
+        hgcmObjDereference (pMsg);
+
+        rc = hgcmMsgPost(hMsg, hgcmMsgFastCallCompletionCallback);
+    }
+
+    LogFlowFunc(("rc = %Rrc\n", rc));
+    return rc;
+}
+#endif
 
 /*
  * Main HGCM thread that manages services.
@@ -1532,6 +1647,10 @@ int HGCMService::HostCall (uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPAR
 #define HGCM_MSG_QUIT       (17)  /* Unload all services and terminate the thread. */
 #define HGCM_MSG_REGEXT     (18)  /* Register a service extension. */
 #define HGCM_MSG_UNREGEXT   (19)  /* Unregister a service extension. */
+#ifdef VBOX_WITH_CRHGSMI
+# define HGCM_MSG_SVCAQUIRE  (30)  /* Acquire a service handle (for fast host calls) */
+# define HGCM_MSG_SVCRELEASE (31)  /* Release a service */
+#endif
 
 class HGCMMsgMainConnect: public HGCMMsgHeader
 {
@@ -1606,6 +1725,25 @@ class HGCMMsgMainUnregisterExtension: public HGCMMsgCore
         HGCMSVCEXTHANDLE handle;
 };
 
+#ifdef VBOX_WITH_CRHGSMI
+class HGCMMsgMainSvcAcquire: public HGCMMsgCore
+{
+    public:
+        /* Which service to call. */
+        const char *pszServiceName;
+        /* Returned service. */
+        HGCMService *pService;
+};
+
+class HGCMMsgMainSvcRelease: public HGCMMsgCore
+{
+    public:
+        /* Svc . */
+        HGCMService *pService;
+};
+#endif
+
+
 static HGCMMsgCore *hgcmMainMessageAlloc (uint32_t u32MsgId)
 {
     switch (u32MsgId)
@@ -1620,6 +1758,11 @@ static HGCMMsgCore *hgcmMainMessageAlloc (uint32_t u32MsgId)
         case HGCM_MSG_QUIT:       return new HGCMMsgMainQuit ();
         case HGCM_MSG_REGEXT:     return new HGCMMsgMainRegisterExtension ();
         case HGCM_MSG_UNREGEXT:   return new HGCMMsgMainUnregisterExtension ();
+#ifdef VBOX_WITH_CRHGSMI
+        case HGCM_MSG_SVCAQUIRE: return new HGCMMsgMainSvcAcquire();
+        case HGCM_MSG_SVCRELEASE: return new HGCMMsgMainSvcRelease();
+#endif
+
         default:
             AssertReleaseMsgFailed(("Msg id = %08X\n", u32MsgId));
     }
@@ -1728,6 +1871,46 @@ static DECLCALLBACK(void) hgcmThread (HGCMTHREADHANDLE ThreadHandle, void *pvUse
                     pService->ReleaseService ();
                 }
             } break;
+
+#ifdef VBOX_WITH_CRHGSMI
+            case HGCM_MSG_SVCAQUIRE:
+            {
+                HGCMMsgMainSvcAcquire *pMsg = (HGCMMsgMainSvcAcquire *)pMsgCore;
+
+                LogFlowFunc(("HGCM_MSG_SVCAQUIRE pszServiceName %s\n", pMsg->pszServiceName));
+
+                /* Resolve the service name to the pointer to service instance. */
+                HGCMService *pService;
+                rc = HGCMService::ResolveService (&pService, pMsg->pszServiceName);
+                if (RT_SUCCESS(rc))
+                {
+                    rc = pService->HandleAcquired ();
+                    if (RT_SUCCESS(rc))
+                    {
+                        pMsg->pService = pService;
+                    }
+                    else
+                    {
+                        pService->ReleaseService ();
+                    }
+                }
+            } break;
+
+            case HGCM_MSG_SVCRELEASE:
+            {
+                HGCMMsgMainSvcRelease *pMsg = (HGCMMsgMainSvcRelease *)pMsgCore;
+
+                LogFlowFunc(("HGCM_MSG_SVCARELEASE pService %p\n", pMsg->pService));
+
+                /* Resolve the service name to the pointer to service instance. */
+
+                rc = pMsg->pService->HandleReleased ();
+                if (RT_SUCCESS(rc))
+                {
+                    pMsg->pService->ReleaseService ();
+                }
+            } break;
+#endif
 
             case HGCM_MSG_RESET:
             {
@@ -2199,6 +2382,106 @@ int HGCMHostCall (const char *pszServiceName,
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
+
+#ifdef VBOX_WITH_CRHGSMI
+int HGCMHostSvcHandleCreate (const char *pszServiceName, HGCMCVSHANDLE * phSvc)
+{
+    LogFlowFunc(("name = %s\n", pszServiceName));
+
+    if (!pszServiceName)
+    {
+        return VERR_INVALID_PARAMETER;
+    }
+
+    if (!phSvc)
+    {
+        return VERR_INVALID_PARAMETER;
+    }
+
+    HGCMMSGHANDLE hMsg = 0;
+
+    /* Host calls go to main HGCM thread that resolves the service name to the
+     * service instance pointer and then, using the service pointer, forwards
+     * the message to the service thread.
+     * So it is slow but host calls are intended mostly for configuration and
+     * other non-time-critical functions.
+     */
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_SVCAQUIRE, hgcmMainMessageAlloc);
+
+    if (RT_SUCCESS(rc))
+    {
+        HGCMMsgMainSvcAcquire *pMsg = (HGCMMsgMainSvcAcquire *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
+        AssertRelease(pMsg);
+
+        pMsg->pszServiceName = (char *)pszServiceName;
+        pMsg->pService = NULL;
+
+        rc = hgcmMsgSend (hMsg);
+        if (RT_SUCCESS(rc))
+        {
+            /* for simplicity just use a svc ptr as handle for now */
+            *phSvc = (HGCMCVSHANDLE)pMsg->pService;
+        }
+
+        hgcmObjDereference (pMsg);
+    }
+
+    LogFlowFunc(("rc = %Rrc\n", rc));
+    return rc;
+}
+
+int HGCMHostSvcHandleDestroy (HGCMCVSHANDLE hSvc)
+{
+    LogFlowFunc(("hSvc = %p\n", hSvc));
+
+    if (!hSvc)
+    {
+        return VERR_INVALID_PARAMETER;
+    }
+
+    HGCMMSGHANDLE hMsg = 0;
+
+    /* Host calls go to main HGCM thread that resolves the service name to the
+     * service instance pointer and then, using the service pointer, forwards
+     * the message to the service thread.
+     * So it is slow but host calls are intended mostly for configuration and
+     * other non-time-critical functions.
+     */
+    int rc = hgcmMsgAlloc (g_hgcmThread, &hMsg, HGCM_MSG_SVCRELEASE, hgcmMainMessageAlloc);
+
+    if (RT_SUCCESS(rc))
+    {
+        HGCMMsgMainSvcRelease *pMsg = (HGCMMsgMainSvcRelease *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
+        AssertRelease(pMsg);
+
+        pMsg->pService = (HGCMService *)hSvc;
+
+        hgcmObjDereference (pMsg);
+
+        rc = hgcmMsgSend (hMsg);
+    }
+
+    LogFlowFunc(("rc = %Rrc\n", rc));
+    return rc;
+}
+
+int HGCMHostFastCallAsync (HGCMCVSHANDLE hSvc, uint32_t function, VBOXHGCMSVCPARM *pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion)
+{
+    LogFlowFunc(("hSvc = %p, u32Function = %d, pParm = %p\n",
+            hSvc, function, pParm));
+
+    if (!hSvc)
+    {
+        return VERR_INVALID_PARAMETER;
+    }
+
+    HGCMService *pService = (HGCMService *)hSvc;
+    int rc = pService->HostFastCallAsync (function, pParm, pfnCompletion, pvCompletion);
+
+    LogFlowFunc(("rc = %Rrc\n", rc));
+    return rc;
+}
+#endif
 
 int HGCMHostReset (void)
 {

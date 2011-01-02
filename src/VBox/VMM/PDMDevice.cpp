@@ -1,4 +1,4 @@
-/* $Id: PDMDevice.cpp $ */
+/* $Id: PDMDevice.cpp 34241 2010-11-22 14:26:53Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, Device parts.
  */
@@ -60,6 +60,9 @@ typedef struct PDMDEVREGCBINT
     uint32_t        u32[4];
     /** VM Handle. */
     PVM             pVM;
+    /** Pointer to the configuration node the registrations should be
+     * associated with.  Can be NULL. */
+    PCFGMNODE       pCfgNode;
 } PDMDEVREGCBINT;
 /** Pointer to a PDMDEVREGCBINT structure. */
 typedef PDMDEVREGCBINT *PPDMDEVREGCBINT;
@@ -482,9 +485,10 @@ static int pdmR3DevLoadModules(PVM pVM)
      * Initialize the callback structure.
      */
     PDMDEVREGCBINT RegCB;
-    RegCB.Core.u32Version = PDM_DEVREG_CB_VERSION;
+    RegCB.Core.u32Version  = PDM_DEVREG_CB_VERSION;
     RegCB.Core.pfnRegister = pdmR3DevReg_Register;
-    RegCB.pVM = pVM;
+    RegCB.pVM              = pVM;
+    RegCB.pCfgNode         = NULL;
 
     /*
      * Load the builtin module
@@ -502,7 +506,7 @@ static int pdmR3DevLoadModules(PVM pVM)
     if (fLoadBuiltin)
     {
         /* make filename */
-        char *pszFilename = pdmR3FileR3("VBoxDD", /* fShared = */ true);
+        char *pszFilename = pdmR3FileR3("VBoxDD", true /*fShared*/);
         if (!pszFilename)
             return VERR_NO_TMP_MEMORY;
         rc = pdmR3DevLoad(pVM, &RegCB, pszFilename, "VBoxDD");
@@ -511,7 +515,7 @@ static int pdmR3DevLoadModules(PVM pVM)
             return rc;
 
         /* make filename */
-        pszFilename = pdmR3FileR3("VBoxDD2", /* fShared = */ true);
+        pszFilename = pdmR3FileR3("VBoxDD2", true /*fShared*/);
         if (!pszFilename)
             return VERR_NO_TMP_MEMORY;
         rc = pdmR3DevLoad(pVM, &RegCB, pszFilename, "VBoxDD2");
@@ -556,7 +560,7 @@ static int pdmR3DevLoadModules(PVM pVM)
         /* prepend path? */
         if (!RTPathHavePath(szFilename))
         {
-            char *psz = pdmR3FileR3(szFilename);
+            char *psz = pdmR3FileR3(szFilename, false /*fShared*/);
             if (!psz)
                 return VERR_NO_TMP_MEMORY;
             size_t cch = strlen(psz) + 1;
@@ -573,6 +577,7 @@ static int pdmR3DevLoadModules(PVM pVM)
         /*
          * Load the module and register it's devices.
          */
+        RegCB.pCfgNode = pCur;
         rc = pdmR3DevLoad(pVM, &RegCB, szFilename, szName);
         if (RT_FAILURE(rc))
             return rc;
@@ -669,7 +674,7 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
                     ("Instance size %d bytes! (Device %s)\n", pReg->cbInstance, pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertMsgReturn(pReg->pfnConstruct,
-                    ("No constructore! (Device %s)\n", pReg->szName),
+                    ("No constructor! (Device %s)\n", pReg->szName),
                     VERR_PDM_INVALID_DEVICE_REGISTRATION);
     AssertLogRelMsgReturn((pReg->fFlags & PDM_DEVREG_FLAGS_GUEST_BITS_MASK) == PDM_DEVREG_FLAGS_GUEST_BITS_DEFAULT,
                           ("PDM: Rejected device '%s' because it didn't match the guest bits.\n", pReg->szName),
@@ -690,25 +695,35 @@ static DECLCALLBACK(int) pdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCPDMDEVR
                         VERR_PDM_DEVICE_NAME_CLASH);
 
     /*
-     * Allocate new device structure and insert it into the list.
+     * Allocate new device structure, initialize and insert it into the list.
      */
+    int rc;
     pDev = (PPDMDEV)MMR3HeapAlloc(pRegCB->pVM, MM_TAG_PDM_DEVICE, sizeof(*pDev));
     if (pDev)
     {
-        pDev->pNext = NULL;
+        pDev->pNext      = NULL;
         pDev->cInstances = 0;
         pDev->pInstances = NULL;
-        pDev->pReg = pReg;
-        pDev->cchName = (uint32_t)strlen(pReg->szName);
+        pDev->pReg       = pReg;
+        pDev->cchName    = (uint32_t)strlen(pReg->szName);
+        rc = CFGMR3QueryStringAllocDef(    pRegCB->pCfgNode, "RCSearchPath", &pDev->pszRCSearchPath, NULL);
+        if (RT_SUCCESS(rc))
+            rc = CFGMR3QueryStringAllocDef(pRegCB->pCfgNode, "R0SearchPath", &pDev->pszR0SearchPath, NULL);
+        if (RT_SUCCESS(rc))
+        {
+            if (pDevPrev)
+                pDevPrev->pNext = pDev;
+            else
+                pRegCB->pVM->pdm.s.pDevs = pDev;
+            Log(("PDM: Registered device '%s'\n", pReg->szName));
+            return VINF_SUCCESS;
+        }
 
-        if (pDevPrev)
-            pDevPrev->pNext = pDev;
-        else
-            pRegCB->pVM->pdm.s.pDevs = pDev;
-        Log(("PDM: Registered device '%s'\n", pReg->szName));
-        return VINF_SUCCESS;
+        MMR3HeapFree(pDev);
     }
-    return VERR_NO_MEMORY;
+    else
+        rc = VERR_NO_MEMORY;
+    return rc;
 }
 
 
@@ -932,7 +947,7 @@ VMMR3DECL(int) PDMR3DriverAttach(PVM pVM, const char *pszDevice, unsigned iInsta
  * @param   iLun            The Logical Unit in which to look for the driver.
  * @param   pszDriver       The name of the driver which to detach.  If NULL
  *                          then the entire driver chain is detatched.
- * @param   iOccurance      The occurance of that driver in the chain.  This is
+ * @param   iOccurance      The occurrence of that driver in the chain.  This is
  *                          usually 0.
  * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @thread  EMT
@@ -1004,7 +1019,7 @@ VMMR3DECL(int) PDMR3DriverDetach(PVM pVM, const char *pszDevice, unsigned iDevIn
  * @param   pszDriver       The name of the driver which to detach and replace.
  *                          If NULL then the entire driver chain is to be
  *                          reattached.
- * @param   iOccurance      The occurance of that driver in the chain.  This is
+ * @param   iOccurance      The occurrence of that driver in the chain.  This is
  *                          usually 0.
  * @param   fFlags          Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  * @param   pCfg            The configuration of the new driver chain that is

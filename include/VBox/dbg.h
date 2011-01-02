@@ -35,6 +35,9 @@
 #include <VBox/dbgf.h>
 
 #include <iprt/stdarg.h>
+#ifdef IN_RING3
+# include <iprt/err.h>
+#endif
 
 RT_C_DECLS_BEGIN
 
@@ -145,7 +148,7 @@ typedef struct DBGCVARDESC
     /** The minimal number of times this argument may occur.
      * Use 0 here to inidicate that the argument is optional. */
     unsigned    cTimesMin;
-    /** Maximum number of occurences.
+    /** Maximum number of occurrences.
      * Use ~0 here to indicate infinite. */
     unsigned    cTimesMax;
     /** Argument category. */
@@ -287,7 +290,20 @@ typedef const DBGCVAR *PCDBGCVAR;
         do { \
             DBGCVAR_INIT(pVar); \
             (pVar)->enmType = DBGCVAR_TYPE_NUMBER; \
-            (pVar)->u.u64 = (Value); \
+            (pVar)->u.u64Number = (Value); \
+        } while (0)
+
+
+/**
+ * Macro for setting the range of a DBGC variable.
+ * @param   pVar            The variable.
+ * @param   _enmRangeType   The range type.
+ * @param   Value           The range length value.
+ */
+#define DBGCVAR_SET_RANGE(pVar, _enmRangeType, Value) \
+        do { \
+            (pVar)->enmRangeType = (_enmRangeType); \
+            (pVar)->u64Range = (Value); \
         } while (0)
 
 
@@ -486,6 +502,28 @@ typedef struct DBGCCMDHLP
      */
     DECLCALLBACKMEMBER(int, pfnVarToBool)(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar, bool *pf);
 
+    /**
+     * Get the range of a variable in bytes, resolving symbols if necessary.
+     *
+     * @returns VBox status code.
+     * @param   pCmdHlp     Pointer to the command callback structure.
+     * @param   pVar        The variable to convert.
+     * @param   cbElement   Conversion factor for element ranges.
+     * @param   cbDefault   The default range.
+     * @param   pcbRange    The length of the range.
+     */
+    DECLCALLBACKMEMBER(int, pfnVarGetRange)(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar, uint64_t cbElement, uint64_t cbDefault,
+                                            uint64_t *pcbRange);
+
+    /**
+     * Gets a DBGF output helper that directs the output to the debugger
+     * console.
+     *
+     * @returns Pointer to the helper structure.
+     * @param   pCmdHlp     Pointer to the command callback structure.
+     */
+    DECLCALLBACKMEMBER(PCDBGFINFOHLP, pfnGetDbgfOutputHlp)(PDBGCCMDHLP pCmdHlp);
+
 } DBGCCMDHLP;
 
 
@@ -576,6 +614,47 @@ DECLINLINE(int) DBGCCmdHlpFail(PDBGCCMDHLP pCmdHlp, PCDBGCCMD pCmd, const char *
     va_end(va);
 
     return rc;
+}
+
+/**
+ * @copydoc DBGCCMDHLP::pfnVarToDbgfAddr
+ */
+DECLINLINE(int) DBGCCmdHlpVarToDbgfAddr(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar, PDBGFADDRESS pAddress)
+{
+    return pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, pVar, pAddress);
+}
+
+/**
+ * Converts an variable to a flat address.
+ *
+ * @returns VBox status code.
+ * @param   pCmdHlp     Pointer to the command callback structure.
+ * @param   pVar        The variable to convert.
+ * @param   pFlatPtr    Where to store the flat address.
+ */
+DECLINLINE(int) DBGCCmdHlpVarToFlatAddr(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar, PRTGCPTR pFlatPtr)
+{
+    DBGFADDRESS Addr;
+    int rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, pVar, &Addr);
+    if (RT_SUCCESS(rc))
+        *pFlatPtr = Addr.FlatPtr;
+    return rc;
+}
+
+/**
+ * @copydoc DBGCCMDHLP::pfnVarGetRange
+ */
+DECLINLINE(int) DBGCCmdHlpVarGetRange(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar, uint64_t cbElement, uint64_t cbDefault, uint64_t *pcbRange)
+{
+    return pCmdHlp->pfnVarGetRange(pCmdHlp, pVar, cbElement, cbDefault, pcbRange);
+}
+
+/**
+ * @copydoc DBGCCMDHLP::pfnGetDbgfOutputHlp
+ */
+DECLINLINE(PCDBGFINFOHLP) DBGCCmdHlpGetDbgfOutputHlp(PDBGCCMDHLP pCmdHlp)
+{
+    return pCmdHlp->pfnGetDbgfOutputHlp(pCmdHlp);
 }
 
 #endif /* IN_RING3 */
@@ -775,7 +854,7 @@ DBGDECL(int)    DBGCDeregisterCommands(PCDBGCCMD paCommands, unsigned cCommands)
 DBGDECL(int)    DBGCTcpCreate(PVM pVM, void **ppvUser);
 
 /**
- * Terminates any running TCP base debugger consolse service.
+ * Terminates any running TCP base debugger console service.
  *
  * @returns VBox status.
  * @param   pVM         VM handle.

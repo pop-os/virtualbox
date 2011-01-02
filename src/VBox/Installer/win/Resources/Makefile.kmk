@@ -1,0 +1,67 @@
+# $Id: Makefile.kmk 34355 2010-11-25 09:17:01Z vboxsync $
+## @file
+# Sub-Makefile for VBoxRes.dll.
+#
+
+#
+# Copyright (C) 2010 Oracle Corporation
+#
+# This file is part of VirtualBox Open Source Edition (OSE), as
+# available from http://www.virtualbox.org. This file is free software;
+# you can redistribute it and/or modify it under the terms of the GNU
+# General Public License (GPL) as published by the Free Software
+# Foundation, in version 2 as it comes in the "COPYING" file of the
+# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+#
+
+SUB_DEPTH = ../../../../..
+include	$(KBUILD_PATH)/subheader.kmk
+
+DLLS += VBoxRes
+VBoxRes_TEMPLATE = VBOXR3STATIC
+VBoxRes_DEPS     = $(VBOX_SVN_REV_KMK)
+VBoxRes_SOURCES = \
+	VBoxRes.rc
+
+# The icon location is configurable.
+VBoxRes.rc_INCS += $(PATH_VBoxRes)
+VBoxRes.rc_DEPS += $(PATH_VBoxRes)/VBoxRes-icons.rc
+VBoxRes.rc_CLEAN = $(PATH_VBoxRes)/VBoxRes-icons.rc
+
+# The resource path.
+VBOX_RESOURCES_PATH_WIN := $(subst /,\\,$(PATH_ROOT))/src/VBox/Resources/win
+
+# Icon include file.
+# @todo Put this into Config.kmk?
+ifdef VBOX_OSE
+  # Hack: rc.exe on OSE build boxes don't support Vista icons; so
+  # use a special icon version (without the 256x256 size) instead.
+  VBOX_WINDOWS_ICON_EXT_VBOX    := $(VBOX_RESOURCES_PATH_WIN)/OSE/virtualbox-vbox.ico
+  VBOX_WINDOWS_ICON_EXT_EXTPACK := $(VBOX_RESOURCES_PATH_WIN)/OSE/virtualbox-vbox-extpack.ico
+  VBOX_WINDOWS_ICON_EXT_OVA     := $(VBOX_RESOURCES_PATH_WIN)/OSE/virtualbox-ova.ico
+  VBOX_WINDOWS_ICON_EXT_OVF     := $(VBOX_RESOURCES_PATH_WIN)/OSE/virtualbox-ovf.ico
+else
+  VBOX_WINDOWS_ICON_EXT_VBOX    := $(VBOX_RESOURCES_PATH_WIN)/virtualbox-vbox.ico
+  VBOX_WINDOWS_ICON_EXT_EXTPACK := $(VBOX_RESOURCES_PATH_WIN)/virtualbox-vbox-extpack.ico
+  VBOX_WINDOWS_ICON_EXT_OVA     := $(VBOX_RESOURCES_PATH_WIN)/virtualbox-ova.ico
+  VBOX_WINDOWS_ICON_EXT_OVF     := $(VBOX_RESOURCES_PATH_WIN)/virtualbox-ovf.ico
+endif
+
+VBOX_RESOURCES_WIN := \
+	$(VBOX_WINDOWS_ICON_FILE) \
+	$(VBOX_WINDOWS_ICON_EXT_VBOX) \
+	$(VBOX_WINDOWS_ICON_EXT_EXTPACK) \
+	$(VBOX_WINDOWS_ICON_EXT_OVA) \
+	$(VBOX_WINDOWS_ICON_EXT_OVF)
+
+$$(PATH_VBoxRes)/VBoxRes-icons.rc: \
+		$$(VBOX_RESOURCES_WIN) $(MAKEFILE_CURRENT) | $$(dir $$@)
+	$(RM) -f $@
+	$(APPEND) $@ 'IDI_VIRTUALBOX            ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
+	$(APPEND) $@ 'IDI_FILETYPE_VBOX         ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_EXT_VBOX))"'
+	$(APPEND) $@ 'IDI_FILETYPE_VBOX_EXTPACK ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_EXT_EXTPACK))"'
+	$(APPEND) $@ 'IDI_FILETYPE_VBOX_OVA 		ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_EXT_OVA))"'
+	$(APPEND) $@ 'IDI_FILETYPE_VBOX_OVF 		ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_EXT_OVF))"'
+
+include	$(KBUILD_PATH)/subfooter.kmk

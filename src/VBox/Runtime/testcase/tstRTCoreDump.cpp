@@ -1,4 +1,4 @@
-/* $Id: tstRTCoreDump.cpp $ */
+/* $Id: tstRTCoreDump.cpp 32350 2010-09-09 12:29:57Z vboxsync $ */
 /** @file
  * IPRT Testcase - Core Dumper.
  */

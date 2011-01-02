@@ -1,10 +1,10 @@
-/* $Id: vboxfs.h $ */
+/* $Id: vboxfs.h 33994 2010-11-11 14:26:08Z vboxsync $ */
 /** @file
  * VirtualBox File System Driver for Solaris Guests, Internal Header.
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,7 @@ extern "C" {
 
 #ifdef _KERNEL
 
-#include "../../common/VBoxGuestLib/VBoxCalls.h"
+#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
 #include <sys/vfs.h>
 
 /** VNode for VBoxVFS */
@@ -72,9 +72,9 @@ extern VBSFCLIENT g_VBoxVFSClient;
 
 /** Helper functions */
 extern int vboxvfs_Stat(const char *pszCaller, vboxvfs_globinfo_t *pVBoxVFSGlobalInfo, SHFLSTRING *pPath,
-            RTFSOBJINFO *pResult, boolean_t fAllowFailure);
+            PSHFLFSOBJINFO pResult, boolean_t fAllowFailure);
 extern void vboxvfs_InitVNode(vboxvfs_globinfo_t *pVBoxVFSGlobalInfo, vboxvfs_vnode_t *pVBoxVNode,
-            RTFSOBJINFO *pFSInfo);
+            PSHFLFSOBJINFO pFSInfo);
 
 
 /** Helper macros */

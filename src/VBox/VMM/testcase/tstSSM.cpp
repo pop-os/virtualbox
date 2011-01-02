@@ -1,4 +1,4 @@
-/* $Id: tstSSM.cpp $ */
+/* $Id: tstSSM.cpp 31895 2010-08-24 09:00:14Z vboxsync $ */
 /** @file
  * Saved State Manager Testcase.
  */
@@ -744,7 +744,7 @@ int main(int argc, char **argv)
      * Attempt a save.
      */
     uint64_t u64Start = RTTimeNanoTS();
-    rc = SSMR3Save(pVM, pszFilename, SSMAFTER_DESTROY, NULL, NULL);
+    rc = SSMR3Save(pVM, pszFilename, NULL, NULL, SSMAFTER_DESTROY, NULL, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Save #1 -> %Rrc\n", rc);

@@ -1,4 +1,4 @@
-/* $Id: socket.cpp $ */
+/* $Id: socket.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
 /** @file
  * IPRT - Network Sockets.
  */
@@ -62,6 +62,7 @@
 #include <iprt/time.h>
 #include <iprt/mem.h>
 #include <iprt/sg.h>
+#include <iprt/log.h>
 
 #include "internal/magics.h"
 #include "internal/socket.h"
@@ -128,6 +129,9 @@ typedef struct RTSOCKETINT
     RTSOCKETNATIVE      hNative;
     /** Indicates whether the handle has been closed or not. */
     bool volatile       fClosed;
+    /** Indicates whether the socket is operating in blocking or non-blocking mode
+     * currently. */
+    bool                fBlocking;
 #ifdef RT_OS_WINDOWS
     /** The event semaphore we've associated with the socket handle.
      * This is WSA_INVALID_EVENT if not done. */
@@ -140,6 +144,8 @@ typedef struct RTSOCKETINT
     /** The events we're currently subscribing to with WSAEventSelect.
      * This is ZERO if we're currently not subscribing to anything. */
     uint32_t            fSubscribedEvts;
+    /** Saved events which are only posted once. */
+    uint32_t            fEventsSaved;
 #endif /* RT_OS_WINDOWS */
 } RTSOCKETINT;
 
@@ -239,6 +245,57 @@ DECLINLINE(void) rtSocketUnlock(RTSOCKETINT *pThis)
 
 
 /**
+ * The slow path of rtSocketSwitchBlockingMode that does the actual switching.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The socket structure.
+ * @param   fBlocking           The desired mode of operation.
+ * @remarks Do not call directly.
+ */
+static int rtSocketSwitchBlockingModeSlow(RTSOCKETINT *pThis, bool fBlocking)
+{
+    int     rc        = VINF_SUCCESS;
+#ifdef RT_OS_WINDOWS
+    u_long  uBlocking = fBlocking ? 0 : 1;
+    if (ioctlsocket(pThis->hNative, FIONBIO, &uBlocking))
+        return rtSocketError();
+
+#else
+    int     fFlags    = fcntl(pThis->hNative, F_GETFL, 0);
+    if (fFlags == -1)
+        return rtSocketError();
+
+    if (fBlocking)
+        fFlags &= ~O_NONBLOCK;
+    else
+        fFlags |= O_NONBLOCK;
+    if (fcntl(pThis->hNative, F_SETFL, fFlags) == -1)
+       return rtSocketError();
+#endif
+
+    pThis->fBlocking = fBlocking;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Switches the socket to the desired blocking mode if necessary.
+ *
+ * The socket must be locked.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               The socket structure.
+ * @param   fBlocking           The desired mode of operation.
+ */
+DECLINLINE(int) rtSocketSwitchBlockingMode(RTSOCKETINT *pThis, bool fBlocking)
+{
+    if (pThis->fBlocking != fBlocking)
+        return rtSocketSwitchBlockingModeSlow(pThis, fBlocking);
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Creates an IPRT socket handle for a native one.
  *
  * @returns IPRT status code.
@@ -254,6 +311,7 @@ int rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative)
     pThis->cUsers           = 0;
     pThis->hNative          = hNative;
     pThis->fClosed          = false;
+    pThis->fBlocking        = true;
 #ifdef RT_OS_WINDOWS
     pThis->hEvent           = WSA_INVALID_EVENT;
     pThis->hPollSet         = NIL_RTPOLLSET;
@@ -458,11 +516,15 @@ RTDECL(int) RTSocketRead(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, size
     AssertPtr(pvBuffer);
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
+
+    int rc = rtSocketSwitchBlockingMode(pThis, true /* fBlocking */);
+    if (RT_FAILURE(rc))
+        return rc;
+
     /*
      * Read loop.
      * If pcbRead is NULL we have to fill the entire buffer!
      */
-    int     rc       = VINF_SUCCESS;
     size_t  cbRead   = 0;
     size_t  cbToRead = cbBuffer;
     for (;;)
@@ -521,10 +583,13 @@ RTDECL(int) RTSocketWrite(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffe
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
+    int rc = rtSocketSwitchBlockingMode(pThis, true /* fBlocking */);
+    if (RT_FAILURE(rc))
+        return rc;
+
     /*
      * Try write all at once.
      */
-    int     rc        = VINF_SUCCESS;
 #ifdef RT_OS_WINDOWS
     int     cbNow     = cbBuffer >= INT_MAX / 2 ? INT_MAX / 2 : (int)cbBuffer;
 #else
@@ -589,10 +654,14 @@ RTDECL(int) RTSocketSgWrite(RTSOCKET hSocket, PCRTSGBUF pSgBuf)
     AssertReturn(pSgBuf->cSegs > 0, VERR_INVALID_PARAMETER);
     AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
 
+    int rc = rtSocketSwitchBlockingMode(pThis, true /* fBlocking */);
+    if (RT_FAILURE(rc))
+        return rc;
+
     /*
      * Construct message descriptor (translate pSgBuf) and send it.
      */
-    int rc = VERR_NO_TMP_MEMORY;
+    rc = VERR_NO_TMP_MEMORY;
 #ifdef RT_OS_WINDOWS
     AssertCompileSize(WSABUF, sizeof(RTSGSEG));
     AssertCompileMemberSize(WSABUF, buf, RT_SIZEOFMEMB(RTSGSEG, pvSeg));
@@ -683,6 +752,202 @@ RTDECL(int) RTSocketSgWriteLV(RTSOCKET hSocket, size_t cSegs, va_list va)
 }
 
 
+RTDECL(int) RTSocketReadNB(RTSOCKET hSocket, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
+{
+    /*
+     * Validate input.
+     */
+    RTSOCKETINT *pThis = hSocket;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+    AssertReturn(cbBuffer > 0, VERR_INVALID_PARAMETER);
+    AssertPtr(pvBuffer);
+    AssertPtrReturn(pcbRead, VERR_INVALID_PARAMETER);
+    AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
+
+    int rc = rtSocketSwitchBlockingMode(pThis, false /* fBlocking */);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rtSocketErrorReset();
+#ifdef RT_OS_WINDOWS
+    int cbNow = cbBuffer >= INT_MAX/2 ? INT_MAX/2 : (int)cbBuffer;
+
+    int cbRead = recv(pThis->hNative, (char *)pvBuffer, cbNow, MSG_NOSIGNAL);
+    if (cbRead >= 0)
+    {
+        *pcbRead = cbRead;
+        rc = VINF_SUCCESS;
+    }
+    else
+        rc = rtSocketError();
+
+    if (rc == VERR_TRY_AGAIN)
+        rc = VINF_TRY_AGAIN;
+#else
+    ssize_t cbRead = recv(pThis->hNative, pvBuffer, cbBuffer, MSG_NOSIGNAL);
+    if (cbRead >= 0)
+        *pcbRead = cbRead;
+    else if (errno == EAGAIN)
+    {
+        *pcbRead = 0;
+        rc = VINF_TRY_AGAIN;
+    }
+    else
+        rc = rtSocketError();
+#endif
+
+    rtSocketUnlock(pThis);
+    return rc;
+}
+
+
+RTDECL(int) RTSocketWriteNB(RTSOCKET hSocket, const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten)
+{
+    /*
+     * Validate input.
+     */
+    RTSOCKETINT *pThis = hSocket;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+    AssertPtrReturn(pcbWritten, VERR_INVALID_PARAMETER);
+    AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
+
+    int rc = rtSocketSwitchBlockingMode(pThis, false /* fBlocking */);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rtSocketErrorReset();
+#ifdef RT_OS_WINDOWS
+    int cbNow = RT_MIN((int)cbBuffer, INT_MAX/2);
+
+    int cbWritten = send(pThis->hNative, (const char *)pvBuffer, cbNow, MSG_NOSIGNAL);
+
+    if (cbWritten >= 0)
+    {
+        *pcbWritten = cbWritten;
+        rc = VINF_SUCCESS;
+    }
+    else
+        rc = rtSocketError();
+
+    if (rc == VERR_TRY_AGAIN)
+        rc = VINF_TRY_AGAIN;
+#else
+    ssize_t cbWritten = send(pThis->hNative, pvBuffer, cbBuffer, MSG_NOSIGNAL);
+    if (cbWritten >= 0)
+        *pcbWritten = cbWritten;
+    else if (errno == EAGAIN)
+    {
+        *pcbWritten = 0;
+        rc = VINF_TRY_AGAIN;
+    }
+    else
+        rc = rtSocketError();
+#endif
+
+    rtSocketUnlock(pThis);
+    return rc;
+}
+
+
+RTDECL(int) RTSocketSgWriteNB(RTSOCKET hSocket, PCRTSGBUF pSgBuf, size_t *pcbWritten)
+{
+    /*
+     * Validate input.
+     */
+    RTSOCKETINT *pThis = hSocket;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+    AssertPtrReturn(pSgBuf, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcbWritten, VERR_INVALID_PARAMETER);
+    AssertReturn(pSgBuf->cSegs > 0, VERR_INVALID_PARAMETER);
+    AssertReturn(rtSocketTryLock(pThis), VERR_CONCURRENT_ACCESS);
+
+    int rc = rtSocketSwitchBlockingMode(pThis, false /* fBlocking */);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    unsigned cSegsToSend = 0;
+    rc = VERR_NO_TMP_MEMORY;
+#ifdef RT_OS_WINDOWS
+    LPWSABUF paMsg = NULL;
+
+    RTSgBufMapToNative(paMsg, pSgBuf, WSABUF, buf, char *, len, u_long, cSegsToSend);
+    if (paMsg)
+    {
+        DWORD dwSent = 0;
+        int hrc = WSASend(pThis->hNative, paMsg, cSegsToSend, &dwSent,
+                          MSG_NOSIGNAL, NULL, NULL);
+        if (!hrc)
+            rc = VINF_SUCCESS;
+        else
+            rc = rtSocketError();
+
+        *pcbWritten = dwSent;
+
+        RTMemTmpFree(paMsg);
+    }
+
+#else  /* !RT_OS_WINDOWS */
+    struct iovec *paMsg = NULL;
+
+    RTSgBufMapToNative(paMsg, pSgBuf, struct iovec, iov_base, void *, iov_len, size_t, cSegsToSend);
+    if (paMsg)
+    {
+        struct msghdr msgHdr;
+        RT_ZERO(msgHdr);
+        msgHdr.msg_iov    = paMsg;
+        msgHdr.msg_iovlen = cSegsToSend;
+        ssize_t cbWritten = sendmsg(pThis->hNative, &msgHdr, MSG_NOSIGNAL);
+        if (RT_LIKELY(cbWritten >= 0))
+        {
+            rc = VINF_SUCCESS;
+            *pcbWritten = cbWritten;
+        }
+        else
+            rc = rtSocketError();
+
+        RTMemTmpFree(paMsg);
+    }
+#endif /* !RT_OS_WINDOWS */
+
+    rtSocketUnlock(pThis);
+    return rc;
+}
+
+
+RTDECL(int) RTSocketSgWriteLNB(RTSOCKET hSocket, size_t cSegs, size_t *pcbWritten, ...)
+{
+    va_list va;
+    va_start(va, pcbWritten);
+    int rc = RTSocketSgWriteLVNB(hSocket, cSegs, pcbWritten, va);
+    va_end(va);
+    return rc;
+}
+
+
+RTDECL(int) RTSocketSgWriteLVNB(RTSOCKET hSocket, size_t cSegs, size_t *pcbWritten, va_list va)
+{
+    /*
+     * Set up a S/G segment array + buffer on the stack and pass it
+     * on to RTSocketSgWrite.
+     */
+    Assert(cSegs <= 16);
+    PRTSGSEG paSegs = (PRTSGSEG)alloca(cSegs * sizeof(RTSGSEG));
+    AssertReturn(paSegs, VERR_NO_TMP_MEMORY);
+    for (size_t i = 0; i < cSegs; i++)
+    {
+        paSegs[i].pvSeg = va_arg(va, void *);
+        paSegs[i].cbSeg = va_arg(va, size_t);
+    }
+
+    RTSGBUF SgBuf;
+    RTSgBufInit(&SgBuf, paSegs, cSegs);
+    return RTSocketSgWriteNB(hSocket, &SgBuf, pcbWritten);
+}
+
+
 RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
 {
     /*
@@ -692,6 +957,8 @@ RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
+    int const fdMax = (int)pThis->hNative + 1;
+    AssertReturn(fdMax - 1 == pThis->hNative, VERR_INTERNAL_ERROR_5);
 
     /*
      * Set up the file descriptor sets and do the select.
@@ -704,16 +971,80 @@ RTDECL(int) RTSocketSelectOne(RTSOCKET hSocket, RTMSINTERVAL cMillies)
 
     int rc;
     if (cMillies == RT_INDEFINITE_WAIT)
-        rc = select(pThis->hNative + 1, &fdsetR, NULL, &fdsetE, NULL);
+        rc = select(fdMax, &fdsetR, NULL, &fdsetE, NULL);
     else
     {
         struct timeval timeout;
         timeout.tv_sec = cMillies / 1000;
         timeout.tv_usec = (cMillies % 1000) * 1000;
-        rc = select(pThis->hNative + 1, &fdsetR, NULL, &fdsetE, &timeout);
+        rc = select(fdMax, &fdsetR, NULL, &fdsetE, &timeout);
     }
     if (rc > 0)
         rc = VINF_SUCCESS;
+    else if (rc == 0)
+        rc = VERR_TIMEOUT;
+    else
+        rc = rtSocketError();
+
+    return rc;
+}
+
+
+RTDECL(int) RTSocketSelectOneEx(RTSOCKET hSocket, uint32_t fEvents, uint32_t *pfEvents,
+                                RTMSINTERVAL cMillies)
+{
+    /*
+     * Validate input.
+     */
+    RTSOCKETINT *pThis = hSocket;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
+    AssertPtrReturn(pfEvents, VERR_INVALID_PARAMETER);
+    AssertReturn(!(fEvents & ~RTSOCKET_EVT_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
+    int const fdMax = (int)pThis->hNative + 1;
+    AssertReturn(fdMax - 1 == pThis->hNative, VERR_INTERNAL_ERROR_5);
+
+    *pfEvents = 0;
+
+    /*
+     * Set up the file descriptor sets and do the select.
+     */
+    fd_set fdsetR;
+    fd_set fdsetW;
+    fd_set fdsetE;
+    FD_ZERO(&fdsetR);
+    FD_ZERO(&fdsetW);
+    FD_ZERO(&fdsetE);
+
+    if (fEvents & RTSOCKET_EVT_READ)
+        FD_SET(pThis->hNative, &fdsetR);
+    if (fEvents & RTSOCKET_EVT_WRITE)
+        FD_SET(pThis->hNative, &fdsetW);
+    if (fEvents & RTSOCKET_EVT_ERROR)
+        FD_SET(pThis->hNative, &fdsetE);
+
+    int rc;
+    if (cMillies == RT_INDEFINITE_WAIT)
+        rc = select(fdMax, &fdsetR, &fdsetW, &fdsetE, NULL);
+    else
+    {
+        struct timeval timeout;
+        timeout.tv_sec = cMillies / 1000;
+        timeout.tv_usec = (cMillies % 1000) * 1000;
+        rc = select(fdMax, &fdsetR, &fdsetW, &fdsetE, &timeout);
+    }
+    if (rc > 0)
+    {
+        if (FD_ISSET(pThis->hNative, &fdsetR))
+            *pfEvents |= RTSOCKET_EVT_READ;
+        if (FD_ISSET(pThis->hNative, &fdsetW))
+            *pfEvents |= RTSOCKET_EVT_WRITE;
+        if (FD_ISSET(pThis->hNative, &fdsetE))
+            *pfEvents |= RTSOCKET_EVT_ERROR;
+
+        rc = VINF_SUCCESS;
+    }
     else if (rc == 0)
         rc = VERR_TIMEOUT;
     else
@@ -1034,7 +1365,7 @@ int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValu
  * @returns Valid handle on success, INVALID_HANDLE_VALUE on failure.
  * @param   hSocket             The socket handle.
  * @param   fEvents             The events we're polling for.
- * @param   ph                  wher to put the primary handle.
+ * @param   ph                  where to put the primary handle.
  */
 int rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PHANDLE ph)
 {
@@ -1064,7 +1395,7 @@ int rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PHANDLE ph)
  * @returns IPRT status code.
  * @param   pThis               The socket handle.
  */
-static int rtSocketPollClearEventAndMakeBlocking(RTSOCKETINT *pThis)
+static int rtSocketPollClearEventAndRestoreBlocking(RTSOCKETINT *pThis)
 {
     int rc = VINF_SUCCESS;
     if (pThis->fSubscribedEvts)
@@ -1073,12 +1404,19 @@ static int rtSocketPollClearEventAndMakeBlocking(RTSOCKETINT *pThis)
         {
             pThis->fSubscribedEvts = 0;
 
-            u_long fNonBlocking = 0;
-            int rc2 = ioctlsocket(pThis->hNative, FIONBIO, &fNonBlocking);
-            if (rc2 != 0)
+            /*
+             * Switch back to blocking mode if that was the state before the
+             * operation.
+             */
+            if (pThis->fBlocking)
             {
-                rc = rtSocketError();
-                AssertMsgFailed(("%Rrc; rc2=%d\n", rc, rc2));
+                u_long fNonBlocking = 0;
+                int rc2 = ioctlsocket(pThis->hNative, FIONBIO, &fNonBlocking);
+                if (rc2 != 0)
+                {
+                    rc = rtSocketError();
+                    AssertMsgFailed(("%Rrc; rc2=%d\n", rc, rc2));
+                }
             }
         }
         else
@@ -1107,6 +1445,7 @@ static int rtSocketPollUpdateEvents(RTSOCKETINT *pThis, uint32_t fEvents)
         fNetworkEvents |= FD_WRITE;
     if (fEvents & RTPOLL_EVT_ERROR)
         fNetworkEvents |= FD_CLOSE;
+    LogFlowFunc(("fNetworkEvents=%#x\n", fNetworkEvents));
     if (WSAEventSelect(pThis->hNative, pThis->hEvent, fNetworkEvents) == 0)
     {
         pThis->fSubscribedEvts = fEvents;
@@ -1130,6 +1469,8 @@ static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
 {
     int         rc         = VINF_SUCCESS;
     uint32_t    fRetEvents = 0;
+
+    LogFlowFunc(("pThis=%#p fEvents=%#x\n", pThis, fEvents));
 
     /* Make sure WSAEnumNetworkEvents returns what we want. */
     if ((pThis->fSubscribedEvts & fEvents) != fEvents)
@@ -1170,6 +1511,7 @@ static uint32_t rtSocketPollCheck(RTSOCKETINT *pThis, uint32_t fEvents)
         /** @todo  */
     }
 
+    LogFlowFunc(("fRetEvents=%#x\n", fRetEvents));
     return fRetEvents;
 }
 
@@ -1210,7 +1552,10 @@ uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvent
     }
 
     /* (rtSocketPollCheck will reset the event object). */
-    uint32_t fRetEvents = rtSocketPollCheck(pThis, fEvents);
+    uint32_t fRetEvents = pThis->fEventsSaved;
+    pThis->fEventsSaved = 0; /* Reset */
+    fRetEvents |= rtSocketPollCheck(pThis, fEvents);
+
     if (   !fRetEvents
         && !fNoWait)
     {
@@ -1231,7 +1576,7 @@ uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvent
     {
         if (pThis->cUsers == 1)
         {
-            rtSocketPollClearEventAndMakeBlocking(pThis);
+            rtSocketPollClearEventAndRestoreBlocking(pThis);
             pThis->hPollSet = NIL_RTPOLLSET;
         }
         ASMAtomicDecU32(&pThis->cUsers);
@@ -1255,8 +1600,9 @@ uint32_t rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvent
  *                              this method is called in reverse order, so the
  *                              first call will have this set (when the entire
  *                              set was processed).
+ * @param   fHarvestEvents      Set if we should check for pending events.
  */
-uint32_t rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry)
+uint32_t rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, bool fHarvestEvents)
 {
     RTSOCKETINT *pThis = hSocket;
     AssertPtrReturn(pThis, 0);
@@ -1268,10 +1614,22 @@ uint32_t rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry)
     uint32_t fRetEvents = rtSocketPollCheck(pThis, fEvents);
     pThis->fPollEvts = 0;
 
+    /*
+     * Save the write event if required.
+     * It is only posted once and might get lost if the another source in the
+     * pollset with a higher priority has pending events.
+     */
+    if (   !fHarvestEvents
+        && fRetEvents)
+    {
+        pThis->fEventsSaved = fRetEvents;
+        fRetEvents = 0;
+    }
+
     /* Make the socket blocking again and unlock the handle. */
     if (pThis->cUsers == 1)
     {
-        rtSocketPollClearEventAndMakeBlocking(pThis);
+        rtSocketPollClearEventAndRestoreBlocking(pThis);
         pThis->hPollSet = NIL_RTPOLLSET;
     }
     ASMAtomicDecU32(&pThis->cUsers);

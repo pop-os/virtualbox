@@ -1,4 +1,4 @@
-; $Id: PAEand32Bit.mac $
+; $Id: PAEand32Bit.mac 34991 2010-12-13 11:20:04Z vboxsync $
 ;; @file
 ; VMM - World Switchers, template for PAE and 32-Bit.
 ;
@@ -79,6 +79,30 @@ BEGINPROC vmmR0HostToGuest
     mov     edx, 0ffffffffh
     push    cs                          ; allow for far return and restore cs correctly.
     call    NAME(vmmR0HostToGuestAsm)
+
+%ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+    CPUM_FROM_CPUMCPU(edx)
+    ; Restore blocked Local APIC NMI vectors
+    ; Do this here to ensure the host CS is already restored
+    mov     ecx, [edx + CPUM.fApicDisVectors]
+    mov     edx, [edx + CPUM.pvApicBase]
+    shr     ecx, 1
+    jnc     gth_nolint0
+    and     dword [edx + APIC_REG_LVT_LINT0], ~APIC_REG_LVT_MASKED
+gth_nolint0:
+    shr     ecx, 1
+    jnc     gth_nolint1
+    and     dword [edx + APIC_REG_LVT_LINT1], ~APIC_REG_LVT_MASKED
+gth_nolint1:
+    shr     ecx, 1
+    jnc     gth_nopc
+    and     dword [edx + APIC_REG_LVT_PC], ~APIC_REG_LVT_MASKED
+gth_nopc:
+    shr     ecx, 1
+    jnc     gth_notherm
+    and     dword [edx + APIC_REG_LVT_THMR], ~APIC_REG_LVT_MASKED
+gth_notherm:
+%endif
 
 %ifdef VBOX_WITH_STATISTICS
     ;
@@ -257,7 +281,7 @@ htg_debug_regs_no:
     ;
     and     eax, X86_CR4_MCE | X86_CR4_PSE | X86_CR4_PAE | X86_CR4_VMXE
     mov     ecx, [edx + CPUMCPU.Guest.cr4]
-    ;; @todo Switcher cleanup: Determin base CR4 during CPUMR0Init / VMMR3SelectSwitcher putting it
+    ;; @todo Switcher cleanup: Determine base CR4 during CPUMR0Init / VMMR3SelectSwitcher putting it
     ;                          in CPUMCPU.Hyper.cr4 (which isn't currently being used). That should
     ;                          simplify this operation a bit (and improve locality of the data).
 
@@ -896,7 +920,7 @@ GLOBALNAME HCExitTarget
     and     al, 0F8h                                ; mask away TI and RPL bits, get descriptor offset.
     add     eax, [edx + CPUMCPU.Host.gdtr + 2]         ; eax <- GDTR.address + descriptor offset.
     mov     ecx, [eax + 4]                          ; ecx <- 2nd descriptor dword
-    mov     ebx, ecx                                ; save orginal value
+    mov     ebx, ecx                                ; save original value
     and     ecx, ~0200h                             ; clear busy flag (2nd type2 bit)
     mov     [eax + 4], ecx                          ; not using xchg here is paranoia..
     ltr     word [edx + CPUMCPU.Host.tr]
@@ -977,7 +1001,7 @@ ALIGNCODE(16)
 gth_fpu_no:
 
     ; Control registers.
-    ; Would've liked to have these highere up in case of crashes, but
+    ; Would've liked to have these higher up in case of crashes, but
     ; the fpu stuff must be done before we restore cr0.
     mov     ecx, [edx + CPUMCPU.Host.cr4]
     mov     cr4, ecx
@@ -992,31 +1016,6 @@ gth_fpu_no:
     jz short gth_debug_regs_no
     jmp     gth_debug_regs_restore
 gth_debug_regs_no:
-
-%ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    mov     esi, edx
-    CPUM_FROM_CPUMCPU(edx)
-    ; Restore blocked Local APIC NMI vectors
-    mov     ebx, [edx + CPUM.pvApicBase]
-    mov     ecx, [edx + CPUM.fApicDisVectors]
-    mov     edx, esi
-    shr     ecx, 1
-    jnc     gth_nolint0
-    and     dword [ebx + APIC_REG_LVT_LINT0], ~APIC_REG_LVT_MASKED
-gth_nolint0:
-    shr     ecx, 1
-    jnc     gth_nolint1
-    and     dword [ebx + APIC_REG_LVT_LINT1], ~APIC_REG_LVT_MASKED
-gth_nolint1:
-    shr     ecx, 1
-    jnc     gth_nopc
-    and     dword [ebx + APIC_REG_LVT_PC], ~APIC_REG_LVT_MASKED
-gth_nopc:
-    shr     ecx, 1
-    jnc     gth_notherm
-    and     dword [ebx + APIC_REG_LVT_THMR], ~APIC_REG_LVT_MASKED
-gth_notherm:
-%endif
 
     ; restore general registers.
     mov     eax, edi                    ; restore return code. eax = return code !!

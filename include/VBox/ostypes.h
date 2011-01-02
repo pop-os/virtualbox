@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -111,9 +111,15 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_QNX              = 0xA0000,
     VBOXOSTYPE_MacOS            = 0xB0000,
     VBOXOSTYPE_MacOS_x64        = 0xB0100,
+    VBOXOSTYPE_JRockitVE        = 0xC0000,
+/** The bit number which indicates 64-bit or 32-bit. */
+#define VBOXOSTYPE_x64_BIT       8
+    /** The mask which indicates 64-bit. */
+    VBOXOSTYPE_x64            = 1 << VBOXOSTYPE_x64_BIT,
     /** The usual 32-bit hack. */
     VBOXOSTYPE_32BIT_HACK = 0x7fffffff
 } VBOXOSTYPE;
+
 
 /**
  * Global list of guest OS families.

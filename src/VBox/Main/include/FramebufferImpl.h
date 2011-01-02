@@ -1,4 +1,4 @@
-/* $Id: FramebufferImpl.h $ */
+/* $Id: FramebufferImpl.h 30714 2010-07-07 16:20:03Z vboxsync $ */
 
 /** @file
  *
@@ -31,7 +31,7 @@ class ATL_NO_VTABLE Framebuffer :
 {
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (Framebuffer)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Framebuffer, IFramebuffer)
 
     DECLARE_NOT_AGGREGATABLE (Framebuffer)
 

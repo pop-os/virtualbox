@@ -1,4 +1,4 @@
-/* $Id: sched-darwin.cpp $ */
+/* $Id: sched-darwin.cpp 30111 2010-06-09 12:14:59Z vboxsync $ */
 /** @file
  * IPRT - Scheduling, Darwin.
  */
@@ -269,7 +269,7 @@ int rtProcNativeSetPriority(RTPROCPRIORITY enmPriority)
             break;
         }
     Assert(pProcessPriority != &g_aDefaultPriority);
-    ASMAtomicUoWritePtr((void **)&g_pProcessPriority, pProcessPriority);
+    ASMAtomicUoWritePtr(&g_pProcessPriority, pProcessPriority);
 
     return VINF_SUCCESS;
 }

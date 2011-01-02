@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogicFullscreen.cpp $ */
+/* $Id: UIMachineLogicFullscreen.cpp 30936 2010-07-20 16:59:35Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -25,15 +25,14 @@
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
 
+#include "UISession.h"
 #include "UIActionsPool.h"
 #include "UIMachineLogicFullscreen.h"
-#include "UIMachineWindow.h"
 #include "UIMachineWindowFullscreen.h"
 #include "UIMultiScreenLayout.h"
-#include "UISession.h"
-
 
 #ifdef Q_WS_MAC
+# include "UIExtraDataEventHandler.h"
 # include "VBoxUtils.h"
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
@@ -46,8 +45,16 @@ UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *
 
 UIMachineLogicFullscreen::~UIMachineLogicFullscreen()
 {
-    /* Cleanup machine window: */
+#ifdef Q_WS_MAC
+    /* Cleanup the dock stuff before the machine window(s): */
+    cleanupDock();
+#endif /* Q_WS_MAC */
+
+    /* Cleanup machine window(s): */
     cleanupMachineWindows();
+
+    /* Cleanup handlers: */
+    cleanupHandlers();
 
     /* Cleanup action related stuff */
     cleanupActionGroups();
@@ -126,6 +133,9 @@ void UIMachineLogicFullscreen::initialize()
     /* Prepare action connections: */
     prepareActionConnections();
 
+    /* Prepare handlers: */
+    prepareHandlers();
+
     /* Prepare machine window: */
     prepareMachineWindows();
 
@@ -142,6 +152,10 @@ void UIMachineLogicFullscreen::initialize()
     sltAdditionsStateChanged();
     sltMouseCapabilityChanged();
 
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    prepareDebugger();
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+
     /* Retranslate logic part: */
     retranslateUi();
 }
@@ -155,8 +169,8 @@ int UIMachineLogicFullscreen::hostScreenForGuestScreen(int screenId) const
 void UIMachineLogicFullscreen::prepareCommonConnections()
 {
     /* Presentation mode connection */
-    connect (&vboxGlobal(), SIGNAL(presentationModeChanged(const VBoxChangePresentationModeEvent &)),
-             this, SLOT(sltChangePresentationMode(const VBoxChangePresentationModeEvent &)));
+    connect(gEDataEvents, SIGNAL(sigPresentationModeChange(bool)),
+            this, SLOT(sltChangePresentationMode(bool)));
 }
 #endif /* Q_WS_MAC */
 
@@ -189,13 +203,13 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
     m_pScreenLayout->update();
 
     /* Create machine window(s): */
-    for (int screenId = 0; screenId < m_pScreenLayout->guestScreenCount(); ++screenId)
-        addMachineWindow(UIMachineWindow::create(this, visualStateType(), screenId));
+    for (int cScreenId = 0; cScreenId < m_pScreenLayout->guestScreenCount(); ++cScreenId)
+        addMachineWindow(UIMachineWindow::create(this, visualStateType(), cScreenId));
 
     /* Connect screen-layout change handler: */
-    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+    for (int i = 0; i < machineWindows().size(); ++i)
         connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
-                static_cast<UIMachineWindowFullscreen*>(pMachineWindow), SLOT(sltPlaceOnScreen()));
+                static_cast<UIMachineWindowFullscreen*>(machineWindows()[i]), SLOT(sltPlaceOnScreen()));
 
 #ifdef Q_WS_MAC
     /* If the user change the screen, we have to decide again if the
@@ -212,14 +226,11 @@ void UIMachineLogicFullscreen::prepareMachineWindows()
 
 void UIMachineLogicFullscreen::cleanupMachineWindows()
 {
-    /* Do not cleanup machine window if it is not present: */
+    /* Do not cleanup machine window(s) if not present: */
     if (!isMachineWindowsCreated())
         return;
 
-    /* Base class cleanup: */
-    UIMachineLogic::cleanupMachineWindows();
-
-    /* Cleanup normal machine window: */
+    /* Cleanup machine window(s): */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
         UIMachineWindow::destroy(pMachineWindow);
 
@@ -235,7 +246,7 @@ void UIMachineLogicFullscreen::cleanupActionGroups()
 }
 
 #ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::sltChangePresentationMode(const VBoxChangePresentationModeEvent & /* event */)
+void UIMachineLogicFullscreen::sltChangePresentationMode(bool /* fEnabled */)
 {
     setPresentationModeEnabled(true);
 }

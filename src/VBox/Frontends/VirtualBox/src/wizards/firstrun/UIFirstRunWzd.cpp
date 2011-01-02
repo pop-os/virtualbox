@@ -1,4 +1,4 @@
-/* $Id: UIFirstRunWzd.cpp $ */
+/* $Id: UIFirstRunWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -19,10 +19,9 @@
 
 /* Local includes */
 #include "UIFirstRunWzd.h"
+#include "UIIconPool.h"
 #include "VBoxGlobal.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxMediaManagerDlg.h"
-#include "VBoxVMSettingsHD.h"
 
 UIFirstRunWzd::UIFirstRunWzd(QWidget *pParent, const CMachine &machine) : QIWizard(pParent)
 {
@@ -162,7 +161,8 @@ UIFirstRunWzdPage2::UIFirstRunWzdPage2()
     registerField("id", this, "id");
 
     /* Setup contents */
-    m_pSelectMediaButton->setIcon(VBoxGlobal::iconSet(":/select_file_16px.png", ":/select_file_dis_16px.png"));
+    m_pSelectMediaButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png",
+                                                      ":/select_file_dis_16px.png"));
 
     /* Setup connections */
     connect(m_pMediaSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(sltMediumChanged()));
@@ -222,11 +222,11 @@ void UIFirstRunWzdPage2::sltMediumChanged()
 
 void UIFirstRunWzdPage2::sltOpenVirtualMediaManager()
 {
-    /* Create & open VMM */
-    VBoxMediaManagerDlg dlg(this);
-    dlg.setup(m_pMediaSelector->type(), true /* propose to choose? */);
-    if (dlg.exec() == QDialog::Accepted)
-        m_pMediaSelector->setCurrentItem(dlg.selectedId());
+    /* Get opened vboxMedium id: */
+    QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediaSelector->type(), this);
+    /* Update medium-combo if necessary: */
+    if (!strMediumId.isNull())
+        m_pMediaSelector->setCurrentItem(strMediumId);
 }
 
 UIFirstRunWzdPage3::UIFirstRunWzdPage3()
@@ -304,7 +304,10 @@ void UIFirstRunWzdPage3::cleanupPage()
 
 bool UIFirstRunWzdPage3::validatePage()
 {
-    return insertDevice();
+    startProcessing();
+    bool fResult = insertDevice();
+    endProcessing();
+    return fResult;
 }
 
 bool UIFirstRunWzdPage3::insertDevice()
@@ -339,13 +342,15 @@ bool UIFirstRunWzdPage3::insertDevice()
     AssertMsg(!cda.isNull(), ("Storage Controller is NOT properly configured!\n"));
     /* Get chosen 'dvd' medium to mount: */
     QString mediumId = field("id").toString();
+    VBoxMedium vmedium = vboxGlobal().findMedium(mediumId);
+    CMedium medium = vmedium.medium();              // @todo r=dj can this be cached somewhere?
     /* Mount medium to the predefined port/device: */
-    m_Machine.MountMedium(cda.GetController(), cda.GetPort(), cda.GetDevice(), mediumId, false /* force */);
+    m_Machine.MountMedium(cda.GetController(), cda.GetPort(), cda.GetDevice(), medium, false /* force */);
     if (m_Machine.isOk())
         return true;
     else
     {
-        vboxProblem().cannotRemountMedium(this, m_Machine, vboxGlobal().findMedium(mediumId),
+        vboxProblem().cannotRemountMedium(this, m_Machine, vmedium,
                                           true /* mount? */, false /* retry? */);
         return false;
     }

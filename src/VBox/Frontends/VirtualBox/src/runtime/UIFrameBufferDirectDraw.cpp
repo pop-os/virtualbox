@@ -1,4 +1,4 @@
-/* $Id: UIFrameBufferDirectDraw.cpp $ */
+/* $Id: UIFrameBufferDirectDraw.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -305,7 +305,7 @@ void VBoxDDRAWFrameBuffer::moveEvent (QMoveEvent *me)
  * setting up an indirect fallback buffer for the surface. This opeartion may
  * theoretically also fail.
  *
- * @note Deletes the existing surface before attemting to create a new one.
+ * @note Deletes the existing surface before attempting to create a new one.
  */
 bool VBoxDDRAWFrameBuffer::createSurface (ULONG aPixelFormat, uchar *aVRAM,
                                           ULONG aBitsPerPixel, ULONG aBytesPerLine,

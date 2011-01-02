@@ -37,8 +37,11 @@
 #define RTMD5_HASH_SIZE     16
 /** @deprecated Use RTMD5_HASH_SIZE. */
 #define RTMD5HASHSIZE       RTMD5_HASH_SIZE
-/** Size of a MD5 hash. */
-#define RTMD5_STRING_LEN    32
+/** The length of a MD5 digest string. The terminator is not included. */
+#define RTMD5_DIGEST_LEN    32
+/** Size of a MD5 hash.
+ * @deprecated Use RTMD5_DIGEST_LEN  */
+#define RTMD5_STRING_LEN    RTMD5_DIGEST_LEN
 
 /**
  * MD5 hash algorithm context.
@@ -107,7 +110,7 @@ RTDECL(int) RTMd5ToString(uint8_t const pabDigest[RTMD5_HASH_SIZE], char *pszDig
  *
  * @returns IPRT status code.
  *
- * @param   pszDigest   The strigified digest. Leading and trailing spaces are
+ * @param   pszDigest   The stringified digest. Leading and trailing spaces are
  *                      ignored.
  * @param   pabDigest   Where to store the hash. (What is passed is a pointer to
  *                      the caller's buffer.)

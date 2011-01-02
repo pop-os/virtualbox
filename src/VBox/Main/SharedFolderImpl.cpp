@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,11 +62,12 @@ void SharedFolder::FinalRelease()
  *  @param aName        logical name of the shared folder
  *  @param aHostPath    full path to the shared folder on the host
  *  @param aWritable    writable if true, readonly otherwise
+ *  @param aAutoMount   if auto mounted by guest true, false otherwise
  *
  *  @return          COM result indicator
  */
 HRESULT SharedFolder::init (Machine *aMachine,
-                            CBSTR aName, CBSTR aHostPath, BOOL aWritable)
+                            CBSTR aName, CBSTR aHostPath, BOOL aWritable, BOOL aAutoMount)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -74,7 +75,7 @@ HRESULT SharedFolder::init (Machine *aMachine,
 
     unconst(mMachine) = aMachine;
 
-    HRESULT rc = protectedInit(aMachine, aName, aHostPath, aWritable);
+    HRESULT rc = protectedInit(aMachine, aName, aHostPath, aWritable, aAutoMount);
 
     /* Confirm a successful initialization when it's the case */
     if (SUCCEEDED(rc))
@@ -103,8 +104,9 @@ HRESULT SharedFolder::initCopy (Machine *aMachine, SharedFolder *aThat)
 
     unconst(mMachine) = aMachine;
 
-    HRESULT rc = protectedInit (aMachine, aThat->m.name,
-                                aThat->m.hostPath, aThat->m.writable);
+    HRESULT rc = protectedInit(aMachine, aThat->m.name.raw(),
+                               aThat->m.hostPath.raw(), aThat->m.writable,
+                               aThat->m.autoMount);
 
     /* Confirm a successful initialization when it's the case */
     if (SUCCEEDED(rc))
@@ -124,7 +126,7 @@ HRESULT SharedFolder::initCopy (Machine *aMachine, SharedFolder *aThat)
  *  @return          COM result indicator
  */
 HRESULT SharedFolder::init(Console *aConsole,
-                            CBSTR aName, CBSTR aHostPath, BOOL aWritable)
+                            CBSTR aName, CBSTR aHostPath, BOOL aWritable, BOOL aAutoMount)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -132,7 +134,7 @@ HRESULT SharedFolder::init(Console *aConsole,
 
     unconst(mConsole) = aConsole;
 
-    HRESULT rc = protectedInit(aConsole, aName, aHostPath, aWritable);
+    HRESULT rc = protectedInit(aConsole, aName, aHostPath, aWritable, aAutoMount);
 
     /* Confirm a successful initialization when it's the case */
     if (SUCCEEDED(rc))
@@ -152,7 +154,7 @@ HRESULT SharedFolder::init(Console *aConsole,
  *  @return          COM result indicator
  */
 HRESULT SharedFolder::init (VirtualBox *aVirtualBox,
-                            CBSTR aName, CBSTR aHostPath, BOOL aWritable)
+                            CBSTR aName, CBSTR aHostPath, BOOL aWritable, BOOL aAutoMount)
 {
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -160,7 +162,7 @@ HRESULT SharedFolder::init (VirtualBox *aVirtualBox,
 
     unconst(mVirtualBox) = aVirtualBox;
 
-    HRESULT rc = protectedInit(aVirtualBox, aName, aHostPath, aWritable);
+    HRESULT rc = protectedInit(aVirtualBox, aName, aHostPath, aWritable, aAutoMount);
 
     /* Confirm a successful initialization when it's the case */
     if (SUCCEEDED(rc))
@@ -176,12 +178,13 @@ HRESULT SharedFolder::init (VirtualBox *aVirtualBox,
  *      Must be called from under the object's lock!
  */
 HRESULT SharedFolder::protectedInit(VirtualBoxBase *aParent,
-                                    CBSTR aName,
-                                    CBSTR aHostPath,
-                                    BOOL aWritable)
+                                    CBSTR           aName,
+                                    CBSTR           aHostPath,
+                                    BOOL            aWritable,
+                                    BOOL            aAutoMount)
 {
-    LogFlowThisFunc(("aName={%ls}, aHostPath={%ls}, aWritable={%d}\n",
-                      aName, aHostPath, aWritable));
+    LogFlowThisFunc(("aName={%ls}, aHostPath={%ls}, aWritable={%d}, aAutoMount={%d}\n",
+                      aName, aHostPath, aWritable, aAutoMount));
 
     ComAssertRet(aParent && aName && aHostPath, E_INVALIDARG);
 
@@ -196,8 +199,8 @@ HRESULT SharedFolder::protectedInit(VirtualBoxBase *aParent,
      * accept both the slashified paths and not. */
 #if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
     if (hostPathLen > 2 &&
-        RTPATH_IS_SEP (hostPath.raw()[hostPathLen - 1]) &&
-        RTPATH_IS_VOLSEP (hostPath.raw()[hostPathLen - 2]))
+        RTPATH_IS_SEP (hostPath.c_str()[hostPathLen - 1]) &&
+        RTPATH_IS_VOLSEP (hostPath.c_str()[hostPathLen - 2]))
         ;
 #else
     if (hostPathLen == 1 && RTPATH_IS_SEP(hostPath[0]))
@@ -215,18 +218,19 @@ HRESULT SharedFolder::protectedInit(VirtualBoxBase *aParent,
     if (RT_FAILURE(vrc))
         return setError(E_INVALIDARG,
                         tr("Invalid shared folder path: '%s' (%Rrc)"),
-                        hostPath.raw(), vrc);
+                        hostPath.c_str(), vrc);
 
     if (RTPathCompare(hostPath.c_str(), hostPathFull) != 0)
         return setError(E_INVALIDARG,
                         tr("Shared folder path '%s' is not absolute"),
-                        hostPath.raw());
+                        hostPath.c_str());
 
     unconst(mParent) = aParent;
 
     unconst(m.name) = aName;
     unconst(m.hostPath) = hostPath;
     m.writable = aWritable;
+    m.autoMount = aAutoMount;
 
     return S_OK;
 }
@@ -305,7 +309,7 @@ STDMETHODIMP SharedFolder::COMGETTER(Accessible) (BOOL *aAccessible)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m.lastAccessError = BstrFmt (
-        tr ("'%s' is not accessible (%Rrc)"), hostPath.raw(), vrc);
+        tr ("'%s' is not accessible (%Rrc)"), hostPath.c_str(), vrc);
 
     LogWarningThisFunc(("m.lastAccessError=\"%ls\"\n", m.lastAccessError.raw()));
 
@@ -317,7 +321,26 @@ STDMETHODIMP SharedFolder::COMGETTER(Writable) (BOOL *aWritable)
 {
     CheckComArgOutPointerValid(aWritable);
 
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     *aWritable = m.writable;
+
+    return S_OK;
+}
+
+STDMETHODIMP SharedFolder::COMGETTER(AutoMount) (BOOL *aAutoMount)
+{
+    CheckComArgOutPointerValid(aAutoMount);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aAutoMount = m.autoMount;
 
     return S_OK;
 }

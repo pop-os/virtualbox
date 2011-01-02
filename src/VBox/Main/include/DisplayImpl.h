@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h $ */
+/* $Id: DisplayImpl.h 35177 2010-12-16 12:41:35Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -41,6 +41,7 @@ typedef struct _DISPLAYFBINFO
     uint32_t u32InformationSize;
 
     ComPtr<IFramebuffer> pFramebuffer;
+    bool fDisabled;
 
     LONG xOrigin;
     LONG yOrigin;
@@ -51,6 +52,8 @@ typedef struct _DISPLAYFBINFO
     uint16_t u16BitsPerPixel;
     uint8_t *pu8FramebufferVRAM;
     uint32_t u32LineSize;
+
+    uint16_t flags;
 
     VBOXVIDEOINFOHOSTEVENTS *pHostEvents;
 
@@ -75,6 +78,7 @@ typedef struct _DISPLAYFBINFO
         uint32_t cbLine;
         int w;
         int h;
+        uint16_t flags;
     } pendingResize;
 
 #ifdef VBOX_WITH_HGSMI
@@ -92,15 +96,12 @@ typedef struct _DISPLAYFBINFO
 
 class ATL_NO_VTABLE Display :
     public VirtualBoxBase,
-    VBOX_SCRIPTABLE_IMPL(IConsoleCallback),
-    public VirtualBoxSupportErrorInfoImpl<Display, IDisplay>,
-    public VirtualBoxSupportTranslation<Display>,
+    VBOX_SCRIPTABLE_IMPL(IEventListener),
     VBOX_SCRIPTABLE_IMPL(IDisplay)
 {
-
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (Display)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Display, IDisplay)
 
     DECLARE_NOT_AGGREGATABLE(Display)
 
@@ -110,7 +111,7 @@ public:
         COM_INTERFACE_ENTRY(ISupportErrorInfo)
         COM_INTERFACE_ENTRY(IDisplay)
         COM_INTERFACE_ENTRY2(IDispatch,IDisplay)
-        COM_INTERFACE_ENTRY(IConsoleCallback)
+        COM_INTERFACE_ENTRY(IEventListener)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR (Display)
@@ -124,15 +125,25 @@ public:
     int  registerSSM(PVM pVM);
 
     // public methods only for internal purposes
-    int handleDisplayResize (unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, int w, int h);
-    void handleDisplayUpdate (int x, int y, int cx, int cy);
+    int handleDisplayResize (unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, int w, int h, uint16_t flags);
+    void handleDisplayUpdateLegacy (int x, int y, int cx, int cy);
+    void handleDisplayUpdate (unsigned uScreenId, int x, int y, int w, int h);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     void handleVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand);
+#endif
+#ifdef VBOX_WITH_CRHGSMI
+    void handleCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd);
+    void handleCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl);
+
+    void handleCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
+    void handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
 #endif
     IFramebuffer *getFramebuffer()
     {
         return maFramebuffers[VBOX_VIDEO_PRIMARY_SCREEN].pFramebuffer;
     }
+    void getFramebufferDimensions(int32_t *px1, int32_t *py1, int32_t *px2,
+                                  int32_t *py2);
 #ifdef MMSEAMLESS
     int handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
     int handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
@@ -143,108 +154,10 @@ public:
 
     bool VideoAccelAllowed (void);
 
-#ifdef VBOX_WITH_VRDP
     void VideoAccelVRDP (bool fEnable);
-#endif /* VBOX_WITH_VRDP */
 
-    // IConsoleCallback methods
-    STDMETHOD(OnMousePointerShapeChange)(BOOL visible, BOOL alpha, ULONG xHot, ULONG yHot,
-                                         ULONG width, ULONG height, ComSafeArrayIn(BYTE,shape))
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnMouseCapabilityChange)(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnKeyboardLedsChange)(BOOL fNumLock, BOOL fCapsLock, BOOL fScrollLock)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnStateChange)(MachineState_T machineState);
-
-    STDMETHOD(OnAdditionsStateChange)()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnNetworkAdapterChange) (INetworkAdapter *aNetworkAdapter)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnSerialPortChange) (ISerialPort *aSerialPort)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnParallelPortChange) (IParallelPort *aParallelPort)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnStorageControllerChange) ()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnCPUChange)(ULONG aCPU, BOOL aRemove)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnVRDPServerChange)()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnRemoteDisplayInfoChange)()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnUSBControllerChange)()
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnUSBDeviceStateChange)(IUSBDevice *device, BOOL attached,
-                                      IVirtualBoxErrorInfo *message)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnSharedFolderChange) (Scope_T aScope)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnRuntimeError)(BOOL fatal, IN_BSTR id, IN_BSTR message)
-    {
-        return S_OK;
-    }
-
-    STDMETHOD(OnCanShowWindow)(BOOL *canShow)
-    {
-        if (canShow)
-            *canShow = TRUE;
-        return S_OK;
-    }
-
-    STDMETHOD(OnShowWindow)(ULONG64 *winId)
-    {
-        if (winId)
-            *winId = 0;
-        return S_OK;
-    }
+    // IEventListener methods
+    STDMETHOD(HandleEvent)(IEvent * aEvent);
 
     // IDisplay methods
     STDMETHOD(GetScreenResolution)(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ULONG *aBitsPerPixel);
@@ -253,6 +166,7 @@ public:
     STDMETHOD(SetVideoModeHint)(ULONG width, ULONG height, ULONG bitsPerPixel, ULONG display);
     STDMETHOD(TakeScreenShot)(ULONG aScreenId, BYTE *address, ULONG width, ULONG height);
     STDMETHOD(TakeScreenShotToArray)(ULONG aScreenId, ULONG width, ULONG height, ComSafeArrayOut(BYTE, aScreenData));
+    STDMETHOD(TakeScreenShotPNGToArray)(ULONG aScreenId, ULONG width, ULONG height, ComSafeArrayOut(BYTE, aScreenData));
     STDMETHOD(DrawToScreen)(ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);
     STDMETHOD(InvalidateAndUpdate)();
     STDMETHOD(ResizeCompleted)(ULONG aScreenId);
@@ -260,14 +174,16 @@ public:
 
     STDMETHOD(CompleteVHWACommand)(BYTE *pCommand);
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Display"; }
-
     static const PDMDRVREG  DrvReg;
 
 private:
 
     void updateDisplayData(void);
+
+#ifdef VBOX_WITH_CRHGSMI
+    void setupCrHgsmiData(void);
+    void destructCrHgsmiData(void);
+#endif
 
     static DECLCALLBACK(int)   changeFramebuffer(Display *that, IFramebuffer *aFB, unsigned uScreenId);
 
@@ -285,6 +201,14 @@ private:
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
     static DECLCALLBACK(void)  displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand);
+#endif
+
+#ifdef VBOX_WITH_CRHGSMI
+    static DECLCALLBACK(void)  displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd);
+    static DECLCALLBACK(void)  displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl);
+
+    static DECLCALLBACK(void) displayCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
+    static DECLCALLBACK(void) displayCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
 
 #ifdef VBOX_WITH_HGSMI
@@ -322,6 +246,7 @@ private:
     uint32_t mLastBitsPerPixel;
     int mLastWidth;
     int mLastHeight;
+    uint16_t mLastFlags;
 
     VBVAMEMORY *mpVbvaMemory;
     bool        mfVideoAccelEnabled;
@@ -336,6 +261,11 @@ private:
 
     uint8_t    *mpu8VbvaPartial;
     uint32_t   mcbVbvaPartial;
+
+#ifdef VBOX_WITH_CRHGSMI
+    /* for fast host hgcm calls */
+    HGCMCVSHANDLE mhCrOglSvc;
+#endif
 
     bool vbvaFetchCmd (VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
     void vbvaReleaseCmd (VBVACMDHDR *pHdr, int32_t cbCmd);
@@ -373,6 +303,16 @@ void gdImageCopyResampled (uint8_t *dst, uint8_t *src,
                            int srcX, int srcY,
                            int dstW, int dstH, int srcW, int srcH);
 
+
+void BitmapScale32 (uint8_t *dst,
+                        int dstW, int dstH,
+                        const uint8_t *src,
+                        int iDeltaLine,
+                        int srcW, int srcH);
+
+int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
+                   uint8_t **ppu8PNG, uint32_t *pcbPNG, uint32_t *pcxPNG, uint32_t *pcyPNG,
+                   uint8_t fLimitSize);
 
 #endif // ____H_DISPLAYIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

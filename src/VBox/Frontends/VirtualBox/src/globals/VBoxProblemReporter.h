@@ -19,16 +19,17 @@
 #ifndef __VBoxProblemReporter_h__
 #define __VBoxProblemReporter_h__
 
+/* Global includes */
+#include <QObject>
+#include <QPointer>
+
+/* Local includes */
 #include "COMDefs.h"
 #include "QIMessageBox.h"
 
-/* Qt icludes */
-#include <QObject>
-
+/* Forward declarations */
 class VBoxMedium;
-
-// VBoxProblemReporter class
-////////////////////////////////////////////////////////////////////////////////
+struct StorageSlot;
 
 /**
  * The VBoxProblemReporter class is a central place to handle all problem/error
@@ -39,7 +40,7 @@ class VBoxMedium;
  * error to the user and give him the opportunity to select an action (when
  * appropriate).
  *
- * Every problem sutiation has its own (correspondingly named) method in this
+ * Every problem situation has its own (correspondingly named) method in this
  * class that takes a list of arguments necessary to describe the situation and
  * to provide the appropriate actions. The method then returns the choice to the
  * caller.
@@ -65,15 +66,11 @@ public:
         AutoConfirmed = 0x8000
     };
 
-    static VBoxProblemReporter &instance();
-
-    bool isValid() const;
-
-    // helpers
-
+    bool isAnyWarningShown();
     bool isAlreadyShown(const QString &strGuardBlockName) const;
     void setShownStatus(const QString &strGuardBlockName);
     void clearShownStatus(const QString &strGuardBlockName);
+    void closeAllWarnings();
 
     int message (QWidget *aParent, Type aType, const QString &aMessage,
                  const QString &aDetails = QString::null,
@@ -137,35 +134,32 @@ public:
                           const QString &aCancelText = QString::null) const
     {
         return messageOkCancel (aParent, aType, aMessage, QString::null,
-                                aAutoConfirmId, aOkText, aCancelText); }
+                                aAutoConfirmId, aOkText, aCancelText);
+    }
 
-    bool showModalProgressDialog (CProgress &aProgress, const QString &aTitle,
-                                  QWidget *aParent, int aMinDuration = 2000);
+    bool showModalProgressDialog(CProgress &progress, const QString &strTitle,
+                                 const QString &strImage = "", QWidget *pParent = 0,
+                                 bool fSheetOnDarwin = false, int cMinDuration = 2000);
 
     QWidget* mainWindowShown() const;
     QWidget* mainMachineWindowShown() const;
 
-    /* Generic problem handlers */
     bool askForOverridingFile (const QString& aPath, QWidget *aParent  = NULL) const;
     bool askForOverridingFiles (const QVector<QString>& aPaths, QWidget *aParent = NULL) const;
     bool askForOverridingFileIfExists (const QString& path, QWidget *aParent = NULL) const;
     bool askForOverridingFilesIfExists (const QVector<QString>& aPaths, QWidget *aParent = NULL) const;
 
-    void cannotDeleteFile (const QString& path, QWidget *aParent = NULL) const;
-
     void checkForMountedWrongUSB() const;
 
-    /* Special problem handlers */
     void showBETAWarning();
     void showBEBWarning();
 
 #ifdef Q_WS_X11
     void cannotFindLicenseFiles (const QString &aPath);
-    void cannotOpenLicenseFile (QWidget *aParent, const QString &aPath);
 #endif
+    void cannotOpenLicenseFile (QWidget *aParent, const QString &aPath);
 
     void cannotOpenURL (const QString &aURL);
-    void cannotCopyFile (const QString &aSrc, const QString &aDst, int aVRC);
 
     void cannotFindLanguage (const QString &aLangID, const QString &aNlsPath);
     void cannotLoadLanguage (const QString &aLangFile);
@@ -173,18 +167,20 @@ public:
     void cannotInitCOM (HRESULT rc);
     void cannotCreateVirtualBox (const CVirtualBox &vbox);
 
-    void cannotSaveGlobalSettings (const CVirtualBox &vbox,
-                                   QWidget *parent = 0);
-
     void cannotLoadGlobalConfig (const CVirtualBox &vbox, const QString &error);
     void cannotSaveGlobalConfig (const CVirtualBox &vbox);
     void cannotSetSystemProperties (const CSystemProperties &props);
+
     void cannotAccessUSB (const COMBaseWithEI &aObj);
 
     void cannotCreateMachine (const CVirtualBox &vbox,
                               QWidget *parent = 0);
     void cannotCreateMachine (const CVirtualBox &vbox, const CMachine &machine,
                               QWidget *parent = 0);
+
+    void cannotOpenMachine(QWidget *pParent, const QString &strMachinePath, const CVirtualBox &vbox);
+    void cannotReregisterMachine(QWidget *pParent, const QString &strMachinePath, const QString &strMachineName);
+
     void cannotApplyMachineSettings (const CMachine &machine, const COMResult &res);
     void cannotSaveMachineSettings (const CMachine &machine,
                                     QWidget *parent = 0);
@@ -203,14 +199,13 @@ public:
     void cannotTakeSnapshot (const CProgress &progress);
     void cannotStopMachine (const CConsole &console);
     void cannotStopMachine (const CProgress &progress);
-    void cannotDeleteMachine (const CVirtualBox &vbox, const CMachine &machine);
+    void cannotDeleteMachine (const CMachine &machine);
     void cannotDiscardSavedState (const CConsole &console);
 
     void cannotSendACPIToMachine();
+
     bool warnAboutVirtNotEnabled64BitsGuest(bool fHWVirtExSupported);
     bool warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSupported);
-
-    void cannotSetSnapshotFolder (const CMachine &aMachine, const QString &aPath);
 
     bool askAboutSnapshotRestoring (const QString &aSnapshotName);
     bool askAboutSnapshotDeleting (const QString &aSnapshotName);
@@ -231,11 +226,10 @@ public:
                                    ULONG aBpp, ULONG64 aMinVRAM);
     void cannotSwitchScreenInSeamless(quint64 minVRAM);
     int cannotSwitchScreenInFullscreen(quint64 minVRAM);
-
     int cannotEnterFullscreenMode();
     int cannotEnterSeamlessMode();
 
-    bool confirmMachineDeletion (const CMachine &machine);
+    int confirmMachineDeletion(const CMachine &machine);
     bool confirmDiscardSavedState (const CMachine &machine);
 
     bool confirmReleaseMedium (QWidget *aParent, const VBoxMedium &aMedium,
@@ -250,9 +244,9 @@ public:
     void cannotDeleteHardDiskStorage (QWidget *aParent, const CMedium &aHD,
                                       const CProgress &aProgress);
 
-    int confirmDetachAddControllerSlots (QWidget *aParent) const;
-    int confirmChangeAddControllerSlots (QWidget *aParent) const;
-    int confirmRunNewHDWzdOrVDM (KDeviceType aDeviceType);
+    int askAboutHardDiskAttachmentCreation(QWidget *pParent, const QString &strControllerName);
+    int askAboutOpticalAttachmentCreation(QWidget *pParent, const QString &strControllerName);
+    int askAboutFloppyAttachmentCreation(QWidget *pParent, const QString &strControllerName);
 
     int confirmRemovingOfLastDVDDevice() const;
 
@@ -260,19 +254,14 @@ public:
                                       const QString &aLocaiton,
                                       const CMedium &aHD,
                                       const CProgress &aProgress);
-    void cannotAttachDevice (QWidget *aParent, const CMachine &aMachine,
-                             VBoxDefs::MediumType aType, const QString &aLocation,
-                             KStorageBus aBus, LONG aChannel, LONG aDevice);
-    void cannotDetachDevice (QWidget *aParent, const CMachine &aMachine,
-                             VBoxDefs::MediumType aType, const QString &aLocation,
-                             KStorageBus aBus, LONG aChannel, LONG aDevice);
+    void cannotDetachDevice(QWidget *pParent, const CMachine &machine,
+                            VBoxDefs::MediumType type, const QString &strLocation, const StorageSlot &storageSlot);
 
     int cannotRemountMedium (QWidget *aParent, const CMachine &aMachine, const VBoxMedium &aMedium, bool aMount, bool aRetry);
     void cannotOpenMedium (QWidget *aParent, const CVirtualBox &aVBox,
                            VBoxDefs::MediumType aType, const QString &aLocation);
     void cannotCloseMedium (QWidget *aParent, const VBoxMedium &aMedium,
                             const COMResult &aResult);
-    void cannotEjectDrive();
 
     void cannotOpenSession (const CSession &session);
     void cannotOpenSession (const CVirtualBox &vbox, const CMachine &machine,
@@ -281,14 +270,6 @@ public:
     void cannotGetMediaAccessibility (const VBoxMedium &aMedium);
 
     int confirmDeletingHostInterface (const QString &aName, QWidget *aParent = 0);
-    void cannotCreateHostInterface (const CHost &aHost, QWidget *aParent = 0);
-    void cannotCreateHostInterface (const CProgress &aProgress, QWidget *aParent = 0);
-    void cannotRemoveHostInterface (const CHost &aHost,
-                                    const CHostNetworkInterface &aIface,
-                                    QWidget *aParent = 0);
-    void cannotRemoveHostInterface (const CProgress &aProgress,
-                                    const CHostNetworkInterface &aIface,
-                                    QWidget *aParent = 0);
 
     void cannotAttachUSBDevice (const CConsole &console, const QString &device);
     void cannotAttachUSBDevice (const CConsole &console, const QString &device,
@@ -297,23 +278,12 @@ public:
     void cannotDetachUSBDevice (const CConsole &console, const QString &device,
                                 const CVirtualBoxErrorInfo &error);
 
-    void cannotCreateSharedFolder (QWidget *, const CMachine &,
-                                   const QString &, const QString &);
-    void cannotRemoveSharedFolder (QWidget *, const CMachine &,
-                                   const QString &, const QString &);
-    void cannotCreateSharedFolder (QWidget *, const CConsole &,
-                                   const QString &, const QString &);
-    void cannotRemoveSharedFolder (QWidget *, const CConsole &,
-                                   const QString &, const QString &);
-
+    void remindAboutGuestAdditionsAreNotActive(QWidget *pParent);
     int cannotFindGuestAdditions (const QString &aSrc1, const QString &aSrc2);
     void cannotDownloadGuestAdditions (const QString &aURL, const QString &aReason);
     void cannotMountGuestAdditions (const QString &aMachineName);
     bool confirmDownloadAdditions (const QString &aURL, ulong aSize);
     bool confirmMountAdditions (const QString &aURL, const QString &aSrc);
-    void warnAboutTooOldAdditions (QWidget *, const QString &, const QString &);
-    void warnAboutOldAdditions (QWidget *, const QString &, const QString &);
-    void warnAboutNewAdditions (QWidget *, const QString &, const QString &);
 
     bool askAboutUserManualDownload(const QString &strMissedLocation);
     bool confirmUserManualDownload(const QString &strURL, ulong uSize);
@@ -345,8 +315,7 @@ public:
 
     bool confirmGoingFullscreen (const QString &aHotKey);
     bool confirmGoingSeamless (const QString &aHotKey);
-
-    void remindAboutWrongColorDepth (ulong aRealBPP, ulong aWantedBPP);
+    bool confirmGoingScale (const QString &aHotKey);
 
     bool remindAboutGuruMeditation (const CConsole &aConsole,
                                     const QString &aLogFolder);
@@ -363,16 +332,31 @@ public:
     void cannotCheckFiles (const CProgress &aProgress, QWidget *aParent = NULL) const;
     void cannotRemoveFiles (const CProgress &aProgress, QWidget *aParent = NULL) const;
 
+    bool confirmExportMachinesInSaveState(const QStringList &machineNames, QWidget *aParent = NULL) const;
     void cannotExportAppliance (CAppliance *aAppliance, QWidget *aParent = NULL) const;
     void cannotExportAppliance (const CMachine &aMachine, CAppliance *aAppliance, QWidget *aParent = NULL) const;
     void cannotExportAppliance (const CProgress &aProgress, CAppliance *aAppliance, QWidget *aParent = NULL) const;
+
+    void cannotUpdateGuestAdditions (const CProgress &aProgress, QWidget *aParent /* = NULL */) const;
+
+    void cannotOpenExtPack(const QString &strFilename, const CExtPackManager &extPackManager, QWidget *pParent);
+    void badExtPackFile(const QString &strFilename, const CExtPackFile &extPackFile, QWidget *pParent);
+    void cannotInstallExtPack(const QString &strFilename, const CExtPackFile &extPackFile, const CProgress &progress, QWidget *pParent);
+    void cannotUninstallExtPack(const QString &strPackName, const CExtPackManager &extPackManager, const CProgress &progress, QWidget *pParent);
+    bool confirmInstallingPackage(const QString &strPackName, const QString &strPackVersion, const QString &strPackDescription, QWidget *pParent);
+    bool confirmReplacePackage(const QString &strPackName, const QString &strPackVersionNew, const QString &strPackVersionOld,
+                               const QString &strPackDescription, QWidget *pParent);
+    bool confirmRemovingPackage(const QString &strPackName, QWidget *pParent);
+    void notifyAboutExtPackInstalled(const QString &strPackName, QWidget *pParent);
+
+    void warnAboutIncorrectPort(QWidget *pParent) const;
+    bool confirmCancelingPortForwardingDialog(QWidget *pParent) const;
 
     void showRuntimeError (const CConsole &console, bool fatal,
                            const QString &errorID,
                            const QString &errorMsg) const;
 
     static QString mediumToAccusative (VBoxDefs::MediumType aType, bool aIsHostDrive = false);
-    static QString deviceToAccusative (VBoxDefs::MediumType aType);
 
     static QString formatRC (HRESULT aRC);
 
@@ -396,9 +380,44 @@ public:
         return formatErrorInfo (aRC.errorInfo(), aRC.rc());
     }
 
+    /* Stuff supporting interthreading: */
+    void cannotCreateHostInterface(const CHost &host, QWidget *pParent = 0);
+    void cannotCreateHostInterface(const CProgress &progress, QWidget *pParent = 0);
+    void cannotRemoveHostInterface(const CHost &host, const CHostNetworkInterface &iface, QWidget *pParent = 0);
+    void cannotRemoveHostInterface(const CProgress &progress, const CHostNetworkInterface &iface, QWidget *pParent = 0);
+    void cannotAttachDevice(const CMachine &machine, VBoxDefs::MediumType type,
+                            const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
+    void cannotCreateSharedFolder(const CMachine &machine, const QString &strName,
+                                  const QString &strPath, QWidget *pParent = 0);
+    void cannotRemoveSharedFolder(const CMachine &machine, const QString &strName,
+                                  const QString &strPath, QWidget *pParent = 0);
+    void cannotCreateSharedFolder(const CConsole &console, const QString &strName,
+                                  const QString &strPath, QWidget *pParent = 0);
+    void cannotRemoveSharedFolder(const CConsole &console, const QString &strName,
+                                  const QString &strPath, QWidget *pParent = 0);
+    void remindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
+
 signals:
 
     void sigDownloaderUserManualCreated();
+    void sigToCloseAllWarnings();
+
+    /* Stuff supporting interthreading: */
+    void sigCannotCreateHostInterface(const CHost &host, QWidget *pParent);
+    void sigCannotCreateHostInterface(const CProgress &progress, QWidget *pParent);
+    void sigCannotRemoveHostInterface(const CHost &host, const CHostNetworkInterface &iface, QWidget *pParent);
+    void sigCannotRemoveHostInterface(const CProgress &progress, const CHostNetworkInterface &iface, QWidget *pParent);
+    void sigCannotAttachDevice(const CMachine &machine, VBoxDefs::MediumType type,
+                               const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent);
+    void sigCannotCreateSharedFolder(const CMachine &machine, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sigCannotRemoveSharedFolder(const CMachine &machine, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sigCannotCreateSharedFolder(const CConsole &console, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sigCannotRemoveSharedFolder(const CConsole &console, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sigRemindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
 
 public slots:
 
@@ -408,7 +427,30 @@ public slots:
     void resetSuppressedMessages();
     void sltShowUserManual(const QString &strLocation);
 
+private slots:
+
+    /* Stuff supporting interthreading: */
+    void sltCannotCreateHostInterface(const CHost &host, QWidget *pParent);
+    void sltCannotCreateHostInterface(const CProgress &progress, QWidget *pParent);
+    void sltCannotRemoveHostInterface(const CHost &host, const CHostNetworkInterface &iface, QWidget *pParent);
+    void sltCannotRemoveHostInterface(const CProgress &progress, const CHostNetworkInterface &iface, QWidget *pParent);
+    void sltCannotAttachDevice(const CMachine &machine, VBoxDefs::MediumType type,
+                               const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent);
+    void sltCannotCreateSharedFolder(const CMachine &machine, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sltCannotRemoveSharedFolder(const CMachine &machine, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sltCannotCreateSharedFolder(const CConsole &console, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sltCannotRemoveSharedFolder(const CConsole &console, const QString &strName,
+                                     const QString &strPath, QWidget *pParent);
+    void sltRemindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
+
 private:
+
+    VBoxProblemReporter();
+
+    static VBoxProblemReporter &instance();
 
     friend VBoxProblemReporter &vboxProblem();
 
@@ -416,12 +458,10 @@ private:
                                       HRESULT aWrapperRC = S_OK);
 
     QStringList m_shownWarnings;
+    mutable QList<QPointer<QIMessageBox> > m_warnings;
 };
 
-/**
- * Shortcut to the static VBoxProblemReporter::instance() method, for
- * convenience.
- */
+/* Shortcut to the static VBoxProblemReporter::instance() method, for convenience. */
 inline VBoxProblemReporter &vboxProblem() { return VBoxProblemReporter::instance(); }
 
 #endif // __VBoxProblemReporter_h__

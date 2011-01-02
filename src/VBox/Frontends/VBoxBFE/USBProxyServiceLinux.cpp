@@ -1,4 +1,4 @@
-/* $Id: USBProxyServiceLinux.cpp $ */
+/* $Id: USBProxyServiceLinux.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of USBProxyServiceLinux class
@@ -591,7 +591,7 @@ PUSBDEVICE USBProxyServiceLinux::getDevices (void)
 
             /*
              * Interpret the line.
-             * (Ordered by normal occurence.)
+             * (Ordered by normal occurrence.)
              */
             char ch = psz[0];
             if (psz[1] != ':')

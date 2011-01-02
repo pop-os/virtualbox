@@ -1,4 +1,4 @@
-/* $Id: RTTimeLocalExplode-generic.cpp $ */
+/* $Id: RTTimeLocalExplode-generic.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Time, generic RTTimeLocalExplode.
  */
@@ -38,7 +38,7 @@ RTDECL(PRTTIME) RTTimeLocalExplode(PRTTIME pTime, PCRTTIMESPEC pTimeSpec)
     if (pTime)
     {
         pTime->fFlags = (pTime->fFlags & ~RTTIME_FLAGS_TYPE_MASK) | RTTIME_FLAGS_TYPE_LOCAL;
-        pTime->offZone = RTTimeLocalDeltaNano() / (UINT64_C(1000000000)*3600); /** @todo this is obviosly wrong. Need RTTimeLocalDeltaNanoFor(pTimeSpec); */
+        pTime->offZone = RTTimeLocalDeltaNano() / (UINT64_C(1000000000)*3600); /** @todo this is obviously wrong. Need RTTimeLocalDeltaNanoFor(pTimeSpec); */
     }
     return pTime;
 }

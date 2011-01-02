@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.cpp $ */
+/* $Id: MouseImpl.cpp 35212 2010-12-16 23:15:43Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -15,6 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#include <iprt/cpp/utils.h>
+
 #include "MouseImpl.h"
 #include "DisplayImpl.h"
 #include "VMMDev.h"
@@ -23,8 +25,9 @@
 #include "Logging.h"
 
 #include <VBox/pdmdrv.h>
-#include <iprt/asm.h>
 #include <VBox/VMMDev.h>
+
+#include <iprt/asm.h>
 
 /** @name Mouse device capabilities bitfield
  * @{ */
@@ -71,11 +74,10 @@ Mouse::~Mouse()
 HRESULT Mouse::FinalConstruct()
 {
     RT_ZERO(mpDrv);
-    fVMMDevCanAbs = false;
-    fVMMDevNeedsHostCursor = false;
-    mLastAbsX = 0x8000;
-    mLastAbsY = 0x8000;
-    mLastButtons = 0;
+    mcLastAbsX = 0x8000;
+    mcLastAbsY = 0x8000;
+    mfLastButtons = 0;
+    mfVMMDevGuestCaps = 0;
     return S_OK;
 }
 
@@ -105,7 +107,13 @@ HRESULT Mouse::init (Console *parent)
 
     unconst(mParent) = parent;
 
-    uHostCaps = 0;
+#ifndef VBOXBFE_WITHOUT_COM
+    unconst(mEventSource).createObject();
+    HRESULT rc = mEventSource->init(static_cast<IMouse*>(this));
+    AssertComRCReturnRC(rc);
+    mMouseEvent.init(mEventSource, VBoxEventType_OnGuestMouse,
+                     0, 0, 0, 0, 0);
+#endif
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -136,6 +144,8 @@ void Mouse::uninit()
 #ifdef VBOXBFE_WITHOUT_COM
     mParent = NULL;
 #else
+    mMouseEvent.uninit();
+    unconst(mEventSource).setNull();
     unconst(mParent) = NULL;
 #endif
 }
@@ -144,34 +154,28 @@ void Mouse::uninit()
 // IMouse properties
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT Mouse::getVMMDevMouseCaps(uint32_t *pfCaps)
+/** Report the front-end's mouse handling capabilities to the VMM device and
+ * thus to the guest.
+ * @note all calls out of this object are made with no locks held! */
+HRESULT Mouse::updateVMMDevMouseCaps(uint32_t fCapsAdded,
+                                     uint32_t fCapsRemoved)
 {
-    AssertPtrReturn(pfCaps, E_POINTER);
-    /** @todo does getting the VMMDev and the VMMDevPort like this guarantee
-     * they won't go away while we are using them? */
     VMMDev *pVMMDev = mParent->getVMMDev();
-    ComAssertRet(pVMMDev, E_FAIL);
+    if (!pVMMDev)
+        return E_FAIL;  /* No assertion, as the front-ends can send events
+                         * at all sorts of inconvenient times. */
     PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
     ComAssertRet(pVMMDevPort, E_FAIL);
 
-    int rc = pVMMDevPort->pfnQueryMouseCapabilities(pVMMDevPort, pfCaps);
-    return RT_SUCCESS(rc) ? S_OK : E_FAIL;
-}
-
-HRESULT Mouse::setVMMDevMouseCaps(uint32_t fCaps)
-{
-    VMMDev *pVMMDev = mParent->getVMMDev();
-    ComAssertRet(pVMMDev, E_FAIL);
-    PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
-    ComAssertRet(pVMMDevPort, E_FAIL);
-
-    int rc = pVMMDevPort->pfnSetMouseCapabilities(pVMMDevPort, fCaps);
+    int rc = pVMMDevPort->pfnUpdateMouseCapabilities(pVMMDevPort, fCapsAdded,
+                                                     fCapsRemoved);
     return RT_SUCCESS(rc) ? S_OK : E_FAIL;
 }
 
 /**
- * Returns whether the current setup can accept absolute mouse
- * events.
+ * Returns whether the current setup can accept absolute mouse events, either
+ * because an emulated absolute pointing device is active or because the Guest
+ * Additions are.
  *
  * @returns COM status code
  * @param absoluteSupported address of result variable
@@ -184,23 +188,13 @@ STDMETHODIMP Mouse::COMGETTER(AbsoluteSupported) (BOOL *absoluteSupported)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    bool fAbs = false;
-
-    if (fVMMDevCanAbs)
-        fAbs = TRUE;
-
-    for (unsigned i = 0; i < MOUSE_MAX_DEVICES; ++i)
-        if (mpDrv[i] && (mpDrv[i]->u32DevCaps & MOUSE_DEVCAP_ABSOLUTE))
-            fAbs = TRUE;
-
-    *absoluteSupported = fAbs;
+    *absoluteSupported = supportsAbs();
     return S_OK;
 }
 
 /**
- * Returns whether the current setup can accept relative mouse
- * events.
+ * Returns whether the current setup can accept relative mouse events, that is,
+ * whether an emulated relative pointing device is active.
  *
  * @returns COM status code
  * @param relativeSupported address of result variable
@@ -213,19 +207,13 @@ STDMETHODIMP Mouse::COMGETTER(RelativeSupported) (BOOL *relativeSupported)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    bool fRel = false;
-
-    for (unsigned i = 0; i < MOUSE_MAX_DEVICES; ++i)
-        if (mpDrv[i] && (mpDrv[i]->u32DevCaps & MOUSE_DEVCAP_RELATIVE))
-            fRel = TRUE;
-
-    *relativeSupported = fRel;
+    *relativeSupported = supportsRel();
     return S_OK;
 }
 
 /**
- * Returns whether the guest can currently draw the mouse cursor itself.
+ * Returns whether the guest can currently switch to drawing the mouse cursor
+ * itself if it is asked to by the front-end.
  *
  * @returns COM status code
  * @param pfNeedsHostCursor address of result variable
@@ -238,13 +226,16 @@ STDMETHODIMP Mouse::COMGETTER(NeedsHostCursor) (BOOL *pfNeedsHostCursor)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    *pfNeedsHostCursor = fVMMDevNeedsHostCursor;
+    *pfNeedsHostCursor = guestNeedsHostCursor();
     return S_OK;
 }
 
 // IMouse methods
 /////////////////////////////////////////////////////////////////////////////
 
+/** Converts a bitfield containing information about mouse buttons currently
+ * held down from the format used by the front-end to the format used by PDM
+ * and the emulated pointing devices. */
 static uint32_t mouseButtonsToPDM(LONG buttonState)
 {
     uint32_t fButtons = 0;
@@ -261,16 +252,31 @@ static uint32_t mouseButtonsToPDM(LONG buttonState)
     return fButtons;
 }
 
+#ifndef VBOXBFE_WITHOUT_COM
+STDMETHODIMP Mouse::COMGETTER(EventSource)(IEventSource ** aEventSource)
+{
+    CheckComArgOutPointerValid(aEventSource);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    // no need to lock - lifetime constant
+    mEventSource.queryInterfaceTo(aEventSource);
+
+    return S_OK;
+}
+#endif
 
 /**
- * Send a relative event to the mouse device.
+ * Send a relative pointer event to the relative device we deem most
+ * appropriate.
  *
  * @returns   COM status code
  */
 HRESULT Mouse::reportRelEventToMouseDev(int32_t dx, int32_t dy, int32_t dz,
                                         int32_t dw, uint32_t fButtons)
 {
-    if (dx || dy || dz || dw || fButtons != mLastButtons)
+    if (dx || dy || dz || dw || fButtons != mfLastButtons)
     {
         PPDMIMOUSEPORT pUpPort = NULL;
         {
@@ -291,22 +297,23 @@ HRESULT Mouse::reportRelEventToMouseDev(int32_t dx, int32_t dy, int32_t dz,
             return setError(VBOX_E_IPRT_ERROR,
                             tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
                             vrc);
-        mLastButtons = fButtons;
+        mfLastButtons = fButtons;
     }
     return S_OK;
 }
 
 
 /**
- * Send an absolute position event to the mouse device.
+ * Send an absolute pointer event to the emulated absolute device we deem most
+ * appropriate.
  *
  * @returns   COM status code
  */
 HRESULT Mouse::reportAbsEventToMouseDev(uint32_t mouseXAbs, uint32_t mouseYAbs,
                                         int32_t dz, int32_t dw, uint32_t fButtons)
 {
-    if (   mouseXAbs != mLastAbsX || mouseYAbs != mLastAbsY
-        || dz || dw || fButtons != mLastButtons)
+    if (   mouseXAbs != mcLastAbsX || mouseYAbs != mcLastAbsY
+        || dz || dw || fButtons != mfLastButtons)
     {
         PPDMIMOUSEPORT pUpPort = NULL;
         {
@@ -327,7 +334,8 @@ HRESULT Mouse::reportAbsEventToMouseDev(uint32_t mouseXAbs, uint32_t mouseYAbs,
             return setError(VBOX_E_IPRT_ERROR,
                             tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
                             vrc);
-        mLastButtons = fButtons;
+        mfLastButtons = fButtons;
+
     }
     return S_OK;
 }
@@ -335,6 +343,7 @@ HRESULT Mouse::reportAbsEventToMouseDev(uint32_t mouseXAbs, uint32_t mouseYAbs,
 
 /**
  * Send an absolute position event to the VMM device.
+ * @note all calls out of this object are made with no locks held!
  *
  * @returns   COM status code
  */
@@ -345,7 +354,7 @@ HRESULT Mouse::reportAbsEventToVMMDev(uint32_t mouseXAbs, uint32_t mouseYAbs)
     PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
     ComAssertRet(pVMMDevPort, E_FAIL);
 
-    if (mouseXAbs != mLastAbsX || mouseYAbs != mLastAbsY)
+    if (mouseXAbs != mcLastAbsX || mouseYAbs != mcLastAbsY)
     {
         int vrc = pVMMDevPort->pfnSetAbsoluteMouse(pVMMDevPort,
                                                    mouseXAbs, mouseYAbs);
@@ -357,6 +366,13 @@ HRESULT Mouse::reportAbsEventToVMMDev(uint32_t mouseXAbs, uint32_t mouseYAbs)
     return S_OK;
 }
 
+
+/**
+ * Send an absolute pointer event to a pointing device (the VMM device if
+ * possible or whatever emulated absolute device seems best to us if not).
+ *
+ * @returns   COM status code
+ */
 HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
                               int32_t dz, int32_t dw, uint32_t fButtons,
                               bool fUsesVMMDevEvent)
@@ -367,12 +383,12 @@ HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
      * relative mouse device to alert the guest to changes. */
     LONG cJiggle = 0;
 
-    if (fVMMDevCanAbs)
+    if (vmmdevCanAbs())
     {
         /*
          * Send the absolute mouse position to the VMM device.
          */
-        if (mouseXAbs != mLastAbsX || mouseYAbs != mLastAbsY)
+        if (mouseXAbs != mcLastAbsX || mouseYAbs != mcLastAbsY)
         {
             rc = reportAbsEventToVMMDev(mouseXAbs, mouseYAbs);
             cJiggle = !fUsesVMMDevEvent;
@@ -382,13 +398,16 @@ HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
     else
         rc = reportAbsEventToMouseDev(mouseXAbs, mouseYAbs, dz, dw, fButtons);
 
-    mLastAbsX = mouseXAbs;
-    mLastAbsY = mouseYAbs;
+    mcLastAbsX = mouseXAbs;
+    mcLastAbsY = mouseYAbs;
     return rc;
 }
 
 /**
- * Send a mouse event.
+ * Send a relative mouse event to the guest.
+ * @note the VMMDev capability change is so that the guest knows we are sending
+ *       real events over the PS/2 device and not dummy events to signal the
+ *       arrival of new absolute pointer data
  *
  * @returns COM status code
  * @param dx          X movement
@@ -399,57 +418,68 @@ HRESULT Mouse::reportAbsEvent(uint32_t mouseXAbs, uint32_t mouseYAbs,
 STDMETHODIMP Mouse::PutMouseEvent(LONG dx, LONG dy, LONG dz, LONG dw, LONG buttonState)
 {
     HRESULT rc;
-    /** Do we need to send updated capabilities to the VMM device? */
-    bool fUpdateCaps = FALSE;
     uint32_t fButtons;
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    {
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-        LogRel3(("%s: dx=%d, dy=%d, dz=%d, dw=%d\n", __PRETTY_FUNCTION__,
+    LogRel3(("%s: dx=%d, dy=%d, dz=%d, dw=%d\n", __PRETTY_FUNCTION__,
                  dx, dy, dz, dw));
-        /* Make sure that the guest knows that we are sending real movement
-         * events to the PS/2 device and not just dummy wake-up ones. */
-        if (uHostCaps & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE)
-        {
-            uHostCaps &= ~VMMDEV_MOUSE_HOST_CAN_ABSOLUTE;
-            fUpdateCaps = TRUE;
-        }
 
-        fButtons = mouseButtonsToPDM(buttonState);
-    }
-    if (fUpdateCaps)
-        setVMMDevMouseCaps(uHostCaps);
+    fButtons = mouseButtonsToPDM(buttonState);
+    /* Make sure that the guest knows that we are sending real movement
+     * events to the PS/2 device and not just dummy wake-up ones. */
+    updateVMMDevMouseCaps(0, VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE);
     rc = reportRelEventToMouseDev(dx, dy, dz, dw, fButtons);
+
+#ifndef VBOXBFE_WITHOUT_COM
+    mMouseEvent.reinit(VBoxEventType_OnGuestMouse, false, dx, dy, dz, dw, fButtons);
+    mMouseEvent.fire(0);
+#endif
 
     return rc;
 }
 
 /**
  * Convert an (X, Y) value pair in screen co-ordinates (starting from 1) to a
- * value from 0 to 0xffff.
+ * value from 0 to 0xffff.  Sets the optional validity value to false if the
+ * pair is not on an active screen and to true otherwise.
  *
  * @returns   COM status value
  */
-HRESULT Mouse::convertDisplayRes(LONG x, LONG y, uint32_t *pcX, uint32_t *pcY)
+HRESULT Mouse::convertDisplayRes(LONG x, LONG y, int32_t *pcX, int32_t *pcY,
+                                 bool *pfValid)
 {
     AssertPtrReturn(pcX, E_POINTER);
     AssertPtrReturn(pcY, E_POINTER);
+    AssertPtrNullReturn(pfValid, E_POINTER);
     Display *pDisplay = mParent->getDisplay();
     ComAssertRet(pDisplay, E_FAIL);
 
-    ULONG displayWidth, displayHeight;
-    /* Takes the display lock */
-    HRESULT rc = pDisplay->GetScreenResolution (0, &displayWidth, &displayHeight,
-                                                NULL);
-    if (FAILED(rc))
-        return rc;
+    if (pfValid)
+        *pfValid = true;
+    if (!(mfVMMDevGuestCaps & VMMDEV_MOUSE_NEW_PROTOCOL))
+    {
+        ULONG displayWidth, displayHeight;
+        /* Takes the display lock */
+        HRESULT rc = pDisplay->GetScreenResolution(0, &displayWidth, &displayHeight,
+                                                   NULL);
+        if (FAILED(rc))
+            return rc;
 
-    *pcX = displayWidth ? ((x - 1) * 0xFFFF) / displayWidth: 0;
-    *pcY = displayHeight ? ((y - 1) * 0xFFFF) / displayHeight: 0;
+        *pcX = displayWidth ? ((x - 1) * 0xFFFF) / displayWidth: 0;
+        *pcY = displayHeight ? ((y - 1) * 0xFFFF) / displayHeight: 0;
+    }
+    else
+    {
+        int32_t x1, y1, x2, y2;
+        /* Takes the display lock */
+        pDisplay->getFramebufferDimensions(&x1, &y1, &x2, &y2);
+        *pcX = x1 != x2 ? (x - 1 - x1) * 0xFFFF / (x2 - x1) : 0;
+        *pcY = y1 != y2 ? (y - 1 - y1) * 0xFFFF / (y2 - y1) : 0;
+        if (*pcX < 0 || *pcX > 0xFFFF || *pcY < 0 || *pcY > 0xFFFF)
+            if (pfValid)
+                *pfValid = false;
+    }
     return S_OK;
 }
 
@@ -458,6 +488,10 @@ HRESULT Mouse::convertDisplayRes(LONG x, LONG y, uint32_t *pcX, uint32_t *pcY)
  * Send an absolute mouse event to the VM. This requires either VirtualBox-
  * specific drivers installed in the guest or absolute pointing device
  * emulation.
+ * @note the VMMDev capability change is so that the guest knows we are sending
+ *       dummy events over the PS/2 device to signal the arrival of new
+ *       absolute pointer data, and not pointer real movement data
+ * @note all calls out of this object are made with no locks held!
  *
  * @returns COM status code
  * @param x          X position (pixel), starting from 1
@@ -474,47 +508,40 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
     LogRel3(("%s: x=%d, y=%d, dz=%d, dw=%d, buttonState=0x%x\n",
              __PRETTY_FUNCTION__, x, y, dz, dw, buttonState));
 
-    uint32_t mouseXAbs, mouseYAbs;
-    /** Do we need to send updated capabilities to the VMM device? */
-    bool fUpdateCaps = FALSE;
+    int32_t mouseXAbs, mouseYAbs;
+    uint32_t fButtons;
+    bool fValid;
 
     /** @todo the front end should do this conversion to avoid races */
     /** @note Or maybe not... races are pretty inherent in everything done in
      *        this object and not really bad as far as I can see. */
-    HRESULT rc = convertDisplayRes(x, y, &mouseXAbs, &mouseYAbs);
+    HRESULT rc = convertDisplayRes(x, y, &mouseXAbs, &mouseYAbs, &fValid);
     if (FAILED(rc)) return rc;
 
     /** @todo multi-monitor Windows guests expect this to be unbounded.
      * Understand the issues involved and fix for the rest. */
     /* if (mouseXAbs > 0xffff)
-        mouseXAbs = mLastAbsX;
+        mouseXAbs = mcLastAbsX;
     if (mouseYAbs > 0xffff)
-        mouseYAbs = mLastAbsY; */
+        mouseYAbs = mcLastAbsY; */
 
-    uint32_t mouseCaps;
-    rc = getVMMDevMouseCaps(&mouseCaps);
-    if (FAILED(rc)) return rc;
-    uint32_t fButtons = mouseButtonsToPDM(buttonState);
-
+    fButtons = mouseButtonsToPDM(buttonState);
     /* If we are doing old-style (IRQ-less) absolute reporting to the VMM
      * device then make sure the guest is aware of it, so that it knows to
      * ignore relative movement on the PS/2 device. */
+    updateVMMDevMouseCaps(VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE, 0);
+    if (fValid)
     {
-        AutoWriteLock aLock(this COMMA_LOCKVAL_SRC_POS);
+        rc = reportAbsEvent(mouseXAbs, mouseYAbs, dz, dw, fButtons,
+                            RT_BOOL(  mfVMMDevGuestCaps
+                                    & VMMDEV_MOUSE_NEW_PROTOCOL));
 
-        /** @todo rename that capability to VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE */
-        if (!(uHostCaps & VMMDEV_MOUSE_HOST_CAN_ABSOLUTE))
-        {
-            uHostCaps |= VMMDEV_MOUSE_HOST_CAN_ABSOLUTE;
-            fUpdateCaps = TRUE;
-        }
+#ifndef VBOXBFE_WITHOUT_COM
+        mMouseEvent.reinit(VBoxEventType_OnGuestMouse, true, x, y, dz, dw,
+                           fButtons);
+        mMouseEvent.fire(0);
+#endif
     }
-    if (fUpdateCaps)
-        setVMMDevMouseCaps(uHostCaps);
-
-    /** @todo rename that capability to VMMDEV_MOUSE_GUEST_USES_EVENT */
-    rc = reportAbsEvent(mouseXAbs, mouseYAbs, dz, dw, fButtons,
-                        mouseCaps & VMMDEV_MOUSE_GUEST_USES_VMMDEV);
 
     return rc;
 }
@@ -523,46 +550,107 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
 /////////////////////////////////////////////////////////////////////////////
 
 
-void Mouse::sendMouseCapsNotifications(void)
+/** Does the guest currently rely on the host to draw the mouse cursor or
+ * can it switch to doing it itself in software? */
+bool Mouse::guestNeedsHostCursor(void)
+{
+    return RT_BOOL(mfVMMDevGuestCaps & VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR);
+}
+
+
+/** Check what sort of reporting can be done using the devices currently
+ * enabled.  Does not consider the VMM device. */
+void Mouse::getDeviceCaps(bool *pfAbs, bool *pfRel)
 {
     bool fAbsDev = false;
     bool fRelDev = false;
-    uint32_t u32MouseCaps;
+
+    AutoReadLock aLock(this COMMA_LOCKVAL_SRC_POS);
+
+    for (unsigned i = 0; i < MOUSE_MAX_DEVICES; ++i)
+        if (mpDrv[i])
+        {
+           if (mpDrv[i]->u32DevCaps & MOUSE_DEVCAP_ABSOLUTE)
+               fAbsDev = true;
+           if (mpDrv[i]->u32DevCaps & MOUSE_DEVCAP_RELATIVE)
+               fRelDev = true;
+        }
+    if (pfAbs)
+        *pfAbs = fAbsDev;
+    if (pfRel)
+        *pfRel = fRelDev;
+}
+
+
+/** Does the VMM device currently support absolute reporting? */
+bool Mouse::vmmdevCanAbs(void)
+{
+    bool fRelDev;
+
+    getDeviceCaps(NULL, &fRelDev);
+    return    (mfVMMDevGuestCaps & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
+           && fRelDev;
+}
+
+
+/** Does the VMM device currently support absolute reporting? */
+bool Mouse::deviceCanAbs(void)
+{
+    bool fAbsDev;
+
+    getDeviceCaps(&fAbsDev, NULL);
+    return fAbsDev;
+}
+
+
+/** Can we currently send relative events to the guest? */
+bool Mouse::supportsRel(void)
+{
+    bool fRelDev;
+
+    getDeviceCaps(NULL, &fRelDev);
+    return fRelDev;
+}
+
+
+/** Can we currently send absolute events to the guest? */
+bool Mouse::supportsAbs(void)
+{
+    bool fAbsDev;
+
+    getDeviceCaps(&fAbsDev, NULL);
+    return fAbsDev || vmmdevCanAbs();
+}
+
+
+/** Check what sort of reporting can be done using the devices currently
+ * enabled (including the VMM device) and notify the guest and the front-end.
+ */
+void Mouse::sendMouseCapsNotifications(void)
+{
+    bool fAbsDev, fRelDev, fCanAbs, fNeedsHostCursor;
 
     {
-        AutoWriteLock aLock(this COMMA_LOCKVAL_SRC_POS);
+        AutoReadLock aLock(this COMMA_LOCKVAL_SRC_POS);
 
-        for (unsigned i = 0; i < MOUSE_MAX_DEVICES; ++i)
-            if (mpDrv[i])
-            {
-               if (mpDrv[i]->u32DevCaps & MOUSE_DEVCAP_ABSOLUTE)
-                   fAbsDev = true;
-               if (mpDrv[i]->u32DevCaps & MOUSE_DEVCAP_RELATIVE)
-                   fRelDev = true;
-            }
-        if (fAbsDev && !(uHostCaps & VMMDEV_MOUSE_HOST_HAS_ABS_DEV))
-            uHostCaps |= VMMDEV_MOUSE_HOST_HAS_ABS_DEV;
-        if (!fAbsDev && (uHostCaps & VMMDEV_MOUSE_HOST_HAS_ABS_DEV))
-            uHostCaps &= ~VMMDEV_MOUSE_HOST_HAS_ABS_DEV;
+        getDeviceCaps(&fAbsDev, &fRelDev);
+        fCanAbs = supportsAbs();
+        fNeedsHostCursor = guestNeedsHostCursor();
     }
-    if (SUCCEEDED(getVMMDevMouseCaps(&u32MouseCaps)))
-        fVMMDevCanAbs =    (u32MouseCaps & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE)
-                        && fRelDev;
+    if (fAbsDev)
+        updateVMMDevMouseCaps(VMMDEV_MOUSE_HOST_HAS_ABS_DEV, 0);
     else
-        fVMMDevCanAbs = false;
+        updateVMMDevMouseCaps(0, VMMDEV_MOUSE_HOST_HAS_ABS_DEV);
     /** @todo this call takes the Console lock in order to update the cached
      * callback data atomically.  However I can't see any sign that the cached
      * data is ever used again. */
-    mParent->onMouseCapabilityChange(fAbsDev || fVMMDevCanAbs, fRelDev,
-                                     fVMMDevNeedsHostCursor);
-    /** @todo if this gets called during device initialisation we get an
-     * error due to VMMDev not being initialised yet. */
-    setVMMDevMouseCaps(uHostCaps);
+    mParent->onMouseCapabilityChange(fCanAbs, fRelDev, fNeedsHostCursor);
 }
 
 
 /**
  * @interface_method_impl{PDMIMOUSECONNECTOR,pfnReportModes}
+ * A virtual device is notifying us about its current state and capabilities
  */
 DECLCALLBACK(void) Mouse::mouseReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs)
 {

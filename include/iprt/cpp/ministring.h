@@ -28,6 +28,7 @@
 
 #include <iprt/mem.h>
 #include <iprt/string.h>
+#include <iprt/stdarg.h>
 
 #include <new>
 
@@ -40,7 +41,6 @@ namespace iprt
  * "MiniString" is a small C++ string class that does not depend on anything
  * else except IPRT memory management functions.  Semantics are like in
  * std::string, except it can do a lot less.
- *
  *
  * Note that MiniString does not differentiate between NULL strings and
  * empty strings. In other words, MiniString("") and MiniString(NULL)
@@ -65,7 +65,7 @@ public:
      */
     MiniString()
         : m_psz(NULL),
-          m_cbLength(0),
+          m_cch(0),
           m_cbAllocated(0)
     {
     }
@@ -75,13 +75,13 @@ public:
      *
      * This allocates s.length() + 1 bytes for the new instance, unless s is empty.
      *
-     * @param   s               The source string.
+     * @param   a_rSrc          The source string.
      *
      * @throws  std::bad_alloc
      */
-    MiniString(const MiniString &s)
+    MiniString(const MiniString &a_rSrc)
     {
-        copyFrom(s);
+        copyFromN(a_rSrc.m_psz, a_rSrc.m_cch);
     }
 
     /**
@@ -95,7 +95,82 @@ public:
      */
     MiniString(const char *pcsz)
     {
-        copyFrom(pcsz);
+        copyFromN(pcsz, pcsz ? strlen(pcsz) : 0);
+    }
+
+    /**
+     * Create a partial copy of another MiniString.
+     *
+     * @param   a_rSrc          The source string.
+     * @param   a_offSrc        The byte offset into the source string.
+     * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
+     *                          to copy from the source string.
+     */
+    MiniString(const MiniString &a_rSrc, size_t a_offSrc, size_t a_cchSrc = npos)
+    {
+        if (a_offSrc < a_rSrc.m_cch)
+            copyFromN(&a_rSrc.m_psz[a_offSrc], RT_MIN(a_cchSrc, a_rSrc.m_cch - a_offSrc));
+        else
+        {
+            m_psz = NULL;
+            m_cch = 0;
+            m_cbAllocated = 0;
+        }
+    }
+
+    /**
+     * Create a partial copy of a C string.
+     *
+     * @param   a_pszSrc        The source string (UTF-8).
+     * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
+     *                          to copy from the source string.  This must not
+     *                          be '0' as the compiler could easily mistake
+     *                          that for the va_list constructor.
+     */
+    MiniString(const char *a_pszSrc, size_t a_cchSrc)
+    {
+        size_t cchMax = a_pszSrc ? RTStrNLen(a_pszSrc, a_cchSrc) : 0;
+        copyFromN(a_pszSrc, RT_MIN(a_cchSrc, cchMax));
+    }
+
+    /**
+     * Create a string containing @a a_cTimes repetitions of the character @a
+     * a_ch.
+     *
+     * @param   a_cTimes        The number of times the character is repeated.
+     * @param   a_ch            The character to fill the string with.
+     */
+    MiniString(size_t a_cTimes, char a_ch)
+        : m_psz(NULL),
+          m_cch(0),
+          m_cbAllocated(0)
+    {
+        Assert((unsigned)a_ch < 0x80);
+        if (a_cTimes)
+        {
+            reserve(a_cTimes + 1);
+            memset(m_psz, a_ch, a_cTimes);
+            m_psz[a_cTimes] = '\0';
+            m_cch = a_cTimes;
+        }
+    }
+
+    /**
+     * Create a new string given the format string and its arguments.
+     *
+     * @param   a_pszFormat     Pointer to the format string (UTF-8),
+     *                          @see pg_rt_str_format.
+     * @param   a_va            Argument vector containing the arguments
+     *                          specified by the format string.
+     * @sa      printfV
+     * @remarks Not part of std::string.
+     */
+    MiniString(const char *a_pszFormat, va_list a_va)
+        : m_psz(NULL),
+          m_cch(0),
+          m_cbAllocated(0)
+    {
+        printfV(a_pszFormat, a_va);
     }
 
     /**
@@ -118,7 +193,7 @@ public:
      */
     size_t length() const
     {
-        return m_cbLength;
+        return m_cch;
     }
 
     /**
@@ -149,17 +224,12 @@ public:
     void reserve(size_t cb)
     {
         if (    cb != m_cbAllocated
-             && cb > m_cbLength + 1
+             && cb > m_cch + 1
            )
         {
-            char *pszNew = (char*)RTMemRealloc(m_psz, cb);
-            if (RT_LIKELY(pszNew))
-            {
-                if (!m_psz)
-                    *pszNew = '\0';
-                m_psz = pszNew;
+            int vrc = RTStrRealloc(&m_psz, cb);
+            if (RT_SUCCESS(vrc))
                 m_cbAllocated = cb;
-            }
 #ifdef RT_EXCEPTIONS_ENABLED
             else
                 throw std::bad_alloc();
@@ -174,6 +244,8 @@ public:
     {
         cleanup();
     }
+
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
 
     /**
      * Assigns a copy of pcsz to "this".
@@ -190,7 +262,7 @@ public:
         if (m_psz != pcsz)
         {
             cleanup();
-            copyFrom(pcsz);
+            copyFromN(pcsz, pcsz ? strlen(pcsz) : 0);
         }
         return *this;
     }
@@ -210,10 +282,38 @@ public:
         if (this != &s)
         {
             cleanup();
-            copyFrom(s);
+            copyFromN(s.m_psz, s.m_cch);
         }
         return *this;
     }
+
+    /**
+     * Assigns the output of the string format operation (RTStrPrintf).
+     *
+     * @param   pszFormat       Pointer to the format string,
+     *                          @see pg_rt_str_format.
+     * @param   ...             Ellipsis containing the arguments specified by
+     *                          the format string.
+     *
+     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &printf(const char *pszFormat, ...);
+
+    /**
+     * Assigns the output of the string format operation (RTStrPrintfV).
+     *
+     * @param   pszFormat       Pointer to the format string,
+     *                          @see pg_rt_str_format.
+     * @param   va              Argument vector containing the arguments
+     *                          specified by the format string.
+     *
+     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &printfV(const char *pszFormat, va_list va);
 
     /**
      * Appends the string "that" to "this".
@@ -227,15 +327,111 @@ public:
     MiniString &append(const MiniString &that);
 
     /**
-     * Appends the given character to "this".
+     * Appends the string "that" to "this".
      *
-     * @param   c               The character to append.
+     * @param   pszThat         The C string to append.
      *
      * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
      *
      * @returns Reference to the object.
      */
-    MiniString &append(char c);
+    MiniString &append(const char *pszThat);
+
+    /**
+     * Appends the given character to "this".
+     *
+     * @param   ch              The character to append.
+     *
+     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &append(char ch);
+
+    /**
+     * Appends the given unicode code point to "this".
+     *
+     * @param   uc              The unicode code point to append.
+     *
+     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &appendCodePoint(RTUNICP uc);
+
+    /**
+     * Shortcut to append(), MiniString variant.
+     *
+     * @param that              The string to append.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &operator+=(const MiniString &that)
+    {
+        return append(that);
+    }
+
+    /**
+     * Shortcut to append(), const char* variant.
+     *
+     * @param pszThat           The C string to append.
+     *
+     * @returns                 Reference to the object.
+     */
+    MiniString &operator+=(const char *pszThat)
+    {
+        return append(pszThat);
+    }
+
+    /**
+     * Shortcut to append(), char variant.
+     *
+     * @param pszThat           The character to append.
+     *
+     * @returns                 Reference to the object.
+     */
+    MiniString &operator+=(char c)
+    {
+        return append(c);
+    }
+
+    /**
+     * Converts the member string to upper case.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &toUpper()
+    {
+        if (length())
+        {
+            /* Folding an UTF-8 string may result in a shorter encoding (see
+               testcase), so recalculate the length afterwars. */
+            ::RTStrToUpper(m_psz);
+            size_t cchNew = strlen(m_psz);
+            Assert(cchNew <= m_cch);
+            m_cch = cchNew;
+        }
+        return *this;
+    }
+
+    /**
+     * Converts the member string to lower case.
+     *
+     * @returns Reference to the object.
+     */
+    MiniString &toLower()
+    {
+        if (length())
+        {
+            /* Folding an UTF-8 string may result in a shorter encoding (see
+               testcase), so recalculate the length afterwars. */
+            ::RTStrToLower(m_psz);
+            size_t cchNew = strlen(m_psz);
+            Assert(cchNew <= m_cch);
+            m_cch = cchNew;
+        }
+        return *this;
+    }
 
     /**
      * Index operator.
@@ -262,16 +458,6 @@ public:
      * @returns const pointer to C-style string.
      */
     inline const char *c_str() const
-    {
-        return (m_psz) ? m_psz : "";
-    }
-
-    /**
-     * Like c_str(), for compatibility with lots of VirtualBox Main code.
-     *
-     * @returns const pointer to C-style string.
-     */
-    inline const char *raw() const
     {
         return (m_psz) ? m_psz : "";
     }
@@ -305,12 +491,12 @@ public:
     {
         if (m_psz)
         {
-            m_cbLength = strlen(m_psz);
-            m_cbAllocated = m_cbLength + 1; /* (Required for the Utf8Str::asOutParam case) */
+            m_cch = strlen(m_psz);
+            m_cbAllocated = m_cch + 1; /* (Required for the Utf8Str::asOutParam case) */
         }
         else
         {
-            m_cbLength = 0;
+            m_cch = 0;
             m_cbAllocated = 0;
         }
     }
@@ -353,42 +539,106 @@ public:
     };
 
     /**
-     * Compares the member string to pcsz.
-     * @param pcsz
-     * @param cs Whether comparison should be case-sensitive.
-     * @return
+     * Compares the member string to a C-string.
+     *
+     * @param   pcszThat    The string to compare with.
+     * @param   cs          Whether comparison should be case-sensitive.
+     * @returns 0 if equal, negative if this is smaller than @a pcsz, positive
+     *          if larger.
      */
-    int compare(const char *pcsz, CaseSensitivity cs = CaseSensitive) const
+    int compare(const char *pcszThat, CaseSensitivity cs = CaseSensitive) const
     {
-        if (m_psz == pcsz)
-            return 0;
-        if (m_psz == NULL)
-            return -1;
-        if (pcsz == NULL)
-            return 1;
+        /* This klugde is for m_cch=0 and m_psz=NULL.  pcsz=NULL and psz=""
+           are treated the same way so that str.compare(str2.c_str()) works. */
+        if (length() == 0)
+            return pcszThat == NULL || *pcszThat == '\0' ? 0 : -1;
 
         if (cs == CaseSensitive)
-            return ::RTStrCmp(m_psz, pcsz);
-        else
-            return ::RTStrICmp(m_psz, pcsz);
+            return ::RTStrCmp(m_psz, pcszThat);
+        return ::RTStrICmp(m_psz, pcszThat);
     }
 
+    /**
+     * Compares the member string to another MiniString.
+     *
+     * @param   pcszThat    The string to compare with.
+     * @param   cs          Whether comparison should be case-sensitive.
+     * @returns 0 if equal, negative if this is smaller than @a pcsz, positive
+     *          if larger.
+     */
     int compare(const MiniString &that, CaseSensitivity cs = CaseSensitive) const
     {
-        return compare(that.m_psz, cs);
+        if (cs == CaseSensitive)
+            return ::RTStrCmp(m_psz, that.m_psz);
+        return ::RTStrICmp(m_psz, that.m_psz);
+    }
+
+    /**
+     * Compares the two strings.
+     *
+     * @returns true if equal, false if not.
+     * @param   that    The string to compare with.
+     */
+    bool equals(const MiniString &that) const
+    {
+        return that.length() == length()
+            && memcmp(that.m_psz, m_psz, length()) == 0;
+    }
+
+    /**
+     * Compares the two strings.
+     *
+     * @returns true if equal, false if not.
+     * @param   pszThat The string to compare with.
+     */
+    bool equals(const char *pszThat) const
+    {
+        /* This klugde is for m_cch=0 and m_psz=NULL.  pcsz=NULL and psz=""
+           are treated the same way so that str.equals(str2.c_str()) works. */
+        if (length() == 0)
+            return pszThat == NULL || *pszThat == '\0';
+        return RTStrCmp(pszThat, m_psz) == 0;
+    }
+
+    /**
+     * Compares the two strings ignoring differences in case.
+     *
+     * @returns true if equal, false if not.
+     * @param   that    The string to compare with.
+     */
+    bool equalsIgnoreCase(const MiniString &that) const
+    {
+        /* Unfolded upper and lower case characters may require different
+           amount of encoding space, so the length optimization doesn't work. */
+        return RTStrICmp(that.m_psz, m_psz) == 0;
+    }
+
+    /**
+     * Compares the two strings ignoring differences in case.
+     *
+     * @returns true if equal, false if not.
+     * @param   pszThat The string to compare with.
+     */
+    bool equalsIgnoreCase(const char *pszThat) const
+    {
+        /* This klugde is for m_cch=0 and m_psz=NULL.  pcsz=NULL and psz=""
+           are treated the same way so that str.equalsIgnoreCase(str2.c_str()) works. */
+        if (length() == 0)
+            return pszThat == NULL || *pszThat == '\0';
+        return RTStrICmp(pszThat, m_psz) == 0;
     }
 
     /** @name Comparison operators.
      * @{  */
-    bool operator==(const MiniString &that) const { return !compare(that); }
-    bool operator!=(const MiniString &that) const { return !!compare(that); }
+    bool operator==(const MiniString &that) const { return equals(that); }
+    bool operator!=(const MiniString &that) const { return !equals(that); }
     bool operator<( const MiniString &that) const { return compare(that) < 0; }
     bool operator>( const MiniString &that) const { return compare(that) > 0; }
 
-    bool operator==(const char *that) const       { return !compare(that); }
-    bool operator!=(const char *that) const       { return !!compare(that); }
-    bool operator<( const char *that) const       { return compare(that) < 0; }
-    bool operator>( const char *that) const       { return compare(that) > 0; }
+    bool operator==(const char *pszThat) const    { return equals(pszThat); }
+    bool operator!=(const char *pszThat) const    { return !equals(pszThat); }
+    bool operator<( const char *pszThat) const    { return compare(pszThat) < 0; }
+    bool operator>( const char *pszThat) const    { return compare(pszThat) > 0; }
     /** @} */
 
     /** Max string offset value.
@@ -411,6 +661,16 @@ public:
      * @returns 0 based position of pcszFind. npos if not found.
      */
     size_t find(const char *pcszFind, size_t pos = 0) const;
+
+    /**
+     * Replaces all occurences of cFind with cReplace in the member string.
+     * In order not to produce invalid UTF-8, the characters must be ASCII
+     * values less than 128; this is not verified.
+     *
+     * @param cFind Character to replace. Must be ASCII < 128.
+     * @param cReplace Character to replace cFind with. Must be ASCII < 128.
+     */
+    void findReplace(char cFind, char cReplace);
 
     /**
      * Returns a substring of "this" as a new Utf8Str.
@@ -455,6 +715,28 @@ public:
      * @returns true if match, false if mismatch.
      */
     bool contains(const iprt::MiniString &that, CaseSensitivity cs = CaseSensitive) const;
+
+    /**
+     * Attempts to convert the member string into a 32-bit integer.
+     *
+     * @returns 32-bit unsigned number on success.
+     * @returns 0 on failure.
+     */
+    int32_t toInt32() const
+    {
+        return RTStrToInt32(m_psz);
+    }
+
+    /**
+     * Attempts to convert the member string into an unsigned 32-bit integer.
+     *
+     * @returns 32-bit unsigned number on success.
+     * @returns 0 on failure.
+     */
+    uint32_t toUInt32() const
+    {
+        return RTStrToUInt32(m_psz);
+    }
 
     /**
      * Attempts to convert the member string into an 64-bit integer.
@@ -509,41 +791,45 @@ protected:
     {
         if (m_psz)
         {
-            RTMemFree(m_psz);
+            RTStrFree(m_psz);
             m_psz = NULL;
-            m_cbLength = 0;
+            m_cch = 0;
             m_cbAllocated = 0;
         }
     }
 
     /**
-     * Protected internal helper to copy a string. This ignores the previous object
-     * state, so either call this from a constructor or call cleanup() first.
+     * Protected internal helper to copy a string.
      *
-     * copyFrom() unconditionally sets the members to a copy of the given other
-     * strings and makes no assumptions about previous contents. Can therefore be
-     * used both in copy constructors, when member variables have no defined value,
-     * and in assignments after having called cleanup().
+     * This ignores the previous object state, so either call this from a
+     * constructor or call cleanup() first.  copyFromN() unconditionally sets
+     * the members to a copy of the given other strings and makes no
+     * assumptions about previous contents.  Can therefore be used both in copy
+     * constructors, when member variables have no defined value, and in
+     * assignments after having called cleanup().
      *
-     * This variant copies from another MiniString and is fast since
-     * the length of the source string is known.
+     * @param   pcszSrc         The source string.
+     * @param   cchSrc          The number of chars (bytes) to copy from the
+     *                          source strings.
      *
-     * @param   s               The source string.
-     *
-     * @throws  std::bad_alloc  On allocation failure. The object is left describing
-     *             a NULL string.
+     * @throws  std::bad_alloc  On allocation failure.  The object is left
+     *                          describing a NULL string.
      */
-    void copyFrom(const MiniString &s)
+    void copyFromN(const char *pcszSrc, size_t cchSrc)
     {
-        if ((m_cbLength = s.m_cbLength))
+        if (cchSrc)
         {
-            m_cbAllocated = m_cbLength + 1;
-            m_psz = (char *)RTMemAlloc(m_cbAllocated);
+            m_psz = RTStrAlloc(cchSrc + 1);
             if (RT_LIKELY(m_psz))
-                memcpy(m_psz, s.m_psz, m_cbAllocated);      // include 0 terminator
+            {
+                m_cch = cchSrc;
+                m_cbAllocated = cchSrc + 1;
+                memcpy(m_psz, pcszSrc, cchSrc);
+                m_psz[cchSrc] = '\0';
+            }
             else
             {
-                m_cbLength = 0;
+                m_cch = 0;
                 m_cbAllocated = 0;
 #ifdef RT_EXCEPTIONS_ENABLED
                 throw std::bad_alloc();
@@ -552,53 +838,16 @@ protected:
         }
         else
         {
+            m_cch = 0;
             m_cbAllocated = 0;
             m_psz = NULL;
         }
     }
 
-    /**
-     * Protected internal helper to copy a string. This ignores the previous object
-     * state, so either call this from a constructor or call cleanup() first.
-     *
-     * See copyFrom() above.
-     *
-     * This variant copies from a C string and needs to call strlen()
-     * on it. It's therefore slower than the one above.
-     *
-     * @param   pcsz            The source string.
-     *
-     * @throws  std::bad_alloc  On allocation failure. The object is left describing
-     *             a NULL string.
-     */
-    void copyFrom(const char *pcsz)
-    {
-        if (pcsz && *pcsz)
-        {
-            m_cbLength = strlen(pcsz);
-            m_cbAllocated = m_cbLength + 1;
-            m_psz = (char *)RTMemAlloc(m_cbAllocated);
-            if (RT_LIKELY(m_psz))
-                memcpy(m_psz, pcsz, m_cbAllocated);     // include 0 terminator
-            else
-            {
-                m_cbLength = 0;
-                m_cbAllocated = 0;
-#ifdef RT_EXCEPTIONS_ENABLED
-                throw std::bad_alloc();
-#endif
-            }
-        }
-        else
-        {
-            m_cbLength = 0;
-            m_cbAllocated = 0;
-            m_psz = NULL;
-        }
-    }
+    static DECLCALLBACK(size_t) printfOutputCallback(void *pvArg, const char *pachChars, size_t cbChars);
 
-    char    *m_psz;                     /**< The string buffer. */
-    size_t  m_cbLength;                 /**< strlen(m_psz) - i.e. no terminator included. */
+    char   *m_psz;                      /**< The string buffer. */
+    size_t  m_cch;                      /**< strlen(m_psz) - i.e. no terminator included. */
     size_t  m_cbAllocated;              /**< Size of buffer that m_psz points to; at least m_cbLength + 1. */
 };
 

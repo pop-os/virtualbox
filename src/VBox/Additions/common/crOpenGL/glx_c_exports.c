@@ -1,4 +1,4 @@
-/* $Id: glx_c_exports.c $ */
+/* $Id: glx_c_exports.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VirtualBox guest OpenGL DRI GLX C stubs
@@ -64,7 +64,7 @@ DECLEXPORT(void) VBOXGLXENTRYTAG(glXFreeContextEXT)(Display *dpy, GLXContext ctx
     return glxim.FreeContextEXT(dpy, ctx);
 }
 
-/*Mesa insternal*/
+/*Mesa internal*/
 DECLEXPORT(int) VBOXGLXENTRYTAG(glXQueryContextInfoEXT)(Display *dpy, GLXContext ctx)
 {
     return glxim.QueryContextInfoEXT(dpy, ctx);

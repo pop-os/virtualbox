@@ -1,4 +1,4 @@
-/* $Id: poll-win.cpp $ */
+/* $Id: poll-win.cpp 32431 2010-09-11 18:02:17Z vboxsync $ */
 /** @file
  * IPRT - Polling I/O Handles, Windows Implementation.
  *
@@ -166,12 +166,12 @@ static int rtPollNoResumeWorker(RTPOLLSETINTERNAL *pThis, RTMSINTERVAL cMillies,
                 {
                     case RTHANDLETYPE_PIPE:
                         rtPipePollDone(pThis->aHandles[i].u.hPipe, pThis->aHandles[i].fEvents,
-                                       pThis->aHandles[i].fFinalEntry);
+                                       pThis->aHandles[i].fFinalEntry, false);
                         break;
 
                     case RTHANDLETYPE_SOCKET:
                         rtSocketPollDone(pThis->aHandles[i].u.hSocket, pThis->aHandles[i].fEvents,
-                                         pThis->aHandles[i].fFinalEntry);
+                                         pThis->aHandles[i].fFinalEntry, false);
                         break;
 
                     default:
@@ -208,29 +208,31 @@ static int rtPollNoResumeWorker(RTPOLLSETINTERNAL *pThis, RTMSINTERVAL cMillies,
     /*
      * Get event (if pending) and do wait cleanup.
      */
-    i = cHandles;
-    while (i-- > 0)
+    bool fHarvestEvents = true;
+    for (i = 0; i < cHandles; i++)
     {
         fEvents = 0;
         switch (pThis->aHandles[i].enmType)
         {
             case RTHANDLETYPE_PIPE:
-                rtPipePollDone(pThis->aHandles[i].u.hPipe, pThis->aHandles[i].fEvents,
-                               pThis->aHandles[i].fFinalEntry);
+                fEvents = rtPipePollDone(pThis->aHandles[i].u.hPipe, pThis->aHandles[i].fEvents,
+                                         pThis->aHandles[i].fFinalEntry, fHarvestEvents);
                 break;
 
             case RTHANDLETYPE_SOCKET:
-                rtSocketPollDone(pThis->aHandles[i].u.hSocket, pThis->aHandles[i].fEvents,
-                                 pThis->aHandles[i].fFinalEntry);
+                fEvents = rtSocketPollDone(pThis->aHandles[i].u.hSocket, pThis->aHandles[i].fEvents,
+                                           pThis->aHandles[i].fFinalEntry, fHarvestEvents);
                 break;
 
             default:
                 AssertFailed();
                 break;
         }
-        if (fEvents)
+        if (   fEvents
+            && fHarvestEvents)
         {
             Assert(fEvents != UINT32_MAX);
+            fHarvestEvents = false;
             if (pfEvents)
                 *pfEvents = fEvents;
             if (pid)
@@ -549,5 +551,36 @@ RTDECL(uint32_t) RTPollSetGetCount(RTPOLLSET hPollSet)
     ASMAtomicWriteBool(&pThis->fBusy, false);
 
     return cHandles;
+}
+
+RTDECL(int) RTPollSetEventsChange(RTPOLLSET hPollSet, uint32_t id, uint32_t fEvents)
+{
+    /*
+     * Validate the input.
+     */
+    RTPOLLSETINTERNAL *pThis = hPollSet;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTPOLLSET_MAGIC, VERR_INVALID_HANDLE);
+    AssertReturn(id != UINT32_MAX, VERR_INVALID_PARAMETER);
+    AssertReturn(!(fEvents & ~RTPOLL_EVT_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(fEvents, VERR_INVALID_PARAMETER);
+
+    /*
+     * Set the busy flag and do the job.
+     */
+    AssertReturn(ASMAtomicCmpXchgBool(&pThis->fBusy, true,  false), VERR_CONCURRENT_ACCESS);
+
+    int         rc = VERR_POLL_HANDLE_ID_NOT_FOUND;
+    uint32_t    i  = pThis->cHandles;
+    while (i-- > 0)
+        if (pThis->aHandles[i].id == id)
+        {
+            pThis->aHandles[i].fEvents = fEvents;
+            rc = VINF_SUCCESS;
+            break;
+        }
+
+    ASMAtomicWriteBool(&pThis->fBusy, false);
+    return rc;
 }
 

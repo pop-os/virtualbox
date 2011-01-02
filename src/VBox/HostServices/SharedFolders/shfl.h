@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,16 +39,20 @@
 /** Client uses UTF8 encoding, if not set then unicode 16 bit (UCS2) is used. */
 #define SHFL_CF_UTF8             (0x00000004)
 
+/** Client both supports and wants to use symlinks. */
+#define SHFL_CF_SYMLINKS         (0x00000008)
+
 /** @} */
 
 typedef struct _SHFLCLIENTDATA
 {
     /** Client flags */
     uint32_t fu32Flags;
-
+    /** Path delimiter. */
     RTUTF16  PathDelimiter;
 } SHFLCLIENTDATA;
-
+/** Pointer to a SHFLCLIENTDATA structure. */
+typedef SHFLCLIENTDATA *PSHFLCLIENTDATA;
 
 #endif /* !___SHFL_H */
 

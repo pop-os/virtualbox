@@ -163,7 +163,8 @@ ifndef INCL
  INCL    += $(addprefix -I$(KBUILD_EXTMOD)/vboxnetflt,/ /include /r0drv/linux)
  export INCL
 endif
-KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING
+KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 \
+	    -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING
 ifdef VBOX_REDHAT_KABI
  KFLAGS  += -DVBOX_REDHAT_KABI
 endif
@@ -177,11 +178,11 @@ KFLAGS  += -DVBOX_WITH_64_BITS_GUESTS
 ifeq ($(BUILD_TYPE),debug)
  KFLAGS  += -DDEBUG -DDEBUG_$(USER) -g
  # IPRT_DEBUG_SEMS indicates thread wrt sems state via the comm field.
- KFLAGS  += -DIPRT_DEBUG_SEMS
+ #KFLAGS  += -DIPRT_DEBUG_SEMS
 endif
 
 # By default we use remap_pfn_range() kernel API to make kernel pages
-# visible for userland. Unfortuately, it leads to situation that
+# visible for userland. Unfortunately, it leads to situation that
 # during debug session all structures on that page (such as PVM pointer)
 # are not accessible to the debugger (see #3214).
 # This code enables experimental support
@@ -203,7 +204,7 @@ all: $(MODULE)
 obj-m += $(MODULE).o
 
 $(MODULE):
-	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) -C $(KERN_DIR) SUBDIRS=$(CURDIR) SRCROOT=$(CURDIR) modules
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) SUBDIRS=$(CURDIR) SRCROOT=$(CURDIR) -C $(KERN_DIR) modules
 
 install: $(MODULE)
 	@mkdir -p $(MODULE_DIR); \
@@ -215,10 +216,25 @@ install_rpm: $(MODULE)
 	@mkdir -p $(MODULE_DIR); \
 	install -m 0664 $(MODULE).$(MODULE_EXT) $(MODULE_DIR)
 
-endif # eq($(MAKECMDGOALS),clean)
+else # eq ($(MAKECMDGOALS),clean)
 
-# important: Don't remove Module.symvers! DKMS does 'make clean' before building ...
+ ifndef KERN_DIR
+  KERN_DIR := /lib/modules/$(shell uname -r)/build
+  ifeq ($(wildcard $(KERN_DIR)/Makefile),)
+   KERN_DIR := /usr/src/linux
+  endif
+ endif
+ ifeq ($(wildcard $(KERN_DIR)/Makefile),)
+
 clean:
-	for f in . linux r0drv r0drv/linux VBox common/err common/string common/log generic math/gcc; \
-	    do rm -f $$f/*.o $$f/.*.cmd $$f/.*.flags; done
-	rm -rf .vboxnetflt* .tmp_ver* vboxnetflt.* Modules.symvers modules.order
+	find . \( -name \*.o -o -name \*.cmd \) -print0 | xargs -0 rm -f
+	rm -rf .tmp_ver* $(MODULE).* Module.symvers Modules.symvers modules.order
+
+ else
+
+clean:
+	$(MAKE) KBUILD_VERBOSE=$(KBUILD_VERBOSE) SUBDIRS=$(CURDIR) SRCROOT=$(CURDIR) -C $(KERN_DIR) clean
+
+ endif
+
+endif # eq($(MAKECMDGOALS),clean)

@@ -413,11 +413,6 @@ VMMR3DECL(CPUMMODE)     DBGFR3CpuGetMode(PVM pVM, VMCPUID idCpu);
 
 
 
-/** Pointer to a info helper callback structure. */
-typedef struct DBGFINFOHLP *PDBGFINFOHLP;
-/** Pointer to a const info helper callback structure. */
-typedef const struct DBGFINFOHLP *PCDBGFINFOHLP;
-
 /**
  * Info helper callback structure.
  */
@@ -856,12 +851,30 @@ VMMR3DECL(void)             DBGFR3StackWalkEnd(PCDBGFSTACKFRAME pFirstFrame);
 #define DBGF_DISAS_FLAGS_NO_BYTES           RT_BIT(4)
 /** No address in the output. */
 #define DBGF_DISAS_FLAGS_NO_ADDRESS         RT_BIT(5)
+/** Set if the hidden selector registers are known to be valid. (REM hack to
+ *  avoid assertions.) */
+#define DBGF_DISAS_FLAGS_HID_SEL_REGS_VALID RT_BIT(6)
+/** Disassemble in the default mode of the specific context. */
+#define DBGF_DISAS_FLAGS_DEFAULT_MODE       UINT32_C(0x00000000)
+/** Disassemble in 16-bit mode. */
+#define DBGF_DISAS_FLAGS_16BIT_MODE         UINT32_C(0x10000000)
+/** Disassemble in 16-bit mode with real mode address translation. */
+#define DBGF_DISAS_FLAGS_16BIT_REAL_MODE    UINT32_C(0x20000000)
+/** Disassemble in 32-bit mode. */
+#define DBGF_DISAS_FLAGS_32BIT_MODE         UINT32_C(0x30000000)
+/** Disassemble in 64-bit mode. */
+#define DBGF_DISAS_FLAGS_64BIT_MODE         UINT32_C(0x40000000)
+/** The disassembly mode mask. */
+#define DBGF_DISAS_FLAGS_MODE_MASK          UINT32_C(0x70000000)
+/** Mask containing the valid flags. */
+#define DBGF_DISAS_FLAGS_VALID_MASK         UINT32_C(0x7000007f)
 /** @} */
 
 /** Special flat selector. */
 #define DBGF_SEL_FLAT                       1
 
-VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCPtr, unsigned fFlags, char *pszOutput, uint32_t cchOutput, uint32_t *pcbInstr);
+VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCPtr, uint32_t fFlags,
+                                  char *pszOutput, uint32_t cbOutput, uint32_t *pcbInstr);
 VMMR3DECL(int) DBGFR3DisasInstrCurrent(PVMCPU pVCpu, char *pszOutput, uint32_t cbOutput);
 VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszPrefix);
 
@@ -904,6 +917,51 @@ VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddres
 VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbRead);
 
 
+/** @name Flags for DBGFR3PagingDumpEx, PGMR3DumpHierarchyHCEx and
+ * PGMR3DumpHierarchyGCEx
+ * @{ */
+/** The CR3 from the current CPU state. */
+#define DBGFPGDMP_FLAGS_CURRENT_CR3     RT_BIT_32(0)
+/** The current CPU paging mode (PSE, PAE, LM, EPT, NX). */
+#define DBGFPGDMP_FLAGS_CURRENT_MODE    RT_BIT_32(1)
+/** Whether PSE is enabled (!DBGFPGDMP_FLAGS_CURRENT_STATE).
+ * Same value as X86_CR4_PSE. */
+#define DBGFPGDMP_FLAGS_PSE             RT_BIT_32(4) /*  */
+/** Whether PAE is enabled (!DBGFPGDMP_FLAGS_CURRENT_STATE).
+ * Same value as X86_CR4_PAE. */
+#define DBGFPGDMP_FLAGS_PAE             RT_BIT_32(5) /*  */
+/** Whether LME is enabled (!DBGFPGDMP_FLAGS_CURRENT_STATE).
+ * Same value as MSR_K6_EFER_LME. */
+#define DBGFPGDMP_FLAGS_LME             RT_BIT_32(8)
+/** Whether nested paging is enabled (!DBGFPGDMP_FLAGS_CURRENT_STATE). */
+#define DBGFPGDMP_FLAGS_NP              RT_BIT_32(9)
+/** Whether extended nested page tables are enabled
+ * (!DBGFPGDMP_FLAGS_CURRENT_STATE). */
+#define DBGFPGDMP_FLAGS_EPT             RT_BIT_32(10)
+/** Whether no-execution is enabled (!DBGFPGDMP_FLAGS_CURRENT_STATE).
+ * Same value as MSR_K6_EFER_NXE. */
+#define DBGFPGDMP_FLAGS_NXE             RT_BIT_32(11)
+/** Whether to print the CR3. */
+#define DBGFPGDMP_FLAGS_PRINT_CR3       RT_BIT_32(27)
+/** Whether to print the header. */
+#define DBGFPGDMP_FLAGS_HEADER          RT_BIT_32(28)
+/** Whether to dump additional page information. */
+#define DBGFPGDMP_FLAGS_PAGE_INFO       RT_BIT_32(29)
+/** Dump the shadow tables if set.
+ * Cannot be used together with DBGFPGDMP_FLAGS_GUEST. */
+#define DBGFPGDMP_FLAGS_SHADOW          RT_BIT_32(30)
+/** Dump the guest tables if set.
+ * Cannot be used together with DBGFPGDMP_FLAGS_SHADOW. */
+#define DBGFPGDMP_FLAGS_GUEST           RT_BIT_32(31)
+/** Mask of valid bits. */
+#define DBGFPGDMP_FLAGS_VALID_MASK      UINT32_C(0xf8000f33)
+/** The mask of bits controlling the paging mode. */
+#define DBGFPGDMP_FLAGS_MODE_MASK       UINT32_C(0x00000f32)
+/** @}  */
+VMMDECL(int) DBGFR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_t cr3, uint64_t u64FirstAddr,
+                                uint64_t u64LastAddr, uint32_t cMaxDepth, PCDBGFINFOHLP pHlp);
+
+
 /** @name DBGFR3SelQueryInfo flags.
  * @{ */
 /** Get the info from the guest descriptor table. */
@@ -915,6 +973,252 @@ VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, vo
 #define DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE   UINT32_C(2)
 /** @} */
 VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo);
+
+
+/**
+ * Register identifiers.
+ */
+typedef enum DBGFREG
+{
+    /* General purpose registers: */
+    DBGFREG_AL  = 0,
+    DBGFREG_AX  = DBGFREG_AL,
+    DBGFREG_EAX = DBGFREG_AL,
+    DBGFREG_RAX = DBGFREG_AL,
+
+    DBGFREG_CL,
+    DBGFREG_CX  = DBGFREG_CL,
+    DBGFREG_ECX = DBGFREG_CL,
+    DBGFREG_RCX = DBGFREG_CL,
+
+    DBGFREG_DL,
+    DBGFREG_DX  = DBGFREG_DL,
+    DBGFREG_EDX = DBGFREG_DL,
+    DBGFREG_RDX = DBGFREG_DL,
+
+    DBGFREG_BL,
+    DBGFREG_BX  = DBGFREG_BL,
+    DBGFREG_EBX = DBGFREG_BL,
+    DBGFREG_RBX = DBGFREG_BL,
+
+    DBGFREG_SPL,
+    DBGFREG_SP  = DBGFREG_SPL,
+    DBGFREG_ESP = DBGFREG_SPL,
+    DBGFREG_RSP = DBGFREG_SPL,
+
+    DBGFREG_BPL,
+    DBGFREG_BP  = DBGFREG_BPL,
+    DBGFREG_EBP = DBGFREG_BPL,
+    DBGFREG_RBP = DBGFREG_BPL,
+
+    DBGFREG_SIL,
+    DBGFREG_SI  = DBGFREG_SIL,
+    DBGFREG_ESI = DBGFREG_SIL,
+    DBGFREG_RSI = DBGFREG_SIL,
+
+    DBGFREG_DIL,
+    DBGFREG_DI  = DBGFREG_DIL,
+    DBGFREG_EDI = DBGFREG_DIL,
+    DBGFREG_RDI = DBGFREG_DIL,
+
+    DBGFREG_R8,
+    DBGFREG_R8B = DBGFREG_R8,
+    DBGFREG_R8W = DBGFREG_R8,
+    DBGFREG_R8D = DBGFREG_R8,
+
+    DBGFREG_R9,
+    DBGFREG_R9B = DBGFREG_R9,
+    DBGFREG_R9W = DBGFREG_R9,
+    DBGFREG_R9D = DBGFREG_R9,
+
+    DBGFREG_R10,
+    DBGFREG_R10B = DBGFREG_R10,
+    DBGFREG_R10W = DBGFREG_R10,
+    DBGFREG_R10D = DBGFREG_R10,
+
+    DBGFREG_R11,
+    DBGFREG_R11B = DBGFREG_R11,
+    DBGFREG_R11W = DBGFREG_R11,
+    DBGFREG_R11D = DBGFREG_R11,
+
+    DBGFREG_R12,
+    DBGFREG_R12B = DBGFREG_R12,
+    DBGFREG_R12W = DBGFREG_R12,
+    DBGFREG_R12D = DBGFREG_R12,
+
+    DBGFREG_R13,
+    DBGFREG_R13B = DBGFREG_R13,
+    DBGFREG_R13W = DBGFREG_R13,
+    DBGFREG_R13D = DBGFREG_R13,
+
+    DBGFREG_R14,
+    DBGFREG_R14B = DBGFREG_R14,
+    DBGFREG_R14W = DBGFREG_R14,
+    DBGFREG_R14D = DBGFREG_R14,
+
+    DBGFREG_R15,
+    DBGFREG_R15B = DBGFREG_R15,
+    DBGFREG_R15W = DBGFREG_R15,
+    DBGFREG_R15D = DBGFREG_R15,
+
+    DBGFREG_AH,
+    DBGFREG_CH,
+    DBGFREG_DH,
+    DBGFREG_BH,
+
+    /* Segments and other special registers: */
+    DBGFREG_CS,
+    DBGFREG_DS,
+    DBGFREG_ES,
+    DBGFREG_FS,
+    DBGFREG_GS,
+    DBGFREG_SS,
+
+    DBGFREG_CS_ATTR,
+    DBGFREG_DS_ATTR,
+    DBGFREG_ES_ATTR,
+    DBGFREG_FS_ATTR,
+    DBGFREG_GS_ATTR,
+    DBGFREG_SS_ATTR,
+
+    DBGFREG_CS_BASE,
+    DBGFREG_DS_BASE,
+    DBGFREG_ES_BASE,
+    DBGFREG_FS_BASE,
+    DBGFREG_GS_BASE,
+    DBGFREG_SS_BASE,
+
+    DBGFREG_CS_LIMIT,
+    DBGFREG_DS_LIMIT,
+    DBGFREG_ES_LIMIT,
+    DBGFREG_FS_LIMIT,
+    DBGFREG_GS_LIMIT,
+    DBGFREG_SS_LIMIT,
+
+    DBGFREG_IP,
+    DBGFREG_EIP = DBGFREG_IP,
+    DBGFREG_RIP = DBGFREG_IP,
+
+    DBGFREG_FLAGS,
+    DBGFREG_EFLAGS = DBGFREG_FLAGS,
+    DBGFREG_RFLAGS = DBGFREG_FLAGS,
+
+    /* FPU: */
+    DBGFREG_ST0,
+    DBGFREG_ST1,
+    DBGFREG_ST2,
+    DBGFREG_ST3,
+    DBGFREG_ST4,
+    DBGFREG_ST5,
+    DBGFREG_ST6,
+    DBGFREG_ST7,
+
+    DBGFREG_MM0,
+    DBGFREG_MM1,
+    DBGFREG_MM2,
+    DBGFREG_MM3,
+    DBGFREG_MM4,
+    DBGFREG_MM5,
+    DBGFREG_MM6,
+    DBGFREG_MM7,
+
+    DBGFREG_FCW,
+    DBGFREG_FSW,
+    DBGFREG_FTW,
+    DBGFREG_FOP,
+    DBGFREG_FPUIP,
+    DBGFREG_FPUCS,
+    DBGFREG_FPUDP,
+    DBGFREG_FPUDS,
+    DBGFREG_MXCSR,
+    DBGFREG_MXCSR_MASK,
+
+    /* SSE: */
+    DBGFREG_XMM0,
+    DBGFREG_XMM1,
+    DBGFREG_XMM2,
+    DBGFREG_XMM3,
+    DBGFREG_XMM4,
+    DBGFREG_XMM5,
+    DBGFREG_XMM6,
+    DBGFREG_XMM7,
+    DBGFREG_XMM8,
+    DBGFREG_XMM9,
+    DBGFREG_XMM10,
+    DBGFREG_XMM11,
+    DBGFREG_XMM12,
+    DBGFREG_XMM13,
+    DBGFREG_XMM14,
+    DBGFREG_XMM15,
+    /** @todo add XMM aliases. */
+
+    /* System registers: */
+    DBGFREG_GDTR,
+    DBGFREG_GDTR_BASE,
+    DBGFREG_GDTR_LIMIT,
+    DBGFREG_IDTR,
+    DBGFREG_IDTR_BASE,
+    DBGFREG_IDTR_LIMIT,
+    DBGFREG_LDTR,
+    DBGFREG_LDTR_ATTR,
+    DBGFREG_LDTR_BASE,
+    DBGFREG_LDTR_LIMIT,
+    DBGFREG_TR,
+    DBGFREG_TR_ATTR,
+    DBGFREG_TR_BASE,
+    DBGFREG_TR_LIMIT,
+
+    DBGFREG_CR0,
+    DBGFREG_CR2,
+    DBGFREG_CR3,
+    DBGFREG_CR4,
+    DBGFREG_CR8,
+
+    DBGFREG_DR0,
+    DBGFREG_DR1,
+    DBGFREG_DR2,
+    DBGFREG_DR3,
+    DBGFREG_DR6,
+    DBGFREG_DR7,
+
+    /* MSRs: */
+    DBGFREG_MSR_IA32_APICBASE,
+    DBGFREG_MSR_IA32_CR_PAT,
+    DBGFREG_MSR_IA32_PERF_STATUS,
+    DBGFREG_MSR_IA32_SYSENTER_CS,
+    DBGFREG_MSR_IA32_SYSENTER_EIP,
+    DBGFREG_MSR_IA32_SYSENTER_ESP,
+    DBGFREG_MSR_IA32_TSC,
+    DBGFREG_MSR_K6_EFER,
+    DBGFREG_MSR_K6_STAR,
+    DBGFREG_MSR_K8_CSTAR,
+    DBGFREG_MSR_K8_FS_BASE,
+    DBGFREG_MSR_K8_GS_BASE,
+    DBGFREG_MSR_K8_KERNEL_GS_BASE,
+    DBGFREG_MSR_K8_LSTAR,
+    DBGFREG_MSR_K8_SF_MASK,
+    DBGFREG_MSR_K8_TSC_AUX,
+
+    /** The end of the registers.  */
+    DBGFREG_END,
+    /** The usual 32-bit type hack. */
+    DBGFREG_32BIT_HACK = 0x7fffffff
+} DBGFREG;
+
+VMMR3DECL(int) DBGFR3RegQueryU8(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     *pu8);
+VMMR3DECL(int) DBGFR3RegQueryU16( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    *pu16);
+VMMR3DECL(int) DBGFR3RegQueryU32( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    *pu32);
+VMMR3DECL(int) DBGFR3RegQueryU64( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    *pu64);
+VMMR3DECL(int) DBGFR3RegQueryU128(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint128_t   *pu128);
+VMMR3DECL(int) DBGFR3RegQueryLrd( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, long double *plrd);
+VMMR3DECL(int) DBGFR3RegQueryXdtr( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t *pu64Base, uint16_t *pu16Limit);
+
+VMMR3DECL(int) DBGFR3RegSetU8(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     u8);
+VMMR3DECL(int) DBGFR3RegSetU16( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    u16);
+VMMR3DECL(int) DBGFR3RegSetU32( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    u32);
+VMMR3DECL(int) DBGFR3RegSetU64( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    u64);
+VMMR3DECL(int) DBGFR3RegSetU128(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint128_t   u128);
+VMMR3DECL(int) DBGFR3RegSetLrd( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, long double lrd);
 
 
 /**
@@ -1061,6 +1365,9 @@ VMMR3DECL(int)      DBGFR3OSDeregister(PVM pVM, PCDBGFOSREG pReg);
 VMMR3DECL(int)      DBGFR3OSDetect(PVM pVM, char *pszName, size_t cchName);
 VMMR3DECL(int)      DBGFR3OSQueryNameAndVersion(PVM pVM, char *pszName, size_t cchName, char *pszVersion, size_t cchVersion);
 VMMR3DECL(void *)   DBGFR3OSQueryInterface(PVM pVM, DBGFOSINTERFACE enmIf);
+
+
+VMMR3DECL(int)      DBGFR3CoreWrite(PVM pVM, const char *pszFilename, bool fReplaceFile);
 
 /** @} */
 

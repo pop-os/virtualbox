@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: files_vboxguest $
+# $Id: files_vboxguest 33376 2010-10-24 12:55:23Z vboxsync $
 ## @file
 # Shared file between Makefile.kmk and export_modules
 #
@@ -31,6 +31,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/heap.h=>include/iprt/heap.h \
     ${PATH_ROOT}/include/iprt/handletable.h=>include/iprt/handletable.h \
     ${PATH_ROOT}/include/iprt/initterm.h=>include/iprt/initterm.h \
+    ${PATH_ROOT}/include/iprt/list.h=>include/iprt/list.h \
     ${PATH_ROOT}/include/iprt/lockvalidator.h=>include/iprt/lockvalidator.h \
     ${PATH_ROOT}/include/iprt/log.h=>include/iprt/log.h \
     ${PATH_ROOT}/include/iprt/mem.h=>include/iprt/mem.h \
@@ -50,7 +51,6 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/types.h=>include/iprt/types.h \
     ${PATH_ROOT}/include/iprt/uuid.h=>include/iprt/uuid.h \
     ${PATH_ROOT}/include/iprt/crc.h=>include/iprt/crc.h \
-    ${PATH_ROOT}/include/iprt/crc32.h=>include/iprt/crc32.h \
     ${PATH_ROOT}/include/iprt/net.h=>include/iprt/net.h \
     ${PATH_ROOT}/include/iprt/rand.h=>include/iprt/rand.h \
     ${PATH_ROOT}/include/iprt/path.h=>include/iprt/path.h \
@@ -69,8 +69,11 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/VBox/VBoxGuest.h=>include/VBox/VBoxGuest.h \
     ${PATH_ROOT}/include/VBox/VBoxGuest2.h=>include/VBox/VBoxGuest2.h \
     ${PATH_ROOT}/include/VBox/VBoxGuestLib.h=>include/VBox/VBoxGuestLib.h \
+    ${PATH_ROOT}/include/VBox/version.h=>include/VBox/version.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest.cpp=>VBoxGuest.c \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest-freebsd.c=>VBoxGuest-freebsd.c \
+    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest2.cpp=>VBoxGuest2.c \
+    ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuest2.h=>VBoxGuest2.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuestIDC-unix.c.h=>VBoxGuestIDC-unix.c.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/VBoxGuestInternal.h=>VBoxGuestInternal.h \
     ${PATH_ROOT}/src/VBox/Additions/common/VBoxGuest/freebsd/Makefile=>Makefile \
@@ -143,6 +146,10 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTRandAdvCreateSystemFaster-generic.cpp=>generic/RTRandAdvCreateSystemFaster-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTRandAdvCreateSystemTruer-generic.cpp=>generic/RTRandAdvCreateSystemTruer-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/uuid-generic.cpp=>generic/uuid-generic.c \
+    ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventWait-2-ex-generic.cpp=>generic/RTSemEventWait-2-ex-generic.c \
+    ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventWaitNoResume-2-ex-generic.cpp=>generic/RTSemEventWaitNoResume-2-ex-generic.c \
+    ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventMultiWait-2-ex-generic.cpp=>generic/RTSemEventMultiWait-2-ex-generic.c \
+    ${PATH_ROOT}/src/VBox/Runtime/generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp=>generic/RTSemEventMultiWaitNoResume-2-ex-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/RTTimerCreate-generic.cpp=>generic/RTTimerCreate-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/timer-generic.cpp=>generic/timer-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/generic/mppresent-generic.cpp=>generic/mppresent-generic.c \
@@ -167,6 +174,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/freebsd/thread-r0drv-freebsd.c=>r0drv/freebsd/thread-r0drv-freebsd.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/freebsd/thread2-r0drv-freebsd.c=>r0drv/freebsd/thread2-r0drv-freebsd.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/freebsd/time-r0drv-freebsd.c=>r0drv/freebsd/time-r0drv-freebsd.c \
+    ${PATH_ROOT}/src/VBox/Runtime/r0drv/freebsd/sleepqueue-r0drv-freebsd.h=>r0drv/freebsd/sleepqueue-r0drv-freebsd.h \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/generic/semspinmutex-r0drv-generic.c=>r0drv/generic/semspinmutex-r0drv-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/generic/mpnotification-r0drv-generic.cpp=>r0drv/generic/mpnotification-r0drv-generic.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp=>r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.c \
@@ -174,6 +182,7 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/VBox/log-vbox.cpp=>VBox/log-vbox.c \
     ${PATH_ROOT}/src/VBox/Runtime/VBox/logbackdoor.cpp=>VBox/logbackdoor.c \
     ${PATH_OUT}/version-generated.h=>version-generated.h \
+    ${PATH_OUT}/product-generated.h=>product-generated.h \
     ${PATH_OUT}/revision-generated.h=>revision-generated.h \
 "
 

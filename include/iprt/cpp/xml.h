@@ -33,7 +33,7 @@
 #include <list>
 #include <memory>
 
-#include <iprt/cpp/ministring.h>
+#include <iprt/cpp/exception.h>
 
 /* Forwards */
 typedef struct _xmlParserInput xmlParserInput;
@@ -52,67 +52,23 @@ namespace xml
 // Exceptions
 //////////////////////////////////////////////////////////////////////////////
 
-/**
- * Base exception class.
- */
-class RT_DECL_CLASS Error : public std::exception
-{
-public:
-
-    Error(const char *pcszMessage)
-        : m_s(pcszMessage)
-    {
-    }
-
-    Error(const Error &s)
-        : std::exception(s),
-          m_s(s.what())
-    {
-    }
-
-    virtual ~Error() throw()
-    {
-    }
-
-    void operator=(const Error &s)
-    {
-        m_s = s.what();
-    }
-
-    void setWhat(const char *pcszMessage)
-    {
-        m_s = pcszMessage;
-    }
-
-    virtual const char* what() const throw()
-    {
-        return m_s.c_str();
-    }
-
-private:
-    // hide the default constructor to make sure the extended one above is always used
-    Error();
-
-    iprt::MiniString m_s;
-};
-
-class RT_DECL_CLASS LogicError : public Error
+class RT_DECL_CLASS LogicError : public iprt::Error
 {
 public:
 
     LogicError(const char *aMsg = NULL)
-        : xml::Error(aMsg)
+        : iprt::Error(aMsg)
     {}
 
     LogicError(RT_SRC_POS_DECL);
 };
 
-class RT_DECL_CLASS RuntimeError : public Error
+class RT_DECL_CLASS RuntimeError : public iprt::Error
 {
 public:
 
     RuntimeError(const char *aMsg = NULL)
-        : xml::Error(aMsg)
+        : iprt::Error(aMsg)
     {}
 };
 
@@ -172,7 +128,6 @@ public:
 private:
     int mRC;
 };
-
 
 /**
  * The Stream class is a base class for I/O streams.
@@ -405,26 +360,6 @@ private:
     struct Data *m;
 };
 
-/**
- * Node:
- *  an XML node, which represents either an element or text content
- *  or an attribute.
- *
- *  For elements, getName() returns the element name, and getValue()
- *  returns the text contents, if any.
- *
- *  For attributes, getName() returns the attribute name, and getValue()
- *  returns the attribute value, if any.
- *
- *  Since the default constructor is private, one can create new nodes
- *  only through factory methods provided by the XML classes. These are:
- *
- *  --  xml::Document::createRootElement()
- *  --  xml::Node::createChild()
- *  --  xml::Node::addContent()
- *  --  xml::Node::setAttribute()
- */
-
 class ElementNode;
 typedef std::list<const ElementNode*> ElementNodesList;
 
@@ -432,6 +367,10 @@ class AttributeNode;
 
 class ContentNode;
 
+/**
+ * Node base class. Cannot be used directly, but ElementNode, ContentNode and
+ * AttributeNode derive from this. This does implement useful public methods though.
+ */
 class RT_DECL_CLASS Node
 {
 public:
@@ -485,6 +424,18 @@ protected:
     friend class AttributeNode;
 };
 
+/**
+ *  Node subclass that represents an element.
+ *
+ *  For elements, Node::getName() returns the element name, and Node::getValue()
+ *  returns the text contents, if any.
+ *
+ *  Since the Node constructor is private, one can create element nodes
+ *  only through the following factory methods:
+ *
+ *  --  Document::createRootElement()
+ *  --  ElementNode::createChild()
+ */
 class RT_DECL_CLASS ElementNode : public Node
 {
 public:
@@ -502,6 +453,7 @@ public:
     const AttributeNode* findAttribute(const char *pcszMatch) const;
     bool getAttributeValue(const char *pcszMatch, const char *&ppcsz) const;
     bool getAttributeValue(const char *pcszMatch, iprt::MiniString &str) const;
+    bool getAttributeValuePath(const char *pcszMatch, iprt::MiniString &str) const;
     bool getAttributeValue(const char *pcszMatch, int32_t &i) const;
     bool getAttributeValue(const char *pcszMatch, uint32_t &i) const;
     bool getAttributeValue(const char *pcszMatch, int64_t &i) const;
@@ -521,6 +473,7 @@ public:
     {
         return setAttribute(pcszName, strValue.c_str());
     }
+    AttributeNode* setAttributePath(const char *pcszName, const iprt::MiniString &strValue);
     AttributeNode* setAttribute(const char *pcszName, int32_t i);
     AttributeNode* setAttribute(const char *pcszName, uint32_t i);
     AttributeNode* setAttribute(const char *pcszName, int64_t i);
@@ -540,6 +493,14 @@ protected:
     friend class XmlFileParser;
 };
 
+/**
+ * Node subclass that represents content (non-element text).
+ *
+ * Since the Node constructor is private, one can create new content nodes
+ * only through the following factory methods:
+ *
+ *  --  ElementNode::addContent()
+ */
 class RT_DECL_CLASS ContentNode : public Node
 {
 public:
@@ -553,6 +514,17 @@ protected:
     friend class ElementNode;
 };
 
+/**
+ * Node subclass that represents an attribute of an element.
+ *
+ * For attributes, Node::getName() returns the attribute name, and Node::getValue()
+ * returns the attribute value, if any.
+ *
+ * Since the Node constructor is private, one can create new attribute nodes
+ * only through the following factory methods:
+ *
+ *  --  ElementNode::setAttribute()
+ */
 class RT_DECL_CLASS AttributeNode : public Node
 {
 public:
@@ -571,11 +543,10 @@ protected:
     friend class ElementNode;
 };
 
-/*
- * NodesLoop
- *
+/**
+ * Handy helper class with which one can loop through all or some children
+ * of a particular element. See NodesLoop::forAllNodes() for details.
  */
-
 class RT_DECL_CLASS NodesLoop
 {
 public:
@@ -589,11 +560,31 @@ private:
     Data *m;
 };
 
-/*
- * Document
+/**
+ * The XML document class. An instance of this needs to be created by a user
+ * of the XML classes and then passed to
  *
+ * --   XmlMemParser or XmlFileParser to read an XML document; those classes then
+ *      fill the caller's Document with ElementNode, ContentNode and AttributeNode
+ *      instances. The typical sequence then is:
+ * @code
+    Document doc;
+    XmlFileParser parser;
+    parser.read("file.xml", doc);
+    Element *pelmRoot = doc.getRootElement();
+   @endcode
+ *
+ * --   XmlMemWriter or XmlFileWriter to write out an XML document after it has
+ *      been created and filled. Example:
+ *
+ * @code
+    Document doc;
+    Element *pelmRoot = doc.createRootElement();
+    // add children
+    xml::XmlFileWriter writer(doc);
+    writer.write("file.xml", true);
+   @endcode
  */
-
 class RT_DECL_CLASS Document
 {
 public:
@@ -609,7 +600,9 @@ public:
     ElementNode* createRootElement(const char *pcszRootElementName);
 
 private:
+    friend class XmlMemParser;
     friend class XmlFileParser;
+    friend class XmlMemWriter;
     friend class XmlFileWriter;
 
     void refreshInternals();
@@ -634,6 +627,20 @@ protected:
 };
 
 /*
+ * XmlMemParser
+ *
+ */
+
+class RT_DECL_CLASS XmlMemParser : public XmlParserBase
+{
+public:
+    XmlMemParser();
+    ~XmlMemParser();
+
+    void read(const void* pvBuf, size_t cbSize, const iprt::MiniString &strFilename, Document &doc);
+};
+
+/*
  * XmlFileParser
  *
  */
@@ -653,6 +660,23 @@ private:
 
     static int ReadCallback(void *aCtxt, char *aBuf, int aLen);
     static int CloseCallback (void *aCtxt);
+};
+
+/*
+ * XmlMemParser
+ *
+ */
+
+class RT_DECL_CLASS XmlMemWriter
+{
+public:
+    XmlMemWriter();
+    ~XmlMemWriter();
+
+    void write(const Document &doc, void** ppvBuf, size_t *pcbSize);
+
+private:
+    void* m_pBuf;
 };
 
 /*

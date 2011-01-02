@@ -1,4 +1,4 @@
-/* $Id: mpnotification-r0drv-linux.c $ */
+/* $Id: mpnotification-r0drv-linux.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor Event Notifications, Ring-0 Driver, Linux.
  */
@@ -113,7 +113,7 @@ static int rtMpNotificationLinuxCallback(struct notifier_block *pNotifierBlock, 
             break;
 
         /*
-         * Pick the earlies possible offline event.
+         * Pick the earliest possible offline event.
          * The only important thing here is that we get the event and that
          * it's exactly one.
          */

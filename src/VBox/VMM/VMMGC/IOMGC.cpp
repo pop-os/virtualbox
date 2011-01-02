@@ -1,4 +1,4 @@
-/* $Id: IOMGC.cpp $ */
+/* $Id: IOMGC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IOM - Input / Output Monitor - Guest Context.
  */
@@ -59,7 +59,7 @@
  * @retval  VINF_EM_RAW_GUEST_TRAP      The exception was left pending. (TRPMRaiseXcptErr)
  * @retval  VINF_TRPM_XCPT_DISPATCHED   The exception was raised and dispatched for raw-mode execution. (TRPMRaiseXcptErr)
  *
- * @param   pVM         The virtual machine (GC pointer ofcourse).
+ * @param   pVM         The virtual machine (GC pointer of course).
  * @param   pRegFrame   Pointer to CPUMCTXCORE guest registers structure.
  * @param   pCpu        Disassembler CPU state.
  */

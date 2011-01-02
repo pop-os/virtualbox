@@ -1,4 +1,4 @@
-/* $Id: mp-r0drv-freebsd.c $ */
+/* $Id: mp-r0drv-freebsd.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Multiprocessor, Ring-0 Driver, FreeBSD.
  */
@@ -160,7 +160,7 @@ static void rtmpOnOthersFreeBSDWrapper(void *pvArg)
 
 RTDECL(int) RTMpOnOthers(PFNRTMPWORKER pfnWorker, void *pvUser1, void *pvUser2)
 {
-    /* Will panic if no rendezvouing cpus, so check up front. */
+    /* Will panic if no rendezvousing cpus, so check up front. */
     if (RTMpGetOnlineCount() > 1)
     {
 #if  __FreeBSD_version >= 700000
@@ -208,7 +208,7 @@ RTDECL(int) RTMpOnSpecific(RTCPUID idCpu, PFNRTMPWORKER pfnWorker, void *pvUser1
 #endif
     RTMPARGS    Args;
 
-    /* Will panic if no rendezvouing cpus, so make sure the cpu is online. */
+    /* Will panic if no rendezvousing cpus, so make sure the cpu is online. */
     if (!RTMpIsCpuOnline(idCpu))
         return VERR_CPU_NOT_FOUND;
 
@@ -244,7 +244,7 @@ RTDECL(int) RTMpPokeCpu(RTCPUID idCpu)
 {
     cpumask_t   Mask;
 
-    /* Will panic if no rendezvouing cpus, so make sure the cpu is online. */
+    /* Will panic if no rendezvousing cpus, so make sure the cpu is online. */
     if (!RTMpIsCpuOnline(idCpu))
         return VERR_CPU_NOT_FOUND;
 

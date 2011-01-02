@@ -1,4 +1,4 @@
-/* $Id: UIFrameBufferQGL.cpp $ */
+/* $Id: UIFrameBufferQGL.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * VBoxFBQGL Opengl-based FrameBuffer implementation
  */

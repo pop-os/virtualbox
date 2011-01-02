@@ -1,4 +1,4 @@
-/* $Id: PATMSSM.cpp $ */
+/* $Id: PATMSSM.cpp 30575 2010-07-02 12:29:14Z vboxsync $ */
 /** @file
  * PATMSSM - Dynamic Guest OS Patching Manager; Save and load state
  *
@@ -32,7 +32,7 @@
 #include "PATMA.h"
 #include <VBox/vm.h>
 #include <VBox/csam.h>
-
+#include <include/internal/pgm.h>
 #include <VBox/dbg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -197,7 +197,7 @@ static SSMFIELD const g_aPatmPatchRecFields[] =
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uOldState),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.uOpMode),
     SSMFIELD_ENTRY_RCPTR(           PATMPATCHREC, patch.pPrivInstrGC),
-    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.pPrivInstrHC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.unusedHC),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.aPrivInstr),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cbPrivInstr),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.opcode),
@@ -218,10 +218,10 @@ static SSMFIELD const g_aPatmPatchRecFields[] =
     SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.Guest2PatchAddrTree),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.nrPatch2GuestRecs),
     SSMFIELD_ENTRY_PAD_HC64(        PATMPATCHREC, patch.Alignment1, sizeof(uint32_t)),
-    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.cacheRec.pPatchLocStartHC), // saved as zero
-    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.cacheRec.pPatchLocEndHC),   // ditto
-    SSMFIELD_ENTRY_IGN_RCPTR(       PATMPATCHREC, patch.cacheRec.pGuestLoc),        // ditto
-    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, patch.cacheRec.opsize),           // ditto
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.unused.pPatchLocStartHC), // saved as zero
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.unused.pPatchLocEndHC),   // ditto
+    SSMFIELD_ENTRY_IGN_RCPTR(       PATMPATCHREC, patch.unused.pGuestLoc),        // ditto
+    SSMFIELD_ENTRY_IGNORE(          PATMPATCHREC, patch.unused.opsize),           // ditto
     SSMFIELD_ENTRY_IGN_HCPTR(       PATMPATCHREC, patch.pTempInfo),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cCodeWrites),
     SSMFIELD_ENTRY(                 PATMPATCHREC, patch.cTraps),
@@ -410,12 +410,10 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
      * Reset HC pointers that need to be recalculated when loading the state
      */
     AssertMsg(patch.patch.uState == PATCH_REFUSED || (patch.patch.pPatchBlockOffset || (patch.patch.flags & (PATMFL_SYSENTER_XP|PATMFL_INT3_REPLACEMENT))),
-              ("State = %x pPrivInstrHC=%08x pPatchBlockHC=%08x flags=%x\n", patch.patch.uState, patch.patch.pPrivInstrHC, PATCHCODE_PTR_HC(&patch.patch), patch.patch.flags));
+              ("State = %x pPatchBlockHC=%08x flags=%x\n", patch.patch.uState, PATCHCODE_PTR_HC(&patch.patch), patch.patch.flags));
     Assert(pPatch->patch.JumpTree == 0);
     Assert(!pPatch->patch.pTempInfo || pPatch->patch.pTempInfo->DisasmJumpTree == 0);
     Assert(!pPatch->patch.pTempInfo || pPatch->patch.pTempInfo->IllegalInstrTree == 0);
-
-    memset(&patch.patch.cacheRec, 0, sizeof(patch.patch.cacheRec));
 
     /* Save the patch record itself */
     rc = SSMR3PutMem(pSSM, &patch, sizeof(patch));
@@ -427,7 +425,7 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
 #ifdef VBOX_STRICT
     uint32_t nrFixupRecs = 0;
     RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmCountLeafPV, &nrFixupRecs);
-    AssertMsg((int32_t)nrFixupRecs == pPatch->patch.nrFixups, ("Fixup inconsistency! counted %d vs %d\n", nrFixupRecs, pPatch->patch.nrFixups));
+    AssertMsg(nrFixupRecs == pPatch->patch.nrFixups, ("Fixup inconsistency! counted %d vs %d\n", nrFixupRecs, pPatch->patch.nrFixups));
 #endif
     RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmSaveFixupRecords, pVM);
 
@@ -522,11 +520,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     if (    uVersion != PATM_SSM_VERSION
         &&  uVersion != PATM_SSM_VERSION_FIXUP_HACK
         &&  uVersion != PATM_SSM_VERSION_VER16
-#ifdef PATM_WITH_NEW_SSM
-        &&  uVersion != PATM_SSM_VERSION_GETPUTMEM)
-#else
        )
-#endif
     {
         AssertMsgFailed(("patmR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -538,114 +532,9 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     /*
      * Restore PATM structure
      */
-#ifdef PATM_WITH_NEW_SSM
-    if (uVersion == PATM_SSM_VERSION_GETPUTMEM)
-    {
-#endif
-#if 0
-        rc = SSMR3GetMem(pSSM, &patmInfo, sizeof(patmInfo));
-#else
-        RT_ZERO(patmInfo);
-        rc = SSMR3GetStructEx(pSSM, &patmInfo, sizeof(patmInfo), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmFields[0], NULL);
-#endif
-        AssertRCReturn(rc, rc);
-
-#ifdef PATM_WITH_NEW_SSM
-    }
-    else
-    {
-        memset(&patmInfo, 0, sizeof(patmInfo));
-
-        AssertCompile(sizeof(patmInfo.pGCStateGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pGCStateGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pCPUMCtxGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pCPUMCtxGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pStatsGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pStatsGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pfnHelperCallGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pfnHelperCallGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pfnHelperRetGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pfnHelperRetGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pfnHelperJumpGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pfnHelperJumpGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pfnHelperIretGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pfnHelperIretGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pPatchMemGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pPatchMemGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.cbPatchMem) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &patmInfo.cbPatchMem);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.offPatchMem) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &patmInfo.offPatchMem);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.deltaReloc) == sizeof(int32_t));
-        rc = SSMR3GetS32(pSSM, &patmInfo.deltaReloc);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.uCurrentPatchIdx) == sizeof(uint32_t));
-        rc = SSMR3GetS32(pSSM, &patmInfo.uCurrentPatchIdx);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pPatchedInstrGCLowest) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pPatchedInstrGCLowest);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pPatchedInstrGCHighest) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pPatchedInstrGCHighest);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pfnSysEnterGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pfnSysEnterGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pfnSysEnterPatchGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pfnSysEnterPatchGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.uSysEnterPatchIdx) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &patmInfo.uSysEnterPatchIdx);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.ulCallDepth) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &patmInfo.ulCallDepth);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.pGCStackGC) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &patmInfo.pGCStackGC);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.cPageRecords) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &patmInfo.cPageRecords);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.fOutOfMemory) == sizeof(bool));
-        rc = SSMR3GetBool(pSSM, &patmInfo.fOutOfMemory);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(patmInfo.savedstate.cPatches) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &patmInfo.savedstate.cPatches);
-        AssertRCReturn(rc, rc);
-
-    }
-#endif
+    RT_ZERO(patmInfo);
+    rc = SSMR3GetStructEx(pSSM, &patmInfo, sizeof(patmInfo), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmFields[0], NULL);
+    AssertRCReturn(rc, rc);
 
     /* Relative calls are made to the helper functions. Therefor their relative location must not change! */
     /* Note: we reuse the saved global helpers and assume they are identical, which is kind of dangerous. */
@@ -697,90 +586,9 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     /*
      * Restore GC state memory
      */
-#ifdef PATM_WITH_NEW_SSM
-    if (uVersion == PATM_SSM_VERSION_GETPUTMEM)
-    {
-#endif
-#if 0
-        rc = SSMR3GetMem(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
-#else
-        RT_BZERO(pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
-        rc = SSMR3GetStructEx(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmGCStateFields[0], NULL);
-#endif
-        AssertRCReturn(rc, rc);
-#ifdef PATM_WITH_NEW_SSM
-    }
-    else
-    {
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uVMFlags) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uVMFlags);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uPendingAction) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uPendingAction);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uPatchCalls) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uPatchCalls);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uScratch) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uScratch);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uIretEFlags) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uIretEFlags);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uIretCS) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uIretCS);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->uIretEIP) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->uIretEIP);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->Psp) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->Psp);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->fPIF) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->fPIF);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->GCPtrInhibitInterrupts) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &pVM->patm.s.pGCStateHC->GCPtrInhibitInterrupts);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->GCCallPatchTargetAddr) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &pVM->patm.s.pGCStateHC->GCCallPatchTargetAddr);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->GCCallReturnAddr) == sizeof(RTRCPTR));
-        rc = SSMR3GetRCPtr(pSSM, &pVM->patm.s.pGCStateHC->GCCallReturnAddr);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->Restore.uEAX) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->Restore.uEAX);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->Restore.uECX) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->Restore.uECX);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->Restore.uEDI) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->Restore.uEDI);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->Restore.eFlags) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->Restore.eFlags);
-        AssertRCReturn(rc, rc);
-
-        AssertCompile(sizeof(pVM->patm.s.pGCStateHC->Restore.uFlags) == sizeof(uint32_t));
-        rc = SSMR3GetU32(pSSM, &pVM->patm.s.pGCStateHC->Restore.uFlags);
-        AssertRCReturn(rc, rc);
-    }
-#endif
+    RT_BZERO(pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
+    rc = SSMR3GetStructEx(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmGCStateFields[0], NULL);
+    AssertRCReturn(rc, rc);
 
     /*
      * Restore PATM stack page
@@ -791,16 +599,12 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     /*
      * Load all patches
      */
-    for (uint32_t i=0;i<patmInfo.savedstate.cPatches;i++)
+    for (unsigned i = 0; i < patmInfo.savedstate.cPatches; i++)
     {
         PATMPATCHREC patch, *pPatchRec;
 
-#if 0
-        rc = SSMR3GetMem(pSSM, &patch, sizeof(patch));
-#else
         RT_ZERO(patch);
         rc = SSMR3GetStructEx(pSSM, &patch, sizeof(patch), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmPatchRecFields[0], NULL);
-#endif
         AssertRCReturn(rc, rc);
 
         Assert(!(patch.patch.flags & PATMFL_GLOBAL_FUNCTIONS));
@@ -833,9 +637,11 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
         /* Set to zero as we don't need it anymore. */
         pPatchRec->patch.pTempInfo = 0;
 
-        pPatchRec->patch.pPrivInstrHC   = 0;
-        /* The GC virtual ptr is fixed, but we must convert it manually again to HC. */
-        int rc2 = rc = PGMPhysGCPtr2R3Ptr(VMMGetCpu0(pVM), pPatchRec->patch.pPrivInstrGC, (PRTR3PTR)&pPatchRec->patch.pPrivInstrHC);
+        PATMP2GLOOKUPREC cacheRec;
+        RT_ZERO(cacheRec);
+        cacheRec.pPatch = &pPatchRec->patch;
+
+        uint8_t *pPrivInstrHC = PATMGCVirtToHCVirt(pVM, &cacheRec, pPatchRec->patch.pPrivInstrGC);
         /* Can fail due to page or page table not present. */
 
         /*
@@ -843,48 +649,46 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
          */
         pPatchRec->patch.FixupTree = 0;
         pPatchRec->patch.nrFixups  = 0;    /* increased by patmPatchAddReloc32 */
-        for (int j=0;j<patch.patch.nrFixups;j++)
+        for (unsigned j = 0; j < patch.patch.nrFixups; j++)
         {
             RELOCREC rec;
             int32_t offset;
             RTRCPTR *pFixup;
 
-#if 0
-            rc = SSMR3GetMem(pSSM, &rec, sizeof(rec));
-#else
             RT_ZERO(rec);
             rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmRelocRec[0], NULL);
-#endif
             AssertRCReturn(rc, rc);
 
-            /* rec.pRelocPos now contains the relative position inside the hypervisor area. */
-            offset = (int32_t)(intptr_t)rec.pRelocPos;
-            /* Convert to HC pointer again. */
-            PATM_ADD_PTR(rec.pRelocPos, pVM->patm.s.pPatchMemHC);
-            pFixup = (RTRCPTR *)rec.pRelocPos;
-
-            if (pPatchRec->patch.uState != PATCH_REFUSED)
+            if (pPrivInstrHC)
             {
-                if (    rec.uType == FIXUP_REL_JMPTOPATCH
-                    &&  (pPatchRec->patch.flags & PATMFL_PATCHED_GUEST_CODE))
-                {
-                    Assert(pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32 || pPatchRec->patch.cbPatchJump == SIZEOF_NEAR_COND_JUMP32);
-                    unsigned offset2 = (pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32) ? 1 : 2;
+                /* rec.pRelocPos now contains the relative position inside the hypervisor area. */
+                offset = (int32_t)(intptr_t)rec.pRelocPos;
+                /* Convert to HC pointer again. */
+                PATM_ADD_PTR(rec.pRelocPos, pVM->patm.s.pPatchMemHC);
+                pFixup = (RTRCPTR *)rec.pRelocPos;
 
-                    /** @todo This will fail & crash in patmCorrectFixup if the page isn't present
-                     *        when we restore. Happens with my XP image here
-                     *        (pPrivInstrGC=0x8069e051). */
-                    AssertLogRelMsg(pPatchRec->patch.pPrivInstrHC, ("%RRv rc=%Rrc uState=%u\n", pPatchRec->patch.pPrivInstrGC, rc2, pPatchRec->patch.uState));
-                    rec.pRelocPos = pPatchRec->patch.pPrivInstrHC + offset2;
-                    pFixup        = (RTRCPTR *)rec.pRelocPos;
+                if (pPatchRec->patch.uState != PATCH_REFUSED)
+                {
+                    if (    rec.uType == FIXUP_REL_JMPTOPATCH
+                        &&  (pPatchRec->patch.flags & PATMFL_PATCHED_GUEST_CODE))
+                    {
+                        Assert(pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32 || pPatchRec->patch.cbPatchJump == SIZEOF_NEAR_COND_JUMP32);
+                        unsigned offset2 = (pPatchRec->patch.cbPatchJump == SIZEOF_NEARJUMP32) ? 1 : 2;
+
+                        rec.pRelocPos = pPrivInstrHC + offset2;
+                        pFixup        = (RTRCPTR *)rec.pRelocPos;
+                    }
+
+                    patmCorrectFixup(pVM, uVersion, patmInfo, &pPatchRec->patch, &rec, offset, pFixup);
                 }
 
-                patmCorrectFixup(pVM, uVersion, patmInfo, &pPatchRec->patch, &rec, offset, pFixup);
+                rc = patmPatchAddReloc32(pVM, &pPatchRec->patch, rec.pRelocPos, rec.uType, rec.pSource, rec.pDest);
+                AssertRCReturn(rc, rc);
             }
-
-            rc = patmPatchAddReloc32(pVM, &pPatchRec->patch, rec.pRelocPos, rec.uType, rec.pSource, rec.pDest);
-            AssertRCReturn(rc, rc);
         }
+        /* Release previous lock if any. */
+        if (cacheRec.Lock.pvMap)
+            PGMPhysReleasePageMappingLock(pVM, &cacheRec.Lock);
 
         /* And all patch to guest lookup records */
         Assert(pPatchRec->patch.nrPatch2GuestRecs || pPatchRec->patch.uState == PATCH_REFUSED || (pPatchRec->patch.flags & (PATMFL_SYSENTER_XP | PATMFL_IDTHANDLER | PATMFL_TRAPHANDLER | PATMFL_INT3_REPLACEMENT)));
@@ -899,13 +703,8 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
             pPatchRec->patch.nrPatch2GuestRecs = 0;    /* incremented by patmr3AddP2GLookupRecord */
             for (uint32_t j=0;j<nrPatch2GuestRecs;j++)
             {
-#if 0
-                rc = SSMR3GetMem(pSSM, &rec, sizeof(rec));
-#else
                 RT_ZERO(rec);
                 rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmRecPatchToGuest[0], NULL);
-#endif
-
                 AssertRCReturn(rc, rc);
 
                 patmr3AddP2GLookupRecord(pVM, &pPatchRec->patch, (uintptr_t)rec.Core.Key + pVM->patm.s.pPatchMemHC, rec.pOrgInstrGC, rec.enmType, rec.fDirty);
@@ -932,7 +731,13 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
             pPatchRec->patch.pTempInfo = NULL;
         }
 #endif
-
+        /* Remove the patch in case the gc mapping is not present. */
+        if (    !pPrivInstrHC
+            &&  pPatchRec->patch.uState == PATCH_ENABLED)
+        {
+            Log(("Remove patch %RGv due to failed HC address translation\n", pPatchRec->patch.pPrivInstrGC));
+            PATMR3RemovePatch(pVM, pPatchRec->patch.pPrivInstrGC);
+        }
     }
 
     /*
@@ -1288,14 +1093,10 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
                 AssertRC(rc);
             }
             else
-            {
                 AssertMsgFailed(("Unexpected error %d from MMR3PhysReadGCVirt\n", rc));
-            }
         }
         else
-        {
-            Log(("Skip the guest jump to patch code for this disabled patch %08X - %08X\n", pPatch->pPrivInstrHC, pRec->pRelocPos));
-        }
+            Log(("Skip the guest jump to patch code for this disabled patch %08X\n", pRec->pRelocPos));
 
         pRec->pDest = pTarget;
         break;

@@ -66,7 +66,7 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
-#include <VBox/VRDPAuth.h>
+#include <VBox/VBoxAuth.h>
 #include <VBox/version.h>
 
 #include <iprt/assert.h>
@@ -568,6 +568,15 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:value-of select="concat('    IUnknown *tmpObject2(tmpObject); tmpObject2->AddRef(); comcall_', $name, '[i] = tmpObject;')" />
         </xsl:when>
+        <xsl:when test="//interface[@name=$type]">
+          <xsl:value-of select="concat('    ComPtr&lt;', $type, '&gt; tmpObject;')" />
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:value-of select="concat('    if ((rc = findComPtrFromId(soap, ', $structprefix, $name, '[i], tmpObject, true)))')" />
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:text>        break;</xsl:text>
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:value-of select="concat('    ', $type, ' *tmpObject2(tmpObject); tmpObject2->AddRef(); comcall_', $name, '[i] = tmpObject;')" />
+        </xsl:when>
         <xsl:when test="$type='wstring'">
           <xsl:value-of select="concat('    com::Bstr tmpObject(', $structprefix, $name, '[i].c_str());')" />
           <xsl:call-template name="emitNewlineIndent8" />
@@ -582,6 +591,14 @@ const char *g_pcszIUnknown = "IUnknown";
           <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
         </xsl:when>
         <xsl:when test="$type='boolean'">
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
+        </xsl:when>
+        <xsl:when test="//enum[@name=$type]">
+          <xsl:call-template name="emitNewlineIndent8" />
+          <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $G_funcPrefixInputEnumConverter, $type, '(', $structprefix, $name, '[i]);')" />
+        </xsl:when>
+         <xsl:when test="$type='octet'">
           <xsl:call-template name="emitNewlineIndent8" />
           <xsl:value-of select="concat('    comcall_', $name, '[i] = ', $structprefix, $name, '[i];')" />
         </xsl:when>
@@ -755,6 +772,9 @@ const char *g_pcszIUnknown = "IUnknown";
     <xsl:choose>
       <xsl:when test="$attrdir='in'">
         <xsl:value-of select="concat('comcall_', $varprefix, @name)" />
+        <xsl:if test="$attrtype='wstring' or $attrtype='uuid'">
+          <xsl:text>.raw()</xsl:text>
+        </xsl:if>
       </xsl:when>
       <xsl:when test="$attrdir='return'">
         <xsl:call-template name="emitOutParam">
@@ -783,6 +803,9 @@ const char *g_pcszIUnknown = "IUnknown";
           </xsl:when>
           <xsl:otherwise>
             <xsl:value-of select="concat('comcall_', $varprefix, @name)" />
+            <xsl:if test="@type='wstring' or @type='uuid'">
+              <xsl:text>.raw()</xsl:text>
+            </xsl:if>
           </xsl:otherwise>
         </xsl:choose>
       </xsl:when>

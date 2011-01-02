@@ -1,4 +1,4 @@
-/* $Id: req.cpp $ */
+/* $Id: req.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
  * IPRT - Request packets
  */
@@ -49,7 +49,7 @@ static int  rtReqProcessOne(PRTREQ pReq);
 
 
 /**
- * Create a request packet queueu
+ * Create a request packet queue
  *
  * @returns iprt status code.
  * @param   ppQueue         Where to store the request queue pointer.
@@ -73,7 +73,7 @@ RT_EXPORT_SYMBOL(RTReqCreateQueue);
 
 
 /**
- * Destroy a request packet queueu
+ * Destroy a request packet queue
  *
  * @returns iprt status code.
  * @param   pQueue          The request queue.
@@ -119,7 +119,7 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, RTMSINTERVAL cMillies)
     /*
      * Process loop.
      *
-     * We do not repeat the outer loop if we've got an informationtional status code
+     * We do not repeat the outer loop if we've got an informational status code
      * since that code needs processing by our caller.
      */
     int rc = VINF_SUCCESS;
@@ -128,7 +128,7 @@ RTDECL(int) RTReqProcess(PRTREQQUEUE pQueue, RTMSINTERVAL cMillies)
         /*
          * Get pending requests.
          */
-        PRTREQ pReqs = (PRTREQ)ASMAtomicXchgPtr((void * volatile *)&pQueue->pReqs, NULL);
+        PRTREQ pReqs = ASMAtomicXchgPtrT(&pQueue->pReqs, NULL, PRTREQ);
         if (!pReqs)
         {
             ASMAtomicWriteBool(&pQueue->fBusy, false); /* this aint 100% perfect, but it's good enough for now... */
@@ -186,7 +186,7 @@ RT_EXPORT_SYMBOL(RTReqProcess);
  * Allocate and queue a call request.
  *
  * If it's desired to poll on the completion of the request set cMillies
- * to 0 and use RTReqWait() to check for completation. In the other case
+ * to 0 and use RTReqWait() to check for completion. In the other case
  * use RT_INDEFINITE_WAIT.
  * The returned request packet must be freed using RTReqFree().
  *
@@ -221,7 +221,7 @@ RT_EXPORT_SYMBOL(RTReqCall);
  * Allocate and queue a call request to a void function.
  *
  * If it's desired to poll on the completion of the request set cMillies
- * to 0 and use RTReqWait() to check for completation. In the other case
+ * to 0 and use RTReqWait() to check for completion. In the other case
  * use RT_INDEFINITE_WAIT.
  * The returned request packet must be freed using RTReqFree().
  *
@@ -231,7 +231,7 @@ RT_EXPORT_SYMBOL(RTReqCall);
  *
  * @param   pQueue          The request queue.
  * @param   ppReq           Where to store the pointer to the request.
- *                          This will be NULL or a valid request pointer not matter what happends.
+ *                          This will be NULL or a valid request pointer not matter what happens.
  * @param   cMillies        Number of milliseconds to wait for the request to
  *                          be completed. Use RT_INDEFINITE_WAIT to only
  *                          wait till it's completed.
@@ -256,7 +256,7 @@ RT_EXPORT_SYMBOL(RTReqCallVoid);
  * Allocate and queue a call request to a void function.
  *
  * If it's desired to poll on the completion of the request set cMillies
- * to 0 and use RTReqWait() to check for completation. In the other case
+ * to 0 and use RTReqWait() to check for completion. In the other case
  * use RT_INDEFINITE_WAIT.
  * The returned request packet must be freed using RTReqFree().
  *
@@ -266,7 +266,7 @@ RT_EXPORT_SYMBOL(RTReqCallVoid);
  *
  * @param   pQueue          The request queue.
  * @param   ppReq           Where to store the pointer to the request.
- *                          This will be NULL or a valid request pointer not matter what happends, unless fFlags
+ *                          This will be NULL or a valid request pointer not matter what happens, unless fFlags
  *                          contains RTREQFLAGS_NO_WAIT when it will be optional and always NULL.
  * @param   cMillies        Number of milliseconds to wait for the request to
  *                          be completed. Use RT_INDEFINITE_WAIT to only
@@ -293,7 +293,7 @@ RT_EXPORT_SYMBOL(RTReqCallEx);
  * Allocate and queue a call request.
  *
  * If it's desired to poll on the completion of the request set cMillies
- * to 0 and use RTReqWait() to check for completation. In the other case
+ * to 0 and use RTReqWait() to check for completion. In the other case
  * use RT_INDEFINITE_WAIT.
  * The returned request packet must be freed using RTReqFree().
  *
@@ -303,7 +303,7 @@ RT_EXPORT_SYMBOL(RTReqCallEx);
  *
  * @param   pQueue          The request queue.
  * @param   ppReq           Where to store the pointer to the request.
- *                          This will be NULL or a valid request pointer not matter what happends, unless fFlags
+ *                          This will be NULL or a valid request pointer not matter what happens, unless fFlags
  *                          contains RTREQFLAGS_NO_WAIT when it will be optional and always NULL.
  * @param   cMillies        Number of milliseconds to wait for the request to
  *                          be completed. Use RT_INDEFINITE_WAIT to only
@@ -392,17 +392,17 @@ static void vmr3ReqJoinFreeSub(volatile PRTREQ *ppHead, PRTREQ pList)
 {
     for (unsigned cIterations = 0;; cIterations++)
     {
-        PRTREQ pHead = (PRTREQ)ASMAtomicXchgPtr((void * volatile *)ppHead, pList);
+        PRTREQ pHead = ASMAtomicXchgPtrT(ppHead, pList, PRTREQ);
         if (!pHead)
             return;
         PRTREQ pTail = pHead;
         while (pTail->pNext)
             pTail = pTail->pNext;
         pTail->pNext = pList;
-        if (ASMAtomicCmpXchgPtr((void * volatile *)ppHead, (void *)pHead, pList))
+        if (ASMAtomicCmpXchgPtr(ppHead, pHead, pList))
             return;
         pTail->pNext = NULL;
-        if (ASMAtomicCmpXchgPtr((void * volatile *)ppHead, (void *)pHead, NULL))
+        if (ASMAtomicCmpXchgPtr(ppHead, pHead, NULL))
             return;
         pList = pHead;
         Assert(cIterations != 32);
@@ -459,7 +459,7 @@ RTDECL(int) RTReqAlloc(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTREQTYPE enmType)
     if (    enmType < RTREQTYPE_INVALID
         ||  enmType > RTREQTYPE_MAX)
     {
-        AssertMsgFailed(("Invalid package type %d valid range %d-%d inclusivly.\n",
+        AssertMsgFailed(("Invalid package type %d valid range %d-%d inclusively.\n",
                          enmType, RTREQTYPE_INVALID + 1, RTREQTYPE_MAX - 1));
         return VERR_RT_REQUEST_INVALID_TYPE;
     }
@@ -477,20 +477,20 @@ RTDECL(int) RTReqAlloc(PRTREQQUEUE pQueue, PRTREQ *ppReq, RTREQTYPE enmType)
         PRTREQ pNext = NULL;
         PRTREQ pReq = *ppHead;
         if (    pReq
-            &&  !ASMAtomicCmpXchgPtr((void * volatile *)ppHead, (pNext = pReq->pNext), pReq)
+            &&  !ASMAtomicCmpXchgPtr(ppHead, (pNext = pReq->pNext), pReq)
             &&  (pReq = *ppHead)
-            &&  !ASMAtomicCmpXchgPtr((void * volatile *)ppHead, (pNext = pReq->pNext), pReq))
+            &&  !ASMAtomicCmpXchgPtr(ppHead, (pNext = pReq->pNext), pReq))
             pReq = NULL;
         if (pReq)
         {
             Assert(pReq->pNext == pNext); NOREF(pReq);
 #else
-        PRTREQ pReq = (PRTREQ)ASMAtomicXchgPtr((void * volatile *)ppHead, NULL);
+        PRTREQ pReq = ASMAtomicXchgPtrT(ppHead, NULL, PRTREQ);
         if (pReq)
         {
             PRTREQ pNext = pReq->pNext;
             if (    pNext
-                &&  !ASMAtomicCmpXchgPtr((void * volatile *)ppHead, pNext, NULL))
+                &&  !ASMAtomicCmpXchgPtr(ppHead, pNext, NULL))
             {
                 vmr3ReqJoinFree(pQueue, pReq->pNext);
             }
@@ -620,8 +620,8 @@ RTDECL(int) RTReqFree(PRTREQ pReq)
         do
         {
             pNext = *ppHead;
-            ASMAtomicXchgPtr((void * volatile *)&pReq->pNext, pNext);
-        } while (!ASMAtomicCmpXchgPtr((void * volatile *)ppHead, (void *)pReq, (void *)pNext));
+            ASMAtomicWritePtr(&pReq->pNext, pNext);
+        } while (!ASMAtomicCmpXchgPtr(ppHead, pReq, pNext));
     }
     else
     {
@@ -638,8 +638,8 @@ RT_EXPORT_SYMBOL(RTReqFree);
  *
  * The quest must be allocated using RTReqAlloc() and contain
  * all the required data.
- * If it's disired to poll on the completion of the request set cMillies
- * to 0 and use RTReqWait() to check for completation. In the other case
+ * If it's desired to poll on the completion of the request set cMillies
+ * to 0 and use RTReqWait() to check for completion. In the other case
  * use RT_INDEFINITE_WAIT.
  *
  * @returns iprt status code.
@@ -672,7 +672,7 @@ RTDECL(int) RTReqQueue(PRTREQ pReq, RTMSINTERVAL cMillies)
     if (    pReq->enmType < RTREQTYPE_INVALID
         || pReq->enmType > RTREQTYPE_MAX)
     {
-        AssertMsgFailed(("Invalid package type %d valid range %d-%d inclusivly. This was verified on alloc too...\n",
+        AssertMsgFailed(("Invalid package type %d valid range %d-%d inclusively. This was verified on alloc too...\n",
                          pReq->enmType, RTREQTYPE_INVALID + 1, RTREQTYPE_MAX - 1));
         return VERR_RT_REQUEST_INVALID_TYPE;
     }
@@ -690,7 +690,7 @@ RTDECL(int) RTReqQueue(PRTREQ pReq, RTMSINTERVAL cMillies)
         pNext = pQueue->pReqs;
         pReq->pNext = pNext;
         ASMAtomicWriteBool(&pQueue->fBusy, true);
-    } while (!ASMAtomicCmpXchgPtr((void * volatile *)&pQueue->pReqs, (void *)pReq, (void *)pNext));
+    } while (!ASMAtomicCmpXchgPtr(&pQueue->pReqs, pReq, pNext));
 
     /*
      * Notify queue thread.
@@ -742,7 +742,7 @@ RTDECL(int) RTReqWait(PRTREQ pReq, RTMSINTERVAL cMillies)
     if (    pReq->enmType < RTREQTYPE_INVALID
         ||  pReq->enmType > RTREQTYPE_MAX)
     {
-        AssertMsgFailed(("Invalid package type %d valid range %d-%d inclusivly. This was verified on alloc and queue too...\n",
+        AssertMsgFailed(("Invalid package type %d valid range %d-%d inclusively. This was verified on alloc and queue too...\n",
                          pReq->enmType, RTREQTYPE_INVALID + 1, RTREQTYPE_MAX - 1));
         return VERR_RT_REQUEST_INVALID_TYPE;
     }
@@ -930,7 +930,7 @@ RTDECL(bool) RTReqIsBusy(PRTREQQUEUE pQueue)
 
     if (ASMAtomicReadBool(&pQueue->fBusy))
         return true;
-    if (ASMAtomicReadPtr((void * volatile *)&pQueue->pReqs) != NULL)
+    if (ASMAtomicReadPtrT(&pQueue->pReqs, PRTREQ) != NULL)
         return true;
     if (ASMAtomicReadBool(&pQueue->fBusy))
         return true;

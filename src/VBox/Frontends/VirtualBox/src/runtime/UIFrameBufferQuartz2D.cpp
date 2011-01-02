@@ -1,4 +1,4 @@
-/* $Id: UIFrameBufferQuartz2D.cpp $ */
+/* $Id: UIFrameBufferQuartz2D.cpp 35281 2010-12-21 17:08:46Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -91,7 +91,7 @@ STDMETHODIMP UIFrameBufferQuartz2D::SetVisibleRegion(BYTE *aRectangles, ULONG aC
      * execution waiting for a lock is out of the question. A quick solution using
      * ASMAtomic(Cmp)XchgPtr and a struct { cAllocated; cRects; aRects[1]; }
      * *mRegion, *mUnusedRegion; should suffice (and permit you to reuse allocations). */
-    RegionRects *rgnRcts = (RegionRects *)ASMAtomicXchgPtr((void * volatile *) &mRegionUnused, NULL);
+    RegionRects *rgnRcts = ASMAtomicXchgPtrT(&mRegionUnused, NULL, RegionRects *);
     if (rgnRcts && rgnRcts->allocated < aCount)
     {
         RTMemFree (rgnRcts);
@@ -142,10 +142,10 @@ STDMETHODIMP UIFrameBufferQuartz2D::SetVisibleRegion(BYTE *aRectangles, ULONG aC
     }
 //    printf ("..................................\n");
 
-    void *pvOld = ASMAtomicXchgPtr((void * volatile *)&mRegion, rgnRcts);
-    if (    pvOld
-        &&  !ASMAtomicCmpXchgPtr((void * volatile *)&mRegionUnused, pvOld, NULL))
-        RTMemFree (pvOld);
+    RegionRects *pOld = ASMAtomicXchgPtrT(&mRegion, rgnRcts, RegionRects *);
+    if (    pOld
+        &&  !ASMAtomicCmpXchgPtr(&mRegionUnused, pOld, NULL))
+        RTMemFree(pOld);
 
     QApplication::postEvent(m_pMachineView, new UISetRegionEvent (reg));
 
@@ -157,7 +157,6 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
     /* For debugging /Developer/Applications/Performance Tools/Quartz
      * Debug.app is a nice tool to see which parts of the screen are
      * updated.*/
-
     Assert(m_image);
 
     QWidget* viewport = m_pMachineView->viewport();
@@ -166,7 +165,7 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
     CGRect viewRect = ::darwinToCGRect(viewport->geometry());
     /* Get the context of this window from Qt */
     CGContextRef ctx = ::darwinToCGContextRef(viewport);
-    Assert(VALID_PTR (ctx));
+    Assert(VALID_PTR(ctx));
 
     /* Flip the context */
     CGContextTranslateCTM(ctx, 0, viewRect.size.height);
@@ -184,11 +183,11 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
         if (!m_pMachineView->pauseShot().isNull())
         {
             CGImageRef pauseImg = ::darwinToCGImageRef(&m_pMachineView->pauseShot());
-            subImage = CGImageCreateWithImageInRect(pauseImg, CGRectMake (m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
+            subImage = CGImageCreateWithImageInRect(pauseImg, CGRectMake(m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
             CGImageRelease(pauseImg);
         }
         else
-            subImage = CGImageCreateWithImageInRect(m_image, CGRectMake (m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
+            subImage = CGImageCreateWithImageInRect(m_image, CGRectMake(m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
         Assert(VALID_PTR(subImage));
         /* Clear the background (Make the rect fully transparent) */
         CGContextClearRect(ctx, viewRect);
@@ -202,7 +201,7 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
         CGContextBeginTransparencyLayer(ctx, NULL);
 #endif
         /* Grab the current visible region. */
-        RegionRects *rgnRcts = (RegionRects *)ASMAtomicXchgPtr((void * volatile *)&mRegion, NULL);
+        RegionRects *rgnRcts = ASMAtomicXchgPtrT(&mRegion, NULL, RegionRects *);
         if (rgnRcts)
         {
             if (rgnRcts->used > 0)
@@ -215,8 +214,8 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
                 CGContextClip(ctx);
             }
             /* Put back the visible region, free if we cannot (2+ SetVisibleRegion calls). */
-            if (    !ASMAtomicCmpXchgPtr((void * volatile *)&mRegion, rgnRcts, NULL)
-                &&  !ASMAtomicCmpXchgPtr((void * volatile *)&mRegionUnused, rgnRcts, NULL))
+            if (    !ASMAtomicCmpXchgPtr(&mRegion, rgnRcts, NULL)
+                &&  !ASMAtomicCmpXchgPtr(&mRegionUnused, rgnRcts, NULL))
                 RTMemFree(rgnRcts);
         }
         /* In any case clip the drawing to the view window */
@@ -239,6 +238,80 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
         CGContextStrokeRect(ctx, viewRect);
 #endif
     }
+    else if (   m_pMachineLogic->visualStateType() == UIVisualStateType_Scale
+             && m_scaledSize.isValid())
+    {
+        /* Here we paint if we didn't care about any masks */
+
+        /* Create a subimage of the current view in the size
+         * of the bounding box of the current paint event */
+        CGRect ir = ::darwinToCGRect(aEvent->rect());
+        CGRect is = CGRectMake(CGRectGetMinX(ir), CGRectGetMinY(ir), CGRectGetWidth(ir), CGRectGetHeight(ir));
+
+        double iw = 1.0;
+        double ih = 1.0;
+        CGImageRef subImage = 0;
+        if (!m_pMachineView->pauseShot().isNull())
+        {
+            /* The pause image is already scaled. Maybe we should change that,
+             * to have a more uniform behavior and the different
+             * implementations use there own scaling algorithm. */
+            CGImageRef pauseImg = ::darwinToCGImageRef(&m_pMachineView->pauseShot());
+            subImage = CGImageCreateWithImageInRect(pauseImg, is);
+            CGImageRelease(pauseImg);
+        }
+        else
+        {
+            /* Scale all values needed for the image drawing. */
+            iw = (double)CGImageGetWidth(m_image) / m_scaledSize.width();
+            ih = (double)CGImageGetHeight(m_image) / m_scaledSize.height();
+            /* We make sure the image is always bigger than requested to
+             * compensate rounding errors. */
+            /* Round down */
+            is.origin.x = (int)(is.origin.x * iw);
+            is.origin.y = (int)(is.origin.y * ih);
+            /* Round up */
+            is.size.width = (int)(is.size.width * iw) + 2;
+            is.size.height = (int)(is.size.height * ih) + 2;
+            /* Make sure the size is within the image boundaries */
+            CGRect is1 = CGRectIntersection(is, CGRectMake(0, 0, CGImageGetWidth(m_image), CGImageGetHeight(m_image)));
+            /* Cause we probably changed the rectangle to update in the origin
+             * coordinate system, we have to recalculate the update rectangle
+             * for the screen coordinates as well. Please note that this has to
+             * be in double precision. */
+            ir.origin.x = is1.origin.x / iw;
+            ir.origin.y = is1.origin.y / ih;
+            ir.size.width = is1.size.width / iw;
+            ir.size.height = is1.size.height / ih;
+            /* Create the sub image. Note: The copy step is necessary otherwise
+             * strange things happens especially on Snow Leopard. No idea why. */
+            CGImageRef tmpImage = CGImageCreateWithImageInRect(m_image, is1);
+            subImage = CGImageCreateCopy(tmpImage);
+            CGImageRelease(tmpImage);
+        }
+        if (subImage)
+        {
+            /* For more performance we set a clipping path of the regions given
+             * by this paint event. */
+            QVector<QRect> a = aEvent->region().rects();
+            if (!a.isEmpty())
+            {
+                CGContextBeginPath(ctx);
+                /* Add all region rects to the current context as path components */
+                for (int i = 0; i < a.size(); ++i)
+                    CGContextAddRect(ctx, ::darwinFlipCGRect(::darwinToCGRect(a.at(i)), CGRectGetHeight(viewRect)));
+                /* Now convert the path to a clipping path. */
+                CGContextClip(ctx);
+            }
+            /* In any case clip the drawing to the view window */
+            CGContextClipToRect(ctx, viewRect);
+            /* Turn the high interpolation quality on. */
+            CGContextSetInterpolationQuality(ctx, kCGInterpolationHigh);
+            /* Draw the image. */
+            CGContextDrawImage(ctx, ::darwinFlipCGRect(ir, CGRectGetHeight(viewRect)), subImage);
+            CGImageRelease(subImage);
+        }
+    }
     else
     {
         /* Here we paint if we didn't care about any masks */
@@ -246,8 +319,8 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
         /* Create a subimage of the current view in the size
          * of the bounding box of the current paint event */
         QRect ir = aEvent->rect();
-        QRect is = QRect (ir.x() + m_pMachineView->contentsX(), ir.y() + m_pMachineView->contentsY(), ir.width(), ir.height());
-        CGImageRef subImage;
+        QRect is = QRect(ir.x() + m_pMachineView->contentsX(), ir.y() + m_pMachineView->contentsY(), ir.width(), ir.height());
+        CGImageRef subImage = 0;
         if (!m_pMachineView->pauseShot().isNull())
         {
             CGImageRef pauseImg = ::darwinToCGImageRef(&m_pMachineView->pauseShot());
@@ -256,26 +329,28 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
         }
         else
             subImage = CGImageCreateWithImageInRect(m_image, ::darwinToCGRect(is));
-        Assert(VALID_PTR(subImage));
-        /* Ok, for more performance we set a clipping path of the
-         * regions given by this paint event. */
-        QVector<QRect> a = aEvent->region().rects();
-        if (!a.isEmpty())
+        if (subImage)
         {
-            CGContextBeginPath (ctx);
-            /* Add all region rects to the current context as path components */
-            for (int i = 0; i < a.size(); ++i)
-                CGContextAddRect(ctx, ::darwinFlipCGRect(::darwinToCGRect(a[i]), viewRect.size.height));
-            /* Now convert the path to a clipping path. */
-            CGContextClip(ctx);
+            /* Ok, for more performance we set a clipping path of the
+             * regions given by this paint event. */
+            QVector<QRect> a = aEvent->region().rects();
+            if (!a.isEmpty())
+            {
+                CGContextBeginPath (ctx);
+                /* Add all region rects to the current context as path components */
+                for (int i = 0; i < a.size(); ++i)
+                    CGContextAddRect(ctx, ::darwinFlipCGRect(::darwinToCGRect(a[i]), viewRect.size.height));
+                /* Now convert the path to a clipping path. */
+                CGContextClip(ctx);
+            }
+
+            /* In any case clip the drawing to the view window */
+            CGContextClipToRect(ctx, viewRect);
+
+            /* At this point draw the real vm image */
+            CGContextDrawImage(ctx, ::darwinFlipCGRect(::darwinToCGRect(ir), viewRect.size.height), subImage);
+            CGImageRelease(subImage);
         }
-
-        /* In any case clip the drawing to the view window */
-        CGContextClipToRect(ctx, viewRect);
-        /* At this point draw the real vm image */
-        CGContextDrawImage(ctx, ::darwinFlipCGRect(::darwinToCGRect (ir), viewRect.size.height), subImage);
-
-        CGImageRelease(subImage);
     }
 }
 
@@ -306,7 +381,7 @@ void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
     {
 //        printf ("VRAM\n");
         /* Create the image copy of the framebuffer */
-        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, aEvent->VRAM(), aEvent->bitsPerPixel() / 8 * m_width * m_height, NULL);
+        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, aEvent->VRAM(), aEvent->bytesPerLine() * m_height, NULL);
         m_image = CGImageCreate(m_width, m_height, 8, aEvent->bitsPerPixel(), aEvent->bytesPerLine(), cs,
                                 kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,
                                 kCGRenderingIntentDefault);
@@ -337,20 +412,7 @@ void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
 #endif
 
 //    if (remind)
-//    {
-//        class RemindEvent : public VBoxAsyncEvent
-//        {
-//            ulong mRealBPP;
-//        public:
-//            RemindEvent (ulong aRealBPP)
-//                : mRealBPP (aRealBPP) {}
-//            void handle()
-//            {
-//                vboxProblem().remindAboutWrongColorDepth (mRealBPP, 32);
-//            }
-//        };
-//        (new RemindEvent (aEvent->bitsPerPixel()))->post();
-//    }
+//        vboxProblem().remindAboutWrongColorDepth(aEvent->bitsPerPixel(), 32);
 }
 
 void UIFrameBufferQuartz2D::clean()
@@ -376,6 +438,16 @@ void UIFrameBufferQuartz2D::clean()
         mRegionUnused = NULL;
     }
 }
+
+#ifdef VBOX_WITH_VIDEOHWACCEL
+void UIFrameBufferQuartz2D::setView(UIMachineView *pView)
+{
+    if (pView)
+        m_pMachineLogic = pView->machineLogic();
+
+    UIFrameBuffer::setView(pView);
+}
+#endif
 
 #endif /* defined (VBOX_GUI_USE_QUARTZ2D) */
 

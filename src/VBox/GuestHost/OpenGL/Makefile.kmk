@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 35152 2010-12-15 16:45:42Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest/Host OpenGL part
 #
@@ -40,6 +40,9 @@ endif
 # VBoxOGLcrutil
 #
 VBoxOGLcrutil_TEMPLATE      = VBOXCROGLR3GUESTDLL
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ VBoxOGLcrutil_NOINST.win.x86 = true
+endif
 VBoxOGLcrutil_SDKS.win      = DXSDK
 VBoxOGLcrutil_INTERMEDIATES = $(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
@@ -81,9 +84,13 @@ VBoxOGLcrutil_LIBS.win = \
 	$(PATH_SDK_DXSDK_LIB)/ddraw.lib \
 	$(PATH_SDK_DXSDK_LIB)/dxguid.lib
 VBoxOGLcrutil_LIBS = \
-	$(VBOX_LIB_IPRT_GUEST_R3) \
+	$(VBOX_LIB_IPRT_GUEST_R3_SHARED) \
 	$(VBOX_LIB_VBGL_R3_SHARED) \
-	$(VBOX_LIB_IPRT_GUEST_R3)
+	$(VBOX_LIB_IPRT_GUEST_R3_SHARED)
+ifdef VBOX_WITH_CRHGSMI
+VBoxOGLcrutil_DEFS.win.x86    += VBOX_WITH_CRHGSMI
+VBoxOGLcrutil_LIBS.win.x86    += $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB)
+endif
 VBoxOGLcrutil_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/debug_opcodes.c
 
@@ -96,6 +103,10 @@ VBoxOGLhostcrutil_pixel.c_CFLAGS.win.x86 += -Od
 #
 VBoxOGLhostcrutil_EXTENDS  = VBoxOGLcrutil
 VBoxOGLhostcrutil_TEMPLATE = VBOXCROGLR3HOSTDLL
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ # need to reset the NOINST flag
+ VBoxOGLhostcrutil_NOINST.win.x86 = $(NO_SUCH_VARIABLE)
+endif
 VBoxOGLhostcrutil_LDFLAGS.darwin = $(VBoxOGLcrutil_LDFLAGS.darwin) \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhostcrutil.dylib
 ## @todo kBuild bug, possibly same as ticket #51: PATH_SDK_DXSDK_LIB is expanded too early.
@@ -104,6 +115,10 @@ VBoxOGLhostcrutil_LDFLAGS.darwin = $(VBoxOGLcrutil_LDFLAGS.darwin) \
 ## @todo kBuild: recheck this (note to self).
 VBoxOGLhostcrutil_LIBS.win = $(VBoxOGLcrutil_LIBS.win)
 VBoxOGLhostcrutil_LIBS     = $(LIB_RUNTIME)
+ifdef VBOX_WITH_CRHGSMI
+VBoxOGLhostcrutil_DEFS.win.x86 = $(subst VBOX_WITH_CRHGSMI,,$(VBoxOGLcrutil_DEFS.win.x86))
+VBoxOGLhostcrutil_LIBS.win.x86 = $(subst $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB),,$(VBoxOGLcrutil_LIBS.win.x86))
+endif
 
 #
 # Generate files for VBoxOGLcrutil and VBoxOGLhostcrutil.
@@ -384,6 +399,10 @@ VBoxOGLcrstate_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/state_get.c \
 	$(VBOX_PATH_CROGL_GENFILES)/state_isenabled.c \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h
+ifneq ($(KBUILD_TARGET),win)
+state_tracker/state_lists.c_CFLAGS += $(VBOX_GCC_Wno-pointer-sign)
+VBoxOGLcrstate_CFLAGS += 
+endif
 
 #
 # VBoxOGLhostcrstate
@@ -474,6 +493,9 @@ $(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h: $(addprefix $(PATH_SUB_CURREN
 #         and glu.h intermediate files on darwin.
 #
 VBoxOGLerrorspu_TEMPLATE = VBOXCROGLR3GUESTDLL
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ VBoxOGLerrorspu_NOINST.win.x86 = true
+endif
 VBoxOGLerrorspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
@@ -496,6 +518,10 @@ VBoxOGLerrorspu_LIBS = \
 #
 VBoxOGLhosterrorspu_EXTENDS  = VBoxOGLerrorspu
 VBoxOGLhosterrorspu_TEMPLATE = VBOXCROGLR3HOSTDLL
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ # need to reset the NOINST flag
+ VBoxOGLhosterrorspu_NOINST.win.x86 = $(NO_SUCH_VARIABLE)
+endif
 VBoxOGLhosterrorspu_LDFLAGS.darwin += $(VBoxOGLerrorspu_LDFLAGS.darwin) \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhosterrorspu.dylib
 VBoxOGLhosterrorspu_LIBS  = \

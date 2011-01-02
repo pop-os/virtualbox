@@ -219,6 +219,7 @@ packspu_ArrayElement( GLint index )
 #endif
 }
 
+/*#define CR_USE_LOCKARRAYS*/
 
 void PACKSPU_APIENTRY
 packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *indices )
@@ -227,9 +228,73 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
+    GLboolean lockedArrays = GL_FALSE;
+    CRBufferObject *elementsBuffer = crStateGetCurrent()->bufferobject.elementsBuffer;
     /*crDebug("DrawElements count=%d, indices=%p", count, indices);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
         serverArrays = crStateUseServerArrays();
+
+# ifdef CR_USE_LOCKARRAYS
+    if (!serverArrays && !ctx->clientState->client.array.locked && (count>3)
+        && (!elementsBuffer || !elementsBuffer->id))
+    {
+        GLuint min, max;
+        GLsizei i;
+
+        switch (type)
+        {
+            case GL_UNSIGNED_BYTE:
+            {
+                GLubyte *pIdx = (GLubyte *)indices;
+                min = max = pIdx[0];
+                for (i=0; i<count; ++i)
+                {
+                    if (pIdx[i]<min) min = pIdx[i];
+                    else if (pIdx[i]>max) max = pIdx[i];
+                }
+                break;
+            }
+            case GL_UNSIGNED_SHORT:
+            {
+                GLushort *pIdx = (GLushort *)indices;
+                min = max = pIdx[0];
+                for (i=0; i<count; ++i)
+                {
+                    if (pIdx[i]<min) min = pIdx[i];
+                    else if (pIdx[i]>max) max = pIdx[i];
+                }
+                break;
+            }
+            case GL_UNSIGNED_INT:
+            {
+                GLuint *pIdx = (GLuint *)indices;
+                min = max = pIdx[0];
+                for (i=0; i<count; ++i)
+                {
+                    if (pIdx[i]<min) min = pIdx[i];
+                    else if (pIdx[i]>max) max = pIdx[i];
+                }
+                break;
+            }
+            default: crError("Unknown type 0x%x", type);
+        }
+
+        if ((max-min)<(GLuint)(2*count))
+        {
+            crStateLockArraysEXT(min, max-min+1);
+
+            serverArrays = crStateUseServerArrays();
+            if (serverArrays)
+            {
+                lockedArrays = GL_TRUE;
+            }
+            else
+            {
+                crStateUnlockArraysEXT();
+            }
+        }
+    }
+# endif
 #endif
 
     if (serverArrays) {
@@ -242,7 +307,6 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
             crPackLockArraysEXT(clientState->array.lockFirst, clientState->array.lockCount);
             clientState->array.synced = GL_TRUE;
         }
-        
         /* Send the DrawArrays command over the wire */
         if (pack_spu.swap)
             crPackDrawElementsSWAP( mode, count, type, indices );
@@ -262,6 +326,13 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
             //packspu_End();
         }
     }
+
+#if CR_ARB_vertex_buffer_object
+    if (lockedArrays)
+    {
+        packspu_UnlockArraysEXT();
+    }
+#endif
 }
 
 
@@ -315,12 +386,30 @@ packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
+    GLboolean lockedArrays = GL_FALSE;
     /*crDebug("DrawArrays count=%d", count);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
          serverArrays = crStateUseServerArrays();
+
+# ifdef CR_USE_LOCKARRAYS
+    if (!serverArrays && !ctx->clientState->client.array.locked && (count>3))
+    {
+        crStateLockArraysEXT(first, count);
+        serverArrays = crStateUseServerArrays();
+        if (serverArrays)
+        {
+            lockedArrays = GL_TRUE;
+        }
+        else
+        {
+            crStateUnlockArraysEXT();
+        }
+    }
+# endif
 #endif
 
-    if (serverArrays) {
+    if (serverArrays)
+    {
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
 
@@ -337,7 +426,8 @@ packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
         else
             crPackDrawArrays( mode, first, count );
     }
-    else {
+    else
+    {
         /* evaluate locally */
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
@@ -346,6 +436,13 @@ packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
         else
             crPackExpandDrawArrays( mode, first, count, clientState );
     }
+
+#if CR_ARB_vertex_buffer_object
+    if (lockedArrays)
+    {
+        packspu_UnlockArraysEXT();
+    }
+#endif
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-win.h $ */
+/* $Id: VBoxNetFlt-win.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Integration with IntNet/NetFlt
  */
@@ -201,7 +201,7 @@ DECLINLINE(void) vboxNetFltWinPpFreePacketInfo(PPACKET_INFO pInfo)
 #define GET_PACKET_FROM_INFO(_pPacketInfo) (ASMAtomicUoReadPtr((void * volatile *)&(_pPacketInfo)->pPacket))
 
 /** assignes the packet to the packet info */
-#define SET_PACKET_TO_INFO(_pPacketInfo, _pPacket) (ASMAtomicUoWritePtr((void * volatile *)&(_pPacketInfo)->pPacket, (_pPacket)))
+#define SET_PACKET_TO_INFO(_pPacketInfo, _pPacket) (ASMAtomicUoWritePtr(&(_pPacketInfo)->pPacket, (_pPacket)))
 
 /** returns the flags the packet info contains */
 #define GET_FLAGS_FROM_INFO(_pPacketInfo) (ASMAtomicUoReadU32((volatile uint32_t *)&(_pPacketInfo)->fFlags))
@@ -897,7 +897,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinMemAlloc(PVOID* ppMemBuf, UINT cbLength);
 DECLHIDDEN(void) vboxNetFltWinMemFree(PVOID pMemBuf);
 
 /* convenience method used which allocates and initializes the PINTNETSG containing one
- * segment refering the buffer of size cbBufSize
+ * segment referring the buffer of size cbBufSize
  * the allocated PINTNETSG should be freed with the vboxNetFltWinMemFree.
  *
  * This is used when our ProtocolReceive callback is called and we have to return the indicated NDIS_PACKET
@@ -1003,7 +1003,7 @@ DECLINLINE(bool) vboxNetFltWinIsLoopedBackPacket(PNDIS_PACKET pPacket)
 #endif
 
 /**************************************************************
- * utility methofs for ndis packet creation/initialization    *
+ * utility methods for ndis packet creation/initialization    *
  **************************************************************/
 
 #define VBOXNETFLT_OOB_INIT(_p) \

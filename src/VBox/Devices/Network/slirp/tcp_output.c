@@ -1,4 +1,4 @@
-/* $Id: tcp_output.c $ */
+/* $Id: tcp_output.c 35163 2010-12-16 07:37:00Z vboxsync $ */
 /** @file
  * NAT - TCP output.
  */
@@ -99,10 +99,9 @@ tcp_output(PNATState pData, register struct tcpcb *tp)
     u_char opt[MAX_TCPOPTLEN];
     unsigned optlen, hdrlen;
     int idle, sendalot;
-    int size;
+    int size = 0;
 
-    DEBUG_CALL("tcp_output");
-    DEBUG_ARG("tp = %lx", (long )tp);
+    LogFlow(("tcp_output: tp = %lx\n", (long)tp));
 
     /*
      * Determine length of data that should be transmitted,
@@ -126,7 +125,7 @@ again:
 
     flags = tcp_outflags[tp->t_state];
 
-    DEBUG_MISC((dfd, " --- tcp_output flags = 0x%x\n",flags));
+    Log2((" --- tcp_output flags = 0x%x\n", flags));
 
     /*
      * If in persist timeout with window of 0, send 1 byte.
@@ -154,7 +153,7 @@ again:
              * to send then the probe will be the FIN
              * itself.
              */
-            if (off < so->so_snd.sb_cc)
+            if (off < SBUF_LEN(&so->so_snd))
                 flags &= ~TH_FIN;
             win = 1;
         }
@@ -165,7 +164,7 @@ again:
         }
     }
 
-    len = min(so->so_snd.sb_cc, win) - off;
+    len = min(SBUF_LEN(&so->so_snd), win) - off;
     if (len < 0)
     {
         /*
@@ -190,7 +189,7 @@ again:
         len = tp->t_maxseg;
         sendalot = 1;
     }
-    if (SEQ_LT(tp->snd_nxt + len, tp->snd_una + so->so_snd.sb_cc))
+    if (SEQ_LT(tp->snd_nxt + len, tp->snd_una + SBUF_LEN(&so->so_snd)))
         flags &= ~TH_FIN;
 
     win = sbspace(&so->so_rcv);
@@ -210,7 +209,7 @@ again:
         if (len == tp->t_maxseg)
             goto send;
         if ((1 || idle || tp->t_flags & TF_NODELAY) &&
-                len + off >= so->so_snd.sb_cc)
+                len + off >= SBUF_LEN(&so->so_snd))
             goto send;
         if (tp->t_force)
             goto send;
@@ -240,7 +239,7 @@ again:
 
         if (adv >= (long) (2 * tp->t_maxseg))
             goto send;
-        if (2 * adv >= (long) so->so_rcv.sb_datalen)
+        if (2 * adv >= (long) SBUF_SIZE(&so->so_rcv))
             goto send;
     }
 
@@ -284,7 +283,7 @@ again:
      * if window is nonzero, transmit what we can,
      * otherwise force out a byte.
      */
-    if (   so->so_snd.sb_cc
+    if (   SBUF_LEN(&so->so_snd)
         && tp->t_timer[TCPT_REXMT] == 0
         && tp->t_timer[TCPT_PERSIST] == 0)
     {
@@ -420,8 +419,12 @@ send:
         if (len <= MHLEN - hdrlen - max_linkhdr)
         {
 #endif
+#ifndef VBOX_WITH_SLIRP_BSD_SBUF
             sbcopy(&so->so_snd, off, (int) len, mtod(m, caddr_t) + hdrlen);
             m->m_len += len;
+#else
+            m_copyback(pData, m, hdrlen, len, sbuf_data(&so->so_snd) + off);
+#endif
 #if 0
         }
         else
@@ -437,7 +440,7 @@ send:
          * give data to the user when a buffer fills or
          * a PUSH comes in.)
          */
-        if (off + len == so->so_snd.sb_cc)
+        if (off + len == SBUF_LEN(&so->so_snd))
             flags |= TH_PUSH;
     }
     else
@@ -524,7 +527,7 @@ send:
      * Calculate receive window.  Don't shrink window,
      * but avoid silly window syndrome.
      */
-    if (win < (long)(so->so_rcv.sb_datalen / 4) && win < (long)tp->t_maxseg)
+    if (win < (long)(SBUF_SIZE(&so->so_rcv) / 4) && win < (long)tp->t_maxseg)
         win = 0;
     if (win > (long)TCP_MAXWIN << tp->rcv_scale)
         win = (long)TCP_MAXWIN << tp->rcv_scale;

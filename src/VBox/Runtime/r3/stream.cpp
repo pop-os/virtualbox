@@ -1,4 +1,4 @@
-/* $Id: stream.cpp $ */
+/* $Id: stream.cpp 32464 2010-09-14 08:48:32Z vboxsync $ */
 /** @file
  * IPRT - I/O Stream.
  */
@@ -26,6 +26,10 @@
 
 
 
+#if defined(RT_OS_LINUX) /* PORTME: check for the _unlocked functions in stdio.h */
+#define HAVE_FWRITE_UNLOCKED
+#endif
+
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
@@ -33,7 +37,9 @@
 #include "internal/iprt.h"
 
 #include <iprt/asm.h>
-#include <iprt/critsect.h>
+#ifndef HAVE_FWRITE_UNLOCKED
+# include <iprt/critsect.h>
+#endif
 #include <iprt/string.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
@@ -46,10 +52,6 @@
 
 #include <stdio.h>
 #include <errno.h>
-
-#if defined(RT_OS_LINUX) /* PORTME: check for the _unlocked functions in stdio.h */
-#define HAVE_FWRITE_UNLOCKED
-#endif
 
 
 /*******************************************************************************
@@ -142,7 +144,7 @@ static int rtStrmAllocLock(PRTSTREAM pStream)
         rc = RTCritSectEnter(pCritSect);
         if (RT_SUCCESS(rc))
         {
-            if (RT_LIKELY(ASMAtomicCmpXchgPtr((void * volatile *)&pStream->pCritSect, pCritSect, NULL)))
+            if (RT_LIKELY(ASMAtomicCmpXchgPtr(&pStream->pCritSect, pCritSect, NULL)))
                 return VINF_SUCCESS;
 
             RTCritSectLeave(pCritSect);
@@ -152,7 +154,7 @@ static int rtStrmAllocLock(PRTSTREAM pStream)
     RTMemFree(pCritSect);
 
     /* Handle the lost race case... */
-    pCritSect = (PRTCRITSECT)ASMAtomicReadPtr((void * volatile *)&pStream->pCritSect);
+    pCritSect = ASMAtomicReadPtrT(&pStream->pCritSect, PRTCRITSECT);
     if (pCritSect)
         return RTCritSectEnter(pCritSect);
 

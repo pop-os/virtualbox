@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromWin32.cpp $ */
+/* $Id: RTErrConvertFromWin32.cpp 33437 2010-10-25 16:28:14Z vboxsync $ */
 /** @file
  * IPRT - Convert win32 error codes to iprt status codes.
  */
@@ -187,7 +187,7 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_CANCELLED:               return VERR_CANCELLED;
         case ERROR_DIRECTORY:               return VERR_NOT_A_DIRECTORY;
 
-        case ERROR_LOGON_FAILURE:           return VERR_LOGON_FAILURE;
+        case ERROR_LOGON_FAILURE:           return VERR_AUTHENTICATION_FAILURE;
 
         /*
          * Winsocket errors are mostly BSD errno.h wrappers.
@@ -395,6 +395,13 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         //case WSATRY_AGAIN            (WSABASEERR+1002)
         //case WSANO_RECOVERY          (WSABASEERR+1003)
         //case WSANO_DATA              (WSABASEERR+1004)
+
+
+#ifndef ERROR_NOT_A_REPARSE_POINT
+# define ERROR_NOT_A_REPARSE_POINT 0x1126
+#endif
+        case ERROR_NOT_A_REPARSE_POINT: return VERR_NOT_SYMLINK;
+
     }
 
     /* unknown error. */

@@ -1,4 +1,4 @@
-/* $Id: dir-win.cpp $ */
+/* $Id: dir-win.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
 /** @file
  * IPRT - Directory, win32.
  */
@@ -383,13 +383,18 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
         /* copy and calc length */
         PCRTUTF16 pwszSrc = (PCRTUTF16)pDir->Data.cAlternateFileName;
         PRTUTF16  pwszDst = pDirEntry->wszShortName;
-        while (*pwszSrc)
-            *pwszDst++ = *pwszSrc++;
-        pDirEntry->cwcShortName = pwszDst - &pDirEntry->wszShortName[0];
+        uint32_t  off = 0;
+        while (pwszSrc[off] && off < RT_ELEMENTS(pDirEntry->wszShortName) - 1U)
+        {
+            pwszDst[off] = pwszSrc[off];
+            off++;
+        }
+        pDirEntry->cwcShortName = (uint16_t)off;
+
         /* zero the rest */
-        const PRTUTF16 pwszEnd = &pDirEntry->wszShortName[RT_ELEMENTS(pDirEntry->wszShortName)];
-        while (pwszDst < pwszEnd)
-            *pwszDst++ = '\0';
+        do
+            pwszDst[off++] = '\0';
+        while (off < RT_ELEMENTS(pDirEntry->wszShortName));
     }
     else
     {
@@ -434,6 +439,18 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
 
         case RTFSOBJATTRADD_NOTHING:
             pDirEntry->Info.Attr.enmAdditional          = RTFSOBJATTRADD_NOTHING;
+            break;
+
+        case RTFSOBJATTRADD_UNIX_OWNER:
+            pDirEntry->Info.Attr.enmAdditional          = RTFSOBJATTRADD_UNIX_OWNER;
+            pDirEntry->Info.Attr.u.UnixOwner.uid        = ~0U;
+            pDirEntry->Info.Attr.u.UnixOwner.szName[0]  = '\0'; /** @todo return something sensible here. */
+            break;
+
+        case RTFSOBJATTRADD_UNIX_GROUP:
+            pDirEntry->Info.Attr.enmAdditional          = RTFSOBJATTRADD_UNIX_GROUP;
+            pDirEntry->Info.Attr.u.UnixGroup.gid        = ~0U;
+            pDirEntry->Info.Attr.u.UnixGroup.szName[0]  = '\0';
             break;
 
         default:

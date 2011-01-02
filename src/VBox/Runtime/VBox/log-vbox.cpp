@@ -1,4 +1,4 @@
-/* $Id: log-vbox.cpp $ */
+/* $Id: log-vbox.cpp 34848 2010-12-08 20:35:20Z vboxsync $ */
 /** @file
  * VirtualBox Runtime - Logging configuration.
  */
@@ -184,7 +184,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 {
     /*
      * Initialize the default logger instance.
-     * Take care to do this once and not recursivly.
+     * Take care to do this once and not recursively.
      */
     static volatile uint32_t fInitializing = 0;
     PRTLOGGER pLogger;
@@ -238,8 +238,6 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
     ASSERT_LOG_GROUP(DRV_FLOPPY);
     ASSERT_LOG_GROUP(DRV_HOST_DVD);
     ASSERT_LOG_GROUP(DRV_HOST_FLOPPY);
-    ASSERT_LOG_GROUP(DRV_ISCSI);
-    ASSERT_LOG_GROUP(DRV_ISCSI_TRANSPORT_TCP);
     ASSERT_LOG_GROUP(DRV_ISO);
     ASSERT_LOG_GROUP(DRV_KBD_QUEUE);
     ASSERT_LOG_GROUP(DRV_MOUSE_QUEUE);
@@ -298,7 +296,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 #ifdef IN_RING3
 # ifndef IN_GUEST
     char szExecName[RTPATH_MAX];
-    if (!RTProcGetExecutableName(szExecName, sizeof(szExecName)))
+    if (!RTProcGetExecutablePath(szExecName, sizeof(szExecName)))
         strcpy(szExecName, "VBox");
     RTTIMESPEC TimeSpec;
     RTTIME Time;
@@ -348,7 +346,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
         {
             /* braindead */
             unsigned iArg = 0;
-            char ch;
+            int ch;
             bool fNew = true;
             while (!feof(pFile) && (ch = fgetc(pFile)) != EOF)
             {
@@ -452,7 +450,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 # endif
 # if defined(DEBUG_aleksey)  /* Guest ring-0 as well */
-        RTLogGroupSettings(pLogger, "+net_adp_drv.e.l.f+net_flt_drv.e.l.l2.l3.l4.f");
+        RTLogGroupSettings(pLogger, "+net_adp_drv.e.l.f+net_flt_drv.e.l.l2.l3.l4.l5.f");
         RTLogFlags(pLogger, "enabled unbuffered");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
 # endif
@@ -461,12 +459,11 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
         RTLogFlags(pLogger, "enabled unbuffered pid tid");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
 # endif
-# if 0 /* defined(DEBUG_misha) */ /* Guest ring-0 as well */
-        RTLogGroupSettings(pLogger, "+net_flt_drv.e.l.f.l2+srv_intnet.e.l.f");
+# if defined(DEBUG_misha) /* Guest ring-0 as well */
         RTLogFlags(pLogger, "enabled unbuffered");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
 # endif
-# if 0 /* vboxdrv logging - ATTENTION: this is what we're refering to guys! Change to '# if 1'. */
+# if 0 /* vboxdrv logging - ATTENTION: this is what we're referring to guys! Change to '# if 1'. */
         RTLogGroupSettings(pLogger, "all=~0 -default.l6.l5.l4.l3");
         RTLogFlags(pLogger, "enabled unbuffered tid");
         pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;

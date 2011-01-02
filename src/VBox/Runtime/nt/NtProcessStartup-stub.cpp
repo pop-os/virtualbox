@@ -1,4 +1,4 @@
-/* $Id: NtProcessStartup-stub.cpp $ */
+/* $Id: NtProcessStartup-stub.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - NtProcessStartup stub to make the link happy.
  */

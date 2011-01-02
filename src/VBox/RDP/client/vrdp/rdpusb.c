@@ -19,11 +19,19 @@
 
 #include "../rdesktop.h"
 
+#include "vrdpusb.h"
+#include "USBProxyDevice.h"
+#include "USBGetDevices.h"
+
+#include <iprt/cdefs.h>
+#include <iprt/types.h>
+#include <iprt/err.h>
+#include <iprt/log.h>
+
 #include <unistd.h>
 #include <ctype.h>
 #include <fcntl.h>
 
-#include "vrdpusb.h"
 
 #define RDPUSB_REQ_OPEN              (0)
 #define RDPUSB_REQ_CLOSE             (1)
@@ -41,7 +49,25 @@
 
 static VCHANNEL *rdpusb_channel;
 
-#define PROC_BUS_USB "/proc/bus/usb"
+/** Well-known locations for the Linux Usbfs virtual file system */
+static const struct
+{
+    /** Expected mount location for Usbfs */
+    const char *pcszRoot;
+    /** Expected location of the "devices" file */
+    const char *pcszDevices;
+} g_usbfsPaths[] =
+{
+    { "/proc/bus/usb", "/proc/bus/usb/devices" },
+    { "/dev/bus/usb",  "/dev/bus/usb/devices" }
+};
+
+/** Location at which the USB device tree was found.  NULL means not
+ * found. */
+static const char *g_pcszDevicesRoot = NULL;
+static bool g_fUseSysfs = false;
+
+static PUSBDEVICE g_pUsbDevices = NULL;
 
 /* A device list entry */
 #pragma pack (1)
@@ -63,305 +89,176 @@ typedef struct _DevListEntry
 } DevListEntry;
 #pragma pack ()
 
-static uint16 getBcd (const char *str, const char *prefix)
+static inline int op_usbproxy_back_open(PUSBPROXYDEV p, const char *pszAddress)
 {
-	char *p = strstr (str, prefix);
-	if (p)
-	{
-		uint16 h, l;
-
-		p += strlen (prefix);
-
-		while (*p == ' ') p++; // skiping spaces
-
-		h = (uint16)strtoul (p, &p, 16) & 0xFF;
-
-		if (*p == '.')
-		{
-			l = (uint16)strtoul (p + 1, NULL, 16) & 0xFF;
-
-			return (h << 8) + l;
-		}
-	}
-
-	Log(("Could not get BCD '%s' in line [%s]\n", prefix, str));
-
-	return 0;
+     return g_USBProxyDeviceHost.pfnOpen (p, pszAddress, NULL);
 }
 
-static uint8 getU8 (const char *str, const char *prefix)
+static inline void op_usbproxy_back_close(PUSBPROXYDEV pDev)
 {
-	char *p = strstr (str, prefix);
-	if (p)
-	{
-		p += strlen (prefix);
-		while (*p == ' ') p++; // skiping spaces
-		return ((uint8)strtoul(p, NULL, 10) & 0xFF);
-	}
-
-	Log(("Could not get U8 '%s' in line [%s]\n", prefix, str));
-
-	return 0;
+     return g_USBProxyDeviceHost.pfnClose (pDev);
 }
 
-static uint16 getU16 (const char *str, const char *prefix)
+static inline int op_usbproxy_back_reset(PUSBPROXYDEV pDev)
 {
-	char *p = strstr (str, prefix);
-	if (p)
-	{
-		uint16 tmp16;
-		p += strlen (prefix);
-		while (*p == ' ') p++; // skiping spaces
-		tmp16 = (uint16)strtoul (p, NULL, 16);
-		return (tmp16);
-	}
-
-	Log(("Could not get U16 '%s' in line [%s]\n", prefix, str));
-
-	return 0;
+    return g_USBProxyDeviceHost.pfnReset (pDev, false);
 }
 
-static char *getString (const char *str, const char *prefix)
+static inline int op_usbproxy_back_set_config(PUSBPROXYDEV pDev, int cfg)
 {
-	char *p = strstr (str, prefix);
-	if (p)
-	{
-		return (char *)p + strlen (prefix);
-	}
+    return g_USBProxyDeviceHost.pfnSetConfig (pDev, cfg);
+}
 
-	return 0;
+static inline int op_usbproxy_back_claim_interface(PUSBPROXYDEV pDev, int ifnum)
+{
+    return g_USBProxyDeviceHost.pfnClaimInterface (pDev, ifnum);
+}
+
+static inline int op_usbproxy_back_release_interface(PUSBPROXYDEV pDev, int ifnum)
+{
+    return g_USBProxyDeviceHost.pfnReleaseInterface (pDev, ifnum);
+}
+
+static inline int op_usbproxy_back_interface_setting(PUSBPROXYDEV pDev, int ifnum, int setting)
+{
+    return g_USBProxyDeviceHost.pfnSetInterface (pDev, ifnum, setting);
+}
+
+static inline int op_usbproxy_back_queue_urb(PVUSBURB pUrb)
+{
+    return g_USBProxyDeviceHost.pfnUrbQueue(pUrb);
+}
+
+static inline PVUSBURB op_usbproxy_back_reap_urb(PUSBPROXYDEV pDev, unsigned cMillies)
+{
+    return g_USBProxyDeviceHost.pfnUrbReap (pDev, cMillies);
+}
+
+static inline bool op_usbproxy_back_clear_halted_ep(PUSBPROXYDEV pDev, unsigned EndPoint)
+{
+    return g_USBProxyDeviceHost.pfnClearHaltedEndpoint (pDev, EndPoint);
+}
+
+static inline void op_usbproxy_back_cancel_urb(PVUSBURB pUrb)
+{
+    return g_USBProxyDeviceHost.pfnUrbCancel (pUrb);
 }
 
 
-static void *build_device_list (int *plen)
+/** Count the USB devices in a linked list of PUSBDEVICE structures. */
+unsigned countUSBDevices(PUSBDEVICE pDevices)
 {
-	Log(("RDPUSB build_device_list"));
-
-	uint8 tmp8;
-
-	uint32 size = 0;
-	uint32 len = 0;
-	uint32 lastlen = 0;
-	uint8 *buffer = NULL;
-
-	char szLine[1024];
-	char *p;
-
-	DevListEntry *e = NULL;
-
-	FILE *f = fopen (PROC_BUS_USB "/devices", "r");
-
-	if (f != NULL)
-	{
-		while (fgets (szLine, sizeof (szLine), f))
-		{
-			p = strchr (szLine, '\n');
-			if (p) *p = 0;
-
-			p = &szLine[0];
-
-//			Log(("%s\n", szLine));
-
-			switch (*p)
-			{
-				case 'T':
-				{
-					/* A new device, allocate memory. */
-					if (size - len < sizeof (DevListEntry))
-					{
-						buffer = (uint8*)xrealloc (buffer, size + sizeof (DevListEntry));
-						size += sizeof (DevListEntry);
-					}
-
-					if (len > 0)
-					{
-						e = (DevListEntry *)&buffer[lastlen];
-
-						char path[128];
-
-						sprintf (path, PROC_BUS_USB "/%03d/%03d", (e->id>>8) & 0xFF, e->id & 0xFF);
-
-						Log(("%s: id = %X, class = %d access = %d\n", path, e->id, e->bDeviceClass, access (path, R_OK | W_OK)));
-
-						if (e->id != 0 && e->bDeviceClass != 9 && access (path, R_OK | W_OK) == 0) // skip hubs as well
-						{
-							Log(("Added device vendor %04X, product %04X\n", e->idVendor, e->idProduct));
-							e->oNext = len - lastlen;
-						}
-						else
-						{
-							/* The entry was not filled. Reuse.*/
-							len = lastlen;
-						}
-					}
-
-					lastlen = len;
-
-					e = (DevListEntry *)&buffer[lastlen];
-					memset (e, 0, sizeof (DevListEntry));
-
-					len += sizeof (DevListEntry);
-
-					// T:  Bus=03 Lev=02 Prnt=36 Port=01 Cnt=02 Dev#= 38 Spd=12  MxCh= 0
-					/* Get bus and dev#. */
-					tmp8 = getU8 (szLine, "Bus=");
-					if (!tmp8)
-					{
-						e->id = 0;
-					}
-					else
-					{
-						e->idPort &= 0x00FF;
-						e->idPort |= (uint16)tmp8 << 8;
-						e->id &= 0x00FF;
-						e->id |= (uint16)tmp8 << 8;
-					}
-
-					if (e)
-					{
-						tmp8 = getU8 (szLine, "Dev#=");
-						if (!tmp8)
-						{
-							e->id = 0;
-						}
-						else
-						{
-							e->id &= 0xFF00;
-							e->id |= tmp8;
-						}
-
-						if (e->id != 0)
-						{
-							e->idPort &= 0xFF00;
-							e->idPort |= getU8 (szLine, "Port=");
-						}
-					}
-				} break;
-				case 'D':
-				{
-					// D:  Ver= 1.00 Cls=00(>ifc ) Sub=00 Prot=00 MxPS= 8 #Cfgs=  1
-					if (e && e->id)
-					{
-					        e->bcdUSB = getBcd (szLine, "Ver=");
-						e->bDeviceClass = getU8 (szLine, "Cls=");
-						e->bDeviceSubClass = getU8 (szLine, "Sub=");
-						e->bDeviceProtocol = getU8 (szLine, "Prot=");
-					}
-				} break;
-				case 'P':
-				{
-					// P:  Vendor=0483 ProdID=2016 Rev= 0.01
-					if (e && e->id)
-					{
-						e->idVendor = getU16 (szLine, "Vendor=");
-						e->idProduct = getU16 (szLine, "ProdID=");
-					        e->bcdRev = getBcd (szLine, "Rev=");
-					}
-
-				} break;
-				case 'S':
-				{
-					if (e && e->id)
-					{
-						// S:  Manufacturer=STMicroelectronics
-						uint16 offset = len - lastlen;
-						uint16 offset_addr = 0;
-
-						char *s = getString (szLine, "Manufacturer=");
-						if (s)
-						{
-							offset_addr = (uint8 *)&e->oManufacturer - (uint8 *)e;
-						}
-						else
-						{
-							s = getString (szLine, "Product=");
-
-							if (s)
-							{
-								offset_addr = (uint8 *)&e->oProduct - (uint8 *)e;
-							}
-							else
-							{
-								s = getString (szLine, "SerialNumber=");
-
-								if (s)
-								{
-									offset_addr = (uint8 *)&e->oSerialNumber - (uint8 *)e;
-								}
-							}
-						}
-
-						if (s)
-						{
-							int l = strlen (s) + 1;
-
-							if (l > 1)
-							{
-								if (size - len < l)
-								{
-									buffer = (uint8*)xrealloc (buffer, size + l);
-									size += l;
-									e = (DevListEntry *)&buffer[lastlen];
-								}
-
-								memcpy (&buffer[len], s, l);
-								len += l;
-
-								*(uint16 *)((uint8 *)e + offset_addr) = offset;
-							}
-							else
-							{
-								*(uint16 *)((uint8 *)e + offset_addr) = 0;
-							}
-						}
-					}
-				} break;
-			}
-		}
-
-		if (len > 0)
-		{
-			Log(("Finalising list\n"));
-#ifdef RDPUSB_DEBUG
-			hexdump(buffer, lastlen);
-#endif
-
-			e = (DevListEntry *)&buffer[lastlen];
-
-			char path[128];
-
-			sprintf (path, PROC_BUS_USB "/%03d/%03d", (e->id>>8) & 0xFF, e->id & 0xFF);
-
-			if (e->id != 0 && e->bDeviceClass != 9 && access (path, R_OK | W_OK) == 0) // skip hubs as well
-			{
-				Log(("Added device vendor %04X, product %04X\n", e->idVendor, e->idProduct));
-				e->oNext = len - lastlen;
-			}
-			else
-			{
-				/* The entry was not filled. Reuse.*/
-				len = lastlen;
-			}
-
-			lastlen = len;
-
-			if (size - len < 2)
-			{
-				buffer = (uint8*)xrealloc (buffer, size + 2);
-				size += 2;
-			}
-
-			e = (DevListEntry *)&buffer[lastlen];
-			e->oNext = 0;
-			lastlen += 2;
-		}
-
-	        fclose (f);
-	}
-
-	*plen = lastlen;
-	return buffer;
+    unsigned i;
+    PUSBDEVICE pDevice;
+    for (i = 0, pDevice = pDevices; pDevices->pNext;
+         ++i, pDevices = pDevices->pNext);
+    return i;
 }
+
+
+enum {
+    /** The space we set aside for the USB strings.  Should always be enough,
+     * as a USB device contains up to 256 characters of UTF-16 string data. */
+    MAX_STRINGS_LEN = 1024,
+    /** The space we reserve for each wire format device entry */
+    DEV_ENTRY_SIZE = sizeof(DevListEntry) + MAX_STRINGS_LEN
+};
+
+
+/**
+ * Add a string to the end of a wire format device entry.
+ * @param pBuf      the start of the buffer containing the entry
+ * @param iBuf      the index into the buffer to add the string at
+ * @param pcsz      the string to add - optional
+ * @param piString  where to write back @a iBuf or zero if there is no string
+ * @param piNext    where to write back the index where the next string may
+ *                  start
+ */
+static void addStringToEntry(char *pBuf, uint16_t iBuf, const char *pcsz,
+                             uint16_t *piString, uint16_t *piNext)
+{
+    size_t cch;
+
+    *piString = 0;
+    *piNext = iBuf;
+    if (!pcsz)
+        return;
+    cch = strlen(pcsz) + 1;
+    if (cch > DEV_ENTRY_SIZE - iBuf)
+        return;
+    strcpy(pBuf + iBuf, pcsz);
+    *piString = iBuf;
+    *piNext = iBuf + cch;
+}
+
+
+/** Fill in a device list entry in wire format from a PUSBDEVICE and return an
+ * index to where the next string should start */
+static void fillWireListEntry(char *pBuf, PUSBDEVICE pDevice,
+                              uint16_t *piNext)
+{
+    DevListEntry *pEntry;
+    uint16_t iNextString = sizeof(DevListEntry);
+
+    pEntry = (DevListEntry *)pBuf;
+    pEntry->id              = (pDevice->bPort << 8) + pDevice->bBus;
+    pEntry->bcdUSB          = pDevice->bcdUSB;
+    pEntry->bDeviceClass    = pDevice->bDeviceClass;
+    pEntry->bDeviceSubClass = pDevice->bDeviceSubClass;
+    pEntry->idVendor        = pDevice->idVendor;
+    pEntry->idProduct       = pDevice->idProduct;
+    pEntry->bcdRev          = pDevice->bcdDevice;
+    pEntry->idPort          = pDevice->bPort;
+    addStringToEntry(pBuf, iNextString, pDevice->pszManufacturer,
+                     &pEntry->oManufacturer, &iNextString);
+    addStringToEntry(pBuf, iNextString, pDevice->pszProduct,
+                     &pEntry->oProduct, &iNextString);
+    addStringToEntry(pBuf, iNextString, pDevice->pszSerialNumber,
+                     &pEntry->oSerialNumber, &pEntry->oNext);
+    *piNext = pEntry->oNext;
+}
+
+
+/** Allocate (and return) a buffer for a device list in VRDP wire format,
+ * and populate from a PUSBDEVICE linked list.  @a pLen takes the length of
+ * the new list. */
+static void *buildWireListFromDevices(PUSBDEVICE pDevices, int *pLen)
+{
+    char *pBuf;
+    unsigned cbBuf, iCurrent;
+    uint16_t iNext;
+    PUSBDEVICE pCurrent;
+
+    cbBuf = countUSBDevices(pDevices) * DEV_ENTRY_SIZE + 2;
+    pBuf = (char *)xmalloc(cbBuf);
+    memset(pBuf, 0, cbBuf);
+    for (pCurrent = pDevices, iCurrent = 0; pCurrent;
+         pCurrent = pCurrent->pNext, iCurrent += iNext)
+        fillWireListEntry(pBuf + iCurrent, pCurrent, &iNext);
+    *pLen = iCurrent + iNext + 2;
+    return pBuf;
+}
+
+
+/** Build a list of the usable USB devices currently connected to the client
+ * system using the VRDP wire protocol.  The structure returned must be freed
+ * using free(3) when it is no longer needed; returns NULL and sets *pLen to
+ * zero on failure. */
+static void *build_device_list (int *pLen)
+{
+    void *pvDeviceList;
+
+    Log(("RDPUSB build_device_list"));
+    *pLen = 0;
+    if (g_pUsbDevices)
+        deviceListFree(&g_pUsbDevices);
+    g_pUsbDevices = USBProxyLinuxGetDevices(g_pcszDevicesRoot, g_fUseSysfs);
+    if (!g_pUsbDevices)
+        return NULL;
+    pvDeviceList = buildWireListFromDevices(g_pUsbDevices, pLen);
+    return pvDeviceList;
+}
+
 
 static STREAM
 rdpusb_init_packet(uint32 len, uint8 code)
@@ -404,7 +301,7 @@ rdpusb_send_access_denied (uint8_t code, uint32_t devid)
 static inline int
 vrdp_usb_status (int rc, VUSBDEV *pdev)
 {
-	if (!rc || pdev->request_detach)
+	if (!rc || usbProxyFromVusbDev(pdev)->fDetached)
 	{
 		return VRDP_USB_STATUS_DEVICE_REMOVED;
 	}
@@ -412,16 +309,16 @@ vrdp_usb_status (int rc, VUSBDEV *pdev)
 	return VRDP_USB_STATUS_SUCCESS;
 }
 
-static struct usb_proxy *g_proxies = NULL;
+static PUSBPROXYDEV g_proxies = NULL;
 
-static struct usb_proxy *
+static PUSBPROXYDEV 
 devid2proxy (uint32_t devid)
 {
-	struct usb_proxy *proxy = g_proxies;
+	PUSBPROXYDEV proxy = g_proxies;
 
 	while (proxy && proxy->devid != devid)
 	{
-		proxy = proxy->next;
+		proxy = proxy->pNext;
 	}
 
 	return proxy;
@@ -434,7 +331,7 @@ rdpusb_reap_urbs (void)
 
 	PVUSBURB pUrb = NULL;
 
-	struct usb_proxy *proxy = g_proxies;
+	PUSBPROXYDEV proxy = g_proxies;
 
 	while (proxy)
 	{
@@ -466,21 +363,21 @@ rdpusb_reap_urbs (void)
 			s_mark_end(s);
 			rdpusb_send(s);
 
-			if (pUrb->prev || pUrb->next || pUrb == proxy->urbs)
+			if (pUrb->pPrev || pUrb->pNext || pUrb == proxy->pUrbs)
 			{
 				/* Remove the URB from list. */
-				if (pUrb->prev)
+				if (pUrb->pPrev)
 				{
-					pUrb->prev->next = pUrb->next;
+					pUrb->pPrev->pNext = pUrb->pNext;
 				}
 				else
 				{
-					proxy->urbs = pUrb->next;
+					proxy->pUrbs = pUrb->pNext;
 				}
 
-				if (pUrb->next)
+				if (pUrb->pNext)
 				{
-					pUrb->next->prev = pUrb->prev;
+					pUrb->pNext->pPrev = pUrb->pPrev;
 				}
 			}
 
@@ -493,7 +390,7 @@ rdpusb_reap_urbs (void)
 #endif
 		}
 
-		proxy = proxy->next;
+		proxy = proxy->pNext;
 	}
 
 	return;
@@ -508,7 +405,7 @@ rdpusb_process(STREAM s)
 	uint8 code;
 	uint32 devid;
 
-	struct usb_proxy *proxy = NULL;
+	PUSBPROXYDEV proxy = NULL;
 
 #ifdef RDPUSB_DEBUG
 	Log(("RDPUSB recv:\n"));
@@ -530,20 +427,23 @@ rdpusb_process(STREAM s)
 	{
 		case RDPUSB_REQ_OPEN:
 		{
-			char devpath[128];
+			PUSBDEVICE pDevice;
 
 	        	in_uint32_le(s, devid);
 
-			proxy = (struct usb_proxy *)xmalloc (sizeof (struct usb_proxy));
+			proxy = (PUSBPROXYDEV )xmalloc (sizeof (USBPROXYDEV));
 
-			memset (proxy, 0, sizeof (struct usb_proxy));
+			memset (proxy, 0, sizeof (USBPROXYDEV));
 
 			proxy->Dev.pszName = "Remote device";
 			proxy->devid = devid;
 
-			sprintf (devpath, PROC_BUS_USB "/%03d/%03d", (devid>>8) & 0xFF, devid & 0xFF);
+			for (pDevice = g_pUsbDevices; pDevice; pDevice = pDevice->pNext)
+			    if ((pDevice->bPort << 8) + pDevice->bBus == devid)
+			        break;
 
-			rc = op_usbproxy_back_open(proxy, devpath);
+			rc = pDevice ? op_usbproxy_back_open(proxy, pDevice->pszAddress)
+			             : VERR_NOT_FOUND;
 
 			if (rc != VINF_SUCCESS)
 			{
@@ -555,10 +455,10 @@ rdpusb_process(STREAM s)
 			{
 				if (g_proxies)
 				{
-					g_proxies->prev = proxy;
+					g_proxies->pPrev = proxy;
 				}
 
-				proxy->next = g_proxies;
+				proxy->pNext = g_proxies;
 				g_proxies = proxy;
 			}
 		} break;
@@ -572,18 +472,18 @@ rdpusb_process(STREAM s)
 			{
 				op_usbproxy_back_close(proxy);
 
-				if (proxy->prev)
+				if (proxy->pPrev)
 				{
-					proxy->prev->next = proxy->next;
+					proxy->pPrev->pNext = proxy->pNext;
 				}
 				else
 				{
-					g_proxies = proxy->next;
+					g_proxies = proxy->pNext;
 				}
 
-				if (proxy->next)
+				if (proxy->pNext)
 				{
-					proxy->next->prev = proxy->prev;
+					proxy->pNext->pPrev = proxy->pPrev;
 				}
 
 				xfree (proxy);
@@ -759,13 +659,13 @@ rdpusb_process(STREAM s)
 
 			if (rc)
 			{
-				if (proxy->urbs)
+				if (proxy->pUrbs)
 				{
-					proxy->urbs->prev = pUrb;
+					proxy->pUrbs->pPrev = pUrb;
 				}
 
-				pUrb->next = proxy->urbs;
-				proxy->urbs = pUrb;
+				pUrb->pNext = proxy->pUrbs;
+				proxy->pUrbs = pUrb;
 			}
 			else
 			{
@@ -817,11 +717,11 @@ rdpusb_process(STREAM s)
 
 	        	in_uint32_le(s, handle);
 
-			pUrb = proxy->urbs;
+			pUrb = proxy->pUrbs;
 
 			while (pUrb && pUrb->handle != handle)
 			{
-				pUrb = pUrb->next;
+				pUrb = pUrb->pNext;
 			}
 
 			if (pUrb)
@@ -831,21 +731,21 @@ rdpusb_process(STREAM s)
 				/* No reply required. */
 
 				/* Remove URB from list. */
-				if (pUrb->prev)
+				if (pUrb->pPrev)
 				{
-					pUrb->prev->next = pUrb->next;
+					pUrb->pPrev->pNext = pUrb->pNext;
 				}
 				else
 				{
-					proxy->urbs = pUrb->next;
+					proxy->pUrbs = pUrb->pNext;
 				}
 
-				if (pUrb->next)
+				if (pUrb->pNext)
 				{
-					pUrb->next->prev = pUrb->prev;
+					pUrb->pNext->pPrev = pUrb->pPrev;
 				}
 
-				pUrb->next = pUrb->prev = NULL;
+				pUrb->pNext = pUrb->pPrev = NULL;
 
 				Log(("Cancelled URB %p\n", pUrb));
 
@@ -895,13 +795,13 @@ rdpusb_process(STREAM s)
 void
 rdpusb_add_fds(int *n, fd_set * rfds, fd_set * wfds)
 {
-	struct usb_proxy *proxy = g_proxies;
+	PUSBPROXYDEV proxy = g_proxies;
 
 //	Log(("RDPUSB: rdpusb_add_fds: begin *n = %d\n", *n));
 
 	while (proxy)
 	{
-		int fd = dev2fd(proxy);
+		int fd = USBProxyDeviceLinuxGetFD(proxy);
 
 		if (fd != -1)
 		{
@@ -912,7 +812,7 @@ rdpusb_add_fds(int *n, fd_set * rfds, fd_set * wfds)
 			*n = MAX(*n, fd);
 		}
 
-		proxy = proxy->next;
+		proxy = proxy->pNext;
 	}
 
 //	Log(("RDPUSB: rdpusb_add_fds: end *n = %d\n", *n));
@@ -923,21 +823,41 @@ rdpusb_add_fds(int *n, fd_set * rfds, fd_set * wfds)
 void
 rdpusb_check_fds(fd_set * rfds, fd_set * wfds)
 {
-	(void)rfds;
-	(void)wfds;
+	PUSBPROXYDEV proxy = g_proxies;
+	unsigned found = 0;
+
+	while (proxy)
+	{
+		int fd = USBProxyDeviceLinuxGetFD(proxy);
+
+		if (fd != -1)
+		{
+			if (FD_ISSET(fd, rfds))
+                found = 1;
+			if (FD_ISSET(fd, wfds))
+                found = 1;
+		}
+
+		proxy = proxy->pNext;
+	}
 
 //	Log(("RDPUSB: rdpusb_check_fds: begin\n"));
 
-	rdpusb_reap_urbs ();
+	if (found)
+        rdpusb_reap_urbs ();
 
 //	Log(("RDPUSB: rdpusb_check_fds: end\n"));
 
 	return;
 }
 
+
 RD_BOOL
 rdpusb_init(void)
 {
+	PCUSBDEVTREELOCATION pcLocation = USBProxyLinuxGetDeviceRoot(false);
+	g_fUseSysfs       = pcLocation->fUseSysfs;
+	g_pcszDevicesRoot = pcLocation->szDevicesRoot;
 	rdpusb_channel =
 		channel_register("vrdpusb", CHANNEL_OPTION_INITIALIZED | CHANNEL_OPTION_ENCRYPT_RDP,
 				 rdpusb_process);
@@ -947,18 +867,18 @@ rdpusb_init(void)
 void
 rdpusb_close (void)
 {
-	struct usb_proxy *proxy = g_proxies;
+	PUSBPROXYDEV proxy = g_proxies;
 
 	while (proxy)
 	{
-		struct usb_proxy *next = proxy->next;
+		PUSBPROXYDEV pNext = proxy->pNext;
 
 		Log(("RDPUSB: closing proxy %p\n", proxy));
 
 		op_usbproxy_back_close(proxy);
 		xfree (proxy);
 
-		proxy = next;
+		proxy = pNext;
 	}
 
 	return;

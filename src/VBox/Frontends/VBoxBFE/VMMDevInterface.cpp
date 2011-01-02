@@ -1,4 +1,4 @@
-/* $Id: VMMDevInterface.cpp $ */
+/* $Id: VMMDevInterface.cpp 33758 2010-11-04 10:30:19Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of VMMDev: driver interface to VMM device
@@ -155,21 +155,16 @@ DECLCALLBACK(void) VMMDev::UpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterfa
  * @param   newCapabilities     New capabilities.
  * @thread  The emulation thread.
  */
-DECLCALLBACK(void) VMMDev::UpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t newCapabilities)
+DECLCALLBACK(void) VMMDev::UpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t fNewCaps)
 {
     /*
      * Tell the console interface about the event so that it can notify its consumers.
      */
 
     if (gMouse)
-    {
-        gMouse->onVMMDevCanAbsChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE));
-        gMouse->onVMMDevNeedsHostChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR));
-    }
+        gMouse->onVMMDevGuestCapsChange(fNewCaps & VMMDEV_MOUSE_GUEST_MASK);
     if (gConsole)
-    {
         gConsole->resetCursor();
-    }
 }
 
 
@@ -246,6 +241,16 @@ DECLCALLBACK(int) VMMDev::GetHeightReduction(PPDMIVMMDEVCONNECTOR pInterface, ui
         return VERR_INVALID_PARAMETER;
     /* XXX hard-coded */
     *heightReduction = 18;
+    return VINF_SUCCESS;
+}
+
+DECLCALLBACK(int) VMMDev::QueryBalloonSize(PPDMIVMMDEVCONNECTOR pInterface, uint32_t *pu32BalloonSize)
+{
+    PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+    (void)pDrv;
+
+    AssertPtr(pu32BalloonSize);
+    *pu32BalloonSize = 0;
     return VINF_SUCCESS;
 }
 
@@ -398,6 +403,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint3
     pData->Connector.pfnGetHeightReduction      = VMMDev::GetHeightReduction;
     pData->Connector.pfnSetVisibleRegion        = iface_SetVisibleRegion;
     pData->Connector.pfnQueryVisibleRegion      = iface_QueryVisibleRegion;
+    pData->Connector.pfnQueryBalloonSize        = VMMDev::QueryBalloonSize;
 
 #ifdef VBOX_WITH_HGCM
     if (fActivateHGCM())

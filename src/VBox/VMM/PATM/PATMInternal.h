@@ -1,4 +1,4 @@
-/* $Id: PATMInternal.h $ */
+/* $Id: PATMInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * PATM - Internal header file.
  */
@@ -30,16 +30,10 @@
 
 
 
-#ifdef PATM_WITH_NEW_SSM
-# define PATM_SSM_VERSION                    54
-/* Last version to use SSMR3Put/GetMem */
-# define PATM_SSM_VERSION_GETPUTMEM          53
-#else
-# define PATM_SSM_VERSION                    55
-# define PATM_SSM_VERSION_FIXUP_HACK         54
-# define PATM_SSM_VERSION_FIXUP_HACK         54
-# define PATM_SSM_VERSION_VER16              53
-#endif
+#define PATM_SSM_VERSION                    55
+#define PATM_SSM_VERSION_FIXUP_HACK         54
+#define PATM_SSM_VERSION_FIXUP_HACK         54
+#define PATM_SSM_VERSION_VER16              53
 
 /* Enable for call patching. */
 #define PATM_ENABLE_CALL
@@ -153,13 +147,26 @@ typedef struct
     RTRCPTR       pDest;
 } RELOCREC, *PRELOCREC;
 
+/* forward decl */
+struct _PATCHINFO;
+
+/* Cache record for guest to host pointer conversions. */
+typedef struct
+{
+    R3PTRTYPE(uint8_t *) pPageLocStartHC;
+    RCPTRTYPE(uint8_t *) pGuestLoc;
+    R3PTRTYPE(void *)    pPatch;
+    PGMPAGEMAPLOCK       Lock;
+} PATMP2GLOOKUPREC, *PPATMP2GLOOKUPREC;
+
+/* Obsolete; do not use. */
 typedef struct
 {
     R3PTRTYPE(uint8_t *) pPatchLocStartHC;
     R3PTRTYPE(uint8_t *) pPatchLocEndHC;
     RCPTRTYPE(uint8_t *) pGuestLoc;
     uint32_t             opsize;
-} P2GLOOKUPREC, *PP2GLOOKUPREC;
+} PATMP2GLOOKUPREC_OBSOLETE;
 
 typedef struct
 {
@@ -225,7 +232,7 @@ typedef struct
 
     int32_t                     nrCalls;
 
-    /** Last original guest instruction pointer; used for disassmebly log. */
+    /** Last original guest instruction pointer; used for disassembly log. */
     RTRCPTR                   pLastDisasmInstrGC;
 
     /** Keeping track of multiple ret instructions. */
@@ -239,37 +246,38 @@ typedef struct _PATCHINFO
     uint32_t        uOldState;
     DISCPUMODE      uOpMode;
 
-    RCPTRTYPE(uint8_t *)  pPrivInstrGC;    //GC pointer of privileged instruction
-    R3PTRTYPE(uint8_t *)  pPrivInstrHC;    //HC pointer of privileged instruction
-    uint8_t         aPrivInstr[MAX_INSTR_SIZE];
-    uint32_t        cbPrivInstr;
-    uint32_t        opcode;      //opcode for priv instr (OP_*)
-    uint32_t        cbPatchJump; //patch jump size
+    /* GC pointer of privileged instruction */
+    RCPTRTYPE(uint8_t *)  pPrivInstrGC;
+    R3PTRTYPE(uint8_t *)  unusedHC;                             /* todo Can't remove due to structure size dependencies in saved states. */
+    uint8_t               aPrivInstr[MAX_INSTR_SIZE];
+    uint32_t              cbPrivInstr;
+    uint32_t              opcode;      //opcode for priv instr (OP_*)
+    uint32_t              cbPatchJump; //patch jump size
 
     /* Only valid for PATMFL_JUMP_CONFLICT patches */
-    RTRCPTR       pPatchJumpDestGC;
+    RTRCPTR               pPatchJumpDestGC;
 
-    RTGCUINTPTR32   pPatchBlockOffset;
-    uint32_t        cbPatchBlockSize;
-    uint32_t        uCurPatchOffset;
+    RTGCUINTPTR32         pPatchBlockOffset;
+    uint32_t              cbPatchBlockSize;
+    uint32_t              uCurPatchOffset;
 #if HC_ARCH_BITS == 64
-    uint32_t        Alignment0;         /**< Align flags correctly. */
+    uint32_t              Alignment0;         /**< Align flags correctly. */
 #endif
 
-    uint64_t        flags;
+    uint64_t              flags;
 
     /**
      * Lowest and highest patched GC instruction address. To optimize searches.
      */
-    RTRCPTR                 pInstrGCLowest;
-    RTRCPTR                 pInstrGCHighest;
+    RTRCPTR               pInstrGCLowest;
+    RTRCPTR               pInstrGCHighest;
 
     /* Tree of fixup records for the patch. */
     R3PTRTYPE(PAVLPVNODECORE) FixupTree;
-    int32_t         nrFixups;
+    uint32_t                  nrFixups;
 
     /* Tree of jumps inside the generated patch code. */
-    int32_t         nrJumpRecs;
+    uint32_t                  nrJumpRecs;
     R3PTRTYPE(PAVLPVNODECORE) JumpTree;
 
     /**
@@ -283,8 +291,8 @@ typedef struct _PATCHINFO
     uint32_t        Alignment1;
 #endif
 
-    // Cache record for PATMGCVirtToHCVirt
-    P2GLOOKUPREC    cacheRec;
+    /* Unused, but can't remove due to structure size dependencies in the saved state. */
+    PATMP2GLOOKUPREC_OBSOLETE    unused;
 
     /* Temporary information during patch creation. Don't waste hypervisor memory for this. */
     R3PTRTYPE(PPATCHINFOTEMP) pTempInfo;
@@ -303,7 +311,7 @@ typedef struct _PATCHINFO
 
     /* First opcode byte, that's overwritten when a patch is marked dirty. */
     uint8_t         bDirtyOpcode;
-    uint8_t         Alignment2[7];      /**< Align the structure size on a 8-byte boundrary. */
+    uint8_t         Alignment2[7];      /**< Align the structure size on a 8-byte boundary. */
 } PATCHINFO, *PPATCHINFO;
 
 #define PATCHCODE_PTR_GC(pPatch)    (RTRCPTR)  (pVM->patm.s.pPatchMemGC + (pPatch)->pPatchBlockOffset)
@@ -445,7 +453,7 @@ typedef struct PATM
     {
         RTGCPHYS            GCPhys;
         RTRCPTR             pCachedData;
-        RTRCPTR             Alignment0; /**< Align the structure size on a 8-byte boundrary. */
+        RTRCPTR             Alignment0; /**< Align the structure size on a 8-byte boundary. */
     } mmio;
 
     /* Temporary storage during load/save state */
@@ -454,7 +462,7 @@ typedef struct PATM
         R3PTRTYPE(PSSMHANDLE) pSSM;
         uint32_t            cPatches;
 #if HC_ARCH_BITS == 64
-        uint32_t            Alignment0; /**< Align the structure size on a 8-byte boundrary. */
+        uint32_t            Alignment0; /**< Align the structure size on a 8-byte boundary. */
 #endif
     } savedstate;
 
@@ -515,7 +523,7 @@ typedef struct PATM
     STAMCOUNTER             StatFunctionLookupReplace;
     STAMCOUNTER             StatFunctionLookupInsert;
     uint32_t                StatU32FunctionMaxSlotsUsed;
-    uint32_t                Alignment0; /**< Align the structure size on a 8-byte boundrary. */
+    uint32_t                Alignment0; /**< Align the structure size on a 8-byte boundary. */
 } PATM, *PPATM;
 
 
@@ -588,10 +596,10 @@ int PATMRemovePatch(PVM pVM, PPATMPATCHREC pPatchRec, bool fForceRemove);
  * @param   pCpu        CPU disassembly state
  * @param   pInstrHC    Guest context pointer to privileged instruction
  * @param   pCurInstrHC Guest context pointer to current instruction
- * @param   pUserData   User pointer
+ * @param   pCacheRec   Cache record ptr
  *
  */
-typedef int (VBOXCALL *PFN_PATMR3ANALYSE)(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, void *pUserData);
+typedef int (VBOXCALL *PFN_PATMR3ANALYSE)(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PPATMP2GLOOKUPREC pCacheRec);
 
 /**
  * Install guest OS specific patch
@@ -605,19 +613,6 @@ typedef int (VBOXCALL *PFN_PATMR3ANALYSE)(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(
  *
  */
 int PATMInstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTRCPTR pInstrGC, uint8_t *pInstrHC, PPATMPATCHREC pPatchRec);
-
-/**
- * Convert guest context address to host context pointer
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pPatch      Patch block structure pointer
- * @param   pGCPtr      Guest context pointer
- *
- * @returns             Host context pointer or NULL in case of an error
- *
- */
-R3PTRTYPE(uint8_t *) PATMGCVirtToHCVirt(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pGCPtr);
 
 
 /**
@@ -711,14 +706,14 @@ RT_C_DECLS_BEGIN
 /**
  * #PF Virtual Handler callback for Guest access a page monitored by PATM
  *
- * @returns VBox status code (appropritate for trap handling and GC return).
+ * @returns VBox status code (appropriate for trap handling and GC return).
  * @param   pVM         VM Handle.
  * @param   uErrorCode   CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
  * @param   pvRange     The base address of the handled virtual range.
  * @param   offRange    The offset of the access into this range.
- *                      (If it's a EIP range this's the EIP, if not it's pvFault.)
+ *                      (If it's a EIP range this is the EIP, if not it's pvFault.)
  */
 VMMRCDECL(int) PATMGCMonitorPage(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 
@@ -778,6 +773,8 @@ VMMR3DECL(int) PATMR3PatchInstrInt3(PVM pVM, RTRCPTR pInstrGC, R3PTRTYPE(uint8_t
  */
 VMMR3DECL(int) PATMR3MarkDirtyPatch(PVM pVM, PPATCHINFO pPatch);
 
+R3PTRTYPE(uint8_t *) PATMGCVirtToHCVirt(PVM pVM, PPATMP2GLOOKUPREC pCacheRec, RCPTRTYPE(uint8_t *) pGCPtr);
+
 /**
  * Calculate the branch destination
  *
@@ -817,8 +814,8 @@ inline RTRCPTR PATMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
 RT_C_DECLS_END
 
 #ifdef LOG_ENABLED
-int patmr3DisasmCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, void *pUserData);
-int patmr3DisasmCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PFN_PATMR3ANALYSE pfnPATMR3Analyse, void *pUserData);
+int patmr3DisasmCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PPATMP2GLOOKUPREC pCacheRec);
+int patmr3DisasmCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PFN_PATMR3ANALYSE pfnPATMR3Analyse, PPATMP2GLOOKUPREC pCacheRec);
 #endif
 
 #endif

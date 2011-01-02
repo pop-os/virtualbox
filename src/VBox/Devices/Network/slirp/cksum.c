@@ -1,4 +1,4 @@
-/* $Id: cksum.c $ */
+/* $Id: cksum.c 34103 2010-11-16 11:18:55Z vboxsync $ */
 /** @file
  * NAT - IP checksum generation.
  */
@@ -153,10 +153,7 @@ int cksum(struct mbuf *m, int len)
 cont:
 #ifdef DEBUG
     if (len)
-    {
-        DEBUG_ERROR((dfd, "cksum: out of data\n"));
-        DEBUG_ERROR((dfd, " len = %d\n", len));
-    }
+        Log(("cksum: out of data: len = %d\n", len));
 #endif
     if (mlen == -1)
     {

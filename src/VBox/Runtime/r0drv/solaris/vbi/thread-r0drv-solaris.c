@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-solaris.c $ */
+/* $Id: thread-r0drv-solaris.c 29281 2010-05-09 23:40:43Z vboxsync $ */
 /** @file
  * IPRT - Threads, Ring-0 Driver, Solaris.
  */

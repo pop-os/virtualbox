@@ -1,4 +1,4 @@
-/* $Id: WinNetConfig.cpp $ */
+/* $Id: WinNetConfig.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxNetCfgWin - Briefly describe this file, optionally with a longer description in a separate paragraph.
  */
@@ -1468,7 +1468,7 @@ VBoxNetCfgWinGetNextBindingInterface(IN IEnumNetCfgBindingInterface *pencbi,
  *
  * @param pencbp Binding path enumerator reference.
  * @param ppncbp Address the Binding path reference to be stored to
- * @return S_OK on sucess, otherwise an error code.
+ * @return S_OK on success, otherwise an error code.
  */
 VBOXNETCFGWIN_DECL(HRESULT)
 VBoxNetCfgWinGetNextBindingPath(IN IEnumNetCfgBindingPath *pencbp,
@@ -2590,7 +2590,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinCreateHostOnlyNetworkInterface (LPCWSTR
 
             /* if the function failed and GetLastError() returned
              * ERROR_NO_MORE_ITEMS, then we have reached the end of the
-             * list.  Othewise there was something wrong with this
+             * list.  Otherwise there was something wrong with this
              * particular driver. */
             if (!ret)
             {

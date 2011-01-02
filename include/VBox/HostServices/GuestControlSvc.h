@@ -1,6 +1,5 @@
 /** @file
- * Guest control service:
- * Common header for host service and guest clients.
+ * Guest control service - Common header for host service and guest clients.
  */
 
 /*
@@ -35,7 +34,7 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
-/** Everything defined in this file lives in this namespace. */
+/* Everything defined in this file lives in this namespace. */
 namespace guestControl {
 
 /******************************************************************************
@@ -61,61 +60,116 @@ enum eProcessStatus
     PROC_STS_TOK = 5,
     /** Process timed out and was not killed successfully. */
     PROC_STS_TOA = 6,
-    /** Service is stopping, process was killed. */
+    /** Service/OS is stopping, process was killed. */
     PROC_STS_DWN = 7,
     /** Something went wrong (error code in flags). */
     PROC_STS_ERROR = 8
 };
 
-typedef struct _VBoxGuestCtrlCallbackHeader
+/**
+ * Input flags, set by the host. This is needed for
+ * handling flags on the guest side.
+ * Note: Has to match Main's ProcessInputFlag_* flags!
+ */
+#define INPUT_FLAG_NONE             0
+#define INPUT_FLAG_EOF              RT_BIT(0)
+
+/** @name Internal tools built into VBoxService which are used in order to
+ *        accomplish tasks host<->guest.
+ * @{
+ */
+#define VBOXSERVICE_TOOL_CAT        "vbox_cat"
+#define VBOXSERVICE_TOOL_MKDIR      "vbox_mkdir"
+/** @} */
+
+/**
+ * Input status, reported by the client.
+ */
+enum eInputStatus
+{
+    /** Input is in an undefined state. */
+    INPUT_STS_UNDEFINED = 0,
+    /** Input was written (partially, see cbProcessed). */
+    INPUT_STS_WRITTEN = 1,
+    /** Input failed with an error (see flags for rc). */
+    INPUT_STS_ERROR = 20,
+    /** Process has abandoned / terminated input handling. */
+    INPUT_STS_TERMINATED = 21,
+    /** Too much input data. */
+    INPUT_STS_OVERFLOW = 30
+};
+
+/**
+ * Document me.
+ */
+typedef struct VBoxGuestCtrlCallbackHeader
 {
     /** Magic number to identify the structure. */
     uint32_t u32Magic;
     /** Context ID to identify callback data. */
     uint32_t u32ContextID;
-} CALLBACKHEADER, *PCALLBACKHEADER;
+} CALLBACKHEADER;
+typedef CALLBACKHEADER *PCALLBACKHEADER;
 
 /**
  * Data structure to pass to the service extension callback.  We use this to
  * notify the host of changes to properties.
  */
-typedef struct _VBoxGuestCtrlCallbackDataExecStatus
+typedef struct VBoxGuestCtrlCallbackDataExecStatus
 {
     /** Callback data header. */
     CALLBACKHEADER hdr;
     /** The process ID (PID). */
     uint32_t u32PID;
-    /* The process status. */
+    /** The process status. */
     uint32_t u32Status;
-    /** Optional flags (not used atm). */
+    /** Optional flags, varies, based on u32Status. */
     uint32_t u32Flags;
     /** Optional data buffer (not used atm). */
     void *pvData;
     /** Size of optional data buffer (not used atm). */
     uint32_t cbData;
-} CALLBACKDATAEXECSTATUS, *PCALLBACKDATAEXECSTATUS;
+} CALLBACKDATAEXECSTATUS;
+typedef CALLBACKDATAEXECSTATUS *PCALLBACKDATAEXECSTATUS;
 
-typedef struct _VBoxGuestCtrlCallbackDataExecOut
+typedef struct VBoxGuestCtrlCallbackDataExecOut
 {
     /** Callback data header. */
     CALLBACKHEADER hdr;
     /** The process ID (PID). */
     uint32_t u32PID;
-    /* The handle ID (stdout/stderr). */
+    /** The handle ID (stdout/stderr). */
     uint32_t u32HandleId;
     /** Optional flags (not used atm). */
     uint32_t u32Flags;
     /** Optional data buffer. */
     void *pvData;
-    /** Size of optional data buffer. */
+    /** Size (in bytes) of optional data buffer. */
     uint32_t cbData;
-} CALLBACKDATAEXECOUT, *PCALLBACKDATAEXECOUT;
+} CALLBACKDATAEXECOUT;
+typedef CALLBACKDATAEXECOUT *PCALLBACKDATAEXECOUT;
 
-typedef struct _VBoxGuestCtrlCallbackDataClientDisconnected
+typedef struct VBoxGuestCtrlCallbackDataExecInStatus
 {
     /** Callback data header. */
     CALLBACKHEADER hdr;
-} CALLBACKDATACLIENTDISCONNECTED, *PCALLBACKDATACLIENTDISCONNECTED;
+    /** The process ID (PID). */
+    uint32_t u32PID;
+    /** Current input status. */
+    uint32_t u32Status;
+    /** Optional flags. */
+    uint32_t u32Flags;
+    /** Size (in bytes) of processed input data. */
+    uint32_t cbProcessed;
+} CALLBACKDATAEXECINSTATUS;
+typedef CALLBACKDATAEXECINSTATUS *PCALLBACKDATAEXECINSTATUS;
+
+typedef struct VBoxGuestCtrlCallbackDataClientDisconnected
+{
+    /** Callback data header. */
+    CALLBACKHEADER hdr;
+} CALLBACKDATACLIENTDISCONNECTED;
+typedef CALLBACKDATACLIENTDISCONNECTED *PCALLBACKDATACLIENTDISCONNECTED;
 
 enum
 {
@@ -124,14 +178,17 @@ enum
     /** Magic number for sanity checking the CALLBACKDATAEXECSTATUS structure. */
     CALLBACKDATAMAGICEXECSTATUS = 0x26011982,
     /** Magic number for sanity checking the CALLBACKDATAEXECOUT structure. */
-    CALLBACKDATAMAGICEXECOUT = 0x11061949
+    CALLBACKDATAMAGICEXECOUT = 0x11061949,
+    /** Magic number for sanity checking the CALLBACKDATAEXECIN structure. */
+    CALLBACKDATAMAGICEXECINSTATUS = 0x19091951
 };
 
 enum eVBoxGuestCtrlCallbackType
 {
     VBOXGUESTCTRLCALLBACKTYPE_UNKNOWN = 0,
     VBOXGUESTCTRLCALLBACKTYPE_EXEC_START = 1,
-    VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT = 2
+    VBOXGUESTCTRLCALLBACKTYPE_EXEC_OUTPUT = 2,
+    VBOXGUESTCTRLCALLBACKTYPE_EXEC_INPUT_STATUS = 3
 };
 
 /**
@@ -139,6 +196,10 @@ enum eVBoxGuestCtrlCallbackType
  */
 enum eHostFn
 {
+    /**
+     * The host asks the client to cancel all pending waits and exit.
+     */
+    HOST_CANCEL_PENDING_WAITS = 0,
     /**
      * The host wants to execute something in the guest. This can be a command line
      * or starting a program.
@@ -178,46 +239,25 @@ enum eGuestFn
      */
     GUEST_DISCONNECTED = 3,
     /**
-     * TODO
+     * Guests sends output from an executed process.
      */
     GUEST_EXEC_SEND_OUTPUT = 100,
     /**
-     * TODO
+     * Guest sends a status update of an executed process to the host.
      */
-    GUEST_EXEC_SEND_STATUS = 101
-};
-
-/**
- * Sub host commands.  These commands are stored as first (=0) parameter in a GUEST_GET_HOST_MSG
- * so that the guest can react dynamically to requests from the host.
- */
-enum eGetHostMsgFn
-{
+    GUEST_EXEC_SEND_STATUS = 101,
     /**
-     * Hosts wants the guest to stop waiting for new messages.
+     * Guests sends an input status notification to the host.
      */
-    GETHOSTMSG_EXEC_HOST_CANCEL_WAIT = 0,
-    /**
-     * The host wants to execute something in the guest. This can be a command line
-     * or starting a program.
-     */
-    GETHOSTMSG_EXEC_START_PROCESS = 100,
-    /**
-     * Sends input data for stdin to a running process executed by HOST_EXEC_CMD.
-     */
-    GETHOSTMSG_EXEC_SEND_INPUT = 101,
-    /**
-     * Host requests the so far collected stdout/stderr output
-     * from a running process executed by HOST_EXEC_CMD.
-     */
-    GETHOSTMSG_EXEC_GET_OUTPUT = 102
+    GUEST_EXEC_SEND_INPUT_STATUS = 102
 };
 
 /*
  * HGCM parameter structures.
  */
 #pragma pack (1)
-typedef struct _VBoxGuestCtrlHGCMMsgType
+
+typedef struct VBoxGuestCtrlHGCMMsgType
 {
     VBoxGuestHGCMCallInfo hdr;
 
@@ -231,47 +271,76 @@ typedef struct _VBoxGuestCtrlHGCMMsgType
 
 } VBoxGuestCtrlHGCMMsgType;
 
-typedef struct _VBoxGuestCtrlHGCMMsgCancelPendingWaits
+/**
+ * Asks the guest control host service to cancel all pending (outstanding)
+ * waits which were not processed yet.  This is handy for a graceful shutdown.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgCancelPendingWaits
 {
     VBoxGuestHGCMCallInfo hdr;
 } VBoxGuestCtrlHGCMMsgCancelPendingWaits;
 
-typedef struct _VBoxGuestCtrlHGCMMsgExecCmd
+/**
+ * Executes a command inside the guest.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgExecCmd
 {
     VBoxGuestHGCMCallInfo hdr;
-
+    /** Context ID. */
     HGCMFunctionParameter context;
-
+    /** The command to execute on the guest. */
     HGCMFunctionParameter cmd;
-
+    /** Execution flags (see IGuest::ExecuteProcessFlag_*). */
     HGCMFunctionParameter flags;
-
+    /** Number of arguments. */
     HGCMFunctionParameter num_args;
-
+    /** The actual arguments. */
     HGCMFunctionParameter args;
-
+    /** Number of environment value pairs. */
     HGCMFunctionParameter num_env;
     /** Size (in bytes) of environment block, including terminating zeros. */
     HGCMFunctionParameter cb_env;
-
+    /** The actual environment block. */
     HGCMFunctionParameter env;
-
+    /** The user name to run the executed command under. */
     HGCMFunctionParameter username;
-
+    /** The user's password. */
     HGCMFunctionParameter password;
-
+    /** Timeout (in msec) which either specifies the
+     *  overall lifetime of the process or how long it
+     *  can take to bring the process up and running -
+     *  (depends on the IGuest::ExecuteProcessFlag_*). */
     HGCMFunctionParameter timeout;
 
 } VBoxGuestCtrlHGCMMsgExecCmd;
 
-typedef struct _VBoxGuestCtrlHGCMMsgExecOut
+/**
+ * Injects input to a previously executed process via stdin.
+ */
+typedef struct VBoxGuestCtrlHGCMMsgExecIn
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** The process ID (PID) to send the input to. */
+    HGCMFunctionParameter pid;
+    /** Input flags (see IGuest::ProcessInputFlag_*). */
+    HGCMFunctionParameter flags;
+    /** Data buffer. */
+    HGCMFunctionParameter data;
+    /** Actual size of data (in bytes). */
+    HGCMFunctionParameter size;
+
+} VBoxGuestCtrlHGCMMsgExecIn;
+
+typedef struct VBoxGuestCtrlHGCMMsgExecOut
 {
     VBoxGuestHGCMCallInfo hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID). */
     HGCMFunctionParameter pid;
-    /** The pipe handle ID. */
+    /** The pipe handle ID (stdout/stderr). */
     HGCMFunctionParameter handle;
     /** Optional flags. */
     HGCMFunctionParameter flags;
@@ -280,7 +349,7 @@ typedef struct _VBoxGuestCtrlHGCMMsgExecOut
 
 } VBoxGuestCtrlHGCMMsgExecOut;
 
-typedef struct _VBoxGuestCtrlHGCMMsgExecStatus
+typedef struct VBoxGuestCtrlHGCMMsgExecStatus
 {
     VBoxGuestHGCMCallInfo hdr;
     /** Context ID. */
@@ -295,16 +364,37 @@ typedef struct _VBoxGuestCtrlHGCMMsgExecStatus
     HGCMFunctionParameter data;
 
 } VBoxGuestCtrlHGCMMsgExecStatus;
+
+typedef struct VBoxGuestCtrlHGCMMsgExecStatusIn
+{
+    VBoxGuestHGCMCallInfo hdr;
+    /** Context ID. */
+    HGCMFunctionParameter context;
+    /** The process ID (PID). */
+    HGCMFunctionParameter pid;
+    /** Status of the operation. */
+    HGCMFunctionParameter status;
+    /** Optional flags. */
+    HGCMFunctionParameter flags;
+    /** Data written. */
+    HGCMFunctionParameter written;
+
+} VBoxGuestCtrlHGCMMsgExecStatusIn;
+
 #pragma pack ()
 
-/* Structure for buffering execution requests in the host service. */
-typedef struct _VBoxGuestCtrlParamBuffer
+/**
+ * Structure for buffering execution requests in the host service.
+ */
+typedef struct VBoxGuestCtrlParamBuffer
 {
     uint32_t uMsg;
     uint32_t uParmCount;
     VBOXHGCMSVCPARM *pParms;
-} VBOXGUESTCTRPARAMBUFFER, *PVBOXGUESTCTRPARAMBUFFER;
+} VBOXGUESTCTRPARAMBUFFER;
+typedef VBOXGUESTCTRPARAMBUFFER *PVBOXGUESTCTRPARAMBUFFER;
 
 } /* namespace guestControl */
 
-#endif  /* ___VBox_HostService_GuestControlService_h defined */
+#endif  /* !___VBox_HostService_GuestControlService_h */
+

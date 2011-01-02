@@ -1,4 +1,4 @@
-/* $Id: server_muralfbo.c $ */
+/* $Id: server_muralfbo.c 34270 2010-11-22 22:54:51Z vboxsync $ */
 
 /** @file
  * VBox crOpenGL: Window to FBO redirect support.
@@ -27,8 +27,8 @@ static int crServerGetPointScreen(GLint x, GLint y)
 
     for (i=0; i<cr_server.screenCount; ++i)
     {
-        if ((x>=cr_server.screen[i].x && x<=cr_server.screen[i].x+(int)cr_server.screen[i].w)
-           && (y>=cr_server.screen[i].y && y<=cr_server.screen[i].y+(int)cr_server.screen[i].h))
+        if ((x>=cr_server.screen[i].x && x<cr_server.screen[i].x+(int)cr_server.screen[i].w)
+           && (y>=cr_server.screen[i].y && y<cr_server.screen[i].y+(int)cr_server.screen[i].h))
         {
             return i;
         }
@@ -39,10 +39,10 @@ static int crServerGetPointScreen(GLint x, GLint y)
 
 static GLboolean crServerMuralCoverScreen(CRMuralInfo *mural, int sId)
 {
-    return mural->gX<=cr_server.screen[sId].x
-           && mural->gX>=cr_server.screen[sId].x+(int)cr_server.screen[sId].w
-           && mural->gY<=cr_server.screen[sId].y
-           && mural->gY>=cr_server.screen[sId].y+(int)cr_server.screen[sId].h;
+    return mural->gX < cr_server.screen[sId].x
+           && mural->gX+(int)mural->width > cr_server.screen[sId].x+(int)cr_server.screen[sId].w
+           && mural->gY < cr_server.screen[sId].y
+           && mural->gY+(int)mural->height > cr_server.screen[sId].y+(int)cr_server.screen[sId].h;
 }
 
 void crServerCheckMuralGeometry(CRMuralInfo *mural)
@@ -63,7 +63,7 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
     }
 
     tlS = crServerGetPointScreen(mural->gX, mural->gY);
-    brS = crServerGetPointScreen(mural->gX+mural->width, mural->gY+mural->height);
+    brS = crServerGetPointScreen(mural->gX+mural->width-1, mural->gY+mural->height-1);
 
     if (tlS==brS && tlS>=0)
     {
@@ -72,8 +72,8 @@ void crServerCheckMuralGeometry(CRMuralInfo *mural)
     }
     else
     {
-        trS = crServerGetPointScreen(mural->gX+mural->width, mural->gY);
-        blS = crServerGetPointScreen(mural->gX, mural->gY+mural->height);
+        trS = crServerGetPointScreen(mural->gX+mural->width-1, mural->gY);
+        blS = crServerGetPointScreen(mural->gX, mural->gY+mural->height-1);
 
         primaryS = -1; overlappingScreenCount = 0;
         for (i=0; i<cr_server.screenCount; ++i)
@@ -228,11 +228,11 @@ void crServerCreateMuralFBO(CRMuralInfo *mural)
     mural->fboHeight = mural->height;
 
     /*Restore gl state*/
-    uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->name;
+    uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid;
     cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, uid);
 
     uid = ctx->framebufferobject.renderbuffer ? ctx->framebufferobject.renderbuffer->hwid:0;
-    cr_server.head_spu->dispatch_table.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, mural->idDepthStencilRB);
+    cr_server.head_spu->dispatch_table.BindRenderbufferEXT(GL_RENDERBUFFER_EXT, uid);
 
     uid = ctx->framebufferobject.drawFB ? ctx->framebufferobject.drawFB->hwid:0;
     cr_server.head_spu->dispatch_table.BindFramebufferEXT(GL_FRAMEBUFFER_EXT, uid);
@@ -329,7 +329,7 @@ void crServerPresentFBO(CRMuralInfo *mural)
 
     cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, mural->idColorTex);
     cr_server.head_spu->dispatch_table.GetTexImage(GL_TEXTURE_2D, 0, GL_BGRA, GL_UNSIGNED_BYTE, pixels);
-    uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->name;
+    uid = ctx->texture.unit[ctx->texture.curTextureUnit].currentTexture2D->hwid;
     cr_server.head_spu->dispatch_table.BindTexture(GL_TEXTURE_2D, uid);
 
     for (i=0; i<cr_server.screenCount; ++i)

@@ -29,110 +29,11 @@ import shlex
 import time
 import re
 import platform
+from optparse import OptionParser
 
-# Simple implementation of IConsoleCallback, one can use it as skeleton
-# for custom implementations
-class GuestMonitor:
-    def __init__(self, mach):
-        self.mach = mach
-
-    def onMousePointerShapeChange(self, visible, alpha, xHot, yHot, width, height, shape):
-        print  "%s: onMousePointerShapeChange: visible=%d shape=%d bytes" %(self.mach.name, visible,len(shape))
-
-    def onMouseCapabilityChange(self, supportsAbsolute, supportsRelative, needsHostCursor):
-        print  "%s: onMouseCapabilityChange: supportsAbsolute = %d, supportsRelative = %d, needsHostCursor = %d" %(self.mach.name, supportsAbsolute, supportsRelative, needsHostCursor)
-
-    def onKeyboardLedsChange(self, numLock, capsLock, scrollLock):
-        print  "%s: onKeyboardLedsChange capsLock=%d"  %(self.mach.name, capsLock)
-
-    def onStateChange(self, state):
-        print  "%s: onStateChange state=%d" %(self.mach.name, state)
-
-    def onAdditionsStateChange(self):
-        print  "%s: onAdditionsStateChange" %(self.mach.name)
-
-    def onNetworkAdapterChange(self, adapter):
-        print  "%s: onNetworkAdapterChange" %(self.mach.name)
-
-    def onSerialPortChange(self, port):
-        print  "%s: onSerialPortChange" %(self.mach.name)
-
-    def onParallelPortChange(self, port):
-        print  "%s: onParallelPortChange" %(self.mach.name)
-
-    def onStorageControllerChange(self):
-        print  "%s: onStorageControllerChange" %(self.mach.name)
-
-    def onMediumChange(self, attachment):
-        print  "%s: onMediumChange" %(self.mach.name)
-
-    def onVRDPServerChange(self):
-        print  "%s: onVRDPServerChange" %(self.mach.name)
-
-    def onUSBControllerChange(self):
-        print  "%s: onUSBControllerChange" %(self.mach.name)
-
-    def onUSBDeviceStateChange(self, device, attached, error):
-        print  "%s: onUSBDeviceStateChange" %(self.mach.name)
-
-    def onSharedFolderChange(self, scope):
-        print  "%s: onSharedFolderChange" %(self.mach.name)
-
-    def onRuntimeError(self, fatal, id, message):
-        print  "%s: onRuntimeError fatal=%d message=%s" %(self.mach.name, fatal, message)
-
-    def onCanShowWindow(self):
-        print  "%s: onCanShowWindow" %(self.mach.name)
-        return True
-
-    def onShowWindow(self, winId):
-        print  "%s: onShowWindow: %d" %(self.mach.name, winId)
-
-class VBoxMonitor:
-    def __init__(self, params):
-        self.vbox = params[0]
-        self.isMscom = params[1]
-        pass
-
-    def onMachineStateChange(self, id, state):
-        print "onMachineStateChange: %s %d" %(id, state)
-
-    def onMachineDataChange(self,id):
-        print "onMachineDataChange: %s" %(id)
-
-    def onExtraDataCanChange(self, id, key, value):
-        print "onExtraDataCanChange: %s %s=>%s" %(id, key, value)
-        # Witty COM bridge thinks if someone wishes to return tuple, hresult
-        # is one of values we want to return
-        if self.isMscom:
-            return "", 0, True
-        else:
-            return True, ""
-
-    def onExtraDataChange(self, id, key, value):
-        print "onExtraDataChange: %s %s=>%s" %(id, key, value)
-
-    def onMediaRegistered(self, id, type, registered):
-        print "onMediaRegistered: %s" %(id)
-
-    def onMachineRegistered(self, id, registred):
-        print "onMachineRegistered: %s" %(id)
-
-    def onSessionStateChange(self, id, state):
-        print "onSessionStateChange: %s %d" %(id, state)
-
-    def onSnapshotTaken(self, mach, id):
-        print "onSnapshotTaken: %s %s" %(mach, id)
-
-    def onSnapshotDeleted(self, mach, id):
-        print "onSnapshotDeleted: %s %s" %(mach, id)
-
-    def onSnapshotChange(self, mach, id):
-        print "onSnapshotChange: %s %s" %(mach, id)
-
-    def onGuestPropertyChange(self, id, name, newValue, flags):
-       print "onGuestPropertyChange: %s: %s=%s" %(id, name, newValue)
-
+g_batchmode = False
+g_scripfile = None
+g_cmd = None
 g_hasreadline = True
 try:
     if g_hasreadline:
@@ -273,6 +174,8 @@ def progressBar(ctx,p,wait=1000):
             sys.stdout.flush()
             p.waitForCompletion(wait)
             ctx['global'].waitForEvents(0)
+        if int(p.resultCode) != 0:
+            reportError(ctx, p)
         return 1
     except KeyboardInterrupt:
         print "Interrupted."
@@ -320,7 +223,7 @@ def removeVm(ctx,mach):
     id = mach.id
     print "removing machine ",mach.name,"with UUID",id
     cmdClosedVm(ctx, mach, detachVmDevice, ["ALL"])
-    mach = vb.unregisterMachine(id)
+    mach = mach.unregister(ctx['global'].constants.CleanupMode_Full)
     if mach:
          mach.deleteSettings()
     # update cache
@@ -331,8 +234,7 @@ def startVm(ctx,mach,type):
     vb = ctx['vb']
     perf = ctx['perf']
     session = mgr.getSessionObject(vb)
-    uuid = mach.id
-    progress = vb.openRemoteSession(session, uuid, type, "")
+    progress = mach.launchVMProcess(session, type, "")
     if progressBar(ctx, progress, 100) and int(progress.resultCode) == 0:
         # we ignore exceptions to allow starting VM even if
         # perf collector cannot be started
@@ -344,7 +246,7 @@ def startVm(ctx,mach,type):
             if g_verbose:
                 traceback.print_exc()
          # if session not opened, close doesn't make sense
-        session.close()
+        session.unlockMachine()
     else:
        reportError(ctx,progress)
 
@@ -356,8 +258,11 @@ class CachedMach:
 def cacheMachines(ctx,list):
     result = []
     for m in list:
-        elem = CachedMach(m)
-        result.append(elem)
+        try:
+            elem = CachedMach(m)
+            result.append(elem)
+        except:
+            pass
     return result
 
 def getMachines(ctx, invalidate = False, simple=False):
@@ -393,41 +298,196 @@ def perfStats(ctx,mach):
 def guestExec(ctx, machine, console, cmds):
     exec cmds
 
-def monitorGuest(ctx, machine, console, dur):
-    cb = ctx['global'].createCallback('IConsoleCallback', GuestMonitor, machine)
-    console.registerCallback(cb)
+def printMouseEvent(ctx, mev):
+    print "Mouse : absolute=%d x=%d y=%d z=%d buttons=%x" %(mev.absolute, mev.x, mev.y, mev.z, mev.buttons)
+
+def printKbdEvent(ctx, kev):
+    print "Kbd: ", ctx['global'].getArray(kev, 'scancodes')
+
+def monitorSource(ctx, es, active, dur):
+    def handleEventImpl(ev):
+         type = ev.type
+         print "got event: %s %s" %(str(type), asEnumElem(ctx, 'VBoxEventType', type))
+         if type == ctx['global'].constants.VBoxEventType_OnMachineStateChanged:
+             scev = ctx['global'].queryInterface(ev, 'IMachineStateChangedEvent')
+             if scev:
+                 print "machine state event: mach=%s state=%s" %(scev.machineId, scev.state)
+         elif  type == ctx['global'].constants.VBoxEventType_OnGuestPropertyChanged:
+             gpcev = ctx['global'].queryInterface(ev, 'IGuestPropertyChangedEvent')
+             if gpcev:
+                 print "guest property change: name=%s value=%s" %(gpcev.name, gpcev.value)
+         elif  type == ctx['global'].constants.VBoxEventType_OnMousePointerShapeChanged:
+             psev = ctx['global'].queryInterface(ev, 'IMousePointerShapeChangedEvent')
+             if psev:
+                 shape = ctx['global'].getArray(psev, 'shape')
+                 if shape is None:
+                     print "pointer shape event - empty shape"
+                 else:
+                     print "pointer shape event: w=%d h=%d shape len=%d" %(psev.width, psev.height, len(shape))
+         elif type == ctx['global'].constants.VBoxEventType_OnGuestMouse:
+             mev = ctx['global'].queryInterface(ev, 'IGuestMouseEvent')
+             if mev:
+                 printMouseEvent(ctx, mev)
+         elif type == ctx['global'].constants.VBoxEventType_OnGuestKeyboard:
+             kev = ctx['global'].queryInterface(ev, 'IGuestKeyboardEvent')
+             if kev:
+                 printKbdEvent(ctx, kev)
+
+    class EventListener:
+     def __init__(self, arg):
+         pass
+
+     def handleEvent(self, ev):
+         try:
+            # a bit convoluted QI to make it work with MS COM
+            handleEventImpl(ctx['global'].queryInterface(ev, 'IEvent'))
+         except:
+            traceback.print_exc()
+	    pass
+
+    if active:
+        listener = ctx['global'].createListener(EventListener)
+    else:
+        listener = es.createListener()
+    registered = False
     if dur == -1:
         # not infinity, but close enough
         dur = 100000
     try:
+        es.registerListener(listener, [ctx['global'].constants.VBoxEventType_Any], active)
+        registered = True
         end = time.time() + dur
         while  time.time() < end:
-            ctx['global'].waitForEvents(500)
-    # We need to catch all exceptions here, otherwise callback will never be unregistered
+            if active:
+                ctx['global'].waitForEvents(500)
+            else:
+                ev = es.getEvent(listener, 500)
+                if ev:
+                    handleEventImpl(ev)
+                    # otherwise waitable events will leak (active listeners ACK automatically)
+                    es.eventProcessed(listener, ev)
+    # We need to catch all exceptions here, otherwise listener will never be unregistered
     except:
+        traceback.print_exc()
         pass
-    console.unregisterCallback(cb)
+    if listener and registered:
+        es.unregisterListener(listener)
 
 
-def monitorVBox(ctx, dur):
-    vbox = ctx['vb']
-    isMscom = (ctx['global'].type == 'MSCOM')
-    cb = ctx['global'].createCallback('IVirtualBoxCallback', VBoxMonitor, [vbox, isMscom])
-    vbox.registerCallback(cb)
+tsLast = 0
+def recordDemo(ctx, console, file, dur):
+    demo = open(file, 'w')
+    header="VM="+console.machine.name+"\n"
+    demo.write(header)
+
+    global tsLast
+    tsLast = time.time()
+
+    def stamp():
+        global tsLast
+        tsCur = time.time()
+        rv = int((tsCur-tsLast)*1000)
+        tsLast = tsCur
+        return rv
+
+    def handleEventImpl(ev):
+         type = ev.type
+         #print "got event: %s %s" %(str(type), asEnumElem(ctx, 'VBoxEventType', type))
+         if type == ctx['global'].constants.VBoxEventType_OnGuestMouse:
+             mev = ctx['global'].queryInterface(ev, 'IGuestMouseEvent')
+             if mev:
+                 l = "%d: m %d %d %d %d %d %d\n" %(stamp(), mev.absolute, mev.x, mev.y, mev.z, mev.w, mev.buttons)
+                 demo.write(l)
+         elif type == ctx['global'].constants.VBoxEventType_OnGuestKeyboard:
+             kev = ctx['global'].queryInterface(ev, 'IGuestKeyboardEvent')
+             if kev:
+                 l = "%d: k %s\n" %(stamp(), str(ctx['global'].getArray(kev, 'scancodes')))
+                 demo.write(l)
+
+    listener = console.eventSource.createListener()
+    registered = False
+    # we create an aggregated event source to listen for multiple event sources (keyboard and mouse in our case)
+    agg = console.eventSource.createAggregator([console.keyboard.eventSource, console.mouse.eventSource])
+    demo = open(file, 'w')
+    header="VM="+console.machine.name+"\n"
+    demo.write(header)
     if dur == -1:
         # not infinity, but close enough
         dur = 100000
     try:
+        agg.registerListener(listener, [ctx['global'].constants.VBoxEventType_Any], False)
+        registered = True
         end = time.time() + dur
         while  time.time() < end:
-            ctx['global'].waitForEvents(500)
-    # We need to catch all exceptions here, otherwise callback will never be unregistered
+            ev = agg.getEvent(listener, 1000)
+            if ev:
+                handleEventImpl(ev)
+                # keyboard/mouse events aren't waitable, so no need for eventProcessed
+    # We need to catch all exceptions here, otherwise listener will never be unregistered
     except:
+        traceback.print_exc()
         pass
-    vbox.unregisterCallback(cb)
+    demo.close()
+    if listener and registered:
+        agg.unregisterListener(listener)
 
 
-def takeScreenshot(ctx,console,args):
+def playbackDemo(ctx, console, file, dur):
+    demo = open(file, 'r')
+
+    if dur == -1:
+        # not infinity, but close enough
+        dur = 100000
+
+    header = demo.readline()
+    print "Header is", header
+    basere = re.compile(r'(?P<s>\d+): (?P<t>[km]) (?P<p>.*)')
+    mre = re.compile(r'(?P<a>\d+) (?P<x>-*\d+) (?P<y>-*\d+) (?P<z>-*\d+) (?P<w>-*\d+) (?P<b>-*\d+)')
+    kre = re.compile(r'\d+')
+
+    kbd = console.keyboard
+    mouse = console.mouse
+
+    try:
+        end = time.time() + dur
+        for line in demo:
+            if time.time() > end:
+                break
+            m = basere.search(line)
+            if m is None:
+                continue
+
+            dict = m.groupdict()
+            stamp = dict['s']
+            params = dict['p']
+            type = dict['t']
+
+            time.sleep(float(stamp)/1000)
+
+            if type == 'k':
+                codes=kre.findall(params)
+                #print "KBD:",codes
+                kbd.putScancodes(codes)
+            elif type == 'm':
+                mm = mre.search(params)
+                if mm is not None:
+                    mdict = mm.groupdict()
+                    if mdict['a'] == '1':
+                        # absolute
+                        #print "MA: ",mdict['x'],mdict['y'],mdict['z'],mdict['b']
+                        mouse.putMouseEventAbsolute(int(mdict['x']), int(mdict['y']), int(mdict['z']), int(mdict['w']), int(mdict['b']))
+                    else:
+                        #print "MR: ",mdict['x'],mdict['y'],mdict['b']
+                        mouse.putMouseEvent(int(mdict['x']), int(mdict['y']), int(mdict['z']), int(mdict['w']), int(mdict['b']))
+
+    # We need to catch all exceptions here, to close file
+    except:
+        traceback.print_exc()
+        pass
+    demo.close()
+
+
+def takeScreenshotOld(ctx,console,args):
     from PIL import Image
     display = console.display
     if len(args) > 0:
@@ -455,6 +515,32 @@ def takeScreenshot(ctx,console,args):
     im = Image.frombuffer(mode, size, str(data), "raw", mode, 0, 1)
     im.save(f, "PNG")
 
+def takeScreenshot(ctx,console,args):
+    display = console.display
+    if len(args) > 0:
+        f = args[0]
+    else:
+        f = "/tmp/screenshot.png"
+    if len(args) > 3:
+        screen = int(args[3])
+    else:
+        screen = 0
+    (fbw, fbh, fbbpp) = display.getScreenResolution(screen)
+    if len(args) > 1:
+        w = int(args[1])
+    else:
+        w = fbw
+    if len(args) > 2:
+        h = int(args[2])
+    else:
+        h = fbh
+
+    print "Saving screenshot (%d x %d) screen %d in %s..." %(w,h,screen,f)
+    data = display.takeScreenShotPNGToArray(screen, w,h)
+    size = (w,h)
+    file = open(f, 'wb')
+    file.write(data)
+    file.close()
 
 def teleport(ctx,session,console,args):
     if args[0].find(":") == -1:
@@ -562,21 +648,21 @@ def cmdExistingVm(ctx,mach,cmd,args):
     try:
         vb = ctx['vb']
         session = ctx['mgr'].getSessionObject(vb)
-        vb.openExistingSession(session, mach.id)
+        mach.lockMachine(session, ctx['global'].constants.LockType_Shared)
     except Exception,e:
         printErr(ctx, "Session to '%s' not open: %s" %(mach.name,str(e)))
         if g_verbose:
             traceback.print_exc()
         return
-    if session.state != ctx['const'].SessionState_Open:
+    if session.state != ctx['const'].SessionState_Locked:
         print "Session to '%s' in wrong state: %s" %(mach.name, session.state)
-        session.close()
+        session.unlockMachine()
         return
     # this could be an example how to handle local only (i.e. unavailable
     # in Webservices) functionality
     if ctx['remote'] and cmd == 'some_local_only_command':
         print 'Trying to use local only functionality, ignored'
-        session.close()
+        session.unlockMachine()
         return
     console=session.console
     ops={'pause':           lambda: console.pause(),
@@ -587,7 +673,6 @@ def cmdExistingVm(ctx,mach,cmd,args):
          'guest':           lambda: guestExec(ctx, mach, console, args),
          'ginfo':           lambda: ginfo(ctx, console, args),
          'guestlambda':     lambda: args[0](ctx, mach, console, args[1:]),
-         'monitorGuest':    lambda: monitorGuest(ctx, mach, console, args),
          'save':            lambda: progressBar(ctx,console.saveState()),
          'screenshot':      lambda: takeScreenshot(ctx,console,args),
          'teleport':        lambda: teleport(ctx,session,console,args),
@@ -603,11 +688,11 @@ def cmdExistingVm(ctx,mach,cmd,args):
         if g_verbose:
             traceback.print_exc()
 
-    session.close()
+    session.unlockMachine()
 
 
 def cmdClosedVm(ctx,mach,cmd,args=[],save=True):
-    session = ctx['global'].openMachineSession(mach.id)
+    session = ctx['global'].openMachineSession(mach, True)
     mach = session.machine
     try:
         cmd(ctx, mach, args)
@@ -617,12 +702,17 @@ def cmdClosedVm(ctx,mach,cmd,args=[],save=True):
         if g_verbose:
             traceback.print_exc()
     if save:
-         mach.saveSettings()
+        try:
+            mach.saveSettings()
+        except Exception, e:
+            printErr(ctx,e)
+            if g_verbose:
+                traceback.print_exc()
     ctx['global'].closeMachineSession(session)
 
 
 def cmdAnyVm(ctx,mach,cmd, args=[],save=False):
-    session = ctx['global'].openMachineSession(mach.id)
+    session = ctx['global'].openMachineSession(mach)
     mach = session.machine
     try:
          cmd(ctx, mach, session.console, args)
@@ -636,18 +726,126 @@ def cmdAnyVm(ctx,mach,cmd, args=[],save=False):
     ctx['global'].closeMachineSession(session)
 
 def machById(ctx,id):
-    mach = None
-    for m in getMachines(ctx):
-        if m.name == id:
-            mach = m
-            break
-        mid = str(m.id)
-        if mid[0] == '{':
-            mid = mid[1:-1]
-        if mid == id:
-            mach = m
-            break
+    try:
+        mach = ctx['vb'].getMachine(id)
+    except:
+        mach = ctx['vb'].findMachine(id)
     return mach
+
+class XPathNode:
+    def __init__(self, parent, obj, type):
+        self.parent = parent
+        self.obj = obj
+        self.type = type
+    def lookup(self, subpath):
+        children = self.enum()
+        matches = []
+        for e in children:
+            if e.matches(subpath):
+                matches.append(e)
+        return matches
+    def enum(self):
+        return []
+    def matches(self,subexp):
+        if subexp == self.type:
+            return True
+        if not subexp.startswith(self.type):
+            return False
+        m = re.search(r"@(?P<a>\w+)=(?P<v>\w+)", subexp)
+        matches = False
+        try:
+            if m is not None:
+                dict = m.groupdict()
+                attr = dict['a']
+                val  = dict['v']
+                matches = (str(getattr(self.obj, attr)) == val)
+        except:
+            pass
+        return matches
+    def apply(self, cmd):
+        exec(cmd, {'obj':self.obj,'node':self,'ctx':self.getCtx()}, {})
+    def getCtx(self):
+        if hasattr(self,'ctx'):
+            return self.ctx
+        return self.parent.getCtx()
+
+class XPathNodeHolder(XPathNode):
+    def __init__(self, parent, obj, attr, heldClass, xpathname):
+        XPathNode.__init__(self, parent, obj, 'hld '+xpathname)
+        self.attr = attr
+        self.heldClass = heldClass
+        self.xpathname = xpathname
+    def enum(self):
+        children = []
+        for n in self.getCtx()['global'].getArray(self.obj, self.attr):
+            node = self.heldClass(self, n)
+            children.append(node)
+        return children
+    def matches(self,subexp):
+        return subexp == self.xpathname
+
+class XPathNodeValue(XPathNode):
+    def __init__(self, parent, obj, xpathname):
+        XPathNode.__init__(self, parent, obj, 'val '+xpathname)
+        self.xpathname = xpathname
+    def matches(self,subexp):
+        return subexp == self.xpathname
+
+class XPathNodeHolderVM(XPathNodeHolder):
+    def __init__(self, parent, vbox):
+        XPathNodeHolder.__init__(self, parent, vbox, 'machines', XPathNodeVM, 'vms')
+
+class XPathNodeVM(XPathNode):
+    def __init__(self, parent, obj):
+        XPathNode.__init__(self, parent, obj, 'vm')
+    #def matches(self,subexp):
+    #    return subexp=='vm'
+    def enum(self):
+        return [XPathNodeHolderNIC(self, self.obj),
+                XPathNodeValue(self, self.obj.BIOSSettings,  'bios'),
+                XPathNodeValue(self, self.obj.USBController, 'usb')]
+
+class XPathNodeHolderNIC(XPathNodeHolder):
+    def __init__(self, parent, mach):
+        XPathNodeHolder.__init__(self, parent, mach, 'nics', XPathNodeVM, 'nics')
+        self.maxNic = self.getCtx()['vb'].systemProperties.networkAdapterCount
+    def enum(self):
+        children = []
+        for i in range(0, self.maxNic):
+            node = XPathNodeNIC(self, self.obj.getNetworkAdapter(i))
+            children.append(node)
+        return children
+
+class XPathNodeNIC(XPathNode):
+    def __init__(self, parent, obj):
+        XPathNode.__init__(self, parent, obj, 'nic')
+    def matches(self,subexp):
+        return subexp=='nic'
+
+class XPathNodeRoot(XPathNode):
+    def __init__(self, ctx):
+        XPathNode.__init__(self, None, None, 'root')
+        self.ctx = ctx
+    def enum(self):
+        return [XPathNodeHolderVM(self, self.ctx['vb'])]
+    def matches(self,subexp):
+        return True
+
+def eval_xpath(ctx,scope):
+    pathnames = scope.split("/")[2:]
+    nodes = [XPathNodeRoot(ctx)]
+    for p in pathnames:
+        seen = []
+        while len(nodes) > 0:
+            n = nodes.pop()
+            seen.append(n)
+        for s in seen:
+            matches = s.lookup(p)
+            for m in matches:
+                nodes.append(m)
+        if len(nodes) == 0:
+            break
+    return nodes
 
 def argsToMach(ctx,args):
     if len(args) < 2:
@@ -695,11 +893,16 @@ def enumFromString(ctx,enum,str):
 
 def listCmd(ctx, args):
     for m in getMachines(ctx, True):
-        if m.teleporterEnabled:
-            tele = "[T] "
-        else:
-            tele = "    "
-        print "%sMachine '%s' [%s], machineState=%s, sessionState=%s" %(tele,colVm(ctx,m.name),m.id,asEnumElem(ctx, "MachineState", m.state), asEnumElem(ctx,"SessionState", m.sessionState))
+        try:
+            if m.teleporterEnabled:
+                tele = "[T] "
+            else:
+                tele = "    "
+                print "%sMachine '%s' [%s], machineState=%s, sessionState=%s" %(tele,colVm(ctx,m.name),m.id,asEnumElem(ctx, "MachineState", m.state), asEnumElem(ctx,"SessionState", m.sessionState))
+        except Exception, e:
+            printErr(ctx,e)
+            if g_verbose:
+                traceback.print_exc()
     return 0
 
 def infoCmd(ctx,args):
@@ -721,6 +924,7 @@ def infoCmd(ctx,args):
     print "  RAM [memorySize]: %dM" %(mach.memorySize)
     print "  VRAM [VRAMSize]: %dM" %(mach.VRAMSize)
     print "  Monitors [monitorCount]: %d" %(mach.monitorCount)
+    print "  Chipset [chipsetType]: %s (%s)" %(asEnumElem(ctx,"ChipsetType", mach.chipsetType), mach.chipsetType)
     print
     print "  Clipboard mode [clipboardMode]: %s (%s)" %(asEnumElem(ctx,"ClipboardMode", mach.clipboardMode), mach.clipboardMode)
     print "  Machine status [n/a]: %s (%s)" % (asEnumElem(ctx,"SessionState", mach.sessionState), mach.sessionState)
@@ -752,13 +956,15 @@ def infoCmd(ctx,args):
     print "  Keyboard [keyboardHidType]: %s (%s)" %(asEnumElem(ctx,"KeyboardHidType", mach.keyboardHidType), mach.keyboardHidType)
     print "  Pointing device [pointingHidType]: %s (%s)" %(asEnumElem(ctx,"PointingHidType", mach.pointingHidType), mach.pointingHidType)
     print "  Last changed [n/a]: " + time.asctime(time.localtime(long(mach.lastStateChange)/1000))
-    print "  VRDP server [VRDPServer.enabled]: %s" %(asState(mach.VRDPServer.enabled))
-
+    # OSE has no VRDE
+    try:
+        print "  VRDE server [VRDEServer.enabled]: %s" %(asState(mach.VRDEServer.enabled))
+    except:
+        pass
     print
     print colCat(ctx,"  I/O subsystem info:")
     print "   Cache enabled [ioCacheEnabled]: %s" %(asState(mach.ioCacheEnabled))
     print "   Cache size [ioCacheSize]: %dM" %(mach.ioCacheSize)
-    print "   Bandwidth limit [ioBandwidthMax]: %dM/s" %(mach.ioBandwidthMax)
 
     controllers = ctx['global'].getArray(mach, 'storageControllers')
     if controllers:
@@ -813,6 +1019,9 @@ def infoCmd(ctx,args):
     return 0
 
 def startCmd(ctx, args):
+    if len(args) < 2:
+        print "usage: start name <frontend>"
+        return 0
     mach = argsToMach(ctx,args)
     if mach == None:
         return 0
@@ -851,7 +1060,7 @@ def ginfoCmd(ctx,args):
     cmdExistingVm(ctx, mach, 'ginfo', '')
     return 0
 
-def execInGuest(ctx,console,args,env,user,passwd,tmo):
+def execInGuest(ctx,console,args,env,user,passwd,tmo,inputPipe=None,outputPipe=None):
     if len(args) < 1:
         print "exec in guest needs at least program name"
         return
@@ -859,12 +1068,31 @@ def execInGuest(ctx,console,args,env,user,passwd,tmo):
     # shall contain program name as argv[0]
     gargs = args
     print "executing %s with args %s as %s" %(args[0], gargs, user)
-    (progress, pid) = guest.executeProcess(args[0], 0, gargs, env, user, passwd, tmo)
+    flags = 0
+    if inputPipe is not None:
+        flags = 1 # set WaitForProcessStartOnly
+    print args[0]
+    (progress, pid) = guest.executeProcess(args[0], flags, gargs, env, user, passwd, tmo)
     print "executed with pid %d" %(pid)
     if pid != 0:
         try:
             while True:
-                data = guest.getProcessOutput(pid, 0, 1000, 4096)
+                if inputPipe is not None:
+                    indata = inputPipe(ctx)
+                    if indata is not None:
+                        write = len(indata)
+                        off = 0
+                        while write > 0:
+                            w = guest.setProcessInput(pid, 0, 10*1000, indata[off:])
+                            off = off + w
+                            write = write - w
+                    else:
+                        # EOF
+                        try:
+                            guest.setProcessInput(pid, 1, 10*1000, " ")
+                        except:
+                            pass
+                data = guest.getProcessOutput(pid, 0, 10000, 4096)
                 if data and len(data) > 0:
                     sys.stdout.write(data)
                     continue
@@ -872,7 +1100,10 @@ def execInGuest(ctx,console,args,env,user,passwd,tmo):
                 ctx['global'].waitForEvents(0)
                 data = guest.getProcessOutput(pid, 0, 0, 4096)
                 if data and len(data) > 0:
-                    sys.stdout.write(data)
+                    if outputPipe is not None:
+                        outputPipe(ctx,data)
+                    else:
+                        sys.stdout.write(data)
                     continue
                 if progress.completed:
                     break
@@ -886,6 +1117,14 @@ def execInGuest(ctx,console,args,env,user,passwd,tmo):
         return 0
     else:
         reportError(ctx, progress)
+
+def copyToGuest(ctx,console,args,user,passwd):
+    src = args[0]
+    dst = args[1]
+    flags = 0
+    print "Copying host %s to guest %s" %(src,dst)
+    progress = console.guest.copyToGuest(src, dst, user, passwd, flags)
+    progressBar(ctx, progress)
 
 def nh_raw_input(prompt=""):
     stream = sys.stdout
@@ -924,18 +1163,46 @@ def gexecCmd(ctx,args):
     cmdExistingVm(ctx, mach, 'guestlambda', gargs)
     return 0
 
-def gcatCmd(ctx,args):
+def gcopyCmd(ctx,args):
     if (len(args) < 2):
-        print "usage: gcat [vmname|uuid] local_file | guestProgram, such as gcat linux /home/nike/.bashrc | sh -c 'cat >'"
+        print "usage: gcopy [vmname|uuid] host_path guest_path"
         return 0
     mach = argsToMach(ctx,args)
     if mach == None:
         return 0
     gargs = args[2:]
-    env = []
     (user,passwd) = getCred(ctx)
-    gargs.insert(0, lambda ctx,mach,console,args: execInGuest(ctx,console,args,env, user, passwd, 0))
+    gargs.insert(0, lambda ctx,mach,console,args: copyToGuest(ctx,console,args,user,passwd))
     cmdExistingVm(ctx, mach, 'guestlambda', gargs)
+    return 0
+
+def readCmdPipe(ctx,hcmd):
+    try:
+        return ctx['process'].communicate()[0]
+    except:
+        return None
+
+def gpipeCmd(ctx,args):
+    if (len(args) < 4):
+        print "usage: gpipe [vmname|uuid] hostProgram guestProgram, such as gpipe linux  '/bin/uname -a' '/bin/sh -c \"/usr/bin/tee; /bin/uname -a\"'"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    hcmd = args[2]
+    gcmd = args[3]
+    (user,passwd) = getCred(ctx)
+    import subprocess
+    ctx['process'] = subprocess.Popen(split_no_quotes(hcmd), stdout=subprocess.PIPE)
+    gargs = split_no_quotes(gcmd)
+    env = []
+    gargs.insert(0, lambda ctx,mach,console,args: execInGuest(ctx,console,args,env,user,passwd, 10000,lambda ctx:readCmdPipe(ctx, hcmd)))
+    cmdExistingVm(ctx, mach, 'guestlambda', gargs)
+    try:
+        ctx['process'].terminate()
+    except:
+        pass
+    ctx['process'] = None
     return 0
 
 
@@ -995,7 +1262,7 @@ def guestCmd(ctx, args):
     mach = argsToMach(ctx,args)
     if mach == None:
         return 0
-    if str(mach.sessionState) != str(ctx['const'].SessionState_Open):
+    if mach.state != ctx['const'].MachineState_Running:
         cmdClosedVm(ctx, mach, lambda ctx, mach, a: guestExec (ctx, mach, None, ' '.join(args[2:])))
     else:
         cmdExistingVm(ctx, mach, 'guest', ' '.join(args[2:]))
@@ -1085,7 +1352,7 @@ def plugcpuCmd(ctx, args):
     mach = argsToMach(ctx,args)
     if mach == None:
         return 0
-    if str(mach.sessionState) != str(ctx['const'].SessionState_Open):
+    if str(mach.sessionState) != str(ctx['const'].SessionState_Locked):
         if mach.CPUHotPlugEnabled:
             cmdClosedVm(ctx, mach, plugcpu, [True, int(args[2])])
     else:
@@ -1099,7 +1366,7 @@ def unplugcpuCmd(ctx, args):
     mach = argsToMach(ctx,args)
     if mach == None:
         return 0
-    if str(mach.sessionState) != str(ctx['const'].SessionState_Open):
+    if str(mach.sessionState) != str(ctx['const'].SessionState_Locked):
         if mach.CPUHotPlugEnabled:
             cmdClosedVm(ctx, mach, plugcpu, [False, int(args[2])])
     else:
@@ -1188,12 +1455,18 @@ def aliasCmd(ctx, args):
 
 def verboseCmd(ctx, args):
     global g_verbose
-    g_verbose = not g_verbose
+    if (len(args) > 1):
+        g_verbose  = (args[1]=='on')
+    else:
+        g_verbose = not g_verbose
     return 0
 
 def colorsCmd(ctx, args):
     global g_hascolors
-    g_hascolors = not g_hascolors
+    if (len(args) > 1):
+        g_hascolors = (args[1]=='on')
+    else:
+        g_hascolors = not g_hascolors
     return 0
 
 def hostCmd(ctx, args):
@@ -1254,7 +1527,36 @@ def monitorGuestCmd(ctx, args):
     dur = 5
     if len(args) > 2:
         dur = float(args[2])
-    cmdExistingVm(ctx, mach, 'monitorGuest', dur)
+    active = False
+    cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx,mach,console,args:  monitorSource(ctx, console.eventSource, active, dur)])
+    return 0
+
+def monitorGuestKbdCmd(ctx, args):
+    if (len(args) < 2):
+        print "usage: monitorGuestKbd name (duration)"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    dur = 5
+    if len(args) > 2:
+        dur = float(args[2])
+    active = False
+    cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx,mach,console,args:  monitorSource(ctx, console.keyboard.eventSource, active, dur)])
+    return 0
+
+def monitorGuestMouseCmd(ctx, args):
+    if (len(args) < 2):
+        print "usage: monitorGuestMouse name (duration)"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    dur = 5
+    if len(args) > 2:
+        dur = float(args[2])
+    active = False
+    cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx,mach,console,args:  monitorSource(ctx, console.mouse.eventSource, active, dur)])
     return 0
 
 def monitorVBoxCmd(ctx, args):
@@ -1264,7 +1566,9 @@ def monitorVBoxCmd(ctx, args):
     dur = 5
     if len(args) > 1:
         dur = float(args[1])
-    monitorVBox(ctx, dur)
+    vbox = ctx['vb']
+    active = False
+    monitorSource(ctx, vbox.eventSource, active, dur)
     return 0
 
 def getAdapterType(ctx, type):
@@ -1294,7 +1598,7 @@ def portForwardCmd(ctx, args):
     hostPort = int(args[3])
     guestPort = int(args[4])
     proto = "TCP"
-    session = ctx['global'].openMachineSession(mach.id)
+    session = ctx['global'].openMachineSession(mach)
     mach = session.machine
 
     adapter = mach.getNetworkAdapter(adapterNum)
@@ -1309,7 +1613,7 @@ def portForwardCmd(ctx, args):
     mach.setExtraData(config + "/GuestPort", str(guestPort))
 
     mach.saveSettings()
-    session.close()
+    session.unlockMachine()
 
     return 0
 
@@ -1362,6 +1666,46 @@ def findLogCmd(ctx, args):
             if len(m) > 0:
                 for mt in m:
                     s = s.replace(mt, colored(mt,'red'))
+                print s
+        uOffset += len(data)
+
+    return 0
+
+
+def findAssertCmd(ctx, args):
+    if (len(args) < 2):
+        print "usage: findAssert vm <num>"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+
+    log = 0
+    if (len(args) > 2):
+       log  = args[2]
+
+    uOffset = 0
+    ere = re.compile(r'(Expression:|\!\!\!\!\!\!)')
+    active = False
+    context = 0
+    while True:
+        # to reduce line splits on buffer boundary
+        data = mach.readLog(log, uOffset, 512*1024)
+        if (len(data) == 0):
+            break
+        d = str(data).split("\n")
+        for s in d:
+            if active:
+                print s
+                if context == 0:
+                    active = False
+                else:
+                    context = context - 1
+                continue
+            m = ere.findall(s)
+            if len(m) > 0:
+                active = True
+                context = 50
                 print s
         uOffset += len(data)
 
@@ -1639,6 +1983,7 @@ def typeInGuest(console, text, delay):
     group = False
     modGroupEnd = True
     i = 0
+    kbd = console.keyboard
     while i < len(text):
         ch = text[i]
         i = i+1
@@ -1649,7 +1994,7 @@ def typeInGuest(console, text, delay):
         if ch == '}':
             # end group, release all keys
             for c in pressed:
-                 console.keyboard.putScancodes(keyUp(c))
+                 kbd.putScancodes(keyUp(c))
             pressed = []
             group = False
             continue
@@ -1685,11 +2030,11 @@ def typeInGuest(console, text, delay):
                     combo += ch
                 ch = combo
             modGroupEnd = True
-        console.keyboard.putScancodes(keyDown(ch))
+        kbd.putScancodes(keyDown(ch))
         pressed.insert(0, ch)
         if not group and modGroupEnd:
             for c in pressed:
-                console.keyboard.putScancodes(keyUp(c))
+                kbd.putScancodes(keyUp(c))
             pressed = []
             modGroupEnd = True
         time.sleep(delay)
@@ -1738,7 +2083,7 @@ def listMediaCmd(ctx,args):
    for hdd in hdds:
        if hdd.state != ctx['global'].constants.MediumState_Created:
            hdd.refreshState()
-       print "   %s (%s)%s %s [logical %s]" %(colPath(ctx,hdd.location), hdd.format, optId(verbose,hdd.id),colSizeM(ctx,asSize(hdd.size, True)), colSizeM(ctx,asSize(hdd.logicalSize, False)))
+       print "   %s (%s)%s %s [logical %s]" %(colPath(ctx,hdd.location), hdd.format, optId(verbose,hdd.id),colSizeM(ctx,asSize(hdd.size, True)), colSizeM(ctx,asSize(hdd.logicalSize, True)))
 
    dvds = ctx['global'].getArray(ctx['vb'], 'DVDImages')
    print colCat(ctx,"CD/DVD disks:")
@@ -2244,7 +2589,7 @@ def natAlias(ctx, mach, nicnum, nat, args=[]):
     """This command shows/alters NAT's alias settings.
     usage: nat <vm> <nicnum> alias [default|[log] [proxyonly] [sameports]]
     default - set settings to default values
-    log - switch on alias loging
+    log - switch on alias logging
     proxyonly - switch proxyonly mode on
     sameports - enforces NAT using the same ports
     """
@@ -2433,6 +2778,7 @@ def natNetwork(ctx, mach, nicnum, nat, args):
             return (1, None)
         nat.network = args[1]
     return (0, None)
+
 def natCmd(ctx, args):
     """This command is entry point to NAT settins management
     usage: nat <vm> <nicnum> <cmd> <cmd-args>
@@ -2478,7 +2824,7 @@ def natCmd(ctx, args):
     session = None
     if len(cmdargs) > 1:
         rosession = 0
-        session = ctx['global'].openMachineSession(mach.id);
+        session = ctx['global'].openMachineSession(mach, False);
         mach = session.machine;
 
     adapter = mach.getNetworkAdapter(nicnum)
@@ -2487,7 +2833,7 @@ def natCmd(ctx, args):
     if rosession == 0:
         if rc == 0:
             mach.saveSettings()
-        session.close()
+        session.unlockMachine()
     elif report is not None:
         for r in report:
             msg ='{0} nic{1} {2}: {3}'.format(mach.name, nicnum, func, r)
@@ -2648,7 +2994,6 @@ def nicCmd(ctx, args):
         return 0
 
     if    len(args) < 3 \
-       or not args[2].isdigit() \
        or int(args[2]) not in range(0, ctx['vb'].systemProperties.networkAdapterCount):
             print 'please specify adapter num %d isn\'t in range [0-%d]'%(args[2], ctx['vb'].systemProperties.networkAdapterCount)
             return 0
@@ -2656,7 +3001,7 @@ def nicCmd(ctx, args):
     cmdargs = args[3:]
     func = args[3]
     session = None
-    session = ctx['global'].openMachineSession(vm.id)
+    session = ctx['global'].openMachineSession(vm)
     vm = session.machine
     adapter = vm.getNetworkAdapter(nicnum)
     (rc, report) = niccomand[func](ctx, vm, nicnum, adapter, cmdargs)
@@ -2664,7 +3009,7 @@ def nicCmd(ctx, args):
             vm.saveSettings()
     if report is not None:
         print '%s nic %d %s: %s' % (vm.name, nicnum, args[3], report)
-    session.close()
+    session.unlockMachine()
     return 0
 
 
@@ -2676,6 +3021,60 @@ def promptCmd(ctx, args):
     ctx['prompt'] = args[1]
     return 0
 
+def foreachCmd(ctx, args):
+    if len(args) < 3:
+        print "usage: foreach scope command, where scope is XPath-like expression //vms/vm[@CPUCount='2']"
+        return 0
+
+    scope = args[1]
+    cmd = args[2]
+    elems = eval_xpath(ctx,scope)
+    try:
+        for e in elems:
+            e.apply(cmd)
+    except:
+        print "Error executing"
+        traceback.print_exc()
+    return 0
+
+def foreachvmCmd(ctx, args):
+    if len(args) < 2:
+        print "foreachvm command <args>"
+        return 0
+    cmdargs = args[1:]
+    cmdargs.insert(1, '')
+    for m in getMachines(ctx):
+        cmdargs[1] = m.id
+        runCommandArgs(ctx, cmdargs)
+    return 0
+
+def recordDemoCmd(ctx, args):
+    if (len(args) < 3):
+        print "usage: recordDemo vm filename (duration)"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    filename = args[2]
+    dur = 10000
+    if len(args) > 3:
+        dur = float(args[3])
+    cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx,mach,console,args:  recordDemo(ctx, console, filename, dur)])
+    return 0
+
+def playbackDemoCmd(ctx, args):
+    if (len(args) < 3):
+        print "usage: playbackDemo vm filename (duration)"
+        return 0
+    mach = argsToMach(ctx,args)
+    if mach == None:
+        return 0
+    filename = args[2]
+    dur = 10000
+    if len(args) > 3:
+        dur = float(args[3])
+    cmdExistingVm(ctx, mach, 'guestlambda', [lambda ctx,mach,console,args:  playbackDemo(ctx, console, filename, dur)])
+    return 0
 
 aliases = {'s':'start',
            'i':'info',
@@ -2687,7 +3086,7 @@ aliases = {'s':'start',
            'v':'verbose'}
 
 commands = {'help':['Prints help information', helpCmd, 0],
-            'start':['Start virtual machine by name or uuid: start Linux', startCmd, 0],
+            'start':['Start virtual machine by name or uuid: start Linux headless', startCmd, 0],
             'createVm':['Create virtual machine: createVm macvm MacOS', createVmCmd, 0],
             'removeVm':['Remove virtual machine', removeVmCmd, 0],
             'pause':['Pause virtual machine', pauseCmd, 0],
@@ -2700,6 +3099,8 @@ commands = {'help':['Prints help information', helpCmd, 0],
             'info':['Shows info on machine', infoCmd, 0],
             'ginfo':['Shows info on guest', ginfoCmd, 0],
             'gexec':['Executes program in the guest', gexecCmd, 0],
+            'gcopy':['Copy file to the guest', gcopyCmd, 0],
+            'gpipe':['Pipe between host and guest', gpipeCmd, 0],
             'alias':['Control aliases', aliasCmd, 0],
             'verbose':['Toggle verbosity', verboseCmd, 0],
             'setvar':['Set VMs variable: setvar Fedora BIOSSettings.ACPIEnabled True', setvarCmd, 0],
@@ -2708,16 +3109,19 @@ commands = {'help':['Prints help information', helpCmd, 0],
             'host':['Show host information', hostCmd, 0],
             'guest':['Execute command for guest: guest Win32 \'console.mouse.putMouseEvent(20, 20, 0, 0, 0)\'', guestCmd, 0],
             'monitorGuest':['Monitor what happens with the guest for some time: monitorGuest Win32 10', monitorGuestCmd, 0],
+            'monitorGuestKbd':['Monitor guest keyboardfor some time: monitorGuestKbd Win32 10', monitorGuestKbdCmd, 0],
+            'monitorGuestMouse':['Monitor guest keyboardfor some time: monitorGuestMouse Win32 10', monitorGuestMouseCmd, 0],
             'monitorVBox':['Monitor what happens with Virtual Box for some time: monitorVBox 10', monitorVBoxCmd, 0],
             'portForward':['Setup permanent port forwarding for a VM, takes adapter number host port and guest port: portForward Win32 0 8080 80', portForwardCmd, 0],
             'showLog':['Show log file of the VM, : showLog Win32', showLogCmd, 0],
             'findLog':['Show entries matching pattern in log file of the VM, : findLog Win32 PDM|CPUM', findLogCmd, 0],
+            'findAssert':['Find assert in log file of the VM, : findAssert Win32', findAssertCmd, 0],
             'reloadExt':['Reload custom extensions: reloadExt', reloadExtCmd, 0],
             'runScript':['Run VBox script: runScript script.vbox', runScriptCmd, 0],
             'sleep':['Sleep for specified number of seconds: sleep 3.14159', sleepCmd, 0],
             'shell':['Execute external shell command: shell "ls /etc/rc*"', shellCmd, 0],
             'exportVm':['Export VM in OVF format: exportVm Win /tmp/win.ovf', exportVMCmd, 0],
-            'screenshot':['Take VM screenshot to a file: screenshot Win /tmp/win.png 1024 768', screenshotCmd, 0],
+            'screenshot':['Take VM screenshot to a file: screenshot Win /tmp/win.png 1024 768 0', screenshotCmd, 0],
             'teleport':['Teleport VM to another box (see openportal): teleport Win anotherhost:8000 <passwd> <maxDowntime>', teleportCmd, 0],
             'typeGuest':['Type arbitrary text in guest: typeGuest Linux "^lls\\n&UP;&BKSP;ess /etc/hosts\\nq^c" 0.7', typeGuestCmd, 0],
             'openportal':['Open portal for teleportation of VM from another box (see teleport): openportal Win 8000 <passwd>', openportalCmd, 0],
@@ -2751,9 +3155,13 @@ commands = {'help':['Prints help information', helpCmd, 0],
             'gui': ['Start GUI frontend', guiCmd, 0],
             'colors':['Toggle colors', colorsCmd, 0],
             'snapshot':['VM snapshot manipulation, snapshot help for more info', snapshotCmd, 0],
-            'nat':['NAT (network address trasnlation engine) manipulation, nat help for more info', natCmd, 0],
+            'nat':['NAT (network address translation engine) manipulation, nat help for more info', natCmd, 0],
             'nic' : ['Network adapter management', nicCmd, 0],
             'prompt' : ['Control prompt', promptCmd, 0],
+            'foreachvm' : ['Perform command for each VM', foreachvmCmd, 0],
+            'foreach' : ['Generic "for each" construction, using XPath-like notation: foreach //vms/vm[@OSTypeId=\'MacOS\'] "print obj.name"', foreachCmd, 0],
+            'recordDemo':['Record demo: recordDemo Win32 file.dmo 10', recordDemoCmd, 0],
+            'playbackDemo':['Playback demo: playbackDemo Win32 file.dmo 10', playbackDemoCmd, 0]
             }
 
 def runCommandArgs(ctx, args):
@@ -2863,14 +3271,28 @@ def interpret(ctx):
         ctx['perf'].setup(['*'], [vbox.host], 10, 15)
       except:
         pass
+    cmds = []
+
+    if g_cmd is not None:
+        cmds = g_cmd.split(';')
+    it = cmds.__iter__()
 
     while True:
         try:
-            cmd = raw_input(ctx['prompt'])
+            if g_batchmode:
+                cmd = 'runScript %s'%(g_scripfile)
+            elif g_cmd is not None:
+                cmd = it.next()
+            else:
+                cmd = raw_input(ctx['prompt'])
             done = runCommand(ctx, cmd)
             if done != 0: break
+            if g_batchmode:
+                break
         except KeyboardInterrupt:
             print '====== You can type quit or q to leave'
+        except StopIteration:
+            break
         except EOFError:
             break
         except Exception,e:
@@ -2901,26 +3323,58 @@ def runGuestCommandCb(ctx, id, guestLambda, args):
 
 def main(argv):
     style = None
+    params = None
     autopath = False
-    argv.pop(0)
-    while len(argv) > 0:
-        if argv[0] == "-w":
-            style = "WEBSERVICE"
-        if argv[0] == "-a":
-            autopath = True
-        argv.pop(0)
+    script_file = None
+    parse = OptionParser()
+    parse.add_option("-v", "--verbose", dest="verbose", action="store_true", default=False, help = "switch on verbose")
+    parse.add_option("-a", "--autopath", dest="autopath", action="store_true", default=False, help = "switch on autopath")
+    parse.add_option("-w", "--webservice", dest="style", action="store_const", const="WEBSERVICE", help = "connect to webservice")
+    parse.add_option("-b", "--batch", dest="batch_file", help = "script file to execute")
+    parse.add_option("-c", dest="command_line", help = "command sequence to execute")
+    parse.add_option("-o", dest="opt_line", help = "option line")
+    global g_verbose, g_scripfile, g_batchmode, g_hascolors, g_hasreadline, g_cmd
+    (options, args) = parse.parse_args()
+    g_verbose = options.verbose
+    style = options.style
+    if options.batch_file is not None:
+        g_batchmode = True
+        g_hascolors = False
+        g_hasreadline = False
+        g_scripfile = options.batch_file
+    if options.command_line is not None:
+        g_hascolors = False
+        g_hasreadline = False
+        g_cmd = options.command_line
+    if options.opt_line is not None:
+        params = {}
+        strparams = options.opt_line
+        l = strparams.split(',')
+        for e in l:
+            (k,v) = e.split('=')
+            params[k] = v
+    else:
+        params = None
 
-    if autopath:
+    if options.autopath:
         cwd = os.getcwd()
         vpp = os.environ.get("VBOX_PROGRAM_PATH")
         if vpp is None and (os.path.isfile(os.path.join(cwd, "VirtualBox")) or os.path.isfile(os.path.join(cwd, "VirtualBox.exe"))) :
             vpp = cwd
             print "Autodetected VBOX_PROGRAM_PATH as",vpp
-            os.environ["VBOX_PROGRAM_PATH"] = cwd
+            os.environ["VBOX_PROGRAM_PATH"] = vpp
             sys.path.append(os.path.join(vpp, "sdk", "installer"))
+        vsp = os.environ.get("VBOX_SDK_PATH")
+        if vsp is None and os.path.isfile(os.path.join(cwd, "sdk", "bindings", "VirtualBox.xidl")) :
+            vsp = os.path.join(cwd, "sdk")
+        if vsp is None and os.path.isfile(os.path.join(vpp, "sdk", "bindings", "VirtualBox.xidl")) :
+            vsp = os.path.join(vpp, "sdk")
+        if vsp is not None :
+            print "Autodetected VBOX_SDK_PATH as",vsp
+            os.environ["VBOX_SDK_PATH"] = vsp
 
     from vboxapi import VirtualBoxManager
-    g_virtualBoxManager = VirtualBoxManager(style, None)
+    g_virtualBoxManager = VirtualBoxManager(style, params)
     ctx = {'global':g_virtualBoxManager,
            'mgr':g_virtualBoxManager.mgr,
            'vb':g_virtualBoxManager.vbox,

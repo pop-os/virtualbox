@@ -28,9 +28,6 @@
 /** @def VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
  *  Use SYS V IPC for watching a session.
  *  This is defined in the Makefile since it's also used by MachineImpl.h/cpp.
- *
- *  @todo Dmitry, feel free to completely change this (and/or write a better description).
- *        (The same goes for the other darwin changes.)
  */
 #ifdef DOXYGEN_RUNNING
 # define VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
@@ -38,8 +35,6 @@
 
 class ATL_NO_VTABLE Session :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<Session, ISession>,
-    public VirtualBoxSupportTranslation<Session>,
     VBOX_SCRIPTABLE_IMPL(ISession),
     VBOX_SCRIPTABLE_IMPL(IInternalSessionControl)
 #ifdef RT_OS_WINDOWS
@@ -47,6 +42,8 @@ class ATL_NO_VTABLE Session :
 #endif
 {
 public:
+
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Session, ISession)
 
     DECLARE_CLASSFACTORY()
 
@@ -68,7 +65,7 @@ public:
 
     // public initializers/uninitializers only for internal purposes
     HRESULT init();
-    void uninit(bool aFinalRelease);
+    void uninit();
 
     // ISession properties
     STDMETHOD(COMGETTER(State))(SessionState_T *aState);
@@ -77,7 +74,7 @@ public:
     STDMETHOD(COMGETTER(Console))(IConsole **aConsole);
 
     // ISession methods
-    STDMETHOD(Close)();
+    STDMETHOD(UnlockMachine)();
 
     // IInternalSessionControl methods
     STDMETHOD(GetPID)(ULONG *aPid);
@@ -92,18 +89,20 @@ public:
     STDMETHOD(OnStorageControllerChange)();
     STDMETHOD(OnMediumChange)(IMediumAttachment *aMediumAttachment, BOOL aForce);
     STDMETHOD(OnCPUChange)(ULONG aCPU, BOOL aRemove);
-    STDMETHOD(OnVRDPServerChange)(BOOL aRestart);
+    STDMETHOD(OnCPUExecutionCapChange)(ULONG aExecutionCap);
+    STDMETHOD(OnVRDEServerChange)(BOOL aRestart);
     STDMETHOD(OnUSBControllerChange)();
     STDMETHOD(OnSharedFolderChange)(BOOL aGlobal);
     STDMETHOD(OnUSBDeviceAttach)(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
     STDMETHOD(OnUSBDeviceDetach)(IN_BSTR aId, IVirtualBoxErrorInfo *aError);
-    STDMETHOD(OnShowWindow)(BOOL aCheck, BOOL *aCanShow, ULONG64 *aWinId);
+    STDMETHOD(OnShowWindow)(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId);
+    STDMETHOD(OnBandwidthGroupChange)(IBandwidthGroup *aBandwidthGroup);
     STDMETHOD(AccessGuestProperty)(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags,
-                                   BOOL aIsSetter, BSTR *aRetValue, ULONG64 *aRetTimestamp, BSTR *aRetFlags);
+                                   BOOL aIsSetter, BSTR *aRetValue, LONG64 *aRetTimestamp, BSTR *aRetFlags);
     STDMETHOD(EnumerateGuestProperties)(IN_BSTR aPatterns,
                                         ComSafeArrayOut(BSTR, aNames),
                                         ComSafeArrayOut(BSTR, aValues),
-                                        ComSafeArrayOut(ULONG64, aTimestamps),
+                                        ComSafeArrayOut(LONG64, aTimestamps),
                                         ComSafeArrayOut(BSTR, aFlags));
     STDMETHOD(OnlineMergeMedium)(IMediumAttachment *aMediumAttachment,
                                  ULONG aSourceIdx, ULONG aTargetIdx,
@@ -112,12 +111,9 @@ public:
                                  ComSafeArrayIn(IMedium *, aChildrenToReparent),
                                  IProgress *aProgress);
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"Session"; }
-
 private:
 
-    HRESULT close(bool aFinalRelease, bool aFromServer);
+    HRESULT unlockMachine(bool aFinalRelease, bool aFromServer);
     HRESULT grabIPCSemaphore();
     void releaseIPCSemaphore();
 

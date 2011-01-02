@@ -1,4 +1,4 @@
-/* $Id: ProgressImpl.h $ */
+/* $Id: ProgressImpl.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -21,8 +21,6 @@
 
 #include "VirtualBoxBase.h"
 
-#include <VBox/com/SupportErrorInfo.h>
-
 #include <iprt/semaphore.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,13 +30,13 @@
  */
 class ATL_NO_VTABLE ProgressBase :
     public VirtualBoxBase,
-    public com::SupportErrorInfoBase,
-    public VirtualBoxSupportTranslation<ProgressBase>,
     VBOX_SCRIPTABLE_IMPL(IProgress)
 {
 protected:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (ProgressBase)
+//  VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(ProgressBase, IProgress)
+//  cannot be added here or Windows will not buuld; as a result, ProgressBase cannot be
+//  instantiated, but we're not doing that anyway (but only its children)
 
     DECLARE_EMPTY_CTOR_DTOR (ProgressBase)
 
@@ -73,12 +71,12 @@ public:
     STDMETHOD(COMGETTER(Operation)) (ULONG *aOperation);
     STDMETHOD(COMGETTER(OperationDescription)) (BSTR *aOperationDescription);
     STDMETHOD(COMGETTER(OperationPercent)) (ULONG *aOperationPercent);
+    STDMETHOD(COMGETTER(OperationWeight)) (ULONG *aOperationWeight);
     STDMETHOD(COMSETTER(Timeout)) (ULONG aTimeout);
     STDMETHOD(COMGETTER(Timeout)) (ULONG *aTimeout);
 
     // public methods only for internal purposes
 
-    static HRESULT setErrorInfoOnThread (IProgress *aProgress);
     bool setCancelCallback(void (*pfnCallback)(void *), void *pvUser);
 
 
@@ -107,7 +105,7 @@ protected:
     void (*m_pfnCancelCallback)(void *);
     void *m_pvCancelUserArg;
 
-    /* The fields below are to be properly initalized by subclasses */
+    /* The fields below are to be properly initialized by subclasses */
 
     BOOL mCompleted;
     BOOL mCancelable;
@@ -133,13 +131,11 @@ protected:
  * Normal progress object.
  */
 class ATL_NO_VTABLE Progress :
-    public com::SupportErrorInfoDerived<ProgressBase, Progress, IProgress>,
-    public VirtualBoxSupportTranslation<Progress>
+    public ProgressBase
 {
 
 public:
-
-    VIRTUALBOXSUPPORTTRANSLATION_OVERRIDE (Progress)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Progress, IProgress)
 
     DECLARE_NOT_AGGREGATABLE (Progress)
 
@@ -259,18 +255,15 @@ public:
     HRESULT notifyComplete(HRESULT aResultCode);
     HRESULT notifyComplete(HRESULT aResultCode,
                            const GUID &aIID,
-                           const Bstr &aComponent,
+                           const char *pcszComponent,
                            const char *aText,
                            ...);
     HRESULT notifyCompleteV(HRESULT aResultCode,
                             const GUID &aIID,
-                            const Bstr &aComponent,
+                            const char *pcszComponent,
                             const char *aText,
                             va_list va);
     bool notifyPointOfNoReturn(void);
-
-    /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "Progress"; }
 
 private:
 

@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp $ */
+/* $Id: DisplayImpl.cpp 34754 2010-12-06 14:40:03Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Display class
@@ -209,6 +209,19 @@ STDMETHODIMP Display::GetScreenResolution(ULONG aScreenId, ULONG *aWidth, ULONG 
     if (aBitsPerPixel)
         *aBitsPerPixel = getBitsPerPixel();
     return S_OK;
+}
+
+void Display::getFramebufferDimensions(int32_t *px1, int32_t *py1,
+                                       int32_t *px2, int32_t *py2)
+{
+    AssertPtrReturnVoid(px1);
+    AssertPtrReturnVoid(py1);
+    AssertPtrReturnVoid(px2);
+    AssertPtrReturnVoid(py2);
+    *px1 = 0;
+    *py1 = 0;
+    *px2 = getWidth();
+    *py2 = getHeight();
 }
 
 static void checkCoordBounds (int *px, int *py, int *pw, int *ph, int cx, int cy)
@@ -614,7 +627,7 @@ void vbvaRgnDirtyRect (VBVADIRTYREGION *prgn, VBVACMDHDR *phdr)
     /*
      * Here update rectangles are accumulated to form an update area.
      * @todo
-     * Now the simplies method is used which builds one rectangle that
+     * Now the simplest method is used which builds one rectangle that
      * includes all update areas. A bit more advanced method can be
      * employed here. The method should be fast however.
      */
@@ -963,7 +976,7 @@ bool Display::vbvaFetchCmd (VBVACMDHDR **ppHdr, uint32_t *pcbCmd)
 
     /* Current record is complete. */
 
-    /* The size of largest contiguos chunk in the ring biffer. */
+    /* The size of largest contiguous chunk in the ring biffer. */
     uint32_t u32BytesTillBoundary = VBVA_RING_BUFFER_SIZE - mpVbvaMemory->off32Data;
 
     /* The ring buffer pointer. */

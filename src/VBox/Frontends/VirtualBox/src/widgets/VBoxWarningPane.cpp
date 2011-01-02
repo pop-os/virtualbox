@@ -1,4 +1,4 @@
-/* $Id: VBoxWarningPane.cpp $ */
+/* $Id: VBoxWarningPane.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

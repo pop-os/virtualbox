@@ -1,8 +1,6 @@
-/* $Id: Global.h $ */
-
+/* $Id: Global.h 34244 2010-11-22 14:31:02Z vboxsync $ */
 /** @file
- *
- * VirtualBox COM global declarations
+ * VirtualBox COM API - Global Declarations and Definitions.
  */
 
 /*
@@ -41,6 +39,13 @@
 #define VBOXOSHINT_USBTABLET            RT_BIT(7)
 #define VBOXOSHINT_RTCUTC               RT_BIT(8)
 
+/** The VBoxVRDP kludge extension pack name.
+ *
+ * This is not a valid extension pack name (dashes are not allowed), and
+ * hence will not conflict with real extension packs.
+ */
+#define VBOXVRDP_KLUDGE_EXTPACK_NAME    "Built-in-VBoxVRDP"
+
 /**
  * Contains global static definitions that can be referenced by all COM classes
  * regardless of the apartment.
@@ -60,13 +65,15 @@ public:
         const uint32_t                 osHint;
         const uint32_t                 recommendedRAM;
         const uint32_t                 recommendedVRAM;
-        const uint32_t                 recommendedHDD;
+        const uint64_t                 recommendedHDD;
         const NetworkAdapterType_T     networkAdapterType;
         const uint32_t                 numSerialEnabled;
         const StorageControllerType_T  dvdStorageControllerType;
         const StorageBus_T             dvdStorageBusType;
         const StorageControllerType_T  hdStorageControllerType;
         const StorageBus_T             hdStorageBusType;
+        const ChipsetType_T            chipsetType;
+        const AudioControllerType_T    audioControllerType;
     };
 
     static const OSType sOSTypes[SchemaDefs::OSTypeId_COUNT];
@@ -186,7 +193,7 @@ public:
     /**
      * Try convert a VirtualBox status code (VBox/err.h) to a COM status code.
      *
-     * This is mainly inteded for dealing with vboxStatusCodeFromCOM() return
+     * This is mainly intended for dealing with vboxStatusCodeFromCOM() return
      * values.  If used on anything else, it won't be able to cope with most of the
      * input!
      *

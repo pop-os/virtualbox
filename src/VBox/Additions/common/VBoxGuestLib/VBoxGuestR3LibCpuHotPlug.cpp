@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibCpuHotPlug.cpp $ */
+/* $Id: VBoxGuestR3LibCpuHotPlug.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, CPU Hot Plugging.
  */
@@ -75,7 +75,7 @@ VBGLR3DECL(int) VbglR3CpuHotPlugTerm(void)
 
 
 /**
- * Waits for a CPU hot plugging event and retrive the data associated with it.
+ * Waits for a CPU hot plugging event and retrieve the data associated with it.
  *
  * @returns VBox status code.
  * @param   penmEventType   Where to store the event type on success.

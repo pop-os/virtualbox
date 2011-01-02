@@ -1,4 +1,4 @@
-/* $Id: RTErrConvertFromDarwinKern.cpp $ */
+/* $Id: RTErrConvertFromDarwinKern.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Convert Darwin Mach returns codes to iprt status codes.
  */
@@ -36,7 +36,7 @@
 RTDECL(int) RTErrConvertFromDarwinKern(int iNativeCode)
 {
     /*
-     * 'optimzied' success case.
+     * 'optimized' success case.
      */
     if (iNativeCode == KERN_SUCCESS)
         return VINF_SUCCESS;

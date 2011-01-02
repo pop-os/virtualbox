@@ -43,8 +43,17 @@
 // disable VESA/VBE2 check in vbe info
 //#define VBE2_NO_VESA_CHECK
 
-// use bytewise i/o by default (Longhorn issue)
-#define VBE_BYTEWISE_IO
+// use bytewise i/o (Longhorn beta issue, not in released Vista)
+//#define VBE_BYTEWISE_IO
+
+#ifdef VBE_BYTEWISE_IO
+    #define in_ax_dx    call do_in_ax_dx
+    #define out_dx_ax   call do_out_dx_ax
+#else
+    #define in_ax_dx    in  ax, dx
+    #define out_dx_ax   out dx, ax
+#endif
+
 
 // Use VBE new dynamic mode list.  Note that without this option, no
 // checks are currently done to make sure that modes fit into the
@@ -147,11 +156,23 @@ illegal_window:
   ret
 vesa_pm_set_display_start:
   cmp  bl, #0x80
-  je   vesa_pm_set_display_start1
+  je   vesa_pm_set_display_start1_wait
   cmp  bl, #0x00
   je   vesa_pm_set_display_start1
   mov  ax, #0x0100
   ret
+vesa_pm_set_display_start1_wait:
+  push edx
+  mov  dx, #0x03da
+wnv_loop_32:
+  in   al, dx
+  test al, #8
+  jnz  wnv_loop_32
+wv_loop_32:
+  in   al, dx
+  test al, #8
+  jz   wv_loop_32
+  pop  edx
 vesa_pm_set_display_start1:
 ; convert offset to (X, Y) coordinate
 ; (would be simpler to change Bochs VBE API...)
@@ -239,19 +260,44 @@ vesa_pm_end:
 
 ;; Bytewise in/out
 #ifdef VBE_BYTEWISE_IO
-out_dx_ax:
+do_out_dx_ax:
   xchg ah, al
   out  dx, al
   xchg ah, al
   out  dx, al
   ret
 
-in_ax_dx:
+do_in_ax_dx:
   in   al, dx
   xchg ah, al
   in   al, dx
   ret
 #endif
+
+;; Vertical retrace waiting
+wait_vsync:
+  push ax
+  push dx
+  mov  dx, #0x03da
+wv_loop:
+  in   al, dx
+  test al, #8
+  jz   wv_loop
+  pop  dx
+  pop  ax
+  ret
+
+wait_not_vsync:
+  push ax
+  push dx
+  mov  dx, #0x03da
+wnv_loop:
+  in   al, dx
+  test al, #8
+  jnz  wnv_loop
+  pop  dx
+  pop  ax
+  ret
 
 ; DISPI ioport functions
 
@@ -259,17 +305,9 @@ dispi_get_id:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_ID
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 
@@ -278,18 +316,10 @@ dispi_set_id:
   push ax
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_ID
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   ret
 ASM_END
@@ -305,18 +335,10 @@ ASM_START
 
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_XRES
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
   mov  ax, 4[bp] ; xres
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   pop  ax
   pop  bp
@@ -335,18 +357,10 @@ ASM_START
 
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_YRES
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
   mov  ax, 4[bp] ; yres
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   pop  ax
   pop  bp
@@ -369,18 +383,10 @@ ASM_START
 
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_BPP
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
   mov  ax, 4[bp] ; bpp
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   pop  ax
   pop  bp
@@ -397,17 +403,9 @@ dispi_get_bpp:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_BPP
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   cmp  al, #4
   jbe  get_bpp_noinc
   mov  ah, al
@@ -430,17 +428,9 @@ _dispi_get_max_xres:
   call _dispi_set_enable
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_XRES
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   push ax
   mov  ax, bx
   call _dispi_set_enable
@@ -458,17 +448,9 @@ _dispi_get_max_bpp:
   call _dispi_set_enable
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_BPP
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   push ax
   mov  ax, bx
   call _dispi_set_enable
@@ -482,18 +464,10 @@ _dispi_set_enable:
   push ax
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_ENABLE
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   ret
 
@@ -501,17 +475,9 @@ dispi_get_enable:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_ENABLE
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 
@@ -520,18 +486,10 @@ _dispi_set_bank:
   push ax
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_BANK
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   ret
 
@@ -539,17 +497,9 @@ dispi_get_bank:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_BANK
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 ASM_END
@@ -566,23 +516,11 @@ ASM_START
   push ax
   mov ax,# VBE_DISPI_INDEX_BANK
   mov dx,# VBE_DISPI_IOPORT_INDEX
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out dx,ax
-#endif
+  out_dx_ax
   pop ax
   mov dx,# VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out dx,ax
-#endif
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in  ax,dx
-#endif
+  out_dx_ax
+  in_ax_dx
   pop dx
   cmp dx,ax
   jne dispi_set_bank_farcall_error
@@ -591,17 +529,9 @@ ASM_START
 dispi_set_bank_farcall_get:
   mov ax,# VBE_DISPI_INDEX_BANK
   mov dx,# VBE_DISPI_IOPORT_INDEX
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out dx,ax
-#endif
+  out_dx_ax
   mov dx,# VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in ax,dx
-#endif
+  in_ax_dx
   mov dx,ax
   retf
 dispi_set_bank_farcall_error:
@@ -616,18 +546,10 @@ dispi_set_x_offset:
   push ax
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_X_OFFSET
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   ret
 
@@ -635,17 +557,9 @@ dispi_get_x_offset:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_X_OFFSET
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 
@@ -654,18 +568,10 @@ dispi_set_y_offset:
   push ax
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_Y_OFFSET
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   ret
 
@@ -673,17 +579,9 @@ dispi_get_y_offset:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_Y_OFFSET
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 
@@ -701,11 +599,7 @@ set_width_svga:
   mov  dx, # VGAREG_VGA_CRTC_ADDRESS
   mov  ah, bl
   mov  al, #0x13
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
   out  dx, ax
-#endif
   pop  dx
   pop  bx
   pop  ax
@@ -717,18 +611,10 @@ dispi_set_virt_width:
   push ax
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_VIRT_WIDTH
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   pop  dx
   ret
 
@@ -736,17 +622,9 @@ dispi_get_virt_width:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_VIRT_WIDTH
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 
@@ -754,17 +632,9 @@ dispi_get_virt_height:
   push dx
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_VIRT_HEIGHT
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   pop  dx
   ret
 
@@ -775,63 +645,35 @@ _vga_compat_setup:
   ; set CRT X resolution
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_XRES
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   push ax
   mov  dx, # VGAREG_VGA_CRTC_ADDRESS
   mov  ax, #0x0011
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
   out  dx, ax
-#endif
   pop  ax
   push ax
   shr  ax, #3
   dec  ax
   mov  ah, al
   mov  al, #0x01
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
   out  dx, ax
-#endif
   pop  ax
   call vga_set_virt_width
 
   ; set CRT Y resolution
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_YRES
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   dec  ax
   push ax
   mov  dx, # VGAREG_VGA_CRTC_ADDRESS
   mov  ah, al
   mov  al, #0x12
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
   out  dx, ax
-#endif
   pop  ax
   mov  al, #0x07
   out  dx, al
@@ -851,11 +693,12 @@ bit9_clear:
   ; other settings
   mov  dx, # VGAREG_VGA_CRTC_ADDRESS
   mov  ax, #0x0009
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out  dx, al
+  mov  dx, # VGAREG_VGA_CRTC_DATA
+  in   al, dx
+  and  al, #0x60    // clear double scan bit and cell height
+  out  dx, al
+  mov  dx, # VGAREG_VGA_CRTC_ADDRESS
   mov  al, #0x17
   out  dx, al
   mov  dx, # VGAREG_VGA_CRTC_DATA
@@ -876,33 +719,17 @@ bit9_clear:
   out  dx, al
   mov  dx, # VGAREG_GRDC_ADDRESS
   mov  ax, #0x0506
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
   out  dx, ax
-#endif
   mov  dx, # VGAREG_SEQU_ADDRESS
   mov  ax, #0x0f02
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
   out  dx, ax
-#endif
 
   ; settings for >= 8bpp
   mov  dx, # VBE_DISPI_IOPORT_INDEX
   mov  ax, # VBE_DISPI_INDEX_BPP
-#ifdef VBE_BYTEWISE_IO
-  call out_dx_ax
-#else
-  out  dx, ax
-#endif
+  out_dx_ax
   mov  dx, # VBE_DISPI_IOPORT_DATA
-#ifdef VBE_BYTEWISE_IO
-  call in_ax_dx
-#else
-  in   ax, dx
-#endif
+  in_ax_dx
   cmp  al, #0x08
   jb   vga_compat_end
   mov  dx, # VGAREG_VGA_CRTC_ADDRESS
@@ -1353,9 +1180,9 @@ Bit16u *AX;Bit16u CX; Bit16u ES;Bit16u DI;
 {
         Bit16u            result=0x0100;
         Bit16u            ss=get_SS();
-        ModeInfoBlock     info;
         ModeInfoListItem  *cur_info;
         Boolean           using_lfb;
+        Bit8u             win_attr;
 
 #ifdef DEBUG
         printf("VBE vbe_biosfn_return_mode_information ES%x DI%x CX%x\n",ES,DI,CX);
@@ -1375,23 +1202,25 @@ Bit16u *AX;Bit16u CX; Bit16u ES;Bit16u DI;
 #ifdef DEBUG
                 printf("VBE found mode %x\n",CX);
 #endif
-                memsetb(ss, &info, 0, sizeof(ModeInfoBlock));
+                memsetb(ES, DI, 0, 256);    // The mode info size is fixed
 #ifdef VBE_NEW_DYN_LIST
                 for (i = 0; i < sizeof(ModeInfoBlockCompact); i++)
                 {
                     Bit8u b;
 
                     b = in_byte(VBE_EXTRA_PORT, (char *)(&(cur_info->info)) + i);
-                    write_byte(ss, (char *)(&info) + i, b);
+                    write_byte(ES, (char *)DI + i, b);
                 }
 #else
-                memcpyb(ss, &info, 0xc000, &(cur_info->info), sizeof(ModeInfoBlockCompact));
+                memcpyb(ES, DI, 0xc000, &(cur_info->info), sizeof(ModeInfoBlockCompact));
 #endif
-                if (info.WinAAttributes & VBE_WINDOW_ATTRIBUTE_RELOCATABLE) {
-                  info.WinFuncPtr = 0xC0000000UL;
-                  *(Bit16u *)&(info.WinFuncPtr) = (Bit16u)(dispi_set_bank_farcall);
+                win_attr = read_byte(ES, DI + RT_OFFSETOF(ModeInfoBlock, WinAAttributes));
+                if (win_attr & VBE_WINDOW_ATTRIBUTE_RELOCATABLE) {
+                    write_word(ES, DI + RT_OFFSETOF(ModeInfoBlock, WinFuncPtr),
+                               (Bit16u)(dispi_set_bank_farcall));
+                    // If BIOS not at 0xC000 -> boom
+                    write_word(ES, DI + RT_OFFSETOF(ModeInfoBlock, WinFuncPtr) + 2, 0xC000);
                 }
-
                 result = 0x4f;
         }
         else
@@ -1400,12 +1229,6 @@ Bit16u *AX;Bit16u CX; Bit16u ES;Bit16u DI;
                 printf("VBE *NOT* found mode %x\n",CX);
 #endif
                 result = 0x100;
-        }
-
-        if (result == 0x4f)
-        {
-                // copy updates in mode_info_block back
-                memcpyb(ES, DI, ss, &info, sizeof(info));
         }
 
         write_word(ss, AX, result);
@@ -1646,7 +1469,7 @@ Bit16u *AX; Bit16u CX; Bit16u DX; Bit16u ES; Bit16u *BX;
 #endif
         if (CX & 8)
             val += vbe_biosfn_read_video_state_size();
-        write_word(ss, BX, val);
+        write_word(ss, BX, (val + 63) / 64);
         break;
     case 0x01:
         val = read_word(ss, BX);
@@ -1826,12 +1649,15 @@ ASM_END
 ASM_START
 vbe_biosfn_set_get_display_start:
   cmp  bl, #0x80
-  je   set_display_start
+  je   set_display_start_wait
   cmp  bl, #0x01
   je   get_display_start
   jb   set_display_start
   mov  ax, #0x0100
   ret
+set_display_start_wait:
+  call wait_not_vsync
+  call wait_vsync
 set_display_start:
   mov  ax, cx
   call dispi_set_x_offset

@@ -1,4 +1,4 @@
-; $Id: VMMInternal.mac $
+; $Id: VMMInternal.mac 33540 2010-10-28 09:27:05Z vboxsync $
 ;; @file
 ; VMM - Internal header file.
 ;
@@ -18,7 +18,7 @@
 %include "VBox/asmdefs.mac"
 
 ;
-; Determin the default stack switching unless specified explicitly.
+; Determine the default stack switching unless specified explicitly.
 ;
 %ifndef VMM_R0_SWITCH_STACK
  %ifndef VMM_R0_NO_SWITCH_STACK

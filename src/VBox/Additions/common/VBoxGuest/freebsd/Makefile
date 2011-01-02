@@ -1,4 +1,4 @@
-# $Id: Makefile $
+# $Id: Makefile 33378 2010-10-24 13:20:43Z vboxsync $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
@@ -26,6 +26,7 @@ CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBO
 
 SRCS = \
 	VBoxGuest.c \
+	VBoxGuest2.c \
 	VBoxGuest-freebsd.c \
 	GenericRequest.c \
 	HGCMInternal.c \
@@ -111,6 +112,10 @@ SRCS += \
 	RTLogWriteStdErr-stub-generic.c \
 	RTRandAdvCreateSystemFaster-generic.c \
 	RTRandAdvCreateSystemTruer-generic.c \
+	RTSemEventWait-2-ex-generic.c \
+	RTSemEventWaitNoResume-2-ex-generic.c \
+	RTSemEventMultiWait-2-ex-generic.c \
+	RTSemEventMultiWaitNoResume-2-ex-generic.c \
 	RTTimerCreate-generic.c \
 	timer-generic.c \
 	mppresent-generic.c

@@ -1,4 +1,4 @@
-/* $Id: ldrNative-posix.cpp $ */
+/* $Id: ldrNative-posix.cpp 35191 2010-12-16 15:25:20Z vboxsync $ */
 /** @file
  * IPRT - Binary Image Loader, POSIX native.
  */
@@ -40,7 +40,7 @@
 #include "internal/ldr.h"
 
 
-int rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle)
+int rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle, uint32_t fFlags, PRTERRINFO pErrInfo)
 {
     /*
      * Do we need to add an extension?
@@ -59,7 +59,7 @@ int rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle)
         size_t cch = strlen(pszFilename);
         char *psz = (char *)alloca(cch + sizeof(s_szSuff));
         if (!psz)
-            return VERR_NO_MEMORY;
+            return RTErrInfoSet(pErrInfo, VERR_NO_MEMORY, "alloca failed");
         memcpy(psz, pszFilename, cch);
         memcpy(psz + cch, s_szSuff, sizeof(s_szSuff));
         pszFilename = psz;
@@ -68,14 +68,21 @@ int rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle)
     /*
      * Attempt load.
      */
-
-    void *pvMod = dlopen(pszFilename, RTLD_NOW | RTLD_LOCAL);
+    int fFlagsNative = RTLD_NOW;
+    if (fFlags & RTLDRLOAD_FLAGS_GLOBAL)
+        fFlagsNative |= RTLD_GLOBAL;
+    else
+        fFlagsNative |= RTLD_LOCAL;
+    void *pvMod = dlopen(pszFilename, fFlagsNative);
     if (pvMod)
     {
         *phHandle = (uintptr_t)pvMod;
         return VINF_SUCCESS;
     }
-    LogRel(("rtldrNativeLoad: dlopen('%s', RTLD_NOW | RTLD_LOCAL) failed: %s\n", pszFilename, dlerror()));
+
+    const char *pszDlError = dlerror();
+    RTErrInfoSet(pErrInfo, VERR_FILE_NOT_FOUND, pszDlError);
+    LogRel(("rtldrNativeLoad: dlopen('%s', RTLD_NOW | RTLD_LOCAL) failed: %s\n", pszFilename, pszDlError));
     return VERR_FILE_NOT_FOUND;
 }
 

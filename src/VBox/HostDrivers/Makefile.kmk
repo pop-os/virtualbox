@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 34484 2010-11-29 17:45:20Z vboxsync $
 ## @file
 # Top-level makefile for the VBox Host drivers.
 #
@@ -21,7 +21,9 @@ include $(KBUILD_PATH)/subheader.kmk
 # Include sub-makefiles.
 include $(PATH_SUB_CURRENT)/Support/Makefile.kmk
 
-if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
+if  !defined(VBOX_ONLY_DOCS) \
+ && !defined(VBOX_ONLY_EXTPACKS) \
+ && !defined(VBOX_ONLY_TESTSUITE)
  ifdef VBOX_WITH_USB
   include $(PATH_SUB_CURRENT)/VBoxUSB/Makefile.kmk
  endif
@@ -41,7 +43,7 @@ if !defined(VBOX_ONLY_DOCS) && !defined(VBOX_ONLY_TESTSUITE)
 
  if1of ($(KBUILD_TARGET),linux freebsd)
   #
-  # Install the Makefile for module compliation on Linux and FreeBSD hosts
+  # Install the Makefile for module compilation on Linux and FreeBSD hosts
   #
   INSTALLS += HostDrivers-src
   HostDrivers-src_INST            = bin/src/

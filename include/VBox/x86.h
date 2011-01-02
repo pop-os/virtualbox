@@ -82,9 +82,9 @@ typedef struct X86EFLAGSBITS
     unsigned    u1VM : 1;
     /** Bit 18 - AC - Alignment check flag - System flag. Works with CR0.AM. */
     unsigned    u1AC : 1;
-    /** Bit 19 - VIF - Virtual interupt flag - System flag. */
+    /** Bit 19 - VIF - Virtual interrupt flag - System flag. */
     unsigned    u1VIF : 1;
-    /** Bit 20 - VIP - Virtual interupt pending flag - System flag. */
+    /** Bit 20 - VIP - Virtual interrupt pending flag - System flag. */
     unsigned    u1VIP : 1;
     /** Bit 21 - ID - CPUID flag - System flag. If this responds to flipping CPUID is supported. */
     unsigned    u1ID : 1;
@@ -176,9 +176,9 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_VM          RT_BIT(17)
 /** Bit 18 - AC - Alignment check flag - System flag. Works with CR0.AM. */
 #define X86_EFL_AC          RT_BIT(18)
-/** Bit 19 - VIF - Virtual interupt flag - System flag. */
+/** Bit 19 - VIF - Virtual interrupt flag - System flag. */
 #define X86_EFL_VIF         RT_BIT(19)
-/** Bit 20 - VIP - Virtual interupt pending flag - System flag. */
+/** Bit 20 - VIP - Virtual interrupt pending flag - System flag. */
 #define X86_EFL_VIP         RT_BIT(20)
 /** Bit 21 - ID - CPUID flag - System flag. If this responds to flipping CPUID is supported. */
 #define X86_EFL_ID          RT_BIT(21)
@@ -198,8 +198,8 @@ typedef struct X86CPUIDFEATECX
 {
     /** Bit 0 - SSE3 - Supports SSE3 or not. */
     unsigned    u1SSE3 : 1;
-    /** Reserved. */
-    unsigned    u1Reserved1 : 1;
+    /** Bit 1 - PCLMULQDQ. */
+    unsigned    u1PCLMULQDQ : 1;
     /** Bit 2 - DS Area 64-bit layout. */
     unsigned    u1DTE64 : 1;
     /** Bit 3 - MONITOR - Supports MONITOR/MWAIT. */
@@ -218,18 +218,20 @@ typedef struct X86CPUIDFEATECX
     unsigned    u1SSSE3 : 1;
     /** Bit 10 - CNTX-ID - L1 Context ID. */
     unsigned    u1CNTXID : 1;
-    /** Bit 11 - FMA. */
+    /** Bit 11 - Reserved. */
+    unsigned    u1Reserved1 : 1;
+    /** Bit 12 - FMA. */
     unsigned    u1FMA : 1;
-    /** Bit 12 - Reserved. */
-    unsigned    u1Reserved2 : 1;
     /** Bit 13 - CX16 - CMPXCHG16B. */
     unsigned    u1CX16 : 1;
     /** Bit 14 - xTPR Update Control. Processor supports changing IA32_MISC_ENABLES[bit 23]. */
     unsigned    u1TPRUpdate : 1;
     /** Bit 15 - PDCM - Perf/Debug Capability MSR. */
     unsigned    u1PDCM : 1;
-    /** Reserved. */
-    unsigned    u2Reserved3 : 2;
+    /** Bit 16 - Reserved. */
+    unsigned    u1Reserved2 : 1;
+    /** Bit 17 - PCID - Process-context identifiers. */
+    unsigned    u1PCID : 1;
     /** Bit 18 - Direct Cache Access. */
     unsigned    u1DCA : 1;
     /** Bit 19 - SSE4_1 - Supports SSE4_1 or not. */
@@ -242,16 +244,20 @@ typedef struct X86CPUIDFEATECX
     unsigned    u1MOVBE : 1;
     /** Bit 23 - POPCNT - Supports POPCNT. */
     unsigned    u1POPCNT : 1;
-    /** Bit 24 - Reserved. */
-    unsigned    u1Reserved4 : 1;
+    /** Bit 24 - TSC-Deadline. */
+    unsigned    u1TSCDEADLINE : 1;
     /** Bit 25 - AES. */
     unsigned    u1AES : 1;
     /** Bit 26 - XSAVE - Supports XSAVE. */
     unsigned    u1XSAVE : 1;
     /** Bit 27 - OSXSAVE - Supports OSXSAVE. */
     unsigned    u1OSXSAVE : 1;
-    /** Reserved. */
-    unsigned    u4Reserved5 : 4;
+    /** Bit 28 - AVX - Supports AVX instruction extensions. */
+    unsigned    u1AVX : 1;
+    /** Bit 29 - 30 - Reserved */
+    unsigned    u2Reserved3 : 2;
+    /** Reserved, always 0. */
+    unsigned    u1Reserved4 : 1;
 } X86CPUIDFEATECX;
 /** Pointer to CPUID Feature Information - ECX. */
 typedef X86CPUIDFEATECX *PX86CPUIDFEATECX;
@@ -382,6 +388,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_ECX_TPRUPDATE RT_BIT(14)
 /** ECX Bit 15 - PDCM - Perf/Debug Capability MSR. */
 #define X86_CPUID_FEATURE_ECX_PDCM      RT_BIT(15)
+/** ECX Bit 17 - PCID - Process-context identifiers. */
+#define X86_CPUID_FEATURE_ECX_PCID      RT_BIT(17)
 /** ECX Bit 18 - DCA - Direct Cache Access. */
 #define X86_CPUID_FEATURE_ECX_DCA       RT_BIT(18)
 /** ECX Bit 19 - SSE4_1 - Supports SSE4_1 or not. */
@@ -394,6 +402,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_ECX_MOVBE     RT_BIT(22)
 /** ECX Bit 23 - POPCNT instruction. */
 #define X86_CPUID_FEATURE_ECX_POPCNT    RT_BIT(23)
+/** ECX Bir 24 - TSC-Deadline. */
+#define X86_CPUID_FEATURE_ECX_TSCDEADL  RT_BIT(24)
 /** ECX Bit 25 - AES instructions. */
 #define X86_CPUID_FEATURE_ECX_AES       RT_BIT(25)
 /** ECX Bit 26 - XSAVE instruction. */
@@ -808,7 +818,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 
 #define MSR_IA32_PLATFORM_ID                0x17
 
-#ifndef MSR_IA32_APICBASE /* qemu cpu.h klugde */
+#ifndef MSR_IA32_APICBASE /* qemu cpu.h kludge */
 #define MSR_IA32_APICBASE                   0x1b
 #endif
 
@@ -842,7 +852,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define MSR_IA32_MTRR_CAP                   0xFE
 
 
-#ifndef MSR_IA32_SYSENTER_CS /* qemu cpu.h klugde */
+#ifndef MSR_IA32_SYSENTER_CS /* qemu cpu.h kludge */
 /** SYSENTER_CS - the R0 CS, indirectly giving R0 SS, R3 CS and R3 DS.
  * R0 SS == CS + 8
  * R3 CS == CS + 16
@@ -1114,15 +1124,17 @@ typedef X86PGPAEUINT const *PCX86PGPAEUINT;
 #define X86_PTE_PG_MASK                     ( 0xfffff000 )
 
 /** Bits 12-51 - - PAE - Physical Page number of the next level. */
-#if 1 /* we're using this internally and have to mask of the top 16-bit. */
-#define X86_PTE_PAE_PG_MASK                 ( 0x0000fffffffff000ULL )
-/** @todo Get rid of the above hack; makes code unreadable. */
-#define X86_PTE_PAE_PG_MASK_FULL            ( 0x000ffffffffff000ULL )
-#else
-#define X86_PTE_PAE_PG_MASK                 ( 0x000ffffffffff000ULL )
-#endif
-/** Bits 63 - NX - PAE - No execution flag. */
+#define X86_PTE_PAE_PG_MASK                 UINT64_C(0x000ffffffffff000)
+/** Bits 63 - NX - PAE/LM - No execution flag. */
 #define X86_PTE_PAE_NX                      RT_BIT_64(63)
+/** Bits 62-52 - - PAE - MBZ bits when NX is active. */
+#define X86_PTE_PAE_MBZ_MASK_NX             UINT64_C(0x7ff0000000000000)
+/** Bits 63-52 - - PAE - MBZ bits when no NX. */
+#define X86_PTE_PAE_MBZ_MASK_NO_NX          UINT64_C(0xfff0000000000000)
+/** No bits -    - LM  - MBZ bits when NX is active. */
+#define X86_PTE_LM_MBZ_MASK_NX              UINT64_C(0x0000000000000000)
+/** Bits 63 -    - LM  - MBZ bits when no NX. */
+#define X86_PTE_LM_MBZ_MASK_NO_NX           UINT64_C(0x8000000000000000)
 
 /**
  * Page table entry.
@@ -1306,18 +1318,17 @@ typedef const X86PTPAE *PCX86PTPAE;
 #define X86_PDE_PG_MASK                     ( 0xfffff000 )
 
 /** Bits 12-51 - - PAE - Physical Page number of the next level. */
-#if 1 /* we're using this internally and have to mask of the top 16-bit. */
-/* Note: This is kind of dangerous if the guest uses these bits (legally or illegally);
- *       we partly or that part into shadow page table entries. Will be corrected
- *       soon.
- */
-#define X86_PDE_PAE_PG_MASK                 ( 0x0000fffffffff000ULL )
-#define X86_PDE_PAE_PG_MASK_FULL            ( 0x000ffffffffff000ULL )
-#else
-#define X86_PDE_PAE_PG_MASK                 ( 0x000ffffffffff000ULL )
-#endif
-/** Bits 63 - NX - PAE - No execution flag. */
+#define X86_PDE_PAE_PG_MASK                 UINT64_C(0x000ffffffffff000)
+/** Bits 63 - NX - PAE/LM - No execution flag. */
 #define X86_PDE_PAE_NX                      RT_BIT_64(63)
+/** Bits 62-52, 7 - - PAE - MBZ bits when NX is active. */
+#define X86_PDE_PAE_MBZ_MASK_NX             UINT64_C(0x7ff0000000000080)
+/** Bits 63-52, 7 - - PAE - MBZ bits when no NX. */
+#define X86_PDE_PAE_MBZ_MASK_NO_NX          UINT64_C(0xfff0000000000080)
+/** Bit 7 -         - LM  - MBZ bits when NX is active. */
+#define X86_PDE_LM_MBZ_MASK_NX              UINT64_C(0x0000000000000080)
+/** Bits 63, 7 -    - LM  - MBZ bits when no NX. */
+#define X86_PDE_LM_MBZ_MASK_NO_NX           UINT64_C(0x8000000000000080)
 
 /**
  * Page directory entry.
@@ -1426,16 +1437,26 @@ typedef const X86PDEPAEBITS *PCX86PDEPAEBITS;
 #define X86_PDE4M_PAT_SHIFT                 (12 - 7)
 /** Bits 22-31 - - Physical Page number. */
 #define X86_PDE4M_PG_MASK                   ( 0xffc00000 )
-/** Bits 13-20 - - Physical Page number high part (32-39 bits). AMD64 hack. */
+/** Bits 20-13 - - Physical Page number high part (32-39 bits). AMD64 hack. */
 #define X86_PDE4M_PG_HIGH_MASK              ( 0x001fe000 )
 /** The number of bits to the high part of the page number. */
 #define X86_PDE4M_PG_HIGH_SHIFT             19
+/** Bit 21 -     - MBZ bits for AMD CPUs, no PSE36. */
+#define X86_PDE4M_MBZ_MASK                  RT_BIT_32(21)
 
-/** Bits 21-51 - - PAE & AMD64 - Physical Page number.
+/** Bits 21-51 - - PAE/LM - Physical Page number.
  * (Bits 40-51 (long mode) & bits 36-51 (pae legacy) are reserved according to the Intel docs; AMD allows for more.) */
-#define X86_PDE2M_PAE_PG_MASK               ( 0x000fffffffe00000ULL )
-/** Bits 63 - NX - PAE & AMD64 - No execution flag. */
-#define X86_PDE2M_PAE_NX                    X86_PDE2M_PAE_NX
+#define X86_PDE2M_PAE_PG_MASK               UINT64_C(0x000fffffffe00000)
+/** Bits 63 - NX - PAE/LM - No execution flag. */
+#define X86_PDE2M_PAE_NX                    RT_BIT_64(63)
+/** Bits 62-52, 20-13 - - PAE - MBZ bits when NX is active. */
+#define X86_PDE2M_PAE_MBZ_MASK_NX           UINT64_C(0x7ff00000001fe000)
+/** Bits 63-52, 20-13 - - PAE - MBZ bits when no NX. */
+#define X86_PDE2M_PAE_MBZ_MASK_NO_NX        UINT64_C(0xfff00000001fe000)
+/** Bits 20-13        - - LM  - MBZ bits when NX is active. */
+#define X86_PDE2M_LM_MBZ_MASK_NX            UINT64_C(0x00000000001fe000)
+/** Bits 63, 20-13    - - LM  - MBZ bits when no NX. */
+#define X86_PDE2M_LM_MBZ_MASK_NO_NX         UINT64_C(0x80000000001fe000)
 
 /**
  * 4MB page directory entry.
@@ -1626,18 +1647,25 @@ typedef const X86PDPAE *PCX86PDPAE;
 #define X86_PDPE_PCD                        RT_BIT(4)
 /** Bit 5 -  A  - Access bit. Long Mode only. */
 #define X86_PDPE_A                          RT_BIT(5)
+/** Bit 7 - PS  - Page size (1GB). Long Mode only. */
+#define X86_PDPE_LM_PS                      RT_BIT(7)
 /** Bits 9-11 - - Available for use to system software. */
 #define X86_PDPE_AVL_MASK                   (RT_BIT(9) | RT_BIT(10) | RT_BIT(11))
 /** Bits 12-51 - - PAE - Physical Page number of the next level. */
-#if 1 /* we're using this internally and have to mask of the top 16-bit. */
-#define X86_PDPE_PG_MASK                    ( 0x0000fffffffff000ULL )
-/** @todo Get rid of the above hack; makes code unreadable. */
-#define X86_PDPE_PG_MASK_FULL               ( 0x000ffffffffff000ULL )
-#else
-#define X86_PDPE_PG_MASK                    ( 0x000ffffffffff000ULL )
-#endif
-/** Bits 63 - NX - PAE - No execution flag. Long Mode only. */
-#define X86_PDPE_NX                         RT_BIT_64(63)
+#define X86_PDPE_PG_MASK                    UINT64_C(0x000ffffffffff000)
+/** Bits 63-52, 8-5, 2-1 - - PAE - MBZ bits (NX is long mode only). */
+#define X86_PDPE_PAE_MBZ_MASK               UINT64_C(0xfff00000000001e6)
+/** Bits 63 - NX - LM - No execution flag. Long Mode only. */
+#define X86_PDPE_LM_NX                      RT_BIT_64(63)
+/** Bits 8, 7 - - LM - MBZ bits when NX is active. */
+#define X86_PDPE_LM_MBZ_MASK_NX             UINT64_C(0x0000000000000180)
+/** Bits 63, 8, 7 - - LM - MBZ bits when no NX. */
+#define X86_PDPE_LM_MBZ_MASK_NO_NX          UINT64_C(0x8000000000000180)
+/** Bits 29-13 - - LM - MBZ bits for 1GB page entry when NX is active. */
+#define X86_PDPE1G_LM_MBZ_MASK_NX           UINT64_C(0x000000003fffe000)
+/** Bits 63, 29-13 - - LM - MBZ bits for 1GB page entry when no NX. */
+#define X86_PDPE1G_LM_MBZ_MASK_NO_NX        UINT64_C(0x800000003fffe000)
+
 
 /**
  * Page directory pointer table entry.
@@ -1769,12 +1797,11 @@ typedef const X86PDPT *PCX86PDPT;
 /** Bits 9-11 - - Available for use to system software. */
 #define X86_PML4E_AVL_MASK                  (RT_BIT(9) | RT_BIT(10) | RT_BIT(11))
 /** Bits 12-51 - - PAE - Physical Page number of the next level. */
-#if 1 /* we're using this internally and have to mask of the top 16-bit. */
-#define X86_PML4E_PG_MASK                   ( 0x0000fffffffff000ULL )
-#define X86_PML4E_PG_MASK_FULL              ( 0x000ffffffffff000ULL )
-#else
-#define X86_PML4E_PG_MASK                   ( 0x000ffffffffff000ULL )
-#endif
+#define X86_PML4E_PG_MASK                   UINT64_C(0x000ffffffffff000)
+/** Bits 8, 7 - - MBZ bits when NX is active. */
+#define X86_PML4E_MBZ_MASK_NX               UINT64_C(0x0000000000000080)
+/** Bits 63, 7 - - MBZ bits when no NX. */
+#define X86_PML4E_MBZ_MASK_NO_NX            UINT64_C(0x8000000000000080)
 /** Bits 63 - NX - PAE - No execution flag. */
 #define X86_PML4E_NX                        RT_BIT_64(63)
 
@@ -2090,26 +2117,26 @@ typedef const X86DESCGENERIC *PCX86DESCGENERIC;
  */
 typedef struct X86DESCGATE
 {
-    /** Target code segment offset - Low word.
+    /** 00 - Target code segment offset - Low word.
      * Ignored if task-gate. */
     unsigned    u16OffsetLow : 16;
-    /** Target code segment selector for call-, interrupt- and trap-gates,
+    /** 10 - Target code segment selector for call-, interrupt- and trap-gates,
      * TSS selector if task-gate. */
     unsigned    u16Sel : 16;
-    /** Number of parameters for a call-gate.
+    /** 20 - Number of parameters for a call-gate.
      * Ignored if interrupt-, trap- or task-gate. */
     unsigned    u4ParmCount : 4;
-    /** Reserved / ignored. */
+    /** 24 - Reserved / ignored. */
     unsigned    u4Reserved : 4;
-    /** Segment Type. */
+    /** 28 - Segment Type. */
     unsigned    u4Type : 4;
-    /** Descriptor Type (0 = system). */
+    /** 2c - Descriptor Type (0 = system). */
     unsigned    u1DescType : 1;
-    /** Descriptor Privelege level. */
+    /** 2d - Descriptor Privelege level. */
     unsigned    u2Dpl : 2;
-    /** Flags selector present(=1) or not. */
+    /** 2f - Flags selector present(=1) or not. */
     unsigned    u1Present : 1;
-    /** Target code segment offset - High word.
+    /** 30 - Target code segment offset - High word.
      * Ignored if task-gate. */
     unsigned    u16OffsetHigh : 16;
 } X86DESCGATE;
@@ -2130,11 +2157,11 @@ typedef union X86DESC
     /** Gate descriptor view. */
     X86DESCGATE     Gate;
 
-    /** 8 bit unsigned interger view. */
+    /** 8 bit unsigned integer view. */
     uint8_t         au8[8];
-    /** 16 bit unsigned interger view. */
+    /** 16 bit unsigned integer view. */
     uint16_t        au16[4];
-    /** 32 bit unsigned interger view. */
+    /** 32 bit unsigned integer view. */
     uint32_t        au32[2];
 } X86DESC;
 AssertCompileSize(X86DESC, 8);
@@ -2308,13 +2335,13 @@ typedef union X86DESC64
     /** Gate descriptor view. */
     X86DESC64GATE       Gate;
 
-    /** 8 bit unsigned interger view. */
+    /** 8 bit unsigned integer view. */
     uint8_t             au8[16];
-    /** 16 bit unsigned interger view. */
+    /** 16 bit unsigned integer view. */
     uint16_t            au16[8];
-    /** 32 bit unsigned interger view. */
+    /** 32 bit unsigned integer view. */
     uint32_t            au32[4];
-    /** 64 bit unsigned interger view. */
+    /** 64 bit unsigned integer view. */
     uint64_t            au64[2];
 } X86DESC64;
 AssertCompileSize(X86DESC64, 16);
@@ -2452,16 +2479,17 @@ typedef PCX86DESC   PCX86DESCHC;
 
 /** @name AMD64 System Selector Types.
  * @{ */
+/** LDT selector. */
 #define AMD64_SEL_TYPE_SYS_LDT              2
-/** 286 TSS selector - Busy. */
+/** TSS selector - Busy. */
 #define AMD64_SEL_TYPE_SYS_TSS_AVAIL        9
-/** 386 TSS selector - Busy. */
+/** TSS selector - Busy. */
 #define AMD64_SEL_TYPE_SYS_TSS_BUSY         0xB
-/** 386 Callgate selector. */
+/** Callgate selector. */
 #define AMD64_SEL_TYPE_SYS_CALL_GATE        0xC
-/** 386 Interruptgate selector. */
+/** Interruptgate selector. */
 #define AMD64_SEL_TYPE_SYS_INT_GATE         0xE
-/** 386 Trapgate selector. */
+/** Trapgate selector. */
 #define AMD64_SEL_TYPE_SYS_TRAP_GATE        0xF
 /** @} */
 
@@ -2490,8 +2518,72 @@ typedef PCX86DESC   PCX86DESCHC;
 
 /** @} */
 
-/** @name Task segment.
+
+/** @name Task Segments.
  * @{
+ */
+
+/**
+ * 16-bit Task Segment (TSS).
+ */
+#pragma pack(1)
+typedef struct X86TSS16
+{
+    /** Back link to previous task. (static) */
+    RTSEL       selPrev;
+    /** Ring-0 stack pointer. (static) */
+    uint16_t    sp0;
+    /** Ring-0 stack segment. (static) */
+    RTSEL       ss0;
+    /** Ring-1 stack pointer. (static) */
+    uint16_t    sp1;
+    /** Ring-1 stack segment. (static) */
+    RTSEL       ss1;
+    /** Ring-2 stack pointer. (static) */
+    uint16_t    sp2;
+    /** Ring-2 stack segment. (static) */
+    RTSEL       ss2;
+    /** IP before task switch. */
+    uint16_t    ip;
+    /** FLAGS before task switch. */
+    uint16_t    flags;
+    /** AX before task switch. */
+    uint16_t    ax;
+    /** CX before task switch. */
+    uint16_t    cx;
+    /** DX before task switch. */
+    uint16_t    dx;
+    /** BX before task switch. */
+    uint16_t    bx;
+    /** SP before task switch. */
+    uint16_t    sp;
+    /** BP before task switch. */
+    uint16_t    bp;
+    /** SI before task switch. */
+    uint16_t    si;
+    /** DI before task switch. */
+    uint16_t    di;
+    /** ES before task switch. */
+    RTSEL       es;
+    /** CS before task switch. */
+    RTSEL       cs;
+    /** SS before task switch. */
+    RTSEL       ss;
+    /** DS before task switch. */
+    RTSEL       ds;
+    /** LDTR before task switch. */
+    RTSEL       selLdt;
+} X86TSS16;
+AssertCompileSize(X86TSS16, 44);
+#pragma pack()
+/** Pointer to a 16-bit task segment. */
+typedef X86TSS16 *PX86TSS16;
+/** Pointer to a const 16-bit task segment. */
+typedef const X86TSS16 *PCX86TSS16;
+
+
+/**
+ * 32-bit Task Segment (TSS).
  */
 #pragma pack(1)
 typedef struct X86TSS32
@@ -2570,11 +2662,10 @@ typedef struct X86TSS32
 typedef X86TSS32 *PX86TSS32;
 /** Pointer to const task segment. */
 typedef const X86TSS32 *PCX86TSS32;
-/** @} */
 
 
-/** @name 64 bits Task segment.
- * @{
+/**
+ * 64-bit Task segment.
  */
 #pragma pack(1)
 typedef struct X86TSS64
@@ -2606,9 +2697,9 @@ typedef struct X86TSS64
     uint8_t     IntRedirBitmap[32];
 } X86TSS64;
 #pragma pack()
-/** Pointer to task segment. */
+/** Pointer to a 64-bit task segment. */
 typedef X86TSS64 *PX86TSS64;
-/** Pointer to const task segment. */
+/** Pointer to a const 64-bit task segment. */
 typedef const X86TSS64 *PCX86TSS64;
 AssertCompileSize(X86TSS64, 136);
 

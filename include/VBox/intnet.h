@@ -133,8 +133,18 @@ typedef struct INTNETBUF
     STAMCOUNTER     cStatBadFrames;
     /** Reserved for future use. */
     STAMCOUNTER     aStatReserved[2];
+    /** Reserved for future send profiling. */
+    STAMPROFILE     StatSend1;
+    /** Reserved for future send profiling. */
+    STAMPROFILE     StatSend2;
+    /** Reserved for future receive profiling. */
+    STAMPROFILE     StatRecv1;
+    /** Reserved for future receive profiling. */
+    STAMPROFILE     StatRecv2;
+    /** Reserved for future profiling. */
+    STAMPROFILE     StatReserved;
 } INTNETBUF;
-AssertCompileSize(INTNETBUF, 160);
+AssertCompileSize(INTNETBUF, 320);
 AssertCompileMemberOffset(INTNETBUF, Recv, 16);
 AssertCompileMemberOffset(INTNETBUF, Send, 64);
 
@@ -205,7 +215,7 @@ typedef struct INTNETHDR
     /** The size of the frame. */
     uint16_t        cbFrame;
     /** The offset from the start of this header to where the actual frame starts.
-     * This is used to keep the frame it self continguous in virtual memory and
+     * This is used to keep the frame it self contiguous in virtual memory and
      * thereby both simplify access as well as the descriptor. */
     int32_t         offFrame;
 } INTNETHDR;
@@ -396,8 +406,8 @@ typedef struct INTNETTRUNKSWPORT
      * @param   pvHdrs      Pointer to the packet headers.
      * @param   cbHdrs      Size of the packet headers.  This must be at least 6
      *                      bytes (the destination MAC address), but should if
-     *                      possibly also include any VLAN tag and network layer
-     *                      header (wireless mac address sharing).
+     *                      possible also include any VLAN tag and network
+     *                      layer header (wireless mac address sharing).
      * @param   fSrc        Where this frame comes from.  Only one bit should be
      *                      set!
      *
@@ -471,7 +481,7 @@ typedef struct INTNETTRUNKSWPORT
      * be possible to save some unnecessary address translation and memory locking
      * in the network stack.  (Internal networking knows the physical address for
      * all the INTNETBUF data and that it's locked memory.)  There is a negative
-     * side effects though, frames that crosses page boundraries will require
+     * side effects though, frames that crosses page boundaries will require
      * multiple scather / gather segments.
      *
      * @returns The old setting.
@@ -793,7 +803,7 @@ typedef INTNETTRUNKFACTORY *PINTNETTRUNKFACTORY;
 /**
  * The trunk connection type.
  *
- * Used by IntNetR0Open and assoicated interfaces.
+ * Used by IntNetR0Open and associated interfaces.
  */
 typedef enum INTNETTRUNKTYPE
 {

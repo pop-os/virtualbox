@@ -1,4 +1,4 @@
-/* $Id: RTPathRealDup.cpp $ */
+/* $Id: RTPathRealDup.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - RTPathRealDup
  */

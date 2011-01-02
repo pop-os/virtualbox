@@ -1,4 +1,4 @@
-/* $Id: DrvHostBase.cpp $ */
+/* $Id: DrvHostBase.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */
@@ -591,7 +591,7 @@ static DECLCALLBACK(void *)  drvHostBaseQueryInterface(PPDMIBASE pInterface, con
  * @return  VINF_SUCCESS if found, VERR_FILE_NOT_FOUND otherwise.
  * @param   Entry       The current I/O registry entry reference.
  * @param   pszName     Where to store the name. 128 bytes.
- * @param   cRecursions Number of recursions. This is used as an precation
+ * @param   cRecursions Number of recursions. This is used as an precaution
  *                      just to limit the depth and avoid blowing the stack
  *                      should we hit a bug or something.
  */
@@ -808,7 +808,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
          * Get the properties we use to identify the DVD drive.
          *
          * While there is a (weird 12 byte) GUID, it isn't persistent
-         * accross boots. So, we have to use a combination of the
+         * across boots. So, we have to use a combination of the
          * vendor name and product name properties with an optional
          * sequence number for identification.
          */
@@ -969,7 +969,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
         char *pszPassthroughDevice = NULL;
         rc = RTStrAPrintf(&pszPassthroughDevice, "/dev/%s%u",
                           DeviceCCB.cgdl.periph_name, DeviceCCB.cgdl.unit_number);
-        if (RT_SUCCESS(rc))
+        if (rc >= 0)
         {
             RTFILE PassthroughDevice;
 
@@ -1012,6 +1012,8 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
                     RTFileClose(PassthroughDevice);
             }
         }
+        else
+            rc = VERR_NO_STR_MEMORY;
     }
     else
         rc = RTErrConvertFromErrno(errno);
@@ -1030,7 +1032,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
  * Solaris wrapper for RTFileOpen.
  *
  * Solaris has to deal with two filehandles, a block and a raw one. Rather than messing
- * with drvHostBaseOpen's function signature & body, having a seperate one is better.
+ * with drvHostBaseOpen's function signature & body, having a separate one is better.
  *
  * @returns VBox status code.
  */
@@ -1195,7 +1197,7 @@ static int drvHostBaseGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
     }
 
     /* convert nt status code to VBox status code. */
-    /** @todo Make convertion function!. */
+    /** @todo Make conversion function!. */
     int rc = VERR_GENERAL_FAILURE;
     switch (rcNt)
     {
@@ -1742,7 +1744,7 @@ DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns)
 
 #ifdef RT_OS_DARWIN
     /*
-     * The unclaiming doesn't seem to mean much, the DVD is actaully
+     * The unclaiming doesn't seem to mean much, the DVD is actually
      * remounted when we release exclusive access. I'm not quite sure
      * if I should put the unclaim first or not...
      *
@@ -1822,7 +1824,7 @@ DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns)
     pThis->pDrvMountNotify = NULL;
 
     /* Leave the instance operational if this is just a cleanup of the state
-     * after an attach error happened. So don't destry the critsect then. */
+     * after an attach error happened. So don't destroy the critsect then. */
     if (!pThis->fKeepInstance && RTCritSectIsInitialized(&pThis->CritSect))
         RTCritSectDelete(&pThis->CritSect);
     LogFlow(("%s-%d: drvHostBaseDestruct completed\n", pDrvIns->pReg->szName, pDrvIns->iInstance));

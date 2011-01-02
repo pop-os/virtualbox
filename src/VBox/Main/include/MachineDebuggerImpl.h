@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.h $ */
+/* $Id: MachineDebuggerImpl.h 35250 2010-12-20 16:10:30Z vboxsync $ */
 
 /** @file
  *
@@ -26,13 +26,11 @@ class Console;
 
 class ATL_NO_VTABLE MachineDebugger :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<MachineDebugger, IMachineDebugger>,
-    public VirtualBoxSupportTranslation<MachineDebugger>,
     VBOX_SCRIPTABLE_IMPL(IMachineDebugger)
 {
 public:
 
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (MachineDebugger)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (MachineDebugger, IMachineDebugger)
 
     DECLARE_NOT_AGGREGATABLE (MachineDebugger)
 
@@ -66,26 +64,44 @@ public:
     STDMETHOD(COMSETTER(CSAMEnabled)) (BOOL aEnable);
     STDMETHOD(COMGETTER(LogEnabled)) (BOOL *aEnabled);
     STDMETHOD(COMSETTER(LogEnabled)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(LogFlags)) (BSTR *a_pbstrSettings);
+    STDMETHOD(COMGETTER(LogGroups)) (BSTR *a_pbstrSettings);
+    STDMETHOD(COMGETTER(LogDestinations)) (BSTR *a_pbstrSettings);
     STDMETHOD(COMGETTER(HWVirtExEnabled)) (BOOL *aEnabled);
     STDMETHOD(COMGETTER(HWVirtExNestedPagingEnabled)) (BOOL *aEnabled);
     STDMETHOD(COMGETTER(HWVirtExVPIDEnabled)) (BOOL *aEnabled);
     STDMETHOD(COMGETTER(PAEEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMGETTER(OSName))(BSTR *a_pbstrName);
+    STDMETHOD(COMGETTER(OSVersion))(BSTR *a_pbstrVersion);
     STDMETHOD(COMGETTER(VirtualTimeRate)) (ULONG *aPct);
     STDMETHOD(COMSETTER(VirtualTimeRate)) (ULONG aPct);
-    STDMETHOD(COMGETTER(VM)) (ULONG64 *aVm);
-    STDMETHOD(InjectNMI)();
+    STDMETHOD(COMGETTER(VM)) (LONG64 *aVm);
 
     // IMachineDebugger methods
-    STDMETHOD(ResetStats (IN_BSTR aPattern));
-    STDMETHOD(DumpStats (IN_BSTR aPattern));
-    STDMETHOD(GetStats (IN_BSTR aPattern, BOOL aWithDescriptions, BSTR *aStats));
+    STDMETHOD(DumpGuestCore)(IN_BSTR a_bstrFilename, IN_BSTR a_bstrCompression);
+    STDMETHOD(DumpHostProcessCore)(IN_BSTR a_bstrFilename, IN_BSTR a_bstrCompression);
+    STDMETHOD(Info)(IN_BSTR a_bstrName, IN_BSTR a_bstrArgs, BSTR *a_bstrInfo);
+    STDMETHOD(InjectNMI)();
+    STDMETHOD(ModifyLogFlags)(IN_BSTR a_bstrSettings);
+    STDMETHOD(ModifyLogGroups)(IN_BSTR a_bstrSettings);
+    STDMETHOD(ModifyLogDestinations)(IN_BSTR a_bstrSettings);
+    STDMETHOD(ReadPhysicalMemory)(LONG64 a_Address, ULONG a_cbRead, ComSafeArrayOut(BYTE, a_abData));
+    STDMETHOD(WritePhysicalMemory)(LONG64 a_Address, ULONG a_cbRead, ComSafeArrayIn(BYTE, a_abData));
+    STDMETHOD(ReadVirtualMemory)(ULONG a_idCpu, LONG64 a_Address, ULONG a_cbRead, ComSafeArrayOut(BYTE, a_abData));
+    STDMETHOD(WriteVirtualMemory)(ULONG a_idCpu, LONG64 a_Address, ULONG a_cbRead, ComSafeArrayIn(BYTE, a_abData));
+    STDMETHOD(DetectOS)(BSTR *a_pbstrName);
+    STDMETHOD(GetRegister)(ULONG a_idCpu, IN_BSTR a_bstrName, BSTR *a_pbstrValue);
+    STDMETHOD(GetRegisters)(ULONG a_idCpu, ComSafeArrayOut(BSTR, a_bstrNames), ComSafeArrayOut(BSTR, a_bstrValues));
+    STDMETHOD(SetRegister)(ULONG a_idCpu, IN_BSTR a_bstrName, IN_BSTR a_bstrValue);
+    STDMETHOD(SetRegisters)(ULONG a_idCpu, ComSafeArrayIn(IN_BSTR, a_bstrNames), ComSafeArrayIn(IN_BSTR, a_bstrValues));
+    STDMETHOD(DumpGuestStack)(ULONG a_idCpu, BSTR *a_pbstrStack);
+    STDMETHOD(ResetStats)(IN_BSTR aPattern);
+    STDMETHOD(DumpStats)(IN_BSTR aPattern);
+    STDMETHOD(GetStats)(IN_BSTR aPattern, BOOL aWithDescriptions, BSTR *aStats);
 
 
     // "public-private methods"
     void flushQueuedSettings();
-
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"MachineDebugger"; }
 
 private:
     // private methods

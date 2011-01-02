@@ -1,4 +1,4 @@
-/* $Id: timer-r0drv-freebsd.c $ */
+/* $Id: timer-r0drv-freebsd.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Memory Allocation, Ring-0 Driver, FreeBSD.
  */
@@ -89,7 +89,7 @@ static void rtTimerFreeBSDCallback(void *pvTimer);
 
 
 
-RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigned fFlags, PFNRTTIMER pfnTimer, void *pvUser)
+RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_t fFlags, PFNRTTIMER pfnTimer, void *pvUser)
 {
     *ppTimer = NULL;
 
@@ -101,7 +101,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigne
     if (    (fFlags & RTTIMER_FLAGS_CPU_SPECIFIC)
         &&  (fFlags & RTTIMER_FLAGS_CPU_ALL) != RTTIMER_FLAGS_CPU_ALL
         &&  (fFlags & RTTIMER_FLAGS_CPU_MASK) > mp_maxid)
-        return VERR_INVALID_PARAMETER;
+        return VERR_CPU_NOT_FOUND;
 
     /*
      * Allocate and initialize the timer handle.
@@ -165,9 +165,12 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
         return VERR_INVALID_HANDLE;
     if (!pTimer->fSuspended)
         return VERR_TIMER_ACTIVE;
+    if (   pTimer->fSpecificCpu
+        && !RTMpIsCpuOnline(pTimer->idCpu))
+        return VERR_CPU_OFFLINE;
 
     /*
-     * Calc when it should start fireing.
+     * Calc when it should start firing.
      */
     u64First += RTTimeNanoTS();
 
@@ -198,6 +201,14 @@ RTDECL(int) RTTimerStop(PRTTIMER pTimer)
     callout_stop(&pTimer->Callout);
 
     return VINF_SUCCESS;
+}
+
+
+RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
+{
+    if (!rtTimerIsValid(pTimer))
+        return VERR_INVALID_HANDLE;
+    return VERR_NOT_SUPPORTED;
 }
 
 
@@ -265,5 +276,11 @@ RTDECL(int) RTTimerRequestSystemGranularity(uint32_t u32Request, uint32_t *pu32G
 RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
 {
     return VERR_NOT_SUPPORTED;
+}
+
+
+RTDECL(bool) RTTimerCanDoHighResolution(void)
+{
+    return false;
 }
 

@@ -1,4 +1,4 @@
-; $Id: ASMAtomicCmpXchgExU64.asm $
+; $Id: ASMAtomicCmpXchgExU64.asm 33540 2010-10-28 09:27:05Z vboxsync $
 ;; @file
 ; IPRT - ASMAtomicCmpXchgExU64().
 ;
@@ -39,7 +39,7 @@ BEGINCODE
 ; @param    u64Old   x86:ebp+14  gcc:rcx  msc:r8
 ; @param    u64Old   x86:ebp+1c  gcc:rdx  msc:r9
 ;
-; @returns  bool result: true if succesfully exchanged, false if not.
+; @returns  bool result: true if successfully exchanged, false if not.
 ;           x86:al
 ;
 BEGINPROC_EXPORTED ASMAtomicCmpXchgExU64

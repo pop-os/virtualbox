@@ -1,4 +1,4 @@
-/* $Id: cr_glsl.h $ */
+/* $Id: cr_glsl.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 
 /** @file
  * VBox crOpenGL: GLSL related state info
@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 /* We can't go the "easy" way of just extracting all the required data when taking snapshots.
-   Shader objects might be modified *after* program linkage and wouldn't affect program untill it's relinked.
+   Shader objects might be modified *after* program linkage and wouldn't affect program until it's relinked.
    So we have to keep track of shaders statuses right before each program was linked as well as their "current" status.
 */
 

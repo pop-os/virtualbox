@@ -1,4 +1,4 @@
-/* $Id: uvm.h $ */
+/* $Id: uvm.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * GVM - The Global VM Data. (VMM)
  */
@@ -71,20 +71,25 @@ AssertCompileMemberAlignment(UVMCPU, vm, 32);
 typedef struct UVM
 {
     /** Magic / eye-catcher (UVM_MAGIC). */
-    uint32_t        u32Magic;
+    uint32_t            u32Magic;
     /** The number of virtual CPUs. */
-    uint32_t        cCpus;
+    uint32_t            cCpus;
     /** The ring-3 mapping of the shared VM structure. */
-    PVM             pVM;
+    PVM                 pVM;
     /** Pointer to the next VM.
      * We keep a per process list of VM for the event that a process could
      * contain more than one VM.
      * @todo move this into vm.s!
      */
-    struct UVM     *pNext;
+    struct UVM         *pNext;
 
-    /** Align the next member on a 32 byte boundrary. */
-    uint8_t         abAlignment0[HC_ARCH_BITS == 32 ? 16 : 8];
+    /** Pointer to the optional method table provided by the VMM user. */
+    PCVMM2USERMETHODS   pVmm2UserMethods;
+
+#if HC_ARCH_BITS == 32
+    /** Align the next member on a 32 byte boundary. */
+    uint8_t             abAlignment0[HC_ARCH_BITS == 32 ? 12 : 0];
+#endif
 
     /** The VM internal data. */
     union
@@ -119,7 +124,7 @@ typedef struct UVM
 #ifdef ___STAMInternal_h
         struct STAMUSERPERVM    s;
 #endif
-        uint8_t                 padding[256];
+        uint8_t                 padding[4096];
     } stam;
 
     /** Per virtual CPU data. */

@@ -1,4 +1,4 @@
-/* $Id: path.h $ */
+/* $Id: path.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - RTPath Internal header.
  */
@@ -63,7 +63,7 @@ DECLHIDDEN(int)     rtPathWin32MoveRename(const char *pszSrc, const char *pszDst
  *                          directory.
  *
  * @remark  This function is not available on hosts using something else than
- *          byte seqences as names (eg win32).
+ *          byte sequences as names (eg win32).
  */
 int rtPathToNative(char const **ppszNativePath, const char *pszPath, const char *pszBasePath);
 
@@ -75,7 +75,7 @@ int rtPathToNative(char const **ppszNativePath, const char *pszPath, const char 
  *                          rtPathToNative returned the pointer to the original.
  *
  * @remark  This function is not available on hosts using something else than
- *          byte seqences as names (eg win32).
+ *          byte sequences as names (eg win32).
  */
 void rtPathFreeNative(char const *pszNativePath, const char *pszPath);
 
@@ -84,13 +84,13 @@ void rtPathFreeNative(char const *pszNativePath, const char *pszPath);
  *
  * @returns IPRT status code.
  * @param   ppszPath        Where to store the pointer to the IPRT path.
- *                          Free by calling RTStrFree(). NULL on failure.
+ *                          Free by calling rtPathFreeIprt(). NULL on failure.
  * @param   pszNativePath   The native path to convert.
  * @param   pszBasePath     What pszNativePath is relative to - in IPRT
  *                          representation.  NULL if current directory.
  *
  * @remark  This function is not available on hosts using something else than
- *          byte seqences as names (eg win32).
+ *          byte sequences as names (eg win32).
  */
 int rtPathFromNative(const char **ppszPath, const char *pszNativePath, const char *pszBasePath);
 
@@ -115,6 +115,20 @@ void rtPathFreeIprt(const char *pszPath, const char *pszNativePath);
  *                          representation.  NULL if current directory.
  */
 int rtPathFromNativeCopy(char *pszPath, size_t cbPath, const char *pszNativePath, const char *pszBasePath);
+
+/**
+ * Convert a path from the native representation to the IPRT one, allocating a
+ * string buffer for the result.
+ *
+ * @returns VINF_SUCCESS, VERR_NO_STR_MEMORY, and recoding errors.
+ *
+ * @param   ppszPath        Where to return the pointer to the IPRT path.  Must
+ *                          be freed by calling RTStrFree.
+ * @param   pszNativePath   The path to convert.
+ * @param   pszBasePath     What pszNativePath is relative to - in IPRT
+ *                          representation.  NULL if current directory.
+ */
+int rtPathFromNativeDup(char **ppszPath, const char *pszNativePath, const char *pszBasePath);
 
 
 RT_C_DECLS_END

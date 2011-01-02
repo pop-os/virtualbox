@@ -1,4 +1,4 @@
-/* $Id: TMAll.cpp $ */
+/* $Id: TMAll.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * TM - Timeout Manager, all contexts.
  */
@@ -166,6 +166,9 @@ VMMDECL(void) TMNotifyStartOfExecution(PVMCPU pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
+#ifndef VBOX_WITHOUT_NS_ACCOUNTING
+    pVCpu->tm.s.u64NsTsStartExecuting = RTTimeNanoTS();
+#endif
     if (pVM->tm.s.fTSCTiedToExecution)
         tmCpuTickResume(pVM, pVCpu);
 }
@@ -187,6 +190,35 @@ VMMDECL(void) TMNotifyEndOfExecution(PVMCPU pVCpu)
 
     if (pVM->tm.s.fTSCTiedToExecution)
         tmCpuTickPause(pVM, pVCpu);
+
+#ifndef VBOX_WITHOUT_NS_ACCOUNTING
+    uint64_t const u64NsTs           = RTTimeNanoTS();
+    uint64_t const cNsTotalNew       = u64NsTs - pVCpu->tm.s.u64NsTsStartTotal;
+    uint64_t const cNsExecutingDelta = u64NsTs - pVCpu->tm.s.u64NsTsStartExecuting;
+    uint64_t const cNsExecutingNew   = pVCpu->tm.s.cNsExecuting + cNsExecutingDelta;
+    uint64_t const cNsOtherNew       = cNsTotalNew - cNsExecutingNew - pVCpu->tm.s.cNsHalted;
+
+# if defined(VBOX_WITH_STATISTICS) || defined(VBOX_WITH_NS_ACCOUNTING_STATS)
+    STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsExecuting, cNsExecutingDelta);
+    if (cNsExecutingDelta < 5000)
+        STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsExecTiny, cNsExecutingDelta);
+    else if (cNsExecutingDelta < 50000)
+        STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsExecShort, cNsExecutingDelta);
+    else
+        STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsExecLong, cNsExecutingDelta);
+    STAM_REL_COUNTER_ADD(&pVCpu->tm.s.StatNsTotal, cNsTotalNew - pVCpu->tm.s.cNsTotal);
+    int64_t  const cNsOtherNewDelta  = cNsOtherNew - pVCpu->tm.s.cNsOther;
+    if (cNsOtherNewDelta > 0)
+        STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsOther, cNsOtherNewDelta); /* (the period before execution) */
+# endif
+
+    uint32_t uGen = ASMAtomicIncU32(&pVCpu->tm.s.uTimesGen); Assert(uGen & 1);
+    pVCpu->tm.s.cNsExecuting = cNsExecutingNew;
+    pVCpu->tm.s.cNsTotal     = cNsTotalNew;
+    pVCpu->tm.s.cNsOther     = cNsOtherNew;
+    pVCpu->tm.s.cPeriodsExecuting++;
+    ASMAtomicWriteU32(&pVCpu->tm.s.uTimesGen, (uGen | 1) + 1);
+#endif
 }
 
 
@@ -203,6 +235,10 @@ VMMDECL(void) TMNotifyEndOfExecution(PVMCPU pVCpu)
 VMM_INT_DECL(void) TMNotifyStartOfHalt(PVMCPU pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
+
+#ifndef VBOX_WITHOUT_NS_ACCOUNTING
+    pVCpu->tm.s.u64NsTsStartHalting = RTTimeNanoTS();
+#endif
 
     if (    pVM->tm.s.fTSCTiedToExecution
         &&  !pVM->tm.s.fTSCNotTiedToHalt)
@@ -227,6 +263,29 @@ VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
     if (    pVM->tm.s.fTSCTiedToExecution
         &&  !pVM->tm.s.fTSCNotTiedToHalt)
         tmCpuTickPause(pVM, pVCpu);
+
+#ifndef VBOX_WITHOUT_NS_ACCOUNTING
+    uint64_t const u64NsTs        = RTTimeNanoTS();
+    uint64_t const cNsTotalNew    = u64NsTs - pVCpu->tm.s.u64NsTsStartTotal;
+    uint64_t const cNsHaltedDelta = u64NsTs - pVCpu->tm.s.u64NsTsStartHalting;
+    uint64_t const cNsHaltedNew   = pVCpu->tm.s.cNsHalted + cNsHaltedDelta;
+    uint64_t const cNsOtherNew    = cNsTotalNew - pVCpu->tm.s.cNsExecuting - cNsHaltedNew;
+
+# if defined(VBOX_WITH_STATISTICS) || defined(VBOX_WITH_NS_ACCOUNTING_STATS)
+    STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsHalted, cNsHaltedDelta);
+    STAM_REL_COUNTER_ADD(&pVCpu->tm.s.StatNsTotal, cNsTotalNew - pVCpu->tm.s.cNsTotal);
+    int64_t  const cNsOtherNewDelta  = cNsOtherNew - pVCpu->tm.s.cNsOther;
+    if (cNsOtherNewDelta > 0)
+        STAM_REL_PROFILE_ADD_PERIOD(&pVCpu->tm.s.StatNsOther, cNsOtherNewDelta); /* (the period before halting) */
+# endif
+
+    uint32_t uGen = ASMAtomicIncU32(&pVCpu->tm.s.uTimesGen); Assert(uGen & 1);
+    pVCpu->tm.s.cNsHalted = cNsHaltedNew;
+    pVCpu->tm.s.cNsTotal  = cNsTotalNew;
+    pVCpu->tm.s.cNsOther  = cNsOtherNew;
+    pVCpu->tm.s.cPeriodsHalted++;
+    ASMAtomicWriteU32(&pVCpu->tm.s.uTimesGen, (uGen | 1) + 1);
+#endif
 }
 
 
@@ -346,7 +405,7 @@ DECLINLINE(bool) tmTimerTryWithLink(PTMTIMER pTimer, TMTIMERSTATE enmStateNew, T
 #ifdef VBOX_HIGH_RES_TIMERS_HACK
 
 /**
- * Worker for tmTimerPollInternal that handles misses when the decidate timer
+ * Worker for tmTimerPollInternal that handles misses when the dedicated timer
  * EMT is polling.
  *
  * @returns See tmTimerPollInternal.
@@ -490,7 +549,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
 
     /*
      * Check for TMCLOCK_VIRTUAL_SYNC expiration.
-     * This isn't quite as stright forward if in a catch-up, not only do
+     * This isn't quite as straight forward if in a catch-up, not only do
      * we have to adjust the 'now' but when have to adjust the delta as well.
      */
 
@@ -1131,7 +1190,7 @@ VMMDECL(int) TMTimerSetRelative(PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t
                      *              Figure a safe way of activating this timer while the queue is
                      *              being run.
                      *        (99.9% sure this that the assertion is caused by DevAPIC.cpp
-                     *        re-starting the timer in respons to a initial_count write.) */
+                     *        re-starting the timer in response to a initial_count write.) */
                 }
                 /* fall thru */
             case TMTIMERSTATE_EXPIRED_DELIVER:
@@ -1277,7 +1336,7 @@ VMMDECL(int) TMTimerSetRelative(PTMTIMER pTimer, uint64_t cTicksToNext, uint64_t
  *
  * @returns VBox status.
  * @param   pTimer          Timer handle as returned by one of the create functions.
- * @param   cMilliesToNext  Number of millieseconds to the next tick.
+ * @param   cMilliesToNext  Number of milliseconds to the next tick.
  */
 VMMDECL(int) TMTimerSetMillies(PTMTIMER pTimer, uint32_t cMilliesToNext)
 {
@@ -1372,6 +1431,38 @@ VMMDECL(int) TMTimerSetNano(PTMTIMER pTimer, uint64_t cNanosToNext)
 
 
 /**
+ * Drops a hint about the frequency of the timer.
+ *
+ * This is used by TM and the VMM to calculate how often guest execution needs
+ * to be interrupted.  The hint is automatically cleared by TMTimerStop.
+ *
+ * @returns VBox status code.
+ * @param   pTimer          Timer handle as returned by one of the create
+ *                          functions.
+ * @param   uHzHint         The frequency hint.  Pass 0 to clear the hint.
+ *
+ * @remarks We're using an integer hertz value here since anything above 1 HZ
+ *          is not going to be any trouble satisfying scheduling wise.  The
+ *          range where it makes sense is >= 100 HZ.
+ */
+VMMDECL(int) TMTimerSetFrequencyHint(PTMTIMER pTimer, uint32_t uHzHint)
+{
+    TMTIMER_ASSERT_CRITSECT(pTimer);
+
+    uint32_t const uHzOldHint = pTimer->uHzHint;
+    pTimer->uHzHint = uHzHint;
+
+    PVM pVM = pTimer->CTX_SUFF(pVM);
+    uint32_t const uMaxHzHint = pVM->tm.s.uMaxHzHint;
+    if (   uHzHint    >  uMaxHzHint
+        || uHzOldHint >= uMaxHzHint)
+        ASMAtomicWriteBool(&pVM->tm.s.fHzHintNeedsUpdating, true);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Stop the timer.
  * Use TMR3TimerArm() to "un-stop" the timer.
  *
@@ -1382,6 +1473,15 @@ VMMDECL(int) TMTimerStop(PTMTIMER pTimer)
 {
     STAM_PROFILE_START(&pTimer->CTX_SUFF(pVM)->tm.s.CTX_SUFF_Z(StatTimerStop), a);
     TMTIMER_ASSERT_CRITSECT(pTimer);
+
+    /* Reset the HZ hint. */
+    if (pTimer->uHzHint)
+    {
+        PVM pVM = pTimer->CTX_SUFF(pVM);
+        if (pTimer->uHzHint >= pVM->tm.s.uMaxHzHint)
+            ASMAtomicWriteBool(&pVM->tm.s.fHzHintNeedsUpdating, true);
+        pTimer->uHzHint = 0;
+    }
 
     /** @todo see if this function needs optimizing. */
     int cRetries = 1000;
@@ -1495,7 +1595,7 @@ VMMDECL(uint64_t) TMTimerGet(PTMTIMER pTimer)
 
 
 /**
- * Get the freqency of the timer clock.
+ * Get the frequency of the timer clock.
  *
  * @returns Clock frequency (as Hz of course).
  * @param   pTimer          Timer handle as returned by one of the create functions.
@@ -1560,7 +1660,7 @@ VMMDECL(uint64_t) TMTimerGetMilli(PTMTIMER pTimer)
  * @returns nanoseconds.
  * @param   pTimer          Timer handle as returned by one of the create functions.
  * @param   u64Ticks        The clock ticks.
- * @remark  There could be rounding errors here. We just do a simple integere divide
+ * @remark  There could be rounding errors here. We just do a simple integer divide
  *          without any adjustments.
  */
 VMMDECL(uint64_t) TMTimerToNano(PTMTIMER pTimer, uint64_t u64Ticks)
@@ -1589,7 +1689,7 @@ VMMDECL(uint64_t) TMTimerToNano(PTMTIMER pTimer, uint64_t u64Ticks)
  * @returns microseconds.
  * @param   pTimer          Timer handle as returned by one of the create functions.
  * @param   u64Ticks        The clock ticks.
- * @remark  There could be rounding errors here. We just do a simple integere divide
+ * @remark  There could be rounding errors here. We just do a simple integer divide
  *          without any adjustments.
  */
 VMMDECL(uint64_t) TMTimerToMicro(PTMTIMER pTimer, uint64_t u64Ticks)
@@ -1618,7 +1718,7 @@ VMMDECL(uint64_t) TMTimerToMicro(PTMTIMER pTimer, uint64_t u64Ticks)
  * @returns milliseconds.
  * @param   pTimer          Timer handle as returned by one of the create functions.
  * @param   u64Ticks        The clock ticks.
- * @remark  There could be rounding errors here. We just do a simple integere divide
+ * @remark  There could be rounding errors here. We just do a simple integer divide
  *          without any adjustments.
  */
 VMMDECL(uint64_t) TMTimerToMilli(PTMTIMER pTimer, uint64_t u64Ticks)
@@ -2179,3 +2279,127 @@ VMMDECL(uint32_t) TMGetWarpDrive(PVM pVM)
     return pVM->tm.s.u32VirtualWarpDrivePercentage;
 }
 
+
+/**
+ * Gets the highest frequency hint for all the important timers.
+ *
+ * @returns The highest frequency.  0 if no timers care.
+ * @param   pVM         The VM handle.
+ */
+static uint32_t tmGetFrequencyHint(PVM pVM)
+{
+    /*
+     * Query the value, recalculate it if necessary.
+     *
+     * The "right" highest frequency value isn't so important that we'll block
+     * waiting on the timer semaphore.
+     */
+    uint32_t uMaxHzHint = ASMAtomicUoReadU32(&pVM->tm.s.uMaxHzHint);
+    if (RT_UNLIKELY(ASMAtomicReadBool(&pVM->tm.s.fHzHintNeedsUpdating)))
+    {
+        if (RT_SUCCESS(tmTimerTryLock(pVM)))
+        {
+            ASMAtomicWriteBool(&pVM->tm.s.fHzHintNeedsUpdating, false);
+
+            /*
+             * Loop over the timers associated with each clock.
+             */
+            uMaxHzHint = 0;
+            for (int i = 0; i < TMCLOCK_MAX; i++)
+            {
+                PTMTIMERQUEUE pQueue = &pVM->tm.s.CTX_SUFF(paTimerQueues)[i];
+                for (PTMTIMER pCur = TMTIMER_GET_HEAD(pQueue); pCur; pCur = TMTIMER_GET_NEXT(pCur))
+                {
+                    uint32_t uHzHint = ASMAtomicUoReadU32(&pCur->uHzHint);
+                    if (uHzHint > uMaxHzHint)
+                    {
+                        switch (pCur->enmState)
+                        {
+                            case TMTIMERSTATE_ACTIVE:
+                            case TMTIMERSTATE_EXPIRED_GET_UNLINK:
+                            case TMTIMERSTATE_EXPIRED_DELIVER:
+                            case TMTIMERSTATE_PENDING_SCHEDULE_SET_EXPIRE:
+                            case TMTIMERSTATE_PENDING_SCHEDULE:
+                            case TMTIMERSTATE_PENDING_RESCHEDULE_SET_EXPIRE:
+                            case TMTIMERSTATE_PENDING_RESCHEDULE:
+                                uMaxHzHint = uHzHint;
+                                break;
+
+                            case TMTIMERSTATE_STOPPED:
+                            case TMTIMERSTATE_PENDING_STOP:
+                            case TMTIMERSTATE_PENDING_STOP_SCHEDULE:
+                            case TMTIMERSTATE_DESTROY:
+                            case TMTIMERSTATE_FREE:
+                                break;
+                            /* no default, want gcc warnings when adding more states. */
+                        }
+                    }
+                }
+            }
+            ASMAtomicWriteU32(&pVM->tm.s.uMaxHzHint, uMaxHzHint);
+            Log(("tmGetFrequencyHint: New value %u Hz\n", uMaxHzHint));
+            tmTimerUnlock(pVM);
+        }
+    }
+    return uMaxHzHint;
+}
+
+
+/**
+ * Calculates a host timer frequency that would be suitable for the current
+ * timer load.
+ *
+ * This will take the highest timer frequency, adjust for catch-up and warp
+ * driver, and finally add a little fudge factor.  The caller (VMM) will use
+ * the result to adjust the per-cpu preemption timer.
+ *
+ * @returns The highest frequency.  0 if no important timers around.
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The current CPU.
+ */
+VMM_INT_DECL(uint32_t) TMCalcHostTimerFrequency(PVM pVM, PVMCPU pVCpu)
+{
+    uint32_t uHz = tmGetFrequencyHint(pVM);
+
+    /* Catch up, we have to be more aggressive than the % indicates at the
+       beginning of the effort. */
+    if (ASMAtomicUoReadBool(&pVM->tm.s.fVirtualSyncCatchUp))
+    {
+        uint32_t u32Pct = ASMAtomicReadU32(&pVM->tm.s.u32VirtualSyncCatchUpPercentage);
+        if (ASMAtomicReadBool(&pVM->tm.s.fVirtualSyncCatchUp))
+        {
+            if (u32Pct <= 100)
+                u32Pct = u32Pct * pVM->tm.s.cPctHostHzFudgeFactorCatchUp100 / 100;
+            else if (u32Pct <= 200)
+                u32Pct = u32Pct * pVM->tm.s.cPctHostHzFudgeFactorCatchUp200 / 100;
+            else if (u32Pct <= 400)
+                u32Pct = u32Pct * pVM->tm.s.cPctHostHzFudgeFactorCatchUp400 / 100;
+            uHz *= u32Pct + 100;
+            uHz /= 100;
+        }
+    }
+
+    /* Warp drive. */
+    if (ASMAtomicUoReadBool(&pVM->tm.s.fVirtualWarpDrive))
+    {
+        uint32_t u32Pct = ASMAtomicReadU32(&pVM->tm.s.u32VirtualWarpDrivePercentage);
+        if (ASMAtomicReadBool(&pVM->tm.s.fVirtualWarpDrive))
+        {
+            uHz *= u32Pct;
+            uHz /= 100;
+        }
+    }
+
+    /* Fudge factor. */
+    if (pVCpu->idCpu == pVM->tm.s.idTimerCpu)
+        uHz *= pVM->tm.s.cPctHostHzFudgeFactorTimerCpu;
+    else
+        uHz *= pVM->tm.s.cPctHostHzFudgeFactorOtherCpu;
+    uHz /= 100;
+
+    /* Make sure it isn't too high. */
+    if (uHz > pVM->tm.s.cHostHzMax)
+        uHz = pVM->tm.s.cHostHzMax;
+
+    return uHz;
+}

@@ -1,4 +1,4 @@
-/* $Id: tstRTDigest.cpp $ */
+/* $Id: tstRTDigest.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTSha*, RTMd5, RTCrc*.
  */
@@ -30,8 +30,7 @@
 *******************************************************************************/
 #include <iprt/sha.h>
 #include <iprt/md5.h>
-#include <iprt/crc32.h>
-#include <iprt/crc64.h>
+#include <iprt/crc.h>
 
 #include <iprt/ctype.h>
 #include <iprt/err.h>
@@ -48,7 +47,7 @@
 static int Error(const char *pszFormat, ...)
 {
     char szName[RTPATH_MAX];
-    if (!RTProcGetExecutableName(szName, sizeof(szName)))
+    if (!RTProcGetExecutablePath(szName, sizeof(szName)))
         strcpy(szName, "tstRTDigest");
 
     RTStrmPrintf(g_pStdErr, "%s: error: ", RTPathFilename(szName));
@@ -152,7 +151,7 @@ int main(int argc, char **argv)
                              case kDigestType_SHA1:
                              {
                                  char *pszDigest;
-                                 int rc = RTSha1Digest(ValueUnion.psz, &pszDigest, NULL, NULL);
+                                 int rc = RTSha1DigestFromFile(ValueUnion.psz, &pszDigest, NULL, NULL);
                                  if (RT_FAILURE(rc))
                                      return Error("RTSha1Digest(%s,) -> %Rrc\n", ValueUnion.psz, rc);
                                  RTPrintf("%s  %s\n", pszDigest, ValueUnion.psz);

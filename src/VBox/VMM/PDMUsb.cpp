@@ -1,4 +1,4 @@
-/* $Id: PDMUsb.cpp $ */
+/* $Id: PDMUsb.cpp 34241 2010-11-22 14:26:53Z vboxsync $ */
 /** @file
  * PDM - Pluggable Device and Driver Manager, USB part.
  */
@@ -231,7 +231,7 @@ static DECLCALLBACK(int) pdmR3UsbReg_Register(PCPDMUSBREGCB pCallbacks, PCPDMUSB
     AssertMsgReturn(pReg->cbInstance <= _1M,
                     ("Instance size %d bytes! (USB Device %s)\n", pReg->cbInstance, pReg->szName),
                     VERR_PDM_INVALID_USB_REGISTRATION);
-    AssertMsgReturn(pReg->pfnConstruct, ("No constructore! (USB Device %s)\n", pReg->szName),
+    AssertMsgReturn(pReg->pfnConstruct, ("No constructor! (USB Device %s)\n", pReg->szName),
                     VERR_PDM_INVALID_USB_REGISTRATION);
 
     /*
@@ -307,7 +307,7 @@ int pdmR3UsbLoadModules(PVM pVM)
     if (fLoadBuiltin)
     {
         /* make filename */
-        char *pszFilename = pdmR3FileR3("VBoxDD", /* fShared = */ true);
+        char *pszFilename = pdmR3FileR3("VBoxDD", true /*fShared*/);
         if (!pszFilename)
             return VERR_NO_TMP_MEMORY;
         rc = pdmR3UsbLoad(pVM, &RegCB, pszFilename, "VBoxDD");
@@ -352,7 +352,7 @@ int pdmR3UsbLoadModules(PVM pVM)
         /* prepend path? */
         if (!RTPathHavePath(szFilename))
         {
-            char *psz = pdmR3FileR3(szFilename);
+            char *psz = pdmR3FileR3(szFilename, false /*fShared*/);
             if (!psz)
                 return VERR_NO_TMP_MEMORY;
             size_t cch = strlen(psz) + 1;
@@ -381,7 +381,7 @@ int pdmR3UsbLoadModules(PVM pVM)
 /**
  * Send the init-complete notification to all the USB devices.
  *
- * This is called from pdmR3DevInit() after it has do its noficiation round.
+ * This is called from pdmR3DevInit() after it has do its notification round.
  *
  * @returns VBox status code.
  * @param   pVM         The VM handle.
@@ -465,7 +465,7 @@ static int pdmR3UsbFindHub(PVM pVM, uint32_t iUsbVersion, PPDMUSBHUB *ppHub)
  *                          In the pdmR3UsbInstantiateDevices() case (pInstanceNode != NULL) this is
  *                          the actual config node and will not be cleaned up.
  *
- * @parma   iUsbVersion     The USB version prefered by the device.
+ * @parma   iUsbVersion     The USB version preferred by the device.
  */
 static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int iInstance, PCRTUUID pUuid, PCFGMNODE pInstanceNode, PCFGMNODE *ppConfig, uint32_t iUsbVersion)
 {
@@ -572,6 +572,7 @@ static int pdmR3UsbCreateDevice(PVM pVM, PPDMUSBHUB pHub, PPDMUSB pUsbDev, int i
     pUsbIns->pCfgGlobal                     = pGlobalConfig;
     pUsbIns->iInstance                      = iInstance;
     pUsbIns->pvInstanceDataR3               = &pUsbIns->achInstanceData[0];
+    pUsbIns->pszName                        = RTStrDup(pUsbDev->pReg->szName);
 
     /*
      * Link it into all the lists.
@@ -828,7 +829,7 @@ int pdmR3UsbInstantiateDevices(PVM pVM)
  *
  * @returns VBox status code.
  * @param   pVM             The VM handle.
- * @param   pUuid           The UUID thats to be associated with the device.
+ * @param   pUuid           The UUID to be associated with the device.
  * @param   fRemote         Whether it's a remove or local device.
  * @param   pszAddress      The address string.
  * @param   pvBackend       Pointer to the backend.
@@ -907,7 +908,7 @@ VMMR3DECL(int) PDMR3USBCreateProxyDevice(PVM pVM, PCRTUUID pUuid, bool fRemote, 
  *
  * The device must be detached from the HUB at this point.
  *
- * @param   pVM             Pointer to the stahred VM structure.
+ * @param   pVM             Pointer to the shared VM structure.
  * @param   pUsbIns         The USB device instance to destroy.
  * @thread  EMT
  */
@@ -985,6 +986,11 @@ static void pdmR3UsbDestroyDevice(PVM pVM, PPDMUSBINS pUsbIns)
      */
     pUsbIns->u32Version = 0;
     pUsbIns->pReg = NULL;
+    if (pUsbIns->pszName)
+    {
+        RTStrFree(pUsbIns->pszName);
+        pUsbIns->pszName = NULL;
+    }
     CFGMR3RemoveNode(pUsbIns->Internal.s.pCfgDelete);
     MMR3HeapFree(pUsbIns);
 }

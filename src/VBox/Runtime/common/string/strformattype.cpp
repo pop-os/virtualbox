@@ -1,4 +1,4 @@
-/* $Id: strformattype.cpp $ */
+/* $Id: strformattype.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - IPRT String Formatter Extensions, Dynamic Types.
  */
@@ -400,7 +400,7 @@ RT_EXPORT_SYMBOL(RTStrFormatTypeSetUser);
 
 
 /**
- * Formats a type using a registerd callback handler.
+ * Formats a type using a registered callback handler.
  *
  * This will handle %R[type].
  *

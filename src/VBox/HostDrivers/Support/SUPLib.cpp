@@ -1,10 +1,10 @@
-/* $Id: SUPLib.cpp $ */
+/* $Id: SUPLib.cpp 35191 2010-12-16 15:25:20Z vboxsync $ */
 /** @file
  * VirtualBox Support Library - Common code.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,7 @@
  * the IPRT loader.
  *
  * The Ring-0 calling is done thru a generic SUP interface which will
- * tranfer an argument set and call a predefined entry point in the Host
+ * transfer an argument set and call a predefined entry point in the Host
  * VMM Ring-0 code.
  *
  * See @ref grp_sup "SUP - Support APIs" for API details.
@@ -93,7 +93,7 @@ static uint32_t                 g_cInits = 0;
 /** Whether we've been preinitied. */
 static bool                     g_fPreInited = false;
 /** The SUPLib instance data.
- * Well, at least parts of it, specificly the parts that are being handed over
+ * Well, at least parts of it, specifically the parts that are being handed over
  * via the pre-init mechanism from the hardened executable stub.  */
 SUPLIBDATA                      g_supLibData =
 {
@@ -108,7 +108,7 @@ SUPLIBDATA                      g_supLibData =
 /** Pointer to the Global Information Page.
  *
  * This pointer is valid as long as SUPLib has a open session. Anyone using
- * the page must treat this pointer as higly volatile and not trust it beyond
+ * the page must treat this pointer as highly volatile and not trust it beyond
  * one transaction.
  *
  * @todo This will probably deserve it's own session or some other good solution...
@@ -267,9 +267,9 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
         CookieReq.Hdr.rc = VERR_INTERNAL_ERROR;
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
-        const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00140000
-                                   ?  0x00140001
-                                   :  SUPDRV_IOC_VERSION & 0xffff0000;
+        const uint32_t uMinVersion = /*(SUPDRV_IOC_VERSION & 0xffff0000) == 0x00160000
+                                   ?  0x00160000
+                                   :*/ SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
         if (    RT_SUCCESS(rc)
@@ -423,6 +423,7 @@ static int supInitFake(PSUPDRVSESSION *ppSession)
         { "RTR0MemObjMapUser",                      0xefef001a },
         { "RTR0MemObjMapKernel",                    0xefef001b },
         { "RTR0MemObjMapKernelEx",                  0xefef001c },
+        { "RTMpGetArraySize",                       0xefef001c },
         { "RTProcSelf",                             0xefef001d },
         { "RTR0ProcHandleSelf",                     0xefef001e },
         { "RTSemEventCreate",                       0xefef001f },
@@ -453,6 +454,16 @@ static int supInitFake(PSUPDRVSESSION *ppSession)
         { "RTThreadNativeSelf",                     0xefef0038 },
         { "RTThreadSleep",                          0xefef0039 },
         { "RTThreadYield",                          0xefef003a },
+        { "RTTimerCreate",                          0xefef003a },
+        { "RTTimerCreateEx",                        0xefef003a },
+        { "RTTimerDestroy",                         0xefef003a },
+        { "RTTimerStart",                           0xefef003a },
+        { "RTTimerStop",                            0xefef003a },
+        { "RTTimerChangeInterval",                  0xefef003a },
+        { "RTTimerGetSystemGranularity",            0xefef003a },
+        { "RTTimerRequestSystemGranularity",        0xefef003a },
+        { "RTTimerReleaseSystemGranularity",        0xefef003a },
+        { "RTTimerCanDoHighResolution",             0xefef003a },
         { "RTLogDefaultInstance",                   0xefef003b },
         { "RTLogRelDefaultInstance",                0xefef003c },
         { "RTLogSetDefaultInstanceThread",          0xefef003d },
@@ -507,9 +518,9 @@ SUPR3DECL(int) SUPR3Term(bool fForced)
          */
         if (g_pSUPGlobalInfoPage)
         {
-            ASMAtomicXchgPtr((void * volatile *)&g_pSUPGlobalInfoPage, NULL);
-            ASMAtomicXchgPtr((void * volatile *)&g_pSUPGlobalInfoPageR0, NULL);
-            ASMAtomicXchgSize(&g_HCPhysSUPGlobalInfoPage, NIL_RTHCPHYS);
+            ASMAtomicWriteNullPtr((void * volatile *)&g_pSUPGlobalInfoPage);
+            ASMAtomicWriteNullPtr((void * volatile *)&g_pSUPGlobalInfoPageR0);
+            ASMAtomicWriteSize(&g_HCPhysSUPGlobalInfoPage, NIL_RTHCPHYS);
             /* just a little safe guard against threads using the page. */
             RTThreadSleep(50);
         }
@@ -750,7 +761,7 @@ SUPR3DECL(int) SUPR3CallR0Service(const char *pszService, size_t cchService, uin
  * @param   fWhat       What to do with the logger.
  * @param   pszFlags    The flags settings.
  * @param   pszGroups   The groups settings.
- * @param   pszDest     The destionation specificier.
+ * @param   pszDest     The destination specificier.
  */
 static int supR3LoggerSettings(SUPLOGGER enmWhich, uint32_t fWhat, const char *pszFlags, const char *pszGroups, const char *pszDest)
 {
@@ -1416,7 +1427,7 @@ SUPR3DECL(int) SUPR3HardenedVerifyFile(const char *pszFilename, const char *pszM
      * Only do the actual check in hardened builds.
      */
 #ifdef VBOX_WITH_HARDENING
-    int rc = supR3HardenedVerifyFile(pszFilename, false /* fFatal */);
+    int rc = supR3HardenedVerifyFixedFile(pszFilename, false /* fFatal */);
     if (RT_FAILURE(rc))
         LogRel(("SUPR3HardenedVerifyFile: %s: Verification of \"%s\" failed, rc=%Rrc\n", pszMsg, pszFilename, rc));
     return rc;
@@ -1426,19 +1437,122 @@ SUPR3DECL(int) SUPR3HardenedVerifyFile(const char *pszFilename, const char *pszM
 }
 
 
-SUPR3DECL(int) SUPR3LoadModule(const char *pszFilename, const char *pszModule, void **ppvImageBase)
+SUPR3DECL(int) SUPR3HardenedVerifySelf(const char *pszArgv0, bool fInternal, PRTERRINFO pErrInfo)
 {
-    int rc = VINF_SUCCESS;
+    /*
+     * Quick input validation.
+     */
+    AssertPtr(pszArgv0);
+    RTErrInfoClear(pErrInfo);
+
+    /*
+     * Get the executable image path as we need it for all the tests here.
+     */
+    char szExecPath[RTPATH_MAX];
+    if (!RTProcGetExecutablePath(szExecPath, sizeof(szExecPath)))
+        return RTErrInfoSet(pErrInfo, VERR_INTERNAL_ERROR_2, "RTProcGetExecutablePath failed");
+
+    int rc;
+    if (fInternal)
+    {
+        /*
+         * Internal applications must be launched directly without any PATH
+         * searching involved.
+         */
+        if (RTPathCompare(pszArgv0, szExecPath) != 0)
+            return RTErrInfoSetF(pErrInfo, VERR_SUPLIB_INVALID_ARGV0_INTERNAL,
+                                 "argv[0] does not match the executable image path: '%s' != '%s'", pszArgv0, szExecPath);
+
+        /*
+         * Internal applications must reside in or under the
+         * RTPathAppPrivateArch directory.
+         */
+        char szAppPrivateArch[RTPATH_MAX];
+        rc = RTPathAppPrivateArch(szAppPrivateArch, sizeof(szAppPrivateArch));
+        if (RT_FAILURE(rc))
+            return RTErrInfoSetF(pErrInfo, VERR_SUPLIB_INVALID_ARGV0_INTERNAL,
+                                 "RTPathAppPrivateArch failed with rc=%Rrc", rc);
+        size_t cchAppPrivateArch = strlen(szAppPrivateArch);
+        if (   cchAppPrivateArch >= strlen(szExecPath)
+            || !RTPATH_IS_SLASH(szExecPath[cchAppPrivateArch]))
+            return RTErrInfoSet(pErrInfo, VERR_SUPLIB_INVALID_INTERNAL_APP_DIR,
+                                "Internal executable does reside under RTPathAppPrivateArch");
+        szExecPath[cchAppPrivateArch] = '\0';
+        if (RTPathCompare(szExecPath, szAppPrivateArch) != 0)
+            return RTErrInfoSet(pErrInfo, VERR_SUPLIB_INVALID_INTERNAL_APP_DIR,
+                                "Internal executable does reside under RTPathAppPrivateArch");
+        szExecPath[cchAppPrivateArch] = RTPATH_SLASH;
+    }
+
 #ifdef VBOX_WITH_HARDENING
+    /*
+     * Verify that the image file and parent directories are sane.
+     */
+    rc = supR3HardenedVerifyFile(szExecPath, RTHCUINTPTR_MAX, pErrInfo);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+
+    return VINF_SUCCESS;
+}
+
+
+SUPR3DECL(int) SUPR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo)
+{
+    /*
+     * Quick input validation
+     */
+    AssertPtr(pszDirPath);
+    RTErrInfoClear(pErrInfo);
+
+    /*
+     * Only do the actual check in hardened builds.
+     */
+#ifdef VBOX_WITH_HARDENING
+    int rc = supR3HardenedVerifyDir(pszDirPath, fRecursive, fCheckFiles, pErrInfo);
+    if (RT_FAILURE(rc) && !RTErrInfoIsSet(pErrInfo))
+        LogRel(("supR3HardenedVerifyDir: Verification of \"%s\" failed, rc=%Rrc\n", pszDirPath, rc));
+    return rc;
+#else
+    return VINF_SUCCESS;
+#endif
+}
+
+
+SUPR3DECL(int) SUPR3HardenedVerifyPlugIn(const char *pszFilename, PRTERRINFO pErrInfo)
+{
+    /*
+     * Quick input validation
+     */
+    AssertPtr(pszFilename);
+    RTErrInfoClear(pErrInfo);
+
+    /*
+     * Only do the actual check in hardened builds.
+     */
+#ifdef VBOX_WITH_HARDENING
+    int rc = supR3HardenedVerifyFile(pszFilename, RTHCUINTPTR_MAX, pErrInfo);
+    if (RT_FAILURE(rc) && !RTErrInfoIsSet(pErrInfo))
+        LogRel(("supR3HardenedVerifyFile: Verification of \"%s\" failed, rc=%Rrc\n", pszFilename, rc));
+    return rc;
+#else
+    return VINF_SUCCESS;
+#endif
+}
+
+
+SUPR3DECL(int) SUPR3LoadModule(const char *pszFilename, const char *pszModule, void **ppvImageBase, PRTERRINFO pErrInfo)
+{
     /*
      * Check that the module can be trusted.
      */
-    rc = supR3HardenedVerifyFile(pszFilename, false /* fFatal */);
-#endif
+    int rc = SUPR3HardenedVerifyPlugIn(pszFilename, pErrInfo);
     if (RT_SUCCESS(rc))
+    {
         rc = supLoadModule(pszFilename, pszModule, NULL, ppvImageBase);
-    else
-        LogRel(("SUPR3LoadModule: Verification of \"%s\" failed, rc=%Rrc\n", rc));
+        if (RT_FAILURE(rc))
+            RTErrInfoSetF(pErrInfo, rc, "supLoadModule returned %Rrc", rc);
+    }
     return rc;
 }
 
@@ -1453,7 +1567,7 @@ SUPR3DECL(int) SUPR3LoadServiceModule(const char *pszFilename, const char *pszMo
     /*
      * Check that the module can be trusted.
      */
-    rc = supR3HardenedVerifyFile(pszFilename, false /* fFatal */);
+    rc = supR3HardenedVerifyFixedFile(pszFilename, false /* fFatal */);
 #endif
     if (RT_SUCCESS(rc))
         rc = supLoadModule(pszFilename, pszModule, pszSrvReqHandler, ppvImageBase);
@@ -1488,7 +1602,7 @@ static DECLCALLBACK(int) supLoadModuleResolveImport(RTLDRMOD hLdrMod, const char
         &&  strcmp(pszModule, "VBoxDrv.sys")
         &&  strcmp(pszModule, "VMMR0.r0"))
     {
-        AssertMsgFailed(("%s is importing from %s! (expected 'SUPR0.dll' or 'VMMR0.r0', case-sensitiv)\n", pvUser, pszModule));
+        AssertMsgFailed(("%s is importing from %s! (expected 'SUPR0.dll' or 'VMMR0.r0', case-sensitive)\n", pvUser, pszModule));
         return VERR_SYMBOL_NOT_FOUND;
     }
 
@@ -1926,7 +2040,7 @@ SUPR3DECL(int) SUPR3GetSymbolR0(void *pvImageBase, const char *pszSymbol, void *
 SUPR3DECL(int) SUPR3LoadVMM(const char *pszFilename)
 {
     void *pvImageBase;
-    return SUPR3LoadModule(pszFilename, "VMMR0.r0", &pvImageBase);
+    return SUPR3LoadModule(pszFilename, "VMMR0.r0", &pvImageBase, NULL /*pErrInfo*/);
 }
 
 
@@ -1954,35 +2068,40 @@ SUPR3DECL(int) SUPR3GipGetPhys(PRTHCPHYS pHCPhys)
  * @returns iprt status code.
  * @param   pszFilename     The full file name.
  * @param   phLdrMod        Where to store the handle to the loaded module.
+ * @param   fFlags          See RTLDFLAGS_.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
+ *
  */
-static int supR3HardenedLdrLoadIt(const char *pszFilename, PRTLDRMOD phLdrMod)
+static int supR3HardenedLdrLoadIt(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo)
 {
 #ifdef VBOX_WITH_HARDENING
     /*
      * Verify the image file.
      */
-    int rc = supR3HardenedVerifyFile(pszFilename, false /* fFatal */);
+    int rc = supR3HardenedVerifyFixedFile(pszFilename, false /* fFatal */);
     if (RT_FAILURE(rc))
     {
         LogRel(("supR3HardenedLdrLoadIt: Verification of \"%s\" failed, rc=%Rrc\n", pszFilename, rc));
-        return rc;
+        return RTErrInfoSet(pErrInfo, rc, "supR3HardenedVerifyFixedFile failed");
     }
 #endif
 
     /*
      * Try load it.
      */
-    return RTLdrLoad(pszFilename, phLdrMod);
+    return RTLdrLoadEx(pszFilename, phLdrMod, fFlags, pErrInfo);
 }
 
 
-SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod)
+SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo)
 {
     /*
      * Validate input.
      */
-    AssertPtrReturn(pszFilename, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(phLdrMod, VERR_INVALID_PARAMETER);
+    RTErrInfoClear(pErrInfo);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertPtrReturn(phLdrMod, VERR_INVALID_POINTER);
     *phLdrMod = NIL_RTLDRMOD;
     AssertReturn(RTPathHavePath(pszFilename), VERR_INVALID_PARAMETER);
 
@@ -2004,17 +2123,18 @@ SUPR3DECL(int) SUPR3HardenedLdrLoad(const char *pszFilename, PRTLDRMOD phLdrMod)
     /*
      * Pass it on to the common library loader.
      */
-    return supR3HardenedLdrLoadIt(pszFilename, phLdrMod);
+    return supR3HardenedLdrLoadIt(pszFilename, phLdrMod, fFlags, pErrInfo);
 }
 
 
-SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod)
+SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fFlags, PRTERRINFO pErrInfo)
 {
-    LogFlow(("SUPR3HardenedLdrLoadAppPriv: pszFilename=%p:{%s} phLdrMod=%p\n", pszFilename, pszFilename, phLdrMod));
+    LogFlow(("SUPR3HardenedLdrLoadAppPriv: pszFilename=%p:{%s} phLdrMod=%p fFlags=%08x pErrInfo=%p\n", pszFilename, pszFilename, phLdrMod, fFlags, pErrInfo));
 
     /*
      * Validate input.
      */
+    RTErrInfoClear(pErrInfo);
     AssertPtrReturn(phLdrMod, VERR_INVALID_PARAMETER);
     *phLdrMod = NIL_RTLDRMOD;
     AssertPtrReturn(pszFilename, VERR_INVALID_PARAMETER);
@@ -2056,10 +2176,43 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadAppPriv(const char *pszFilename, PRTLDRMOD ph
     /*
      * Pass it on to SUPR3HardenedLdrLoad.
      */
-    rc = SUPR3HardenedLdrLoad(szPath, phLdrMod);
+    rc = SUPR3HardenedLdrLoad(szPath, phLdrMod, fFlags, pErrInfo);
 
     LogFlow(("SUPR3HardenedLdrLoadAppPriv: returns %Rrc\n", rc));
     return rc;
+}
+
+
+SUPR3DECL(int) SUPR3HardenedLdrLoadPlugIn(const char *pszFilename, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
+{
+    int rc;
+
+    /*
+     * Validate input.
+     */
+    RTErrInfoClear(pErrInfo);
+    AssertPtrReturn(phLdrMod, VERR_INVALID_PARAMETER);
+    *phLdrMod = NIL_RTLDRMOD;
+    AssertPtrReturn(pszFilename, VERR_INVALID_PARAMETER);
+    AssertReturn(RTPathStartsWithRoot(pszFilename), VERR_INVALID_PARAMETER);
+
+#ifdef VBOX_WITH_HARDENING
+    /*
+     * Verify the image file.
+     */
+    rc = supR3HardenedVerifyFile(pszFilename, RTHCUINTPTR_MAX, pErrInfo);
+    if (RT_FAILURE(rc))
+    {
+        if (!RTErrInfoIsSet(pErrInfo))
+            LogRel(("supR3HardenedVerifyFile: Verification of \"%s\" failed, rc=%Rrc\n", pszFilename, rc));
+        return rc;
+    }
+#endif
+
+    /*
+     * Try load it.
+     */
+    return RTLdrLoadEx(pszFilename, phLdrMod, RTLDRLOAD_FLAGS_LOCAL, pErrInfo);
 }
 
 

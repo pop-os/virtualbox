@@ -1,4 +1,4 @@
-/* $Id: VBoxSCSI.cpp $ */
+/* $Id: VBoxSCSI.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox storage devices:
@@ -191,7 +191,7 @@ int vboxscsiWriteRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint8_t uVal)
                 pVBoxSCSI->aCDB[pVBoxSCSI->iCDB] = uVal;
                 pVBoxSCSI->iCDB++;
 
-                /* Check if we have all neccessary command data. */
+                /* Check if we have all necessary command data. */
                 if (pVBoxSCSI->iCDB == pVBoxSCSI->cbCDB)
                 {
                     Log(("%s: Command ready for processing\n", __FUNCTION__));
@@ -270,13 +270,15 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
 
     if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_FROM_DEVICE)
     {
-        Assert(!pVBoxSCSI->pBuf);
+        if (pVBoxSCSI->pBuf)
+            RTMemFree(pVBoxSCSI->pBuf);
+
         pVBoxSCSI->pBuf = (uint8_t *)RTMemAllocZ(pVBoxSCSI->cbBuf);
         if (!pVBoxSCSI->pBuf)
             return VERR_NO_MEMORY;
     }
 
-    /** Allocate scatter gather element. */
+    /* Allocate scatter gather element. */
     pScsiRequest->paScatterGatherHead = (PRTSGSEG)RTMemAllocZ(sizeof(RTSGSEG) * 1); /* Only one element. */
     if (!pScsiRequest->paScatterGatherHead)
     {
@@ -285,7 +287,7 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
         return VERR_NO_MEMORY;
     }
 
-    /** Allocate sense buffer. */
+    /* Allocate sense buffer. */
     pScsiRequest->cbSenseBuffer = 18;
     pScsiRequest->pbSenseBuffer = (uint8_t *)RTMemAllocZ(pScsiRequest->cbSenseBuffer);
 
@@ -370,10 +372,11 @@ int vboxscsiWriteString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegist
     RTGCPTR  GCSrc      = *pGCPtrSrc;
     uint32_t cbTransfer = *pcTransfer * cb;
 
-    /* Read string only valid for data in register. */
-    AssertMsg(iRegister == 1, ("Hey only register 1 can be read from with string\n"));
-    AssertMsg(cbTransfer == 512, ("Only 512 byte transfers are allowed\n"));
-
+    /* Write string only valid for data in/out register. */
+    AssertMsg(iRegister == 1, ("Hey only register 1 can be written to with string\n"));
+    Assert(cbTransfer == pVBoxSCSI->cbBuf);
+    if (cbTransfer > pVBoxSCSI->cbBuf)
+        cbTransfer = pVBoxSCSI->cbBuf;  /* Ignore excess data (not supposed to happen). */
 
     int rc = PDMDevHlpPhysReadGCVirt(pDevIns, pVBoxSCSI->pBuf, GCSrc, cbTransfer);
     AssertRC(rc);
@@ -381,6 +384,20 @@ int vboxscsiWriteString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegist
     *pGCPtrSrc = (RTGCPTR)((RTGCUINTPTR)GCSrc + cbTransfer);
     *pcTransfer = 0;
 
+    ASMAtomicXchgBool(&pVBoxSCSI->fBusy, true);
     return VERR_MORE_DATA;
+}
+
+void vboxscsiSetRequestRedo(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest)
+{
+    AssertMsg(pVBoxSCSI->fBusy, ("No request to redo\n"));
+
+    RTMemFree(pScsiRequest->paScatterGatherHead);
+    RTMemFree(pScsiRequest->pbSenseBuffer);
+
+    if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_FROM_DEVICE)
+    {
+        AssertPtr(pVBoxSCSI->pBuf);
+    }
 }
 

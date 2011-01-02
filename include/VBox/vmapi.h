@@ -311,7 +311,10 @@ typedef enum VMINITCOMPLETED
 } VMINITCOMPLETED;
 
 
-VMMR3DECL(int)  VMR3Create(uint32_t cCpus, PFNVMATERROR pfnVMAtError, void *pvUserVM, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM, PVM *ppVM);
+VMMR3DECL(int)  VMR3Create(uint32_t cCpus, PCVMM2USERMETHODS pVm2UserCbs,
+                           PFNVMATERROR pfnVMAtError, void *pvUserVM,
+                           PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUserCFGM,
+                           PVM *ppVM);
 VMMR3DECL(int)  VMR3PowerOn(PVM pVM);
 VMMR3DECL(int)  VMR3Suspend(PVM pVM);
 VMMR3DECL(int)  VMR3Resume(PVM pVM);
@@ -324,7 +327,7 @@ VMMR3DECL(int)  VMR3Reset(PVM pVM);
  * @returns VINF_SUCCESS.
  * @returns Error code to cancel the operation with.
  * @param   pVM         The VM handle.
- * @param   uPercent    Completetion precentage (0-100).
+ * @param   uPercent    Completion percentage (0-100).
  * @param   pvUser      User specified argument.
  */
 typedef DECLCALLBACK(int) FNVMPROGRESS(PVM pVM, unsigned uPercent, void *pvUser);
@@ -405,7 +408,7 @@ VMMR3DECL(RTNATIVETHREAD)   VMR3GetVMCPUNativeThreadU(PUVM pUVM);
 VMMR3DECL(int)              VMR3GetCpuCoreAndPackageIdFromCpuId(PVM pVM, VMCPUID idCpu, uint32_t *pidCpuCore, uint32_t *pidCpuPackage);
 VMMR3DECL(int)              VMR3HotUnplugCpu(PVM pVM, VMCPUID idCpu);
 VMMR3DECL(int)              VMR3HotPlugCpu(PVM pVM, VMCPUID idCpu);
-
+VMMR3DECL(int)              VMR3SetCpuExecutionCap(PVM pVM, unsigned ulExecutionCap);
 /** @} */
 #endif /* IN_RING3 */
 

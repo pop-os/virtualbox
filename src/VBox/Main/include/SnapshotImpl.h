@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.h $ */
+/* $Id: SnapshotImpl.h 31539 2010-08-10 15:40:18Z vboxsync $ */
 
 /** @file
  *
@@ -32,12 +32,12 @@ namespace settings
 }
 
 class ATL_NO_VTABLE Snapshot :
-    public VirtualBoxSupportErrorInfoImpl<Snapshot, ISnapshot>,
-    public VirtualBoxSupportTranslation<Snapshot>,
-    public VirtualBoxBase, // WithTypedChildren<Snapshot>,
+    public VirtualBoxBase,
     VBOX_SCRIPTABLE_IMPL(ISnapshot)
 {
 public:
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Snapshot, ISnapshot)
+
     DECLARE_NOT_AGGREGATABLE(Snapshot)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
@@ -88,16 +88,6 @@ public:
     // public methods only for internal purposes
 
     /**
-     * Simple run-time type identification without having to enable C++ RTTI.
-     * The class IDs are defined in VirtualBoxBase.h.
-     * @return
-     */
-    virtual VBoxClsID getClassID() const
-    {
-        return clsidSnapshot;
-    }
-
-    /**
      * Override of the default locking class to be used for validating lock
      * order with the standard member lock handle.
      */
@@ -125,19 +115,18 @@ public:
     ComObjPtr<Snapshot> findChildOrSelf(IN_GUID aId);
     ComObjPtr<Snapshot> findChildOrSelf(const Utf8Str &aName);
 
-    void updateSavedStatePaths(const char *aOldPath,
-                               const char *aNewPath);
-    void updateSavedStatePathsImpl(const char *aOldPath,
-                                   const char *aNewPath);
+    void updateSavedStatePaths(const Utf8Str &strOldPath,
+                               const Utf8Str &strNewPath);
+    void updateSavedStatePathsImpl(const Utf8Str &strOldPath,
+                                   const Utf8Str &strNewPath);
 
     HRESULT saveSnapshot(settings::Snapshot &data, bool aAttrsOnly);
     HRESULT saveSnapshotImpl(settings::Snapshot &data, bool aAttrsOnly);
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName()
-    {
-        return L"Snapshot";
-    }
+    HRESULT uninitRecursively(AutoWriteLock &writeLock,
+                              CleanupMode_T cleanupMode,
+                              MediaList &llMedia,
+                              std::list<Utf8Str> &llFilenames);
 
 private:
     struct Data;            // opaque, defined in SnapshotImpl.cpp

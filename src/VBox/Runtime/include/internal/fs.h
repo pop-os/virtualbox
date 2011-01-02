@@ -1,4 +1,4 @@
-/* $Id: fs.h $ */
+/* $Id: fs.h 34002 2010-11-11 17:16:37Z vboxsync $ */
 /** @file
  * IPRT - Internal RTFs header.
  */
@@ -42,6 +42,8 @@ bool    rtFsModeIsValidPermissions(RTFMODE fMode);
 
 #ifndef RT_OS_WINDOWS
 void    rtFsConvertStatToObjInfo(PRTFSOBJINFO pObjInfo, const struct stat *pStat, const char *pszName, unsigned cbName);
+void    rtFsObjInfoAttrSetUnixOwner(PRTFSOBJINFO pObjInfo, RTUID uid);
+void    rtFsObjInfoAttrSetUnixGroup(PRTFSOBJINFO pObjInfo, RTUID gid);
 #endif
 
 #ifdef RT_OS_LINUX

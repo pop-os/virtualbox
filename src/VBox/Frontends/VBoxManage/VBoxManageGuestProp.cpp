@@ -1,6 +1,6 @@
-/* $Id: VBoxManageGuestProp.cpp $ */
+/* $Id: VBoxManageGuestProp.cpp 33294 2010-10-21 10:45:26Z vboxsync $ */
 /** @file
- * VBoxManage - The 'guestproperty' command.
+ * VBoxManage - Implementation of guestproperty command.
  */
 
 /*
@@ -20,7 +20,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "VBoxManage.h"
-#include <iprt/stream.h>
 
 #ifndef VBOX_ONLY_DOCS
 
@@ -35,6 +34,7 @@
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
 #include <iprt/thread.h>
@@ -50,161 +50,26 @@
 
 using namespace com;
 
-/**
- * IVirtualBoxCallback implementation for handling the GuestPropertyCallback in
- * relation to the "guestproperty wait" command.
- */
-class GuestPropertyCallback :
-  VBOX_SCRIPTABLE_IMPL(IVirtualBoxCallback)
-{
-public:
-    GuestPropertyCallback(const char *pszPatterns, Guid aUuid)
-        : mSignalled(false), mPatterns(pszPatterns), mUuid(aUuid)
-    {
-#ifndef VBOX_WITH_XPCOM
-        refcnt = 0;
-#endif
-    }
-
-    virtual ~GuestPropertyCallback()
-    {
-    }
-
-#ifndef VBOX_WITH_XPCOM
-    STDMETHOD_(ULONG, AddRef)()
-    {
-        return ::InterlockedIncrement(&refcnt);
-    }
-    STDMETHOD_(ULONG, Release)()
-    {
-        long cnt = ::InterlockedDecrement(&refcnt);
-        if (cnt == 0)
-            delete this;
-        return cnt;
-    }
-#endif /* !VBOX_WITH_XPCOM */
-    VBOX_SCRIPTABLE_DISPATCH_IMPL(IVirtualBoxCallback)
-
-    NS_DECL_ISUPPORTS
-
-    STDMETHOD(OnMachineStateChange)(IN_BSTR machineId,
-                                    MachineState_T state)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMachineDataChange)(IN_BSTR machineId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnExtraDataCanChange)(IN_BSTR machineId, IN_BSTR key,
-                                    IN_BSTR value, BSTR *error,
-                                    BOOL *changeAllowed)
-    {
-        /* we never disagree */
-        if (!changeAllowed)
-            return E_INVALIDARG;
-        *changeAllowed = TRUE;
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnExtraDataChange)(IN_BSTR machineId, IN_BSTR key,
-                                 IN_BSTR value)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMediumRegistered)(IN_BSTR mediaId,
-                                  DeviceType_T mediaType, BOOL registered)
-    {
-        NOREF(mediaId);
-        NOREF(mediaType);
-        NOREF(registered);
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnMachineRegistered)(IN_BSTR machineId, BOOL registered)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-     STDMETHOD(OnSessionStateChange)(IN_BSTR machineId,
-                                    SessionState_T state)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSnapshotTaken)(IN_BSTR aMachineId,
-                               IN_BSTR aSnapshotId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSnapshotDeleted)(IN_BSTR aMachineId,
-                                 IN_BSTR aSnapshotId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnSnapshotChange)(IN_BSTR aMachineId,
-                                IN_BSTR aSnapshotId)
-    {
-        return VBOX_E_DONT_CALL_AGAIN;
-    }
-
-    STDMETHOD(OnGuestPropertyChange)(IN_BSTR machineId,
-                                     IN_BSTR name, IN_BSTR value,
-                                     IN_BSTR flags)
-    {
-        Utf8Str utf8Name(name);
-        Guid uuid(machineId);
-        if (   uuid == mUuid
-            && RTStrSimplePatternMultiMatch(mPatterns, RTSTR_MAX,
-                                            utf8Name.raw(), RTSTR_MAX, NULL))
-        {
-            RTPrintf("Name: %lS, value: %lS, flags: %lS\n", name, value, flags);
-            ASMAtomicWriteBool(&mSignalled, true);
-            com::EventQueue::getMainEventQueue()->interruptEventQueueProcessing();
-        }
-        return S_OK;
-    }
-
-    bool Signalled(void) const
-    {
-        return mSignalled;
-    }
-
-private:
-    bool volatile mSignalled;
-    const char *mPatterns;
-    Guid mUuid;
-#ifndef VBOX_WITH_XPCOM
-    long refcnt;
-#endif
-};
-
-#ifdef VBOX_WITH_XPCOM
-NS_DECL_CLASSINFO(GuestPropertyCallback)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestPropertyCallback, IVirtualBoxCallback)
-#endif /* VBOX_WITH_XPCOM */
-
 #endif /* !VBOX_ONLY_DOCS */
 
-void usageGuestProperty(void)
+void usageGuestProperty(PRTSTREAM pStrm)
 {
-    RTPrintf("VBoxManage guestproperty    get <vmname>|<uuid>\n"
-             "                            <property> [--verbose]\n"
-             "\n");
-    RTPrintf("VBoxManage guestproperty    set <vmname>|<uuid>\n"
-             "                            <property> [<value> [--flags <flags>]]\n"
-             "\n");
-    RTPrintf("VBoxManage guestproperty    enumerate <vmname>|<uuid>\n"
-             "                            [--patterns <patterns>]\n"
-             "\n");
-    RTPrintf("VBoxManage guestproperty    wait <vmname>|<uuid> <patterns>\n"
-             "                            [--timeout <msec>] [--fail-on-timeout]\n"
-             "\n");
+    RTStrmPrintf(pStrm,
+                 "VBoxManage guestproperty    get <vmname>|<uuid>\n"
+                 "                            <property> [--verbose]\n"
+                 "\n");
+    RTStrmPrintf(pStrm,
+                 "VBoxManage guestproperty    set <vmname>|<uuid>\n"
+                 "                            <property> [<value> [--flags <flags>]]\n"
+                 "\n");
+    RTStrmPrintf(pStrm,
+                 "VBoxManage guestproperty    enumerate <vmname>|<uuid>\n"
+                 "                            [--patterns <patterns>]\n"
+                 "\n");
+    RTStrmPrintf(pStrm,
+                 "VBoxManage guestproperty    wait <vmname>|<uuid> <patterns>\n"
+                 "                            [--timeout <msec>] [--fail-on-timeout]\n"
+                 "\n");
 }
 
 #ifndef VBOX_ONLY_DOCS
@@ -222,37 +87,29 @@ static int handleGetGuestProperty(HandlerArg *a)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 
     ComPtr<IMachine> machine;
-    /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
-    if (FAILED(rc) || !machine)
-    {
-        /* must be a name */
-        CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()));
-    }
+    CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
+                                           machine.asOutParam()));
     if (machine)
     {
-        Bstr uuid;
-        machine->COMGETTER(Id)(uuid.asOutParam());
-
         /* open a session for the VM - new or existing */
-        if (FAILED (a->virtualBox->OpenSession(a->session, uuid)))
-            CHECK_ERROR_RET(a->virtualBox, OpenExistingSession(a->session, uuid), 1);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
         Bstr value;
-        ULONG64 u64Timestamp;
+        LONG64 i64Timestamp;
         Bstr flags;
-        CHECK_ERROR(machine, GetGuestProperty(Bstr(a->argv[1]), value.asOutParam(),
-                                              &u64Timestamp, flags.asOutParam()));
+        CHECK_ERROR(machine, GetGuestProperty(Bstr(a->argv[1]).raw(),
+                                              value.asOutParam(),
+                                              &i64Timestamp, flags.asOutParam()));
         if (value.isEmpty())
             RTPrintf("No value set!\n");
         else
             RTPrintf("Value: %lS\n", value.raw());
         if (!value.isEmpty() && verbose)
         {
-            RTPrintf("Timestamp: %lld\n", u64Timestamp);
+            RTPrintf("Timestamp: %lld\n", i64Timestamp);
             RTPrintf("Flags: %lS\n", flags.raw());
         }
     }
@@ -291,36 +148,31 @@ static int handleSetGuestProperty(HandlerArg *a)
     pszName = a->argv[1];
 
     ComPtr<IMachine> machine;
-    /* assume it's a UUID */
-    rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
-    if (FAILED(rc) || !machine)
-    {
-        /* must be a name */
-        CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()));
-    }
+    CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
+                                           machine.asOutParam()));
     if (machine)
     {
-        Bstr uuid;
-        machine->COMGETTER(Id)(uuid.asOutParam());
-
         /* open a session for the VM - new or existing */
-        if (FAILED (a->virtualBox->OpenSession(a->session, uuid)))
-            CHECK_ERROR_RET (a->virtualBox, OpenExistingSession(a->session, uuid), 1);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
         if (!pszValue && !pszFlags)
-            CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName), Bstr("")));
+            CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName).raw(),
+                                                       Bstr().raw()));
         else if (!pszFlags)
-            CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName), Bstr(pszValue)));
+            CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName).raw(),
+                                                       Bstr(pszValue).raw()));
         else
-            CHECK_ERROR(machine, SetGuestProperty(Bstr(pszName), Bstr(pszValue), Bstr(pszFlags)));
+            CHECK_ERROR(machine, SetGuestProperty(Bstr(pszName).raw(),
+                                                  Bstr(pszValue).raw(),
+                                                  Bstr(pszFlags).raw()));
 
         if (SUCCEEDED(rc))
             CHECK_ERROR(machine, SaveSettings());
 
-        a->session->Close();
+        a->session->UnlockMachine();
     }
     return SUCCEEDED(rc) ? 0 : 1;
 }
@@ -349,36 +201,28 @@ static int handleEnumGuestProperty(HandlerArg *a)
      */
     Utf8Str Utf8Patterns(a->argc > 2 ? a->argv[2] : "");
     for (int i = 3; i < a->argc; ++i)
-        Utf8Patterns = Utf8StrFmt ("%s,%s", Utf8Patterns.raw(), a->argv[i]);
+        Utf8Patterns = Utf8StrFmt ("%s,%s", Utf8Patterns.c_str(), a->argv[i]);
 
     /*
      * Make the actual call to Main.
      */
     ComPtr<IMachine> machine;
-    /* assume it's a UUID */
-    HRESULT rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
-    if (FAILED(rc) || !machine)
-    {
-        /* must be a name */
-        CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()));
-    }
+    HRESULT rc;
+    CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
+                                           machine.asOutParam()));
     if (machine)
     {
-        Bstr uuid;
-        machine->COMGETTER(Id)(uuid.asOutParam());
-
         /* open a session for the VM - new or existing */
-        if (FAILED(a->virtualBox->OpenSession(a->session, uuid)))
-            CHECK_ERROR_RET (a->virtualBox, OpenExistingSession(a->session, uuid), 1);
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
 
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
-        com::SafeArray <BSTR> names;
-        com::SafeArray <BSTR> values;
-        com::SafeArray <ULONG64> timestamps;
-        com::SafeArray <BSTR> flags;
-        CHECK_ERROR(machine, EnumerateGuestProperties(Bstr(Utf8Patterns),
+        com::SafeArray<BSTR> names;
+        com::SafeArray<BSTR> values;
+        com::SafeArray<LONG64> timestamps;
+        com::SafeArray<BSTR> flags;
+        CHECK_ERROR(machine, EnumerateGuestProperties(Bstr(Utf8Patterns).raw(),
                                                       ComSafeArrayAsOutParam(names),
                                                       ComSafeArrayAsOutParam(values),
                                                       ComSafeArrayAsOutParam(timestamps),
@@ -415,13 +259,9 @@ static int handleWaitGuestProperty(HandlerArg *a)
     else
         pszPatterns = a->argv[1];
     ComPtr<IMachine> machine;
-    /* assume it's a UUID */
-    HRESULT rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
-    if (FAILED(rc) || !machine)
-    {
-        /* must be a name */
-        CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()));
-    }
+    HRESULT rc;
+    CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
+                                           machine.asOutParam()));
     if (!machine)
         usageOK = false;
     for (int i = 2; usageOK && i < a->argc; ++i)
@@ -444,23 +284,21 @@ static int handleWaitGuestProperty(HandlerArg *a)
         return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
 
     /*
-     * Set up the callback and loop until signal or timeout.
-     *
-     * We do this in 1000 ms chunks to be on the safe side (there used to be
-     * better reasons for it).
+     * Set up the event listener and wait until found match or timeout.
      */
-    Bstr uuid;
-    machine->COMGETTER(Id)(uuid.asOutParam());
-    GuestPropertyCallback *cbImpl = new GuestPropertyCallback(pszPatterns, uuid);
-    ComPtr<IVirtualBoxCallback> callback;
-    rc = createCallbackWrapper((IVirtualBoxCallback *)cbImpl, callback.asOutParam());
-    if (FAILED(rc))
-    {
-        RTPrintf("Error creating callback wrapper: %Rhrc\n", rc);
-        return 1;
-    }
-    a->virtualBox->RegisterCallback(callback);
+    Bstr aMachStrGuid;
+    machine->COMGETTER(Id)(aMachStrGuid.asOutParam());
+    Guid aMachGuid(aMachStrGuid);
+    ComPtr<IEventSource> es;
+    CHECK_ERROR(a->virtualBox, COMGETTER(EventSource)(es.asOutParam()));
+    ComPtr<IEventListener> listener;
+    CHECK_ERROR(es, CreateListener(listener.asOutParam()));
+    com::SafeArray <VBoxEventType_T> eventTypes(1);
+    eventTypes.push_back(VBoxEventType_OnGuestPropertyChanged);
+    CHECK_ERROR(es, RegisterListener(listener, ComSafeArrayAsInParam(eventTypes), false));
+
     uint64_t u64Started = RTTimeMilliTS();
+    bool fSignalled = false;
     do
     {
         unsigned cMsWait;
@@ -473,21 +311,49 @@ static int handleWaitGuestProperty(HandlerArg *a)
                 break; /* timed out */
             cMsWait = RT_MIN(1000, cMsTimeout - (uint32_t)cMsElapsed);
         }
-        int vrc = com::EventQueue::getMainEventQueue()->processEventQueue(cMsWait);
-        if (    RT_FAILURE(vrc)
-            &&  vrc != VERR_TIMEOUT)
-        {
-            RTPrintf("Error waiting for event: %Rrc\n", vrc);
-            return 1;
-        }
-    } while (!cbImpl->Signalled());
 
-    a->virtualBox->UnregisterCallback(callback);
+        ComPtr<IEvent> ev;
+        rc = es->GetEvent(listener, cMsWait, ev.asOutParam());
+        if (ev)
+        {
+            VBoxEventType_T aType;
+            rc = ev->COMGETTER(Type)(&aType);
+            switch (aType)
+            {
+                case VBoxEventType_OnGuestPropertyChanged:
+                {
+                    ComPtr<IGuestPropertyChangedEvent> gpcev = ev;
+                    Assert(gpcev);
+                    Bstr aNextStrGuid;
+                    gpcev->COMGETTER(MachineId)(aNextStrGuid.asOutParam());
+                    if (aMachGuid != Guid(aNextStrGuid))
+                        continue;
+                    Bstr aNextName;
+                    gpcev->COMGETTER(Name)(aNextName.asOutParam());
+                    if (RTStrSimplePatternMultiMatch(pszPatterns, RTSTR_MAX,
+                                                     Utf8Str(aNextName).c_str(), RTSTR_MAX, NULL))
+                    {
+                        Bstr aNextValue, aNextFlags;
+                        gpcev->COMGETTER(Value)(aNextValue.asOutParam());
+                        gpcev->COMGETTER(Flags)(aNextFlags.asOutParam());
+                        RTPrintf("Name: %lS, value: %lS, flags: %lS\n",
+                                 aNextName.raw(), aNextValue.raw(), aNextFlags.raw());
+                        fSignalled = true;
+                    }
+                    break;
+                }
+                default:
+                     AssertFailed();
+            }
+        }
+    } while (!fSignalled);
+
+    es->UnregisterListener(listener);
 
     int rcRet = 0;
-    if (!cbImpl->Signalled())
+    if (!fSignalled)
     {
-        RTPrintf("Time out or interruption while waiting for a notification.\n");
+        RTMsgError("Time out or interruption while waiting for a notification.");
         if (fFailOnTimeout)
             rcRet = 2;
     }

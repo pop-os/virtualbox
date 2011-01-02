@@ -1,4 +1,4 @@
-/* $Id: tstMp-1.cpp $ */
+/* $Id: tstMp-1.cpp 33814 2010-11-05 21:28:14Z vboxsync $ */
 /** @file
  * IPRT Testcase - RTMp.
  */
@@ -108,7 +108,7 @@ int main()
             }
             else if (RTMpGetMaxFrequency(idCpu) != 0)
             {
-                RTPrintf("tstMp-1: FAILURE: RTMpGetCurFrequency(%d[idx=%d]) didn't return 0 as it should\n", (int)idCpu, iCpu);
+                RTPrintf("tstMp-1: FAILURE: RTMpGetMaxFrequency(%d[idx=%d]) didn't return 0 as it should\n", (int)idCpu, iCpu);
                 g_cErrors++;
             }
         }

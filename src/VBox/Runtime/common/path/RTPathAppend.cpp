@@ -1,4 +1,4 @@
-/* $Id: RTPathAppend.cpp $ */
+/* $Id: RTPathAppend.cpp 34214 2010-11-19 17:18:15Z vboxsync $ */
 /** @file
  * IPRT - RTPathAppend
  */
@@ -31,155 +31,11 @@
 #include "internal/iprt.h"
 #include <iprt/path.h>
 
-#include <iprt/assert.h>
-#include <iprt/ctype.h>
-#include <iprt/err.h>
 #include <iprt/string.h>
-
-
-/**
- * Figures the length of the root part of the path.
- *
- * @returns length of the root specifier.
- * @retval  0 if none.
- *
- * @param   pszPath         The path to investigate.
- *
- * @remarks Unnecessary root slashes will not be counted. The caller will have
- *          to deal with it where it matters.  (Unlike rtPathRootSpecLen which
- *          counts them.)
- */
-static size_t rtPathRootSpecLen2(const char *pszPath)
-{
-    /* fend of wildlife. */
-    if (!pszPath)
-        return 0;
-
-    /* Root slash? */
-    if (RTPATH_IS_SLASH(pszPath[0]))
-    {
-#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
-        /* UNC? */
-        if (    RTPATH_IS_SLASH(pszPath[1])
-            &&  pszPath[2] != '\0'
-            &&  !RTPATH_IS_SLASH(pszPath[2]))
-        {
-            /* Find the end of the server name. */
-            const char *pszEnd = pszPath + 2;
-            pszEnd += 2;
-            while (   *pszEnd != '\0'
-                   && !RTPATH_IS_SLASH(*pszEnd))
-                pszEnd++;
-            if (RTPATH_IS_SLASH(*pszEnd))
-            {
-                pszEnd++;
-                while (RTPATH_IS_SLASH(*pszEnd))
-                    pszEnd++;
-
-                /* Find the end of the share name */
-                while (   *pszEnd != '\0'
-                       && !RTPATH_IS_SLASH(*pszEnd))
-                    pszEnd++;
-                if (RTPATH_IS_SLASH(*pszEnd))
-                    pszEnd++;
-                return pszPath - pszEnd;
-            }
-        }
-#endif
-        return 1;
-    }
-
-#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
-    /* Drive specifier? */
-    if (   pszPath[0] != '\0'
-        && pszPath[1] == ':'
-        && RT_C_IS_ALPHA(pszPath[0]))
-    {
-        if (RTPATH_IS_SLASH(pszPath[2]))
-            return 3;
-        return 2;
-    }
-#endif
-    return 0;
-}
 
 
 RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend)
 {
-    char *pszPathEnd = RTStrEnd(pszPath, cbPathDst);
-    AssertReturn(pszPathEnd, VERR_INVALID_PARAMETER);
-
-    /*
-     * Special cases.
-     */
-    if (!pszAppend)
-        return VINF_SUCCESS;
-    size_t cchAppend = strlen(pszAppend);
-    if (!cchAppend)
-        return VINF_SUCCESS;
-    if (pszPathEnd == pszPath)
-    {
-        if (cchAppend >= cbPathDst)
-            return VERR_BUFFER_OVERFLOW;
-        memcpy(pszPath, pszAppend, cchAppend + 1);
-        return VINF_SUCCESS;
-    }
-
-    /*
-     * Balance slashes and check for buffer overflow.
-     */
-    bool fAddSlash = false;
-    if (!RTPATH_IS_SLASH(pszPathEnd[-1]))
-    {
-        if (!RTPATH_IS_SLASH(pszAppend[0]))
-        {
-#if defined (RT_OS_OS2) || defined (RT_OS_WINDOWS)
-            if (    (size_t)(pszPathEnd - pszPath) == 2
-                &&  pszPath[1] == ':'
-                &&  RT_C_IS_ALPHA(pszPath[0]))
-            {
-                if ((size_t)(pszPathEnd - pszPath) + cchAppend >= cbPathDst)
-                    return VERR_BUFFER_OVERFLOW;
-            }
-            else
-#endif
-            {
-                if ((size_t)(pszPathEnd - pszPath) + 1 + cchAppend >= cbPathDst)
-                    return VERR_BUFFER_OVERFLOW;
-                *pszPathEnd++ = '/';
-            }
-        }
-        else
-        {
-            /* One slash is sufficient at this point. */
-            while (RTPATH_IS_SLASH(pszAppend[1]))
-                pszAppend++, cchAppend--;
-
-            if ((size_t)(pszPathEnd - pszPath) + cchAppend >= cbPathDst)
-                return VERR_BUFFER_OVERFLOW;
-        }
-    }
-    else
-    {
-        /* No slashes needed in the appended bit. */
-        while (RTPATH_IS_SLASH(*pszAppend))
-            pszAppend++, cchAppend--;
-
-        /* In the leading path we can skip unnecessary trailing slashes, but
-           be sure to leave one. */
-        size_t const cchRoot = rtPathRootSpecLen2(pszPath);
-        while (     (size_t)(pszPathEnd - pszPath) > RT_MAX(1, cchRoot)
-               &&   RTPATH_IS_SLASH(pszPathEnd[-2]))
-            pszPathEnd--;
-
-        if ((size_t)(pszPathEnd - pszPath) + cchAppend >= cbPathDst)
-            return VERR_BUFFER_OVERFLOW;
-    }
-
-    /*
-     * What remains now is the just the copying.
-     */
-    memcpy(pszPathEnd, pszAppend, cchAppend + 1);
-    return VINF_SUCCESS;
+    return RTPathAppendEx(pszPath, cbPathDst, pszAppend, RTSTR_MAX);
 }
 

@@ -11,6 +11,7 @@
     <file alias="os_freebsd_64.png">images/os_freebsd_64.png</file>
     <file alias="os_gentoo.png">images/os_gentoo.png</file>
     <file alias="os_gentoo_64.png">images/os_gentoo_64.png</file>
+    <file alias="os_jrockitve.png">images/os_jrockitve.png</file>
     <file alias="os_l4.png">images/os_l4.png</file>
     <file alias="os_linux_other.png">images/os_linux_other.png</file>
     <file alias="os_linux22.png">images/os_linux22.png</file>
@@ -132,6 +133,10 @@
     <file alias="seamless_on_16px.png">images/seamless_on_16px.png</file>
     <file alias="seamless_disabled_16px.png">images/seamless_disabled_16px.png</file>
     <file alias="seamless_on_disabled_16px.png">images/seamless_on_disabled_16px.png</file>
+    <file alias="scale_16px.png">images/scale_16px.png</file>
+    <file alias="scale_on_16px.png">images/scale_on_16px.png</file>
+    <file alias="scale_disabled_16px.png">images/scale_disabled_16px.png</file>
+    <file alias="scale_on_disabled_16px.png">images/scale_on_disabled_16px.png</file>
     <file alias="controller_add_16px.png">images/controller_add_16px.png</file>
     <file alias="controller_add_disabled_16px.png">images/controller_add_disabled_16px.png</file>
     <file alias="controller_remove_16px.png">images/controller_remove_16px.png</file>
@@ -142,5 +147,34 @@
     <file alias="attachment_add_disabled_16px.png">images/attachment_add_disabled_16px.png</file>
     <file alias="attachment_remove_16px.png">images/attachment_remove_16px.png</file>
     <file alias="attachment_remove_disabled_16px.png">images/attachment_remove_disabled_16px.png</file>
+    <file alias="progress_state_save_90px.png">images/progress_state_save_90px.png</file>
+    <file alias="progress_state_restore_90px.png">images/progress_state_restore_90px.png</file>
+    <file alias="progress_import_90px.png">images/progress_import_90px.png</file>
+    <file alias="progress_export_90px.png">images/progress_export_90px.png</file>
+    <file alias="progress_install_guest_additions_90px.png">images/progress_install_guest_additions_90px.png</file>
+    <file alias="progress_start_90px.png">images/progress_start_90px.png</file>
+    <file alias="progress_poweroff_90px.png">images/progress_poweroff_90px.png</file>
+    <file alias="progress_delete_90px.png">images/progress_delete_90px.png</file>
+    <file alias="progress_media_create_90px.png">images/progress_media_create_90px.png</file>
+    <file alias="progress_media_delete_90px.png">images/progress_media_delete_90px.png</file>
+    <file alias="progress_snapshot_create_90px.png">images/progress_snapshot_create_90px.png</file>
+    <file alias="progress_snapshot_restore_90px.png">images/progress_snapshot_restore_90px.png</file>
+    <file alias="progress_snapshot_discard_90px.png">images/progress_snapshot_discard_90px.png</file>
+    <file alias="status_check_16px.png">images/status_check_16px.png</file>
+    <file alias="status_check_32px.png">images/status_check_32px.png</file>
+    <file alias="status_error_16px.png">images/status_error_16px.png</file>
+    <file alias="status_error_32px.png">images/status_error_32px.png</file>
+    <file alias="extension_pack_16px.png">images/extension_pack_16px.png</file>
+    <file alias="extension_pack_disabled_16px.png">images/extension_pack_disabled_16px.png</file>
+    <file alias="extension_pack_32px.png">images/extension_pack_32px.png</file>
+    <file alias="extension_pack_disabled_32px.png">images/extension_pack_disabled_32px.png</file>
+    <file alias="extension_pack_install_16px.png">images/extension_pack_install_16px.png</file>
+    <file alias="extension_pack_install_disabled_16px.png">images/extension_pack_install_disabled_16px.png</file>
+    <file alias="extension_pack_install_32px.png">images/extension_pack_install_32px.png</file>
+    <file alias="extension_pack_install_disabled_32px.png">images/extension_pack_install_disabled_32px.png</file>
+    <file alias="extension_pack_uninstall_16px.png">images/extension_pack_uninstall_16px.png</file>
+    <file alias="extension_pack_uninstall_disabled_16px.png">images/extension_pack_uninstall_disabled_16px.png</file>
+    <file alias="extension_pack_uninstall_32px.png">images/extension_pack_uninstall_32px.png</file>
+    <file alias="extension_pack_uninstall_disabled_32px.png">images/extension_pack_uninstall_disabled_32px.png</file>
  </qresource>
  </RCC>

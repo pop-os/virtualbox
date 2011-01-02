@@ -54,7 +54,7 @@ public:
 
     /* Public members: */
     virtual void reshow() {}
-    virtual void setMask(const QRegion &region) { machineWindow()->setMask(region); }
+    virtual void setMask(const QRegion &region);
 
 protected:
 
@@ -69,6 +69,9 @@ protected:
     virtual void retranslateUi();
 
     /* Common machine window event handlers: */
+#ifdef Q_WS_X11
+    bool x11Event(XEvent *pEvent);
+#endif
     void closeEvent(QCloseEvent *pEvent);
 
     /* Prepare helpers: */
@@ -76,8 +79,10 @@ protected:
     virtual void prepareConsoleConnections();
     virtual void prepareMachineViewContainer();
     //virtual void loadWindowSettings() {}
+    virtual void prepareHandlers();
 
     /* Cleanup helpers: */
+    virtual void cleanupHandlers();
     //virtual void saveWindowSettings() {}
     //virtual void cleanupMachineViewContainer() {}
     //virtual void cleanupConsoleConnections() {}

@@ -1,4 +1,4 @@
-/* $Id: ldrELF64.h $ */
+/* $Id: ldrELF64.h 32223 2010-09-02 19:11:02Z vboxsync $ */
 /** @file
  * IPRT - ELF 64-bit header.
  */
@@ -184,5 +184,4 @@ typedef struct
 
 
 #endif /* ___internal_ldrELF64_h */
-
 

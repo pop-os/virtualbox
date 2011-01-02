@@ -1,4 +1,4 @@
-/* $Id: RTFileQueryFsSizes-posix.cpp $ */
+/* $Id: RTFileQueryFsSizes-posix.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * IPRT - File I/O, RTFileFsQuerySizes, POSIX.
  */

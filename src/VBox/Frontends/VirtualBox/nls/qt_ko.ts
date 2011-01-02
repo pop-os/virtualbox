@@ -2,6 +2,37 @@
 <!DOCTYPE TS>
 <TS version="2.0" language="ko">
 <context>
+    <name>MAC_APPLICATION_MENU</name>
+    <message>
+        <source>Services</source>
+        <translation>서비스</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>%1 숨기기</translation>
+    </message>
+    <message>
+        <source>Hide Others</source>
+        <translation>다른 항목 숨기기</translation>
+    </message>
+    <message>
+        <source>Show All</source>
+        <translation>모두 보이기</translation>
+    </message>
+    <message>
+        <source>Preferences...</source>
+        <translation>환경 설정...</translation>
+    </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>%1 끝내기</translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation>%1 정보</translation>
+    </message>
+</context>
+<context>
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>

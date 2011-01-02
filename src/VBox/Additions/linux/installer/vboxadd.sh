@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 65760 $)
+# Linux Additions kernel module init script ($Revision: 35265 $)
 #
 
 #
@@ -32,7 +32,7 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 PACKAGE=VBoxGuestAdditions
 BUILDVBOXGUEST=`/bin/ls /usr/src/vboxguest*/vboxguest/build_in_tmp 2>/dev/null|cut -d' ' -f1`
 BUILDVBOXSF=`/bin/ls /usr/src/vboxguest*/vboxsf/build_in_tmp 2>/dev/null|cut -d' ' -f1`
-BUILDVBOXVIDEO=`/bin/ls /usr/src/vboxvideo*/vboxvideo/build_in_tmp 2>/dev/null|cut -d' ' -f1`
+BUILDVBOXVIDEO=`/bin/ls /usr/src/vboxguest*/vboxvideo/build_in_tmp 2>/dev/null|cut -d' ' -f1`
 DODKMS=`/bin/ls /usr/src/vboxguest*/do_dkms 2>/dev/null|cut -d' ' -f1`
 LOG="/var/log/vboxadd-install.log"
 MODPROBE=/sbin/modprobe
@@ -168,6 +168,26 @@ userdev=/dev/vboxuser
 owner=vboxadd
 group=1
 
+test_sane_kernel_dir()
+{
+    KERN_VER=`uname -r`
+    KERN_DIR="/lib/modules/$KERN_VER/build"
+    if [ -d "$KERN_DIR" ]; then
+        KERN_REL=`make -sC $KERN_DIR --no-print-directory kernelrelease 2>/dev/null || true`
+        if [ -z "$KERN_REL" -o "x$KERN_REL" = "x$KERN_VER" ]; then
+            return 0
+        fi
+    fi
+    printf "\nThe headers for the current running kernel were not found. If the following\nmodule compilation fails then this could be the reason.\n"
+    if [ "$system" = "redhat" ]; then
+        printf "The missing package can be probably installed with\nyum install kernel-devel-$KERN_VER\n"
+    elif [ "$system" = "suse" ]; then
+        printf "The missing package can be probably installed with\nzypper install kernel-$KERN_VER\n"
+    elif [ "$system" = "debian" ]; then
+        printf "The missing package can be probably installed with\napt-get install linux-headers-$KERN_VER\n"
+    fi
+}
+
 fail()
 {
     if [ "$system" = "gentoo" ]; then
@@ -194,23 +214,8 @@ running_vboxsf()
     lsmod | grep -q "vboxsf[^_-]"
 }
 
-start()
+do_vboxguest_non_udev()
 {
-    begin "Starting the VirtualBox Guest Additions ";
-    running_vboxguest || {
-        rm -f $dev || {
-            fail "Cannot remove $dev"
-        }
-
-        rm -f $userdev || {
-            fail "Cannot remove $userdev"
-        }
-
-        $MODPROBE vboxguest >/dev/null 2>&1 || {
-            fail "modprobe vboxguest failed"
-        }
-        sleep .5
-    }
     if [ ! -c $dev ]; then
         maj=`sed -n 's;\([0-9]\+\) vboxguest;\1;p' /proc/devices`
         if [ ! -z "$maj" ]; then
@@ -255,6 +260,31 @@ start()
             }
         fi
     fi
+}
+
+start()
+{
+    begin "Starting the VirtualBox Guest Additions ";
+    which udevd >/dev/null 2>&1 || no_udev=1
+    running_vboxguest || {
+        rm -f $dev || {
+            fail "Cannot remove $dev"
+        }
+
+        rm -f $userdev || {
+            fail "Cannot remove $userdev"
+        }
+
+        $MODPROBE vboxguest >/dev/null 2>&1 || {
+            fail "modprobe vboxguest failed"
+        }
+        case "$no_udev" in 1)
+            sleep .5;;
+        esac
+    }
+    case "$no_udev" in 1)
+        do_vboxguest_non_udev;;
+    esac
 
     if [ -n "$BUILDVBOXSF" ]; then
         running_vboxsf || {
@@ -305,37 +335,41 @@ restart()
     return 0
 }
 
-# setup_script
-setup()
+# Remove any existing VirtualBox guest kernel modules from the disk, but not
+# from the kernel as they may still be in use
+cleanup_modules()
 {
-    # don't stop the old modules here -- they might be in use
-    begin "Uninstalling old VirtualBox DKMS kernel modules"
+    begin "Removing existing VirtualBox DKMS kernel modules"
     $DODKMS uninstall > $LOG
     succ_msg
-    if find /lib/modules/`uname -r` -name "vboxvideo\.*" 2>/dev/null|grep -q vboxvideo; then
-        begin "Removing old VirtualBox vboxvideo kernel module"
-        find /lib/modules/`uname -r` -name "vboxvideo\.*" 2>/dev/null|xargs rm -f 2>/dev/null
-        succ_msg
-    fi
-    if find /lib/modules/`uname -r` -name "vboxsf\.*" 2>/dev/null|grep -q vboxsf; then
-        begin "Removing old VirtualBox vboxsf kernel module"
-        find /lib/modules/`uname -r` -name "vboxsf\.*" 2>/dev/null|xargs rm -f 2>/dev/null
-        succ_msg
-    fi
-    if find /lib/modules/`uname -r` -name "vboxguest\.*" 2>/dev/null|grep -q vboxguest; then
-        begin "Removing old VirtualBox vboxguest kernel module"
-        find /lib/modules/`uname -r` -name "vboxguest\.*" 2>/dev/null|xargs rm -f 2>/dev/null
-        succ_msg
-    fi
+    begin "Removing existing VirtualBox non-DKMS kernel modules"
+    find /lib/modules -name vboxadd\* | xargs rm 2>/dev/null
+    find /lib/modules -name vboxguest\* | xargs rm 2>/dev/null
+    find /lib/modules -name vboxvfs\* | xargs rm 2>/dev/null
+    find /lib/modules -name vboxsf\* | xargs rm 2>/dev/null
+    find /lib/modules -name vboxvideo\* | xargs rm 2>/dev/null
+    succ_msg
+}
+
+# Build and install the VirtualBox guest kernel modules
+setup_modules()
+{
+    # don't stop the old modules here -- they might be in use
+    cleanup_modules
     begin "Building the VirtualBox Guest Additions kernel modules"
+
+    # Short cut out if a dkms build succeeds
+    if $DODKMS install >> $LOG 2>&1; then
+        return 0
+    fi
+
+    test_sane_kernel_dir
 
     if ! sh /usr/share/$PACKAGE/test/build_in_tmp \
         --no-print-directory >> $LOG 2>&1; then
         fail_msg
-        printf "Your system does not seem to be set up to build kernel modules.\nLook at $LOG to find out what went wrong.  Once you have corrected it, you can\nrun\n\n  /etc/init.d/vboxadd setup\n\nto build them."
-        BUILDVBOXGUEST=""
-        BUILDVBOXSF=""
-        BUILDVBOXVIDEO=""
+        printf "Your system does not seem to be set up to build kernel modules.\nLook at $LOG to find out what went wrong.\nOnce you have corrected it, you can run\n\n  /etc/init.d/vboxadd setup\n\nto build them.\n\n"
+        return 1
     else
         if ! sh /usr/share/$PACKAGE/test_drm/build_in_tmp \
             --no-print-directory >> $LOG 2>&1; then
@@ -344,37 +378,41 @@ setup()
         fi
     fi
     echo
-    if ! $DODKMS install >> $LOG 2>&1; then
-        if [ -n "$BUILDVBOXGUEST" ]; then
-            begin "Building the main Guest Additions module"
-            if ! $BUILDVBOXGUEST \
-                --save-module-symvers /tmp/vboxguest-Module.symvers \
-                --no-print-directory install >> $LOG 2>&1; then
-                fail "Look at $LOG to find out what went wrong"
-            fi
-            succ_msg
+    if [ -n "$BUILDVBOXGUEST" ]; then
+        begin "Building the main Guest Additions module"
+        if ! $BUILDVBOXGUEST \
+            --save-module-symvers /tmp/vboxguest-Module.symvers \
+            --no-print-directory install >> $LOG 2>&1; then
+            fail "Look at $LOG to find out what went wrong"
         fi
-        if [ -n "$BUILDVBOXSF" ]; then
-            begin "Building the shared folder support module"
-            if ! $BUILDVBOXSF \
-                --use-module-symvers /tmp/vboxguest-Module.symvers \
-                --no-print-directory install >> $LOG 2>&1; then
-                fail "Look at $LOG to find out what went wrong"
-            fi
-            succ_msg
-        fi
-        if [ -n "$BUILDVBOXVIDEO" ]; then
-            begin "Building the OpenGL support module"
-            if ! $BUILDVBOXVIDEO \
-                --use-module-symvers /tmp/vboxguest-Module.symvers \
-                --no-print-directory install >> $LOG 2>&1; then
-                fail "Look at $LOG to find out what went wrong"
-            fi
-            succ_msg
-        fi
-        depmod
+        succ_msg
     fi
+    if [ -n "$BUILDVBOXSF" ]; then
+        begin "Building the shared folder support module"
+        if ! $BUILDVBOXSF \
+            --use-module-symvers /tmp/vboxguest-Module.symvers \
+            --no-print-directory install >> $LOG 2>&1; then
+            fail "Look at $LOG to find out what went wrong"
+        fi
+        succ_msg
+    fi
+    if [ -n "$BUILDVBOXVIDEO" ]; then
+        begin "Building the OpenGL support module"
+        if ! $BUILDVBOXVIDEO \
+            --use-module-symvers /tmp/vboxguest-Module.symvers \
+            --no-print-directory install >> $LOG 2>&1; then
+            fail "Look at $LOG to find out what went wrong"
+        fi
+        succ_msg
+    fi
+    depmod
+    return 0
+}
 
+# Do non-kernel bits needed for the kernel modules to work properly (user
+# creation, udev, mount helper...)
+extra_setup()
+{
     begin "Doing non-kernel setup of the Guest Additions"
     echo "Creating user for the Guest Additions." >> $LOG
     # This is the LSB version of useradd and should work on recent
@@ -382,6 +420,11 @@ setup()
     useradd -d /var/run/vboxadd -g 1 -r -s /bin/false vboxadd >/dev/null 2>&1
     # And for the others, we choose a UID ourselves
     useradd -d /var/run/vboxadd -g 1 -u 501 -o -s /bin/false vboxadd >/dev/null 2>&1
+
+    # Add a group "vboxsf" for Shared Folders access
+    # All users which want to access the auto-mounted Shared Folders have to
+    # be added to this group.
+    groupadd -f vboxsf >/dev/null 2>&1
 
     # Create udev description file
     if [ -d /etc/udev/rules.d ]; then
@@ -416,7 +459,15 @@ setup()
     chcon -u system_u -t mount_exec_t "$lib_path/$PACKAGE/mount.vboxsf" > /dev/null 2>&1
 
     succ_msg
-    if [ -n "$BUILDVBOXGUEST" ]; then
+}
+
+# setup_script
+setup()
+{
+    setup_modules
+    mod_succ="$?"
+    extra_setup
+    if [ "$mod_succ" -eq "0" ]; then
         if running_vboxguest || running_vboxadd; then
             printf "You should restart your guest to make sure the new modules are actually used\n\n"
         else
@@ -429,29 +480,7 @@ setup()
 cleanup()
 {
     # Delete old versions of VBox modules.
-    DKMS=`which dkms 2>/dev/null`
-    if [ -n "$DKMS" ]; then
-      echo "Attempt to remove old DKMS modules..."
-      for mod in vboxadd vboxguest vboxvfs vboxsf vboxvideo; do
-        $DKMS status -m $mod | while read line; do
-          if echo "$line" | grep -q added > /dev/null ||
-             echo "$line" | grep -q built > /dev/null ||
-             echo "$line" | grep -q installed > /dev/null; then
-            version=`echo "$line" | sed "s/$mod,\([^,]*\)[,:].*/\1/;t;d"`
-            echo "  removing module $mod version $version"
-            $DKMS remove -m $mod -v $version --all 1>&2
-          fi
-        done
-      done
-      echo "Done."
-    fi
-
-    # Remove old installed modules
-    find /lib/modules -name vboxadd\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxguest\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxvfs\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxsf\* | xargs rm 2>/dev/null
-    find /lib/modules -name vboxvideo\* | xargs rm 2>/dev/null
+    cleanup_modules
     depmod
 
     # Remove old module sources

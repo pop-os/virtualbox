@@ -1,4 +1,4 @@
-/* $Id: time-r0drv-linux.c $ */
+/* $Id: time-r0drv-linux.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Time, Ring-0 Driver, Linux.
  */
@@ -126,7 +126,7 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
             ASMAtomicCmpXchgU64(&s_u64Last, u64NewLast, u64Last);
         }
 
-        /* calcuate the return value */
+        /* calculate the return value */
         u64 = ulNow;
         u64 *= TICK_NSEC;
         u64 += cRollovers * (_4G * TICK_NSEC);

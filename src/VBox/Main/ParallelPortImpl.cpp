@@ -1,4 +1,4 @@
-/* $Id: ParallelPortImpl.cpp $ */
+/* $Id: ParallelPortImpl.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -435,7 +435,7 @@ HRESULT ParallelPort::loadSettings(const settings::ParallelPort &data)
 /**
  *  Saves settings to the given port node.
  *
- *  Note that the given Port node is comletely empty on input.
+ *  Note that the given Port node is completely empty on input.
  *
  *  @param aPortNode <Port> node.
  *

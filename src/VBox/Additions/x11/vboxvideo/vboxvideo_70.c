@@ -124,7 +124,7 @@ static const struct pci_id_match vbox_device_match[] = {
 /*
  * This contains the functions needed by the server after loading the
  * driver module.  It must be supplied, and gets added the driver list by
- * the Module Setup funtion in the dynamic case.  In the static case a
+ * the Module Setup function in the dynamic case.  In the static case a
  * reference to this is compiled in, and this requires that the name of
  * this DriverRec be an upper-case version of the driver name.
  */
@@ -332,9 +332,6 @@ static void
 VBOXFreeRec(ScrnInfoPtr pScrn)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
-#if 0
-    xfree(pVBox->vbeInfo);
-#endif
     xfree(pVBox->savedPal);
     xfree(pVBox->fonts);
     xfree(pScrn->driverPrivate);
@@ -527,6 +524,12 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     if (!xf86LoadSubModule(pScrn, "vgahw"))
         return FALSE;
 
+#ifdef VBOX_DRI
+    /* Load the dri module. */
+    if (!xf86LoadSubModule(pScrn, "dri"))
+        return FALSE;
+#endif
+
 #ifndef PCIACCESS
     if (pVBox->pEnt->location.type != BUS_PCI)
         return FALSE;
@@ -675,17 +678,17 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
                                        | RESTORE_BIOS_SCRATCH)) == NULL)
         return (FALSE);
 
-    if (pVBox->mapPhys == 0) {
+    if (pScrn->memPhysBase == 0) {
 #ifdef PCIACCESS
-        pVBox->mapPhys = pVBox->pciInfo->regions[0].base_addr;
+        pScrn->memPhysBase = pVBox->pciInfo->regions[0].base_addr;
 #else
-        pVBox->mapPhys = pVBox->pciInfo->memBase[0];
+        pScrn->memPhysBase = pVBox->pciInfo->memBase[0];
 #endif
 /*        pVBox->mapSize = 1 << pVBox->pciInfo->size[0]; */
         /* Using the PCI information caused problems with
            non-powers-of-two sized video RAM configurations */
         pVBox->mapSize = inl(VBE_DISPI_IOPORT_DATA);
-        pVBox->mapOff = 0;
+        pScrn->fbOffset = 0;
     }
 
     if (!VBOXMapVidMem(pScrn))
@@ -711,6 +714,14 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
         return (FALSE);
     if (!miSetPixmapDepths())
         return (FALSE);
+
+    /* Needed before we initialise DRI. */
+    pScrn->virtualX = (pScrn->virtualX + 7) & ~7;
+    pScrn->displayWidth = pScrn->virtualX;
+
+#ifdef VBOX_DRI
+    pVBox->useDRI = VBOXDRIScreenInit(scrnIndex, pScreen, pVBox);
+#endif
 
     /* I checked in the sources, and XFree86 4.2 does seem to support
        this function for 32bpp. */
@@ -789,6 +800,11 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
                       "The VBox video extensions are now enabled.\n");
         vboxEnableGraphicsCap(pVBox);
     }
+
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        pVBox->useDRI = VBOXDRIFinishScreenInit(pScreen);
+#endif
     TRACE_EXIT();
     return (TRUE);
 }
@@ -801,6 +817,10 @@ VBOXEnterVT(int scrnIndex, int flags)
 
     TRACE_ENTRY();
     pVBox->vtSwitch = FALSE;
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        DRIUnlock(screenInfo.screens[scrnIndex]);
+#endif
     if (!VBOXSetMode(pScrn, pScrn->currentMode))
         return FALSE;
     VBOXAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
@@ -821,6 +841,10 @@ VBOXLeaveVT(int scrnIndex, int flags)
         vboxDisableVbva(pScrn);
     vboxDisableGraphicsCap(pVBox);
     pVBox->vtSwitch = TRUE;
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        DRILock(screenInfo.screens[scrnIndex], 0);
+#endif
 }
 
 static Bool
@@ -828,6 +852,12 @@ VBOXCloseScreen(int scrnIndex, ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     VBOXPtr pVBox = VBOXGetRec(pScrn);
+
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        VBOXDRICloseScreen(pScreen, pVBox);
+    pVBox->useDRI = false;
+#endif
 
     if (pVBox->useVbva == TRUE)
         vboxDisableVbva(pScrn);
@@ -844,6 +874,9 @@ VBOXCloseScreen(int scrnIndex, ScreenPtr pScreen)
     /* Destroy the VGA hardware record */
     vgaHWFreeHWRec(pScrn);
 
+    /* And do additional bits which are separate for historical reasons */
+    vbox_close(pScrn, pVBox);
+
     pScreen->CloseScreen = pVBox->CloseScreen;
     return pScreen->CloseScreen(scrnIndex, pScreen);
 }
@@ -855,7 +888,7 @@ VBOXSwitchMode(int scrnIndex, DisplayModePtr pMode, int flags)
     VBOXPtr pVBox;
     Bool rc = TRUE;
 
-    pScrn = xf86Screens[scrnIndex];  /* Why does X have three ways of refering to the screen? */
+    pScrn = xf86Screens[scrnIndex];  /* Why does X have three ways of referring to the screen? */
     pVBox = VBOXGetRec(pScrn);
     if (pVBox->useVbva)
         if (!vboxDisableVbva(pScrn))  /* This would be bad. */
@@ -928,8 +961,6 @@ VBOXSetMode(ScrnInfoPtr pScrn, DisplayModePtr pMode)
        the virtual offset. */
     outw(VBE_DISPI_IOPORT_INDEX, VBE_DISPI_INDEX_VIRT_WIDTH);
     outw(VBE_DISPI_IOPORT_DATA, pMode->HDisplay);
-    pVBox->cLastWidth = pMode->HDisplay;
-    pVBox->cLastHeight = pMode->VDisplay;
     vboxEnableGraphicsCap(pVBox);
     TRACE_EXIT();
     return (TRUE);
@@ -949,6 +980,10 @@ static bool VBOXAdjustScreenPixmap(ScrnInfoPtr pScrn, DisplayModePtr pMode)
     pScreen->ModifyPixmapHeader(pPixmap, pMode->HDisplay, pMode->VDisplay,
                                 pScrn->depth, bpp, pMode->HDisplay * bpp / 8,
                                 pVBox->base);
+#ifdef VBOX_DRI
+    if (pVBox->useDRI)
+        VBOXDRIUpdateStride(pScrn, pVBox);
+#endif
     pScrn->EnableDisableFBAccess(pScrn->scrnIndex, FALSE);
     pScrn->EnableDisableFBAccess(pScrn->scrnIndex, TRUE);
     return TRUE;
@@ -988,9 +1023,6 @@ VBOXMapVidMem(ScrnInfoPtr pScrn)
     if (pVBox->base != NULL)
         return (TRUE);
 
-    pScrn->memPhysBase = pVBox->mapPhys;
-    pScrn->fbOffset = pVBox->mapOff;
-
 #ifdef PCIACCESS
     (void) pci_device_map_range(pVBox->pciInfo,
                                 pScrn->memPhysBase,
@@ -1000,7 +1032,7 @@ VBOXMapVidMem(ScrnInfoPtr pScrn)
 #else
     pVBox->base = xf86MapPciMem(pScrn->scrnIndex,
                                 VIDMEM_FRAMEBUFFER,
-                                pVBox->pciTag, pVBox->mapPhys,
+                                pVBox->pciTag, pScrn->memPhysBase,
                                 (unsigned) pVBox->mapSize);
 #endif
     if (pVBox->base)

@@ -1,10 +1,10 @@
-/* $Id: DevPit-i8254.cpp $ */
+/* $Id: DevPit-i8254.cpp 35178 2010-12-16 13:06:34Z vboxsync $ */
 /** @file
  * DevPIT-i8254 - Intel 8254 Programmable Interval Timer (PIT) And Dummy Speaker Device.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,8 @@
 # define FAKE_REFRESH_CLOCK
 #endif
 
+/** The effective counter mode - if bit 1 is set, bit 2 is ignored. */
+#define EFFECTIVE_MODE(x)   ((x) & ~(((x) & 2) << 1))
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -116,7 +118,7 @@ typedef struct PITChannelState
     /* irq handling */
     int64_t next_transition_time;
     int32_t irq;
-    /** Number of release log entries. Used to prevent floading. */
+    /** Number of release log entries. Used to prevent flooding. */
     uint32_t cRelLogEntries;
 
     uint32_t count; /* can be 65536 */
@@ -187,7 +189,7 @@ static int pit_get_count(PITChannelState *s)
     int counter;
     PTMTIMER pTimer = s->CTX_SUFF(pPit)->channels[0].CTX_SUFF(pTimer);
 
-    if (s->mode == 2)
+    if (EFFECTIVE_MODE(s->mode) == 2)
     {
         if (s->u64NextTS == UINT64_MAX)
         {
@@ -204,7 +206,7 @@ static int pit_get_count(PITChannelState *s)
         return s->count - d;
     }
     d = ASMMultU64ByU32DivByU32(TMTimerGet(pTimer) - s->count_load_time, PIT_FREQ, TMTimerGetFreq(pTimer));
-    switch(s->mode) {
+    switch(EFFECTIVE_MODE(s->mode)) {
     case 0:
     case 1:
     case 4:
@@ -231,7 +233,7 @@ static int pit_get_out1(PITChannelState *s, int64_t current_time)
     int out;
 
     d = ASMMultU64ByU32DivByU32(current_time - s->count_load_time, PIT_FREQ, TMTimerGetFreq(pTimer));
-    switch(s->mode) {
+    switch(EFFECTIVE_MODE(s->mode)) {
     default:
     case 0:
         out = (d >= s->count);
@@ -292,7 +294,7 @@ static void pit_set_gate(PITState *pit, int channel, int val)
     PTMTIMER pTimer = s->CTX_SUFF(pPit)->channels[0].CTX_SUFF(pTimer);
     Assert((val & 1) == val);
 
-    switch(s->mode) {
+    switch(EFFECTIVE_MODE(s->mode)) {
     default:
     case 0:
     case 4:
@@ -331,13 +333,20 @@ DECLINLINE(void) pit_load_count(PITChannelState *s, int val)
     pit_irq_timer_update(s, s->count_load_time, s->count_load_time);
 
     /* log the new rate (ch 0 only). */
-    if (    s->pTimerR3 /* ch 0 */
-        &&  s->cRelLogEntries++ < 32)
-        LogRel(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=0)\n",
-                s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100));
+    if (s->pTimerR3 /* ch 0 */)
+    {
+        if (s->cRelLogEntries++ < 32)
+            LogRel(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=0)\n",
+                    s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100));
+        else
+            Log(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=0)\n",
+                 s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100));
+        TMTimerSetFrequencyHint(s->CTX_SUFF(pTimer), PIT_FREQ / s->count);
+    }
     else
-        Log(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=0)\n",
-             s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100));
+        Log(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=%d)\n",
+             s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100,
+             s - &s->CTX_SUFF(pPit)->channels[0]));
 }
 
 /* return -1 if no transition will occur.  */
@@ -349,7 +358,7 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
     uint32_t period2;
 
     d = ASMMultU64ByU32DivByU32(current_time - s->count_load_time, PIT_FREQ, TMTimerGetFreq(pTimer));
-    switch(s->mode) {
+    switch(EFFECTIVE_MODE(s->mode)) {
     default:
     case 0:
     case 1:
@@ -359,24 +368,23 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
             return -1;
         break;
     /*
-     * Mode 2: The period is count + 1 PIT ticks.
-     * When the counter reaches 1 we sent the output low (for channel 0 that
-     * means raise an irq). On the next tick, where we should be decrementing
+     * Mode 2: The period is 'count' PIT ticks.
+     * When the counter reaches 1 we set the output low (for channel 0 that
+     * means lowering IRQ0). On the next tick, where we should be decrementing
      * from 1 to 0, the count is loaded and the output goes high (channel 0
-     * means clearing the irq).
+     * means raising IRQ0 again and triggering timer interrupt).
      *
-     * In VBox we simplify the tick cycle between 1 and 0 and immediately clears
-     * the irq. We also don't set it until we reach 0, which is a tick late - will
-     * try fix that later some day.
+     * In VirtualBox we compress the pulse and flip-flop the IRQ line at the
+     * end of the period, which signals an interrupt at the exact same time.
      */
     case 2:
         base = (d / s->count) * s->count;
 #ifndef VBOX /* see above */
         if ((d - base) == 0 && d != 0)
-            next_time = base + s->count;
+            next_time = base + s->count - 1;
         else
 #endif
-            next_time = base + s->count + 1;
+            next_time = base + s->count;
         break;
     case 3:
         base = (d / s->count) * s->count;
@@ -401,10 +409,13 @@ static int64_t pit_get_next_transition_time(PITChannelState *s,
              ASMMultU64ByU32DivByU32(next_time, TMTimerGetFreq(pTimer), PIT_FREQ), s->mode, s->count));
     next_time = s->count_load_time + ASMMultU64ByU32DivByU32(next_time, TMTimerGetFreq(pTimer), PIT_FREQ);
     /* fix potential rounding problems */
-    /* XXX: better solution: use a clock at PIT_FREQ Hz */
     if (next_time <= current_time)
-        next_time = current_time + 1;
-    return next_time;
+        next_time = current_time;
+    /* Add one to next_time; if we don't, integer truncation will cause
+     * the algorithm to think that at the end of each period, it's still
+     * within the first one instead of at the beginning of the next one.
+     */
+    return next_time + 1;
 }
 
 static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time, uint64_t now)
@@ -417,20 +428,21 @@ static void pit_irq_timer_update(PITChannelState *s, uint64_t current_time, uint
     if (!s->CTX_SUFF(pTimer))
         return;
     expire_time = pit_get_next_transition_time(s, current_time);
-    irq_level = pit_get_out1(s, current_time);
+    irq_level = pit_get_out1(s, current_time) ? PDM_IRQ_LEVEL_HIGH : PDM_IRQ_LEVEL_LOW;
 
-    /* We just flip-flop the irq level to save that extra timer call, which isn't generally required (we haven't served it for months). */
-    pDevIns = s->CTX_SUFF(pPit)->pDevIns;
-
-    /* If PIT disabled by HPET - just disconnect ticks from interrupt controllers, and not modify
-     * other moments of device functioning.
-     * @todo: is it correct?
+    /* If PIT is disabled by HPET - simply disconnect ticks from interrupt controllers,
+     * but do not modify other aspects of device operation.
      */
     if (!s->pPitR3->fDisabledByHpet)
     {
-        PDMDevHlpISASetIrq(pDevIns, s->irq, irq_level);
-        if (irq_level)
-            PDMDevHlpISASetIrq(pDevIns, s->irq, 0);
+        pDevIns = s->CTX_SUFF(pPit)->pDevIns;
+
+        if (EFFECTIVE_MODE(s->mode) == 2)
+        {
+            /* We just flip-flop the irq level to save that extra timer call, which isn't generally required (we haven't served it for years). */
+            PDMDevHlpISASetIrq(pDevIns, s->irq, PDM_IRQ_LEVEL_FLIP_FLOP);
+        } else
+            PDMDevHlpISASetIrq(pDevIns, s->irq, irq_level);
     }
 
     if (irq_level)
@@ -852,8 +864,9 @@ static DECLCALLBACK(int) pitLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
             TMR3TimerLoad(s->CTX_SUFF(pTimer), pSSM);
             LogRel(("PIT: mode=%d count=%#x (%u) - %d.%02d Hz (ch=%d) (restore)\n",
                     s->mode, s->count, s->count, PIT_FREQ / s->count, (PIT_FREQ * 100 / s->count) % 100, i));
+            TMTimerSetFrequencyHint(s->CTX_SUFF(pTimer), PIT_FREQ / s->count);
         }
-        pThis->channels[0].cRelLogEntries = 0;
+        pThis->channels[i].cRelLogEntries = 0;
     }
 
     SSMR3GetS32(pSSM, &pThis->speaker_data_on);

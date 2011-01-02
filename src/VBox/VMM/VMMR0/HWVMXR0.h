@@ -1,4 +1,4 @@
-/* $Id: HWVMXR0.h $ */
+/* $Id: HWVMXR0.h 34998 2010-12-13 12:53:16Z vboxsync $ */
 /** @file
  * HWACCM VT-x - Internal header file.
  */
@@ -234,7 +234,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, R
             val = 0xf3;                                                                         \
         }                                                                                       \
         else                                                                                    \
-        if (   ((!pCtx->csHid.Attr.n.u1DefBig && !CPUMIsGuestIn64BitCodeEx(pCtx)) || pCtx->reg) \
+        if (   (pCtx->reg || !CPUMIsGuestInPagedProtectedModeEx(pCtx) || (!pCtx->csHid.Attr.n.u1DefBig && !CPUMIsGuestIn64BitCodeEx(pCtx))) \
             && pCtx->reg##Hid.Attr.n.u1Present == 1)                                            \
             val = pCtx->reg##Hid.Attr.u | X86_SEL_TYPE_ACCESSED;                                \
         else                                                                                    \

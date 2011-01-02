@@ -1,4 +1,4 @@
-/* $Id: VMMGCDeps.cpp $ */
+/* $Id: VMMGCDeps.cpp 35298 2010-12-22 12:35:46Z vboxsync $ */
 /** @file
  * VMMGC Runtime Dependencies.
  */
@@ -15,8 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#include <iprt/crc.h>
 #include <iprt/string.h>
-#include <iprt/crc32.h>
+
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
+RT_C_DECLS_BEGIN
+extern uint64_t __udivdi3(uint64_t, uint64_t);
+extern uint64_t __umoddi3(uint64_t, uint64_t);
+RT_C_DECLS_END
+#endif // RT_OS_SOLARIS || RT_OS_FREEBSD
 
 PFNRT g_VMMGCDeps[] =
 {
@@ -24,6 +31,11 @@ PFNRT g_VMMGCDeps[] =
     (PFNRT)memcpy,
     (PFNRT)memchr,
     (PFNRT)memcmp,
-    (PFNRT)RTCrc32
+    (PFNRT)RTCrc32,
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
+    (PFNRT)__udivdi3,
+    (PFNRT)__umoddi3,
+#endif // RT_OS_SOLARIS || RT_OS_FREEBSD
+    NULL
 };
 

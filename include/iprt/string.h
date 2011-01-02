@@ -1,9 +1,9 @@
 /** @file
- * IPRT - String Manipluation.
+ * IPRT - String Manipulation.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,11 +28,33 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+#include <iprt/assert.h>
 #include <iprt/stdarg.h>
 #include <iprt/err.h> /* for VINF_SUCCESS */
 #if defined(RT_OS_LINUX) && defined(__KERNEL__)
 # include <linux/string.h>
 #elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
+/** @todo
+ * XXX: Very ugly hack to get things build on recent FreeBSD builds. They have
+ * memchr now and we need to include param.h to get __FreeBSD_version and make
+ * memchr available based on the version below or we can't compile the kernel
+ * module on older versions anymore.
+ *
+ * But including param.h here opens Pandora's box because we clash with a few
+ * defines namely PVM and PAGE_SIZE. We can safely undefine PVM here but not
+ * PAGE_SIZE because this results in build errors sooner or later. Luckily this
+ * define is in a header included by param.h (machine/param.h). We define the
+ * guards here to prevent inclusion of it if PAGE_SIZE was defined already.
+ *
+ * @todo aeichner: Search for an elegant solution and cleanup this mess ASAP!
+ */
+# ifdef PAGE_SIZE
+#  define _AMD64_INCLUDE_PARAM_H_
+#  define _I386_INCLUDE_PARAM_H_
+#  define _MACHINE_PARAM_H_
+# endif
+# include <sys/param.h> /* __FreeBSD_version */
+# undef PVM
 # include <sys/libkern.h>
   /*
    * No memmove on versions < 7.2
@@ -57,13 +79,30 @@
  * Supply prototypes for standard string functions provided by
  * IPRT instead of the operating environment.
  */
-#if    (defined(RT_OS_DARWIN) && defined(KERNEL)) \
-    || (defined(RT_OS_FREEBSD) && defined(_KERNEL))
+#if defined(RT_OS_DARWIN) && defined(KERNEL)
 RT_C_DECLS_BEGIN
 void *memchr(const void *pv, int ch, size_t cb);
 char *strpbrk(const char *pszStr, const char *pszChars);
 RT_C_DECLS_END
 #endif
+
+#if defined(RT_OS_FREEBSD) && defined(_KERNEL)
+RT_C_DECLS_BEGIN
+#if __FreeBSD_version < 900000
+void *memchr(const void *pv, int ch, size_t cb);
+#endif
+char *strpbrk(const char *pszStr, const char *pszChars);
+RT_C_DECLS_END
+#endif
+
+/** @def RT_USE_RTC_3629
+ * When defined the UTF-8 range will stop at  0x10ffff.  If not defined, the
+ * range stops at 0x7fffffff.
+ * @remarks Must be defined both when building and using the IPRT.  */
+#ifdef DOXYGEN_RUNNING
+# define RT_USE_RTC_3629
+#endif
+
 
 /**
  * Byte zero the specified object.
@@ -99,6 +138,7 @@ RT_C_DECLS_END
 #define RT_BZERO(pv, cb)    do { memset((pv), 0, cb); } while (0)
 
 
+
 /** @defgroup grp_rt_str    RTStr - String Manipulation
  * Mostly UTF-8 related helpers where the standard string functions won't do.
  * @ingroup grp_rt
@@ -114,17 +154,43 @@ RT_C_DECLS_BEGIN
 #define RTSTR_MAX       (~(size_t)0)
 
 
+/** @def RTMEM_TAG
+ * The default allocation tag used by the RTStr allocation APIs.
+ *
+ * When not defined before the inclusion of iprt/string.h, this will default to
+ * the pointer to the current file name.  The string API will make of use of
+ * this as pointer to a volatile but read-only string.
+ */
+#ifndef RTSTR_TAG
+# define RTSTR_TAG      (__FILE__)
+#endif
+
+
 #ifdef IN_RING3
 
 /**
- * Allocates tmp buffer, translates pszString from UTF8 to current codepage.
+ * Allocates tmp buffer with default tag, translates pszString from UTF8 to
+ * current codepage.
  *
  * @returns iprt status code.
  * @param   ppszString      Receives pointer of allocated native CP string.
  *                          The returned pointer must be freed using RTStrFree().
  * @param   pszString       UTF-8 string to convert.
  */
-RTR3DECL(int)  RTStrUtf8ToCurrentCP(char **ppszString, const char *pszString);
+#define RTStrUtf8ToCurrentCP(ppszString, pszString)     RTStrUtf8ToCurrentCPTag((ppszString), (pszString), RTSTR_TAG)
+
+/**
+ * Allocates tmp buffer with custom tag, translates pszString from UTF8 to
+ * current codepage.
+ *
+ * @returns iprt status code.
+ * @param   ppszString      Receives pointer of allocated native CP string.
+ *                          The returned pointer must be freed using
+ *                          RTStrFree()., const char *pszTag
+ * @param   pszString       UTF-8 string to convert.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTR3DECL(int)  RTStrUtf8ToCurrentCPTag(char **ppszString, const char *pszString, const char *pszTag);
 
 /**
  * Allocates tmp buffer, translates pszString from current codepage to UTF-8.
@@ -134,9 +200,20 @@ RTR3DECL(int)  RTStrUtf8ToCurrentCP(char **ppszString, const char *pszString);
  *                          The returned pointer must be freed using RTStrFree().
  * @param   pszString       Native string to convert.
  */
-RTR3DECL(int)  RTStrCurrentCPToUtf8(char **ppszString, const char *pszString);
+#define RTStrCurrentCPToUtf8(ppszString, pszString)     RTStrCurrentCPToUtf8Tag((ppszString), (pszString), RTSTR_TAG)
 
-#endif
+/**
+ * Allocates tmp buffer, translates pszString from current codepage to UTF-8.
+ *
+ * @returns iprt status code.
+ * @param   ppszString      Receives pointer of allocated UTF-8 string.
+ *                          The returned pointer must be freed using RTStrFree().
+ * @param   pszString       Native string to convert.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTR3DECL(int)  RTStrCurrentCPToUtf8Tag(char **ppszString, const char *pszString, const char *pszTag);
+
+#endif /* IN_RING3 */
 
 /**
  * Free string allocated by any of the non-UCS-2 string functions.
@@ -148,35 +225,66 @@ RTR3DECL(int)  RTStrCurrentCPToUtf8(char **ppszString, const char *pszString);
 RTDECL(void)  RTStrFree(char *pszString);
 
 /**
- * Allocates a new copy of the given UTF-8 string.
+ * Allocates a new copy of the given UTF-8 string (default tag).
  *
  * @returns Pointer to the allocated UTF-8 string.
  * @param   pszString       UTF-8 string to duplicate.
  */
-RTDECL(char *) RTStrDup(const char *pszString);
+#define RTStrDup(pszString)             RTStrDupTag((pszString), RTSTR_TAG)
 
 /**
- * Allocates a new copy of the given UTF-8 string.
+ * Allocates a new copy of the given UTF-8 string (custom tag).
+ *
+ * @returns Pointer to the allocated UTF-8 string.
+ * @param   pszString       UTF-8 string to duplicate.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(char *) RTStrDupTag(const char *pszString, const char *pszTag);
+
+/**
+ * Allocates a new copy of the given UTF-8 string (default tag).
  *
  * @returns iprt status code.
  * @param   ppszString      Receives pointer of the allocated UTF-8 string.
  *                          The returned pointer must be freed using RTStrFree().
  * @param   pszString       UTF-8 string to duplicate.
  */
-RTDECL(int)  RTStrDupEx(char **ppszString, const char *pszString);
+#define RTStrDupEx(ppszString, pszString)   RTStrDupExTag((ppszString), (pszString), RTSTR_TAG)
 
 /**
- * Allocates a new copy of the given UTF-8 substring.
+ * Allocates a new copy of the given UTF-8 string (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   ppszString      Receives pointer of the allocated UTF-8 string.
+ *                          The returned pointer must be freed using RTStrFree().
+ * @param   pszString       UTF-8 string to duplicate.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTStrDupExTag(char **ppszString, const char *pszString, const char *pszTag);
+
+/**
+ * Allocates a new copy of the given UTF-8 substring (default tag).
  *
  * @returns Pointer to the allocated UTF-8 substring.
  * @param   pszString       UTF-8 string to duplicate.
  * @param   cchMax          The max number of chars to duplicate, not counting
  *                          the terminator.
  */
-RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax);
+#define RTStrDupN(pszString, cchMax)        RTStrDupNTag((pszString), (cchMax), RTSTR_TAG)
 
 /**
- * Appends a string onto an existing IPRT allocated string.
+ * Allocates a new copy of the given UTF-8 substring (custom tag).
+ *
+ * @returns Pointer to the allocated UTF-8 substring.
+ * @param   pszString       UTF-8 string to duplicate.
+ * @param   cchMax          The max number of chars to duplicate, not counting
+ *                          the terminator.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(char *) RTStrDupNTag(const char *pszString, size_t cchMax, const char *pszTag);
+
+/**
+ * Appends a string onto an existing IPRT allocated string (default tag).
  *
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
@@ -188,10 +296,27 @@ RTDECL(char *) RTStrDupN(const char *pszString, size_t cchMax);
  * @param   pszAppend           The string to append.  NULL and empty strings
  *                              are quietly ignored.
  */
-RTDECL(int) RTStrAAppend(char **ppsz, const char *pszAppend);
+#define RTStrAAppend(ppsz, pszAppend)   RTStrAAppendTag((ppsz), (pszAppend), RTSTR_TAG)
 
 /**
- * Appends N bytes from a strings onto an existing IPRT allocated string.
+ * Appends a string onto an existing IPRT allocated string (custom tag).
+ *
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
+ *          remains unchanged.
+ *
+ * @param   ppsz                Pointer to the string pointer.  The string
+ *                              pointer must either be NULL or point to a string
+ *                              returned by an IPRT string API.  (In/Out)
+ * @param   pszAppend           The string to append.  NULL and empty strings
+ *                              are quietly ignored.
+ * @param   pszTag              Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrAAppendTag(char **ppsz, const char *pszAppend, const char *pszTag);
+
+/**
+ * Appends N bytes from a strings onto an existing IPRT allocated string
+ * (default tag).
  *
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
@@ -208,7 +333,29 @@ RTDECL(int) RTStrAAppend(char **ppsz, const char *pszAppend);
  *                              value RTSTR_MAX that can be used to indicate all
  *                              of @a pszAppend without having to strlen it.
  */
-RTDECL(int) RTStrAAppendN(char **ppsz, const char *pszAppend, size_t cchAppend);
+#define RTStrAAppendN(ppsz, pszAppend, cchAppend)   RTStrAAppendNTag((ppsz), (pszAppend), (cchAppend), RTSTR_TAG)
+
+/**
+ * Appends N bytes from a strings onto an existing IPRT allocated string (custom
+ * tag).
+ *
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
+ *          remains unchanged.
+ *
+ * @param   ppsz                Pointer to the string pointer.  The string
+ *                              pointer must either be NULL or point to a string
+ *                              returned by an IPRT string API.  (In/Out)
+ * @param   pszAppend           The string to append.  Can be NULL if cchAppend
+ *                              is NULL.
+ * @param   cchAppend           The number of chars (not code points) to append
+ *                              from pszAppend.   Must not be more than
+ *                              @a pszAppend contains, except for the special
+ *                              value RTSTR_MAX that can be used to indicate all
+ *                              of @a pszAppend without having to strlen it.
+ * @param   pszTag              Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrAAppendNTag(char **ppsz, const char *pszAppend, size_t cchAppend, const char *pszTag);
 
 /**
  * Appends one or more strings onto an existing IPRT allocated string.
@@ -229,10 +376,33 @@ RTDECL(int) RTStrAAppendN(char **ppsz, const char *pszAppend, size_t cchAppend);
  *                              (size_t) pairs.  The strings will be appended to
  *                              the string in the first argument.
  */
-RTDECL(int) RTStrAAppendExNV(char **ppsz, size_t cPairs, va_list va);
+#define RTStrAAppendExNV(ppsz, cPairs, va)  RTStrAAppendExNVTag((ppsz), (cPairs), (va), RTSTR_TAG)
 
 /**
  * Appends one or more strings onto an existing IPRT allocated string.
+ *
+ * This is a very flexible and efficient alternative to using RTStrAPrintf to
+ * combine several strings together.
+ *
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
+ *          remains unchanged.
+ *
+ * @param   ppsz                Pointer to the string pointer.  The string
+ *                              pointer must either be NULL or point to a string
+ *                              returned by an IPRT string API.  (In/Out)
+ * @param   cPairs              The number of string / length pairs in the
+ *                              @a va.
+ * @param   va                  List of string (const char *) and length
+ *                              (size_t) pairs.  The strings will be appended to
+ *                              the string in the first argument.
+ * @param   pszTag              Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrAAppendExNVTag(char **ppsz, size_t cPairs, va_list va, const char *pszTag);
+
+/**
+ * Appends one or more strings onto an existing IPRT allocated string
+ * (untagged).
  *
  * This is a very flexible and efficient alternative to using RTStrAPrintf to
  * combine several strings together.
@@ -250,7 +420,64 @@ RTDECL(int) RTStrAAppendExNV(char **ppsz, size_t cPairs, va_list va);
  *                              (size_t) pairs.  The strings will be appended to
  *                              the string in the first argument.
  */
-RTDECL(int) RTStrAAppendExN(char **ppsz, size_t cPairs, ...);
+DECLINLINE(int) RTStrAAppendExN(char **ppsz, size_t cPairs, ...)
+{
+    int     rc;
+    va_list va;
+    va_start(va, cPairs);
+    rc = RTStrAAppendExNVTag(ppsz, cPairs, va, RTSTR_TAG);
+    va_end(va);
+    return rc;
+}
+
+/**
+ * Appends one or more strings onto an existing IPRT allocated string (custom
+ * tag).
+ *
+ * This is a very flexible and efficient alternative to using RTStrAPrintf to
+ * combine several strings together.
+ *
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
+ *          remains unchanged.
+ *
+ * @param   ppsz                Pointer to the string pointer.  The string
+ *                              pointer must either be NULL or point to a string
+ *                              returned by an IPRT string API.  (In/Out)
+ * @param   pszTag              Allocation tag used for statistics and such.
+ * @param   cPairs              The number of string / length pairs in the
+ *                              ellipsis.
+ * @param   ...                 List of string (const char *) and length
+ *                              (size_t) pairs.  The strings will be appended to
+ *                              the string in the first argument.
+ */
+DECLINLINE(int) RTStrAAppendExNTag(char **ppsz, const char *pszTag, size_t cPairs, ...)
+{
+    int     rc;
+    va_list va;
+    va_start(va, cPairs);
+    rc = RTStrAAppendExNVTag(ppsz, cPairs, va, pszTag);
+    va_end(va);
+    return rc;
+}
+
+/**
+ * Truncates an IPRT allocated string (default tag).
+ *
+ * @retval  VINF_SUCCESS.
+ * @retval  VERR_OUT_OF_RANGE if cchNew is too long.  Nothing is done.
+ *
+ * @param   ppsz                Pointer to the string pointer.  The string
+ *                              pointer can be NULL if @a cchNew is 0, no change
+ *                              is made then.  If we actually reallocate the
+ *                              string, the string pointer might be changed by
+ *                              this call.  (In/Out)
+ * @param   cchNew              The new string length (excluding the
+ *                              terminator).  The string must be at least this
+ *                              long or we'll return VERR_OUT_OF_RANGE and
+ *                              assert on you.
+ */
+#define RTStrATruncate(ppsz, cchNew)    RTStrATruncateTag((ppsz), (cchNew), RTSTR_TAG)
 
 /**
  * Truncates an IPRT allocated string.
@@ -267,11 +494,12 @@ RTDECL(int) RTStrAAppendExN(char **ppsz, size_t cPairs, ...);
  *                              terminator).  The string must be at least this
  *                              long or we'll return VERR_OUT_OF_RANGE and
  *                              assert on you.
+ * @param   pszTag              Allocation tag used for statistics and such.
  */
-RTDECL(int) RTStrATruncate(char **ppsz, size_t cchNew);
+RTDECL(int) RTStrATruncateTag(char **ppsz, size_t cchNew, const char *pszTag);
 
 /**
- * Allocates memory for string storage.
+ * Allocates memory for string storage (default tag).
  *
  * You should normally not use this function, except if there is some very
  * custom string handling you need doing that isn't covered by any of the other
@@ -288,10 +516,31 @@ RTDECL(int) RTStrATruncate(char **ppsz, size_t cchNew);
  * @param   cb                  How many bytes to allocate.  If this is zero, we
  *                              will allocate a terminator byte anyway.
  */
-RTDECL(char *) RTStrAlloc(size_t cb);
+#define RTStrAlloc(cb)                  RTStrAllocTag((cb), RTSTR_TAG)
 
 /**
- * Allocates memory for string storage, with status code.
+ * Allocates memory for string storage (custom tag).
+ *
+ * You should normally not use this function, except if there is some very
+ * custom string handling you need doing that isn't covered by any of the other
+ * APIs.
+ *
+ * @returns Pointer to the allocated string.  The first byte is always set
+ *          to the string terminator char, the contents of the remainder of the
+ *          memory is undefined.  The string must be freed by calling RTStrFree.
+ *
+ *          NULL is returned if the allocation failed.  Please translate this to
+ *          VERR_NO_STR_MEMORY and not VERR_NO_MEMORY.  Also consider
+ *          RTStrAllocEx if an IPRT status code is required.
+ *
+ * @param   cb                  How many bytes to allocate.  If this is zero, we
+ *                              will allocate a terminator byte anyway.
+ * @param   pszTag              Allocation tag used for statistics and such.
+ */
+RTDECL(char *) RTStrAllocTag(size_t cb, const char *pszTag);
+
+/**
+ * Allocates memory for string storage, with status code (default tag).
  *
  * You should normally not use this function, except if there is some very
  * custom string handling you need doing that isn't covered by any of the other
@@ -309,10 +558,32 @@ RTDECL(char *) RTStrAlloc(size_t cb);
  * @param   cb                  How many bytes to allocate.  If this is zero, we
  *                              will allocate a terminator byte anyway.
  */
-RTDECL(int) RTStrAllocEx(char **ppsz, size_t cb);
+#define RTStrAllocEx(ppsz, cb)      RTStrAllocExTag((ppsz), (cb), RTSTR_TAG)
 
 /**
- * Reallocates the specifed string.
+ * Allocates memory for string storage, with status code (custom tag).
+ *
+ * You should normally not use this function, except if there is some very
+ * custom string handling you need doing that isn't covered by any of the other
+ * APIs.
+ *
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_NO_STR_MEMORY
+ *
+ * @param   ppsz                Where to return the allocated string.  This will
+ *                              be set to NULL on failure.  On success, the
+ *                              returned memory will always start with a
+ *                              terminator char so that it is considered a valid
+ *                              C string, the contents of rest of the memory is
+ *                              undefined.
+ * @param   cb                  How many bytes to allocate.  If this is zero, we
+ *                              will allocate a terminator byte anyway.
+ * @param   pszTag              Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrAllocExTag(char **ppsz, size_t cb, const char *pszTag);
+
+/**
+ * Reallocates the specified string (default tag).
  *
  * You should normally not have use this function, except perhaps to truncate a
  * really long string you've got from some IPRT string API, but then you should
@@ -343,7 +614,42 @@ RTDECL(int) RTStrAllocEx(char **ppsz, size_t cb);
  *                              memory backing the string, i.e. it includes the
  *                              terminator char.
  */
-RTDECL(int) RTStrRealloc(char **ppsz, size_t cbNew);
+#define RTStrRealloc(ppsz, cbNew)       RTStrReallocTag((ppsz), (cbNew), RTSTR_TAG)
+
+/**
+ * Reallocates the specified string (custom tag).
+ *
+ * You should normally not have use this function, except perhaps to truncate a
+ * really long string you've got from some IPRT string API, but then you should
+ * use RTStrATruncate.
+ *
+ * @returns VINF_SUCCESS.
+ * @retval  VERR_NO_STR_MEMORY if we failed to reallocate the string, @a *ppsz
+ *          remains unchanged.
+ *
+ * @param   ppsz                Pointer to the string variable containing the
+ *                              input and output string.
+ *
+ *                              When not freeing the string, the result will
+ *                              always have the last byte set to the terminator
+ *                              character so that when used for string
+ *                              truncation the result will be a valid C string
+ *                              (your job to keep it a valid UTF-8 string).
+ *
+ *                              When the input string is NULL and we're supposed
+ *                              to reallocate, the returned string will also
+ *                              have the first byte set to the terminator char
+ *                              so it will be a valid C string.
+ *
+ * @param   cbNew               When @a cbNew is zero, we'll behave like
+ *                              RTStrFree and @a *ppsz will be set to NULL.
+ *
+ *                              When not zero, this will be the new size of the
+ *                              memory backing the string, i.e. it includes the
+ *                              terminator char.
+ * @param   pszTag              Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrReallocTag(char **ppsz, size_t cbNew, const char *pszTag);
 
 /**
  * Validates the UTF-8 encoding of the string.
@@ -476,14 +782,27 @@ RTDECL(size_t) RTStrCalcUtf16Len(const char *psz);
 RTDECL(int) RTStrCalcUtf16LenEx(const char *psz, size_t cch, size_t *pcwc);
 
 /**
- * Translate a UTF-8 string into a UTF-16 allocating the result buffer.
+ * Translate a UTF-8 string into a UTF-16 allocating the result buffer (default
+ * tag).
  *
  * @returns iprt status code.
  * @param   pszString       UTF-8 string to convert.
  * @param   ppwszString     Receives pointer to the allocated UTF-16 string.
  *                          The returned string must be freed using RTUtf16Free().
  */
-RTDECL(int) RTStrToUtf16(const char *pszString, PRTUTF16 *ppwszString);
+#define RTStrToUtf16(pszString, ppwszString)    RTStrToUtf16Tag((pszString), (ppwszString), RTSTR_TAG)
+
+/**
+ * Translate a UTF-8 string into a UTF-16 allocating the result buffer (custom
+ * tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       UTF-8 string to convert.
+ * @param   ppwszString     Receives pointer to the allocated UTF-16 string.
+ *                          The returned string must be freed using RTUtf16Free().
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrToUtf16Tag(const char *pszString, PRTUTF16 *ppwszString, const char *pszTag);
 
 /**
  * Translates pszString from UTF-8 to UTF-16, allocating the result buffer if requested.
@@ -507,8 +826,256 @@ RTDECL(int) RTStrToUtf16(const char *pszString, PRTUTF16 *ppwszString);
  *                          VERR_NO_STR_MEMORY will it contain a valid string
  *                          length that can be used to resize the buffer.
  */
-RTDECL(int)  RTStrToUtf16Ex(const char *pszString, size_t cchString, PRTUTF16 *ppwsz, size_t cwc, size_t *pcwc);
+#define RTStrToUtf16Ex(pszString, cchString, ppwsz, cwc, pcwc) \
+    RTStrToUtf16ExTag((pszString), (cchString), (ppwsz), (cwc), (pcwc), RTSTR_TAG)
 
+/**
+ * Translates pszString from UTF-8 to UTF-16, allocating the result buffer if
+ * requested (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       UTF-8 string to convert.
+ * @param   cchString       The maximum size in chars (the type) to convert. The conversion stop
+ *                          when it reaches cchString or the string terminator ('\\0').
+ *                          Use RTSTR_MAX to translate the entire string.
+ * @param   ppwsz           If cwc is non-zero, this must either be pointing to pointer to
+ *                          a buffer of the specified size, or pointer to a NULL pointer.
+ *                          If *ppwsz is NULL or cwc is zero a buffer of at least cwc items
+ *                          will be allocated to hold the translated string.
+ *                          If a buffer was requested it must be freed using RTUtf16Free().
+ * @param   cwc             The buffer size in RTUTF16s. This includes the terminator.
+ * @param   pcwc            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTStrToUtf16ExTag(const char *pszString, size_t cchString, PRTUTF16 *ppwsz, size_t cwc, size_t *pcwc, const char *pszTag);
+
+
+/**
+ * Calculates the length of the string in Latin-1 characters.
+ *
+ * This function will validate the string, and incorrectly encoded UTF-8
+ * strings as well as string with codepoints outside the latin-1 range will be
+ * rejected.  The primary purpose of this function is to help allocate buffers
+ * for RTStrToLatin1Ex of the correct size.  For most other purposes
+ * RTStrCalcLatin1LenEx() should be used.
+ *
+ * @returns Number of Latin-1 characters.
+ * @returns 0 if the string was incorrectly encoded.
+ * @param   psz         The string.
+ */
+RTDECL(size_t) RTStrCalcLatin1Len(const char *psz);
+
+/**
+ * Calculates the length of the string in Latin-1 characters.
+ *
+ * This function will validate the string, and incorrectly encoded UTF-8
+ * strings as well as string with codepoints outside the latin-1 range will be
+ * rejected.
+ *
+ * @returns iprt status code.
+ * @param   psz         The string.
+ * @param   cch         The max string length. Use RTSTR_MAX to process the
+ *                      entire string.
+ * @param   pcch        Where to store the string length. Optional.
+ *                      This is undefined on failure.
+ */
+RTDECL(int) RTStrCalcLatin1LenEx(const char *psz, size_t cch, size_t *pcwc);
+
+/**
+ * Translate a UTF-8 string into a Latin-1 allocating the result buffer (default
+ * tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       UTF-8 string to convert.
+ * @param   ppszString      Receives pointer to the allocated Latin-1 string.
+ *                          The returned string must be freed using RTStrFree().
+ */
+#define RTStrToLatin1(pszString, ppszString)    RTStrToLatin1Tag((pszString), (ppszString), RTSTR_TAG)
+
+/**
+ * Translate a UTF-8 string into a Latin-1 allocating the result buffer (custom
+ * tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       UTF-8 string to convert.
+ * @param   ppszString      Receives pointer to the allocated Latin-1 string.
+ *                          The returned string must be freed using RTStrFree().
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrToLatin1Tag(const char *pszString, char **ppszString, const char *pszTag);
+
+/**
+ * Translates pszString from UTF-8 to Latin-1, allocating the result buffer if requested.
+ *
+ * @returns iprt status code.
+ * @param   pszString       UTF-8 string to convert.
+ * @param   cchString       The maximum size in chars (the type) to convert.
+ *                          The conversion stop when it reaches cchString or
+ *                          the string terminator ('\\0'). Use RTSTR_MAX to
+ *                          translate the entire string.
+ * @param   ppsz            If cch is non-zero, this must either be pointing to
+ *                          pointer to a buffer of the specified size, or
+ *                          pointer to a NULL pointer.  If *ppsz is NULL or cch
+ *                          is zero a buffer of at least cch items will be
+ *                          allocated to hold the translated string. If a
+ *                          buffer was requested it must be freed using
+ *                          RTStrFree().
+ * @param   cch             The buffer size in bytes. This includes the
+ *                          terminator.
+ * @param   pcch            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ */
+#define RTStrToLatin1Ex(pszString, cchString, ppsz, cch, pcch) \
+    RTStrToLatin1ExTag((pszString), (cchString), (ppsz), (cch), (pcch), RTSTR_TAG)
+
+/**
+ * Translates pszString from UTF-8 to Latin1, allocating the result buffer if
+ * requested (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       UTF-8 string to convert.
+ * @param   cchString       The maximum size in chars (the type) to convert.
+ *                          The conversion stop when it reaches cchString or
+ *                          the string terminator ('\\0'). Use RTSTR_MAX to
+ *                          translate the entire string.
+ * @param   ppsz            If cch is non-zero, this must either be pointing to
+ *                          pointer to a buffer of the specified size, or
+ *                          pointer to a NULL pointer.  If *ppsz is NULL or cch
+ *                          is zero a buffer of at least cch items will be
+ *                          allocated to hold the translated string. If a
+ *                          buffer was requested it must be freed using
+ *                          RTStrFree().
+ * @param   cch             The buffer size in bytes.  This includes the
+ *                          terminator.
+ * @param   pcch            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTStrToLatin1ExTag(const char *pszString, size_t cchString, char **ppsz, size_t cch, size_t *pcch, const char *pszTag);
+
+
+/**
+ * Translate a Latin1 string into a UTF-8 allocating the result buffer (default
+ * tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       Latin1 string to convert.
+ * @param   ppszString      Receives pointer of allocated UTF-8 string on
+ *                          success, and is always set to NULL on failure.
+ *                          The returned pointer must be freed using RTStrFree().
+ */
+#define RTLatin1ToUtf8(pszString, ppszString)       RTLatin1ToUtf8Tag((pszString), (ppszString), RTSTR_TAG)
+
+/**
+ * Translate a Latin-1 string into a UTF-8 allocating the result buffer.
+ *
+ * @returns iprt status code.
+ * @param   pszString       Latin-1 string to convert.
+ * @param   ppszString      Receives pointer of allocated UTF-8 string on
+ *                          success, and is always set to NULL on failure.
+ *                          The returned pointer must be freed using RTStrFree().
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTLatin1ToUtf8Tag(const char *pszString, char **ppszString, const char *pszTag);
+
+/**
+ * Translates Latin-1 to UTF-8 using buffer provided by the caller or a fittingly
+ * sized buffer allocated by the function (default tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       The Latin-1 string to convert.
+ * @param   cchString       The number of Latin-1 characters to translate from
+ *                          pszString. The translation will stop when reaching
+ *                          cchString or the terminator ('\\0').  Use RTSTR_MAX
+ *                          to translate the entire string.
+ * @param   ppsz            If cch is non-zero, this must either be pointing to
+ *                          a pointer to a buffer of the specified size, or
+ *                          pointer to a NULL pointer.  If *ppsz is NULL or cch
+ *                          is zero a buffer of at least cch chars will be
+ *                          allocated to hold the translated string. If a
+ *                          buffer was requested it must be freed using
+ *                          RTStrFree().
+ * @param   cch             The buffer size in chars (the type). This includes the terminator.
+ * @param   pcch            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ */
+#define RTLatin1ToUtf8Ex(pszString, cchString, ppsz, cch, pcch) \
+    RTLatin1ToUtf8ExTag((pszString), (cchString), (ppsz), (cch), (pcch), RTSTR_TAG)
+
+/**
+ * Translates Latin1 to UTF-8 using buffer provided by the caller or a fittingly
+ * sized buffer allocated by the function (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       The Latin1 string to convert.
+ * @param   cchString       The number of Latin1 characters to translate from
+ *                          pwszString.  The translation will stop when
+ *                          reaching cchString or the terminator ('\\0').  Use
+ *                          RTSTR_MAX to translate the entire string.
+ * @param   ppsz            If cch is non-zero, this must either be pointing to
+ *                          a pointer to a buffer of the specified size, or
+ *                          pointer to a NULL pointer.  If *ppsz is NULL or cch
+ *                          is zero a buffer of at least cch chars will be
+ *                          allocated to hold the translated string.  If a
+ *                          buffer was requested it must be freed using
+ *                          RTStrFree().
+ * @param   cch             The buffer size in chars (the type).  This includes
+ *                          the terminator.
+ * @param   pcch            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTLatin1ToUtf8ExTag(const char *pszString, size_t cchString, char **ppsz, size_t cch, size_t *pcch, const char *pszTag);
+
+/**
+ * Calculates the length of the Latin-1 string in UTF-8 chars (bytes).
+ *
+ * The primary purpose of this function is to help allocate buffers for
+ * RTLatin1ToUtf8() of the correct size. For most other purposes
+ * RTLatin1ToUtf8Ex() should be used.
+ *
+ * @returns Number of chars (bytes).
+ * @returns 0 if the string was incorrectly encoded.
+ * @param   psz        The Latin-1 string.
+ */
+RTDECL(size_t) RTLatin1CalcUtf8Len(const char *psz);
+
+/**
+ * Calculates the length of the Latin-1 string in UTF-8 chars (bytes).
+ *
+ * @returns iprt status code.
+ * @param   psz         The string.
+ * @param   cch         The max string length. Use RTSTR_MAX to process the entire string.
+ * @param   pcch        Where to store the string length (in bytes).  Optional.
+ *                      This is undefined on failure.
+ */
+RTDECL(int) RTLatin1CalcUtf8LenEx(const char *psz, size_t cch, size_t *pcch);
 
 /**
  * Get the unicode code point at the given string position.
@@ -647,6 +1214,38 @@ DECLINLINE(int) RTStrGetCpNEx(const char **ppsz, size_t *pcch, PRTUNICP pCp)
 }
 
 /**
+ * Get the UTF-8 size in characters of a given Unicode code point.
+ *
+ * The code point is expected to be a valid Unicode one, but not necessarily in
+ * the range supported by UTF-8.
+ *
+ * @returns The number of chars (bytes) required to encode the code point, or
+ *          zero if there is no UTF-8 encoding.
+ * @param   CodePoint       The unicode code point.
+ */
+DECLINLINE(size_t) RTStrCpSize(RTUNICP CodePoint)
+{
+    if (CodePoint < 0x00000080)
+        return 1;
+    if (CodePoint < 0x00000800)
+        return 2;
+    if (CodePoint < 0x00010000)
+        return 3;
+#ifdef RT_USE_RTC_3629
+    if (CodePoint < 0x00011000)
+        return 4;
+#else
+    if (CodePoint < 0x00200000)
+        return 4;
+    if (CodePoint < 0x04000000)
+        return 5;
+    if (CodePoint < 0x7fffffff)
+        return 6;
+#endif
+    return 0;
+}
+
+/**
  * Put the unicode code point at the given string position
  * and return the pointer to the char following it.
  *
@@ -698,10 +1297,315 @@ DECLINLINE(char *) RTStrNextCp(const char *psz)
  */
 RTDECL(char *) RTStrPrevCp(const char *pszStart, const char *psz);
 
+/**
+ * Get the unicode code point at the given string position.
+ *
+ * @returns unicode code point.
+ * @returns RTUNICP_INVALID if the encoding is invalid.
+ * @param   psz         The string.
+ */
+DECLINLINE(RTUNICP) RTLatin1GetCp(const char *psz)
+{
+    return *(const unsigned char *)psz;
+}
 
+/**
+ * Get the unicode code point at the given string position.
+ *
+ * @returns iprt status code.
+ * @param   ppsz        Pointer to the string pointer. This will be updated to
+ *                      point to the char following the current code point.
+ *                      This is advanced one character forward on failure.
+ * @param   pCp         Where to store the code point.
+ *                      RTUNICP_INVALID is stored here on failure.
+ *
+ * @remark  We optimize this operation by using an inline function for
+ *          the most frequent and simplest sequence, the rest is
+ *          handled by RTStrGetCpExInternal().
+ */
+DECLINLINE(int) RTLatin1GetCpEx(const char **ppsz, PRTUNICP pCp)
+{
+    const unsigned char uch = **(const unsigned char **)ppsz;
+    (*ppsz)++;
+    *pCp = uch;
+    return VINF_SUCCESS;
+}
+
+/**
+ * Get the unicode code point at the given string position for a string of a
+ * given maximum length.
+ *
+ * @returns iprt status code.
+ * @retval  VERR_END_OF_STRING if *pcch is 0. *pCp is set to RTUNICP_INVALID.
+ *
+ * @param   ppsz        Pointer to the string pointer. This will be updated to
+ *                      point to the char following the current code point.
+ * @param   pcch        Pointer to the maximum string length.  This will be
+ *                      decremented by the size of the code point found.
+ * @param   pCp         Where to store the code point.
+ *                      RTUNICP_INVALID is stored here on failure.
+ */
+DECLINLINE(int) RTLatin1GetCpNEx(const char **ppsz, size_t *pcch, PRTUNICP pCp)
+{
+    if (RT_LIKELY(*pcch != 0))
+    {
+        const unsigned char uch = **(const unsigned char **)ppsz;
+        (*ppsz)++;
+        (*pcch)--;
+        *pCp = uch;
+        return VINF_SUCCESS;
+    }
+    *pCp = RTUNICP_INVALID;
+    return VERR_END_OF_STRING;
+}
+
+/**
+ * Get the Latin-1 size in characters of a given Unicode code point.
+ *
+ * The code point is expected to be a valid Unicode one, but not necessarily in
+ * the range supported by Latin-1.
+ *
+ * @returns the size in characters, or zero if there is no Latin-1 encoding
+ */
+DECLINLINE(size_t) RTLatin1CpSize(RTUNICP CodePoint)
+{
+    if (CodePoint < 0x100)
+        return 1;
+    return 0;
+}
+
+/**
+ * Put the unicode code point at the given string position
+ * and return the pointer to the char following it.
+ *
+ * This function will not consider anything at or following the
+ * buffer area pointed to by psz. It is therefore not suitable for
+ * inserting code points into a string, only appending/overwriting.
+ *
+ * @returns pointer to the char following the written code point.
+ * @param   psz         The string.
+ * @param   CodePoint   The code point to write.
+ *                      This should not be RTUNICP_INVALID or any other
+ *                      character out of the Latin-1 range.
+ */
+DECLINLINE(char *) RTLatin1PutCp(char *psz, RTUNICP CodePoint)
+{
+    AssertReturn(CodePoint < 0x100, NULL);
+    *psz++ = (unsigned char)CodePoint;
+    return psz;
+}
+
+/**
+ * Skips ahead, past the current code point.
+ *
+ * @returns Pointer to the char after the current code point.
+ * @param   psz     Pointer to the current code point.
+ * @remark  This will not move the next valid code point, only past the current one.
+ */
+DECLINLINE(char *) RTLatin1NextCp(const char *psz)
+{
+    psz++;
+    return (char *)psz;
+}
+
+/**
+ * Skips back to the previous code point.
+ *
+ * @returns Pointer to the char before the current code point.
+ * @returns pszStart on failure.
+ * @param   pszStart    Pointer to the start of the string.
+ * @param   psz         Pointer to the current code point.
+ */
+DECLINLINE(char *) RTLatin1PrevCp(const char *psz)
+{
+    psz--;
+    return (char *)psz;
+}
+
+
+/** @page pg_rt_str_format  The IPRT Format Strings
+ *
+ * IPRT implements most of the commonly used format types and flags with the
+ * exception of floating point which is completely missing.  In addition IPRT
+ * provides a number of IPRT specific format types for the IPRT typedefs and
+ * other useful things.  Note that several of these extensions are similar to
+ * \%p and doesn't care much if you try add formating flags/width/precision.
+ *
+ *
+ * Group 0a, The commonly used format types:
+ *      - \%s   - Takes a pointer to a zero terminated string (UTF-8) and
+ *                prints it with the optionally adjustment (width, -) and
+ *                length restriction (precision).
+ *      - \%ls  - Same as \%s except that the input is UTF-16 (output UTF-8).
+ *      - \%Ls  - Same as \%s except that the input is UCS-32 (output UTF-8).
+ *      - \%S   - R3: Same as \%s except it is printed in the current codeset
+ *                instead of UTF-8 (source is still UTF-8).
+ *                Other contexts: Same as \%s.
+ *      - \%lS  - Same as \%S except that the input is UTF-16 (output current
+ *                codeset).
+ *      - \%LS  - Same as \%S except that the input is UCS-32 (output current
+ *                codeset).
+ *      - \%c   - Takes a char and prints it.
+ *      - \%d   - Takes a signed integer and prints it as decimal. Thousand
+ *                separator (\'), zero padding (0), adjustment (-+), width,
+ *                precision
+ *      - \%i   - Same as \%d.
+ *      - \%u   - Takes an unsigned integer and prints it as decimal. Thousand
+ *                separator (\'), zero padding (0), adjustment (-+), width,
+ *                precision
+ *      - \%x   - Takes an unsigned integer and prints it as lowercased
+ *                hexadecimal.  The special hash (\#) flag causes a '0x'
+ *                prefixed to be printed. Zero padding (0), adjustment (-+),
+ *                width, precision.
+ *      - \%X   - Same as \%x except that it is uppercased.
+ *      - \%o   - Takes an unsigned (?) integer and prints it as octal. Zero
+ *                padding (0), adjustment (-+), width, precision.
+ *      - \%p   - Takes a pointer (void technically) and prints it. Zero
+ *                padding (0), adjustment (-+), width, precision.
+ *
+ * The \%d, \%i, \%u, \%x, \%X and \%o format types support the following
+ * argument type specifiers:
+ *      - \%ll  - long long (uint64_t).
+ *      - \%L   - long long (uint64_t).
+ *      - \%l   - long (uint32_t, uint64_t)
+ *      - \%h   - short (int16_t).
+ *      - \%hh  - char (int8_t).
+ *      - \%H   - char (int8_t).
+ *      - \%z   - size_t.
+ *      - \%j   - intmax_t (int64_t).
+ *      - \%t   - ptrdiff_t.
+ * The type in parentheses is typical sizes, however when printing those types
+ * you are better off using the special group 2 format types below (\%RX32 and
+ * such).
+ *
+ *
+ * Group 0b, IPRT format tricks:
+ *      - %M    - Replaces the format string, takes a string pointer.
+ *      - %N    - Nested formatting, takes a pointer to a format string
+ *                followed by the pointer to a va_list variable.  The va_list
+ *                variable will not be modified and the caller must do va_end()
+ *                on it.  Make sure the va_list variable is NOT in a parameter
+ *                list or some gcc versions/targets may get it all wrong.
+ *
+ *
+ * Group 1, the basic runtime typedefs (excluding those which obviously are
+ * pointer):
+ *      - \%RTbool          - Takes a bool value and prints 'true', 'false', or '!%d!'.
+ *      - \%RTfile          - Takes a #RTFILE value.
+ *      - \%RTfmode         - Takes a #RTFMODE value.
+ *      - \%RTfoff          - Takes a #RTFOFF value.
+ *      - \%RTfp16          - Takes a #RTFAR16 value.
+ *      - \%RTfp32          - Takes a #RTFAR32 value.
+ *      - \%RTfp64          - Takes a #RTFAR64 value.
+ *      - \%RTgid           - Takes a #RTGID value.
+ *      - \%RTino           - Takes a #RTINODE value.
+ *      - \%RTint           - Takes a #RTINT value.
+ *      - \%RTiop           - Takes a #RTIOPORT value.
+ *      - \%RTldrm          - Takes a #RTLDRMOD value.
+ *      - \%RTmac           - Takes a #PCRTMAC pointer.
+ *      - \%RTnaddr         - Takes a #PCRTNETADDR value.
+ *      - \%RTnaipv4        - Takes a #RTNETADDRIPV4 value.
+ *      - \%RTnaipv6        - Takes a #PCRTNETADDRIPV6 value.
+ *      - \%RTnthrd         - Takes a #RTNATIVETHREAD value.
+ *      - \%RTnthrd         - Takes a #RTNATIVETHREAD value.
+ *      - \%RTproc          - Takes a #RTPROCESS value.
+ *      - \%RTptr           - Takes a #RTINTPTR or #RTUINTPTR value (but not void *).
+ *      - \%RTreg           - Takes a #RTCCUINTREG value.
+ *      - \%RTsel           - Takes a #RTSEL value.
+ *      - \%RTsem           - Takes a #RTSEMEVENT, #RTSEMEVENTMULTI, #RTSEMMUTEX, #RTSEMFASTMUTEX, or #RTSEMRW value.
+ *      - \%RTsock          - Takes a #RTSOCKET value.
+ *      - \%RTthrd          - Takes a #RTTHREAD value.
+ *      - \%RTuid           - Takes a #RTUID value.
+ *      - \%RTuint          - Takes a #RTUINT value.
+ *      - \%RTunicp         - Takes a #RTUNICP value.
+ *      - \%RTutf16         - Takes a #RTUTF16 value.
+ *      - \%RTuuid          - Takes a #PCRTUUID and will print the UUID as a string.
+ *      - \%RTxuint         - Takes a #RTUINT or #RTINT value, formatting it as hex.
+ *      - \%RGi             - Takes a #RTGCINT value.
+ *      - \%RGp             - Takes a #RTGCPHYS value.
+ *      - \%RGr             - Takes a #RTGCUINTREG value.
+ *      - \%RGu             - Takes a #RTGCUINT value.
+ *      - \%RGv             - Takes a #RTGCPTR, #RTGCINTPTR or #RTGCUINTPTR value.
+ *      - \%RGx             - Takes a #RTGCUINT or #RTGCINT value, formatting it as hex.
+ *      - \%RHi             - Takes a #RTHCINT value.
+ *      - \%RHp             - Takes a #RTHCPHYS value.
+ *      - \%RHr             - Takes a #RTHCUINTREG value.
+ *      - \%RHu             - Takes a #RTHCUINT value.
+ *      - \%RHv             - Takes a #RTHCPTR, #RTHCINTPTR or #RTHCUINTPTR value.
+ *      - \%RHx             - Takes a #RTHCUINT or #RTHCINT value, formatting it as hex.
+ *      - \%RRv             - Takes a #RTRCPTR, #RTRCINTPTR or #RTRCUINTPTR value.
+ *      - \%RCi             - Takes a #RTINT value.
+ *      - \%RCp             - Takes a #RTCCPHYS value.
+ *      - \%RCr             - Takes a #RTCCUINTREG value.
+ *      - \%RCu             - Takes a #RTUINT value.
+ *      - \%RCv             - Takes a #uintptr_t, #intptr_t, void * value.
+ *      - \%RCx             - Takes a #RTUINT or #RTINT value, formatting it as hex.
+ *
+ *
+ * Group 2, the generic integer types which are prefered over relying on what
+ * bit-count a 'long', 'short',  or 'long long' has on a platform. This are
+ * highly prefered for the [u]intXX_t kind of types:
+ *      - \%RI[8|16|32|64]  - Signed integer value of the specifed bit count.
+ *      - \%RU[8|16|32|64]  - Unsigned integer value of the specifed bit count.
+ *      - \%RX[8|16|32|64]  - Hexadecimal integer value of the specifed bit count.
+ *
+ *
+ * Group 3, hex dumpers and other complex stuff which requires more than simple
+ * formatting:
+ *      - \%Rhxd            - Takes a pointer to the memory which is to be dumped in typical
+ *                            hex format. Use the precision to specify the length, and the width to
+ *                            set the number of bytes per line. Default width and precision is 16.
+ *      - \%Rhxs            - Takes a pointer to the memory to be displayed as a hex string,
+ *                            i.e. a series of space separated bytes formatted as two digit hex value.
+ *                            Use the precision to specify the length. Default length is 16 bytes.
+ *                            The width, if specified, is ignored.
+ *      - \%Rrc             - Takes an integer iprt status code as argument. Will insert the
+ *                            status code define corresponding to the iprt status code.
+ *      - \%Rrs             - Takes an integer iprt status code as argument. Will insert the
+ *                            short description of the specified status code.
+ *      - \%Rrf             - Takes an integer iprt status code as argument. Will insert the
+ *                            full description of the specified status code.
+ *      - \%Rra             - Takes an integer iprt status code as argument. Will insert the
+ *                            status code define + full description.
+ *      - \%Rwc             - Takes a long Windows error code as argument. Will insert the status
+ *                            code define corresponding to the Windows error code.
+ *      - \%Rwf             - Takes a long Windows error code as argument. Will insert the
+ *                            full description of the specified status code.
+ *      - \%Rwa             - Takes a long Windows error code as argument. Will insert the
+ *                            error code define + full description.
+ *
+ *      - \%Rhrc            - Takes a COM/XPCOM status code as argument. Will insert the status
+ *                            code define corresponding to the Windows error code.
+ *      - \%Rhrf            - Takes a COM/XPCOM status code as argument. Will insert the
+ *                            full description of the specified status code.
+ *      - \%Rhra            - Takes a COM/XPCOM error code as argument. Will insert the
+ *                            error code define + full description.
+ *
+ *      - \%Rfn             - Pretty printing of a function or method. It drops the
+ *                            return code and parameter list.
+ *      - \%Rbn             - Prints the base name.  For dropping the path in
+ *                            order to save space when printing a path name.
+ *
+ * On other platforms, \%Rw? simply prints the argument in a form of 0xXXXXXXXX.
+ *
+ *
+ * Group 4, structure dumpers:
+ *      - \%RDtimespec      - Takes a PCRTTIMESPEC.
+ *
+ *
+ * Group 5, XML / HTML escapers:
+ *      - \%RMas            - Takes a string pointer (const char *) and outputs
+ *                            it as an attribute value with the proper escaping.
+ *                            This typically ends up in double quotes.
+ *
+ *      - \%RMes            - Takes a string pointer (const char *) and outputs
+ *                            it as an element with the necessary escaping.
+ *
+ *
+ */
 
 #ifndef DECLARED_FNRTSTROUTPUT          /* duplicated in iprt/log.h */
-#define DECLARED_FNRTSTROUTPUT
+# define DECLARED_FNRTSTROUTPUT
 /**
  * Output callback.
  *
@@ -742,11 +1646,11 @@ typedef FNRTSTROUTPUT *PFNRTSTROUTPUT;
  * Gets the bit flag for the specified type.
  */
 #define RTSTR_GET_BIT_FLAG(type) \
-    ( sizeof(type) == 32 ? RTSTR_F_32BIT \
-    : sizeof(type) == 64 ? RTSTR_F_64BIT \
-    : sizeof(type) == 16 ? RTSTR_F_16BIT \
-    : sizeof(type) == 8  ? RTSTR_F_8BIT \
-    : sizeof(type) == 128? RTSTR_F_128BIT \
+    ( sizeof(type) * 8 == 32  ? RTSTR_F_32BIT \
+    : sizeof(type) * 8 == 64  ? RTSTR_F_64BIT \
+    : sizeof(type) * 8 == 16  ? RTSTR_F_16BIT \
+    : sizeof(type) * 8 == 8   ? RTSTR_F_8BIT \
+    : sizeof(type) * 8 == 128 ? RTSTR_F_128BIT \
     : 0)
 
 
@@ -784,7 +1688,7 @@ typedef FNSTRFORMAT *PFNSTRFORMAT;
  * @param   pvArgOutput Argument to the output worker.
  * @param   pfnFormat   Custom format worker.
  * @param   pvArgFormat Argument to the format worker.
- * @param   pszFormat   Format string pointer.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   InArgs      Argument list.
  */
 RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat, const char *pszFormat, va_list InArgs);
@@ -801,7 +1705,7 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
  * @param   pvArgOutput Argument to the output worker.
  * @param   pfnFormat   Custom format worker.
  * @param   pvArgFormat Argument to the format worker.
- * @param   pszFormat   Format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         Argument list.
  */
 RTDECL(size_t) RTStrFormat(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRFORMAT pfnFormat, void *pvArgFormat, const char *pszFormat, ...);
@@ -899,10 +1803,11 @@ RTDECL(int) RTStrFormatTypeSetUser(const char *pszType, void *pvUser);
 /**
  * String printf.
  *
- * @returns The length of the returned string (in pszBuffer).
+ * @returns The length of the returned string (in pszBuffer) excluding the
+ *          terminator.
  * @param   pszBuffer   Output buffer.
  * @param   cchBuffer   Size of the output buffer.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   args        The format argument.
  */
 RTDECL(size_t) RTStrPrintfV(char *pszBuffer, size_t cchBuffer, const char *pszFormat, va_list args);
@@ -910,10 +1815,11 @@ RTDECL(size_t) RTStrPrintfV(char *pszBuffer, size_t cchBuffer, const char *pszFo
 /**
  * String printf.
  *
- * @returns The length of the returned string (in pszBuffer).
+ * @returns The length of the returned string (in pszBuffer) excluding the
+ *          terminator.
  * @param   pszBuffer   Output buffer.
  * @param   cchBuffer   Size of the output buffer.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
 RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...);
@@ -922,12 +1828,13 @@ RTDECL(size_t) RTStrPrintf(char *pszBuffer, size_t cchBuffer, const char *pszFor
 /**
  * String printf with custom formatting.
  *
- * @returns The length of the returned string (in pszBuffer).
+ * @returns The length of the returned string (in pszBuffer) excluding the
+ *          terminator.
  * @param   pfnFormat   Pointer to handler function for the custom formats.
  * @param   pvArg       Argument to the pfnFormat function.
  * @param   pszBuffer   Output buffer.
  * @param   cchBuffer   Size of the output buffer.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   args        The format argument.
  */
 RTDECL(size_t) RTStrPrintfExV(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer, const char *pszFormat, va_list args);
@@ -935,62 +1842,149 @@ RTDECL(size_t) RTStrPrintfExV(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuff
 /**
  * String printf with custom formatting.
  *
- * @returns The length of the returned string (in pszBuffer).
+ * @returns The length of the returned string (in pszBuffer) excluding the
+ *          terminator.
  * @param   pfnFormat   Pointer to handler function for the custom formats.
  * @param   pvArg       Argument to the pfnFormat function.
  * @param   pszBuffer   Output buffer.
  * @param   cchBuffer   Size of the output buffer.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
 RTDECL(size_t) RTStrPrintfEx(PFNSTRFORMAT pfnFormat, void *pvArg, char *pszBuffer, size_t cchBuffer, const char *pszFormat, ...);
 
 
 /**
- * Allocating string printf.
+ * Allocating string printf (default tag).
  *
- * @returns The length of the string in the returned *ppszBuffer.
+ * @returns The length of the string in the returned *ppszBuffer excluding the
+ *          terminator.
  * @returns -1 on failure.
  * @param   ppszBuffer  Where to store the pointer to the allocated output buffer.
  *                      The buffer should be freed using RTStrFree().
  *                      On failure *ppszBuffer will be set to NULL.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   args        The format argument.
  */
-RTDECL(int) RTStrAPrintfV(char **ppszBuffer, const char *pszFormat, va_list args);
+#define RTStrAPrintfV(ppszBuffer, pszFormat, args)      RTStrAPrintfVTag((ppszBuffer), (pszFormat), (args), RTSTR_TAG)
+
+/**
+ * Allocating string printf (custom tag).
+ *
+ * @returns The length of the string in the returned *ppszBuffer excluding the
+ *          terminator.
+ * @returns -1 on failure.
+ * @param   ppszBuffer  Where to store the pointer to the allocated output buffer.
+ *                      The buffer should be freed using RTStrFree().
+ *                      On failure *ppszBuffer will be set to NULL.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
+ * @param   args        The format argument.
+ * @param   pszTag      Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTStrAPrintfVTag(char **ppszBuffer, const char *pszFormat, va_list args, const char *pszTag);
 
 /**
  * Allocating string printf.
  *
- * @returns The length of the string in the returned *ppszBuffer.
+ * @returns The length of the string in the returned *ppszBuffer excluding the
+ *          terminator.
  * @returns -1 on failure.
  * @param   ppszBuffer  Where to store the pointer to the allocated output buffer.
  *                      The buffer should be freed using RTStrFree().
  *                      On failure *ppszBuffer will be set to NULL.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-RTDECL(int) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...);
+DECLINLINE(int) RTStrAPrintf(char **ppszBuffer, const char *pszFormat, ...)
+{
+    int     cbRet;
+    va_list va;
+    va_start(va, pszFormat);
+    cbRet = RTStrAPrintfVTag(ppszBuffer, pszFormat, va, RTSTR_TAG);
+    va_end(va);
+    return cbRet;
+}
+
+/**
+ * Allocating string printf (custom tag).
+ *
+ * @returns The length of the string in the returned *ppszBuffer excluding the
+ *          terminator.
+ * @returns -1 on failure.
+ * @param   ppszBuffer  Where to store the pointer to the allocated output buffer.
+ *                      The buffer should be freed using RTStrFree().
+ *                      On failure *ppszBuffer will be set to NULL.
+ * @param   pszTag      Allocation tag used for statistics and such.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
+ * @param   ...         The format argument.
+ */
+DECLINLINE(int) RTStrAPrintfTag(char **ppszBuffer, const char *pszTag, const char *pszFormat, ...)
+{
+    int     cbRet;
+    va_list va;
+    va_start(va, pszFormat);
+    cbRet = RTStrAPrintfVTag(ppszBuffer, pszFormat, va, pszTag);
+    va_end(va);
+    return cbRet;
+}
 
 /**
  * Allocating string printf, version 2.
  *
  * @returns Formatted string. Use RTStrFree() to free it. NULL when out of
  *          memory.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   args        The format argument.
  */
-RTDECL(char *) RTStrAPrintf2V(const char *pszFormat, va_list args);
+#define RTStrAPrintf2V(pszFormat, args)     RTStrAPrintf2VTag((pszFormat), (args), RTSTR_TAG)
 
 /**
- * Allocating string printf, version2.
+ * Allocating string printf, version 2.
  *
  * @returns Formatted string. Use RTStrFree() to free it. NULL when out of
  *          memory.
- * @param   pszFormat   The format string.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
+ * @param   args        The format argument.
+ * @param   pszTag      Allocation tag used for statistics and such.
+ */
+RTDECL(char *) RTStrAPrintf2VTag(const char *pszFormat, va_list args, const char *pszTag);
+
+/**
+ * Allocating string printf, version 2 (default tag).
+ *
+ * @returns Formatted string. Use RTStrFree() to free it. NULL when out of
+ *          memory.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
  * @param   ...         The format argument.
  */
-RTDECL(char *) RTStrAPrintf2(const char *pszFormat, ...);
+DECLINLINE(char *) RTStrAPrintf2(const char *pszFormat, ...)
+{
+    char   *pszRet;
+    va_list va;
+    va_start(va, pszFormat);
+    pszRet = RTStrAPrintf2VTag(pszFormat, va, RTSTR_TAG);
+    va_end(va);
+    return pszRet;
+}
+
+/**
+ * Allocating string printf, version 2 (custom tag).
+ *
+ * @returns Formatted string. Use RTStrFree() to free it. NULL when out of
+ *          memory.
+ * @param   pszTag      Allocation tag used for statistics and such.
+ * @param   pszFormat   Pointer to the format string, @see pg_rt_str_format.
+ * @param   ...         The format argument.
+ */
+DECLINLINE(char *) RTStrAPrintf2Tag(const char *pszTag, const char *pszFormat, ...)
+{
+    char   *pszRet;
+    va_list va;
+    va_start(va, pszFormat);
+    pszRet = RTStrAPrintf2VTag(pszFormat, va, pszTag);
+    va_end(va);
+    return pszRet;
+}
 
 /**
  * Strips blankspaces from both ends of the string.
@@ -1046,6 +2040,37 @@ RTDECL(int) RTStrCopy(char *pszDst, size_t cbDst, const char *pszSrc);
  *                              terminator as usual.
  */
 RTDECL(int) RTStrCopyEx(char *pszDst, size_t cbDst, const char *pszSrc, size_t cchSrcMax);
+
+/**
+ * String concatenation with overflow handling.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the destination buffer is too small.  The
+ *          buffer will contain as much of the string as it can hold, fully
+ *          terminated.
+ *
+ * @param   pszDst              The destination buffer.
+ * @param   cbDst               The size of the destination buffer (in bytes).
+ * @param   pszSrc              The source string.  NULL is not OK.
+ */
+RTDECL(int) RTStrCat(char *pszDst, size_t cbDst, const char *pszSrc);
+
+/**
+ * String concatenation with overflow handling.
+ *
+ * @retval  VINF_SUCCESS on success.
+ * @retval  VERR_BUFFER_OVERFLOW if the destination buffer is too small.  The
+ *          buffer will contain as much of the string as it can hold, fully
+ *          terminated.
+ *
+ * @param   pszDst              The destination buffer.
+ * @param   cbDst               The size of the destination buffer (in bytes).
+ * @param   pszSrc              The source string.  NULL is not OK.
+ * @param   cchSrcMax           The maximum number of chars (not code points) to
+ *                              copy from the source string, not counting the
+ *                              terminator as usual.
+ */
+RTDECL(int) RTStrCatEx(char *pszDst, size_t cbDst, const char *pszSrc, size_t cchSrcMax);
 
 /**
  * Performs a case sensitive string compare between two UTF-8 strings.
@@ -1310,7 +2335,7 @@ RTDECL(bool) RTStrSimplePatternMultiMatch(const char *pszPatterns, size_t cchPat
  * Compares two version strings RTStrICmp fashion.
  *
  * The version string is split up into sections at punctuation, spaces,
- * underscores, dashes and pluss signs.  The sections are then split up into
+ * underscores, dashes and plus signs.  The sections are then split up into
  * numeric and string sub-sections.  Finally, the sub-sections are compared
  * in a numeric or case insesntivie fashion depending on what they are.
  *
@@ -1782,7 +2807,7 @@ typedef struct RTSTRSPACECORE
     uint32_t        Key;
     /** Pointer to the left leaf node. Don't touch. */
     PRTSTRSPACECORE pLeft;
-    /** Pointer to the left rigth node. Don't touch. */
+    /** Pointer to the left right node. Don't touch. */
     PRTSTRSPACECORE pRight;
     /** Pointer to the list of string with the same key. Don't touch. */
     PRTSTRSPACECORE pList;
@@ -1844,8 +2869,9 @@ typedef FNRTSTRSPACECALLBACK *PFNRTSTRSPACECALLBACK;
 
 /**
  * Destroys the string space.
- * The caller supplies a callback which will be called for each of
- * the string nodes in for freeing their memory and other resources.
+ *
+ * The caller supplies a callback which will be called for each of the string
+ * nodes in for freeing their memory and other resources.
  *
  * @returns 0 or what ever non-zero return value pfnCallback returned
  *          when aborting the destruction.
@@ -1886,17 +2912,28 @@ RTDECL(int) RTStrSpaceEnumerate(PRTSTRSPACE pStrSpace, PFNRTSTRSPACECALLBACK pfn
 RTDECL(void)  RTUtf16Free(PRTUTF16 pwszString);
 
 /**
- * Allocates a new copy of the specified UTF-16 string.
+ * Allocates a new copy of the specified UTF-16 string (default tag).
  *
  * @returns Pointer to the allocated string copy. Use RTUtf16Free() to free it.
  * @returns NULL when out of memory.
  * @param   pwszString      UTF-16 string to duplicate.
  * @remark  This function will not make any attempt to validate the encoding.
  */
-RTDECL(PRTUTF16) RTUtf16Dup(PCRTUTF16 pwszString);
+#define RTUtf16Dup(pwszString)          RTUtf16DupTag((pwszString), RTSTR_TAG)
 
 /**
- * Allocates a new copy of the specified UTF-16 string.
+ * Allocates a new copy of the specified UTF-16 string (custom tag).
+ *
+ * @returns Pointer to the allocated string copy. Use RTUtf16Free() to free it.
+ * @returns NULL when out of memory.
+ * @param   pwszString      UTF-16 string to duplicate.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ * @remark  This function will not make any attempt to validate the encoding.
+ */
+RTDECL(PRTUTF16) RTUtf16DupTag(PCRTUTF16 pwszString, const char *pszTag);
+
+/**
+ * Allocates a new copy of the specified UTF-16 string (default tag).
  *
  * @returns iprt status code.
  * @param   ppwszString     Receives pointer of the allocated UTF-16 string.
@@ -1905,7 +2942,21 @@ RTDECL(PRTUTF16) RTUtf16Dup(PCRTUTF16 pwszString);
  * @param   cwcExtra        Number of extra RTUTF16 items to allocate.
  * @remark  This function will not make any attempt to validate the encoding.
  */
-RTDECL(int) RTUtf16DupEx(PRTUTF16 *ppwszString, PCRTUTF16 pwszString, size_t cwcExtra);
+#define RTUtf16DupEx(ppwszString, pwszString, cwcExtra) \
+    RTUtf16DupExTag((ppwszString), (pwszString), (cwcExtra), RTSTR_TAG)
+
+/**
+ * Allocates a new copy of the specified UTF-16 string (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   ppwszString     Receives pointer of the allocated UTF-16 string.
+ *                          The returned pointer must be freed using RTUtf16Free().
+ * @param   pwszString      UTF-16 string to duplicate.
+ * @param   cwcExtra        Number of extra RTUTF16 items to allocate.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ * @remark  This function will not make any attempt to validate the encoding.
+ */
+RTDECL(int) RTUtf16DupExTag(PRTUTF16 *ppwszString, PCRTUTF16 pwszString, size_t cwcExtra, const char *pszTag);
 
 /**
  * Returns the length of a UTF-16 string in UTF-16 characters
@@ -1990,7 +3041,8 @@ RTDECL(PRTUTF16) RTUtf16ToLower(PRTUTF16 pwsz);
 RTDECL(PRTUTF16) RTUtf16ToUpper(PRTUTF16 pwsz);
 
 /**
- * Translate a UTF-16 string into a UTF-8 allocating the result buffer.
+ * Translate a UTF-16 string into a UTF-8 allocating the result buffer (default
+ * tag).
  *
  * @returns iprt status code.
  * @param   pwszString      UTF-16 string to convert.
@@ -1998,11 +3050,23 @@ RTDECL(PRTUTF16) RTUtf16ToUpper(PRTUTF16 pwsz);
  *                          success, and is always set to NULL on failure.
  *                          The returned pointer must be freed using RTStrFree().
  */
-RTDECL(int)  RTUtf16ToUtf8(PCRTUTF16 pwszString, char **ppszString);
+#define RTUtf16ToUtf8(pwszString, ppszString)       RTUtf16ToUtf8Tag((pwszString), (ppszString), RTSTR_TAG)
 
 /**
- * Translates UTF-16 to UTF-8 using buffer provided by the caller or
- * a fittingly sized buffer allocated by the function.
+ * Translate a UTF-16 string into a UTF-8 allocating the result buffer.
+ *
+ * @returns iprt status code.
+ * @param   pwszString      UTF-16 string to convert.
+ * @param   ppszString      Receives pointer of allocated UTF-8 string on
+ *                          success, and is always set to NULL on failure.
+ *                          The returned pointer must be freed using RTStrFree().
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTUtf16ToUtf8Tag(PCRTUTF16 pwszString, char **ppszString, const char *pszTag);
+
+/**
+ * Translates UTF-16 to UTF-8 using buffer provided by the caller or a fittingly
+ * sized buffer allocated by the function (default tag).
  *
  * @returns iprt status code.
  * @param   pwszString      The UTF-16 string to convert.
@@ -2013,7 +3077,7 @@ RTDECL(int)  RTUtf16ToUtf8(PCRTUTF16 pwszString, char **ppszString);
  *                          a buffer of the specified size, or pointer to a NULL pointer.
  *                          If *ppsz is NULL or cch is zero a buffer of at least cch chars
  *                          will be allocated to hold the translated string.
- *                          If a buffer was requested it must be freed using RTUtf16Free().
+ *                          If a buffer was requested it must be freed using RTStrFree().
  * @param   cch             The buffer size in chars (the type). This includes the terminator.
  * @param   pcch            Where to store the length of the translated string,
  *                          excluding the terminator. (Optional)
@@ -2023,7 +3087,34 @@ RTDECL(int)  RTUtf16ToUtf8(PCRTUTF16 pwszString, char **ppszString);
  *                          VERR_NO_STR_MEMORY will it contain a valid string
  *                          length that can be used to resize the buffer.
  */
-RTDECL(int)  RTUtf16ToUtf8Ex(PCRTUTF16 pwszString, size_t cwcString, char **ppsz, size_t cch, size_t *pcch);
+#define RTUtf16ToUtf8Ex(pwszString, cwcString, ppsz, cch, pcch) \
+    RTUtf16ToUtf8ExTag((pwszString), (cwcString), (ppsz), (cch), (pcch), RTSTR_TAG)
+
+/**
+ * Translates UTF-16 to UTF-8 using buffer provided by the caller or a fittingly
+ * sized buffer allocated by the function (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pwszString      The UTF-16 string to convert.
+ * @param   cwcString       The number of RTUTF16 items to translate from pwszString.
+ *                          The translation will stop when reaching cwcString or the terminator ('\\0').
+ *                          Use RTSTR_MAX to translate the entire string.
+ * @param   ppsz            If cch is non-zero, this must either be pointing to a pointer to
+ *                          a buffer of the specified size, or pointer to a NULL pointer.
+ *                          If *ppsz is NULL or cch is zero a buffer of at least cch chars
+ *                          will be allocated to hold the translated string.
+ *                          If a buffer was requested it must be freed using RTStrFree().
+ * @param   cch             The buffer size in chars (the type). This includes the terminator.
+ * @param   pcch            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTUtf16ToUtf8ExTag(PCRTUTF16 pwszString, size_t cwcString, char **ppsz, size_t cch, size_t *pcch, const char *pszTag);
 
 /**
  * Calculates the length of the UTF-16 string in UTF-8 chars (bytes).
@@ -2055,7 +3146,7 @@ RTDECL(int) RTUtf16CalcUtf8LenEx(PCRTUTF16 pwsz, size_t cwc, size_t *pcch);
 
 /**
  * Translate a UTF-16 string into a Latin-1 (ISO-8859-1) allocating the result
- * buffer.
+ * buffer (default tag).
  *
  * @returns iprt status code.
  * @param   pwszString      UTF-16 string to convert.
@@ -2063,11 +3154,24 @@ RTDECL(int) RTUtf16CalcUtf8LenEx(PCRTUTF16 pwsz, size_t cwc, size_t *pcch);
  *                          success, and is always set to NULL on failure.
  *                          The returned pointer must be freed using RTStrFree().
  */
-RTDECL(int)  RTUtf16ToLatin1(PCRTUTF16 pwszString, char **ppszString);
+#define RTUtf16ToLatin1(pwszString, ppszString)     RTUtf16ToLatin1Tag((pwszString), (ppszString), RTSTR_TAG)
+
+/**
+ * Translate a UTF-16 string into a Latin-1 (ISO-8859-1) allocating the result
+ * buffer (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pwszString      UTF-16 string to convert.
+ * @param   ppszString      Receives pointer of allocated Latin1 string on
+ *                          success, and is always set to NULL on failure.
+ *                          The returned pointer must be freed using RTStrFree().
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTUtf16ToLatin1Tag(PCRTUTF16 pwszString, char **ppszString, const char *pszTag);
 
 /**
  * Translates UTF-16 to Latin-1 (ISO-8859-1) using buffer provided by the caller
- * or a fittingly sized buffer allocated by the function.
+ * or a fittingly sized buffer allocated by the function (default tag).
  *
  * @returns iprt status code.
  * @param   pwszString      The UTF-16 string to convert.
@@ -2086,7 +3190,7 @@ RTDECL(int)  RTUtf16ToLatin1(PCRTUTF16 pwszString, char **ppszString);
  *                          insufficient.
  *
  *                          If cch is zero or *ppsz is NULL, then a buffer of
- *                          sufficent size is allocated. cch can be used to
+ *                          sufficient size is allocated. cch can be used to
  *                          specify a minimum size of this buffer. Use
  *                          RTUtf16Free() to free the result.
  *
@@ -2100,7 +3204,46 @@ RTDECL(int)  RTUtf16ToLatin1(PCRTUTF16 pwszString, char **ppszString);
  *                          VERR_NO_STR_MEMORY will it contain a valid string
  *                          length that can be used to resize the buffer.
  */
-RTDECL(int)  RTUtf16ToLatin1Ex(PCRTUTF16 pwszString, size_t cwcString, char **ppsz, size_t cch, size_t *pcch);
+#define RTUtf16ToLatin1Ex(pwszString, cwcString, ppsz, cch, pcch) \
+    RTUtf16ToLatin1ExTag((pwszString), (cwcString), (ppsz), (cch), (pcch), RTSTR_TAG)
+
+/**
+ * Translates UTF-16 to Latin-1 (ISO-8859-1) using buffer provided by the caller
+ * or a fittingly sized buffer allocated by the function (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pwszString      The UTF-16 string to convert.
+ * @param   cwcString       The number of RTUTF16 items to translate from
+ *                          pwszString. The translation will stop when reaching
+ *                          cwcString or the terminator ('\\0'). Use RTSTR_MAX
+ *                          to translate the entire string.
+ * @param   ppsz            Pointer to the pointer to the Latin-1 string. The
+ *                          buffer can optionally be preallocated by the caller.
+ *
+ *                          If cch is zero, *ppsz is undefined.
+ *
+ *                          If cch is non-zero and *ppsz is not NULL, then this
+ *                          will be used as the output buffer.
+ *                          VERR_BUFFER_OVERFLOW will be returned if this is
+ *                          insufficient.
+ *
+ *                          If cch is zero or *ppsz is NULL, then a buffer of
+ *                          sufficient size is allocated. cch can be used to
+ *                          specify a minimum size of this buffer. Use
+ *                          RTUtf16Free() to free the result.
+ *
+ * @param   cch             The buffer size in chars (the type). This includes
+ *                          the terminator.
+ * @param   pcch            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int)  RTUtf16ToLatin1ExTag(PCRTUTF16 pwszString, size_t cwcString, char **ppsz, size_t cch, size_t *pcch, const char *pszTag);
 
 /**
  * Calculates the length of the UTF-16 string in Latin-1 (ISO-8859-1) chars.
@@ -2337,14 +3480,56 @@ RTDECL(int) RTLatin1CalcUtf16LenEx(const char *psz, size_t cch, size_t *pcwc);
 
 /**
  * Translate a Latin-1 (ISO-8859-1) string into a UTF-16 allocating the result
- * buffer.
+ * buffer (default tag).
  *
  * @returns iprt status code.
  * @param   pszString       The Latin-1 string to convert.
  * @param   ppwszString     Receives pointer to the allocated UTF-16 string. The
  *                          returned string must be freed using RTUtf16Free().
  */
-RTDECL(int) RTLatin1ToUtf16(const char *pszString, PRTUTF16 *ppwszString);
+#define RTLatin1ToUtf16(pszString, ppwszString)     RTLatin1ToUtf16Tag((pszString), (ppwszString), RTSTR_TAG)
+
+/**
+ * Translate a Latin-1 (ISO-8859-1) string into a UTF-16 allocating the result
+ * buffer (custom tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       The Latin-1 string to convert.
+ * @param   ppwszString     Receives pointer to the allocated UTF-16 string. The
+ *                          returned string must be freed using RTUtf16Free().
+ * @param   pszTag          Allocation tag used for statistics and such.
+ */
+RTDECL(int) RTLatin1ToUtf16Tag(const char *pszString, PRTUTF16 *ppwszString, const char *pszTag);
+
+/**
+ * Translates pszString from Latin-1 (ISO-8859-1) to UTF-16, allocating the
+ * result buffer if requested (default tag).
+ *
+ * @returns iprt status code.
+ * @param   pszString       The Latin-1 string to convert.
+ * @param   cchString       The maximum size in chars (the type) to convert.
+ *                          The conversion stops when it reaches cchString or
+ *                          the string terminator ('\\0').
+ *                          Use RTSTR_MAX to translate the entire string.
+ * @param   ppwsz           If cwc is non-zero, this must either be pointing
+ *                          to pointer to a buffer of the specified size, or
+ *                          pointer to a NULL pointer.
+ *                          If *ppwsz is NULL or cwc is zero a buffer of at
+ *                          least cwc items will be allocated to hold the
+ *                          translated string. If a buffer was requested it
+ *                          must be freed using RTUtf16Free().
+ * @param   cwc             The buffer size in RTUTF16s. This includes the
+ *                          terminator.
+ * @param   pcwc            Where to store the length of the translated string,
+ *                          excluding the terminator. (Optional)
+ *
+ *                          This may be set under some error conditions,
+ *                          however, only for VERR_BUFFER_OVERFLOW and
+ *                          VERR_NO_STR_MEMORY will it contain a valid string
+ *                          length that can be used to resize the buffer.
+ */
+#define RTLatin1ToUtf16Ex(pszString, cchString, ppwsz, cwc, pcwc) \
+    RTLatin1ToUtf16ExTag((pszString), (cchString), (ppwsz), (cwc), (pcwc), RTSTR_TAG)
 
 /**
  * Translates pszString from Latin-1 (ISO-8859-1) to UTF-16, allocating the
@@ -2372,8 +3557,10 @@ RTDECL(int) RTLatin1ToUtf16(const char *pszString, PRTUTF16 *ppwszString);
  *                          however, only for VERR_BUFFER_OVERFLOW and
  *                          VERR_NO_STR_MEMORY will it contain a valid string
  *                          length that can be used to resize the buffer.
+ * @param   pszTag          Allocation tag used for statistics and such.
  */
-RTDECL(int) RTLatin1ToUtf16Ex(const char *pszString, size_t cchString, PRTUTF16 *ppwsz, size_t cwc, size_t *pcwc);
+RTDECL(int) RTLatin1ToUtf16ExTag(const char *pszString, size_t cchString,
+                                 PRTUTF16 *ppwsz, size_t cwc, size_t *pcwc, const char *pszTag);
 
 /** @} */
 

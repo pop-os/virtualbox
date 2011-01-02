@@ -28,9 +28,11 @@ class VirtualSystemDescription;
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+typedef std::pair<Utf8Str, Utf8Str> STRPAIR;
+
 /* Describe a location for the import/export. The location could be a file on a
  * local hard disk or a remote target based on the supported inet protocols. */
-struct Appliance::LocationInfo
+struct LocationInfo
 {
     LocationInfo()
       : storageType(VFSType_File) {}
@@ -47,8 +49,13 @@ struct Appliance::Data
     enum ApplianceState { ApplianceIdle, ApplianceImporting, ApplianceExporting };
 
     Data()
-      : state(ApplianceIdle),
-        pReader(NULL)
+      : state(ApplianceIdle)
+      , fManifest(true)
+      , pReader(NULL)
+      , ulWeightForXmlOperation(0)
+      , ulWeightForManifestOperation(0)
+      , ulTotalDisksMB(0)
+      , cDisks(0)
     {
     }
 
@@ -64,6 +71,7 @@ struct Appliance::Data
     ApplianceState      state;
 
     LocationInfo        locInfo;        // location info for the currently processed OVF
+    bool                fManifest;      // Create a manifest file on export
 
     ovf::OVFReader      *pReader;
 
@@ -72,17 +80,13 @@ struct Appliance::Data
 
     std::list<Utf8Str>  llWarnings;
 
-#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
-    Utf8Str             strManifestFile;    // on import, contains path of manifest file if it exists
-#endif
-
     ULONG               ulWeightForXmlOperation;
-#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
     ULONG               ulWeightForManifestOperation;
-#endif
     ULONG               ulTotalDisksMB;
     ULONG               cDisks;
     Utf8Str             strOVFSHA1Digest;
+
+    std::list<Guid>     llGuidsMachinesCreated;
 };
 
 struct Appliance::XMLStack
@@ -128,7 +132,6 @@ struct Appliance::TaskOVF
 
 struct MyHardDiskAttachment
 {
-    Bstr                bstrUuid;
     ComPtr<IMachine>    pMachine;
     Bstr                controllerType;
     int32_t             lControllerPort;        // 0-29 for SATA
@@ -149,12 +152,13 @@ struct Appliance::ImportStack
 
     // input parameters from VirtualSystemDescriptions
     Utf8Str                         strNameVBox;        // VM name
+    Utf8Str                         strMachineFolder;   // FQ host folder where the VirtualBox machine would be created
     Utf8Str                         strOsTypeVBox;      // VirtualBox guest OS type as string
     Utf8Str                         strDescription;
     uint32_t                        cCPUs;              // CPU count
     bool                            fForceHWVirt;       // if true, we force enabling hardware virtualization
     bool                            fForceIOAPIC;       // if true, we force enabling the IOAPIC
-    uint32_t                        ulMemorySizeMB;     // virtual machien RAM in megabytes
+    uint32_t                        ulMemorySizeMB;     // virtual machine RAM in megabytes
 #ifdef VBOX_WITH_USB
     bool                            fUSBEnabled;
 #endif
@@ -168,8 +172,7 @@ struct Appliance::ImportStack
     // a list of images that we created/imported; this is initially empty
     // and will be cleaned up on errors
     std::list<MyHardDiskAttachment> llHardDiskAttachments;      // disks that were attached
-    std::list< ComPtr<IMedium> >    llHardDisksCreated;         // media that were created
-    std::list<Bstr>                 llMachinesRegistered;       // machines that were registered; list of string UUIDs
+    std::list<STRPAIR>              llSrcDisksDigest;           // Digests of the source disks
 
     ImportStack(const LocationInfo &aLocInfo,
                 const ovf::DiskImagesMap &aMapDisks,
@@ -217,4 +220,20 @@ void convertCIMOSType2VBoxOSType(Utf8Str &strType, ovf::CIMOSType_T c, const Utf
 
 ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVbox);
 
+Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type);
+
+typedef struct SHA1STORAGE
+{
+    PVDINTERFACE pVDImageIfaces;
+    bool         fCreateDigest;
+    Utf8Str      strDigest;
+} SHA1STORAGE, *PSHA1STORAGE;
+
+PVDINTERFACEIO Sha1CreateInterface();
+PVDINTERFACEIO FileCreateInterface();
+PVDINTERFACEIO TarCreateInterface();
+int Sha1ReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, void *pvUser);
+int Sha1WriteBuf(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pCallbacks, void *pvUser);
+
 #endif // ____H_APPLIANCEIMPLPRIVATE
+

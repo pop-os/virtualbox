@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-os2.cpp $ */
+/* $Id: semeventmulti-r0drv-os2.cpp 33155 2010-10-15 12:07:44Z vboxsync $ */
 /** @file
  * IPRT - Multiple Release Event Semaphores, Ring-0 Driver, OS/2.
  */
@@ -238,5 +238,11 @@ RTDECL(int)  RTSemEventMultiWait(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cM
 RTDECL(int)  RTSemEventMultiWaitNoResume(RTSEMEVENTMULTI hEventMultiSem, RTMSINTERVAL cMillies)
 {
     return rtSemEventMultiWait(hEventMultiSem, cMillies, true /* interruptible */);
+}
+
+
+RTDECL(uint32_t) RTSemEventMultiGetResolution(void)
+{
+    return 32000000; /* 32ms */
 }
 

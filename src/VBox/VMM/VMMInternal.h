@@ -1,4 +1,4 @@
-/* $Id: VMMInternal.h $ */
+/* $Id: VMMInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VMM - Internal header file.
  */
@@ -261,11 +261,13 @@ typedef struct VMM
     uint32_t                    cbRCRelLogger;
     /** Whether log flushing has been disabled or not. */
     bool                        fRCLoggerFlushingDisabled;
-    bool                        afAlignment[6]; /**< Alignment padding. */
+    bool                        afAlignment[5]; /**< Alignment padding. */
     /** @} */
 
     /** Whether the stack guard pages have been stationed or not. */
     bool                        fStackGuardsStationed;
+    /** Whether we should use the periodic preemption timers. */
+    bool                        fUsePeriodicPreemptionTimers;
 
     /** The EMT yield timer. */
     PTMTIMERR3                  pYieldTimer;
@@ -360,6 +362,14 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetPatchIretIRQ;
     STAMCOUNTER                 StatRZRetRescheduleREM;
     STAMCOUNTER                 StatRZRetToR3;
+    STAMCOUNTER                 StatRZRetToR3Unknown;
+    STAMCOUNTER                 StatRZRetToR3TMVirt;
+    STAMCOUNTER                 StatRZRetToR3HandyPages;
+    STAMCOUNTER                 StatRZRetToR3PDMQueues;
+    STAMCOUNTER                 StatRZRetToR3Rendezvous;
+    STAMCOUNTER                 StatRZRetToR3Timer;
+    STAMCOUNTER                 StatRZRetToR3DMA;
+    STAMCOUNTER                 StatRZRetToR3CritSect;
     STAMCOUNTER                 StatRZRetTimerPending;
     STAMCOUNTER                 StatRZRetInterruptPending;
     STAMCOUNTER                 StatRZRetCallRing3;
@@ -580,7 +590,7 @@ VMMR0DECL(void) vmmR0LoggerWrapper(const char *pszFormat, ...);
 VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger);
 
 /**
- * Interal R0 logger worker: Custom prefix.
+ * Internal R0 logger worker: Custom prefix.
  *
  * @returns Number of chars written.
  *

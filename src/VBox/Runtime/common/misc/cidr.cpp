@@ -1,4 +1,4 @@
-/* $Id: cidr.cpp $ */
+/* $Id: cidr.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - IPv4 address parsing.
  */
@@ -63,7 +63,7 @@ RTDECL(int) RTCidrStrToIPv4(const char *pszAddress, PRTIPV4ADDR pNetwork, PRTIPV
         rc = RTStrToUInt8Ex(pszNetmask + 1, &pszNext, 10, &cBits);
         if (   RT_FAILURE(rc)
             || cBits > 32
-            || rc != VINF_SUCCESS) /* No trailing symbols are accptable after the digit */
+            || rc != VINF_SUCCESS) /* No trailing symbols are acceptable after the digit */
             return VERR_INVALID_PARAMETER;
     }
     u32Netmask = ~(uint32_t)((1<< (32 - cBits)) - 1);

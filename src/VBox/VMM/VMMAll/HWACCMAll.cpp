@@ -1,4 +1,4 @@
-/* $Id: HWACCMAll.cpp $ */
+/* $Id: HWACCMAll.cpp 30327 2010-06-21 12:43:53Z vboxsync $ */
 /** @file
  * HWACCM - All contexts.
  */
@@ -112,6 +112,8 @@ static DECLCALLBACK(void) hwaccmFlushHandler(RTCPUID idCpu, void *pvUser1, void 
 void hwaccmMpPokeCpu(PVMCPU pVCpu, RTCPUID idHostCpu)
 {
     uint32_t cWorldSwitchExit = pVCpu->hwaccm.s.cWorldSwitchExit;
+
+    Assert(idHostCpu == pVCpu->idHostCpu);
 
     STAM_PROFILE_ADV_START(&pVCpu->hwaccm.s.StatPoke, x);
     int rc = RTMpPokeCpu(idHostCpu);

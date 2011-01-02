@@ -1,4 +1,4 @@
-/* $Id: VBoxDrv.rc $ */
+/* $Id: VBoxDrv.rc 32394 2010-09-10 12:13:11Z vboxsync $ */
 /** @file
  * VirtualBox Support Driver - Windows Resource File.
  */

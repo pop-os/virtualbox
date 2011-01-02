@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,16 +24,18 @@
 /////////////////////////////////////////////////////////////////////////////
 
 GuestOSType::GuestOSType()
-    : mOSType (VBOXOSTYPE_Unknown)
-    , mOSHint (VBOXOSHINT_NONE)
-    , mRAMSize (0), mVRAMSize (0)
-    , mHDDSize (0), mMonitorCount (0)
-    , mNetworkAdapterType (NetworkAdapterType_Am79C973)
-    , mNumSerialEnabled (0)
+    : mOSType(VBOXOSTYPE_Unknown)
+    , mOSHint(VBOXOSHINT_NONE)
+    , mRAMSize(0), mVRAMSize(0)
+    , mHDDSize(0), mMonitorCount(0)
+    , mNetworkAdapterType(NetworkAdapterType_Am79C973)
+    , mNumSerialEnabled(0)
     , mDvdStorageControllerType(StorageControllerType_PIIX3)
     , mDvdStorageBusType(StorageBus_IDE)
     , mHdStorageControllerType(StorageControllerType_PIIX3)
     , mHdStorageBusType(StorageBus_IDE)
+    , mChipsetType(ChipsetType_PIIX3)
+    , mAudioControllerType(AudioControllerType_AC97)
 {
 }
 
@@ -66,24 +68,26 @@ void GuestOSType::FinalRelease()
  * @param aOSHint            os configuration hint
  * @param aRAMSize           recommended RAM size in megabytes
  * @param aVRAMSize          recommended video memory size in megabytes
- * @param aHDDSize           recommended HDD size in megabytes
+ * @param aHDDSize           recommended HDD size in bytes
  */
-HRESULT GuestOSType::init (const char *aFamilyId, const char *aFamilyDescription,
-                           const char *aId, const char *aDescription,
-                           VBOXOSTYPE aOSType, uint32_t aOSHint,
-                           uint32_t aRAMSize, uint32_t aVRAMSize, uint32_t aHDDSize,
-                           NetworkAdapterType_T aNetworkAdapterType,
-                           uint32_t aNumSerialEnabled,
-                           StorageControllerType_T aDvdStorageControllerType,
-                           StorageBus_T aDvdStorageBusType,
-                           StorageControllerType_T aHdStorageControllerType,
-                           StorageBus_T aHdStorageBusType)
+HRESULT GuestOSType::init(const Global::OSType &ostype)/*const char *aFamilyId, const char *aFamilyDescription,
+                          const char *aId, const char *aDescription,
+                          VBOXOSTYPE aOSType, uint32_t aOSHint,
+                          uint32_t aRAMSize, uint32_t aVRAMSize, uint64_t aHDDSize,
+                          NetworkAdapterType_T aNetworkAdapterType,
+                          uint32_t aNumSerialEnabled,
+                          StorageControllerType_T aDvdStorageControllerType,
+                          StorageBus_T aDvdStorageBusType,
+                          StorageControllerType_T aHdStorageControllerType,
+                          StorageBus_T aHdStorageBusType,
+                          ChipsetType_T aChipsetType
+                          AudioControllerType_T aAudioControllerType*/
 {
 #if 0
     LogFlowThisFunc(("aFamilyId='%s', aFamilyDescription='%s', "
                       "aId='%s', aDescription='%s', "
                       "aType=%d, aOSHint=%x, "
-                      "aRAMSize=%d, aVRAMSize=%d, aHDDSize=%d, "
+                      "aRAMSize=%d, aVRAMSize=%d, aHDDSize=%lld, "
                       "aNetworkAdapterType=%d, aNumSerialEnabled=%d, "
                       "aStorageControllerType=%d\n",
                       aFamilyId, aFamilyDescription,
@@ -95,27 +99,29 @@ HRESULT GuestOSType::init (const char *aFamilyId, const char *aFamilyDescription
                       aStorageControllerType));
 #endif
 
-    ComAssertRet(aFamilyId && aFamilyDescription && aId && aDescription, E_INVALIDARG);
+    ComAssertRet(ostype.familyId && ostype.familyDescription && ostype.id && ostype.description, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst(mFamilyID) = aFamilyId;
-    unconst(mFamilyDescription) = aFamilyDescription;
-    unconst(mID) = aId;
-    unconst(mDescription) = aDescription;
-    unconst(mOSType) = aOSType;
-    unconst(mOSHint) = aOSHint;
-    unconst(mRAMSize) = aRAMSize;
-    unconst(mVRAMSize) = aVRAMSize;
-    unconst(mHDDSize) = aHDDSize;
-    unconst(mNetworkAdapterType) = aNetworkAdapterType;
-    unconst(mNumSerialEnabled) = aNumSerialEnabled;
-    unconst(mDvdStorageControllerType) = aDvdStorageControllerType;
-    unconst(mDvdStorageBusType)        = aDvdStorageBusType;
-    unconst(mHdStorageControllerType)  = aHdStorageControllerType;
-    unconst(mHdStorageBusType)         = aHdStorageBusType;
+    unconst(mFamilyID)                  = ostype.familyId;
+    unconst(mFamilyDescription)         = ostype.familyDescription;
+    unconst(mID)                        = ostype.id;
+    unconst(mDescription)               = ostype.description;
+    unconst(mOSType)                    = ostype.osType;
+    unconst(mOSHint)                    = ostype.osHint;
+    unconst(mRAMSize)                   = ostype.recommendedRAM;
+    unconst(mVRAMSize)                  = ostype.recommendedVRAM;
+    unconst(mHDDSize)                   = ostype.recommendedHDD;
+    unconst(mNetworkAdapterType)        = ostype.networkAdapterType;
+    unconst(mNumSerialEnabled)          = ostype.numSerialEnabled;
+    unconst(mDvdStorageControllerType)  = ostype.dvdStorageControllerType;
+    unconst(mDvdStorageBusType)         = ostype.dvdStorageBusType;
+    unconst(mHdStorageControllerType)   = ostype.hdStorageControllerType;
+    unconst(mHdStorageBusType)          = ostype.hdStorageBusType;
+    unconst(mChipsetType)               = ostype.chipsetType;
+    unconst(mAudioControllerType)       = ostype.audioControllerType;
 
     /* Confirm a successful initialization when it's the case */
     autoInitSpan.setSucceeded();
@@ -138,7 +144,7 @@ void GuestOSType::uninit()
 // IGuestOSType properties
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP GuestOSType::COMGETTER(FamilyId) (BSTR *aFamilyId)
+STDMETHODIMP GuestOSType::COMGETTER(FamilyId)(BSTR *aFamilyId)
 {
     CheckComArgOutPointerValid(aFamilyId);
 
@@ -151,7 +157,7 @@ STDMETHODIMP GuestOSType::COMGETTER(FamilyId) (BSTR *aFamilyId)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(FamilyDescription) (BSTR *aFamilyDescription)
+STDMETHODIMP GuestOSType::COMGETTER(FamilyDescription)(BSTR *aFamilyDescription)
 {
     CheckComArgOutPointerValid(aFamilyDescription);
 
@@ -164,7 +170,7 @@ STDMETHODIMP GuestOSType::COMGETTER(FamilyDescription) (BSTR *aFamilyDescription
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(Id) (BSTR *aId)
+STDMETHODIMP GuestOSType::COMGETTER(Id)(BSTR *aId)
 {
     CheckComArgOutPointerValid(aId);
 
@@ -177,7 +183,7 @@ STDMETHODIMP GuestOSType::COMGETTER(Id) (BSTR *aId)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(Description) (BSTR *aDescription)
+STDMETHODIMP GuestOSType::COMGETTER(Description)(BSTR *aDescription)
 {
     CheckComArgOutPointerValid(aDescription);
 
@@ -190,7 +196,7 @@ STDMETHODIMP GuestOSType::COMGETTER(Description) (BSTR *aDescription)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(Is64Bit) (BOOL *aIs64Bit)
+STDMETHODIMP GuestOSType::COMGETTER(Is64Bit)(BOOL *aIs64Bit)
 {
     CheckComArgOutPointerValid(aIs64Bit);
 
@@ -203,7 +209,7 @@ STDMETHODIMP GuestOSType::COMGETTER(Is64Bit) (BOOL *aIs64Bit)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedIOAPIC) (BOOL *aRecommendedIOAPIC)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedIOAPIC)(BOOL *aRecommendedIOAPIC)
 {
     CheckComArgOutPointerValid(aRecommendedIOAPIC);
 
@@ -216,7 +222,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedIOAPIC) (BOOL *aRecommendedIOAPIC
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedVirtEx) (BOOL *aRecommendedVirtEx)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedVirtEx)(BOOL *aRecommendedVirtEx)
 {
     CheckComArgOutPointerValid(aRecommendedVirtEx);
 
@@ -229,7 +235,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedVirtEx) (BOOL *aRecommendedVirtEx
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedRAM) (ULONG *aRAMSize)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedRAM)(ULONG *aRAMSize)
 {
     CheckComArgOutPointerValid(aRAMSize);
 
@@ -242,7 +248,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedRAM) (ULONG *aRAMSize)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedVRAM) (ULONG *aVRAMSize)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedVRAM)(ULONG *aVRAMSize)
 {
     CheckComArgOutPointerValid(aVRAMSize);
 
@@ -255,7 +261,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedVRAM) (ULONG *aVRAMSize)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedHDD) (ULONG *aHDDSize)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedHDD)(LONG64 *aHDDSize)
 {
     CheckComArgOutPointerValid(aHDDSize);
 
@@ -268,7 +274,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedHDD) (ULONG *aHDDSize)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(AdapterType) (NetworkAdapterType_T *aNetworkAdapterType)
+STDMETHODIMP GuestOSType::COMGETTER(AdapterType)(NetworkAdapterType_T *aNetworkAdapterType)
 {
     CheckComArgOutPointerValid(aNetworkAdapterType);
 
@@ -281,7 +287,7 @@ STDMETHODIMP GuestOSType::COMGETTER(AdapterType) (NetworkAdapterType_T *aNetwork
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedPae) (BOOL *aRecommendedPae)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedPae)(BOOL *aRecommendedPae)
 {
     CheckComArgOutPointerValid(aRecommendedPae);
 
@@ -294,7 +300,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedPae) (BOOL *aRecommendedPae)
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedFirmware) (FirmwareType_T *aFirmwareType)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedFirmware)(FirmwareType_T *aFirmwareType)
 {
     CheckComArgOutPointerValid(aFirmwareType);
 
@@ -310,7 +316,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedFirmware) (FirmwareType_T *aFirmw
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedDvdStorageController) (StorageControllerType_T * aStorageControllerType)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedDvdStorageController)(StorageControllerType_T * aStorageControllerType)
 {
     CheckComArgOutPointerValid(aStorageControllerType);
 
@@ -323,7 +329,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedDvdStorageController) (StorageCon
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedDvdStorageBus) (StorageBus_T * aStorageBusType)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedDvdStorageBus)(StorageBus_T * aStorageBusType)
 {
     CheckComArgOutPointerValid(aStorageBusType);
 
@@ -336,7 +342,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedDvdStorageBus) (StorageBus_T * aS
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedHdStorageController) (StorageControllerType_T * aStorageControllerType)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedHdStorageController)(StorageControllerType_T * aStorageControllerType)
 {
     CheckComArgOutPointerValid(aStorageControllerType);
 
@@ -349,7 +355,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedHdStorageController) (StorageCont
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedHdStorageBus) (StorageBus_T * aStorageBusType)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedHdStorageBus)(StorageBus_T * aStorageBusType)
 {
     CheckComArgOutPointerValid(aStorageBusType);
 
@@ -362,7 +368,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedHdStorageBus) (StorageBus_T * aSt
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedUsbHid) (BOOL *aRecommendedUsbHid)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedUsbHid)(BOOL *aRecommendedUsbHid)
 {
     CheckComArgOutPointerValid(aRecommendedUsbHid);
 
@@ -375,20 +381,20 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedUsbHid) (BOOL *aRecommendedUsbHid
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedHpet) (BOOL *aRecommendedHpet)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedHpet)(BOOL *aRecommendedHpet)
 {
     CheckComArgOutPointerValid(aRecommendedHpet);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* HPET recomendation is constant during life time, no need to lock */
+    /* HPET recommendation is constant during life time, no need to lock */
     *aRecommendedHpet = !!(mOSHint & VBOXOSHINT_HPET);
 
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedUsbTablet) (BOOL *aRecommendedUsbTablet)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedUsbTablet)(BOOL *aRecommendedUsbTablet)
 {
     CheckComArgOutPointerValid(aRecommendedUsbTablet);
 
@@ -401,7 +407,7 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedUsbTablet) (BOOL *aRecommendedUsb
     return S_OK;
 }
 
-STDMETHODIMP GuestOSType::COMGETTER(RecommendedRtcUseUtc) (BOOL *aRecommendedRtcUseUtc)
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedRtcUseUtc)(BOOL *aRecommendedRtcUseUtc)
 {
     CheckComArgOutPointerValid(aRecommendedRtcUseUtc);
 
@@ -410,6 +416,31 @@ STDMETHODIMP GuestOSType::COMGETTER(RecommendedRtcUseUtc) (BOOL *aRecommendedRtc
 
     /* HID type is constant during life time, no need to lock */
     *aRecommendedRtcUseUtc = !!(mOSHint & VBOXOSHINT_RTCUTC);
+
+    return S_OK;
+}
+
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedChipset) (ChipsetType_T *aChipsetType)
+{
+    CheckComArgOutPointerValid(aChipsetType);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* chipset type is constant during life time, no need to lock */
+    *aChipsetType = mChipsetType;
+
+    return S_OK;
+}
+
+STDMETHODIMP GuestOSType::COMGETTER(RecommendedAudioController) (AudioControllerType_T *aAudioController)
+{
+    CheckComArgOutPointerValid(aAudioController);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    *aAudioController = mAudioControllerType;
 
     return S_OK;
 }

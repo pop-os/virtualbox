@@ -1,4 +1,4 @@
-/* $Id: VMInternal.h $ */
+/* $Id: VMInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VM - Internal header file.
  */
@@ -74,7 +74,7 @@ typedef struct VMERROR
     /** The size of the chunk. */
     uint32_t                        cbAllocated;
     /** The current offset into the chunk.
-     * We start by putting the filename and function immediatly
+     * We start by putting the filename and function immediately
      * after the end of the buffer. */
     uint32_t                        off;
     /** Offset from the start of this structure to the file name. */
@@ -115,7 +115,7 @@ typedef struct VMRUNTIMEERROR
     /** The size of the chunk. */
     uint32_t                        cbAllocated;
     /** The current offset into the chunk.
-     * We start by putting the error ID immediatly
+     * We start by putting the error ID immediately
      * after the end of the buffer. */
     uint32_t                        off;
     /** Offset from the start of this structure to the error ID. */
@@ -250,8 +250,8 @@ typedef struct VMINTUSERPERVM
     uint32_t volatile               iHaltMethod;
     /** @} */
 
-    /** @todo Do NOT add new members here or resue the current, we need to store the config for
-     *  each halt method seperately because we're racing on SMP guest rigs. */
+    /** @todo Do NOT add new members here or reuse the current, we need to store the config for
+     *  each halt method separately because we're racing on SMP guest rigs. */
     union
     {
        /**
@@ -277,6 +277,15 @@ typedef struct VMINTUSERPERVM
             /** When to stop spinning (lag / nano secs). */
             uint32_t                u32StopSpinningCfg;
         }                           Method12;
+
+       /**
+        * The GVMM manages halted and waiting EMTs.
+        */
+        struct
+        {
+            /** The threshold between spinning and blocking. */
+            uint32_t                cNsSpinBlockThresholdCfg;
+        }                           Global1;
     }                               Halt;
 
     /** Pointer to the DBGC instance data. */
@@ -397,6 +406,9 @@ typedef struct VMINTUSERPERVMCPU
      * @{ */
     STAMPROFILE                     StatHaltYield;
     STAMPROFILE                     StatHaltBlock;
+    STAMPROFILE                     StatHaltBlockOverslept;
+    STAMPROFILE                     StatHaltBlockInsomnia;
+    STAMPROFILE                     StatHaltBlockOnTime;
     STAMPROFILE                     StatHaltTimers;
     STAMPROFILE                     StatHaltPoll;
     /** @} */

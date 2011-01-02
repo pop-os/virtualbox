@@ -1,4 +1,4 @@
-/* $Id: VMMDevInterface.cpp $ */
+/* $Id: VMMDevInterface.cpp 33758 2010-11-04 10:30:19Z vboxsync $ */
 /** @file
  * VirtualBox Driver Interface to VMM device.
  */
@@ -180,9 +180,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestStatus(PPDMIVMMDEVCONNECTOR pInterface, cons
     if (!guest)
         return;
 
-    guest->setAdditionsStatus((VBoxGuestStatusFacility)guestStatus->facility,
-                              (VBoxGuestStatusCurrent)guestStatus->status,
-                              guestStatus->flags);
+    guest->setAdditionsStatus(guestStatus->facility, guestStatus->status, guestStatus->flags);
     pConsole->onAdditionsStateChange();
 }
 
@@ -192,7 +190,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestStatus(PPDMIVMMDEVCONNECTOR pInterface, cons
  * Called whenever the Additions issue a guest version report request or the VM is reset.
  *
  * @param   pInterface          Pointer to this interface.
- * @param   guestInfo           Pointer to guest information structure
+ * @param   guestInfo           Pointer to guest information structure.
  * @thread  The emulation thread.
  */
 DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const VBoxGuestInfo *guestInfo)
@@ -211,10 +209,10 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
     if (!guest)
         return;
 
-    if (guestInfo->additionsVersion != 0)
+    if (guestInfo->interfaceVersion != 0)
     {
-        char version[20];
-        RTStrPrintf(version, sizeof(version), "%d", guestInfo->additionsVersion);
+        char version[16];
+        RTStrPrintf(version, sizeof(version), "%d", guestInfo->interfaceVersion);
         guest->setAdditionsInfo(Bstr(version), guestInfo->osType);
 
         /*
@@ -223,7 +221,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
          */
         pConsole->onAdditionsStateChange();
 
-        if (guestInfo->additionsVersion < VMMDEV_VERSION)
+        if (guestInfo->interfaceVersion < VMMDEV_VERSION)
             pConsole->onAdditionsOutdated();
     }
     else
@@ -232,11 +230,54 @@ DECLCALLBACK(void) vmmdevUpdateGuestInfo(PPDMIVMMDEVCONNECTOR pInterface, const 
          * The guest additions was disabled because of a reset
          * or driver unload.
          */
-        guest->setAdditionsInfo(Bstr(), guestInfo->osType);
-        guest->setAdditionsStatus(VBoxGuestStatusFacility_Unknown,
-                                  VBoxGuestStatusCurrent_Disabled,
+        guest->setAdditionsInfo(Bstr(), guestInfo->osType); /* Clear interface version + OS type. */
+        guest->setAdditionsInfo2(Bstr(), Bstr(), Bstr()); /* Clear Guest Additions version. */
+        guest->setAdditionsStatus(VBoxGuestStatusFacility_All,
+                                  VBoxGuestStatusCurrent_Inactive,
                                   0); /* Flags; not used. */
         pConsole->onAdditionsStateChange();
+    }
+}
+
+/**
+ * Reports the detailed Guest Additions version.
+ * Called whenever the Additions issue a guest version report request or the VM is reset.
+ *
+ * @param   pInterface          Pointer to this interface.
+ * @param   guestInfo           Pointer to Guest Additions information structure.
+ * @thread  The emulation thread.
+ */
+DECLCALLBACK(void) vmmdevUpdateGuestInfo2(PPDMIVMMDEVCONNECTOR pInterface, const VBoxGuestInfo2 *guestInfo)
+{
+    PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
+
+    Assert(guestInfo);
+    if (!guestInfo)
+        return;
+
+    /* Store that information in IGuest. */
+    Guest* guest = pDrv->pVMMDev->getParent()->getGuest();
+    Assert(guest);
+    if (!guest)
+        return;
+
+    if (   guestInfo->additionsMajor    != 0
+        && guestInfo->additionsRevision != 0)
+    {
+        char version[32];
+        RTStrPrintf(version, sizeof(version), "%d.%d.%dr%ld", guestInfo->additionsMajor,
+                                                              guestInfo->additionsMinor,
+                                                              guestInfo->additionsBuild,
+                                                              guestInfo->additionsRevision);
+        char revision[16];
+        RTStrPrintf(revision, sizeof(revision), "%ld", guestInfo->additionsRevision);
+        guest->setAdditionsInfo2(Bstr(version), Bstr(guestInfo->szName), Bstr(revision));
+
+        /*
+         * No need to tell the console interface about the update;
+         * vmmdevUpdateGuestInfo takes care of that when called as the
+         * last event in the chain.
+         */
     }
 }
 
@@ -261,16 +302,15 @@ DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface
         return;
 
     /*
-     * Report our current capabilites (and assume none is active yet).
+     * Report our current capabilities (and assume none is active yet).
      */
-    guest->setSupportedFeatures((ULONG64)newCapabilities, 0 /* Active capabilities, not used here. */);
+    guest->setSupportedFeatures(newCapabilities, 0 /* Active capabilities, not used here. */);
 
     /*
      * Tell the console interface about the event
      * so that it can notify its consumers.
      */
     pConsole->onAdditionsStateChange();
-
 }
 
 /**
@@ -282,7 +322,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface
  * @param   newCapabilities     New capabilities.
  * @thread  The emulation thread.
  */
-DECLCALLBACK(void) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t newCapabilities)
+DECLCALLBACK(void) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t fNewCaps)
 {
     PDRVMAINVMMDEV pDrv = PDMIVMMDEVCONNECTOR_2_MAINVMMDEV(pInterface);
     Console *pConsole = pDrv->pVMMDev->getParent();
@@ -293,12 +333,8 @@ DECLCALLBACK(void) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface
      */
     Mouse *pMouse = pConsole->getMouse();
     if (pMouse)  /** @todo and if not?  Can that actually happen? */
-    {
-        pMouse->onVMMDevCanAbsChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE));
-        pMouse->onVMMDevNeedsHostChange(!!(newCapabilities & VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR));
-    }
+        pMouse->onVMMDevGuestCapsChange(fNewCaps & VMMDEV_MOUSE_GUEST_MASK);
 }
-
 
 /**
  * Update the pointer shape or visibility.
@@ -565,8 +601,7 @@ DECLCALLBACK(int) vmmdevIsPageFusionEnabled(PPDMIVMMDEVCONNECTOR pInterface, boo
     if (!guest)
         return VERR_GENERAL_FAILURE;
 
-    guest->COMGETTER(PageFusionEnabled)(&val);
-    *pfPageFusionEnabled = !!val;
+    *pfPageFusionEnabled = !!guest->isPageFusionEnabled();
     return VINF_SUCCESS;
 }
 
@@ -728,6 +763,29 @@ void VMMDev::hgcmShutdown(void)
     HGCMHostShutdown();
 }
 
+# ifdef VBOX_WITH_CRHGSMI
+int VMMDev::hgcmHostSvcHandleCreate (const char *pszServiceName, HGCMCVSHANDLE * phSvc)
+{
+    if (!hgcmIsActive())
+        return VERR_INVALID_STATE;
+    return HGCMHostSvcHandleCreate(pszServiceName, phSvc);
+}
+
+int VMMDev::hgcmHostSvcHandleDestroy (HGCMCVSHANDLE hSvc)
+{
+    if (!hgcmIsActive())
+        return VERR_INVALID_STATE;
+    return HGCMHostSvcHandleDestroy(hSvc);
+}
+
+int VMMDev::hgcmHostFastCallAsync (HGCMCVSHANDLE hSvc, uint32_t function, PVBOXHGCMSVCPARM pParm, PHGCMHOSTFASTCALLCB pfnCompletion, void *pvCompletion)
+{
+    if (!hgcmIsActive())
+        return VERR_INVALID_STATE;
+    return HGCMHostFastCallAsync(hSvc, function, pParm, pfnCompletion, pvCompletion);
+}
+# endif
+
 #endif /* HGCM */
 
 
@@ -804,6 +862,7 @@ DECLCALLBACK(int) VMMDev::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHandle,
 
     pData->Connector.pfnUpdateGuestStatus             = vmmdevUpdateGuestStatus;
     pData->Connector.pfnUpdateGuestInfo               = vmmdevUpdateGuestInfo;
+    pData->Connector.pfnUpdateGuestInfo2              = vmmdevUpdateGuestInfo2;
     pData->Connector.pfnUpdateGuestCapabilities       = vmmdevUpdateGuestCapabilities;
     pData->Connector.pfnUpdateMouseCapabilities       = vmmdevUpdateMouseCapabilities;
     pData->Connector.pfnUpdatePointerShape            = vmmdevUpdatePointerShape;

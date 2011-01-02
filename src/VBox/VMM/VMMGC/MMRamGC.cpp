@@ -1,4 +1,4 @@
-/* $Id: MMRamGC.cpp $ */
+/* $Id: MMRamGC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * MMRamGC - Guest Context Ram access Routines, pair for MMRamGCA.asm.
  */
@@ -76,7 +76,7 @@ VMMRCDECL(void) MMGCRamDeregisterTrapHandler(PVM pVM)
  *
  * @returns VBox status.
  * @param   pVM         The VM handle.
- * @param   pDst        Where to store the readed data.
+ * @param   pDst        Where to store the read data.
  * @param   pSrc        Pointer to the data to read.
  * @param   cb          Size of data to read, only 1/2/4/8 is valid.
  */

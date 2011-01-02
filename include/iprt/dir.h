@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,9 +28,7 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
-#ifdef IN_RING3
-# include <iprt/fs.h>
-#endif
+#include <iprt/fs.h>
 
 
 RT_C_DECLS_BEGIN
@@ -39,8 +37,6 @@ RT_C_DECLS_BEGIN
  * @ingroup grp_rt
  * @{
  */
-
-#ifdef IN_RING3
 
 /**
  * Check for the existence of a directory.
@@ -115,10 +111,12 @@ RTDECL(int) RTDirRemoveRecursive(const char *pszPath, uint32_t fFlags);
 
 /** @name   RTDirRemoveRecursive flags.
  * @{ */
+/** Delete the content of the directory and the directory itself. */
+#define RTDIRRMREC_F_CONTENT_AND_DIR    UINT32_C(0)
 /** Only delete the content of the directory, omit the directory it self. */
-#define RTDIRRMREC_F_CONTENT_ONLY   RT_BIT_32(0)
+#define RTDIRRMREC_F_CONTENT_ONLY       RT_BIT_32(0)
 /** Mask of valid flags. */
-#define RTDIRRMREC_F_VALID_MASK     UINT32_C(0x00000001)
+#define RTDIRRMREC_F_VALID_MASK         UINT32_C(0x00000001)
 /** @} */
 
 /**
@@ -251,7 +249,7 @@ typedef struct RTDIRENTRYEX
     /** The length of the short field (number of RTUTF16 entries (not chars)).
      * It is 16-bit for reasons of alignment. */
     uint16_t        cwcShortName;
-    /** The short name for 8.3 compatability.
+    /** The short name for 8.3 compatibility.
      * Empty string if not available.
      * Since the length is a bit tricky for a UTF-8 encoded name, and since this
      * is practically speaking only a windows thing, it is encoded as UCS-2. */
@@ -409,7 +407,6 @@ RTR3DECL(int) RTDirQueryInfo(PRTDIR pDir, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD 
 RTR3DECL(int) RTDirSetTimes(PRTDIR pDir, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
                             PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime);
 
-#endif /* IN_RING3 */
 /** @} */
 
 RT_C_DECLS_END

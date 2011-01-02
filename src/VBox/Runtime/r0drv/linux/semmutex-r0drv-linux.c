@@ -1,4 +1,4 @@
-/* $Id: semmutex-r0drv-linux.c $ */
+/* $Id: semmutex-r0drv-linux.c 34406 2010-11-26 16:45:34Z vboxsync $ */
 /** @file
  * IPRT - Mutex Semaphores, Ring-0 Driver, Linux.
  */
@@ -354,7 +354,7 @@ RTDECL(int) RTSemMutexRelease(RTSEMMUTEX hMtx)
             /* anyone to wake up? */
             if (!RTListIsEmpty(&pThis->WaiterList))
             {
-                PRTSEMMUTEXLNXWAITER pWaiter = RTListNodeGetFirst(&pThis->WaiterList, RTSEMMUTEXLNXWAITER, ListEntry);
+                PRTSEMMUTEXLNXWAITER pWaiter = RTListGetFirst(&pThis->WaiterList, RTSEMMUTEXLNXWAITER, ListEntry);
                 pWaiter->enmReason = RTSEMMUTEXLNXWAITER_WAKEUP;
                 wake_up_process(pWaiter->pTask);
             }

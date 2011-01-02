@@ -72,7 +72,7 @@ typedef struct EPTPML4EBITS
 AssertCompileSize(EPTPML4EBITS, 8);
 
 /** Bits 12-51 - - EPT - Physical Page number of the next level. */
-#define EPT_PML4E_PG_MASK       X86_PML4E_PG_MASK_FULL
+#define EPT_PML4E_PG_MASK       X86_PML4E_PG_MASK
 /** The page shift to get the PML4 index. */
 #define EPT_PML4_SHIFT          X86_PML4_SHIFT
 /** The PML4 index mask (apply to a shifted page address). */
@@ -139,7 +139,7 @@ typedef struct EPTPDPTEBITS
 AssertCompileSize(EPTPDPTEBITS, 8);
 
 /** Bits 12-51 - - EPT - Physical Page number of the next level. */
-#define EPT_PDPTE_PG_MASK       X86_PDPE_PG_MASK_FULL
+#define EPT_PDPTE_PG_MASK       X86_PDPE_PG_MASK
 /** The page shift to get the PDPT index. */
 #define EPT_PDPT_SHIFT          X86_PDPT_SHIFT
 /** The PDPT index mask (apply to a shifted page address). */
@@ -209,7 +209,7 @@ typedef struct EPTPDEBITS
 AssertCompileSize(EPTPDEBITS, 8);
 
 /** Bits 12-51 - - EPT - Physical Page number of the next level. */
-#define EPT_PDE_PG_MASK         X86_PDE_PAE_PG_MASK_FULL
+#define EPT_PDE_PG_MASK         X86_PDE_PAE_PG_MASK
 /** The page shift to get the PD index. */
 #define EPT_PD_SHIFT            X86_PD_PAE_SHIFT
 /** The PD index mask (apply to a shifted page address). */
@@ -246,7 +246,7 @@ typedef struct EPTPDE2MBITS
 AssertCompileSize(EPTPDE2MBITS, 8);
 
 /** Bits 21-51 - - EPT - Physical Page number of the next level. */
-#define EPT_PDE2M_PG_MASK       ( 0x000fffffffe00000ULL )
+#define EPT_PDE2M_PG_MASK       X86_PDE2M_PAE_PG_MASK
 
 /**
  * EPT Page Directory Table Entry.
@@ -293,28 +293,34 @@ typedef const EPTPD *PCEPTPD;
 #pragma pack(1)
 typedef struct EPTPTEBITS
 {
-    /** Present bit. */
+    /** 0 - Present bit.
+     * @remark This is a convenience "misnomer".  The bit actually indicates
+     *         read access and the CPU will consider an entry with any of the
+     *         first three bits set as present.  Since all our valid entries
+     *         will have this bit set, it can be used as a present indicator
+     *         and allow some code sharing. */
     uint64_t    u1Present       : 1;
-    /** Writable bit. */
+    /** 1 - Writable bit. */
     uint64_t    u1Write         : 1;
-    /** Executable bit. */
+    /** 2 - Executable bit. */
     uint64_t    u1Execute       : 1;
-    /** EPT Table Memory Type. MBZ for non-leaf nodes. */
+    /** 5:3 - EPT Memory Type. MBZ for non-leaf nodes. */
     uint64_t    u3EMT           : 3;
-    /** Ignore PAT memory type */
+    /** 6 - Ignore PAT memory type */
     uint64_t    u1IgnorePAT     : 1;
-    /** Available for software. */
+    /** 11:7 - Available for software. */
     uint64_t    u5Available     : 5;
-    /** Physical address of page. Restricted by maximum physical address width of the cpu. */
+    /** 51:12 - Physical address of page. Restricted by maximum physical
+     *  address width of the cpu. */
     uint64_t    u40PhysAddr     : 40;
-    /** Availabe for software. */
+    /** 63:52 - Available for software. */
     uint64_t    u12Available    : 12;
 } EPTPTEBITS;
 #pragma pack()
 AssertCompileSize(EPTPTEBITS, 8);
 
 /** Bits 12-51 - - EPT - Physical Page number of the next level. */
-#define EPT_PTE_PG_MASK         X86_PTE_PAE_PG_MASK_FULL
+#define EPT_PTE_PG_MASK         X86_PTE_PAE_PG_MASK
 /** The page shift to get the EPT PTE index. */
 #define EPT_PT_SHIFT            X86_PT_PAE_SHIFT
 /** The EPT PT index mask (apply to a shifted page address). */
@@ -586,16 +592,16 @@ typedef union
 /** VMCS revision identifier used by the processor. */
 #define MSR_IA32_VMX_BASIC_INFO_VMCS_ID(a)                      (a & 0x7FFFFFFF)
 /** Size of the VMCS. */
-#define MSR_IA32_VMX_BASIC_INFO_VMCS_SIZE(a)                    ((a >> 32ULL) & 0xFFF)
+#define MSR_IA32_VMX_BASIC_INFO_VMCS_SIZE(a)                    (((a) >> 32) & 0xFFF)
 /** Width of physical address used for the VMCS.
  *  0 -> limited to the available amount of physical ram
  *  1 -> within the first 4 GB
  */
-#define MSR_IA32_VMX_BASIC_INFO_VMCS_PHYS_WIDTH(a)              ((a >> 48ULL) & 1)
+#define MSR_IA32_VMX_BASIC_INFO_VMCS_PHYS_WIDTH(a)              (((a) >> 48) & 1)
 /** Whether the processor supports the dual-monitor treatment of system-management interrupts and system-management code. (always 1) */
-#define MSR_IA32_VMX_BASIC_INFO_VMCS_DUAL_MON(a)                ((a >> 49ULL) & 1)
+#define MSR_IA32_VMX_BASIC_INFO_VMCS_DUAL_MON(a)                (((a) >> 49) & 1)
 /** Memory type that must be used for the VMCS. */
-#define MSR_IA32_VMX_BASIC_INFO_VMCS_MEM_TYPE(a)                ((a >> 50ULL) & 0xF)
+#define MSR_IA32_VMX_BASIC_INFO_VMCS_MEM_TYPE(a)                (((a) >> 50) & 0xF)
 /** @} */
 
 
@@ -603,15 +609,15 @@ typedef union
  * @{
  */
 /** Relationship between the preemption timer and tsc; count down every time bit x of the tsc changes. */
-#define MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT(a)                    (a & 0x1f)
+#define MSR_IA32_VMX_MISC_PREEMPT_TSC_BIT(a)                    ((a) & 0x1f)
 /** Activity states supported by the implementation. */
-#define MSR_IA32_VMX_MISC_ACTIVITY_STATES(a)                    ((a >> 6ULL) & 0x7)
+#define MSR_IA32_VMX_MISC_ACTIVITY_STATES(a)                    (((a) >> 6) & 0x7)
 /** Number of CR3 target values supported by the processor. (0-256) */
-#define MSR_IA32_VMX_MISC_CR3_TARGET(a)                         ((a >> 16ULL) & 0x1FF)
+#define MSR_IA32_VMX_MISC_CR3_TARGET(a)                         (((a) >> 16) & 0x1FF)
 /** Maximum nr of MSRs in the VMCS. (N+1)*512. */
-#define MSR_IA32_VMX_MISC_MAX_MSR(a)                            ((((a >> 25ULL) & 0x7) + 1) * 512)
+#define MSR_IA32_VMX_MISC_MAX_MSR(a)                            (((((a) >> 25) & 0x7) + 1) * 512)
 /** MSEG revision identifier used by the processor. */
-#define MSR_IA32_VMX_MISC_MSEG_ID(a)                            (a >> 32ULL)
+#define MSR_IA32_VMX_MISC_MSEG_ID(a)                            ((a) >> 32)
 /** @} */
 
 
@@ -619,7 +625,7 @@ typedef union
  * @{
  */
 /** Highest field index. */
-#define MSR_IA32_VMX_VMCS_ENUM_HIGHEST_INDEX(a)                 ((a >> 1ULL) & 0x1FF)
+#define MSR_IA32_VMX_VMCS_ENUM_HIGHEST_INDEX(a)                 (((a) >> 1) & 0x1FF)
 
 /** @} */
 

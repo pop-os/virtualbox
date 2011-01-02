@@ -1,4 +1,4 @@
-; $Id: memmove.asm $
+; $Id: memmove.asm 33540 2010-10-28 09:27:05Z vboxsync $
 ;; @file
 ; IPRT - No-CRT memmove - AMD64 & X86.
 ;
@@ -59,7 +59,7 @@ RT_NOCRT_BEGINPROC memmove
         ;
         ; Decide which direction to perform the copy in.
         ;
-%if 1 ; keep it simpe for now.
+%if 1 ; keep it simple for now.
         cmp     xDI, xSI
         jnb     .backward
 

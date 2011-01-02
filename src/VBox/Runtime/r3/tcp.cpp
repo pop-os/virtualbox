@@ -1,4 +1,4 @@
-/* $Id: tcp.cpp $ */
+/* $Id: tcp.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - TCP/IP.
  */
@@ -38,8 +38,9 @@
 # include <netinet/tcp.h>
 # include <arpa/inet.h>
 # include <netdb.h>
-# include <unistd.h>
-# include <fcntl.h>
+# ifdef FIX_FOR_3_2
+#  include <fcntl.h>
+# endif
 #endif
 #include <limits.h>
 
@@ -592,7 +593,7 @@ static int rtTcpServerListenCleanup(PRTTCPSERVER pServer)
 
 
 /**
- * Listen and accept one incomming connection.
+ * Listen and accept one incoming connection.
  *
  * This is an alternative to RTTcpServerListen for the use the callbacks are not
  * possible.
@@ -923,6 +924,7 @@ RTR3DECL(int) RTTcpClientCloseEx(RTSOCKET Sock, bool fGracefulShutdown)
 }
 
 
+#ifdef FIX_FOR_3_2
 /**
  * Changes the blocking mode of the socket.
  *
@@ -953,6 +955,7 @@ static int rtTcpSetBlockingMode(RTHCUINTPTR hSocket, bool fBlocking)
 
     return 0;
 }
+#endif
 
 
 /**
@@ -972,8 +975,12 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
     if (fTryGracefulShutdown)
     {
         rc = RTSocketShutdown(Sock, false /*fRead*/, true /*fWrite*/);
+#ifdef FIX_FOR_3_2
         RTHCUINTPTR hNative = RTSocketToNative(Sock);
         if (RT_SUCCESS(rc) && rtTcpSetBlockingMode(hNative, false /*fBlocking*/) == 0)
+#else
+        if (RT_SUCCESS(rc))
+#endif
         {
 
             size_t      cbReceived = 0;
@@ -981,6 +988,7 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
             while (   cbReceived < _1G
                    && RTTimeMilliTS() - u64Start < 30000)
             {
+#ifdef FIX_FOR_3_2
                 fd_set FdSetR;
                 FD_ZERO(&FdSetR);
                 FD_SET(hNative, &FdSetR);
@@ -999,17 +1007,31 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
                     break;
                 if (FD_ISSET(hNative, &FdSetE))
                     break;
+#else
+                uint32_t fEvents;
+                rc = RTSocketSelectOneEx(Sock, RTSOCKET_EVT_READ | RTSOCKET_EVT_ERROR, &fEvents, 1000);
+                if (rc == VERR_TIMEOUT)
+                    continue;
+                if (RT_FAILURE(rc))
+                    break;
+                if (fEvents & RTSOCKET_EVT_ERROR)
+                    break;
+#endif
 
                 char abBitBucket[16*_1K];
+#ifdef FIX_FOR_3_2
                 ssize_t cbRead = recv(hNative, &abBitBucket[0], sizeof(abBitBucket), MSG_NOSIGNAL);
                 if (cbRead == 0)
                     break; /* orderly shutdown in progress */
-#ifdef RT_OS_WINDOWS
-                if (cbRead < 0)
-                    break; /* some kind of error, never mind which... */
-#else
                 if (cbRead < 0 && errno != EAGAIN)
                     break; /* some kind of error, never mind which... */
+#else
+                size_t cbRead;
+                rc = RTSocketReadNB(Sock, &abBitBucket[0], sizeof(abBitBucket), &cbRead);
+                if (RT_FAILURE(rc))
+                    break; /* some kind of error, never mind which... */
+                if (rc != VINF_TRY_AGAIN && !cbRead)
+                    break; /* orderly shutdown in progress */
 #endif
 
                 cbReceived += cbRead;
@@ -1062,6 +1084,13 @@ RTR3DECL(int)  RTTcpSelectOne(RTSOCKET Sock, RTMSINTERVAL cMillies)
 }
 
 
+RTR3DECL(int)  RTTcpSelectOneEx(RTSOCKET Sock, uint32_t fEvents, uint32_t *pfEvents,
+                                RTMSINTERVAL cMillies)
+{
+    return RTSocketSelectOneEx(Sock, fEvents, pfEvents, cMillies);
+}
+
+
 RTR3DECL(int) RTTcpGetLocalAddress(RTSOCKET Sock, PRTNETADDR pAddr)
 {
     return RTSocketGetLocalAddress(Sock, pAddr);
@@ -1093,5 +1122,39 @@ RTR3DECL(int) RTTcpSgWriteL(RTSOCKET hSocket, size_t cSegs, ...)
 RTR3DECL(int) RTTcpSgWriteLV(RTSOCKET hSocket, size_t cSegs, va_list va)
 {
     return RTSocketSgWriteLV(hSocket, cSegs, va);
+}
+
+
+RTR3DECL(int) RTTcpReadNB(RTSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead)
+{
+    return RTSocketReadNB(Sock, pvBuffer, cbBuffer, pcbRead);
+}
+
+
+RTR3DECL(int) RTTcpWriteNB(RTSOCKET Sock, const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten)
+{
+    return RTSocketWriteNB(Sock, pvBuffer, cbBuffer, pcbWritten);
+}
+
+
+RTR3DECL(int)  RTTcpSgWriteNB(RTSOCKET Sock, PCRTSGBUF pSgBuf, size_t *pcbWritten)
+{
+    return RTSocketSgWriteNB(Sock, pSgBuf, pcbWritten);
+}
+
+
+RTR3DECL(int) RTTcpSgWriteLNB(RTSOCKET hSocket, size_t cSegs, size_t *pcbWritten, ...)
+{
+    va_list va;
+    va_start(va, pcbWritten);
+    int rc = RTSocketSgWriteLVNB(hSocket, cSegs, pcbWritten, va);
+    va_end(va);
+    return rc;
+}
+
+
+RTR3DECL(int) RTTcpSgWriteLVNB(RTSOCKET hSocket, size_t cSegs, size_t *pcbWritten, va_list va)
+{
+    return RTSocketSgWriteLVNB(hSocket, cSegs, pcbWritten, va);
 }
 

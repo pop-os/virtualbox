@@ -46,15 +46,6 @@
 RT_C_DECLS_BEGIN
 
 
-/** Max value a RTUNICP type can hold. */
-#define RTUNICP_MAX         ( ~(RTUNICP)0 )
-
-/** Invalid code point.
- * This is returned when encountered invalid encodings or invalid
- * unicode code points. */
-#define RTUNICP_INVALID     ( 0xfffffffe )
-
-
 
 #ifndef RTUNI_USE_WCTYPE
 /**
@@ -134,12 +125,12 @@ DECLINLINE(RTUNICP) rtUniCpFlags(RTUNICP CodePoint)
         if (pCur->EndCP > CodePoint)
         {
             if (pCur->BeginCP <= CodePoint)
-                CodePoint = pCur->pafFlags[CodePoint - pCur->BeginCP];
+                return pCur->pafFlags[CodePoint - pCur->BeginCP];
             break;
         }
         pCur++;
     } while (pCur->EndCP != RTUNICP_MAX);
-    return CodePoint;
+    return 0;
 }
 
 

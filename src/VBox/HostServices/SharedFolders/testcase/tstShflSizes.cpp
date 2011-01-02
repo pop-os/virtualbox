@@ -59,12 +59,14 @@ int main(int argc, char **argv)
     STRUCT(SHFLMAPPING, 8);
     STRUCT(SHFLDIRINFO, 128);
     STRUCT(SHFLVOLINFO, 40);
+    STRUCT(SHFLFSOBJATTR, 44);
+    STRUCT(SHFLFSOBJINFO, 92);
 #ifdef VBOX_WITH_64_BITS_GUESTS
 /* The size of the guest structures depends on the current architecture bit count (ARCH_BITS)
  * because the HGCMFunctionParameter structure differs in 32 and 64 bit guests.
  * The host VMMDev device takes care about this.
  *
- * Therefore this testcase verifies whether structure sizes are correct for the currebt ARCH_BITS.
+ * Therefore this testcase verifies whether structure sizes are correct for the current ARCH_BITS.
  */
 # if ARCH_BITS == 64
     STRUCT(VBoxSFQueryMappings, 64);

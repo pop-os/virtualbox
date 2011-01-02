@@ -1,4 +1,4 @@
-/* $Id: HostHardwareLinux.h $ */
+/* $Id: HostHardwareLinux.h 34341 2010-11-24 20:14:36Z vboxsync $ */
 /** @file
  * Classes for handling hardware detection under Linux.
  *
@@ -24,6 +24,7 @@
 #include <iprt/err.h>
 #include <iprt/cpp/ministring.h>
 #include <vector>
+#include <vector.h>
 
 /**
  * Class for probing and returning information about host DVD and floppy
@@ -40,7 +41,7 @@ public:
         /** The device node of the drive. */
         iprt::MiniString mDevice;
         /** A unique identifier for the device, if available.  This should be
-         * kept consistant accross different probing methods of a given
+         * kept consistent across different probing methods of a given
          * platform if at all possible. */
         iprt::MiniString mUdi;
         /** A textual description of the drive. */
@@ -108,69 +109,6 @@ typedef VBoxMainDriveInfo::DriveInfoList DriveInfoList;
 /** Convenience typedef. */
 typedef VBoxMainDriveInfo::DriveInfo DriveInfo;
 
-/**
- * Class for probing and returning information about host USB devices.
- * To use this class, create an instance, call the update methods to do the
- * actual probing and use the iterator methods to get the result of the probe.
- */
-class VBoxMainUSBDeviceInfo
-{
-public:
-    /** Structure describing a host USB device */
-    struct USBDeviceInfo
-    {
-        /** The device node of the device. */
-        iprt::MiniString mDevice;
-        /** The system identifier of the device.  Specific to the probing
-         * method. */
-        iprt::MiniString mSysfsPath;
-        /** Type for the list of interfaces. */
-        typedef std::vector<iprt::MiniString> InterfaceList;
-        /** The system IDs of the device's interfaces. */
-        InterfaceList mInterfaces;
-
-        /** Constructors */
-        USBDeviceInfo(const iprt::MiniString &aDevice,
-                      const iprt::MiniString &aSystemID)
-            : mDevice(aDevice),
-              mSysfsPath(aSystemID)
-        { }
-    };
-
-    /** List (resp vector) holding drive information */
-    typedef std::vector<USBDeviceInfo> DeviceInfoList;
-
-    /**
-     * Search for host USB devices and rebuild the list, which remains empty
-     * until the first time this method is called.
-     * @returns iprt status code
-     */
-    int UpdateDevices ();
-
-    /** Get the first element in the list of USB devices. */
-    DeviceInfoList::const_iterator DevicesBegin()
-    {
-        return mDeviceList.begin();
-    }
-
-    /** Get the last element in the list of USB devices. */
-    DeviceInfoList::const_iterator DevicesEnd()
-    {
-        return mDeviceList.end();
-    }
-
-private:
-    /** The list of currently available USB devices */
-    DeviceInfoList mDeviceList;
-};
-
-/** Convenience typedef. */
-typedef VBoxMainUSBDeviceInfo::DeviceInfoList USBDeviceInfoList;
-/** Convenience typedef. */
-typedef VBoxMainUSBDeviceInfo::USBDeviceInfo USBDeviceInfo;
-/** Convenience typedef. */
-typedef VBoxMainUSBDeviceInfo::USBDeviceInfo::InterfaceList USBInterfaceList;
-
 /** Implementation of the hotplug waiter class below */
 class VBoxMainHotplugWaiterImpl
 {
@@ -197,7 +135,7 @@ class VBoxMainHotplugWaiter
     VBoxMainHotplugWaiterImpl *mImpl;
 public:
     /** Constructor.  Responsible for selecting the implementation. */
-    VBoxMainHotplugWaiter (void);
+    VBoxMainHotplugWaiter(const char *pcszDevicesRoot);
     /** Destructor. */
     ~VBoxMainHotplugWaiter (void)
     {

@@ -1,4 +1,4 @@
-/* $Id: DevVGAModes.h $ */
+/* $Id: DevVGAModes.h 34399 2010-11-26 16:30:44Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device, VBE modes.
  *
@@ -19,6 +19,8 @@
  */
 
 #ifdef VBE_NEW_DYN_LIST
+
+#include <VBox/Hardware/VBoxVideoVBE.h>
 
 /* VBE Mode Numbers */
 #define VBE_MODE_VESA_DEFINED                            0x0100
@@ -120,8 +122,6 @@
 
 /* Video memory */
 #define VGAMEM_GRAPH                                     0xA000
-#define VBE_DISPI_BANK_SIZE_KB                           64
-#define VBE_DISPI_LFB_PHYSICAL_ADDRESS                   0xE0000000
 
 /*
  * This one is for compactly storing a list of mode info blocks

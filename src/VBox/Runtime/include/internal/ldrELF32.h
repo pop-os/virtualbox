@@ -1,4 +1,4 @@
-/* $Id: ldrELF32.h $ */
+/* $Id: ldrELF32.h 32223 2010-09-02 19:11:02Z vboxsync $ */
 /** @file
  * IPRT - ELF 32-bit header.
  */

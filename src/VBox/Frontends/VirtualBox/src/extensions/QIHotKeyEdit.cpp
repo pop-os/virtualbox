@@ -1,4 +1,4 @@
-/* $Id: QIHotKeyEdit.cpp $ */
+/* $Id: QIHotKeyEdit.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -66,10 +66,10 @@ QMap<QString, QString> QIHotKeyEdit::sKeyNames;
 #endif
 
 #ifdef Q_WS_MAC
+# include "UICocoaApplication.h"
 # include "DarwinKeyboard.h"
-# include <Carbon/Carbon.h>
-# include "darwin/VBoxCocoaApplication.h"
 # include "VBoxUtils.h"
+# include <Carbon/Carbon.h>
 #endif
 
 
@@ -140,7 +140,7 @@ QIHotKeyEdit::QIHotKeyEdit (QWidget *aParent) :
 
 #ifdef Q_WS_MAC
     mDarwinKeyModifiers = GetCurrentEventKeyModifiers();
-    ::VBoxCocoaApplication_setCallback (UINT32_MAX, QIHotKeyEdit::darwinEventHandlerProc, this);
+    UICocoaApplication::instance()->registerForNativeEvents(RT_BIT_32(10) | RT_BIT_32(11) | RT_BIT_32(12) /* NSKeyDown  | NSKeyUp | | NSFlagsChanged */, QIHotKeyEdit::darwinEventHandlerProc, this);
     ::DarwinGrabKeyboard (false /* just modifiers */);
 #endif
 }
@@ -149,7 +149,7 @@ QIHotKeyEdit::~QIHotKeyEdit()
 {
 #ifdef Q_WS_MAC
     ::DarwinReleaseKeyboard();
-    ::VBoxCocoaApplication_unsetCallback (UINT32_MAX, QIHotKeyEdit::darwinEventHandlerProc, this);
+    UICocoaApplication::instance()->unregisterForNativeEvents(RT_BIT_32(10) | RT_BIT_32(11) | RT_BIT_32(12) /* NSKeyDown  | NSKeyUp | | NSFlagsChanged */, QIHotKeyEdit::darwinEventHandlerProc, this);
 #endif
 }
 
@@ -161,7 +161,7 @@ QIHotKeyEdit::~QIHotKeyEdit()
  *
  *  @note
  *      The key value is platform-dependent. On Win32 it is the
- *      virtial key, on Linux it is the first (0) keysym corresponding
+ *      virtual key, on Linux it is the first (0) keysym corresponding
  *      to the keycode.
  */
 void QIHotKeyEdit::setKey (int aKeyVal)
@@ -173,12 +173,12 @@ void QIHotKeyEdit::setKey (int aKeyVal)
 
 /**@@ QIHotKeyEdit::key() const
  *
- *  Returns the value of the last recodred hot key.
+ *  Returns the value of the last recorded hot key.
  *  O means there is no hot key.
  *
  *  @note
  *      The key value is platform-dependent. On Win32 it is the
- *      virtial key, on Linux it is the first (0) keysym corresponding
+ *      virtual key, on Linux it is the first (0) keysym corresponding
  *      to the keycode.
  */
 
@@ -348,7 +348,7 @@ void QIHotKeyEdit::retranslateUi()
  *
  *  @note
  *      The key value is platform-dependent. On Win32 it is the
- *      virtial key, on Linux it is the first (0) keysym corresponding
+ *      virtual key, on Linux it is the first (0) keysym corresponding
  *      to the keycode.
  */
 /* static */

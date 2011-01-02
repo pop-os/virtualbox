@@ -1,10 +1,10 @@
-/* $Id: VBoxManageDHCPServer.cpp $ */
+/* $Id: VBoxManageDHCPServer.cpp 33489 2010-10-27 10:31:41Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of dhcpserver command.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,9 +26,6 @@
 #include <VBox/com/EventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
-
-#include <vector>
-#include <list>
 #endif /* !VBOX_ONLY_DOCS */
 
 #include <iprt/cidr.h>
@@ -281,36 +278,19 @@ static int handleOp(HandlerArg *a, OPCODE enmCode, int iStart, int *pcProcessed)
 
 int handleDHCPServer(HandlerArg *a)
 {
-    int result = 0;
     if (a->argc < 1)
         return errorSyntax(USAGE_DHCPSERVER, "Not enough parameters");
 
-    for (int i = 0; i < a->argc; i++)
-    {
-        if (strcmp(a->argv[i], "modify") == 0)
-        {
-            int cProcessed;
-            result = handleOp(a, OP_MODIFY, i+1, &cProcessed);
-            break;
-        }
-        else if (strcmp(a->argv[i], "add") == 0)
-        {
-            int cProcessed;
-            result = handleOp(a, OP_ADD, i+1, &cProcessed);
-            break;
-        }
-        else if (strcmp(a->argv[i], "remove") == 0)
-        {
-            int cProcessed;
-            result = handleOp(a, OP_REMOVE, i+1, &cProcessed);
-            break;
-        }
-        else
-        {
-            result = errorSyntax(USAGE_DHCPSERVER, "Invalid parameter '%s'", Utf8Str(a->argv[i]).raw());
-            break;
-        }
-    }
+    int result;
+    int cProcessed;
+    if (strcmp(a->argv[0], "modify") == 0)
+        result = handleOp(a, OP_MODIFY, 1, &cProcessed);
+    else if (strcmp(a->argv[0], "add") == 0)
+        result = handleOp(a, OP_ADD, 1, &cProcessed);
+    else if (strcmp(a->argv[0], "remove") == 0)
+        result = handleOp(a, OP_REMOVE, 1, &cProcessed);
+    else
+        result = errorSyntax(USAGE_DHCPSERVER, "Invalid parameter '%s'", Utf8Str(a->argv[0]).c_str());
 
     return result;
 }

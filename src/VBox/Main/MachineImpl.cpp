@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp $ */
+/* $Id: MachineImpl.cpp 35175 2010-12-16 12:36:00Z vboxsync $ */
 /** @file
  * Implementation of IMachine in VBoxSVC.
  */
@@ -46,6 +46,9 @@
 #include "VirtualBoxErrorInfoImpl.h"
 #include "GuestImpl.h"
 #include "StorageControllerImpl.h"
+#include "DisplayImpl.h"
+#include "DisplayUtils.h"
+#include "BandwidthControlImpl.h"
 
 #ifdef VBOX_WITH_USB
 # include "USBProxyService.h"
@@ -70,12 +73,13 @@
 #include <VBox/param.h>
 #include <VBox/settings.h>
 #include <VBox/ssm.h>
-#include <VBox/feature.h>
 
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>
 # include <VBox/com/array.h>
 #endif
+
+#include "VBox/com/MultiResult.h"
 
 #include <algorithm>
 
@@ -113,7 +117,7 @@ Machine::Data::Data()
     mGuestPropertiesModified = FALSE;
 
     mSession.mPid = NIL_RTPROCESS;
-    mSession.mState = SessionState_Closed;
+    mSession.mState = SessionState_Unlocked;
 }
 
 Machine::Data::~Data()
@@ -128,27 +132,6 @@ Machine::Data::~Data()
         delete pMachineConfigFile;
         pMachineConfigFile = NULL;
     }
-}
-
-/////////////////////////////////////////////////////////////////////////////
-// Machine::UserData structure
-/////////////////////////////////////////////////////////////////////////////
-
-Machine::UserData::UserData()
-{
-    /* default values for a newly created machine */
-
-    mNameSync = TRUE;
-    mTeleporterEnabled = FALSE;
-    mTeleporterPort = 0;
-    mRTCUseUTC = FALSE;
-
-    /* mName, mOSTypeId, mSnapshotFolder, mSnapshotFolderFull are initialized in
-     * Machine::init() */
-}
-
-Machine::UserData::~UserData()
-{
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -170,9 +153,8 @@ Machine::HWData::HWData()
     mMonitorCount = 1;
     mHWVirtExEnabled = true;
     mHWVirtExNestedPagingEnabled = true;
-#if HC_ARCH_BITS == 64
-    /* Default value decision pending. */
-    mHWVirtExLargePagesEnabled = false;
+#if HC_ARCH_BITS == 64 && !defined(RT_OS_LINUX)
+    mHWVirtExLargePagesEnabled = true;
 #else
     /* Not supported on 32 bits hosts. */
     mHWVirtExLargePagesEnabled = false;
@@ -205,13 +187,16 @@ Machine::HWData::HWData()
     mFirmwareType = FirmwareType_BIOS;
     mKeyboardHidType = KeyboardHidType_PS2Keyboard;
     mPointingHidType = PointingHidType_PS2Mouse;
+    mChipsetType = ChipsetType_PIIX3;
 
     for (size_t i = 0; i < RT_ELEMENTS(mCPUAttached); i++)
         mCPUAttached[i] = false;
 
     mIoCacheEnabled = true;
     mIoCacheSize    = 5; /* 5MB */
-    mIoBandwidthMax = 0; /* Unlimited */
+
+    /* Maximum CPU execution cap by default. */
+    mCpuExecutionCap = 100;
 }
 
 Machine::HWData::~HWData()
@@ -260,33 +245,27 @@ void Machine::FinalRelease()
 
 /**
  *  Initializes a new machine instance; this init() variant creates a new, empty machine.
- *  This gets called from VirtualBox::CreateMachine() or VirtualBox::CreateLegacyMachine().
+ *  This gets called from VirtualBox::CreateMachine().
  *
  *  @param aParent      Associated parent object
  *  @param strConfigFile  Local file system path to the VM settings file (can
  *                      be relative to the VirtualBox config directory).
  *  @param strName      name for the machine
  *  @param aId          UUID for the new machine.
- *  @param aOsType      Optional OS Type of this machine.
- *  @param aOverride    |TRUE| to override VM config file existence checks.
- *                      |FALSE| refuses to overwrite existing VM configs.
- *  @param aNameSync    |TRUE| to automatically sync settings dir and file
- *                      name with the machine name. |FALSE| is used for legacy
- *                      machines where the file name is specified by the
- *                      user and should never change.
+ *  @param aOsType      OS Type of this machine or NULL.
+ *  @param fForceOverwrite Whether to overwrite an existing machine settings file.
  *
  *  @return  Success indicator. if not S_OK, the machine object is invalid
  */
 HRESULT Machine::init(VirtualBox *aParent,
                       const Utf8Str &strConfigFile,
                       const Utf8Str &strName,
+                      GuestOSType *aOsType,
                       const Guid &aId,
-                      GuestOSType *aOsType /* = NULL */,
-                      BOOL aOverride /* = FALSE */,
-                      BOOL aNameSync /* = TRUE */)
+                      bool fForceOverwrite)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("(Init_New) aConfigFile='%s'\n", strConfigFile.raw()));
+    LogFlowThisFunc(("(Init_New) aConfigFile='%s'\n", strConfigFile.c_str()));
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -295,7 +274,7 @@ HRESULT Machine::init(VirtualBox *aParent,
     HRESULT rc = initImpl(aParent, strConfigFile);
     if (FAILED(rc)) return rc;
 
-    rc = tryCreateMachineConfigFile(aOverride);
+    rc = tryCreateMachineConfigFile(fForceOverwrite);
     if (FAILED(rc)) return rc;
 
     if (SUCCEEDED(rc))
@@ -313,18 +292,21 @@ HRESULT Machine::init(VirtualBox *aParent,
 
         unconst(mData->mUuid) = aId;
 
-        mUserData->mName = strName;
-        mUserData->mNameSync = aNameSync;
+        mUserData->s.strName = strName;
 
-        /* initialize the default snapshots folder
-         * (note: depends on the name value set above!) */
+        // the "name sync" flag determines whether the machine directory gets renamed along
+        // with the machine file; say so if the settings file name is the same as the
+        // settings file parent directory (machine directory)
+        mUserData->s.fNameSync = isInOwnDir();
+
+        // initialize the default snapshots folder
         rc = COMSETTER(SnapshotFolder)(NULL);
         AssertComRC(rc);
 
         if (aOsType)
         {
             /* Store OS type */
-            mUserData->mOSTypeId = aOsType->id();
+            mUserData->s.strOsType = aOsType->id();
 
             /* Apply BIOS defaults */
             mBIOSSettings->applyDefaults(aOsType);
@@ -351,8 +333,8 @@ HRESULT Machine::init(VirtualBox *aParent,
             autoInitSpan.setLimited();
     }
 
-    LogFlowThisFunc(("mName='%ls', mRegistered=%RTbool, mAccessible=%RTbool, rc=%08X\n",
-                     !!mUserData ? mUserData->mName.raw() : NULL,
+    LogFlowThisFunc(("mName='%s', mRegistered=%RTbool, mAccessible=%RTbool, rc=%08X\n",
+                     !!mUserData ? mUserData->s.strName.c_str() : "NULL",
                      mData->mRegistered,
                      mData->mAccessible,
                      rc));
@@ -384,7 +366,7 @@ HRESULT Machine::init(VirtualBox *aParent,
                       const Guid *aId)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("(Init_Registered) aConfigFile='%s\n", strConfigFile.raw()));
+    LogFlowThisFunc(("(Init_Registered) aConfigFile='%s\n", strConfigFile.c_str()));
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -420,6 +402,7 @@ HRESULT Machine::init(VirtualBox *aParent,
                 // reject VM UUID duplicates, they can happen if someone
                 // tries to register an already known VM config again
                 if (aParent->findMachine(mData->pMachineConfigFile->uuid,
+                                         true /* fPermitInaccessible */,
                                          false /* aDoSetError */,
                                          NULL) != VBOX_E_OBJECT_NOT_FOUND)
                 {
@@ -431,7 +414,8 @@ HRESULT Machine::init(VirtualBox *aParent,
                 // use UUID from machine config
                 unconst(mData->mUuid) = mData->pMachineConfigFile->uuid;
 
-                rc = loadMachineDataFromSettings(*mData->pMachineConfigFile);
+                rc = loadMachineDataFromSettings(*mData->pMachineConfigFile,
+                                                 NULL /* puuidRegistry */);
                 if (FAILED(rc)) throw rc;
 
                 commit();
@@ -454,12 +438,18 @@ HRESULT Machine::init(VirtualBox *aParent,
         if (mData->mAccessible)
             autoInitSpan.setSucceeded();
         else
+        {
             autoInitSpan.setLimited();
+
+            // uninit media from this machine's media registry, or else
+            // reloading the settings will fail
+            mParent->unregisterMachineMedia(getId());
+        }
     }
 
-    LogFlowThisFunc(("mName='%ls', mRegistered=%RTbool, mAccessible=%RTbool "
+    LogFlowThisFunc(("mName='%s', mRegistered=%RTbool, mAccessible=%RTbool "
                       "rc=%08X\n",
-                      !!mUserData ? mUserData->mName.raw() : NULL,
+                      !!mUserData ? mUserData->s.strName.c_str() : "NULL",
                       mData->mRegistered, mData->mAccessible, rc));
 
     LogFlowThisFuncLeave();
@@ -488,17 +478,18 @@ HRESULT Machine::init(VirtualBox *aParent,
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    Utf8Str strConfigFile(aParent->getDefaultMachineFolder());
-    strConfigFile.append(Utf8StrFmt("%c%s%c%s.xml",
-                                    RTPATH_DELIMITER,
-                                    strName.c_str(),
-                                    RTPATH_DELIMITER,
-                                    strName.c_str()));
+    Utf8Str strConfigFile;
+    aParent->getDefaultMachineFolder(strConfigFile);
+    strConfigFile.append(RTPATH_DELIMITER);
+    strConfigFile.append(strName);
+    strConfigFile.append(RTPATH_DELIMITER);
+    strConfigFile.append(strName);
+    strConfigFile.append(".vbox");
 
     HRESULT rc = initImpl(aParent, strConfigFile);
     if (FAILED(rc)) return rc;
 
-    rc = tryCreateMachineConfigFile(FALSE /* aOverride */);
+    rc = tryCreateMachineConfigFile(false /* fForceOverwrite */);
     if (FAILED(rc)) return rc;
 
     rc = initDataAndChildObjects();
@@ -514,10 +505,11 @@ HRESULT Machine::init(VirtualBox *aParent,
         // generate fresh UUID, ignore machine config
         unconst(mData->mUuid).create();
 
-        rc = loadMachineDataFromSettings(config);
+        rc = loadMachineDataFromSettings(config,
+                                         &mData->mUuid); // puuidRegistry: initialize media with this registry ID
 
         // override VM name as well, it may be different
-        mUserData->mName = strName;
+        mUserData->s.strName = strName;
 
         /* commit all changes made during the initialization */
         if (SUCCEEDED(rc))
@@ -530,12 +522,18 @@ HRESULT Machine::init(VirtualBox *aParent,
         if (mData->mAccessible)
             autoInitSpan.setSucceeded();
         else
+        {
             autoInitSpan.setLimited();
+
+            // uninit media from this machine's media registry, or else
+            // reloading the settings will fail
+            mParent->unregisterMachineMedia(getId());
+        }
     }
 
-    LogFlowThisFunc(("mName='%ls', mRegistered=%RTbool, mAccessible=%RTbool "
+    LogFlowThisFunc(("mName='%s', mRegistered=%RTbool, mAccessible=%RTbool "
                      "rc=%08X\n",
-                      !!mUserData ? mUserData->mName.raw() : NULL,
+                      !!mUserData ? mUserData->s.strName.c_str() : "NULL",
                       mData->mRegistered, mData->mAccessible, rc));
 
     LogFlowThisFuncLeave();
@@ -573,7 +571,7 @@ HRESULT Machine::initImpl(VirtualBox *aParent,
     if (RT_FAILURE(vrc1))
         return setError(VBOX_E_FILE_ERROR,
                         tr("Invalid machine settings file name '%s' (%Rrc)"),
-                        strConfigFile.raw(),
+                        strConfigFile.c_str(),
                         vrc1);
 
     LogFlowThisFuncLeave();
@@ -587,7 +585,7 @@ HRESULT Machine::initImpl(VirtualBox *aParent,
  * the settings file could not be written (e.g. because machine dir is read-only).
  * @return
  */
-HRESULT Machine::tryCreateMachineConfigFile(BOOL aOverride)
+HRESULT Machine::tryCreateMachineConfigFile(bool fForceOverwrite)
 {
     HRESULT rc = S_OK;
 
@@ -600,19 +598,19 @@ HRESULT Machine::tryCreateMachineConfigFile(BOOL aOverride)
     {
         if (RT_SUCCESS(vrc))
             RTFileClose(f);
-        if (!aOverride)
+        if (!fForceOverwrite)
             rc = setError(VBOX_E_FILE_ERROR,
                           tr("Machine settings file '%s' already exists"),
-                          mData->m_strConfigFileFull.raw());
+                          mData->m_strConfigFileFull.c_str());
         else
         {
             /* try to delete the config file, as otherwise the creation
-                * of a new settings file will fail. */
+             * of a new settings file will fail. */
             int vrc2 = RTFileDelete(mData->m_strConfigFileFull.c_str());
             if (RT_FAILURE(vrc2))
                 rc = setError(VBOX_E_FILE_ERROR,
                               tr("Could not delete the existing settings file '%s' (%Rrc)"),
-                              mData->m_strConfigFileFull.raw(), vrc2);
+                              mData->m_strConfigFileFull.c_str(), vrc2);
         }
     }
     else if (    vrc != VERR_FILE_NOT_FOUND
@@ -620,7 +618,7 @@ HRESULT Machine::tryCreateMachineConfigFile(BOOL aOverride)
             )
         rc = setError(VBOX_E_FILE_ERROR,
                       tr("Invalid machine settings file name '%s' (%Rrc)"),
-                      mData->m_strConfigFileFull.raw(),
+                      mData->m_strConfigFileFull.c_str(),
                       vrc);
     return rc;
 }
@@ -639,7 +637,8 @@ HRESULT Machine::tryCreateMachineConfigFile(BOOL aOverride)
  */
 HRESULT Machine::registeredInit()
 {
-    AssertReturn(getClassID() == clsidMachine, E_FAIL);
+    AssertReturn(!isSessionMachine(), E_FAIL);
+    AssertReturn(!isSnapshotMachine(), E_FAIL);
     AssertReturn(!mData->mUuid.isEmpty(), E_FAIL);
     AssertReturn(!mData->mAccessible, E_FAIL);
 
@@ -662,11 +661,12 @@ HRESULT Machine::registeredInit()
                 throw setError(E_FAIL,
                                tr("Machine UUID {%RTuuid} in '%s' doesn't match its UUID {%s} in the registry file '%s'"),
                                mData->pMachineConfigFile->uuid.raw(),
-                               mData->m_strConfigFileFull.raw(),
-                               mData->mUuid.toString().raw(),
-                               mParent->settingsFilePath().raw());
+                               mData->m_strConfigFileFull.c_str(),
+                               mData->mUuid.toString().c_str(),
+                               mParent->settingsFilePath().c_str());
 
-            rc = loadMachineDataFromSettings(*mData->pMachineConfigFile);
+            rc = loadMachineDataFromSettings(*mData->pMachineConfigFile,
+                                             NULL /* const Guid *puuidRegistry */);
             if (FAILED(rc)) throw rc;
         }
         catch (HRESULT err)
@@ -707,6 +707,10 @@ HRESULT Machine::registeredInit()
         /* rollback all changes */
         rollback(false /* aNotify */);
 
+        // uninit media from this machine's media registry, or else
+        // reloading the settings will fail
+        mParent->unregisterMachineMedia(getId());
+
         /* uninitialize the common part to make sure all data is reset to
          * default (null) values */
         uninitDataAndChildObjects();
@@ -739,7 +743,8 @@ void Machine::uninit()
     if (autoUninitSpan.uninitDone())
         return;
 
-    Assert(getClassID() == clsidMachine);
+    Assert(!isSnapshotMachine());
+    Assert(!isSessionMachine());
     Assert(!!mData);
 
     LogFlowThisFunc(("initFailed()=%d\n", autoUninitSpan.initFailed()));
@@ -779,6 +784,11 @@ void Machine::uninit()
         /* SessionMachine::uninit() must set mSession.mMachine to null */
         Assert(mData->mSession.mMachine.isNull());
     }
+
+    // uninit media from this machine's media registry, if they're still there
+    Guid uuidMachine(getId());
+    if (!uuidMachine.isEmpty())     // can be empty if we're called from a failure of Machine::init
+        mParent->unregisterMachineMedia(uuidMachine);
 
     /* the lock is no more necessary (SessionMachine is uninitialized) */
     alock.leave();
@@ -893,9 +903,9 @@ STDMETHODIMP Machine::COMGETTER(AccessError)(IVirtualBoxErrorInfo **aAccessError
     if (SUCCEEDED(rc))
     {
         errorInfo->init(mData->mAccessError.getResultCode(),
-                        mData->mAccessError.getInterfaceID(),
-                        mData->mAccessError.getComponent(),
-                        mData->mAccessError.getText());
+                        mData->mAccessError.getInterfaceID().ref(),
+                        Utf8Str(mData->mAccessError.getComponent()).c_str(),
+                        Utf8Str(mData->mAccessError.getText()));
         rc = errorInfo.queryInterfaceTo(aAccessError);
     }
 
@@ -911,7 +921,7 @@ STDMETHODIMP Machine::COMGETTER(Name)(BSTR *aName)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mUserData->mName.cloneTo(aName);
+    mUserData->s.strName.cloneTo(aName);
 
     return S_OK;
 }
@@ -930,7 +940,7 @@ STDMETHODIMP Machine::COMSETTER(Name)(IN_BSTR aName)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mName = aName;
+    mUserData->s.strName = aName;
 
     return S_OK;
 }
@@ -944,7 +954,7 @@ STDMETHODIMP Machine::COMGETTER(Description)(BSTR *aDescription)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mUserData->mDescription.cloneTo(aDescription);
+    mUserData->s.strDescription.cloneTo(aDescription);
 
     return S_OK;
 }
@@ -961,7 +971,7 @@ STDMETHODIMP Machine::COMSETTER(Description)(IN_BSTR aDescription)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mDescription = aDescription;
+    mUserData->s.strDescription = aDescription;
 
     return S_OK;
 }
@@ -989,7 +999,7 @@ STDMETHODIMP Machine::COMGETTER(OSTypeId)(BSTR *aOSTypeId)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mUserData->mOSTypeId.cloneTo(aOSTypeId);
+    mUserData->s.strOsType.cloneTo(aOSTypeId);
 
     return S_OK;
 }
@@ -1019,7 +1029,7 @@ STDMETHODIMP Machine::COMSETTER(OSTypeId)(IN_BSTR aOSTypeId)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mOSTypeId = osTypeId;
+    mUserData->s.strOsType = osTypeId;
 
     return S_OK;
 }
@@ -1111,6 +1121,36 @@ STDMETHODIMP Machine::COMSETTER(PointingHidType)(PointingHidType_T  aPointingHid
     setModified(IsModified_MachineData);
     mHWData.backup();
     mHWData->mPointingHidType = aPointingHidType;
+
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(ChipsetType)(ChipsetType_T *aChipsetType)
+{
+    CheckComArgOutPointerValid(aChipsetType);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aChipsetType = mHWData->mChipsetType;
+
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(ChipsetType)(ChipsetType_T aChipsetType)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    int rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mHWData.backup();
+    mHWData->mChipsetType = aChipsetType;
 
     return S_OK;
 }
@@ -1286,6 +1326,55 @@ STDMETHODIMP Machine::COMSETTER(CPUCount)(ULONG CPUCount)
 
     return S_OK;
 }
+
+STDMETHODIMP Machine::COMGETTER(CPUExecutionCap)(ULONG *aExecutionCap)
+{
+    if (!aExecutionCap)
+        return E_POINTER;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aExecutionCap = mHWData->mCpuExecutionCap;
+
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(CPUExecutionCap)(ULONG aExecutionCap)
+{
+    HRESULT rc = S_OK;
+
+    /* check throttle limits */
+    if (    aExecutionCap < 1
+         || aExecutionCap > 100
+       )
+        return setError(E_INVALIDARG,
+                        tr("Invalid CPU execution cap value: %lu (must be in range [%lu, %lu])"),
+                        aExecutionCap, 1, 100);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    alock.release();
+    rc = onCPUExecutionCapChange(aExecutionCap);
+    alock.acquire();
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mHWData.backup();
+    mHWData->mCpuExecutionCap = aExecutionCap;
+
+    /* Save settings if online - todo why is this required?? */
+    if (Global::IsOnline(mData->mMachineState))
+        saveSettings(NULL);
+
+    return S_OK;
+}
+
 
 STDMETHODIMP Machine::COMGETTER(CPUHotPlugEnabled)(BOOL *enabled)
 {
@@ -1501,6 +1590,7 @@ STDMETHODIMP Machine::COMSETTER(PageFusionEnabled) (BOOL enabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    /** @todo must support changes for running vms and keep this in sync with IGuest. */
     setModified(IsModified_MachineData);
     mHWData.backup();
     mHWData->mPageFusionEnabled = enabled;
@@ -1996,7 +2086,9 @@ STDMETHODIMP Machine::COMGETTER(SnapshotFolder)(BSTR *aSnapshotFolder)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mUserData->mSnapshotFolderFull.cloneTo(aSnapshotFolder);
+    Utf8Str strFullSnapshotFolder;
+    calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
+    strFullSnapshotFolder.cloneTo(aSnapshotFolder);
 
     return S_OK;
 }
@@ -2023,24 +2115,13 @@ STDMETHODIMP Machine::COMSETTER(SnapshotFolder)(IN_BSTR aSnapshotFolder)
         return setError(E_FAIL,
                         tr("The snapshot folder of a machine with snapshots cannot be changed (please delete all snapshots first)"));
 
-    Utf8Str snapshotFolder = aSnapshotFolder;
+    Utf8Str strSnapshotFolder0(aSnapshotFolder);       // keep original
 
-    if (snapshotFolder.isEmpty())
-    {
-        if (isInOwnDir())
-        {
-            /* the default snapshots folder is 'Snapshots' in the machine dir */
-            snapshotFolder = "Snapshots";
-        }
-        else
-        {
-            /* the default snapshots folder is {UUID}, for backwards
-             * compatibility and to resolve conflicts */
-            snapshotFolder = Utf8StrFmt("{%RTuuid}", mData->mUuid.raw());
-        }
-    }
-
-    int vrc = calculateFullPath(snapshotFolder, snapshotFolder);
+    Utf8Str strSnapshotFolder(strSnapshotFolder0);
+    if (strSnapshotFolder.isEmpty())
+        strSnapshotFolder = "Snapshots";
+    int vrc = calculateFullPath(strSnapshotFolder,
+                                strSnapshotFolder);
     if (RT_FAILURE(vrc))
         return setError(E_FAIL,
                         tr("Invalid snapshot folder '%ls' (%Rrc)"),
@@ -2048,8 +2129,8 @@ STDMETHODIMP Machine::COMSETTER(SnapshotFolder)(IN_BSTR aSnapshotFolder)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mSnapshotFolder = aSnapshotFolder;
-    mUserData->mSnapshotFolderFull = snapshotFolder;
+
+    copyPathRelativeToMachine(strSnapshotFolder, mUserData->s.strSnapshotFolder);
 
     return S_OK;
 }
@@ -2070,10 +2151,9 @@ STDMETHODIMP Machine::COMGETTER(MediumAttachments)(ComSafeArrayOut(IMediumAttach
     return S_OK;
 }
 
-STDMETHODIMP Machine::COMGETTER(VRDPServer)(IVRDPServer **vrdpServer)
+STDMETHODIMP Machine::COMGETTER(VRDEServer)(IVRDEServer **vrdeServer)
 {
-#ifdef VBOX_WITH_VRDP
-    if (!vrdpServer)
+    if (!vrdeServer)
         return E_POINTER;
 
     AutoCaller autoCaller(this);
@@ -2081,14 +2161,10 @@ STDMETHODIMP Machine::COMGETTER(VRDPServer)(IVRDPServer **vrdpServer)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Assert(!!mVRDPServer);
-    mVRDPServer.queryInterfaceTo(vrdpServer);
+    Assert(!!mVRDEServer);
+    mVRDEServer.queryInterfaceTo(vrdeServer);
 
     return S_OK;
-#else
-    NOREF(vrdpServer);
-    ReturnComNotImplemented();
-#endif
 }
 
 STDMETHODIMP Machine::COMGETTER(AudioAdapter)(IAudioAdapter **audioAdapter)
@@ -2125,7 +2201,7 @@ STDMETHODIMP Machine::COMGETTER(USBController)(IUSBController **aUSBController)
 #else
     /* Note: The GUI depends on this method returning E_NOTIMPL with no
      * extended error info to indicate that USB is simply not available
-     * (w/o treting it as a failure), for example, as in OSE */
+     * (w/o treating it as a failure), for example, as in OSE */
     NOREF(aUSBController);
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_VUSB */
@@ -2261,8 +2337,7 @@ STDMETHODIMP Machine::COMGETTER(LogFolder)(BSTR *aLogFolder)
 
     Utf8Str logFolder;
     getLogFolder(logFolder);
-
-    Bstr (logFolder).cloneTo(aLogFolder);
+    logFolder.cloneTo(aLogFolder);
 
     return S_OK;
 }
@@ -2429,7 +2504,7 @@ Machine::COMGETTER(TeleporterEnabled)(BOOL *aEnabled)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mUserData->mTeleporterEnabled;
+    *aEnabled = mUserData->s.fTeleporterEnabled;
 
     return S_OK;
 }
@@ -2445,7 +2520,7 @@ STDMETHODIMP Machine::COMSETTER(TeleporterEnabled)(BOOL aEnabled)
        (Clearing it is always permitted.) */
     if (    aEnabled
         &&  mData->mRegistered
-        &&  (   getClassID() != clsidSessionMachine
+        &&  (   !isSessionMachine()
              || (   mData->mMachineState != MachineState_PoweredOff
                  && mData->mMachineState != MachineState_Teleported
                  && mData->mMachineState != MachineState_Aborted
@@ -2458,7 +2533,7 @@ STDMETHODIMP Machine::COMSETTER(TeleporterEnabled)(BOOL aEnabled)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mTeleporterEnabled = aEnabled;
+    mUserData->s.fTeleporterEnabled = !!aEnabled;
 
     return S_OK;
 }
@@ -2472,7 +2547,7 @@ STDMETHODIMP Machine::COMGETTER(TeleporterPort)(ULONG *aPort)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aPort = mUserData->mTeleporterPort;
+    *aPort = (ULONG)mUserData->s.uTeleporterPort;
 
     return S_OK;
 }
@@ -2492,7 +2567,7 @@ STDMETHODIMP Machine::COMSETTER(TeleporterPort)(ULONG aPort)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mTeleporterPort = aPort;
+    mUserData->s.uTeleporterPort = (uint32_t)aPort;
 
     return S_OK;
 }
@@ -2506,7 +2581,7 @@ STDMETHODIMP Machine::COMGETTER(TeleporterAddress)(BSTR *aAddress)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mUserData->mTeleporterAddress.cloneTo(aAddress);
+    mUserData->s.strTeleporterAddress.cloneTo(aAddress);
 
     return S_OK;
 }
@@ -2523,7 +2598,7 @@ STDMETHODIMP Machine::COMSETTER(TeleporterAddress)(IN_BSTR aAddress)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mTeleporterAddress = aAddress;
+    mUserData->s.strTeleporterAddress = aAddress;
 
     return S_OK;
 }
@@ -2537,7 +2612,7 @@ STDMETHODIMP Machine::COMGETTER(TeleporterPassword)(BSTR *aPassword)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mUserData->mTeleporterPassword.cloneTo(aPassword);
+    mUserData->s.strTeleporterPassword.cloneTo(aPassword);
 
     return S_OK;
 }
@@ -2554,8 +2629,160 @@ STDMETHODIMP Machine::COMSETTER(TeleporterPassword)(IN_BSTR aPassword)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mTeleporterPassword = aPassword;
+    mUserData->s.strTeleporterPassword = aPassword;
 
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(FaultToleranceState)(FaultToleranceState_T *aState)
+{
+    CheckComArgOutPointerValid(aState);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aState = mUserData->s.enmFaultToleranceState;
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(FaultToleranceState)(FaultToleranceState_T aState)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* @todo deal with running state change. */
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mUserData.backup();
+    mUserData->s.enmFaultToleranceState = aState;
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(FaultToleranceAddress)(BSTR *aAddress)
+{
+    CheckComArgOutPointerValid(aAddress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    mUserData->s.strFaultToleranceAddress.cloneTo(aAddress);
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(FaultToleranceAddress)(IN_BSTR aAddress)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* @todo deal with running state change. */
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mUserData.backup();
+    mUserData->s.strFaultToleranceAddress = aAddress;
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(FaultTolerancePort)(ULONG *aPort)
+{
+    CheckComArgOutPointerValid(aPort);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aPort = mUserData->s.uFaultTolerancePort;
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(FaultTolerancePort)(ULONG aPort)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* @todo deal with running state change. */
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mUserData.backup();
+    mUserData->s.uFaultTolerancePort = aPort;
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(FaultTolerancePassword)(BSTR *aPassword)
+{
+    CheckComArgOutPointerValid(aPassword);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    mUserData->s.strFaultTolerancePassword.cloneTo(aPassword);
+
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(FaultTolerancePassword)(IN_BSTR aPassword)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* @todo deal with running state change. */
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mUserData.backup();
+    mUserData->s.strFaultTolerancePassword = aPassword;
+
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(FaultToleranceSyncInterval)(ULONG *aInterval)
+{
+    CheckComArgOutPointerValid(aInterval);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aInterval = mUserData->s.uFaultToleranceInterval;
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMSETTER(FaultToleranceSyncInterval)(ULONG aInterval)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* @todo deal with running state change. */
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    setModified(IsModified_MachineData);
+    mUserData.backup();
+    mUserData->s.uFaultToleranceInterval = aInterval;
     return S_OK;
 }
 
@@ -2568,7 +2795,7 @@ STDMETHODIMP Machine::COMGETTER(RTCUseUTC)(BOOL *aEnabled)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mUserData->mRTCUseUTC;
+    *aEnabled = mUserData->s.fRTCUseUTC;
 
     return S_OK;
 }
@@ -2584,7 +2811,7 @@ STDMETHODIMP Machine::COMSETTER(RTCUseUTC)(BOOL aEnabled)
        (Clearing it is always permitted.) */
     if (    aEnabled
         &&  mData->mRegistered
-        &&  (   getClassID() != clsidSessionMachine
+        &&  (   !isSessionMachine()
              || (   mData->mMachineState != MachineState_PoweredOff
                  && mData->mMachineState != MachineState_Teleported
                  && mData->mMachineState != MachineState_Aborted
@@ -2597,7 +2824,7 @@ STDMETHODIMP Machine::COMSETTER(RTCUseUTC)(BOOL aEnabled)
 
     setModified(IsModified_MachineData);
     mUserData.backup();
-    mUserData->mRTCUseUTC = aEnabled;
+    mUserData->s.fRTCUseUTC = !!aEnabled;
 
     return S_OK;
 }
@@ -2664,35 +2891,379 @@ STDMETHODIMP Machine::COMSETTER(IoCacheSize)(ULONG  aIoCacheSize)
     return S_OK;
 }
 
-STDMETHODIMP Machine::COMGETTER(IoBandwidthMax)(ULONG *aIoBandwidthMax)
+
+/**
+ *  @note Locks objects!
+ */
+STDMETHODIMP Machine::LockMachine(ISession *aSession,
+                                  LockType_T lockType)
 {
-    CheckComArgOutPointerValid(aIoBandwidthMax);
+    CheckComArgNotNull(aSession);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* check the session state */
+    SessionState_T state;
+    HRESULT rc = aSession->COMGETTER(State)(&state);
+    if (FAILED(rc)) return rc;
 
-    *aIoBandwidthMax = mHWData->mIoBandwidthMax;
+    if (state != SessionState_Unlocked)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("The given session is busy"));
 
-    return S_OK;
-}
-
-STDMETHODIMP Machine::COMSETTER(IoBandwidthMax)(ULONG  aIoBandwidthMax)
-{
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    // get the client's IInternalSessionControl interface
+    ComPtr<IInternalSessionControl> pSessionControl = aSession;
+    ComAssertMsgRet(!!pSessionControl, ("No IInternalSessionControl interface"),
+                    E_INVALIDARG);
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (!mData->mRegistered)
+        return setError(E_UNEXPECTED,
+                        tr("The machine '%s' is not registered"),
+                        mUserData->s.strName.c_str());
+
+    LogFlowThisFunc(("mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
+
+    SessionState_T oldState = mData->mSession.mState;
+    /* Hack: in case the session is closing and there is a progress object
+     * which allows waiting for the session to be closed, take the opportunity
+     * and do a limited wait (max. 1 second). This helps a lot when the system
+     * is busy and thus session closing can take a little while. */
+    if (    mData->mSession.mState == SessionState_Unlocking
+        &&  mData->mSession.mProgress)
+    {
+        alock.release();
+        mData->mSession.mProgress->WaitForCompletion(1000);
+        alock.acquire();
+        LogFlowThisFunc(("after waiting: mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
+    }
+
+    // try again now
+    if (    (mData->mSession.mState == SessionState_Locked)         // machine is write-locked already (i.e. session machine exists)
+         && (lockType == LockType_Shared)                           // caller wants a shared link to the existing session that holds the write lock:
+       )
+    {
+        // OK, share the session... we are now dealing with three processes:
+        // 1) VBoxSVC (where this code runs);
+        // 2) process C: the caller's client process (who wants a shared session);
+        // 3) process W: the process which already holds the write lock on the machine (write-locking session)
+
+        // copy pointers to W (the write-locking session) before leaving lock (these must not be NULL)
+        ComPtr<IInternalSessionControl> pSessionW = mData->mSession.mDirectControl;
+        ComAssertRet(!pSessionW.isNull(), E_FAIL);
+        ComObjPtr<SessionMachine> pSessionMachine = mData->mSession.mMachine;
+        AssertReturn(!pSessionMachine.isNull(), E_FAIL);
+
+        /*
+         *  Leave the lock before calling the client process. It's safe here
+         *  since the only thing to do after we get the lock again is to add
+         *  the remote control to the list (which doesn't directly influence
+         *  anything).
+         */
+        alock.leave();
+
+        // get the console of the session holding the write lock (this is a remote call)
+        ComPtr<IConsole> pConsoleW;
+        LogFlowThisFunc(("Calling GetRemoteConsole()...\n"));
+        rc = pSessionW->GetRemoteConsole(pConsoleW.asOutParam());
+        LogFlowThisFunc(("GetRemoteConsole() returned %08X\n", rc));
+        if (FAILED(rc))
+            // the failure may occur w/o any error info (from RPC), so provide one
+            return setError(VBOX_E_VM_ERROR,
+                            tr("Failed to get a console object from the direct session (%Rrc)"), rc);
+
+        ComAssertRet(!pConsoleW.isNull(), E_FAIL);
+
+        // share the session machine and W's console with the caller's session
+        LogFlowThisFunc(("Calling AssignRemoteMachine()...\n"));
+        rc = pSessionControl->AssignRemoteMachine(pSessionMachine, pConsoleW);
+        LogFlowThisFunc(("AssignRemoteMachine() returned %08X\n", rc));
+
+        if (FAILED(rc))
+            // the failure may occur w/o any error info (from RPC), so provide one
+            return setError(VBOX_E_VM_ERROR,
+                            tr("Failed to assign the machine to the session (%Rrc)"), rc);
+        alock.enter();
+
+        // need to revalidate the state after entering the lock again
+        if (mData->mSession.mState != SessionState_Locked)
+        {
+            pSessionControl->Uninitialize();
+            return setError(VBOX_E_INVALID_SESSION_STATE,
+                            tr("The machine '%s' was unlocked unexpectedly while attempting to share its session"),
+                               mUserData->s.strName.c_str());
+        }
+
+        // add the caller's session to the list
+        mData->mSession.mRemoteControls.push_back(pSessionControl);
+    }
+    else if (    mData->mSession.mState == SessionState_Locked
+              || mData->mSession.mState == SessionState_Unlocking
+            )
+    {
+        // sharing not permitted, or machine still unlocking:
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("The machine '%s' is already locked for a session (or being unlocked)"),
+                        mUserData->s.strName.c_str());
+    }
+    else
+    {
+        // machine is not locked: then write-lock the machine (create the session machine)
+
+        // must not be busy
+        AssertReturn(!Global::IsOnlineOrTransient(mData->mMachineState), E_FAIL);
+
+        // get the caller's session PID
+        RTPROCESS pid = NIL_RTPROCESS;
+        AssertCompile(sizeof(ULONG) == sizeof(RTPROCESS));
+        pSessionControl->GetPID((ULONG*)&pid);
+        Assert(pid != NIL_RTPROCESS);
+
+        bool fLaunchingVMProcess = (mData->mSession.mState == SessionState_Spawning);
+
+        if (fLaunchingVMProcess)
+        {
+            // this machine is awaiting for a spawning session to be opened:
+            // then the calling process must be the one that got started by
+            // launchVMProcess()
+
+            LogFlowThisFunc(("mSession.mPid=%d(0x%x)\n", mData->mSession.mPid, mData->mSession.mPid));
+            LogFlowThisFunc(("session.pid=%d(0x%x)\n", pid, pid));
+
+            if (mData->mSession.mPid != pid)
+                return setError(E_ACCESSDENIED,
+                                tr("An unexpected process (PID=0x%08X) has tried to lock the "
+                                   "machine '%s', while only the process started by launchVMProcess (PID=0x%08X) is allowed"),
+                                pid, mUserData->s.strName.c_str(), mData->mSession.mPid);
+        }
+
+        // create the mutable SessionMachine from the current machine
+        ComObjPtr<SessionMachine> sessionMachine;
+        sessionMachine.createObject();
+        rc = sessionMachine->init(this);
+        AssertComRC(rc);
+
+        /* NOTE: doing return from this function after this point but
+         * before the end is forbidden since it may call SessionMachine::uninit()
+         * (through the ComObjPtr's destructor) which requests the VirtualBox write
+         * lock while still holding the Machine lock in alock so that a deadlock
+         * is possible due to the wrong lock order. */
+
+        if (SUCCEEDED(rc))
+        {
+            /*
+             *  Set the session state to Spawning to protect against subsequent
+             *  attempts to open a session and to unregister the machine after
+             *  we leave the lock.
+             */
+            SessionState_T origState = mData->mSession.mState;
+            mData->mSession.mState = SessionState_Spawning;
+
+            /*
+             *  Leave the lock before calling the client process -- it will call
+             *  Machine/SessionMachine methods. Leaving the lock here is quite safe
+             *  because the state is Spawning, so that openRemotesession() and
+             *  openExistingSession() calls will fail. This method, called before we
+             *  enter the lock again, will fail because of the wrong PID.
+             *
+             *  Note that mData->mSession.mRemoteControls accessed outside
+             *  the lock may not be modified when state is Spawning, so it's safe.
+             */
+            alock.leave();
+
+            LogFlowThisFunc(("Calling AssignMachine()...\n"));
+            rc = pSessionControl->AssignMachine(sessionMachine);
+            LogFlowThisFunc(("AssignMachine() returned %08X\n", rc));
+
+            /* The failure may occur w/o any error info (from RPC), so provide one */
+            if (FAILED(rc))
+                setError(VBOX_E_VM_ERROR,
+                         tr("Failed to assign the machine to the session (%Rrc)"), rc);
+
+            if (    SUCCEEDED(rc)
+                 && fLaunchingVMProcess
+               )
+            {
+                /* complete the remote session initialization */
+
+                /* get the console from the direct session */
+                ComPtr<IConsole> console;
+                rc = pSessionControl->GetRemoteConsole(console.asOutParam());
+                ComAssertComRC(rc);
+
+                if (SUCCEEDED(rc) && !console)
+                {
+                    ComAssert(!!console);
+                    rc = E_FAIL;
+                }
+
+                /* assign machine & console to the remote session */
+                if (SUCCEEDED(rc))
+                {
+                    /*
+                     *  after openRemoteSession(), the first and the only
+                     *  entry in remoteControls is that remote session
+                     */
+                    LogFlowThisFunc(("Calling AssignRemoteMachine()...\n"));
+                    rc = mData->mSession.mRemoteControls.front()->AssignRemoteMachine(sessionMachine, console);
+                    LogFlowThisFunc(("AssignRemoteMachine() returned %08X\n", rc));
+
+                    /* The failure may occur w/o any error info (from RPC), so provide one */
+                    if (FAILED(rc))
+                        setError(VBOX_E_VM_ERROR,
+                                 tr("Failed to assign the machine to the remote session (%Rrc)"), rc);
+                }
+
+                if (FAILED(rc))
+                    pSessionControl->Uninitialize();
+            }
+
+            /* enter the lock again */
+            alock.enter();
+
+            /* Restore the session state */
+            mData->mSession.mState = origState;
+        }
+
+        // finalize spawning anyway (this is why we don't return on errors above)
+        if (fLaunchingVMProcess)
+        {
+            /* Note that the progress object is finalized later */
+            /** @todo Consider checking mData->mSession.mProgress for cancellation
+             *        around here.  */
+
+            /* We don't reset mSession.mPid here because it is necessary for
+             * SessionMachine::uninit() to reap the child process later. */
+
+            if (FAILED(rc))
+            {
+                /* Close the remote session, remove the remote control from the list
+                 * and reset session state to Closed (@note keep the code in sync
+                 * with the relevant part in openSession()). */
+
+                Assert(mData->mSession.mRemoteControls.size() == 1);
+                if (mData->mSession.mRemoteControls.size() == 1)
+                {
+                    ErrorInfoKeeper eik;
+                    mData->mSession.mRemoteControls.front()->Uninitialize();
+                }
+
+                mData->mSession.mRemoteControls.clear();
+                mData->mSession.mState = SessionState_Unlocked;
+            }
+        }
+        else
+        {
+            /* memorize PID of the directly opened session */
+            if (SUCCEEDED(rc))
+                mData->mSession.mPid = pid;
+        }
+
+        if (SUCCEEDED(rc))
+        {
+            /* memorize the direct session control and cache IUnknown for it */
+            mData->mSession.mDirectControl = pSessionControl;
+            mData->mSession.mState = SessionState_Locked;
+            /* associate the SessionMachine with this Machine */
+            mData->mSession.mMachine = sessionMachine;
+
+            /* request an IUnknown pointer early from the remote party for later
+             * identity checks (it will be internally cached within mDirectControl
+             * at least on XPCOM) */
+            ComPtr<IUnknown> unk = mData->mSession.mDirectControl;
+            NOREF(unk);
+        }
+
+        /* Leave the lock since SessionMachine::uninit() locks VirtualBox which
+         * would break the lock order */
+        alock.leave();
+
+        /* uninitialize the created session machine on failure */
+        if (FAILED(rc))
+            sessionMachine->uninit();
+
+    }
+
+    if (SUCCEEDED(rc))
+    {
+        /*
+        *  tell the client watcher thread to update the set of
+        *  machines that have open sessions
+        */
+        mParent->updateClientWatcher();
+
+        if (oldState != SessionState_Locked)
+            /* fire an event */
+            mParent->onSessionStateChange(getId(), SessionState_Locked);
+    }
+
+    return rc;
+}
+
+/**
+ *  @note Locks objects!
+ */
+STDMETHODIMP Machine::LaunchVMProcess(ISession *aSession,
+                                      IN_BSTR aType,
+                                      IN_BSTR aEnvironment,
+                                      IProgress **aProgress)
+{
+    CheckComArgNotNull(aSession);
+    CheckComArgStrNotEmptyOrNull(aType);
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /* check the session state */
+    SessionState_T state;
+    HRESULT rc = aSession->COMGETTER(State)(&state);
     if (FAILED(rc)) return rc;
 
-    setModified(IsModified_MachineData);
-    mHWData.backup();
-    mHWData->mIoBandwidthMax = aIoBandwidthMax;
+    if (state != SessionState_Unlocked)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("The given session is busy"));
 
-    return S_OK;
+    /* get the IInternalSessionControl interface */
+    ComPtr<IInternalSessionControl> control = aSession;
+    ComAssertMsgRet(!!control, ("No IInternalSessionControl interface"),
+                      E_INVALIDARG);
+
+    /* get the teleporter enable state for the progress object init. */
+    BOOL fTeleporterEnabled;
+    rc = COMGETTER(TeleporterEnabled)(&fTeleporterEnabled);
+    if (FAILED(rc))
+        return rc;
+
+    /* create a progress object */
+    ComObjPtr<ProgressProxy> progress;
+    progress.createObject();
+    rc = progress->init(mParent,
+                        static_cast<IMachine*>(this),
+                        Bstr(tr("Spawning session")).raw(),
+                        TRUE /* aCancelable */,
+                        fTeleporterEnabled ? 20 : 10 /* uTotalOperationsWeight */,
+                        Bstr(tr("Spawning session")).raw(),
+                        2 /* uFirstOperationWeight */,
+                        fTeleporterEnabled ? 3 : 1 /* cOtherProgressObjectOperations */);
+    if (SUCCEEDED(rc))
+    {
+        rc = openRemoteSession(control, aType, aEnvironment, progress);
+        if (SUCCEEDED(rc))
+        {
+            progress.queryInterfaceTo(aProgress);
+
+            /* signal the client watcher thread */
+            mParent->updateClientWatcher();
+
+            /* fire an event */
+            mParent->onSessionStateChange(getId(), SessionState_Spawning);
+        }
+    }
+
+    return rc;
 }
 
 STDMETHODIMP Machine::SetBootOrder(ULONG aPosition, DeviceType_T aDevice)
@@ -2742,19 +3313,15 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                                    LONG aControllerPort,
                                    LONG aDevice,
                                    DeviceType_T aType,
-                                   IN_BSTR aId)
+                                   IMedium *aMedium)
 {
     LogFlowThisFunc(("aControllerName=\"%ls\" aControllerPort=%d aDevice=%d aType=%d aId=\"%ls\"\n",
-                     aControllerName, aControllerPort, aDevice, aType, aId));
+                     aControllerName, aControllerPort, aDevice, aType, aMedium));
 
     CheckComArgStrNotEmptyOrNull(aControllerName);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    // if this becomes true then we need to call saveSettings in the end
-    // @todo r=dj there is no error handling so far...
-    bool fNeedsSaveSettings = false;
 
     // request the host lock first, since might be calling Host methods for getting host drives;
     // next, protect the media tree all the while we're in here, as well as our member variables
@@ -2764,6 +3331,8 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
 
     HRESULT rc = checkStateDependency(MutableStateDep);
     if (FAILED(rc)) return rc;
+
+    GuidList llRegistriesThatNeedSaving;
 
     /// @todo NEWMEDIA implicit machine registration
     if (!mData->mRegistered)
@@ -2782,23 +3351,9 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
     rc = getStorageControllerByName(aControllerName, ctl, true /* aSetError */);
     if (FAILED(rc)) return rc;
 
-    /* check that the port and device are not out of range. */
-    ULONG portCount;
-    ULONG devicesPerPort;
-    rc = ctl->COMGETTER(PortCount)(&portCount);
+    // check that the port and device are not out of range
+    rc = ctl->checkPortAndDeviceValid(aControllerPort, aDevice);
     if (FAILED(rc)) return rc;
-    rc = ctl->COMGETTER(MaxDevicesPerPortCount)(&devicesPerPort);
-    if (FAILED(rc)) return rc;
-
-    if (   (aControllerPort < 0)
-        || (aControllerPort >= (LONG)portCount)
-        || (aDevice < 0)
-        || (aDevice >= (LONG)devicesPerPort)
-       )
-        return setError(E_INVALIDARG,
-                        tr("The port and/or count parameter are out of range [%lu:%lu]"),
-                        portCount,
-                        devicesPerPort);
 
     /* check if the device slot is already busy */
     MediumAttachment *pAttachTemp;
@@ -2813,7 +3368,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
             AutoReadLock mediumLock(pMedium COMMA_LOCKVAL_SRC_POS);
             return setError(VBOX_E_OBJECT_IN_USE,
                             tr("Medium '%s' is already attached to port %d, device %d of controller '%ls' of this virtual machine"),
-                            pMedium->getLocationFull().raw(),
+                            pMedium->getLocationFull().c_str(),
                             aControllerPort,
                             aDevice,
                             aControllerName);
@@ -2824,89 +3379,9 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                             aControllerPort, aDevice, aControllerName);
     }
 
-    Guid uuid(aId);
-
-    ComObjPtr<Medium> medium;
-
-    switch (aType)
-    {
-        case DeviceType_HardDisk:
-            /* find a hard disk by UUID */
-            rc = mParent->findHardDisk(&uuid, NULL, true /* aSetError */, &medium);
-            if (FAILED(rc)) return rc;
-            break;
-
-        case DeviceType_DVD: // @todo r=dj eliminate this, replace with findDVDImage
-            if (!uuid.isEmpty())
-            {
-                /* first search for host drive */
-                SafeIfaceArray<IMedium> drivevec;
-                rc = mParent->host()->COMGETTER(DVDDrives)(ComSafeArrayAsOutParam(drivevec));
-                if (SUCCEEDED(rc))
-                {
-                    for (size_t i = 0; i < drivevec.size(); ++i)
-                    {
-                        /// @todo eliminate this conversion
-                        ComObjPtr<Medium> med = (Medium *)drivevec[i];
-                        if (med->getId() == uuid)
-                        {
-                            medium = med;
-                            break;
-                        }
-                    }
-                }
-
-                if (medium.isNull())
-                {
-                    /* find a DVD image by UUID */
-                    rc = mParent->findDVDImage(&uuid, NULL, true /* aSetError */, &medium);
-                    if (FAILED(rc)) return rc;
-                }
-            }
-            else
-            {
-                /* null UUID means null medium, which needs no code */
-            }
-            break;
-
-        case DeviceType_Floppy: // @todo r=dj eliminate this, replace with findFloppyImage
-            if (!uuid.isEmpty())
-            {
-                /* first search for host drive */
-                SafeIfaceArray<IMedium> drivevec;
-                rc = mParent->host()->COMGETTER(FloppyDrives)(ComSafeArrayAsOutParam(drivevec));
-                if (SUCCEEDED(rc))
-                {
-                    for (size_t i = 0; i < drivevec.size(); ++i)
-                    {
-                        /// @todo eliminate this conversion
-                        ComObjPtr<Medium> med = (Medium *)drivevec[i];
-                        if (med->getId() == uuid)
-                        {
-                            medium = med;
-                            break;
-                        }
-                    }
-                }
-
-                if (medium.isNull())
-                {
-                    /* find a floppy image by UUID */
-                    rc = mParent->findFloppyImage(&uuid, NULL, true /* aSetError */, &medium);
-                    if (FAILED(rc)) return rc;
-                }
-            }
-            else
-            {
-                /* null UUID means null medium, which needs no code */
-            }
-            break;
-
-        default:
-            return setError(E_INVALIDARG,
-                            tr("The device type %d is not recognized"),
-                            (int)aType);
-    }
+    ComObjPtr<Medium> medium = static_cast<Medium*>(aMedium);
+    if (aMedium && medium.isNull())
+        return setError(E_INVALIDARG, "The given medium pointer is invalid");
 
     AutoCaller mediumCaller(medium);
     if (FAILED(mediumCaller.rc())) return mediumCaller.rc();
@@ -2918,16 +3393,47 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
        )
         return setError(VBOX_E_OBJECT_IN_USE,
                         tr("Medium '%s' is already attached to this virtual machine"),
-                        medium->getLocationFull().raw());
+                        medium->getLocationFull().c_str());
 
-    bool indirect = false;
     if (!medium.isNull())
-        indirect = medium->isReadOnly();
+    {
+        MediumType_T mtype = medium->getType();
+        // MediumType_Readonly is also new, but only applies to DVDs and floppies.
+        // For DVDs it's not written to the config file, so needs no global config
+        // version bump. For floppies it's a new attribute "type", which is ignored
+        // by older VirtualBox version, so needs no global config version bump either.
+        // For hard disks this type is not accepted.
+        if (mtype == MediumType_MultiAttach)
+        {
+            // This type is new with VirtualBox 4.0 and therefore requires settings
+            // version 1.11 in the settings backend. Unfortunately it is not enough to do
+            // the usual routine in MachineConfigFile::bumpSettingsVersionIfNeeded() for
+            // two reasons: The medium type is a property of the media registry tree, which
+            // can reside in the global config file (for pre-4.0 media); we would therefore
+            // possibly need to bump the global config version. We don't want to do that though
+            // because that might make downgrading to pre-4.0 impossible.
+            // As a result, we can only use these two new types if the medium is NOT in the
+            // global registry:
+            const Guid &uuidGlobalRegistry = mParent->getGlobalRegistryId();
+            if (    medium->isInRegistry(uuidGlobalRegistry)
+                 || !mData->pMachineConfigFile->canHaveOwnMediaRegistry()
+               )
+                return setError(VBOX_E_INVALID_OBJECT_STATE,
+                                tr("Cannot attach medium '%s': the media type 'MultiAttach' can only be attached "
+                                   "to machines that were created with VirtualBox 4.0 or later"),
+                                medium->getLocationFull().c_str());
+        }
+    }
+
+    bool fIndirect = false;
+    if (!medium.isNull())
+        fIndirect = medium->isReadOnly();
     bool associate = true;
 
     do
     {
-        if (aType == DeviceType_HardDisk && mMediaData.isBackedUp())
+        if (    aType == DeviceType_HardDisk
+             && mMediaData.isBackedUp())
         {
             const MediaData::AttachmentList &oldAtts = mMediaData.backedUpData()->mAttachments;
 
@@ -2936,26 +3442,26 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
              * be restored */
             if ((pAttachTemp = findAttachment(oldAtts, medium)))
             {
-                AssertReturn(!indirect, E_FAIL);
+                AssertReturn(!fIndirect, E_FAIL);
 
                 /* see if it's the same bus/channel/device */
                 if (pAttachTemp->matches(aControllerName, aControllerPort, aDevice))
                 {
                     /* the simplest case: restore the whole attachment
-                    * and return, nothing else to do */
+                     * and return, nothing else to do */
                     mMediaData->mAttachments.push_back(pAttachTemp);
                     return S_OK;
                 }
 
                 /* bus/channel/device differ; we need a new attachment object,
-                    * but don't try to associate it again */
+                 * but don't try to associate it again */
                 associate = false;
                 break;
             }
         }
 
         /* go further only if the attachment is to be indirect */
-        if (!indirect)
+        if (!fIndirect)
             break;
 
         /* perform the so called smart attachment logic for indirect
@@ -2985,7 +3491,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                     if (pMedium.isNull())
                         continue;
 
-                    if (pMedium->getBase(&level).equalsTo(medium))
+                    if (pMedium->getBase(&level) == medium)
                     {
                         /* skip the hard disk if its currently attached (we
                          * cannot attach the same hard disk twice) */
@@ -3023,7 +3529,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                     if (FAILED(mediumCaller.rc())) return mediumCaller.rc();
                     mediumLock.attach(medium);
                     /* not implicit, doesn't require association with this VM */
-                    indirect = false;
+                    fIndirect = false;
                     associate = false;
                     /* go right to the MediumAttachment creation */
                     break;
@@ -3046,7 +3552,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
 
                 const MediaData::AttachmentList &snapAtts = snap->getSnapshotMachine()->mMediaData->mAttachments;
 
-                MediaData::AttachmentList::const_iterator foundIt = snapAtts.end();
+                MediumAttachment *pAttachFound = NULL;
                 uint32_t foundLevel = 0;
 
                 for (MediaData::AttachmentList::const_iterator it = snapAtts.begin();
@@ -3060,34 +3566,34 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                         continue;
 
                     uint32_t level = 0;
-                    if (pMedium->getBase(&level).equalsTo(medium))
+                    if (pMedium->getBase(&level) == medium)
                     {
                         /* matched device, channel and bus (i.e. attached to the
                          * same place) will win and immediately stop the search;
                          * otherwise the attachment that has the youngest
                          * descendant of medium will be used
                          */
-                        if (    (*it)->getDevice() == aDevice
-                             && (*it)->getPort() == aControllerPort
-                             && (*it)->getControllerName() == aControllerName
+                        if (    pAttach->getDevice() == aDevice
+                             && pAttach->getPort() == aControllerPort
+                             && pAttach->getControllerName() == aControllerName
                            )
                         {
-                            foundIt = it;
+                            pAttachFound = pAttach;
                             break;
                         }
-                        else if (    foundIt == snapAtts.end()
+                        else if (    !pAttachFound
                                   || level > foundLevel /* prefer younger */
                                 )
                         {
-                            foundIt = it;
+                            pAttachFound = pAttach;
                             foundLevel = level;
                         }
                     }
                 }
 
-                if (foundIt != snapAtts.end())
+                if (pAttachFound)
                 {
-                    base = (*foundIt)->getMedium();
+                    base = pAttachFound->getMedium();
                     break;
                 }
 
@@ -3108,13 +3614,16 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
             }
         }
 
+        Utf8Str strFullSnapshotFolder;
+        calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
+
         ComObjPtr<Medium> diff;
         diff.createObject();
         rc = diff->init(mParent,
-                        medium->preferredDiffFormat().raw(),
-                        BstrFmt("%ls"RTPATH_SLASH_STR,
-                                 mUserData->mSnapshotFolderFull.raw()).raw(),
-                        &fNeedsSaveSettings);
+                        medium->getPreferredDiffFormat(),
+                        strFullSnapshotFolder.append(RTPATH_SLASH_STR),
+                        medium->getFirstRegistryMachineId(),         // store this diff in the same registry as the parent
+                        &llRegistriesThatNeedSaving);
         if (FAILED(rc)) return rc;
 
         /* Apply the normal locking logic to the entire chain. */
@@ -3123,34 +3632,38 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                                         true /* fMediumLockWrite */,
                                         medium,
                                         *pMediumLockList);
-        if (FAILED(rc)) return rc;
-        rc = pMediumLockList->Lock();
-        if (FAILED(rc))
-            return setError(rc,
-                            tr("Could not lock medium when creating diff '%s'"),
-                            diff->getLocationFull().c_str());
+        if (SUCCEEDED(rc))
+        {
+            rc = pMediumLockList->Lock();
+            if (FAILED(rc))
+                setError(rc,
+                         tr("Could not lock medium when creating diff '%s'"),
+                         diff->getLocationFull().c_str());
+            else
+            {
+                /* will leave the lock before the potentially lengthy operation, so
+                 * protect with the special state */
+                MachineState_T oldState = mData->mMachineState;
+                setMachineState(MachineState_SettingUp);
 
-        /* will leave the lock before the potentially lengthy operation, so
-         * protect with the special state */
-        MachineState_T oldState = mData->mMachineState;
-        setMachineState(MachineState_SettingUp);
+                mediumLock.leave();
+                treeLock.leave();
+                alock.leave();
 
-        mediumLock.leave();
-        treeLock.leave();
-        alock.leave();
+                rc = medium->createDiffStorage(diff,
+                                               MediumVariant_Standard,
+                                               pMediumLockList,
+                                               NULL /* aProgress */,
+                                               true /* aWait */,
+                                               &llRegistriesThatNeedSaving);
 
-        rc = medium->createDiffStorage(diff,
-                                       MediumVariant_Standard,
-                                       pMediumLockList,
-                                       NULL /* aProgress */,
-                                       true /* aWait */,
-                                       &fNeedsSaveSettings);
+                alock.enter();
+                treeLock.enter();
+                mediumLock.enter();
 
-        alock.enter();
-        treeLock.enter();
-        mediumLock.enter();
-
-        setMachineState(oldState);
+                setMachineState(oldState);
+            }
+        }
 
         /* Unlock the media and free the associated memory. */
         delete pMediumLockList;
@@ -3167,16 +3680,34 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
 
     ComObjPtr<MediumAttachment> attachment;
     attachment.createObject();
-    rc = attachment->init(this, medium, aControllerName, aControllerPort, aDevice, aType, indirect);
+    rc = attachment->init(this,
+                          medium,
+                          aControllerName,
+                          aControllerPort,
+                          aDevice,
+                          aType,
+                          fIndirect,
+                          NULL);
     if (FAILED(rc)) return rc;
 
     if (associate && !medium.isNull())
     {
-        /* as the last step, associate the medium to the VM */
-        rc = medium->attachTo(mData->mUuid);
-        /* here we can fail because of Deleting, or being in process of
-         * creating a Diff */
+        // as the last step, associate the medium to the VM
+        rc = medium->addBackReference(mData->mUuid);
+        // here we can fail because of Deleting, or being in process of creating a Diff
         if (FAILED(rc)) return rc;
+
+        // and decide which medium registry to use now that the medium is attached:
+        Guid uuid;
+        if (mData->pMachineConfigFile->canHaveOwnMediaRegistry())
+            // machine XML is VirtualBox 4.0 or higher:
+            uuid = getId();     // machine UUID
+        else
+            uuid = mParent->getGlobalRegistryId(); // VirtualBox global registry UUID
+
+        if (medium->addRegistry(uuid))
+            // registry actually changed:
+            mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
     }
 
     /* success: finally remember the attachment */
@@ -3184,16 +3715,11 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
     mMediaData.backup();
     mMediaData->mAttachments.push_back(attachment);
 
-    if (fNeedsSaveSettings)
-    {
-        // save the global settings; for that we should hold only the VirtualBox lock
-        mediumLock.release();
-        treeLock.leave();
-        alock.release();
+    mediumLock.release();
+    treeLock.leave();
+    alock.release();
 
-        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
-        mParent->saveSettings();
-    }
+    mParent->saveRegistries(llRegistriesThatNeedSaving);
 
     return rc;
 }
@@ -3209,7 +3735,7 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    bool fNeedsSaveSettings = false;
+    GuidList llRegistriesThatNeedSaving;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -3232,63 +3758,14 @@ STDMETHODIMP Machine::DetachDevice(IN_BSTR aControllerName, LONG aControllerPort
                         tr("No storage device attached to device slot %d on port %d of controller '%ls'"),
                         aDevice, aControllerPort, aControllerName);
 
-    ComObjPtr<Medium> oldmedium = pAttach->getMedium();
-    DeviceType_T mediumType = pAttach->getType();
+    rc = detachDevice(pAttach, alock, NULL /* pSnapshot */, &llRegistriesThatNeedSaving);
 
-    if (pAttach->isImplicit())
-    {
-        /* attempt to implicitly delete the implicitly created diff */
+    alock.release();
 
-        /// @todo move the implicit flag from MediumAttachment to Medium
-        /// and forbid any hard disk operation when it is implicit. Or maybe
-        /// a special media state for it to make it even more simple.
+    if (SUCCEEDED(rc))
+        rc = mParent->saveRegistries(llRegistriesThatNeedSaving);
 
-        Assert(mMediaData.isBackedUp());
-
-        /* will leave the lock before the potentially lengthy operation, so
-         * protect with the special state */
-        MachineState_T oldState = mData->mMachineState;
-        setMachineState(MachineState_SettingUp);
-
-        alock.leave();
-
-        rc = oldmedium->deleteStorage(NULL /*aProgress*/, true /*aWait*/,
-                                      &fNeedsSaveSettings);
-
-        alock.enter();
-
-        setMachineState(oldState);
-
-        if (FAILED(rc)) return rc;
-    }
-
-    setModified(IsModified_Storage);
-    mMediaData.backup();
-
-    /* we cannot use erase (it) below because backup() above will create
-     * a copy of the list and make this copy active, but the iterator
-     * still refers to the original and is not valid for the copy */
-    mMediaData->mAttachments.remove(pAttach);
-
-    /* For non-hard disk media, detach straight away. */
-    if (mediumType != DeviceType_HardDisk && !oldmedium.isNull())
-        oldmedium->detachFrom(mData->mUuid);
-
-    if (fNeedsSaveSettings)
-    {
-        bool fNeedsGlobalSaveSettings = false;
-        saveSettings(&fNeedsGlobalSaveSettings);
-
-        if (fNeedsGlobalSaveSettings)
-        {
-            // save the global settings; for that we should hold only the VirtualBox lock
-            alock.release();
-            AutoWriteLock vboxlock(this COMMA_LOCKVAL_SRC_POS);
-            mParent->saveSettings();
-        }
-    }
-
-    return S_OK;
+    return rc;
 }
 
 STDMETHODIMP Machine::PassthroughDevice(IN_BSTR aControllerName, LONG aControllerPort,
@@ -3338,10 +3815,58 @@ STDMETHODIMP Machine::PassthroughDevice(IN_BSTR aControllerName, LONG aControlle
     return S_OK;
 }
 
+STDMETHODIMP Machine::SetBandwidthGroupForDevice(IN_BSTR aControllerName, LONG aControllerPort,
+                                                 LONG aDevice, IBandwidthGroup *aBandwidthGroup)
+{
+    CheckComArgStrNotEmptyOrNull(aControllerName);
+
+    LogFlowThisFunc(("aControllerName=\"%ls\" aControllerPort=%ld aDevice=%ld\n",
+                     aControllerName, aControllerPort, aDevice));
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    AssertReturn(mData->mMachineState != MachineState_Saved, E_FAIL);
+
+    if (Global::IsOnlineOrTransient(mData->mMachineState))
+        return setError(VBOX_E_INVALID_VM_STATE,
+                        tr("Invalid machine state: %s"),
+                        Global::stringifyMachineState(mData->mMachineState));
+
+    MediumAttachment *pAttach = findAttachment(mMediaData->mAttachments,
+                                               aControllerName,
+                                               aControllerPort,
+                                               aDevice);
+    if (!pAttach)
+        return setError(VBOX_E_OBJECT_NOT_FOUND,
+                        tr("No storage device attached to device slot %d on port %d of controller '%ls'"),
+                        aDevice, aControllerPort, aControllerName);
+
+
+    setModified(IsModified_Storage);
+    mMediaData.backup();
+
+    ComObjPtr<BandwidthGroup> group = static_cast<BandwidthGroup*>(aBandwidthGroup);
+    if (aBandwidthGroup && group.isNull())
+        return setError(E_INVALIDARG, "The given bandwidth group pointer is invalid");
+
+    AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
+
+    pAttach->updateBandwidthGroup(group);
+
+    return S_OK;
+}
+
+
 STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
                                   LONG aControllerPort,
                                   LONG aDevice,
-                                  IN_BSTR aId,
+                                  IMedium *aMedium,
                                   BOOL aForce)
 {
     int rc = S_OK;
@@ -3353,8 +3878,11 @@ STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    // we're calling host methods for getting DVD and floppy drives so lock host first
-    AutoMultiWriteLock2 alock(mParent->host(), this COMMA_LOCKVAL_SRC_POS);
+    // request the host lock first, since might be calling Host methods for getting host drives;
+    // next, protect the media tree all the while we're in here, as well as our member variables
+    AutoMultiWriteLock3 multiLock(mParent->host()->lockHandle(),
+                                  this->lockHandle(),
+                                  &mParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<MediumAttachment> pAttach = findAttachment(mMediaData->mAttachments,
                                                          aControllerName,
@@ -3370,112 +3898,97 @@ STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
     ComObjPtr<Medium> oldmedium;
     oldmedium = pAttach->getMedium();
 
-    Guid uuid(aId);
-    ComObjPtr<Medium> medium;
-    DeviceType_T mediumType = pAttach->getType();
-    switch (mediumType)
+    ComObjPtr<Medium> pMedium = static_cast<Medium*>(aMedium);
+    if (aMedium && pMedium.isNull())
+        return setError(E_INVALIDARG, "The given medium pointer is invalid");
+
+    AutoCaller mediumCaller(pMedium);
+    if (FAILED(mediumCaller.rc())) return mediumCaller.rc();
+
+    AutoWriteLock mediumLock(pMedium COMMA_LOCKVAL_SRC_POS);
+    if (pMedium)
     {
-        case DeviceType_DVD:
-            if (!uuid.isEmpty())
-            {
-                /* find a DVD by host device UUID */
-                MediaList llHostDVDDrives;
-                rc = mParent->host()->getDVDDrives(llHostDVDDrives);
-                if (SUCCEEDED(rc))
-                {
-                    for (MediaList::iterator it = llHostDVDDrives.begin();
-                         it != llHostDVDDrives.end();
-                         ++it)
-                    {
-                        ComObjPtr<Medium> &p = *it;
-                        if (uuid == p->getId())
-                        {
-                            medium = p;
-                            break;
-                        }
-                    }
-                }
-                /* find a DVD by UUID */
-                if (medium.isNull())
-                    rc = mParent->findDVDImage(&uuid, NULL, true /* aDoSetError */, &medium);
-            }
-            if (FAILED(rc)) return rc;
+        DeviceType_T mediumType = pAttach->getType();
+        switch (mediumType)
+        {
+            case DeviceType_DVD:
+            case DeviceType_Floppy:
             break;
-        case DeviceType_Floppy:
-            if (!uuid.isEmpty())
-            {
-                /* find a Floppy by host device UUID */
-                MediaList llHostFloppyDrives;
-                rc = mParent->host()->getFloppyDrives(llHostFloppyDrives);
-                if (SUCCEEDED(rc))
-                {
-                    for (MediaList::iterator it = llHostFloppyDrives.begin();
-                         it != llHostFloppyDrives.end();
-                         ++it)
-                    {
-                        ComObjPtr<Medium> &p = *it;
-                        if (uuid == p->getId())
-                        {
-                            medium = p;
-                            break;
-                        }
-                    }
-                }
-                /* find a Floppy by UUID */
-                if (medium.isNull())
-                    rc = mParent->findFloppyImage(&uuid, NULL, true /* aDoSetError */, &medium);
-            }
-            if (FAILED(rc)) return rc;
-            break;
-        default:
-            return setError(VBOX_E_INVALID_OBJECT_STATE,
-                            tr("Cannot change medium attached to device slot %d on port %d of controller '%ls'"),
-                            aDevice, aControllerPort, aControllerName);
+
+            default:
+                return setError(VBOX_E_INVALID_OBJECT_STATE,
+                                tr("The device at port %d, device %d of controller '%ls' of this virtual machine is not removeable"),
+                                aControllerPort,
+                                aDevice,
+                                aControllerName);
+        }
     }
 
-    if (SUCCEEDED(rc))
-    {
-        setModified(IsModified_Storage);
-        mMediaData.backup();
+    setModified(IsModified_Storage);
+    mMediaData.backup();
 
-        /* The backup operation makes the pAttach reference point to the
-         * old settings. Re-get the correct reference. */
+    GuidList llRegistriesThatNeedSaving;
+
+    {
+        // The backup operation makes the pAttach reference point to the
+        // old settings. Re-get the correct reference.
         pAttach = findAttachment(mMediaData->mAttachments,
                                  aControllerName,
                                  aControllerPort,
                                  aDevice);
         AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
-        /* For non-hard disk media, detach straight away. */
-        if (mediumType != DeviceType_HardDisk && !oldmedium.isNull())
-            oldmedium->detachFrom(mData->mUuid);
-        if (!medium.isNull())
-            medium->attachTo(mData->mUuid);
-        pAttach->updateMedium(medium);
-        setModified(IsModified_Storage);
+        if (!oldmedium.isNull())
+            oldmedium->removeBackReference(mData->mUuid);
+        if (!pMedium.isNull())
+        {
+            pMedium->addBackReference(mData->mUuid);
+
+            // and decide which medium registry to use now that the medium is attached:
+            Guid uuid;
+            if (mData->pMachineConfigFile->canHaveOwnMediaRegistry())
+                // machine XML is VirtualBox 4.0 or higher:
+                uuid = getId();     // machine UUID
+            else
+                uuid = mParent->getGlobalRegistryId(); // VirtualBox global registry UUID
+
+            if (pMedium->addRegistry(uuid))
+                // registry actually changed:
+                mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
+        }
+
+        pAttach->updateMedium(pMedium);
     }
 
-    alock.leave();
+    setModified(IsModified_Storage);
+
+    mediumLock.release();
+    multiLock.release();
     rc = onMediumChange(pAttach, aForce);
-    alock.enter();
+    multiLock.acquire();
+    mediumLock.acquire();
 
     /* On error roll back this change only. */
     if (FAILED(rc))
     {
-        if (!medium.isNull())
-            medium->detachFrom(mData->mUuid);
+        if (!pMedium.isNull())
+            pMedium->removeBackReference(mData->mUuid);
         pAttach = findAttachment(mMediaData->mAttachments,
                                  aControllerName,
                                  aControllerPort,
                                  aDevice);
-        /* If the attachment is gone in the mean time, bail out. */
+        /* If the attachment is gone in the meantime, bail out. */
         if (pAttach.isNull())
             return rc;
         AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
-        /* For non-hard disk media, re-attach straight away. */
-        if (mediumType != DeviceType_HardDisk && !oldmedium.isNull())
-            oldmedium->attachTo(mData->mUuid);
+        if (!oldmedium.isNull())
+            oldmedium->addBackReference(mData->mUuid);
         pAttach->updateMedium(oldmedium);
     }
+
+    mediumLock.release();
+    multiLock.release();
+
+    mParent->saveRegistries(llRegistriesThatNeedSaving);
 
     return rc;
 }
@@ -3569,7 +4082,7 @@ STDMETHODIMP Machine::GetExtraDataKeys(ComSafeArrayOut(BSTR, aKeys))
 
     com::SafeArray<BSTR> saKeys(mData->pMachineConfigFile->mapExtraDataItems.size());
     int i = 0;
-    for (settings::ExtraDataItemsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.begin();
+    for (settings::StringsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.begin();
          it != mData->pMachineConfigFile->mapExtraDataItems.end();
          ++it, ++i)
     {
@@ -3598,7 +4111,7 @@ STDMETHODIMP Machine::GetExtraData(IN_BSTR aKey,
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    settings::ExtraDataItemsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.find(Utf8Str(aKey));
+    settings::StringsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.find(Utf8Str(aKey));
     if (it != mData->pMachineConfigFile->mapExtraDataItems.end())
         // found:
         bstrResult = it->second; // source is a Utf8Str
@@ -3630,10 +4143,10 @@ STDMETHODIMP Machine::SetExtraData(IN_BSTR aKey, IN_BSTR aValue)
     // than the deadlock we had here before. The actual changing of the extradata
     // is then performed under the write lock and race-free.
 
-    // look up the old value first; if nothing's changed then we need not do anything
+    // look up the old value first; if nothing has changed then we need not do anything
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS); // hold read lock only while looking up
-        settings::ExtraDataItemsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.find(strKey);
+        settings::StringsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.find(strKey);
         if (it != mData->pMachineConfigFile->mapExtraDataItems.end())
             strOldValue = it->second;
     }
@@ -3647,7 +4160,7 @@ STDMETHODIMP Machine::SetExtraData(IN_BSTR aKey, IN_BSTR aValue)
         Bstr error;
         Bstr bstrValue(aValue);
 
-        if (!mParent->onExtraDataCanChange(mData->mUuid, aKey, bstrValue, error))
+        if (!mParent->onExtraDataCanChange(mData->mUuid, aKey, bstrValue.raw(), error))
         {
             const char *sep = error.isEmpty() ? "" : ": ";
             CBSTR err = error.raw();
@@ -3664,7 +4177,7 @@ STDMETHODIMP Machine::SetExtraData(IN_BSTR aKey, IN_BSTR aValue)
         // data is changing and change not vetoed: then write it out under the lock
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        if (getClassID() == clsidSnapshotMachine)
+        if (isSnapshotMachine())
         {
             HRESULT rc = checkStateDependency(MutableStateDep);
             if (FAILED(rc)) return rc;
@@ -3744,8 +4257,153 @@ STDMETHODIMP Machine::DiscardSettings()
     return S_OK;
 }
 
-STDMETHODIMP Machine::DeleteSettings()
+/** @note Locks objects! */
+STDMETHODIMP Machine::Unregister(CleanupMode_T cleanupMode,
+                                 ComSafeArrayOut(IMedium*, aMedia))
 {
+    // use AutoLimitedCaller because this call is valid on inaccessible machines as well
+    AutoLimitedCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    Guid id(getId());
+
+    if (mData->mSession.mState != SessionState_Unlocked)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("Cannot unregister the machine '%s' while it is locked"),
+                        mUserData->s.strName.c_str());
+
+    // wait for state dependents to drop to zero
+    ensureNoStateDependencies();
+
+    if (!mData->mAccessible)
+    {
+        // inaccessible maschines can only be unregistered; uninitialize ourselves
+        // here because currently there may be no unregistered that are inaccessible
+        // (this state combination is not supported). Note releasing the caller and
+        // leaving the lock before calling uninit()
+        alock.leave();
+        autoCaller.release();
+
+        uninit();
+
+        mParent->unregisterMachine(this, id);
+            // calls VirtualBox::saveSettings()
+
+        return S_OK;
+    }
+
+    HRESULT rc = S_OK;
+
+    // discard saved state
+    if (mData->mMachineState == MachineState_Saved)
+    {
+        // add the saved state file to the list of files the caller should delete
+        Assert(!mSSData->mStateFilePath.isEmpty());
+        mData->llFilesToDelete.push_back(mSSData->mStateFilePath);
+
+        mSSData->mStateFilePath.setNull();
+
+        // unconditionally set the machine state to powered off, we now
+        // know no session has locked the machine
+        mData->mMachineState = MachineState_PoweredOff;
+    }
+
+    size_t cSnapshots = 0;
+    if (mData->mFirstSnapshot)
+        cSnapshots = mData->mFirstSnapshot->getAllChildrenCount() + 1;
+    if (cSnapshots && cleanupMode == CleanupMode_UnregisterOnly)
+        // fail now before we start detaching media
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("Cannot unregister the machine '%s' because it has %d snapshots"),
+                           mUserData->s.strName.c_str(), cSnapshots);
+
+    // this list collects the medium objects from all medium attachments
+    // which got detached from the machine and its snapshots, in the following
+    // order:
+    // 1) media from machine attachments (these have the "leaf" attachments with snapshots
+    //    and must be closed first, or closing the parents will fail because they will
+    //    children);
+    // 2) media from the youngest snapshots followed by those from the parent snapshots until
+    //    the root ("first") snapshot of the machine
+    // This order allows for closing the media on this list from the beginning to the end
+    // without getting "media in use" errors.
+    MediaList llMedia;
+
+    if (    !mMediaData.isNull()      // can be NULL if machine is inaccessible
+         && mMediaData->mAttachments.size()
+       )
+    {
+        // we have media attachments: detach them all and add the Medium objects to our list
+        if (cleanupMode != CleanupMode_UnregisterOnly)
+            detachAllMedia(alock, NULL /* pSnapshot */, cleanupMode, llMedia);
+        else
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("Cannot unregister the machine '%s' because it has %d media attachments"),
+                            mUserData->s.strName.c_str(), mMediaData->mAttachments.size());
+    }
+
+    if (cSnapshots)
+    {
+        // autoCleanup must be true here, or we would have failed above
+
+        // add the media from the medium attachments of the snapshots to llMedia
+        // as well, after the "main" machine media; Snapshot::uninitRecursively()
+        // calls Machine::detachAllMedia() for the snapshot machine, recursing
+        // into the children first
+
+        // Snapshot::beginDeletingSnapshot() asserts if the machine state is not this
+        MachineState_T oldState = mData->mMachineState;
+        mData->mMachineState = MachineState_DeletingSnapshot;
+
+        // make a copy of the first snapshot so the refcount does not drop to 0
+        // in beginDeletingSnapshot, which sets pFirstSnapshot to 0 (that hangs
+        // because of the AutoCaller voodoo)
+        ComObjPtr<Snapshot> pFirstSnapshot = mData->mFirstSnapshot;
+
+        // GO!
+        pFirstSnapshot->uninitRecursively(alock, cleanupMode, llMedia, mData->llFilesToDelete);
+
+        mData->mMachineState = oldState;
+    }
+
+    if (FAILED(rc))
+    {
+        rollbackMedia();
+        return rc;
+    }
+
+    // commit all the media changes made above
+    commitMedia();
+
+    mData->mRegistered = false;
+
+    // machine lock no longer needed
+    alock.release();
+
+    // return media to caller
+    SafeIfaceArray<IMedium> sfaMedia(llMedia);
+    sfaMedia.detachTo(ComSafeArrayOutArg(aMedia));
+
+    mParent->unregisterMachine(this, id);
+            // calls VirtualBox::saveSettings()
+
+    return S_OK;
+}
+
+struct Machine::DeleteTask
+{
+    ComObjPtr<Machine>          pMachine;
+    std::list<Utf8Str>          llFilesToDelete;
+    ComObjPtr<Progress>         pProgress;
+    GuidList                    llRegistriesThatNeedSaving;
+};
+
+STDMETHODIMP Machine::Delete(ComSafeArrayIn(IMedium*, aMedia), IProgress **aProgress)
+{
+    LogFlowFuncEnter();
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -3758,22 +4416,134 @@ STDMETHODIMP Machine::DeleteSettings()
         return setError(VBOX_E_INVALID_VM_STATE,
                         tr("Cannot delete settings of a registered machine"));
 
+    DeleteTask *pTask = new DeleteTask;
+    pTask->pMachine = this;
+    com::SafeIfaceArray<IMedium> sfaMedia(ComSafeArrayInArg(aMedia));
+
+    // collect files to delete
+    pTask->llFilesToDelete = mData->llFilesToDelete;            // saved states pushed here by Unregister()
+
+    for (size_t i = 0; i < sfaMedia.size(); ++i)
+    {
+        IMedium *pIMedium(sfaMedia[i]);
+        Medium *pMedium = static_cast<Medium*>(pIMedium);
+        AutoCaller mediumAutoCaller(pMedium);
+        if (FAILED(mediumAutoCaller.rc())) return mediumAutoCaller.rc();
+
+        Utf8Str bstrLocation = pMedium->getLocationFull();
+
+        bool fDoesMediumNeedFileDeletion = pMedium->isMediumFormatFile();
+
+        // close the medium now; if that succeeds, then that means the medium is no longer
+        // in use and we can add it to the list of files to delete
+        rc = pMedium->close(&pTask->llRegistriesThatNeedSaving,
+                            mediumAutoCaller);
+        if (SUCCEEDED(rc) && fDoesMediumNeedFileDeletion)
+            pTask->llFilesToDelete.push_back(bstrLocation);
+    }
+    if (mData->pMachineConfigFile->fileExists())
+        pTask->llFilesToDelete.push_back(mData->m_strConfigFileFull);
+
+    pTask->pProgress.createObject();
+    pTask->pProgress->init(getVirtualBox(),
+                           static_cast<IMachine*>(this) /* aInitiator */,
+                           Bstr(tr("Deleting files")).raw(),
+                           true /* fCancellable */,
+                           pTask->llFilesToDelete.size() + 1,   // cOperations
+                           BstrFmt(tr("Deleting '%s'"), pTask->llFilesToDelete.front().c_str()).raw());
+
+    int vrc = RTThreadCreate(NULL,
+                             Machine::deleteThread,
+                             (void*)pTask,
+                             0,
+                             RTTHREADTYPE_MAIN_WORKER,
+                             0,
+                             "MachineDelete");
+
+    pTask->pProgress.queryInterfaceTo(aProgress);
+
+    if (RT_FAILURE(vrc))
+    {
+        delete pTask;
+        return setError(E_FAIL, "Could not create MachineDelete thread (%Rrc)", vrc);
+    }
+
+    LogFlowFuncLeave();
+
+    return S_OK;
+}
+
+/**
+ * Static task wrapper passed to RTThreadCreate() in Machine::Delete() which then
+ * calls Machine::deleteTaskWorker() on the actual machine object.
+ * @param Thread
+ * @param pvUser
+ * @return
+ */
+/*static*/
+DECLCALLBACK(int) Machine::deleteThread(RTTHREAD Thread, void *pvUser)
+{
+    LogFlowFuncEnter();
+
+    DeleteTask *pTask = (DeleteTask*)pvUser;
+    Assert(pTask);
+    Assert(pTask->pMachine);
+    Assert(pTask->pProgress);
+
+    HRESULT rc = pTask->pMachine->deleteTaskWorker(*pTask);
+    pTask->pProgress->notifyComplete(rc);
+
+    delete pTask;
+
+    LogFlowFuncLeave();
+
+    NOREF(Thread);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Task thread implementation for Machine::Delete(), called from Machine::deleteThread().
+ * @param task
+ * @return
+ */
+HRESULT Machine::deleteTaskWorker(DeleteTask &task)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     ULONG uLogHistoryCount = 3;
     ComPtr<ISystemProperties> systemProperties;
     mParent->COMGETTER(SystemProperties)(systemProperties.asOutParam());
     if (!systemProperties.isNull())
         systemProperties->COMGETTER(LogHistoryCount)(&uLogHistoryCount);
 
+    // delete the files pushed on the task list by Machine::Delete()
+    // (this includes saved states of the machine and snapshots and
+    // medium storage files from the IMedium list passed in, and the
+    // machine XML file)
+    std::list<Utf8Str>::const_iterator it = task.llFilesToDelete.begin();
+    while (it != task.llFilesToDelete.end())
+    {
+        const Utf8Str &strFile = *it;
+        LogFunc(("Deleting file %s\n", strFile.c_str()));
+        RTFileDelete(strFile.c_str());
+
+        ++it;
+        if (it == task.llFilesToDelete.end())
+        {
+            task.pProgress->SetNextOperation(Bstr(tr("Cleaning up machine directory")).raw(), 1);
+            break;
+        }
+
+        task.pProgress->SetNextOperation(BstrFmt(tr("Deleting '%s'"), it->c_str()).raw(), 1);
+    }
+
     /* delete the settings only when the file actually exists */
     if (mData->pMachineConfigFile->fileExists())
     {
-        int vrc = RTFileDelete(mData->m_strConfigFileFull.c_str());
-        if (RT_FAILURE(vrc))
-            return setError(VBOX_E_IPRT_ERROR,
-                            tr("Could not delete the settings file '%s' (%Rrc)"),
-                            mData->m_strConfigFileFull.raw(),
-                            vrc);
-
         /* Delete any backup or uncommitted XML files. Ignore failures.
            See the fSafe parameter of xml::XmlFileWriter::write for details. */
         /** @todo Find a way to avoid referring directly to iprt/xml.h here. */
@@ -3795,18 +4565,18 @@ STDMETHODIMP Machine::DeleteSettings()
              * Console::powerUpThread()). Also, delete the VBox.png[.N]
              * files that may have been created by the GUI. */
             Utf8Str log = Utf8StrFmt("%s%cVBox.log",
-                                     logFolder.raw(), RTPATH_DELIMITER);
+                                     logFolder.c_str(), RTPATH_DELIMITER);
             RTFileDelete(log.c_str());
             log = Utf8StrFmt("%s%cVBox.png",
-                             logFolder.raw(), RTPATH_DELIMITER);
+                             logFolder.c_str(), RTPATH_DELIMITER);
             RTFileDelete(log.c_str());
             for (int i = uLogHistoryCount; i > 0; i--)
             {
                 log = Utf8StrFmt("%s%cVBox.log.%d",
-                                 logFolder.raw(), RTPATH_DELIMITER, i);
+                                 logFolder.c_str(), RTPATH_DELIMITER, i);
                 RTFileDelete(log.c_str());
                 log = Utf8StrFmt("%s%cVBox.png.%d",
-                                 logFolder.raw(), RTPATH_DELIMITER, i);
+                                 logFolder.c_str(), RTPATH_DELIMITER, i);
                 RTFileDelete(log.c_str());
             }
 
@@ -3816,25 +4586,27 @@ STDMETHODIMP Machine::DeleteSettings()
         /* delete the Snapshots folder, nothing important should be left
          * there (we don't check for errors because the user might have
          * some private files there that we don't want to delete) */
-        Utf8Str snapshotFolder(mUserData->mSnapshotFolderFull);
-        Assert(snapshotFolder.length());
-        if (RTDirExists(snapshotFolder.c_str()))
-            RTDirRemove(snapshotFolder.c_str());
+        Utf8Str strFullSnapshotFolder;
+        calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
+        Assert(!strFullSnapshotFolder.isEmpty());
+        if (RTDirExists(strFullSnapshotFolder.c_str()))
+            RTDirRemove(strFullSnapshotFolder.c_str());
 
-        /* delete the directory that contains the settings file, but only
-         * if it matches the VM name (i.e. a structure created by default in
-         * prepareSaveSettings()) */
-        {
-            Utf8Str settingsDir;
-            if (isInOwnDir(&settingsDir))
-                RTDirRemove(settingsDir.c_str());
-        }
+        // delete the directory that contains the settings file, but only
+        // if it matches the VM name
+        Utf8Str settingsDir;
+        if (isInOwnDir(&settingsDir))
+            RTDirRemove(settingsDir.c_str());
     }
+
+    alock.release();
+
+    mParent->saveRegistries(task.llRegistriesThatNeedSaving);
 
     return S_OK;
 }
 
-STDMETHODIMP Machine::GetSnapshot(IN_BSTR aId, ISnapshot **aSnapshot)
+STDMETHODIMP Machine::FindSnapshot(IN_BSTR aNameOrId, ISnapshot **aSnapshot)
 {
     CheckComArgOutPointerValid(aSnapshot);
 
@@ -3843,55 +4615,26 @@ STDMETHODIMP Machine::GetSnapshot(IN_BSTR aId, ISnapshot **aSnapshot)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Guid uuid(aId);
-    /* Todo: fix this properly by perhaps introducing an isValid method for the Guid class */
-    if (    (aId)
-        &&  (*aId != '\0')      // an empty Bstr means "get root snapshot", so don't fail on that
-        &&  (uuid.isEmpty()))
+    ComObjPtr<Snapshot> pSnapshot;
+    HRESULT rc;
+
+    if (!aNameOrId || !*aNameOrId)
+        // null case (caller wants root snapshot): findSnapshotById() handles this
+        rc = findSnapshotById(Guid(), pSnapshot, true /* aSetError */);
+    else
     {
-        RTUUID uuidTemp;
-        /* Either it's a null UUID or the conversion failed. (null uuid has a special meaning in findSnapshot) */
-        if (RT_FAILURE(RTUuidFromUtf16(&uuidTemp, aId)))
-            return setError(E_FAIL,
-                            tr("Could not find a snapshot with UUID {%ls}"),
-                            aId);
+        Guid uuid(aNameOrId);
+        if (!uuid.isEmpty())
+            rc = findSnapshotById(uuid, pSnapshot, true /* aSetError */);
+        else
+            rc = findSnapshotByName(Utf8Str(aNameOrId), pSnapshot, true /* aSetError */);
     }
-
-    ComObjPtr<Snapshot> snapshot;
-
-    HRESULT rc = findSnapshot(uuid, snapshot, true /* aSetError */);
-    snapshot.queryInterfaceTo(aSnapshot);
+    pSnapshot.queryInterfaceTo(aSnapshot);
 
     return rc;
 }
 
-STDMETHODIMP Machine::FindSnapshot(IN_BSTR aName, ISnapshot **aSnapshot)
-{
-    CheckComArgStrNotEmptyOrNull(aName);
-    CheckComArgOutPointerValid(aSnapshot);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    ComObjPtr<Snapshot> snapshot;
-
-    HRESULT rc = findSnapshot(aName, snapshot, true /* aSetError */);
-    snapshot.queryInterfaceTo(aSnapshot);
-
-    return rc;
-}
-
-STDMETHODIMP Machine::SetCurrentSnapshot(IN_BSTR /* aId */)
-{
-    /// @todo (dmik) don't forget to set
-    //  mData->mCurrentStateModified to FALSE
-
-    return setError(E_NOTIMPL, "Not implemented");
-}
-
-STDMETHODIMP Machine::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable)
+STDMETHODIMP Machine::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BOOL aAutoMount)
 {
     CheckComArgStrNotEmptyOrNull(aName);
     CheckComArgStrNotEmptyOrNull(aHostPath);
@@ -3912,7 +4655,7 @@ STDMETHODIMP Machine::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL 
                         aName);
 
     sharedFolder.createObject();
-    rc = sharedFolder->init(getMachine(), aName, aHostPath, aWritable);
+    rc = sharedFolder->init(getMachine(), aName, aHostPath, aWritable, aAutoMount);
     if (FAILED(rc)) return rc;
 
     setModified(IsModified_SharedFolders);
@@ -3967,9 +4710,9 @@ STDMETHODIMP Machine::CanShowConsoleWindow(BOOL *aCanShow)
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        if (mData->mSession.mState != SessionState_Open)
+        if (mData->mSession.mState != SessionState_Locked)
             return setError(VBOX_E_INVALID_VM_STATE,
-                            tr("Machine session is not open (session state: %s)"),
+                            tr("Machine is not locked for session (session state: %s)"),
                             Global::stringifySessionState(mData->mSession.mState));
 
         directControl = mData->mSession.mDirectControl;
@@ -3979,11 +4722,11 @@ STDMETHODIMP Machine::CanShowConsoleWindow(BOOL *aCanShow)
     if (!directControl)
         return S_OK;
 
-    ULONG64 dummy;
+    LONG64 dummy;
     return directControl->OnShowWindow(TRUE /* aCheck */, aCanShow, &dummy);
 }
 
-STDMETHODIMP Machine::ShowConsoleWindow(ULONG64 *aWinId)
+STDMETHODIMP Machine::ShowConsoleWindow(LONG64 *aWinId)
 {
     CheckComArgOutPointerValid(aWinId);
 
@@ -3994,9 +4737,9 @@ STDMETHODIMP Machine::ShowConsoleWindow(ULONG64 *aWinId)
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        if (mData->mSession.mState != SessionState_Open)
+        if (mData->mSession.mState != SessionState_Locked)
             return setError(E_FAIL,
-                            tr("Machine session is not open (session state: %s)"),
+                            tr("Machine is not locked for session (session state: %s)"),
                             Global::stringifySessionState(mData->mSession.mState));
 
         directControl = mData->mSession.mDirectControl;
@@ -4016,7 +4759,7 @@ STDMETHODIMP Machine::ShowConsoleWindow(ULONG64 *aWinId)
  */
 HRESULT Machine::getGuestPropertyFromService(IN_BSTR aName,
                                              BSTR *aValue,
-                                             ULONG64 *aTimestamp,
+                                             LONG64 *aTimestamp,
                                              BSTR *aFlags) const
 {
     using namespace guestProp;
@@ -4049,7 +4792,7 @@ HRESULT Machine::getGuestPropertyFromService(IN_BSTR aName,
  */
 HRESULT Machine::getGuestPropertyFromVM(IN_BSTR aName,
                                         BSTR *aValue,
-                                        ULONG64 *aTimestamp,
+                                        LONG64 *aTimestamp,
                                         BSTR *aFlags) const
 {
     HRESULT rc;
@@ -4071,7 +4814,7 @@ HRESULT Machine::getGuestPropertyFromVM(IN_BSTR aName,
 
 STDMETHODIMP Machine::GetGuestProperty(IN_BSTR aName,
                                        BSTR *aValue,
-                                       ULONG64 *aTimestamp,
+                                       LONG64 *aTimestamp,
                                        BSTR *aFlags)
 {
 #ifndef VBOX_WITH_GUEST_PROPS
@@ -4095,12 +4838,12 @@ STDMETHODIMP Machine::GetGuestProperty(IN_BSTR aName,
 
 STDMETHODIMP Machine::GetGuestPropertyValue(IN_BSTR aName, BSTR *aValue)
 {
-    ULONG64 dummyTimestamp;
+    LONG64 dummyTimestamp;
     Bstr dummyFlags;
     return GetGuestProperty(aName, aValue, &dummyTimestamp, dummyFlags.asOutParam());
 }
 
-STDMETHODIMP Machine::GetGuestPropertyTimestamp(IN_BSTR aName, ULONG64 *aTimestamp)
+STDMETHODIMP Machine::GetGuestPropertyTimestamp(IN_BSTR aName, LONG64 *aTimestamp)
 {
     Bstr dummyValue;
     Bstr dummyFlags;
@@ -4131,7 +4874,7 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
         Utf8Str utf8Flags(aFlags);
         uint32_t fFlags = NILFLAG;
         if (    (aFlags != NULL)
-             && RT_FAILURE(validateFlags(utf8Flags.raw(), &fFlags))
+             && RT_FAILURE(validateFlags(utf8Flags.c_str(), &fFlags))
            )
             return setError(E_INVALIDARG,
                             tr("Invalid flag values: '%ls'"),
@@ -4190,8 +4933,12 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
         }
         if (   SUCCEEDED(rc)
             && (   mHWData->mGuestPropertyNotificationPatterns.isEmpty()
-                || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.raw(), RTSTR_MAX,
-                                                utf8Name.raw(), RTSTR_MAX, NULL) )
+                || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.c_str(),
+                                                RTSTR_MAX,
+                                                utf8Name.c_str(),
+                                                RTSTR_MAX,
+                                                NULL)
+               )
            )
         {
             /** @todo r=bird: Why aren't we leaving the lock here?  The
@@ -4223,7 +4970,7 @@ HRESULT Machine::setGuestPropertyToVM(IN_BSTR aName, IN_BSTR aValue,
             mData->mSession.mDirectControl;
 
         BSTR dummy = NULL; /* will not be changed (setter) */
-        ULONG64 dummy64;
+        LONG64 dummy64;
         if (!directControl)
             rc = E_ACCESSDENIED;
         else
@@ -4275,7 +5022,7 @@ STDMETHODIMP Machine::SetGuestPropertyValue(IN_BSTR aName, IN_BSTR aValue)
 HRESULT Machine::enumerateGuestPropertiesInService
                 (IN_BSTR aPatterns, ComSafeArrayOut(BSTR, aNames),
                  ComSafeArrayOut(BSTR, aValues),
-                 ComSafeArrayOut(ULONG64, aTimestamps),
+                 ComSafeArrayOut(LONG64, aTimestamps),
                  ComSafeArrayOut(BSTR, aFlags))
 {
     using namespace guestProp;
@@ -4291,10 +5038,11 @@ HRESULT Machine::enumerateGuestPropertiesInService
          it != mHWData->mGuestProperties.end();
          ++it)
         if (   strPatterns.isEmpty()
-            || RTStrSimplePatternMultiMatch(strPatterns.raw(),
+            || RTStrSimplePatternMultiMatch(strPatterns.c_str(),
                                             RTSTR_MAX,
-                                            it->strName.raw(),
-                                            RTSTR_MAX, NULL)
+                                            it->strName.c_str(),
+                                            RTSTR_MAX,
+                                            NULL)
            )
             propList.push_back(*it);
 
@@ -4304,7 +5052,7 @@ HRESULT Machine::enumerateGuestPropertiesInService
     size_t cEntries = propList.size();
     SafeArray<BSTR> names(cEntries);
     SafeArray<BSTR> values(cEntries);
-    SafeArray<ULONG64> timestamps(cEntries);
+    SafeArray<LONG64> timestamps(cEntries);
     SafeArray<BSTR> flags(cEntries);
     size_t iProp = 0;
     for (HWData::GuestPropertyList::iterator it = propList.begin();
@@ -4335,7 +5083,7 @@ HRESULT Machine::enumerateGuestPropertiesInService
 HRESULT Machine::enumerateGuestPropertiesOnVM
                 (IN_BSTR aPatterns, ComSafeArrayOut(BSTR, aNames),
                  ComSafeArrayOut(BSTR, aValues),
-                 ComSafeArrayOut(ULONG64, aTimestamps),
+                 ComSafeArrayOut(LONG64, aTimestamps),
                  ComSafeArrayOut(BSTR, aFlags))
 {
     HRESULT rc;
@@ -4357,7 +5105,7 @@ HRESULT Machine::enumerateGuestPropertiesOnVM
 STDMETHODIMP Machine::EnumerateGuestProperties(IN_BSTR aPatterns,
                                                ComSafeArrayOut(BSTR, aNames),
                                                ComSafeArrayOut(BSTR, aValues),
-                                               ComSafeArrayOut(ULONG64, aTimestamps),
+                                               ComSafeArrayOut(LONG64, aTimestamps),
                                                ComSafeArrayOut(BSTR, aFlags))
 {
 #ifndef VBOX_WITH_GUEST_PROPS
@@ -4469,6 +5217,7 @@ STDMETHODIMP Machine::AddStorageController(IN_BSTR aName,
 
     /* get a new instance number for the storage controller */
     ULONG ulInstance = 0;
+    bool fBootable = true;
     for (StorageControllerList::const_iterator it = mStorageControllers->begin();
          it != mStorageControllers->end();
          ++it)
@@ -4479,10 +5228,14 @@ STDMETHODIMP Machine::AddStorageController(IN_BSTR aName,
 
             if (ulCurInst >= ulInstance)
                 ulInstance = ulCurInst + 1;
+
+            /* Only one controller of each type can be marked as bootable. */
+            if ((*it)->getBootable())
+                fBootable = false;
         }
     }
 
-    rc = ctrl->init(this, aName, aConnectionType, ulInstance);
+    rc = ctrl->init(this, aName, aConnectionType, ulInstance, fBootable);
     if (FAILED(rc)) return rc;
 
     setModified(IsModified_Storage);
@@ -4541,6 +5294,58 @@ STDMETHODIMP Machine::GetStorageControllerByInstance(ULONG aInstance,
                     aInstance);
 }
 
+STDMETHODIMP Machine::SetStorageControllerBootable(IN_BSTR aName, BOOL fBootable)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    ComObjPtr<StorageController> ctrl;
+
+    rc = getStorageControllerByName(aName, ctrl, true /* aSetError */);
+    if (SUCCEEDED(rc))
+    {
+        /* Ensure that only one controller of each type is marked as bootable. */
+        if (fBootable == TRUE)
+        {
+            for (StorageControllerList::const_iterator it = mStorageControllers->begin();
+                 it != mStorageControllers->end();
+                 ++it)
+            {
+                ComObjPtr<StorageController> aCtrl = (*it);
+
+                if (   (aCtrl->getName() != Utf8Str(aName))
+                    && aCtrl->getBootable() == TRUE
+                    && aCtrl->getStorageBus() == ctrl->getStorageBus()
+                    && aCtrl->getControllerType() == ctrl->getControllerType())
+                {
+                    aCtrl->setBootable(FALSE);
+                    break;
+                }
+            }
+        }
+
+        if (SUCCEEDED(rc))
+        {
+            ctrl->setBootable(fBootable);
+            setModified(IsModified_Storage);
+        }
+    }
+
+    if (SUCCEEDED(rc))
+    {
+        /* inform the direct session if any */
+        alock.leave();
+        onStorageControllerChange();
+    }
+
+    return rc;
+}
+
 STDMETHODIMP Machine::RemoveStorageController(IN_BSTR aName)
 {
     CheckComArgStrNotEmptyOrNull(aName);
@@ -4584,126 +5389,26 @@ STDMETHODIMP Machine::RemoveStorageController(IN_BSTR aName)
     return S_OK;
 }
 
-/* @todo where is the right place for this? */
-#define sSSMDisplayScreenshotVer 0x00010001
-
-static int readSavedDisplayScreenshot(Utf8Str *pStateFilePath, uint32_t u32Type, uint8_t **ppu8Data, uint32_t *pcbData, uint32_t *pu32Width, uint32_t *pu32Height)
+STDMETHODIMP Machine::QuerySavedGuestSize(ULONG uScreenId, ULONG *puWidth, ULONG *puHeight)
 {
-    LogFlowFunc(("u32Type = %d [%s]\n", u32Type, pStateFilePath->raw()));
+    LogFlowThisFunc(("\n"));
 
-    /* @todo cache read data */
-    if (pStateFilePath->isEmpty())
-    {
-        /* No saved state data. */
-        return VERR_NOT_SUPPORTED;
-    }
+    CheckComArgNotNull(puWidth);
+    CheckComArgNotNull(puHeight);
 
-    uint8_t *pu8Data = NULL;
-    uint32_t cbData = 0;
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    PSSMHANDLE pSSM;
-    int vrc = SSMR3Open(pStateFilePath->raw(), 0 /*fFlags*/, &pSSM);
-    if (RT_SUCCESS(vrc))
-    {
-        uint32_t uVersion;
-        vrc = SSMR3Seek(pSSM, "DisplayScreenshot", 1100 /*iInstance*/, &uVersion);
-        if (RT_SUCCESS(vrc))
-        {
-            if (uVersion == sSSMDisplayScreenshotVer)
-            {
-                uint32_t cBlocks;
-                vrc = SSMR3GetU32(pSSM, &cBlocks);
-                AssertRCReturn(vrc, vrc);
+    int vrc = readSavedGuestSize(mSSData->mStateFilePath, uScreenId, &u32Width, &u32Height);
+    if (RT_FAILURE(vrc))
+        return setError(VBOX_E_IPRT_ERROR,
+                        tr("Saved guest size is not available (%Rrc)"),
+                        vrc);
 
-                for (uint32_t i = 0; i < cBlocks; i++)
-                {
-                    uint32_t cbBlock;
-                    vrc = SSMR3GetU32(pSSM, &cbBlock);
-                    AssertRCBreak(vrc);
+    *puWidth = u32Width;
+    *puHeight = u32Height;
 
-                    uint32_t typeOfBlock;
-                    vrc = SSMR3GetU32(pSSM, &typeOfBlock);
-                    AssertRCBreak(vrc);
-
-                    LogFlowFunc(("[%d] type %d, size %d bytes\n", i, typeOfBlock, cbBlock));
-
-                    if (typeOfBlock == u32Type)
-                    {
-                        if (cbBlock > 2 * sizeof(uint32_t))
-                        {
-                            cbData = cbBlock - 2 * sizeof(uint32_t);
-                            pu8Data = (uint8_t *)RTMemAlloc(cbData);
-                            if (pu8Data == NULL)
-                            {
-                                vrc = VERR_NO_MEMORY;
-                                break;
-                            }
-
-                            vrc = SSMR3GetU32(pSSM, &u32Width);
-                            AssertRCBreak(vrc);
-                            vrc = SSMR3GetU32(pSSM, &u32Height);
-                            AssertRCBreak(vrc);
-                            vrc = SSMR3GetMem(pSSM, pu8Data, cbData);
-                            AssertRCBreak(vrc);
-                        }
-                        else
-                        {
-                            /* No saved state data. */
-                            vrc = VERR_NOT_SUPPORTED;
-                        }
-
-                        break;
-                    }
-                    else
-                    {
-                        /* displaySSMSaveScreenshot did not write any data, if
-                         * cbBlock was == 2 * sizeof (uint32_t).
-                         */
-                        if (cbBlock > 2 * sizeof (uint32_t))
-                        {
-                            vrc = SSMR3Skip(pSSM, cbBlock);
-                            AssertRCBreak(vrc);
-                        }
-                    }
-                }
-            }
-            else
-            {
-                vrc = VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
-            }
-        }
-
-        SSMR3Close(pSSM);
-    }
-
-    if (RT_SUCCESS(vrc))
-    {
-        if (u32Type == 0 && cbData % 4 != 0)
-        {
-            /* Bitmap is 32bpp, so data is invalid. */
-            vrc = VERR_SSM_UNEXPECTED_DATA;
-        }
-    }
-
-    if (RT_SUCCESS(vrc))
-    {
-        *ppu8Data = pu8Data;
-        *pcbData = cbData;
-        *pu32Width = u32Width;
-        *pu32Height = u32Height;
-        LogFlowFunc(("cbData %d, u32Width %d, u32Height %d\n", cbData, u32Width, u32Height));
-    }
-
-    LogFlowFunc(("vrc %Rrc\n", vrc));
-    return vrc;
-}
-
-static void freeSavedDisplayScreenshot(uint8_t *pu8Data)
-{
-    /* @todo not necessary when caching is implemented. */
-    RTMemFree(pu8Data);
+    return S_OK;
 }
 
 STDMETHODIMP Machine::QuerySavedThumbnailSize(ULONG aScreenId, ULONG *aSize, ULONG *aWidth, ULONG *aHeight)
@@ -4727,7 +5432,7 @@ STDMETHODIMP Machine::QuerySavedThumbnailSize(ULONG aScreenId, ULONG *aSize, ULO
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(&mSSData->mStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+    int vrc = readSavedDisplayScreenshot(mSSData->mStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
 
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_IPRT_ERROR,
@@ -4764,7 +5469,7 @@ STDMETHODIMP Machine::ReadSavedThumbnailToArray(ULONG aScreenId, BOOL aBGR, ULON
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(&mSSData->mStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+    int vrc = readSavedDisplayScreenshot(mSSData->mStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
 
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_IPRT_ERROR,
@@ -4805,6 +5510,56 @@ STDMETHODIMP Machine::ReadSavedThumbnailToArray(ULONG aScreenId, BOOL aBGR, ULON
     return S_OK;
 }
 
+
+STDMETHODIMP Machine::ReadSavedThumbnailPNGToArray(ULONG aScreenId, ULONG *aWidth, ULONG *aHeight, ComSafeArrayOut(BYTE, aData))
+{
+    LogFlowThisFunc(("\n"));
+
+    CheckComArgNotNull(aWidth);
+    CheckComArgNotNull(aHeight);
+    CheckComArgOutSafeArrayPointerValid(aData);
+
+    if (aScreenId != 0)
+        return E_NOTIMPL;
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    uint8_t *pu8Data = NULL;
+    uint32_t cbData = 0;
+    uint32_t u32Width = 0;
+    uint32_t u32Height = 0;
+
+    int vrc = readSavedDisplayScreenshot(mSSData->mStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+
+    if (RT_FAILURE(vrc))
+        return setError(VBOX_E_IPRT_ERROR,
+                        tr("Saved screenshot data is not available (%Rrc)"),
+                        vrc);
+
+    *aWidth = u32Width;
+    *aHeight = u32Height;
+
+    uint8_t *pu8PNG = NULL;
+    uint32_t cbPNG = 0;
+    uint32_t cxPNG = 0;
+    uint32_t cyPNG = 0;
+
+    DisplayMakePNG(pu8Data, u32Width, u32Height, &pu8PNG, &cbPNG, &cxPNG, &cyPNG, 0);
+
+    com::SafeArray<BYTE> screenData(cbPNG);
+    screenData.initFrom(pu8PNG, cbPNG);
+    RTMemFree(pu8PNG);
+
+    screenData.detachTo(ComSafeArrayOutArg(aData));
+
+    freeSavedDisplayScreenshot(pu8Data);
+
+    return S_OK;
+}
+
 STDMETHODIMP Machine::QuerySavedScreenshotPNGSize(ULONG aScreenId, ULONG *aSize, ULONG *aWidth, ULONG *aHeight)
 {
     LogFlowThisFunc(("\n"));
@@ -4826,7 +5581,7 @@ STDMETHODIMP Machine::QuerySavedScreenshotPNGSize(ULONG aScreenId, ULONG *aSize,
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(&mSSData->mStateFilePath, 1 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+    int vrc = readSavedDisplayScreenshot(mSSData->mStateFilePath, 1 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
 
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_IPRT_ERROR,
@@ -4863,19 +5618,18 @@ STDMETHODIMP Machine::ReadSavedScreenshotPNGToArray(ULONG aScreenId, ULONG *aWid
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(&mSSData->mStateFilePath, 1 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+    int vrc = readSavedDisplayScreenshot(mSSData->mStateFilePath, 1 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
 
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_IPRT_ERROR,
-                        tr("Saved screenshot data is not available (%Rrc)"),
+                        tr("Saved screenshot thumbnail data is not available (%Rrc)"),
                         vrc);
 
     *aWidth = u32Width;
     *aHeight = u32Height;
 
     com::SafeArray<BYTE> png(cbData);
-    for (unsigned i = 0; i < cbData; i++)
-        png[i] = pu8Data[i];
+    png.initFrom(pu8Data, cbData);
     png.detachTo(ComSafeArrayOutArg(aData));
 
     freeSavedDisplayScreenshot(pu8Data);
@@ -5004,10 +5758,12 @@ STDMETHODIMP Machine::QueryLogFilename(ULONG aIdx, BSTR *aName)
     return S_OK;
 }
 
-STDMETHODIMP Machine::ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSafeArrayOut(BYTE, aData))
+STDMETHODIMP Machine::ReadLog(ULONG aIdx, LONG64 aOffset, LONG64 aSize, ComSafeArrayOut(BYTE, aData))
 {
     LogFlowThisFunc(("\n"));
     CheckComArgOutSafeArrayPointerValid(aData);
+    if (aSize < 0)
+        return setError(E_INVALIDARG, tr("The size argument (%lld) is negative"), aSize);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -5028,7 +5784,7 @@ STDMETHODIMP Machine::ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSaf
     com::SafeArray<BYTE> logData(cbData);
 
     RTFILE LogFile;
-    int vrc = RTFileOpen(&LogFile, log.raw(),
+    int vrc = RTFileOpen(&LogFile, log.c_str(),
                          RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
     if (RT_SUCCESS(vrc))
     {
@@ -5038,13 +5794,13 @@ STDMETHODIMP Machine::ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSaf
         else
             rc = setError(VBOX_E_IPRT_ERROR,
                           tr("Could not read log file '%s' (%Rrc)"),
-                          log.raw(), vrc);
+                          log.c_str(), vrc);
         RTFileClose(LogFile);
     }
     else
         rc = setError(VBOX_E_IPRT_ERROR,
                       tr("Could not open log file '%s' (%Rrc)"),
-                      log.raw(), vrc);
+                      log.c_str(), vrc);
 
     if (FAILED(rc))
         logData.resize(0);
@@ -5053,6 +5809,61 @@ STDMETHODIMP Machine::ReadLog(ULONG aIdx, ULONG64 aOffset, ULONG64 aSize, ComSaf
     return rc;
 }
 
+
+STDMETHODIMP Machine::AttachHostPciDevice(LONG hostAddress, LONG desiredGuestAddress, IEventContext * /*eventContext*/, BOOL /*tryToUnbind*/)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    ComObjPtr<PciDeviceAttachment> pda;
+    char name[32];
+
+    pda.createObject();
+    RTStrPrintf(name, sizeof(name), "host%02x:%02x.%x", (hostAddress>>8) & 0xff, (hostAddress & 0xf8) >> 3, hostAddress & 7);
+    Bstr bname(name);
+    pda.createObject();
+    pda->init(this, bname,  hostAddress, desiredGuestAddress, TRUE);
+
+    mPciDeviceAssignments.push_back(pda);
+    return S_OK;
+}
+
+STDMETHODIMP Machine::DetachHostPciDevice(LONG /*hostAddress*/)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    return E_NOTIMPL;
+}
+
+STDMETHODIMP Machine::COMGETTER(PciDeviceAssignments)(ComSafeArrayOut(IPciDeviceAttachment *, aAssignments))
+{
+    CheckComArgOutSafeArrayPointerValid(aAssignments);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    SafeIfaceArray<IPciDeviceAttachment> assignments(mPciDeviceAssignments);
+    assignments.detachTo(ComSafeArrayOutArg(aAssignments));
+
+    return S_OK;
+}
+
+STDMETHODIMP Machine::COMGETTER(BandwidthControl)(IBandwidthControl **aBandwidthControl)
+{
+    CheckComArgOutPointerValid(aBandwidthControl);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    mBandwidthControl.queryInterfaceTo(aBandwidthControl);
+
+    return S_OK;
+}
 
 // public methods for internal purposes
 /////////////////////////////////////////////////////////////////////////////
@@ -5119,17 +5930,16 @@ int Machine::calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult)
 }
 
 /**
- * Tries to calculate the relative path of the given absolute path using the
- * directory of the machine settings file as the base directory.
+ * Copies strSource to strTarget, making it relative to the machine folder
+ * if it is a subdirectory thereof, or simply copying it otherwise.
  *
- * @param  aPath    Absolute path to calculate the relative path for.
- * @param  aResult  Where to put the result (used only when it's possible to
- *                  make a relative path from the given absolute path; otherwise
- *                  left untouched).
+ * @param strSource Path to evaluate and copy.
+ * @param strTarget Buffer to receive target path.
  *
  * @note Locks this object for reading.
  */
-void Machine::calculateRelativePath(const Utf8Str &strPath, Utf8Str &aResult)
+void Machine::copyPathRelativeToMachine(const Utf8Str &strSource,
+                                        Utf8Str &strTarget)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), (void)0);
@@ -5137,19 +5947,15 @@ void Machine::calculateRelativePath(const Utf8Str &strPath, Utf8Str &aResult)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturnVoid(!mData->m_strConfigFileFull.isEmpty());
-
-    Utf8Str settingsDir = mData->m_strConfigFileFull;
-
-    settingsDir.stripFilename();
-    if (RTPathStartsWith(strPath.c_str(), settingsDir.c_str()))
-    {
-        /* when assigning, we create a separate Utf8Str instance because both
-         * aPath and aResult can point to the same memory location when this
-         * func is called (if we just do aResult = aPath, aResult will be freed
-         * first, and since its the same as aPath, an attempt to copy garbage
-         * will be made. */
-        aResult = Utf8Str(strPath.c_str() + settingsDir.length() + 1);
-    }
+    // use strTarget as a temporary buffer to hold the machine settings dir
+    strTarget = mData->m_strConfigFileFull;
+    strTarget.stripFilename();
+    if (RTPathStartsWith(strSource.c_str(), strTarget.c_str()))
+        // is relative: then append what's left
+        strTarget = strSource.substr(strTarget.length() + 1); // skip '/'
+    else
+        // is not relative: then overwrite
+        strTarget = strSource;
 }
 
 /**
@@ -5163,19 +5969,10 @@ void Machine::getLogFolder(Utf8Str &aLogFolder)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Utf8Str settingsDir;
-    if (isInOwnDir(&settingsDir))
-    {
-        /* Log folder is <Machines>/<VM_Name>/Logs */
-        aLogFolder = Utf8StrFmt("%s%cLogs", settingsDir.raw(), RTPATH_DELIMITER);
-    }
-    else
-    {
-        /* Log folder is <Machines>/<VM_SnapshotFolder>/Logs */
-        Assert(!mUserData->mSnapshotFolderFull.isEmpty());
-        aLogFolder = Utf8StrFmt ("%ls%cLogs", mUserData->mSnapshotFolderFull.raw(),
-                                 RTPATH_DELIMITER);
-    }
+    aLogFolder = mData->m_strConfigFileFull;    // path/to/machinesfolder/vmname/vmname.vbox
+    aLogFolder.stripFilename();                 // path/to/machinesfolder/vmname
+    aLogFolder.append(RTPATH_DELIMITER);
+    aLogFolder.append("Logs");                  // path/to/machinesfolder/vmname/Logs
 }
 
 /**
@@ -5189,229 +5986,11 @@ Utf8Str Machine::queryLogFilename(ULONG idx)
     Utf8Str log;
     if (idx == 0)
         log = Utf8StrFmt("%s%cVBox.log",
-                         logFolder.raw(), RTPATH_DELIMITER);
+                         logFolder.c_str(), RTPATH_DELIMITER);
     else
         log = Utf8StrFmt("%s%cVBox.log.%d",
-                         logFolder.raw(), RTPATH_DELIMITER, idx);
+                         logFolder.c_str(), RTPATH_DELIMITER, idx);
     return log;
-}
-
-/**
- *  @note Locks this object for writing, calls the client process (outside the
- *        lock).
- */
-HRESULT Machine::openSession(IInternalSessionControl *aControl)
-{
-    LogFlowThisFuncEnter();
-
-    AssertReturn(aControl, E_FAIL);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!mData->mRegistered)
-        return setError(E_UNEXPECTED,
-                        tr("The machine '%ls' is not registered"),
-                        mUserData->mName.raw());
-
-    LogFlowThisFunc(("mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
-
-    /* Hack: in case the session is closing and there is a progress object
-     * which allows waiting for the session to be closed, take the opportunity
-     * and do a limited wait (max. 1 second). This helps a lot when the system
-     * is busy and thus session closing can take a little while. */
-    if (    mData->mSession.mState == SessionState_Closing
-        &&  mData->mSession.mProgress)
-    {
-        alock.leave();
-        mData->mSession.mProgress->WaitForCompletion(1000);
-        alock.enter();
-        LogFlowThisFunc(("after waiting: mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
-    }
-
-    if (mData->mSession.mState == SessionState_Open ||
-        mData->mSession.mState == SessionState_Closing)
-        return setError(VBOX_E_INVALID_OBJECT_STATE,
-                        tr("A session for the machine '%ls' is currently open (or being closed)"),
-                        mUserData->mName.raw());
-
-    /* may not be busy */
-    AssertReturn(!Global::IsOnlineOrTransient(mData->mMachineState), E_FAIL);
-
-    /* get the session PID */
-    RTPROCESS pid = NIL_RTPROCESS;
-    AssertCompile(sizeof(ULONG) == sizeof(RTPROCESS));
-    aControl->GetPID((ULONG *) &pid);
-    Assert(pid != NIL_RTPROCESS);
-
-    if (mData->mSession.mState == SessionState_Spawning)
-    {
-        /* This machine is awaiting for a spawning session to be opened, so
-         * reject any other open attempts from processes other than one
-         * started by #openRemoteSession(). */
-
-        LogFlowThisFunc(("mSession.mPid=%d(0x%x)\n",
-                          mData->mSession.mPid, mData->mSession.mPid));
-        LogFlowThisFunc(("session.pid=%d(0x%x)\n", pid, pid));
-
-        if (mData->mSession.mPid != pid)
-            return setError(E_ACCESSDENIED,
-                            tr("An unexpected process (PID=0x%08X) has tried to open a direct "
-                               "session with the machine named '%ls', while only a process "
-                               "started by OpenRemoteSession (PID=0x%08X) is allowed"),
-                            pid, mUserData->mName.raw(), mData->mSession.mPid);
-    }
-
-    /* create a SessionMachine object */
-    ComObjPtr<SessionMachine> sessionMachine;
-    sessionMachine.createObject();
-    HRESULT rc = sessionMachine->init(this);
-    AssertComRC(rc);
-
-    /* NOTE: doing return from this function after this point but
-     * before the end is forbidden since it may call SessionMachine::uninit()
-     * (through the ComObjPtr's destructor) which requests the VirtualBox write
-     * lock while still holding the Machine lock in alock so that a deadlock
-     * is possible due to the wrong lock order. */
-
-    if (SUCCEEDED(rc))
-    {
-        /*
-         *  Set the session state to Spawning to protect against subsequent
-         *  attempts to open a session and to unregister the machine after
-         *  we leave the lock.
-         */
-        SessionState_T origState = mData->mSession.mState;
-        mData->mSession.mState = SessionState_Spawning;
-
-        /*
-         *  Leave the lock before calling the client process -- it will call
-         *  Machine/SessionMachine methods. Leaving the lock here is quite safe
-         *  because the state is Spawning, so that openRemotesession() and
-         *  openExistingSession() calls will fail. This method, called before we
-         *  enter the lock again, will fail because of the wrong PID.
-         *
-         *  Note that mData->mSession.mRemoteControls accessed outside
-         *  the lock may not be modified when state is Spawning, so it's safe.
-         */
-        alock.leave();
-
-        LogFlowThisFunc(("Calling AssignMachine()...\n"));
-        rc = aControl->AssignMachine(sessionMachine);
-        LogFlowThisFunc(("AssignMachine() returned %08X\n", rc));
-
-        /* The failure may occur w/o any error info (from RPC), so provide one */
-        if (FAILED(rc))
-            setError(VBOX_E_VM_ERROR,
-                tr("Failed to assign the machine to the session (%Rrc)"), rc);
-
-        if (SUCCEEDED(rc) && origState == SessionState_Spawning)
-        {
-            /* complete the remote session initialization */
-
-            /* get the console from the direct session */
-            ComPtr<IConsole> console;
-            rc = aControl->GetRemoteConsole(console.asOutParam());
-            ComAssertComRC(rc);
-
-            if (SUCCEEDED(rc) && !console)
-            {
-                ComAssert(!!console);
-                rc = E_FAIL;
-            }
-
-            /* assign machine & console to the remote session */
-            if (SUCCEEDED(rc))
-            {
-                /*
-                 *  after openRemoteSession(), the first and the only
-                 *  entry in remoteControls is that remote session
-                 */
-                LogFlowThisFunc(("Calling AssignRemoteMachine()...\n"));
-                rc = mData->mSession.mRemoteControls.front()->
-                    AssignRemoteMachine(sessionMachine, console);
-                LogFlowThisFunc(("AssignRemoteMachine() returned %08X\n", rc));
-
-                /* The failure may occur w/o any error info (from RPC), so provide one */
-                if (FAILED(rc))
-                    setError(VBOX_E_VM_ERROR,
-                             tr("Failed to assign the machine to the remote session (%Rrc)"), rc);
-            }
-
-            if (FAILED(rc))
-                aControl->Uninitialize();
-        }
-
-        /* enter the lock again */
-        alock.enter();
-
-        /* Restore the session state */
-        mData->mSession.mState = origState;
-    }
-
-    /* finalize spawning anyway (this is why we don't return on errors above) */
-    if (mData->mSession.mState == SessionState_Spawning)
-    {
-        /* Note that the progress object is finalized later */
-        /** @todo Consider checking mData->mSession.mProgress for cancellation
-         *        around here.  */
-
-        /* We don't reset mSession.mPid here because it is necessary for
-         * SessionMachine::uninit() to reap the child process later. */
-
-        if (FAILED(rc))
-        {
-            /* Close the remote session, remove the remote control from the list
-             * and reset session state to Closed (@note keep the code in sync
-             * with the relevant part in openSession()). */
-
-            Assert(mData->mSession.mRemoteControls.size() == 1);
-            if (mData->mSession.mRemoteControls.size() == 1)
-            {
-                ErrorInfoKeeper eik;
-                mData->mSession.mRemoteControls.front()->Uninitialize();
-            }
-
-            mData->mSession.mRemoteControls.clear();
-            mData->mSession.mState = SessionState_Closed;
-        }
-    }
-    else
-    {
-        /* memorize PID of the directly opened session */
-        if (SUCCEEDED(rc))
-            mData->mSession.mPid = pid;
-    }
-
-    if (SUCCEEDED(rc))
-    {
-        /* memorize the direct session control and cache IUnknown for it */
-        mData->mSession.mDirectControl = aControl;
-        mData->mSession.mState = SessionState_Open;
-        /* associate the SessionMachine with this Machine */
-        mData->mSession.mMachine = sessionMachine;
-
-        /* request an IUnknown pointer early from the remote party for later
-         * identity checks (it will be internally cached within mDirectControl
-         * at least on XPCOM) */
-        ComPtr<IUnknown> unk = mData->mSession.mDirectControl;
-        NOREF(unk);
-    }
-
-    /* Leave the lock since SessionMachine::uninit() locks VirtualBox which
-     * would break the lock order */
-    alock.leave();
-
-    /* uninitialize the created session machine on failure */
-    if (FAILED(rc))
-        sessionMachine->uninit();
-
-    LogFlowThisFunc(("rc=%Rhrc\n", rc));
-    LogFlowThisFuncLeave();
-    return rc;
 }
 
 /**
@@ -5435,24 +6014,24 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
 
     if (!mData->mRegistered)
         return setError(E_UNEXPECTED,
-                        tr("The machine '%ls' is not registered"),
-                        mUserData->mName.raw());
+                        tr("The machine '%s' is not registered"),
+                        mUserData->s.strName.c_str());
 
     LogFlowThisFunc(("mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
 
-    if (mData->mSession.mState == SessionState_Open ||
-        mData->mSession.mState == SessionState_Spawning ||
-        mData->mSession.mState == SessionState_Closing)
+    if (    mData->mSession.mState == SessionState_Locked
+         || mData->mSession.mState == SessionState_Spawning
+         || mData->mSession.mState == SessionState_Unlocking)
         return setError(VBOX_E_INVALID_OBJECT_STATE,
-                        tr("A session for the machine '%ls' is currently open (or being opened or closed)"),
-                        mUserData->mName.raw());
+                        tr("The machine '%s' is already locked by a session (or being locked or unlocked)"),
+                        mUserData->s.strName.c_str());
 
     /* may not be busy */
     AssertReturn(!Global::IsOnlineOrTransient(mData->mMachineState), E_FAIL);
 
     /* get the path to the executable */
     char szPath[RTPATH_MAX];
-    RTPathAppPrivateArch(szPath, RTPATH_MAX);
+    RTPathAppPrivateArch(szPath, sizeof(szPath) - 1);
     size_t sz = strlen(szPath);
     szPath[sz++] = RTPATH_DELIMITER;
     szPath[sz] = 0;
@@ -5528,8 +6107,7 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
         strcpy(cmd, VirtualBox_exe);
 
         Utf8Str idStr = mData->mUuid.toString();
-        Utf8Str strName = mUserData->mName;
-        const char * args[] = {szPath, "--comment", strName.c_str(), "--startvm", idStr.c_str(), "--no-startvm-errormsgbox", 0 };
+        const char * args[] = {szPath, "--comment", mUserData->s.strName.c_str(), "--startvm", idStr.c_str(), "--no-startvm-errormsgbox", 0 };
         vrc = RTProcCreate(szPath, args, env, 0, &pid);
     }
 #else /* !VBOX_WITH_QTGUI */
@@ -5547,8 +6125,7 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
         strcpy(cmd, VBoxSDL_exe);
 
         Utf8Str idStr = mData->mUuid.toString();
-        Utf8Str strName = mUserData->mName;
-        const char * args[] = {szPath, "--comment", strName.c_str(), "--startvm", idStr.c_str(), 0 };
+        const char * args[] = {szPath, "--comment", mUserData->s.strName.c_str(), "--startvm", idStr.c_str(), 0 };
         vrc = RTProcCreate(szPath, args, env, 0, &pid);
     }
 #else /* !VBOX_WITH_VBOXSDL */
@@ -5561,30 +6138,26 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
 #ifdef VBOX_WITH_HEADLESS
     if (   strType == "headless"
         || strType == "capture"
-#ifdef VBOX_WITH_VRDP
-        || strType == "vrdp"
-#endif
+        || strType == "vrdp" /* Deprecated. Same as headless. */
        )
     {
+        /* On pre-4.0 the "headless" type was used for passing "--vrdp off" to VBoxHeadless to let it work in OSE,
+         * which did not contain VRDP server. In VBox 4.0 the remote desktop server (VRDE) is optional,
+         * and a VM works even if the server has not been installed.
+         * So in 4.0 the "headless" behavior remains the same for default VBox installations.
+         * Only if a VRDE has been installed and the VM enables it, the "headless" will work
+         * differently in 4.0 and 3.x.
+         */
         const char VBoxHeadless_exe[] = "VBoxHeadless" HOSTSUFF_EXE;
         Assert(sz >= sizeof(VBoxHeadless_exe));
         strcpy(cmd, VBoxHeadless_exe);
 
         Utf8Str idStr = mData->mUuid.toString();
-        /* Leave space for 2 args, as "headless" needs --vrdp off on non-OSE. */
-        Utf8Str strName = mUserData->mName;
-        const char * args[] = {szPath, "--comment", strName.c_str(), "--startvm", idStr.c_str(), 0, 0, 0 };
-#ifdef VBOX_WITH_VRDP
-        if (strType == "headless")
-        {
-            unsigned pos = RT_ELEMENTS(args) - 3;
-            args[pos++] = "--vrdp";
-            args[pos] = "off";
-        }
-#endif
+        /* Leave space for "--capture" arg. */
+        const char * args[] = {szPath, "--comment", mUserData->s.strName.c_str(), "--startvm", idStr.c_str(), 0, 0 };
         if (strType == "capture")
         {
-            unsigned pos = RT_ELEMENTS(args) - 3;
+            unsigned pos = RT_ELEMENTS(args) - 2;
             args[pos] = "--capture";
         }
         vrc = RTProcCreate(szPath, args, env, 0, &pid);
@@ -5605,15 +6178,15 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
 
     if (RT_FAILURE(vrc))
         return setError(VBOX_E_IPRT_ERROR,
-                        tr("Could not launch a process for the machine '%ls' (%Rrc)"),
-                        mUserData->mName.raw(), vrc);
+                        tr("Could not launch a process for the machine '%s' (%Rrc)"),
+                        mUserData->s.strName.c_str(), vrc);
 
     LogFlowThisFunc(("launched.pid=%d(0x%x)\n", pid, pid));
 
     /*
      *  Note that we don't leave the lock here before calling the client,
      *  because it doesn't need to call us back if called with a NULL argument.
-     *  Leaving the lock herer is dangerous because we didn't prepare the
+     *  Leaving the lock here is dangerous because we didn't prepare the
      *  launch data yet, but the client we've just started may happen to be
      *  too fast and call openSession() that will fail (because of PID, etc.),
      *  so that the Machine will never get out of the Spawning session state.
@@ -5627,7 +6200,7 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
     if (FAILED(rc))
     {
         /* restore the session state */
-        mData->mSession.mState = SessionState_Closed;
+        mData->mSession.mState = SessionState_Unlocked;
         /* The failure may occur w/o any error info (from RPC), so provide one */
         return setError(VBOX_E_VM_ERROR,
                         tr("Failed to assign the machine to the session (%Rrc)"), rc);
@@ -5640,91 +6213,6 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
     mData->mSession.mPid = pid;
     mData->mSession.mState = SessionState_Spawning;
     mData->mSession.mType = strType;
-
-    LogFlowThisFuncLeave();
-    return S_OK;
-}
-
-
-/**
- *  @note Locks this object for writing, calls the client process
- *        (outside the lock).
- */
-HRESULT Machine::openExistingSession(IInternalSessionControl *aControl)
-{
-    LogFlowThisFuncEnter();
-
-    AssertReturn(aControl, E_FAIL);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!mData->mRegistered)
-        return setError(E_UNEXPECTED,
-                        tr("The machine '%ls' is not registered"),
-                        mUserData->mName.raw());
-
-    LogFlowThisFunc(("mSession.state=%s\n", Global::stringifySessionState(mData->mSession.mState)));
-
-    if (mData->mSession.mState != SessionState_Open)
-        return setError(VBOX_E_INVALID_SESSION_STATE,
-                        tr("The machine '%ls' does not have an open session"),
-                        mUserData->mName.raw());
-
-    ComAssertRet(!mData->mSession.mDirectControl.isNull(), E_FAIL);
-
-    // copy member variables before leaving lock
-    ComPtr<IInternalSessionControl> pDirectControl = mData->mSession.mDirectControl;
-    ComObjPtr<SessionMachine> pSessionMachine = mData->mSession.mMachine;
-    AssertReturn(!pSessionMachine.isNull(), E_FAIL);
-
-    /*
-     *  Leave the lock before calling the client process. It's safe here
-     *  since the only thing to do after we get the lock again is to add
-     *  the remote control to the list (which doesn't directly influence
-     *  anything).
-     */
-    alock.leave();
-
-    // get the console from the direct session (this is a remote call)
-    ComPtr<IConsole> pConsole;
-    LogFlowThisFunc(("Calling GetRemoteConsole()...\n"));
-    HRESULT rc = pDirectControl->GetRemoteConsole(pConsole.asOutParam());
-    LogFlowThisFunc(("GetRemoteConsole() returned %08X\n", rc));
-    if (FAILED (rc))
-        /* The failure may occur w/o any error info (from RPC), so provide one */
-        return setError(VBOX_E_VM_ERROR,
-            tr("Failed to get a console object from the direct session (%Rrc)"), rc);
-
-    ComAssertRet(!pConsole.isNull(), E_FAIL);
-
-    /* attach the remote session to the machine */
-    LogFlowThisFunc(("Calling AssignRemoteMachine()...\n"));
-    rc = aControl->AssignRemoteMachine(pSessionMachine, pConsole);
-    LogFlowThisFunc(("AssignRemoteMachine() returned %08X\n", rc));
-
-    /* The failure may occur w/o any error info (from RPC), so provide one */
-    if (FAILED(rc))
-        return setError(VBOX_E_VM_ERROR,
-                        tr("Failed to assign the machine to the session (%Rrc)"),
-                        rc);
-
-    alock.enter();
-
-    /* need to revalidate the state after entering the lock again */
-    if (mData->mSession.mState != SessionState_Open)
-    {
-        aControl->Uninitialize();
-
-        return setError(VBOX_E_INVALID_SESSION_STATE,
-                        tr("The machine '%ls' does not have an open session"),
-                        mUserData->mName.raw());
-    }
-
-    /* store the control in the list */
-    mData->mSession.mRemoteControls.push_back(aControl);
 
     LogFlowThisFuncLeave();
     return S_OK;
@@ -5768,8 +6256,9 @@ bool Machine::isSessionOpen(ComObjPtr<SessionMachine> &aMachine,
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mSession.mState == SessionState_Open ||
-        (aAllowClosing && mData->mSession.mState == SessionState_Closing))
+    if (    mData->mSession.mState == SessionState_Locked
+         || (aAllowClosing && mData->mSession.mState == SessionState_Unlocking)
+       )
     {
         AssertReturn(!mData->mSession.mMachine.isNull(), false);
 
@@ -5871,8 +6360,8 @@ bool Machine::checkForSpawnFailure()
     /* the process was already unexpectedly terminated, we just need to set an
      * error and finalize session spawning */
     rc = setError(E_FAIL,
-                  tr("The virtual machine '%ls' has terminated unexpectedly during startup"),
-                  getName().raw());
+                  tr("The virtual machine '%s' has terminated unexpectedly during startup"),
+                  getName().c_str());
 #else
 
     /* PID not yet initialized, skip check. */
@@ -5887,20 +6376,20 @@ bool Machine::checkForSpawnFailure()
     {
         if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_NORMAL)
             rc = setError(E_FAIL,
-                          tr("The virtual machine '%ls' has terminated unexpectedly during startup with exit code %d"),
-                          getName().raw(), status.iStatus);
+                          tr("The virtual machine '%s' has terminated unexpectedly during startup with exit code %d"),
+                          getName().c_str(), status.iStatus);
         else if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_SIGNAL)
             rc = setError(E_FAIL,
-                          tr("The virtual machine '%ls' has terminated unexpectedly during startup because of signal %d"),
-                          getName().raw(), status.iStatus);
+                          tr("The virtual machine '%s' has terminated unexpectedly during startup because of signal %d"),
+                          getName().c_str(), status.iStatus);
         else if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_ABEND)
             rc = setError(E_FAIL,
-                          tr("The virtual machine '%ls' has terminated abnormally"),
-                          getName().raw(), status.iStatus);
+                          tr("The virtual machine '%s' has terminated abnormally"),
+                          getName().c_str(), status.iStatus);
         else
             rc = setError(E_FAIL,
-                          tr("The virtual machine '%ls' has terminated unexpectedly during startup (%Rrc)"),
-                          getName().raw(), rc);
+                          tr("The virtual machine '%s' has terminated unexpectedly during startup (%Rrc)"),
+                          getName().c_str(), rc);
     }
 
 #endif
@@ -5919,7 +6408,7 @@ bool Machine::checkForSpawnFailure()
         }
 
         mData->mSession.mRemoteControls.clear();
-        mData->mSession.mState = SessionState_Closed;
+        mData->mSession.mState = SessionState_Unlocked;
 
         /* finalize the progress after setting the state */
         if (!mData->mSession.mProgress.isNull())
@@ -5931,7 +6420,7 @@ bool Machine::checkForSpawnFailure()
         mParent->addProcessToReap(mData->mSession.mPid);
         mData->mSession.mPid = NIL_RTPROCESS;
 
-        mParent->onSessionStateChange(mData->mUuid, SessionState_Closed);
+        mParent->onSessionStateChange(mData->mUuid, SessionState_Unlocked);
         return true;
     }
 
@@ -5939,20 +6428,13 @@ bool Machine::checkForSpawnFailure()
 }
 
 /**
- *  Checks that the registered flag of the machine can be set according to
- *  the argument and sets it. On success, commits and saves all settings.
- *
- *  @note When this machine is inaccessible, the only valid value for \a
- *  aRegistered is FALSE (i.e. unregister the machine) because unregistered
- *  inaccessible machines are not currently supported. Note that unregistering
- *  an inaccessible machine will \b uninitialize this machine object. Therefore,
- *  the caller must make sure there are no active Machine::addCaller() calls
- *  on the current thread because this will block Machine::uninit().
+ *  Checks whether the machine can be registered. If so, commits and saves
+ *  all settings.
  *
  *  @note Must be called from mParent's write lock. Locks this object and
  *  children for writing.
  */
-HRESULT Machine::trySetRegistered(BOOL argNewRegistered)
+HRESULT Machine::prepareRegister()
 {
     AssertReturn(mParent->isWriteLockOnCurrentThread(), E_FAIL);
 
@@ -5961,79 +6443,29 @@ HRESULT Machine::trySetRegistered(BOOL argNewRegistered)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* wait for state dependants to drop to zero */
+    /* wait for state dependents to drop to zero */
     ensureNoStateDependencies();
 
-    ComAssertRet(mData->mRegistered != argNewRegistered, E_FAIL);
-
     if (!mData->mAccessible)
-    {
-        /* A special case: the machine is not accessible. */
-
-        /* inaccessible machines can only be unregistered */
-        AssertReturn(!argNewRegistered, E_FAIL);
-
-        /* Uninitialize ourselves here because currently there may be no
-         * unregistered that are inaccessible (this state combination is not
-         * supported). Note releasing the caller and leaving the lock before
-         * calling uninit() */
-
-        alock.leave();
-        autoCaller.release();
-
-        uninit();
-
-        return S_OK;
-    }
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("The machine '%s' with UUID {%s} is inaccessible and cannot be registered"),
+                        mUserData->s.strName.c_str(),
+                        mData->mUuid.toString().c_str());
 
     AssertReturn(autoCaller.state() == Ready, E_FAIL);
 
-    if (argNewRegistered)
-    {
-        if (mData->mRegistered)
-            return setError(VBOX_E_INVALID_OBJECT_STATE,
-                            tr("The machine '%ls' with UUID {%s} is already registered"),
-                            mUserData->mName.raw(),
-                            mData->mUuid.toString().raw());
-    }
-    else
-    {
-        if (mData->mMachineState == MachineState_Saved)
-            return setError(VBOX_E_INVALID_VM_STATE,
-                            tr("Cannot unregister the machine '%ls' because it is in the Saved state"),
-                            mUserData->mName.raw());
-
-        size_t snapshotCount = 0;
-        if (mData->mFirstSnapshot)
-            snapshotCount = mData->mFirstSnapshot->getAllChildrenCount() + 1;
-        if (snapshotCount)
-            return setError(VBOX_E_INVALID_OBJECT_STATE,
-                            tr("Cannot unregister the machine '%ls' because it has %d snapshots"),
-                            mUserData->mName.raw(), snapshotCount);
-
-        if (mData->mSession.mState != SessionState_Closed)
-            return setError(VBOX_E_INVALID_OBJECT_STATE,
-                            tr("Cannot unregister the machine '%ls' because it has an open session"),
-                            mUserData->mName.raw());
-
-        if (mMediaData->mAttachments.size() != 0)
-            return setError(VBOX_E_INVALID_OBJECT_STATE,
-                            tr("Cannot unregister the machine '%ls' because it has %d medium attachments"),
-                            mUserData->mName.raw(),
-                            mMediaData->mAttachments.size());
-
-        /* Note that we do not prevent unregistration of a DVD or Floppy image
-         * is attached: as opposed to hard disks detaching such an image
-         * implicitly in this method (which we will do below) won't have any
-         * side effects (like detached orphan base and diff hard disks etc).*/
-    }
+    if (mData->mRegistered)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("The machine '%s' with UUID {%s} is already registered"),
+                        mUserData->s.strName.c_str(),
+                        mData->mUuid.toString().c_str());
 
     HRESULT rc = S_OK;
 
     // Ensure the settings are saved. If we are going to be registered and
     // no config file exists yet, create it by calling saveSettings() too.
     if (    (mData->flModifications)
-         || (argNewRegistered && !mData->pMachineConfigFile->fileExists())
+         || (!mData->pMachineConfigFile->fileExists())
        )
     {
         rc = saveSettings(NULL);
@@ -6049,7 +6481,7 @@ HRESULT Machine::trySetRegistered(BOOL argNewRegistered)
         /* we may have had implicit modifications we want to fix on success */
         commit();
 
-        mData->mRegistered = argNewRegistered;
+        mData->mRegistered = true;
     }
     else
     {
@@ -6151,7 +6583,7 @@ void Machine::releaseStateDependency()
 /**
  *  Performs machine state checks based on the @a aDepType value. If a check
  *  fails, this method will set extended error info, otherwise it will return
- *  S_OK. It is supposed, that on failure, the caller will immedieately return
+ *  S_OK. It is supposed, that on failure, the caller will immediately return
  *  the return value of this method to the upper level.
  *
  *  When @a aDepType is AnyStateDep, this method always returns S_OK.
@@ -6187,7 +6619,7 @@ HRESULT Machine::checkStateDependency(StateDependency aDepType)
         case MutableStateDep:
         {
             if (   mData->mRegistered
-                && (   getClassID() != clsidSessionMachine  /** @todo This was just convered raw; Check if Running and Paused should actually be included here... (Live Migration) */
+                && (   !isSessionMachine()  /** @todo This was just converted raw; Check if Running and Paused should actually be included here... (Live Migration) */
                     || (   mData->mMachineState != MachineState_Paused
                         && mData->mMachineState != MachineState_Running
                         && mData->mMachineState != MachineState_Aborted
@@ -6204,7 +6636,7 @@ HRESULT Machine::checkStateDependency(StateDependency aDepType)
         case MutableOrSavedStateDep:
         {
             if (   mData->mRegistered
-                && (   getClassID() != clsidSessionMachine  /** @todo This was just convered raw; Check if Running and Paused should actually be included here... (Live Migration) */
+                && (   !isSessionMachine() /** @todo This was just converted raw; Check if Running and Paused should actually be included here... (Live Migration) */
                     || (   mData->mMachineState != MachineState_Paused
                         && mData->mMachineState != MachineState_Running
                         && mData->mMachineState != MachineState_Aborted
@@ -6250,17 +6682,15 @@ HRESULT Machine::initDataAndChildObjects()
     mStorageControllers.allocate();
 
     /* initialize mOSTypeId */
-    mUserData->mOSTypeId = mParent->getUnknownOSType()->id();
+    mUserData->s.strOsType = mParent->getUnknownOSType()->id();
 
     /* create associated BIOS settings object */
     unconst(mBIOSSettings).createObject();
     mBIOSSettings->init(this);
 
-#ifdef VBOX_WITH_VRDP
-    /* create an associated VRDPServer object (default is disabled) */
-    unconst(mVRDPServer).createObject();
-    mVRDPServer->init(this);
-#endif
+    /* create an associated VRDE object (default is disabled) */
+    unconst(mVRDEServer).createObject();
+    mVRDEServer->init(this);
 
     /* create associated serial port objects */
     for (ULONG slot = 0; slot < RT_ELEMENTS(mSerialPorts); slot++)
@@ -6291,6 +6721,10 @@ HRESULT Machine::initDataAndChildObjects()
         mNetworkAdapters[slot]->init(this, slot);
     }
 
+    /* create the bandwidth control */
+    unconst(mBandwidthControl).createObject();
+    mBandwidthControl->init(this);
+
     return S_OK;
 }
 
@@ -6310,11 +6744,12 @@ void Machine::uninitDataAndChildObjects()
     AssertComRCReturnVoid(    autoCaller.state() == InUninit
                            || autoCaller.state() == Limited);
 
-    /* uninit all children using addDependentChild()/removeDependentChild()
-     * in their init()/uninit() methods */
-    uninitDependentChildren();
-
     /* tell all our other child objects we've been uninitialized */
+    if (mBandwidthControl)
+    {
+        mBandwidthControl->uninit();
+        unconst(mBandwidthControl).setNull();
+    }
 
     for (ULONG slot = 0; slot < RT_ELEMENTS(mNetworkAdapters); slot++)
     {
@@ -6355,13 +6790,11 @@ void Machine::uninitDataAndChildObjects()
         }
     }
 
-#ifdef VBOX_WITH_VRDP
-    if (mVRDPServer)
+    if (mVRDEServer)
     {
-        mVRDPServer->uninit();
-        unconst(mVRDPServer).setNull();
+        mVRDEServer->uninit();
+        unconst(mVRDEServer).setNull();
     }
-#endif
 
     if (mBIOSSettings)
     {
@@ -6377,9 +6810,8 @@ void Machine::uninitDataAndChildObjects()
      * a result of unregistering or deleting the snapshot), outdated hard
      * disk attachments will already be uninitialized and deleted, so this
      * code will not affect them. */
-    VBoxClsID clsid = getClassID();
     if (    !!mMediaData
-         && (clsid == clsidMachine || clsid == clsidSnapshotMachine)
+         && (!isSessionMachine())
        )
     {
         for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
@@ -6389,12 +6821,12 @@ void Machine::uninitDataAndChildObjects()
             ComObjPtr<Medium> hd = (*it)->getMedium();
             if (hd.isNull())
                 continue;
-            HRESULT rc = hd->detachFrom(mData->mUuid, getSnapshotId());
+            HRESULT rc = hd->removeBackReference(mData->mUuid, getSnapshotId());
             AssertComRC(rc);
         }
     }
 
-    if (getClassID() == clsidMachine)
+    if (!isSessionMachine() && !isSnapshotMachine())
     {
         // clean up the snapshots list (Snapshot::uninit() will handle the snapshot's children recursively)
         if (mData->mFirstSnapshot)
@@ -6424,22 +6856,22 @@ void Machine::uninitDataAndChildObjects()
  *  parent for complex machine data objects such as shared folders, etc.
  *
  *  For primary Machine objects and for SnapshotMachine objects, returns this
- *  object's pointer itself. For SessoinMachine objects, returns the peer
+ *  object's pointer itself. For SessionMachine objects, returns the peer
  *  (primary) machine pointer.
  */
 Machine* Machine::getMachine()
 {
-    if (getClassID() == clsidSessionMachine)
+    if (isSessionMachine())
         return (Machine*)mPeer;
     return this;
 }
 
 /**
- * Makes sure that there are no machine state dependants. If necessary, waits
- * for the number of dependants to drop to zero.
+ * Makes sure that there are no machine state dependents. If necessary, waits
+ * for the number of dependents to drop to zero.
  *
  * Make sure this method is called from under this object's write lock to
- * guarantee that no new dependants may be added when this method returns
+ * guarantee that no new dependents may be added when this method returns
  * control to the caller.
  *
  * @note Locks this object for writing. The lock will be released while waiting
@@ -6453,7 +6885,7 @@ void Machine::ensureNoStateDependencies()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* Wait for all state dependants if necessary */
+    /* Wait for all state dependents if necessary */
     if (mData->mMachineStateDeps != 0)
     {
         /* lazy semaphore creation */
@@ -6465,7 +6897,7 @@ void Machine::ensureNoStateDependencies()
 
         ++mData->mMachineStateChangePending;
 
-        /* reset the semaphore before waiting, the last dependant will signal
+        /* reset the semaphore before waiting, the last dependent will signal
          * it */
         RTSemEventMultiReset(mData->mMachineStateDepsSem);
 
@@ -6497,7 +6929,7 @@ HRESULT Machine::setMachineState(MachineState_T aMachineState)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* wait for state dependants to drop to zero */
+    /* wait for state dependents to drop to zero */
     ensureNoStateDependencies();
 
     if (mData->mMachineState != aMachineState)
@@ -6555,24 +6987,31 @@ HRESULT Machine::findSharedFolder(CBSTR aName,
  * from XML. The exception is the machine UUID which needs special handling
  * depending on the caller's use case, so the caller needs to set that herself.
  *
- * @param config
- * @param fAllowStorage
+ * This gets called in several contexts during machine initialization:
+ *
+ * -- When machine XML exists on disk already and needs to be loaded into memory,
+ *    for example, from registeredInit() to load all registered machines on
+ *    VirtualBox startup. In this case, puuidRegistry is NULL because the media
+ *    attached to the machine should be part of some media registry already.
+ *
+ * -- During OVF import, when a machine config has been constructed from an
+ *    OVF file. In this case, puuidRegistry is set to the machine UUID to
+ *    ensure that the media listed as attachments in the config (which have
+ *    been imported from the OVF) receive the correct registry ID.
+ *
+ * @param config Machine settings from XML.
+ * @param puuidRegistry If != NULL, Medium::setRegistryIdIfFirst() gets called with this registry ID for each attached medium in the config.
+ * @return
  */
-HRESULT Machine::loadMachineDataFromSettings(const settings::MachineConfigFile &config)
+HRESULT Machine::loadMachineDataFromSettings(const settings::MachineConfigFile &config,
+                                             const Guid *puuidRegistry)
 {
-    /* name (required) */
-    mUserData->mName = config.strName;
+    // copy name, description, OS type, teleporter, UTC etc.
+    mUserData->s = config.machineUserData;
 
-    /* nameSync (optional, default is true) */
-    mUserData->mNameSync = config.fNameSync;
-
-    mUserData->mDescription = config.strDescription;
-
-    // guest OS type
-    mUserData->mOSTypeId = config.strOsType;
-    /* look up the object by Id to check it is valid */
+    // look up the object by Id to check it is valid
     ComPtr<IGuestOSType> guestOSType;
-    HRESULT rc = mParent->GetGuestOSType(mUserData->mOSTypeId,
+    HRESULT rc = mParent->GetGuestOSType(Bstr(mUserData->s.strOsType).raw(),
                                          guestOSType.asOutParam());
     if (FAILED(rc)) return rc;
 
@@ -6586,13 +7025,13 @@ HRESULT Machine::loadMachineDataFromSettings(const settings::MachineConfigFile &
         if (RT_FAILURE(vrc))
             return setError(E_FAIL,
                             tr("Invalid saved state file path '%s' (%Rrc)"),
-                            config.strStateFile.raw(),
+                            config.strStateFile.c_str(),
                             vrc);
         mSSData->mStateFilePath = stateFilePathFull;
     }
 
-    /* snapshotFolder (optional) */
-    rc = COMSETTER(SnapshotFolder)(Bstr(config.strSnapshotFolder));
+    // snapshot folder needs special processing so set it again
+    rc = COMSETTER(SnapshotFolder)(Bstr(config.machineUserData.strSnapshotFolder).raw());
     if (FAILED(rc)) return rc;
 
     /* currentStateModified (optional, default is true) */
@@ -6600,21 +7039,24 @@ HRESULT Machine::loadMachineDataFromSettings(const settings::MachineConfigFile &
 
     mData->mLastStateChange = config.timeLastStateChange;
 
-    /* teleportation */
-    mUserData->mTeleporterEnabled  = config.fTeleporterEnabled;
-    mUserData->mTeleporterPort     = config.uTeleporterPort;
-    mUserData->mTeleporterAddress  = config.strTeleporterAddress;
-    mUserData->mTeleporterPassword = config.strTeleporterPassword;
-
-    /* RTC */
-    mUserData->mRTCUseUTC = config.fRTCUseUTC;
-
     /*
      *  note: all mUserData members must be assigned prior this point because
      *  we need to commit changes in order to let mUserData be shared by all
      *  snapshot machine instances.
      */
     mUserData.commitCopy();
+
+    // machine registry, if present (must be loaded before snapshots)
+    if (config.canHaveOwnMediaRegistry())
+    {
+        // determine machine folder
+        Utf8Str strMachineFolder = getSettingsFileFull();
+        strMachineFolder.stripFilename();
+        rc = mParent->initMedia(getId(),         // media registry ID == machine UUID
+                                config.mediaRegistry,
+                                strMachineFolder);
+        if (FAILED(rc)) return rc;
+    }
 
     /* Snapshot node (optional) */
     size_t cRootSnapshots;
@@ -6631,20 +7073,22 @@ HRESULT Machine::loadMachineDataFromSettings(const settings::MachineConfigFile &
         if (FAILED(rc)) return rc;
     }
 
-    /* Hardware node (required) */
+    // hardware data
     rc = loadHardware(config.hardwareMachine);
     if (FAILED(rc)) return rc;
 
-    /* Load storage controllers */
-    rc = loadStorageControllers(config.storageMachine);
+    // load storage controllers
+    rc = loadStorageControllers(config.storageMachine,
+                                puuidRegistry,
+                                NULL /* puuidSnapshot */);
     if (FAILED(rc)) return rc;
 
     /*
-        *  NOTE: the assignment below must be the last thing to do,
-        *  otherwise it will be not possible to change the settings
-        *  somewehere in the code above because all setters will be
-        *  blocked by checkStateDependency(MutableStateDep).
-        */
+     *  NOTE: the assignment below must be the last thing to do,
+     *  otherwise it will be not possible to change the settings
+     *  somewhere in the code above because all setters will be
+     *  blocked by checkStateDependency(MutableStateDep).
+     */
 
     /* set the machine state to Aborted or Saved when appropriate */
     if (config.fAborted)
@@ -6678,7 +7122,8 @@ HRESULT Machine::loadSnapshot(const settings::Snapshot &data,
                               const Guid &aCurSnapshotId,
                               Snapshot *aParentSnapshot)
 {
-    AssertReturn(getClassID() == clsidMachine, E_FAIL);
+    AssertReturn(!isSnapshotMachine(), E_FAIL);
+    AssertReturn(!isSessionMachine(), E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -6691,7 +7136,7 @@ HRESULT Machine::loadSnapshot(const settings::Snapshot &data,
         if (RT_FAILURE(vrc))
             return setError(E_FAIL,
                             tr("Invalid saved state file path '%s' (%Rrc)"),
-                            strStateFile.raw(),
+                            strStateFile.c_str(),
                             vrc);
     }
 
@@ -6701,7 +7146,7 @@ HRESULT Machine::loadSnapshot(const settings::Snapshot &data,
     rc = pSnapshotMachine->init(this,
                                 data.hardware,
                                 data.storage,
-                                data.uuid,
+                                data.uuid.ref(),
                                 strStateFile);
     if (FAILED(rc)) return rc;
 
@@ -6749,7 +7194,7 @@ HRESULT Machine::loadSnapshot(const settings::Snapshot &data,
  */
 HRESULT Machine::loadHardware(const settings::Hardware &data)
 {
-    AssertReturn(getClassID() == clsidMachine || getClassID() == clsidSnapshotMachine, E_FAIL);
+    AssertReturn(!isSessionMachine(), E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -6768,8 +7213,9 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
         mHWData->mPAEEnabled                  = data.fPAE;
         mHWData->mSyntheticCpu                = data.fSyntheticCpu;
 
-        mHWData->mCPUCount          = data.cCPUs;
-        mHWData->mCPUHotPlugEnabled = data.fCpuHotPlug;
+        mHWData->mCPUCount                    = data.cCPUs;
+        mHWData->mCPUHotPlugEnabled           = data.fCpuHotPlug;
+        mHWData->mCpuExecutionCap             = data.ulCpuExecutionCap;
 
         // cpu
         if (mHWData->mCPUHotPlugEnabled)
@@ -6849,13 +7295,12 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
         mHWData->mFirmwareType = data.firmwareType;
         mHWData->mPointingHidType = data.pointingHidType;
         mHWData->mKeyboardHidType = data.keyboardHidType;
+        mHWData->mChipsetType = data.chipsetType;
         mHWData->mHpetEnabled = data.fHpetEnabled;
 
-#ifdef VBOX_WITH_VRDP
-        /* RemoteDisplay */
-        rc = mVRDPServer->loadSettings(data.vrdpSettings);
+        /* VRDEServer */
+        rc = mVRDEServer->loadSettings(data.vrdeSettings);
         if (FAILED(rc)) return rc;
-#endif
 
         /* BIOS */
         rc = mBIOSSettings->loadSettings(data.biosSettings);
@@ -6911,7 +7356,9 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
              ++it)
         {
             const settings::SharedFolder &sf = *it;
-            rc = CreateSharedFolder(Bstr(sf.strName), Bstr(sf.strHostPath), sf.fWritable);
+            rc = CreateSharedFolder(Bstr(sf.strName).raw(),
+                                    Bstr(sf.strHostPath).raw(),
+                                    sf.fWritable, sf.fAutoMount);
             if (FAILED(rc)) return rc;
         }
 
@@ -6924,7 +7371,10 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
         // IO settings
         mHWData->mIoCacheEnabled = data.ioSettings.fIoCacheEnabled;
         mHWData->mIoCacheSize = data.ioSettings.ulIoCacheSize;
-        mHWData->mIoBandwidthMax = data.ioSettings.ulIoBandwidthMax;
+
+        // Bandwidth control
+        rc = mBandwidthControl->loadSettings(data.ioSettings);
+        if (FAILED(rc)) return rc;
 
 #ifdef VBOX_WITH_GUEST_PROPS
         /* Guest properties (optional) */
@@ -6951,13 +7401,19 @@ HRESULT Machine::loadHardware(const settings::Hardware &data)
     return rc;
 }
 
-  /**
-   *  @param aNode    <StorageControllers> node.
-   */
+/**
+ *  Called from loadMachineDataFromSettings() for the storage controller data, including media.
+ *
+ * @param data
+ * @param puuidRegistry media registry ID to set media to or NULL; see Machine::loadMachineDataFromSettings()
+ * @param puuidSnapshot
+ * @return
+ */
 HRESULT Machine::loadStorageControllers(const settings::Storage &data,
-                                        const Guid *aSnapshotId /* = NULL */)
+                                        const Guid *puuidRegistry,
+                                        const Guid *puuidSnapshot)
 {
-    AssertReturn(getClassID() == clsidMachine || getClassID() == clsidSnapshotMachine, E_FAIL);
+    AssertReturn(!isSessionMachine(), E_FAIL);
 
     HRESULT rc = S_OK;
 
@@ -6973,13 +7429,14 @@ HRESULT Machine::loadStorageControllers(const settings::Storage &data,
         if (SUCCEEDED(rc))
             return setError(VBOX_E_OBJECT_IN_USE,
                             tr("Storage controller named '%s' already exists"),
-                            ctlData.strName.raw());
+                            ctlData.strName.c_str());
 
         pCtl.createObject();
         rc = pCtl->init(this,
                         ctlData.strName,
                         ctlData.storageBus,
-                        ctlData.ulInstance);
+                        ctlData.ulInstance,
+                        ctlData.fBootable);
         if (FAILED(rc)) return rc;
 
         mStorageControllers->push_back(pCtl);
@@ -7007,7 +7464,8 @@ HRESULT Machine::loadStorageControllers(const settings::Storage &data,
         /* Load the attached devices now. */
         rc = loadStorageDevices(pCtl,
                                 ctlData,
-                                aSnapshotId);
+                                puuidRegistry,
+                                puuidSnapshot);
         if (FAILED(rc)) return rc;
     }
 
@@ -7015,21 +7473,19 @@ HRESULT Machine::loadStorageControllers(const settings::Storage &data,
 }
 
 /**
- * @param aNode        <HardDiskAttachments> node.
- * @param fAllowStorage if false, we produce an error if the config requests media attachments
- *                      (used with importing unregistered machines which cannot have media attachments)
- * @param aSnapshotId  pointer to the snapshot ID if this is a snapshot machine
+ * Called from loadStorageControllers for a controller's devices.
  *
- * @note Lock mParent  for reading and hard disks for writing before calling.
+ * @param aStorageController
+ * @param data
+ * @param puuidRegistry media registry ID to set media to or NULL; see Machine::loadMachineDataFromSettings()
+ * @param aSnapshotId  pointer to the snapshot ID if this is a snapshot machine
+ * @return
  */
 HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
                                     const settings::StorageController &data,
-                                    const Guid *aSnapshotId /*= NULL*/)
+                                    const Guid *puuidRegistry,
+                                    const Guid *puuidSnapshot)
 {
-    AssertReturn(   (getClassID() == clsidMachine && aSnapshotId == NULL)
-                 || (getClassID() == clsidSnapshotMachine && aSnapshotId != NULL),
-                 E_FAIL);
-
     HRESULT rc = S_OK;
 
     /* paranoia: detect duplicate attachments */
@@ -7037,6 +7493,8 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
          it != data.llAttachedDevices.end();
          ++it)
     {
+        const settings::AttachedDevice &ad = *it;
+
         for (settings::AttachedDevicesList::const_iterator it2 = it;
              it2 != data.llAttachedDevices.end();
              ++it2)
@@ -7044,12 +7502,17 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
             if (it == it2)
                 continue;
 
-            if (   (*it).lPort == (*it2).lPort
-                && (*it).lDevice == (*it2).lDevice)
+            const settings::AttachedDevice &ad2 = *it2;
+
+            if (   ad.lPort == ad2.lPort
+                && ad.lDevice == ad2.lDevice)
             {
                 return setError(E_FAIL,
-                                tr("Duplicate attachments for storage controller '%s', port %d, device %d of the virtual machine '%ls'"),
-                                aStorageController->getName().raw(), (*it).lPort, (*it).lDevice, mUserData->mName.raw());
+                                tr("Duplicate attachments for storage controller '%s', port %d, device %d of the virtual machine '%s'"),
+                                aStorageController->getName().c_str(),
+                                ad.lPort,
+                                ad.lDevice,
+                                mUserData->s.strName.c_str());
             }
         }
     }
@@ -7064,73 +7527,26 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
         switch (dev.deviceType)
         {
             case DeviceType_Floppy:
-                /* find a floppy by UUID */
-                if (!dev.uuid.isEmpty())
-                    rc = mParent->findFloppyImage(&dev.uuid, NULL, true /* aDoSetError */, &medium);
-                /* find a floppy by host device name */
-                else if (!dev.strHostDriveSrc.isEmpty())
-                {
-                    SafeIfaceArray<IMedium> drivevec;
-                    rc = mParent->host()->COMGETTER(FloppyDrives)(ComSafeArrayAsOutParam(drivevec));
-                    if (SUCCEEDED(rc))
-                    {
-                        for (size_t i = 0; i < drivevec.size(); ++i)
-                        {
-                            /// @todo eliminate this conversion
-                            ComObjPtr<Medium> med = (Medium *)drivevec[i];
-                            if (    dev.strHostDriveSrc == med->getName()
-                                ||  dev.strHostDriveSrc == med->getLocation())
-                            {
-                                medium = med;
-                                break;
-                            }
-                        }
-                    }
-                }
-                break;
-
             case DeviceType_DVD:
-                /* find a DVD by UUID */
-                if (!dev.uuid.isEmpty())
-                    rc = mParent->findDVDImage(&dev.uuid, NULL, true /* aDoSetError */, &medium);
-                /* find a DVD by host device name */
-                else if (!dev.strHostDriveSrc.isEmpty())
-                {
-                    SafeIfaceArray<IMedium> drivevec;
-                    rc = mParent->host()->COMGETTER(DVDDrives)(ComSafeArrayAsOutParam(drivevec));
-                    if (SUCCEEDED(rc))
-                    {
-                        for (size_t i = 0; i < drivevec.size(); ++i)
-                        {
-                            Bstr hostDriveSrc(dev.strHostDriveSrc);
-                            /// @todo eliminate this conversion
-                            ComObjPtr<Medium> med = (Medium *)drivevec[i];
-                            if (    hostDriveSrc == med->getName()
-                                ||  hostDriveSrc == med->getLocation())
-                            {
-                                medium = med;
-                                break;
-                            }
-                        }
-                    }
-                }
-                break;
+                rc = mParent->findRemoveableMedium(dev.deviceType, dev.uuid, false /* fRefresh */, medium);
+                if (FAILED(rc))
+                    return rc;
+            break;
 
             case DeviceType_HardDisk:
             {
                 /* find a hard disk by UUID */
-                rc = mParent->findHardDisk(&dev.uuid, NULL, true /* aDoSetError */, &medium);
+                rc = mParent->findHardDiskById(dev.uuid, true /* aDoSetError */, &medium);
                 if (FAILED(rc))
                 {
-                    VBoxClsID clsid = getClassID();
-                    if (clsid == clsidSnapshotMachine)
+                    if (isSnapshotMachine())
                     {
                         // wrap another error message around the "cannot find hard disk" set by findHardDisk
                         // so the user knows that the bad disk is in a snapshot somewhere
                         com::ErrorInfo info;
                         return setError(E_FAIL,
                                         tr("A differencing image of snapshot {%RTuuid} could not be found. %ls"),
-                                        aSnapshotId->raw(),
+                                        puuidSnapshot->raw(),
                                         info.getText().raw());
                     }
                     else
@@ -7141,58 +7557,93 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
 
                 if (medium->getType() == MediumType_Immutable)
                 {
-                    if (getClassID() == clsidSnapshotMachine)
+                    if (isSnapshotMachine())
                         return setError(E_FAIL,
                                         tr("Immutable hard disk '%s' with UUID {%RTuuid} cannot be directly attached to snapshot with UUID {%RTuuid} "
-                                           "of the virtual machine '%ls' ('%s')"),
-                                        medium->getLocationFull().raw(),
+                                           "of the virtual machine '%s' ('%s')"),
+                                        medium->getLocationFull().c_str(),
                                         dev.uuid.raw(),
-                                        aSnapshotId->raw(),
-                                        mUserData->mName.raw(),
-                                        mData->m_strConfigFileFull.raw());
+                                        puuidSnapshot->raw(),
+                                        mUserData->s.strName.c_str(),
+                                        mData->m_strConfigFileFull.c_str());
 
                     return setError(E_FAIL,
-                                    tr("Immutable hard disk '%s' with UUID {%RTuuid} cannot be directly attached to the virtual machine '%ls' ('%s')"),
-                                    medium->getLocationFull().raw(),
+                                    tr("Immutable hard disk '%s' with UUID {%RTuuid} cannot be directly attached to the virtual machine '%s' ('%s')"),
+                                    medium->getLocationFull().c_str(),
                                     dev.uuid.raw(),
-                                    mUserData->mName.raw(),
-                                    mData->m_strConfigFileFull.raw());
+                                    mUserData->s.strName.c_str(),
+                                    mData->m_strConfigFileFull.c_str());
                 }
 
-                if (    getClassID() != clsidSnapshotMachine
+                if (medium->getType() == MediumType_MultiAttach)
+                {
+                    if (isSnapshotMachine())
+                        return setError(E_FAIL,
+                                        tr("Multi-attach hard disk '%s' with UUID {%RTuuid} cannot be directly attached to snapshot with UUID {%RTuuid} "
+                                           "of the virtual machine '%s' ('%s')"),
+                                        medium->getLocationFull().c_str(),
+                                        dev.uuid.raw(),
+                                        puuidSnapshot->raw(),
+                                        mUserData->s.strName.c_str(),
+                                        mData->m_strConfigFileFull.c_str());
+
+                    return setError(E_FAIL,
+                                    tr("Multi-attach hard disk '%s' with UUID {%RTuuid} cannot be directly attached to the virtual machine '%s' ('%s')"),
+                                    medium->getLocationFull().c_str(),
+                                    dev.uuid.raw(),
+                                    mUserData->s.strName.c_str(),
+                                    mData->m_strConfigFileFull.c_str());
+                }
+
+                if (    !isSnapshotMachine()
                      && medium->getChildren().size() != 0
                    )
                     return setError(E_FAIL,
-                                    tr("Hard disk '%s' with UUID {%RTuuid} cannot be directly attached to the virtual machine '%ls' ('%s') "
+                                    tr("Hard disk '%s' with UUID {%RTuuid} cannot be directly attached to the virtual machine '%s' ('%s') "
                                        "because it has %d differencing child hard disks"),
-                                    medium->getLocationFull().raw(),
+                                    medium->getLocationFull().c_str(),
                                     dev.uuid.raw(),
-                                    mUserData->mName.raw(),
-                                    mData->m_strConfigFileFull.raw(),
+                                    mUserData->s.strName.c_str(),
+                                    mData->m_strConfigFileFull.c_str(),
                                     medium->getChildren().size());
 
                 if (findAttachment(mMediaData->mAttachments,
                                    medium))
                     return setError(E_FAIL,
-                                    tr("Hard disk '%s' with UUID {%RTuuid} is already attached to the virtual machine '%ls' ('%s')"),
-                                    medium->getLocationFull().raw(),
+                                    tr("Hard disk '%s' with UUID {%RTuuid} is already attached to the virtual machine '%s' ('%s')"),
+                                    medium->getLocationFull().c_str(),
                                     dev.uuid.raw(),
-                                    mUserData->mName.raw(),
-                                    mData->m_strConfigFileFull.raw());
+                                    mUserData->s.strName.c_str(),
+                                    mData->m_strConfigFileFull.c_str());
 
                 break;
             }
 
             default:
                 return setError(E_FAIL,
-                                tr("Device with unknown type is attached to the virtual machine '%s' ('%s')"),
-                                medium->getLocationFull().raw(),
-                                mUserData->mName.raw(),
-                                mData->m_strConfigFileFull.raw());
+                                tr("Device '%s' with unknown type is attached to the virtual machine '%s' ('%s')"),
+                                medium->getLocationFull().c_str(),
+                                mUserData->s.strName.c_str(),
+                                mData->m_strConfigFileFull.c_str());
         }
 
         if (FAILED(rc))
             break;
+
+        /* Bandwidth groups are loaded at this point. */
+        ComObjPtr<BandwidthGroup> pBwGroup;
+
+        if (!dev.strBwGroup.isEmpty())
+        {
+            rc = mBandwidthControl->getBandwidthGroupByName(dev.strBwGroup, pBwGroup, false /* aSetError */);
+            if (FAILED(rc))
+                return setError(E_FAIL,
+                                tr("Device '%s' with unknown bandwidth group '%s' is attached to the virtual machine '%s' ('%s')"),
+                                medium->getLocationFull().c_str(),
+                                dev.strBwGroup.c_str(),
+                                mUserData->s.strName.c_str(),
+                                mData->m_strConfigFileFull.c_str());
+        }
 
         const Bstr controllerName = aStorageController->getName();
         ComObjPtr<MediumAttachment> pAttachment;
@@ -7203,16 +7654,21 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
                                dev.lPort,
                                dev.lDevice,
                                dev.deviceType,
-                               dev.fPassThrough);
+                               dev.fPassThrough,
+                               pBwGroup);
         if (FAILED(rc)) break;
 
         /* associate the medium with this machine and snapshot */
         if (!medium.isNull())
         {
-            if (getClassID() == clsidSnapshotMachine)
-                rc = medium->attachTo(mData->mUuid, *aSnapshotId);
+            if (isSnapshotMachine())
+                rc = medium->addBackReference(mData->mUuid, *puuidSnapshot);
             else
-                rc = medium->attachTo(mData->mUuid);
+                rc = medium->addBackReference(mData->mUuid);
+
+            if (puuidRegistry)
+                // caller wants registry ID to be set on all attached media (OVF import case)
+                medium->addRegistry(*puuidRegistry);
         }
 
         if (FAILED(rc))
@@ -7235,31 +7691,30 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
  *  @param aSnapshot    where to return the found snapshot
  *  @param aSetError    true to set extended error info on failure
  */
-HRESULT Machine::findSnapshot(const Guid &aId,
-                              ComObjPtr<Snapshot> &aSnapshot,
-                              bool aSetError /* = false */)
+HRESULT Machine::findSnapshotById(const Guid &aId,
+                                  ComObjPtr<Snapshot> &aSnapshot,
+                                  bool aSetError /* = false */)
 {
     AutoReadLock chlock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mData->mFirstSnapshot)
     {
         if (aSetError)
-            return setError(E_FAIL,
-                            tr("This machine does not have any snapshots"));
+            return setError(E_FAIL, tr("This machine does not have any snapshots"));
         return E_FAIL;
     }
 
     if (aId.isEmpty())
         aSnapshot = mData->mFirstSnapshot;
     else
-        aSnapshot = mData->mFirstSnapshot->findChildOrSelf(aId);
+        aSnapshot = mData->mFirstSnapshot->findChildOrSelf(aId.ref());
 
     if (!aSnapshot)
     {
         if (aSetError)
             return setError(E_FAIL,
                             tr("Could not find a snapshot with UUID {%s}"),
-                            aId.toString().raw());
+                            aId.toString().c_str());
         return E_FAIL;
     }
 
@@ -7273,11 +7728,11 @@ HRESULT Machine::findSnapshot(const Guid &aId,
  *  @param aSnapshot    where to return the found snapshot
  *  @param aSetError    true to set extended error info on failure
  */
-HRESULT Machine::findSnapshot(IN_BSTR aName,
-                              ComObjPtr<Snapshot> &aSnapshot,
-                              bool aSetError /* = false */)
+HRESULT Machine::findSnapshotByName(const Utf8Str &strName,
+                                    ComObjPtr<Snapshot> &aSnapshot,
+                                    bool aSetError /* = false */)
 {
-    AssertReturn(aName, E_INVALIDARG);
+    AssertReturn(!strName.isEmpty(), E_INVALIDARG);
 
     AutoReadLock chlock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -7289,13 +7744,13 @@ HRESULT Machine::findSnapshot(IN_BSTR aName,
         return VBOX_E_OBJECT_NOT_FOUND;
     }
 
-    aSnapshot = mData->mFirstSnapshot->findChildOrSelf(aName);
+    aSnapshot = mData->mFirstSnapshot->findChildOrSelf(strName);
 
     if (!aSnapshot)
     {
         if (aSetError)
             return setError(VBOX_E_OBJECT_NOT_FOUND,
-                            tr("Could not find a snapshot named '%ls'"), aName);
+                            tr("Could not find a snapshot named '%s'"), strName.c_str());
         return VBOX_E_OBJECT_NOT_FOUND;
     }
 
@@ -7329,7 +7784,7 @@ HRESULT Machine::getStorageControllerByName(const Utf8Str &aName,
     if (aSetError)
         return setError(VBOX_E_OBJECT_NOT_FOUND,
                         tr("Could not find a storage controller named '%s'"),
-                        aName.raw());
+                        aName.c_str());
     return VBOX_E_OBJECT_NOT_FOUND;
 }
 
@@ -7382,9 +7837,9 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
     bool fSettingsFileIsNew = !mData->pMachineConfigFile->fileExists();
 
     /* attempt to rename the settings file if machine name is changed */
-    if (    mUserData->mNameSync
+    if (    mUserData->s.fNameSync
          && mUserData.isBackedUp()
-         && mUserData.backedUpData()->mName != mUserData->mName
+         && mUserData.backedUpData()->s.strName != mUserData->s.strName
        )
     {
         bool dirRenamed = false;
@@ -7397,8 +7852,8 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         {
             int vrc = VINF_SUCCESS;
 
-            Utf8Str name = mUserData.backedUpData()->mName;
-            Utf8Str newName = mUserData->mName;
+            Utf8Str name = mUserData.backedUpData()->s.strName;
+            Utf8Str newName = mUserData->s.strName;
 
             configFile = mData->m_strConfigFileFull;
 
@@ -7409,21 +7864,21 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
             if (!strcmp(RTPathFilename(configDir.c_str()), name.c_str()))
             {
                 newConfigDir.stripFilename();
-                newConfigDir = Utf8StrFmt("%s%c%s",
-                    newConfigDir.raw(), RTPATH_DELIMITER, newName.raw());
+                newConfigDir.append(RTPATH_DELIMITER);
+                newConfigDir.append(newName);
                 /* new dir and old dir cannot be equal here because of 'if'
                  * above and because name != newName */
                 Assert(configDir != newConfigDir);
                 if (!fSettingsFileIsNew)
                 {
                     /* perform real rename only if the machine is not new */
-                    vrc = RTPathRename(configDir.raw(), newConfigDir.raw(), 0);
+                    vrc = RTPathRename(configDir.c_str(), newConfigDir.c_str(), 0);
                     if (RT_FAILURE(vrc))
                     {
                         rc = setError(E_FAIL,
                                       tr("Could not rename the directory '%s' to '%s' to save the settings file (%Rrc)"),
-                                      configDir.raw(),
-                                      newConfigDir.raw(),
+                                      configDir.c_str(),
+                                      newConfigDir.c_str(),
                                       vrc);
                         break;
                     }
@@ -7431,27 +7886,27 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                 }
             }
 
-            newConfigFile = Utf8StrFmt("%s%c%s.xml",
-                newConfigDir.raw(), RTPATH_DELIMITER, newName.raw());
+            newConfigFile = Utf8StrFmt("%s%c%s.vbox",
+                newConfigDir.c_str(), RTPATH_DELIMITER, newName.c_str());
 
             /* then try to rename the settings file itself */
             if (newConfigFile != configFile)
             {
                 /* get the path to old settings file in renamed directory */
                 configFile = Utf8StrFmt("%s%c%s",
-                                        newConfigDir.raw(),
+                                        newConfigDir.c_str(),
                                         RTPATH_DELIMITER,
                                         RTPathFilename(configFile.c_str()));
                 if (!fSettingsFileIsNew)
                 {
                     /* perform real rename only if the machine is not new */
-                    vrc = RTFileRename(configFile.raw(), newConfigFile.raw(), 0);
+                    vrc = RTFileRename(configFile.c_str(), newConfigFile.c_str(), 0);
                     if (RT_FAILURE(vrc))
                     {
                         rc = setError(E_FAIL,
                                       tr("Could not rename the settings file '%s' to '%s' (%Rrc)"),
-                                      configFile.raw(),
-                                      newConfigFile.raw(),
+                                      configFile.c_str(),
+                                      newConfigFile.c_str(),
                                       vrc);
                         break;
                     }
@@ -7459,13 +7914,10 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                 }
             }
 
-            /* update m_strConfigFileFull amd mConfigFile */
+            // update m_strConfigFileFull amd mConfigFile
             mData->m_strConfigFileFull = newConfigFile;
-
             // compute the relative path too
-            Utf8Str path = newConfigFile;
-            mParent->calculateRelativePath(path, path);
-            mData->m_strConfigFile = path;
+            mParent->copyPathRelativeToConfig(newConfigFile, mData->m_strConfigFile);
 
             // store the old and new so that VirtualBox::saveSettings() can update
             // the media registry
@@ -7478,25 +7930,12 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                     *pfNeedsGlobalSaveSettings = true;
             }
 
-            /* update the snapshot folder */
-            path = mUserData->mSnapshotFolderFull;
-            if (RTPathStartsWith(path.c_str(), configDir.c_str()))
-            {
-                path = Utf8StrFmt("%s%s", newConfigDir.raw(),
-                                  path.raw() + configDir.length());
-                mUserData->mSnapshotFolderFull = path;
-                calculateRelativePath(path, path);
-                mUserData->mSnapshotFolder = path;
-            }
-
             /* update the saved state file path */
-            path = mSSData->mStateFilePath;
+            Utf8Str path = mSSData->mStateFilePath;
             if (RTPathStartsWith(path.c_str(), configDir.c_str()))
-            {
-                path = Utf8StrFmt("%s%s", newConfigDir.raw(),
-                                  path.raw() + configDir.length());
-                mSSData->mStateFilePath = path;
-            }
+                mSSData->mStateFilePath = Utf8StrFmt("%s%s",
+                                                     newConfigDir.c_str(),
+                                                     path.c_str() + configDir.length());
 
             /* Update saved state file paths of all online snapshots.
              * Note that saveSettings() will recognize name change
@@ -7511,9 +7950,9 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         {
             /* silently try to rename everything back */
             if (fileRenamed)
-                RTFileRename(newConfigFile.raw(), configFile.raw(), 0);
+                RTFileRename(newConfigFile.c_str(), configFile.c_str(), 0);
             if (dirRenamed)
-                RTPathRename(newConfigDir.raw(), configDir.raw(), 0);
+                RTPathRename(newConfigDir.c_str(), configDir.c_str(), 0);
         }
 
         if (FAILED(rc)) return rc;
@@ -7534,7 +7973,7 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
             {
                 return setError(E_FAIL,
                                 tr("Could not create a directory '%s' to save the settings file (%Rrc)"),
-                                path.raw(),
+                                path.c_str(),
                                 vrc);
             }
         }
@@ -7547,7 +7986,7 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         if (RT_FAILURE(vrc))
             return setError(E_FAIL,
                             tr("Could not create the settings file '%s' (%Rrc)"),
-                            path.raw(),
+                            path.c_str(),
                             vrc);
         RTFileClose(f);
     }
@@ -7593,8 +8032,7 @@ HRESULT Machine::saveSettings(bool *pfNeedsGlobalSaveSettings,
      * saving them */
     ensureNoStateDependencies();
 
-    AssertReturn(    getClassID() == clsidMachine
-                  || getClassID() == clsidSessionMachine,
+    AssertReturn(!isSnapshotMachine(),
                  E_FAIL);
 
     HRESULT rc = S_OK;
@@ -7683,7 +8121,7 @@ HRESULT Machine::saveSettings(bool *pfNeedsGlobalSaveSettings,
          * mutable Machine instances are always not registered (i.e. private
          * to the client process that creates them) and thus don't need to
          * inform callbacks. */
-        if (getClassID() == clsidSessionMachine)
+        if (isSessionMachine())
             mParent->onMachineDataChange(mData->mUuid);
     }
 
@@ -7723,10 +8161,9 @@ void Machine::copyMachineDataToSettings(settings::MachineConfigFile &config)
     config.mapExtraDataItems = mData->pMachineConfigFile->mapExtraDataItems;
 
     config.uuid = mData->mUuid;
-    config.strName = mUserData->mName;
-    config.fNameSync = !!mUserData->mNameSync;
-    config.strDescription = mUserData->mDescription;
-    config.strOsType = mUserData->mOSTypeId;
+
+    // copy name, description, OS type, teleport, UTC etc.
+    config.machineUserData = mUserData->s;
 
     if (    mData->mMachineState == MachineState_Saved
          || mData->mMachineState == MachineState_Restoring
@@ -7741,10 +8178,7 @@ void Machine::copyMachineDataToSettings(settings::MachineConfigFile &config)
     {
         Assert(!mSSData->mStateFilePath.isEmpty());
         /* try to make the file name relative to the settings file dir */
-        calculateRelativePath(mSSData->mStateFilePath, config.strStateFile);
-        if (!config.strStateFile.length())
-            // path is not relative (e.g. because snapshot folder was changed to a non-default location):
-            config.strStateFile = mSSData->mStateFilePath;
+        copyPathRelativeToMachine(mSSData->mStateFilePath, config.strStateFile);
     }
     else
     {
@@ -7757,24 +8191,27 @@ void Machine::copyMachineDataToSettings(settings::MachineConfigFile &config)
     else
         config.uuidCurrentSnapshot.clear();
 
-    config.strSnapshotFolder = mUserData->mSnapshotFolder;
-    // config.fCurrentStateModified is special, see below
     config.timeLastStateChange = mData->mLastStateChange;
     config.fAborted = (mData->mMachineState == MachineState_Aborted);
     /// @todo Live Migration:        config.fTeleported = (mData->mMachineState == MachineState_Teleported);
-
-    config.fTeleporterEnabled    = !!mUserData->mTeleporterEnabled;
-    config.uTeleporterPort       = mUserData->mTeleporterPort;
-    config.strTeleporterAddress  = mUserData->mTeleporterAddress;
-    config.strTeleporterPassword = mUserData->mTeleporterPassword;
-
-    config.fRTCUseUTC = !!mUserData->mRTCUseUTC;
 
     HRESULT rc = saveHardware(config.hardwareMachine);
     if (FAILED(rc)) throw rc;
 
     rc = saveStorageControllers(config.storageMachine);
     if (FAILED(rc)) throw rc;
+
+    // save machine's media registry if this is VirtualBox 4.0 or later
+    if (config.canHaveOwnMediaRegistry())
+    {
+        // determine machine folder
+        Utf8Str strMachineFolder = getSettingsFileFull();
+        strMachineFolder.stripFilename();
+        mParent->saveMediaRegistry(config.mediaRegistry,
+                                   getId(),             // only media with registry ID == machine UUID
+                                   strMachineFolder);
+            // this throws HRESULT
+    }
 
     // save snapshots
     rc = saveAllSnapshots(config);
@@ -7831,7 +8268,7 @@ HRESULT Machine::saveAllSnapshots(settings::MachineConfigFile &config)
  *  Saves the VM hardware configuration. It is assumed that the
  *  given node is empty.
  *
- *  @param aNode    <Hardware> node to save the VM hardware confguration to.
+ *  @param aNode    <Hardware> node to save the VM hardware configuration to.
  */
 HRESULT Machine::saveHardware(settings::Hardware &data)
 {
@@ -7872,8 +8309,9 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
                 data.llCpuIdLeafs.push_back(mHWData->mCpuIdExtLeafs[idx]);
         }
 
-        data.cCPUs       = mHWData->mCPUCount;
-        data.fCpuHotPlug = !!mHWData->mCPUHotPlugEnabled;
+        data.cCPUs             = mHWData->mCPUCount;
+        data.fCpuHotPlug       = !!mHWData->mCPUHotPlugEnabled;
+        data.ulCpuExecutionCap = mHWData->mCpuExecutionCap;
 
         data.llCpus.clear();
         if (data.fCpuHotPlug)
@@ -7891,7 +8329,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
 
         // memory
         data.ulMemorySizeMB = mHWData->mMemorySize;
-        data.fPageFusionEnabled = mHWData->mPageFusionEnabled;
+        data.fPageFusionEnabled = !!mHWData->mPageFusionEnabled;
 
         // firmware
         data.firmwareType = mHWData->mFirmwareType;
@@ -7899,6 +8337,9 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
         // HID
         data.pointingHidType = mHWData->mPointingHidType;
         data.keyboardHidType = mHWData->mKeyboardHidType;
+
+        // chipset
+        data.chipsetType = mHWData->mChipsetType;
 
         // HPET
         data.fHpetEnabled = !!mHWData->mHpetEnabled;
@@ -7916,11 +8357,9 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
         data.fAccelerate3D = !!mHWData->mAccelerate3DEnabled;
         data.fAccelerate2DVideo = !!mHWData->mAccelerate2DVideoEnabled;
 
-#ifdef VBOX_WITH_VRDP
-        /* VRDP settings (optional) */
-        rc = mVRDPServer->saveSettings(data.vrdpSettings);
+        /* VRDEServer settings (optional) */
+        rc = mVRDEServer->saveSettings(data.vrdeSettings);
         if (FAILED(rc)) throw rc;
-#endif
 
         /* BIOS (required) */
         rc = mBIOSSettings->saveSettings(data.biosSettings);
@@ -7987,6 +8426,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
             sf.strName = pFolder->getName();
             sf.strHostPath = pFolder->getHostPath();
             sf.fWritable = !!pFolder->isWritable();
+            sf.fAutoMount = !!pFolder->isAutoMounted();
 
             data.llSharedFolders.push_back(sf);
         }
@@ -8000,7 +8440,10 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
         // IO settings
         data.ioSettings.fIoCacheEnabled = !!mHWData->mIoCacheEnabled;
         data.ioSettings.ulIoCacheSize = mHWData->mIoCacheSize;
-        data.ioSettings.ulIoBandwidthMax = mHWData->mIoBandwidthMax;
+
+        /* BandwidthControl (required) */
+        rc = mBandwidthControl->saveSettings(data.ioSettings);
+        if (FAILED(rc)) throw rc;
 
         // guest properties
         data.llGuestProperties.clear();
@@ -8046,7 +8489,7 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
 /**
  *  Saves the storage controller configuration.
  *
- *  @param aNode    <StorageControllers> node to save the VM hardware confguration to.
+ *  @param aNode    <StorageControllers> node to save the VM hardware configuration to.
  */
 HRESULT Machine::saveStorageControllers(settings::Storage &data)
 {
@@ -8064,6 +8507,7 @@ HRESULT Machine::saveStorageControllers(settings::Storage &data)
         ctl.controllerType = pCtl->getControllerType();
         ctl.storageBus = pCtl->getStorageBus();
         ctl.ulInstance = pCtl->getInstance();
+        ctl.fBootable = pCtl->getBootable();
 
         /* Save the port count. */
         ULONG portCount;
@@ -8099,14 +8543,14 @@ HRESULT Machine::saveStorageControllers(settings::Storage &data)
 }
 
 /**
- *  Saves the hard disk confguration.
+ *  Saves the hard disk configuration.
  */
 HRESULT Machine::saveStorageDevices(ComObjPtr<StorageController> aStorageController,
                                     settings::StorageController &data)
 {
     MediaData::AttachmentList atts;
 
-    HRESULT rc = getMediumAttachmentsOfController(Bstr(aStorageController->getName()), atts);
+    HRESULT rc = getMediumAttachmentsOfController(Bstr(aStorageController->getName()).raw(), atts);
     if (FAILED(rc)) return rc;
 
     data.llAttachedDevices.clear();
@@ -8118,21 +8562,23 @@ HRESULT Machine::saveStorageDevices(ComObjPtr<StorageController> aStorageControl
 
         MediumAttachment *pAttach = *it;
         Medium *pMedium = pAttach->getMedium();
+        BandwidthGroup *pBwGroup = pAttach->getBandwidthGroup();
 
         dev.deviceType = pAttach->getType();
         dev.lPort = pAttach->getPort();
         dev.lDevice = pAttach->getDevice();
         if (pMedium)
         {
-            BOOL fHostDrive = FALSE;
-            rc = pMedium->COMGETTER(HostDrive)(&fHostDrive);
-            if (FAILED(rc))
-                return rc;
-            if (fHostDrive)
-                dev.strHostDriveSrc = pMedium->getLocation();
+            if (pMedium->isHostDrive())
+                dev.strHostDriveSrc = pMedium->getLocationFull();
             else
                 dev.uuid = pMedium->getId();
             dev.fPassThrough = pAttach->getPassthrough();
+        }
+
+        if (pBwGroup)
+        {
+            dev.strBwGroup = pBwGroup->getName();
         }
 
         data.llAttachedDevices.push_back(dev);
@@ -8174,7 +8620,7 @@ HRESULT Machine::saveStateSettings(int aFlags)
         {
             if (!mSSData->mStateFilePath.isEmpty())
                 /* try to make the file name relative to the settings file dir */
-                calculateRelativePath(mSSData->mStateFilePath, mData->pMachineConfigFile->strStateFile);
+                copyPathRelativeToMachine(mSSData->mStateFilePath, mData->pMachineConfigFile->strStateFile);
             else
                 mData->pMachineConfigFile->strStateFile.setNull();
         }
@@ -8204,7 +8650,8 @@ HRESULT Machine::saveStateSettings(int aFlags)
  * Creates differencing hard disks for all normal hard disks attached to this
  * machine and a new set of attachments to refer to created disks.
  *
- * Used when taking a snapshot or when deleting the current state.
+ * Used when taking a snapshot or when deleting the current state. Gets called
+ * from SessionMachine::BeginTakingSnapshot() and SessionMachine::restoreSnapshotHandler().
  *
  * This method assumes that mMediaData contains the original hard disk attachments
  * it needs to create diffs for. On success, these attachments will be replaced
@@ -8220,28 +8667,23 @@ HRESULT Machine::saveStateSettings(int aFlags)
  * case it is responsibility of the caller to lock the newly created diffs for
  * writing if this method succeeds.
  *
- * @param aFolder           Folder where to create diff hard disks.
  * @param aProgress         Progress object to run (must contain at least as
  *                          many operations left as the number of hard disks
  *                          attached).
  * @param aOnline           Whether the VM was online prior to this operation.
- * @param pfNeedsSaveSettings Optional pointer to a bool that must have been initialized to false and that will be set to true
- *                by this function if the caller should invoke VirtualBox::saveSettings() because the global settings have changed.
+ * @param pllRegistriesThatNeedSaving Optional pointer to a list of UUIDs to receive the registry IDs that need saving
  *
  * @note The progress object is not marked as completed, neither on success nor
  *       on failure. This is a responsibility of the caller.
  *
  * @note Locks this object for writing.
  */
-HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
-                                     IProgress *aProgress,
+HRESULT Machine::createImplicitDiffs(IProgress *aProgress,
                                      ULONG aWeight,
                                      bool aOnline,
-                                     bool *pfNeedsSaveSettings)
+                                     GuidList *pllRegistriesThatNeedSaving)
 {
-    AssertReturn(!aFolder.isEmpty(), E_FAIL);
-
-    LogFlowThisFunc(("aFolder='%ls', aOnline=%d\n", aFolder.raw(), aOnline));
+    LogFlowThisFunc(("aOnline=%d\n", aOnline));
 
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -8338,11 +8780,11 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
                 if (devType == DeviceType_HardDisk)
                 {
                     if (pMedium == NULL)
-                        aProgress->SetNextOperation(Bstr(tr("Skipping attachment without medium")),
+                        aProgress->SetNextOperation(Bstr(tr("Skipping attachment without medium")).raw(),
                                                     aWeight);        // weight
                     else
                         aProgress->SetNextOperation(BstrFmt(tr("Skipping medium '%s'"),
-                                                            pMedium->getBase()->getName().raw()),
+                                                            pMedium->getBase()->getName().c_str()).raw(),
                                                     aWeight);        // weight
                 }
 
@@ -8352,16 +8794,19 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
 
             /* need a diff */
             aProgress->SetNextOperation(BstrFmt(tr("Creating differencing hard disk for '%s'"),
-                                                pMedium->getBase()->getName().raw()),
+                                                pMedium->getBase()->getName().c_str()).raw(),
                                         aWeight);        // weight
+
+            Utf8Str strFullSnapshotFolder;
+            calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
 
             ComObjPtr<Medium> diff;
             diff.createObject();
             rc = diff->init(mParent,
-                            pMedium->preferredDiffFormat().raw(),
-                            BstrFmt("%ls"RTPATH_SLASH_STR,
-                                    mUserData->mSnapshotFolderFull.raw()).raw(),
-                            pfNeedsSaveSettings);
+                            pMedium->getPreferredDiffFormat(),
+                            strFullSnapshotFolder.append(RTPATH_SLASH_STR),
+                            pMedium->getFirstRegistryMachineId(),        // store the diff in the same registry as the parent
+                            pllRegistriesThatNeedSaving);
             if (FAILED(rc)) throw rc;
 
             /** @todo r=bird: How is the locking and diff image cleaned up if we fail before
@@ -8385,7 +8830,7 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
                                             pMediumLockList,
                                             NULL /* aProgress */,
                                             true /* aWait */,
-                                            pfNeedsSaveSettings);
+                                            pllRegistriesThatNeedSaving);
             alock.enter();
             if (FAILED(rc)) throw rc;
 
@@ -8396,7 +8841,7 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
             rc = lockedMediaMap->Lock();
             AssertComRCThrowRC(rc);
 
-            rc = diff->attachTo(mData->mUuid);
+            rc = diff->addBackReference(mData->mUuid);
             AssertComRCThrowRC(rc);
 
             /* add a new attachment */
@@ -8408,7 +8853,8 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
                                   pAtt->getPort(),
                                   pAtt->getDevice(),
                                   DeviceType_HardDisk,
-                                  true /* aImplicit */);
+                                  true /* aImplicit */,
+                                  pAtt->getBandwidthGroup());
             if (FAILED(rc)) throw rc;
 
             rc = lockedMediaMap->ReplaceKey(pAtt, attachment);
@@ -8429,9 +8875,9 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
 
     if (FAILED(rc))
     {
-        MultiResultRef mrc(rc);
+        MultiResult mrc = rc;
 
-        mrc = deleteImplicitDiffs(pfNeedsSaveSettings);
+        mrc = deleteImplicitDiffs(pllRegistriesThatNeedSaving);
     }
 
     return rc;
@@ -8449,7 +8895,7 @@ HRESULT Machine::createImplicitDiffs(const Bstr &aFolder,
  *
  * @note Locks this object for writing.
  */
-HRESULT Machine::deleteImplicitDiffs(bool *pfNeedsSaveSettings)
+HRESULT Machine::deleteImplicitDiffs(GuidList *pllRegistriesThatNeedSaving)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -8478,7 +8924,7 @@ HRESULT Machine::deleteImplicitDiffs(bool *pfNeedsSaveSettings)
         {
             /* deassociate and mark for deletion */
             LogFlowThisFunc(("Detaching '%s', pending deletion\n", (*it)->getLogName()));
-            rc = hd->detachFrom(mData->mUuid);
+            rc = hd->removeBackReference(mData->mUuid);
             AssertComRC(rc);
             implicitAtts.push_back(*it);
             continue;
@@ -8489,7 +8935,7 @@ HRESULT Machine::deleteImplicitDiffs(bool *pfNeedsSaveSettings)
         {
             /* no: de-associate */
             LogFlowThisFunc(("Detaching '%s', no deletion\n", (*it)->getLogName()));
-            rc = hd->detachFrom(mData->mUuid);
+            rc = hd->removeBackReference(mData->mUuid);
             AssertComRC(rc);
             continue;
         }
@@ -8527,7 +8973,7 @@ HRESULT Machine::deleteImplicitDiffs(bool *pfNeedsSaveSettings)
             ComObjPtr<Medium> hd = (*it)->getMedium();
 
             rc = hd->deleteStorage(NULL /*aProgress*/, true /*aWait*/,
-                                   pfNeedsSaveSettings);
+                                   pllRegistriesThatNeedSaving);
             AssertMsg(SUCCEEDED(rc), ("rc=%Rhrc it=%s hd=%s\n", rc, (*it)->getLogName(), hd->getLocationFull().c_str() ));
             mrc = rc;
         }
@@ -8535,9 +8981,7 @@ HRESULT Machine::deleteImplicitDiffs(bool *pfNeedsSaveSettings)
         alock.enter();
 
         if (mData->mMachineState == MachineState_SettingUp)
-        {
             setMachineState(oldState);
-        }
     }
 
     return mrc;
@@ -8560,8 +9004,8 @@ MediumAttachment* Machine::findAttachment(const MediaData::AttachmentList &ll,
                                           LONG aDevice)
 {
    for (MediaData::AttachmentList::const_iterator it = ll.begin();
-         it != ll.end();
-         ++it)
+        it != ll.end();
+        ++it)
     {
         MediumAttachment *pAttach = *it;
         if (pAttach->matches(aControllerName, aControllerPort, aDevice))
@@ -8586,12 +9030,12 @@ MediumAttachment* Machine::findAttachment(const MediaData::AttachmentList &ll,
                                           ComObjPtr<Medium> pMedium)
 {
    for (MediaData::AttachmentList::const_iterator it = ll.begin();
-         it != ll.end();
-         ++it)
+        it != ll.end();
+        ++it)
     {
         MediumAttachment *pAttach = *it;
         ComObjPtr<Medium> pMediumThis = pAttach->getMedium();
-        if (pMediumThis.equalsTo(pMedium))
+        if (pMediumThis == pMedium)
             return pAttach;
     }
 
@@ -8623,6 +9067,135 @@ MediumAttachment* Machine::findAttachment(const MediaData::AttachmentList &ll,
     }
 
     return NULL;
+}
+
+/**
+ * Main implementation for Machine::DetachDevice. This also gets called
+ * from Machine::prepareUnregister() so it has been taken out for simplicity.
+ *
+ * @param pAttach Medium attachment to detach.
+ * @param writeLock Machine write lock which the caller must have locked once. This may be released temporarily in here.
+ * @param pSnapshot If NULL, then the detachment is for the current machine. Otherwise this is for a SnapshotMachine, and this must be its snapshot.
+ * @param pfNeedsSaveSettings Optional pointer to a bool that must have been initialized to false and that will be set to true
+ *                by this function if the caller should invoke VirtualBox::saveSettings() because the global settings have changed.
+ * @return
+ */
+HRESULT Machine::detachDevice(MediumAttachment *pAttach,
+                              AutoWriteLock &writeLock,
+                              Snapshot *pSnapshot,
+                              GuidList *pllRegistriesThatNeedSaving)
+{
+    ComObjPtr<Medium> oldmedium = pAttach->getMedium();
+    DeviceType_T mediumType = pAttach->getType();
+
+    LogFlowThisFunc(("Entering, medium of attachment is %s\n", oldmedium ? oldmedium->getLocationFull().c_str() : "NULL"));
+
+    if (pAttach->isImplicit())
+    {
+        /* attempt to implicitly delete the implicitly created diff */
+
+            /// @todo move the implicit flag from MediumAttachment to Medium
+            /// and forbid any hard disk operation when it is implicit. Or maybe
+            /// a special media state for it to make it even more simple.
+
+        Assert(mMediaData.isBackedUp());
+
+            /* will leave the lock before the potentially lengthy operation, so
+            * protect with the special state */
+        MachineState_T oldState = mData->mMachineState;
+        setMachineState(MachineState_SettingUp);
+
+        writeLock.release();
+
+        HRESULT rc = oldmedium->deleteStorage(NULL /*aProgress*/, true /*aWait*/,
+                                              pllRegistriesThatNeedSaving);
+
+        writeLock.acquire();
+
+        setMachineState(oldState);
+
+        if (FAILED(rc)) return rc;
+    }
+
+    setModified(IsModified_Storage);
+    mMediaData.backup();
+
+    // we cannot use erase (it) below because backup() above will create
+    // a copy of the list and make this copy active, but the iterator
+    // still refers to the original and is not valid for the copy
+    mMediaData->mAttachments.remove(pAttach);
+
+    if (!oldmedium.isNull())
+    {
+        // if this is from a snapshot, do not defer detachment to commitMedia()
+        if (pSnapshot)
+            oldmedium->removeBackReference(mData->mUuid, pSnapshot->getId());
+        // else if non-hard disk media, do not defer detachment to commitMedia() either
+        else if (mediumType != DeviceType_HardDisk)
+            oldmedium->removeBackReference(mData->mUuid);
+    }
+
+    return S_OK;
+}
+
+/**
+ * Goes thru all medium attachments of the list and calls detachDevice() on each
+ * of them and attaches all Medium objects found in the process to the given list,
+ * depending on cleanupMode.
+ *
+ * This gets called from Machine::Unregister, both for the actual Machine and
+ * the SnapshotMachine objects that might be found in the snapshots.
+ *
+ * Requires caller and locking.
+ *
+ * @param writeLock Machine lock from top-level caller; this gets passed to detachDevice.
+ * @param pSnapshot Must be NULL when called for a "real" Machine or a snapshot object if called for a SnapshotMachine.
+ * @param cleanupMode If DetachAllReturnHardDisksOnly, only hard disk media get added to llMedia; if Full, then all media get added;
+ *          otherwise no media get added.
+ * @param llMedia Caller's list to receive Medium objects which got detached so caller can close() them, depending on cleanupMode.
+ * @return
+ */
+HRESULT Machine::detachAllMedia(AutoWriteLock &writeLock,
+                                Snapshot *pSnapshot,
+                                CleanupMode_T cleanupMode,
+                                MediaList &llMedia)
+{
+    Assert(isWriteLockOnCurrentThread());
+
+    HRESULT rc;
+
+    // make a temporary list because detachDevice invalidates iterators into
+    // mMediaData->mAttachments
+    MediaData::AttachmentList llAttachments2 = mMediaData->mAttachments;
+
+    for (MediaData::AttachmentList::iterator it = llAttachments2.begin();
+         it != llAttachments2.end();
+         ++it)
+    {
+        ComObjPtr<MediumAttachment> pAttach = *it;
+        ComObjPtr<Medium> pMedium = pAttach->getMedium();
+
+        if (!pMedium.isNull())
+        {
+            DeviceType_T devType = pMedium->getDeviceType();
+            if (    (    cleanupMode == CleanupMode_DetachAllReturnHardDisksOnly
+                      && devType == DeviceType_HardDisk)
+                 || (cleanupMode == CleanupMode_Full)
+               )
+                llMedia.push_back(pMedium);
+        }
+
+        // real machine: then we need to use the proper method
+        rc = detachDevice(pAttach,
+                          writeLock,
+                          pSnapshot,
+                          NULL /* pfNeedsSaveSettings */);
+
+        if (FAILED(rc))
+            return rc;
+    }
+
+    return S_OK;
 }
 
 /**
@@ -8659,8 +9232,8 @@ void Machine::commitMedia(bool aOnline /*= false*/)
 
     /* enumerate new attachments */
     for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-            it != mMediaData->mAttachments.end();
-            ++it)
+         it != mMediaData->mAttachments.end();
+         ++it)
     {
         MediumAttachment *pAttach = *it;
 
@@ -8670,8 +9243,8 @@ void Machine::commitMedia(bool aOnline /*= false*/)
         bool fImplicit = pAttach->isImplicit();
 
         LogFlowThisFunc(("Examining current medium '%s' (implicit: %d)\n",
-                            (pMedium) ? pMedium->getName().raw() : "NULL",
-                            fImplicit));
+                         (pMedium) ? pMedium->getName().c_str() : "NULL",
+                         fImplicit));
 
         /** @todo convert all this Machine-based voodoo to MediumAttachment
          * based commit logic. */
@@ -8681,9 +9254,9 @@ void Machine::commitMedia(bool aOnline /*= false*/)
             pAttach->setImplicit(false);
 
             if (    aOnline
-                    && pMedium
-                    && pAttach->getType() == DeviceType_HardDisk
-                )
+                 && pMedium
+                 && pAttach->getType() == DeviceType_HardDisk
+               )
             {
                 ComObjPtr<Medium> parent = pMedium->getParent();
                 AutoWriteLock parentLock(parent COMMA_LOCKVAL_SRC_POS);
@@ -8715,13 +9288,13 @@ void Machine::commitMedia(bool aOnline /*= false*/)
         {
             /* was this medium attached before? */
             for (MediaData::AttachmentList::iterator oldIt = oldAtts.begin();
-                    oldIt != oldAtts.end();
-                    ++oldIt)
+                 oldIt != oldAtts.end();
+                 ++oldIt)
             {
                 MediumAttachment *pOldAttach = *oldIt;
-                if (pOldAttach->getMedium().equalsTo(pMedium))
+                if (pOldAttach->getMedium() == pMedium)
                 {
-                    LogFlowThisFunc(("--> medium '%s' was attached before, will not remove\n", pMedium->getName().raw()));
+                    LogFlowThisFunc(("--> medium '%s' was attached before, will not remove\n", pMedium->getName().c_str()));
 
                     /* yes: remove from old to avoid de-association */
                     oldAtts.erase(oldIt);
@@ -8744,10 +9317,10 @@ void Machine::commitMedia(bool aOnline /*= false*/)
          * instantly in MountMedium. */
         if (pAttach->getType() == DeviceType_HardDisk && pMedium)
         {
-            LogFlowThisFunc(("detaching medium '%s' from machine\n", pMedium->getName().raw()));
+            LogFlowThisFunc(("detaching medium '%s' from machine\n", pMedium->getName().c_str()));
 
             /* now de-associate from the current machine state */
-            rc = pMedium->detachFrom(mData->mUuid);
+            rc = pMedium->removeBackReference(mData->mUuid);
             AssertComRC(rc);
 
             if (aOnline)
@@ -8776,7 +9349,7 @@ void Machine::commitMedia(bool aOnline /*= false*/)
     /* commit the hard disk changes */
     mMediaData.commit();
 
-    if (getClassID() == clsidSessionMachine)
+    if (isSessionMachine())
     {
         /* attach new data to the primary machine and reshare it */
         mPeer->mMediaData.attach(mMediaData);
@@ -8813,8 +9386,8 @@ void Machine::rollbackMedia()
 
     /* enumerate new attachments */
     for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-            it != mMediaData->mAttachments.end();
-            ++it)
+         it != mMediaData->mAttachments.end();
+         ++it)
     {
         MediumAttachment *pAttach = *it;
         /* Fix up the backrefs for DVD/floppy media. */
@@ -8823,7 +9396,7 @@ void Machine::rollbackMedia()
             Medium* pMedium = pAttach->getMedium();
             if (pMedium)
             {
-                rc = pMedium->detachFrom(mData->mUuid);
+                rc = pMedium->removeBackReference(mData->mUuid);
                 AssertComRC(rc);
             }
         }
@@ -8837,7 +9410,7 @@ void Machine::rollbackMedia()
             Medium* pMedium = pAttach->getMedium();
             if (pMedium)
             {
-                rc = pMedium->attachTo(mData->mUuid);
+                rc = pMedium->addBackReference(mData->mUuid);
                 AssertComRC(rc);
             }
         }
@@ -8854,8 +9427,8 @@ void Machine::rollbackMedia()
 
 /**
  *  Returns true if the settings file is located in the directory named exactly
- *  as the machine. This will be true if the machine settings structure was
- *  created by default in #openConfigLoader().
+ *  as the machine; this means, among other things, that the machine directory
+ *  should be auto-renamed.
  *
  *  @param aSettingsDir if not NULL, the full machine settings file directory
  *                      name will be assigned there.
@@ -8865,20 +9438,19 @@ void Machine::rollbackMedia()
  */
 bool Machine::isInOwnDir(Utf8Str *aSettingsDir /* = NULL */) const
 {
-    Utf8Str settingsDir = mData->m_strConfigFileFull;
-    settingsDir.stripFilename();
-    char *dirName = RTPathFilename(settingsDir.c_str());
-
-    AssertReturn(dirName, false);
-
-    /* if we don't rename anything on name change, return false shorlty */
-    if (!mUserData->mNameSync)
-        return false;
-
+    Utf8Str strMachineDirName(mData->m_strConfigFileFull);  // path/to/machinesfolder/vmname/vmname.vbox
+    strMachineDirName.stripFilename();                      // path/to/machinesfolder/vmname
     if (aSettingsDir)
-        *aSettingsDir = settingsDir;
+        *aSettingsDir = strMachineDirName;
+    strMachineDirName.stripPath();                          // vmname
+    Utf8Str strConfigFileOnly(mData->m_strConfigFileFull);  // path/to/machinesfolder/vmname/vmname.vbox
+    strConfigFileOnly.stripPath()                           // vmname.vbox
+                     .stripExt();                           // vmname
 
-    return Bstr(dirName) == mUserData->mName;
+    AssertReturn(!strMachineDirName.isEmpty(), false);
+    AssertReturn(!strConfigFileOnly.isEmpty(), false);
+
+    return strMachineDirName == strConfigFileOnly;
 }
 
 /**
@@ -8939,16 +9511,17 @@ void Machine::rollback(bool aNotify)
     if (mBIOSSettings)
         mBIOSSettings->rollback();
 
-#ifdef VBOX_WITH_VRDP
-    if (mVRDPServer && (mData->flModifications & IsModified_VRDPServer))
-        mVRDPServer->rollback();
-#endif
+    if (mVRDEServer && (mData->flModifications & IsModified_VRDEServer))
+        mVRDEServer->rollback();
 
     if (mAudioAdapter)
         mAudioAdapter->rollback();
 
     if (mUSBController && (mData->flModifications & IsModified_USB))
         mUSBController->rollback();
+
+    if (mBandwidthControl && (mData->flModifications & IsModified_BandwidthControl))
+        mBandwidthControl->rollback();
 
     ComPtr<INetworkAdapter> networkAdapters[RT_ELEMENTS(mNetworkAdapters)];
     ComPtr<ISerialPort> serialPorts[RT_ELEMENTS(mSerialPorts)];
@@ -8992,8 +9565,8 @@ void Machine::rollback(bool aNotify)
         if (flModifications & IsModified_SharedFolders)
             that->onSharedFolderChange();
 
-        if (flModifications & IsModified_VRDPServer)
-            that->onVRDPServerChange(/* aRestart */ TRUE);
+        if (flModifications & IsModified_VRDEServer)
+            that->onVRDEServerChange(/* aRestart */ TRUE);
         if (flModifications & IsModified_USB)
             that->onUSBControllerChange();
 
@@ -9009,6 +9582,11 @@ void Machine::rollback(bool aNotify)
 
         if (flModifications & IsModified_Storage)
             that->onStorageControllerChange();
+
+#if 0
+        if (flModifications & IsModified_BandwidthControl)
+            that->onBandwidthControlChange();
+#endif
     }
 }
 
@@ -9041,11 +9619,10 @@ void Machine::commit()
         commitMedia();
 
     mBIOSSettings->commit();
-#ifdef VBOX_WITH_VRDP
-    mVRDPServer->commit();
-#endif
+    mVRDEServer->commit();
     mAudioAdapter->commit();
     mUSBController->commit();
+    mBandwidthControl->commit();
 
     for (ULONG slot = 0; slot < RT_ELEMENTS(mNetworkAdapters); slot++)
         mNetworkAdapters[slot]->commit();
@@ -9065,7 +9642,7 @@ void Machine::commit()
             AutoWriteLock peerlock(mPeer COMMA_LOCKVAL_SRC_POS);
 
             /* Commit all changes to new controllers (this will reshare data with
-             * peers for thos who have peers) */
+             * peers for those who have peers) */
             StorageControllerList *newList = new StorageControllerList();
             StorageControllerList::const_iterator it = mStorageControllers->begin();
             while (it != mStorageControllers->end())
@@ -9127,7 +9704,7 @@ void Machine::commit()
         }
     }
 
-    if (getClassID() == clsidSessionMachine)
+    if (isSessionMachine())
     {
         /* attach new data to the primary machine and reshare it */
         mPeer->mUserData.attach(mUserData);
@@ -9152,14 +9729,14 @@ void Machine::commit()
  */
 void Machine::copyFrom(Machine *aThat)
 {
-    AssertReturnVoid(getClassID() == clsidMachine || getClassID() == clsidSessionMachine);
-    AssertReturnVoid(aThat->getClassID() == clsidSnapshotMachine);
+    AssertReturnVoid(!isSnapshotMachine());
+    AssertReturnVoid(aThat->isSnapshotMachine());
 
     AssertReturnVoid(!Global::IsOnline(mData->mMachineState));
 
     mHWData.assignCopy(aThat->mHWData);
 
-    // create copies of all shared folders (mHWData after attiching a copy
+    // create copies of all shared folders (mHWData after attaching a copy
     // contains just references to original objects)
     for (HWData::SharedFolderList::iterator it = mHWData->mSharedFolders.begin();
          it != mHWData->mSharedFolders.end();
@@ -9173,11 +9750,10 @@ void Machine::copyFrom(Machine *aThat)
     }
 
     mBIOSSettings->copyFrom(aThat->mBIOSSettings);
-#ifdef VBOX_WITH_VRDP
-    mVRDPServer->copyFrom(aThat->mVRDPServer);
-#endif
+    mVRDEServer->copyFrom(aThat->mVRDEServer);
     mAudioAdapter->copyFrom(aThat->mAudioAdapter);
     mUSBController->copyFrom(aThat->mUSBController);
+    mBandwidthControl->copyFrom(aThat->mBandwidthControl);
 
     /* create private copies of all controllers */
     mStorageControllers.backup();
@@ -9375,7 +9951,7 @@ void SessionMachine::FinalRelease()
 HRESULT SessionMachine::init(Machine *aMachine)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("mName={%ls}\n", aMachine->mUserData->mName.raw()));
+    LogFlowThisFunc(("mName={%s}\n", aMachine->mUserData->s.strName.c_str()));
 
     AssertReturn(aMachine, E_INVALIDARG);
 
@@ -9389,9 +9965,9 @@ HRESULT SessionMachine::init(Machine *aMachine)
 #if defined(RT_OS_WINDOWS)
     mIPCSemName = aMachine->mData->m_strConfigFileFull;
     for (size_t i = 0; i < mIPCSemName.length(); i++)
-        if (mIPCSemName[i] == '\\')
-            mIPCSemName[i] = '/';
-    mIPCSem = ::CreateMutex(NULL, FALSE, mIPCSemName);
+        if (mIPCSemName.raw()[i] == '\\')
+            mIPCSemName.raw()[i] = '/';
+    mIPCSem = ::CreateMutex(NULL, FALSE, mIPCSemName.raw());
     ComAssertMsgRet(mIPCSem,
                     ("Cannot create IPC mutex '%ls', err=%d",
                      mIPCSemName.raw(), ::GetLastError()),
@@ -9400,10 +9976,10 @@ HRESULT SessionMachine::init(Machine *aMachine)
     Utf8Str ipcSem = Utf8StrFmt("\\SEM32\\VBOX\\VM\\{%RTuuid}",
                                 aMachine->mData->mUuid.raw());
     mIPCSemName = ipcSem;
-    APIRET arc = ::DosCreateMutexSem((PSZ)ipcSem.raw(), &mIPCSem, 0, FALSE);
+    APIRET arc = ::DosCreateMutexSem((PSZ)ipcSem.c_str(), &mIPCSem, 0, FALSE);
     ComAssertMsgRet(arc == NO_ERROR,
                     ("Cannot create IPC mutex '%s', arc=%ld",
-                     ipcSem.raw(), arc),
+                     ipcSem.c_str(), arc),
                     E_FAIL);
 #elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
 # ifdef VBOX_WITH_NEW_SYS_V_KEYGEN
@@ -9455,7 +10031,7 @@ HRESULT SessionMachine::init(Machine *aMachine)
         setError(E_FAIL,
                  tr("Cannot create IPC semaphore because the system limit for the "
                     "maximum number of semaphore sets (SEMMNI), or the system wide "
-                    "maximum number of sempahores (SEMMNS) would be exceeded. The "
+                    "maximum number of semaphores (SEMMNS) would be exceeded. The "
                     "current set of SysV IPC semaphores can be determined from "
                     "the file /proc/sysvipc/sem"));
 #else
@@ -9502,11 +10078,9 @@ HRESULT SessionMachine::init(Machine *aMachine)
 
     unconst(mBIOSSettings).createObject();
     mBIOSSettings->init(this, aMachine->mBIOSSettings);
-#ifdef VBOX_WITH_VRDP
-    /* create another VRDPServer object that will be mutable */
-    unconst(mVRDPServer).createObject();
-    mVRDPServer->init(this, aMachine->mVRDPServer);
-#endif
+    /* create another VRDEServer object that will be mutable */
+    unconst(mVRDEServer).createObject();
+    mVRDEServer->init(this, aMachine->mVRDEServer);
     /* create another audio adapter object that will be mutable */
     unconst(mAudioAdapter).createObject();
     mAudioAdapter->init(this, aMachine->mAudioAdapter);
@@ -9532,6 +10106,10 @@ HRESULT SessionMachine::init(Machine *aMachine)
         unconst(mNetworkAdapters[slot]).createObject();
         mNetworkAdapters[slot]->init(this, aMachine->mNetworkAdapters[slot]);
     }
+
+    /* create another bandwidth control object that will be mutable */
+    unconst(mBandwidthControl).createObject();
+    mBandwidthControl->init(this, aMachine->mBandwidthControl);
 
     /* default is to delete saved state on Saved -> PoweredOff transition */
     mRemoveSavedState = true;
@@ -9577,7 +10155,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     if (autoUninitSpan.initFailed())
     {
         /* We've been called by init() because it's failed. It's not really
-         * necessary (nor it's safe) to perform the regular uninit sequense
+         * necessary (nor it's safe) to perform the regular uninit sequence
          * below, the following is enough.
          */
         LogFlowThisFunc(("Initialization failed.\n"));
@@ -9663,13 +10241,13 @@ void SessionMachine::uninit(Uninit::Reason aReason)
         rollback(false /* aNotify */);
     }
 
-    Assert(mSnapshotData.mStateFilePath.isEmpty() || !mSnapshotData.mSnapshot);
-    if (!mSnapshotData.mStateFilePath.isEmpty())
+    Assert(mConsoleTaskData.mStateFilePath.isEmpty() || !mConsoleTaskData.mSnapshot);
+    if (!mConsoleTaskData.mStateFilePath.isEmpty())
     {
         LogWarningThisFunc(("canceling failed save state request!\n"));
-        endSavingState(FALSE /* aSuccess  */);
+        endSavingState(E_FAIL, tr("Machine terminated with pending save state!"));
     }
-    else if (!mSnapshotData.mSnapshot.isNull())
+    else if (!mConsoleTaskData.mSnapshot.isNull())
     {
         LogWarningThisFunc(("canceling untaken snapshot!\n"));
 
@@ -9677,16 +10255,16 @@ void SessionMachine::uninit(Uninit::Reason aReason)
          * their parents back by rolling back mMediaData) */
         rollbackMedia();
         /* delete the saved state file (it might have been already created) */
-        if (mSnapshotData.mSnapshot->stateFilePath().length())
-            RTFileDelete(mSnapshotData.mSnapshot->stateFilePath().c_str());
+        if (mConsoleTaskData.mSnapshot->stateFilePath().length())
+            RTFileDelete(mConsoleTaskData.mSnapshot->stateFilePath().c_str());
 
-        mSnapshotData.mSnapshot->uninit();
+        mConsoleTaskData.mSnapshot->uninit();
     }
 
     if (!mData->mSession.mType.isEmpty())
     {
         /* mType is not null when this machine's process has been started by
-         * VirtualBox::OpenRemoteSession(), therefore it is our child.  We
+         * Machine::launchVMProcess(), therefore it is our child.  We
          * need to queue the PID to reap the process (and avoid zombies on
          * Linux). */
         Assert(mData->mSession.mPid != NIL_RTPROCESS);
@@ -9725,7 +10303,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
 
     /*
      *  An expected uninitialization can come only from #checkForDeath().
-     *  Otherwise it means that something's got really wrong (for examlple,
+     *  Otherwise it means that something's gone really wrong (for example,
      *  the Session implementation has released the VirtualBox reference
      *  before it triggered #OnSessionEnd(), or before releasing IPC semaphore,
      *  etc). However, it's also possible, that the client releases the IPC
@@ -9746,7 +10324,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     {
         /* this must be null here (see #OnSessionEnd()) */
         Assert(mData->mSession.mDirectControl.isNull());
-        Assert(mData->mSession.mState == SessionState_Closing);
+        Assert(mData->mSession.mState == SessionState_Unlocking);
         Assert(!mData->mSession.mProgress.isNull());
     }
     if (mData->mSession.mProgress)
@@ -9762,12 +10340,12 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     }
 
     /* remove the association between the peer machine and this session machine */
-    Assert(mData->mSession.mMachine == this ||
-           aReason == Uninit::Unexpected);
+    Assert(   (SessionMachine*)mData->mSession.mMachine == this
+            || aReason == Uninit::Unexpected);
 
     /* reset the rest of session data */
     mData->mSession.mMachine.setNull();
-    mData->mSession.mState = SessionState_Closed;
+    mData->mSession.mState = SessionState_Unlocked;
     mData->mSession.mType.setNull();
 
     /* close the interprocess semaphore before leaving the exclusive lock */
@@ -9791,15 +10369,20 @@ void SessionMachine::uninit(Uninit::Reason aReason)
 #endif
 
     /* fire an event */
-    mParent->onSessionStateChange(mData->mUuid, SessionState_Closed);
+    mParent->onSessionStateChange(mData->mUuid, SessionState_Unlocked);
 
     uninitDataAndChildObjects();
 
     /* free the essential data structure last */
     mData.free();
 
+#if 1 /** @todo Please review this change! (bird) */
+    /* drop the exclusive lock before setting the below two to NULL */
+    multilock.release();
+#else
     /* leave the exclusive lock before setting the below two to NULL */
     multilock.leave();
+#endif
 
     unconst(mParent) = NULL;
     unconst(mPeer) = NULL;
@@ -9826,7 +10409,7 @@ RWLockHandle *SessionMachine::lockHandle() const
 /**
  *  @note Locks this object for writing.
  */
-STDMETHODIMP SessionMachine::SetRemoveSavedState(BOOL aRemove)
+STDMETHODIMP SessionMachine::SetRemoveSavedStateFile(BOOL aRemove)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -9876,17 +10459,19 @@ STDMETHODIMP SessionMachine::GetIPCId(BSTR *aId)
  */
 STDMETHODIMP SessionMachine::BeginPowerUp(IProgress *aProgress)
 {
+    LogFlowThisFunc(("aProgress=%p\n", aProgress));
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mSession.mState != SessionState_Open)
+    if (mData->mSession.mState != SessionState_Locked)
         return VBOX_E_INVALID_OBJECT_STATE;
 
     if (!mData->mSession.mProgress.isNull())
         mData->mSession.mProgress->setOtherProgressObject(aProgress);
 
+    LogFlowThisFunc(("returns S_OK.\n"));
     return S_OK;
 }
 
@@ -9901,7 +10486,7 @@ STDMETHODIMP SessionMachine::EndPowerUp(LONG iResult)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->mSession.mState != SessionState_Open)
+    if (mData->mSession.mState != SessionState_Locked)
         return VBOX_E_INVALID_OBJECT_STATE;
 
     /* Finalize the openRemoteSession progress object. */
@@ -9971,7 +10556,7 @@ STDMETHODIMP SessionMachine::CaptureUSBDevice(IN_BSTR aId)
 
     USBProxyService *service = mParent->host()->usbProxyService();
     AssertReturn(service, E_FAIL);
-    return service->captureDeviceForVM(this, Guid(aId));
+    return service->captureDeviceForVM(this, Guid(aId).ref());
 #else
     NOREF(aId);
     return E_NOTIMPL;
@@ -9991,7 +10576,7 @@ STDMETHODIMP SessionMachine::DetachUSBDevice(IN_BSTR aId, BOOL aDone)
 #ifdef VBOX_WITH_USB
     USBProxyService *service = mParent->host()->usbProxyService();
     AssertReturn(service, E_FAIL);
-    return service->detachDeviceFromVM(this, Guid(aId), !!aDone);
+    return service->detachDeviceFromVM(this, Guid(aId).ref(), !!aDone);
 #else
     NOREF(aId);
     NOREF(aDone);
@@ -10087,7 +10672,7 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
      * thus locking it here is required by the lock order rules. */
     AutoMultiWriteLock2 alock(mParent->lockHandle(), this->lockHandle() COMMA_LOCKVAL_SRC_POS);
 
-    if (control.equalsTo(mData->mSession.mDirectControl))
+    if (control == mData->mSession.mDirectControl)
     {
         ComAssertRet(aProgress, E_POINTER);
 
@@ -10096,8 +10681,8 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
 
         /* go to the closing state (essential for all open*Session() calls and
          * for #checkForDeath()) */
-        Assert(mData->mSession.mState == SessionState_Open);
-        mData->mSession.mState = SessionState_Closing;
+        Assert(mData->mSession.mState == SessionState_Locked);
+        mData->mSession.mState = SessionState_Unlocking;
 
         /* set direct control to NULL to release the remote instance */
         mData->mSession.mDirectControl.setNull();
@@ -10124,7 +10709,7 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
         progress.createObject();
         ComPtr<IUnknown> pPeer(mPeer);
         progress->init(mParent, pPeer,
-                       Bstr(tr("Closing session")),
+                       Bstr(tr("Closing session")).raw(),
                        FALSE /* aCancelable */);
         progress.queryInterfaceTo(aProgress);
         mData->mSession.mProgress = progress;
@@ -10136,7 +10721,7 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
             mData->mSession.mRemoteControls.begin();
         while (it != mData->mSession.mRemoteControls.end())
         {
-            if (control.equalsTo(*it))
+            if (control == *it)
                 break;
             ++it;
         }
@@ -10153,12 +10738,12 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
 /**
  *  @note Locks this object for writing.
  */
-STDMETHODIMP SessionMachine::BeginSavingState(IProgress *aProgress, BSTR *aStateFilePath)
+STDMETHODIMP SessionMachine::BeginSavingState(IProgress **aProgress, BSTR *aStateFilePath)
 {
     LogFlowThisFuncEnter();
 
-    AssertReturn(aProgress, E_INVALIDARG);
-    AssertReturn(aStateFilePath, E_POINTER);
+    CheckComArgOutPointerValid(aProgress);
+    CheckComArgOutPointerValid(aStateFilePath);
 
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -10166,36 +10751,40 @@ STDMETHODIMP SessionMachine::BeginSavingState(IProgress *aProgress, BSTR *aState
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     AssertReturn(    mData->mMachineState == MachineState_Paused
-                  && mSnapshotData.mLastState == MachineState_Null
-                  && mSnapshotData.mProgressId.isEmpty()
-                  && mSnapshotData.mStateFilePath.isEmpty(),
+                  && mConsoleTaskData.mLastState == MachineState_Null
+                  && mConsoleTaskData.mStateFilePath.isEmpty(),
                  E_FAIL);
 
-    /* memorize the progress ID and add it to the global collection */
-    Bstr progressId;
-    HRESULT rc = aProgress->COMGETTER(Id)(progressId.asOutParam());
-    AssertComRCReturn(rc, rc);
-    rc = mParent->addProgress(aProgress);
-    AssertComRCReturn(rc, rc);
+    /* create a progress object to track operation completion */
+    ComObjPtr<Progress> pProgress;
+    pProgress.createObject();
+    pProgress->init(getVirtualBox(),
+                    static_cast<IMachine *>(this) /* aInitiator */,
+                    Bstr(tr("Saving the execution state of the virtual machine")).raw(),
+                    FALSE /* aCancelable */);
 
     Bstr stateFilePath;
     /* stateFilePath is null when the machine is not running */
     if (mData->mMachineState == MachineState_Paused)
     {
-        stateFilePath = Utf8StrFmt("%ls%c{%RTuuid}.sav",
-                                   mUserData->mSnapshotFolderFull.raw(),
-                                   RTPATH_DELIMITER, mData->mUuid.raw());
+        Utf8Str strFullSnapshotFolder;
+        calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
+        stateFilePath = Utf8StrFmt("%s%c{%RTuuid}.sav",
+                                   strFullSnapshotFolder.c_str(),
+                                   RTPATH_DELIMITER,
+                                   mData->mUuid.raw());
     }
 
     /* fill in the snapshot data */
-    mSnapshotData.mLastState = mData->mMachineState;
-    mSnapshotData.mProgressId = Guid(progressId);
-    mSnapshotData.mStateFilePath = stateFilePath;
+    mConsoleTaskData.mLastState = mData->mMachineState;
+    mConsoleTaskData.mStateFilePath = stateFilePath;
+    mConsoleTaskData.mProgress = pProgress;
 
     /* set the state to Saving (this is expected by Console::SaveState()) */
     setMachineState(MachineState_Saving);
 
     stateFilePath.cloneTo(aStateFilePath);
+    pProgress.queryInterfaceTo(aProgress);
 
     return S_OK;
 }
@@ -10203,7 +10792,7 @@ STDMETHODIMP SessionMachine::BeginSavingState(IProgress *aProgress, BSTR *aState
 /**
  *  @note Locks mParent + this object for writing.
  */
-STDMETHODIMP SessionMachine::EndSavingState(BOOL aSuccess)
+STDMETHODIMP SessionMachine::EndSavingState(LONG iResult, IN_BSTR aErrMsg)
 {
     LogFlowThisFunc(("\n"));
 
@@ -10213,24 +10802,22 @@ STDMETHODIMP SessionMachine::EndSavingState(BOOL aSuccess)
     /* endSavingState() need mParent lock */
     AutoMultiWriteLock2 alock(mParent, this COMMA_LOCKVAL_SRC_POS);
 
-    AssertReturn(    mData->mMachineState == MachineState_Saving
-                  && mSnapshotData.mLastState != MachineState_Null
-                  && !mSnapshotData.mProgressId.isEmpty()
-                  && !mSnapshotData.mStateFilePath.isEmpty(),
+    AssertReturn(    (   (SUCCEEDED(iResult) && mData->mMachineState == MachineState_Saved)
+                      || (FAILED(iResult) && mData->mMachineState == MachineState_Saving))
+                  && mConsoleTaskData.mLastState != MachineState_Null
+                  && !mConsoleTaskData.mStateFilePath.isEmpty(),
                  E_FAIL);
 
     /*
-     *  on success, set the state to Saved;
-     *  on failure, set the state to the state we had when BeginSavingState() was
-     *  called (this is expected by Console::SaveState() and
-     *  Console::saveStateThread())
+     * On failure, set the state to the state we had when BeginSavingState()
+     * was called (this is expected by Console::SaveState() and the associated
+     * task). On success the VM process already changed the state to
+     * MachineState_Saved, so no need to do anything.
      */
-    if (aSuccess)
-        setMachineState(MachineState_Saved);
-    else
-        setMachineState(mSnapshotData.mLastState);
+    if (FAILED(iResult))
+        setMachineState(mConsoleTaskData.mLastState);
 
-    return endSavingState(aSuccess);
+    return endSavingState(iResult, aErrMsg);
 }
 
 /**
@@ -10270,7 +10857,7 @@ STDMETHODIMP SessionMachine::AdoptSavedState(IN_BSTR aSavedStateFile)
 
 STDMETHODIMP SessionMachine::PullGuestProperties(ComSafeArrayOut(BSTR, aNames),
                                                  ComSafeArrayOut(BSTR, aValues),
-                                                 ComSafeArrayOut(ULONG64, aTimestamps),
+                                                 ComSafeArrayOut(LONG64, aTimestamps),
                                                  ComSafeArrayOut(BSTR, aFlags))
 {
     LogFlowThisFunc(("\n"));
@@ -10291,7 +10878,7 @@ STDMETHODIMP SessionMachine::PullGuestProperties(ComSafeArrayOut(BSTR, aNames),
     size_t cEntries = mHWData->mGuestProperties.size();
     com::SafeArray<BSTR> names(cEntries);
     com::SafeArray<BSTR> values(cEntries);
-    com::SafeArray<ULONG64> timestamps(cEntries);
+    com::SafeArray<LONG64> timestamps(cEntries);
     com::SafeArray<BSTR> flags(cEntries);
     unsigned i = 0;
     for (HWData::GuestPropertyList::iterator it = mHWData->mGuestProperties.begin();
@@ -10324,7 +10911,7 @@ STDMETHODIMP SessionMachine::PullGuestProperties(ComSafeArrayOut(BSTR, aNames),
 
 STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
                                                IN_BSTR aValue,
-                                               ULONG64 aTimestamp,
+                                               LONG64 aTimestamp,
                                                IN_BSTR aFlags)
 {
     LogFlowThisFunc(("\n"));
@@ -10346,7 +10933,7 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
         if (aFlags)
         {
             Utf8Str utf8Flags(aFlags);
-            int vrc = validateFlags(utf8Flags.raw(), &fFlags);
+            int vrc = validateFlags(utf8Flags.c_str(), &fFlags);
             AssertRCReturn(vrc, E_INVALIDARG);
         }
 
@@ -10371,20 +10958,24 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
                 break;
 
             default:
+#ifndef DEBUG_sunlover
                 AssertMsgFailedReturn(("%s\n", Global::stringifyMachineState(mData->mMachineState)),
                                       VBOX_E_INVALID_VM_STATE);
+#else
+                return VBOX_E_INVALID_VM_STATE;
+#endif
         }
 
         setModified(IsModified_MachineData);
         mHWData.backup();
 
         /** @todo r=bird: The careful memory handling doesn't work out here because
-         *  the catch block won't undo any damange we've done.  So, if push_back throws
+         *  the catch block won't undo any damage we've done.  So, if push_back throws
          *  bad_alloc then you've lost the value.
          *
          *  Another thing. Doing a linear search here isn't extremely efficient, esp.
          *  since values that changes actually bubbles to the end of the list.  Using
-         *  something that has an efficient lookup and can tollerate a bit of updates
+         *  something that has an efficient lookup and can tolerate a bit of updates
          *  would be nice.  RTStrSpace is one suggestion (it's not perfect).  Some
          *  combination of RTStrCache (for sharing names and getting uniqueness into
          *  the bargain) and hash/tree is another. */
@@ -10397,7 +10988,7 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
                 mData->mGuestPropertiesModified = TRUE;
                 break;
             }
-        if (aValue != NULL && aValue[0] != '\0')
+        if (aValue != NULL)
         {
             HWData::GuestProperty property = { aName, aValue, aTimestamp, fFlags };
             mHWData->mGuestProperties.push_back(property);
@@ -10408,9 +10999,9 @@ STDMETHODIMP SessionMachine::PushGuestProperty(IN_BSTR aName,
          * Send a callback notification if appropriate
          */
         if (    mHWData->mGuestPropertyNotificationPatterns.isEmpty()
-             || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.raw(),
+             || RTStrSimplePatternMultiMatch(mHWData->mGuestPropertyNotificationPatterns.c_str(),
                                              RTSTR_MAX,
-                                             utf8Name.raw(),
+                                             utf8Name.c_str(),
                                              RTSTR_MAX, NULL)
            )
         {
@@ -10476,7 +11067,7 @@ bool SessionMachine::checkForDeath()
          * because it simply forgot to call ISession::Close() before exiting. We
          * threat the latter also as an abnormal termination (see
          * Session::uninit() for details). */
-        reason = mData->mSession.mState == SessionState_Closing ?
+        reason = mData->mSession.mState == SessionState_Unlocking ?
                  Uninit::Normal :
                  Uninit::Abnormal;
 
@@ -10542,6 +11133,34 @@ HRESULT SessionMachine::onNetworkAdapterChange(INetworkAdapter *networkAdapter, 
         return S_OK;
 
     return directControl->OnNetworkAdapterChange(networkAdapter, changeAdapter);
+}
+
+/**
+ *  @note Locks this object for reading.
+ */
+HRESULT SessionMachine::onNATRedirectRuleChange(ULONG ulSlot, BOOL aNatRuleRemove, IN_BSTR aRuleName,
+                                 NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort, IN_BSTR aGuestIp, LONG aGuestPort)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    ComPtr<IInternalSessionControl> directControl;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        directControl = mData->mSession.mDirectControl;
+    }
+
+    /* ignore notifications sent after #OnSessionEnd() is called */
+    if (!directControl)
+        return S_OK;
+    /*
+     * instead acting like callback we ask IVirtualBox deliver corresponding event
+     */
+
+    mParent->onNatRedirectChange(getId(), ulSlot, RT_BOOL(aNatRuleRemove), aRuleName, aProto, aHostIp, aHostPort, aGuestIp, aGuestPort);
+    return S_OK;
 }
 
 /**
@@ -10659,10 +11278,30 @@ HRESULT SessionMachine::onCPUChange(ULONG aCPU, BOOL aRemove)
     return directControl->OnCPUChange(aCPU, aRemove);
 }
 
+HRESULT SessionMachine::onCPUExecutionCapChange(ULONG aExecutionCap)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn (autoCaller.rc(), autoCaller.rc());
+
+    ComPtr<IInternalSessionControl> directControl;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        directControl = mData->mSession.mDirectControl;
+    }
+
+    /* ignore notifications sent after #OnSessionEnd() is called */
+    if (!directControl)
+        return S_OK;
+
+    return directControl->OnCPUExecutionCapChange(aExecutionCap);
+}
+
 /**
  *  @note Locks this object for reading.
  */
-HRESULT SessionMachine::onVRDPServerChange(BOOL aRestart)
+HRESULT SessionMachine::onVRDEServerChange(BOOL aRestart)
 {
     LogFlowThisFunc(("\n"));
 
@@ -10679,7 +11318,7 @@ HRESULT SessionMachine::onVRDPServerChange(BOOL aRestart)
     if (!directControl)
         return S_OK;
 
-    return directControl->OnVRDPServerChange(aRestart);
+    return directControl->OnVRDEServerChange(aRestart);
 }
 
 /**
@@ -10726,6 +11365,29 @@ HRESULT SessionMachine::onSharedFolderChange()
         return S_OK;
 
     return directControl->OnSharedFolderChange(FALSE /* aGlobal */);
+}
+
+/**
+ *  @note Locks this object for reading.
+ */
+HRESULT SessionMachine::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn (autoCaller.rc(), autoCaller.rc());
+
+    ComPtr<IInternalSessionControl> directControl;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        directControl = mData->mSession.mDirectControl;
+    }
+
+    /* ignore notifications sent after #OnSessionEnd() is called */
+    if (!directControl)
+        return S_OK;
+
+    return directControl->OnBandwidthGroupChange(aBandwidthGroup);
 }
 
 /**
@@ -10836,11 +11498,12 @@ HRESULT SessionMachine::onUSBDeviceDetach(IN_BSTR aId,
  *
  *  @note Must be called from under this object's lock.
  *
- *  @param aSuccess TRUE if the snapshot has been taken successfully
+ *  @param aRc      S_OK if the snapshot has been taken successfully
+ *  @param aErrMsg  human readable error message for failure
  *
  *  @note Locks mParent + this objects for writing.
  */
-HRESULT SessionMachine::endSavingState(BOOL aSuccess)
+HRESULT SessionMachine::endSavingState(HRESULT aRc, const Utf8Str &aErrMsg)
 {
     LogFlowThisFuncEnter();
 
@@ -10851,9 +11514,9 @@ HRESULT SessionMachine::endSavingState(BOOL aSuccess)
 
     HRESULT rc = S_OK;
 
-    if (aSuccess)
+    if (SUCCEEDED(aRc))
     {
-        mSSData->mStateFilePath = mSnapshotData.mStateFilePath;
+        mSSData->mStateFilePath = mConsoleTaskData.mStateFilePath;
 
         /* save all VM settings */
         rc = saveSettings(NULL);
@@ -10863,16 +11526,28 @@ HRESULT SessionMachine::endSavingState(BOOL aSuccess)
     else
     {
         /* delete the saved state file (it might have been already created) */
-        RTFileDelete(mSnapshotData.mStateFilePath.c_str());
+        RTFileDelete(mConsoleTaskData.mStateFilePath.c_str());
     }
 
-    /* remove the completed progress object */
-    mParent->removeProgress(mSnapshotData.mProgressId);
+    /* notify the progress object about operation completion */
+    Assert(mConsoleTaskData.mProgress);
+    if (SUCCEEDED(aRc))
+        mConsoleTaskData.mProgress->notifyComplete(S_OK);
+    else
+    {
+        if (aErrMsg.length())
+            mConsoleTaskData.mProgress->notifyComplete(aRc,
+                                                    COM_IIDOF(ISession),
+                                                    getComponentName(),
+                                                    aErrMsg.c_str());
+        else
+            mConsoleTaskData.mProgress->notifyComplete(aRc);
+    }
 
     /* clear out the temporary saved state data */
-    mSnapshotData.mLastState = MachineState_Null;
-    mSnapshotData.mProgressId.clear();
-    mSnapshotData.mStateFilePath.setNull();
+    mConsoleTaskData.mLastState = MachineState_Null;
+    mConsoleTaskData.mStateFilePath.setNull();
+    mConsoleTaskData.mProgress.setNull();
 
     LogFlowThisFuncLeave();
     return rc;
@@ -10930,12 +11605,12 @@ HRESULT SessionMachine::lockMedia()
         if (pMedium != NULL)
         {
             MediumType_T mediumType = pMedium->getType();
-            bool fIsReadOnlyImage =    devType == DeviceType_DVD
-                                    || mediumType == MediumType_Shareable;
+            bool fIsReadOnlyLock =    mediumType == MediumType_Readonly
+                                   || mediumType == MediumType_Shareable;
             bool fIsVitalImage = (devType == DeviceType_HardDisk);
 
             mrc = pMedium->createMediumLockList(fIsVitalImage /* fFailIfInaccessible */,
-                                                !fIsReadOnlyImage /* fMediumLockWrite */,
+                                                !fIsReadOnlyLock /* fMediumLockWrite */,
                                                 NULL,
                                                 *pMediumLockList);
             if (FAILED(mrc))
@@ -11055,8 +11730,8 @@ HRESULT SessionMachine::setMachineState(MachineState_T aMachineState)
                 )
              /* ignore PoweredOff->Saving->PoweredOff transition when taking a
               * snapshot */
-             && (   mSnapshotData.mSnapshot.isNull()
-                 || mSnapshotData.mLastState >= MachineState_Running /** @todo Live Migration: clean up (lazy bird) */
+             && (   mConsoleTaskData.mSnapshot.isNull()
+                 || mConsoleTaskData.mLastState >= MachineState_Running /** @todo Live Migration: clean up (lazy bird) */
                 )
             )
     {
@@ -11230,10 +11905,10 @@ HRESULT SessionMachine::updateMachineStateOnClient()
          * process in this case is waiting inside Session::close() for the
          * "end session" process object to complete, while #uninit() called by
          * #checkForDeath() on the Watcher thread is waiting for the pending
-         * operation to complete. For now, we accept this inconsitent behavior
+         * operation to complete. For now, we accept this inconsistent behavior
          * and simply do nothing here. */
 
-        if (mData->mSession.mState == SessionState_Closing)
+        if (mData->mSession.mState == SessionState_Unlocking)
             return S_OK;
 
         AssertReturn(!directControl.isNull(), E_FAIL);

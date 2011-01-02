@@ -1,10 +1,10 @@
-/* $Id: tstMemAutoPtr.cpp $ */
+/* $Id: tstMemAutoPtr.cpp 31157 2010-07-28 03:15:35Z vboxsync $ */
 /** @file
  * IPRT - Testcase the RTMemAutoPtr template.
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -113,9 +113,9 @@ void tstMemAutoPtrDestructorCounter(T *aMem)
 }
 
 
-void *tstMemAutoPtrAllocatorNoZero(void *pvOld, size_t cbNew)
+void *tstMemAutoPtrAllocatorNoZero(void *pvOld, size_t cbNew, const char *pszTag)
 {
-    void *pvNew = RTMemRealloc(pvOld, cbNew);
+    void *pvNew = RTMemReallocTag(pvOld, cbNew, pszTag);
     if (pvNew)
         memset(pvNew, 0xfe, cbNew);
     return pvNew;

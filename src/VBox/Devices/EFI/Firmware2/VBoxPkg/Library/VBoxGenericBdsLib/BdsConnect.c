@@ -1,4 +1,4 @@
-/* $Id: BdsConnect.c $ */
+/* $Id: BdsConnect.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * BdsConnect.c - BDS Lib functions which relate with connect the device
  */
@@ -311,7 +311,7 @@ BdsLibDisconnectAllEfi (
 /**
   Connects all drivers to all controllers.
   This function make sure all the current system driver will manage
-  the correspoinding controllers if have. And at the same time, make
+  the corresponding controllers if have. And at the same time, make
   sure all the system controllers have driver to manage it if have.
 
 **/

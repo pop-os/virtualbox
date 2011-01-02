@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,11 +28,17 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+#include <iprt/stdarg.h>
 
-RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_err            RTErr - Status Codes
  * @ingroup grp_rt
+ *
+ * The IPRT status codes are in two ranges: {0..999} and {22000..32766}.  The
+ * IPRT users are free to use the range {1000..21999}.  See RTERR_RANGE1_FIRST,
+ * RTERR_RANGE1_LAST, RTERR_RANGE2_FIRST, RTERR_RANGE2_LAST, RTERR_USER_FIRST
+ * and RTERR_USER_LAST.
+ *
  * @{
  */
 
@@ -176,6 +182,8 @@ private:
  */
 #define RT_FAILURE_NP(rc)   ( !RT_SUCCESS_NP(rc) )
 
+RT_C_DECLS_BEGIN
+
 /**
  * Converts a Darwin HRESULT error to an iprt status code.
  *
@@ -271,7 +279,6 @@ RTDECL(int)  RTErrConvertFromWin32(unsigned uNativeCode);
  * @param   iErr    iprt status code.
  */
 RTDECL(int)  RTErrConvertToErrno(int iErr);
-
 
 #ifdef IN_RING3
 
@@ -385,7 +392,175 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 
 #endif /* IN_RING3 */
 
+/** @defgroup RTERRINFO_FLAGS_XXX   RTERRINFO::fFlags
+ * @{ */
+/** Custom structure (the default). */
+#define RTERRINFO_FLAGS_T_CUSTOM    UINT32_C(0)
+/** Static structure (RTERRINFOSTATIC). */
+#define RTERRINFO_FLAGS_T_STATIC    UINT32_C(1)
+/** Allocated structure (RTErrInfoAlloc). */
+#define RTERRINFO_FLAGS_T_ALLOC     UINT32_C(2)
+/** Reserved type. */
+#define RTERRINFO_FLAGS_T_RESERVED  UINT32_C(3)
+/** Type mask. */
+#define RTERRINFO_FLAGS_T_MASK      UINT32_C(3)
+/** Error info is set. */
+#define RTERRINFO_FLAGS_SET         RT_BIT_32(2)
+/** Fixed flags (magic). */
+#define RTERRINFO_FLAGS_MAGIC       UINT32_C(0xbabe0000)
+/** The bit mask for the magic value. */
+#define RTERRINFO_FLAGS_MAGIC_MASK  UINT32_C(0xffff0000)
 /** @} */
+
+/**
+ * Initializes an error info structure.
+ *
+ * @returns @a pErrInfo.
+ * @param   pErrInfo            The error info structure to init.
+ * @param   pszMsg              The message buffer.  Must be at least one byte.
+ * @param   cbMsg               The size of the message buffer.
+ */
+DECLINLINE(PRTERRINFO) RTErrInfoInit(PRTERRINFO pErrInfo, char *pszMsg, size_t cbMsg)
+{
+    *pszMsg = '\0';
+
+    pErrInfo->fFlags         = RTERRINFO_FLAGS_T_CUSTOM | RTERRINFO_FLAGS_MAGIC;
+    pErrInfo->rc             = /*VINF_SUCCESS*/ 0;
+    pErrInfo->pszMsg         = pszMsg;
+    pErrInfo->cbMsg          = cbMsg;
+    pErrInfo->apvReserved[0] = NULL;
+    pErrInfo->apvReserved[1] = NULL;
+
+    return pErrInfo;
+}
+
+/**
+ * Initialize a static error info structure.
+ *
+ * @param   pStaticErrInfo      The static error info structure to init.
+ */
+DECLINLINE(void) RTErrInfoInitStatic(PRTERRINFOSTATIC pStaticErrInfo)
+{
+    RTErrInfoInit(&pStaticErrInfo->Core, pStaticErrInfo->szMsg, sizeof(pStaticErrInfo->szMsg));
+    pStaticErrInfo->Core.fFlags = RTERRINFO_FLAGS_T_STATIC | RTERRINFO_FLAGS_MAGIC;
+}
+
+/**
+ * Allocates a error info structure with a buffer at least the given size.
+ *
+ * @returns Pointer to an error info structure on success, NULL on failure.
+ *
+ * @param   cbMsg               The minimum message buffer size.  Use 0 to get
+ *                              the default buffer size.
+ */
+RTDECL(PRTERRINFO)  RTErrInfoAlloc(size_t cbMsg);
+
+/**
+ * Same as RTErrInfoAlloc, except that an IPRT status code is returned.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   cbMsg               The minimum message buffer size.  Use 0 to get
+ *                              the default buffer size.
+ * @param   ppErrInfo           Where to store the pointer to the allocated
+ *                              error info structure on success.  This is
+ *                              always set to NULL.
+ */
+RTDECL(int)         RTErrInfoAllocEx(size_t cbMsg, PRTERRINFO *ppErrInfo);
+
+/**
+ * Frees an error info structure allocated by RTErrInfoAlloc or
+ * RTErrInfoAllocEx.
+ *
+ * @param   pErrInfo            The error info structure.
+ */
+RTDECL(void)        RTErrInfoFree(PRTERRINFO pErrInfo);
+
+/**
+ * Fills in the error info details.
+ *
+ * @returns @a rc.
+ *
+ * @param   pErrInfo            The error info structure to fill in.
+ * @param   rc                  The status code to return.
+ * @param   pszMsg              The error message string.
+ */
+RTDECL(int)         RTErrInfoSet(PRTERRINFO pErrInfo, int rc, const char *pszMsg);
+
+/**
+ * Fills in the error info details, with a sprintf style message.
+ *
+ * @returns @a rc.
+ *
+ * @param   pErrInfo            The error info structure to fill in.
+ * @param   rc                  The status code to return.
+ * @param   pszFormat           The format string.
+ * @param   ...                 The format arguments.
+ */
+RTDECL(int)         RTErrInfoSetF(PRTERRINFO pErrInfo, int rc, const char *pszFormat, ...);
+
+/**
+ * Fills in the error info details, with a vsprintf style message.
+ *
+ * @returns @a rc.
+ *
+ * @param   pErrInfo            The error info structure to fill in.
+ * @param   rc                  The status code to return.
+ * @param   pszFormat           The format string.
+ * @param   va                  The format arguments.
+ */
+RTDECL(int)         RTErrInfoSetV(PRTERRINFO pErrInfo, int rc, const char *pszFormat, va_list va);
+
+/**
+ * Checks if the error info is set.
+ *
+ * @returns true if set, false if not.
+ * @param   pErrInfo            The error info structure. NULL is OK.
+ */
+DECLINLINE(bool)    RTErrInfoIsSet(PCRTERRINFO pErrInfo)
+{
+    if (!pErrInfo)
+        return false;
+    return (pErrInfo->fFlags & (RTERRINFO_FLAGS_MAGIC_MASK | RTERRINFO_FLAGS_SET))
+        == (RTERRINFO_FLAGS_MAGIC | RTERRINFO_FLAGS_SET);
+}
+
+/**
+ * Clears the error info structure.
+ *
+ * @param   pErrInfo            The error info structure. NULL is OK.
+ */
+DECLINLINE(void)    RTErrInfoClear(PRTERRINFO pErrInfo)
+{
+    if (pErrInfo)
+    {
+        pErrInfo->fFlags &= ~RTERRINFO_FLAGS_SET;
+        pErrInfo->rc      = /*VINF_SUCCESS*/0;
+        *pErrInfo->pszMsg = '\0';
+    }
+}
+
+RT_C_DECLS_END
+
+/** @} */
+
+/** @name Status Code Ranges
+ * @{ */
+/** The first status code in the primary IPRT range. */
+#define RTERR_RANGE1_FIRST                  0
+/** The last status code in the primary IPRT range. */
+#define RTERR_RANGE1_LAST                   999
+
+/** The first status code in the secondary IPRT range. */
+#define RTERR_RANGE2_FIRST                  22000
+/** The last status code in the secondary IPRT range. */
+#define RTERR_RANGE2_LAST                   32766
+
+/** The first status code in the user range. */
+#define RTERR_USER_FIRST                    1000
+/** The last status code in the user range. */
+#define RTERR_USER_LAST                     21999
+/** @}  */
 
 
 /* SED-START */
@@ -429,6 +604,10 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 /** The request function is not implemented. */
 #define VERR_NOT_IMPLEMENTED                (-12)
 
+/** Not equal. */
+#define VERR_NOT_EQUAL                      (-18)
+/** The specified path does not point at a symbolic link. */
+#define VERR_NOT_SYMLINK                    (-19)
 /** Failed to allocate temporary memory. */
 #define VERR_NO_TMP_MEMORY                  (-20)
 /** Invalid file mode mask (RTFMODE). */
@@ -464,6 +643,8 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_INVALID_FUNCTION               (-36)
 /** Not supported. */
 #define VERR_NOT_SUPPORTED                  (-37)
+/** Not supported. */
+#define VINF_NOT_SUPPORTED                  37
 /** Access denied. */
 #define VERR_ACCESS_DENIED                  (-38)
 /** Call interrupted. */
@@ -616,15 +797,21 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
  * This status is used when two threads is caught sharing the same object
  * reference. */
 #define VERR_CALLER_NO_REFERENCE            (-93)
-/** Invalid login data given. */
-#define VERR_LOGON_FAILURE                  (-94)
 /** Generic no change error. */
 #define VERR_NO_CHANGE                      (-95)
 /** Generic no change info. */
 #define VINF_NO_CHANGE                      95
 /** Out of memory condition when allocating executable memory. */
 #define VERR_NO_EXEC_MEMORY                 (-96)
-
+/** The alignment is not supported. */
+#define VERR_UNSUPPORTED_ALIGNMENT          (-97)
+/** The alignment is not really supported, however we got lucky with this
+ * allocation. */
+#define VINF_UNSUPPORTED_ALIGNMENT          97
+/** Duplicate something. */
+#define VERR_DUPLICATE                      (-98)
+/** Something is missing. */
+#define VERR_MISSING                        (-99)
 /** @} */
 
 
@@ -641,8 +828,10 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_PATH_NOT_FOUND                 (-103)
 /** Invalid (malformed) file/path name. */
 #define VERR_INVALID_NAME                   (-104)
-/** File/Device already exists. */
+/** The object in question already exists. */
 #define VERR_ALREADY_EXISTS                 (-105)
+/** The object in question already exists. */
+#define VWRN_ALREADY_EXISTS                 105
 /** Too many open files. */
 #define VERR_TOO_MANY_OPEN_FILES            (-106)
 /** Seek error. */
@@ -712,6 +901,18 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_FILE_AIO_INSUFFICIENT_RESSOURCES (-137)
 /** Device or resource is busy. */
 #define VERR_RESOURCE_BUSY                  (-138)
+/** A file operation was attempted on a non-file object. */
+#define VERR_NOT_A_FILE                     (-139)
+/** A non-file operation was attempted on a file object. */
+#define VERR_IS_A_FILE                      (-140)
+/** Unexpected filesystem object type. */
+#define VERR_UNEXPECTED_FS_OBJ_TYPE         (-141)
+/** A path does not start with a root specification. */
+#define VERR_PATH_DOES_NOT_START_WITH_ROOT  (-142)
+/** A path is relative, expected an absolute path. */
+#define VERR_PATH_IS_RELATIVE               (-143)
+/** A path is not relative (start with root), expected an relative path. */
+#define VERR_PATH_IS_NOT_RELATIVE           (-144)
 /** @} */
 
 
@@ -734,6 +935,8 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_TOO_MANY_SYMLINKS              (-156)
 /** The OS does not support setting the time stamps on a symbolic link. */
 #define VERR_NS_SYMLINK_SET_TIME            (-157)
+/** The OS does not support changing the owner of a symbolic link. */
+#define VERR_NS_SYMLINK_CHANGE_OWNER        (-158)
 /** @} */
 
 
@@ -1255,6 +1458,54 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
  * @{ */
 /** The checksum of a tar header record doesn't match. */
 #define VERR_TAR_CHKSUM_MISMATCH                (-925)
+/** The tar end of file record was read. */
+#define VERR_TAR_END_OF_FILE                    (-926)
+/** The tar file ended unexpectedly. */
+#define VERR_TAR_UNEXPECTED_EOS                 (-927)
+/** The tar termination records was encountered without reaching the end of
+  * the input stream. */
+#define VERR_TAR_EOS_MORE_INPUT                 (-928)
+/** A number tar header field was malformed.  */
+#define VERR_TAR_BAD_NUM_FIELD                  (-929)
+/** A numeric tar header field was not terminated correctly. */
+#define VERR_TAR_BAD_NUM_FIELD_TERM             (-930)
+/** A number tar header field was encoded using base-256 which this
+ * tar implementation currently does not support.  */
+#define VERR_TAR_BASE_256_NOT_SUPPORTED         (-931)
+/** A number tar header field yielded a value too large for the internal
+ * variable of the tar interpreter. */
+#define VERR_TAR_NUM_VALUE_TOO_LARGE            (-932)
+/** The combined minor and major device number type is too small to hold the
+ * value stored in the tar header.  */
+#define VERR_TAR_DEV_VALUE_TOO_LARGE            (-933)
+/** The mode field in a tar header is bad. */
+#define VERR_TAR_BAD_MODE_FIELD                 (-934)
+/** The mode field should not include the type. */
+#define VERR_TAR_MODE_WITH_TYPE                 (-935)
+/** The size field should be zero for links and symlinks. */
+#define VERR_TAR_SIZE_NOT_ZERO                  (-936)
+/** Encountered an unknown type flag. */
+#define VERR_TAR_UNKNOWN_TYPE_FLAG              (-937)
+/** The tar header is all zeros. */
+#define VERR_TAR_ZERO_HEADER                    (-938)
+/** Not a uniform standard tape v0.0 archive header. */
+#define VERR_TAR_NOT_USTAR_V00                  (-939)
+/** The name is empty. */
+#define VERR_TAR_EMPTY_NAME                     (-940)
+/** A non-directory entry has a name ending with a slash. */
+#define VERR_TAR_NON_DIR_ENDS_WITH_SLASH        (-941)
+/** Encountered an unsupported portable archive exchange (pax) header. */
+#define VERR_TAR_UNSUPPORTED_PAX_TYPE           (-942)
+/** Encountered an unsupported Solaris Tar extension. */
+#define VERR_TAR_UNSUPPORTED_SOLARIS_HDR_TYPE   (-943)
+/** Encountered an unsupported GNU Tar extension. */
+#define VERR_TAR_UNSUPPORTED_GNU_HDR_TYPE       (-944)
+/** Malformed checksum field in the tar header. */
+#define VERR_TAR_BAD_CHKSUM_FIELD               (-945)
+/** Malformed checksum field in the tar header. */
+#define VERR_TAR_MALFORMED_GNU_LONGXXXX         (-946)
+/** Too long name or link string. */
+#define VERR_TAR_NAME_TOO_LONG                  (-947)
 /** @} */
 
 /** @name RTPoll status codes
@@ -1269,11 +1520,53 @@ RTDECL(PCRTCOMERRMSG) RTErrCOMGet(uint32_t rc);
 #define VERR_POLL_SET_IS_FULL                   (-953)
 /** @} */
 
+/** @name RTZip status codes
+ * @{ */
+/** Generic zip error. */
+#define VERR_ZIP_ERROR                          (-22000)
+/** The compressed data was corrupted. */
+#define VERR_ZIP_CORRUPTED                      (-22001)
+/** Ran out of memory while compressing or uncompressing. */
+#define VERR_ZIP_NO_MEMORY                      (-22002)
+/** The compression format version is unsupported. */
+#define VERR_ZIP_UNSUPPORTED_VERSION            (-22003)
+/** The compression method is unsupported. */
+#define VERR_ZIP_UNSUPPORTED_METHOD             (-22004)
+/** The compressed data started with a bad header. */
+#define VERR_ZIP_BAD_HEADER                     (-22005)
+/** @} */
+
+/** @name RTVfs status codes
+ * @{ */
+/** The VFS chain specification does not have a valid prefix. */
+#define VERR_VFS_CHAIN_NO_PREFIX                    (-22100)
+/** The VFS chain specification is empty. */
+#define VERR_VFS_CHAIN_EMPTY                        (-22101)
+/** Expected an element. */
+#define VERR_VFS_CHAIN_EXPECTED_ELEMENT             (-22102)
+/** The VFS object type is not known. */
+#define VERR_VFS_CHAIN_UNKNOWN_TYPE                 (-22103)
+/** Expected a left paranthese. */
+#define VERR_VFS_CHAIN_EXPECTED_LEFT_PARENTHESES    (-22104)
+/** Expected a right paranthese. */
+#define VERR_VFS_CHAIN_EXPECTED_RIGHT_PARENTHESES   (-22105)
+/** Expected a provider name. */
+#define VERR_VFS_CHAIN_EXPECTED_PROVIDER_NAME       (-22106)
+/** Expected an action (> or |). */
+#define VERR_VFS_CHAIN_EXPECTED_ACTION              (-22107)
+/** Only one action element is currently supported. */
+#define VERR_VFS_CHAIN_MULTIPLE_ACTIONS             (-22108)
+/** Expected to find a driving action (>), but there is none. */
+#define VERR_VFS_CHAIN_NO_ACTION                    (-22109)
+/** Expected pipe action. */
+#define VERR_VFS_CHAIN_EXPECTED_PIPE                (-22110)
+/** Unexpected action type. */
+#define VERR_VFS_CHAIN_UNEXPECTED_ACTION_TYPE       (-22111)
+/** @} */
+
 /* SED-END */
 
 /** @} */
-
-RT_C_DECLS_END
 
 #endif
 

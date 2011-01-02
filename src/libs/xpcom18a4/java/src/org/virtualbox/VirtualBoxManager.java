@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxManager.java $ */
+/* $Id: VirtualBoxManager.java 31008 2010-07-22 15:24:27Z vboxsync $ */
 /*
  * Copyright (C) 2010 Oracle Corporation
  *
@@ -105,10 +105,9 @@ public class VirtualBoxManager
         ISession session = makeSession();
 
 
-        String mid = m.getId();
         if (type == null)
             type = "gui";
-        IProgress p = vbox.openRemoteSession(session, mid, type, "");
+        IProgress p = m.openRemoteSession(session, type, "");
         progressBar(p, timeout);
         session.close();
         return true;

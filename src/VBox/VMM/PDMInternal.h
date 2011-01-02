@@ -1,4 +1,4 @@
-/* $Id: PDMInternal.h $ */
+/* $Id: PDMInternal.h 34347 2010-11-24 22:34:21Z vboxsync $ */
 /** @file
  * PDM - Internal header file.
  */
@@ -24,6 +24,7 @@
 #include <VBox/stam.h>
 #include <VBox/vusb.h>
 #include <VBox/pdmasynccompletion.h>
+#include <VBox/pdmblkcache.h>
 #include <VBox/pdmcommon.h>
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
@@ -257,7 +258,7 @@ typedef struct PDMCRITSECTINT
      * This chain is used for relocating pVMRC and device cleanup. */
     R3PTRTYPE(struct PDMCRITSECTINT *) pNext;
     /** Owner identifier.
-     * This is pDevIns if the owner is a device. Similarily for a driver or service.
+     * This is pDevIns if the owner is a device. Similarly for a driver or service.
      * PDMR3CritSectInit() sets this to point to the critsect itself. */
     RTR3PTR                         pvKey;
     /** Pointer to the VM - R3Ptr. */
@@ -390,6 +391,10 @@ typedef struct PDMDEV
     uint32_t                        cInstances;
     /** Pointer to chain of instances (R3 Ptr). */
     PPDMDEVINSR3                    pInstances;
+    /** The search path for raw-mode context modules (';' as separator). */
+    char                           *pszRCSearchPath;
+    /** The search path for ring-0 context modules (';' as separator). */
+    char                           *pszR0SearchPath;
 } PDMDEV;
 
 
@@ -424,6 +429,10 @@ typedef struct PDMDRV
     uint32_t                        cInstances;
     /** The next instance number. */
     uint32_t                        iNextInstance;
+    /** The search path for raw-mode context modules (';' as separator). */
+    char                           *pszRCSearchPath;
+    /** The search path for ring-0 context modules (';' as separator). */
+    char                           *pszR0SearchPath;
 } PDMDRV;
 
 
@@ -547,16 +556,24 @@ typedef struct PDMIOAPIC
     PPDMDEVINSR3                    pDevInsR3;
     /** @copydoc PDMIOAPICREG::pfnSetIrqR3 */
     DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    /** @copydoc PDMIOAPICREG::pfnSendMsiR3 */
+    DECLR3CALLBACKMEMBER(void,      pfnSendMsiR3,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
 
     /** Pointer to the PIC device instance - R0. */
     PPDMDEVINSR0                    pDevInsR0;
     /** @copydoc PDMIOAPICREG::pfnSetIrqR3 */
     DECLR0CALLBACKMEMBER(void,      pfnSetIrqR0,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+    /** @copydoc PDMIOAPICREG::pfnSendMsiR3 */
+    DECLR0CALLBACKMEMBER(void,      pfnSendMsiR0,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
 
     /** Pointer to the APIC device instance - RC Ptr. */
     PPDMDEVINSRC                    pDevInsRC;
     /** @copydoc PDMIOAPICREG::pfnSetIrqR3 */
     DECLRCCALLBACKMEMBER(void,      pfnSetIrqRC,(PPDMDEVINS pDevIns, int iIrq, int iLevel));
+     /** @copydoc PDMIOAPICREG::pfnSendMsiR3 */
+    DECLRCCALLBACKMEMBER(void,      pfnSendMsiRC,(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue));
+
+    uint8_t                         Alignment[4];
 } PDMIOAPIC;
 
 /** Maximum number of PCI busses for a VM. */
@@ -577,6 +594,8 @@ typedef struct PDMPCIBUS
     DECLR3CALLBACKMEMBER(void,      pfnSetIrqR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iIrq, int iLevel));
     /** @copydoc PDMPCIBUSREG::pfnRegisterR3 */
     DECLR3CALLBACKMEMBER(int,       pfnRegisterR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, const char *pszName, int iDev));
+    /** @copydoc PDMPCIBUSREG::pfnPCIRegisterMsiR3 */
+    DECLR3CALLBACKMEMBER(int,       pfnRegisterMsiR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, PPDMMSIREG pMsiReg));
     /** @copydoc PDMPCIBUSREG::pfnIORegionRegisterR3 */
     DECLR3CALLBACKMEMBER(int,       pfnIORegionRegisterR3,(PPDMDEVINS pDevIns, PPCIDEVICE pPciDev, int iRegion, uint32_t cbRegion,
                                                            PCIADDRESSSPACE enmType, PFNPCIIOREGIONMAP pfnCallback));
@@ -650,7 +669,7 @@ typedef enum PDMMODTYPE
  */
 typedef struct PDMMOD
 {
-    /** Module name. This is used for refering to
+    /** Module name. This is used for referring to
      * the module internally, sort of like a handle. */
     char                            szName[PDMMOD_NAME_LEN];
     /** Module type. */
@@ -771,7 +790,7 @@ typedef struct PDMQUEUE
     /** Index to the free tail (where we remove). */
     uint32_t volatile               iFreeTail;
 
-    /** Unqiue queue name. */
+    /** Unique queue name. */
     R3PTRTYPE(const char *)         pszName;
 #if HC_ARCH_BITS == 32
     RTR3PTR                         Alignment1;
@@ -903,6 +922,8 @@ typedef struct PDMASYNCCOMPLETIONTEMPLATE *PPDMASYNCCOMPLETIONTEMPLATE;
 /** Pointer to the main PDM Async completion endpoint class. */
 typedef struct PDMASYNCCOMPLETIONEPCLASS *PPDMASYNCCOMPLETIONEPCLASS;
 
+/** Pointer to the global block cache structure. */
+typedef struct PDMBLKCACHEGLOBAL *PPDMBLKCACHEGLOBAL;
 
 /**
  * PDM VMCPU Instance data.
@@ -910,7 +931,7 @@ typedef struct PDMASYNCCOMPLETIONEPCLASS *PPDMASYNCCOMPLETIONEPCLASS;
  */
 typedef struct PDMCPU
 {
-    /** The number of entries in the apQueuedCritSectsLeaves table that's currnetly in use. */
+    /** The number of entries in the apQueuedCritSectsLeaves table that's currently in use. */
     uint32_t                        cQueuedCritSectLeaves;
     uint32_t                        uPadding0; /**< Alignment padding.*/
     /** Critical sections queued in RC/R0 because of contention preventing leave to complete. (R3 Ptrs)
@@ -951,9 +972,9 @@ typedef struct PDM
     PDMPCIBUS                       aPciBuses[PDM_PCI_BUSSES_MAX];
     /** The register PIC device. */
     PDMPIC                          Pic;
-    /** The registerd APIC device. */
+    /** The registered APIC device. */
     PDMAPIC                         Apic;
-    /** The registerd I/O APIC device. */
+    /** The registered I/O APIC device. */
     PDMIOAPIC                       IoApic;
     /** The registered DMAC device. */
     R3PTRTYPE(PPDMDMAC)             pDmac;
@@ -994,10 +1015,10 @@ typedef struct PDM
 
     /** The PDM lock.
      * This is used to protect everything that deals with interrupts, i.e.
-     * the PIC, APIC, IOAPIC and PCI devices pluss some PDM functions. */
+     * the PIC, APIC, IOAPIC and PCI devices plus some PDM functions. */
     PDMCRITSECT                     CritSect;
 
-    /** Number of times a critical section leave requesed needed to be queued for ring-3 execution. */
+    /** Number of times a critical section leave request needed to be queued for ring-3 execution. */
     STAMCOUNTER                     StatQueuedCritSectLeaves;
 } PDM;
 AssertCompileMemberAlignment(PDM, GCPhysVMMDevHeap, sizeof(RTGCPHYS));
@@ -1040,6 +1061,8 @@ typedef struct PDMUSERPERVM
     /** Head of the templates. Singly linked, protected by ListCritSect. */
     R3PTRTYPE(PPDMASYNCCOMPLETIONTEMPLATE) pAsyncCompletionTemplates;
     /** @} */
+
+    R3PTRTYPE(PPDMBLKCACHEGLOBAL)   pBlkCacheGlobal;
 
 } PDMUSERPERVM;
 /** Pointer to the PDM data kept in the UVM. */
@@ -1128,7 +1151,7 @@ PPDMDRV     pdmR3DrvLookup(PVM pVM, const char *pszName);
 
 int         pdmR3LdrInitU(PUVM pUVM);
 void        pdmR3LdrTermU(PUVM pUVM);
-char *      pdmR3FileR3(const char *pszFile, bool fShared = false);
+char       *pdmR3FileR3(const char *pszFile, bool fShared);
 int         pdmR3LoadR3U(PUVM pUVM, const char *pszFilename, const char *pszName);
 
 void        pdmR3QueueRelocate(PVM pVM, RTGCINTPTR offDelta);
@@ -1149,7 +1172,12 @@ int         pdmR3ThreadSuspendAll(PVM pVM);
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 int         pdmR3AsyncCompletionInit(PVM pVM);
 int         pdmR3AsyncCompletionTerm(PVM pVM);
+void        pdmR3AsyncCompletionResume(PVM pVM);
 #endif
+
+int         pdmR3BlkCacheInit(PVM pVM);
+void        pdmR3BlkCacheTerm(PVM pVM);
+int         pdmR3BlkCacheResume(PVM pVM);
 
 #endif /* IN_RING3 */
 

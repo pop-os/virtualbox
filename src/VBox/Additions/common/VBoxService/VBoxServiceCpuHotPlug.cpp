@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceCpuHotPlug.cpp $ */
+/* $Id: VBoxServiceCpuHotPlug.cpp 33468 2010-10-26 12:49:59Z vboxsync $ */
 /** @file
  * VBoxService - Guest Additions CPU Hot Plugging Service.
  */
@@ -22,6 +22,7 @@
 #include <iprt/dir.h>
 #include <iprt/file.h>
 #include <iprt/mem.h>
+#include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <VBox/VBoxGuestLib.h>
@@ -153,40 +154,40 @@ static int VBoxServiceCpuHotPlugProbePath(void)
             for (unsigned iCompCurr = 0; iCompCurr < pAcpiCpuPathLvl->cComponents; iCompCurr++)
             {
                 PCSYSFSCPUPATHCOMP pPathComponent = &pAcpiCpuPathLvl->aComponentsPossible[iCompCurr];
-                PRTDIR pDirCurr = NULL;
-                char *pszPathTmp = NULL;
-                bool fFound = false;
-
-                rc = RTStrAPrintf(&pszPathTmp, "%s/%s*", pszPath, pPathComponent->pcszName);
-                if (RT_FAILURE(rc))
-                    break;
 
                 /* Open the directory */
-                rc = RTDirOpenFiltered(&pDirCurr, pszPathTmp, RTDIRFILTER_WINNT);
-                if (RT_FAILURE(rc))
+                PRTDIR pDirCurr = NULL;
+                char *pszPathTmp = RTPathJoinA(pszPath, pPathComponent->pcszName);
+                if (pszPathTmp)
                 {
+                    rc = RTDirOpenFiltered(&pDirCurr, pszPathTmp, RTDIRFILTER_WINNT);
                     RTStrFree(pszPathTmp);
-                    break;
                 }
+                else
+                    rc = VERR_NO_STR_MEMORY;
+                if (RT_FAILURE(rc))
+                    break;
 
                 /* Search if the current directory contains one of the possible parts. */
+                size_t cchName = strlen(pPathComponent->pcszName);
                 RTDIRENTRY DirFolderContent;
+                bool fFound = false;
                 while (RT_SUCCESS(RTDirRead(pDirCurr, &DirFolderContent, NULL))) /* Assumption that szName has always enough space */
                 {
-                    if (!strncmp(DirFolderContent.szName, pPathComponent->pcszName, strlen(pPathComponent->pcszName)))
+                    if (   DirFolderContent.cbName >= cchName
+                        && !strncmp(DirFolderContent.szName, pPathComponent->pcszName, cchName))
                     {
-                        char *pszPathLvl = NULL;
-
                         /* Found, use the complete name to dig deeper. */
                         fFound = true;
                         pAcpiCpuPathLvl->uId = iCompCurr;
-                        rc = RTStrAPrintf(&pszPathLvl, "%s/%s", pszPath, DirFolderContent.szName);
-
-                        if (RT_SUCCESS(rc))
+                        char *pszPathLvl = RTPathJoinA(pszPath, DirFolderContent.szName);
+                        if (pszPathLvl)
                         {
                             RTStrFree(pszPath);
                             pszPath = pszPathLvl;
                         }
+                        else
+                            rc = VERR_NO_STR_MEMORY;
                         break;
                     }
                 }
@@ -234,15 +235,16 @@ static int VBoxServiceCpuHotPlugGetACPIDevicePath(char **ppszPath, uint32_t idCp
 
         /* Init everything. */
         Assert(pAcpiCpuPathLvl->uId != ACPI_CPU_PATH_NOT_PROBED);
-        rc = RTStrAPrintf(&pszPath,
-                          "%s/%s*", SYSFS_ACPI_CPU_PATH,
-                          pAcpiCpuPathLvl->aComponentsPossible[pAcpiCpuPathLvl->uId].pcszName);
-        if (RT_FAILURE(rc))
-            return rc;
+        pszPath = RTPathJoinA(SYSFS_ACPI_CPU_PATH, pAcpiCpuPathLvl->aComponentsPossible[pAcpiCpuPathLvl->uId].pcszName);
+        if (!pszPath)
+            return VERR_NO_STR_MEMORY;
 
         pAcpiCpuPathLvl->pszPath = RTStrDup(SYSFS_ACPI_CPU_PATH);
         if (!pAcpiCpuPathLvl->pszPath)
-            return VERR_NO_MEMORY;
+        {
+            RTStrFree(pszPath);
+            return VERR_NO_STR_MEMORY;
+        }
 
         /* Open the directory */
         rc = RTDirOpenFiltered(&pAcpiCpuPathLvl->pDir, pszPath, RTDIRFILTER_WINNT);
@@ -258,12 +260,13 @@ static int VBoxServiceCpuHotPlugGetACPIDevicePath(char **ppszPath, uint32_t idCp
                 rc = RTDirRead(pAcpiCpuPathLvl->pDir, &DirFolderContent, NULL);
                 if (RT_SUCCESS(rc))
                 {
-                    char *pszPathCurr;
-
                     /* Create the new path. */
-                    rc = RTStrAPrintf(&pszPathCurr, "%s/%s", pAcpiCpuPathLvl->pszPath, DirFolderContent.szName);
-                    if (RT_FAILURE(rc))
+                    char *pszPathCurr = RTPathJoinA(pAcpiCpuPathLvl->pszPath, DirFolderContent.szName);
+                    if (!pszPathCurr)
+                    {
+                        rc = VERR_NO_STR_MEMORY;
                         break;
+                    }
 
                     /* If this is the last level check for the given core and package id. */
                     if (iLvlCurr == RT_ELEMENTS(g_aAcpiCpuPath) - 1)
@@ -305,9 +308,12 @@ static int VBoxServiceCpuHotPlugGetACPIDevicePath(char **ppszPath, uint32_t idCp
 
                         Assert(pAcpiCpuPathLvl->uId != ACPI_CPU_PATH_NOT_PROBED);
 
-                        rc = RTStrAPrintf(&pszPathDir, "%s/%s*", pszPathCurr, pPathComponent->pcszName);
-                        if (RT_FAILURE(rc))
+                        pszPathDir = RTPathJoinA(pszPathCurr, pPathComponent->pcszName);
+                        if (!pszPathDir)
+                        {
+                            rc = VERR_NO_STR_MEMORY;
                             break;
+                        }
 
                         VBoxServiceVerbose(3, "New path %s\n", pszPathDir);
 

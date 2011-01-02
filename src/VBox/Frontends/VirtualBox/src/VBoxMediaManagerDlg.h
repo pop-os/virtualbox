@@ -30,7 +30,7 @@
 /* Local forwards */
 class MediaItem;
 class VBoxProgressBar;
-class VBoxToolBar;
+class UIToolBar;
 
 class VBoxMediaManagerDlg : public QIWithRetranslateUI2<QIMainDialog>,
                             public Ui::VBoxMediaManagerDlg
@@ -94,7 +94,7 @@ private slots:
     void processDoubleClick (QTreeWidgetItem *aItem, int aColumn);
     void showContextMenu (const QPoint &aPos);
 
-    void machineStateChanged (const VBoxMachineStateChangeEvent &aEvent);
+    void machineStateChanged(QString strId, KMachineState state);
 
     void makeRequestForAdjustTable();
     void performTablesAdjustment();
@@ -151,7 +151,7 @@ private:
     /* Menu & Toolbar */
     QMenu       *mActionsContextMenu;
     QMenu       *mActionsMenu;
-    VBoxToolBar *mToolBar;
+    UIToolBar *mToolBar;
     QAction     *mNewAction;
     QAction     *mAddAction;
     QAction     *mRemoveAction;

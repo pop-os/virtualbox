@@ -139,6 +139,9 @@ stubNewWindow( const char *dpyName, GLint visBits )
     winInfo->pVisibleRegions = NULL;
     winInfo->cVisibleRegions = 0;
 #endif
+#ifdef CR_NEWWINTRACK
+    winInfo->u32ClientID = stub.spu->dispatch_table.VBoxPackGetInjectID();
+#endif
     winInfo->spuWindow = spuWin;
 
     crHashtableAdd(stub.windowTable, (unsigned int) spuWin, winInfo);
@@ -146,23 +149,95 @@ stubNewWindow( const char *dpyName, GLint visBits )
     return spuWin;
 }
 
+#ifdef GLX
+static XErrorHandler oldErrorHandler;
+static unsigned char lastXError = Success;
+
+static int 
+errorHandler (Display *dpy, XErrorEvent *e)
+{
+    lastXError = e->error_code;
+    return 0;
+}
+#endif
 
 GLboolean
-stubIsWindowVisible( const WindowInfo *win )
+stubIsWindowVisible(WindowInfo *win)
 {
 #if defined(WINDOWS)
     return GL_TRUE;
 #elif defined(Darwin)
     return GL_TRUE;
 #elif defined(GLX)
-    if (win->dpy) {
-    XWindowAttributes attr;
-    XGetWindowAttributes(win->dpy, win->drawable, &attr);
-    return (attr.map_state != IsUnmapped);
+    Display *dpy = stubGetWindowDisplay(win);
+    if (dpy) 
+    {
+        XWindowAttributes attr;
+        XLOCK(dpy);
+        XGetWindowAttributes(dpy, win->drawable, &attr);
+        XUNLOCK(dpy);
+
+        if (attr.map_state == IsUnmapped)
+        {
+            return GL_FALSE;
+        }
+# if 1
+        return GL_TRUE;
+# else
+        if (attr.override_redirect)
+        {
+            return GL_TRUE;
+        }
+
+        if (!stub.bXExtensionsChecked)
+        {
+            stubCheckXExtensions(win);
+        }
+
+        if (!stub.bHaveXComposite)
+        {
+            return GL_TRUE;
+        }
+        else
+        {
+            Pixmap p;
+
+            crLockMutex(&stub.mutex);
+
+            XLOCK(dpy);
+            XSync(dpy, false);
+            oldErrorHandler = XSetErrorHandler(errorHandler);
+            /*@todo this will create new pixmap for window every call*/
+            p = XCompositeNameWindowPixmap(dpy, win->drawable);
+            XSync(dpy, false);
+            XSetErrorHandler(oldErrorHandler);
+            XUNLOCK(dpy);
+
+            switch (lastXError)
+            {
+                case Success:
+                    XFreePixmap(dpy, p);
+                    crUnlockMutex(&stub.mutex);
+                    return GL_FALSE;
+                    break;
+                case BadMatch:
+                    /*Window isn't redirected*/
+                    lastXError = Success;
+                    break;
+                default:
+                    crWarning("Unexpected XError %i", (int)lastXError);
+                    lastXError = Success;
+            }
+
+            crUnlockMutex(&stub.mutex);
+
+            return GL_TRUE;
+        }
+# endif
     }
     else {
-    /* probably created by crWindowCreate() */
-    return win->mapped;
+        /* probably created by crWindowCreate() */
+        return win->mapped;
     }
 #endif
 }
@@ -215,12 +290,21 @@ stubGetWindowInfo( Display *dpy, GLXDrawable drawable )
     winInfo->spuWindow = -1;
     winInfo->mapped = -1; /* don't know */
     winInfo->pOwner = NULL;
+#ifdef CR_NEWWINTRACK
+    winInfo->u32ClientID = -1;
+#endif
 #ifndef WINDOWS
     crHashtableAdd(stub.windowTable, (unsigned int) drawable, winInfo);
 #else
     crHashtableAdd(stub.windowTable, (unsigned int) hwnd, winInfo);
 #endif
     }
+#ifdef WINDOWS
+    else
+    {
+        winInfo->drawable = drawable;
+    }
+#endif
     return winInfo;
 }
 
@@ -416,43 +500,49 @@ stubGetWindowGeometry( const WindowInfo *window, int *x, int *y,
                                              unsigned int *w, unsigned int *h )
 {
     RECT rect;
-    HWND hwnd;
 
-    if (!window->drawable) {
+    if (!window->drawable || !window->hWnd) {
         *w = *h = 0;
         return;
     }
 
-    hwnd = WindowFromDC( window->drawable );
+    if (window->hWnd!=WindowFromDC(window->drawable))
+    {
+        crWarning("Window(%i) DC is no longer valid", window->spuWindow);
+        return;
+    }
 
-    if (!hwnd) {
-        *w = 0;
-        *h = 0;
+    if (!GetClientRect(window->hWnd, &rect))
+    {
+        crWarning("GetClientRect failed for %p", window->hWnd);
+        *w = *h = 0;
+        return;
     }
-    else {
-        GetClientRect( hwnd, &rect );
-        *w = rect.right - rect.left;
-        *h = rect.bottom - rect.top;
-        ClientToScreen( hwnd, (LPPOINT) &rect );
-        *x = rect.left;
-        *y = rect.top;
+    *w = rect.right - rect.left;
+    *h = rect.bottom - rect.top;
+
+    if (!ClientToScreen( window->hWnd, (LPPOINT) &rect ))
+    {
+        crWarning("ClientToScreen failed for %p", window->hWnd);
+        *w = *h = 0;
+        return;
     }
+    *x = rect.left;
+    *y = rect.top;
 }
 
 static void
 GetWindowTitle( const WindowInfo *window, char *title )
 {
-    HWND hwnd;
     /* XXX - we don't handle recurseUp */
-    hwnd = WindowFromDC( window->drawable );
-    if (hwnd)
-        GetWindowText(hwnd, title, 100);
+    if (window->hWnd)
+        GetWindowText(window->hWnd, title, 100);
     else
         title[0] = 0;
 }
 
 static void
-GetCursorPosition( const WindowInfo *window, int pos[2] )
+GetCursorPosition(WindowInfo *window, int pos[2])
 {
     RECT rect;
     POINT point;
@@ -463,7 +553,13 @@ GetCursorPosition( const WindowInfo *window, int pos[2] )
     
     // apparently the "window" parameter passed to this 
     // function contains the native window information
-    HWND NATIVEhwnd = WindowFromDC( window->drawable ); 
+    HWND NATIVEhwnd = window->hWnd;
+
+    if (NATIVEhwnd!=WindowFromDC(window->drawable))
+    {
+        crWarning("Window(%i) DC is no longer valid", window->spuWindow);
+        return;
+    }
 
     // get the native window's height and width
     stubGetWindowGeometry(window, &x, &y, &NativeWidth, &NativeHeight);
@@ -560,26 +656,36 @@ GetCursorPosition( const WindowInfo *window, int pos[2] )
 #elif defined(GLX)
 
 void
-stubGetWindowGeometry( const WindowInfo *window, int *x, int *y,
-                                             unsigned int *w, unsigned int *h )
+stubGetWindowGeometry(WindowInfo *window, int *x, int *y, unsigned int *w, unsigned int *h)
 {
     Window root, child;
     unsigned int border, depth;
+    Display *dpy;
+
+    dpy = stubGetWindowDisplay(window);
 
     //@todo: Performing those checks is expensive operation, especially for simple apps with high FPS.
-    //       Disabling those tripples glxgears fps, thus using xevens instead of per frame polling is much more preffered.
-    //@todo: Check similiar on windows guests, though doubtfull as there're no XSync like calls on windows.
+    //       Disabling those triples glxgears fps, thus using xevents instead of per frame polling is much more preferred.
+    //@todo: Check similar on windows guests, though doubtful as there're no XSync like calls on windows.
+    if (window && dpy)
+    {
+        XLOCK(dpy);
+    }
+
     if (!window
-        || !window->dpy
+        || !dpy
         || !window->drawable
-        || !XGetGeometry(window->dpy, window->drawable, &root,
-                         x, y, w, h, &border, &depth)
-        || !XTranslateCoordinates(window->dpy, window->drawable, root,
-                                  0, 0, x, y, &child)) 
+        || !XGetGeometry(dpy, window->drawable, &root, x, y, w, h, &border, &depth)
+        || !XTranslateCoordinates(dpy, window->drawable, root, 0, 0, x, y, &child)) 
     {
         crWarning("Failed to get windows geometry for %p, try xwininfo", window);
         *x = *y = 0;
         *w = *h = 0;
+    }
+
+    if (window && dpy)
+    {
+        XUNLOCK(dpy);
     }
 }
 
@@ -631,12 +737,15 @@ GetWindowTitle( const WindowInfo *window, char *title )
  *Return current cursor position in local window coords.
  */
 static void
-GetCursorPosition( const WindowInfo *window, int pos[2] )
+GetCursorPosition(WindowInfo *window, int pos[2] )
 {
     int rootX, rootY;
     Window root, child;
     unsigned int mask;
     int x, y;
+
+    XLOCK(window->dpy);
+
     Bool q = XQueryPointer(window->dpy, window->drawable, &root, &child,
                                                  &rootX, &rootY, &pos[0], &pos[1], &mask);
     if (q) {
@@ -648,6 +757,8 @@ GetCursorPosition( const WindowInfo *window, int pos[2] )
     else {
         pos[0] = pos[1] = 0;
     }
+
+    XUNLOCK(window->dpy);
 }
 
 #endif
@@ -853,6 +964,9 @@ stubMakeCurrent( WindowInfo *window, ContextInfo *context )
             {
                 /*crDebug("(1)stubMakeCurrent ctx=%p(%i) window=%p(%i)", context, context->spuContext, window, window->spuWindow);*/
                 window->spuWindow = stub.spu->dispatch_table.WindowCreate( window->dpyName, context->visBits );
+#ifdef CR_NEWWINTRACK
+                window->u32ClientID = stub.spu->dispatch_table.VBoxPackGetInjectID();
+#endif
             }
         }
         else {
@@ -908,11 +1022,14 @@ stubMakeCurrent( WindowInfo *window, ContextInfo *context )
             {
                 /*crDebug("(2)stubMakeCurrent ctx=%p(%i) window=%p(%i)", context, context->spuContext, window, window->spuWindow);*/
                 window->spuWindow = stub.spu->dispatch_table.WindowCreate( window->dpyName, context->visBits );
+#ifdef CR_NEWWINTRACK
+                window->u32ClientID = stub.spu->dispatch_table.VBoxPackGetInjectID();
+#endif
                 if (context->currentDrawable && context->currentDrawable->type==CHROMIUM 
                     && context->currentDrawable->pOwner==context)
                 {
 #ifdef WINDOWS
-                        if (!WindowFromDC(context->currentDrawable->drawable))
+                        if (context->currentDrawable->hWnd!=WindowFromDC(context->currentDrawable->drawable))
                         {
                             crWindowDestroy((GLint)context->currentDrawable->hWnd);
                         }
@@ -921,10 +1038,12 @@ stubMakeCurrent( WindowInfo *window, ContextInfo *context )
                         int x, y;
                         unsigned int border, depth, w, h;
 
+                        XLOCK(context->currentDrawable->dpy);
                         if (!XGetGeometry(context->currentDrawable->dpy, context->currentDrawable->drawable, &root, &x, &y, &w, &h, &border, &depth))
                         {
                             crWindowDestroy((GLint)context->currentDrawable->drawable);
                         }
+                        XUNLOCK(context->currentDrawable->dpy);
 #endif
                     
                 }
@@ -979,13 +1098,18 @@ stubMakeCurrent( WindowInfo *window, ContextInfo *context )
         window->height = winH;
         if (stub.trackWindowSize)
             stub.spuDispatch.WindowSize( window->spuWindow, winW, winH );
+        if (stub.trackWindowPos)
+            stub.spuDispatch.WindowPosition(window->spuWindow, x, y);
         if (winW > 0 && winH > 0)
             stub.spu->dispatch_table.Viewport( 0, 0, winW, winH );
+#ifdef VBOX_WITH_WDDM
+        stub.spu->dispatch_table.WindowVisibleRegion(window->spuWindow, 0, NULL);
+#endif
     }
 
     /* Update window mapping state.
      * Basically, this lets us hide render SPU windows which correspond
-     * to unmapped application windows.  Without this, perfly (for example)
+     * to unmapped application windows.  Without this, "pertly" (for example)
      * opens *lots* of temporary windows which otherwise clutter the screen.
      */
     if (stub.trackWindowVisibility && window->type == CHROMIUM && window->drawable) {
@@ -1046,7 +1170,7 @@ stubDestroyContext( unsigned long contextId )
 
 
 void
-stubSwapBuffers( const WindowInfo *window, GLint flags )
+stubSwapBuffers(WindowInfo *window, GLint flags)
 {
     if (!window)
         return;

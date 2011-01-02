@@ -1,4 +1,4 @@
-/* $Id: UIMachineViewNormal.cpp $ */
+/* $Id: UIMachineViewNormal.cpp 32174 2010-09-01 12:52:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -31,26 +31,29 @@
 #include "UIActionsPool.h"
 #include "UIMachineLogic.h"
 #include "UIMachineWindow.h"
-#include "UIFrameBuffer.h"
 #include "UIMachineViewNormal.h"
+#include "UIFrameBuffer.h"
 
 UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
-                                         , VBoxDefs::RenderMode renderMode
+                                         , ulong uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                                          , bool bAccelerate2DVideo
 #endif
-                                         , ulong uMonitor)
+                                         )
     : UIMachineView(  pMachineWindow
-                    , renderMode
+                    , uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                     , bAccelerate2DVideo
 #endif
-                    , uMonitor)
+                    )
     , m_bIsGuestAutoresizeEnabled(pMachineWindow->machineLogic()->actionsPool()->action(UIActionIndex_Toggle_GuestAutoresize)->isChecked())
     , m_fShouldWeDoResize(false)
 {
     /* Load machine view settings: */
     loadMachineViewSettings();
+
+    /* Prepare viewport: */
+    prepareViewport();
 
     /* Prepare frame buffer: */
     prepareFrameBuffer();
@@ -70,17 +73,12 @@ UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
     /* Initialization: */
     sltMachineStateChanged();
     sltAdditionsStateChanged();
-    sltMousePointerShapeChanged();
-    sltMouseCapabilityChanged();
 }
 
 UIMachineViewNormal::~UIMachineViewNormal()
 {
     /* Save machine view settings: */
     saveMachineViewSettings();
-
-    /* Cleanup common things: */
-    cleanupCommon();
 
     /* Cleanup frame buffer: */
     cleanupFrameBuffer();
@@ -136,60 +134,72 @@ void UIMachineViewNormal::sltDesktopResized()
 
 bool UIMachineViewNormal::event(QEvent *pEvent)
 {
-    /* We don't want this on the Mac, cause there the menu bar isn't within the
-     * window and popping up a menu there looks really ugly. */
-#ifndef Q_WS_MAC
     switch (pEvent->type())
     {
-        case QEvent::KeyPress:
-        case QEvent::KeyRelease:
+        case VBoxDefs::ResizeEventType:
         {
-            /* Get key-event: */
-            QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
+            /* Some situations require framebuffer resize events to be ignored at all,
+             * leaving machine-window, machine-view and framebuffer sizes preserved: */
+            if (uisession()->isGuestResizeIgnored())
+                return true;
 
-            /* Process Host+Home as menu-bar activator: */
-            if (isHostKeyPressed() && pEvent->type() == QEvent::KeyPress)
-            {
-                if (pKeyEvent->key() == Qt::Key_Home)
-                {
-                    /* Trying to get menu-bar: */
-                    QMenuBar *pMenuBar = machineWindowWrapper() && machineWindowWrapper()->machineWindow() ?
-                                         qobject_cast<QMainWindow*>(machineWindowWrapper()->machineWindow())->menuBar() : 0;
+            /* We are starting to perform machine-view resize,
+             * we should temporary ignore other if they are trying to be: */
+            bool fWasMachineWindowResizeIgnored = isMachineWindowResizeIgnored();
+            setMachineWindowResizeIgnored(true);
 
-                    /* If menu-bar is present and have actions: */
-                    if (pMenuBar && !pMenuBar->actions().isEmpty())
-                    {
-                        /* If 'active' action is NOT chosen: */
-                        if (!pMenuBar->activeAction())
-                            /* Set first menu-bar action as 'active': */
-                            pMenuBar->setActiveAction(pMenuBar->actions()[0]);
+            /* Get guest resize-event: */
+            UIResizeEvent *pResizeEvent = static_cast<UIResizeEvent*>(pEvent);
 
-                        /* If 'active' action is chosen: */
-                        if (pMenuBar->activeAction())
-                        {
-                            /* Activate 'active' menu-bar action: */
-                            pMenuBar->activeAction()->activate(QAction::Trigger);
+            /* Perform framebuffer resize: */
+            frameBuffer()->resizeEvent(pResizeEvent);
 
-#ifdef Q_WS_WIN
-                            /* Windows host needs separate 'focus set'
-                             * to let menubar operate while popped up: */
-                            pMenuBar->setFocus();
-#endif /* Q_WS_WIN */
+            /* Reapply maximum size restriction for machine-view: */
+            setMaximumSize(sizeHint());
 
-                            /* Accept this event: */
-                            pEvent->accept();
-                            return true;
-                        }
-                    }
-                }
-                else
-                    pEvent->ignore();
-            }
+            /* Store the new size to prevent unwanted resize hints being sent back: */
+            storeConsoleSize(pResizeEvent->width(), pResizeEvent->height());
+
+            /* Perform machine-view resize: */
+            resize(pResizeEvent->width(), pResizeEvent->height());
+
+            /* May be we have to restrict minimum size? */
+            maybeRestrictMinimumSize();
+
+            /* Let our toplevel widget calculate its sizeHint properly: */
+            QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
+
+#ifdef Q_WS_MAC
+            machineLogic()->updateDockIconSize(screenId(), pResizeEvent->width(), pResizeEvent->height());
+#endif /* Q_WS_MAC */
+
+            /* Update machine-view sliders: */
+            updateSliders();
+
+            /* Normalize machine-window geometry: */
+            normalizeGeometry(true /* Adjust Position? */);
+
+            /* Report to the VM thread that we finished resizing: */
+            session().GetConsole().GetDisplay().ResizeCompleted(screenId());
+
+            /* We are finishing to perform machine-view resize: */
+            setMachineWindowResizeIgnored(fWasMachineWindowResizeIgnored);
+
+            /* We also recalculate the desktop geometry if this is determined
+             * automatically. In fact, we only need this on the first resize,
+             * but it is done every time to keep the code simpler. */
+            calculateDesktopGeometry();
+
+            /* Emit a signal about guest was resized: */
+            emit resizeHintDone();
+
+            pEvent->accept();
+            return true;
         }
+
         default:
             break;
     }
-#endif /* !Q_WS_MAC */
     return UIMachineView::event(pEvent);
 }
 
@@ -253,6 +263,17 @@ bool UIMachineViewNormal::eventFilter(QObject *pWatched, QEvent *pEvent)
 #endif /* Q_WS_WIN */
 
     return UIMachineView::eventFilter(pWatched, pEvent);
+}
+
+void UIMachineViewNormal::prepareCommon()
+{
+    /* Base class common settings: */
+    UIMachineView::prepareCommon();
+
+    /* Setup size-policy: */
+    setSizePolicy(QSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum));
+    /* Maximum size to sizehint: */
+    setMaximumSize(sizeHint());
 }
 
 void UIMachineViewNormal::prepareFilters()
@@ -333,7 +354,7 @@ void UIMachineViewNormal::normalizeGeometry(bool bAdjustPosition)
             /* Get just a simple available rectangle */
             availableGeo = dwt->availableGeometry(pTopLevelWidget->pos());
 
-        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, availableGeo, mode() != VBoxDefs::SDLMode /* can resize? */);
+        frameGeo = VBoxGlobal::normalizeGeometry(frameGeo, availableGeo, vboxGlobal().vmRenderMode() != VBoxDefs::SDLMode /* can resize? */);
     }
 
 #if 0
@@ -377,7 +398,7 @@ void UIMachineViewNormal::maybeRestrictMinimumSize()
      * Currently, the restriction is set only in SDL mode and only when the auto-resize feature is inactive.
      * We need to do that because we cannot correctly draw in a scrolled window in SDL mode.
      * In all other modes, or when auto-resize is in force, this function does nothing. */
-    if (mode() == VBoxDefs::SDLMode)
+    if (vboxGlobal().vmRenderMode() == VBoxDefs::SDLMode)
     {
         if (!uisession()->isGuestSupportsGraphics() || !m_bIsGuestAutoresizeEnabled)
             setMinimumSize(sizeHint());

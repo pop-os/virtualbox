@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 32622 2010-09-17 20:18:39Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest OpenGL part
 #
@@ -85,9 +85,17 @@ else ifdef VBoxOGL_FAKEDRI
  endif
 endif
 
+ifdef VBOX_WITH_WDDM
+ VBoxOGL_DEFS.win += VBOX_WITH_WDDM
+ VBoxOGL_SDKS     += WINDDKWLH
+endif
+
 ifeq ($(KBUILD_TARGET),win)
 #fixme?, INTERMEDIATES.win ain't working
  VBoxOGL_INTERMEDIATES += $(VBOX_PATH_CROGL_GENFILES)/cr_gl.h
+ if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+  VBoxOGL_NOINST.win.x86 = true
+ endif
 endif
 ifdef VBoxOGL_DRI
  VBoxOGL_INTERMEDIATES += \
@@ -129,14 +137,13 @@ if1of ($(KBUILD_TARGET), linux solaris freebsd)
   ifndef VBOX_OGL_GLX_USE_CSTUBS
    VBoxOGL_SOURCES.solaris += \
  	$(VBOX_PATH_CROGL_GENFILES)/solaris_glxapi_exports.asm \
- 	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports_dri.asm \
+ 	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports_dri.asm
    VBoxOGL_SOURCES.linux += \
  	$(VBOX_PATH_CROGL_GENFILES)/linux_glxapi_exports.asm \
  	$(VBOX_PATH_CROGL_GENFILES)/linux_exports_dri.asm
    VBoxOGL_SOURCES.freebsd += \
  	$(VBOX_PATH_CROGL_GENFILES)/freebsd_glxapi_exports.asm \
- 	$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports_dri.asm \
-
+ 	$(VBOX_PATH_CROGL_GENFILES)/freebsd_exports_dri.asm
   else
    VBoxOGL_SOURCES.solaris += \
   	$(VBOX_PATH_CROGL_GENFILES)/solaris_exports.c
@@ -351,6 +358,9 @@ if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLarrayspu_INCS += \
         $(VBOX_MESA_INCS)
 endif
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ VBoxOGLarrayspu_NOINST.win.x86 = true
+endif
 VBoxOGLarrayspu_INCS.darwin  += $(PATH_OUT)/obj/VBoxOGL
 VBoxOGLarrayspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_currentpointers.h \
@@ -376,6 +386,9 @@ VBoxOGLpassthroughspu_INCS        = \
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLpassthroughspu_INCS += \
         $(VBOX_MESA_INCS)
+endif
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ VBoxOGLpassthroughspu_NOINST.win.x86 = true
 endif
 VBoxOGLpassthroughspu_SOURCES     = \
 	passthrough/passthroughspu_init.c \
@@ -405,6 +418,9 @@ VBoxOGLpackspu_INCS          = \
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLpackspu_INCS += \
         $(VBOX_MESA_INCS)
+endif
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ VBoxOGLpackspu_NOINST.win.x86 = true
 endif
 VBoxOGLpackspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/packspu_proto.h \
@@ -475,6 +491,9 @@ VBoxOGLfeedbackspu_INCS        = \
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLfeedbackspu_INCS += \
         $(VBOX_MESA_INCS)
+endif
+if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
+ VBoxOGLfeedbackspu_NOINST.win.x86 = true
 endif
 VBoxOGLarrayspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/feedbackspu_proto.h

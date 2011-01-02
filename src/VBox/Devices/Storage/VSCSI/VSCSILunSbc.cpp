@@ -1,4 +1,4 @@
-/* $Id: VSCSILunSbc.cpp $ */
+/* $Id: VSCSILunSbc.cpp 32983 2010-10-07 15:14:54Z vboxsync $ */
 /** @file
  * Virtual SCSI driver: SBC LUN implementation (hard disks)
  */
@@ -301,7 +301,7 @@ static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
         if (RT_UNLIKELY(uLbaStart + cSectorTransfer > pVScsiLunSbc->cSectors))
         {
             rcReq = vscsiReqSenseErrorSet(pVScsiReq, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
-            vscsiDeviceReqComplete(pVScsiLun->pVScsiDevice, pVScsiReq, rcReq);
+            vscsiDeviceReqComplete(pVScsiLun->pVScsiDevice, pVScsiReq, rcReq, false, VINF_SUCCESS);
         }
         else
         {
@@ -316,7 +316,7 @@ static int vscsiLunSbcReqProcess(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
         rc = vscsiIoReqFlushEnqueue(pVScsiLun, pVScsiReq);
     }
     else /* Request completed */
-        vscsiDeviceReqComplete(pVScsiLun->pVScsiDevice, pVScsiReq, rcReq);
+        vscsiDeviceReqComplete(pVScsiLun->pVScsiDevice, pVScsiReq, rcReq, false, VINF_SUCCESS);
 
     return rc;
 }

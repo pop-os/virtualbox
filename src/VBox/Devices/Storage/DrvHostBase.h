@@ -1,4 +1,4 @@
-/* $Id: DrvHostBase.h $ */
+/* $Id: DrvHostBase.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */
@@ -119,7 +119,7 @@ typedef struct DRVHOSTBASE
     uint32_t                cbBlock;
     /** The disk arbitration session reference. NULL if we didn't have to claim & unmount the device. */
     DASessionRef            pDASession;
-    /** The disk arbritation disk reference. NULL if we didn't have to claim & unmount the device. */
+    /** The disk arbitration disk reference. NULL if we didn't have to claim & unmount the device. */
     DADiskRef               pDADisk;
 #endif
 

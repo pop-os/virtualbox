@@ -1,4 +1,4 @@
-/* $Id: QIFileDialog.cpp $ */
+/* $Id: QIFileDialog.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -219,7 +219,7 @@ QIFileDialog::QIFileDialog (QWidget *aParent, Qt::WindowFlags aFlags)
  *  oddities and limitations.
  *
  *  On Win32, this function makes sure a native dialog is launched in
- *  another thread to avoid dialog visualization errors occuring due to
+ *  another thread to avoid dialog visualization errors occurring due to
  *  multi-threaded COM apartment initialization on the main UI thread while
  *  the appropriate native dialog function expects a single-threaded one.
  *
@@ -366,6 +366,8 @@ QString QIFileDialog::getExistingDirectory (const QString &aDir,
 
     QFileDialog::Options o;
 # if defined (Q_WS_X11)
+    /** @todo see http://bugs.kde.org/show_bug.cgi?id=210904, make it conditional
+     *        when this bug is fixed (xtracker 5167) */
     if (vboxGlobal().isKWinManaged())
       o |= QFileDialog::DontUseNativeDialog;
 # endif
@@ -578,6 +580,8 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
 
     QFileDialog::Options o;
 # if defined (Q_WS_X11)
+    /** @todo see http://bugs.kde.org/show_bug.cgi?id=210904, make it conditional
+     *        when this bug is fixed (xtracker 5167) */
     if (vboxGlobal().isKWinManaged())
       o |= QFileDialog::DontUseNativeDialog;
 # endif
@@ -826,6 +830,8 @@ QStringList QIFileDialog::getOpenFileNames (const QString &aStartWith,
     if (!aResolveSymlinks)
         o |= QFileDialog::DontResolveSymlinks;
 # if defined (Q_WS_X11)
+    /** @todo see http://bugs.kde.org/show_bug.cgi?id=210904, make it conditional
+     *        when this bug is fixed (xtracker 5167) */
     if (vboxGlobal().isKWinManaged())
       o |= QFileDialog::DontUseNativeDialog;
 # endif

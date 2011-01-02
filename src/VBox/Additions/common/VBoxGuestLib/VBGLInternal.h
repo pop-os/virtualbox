@@ -1,4 +1,4 @@
-/* $Revision: 60692 $ */
+/* $Revision: 28800 $ */
 /** @file
  * VBoxGuestLibR0 - Internal header.
  */

@@ -1,10 +1,10 @@
-/* $Revision: 68093 $ */
+/* $Revision: 35051 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,10 +46,11 @@
 #include <iprt/spinlock.h>
 #include <iprt/thread.h>
 #include <iprt/uuid.h>
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD) || defined(RT_OS_WINDOWS)
-# include <iprt/net.h>
-# include <iprt/crc32.h>
-# include <iprt/string.h>
+#include <iprt/net.h>
+#include <iprt/crc.h>
+#include <iprt/string.h>
+#include <iprt/timer.h>
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 # include <iprt/rand.h>
 # include <iprt/path.h>
 #endif
@@ -60,6 +61,16 @@
 #include <VBox/hwacc_svm.h>
 #include <VBox/hwacc_vmx.h>
 #include <VBox/x86.h>
+
+#ifdef VBOX_WITH_DTRACE
+# include "SUPDrv-dtrace.h"
+#else
+# define VBOXDRV_SUPDRV_SESSION_CREATE(pvSession, fUser) do { } while (0)
+# define VBOXDRV_SUPDRV_SESSION_CLOSE(pvSession) do { } while (0)
+# define VBOXDRV_SUPDRV_IOCCLOSE(pvSession) do { } while (0)
+# define VBOXDRV_SUPDRV_IOCTL_ENTRY(pvSession, uIOCtl, pvReqHdr) do { } while (0)
+# define VBOXDRV_SUPDRV_IOCTL_RETURN(pvSession, uIOCtl, pvReqHdr, rcRet, rcReq) do { } while (0)
+#endif
 
 /*
  * Logging assignments:
@@ -72,7 +83,7 @@
  *      Log6    - Native ioctl flow noise.
  *
  * Logging requires BUILD_TYPE=debug and possibly changes to the logger
- * instanciation in log-vbox.c(pp).
+ * instantiation in log-vbox.c(pp).
  */
 
 
@@ -87,6 +98,10 @@
  * The makefile should define this if it can. */
 #ifndef VBOX_SVN_REV
 # define VBOX_SVN_REV 0
+#endif
+
+#if 0 /* Don't start the GIP timers. Useful when debugging the IPRT timer code. */
+# define DO_NOT_START_GIP
 #endif
 
 
@@ -170,33 +185,41 @@ static SUPFUNC g_aFunctions[] =
     { "SUPSemEventSignal",                      (void *)SUPSemEventSignal },
     { "SUPSemEventWait",                        (void *)SUPSemEventWait },
     { "SUPSemEventWaitNoResume",                (void *)SUPSemEventWaitNoResume },
+    { "SUPSemEventWaitNsAbsIntr",               (void *)SUPSemEventWaitNsAbsIntr },
+    { "SUPSemEventWaitNsRelIntr",               (void *)SUPSemEventWaitNsRelIntr },
+    { "SUPSemEventGetResolution",               (void *)SUPSemEventGetResolution },
     { "SUPSemEventMultiCreate",                 (void *)SUPSemEventMultiCreate },
     { "SUPSemEventMultiClose",                  (void *)SUPSemEventMultiClose },
     { "SUPSemEventMultiSignal",                 (void *)SUPSemEventMultiSignal },
     { "SUPSemEventMultiReset",                  (void *)SUPSemEventMultiReset },
     { "SUPSemEventMultiWait",                   (void *)SUPSemEventMultiWait },
     { "SUPSemEventMultiWaitNoResume",           (void *)SUPSemEventMultiWaitNoResume },
+    { "SUPSemEventMultiWaitNsAbsIntr",          (void *)SUPSemEventMultiWaitNsAbsIntr },
+    { "SUPSemEventMultiWaitNsRelIntr",          (void *)SUPSemEventMultiWaitNsRelIntr },
+    { "SUPSemEventMultiGetResolution",          (void *)SUPSemEventMultiGetResolution },
     { "SUPR0GetPagingMode",                     (void *)SUPR0GetPagingMode },
     { "SUPR0EnableVTx",                         (void *)SUPR0EnableVTx },
     { "SUPGetGIP",                              (void *)SUPGetGIP },
     { "g_pSUPGlobalInfoPage",                   (void *)&g_pSUPGlobalInfoPage },
-    { "RTMemAlloc",                             (void *)RTMemAlloc },
-    { "RTMemAllocZ",                            (void *)RTMemAllocZ },
+    { "RTMemAllocTag",                          (void *)RTMemAllocTag },
+    { "RTMemAllocZTag",                         (void *)RTMemAllocZTag },
+    { "RTMemAllocVarTag",                       (void *)RTMemAllocVarTag },
+    { "RTMemAllocZVarTag",                      (void *)RTMemAllocZVarTag },
     { "RTMemFree",                              (void *)RTMemFree },
-    /*{ "RTMemDup",                               (void *)RTMemDup },
-    { "RTMemDupEx",                             (void *)RTMemDupEx },*/
-    { "RTMemRealloc",                           (void *)RTMemRealloc },
-    { "RTR0MemObjAllocLow",                     (void *)RTR0MemObjAllocLow },
-    { "RTR0MemObjAllocPage",                    (void *)RTR0MemObjAllocPage },
-    { "RTR0MemObjAllocPhys",                    (void *)RTR0MemObjAllocPhys },
-    { "RTR0MemObjAllocPhysEx",                  (void *)RTR0MemObjAllocPhysEx },
-    { "RTR0MemObjAllocPhysNC",                  (void *)RTR0MemObjAllocPhysNC },
-    { "RTR0MemObjAllocCont",                    (void *)RTR0MemObjAllocCont },
-    { "RTR0MemObjEnterPhys",                    (void *)RTR0MemObjEnterPhys },
-    { "RTR0MemObjLockUser",                     (void *)RTR0MemObjLockUser },
-    { "RTR0MemObjMapKernel",                    (void *)RTR0MemObjMapKernel },
-    { "RTR0MemObjMapKernelEx",                  (void *)RTR0MemObjMapKernelEx },
-    { "RTR0MemObjMapUser",                      (void *)RTR0MemObjMapUser },
+    { "RTMemDupTag",                            (void *)RTMemDupTag },
+    { "RTMemDupExTag",                          (void *)RTMemDupExTag },
+    { "RTMemReallocTag",                        (void *)RTMemReallocTag },
+    { "RTR0MemObjAllocLowTag",                  (void *)RTR0MemObjAllocLowTag },
+    { "RTR0MemObjAllocPageTag",                 (void *)RTR0MemObjAllocPageTag },
+    { "RTR0MemObjAllocPhysTag",                 (void *)RTR0MemObjAllocPhysTag },
+    { "RTR0MemObjAllocPhysExTag",               (void *)RTR0MemObjAllocPhysExTag },
+    { "RTR0MemObjAllocPhysNCTag",               (void *)RTR0MemObjAllocPhysNCTag },
+    { "RTR0MemObjAllocContTag",                 (void *)RTR0MemObjAllocContTag },
+    { "RTR0MemObjEnterPhysTag",                 (void *)RTR0MemObjEnterPhysTag },
+    { "RTR0MemObjLockUserTag",                  (void *)RTR0MemObjLockUserTag },
+    { "RTR0MemObjMapKernelTag",                 (void *)RTR0MemObjMapKernelTag },
+    { "RTR0MemObjMapKernelExTag",               (void *)RTR0MemObjMapKernelExTag },
+    { "RTR0MemObjMapUserTag",                   (void *)RTR0MemObjMapUserTag },
     { "RTR0MemObjProtect",                      (void *)RTR0MemObjProtect },
     { "RTR0MemObjAddress",                      (void *)RTR0MemObjAddress },
     { "RTR0MemObjAddressR3",                    (void *)RTR0MemObjAddressR3 },
@@ -226,12 +249,18 @@ static SUPFUNC g_aFunctions[] =
     { "RTSemEventSignal",                       (void *)RTSemEventSignal },
     { "RTSemEventWait",                         (void *)RTSemEventWait },
     { "RTSemEventWaitNoResume",                 (void *)RTSemEventWaitNoResume },
+    { "RTSemEventWaitEx",                       (void *)RTSemEventWaitEx },
+    { "RTSemEventWaitExDebug",                  (void *)RTSemEventWaitExDebug },
+    { "RTSemEventGetResolution",                (void *)RTSemEventGetResolution },
     { "RTSemEventDestroy",                      (void *)RTSemEventDestroy },
     { "RTSemEventMultiCreate",                  (void *)RTSemEventMultiCreate },
     { "RTSemEventMultiSignal",                  (void *)RTSemEventMultiSignal },
     { "RTSemEventMultiReset",                   (void *)RTSemEventMultiReset },
     { "RTSemEventMultiWait",                    (void *)RTSemEventMultiWait },
     { "RTSemEventMultiWaitNoResume",            (void *)RTSemEventMultiWaitNoResume },
+    { "RTSemEventMultiWaitEx",                  (void *)RTSemEventMultiWaitEx },
+    { "RTSemEventMultiWaitExDebug",             (void *)RTSemEventMultiWaitExDebug },
+    { "RTSemEventMultiGetResolution",           (void *)RTSemEventMultiGetResolution },
     { "RTSemEventMultiDestroy",                 (void *)RTSemEventMultiDestroy },
     { "RTSpinlockCreate",                       (void *)RTSpinlockCreate },
     { "RTSpinlockDestroy",                      (void *)RTSpinlockDestroy },
@@ -267,11 +296,22 @@ static SUPFUNC g_aFunctions[] =
     { "RTThreadPreemptDisable",                 (void *)RTThreadPreemptDisable },
     { "RTThreadPreemptRestore",                 (void *)RTThreadPreemptRestore },
     { "RTThreadIsInInterrupt",                  (void *)RTThreadIsInInterrupt },
+    { "RTTimerCreate",                          (void *)RTTimerCreate },
+    { "RTTimerCreateEx",                        (void *)RTTimerCreateEx },
+    { "RTTimerDestroy",                         (void *)RTTimerDestroy },
+    { "RTTimerStart",                           (void *)RTTimerStart },
+    { "RTTimerStop",                            (void *)RTTimerStop },
+    { "RTTimerChangeInterval",                  (void *)RTTimerChangeInterval },
+    { "RTTimerGetSystemGranularity",            (void *)RTTimerGetSystemGranularity },
+    { "RTTimerRequestSystemGranularity",        (void *)RTTimerRequestSystemGranularity },
+    { "RTTimerReleaseSystemGranularity",        (void *)RTTimerReleaseSystemGranularity },
+    { "RTTimerCanDoHighResolution",             (void *)RTTimerCanDoHighResolution },
 
     { "RTLogDefaultInstance",                   (void *)RTLogDefaultInstance },
     { "RTMpCpuId",                              (void *)RTMpCpuId },
     { "RTMpCpuIdFromSetIndex",                  (void *)RTMpCpuIdFromSetIndex },
     { "RTMpCpuIdToSetIndex",                    (void *)RTMpCpuIdToSetIndex },
+    { "RTMpGetArraySize",                       (void *)RTMpGetArraySize },
     { "RTMpIsCpuPossible",                      (void *)RTMpIsCpuPossible },
     { "RTMpGetCount",                           (void *)RTMpGetCount },
     { "RTMpGetMaxCpuId",                        (void *)RTMpGetMaxCpuId },
@@ -297,8 +337,22 @@ static SUPFUNC g_aFunctions[] =
     { "RTAssertMayPanic",                       (void *)RTAssertMayPanic },
     { "RTAssertSetMayPanic",                    (void *)RTAssertSetMayPanic },
     { "RTAssertAreQuiet",                       (void *)RTAssertAreQuiet },
-#ifdef RT_OS_WINDOWS
-    /* We need to include more of our runtime to prevent the dynamically linked R0 modules to get too large. */
+    { "RTStrFormat",                            (void *)RTStrFormat },
+    { "RTStrFormatNumber",                      (void *)RTStrFormatNumber },
+    { "RTStrFormatTypeDeregister",              (void *)RTStrFormatTypeDeregister },
+    { "RTStrFormatTypeRegister",                (void *)RTStrFormatTypeRegister },
+    { "RTStrFormatTypeSetUser",                 (void *)RTStrFormatTypeSetUser },
+    { "RTStrFormatV",                           (void *)RTStrFormatV },
+    { "RTStrPrintf",                            (void *)RTStrPrintf },
+    { "RTStrPrintfEx",                          (void *)RTStrPrintfEx },
+    { "RTStrPrintfExV",                         (void *)RTStrPrintfExV },
+    { "RTStrPrintfV",                           (void *)RTStrPrintfV },
+    { "RTHandleTableAllocWithCtx",              (void *)RTHandleTableAllocWithCtx },
+    { "RTHandleTableCreate",                    (void *)RTHandleTableCreate },
+    { "RTHandleTableCreateEx",                  (void *)RTHandleTableCreateEx },
+    { "RTHandleTableDestroy",                   (void *)RTHandleTableDestroy },
+    { "RTHandleTableFreeWithCtx",               (void *)RTHandleTableFreeWithCtx },
+    { "RTHandleTableLookupWithCtx",             (void *)RTHandleTableLookupWithCtx },
     { "RTNetIPv4AddDataChecksum",               (void *)RTNetIPv4AddDataChecksum },
     { "RTNetIPv4AddTCPChecksum",                (void *)RTNetIPv4AddTCPChecksum },
     { "RTNetIPv4AddUDPChecksum",                (void *)RTNetIPv4AddUDPChecksum },
@@ -319,27 +373,10 @@ static SUPFUNC g_aFunctions[] =
     { "RTNetIPv6PseudoChecksumEx",              (void *)RTNetIPv6PseudoChecksumEx },
     { "RTNetTCPChecksum",                       (void *)RTNetTCPChecksum },
     { "RTNetUDPChecksum",                       (void *)RTNetUDPChecksum },
-    { "RTStrFormat",                            (void *)RTStrFormat },
-    { "RTStrFormatNumber",                      (void *)RTStrFormatNumber },
-    { "RTStrFormatTypeDeregister",              (void *)RTStrFormatTypeDeregister },
-    { "RTStrFormatTypeRegister",                (void *)RTStrFormatTypeRegister },
-    { "RTStrFormatTypeSetUser",                 (void *)RTStrFormatTypeSetUser },
-    { "RTStrFormatV",                           (void *)RTStrFormatV },
-    { "RTStrPrintf",                            (void *)RTStrPrintf },
-    { "RTStrPrintfEx",                          (void *)RTStrPrintfEx },
-    { "RTStrPrintfExV",                         (void *)RTStrPrintfExV },
-    { "RTStrPrintfV",                           (void *)RTStrPrintfV },
     { "RTCrc32",                                (void *)RTCrc32 },
     { "RTCrc32Finish",                          (void *)RTCrc32Finish },
     { "RTCrc32Process",                         (void *)RTCrc32Process },
     { "RTCrc32Start",                           (void *)RTCrc32Start },
-    { "RTHandleTableAllocWithCtx",              (void *)RTHandleTableAllocWithCtx },
-    { "RTHandleTableCreate",                    (void *)RTHandleTableCreate },
-    { "RTHandleTableCreateEx",                  (void *)RTHandleTableCreateEx },
-    { "RTHandleTableDestroy",                   (void *)RTHandleTableDestroy },
-    { "RTHandleTableFreeWithCtx",               (void *)RTHandleTableFreeWithCtx },
-    { "RTHandleTableLookupWithCtx",             (void *)RTHandleTableLookupWithCtx },
-#endif
 };
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
@@ -350,15 +387,11 @@ static SUPFUNC g_aFunctions[] =
 PFNRT g_apfnVBoxDrvIPRTDeps[] =
 {
     /* VBoxNetFlt */
-    (PFNRT)RTCrc32,
     (PFNRT)RTErrConvertFromErrno,
-    (PFNRT)RTNetIPv4IsHdrValid,
-    (PFNRT)RTNetIPv4TCPChecksum,
-    (PFNRT)RTNetIPv4UDPChecksum,
     (PFNRT)RTUuidCompare,
     (PFNRT)RTUuidCompareStr,
     (PFNRT)RTUuidFromStr,
-    (PFNRT)RTStrDup,
+    (PFNRT)RTStrDupTag,
     (PFNRT)RTStrFree,
     /* VBoxNetAdp */
     (PFNRT)RTRandBytes,
@@ -629,6 +662,7 @@ int VBOXCALL supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSI
                     pSession->R0Process     = NIL_RTR0PROCESS;
                 }
 
+                VBOXDRV_SUPDRV_SESSION_CREATE(pSession, fUser);
                 LogFlow(("Created session %p initial cookie=%#x\n", pSession, pSession->u32Cookie));
                 return VINF_SUCCESS;
             }
@@ -655,6 +689,8 @@ int VBOXCALL supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSI
  */
 void VBOXCALL supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
+    VBOXDRV_SUPDRV_SESSION_CLOSE(pSession);
+
     /*
      * Cleanup the session first.
      */
@@ -992,6 +1028,8 @@ static int supdrvCheckInvalidChar(const char *pszStr, const char *pszChars)
  */
 int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr)
 {
+    VBOXDRV_SUPDRV_IOCTL_ENTRY(pSession, uIOCtl, pReqHdr);
+
     /*
      * Validate the request.
      */
@@ -1002,6 +1040,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
     {
         OSDBGPRINT(("vboxdrv: Bad ioctl request header; cbIn=%#lx cbOut=%#lx fFlags=%#lx\n",
                     (long)pReqHdr->cbIn, (long)pReqHdr->cbOut, (long)pReqHdr->fFlags));
+        VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
         return VERR_INVALID_PARAMETER;
     }
     if (RT_UNLIKELY(uIOCtl == SUP_IOCTL_COOKIE))
@@ -1009,6 +1048,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (pReqHdr->u32Cookie != SUPCOOKIE_INITIAL_COOKIE)
         {
             OSDBGPRINT(("SUP_IOCTL_COOKIE: bad cookie %#lx\n", (long)pReqHdr->u32Cookie));
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
             return VERR_INVALID_PARAMETER;
         }
     }
@@ -1016,6 +1056,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                          ||  pReqHdr->u32SessionCookie != pSession->u32Cookie))
     {
         OSDBGPRINT(("vboxdrv: bad cookie %#lx / %#lx.\n", (long)pReqHdr->u32Cookie, (long)pReqHdr->u32SessionCookie));
+        VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VINF_SUCCESS);
         return VERR_INVALID_PARAMETER;
     }
 
@@ -1028,6 +1069,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         { \
             OSDBGPRINT(( #Name ": Invalid input/output sizes. cbIn=%ld expected %ld. cbOut=%ld expected %ld.\n", \
                         (long)pReq->Hdr.cbIn, (long)(cbInExpect), (long)pReq->Hdr.cbOut, (long)(cbOutExpect))); \
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
             return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
@@ -1040,6 +1082,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         { \
             OSDBGPRINT(( #Name ": Invalid input/output sizes. cbIn=%ld expected %ld.\n", \
                         (long)pReq->Hdr.cbIn, (long)(cbInExpect))); \
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
             return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
@@ -1050,6 +1093,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         { \
             OSDBGPRINT(( #Name ": Invalid input/output sizes. cbOut=%ld expected %ld.\n", \
                         (long)pReq->Hdr.cbOut, (long)(cbOutExpect))); \
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
             return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
@@ -1059,6 +1103,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (RT_UNLIKELY(!(expr))) \
         { \
             OSDBGPRINT(( #Name ": %s\n", #expr)); \
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
             return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
@@ -1068,6 +1113,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
         if (RT_UNLIKELY(!(expr))) \
         { \
             OSDBGPRINT( fmt ); \
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER); \
             return pReq->Hdr.rc = VERR_INVALID_PARAMETER; \
         } \
     } while (0)
@@ -1086,6 +1132,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             {
                 OSDBGPRINT(("SUP_IOCTL_COOKIE: invalid magic %.16s\n", pReq->u.In.szMagic));
                 pReq->Hdr.rc = VERR_INVALID_MAGIC;
+                VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, VERR_INVALID_MAGIC);
                 return 0;
             }
 
@@ -1103,6 +1150,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                 pReq->u.Out.pSession          = NULL;
                 pReq->u.Out.cFunctions        = 0;
                 pReq->Hdr.rc = VERR_PERMISSION_DENIED;
+                VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, VERR_PERMISSION_DENIED);
                 return 0;
             }
 #endif
@@ -1123,6 +1171,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                 pReq->u.Out.pSession          = NULL;
                 pReq->u.Out.cFunctions        = 0;
                 pReq->Hdr.rc = VERR_VERSION_MISMATCH;
+                VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
                 return 0;
             }
 
@@ -1139,6 +1188,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->u.Out.pSession          = pSession;
             pReq->u.Out.cFunctions        = sizeof(g_aFunctions) / sizeof(g_aFunctions[0]);
             pReq->Hdr.rc = VINF_SUCCESS;
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1152,6 +1202,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->u.Out.cFunctions = RT_ELEMENTS(g_aFunctions);
             memcpy(&pReq->u.Out.aFunctions[0], g_aFunctions, sizeof(g_aFunctions));
             pReq->Hdr.rc = VINF_SUCCESS;
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1168,6 +1219,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0LockMem(pSession, pReq->u.In.pvR3, pReq->u.In.cPages, &pReq->u.Out.aPages[0]);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1179,6 +1231,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0UnlockMem(pSession, pReq->u.In.pvR3);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1192,6 +1245,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0ContAlloc(pSession, pReq->u.In.cPages, &pReq->u.Out.pvR0, &pReq->u.Out.pvR3, &pReq->u.Out.HCPhys);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1203,6 +1257,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0ContFree(pSession, (RTHCUINTPTR)pReq->u.In.pvR3);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1223,6 +1278,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrOpen(pDevExt, pSession, pReq);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1255,13 +1311,15 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                                        ("SUP_IOCTL_LDR_LOAD: sym #%ld: symb off %#lx (max=%#lx)\n", (long)i, (long)paSyms[i].offSymbol, (long)pReq->u.In.cbImageWithTabs));
                     REQ_CHECK_EXPR_FMT(paSyms[i].offName < pReq->u.In.cbStrTab,
                                        ("SUP_IOCTL_LDR_LOAD: sym #%ld: name off %#lx (max=%#lx)\n", (long)i, (long)paSyms[i].offName, (long)pReq->u.In.cbImageWithTabs));
-                    REQ_CHECK_EXPR_FMT(RTStrEnd(&pReq->u.In.abImage[pReq->u.In.offStrTab + paSyms[i].offName], pReq->u.In.cbStrTab - paSyms[i].offName),
+                    REQ_CHECK_EXPR_FMT(RTStrEnd((char const *)&pReq->u.In.abImage[pReq->u.In.offStrTab + paSyms[i].offName],
+                                                pReq->u.In.cbStrTab - paSyms[i].offName),
                                        ("SUP_IOCTL_LDR_LOAD: sym #%ld: unterminated name! (%#lx / %#lx)\n", (long)i, (long)paSyms[i].offName, (long)pReq->u.In.cbImageWithTabs));
                 }
             }
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrLoad(pDevExt, pSession, pReq);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1273,6 +1331,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrFree(pDevExt, pSession, pReq);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1285,6 +1344,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrGetSymbol(pDevExt, pSession, pReq);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1328,6 +1388,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             else
                 Log4(("SUP_IOCTL_CALL_VMMR0: rc=%Rrc op=%u out=%u arg=%RX64 p/t=%RTproc/%RTthrd\n",
                       pReq->Hdr.rc, pReq->u.In.uOperation, pReq->Hdr.cbOut, pReq->u.In.u64Arg, RTProcSelf(), RTThreadNativeSelf()));
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1340,6 +1401,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             /* execute */
             pReq->Hdr.rc = VINF_SUCCESS;
             pReq->u.Out.enmMode = SUPR0GetPagingMode();
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1354,6 +1416,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0LowAlloc(pSession, pReq->u.In.cPages, &pReq->u.Out.pvR0, &pReq->u.Out.pvR3, &pReq->u.Out.aPages[0]);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1365,6 +1428,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0LowFree(pSession, (RTHCUINTPTR)pReq->u.In.pvR3);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1378,6 +1442,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0GipMap(pSession, &pReq->u.Out.pGipR3, &pReq->u.Out.HCPhysGip);
             if (RT_SUCCESS(pReq->Hdr.rc))
                 pReq->u.Out.pGipR0 = pDevExt->pGip;
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1389,6 +1454,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0GipUnmap(pSession);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1404,6 +1470,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             /* execute */
             pSession->pVM = pReq->u.In.pVMR0;
             pReq->Hdr.rc = VINF_SUCCESS;
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1427,6 +1494,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                                             &pReq->u.Out.aPages[0]);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1445,6 +1513,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                                               pReq->u.In.fFlags, &pReq->u.Out.pvR0);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1461,6 +1530,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0PageProtect(pSession, pReq->u.In.pvR3, pReq->u.In.pvR0, pReq->u.In.offSub, pReq->u.In.cbSub, pReq->u.In.fProt);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1472,6 +1542,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = SUPR0PageFree(pSession, pReq->u.In.pvR3);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1496,6 +1567,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_CallServiceModule(pDevExt, pSession, pReq);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1518,46 +1590,16 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LoggerSettings(pDevExt, pSession, pReq);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_SEM_CREATE):
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_SEM_OP2):
         {
             /* validate */
-            PSUPSEMCREATE pReq = (PSUPSEMCREATE)pReqHdr;
-            REQ_CHECK_SIZES_EX(SUP_IOCTL_SEM_CREATE, SUP_IOCTL_SEM_CREATE_SIZE_IN, SUP_IOCTL_SEM_CREATE_SIZE_OUT);
-
-            /* execute */
-            switch (pReq->u.In.uType)
-            {
-                case SUP_SEM_TYPE_EVENT:
-                {
-                    SUPSEMEVENT hEvent;
-                    pReq->Hdr.rc = SUPSemEventCreate(pSession, &hEvent);
-                    pReq->u.Out.hSem = (uint32_t)(uintptr_t)hEvent;
-                    break;
-                }
-
-                case SUP_SEM_TYPE_EVENT_MULTI:
-                {
-                    SUPSEMEVENTMULTI hEventMulti;
-                    pReq->Hdr.rc = SUPSemEventMultiCreate(pSession, &hEventMulti);
-                    pReq->u.Out.hSem = (uint32_t)(uintptr_t)hEventMulti;
-                    break;
-                }
-
-                default:
-                    pReq->Hdr.rc = VERR_INVALID_PARAMETER;
-                    break;
-            }
-            return 0;
-        }
-
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_SEM_OP):
-        {
-            /* validate */
-            PSUPSEMOP pReq = (PSUPSEMOP)pReqHdr;
-            REQ_CHECK_SIZES_EX(SUP_IOCTL_SEM_OP, SUP_IOCTL_SEM_OP_SIZE_IN, SUP_IOCTL_SEM_OP_SIZE_OUT);
+            PSUPSEMOP2 pReq = (PSUPSEMOP2)pReqHdr;
+            REQ_CHECK_SIZES_EX(SUP_IOCTL_SEM_OP2, SUP_IOCTL_SEM_OP2_SIZE_IN, SUP_IOCTL_SEM_OP2_SIZE_OUT);
+            REQ_CHECK_EXPR(SUP_IOCTL_SEM_OP2, pReq->u.In.uReserved == 0);
 
             /* execute */
             switch (pReq->u.In.uType)
@@ -1567,16 +1609,22 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                     SUPSEMEVENT hEvent = (SUPSEMEVENT)(uintptr_t)pReq->u.In.hSem;
                     switch (pReq->u.In.uOp)
                     {
-                        case SUPSEMOP_WAIT:
-                            pReq->Hdr.rc = SUPSemEventWaitNoResume(pSession, hEvent, pReq->u.In.cMillies);
+                        case SUPSEMOP2_WAIT_MS_REL:
+                            pReq->Hdr.rc = SUPSemEventWaitNoResume(pSession, hEvent, pReq->u.In.uArg.cRelMsTimeout);
                             break;
-                        case SUPSEMOP_SIGNAL:
+                        case SUPSEMOP2_WAIT_NS_ABS:
+                            pReq->Hdr.rc = SUPSemEventWaitNsAbsIntr(pSession, hEvent, pReq->u.In.uArg.uAbsNsTimeout);
+                            break;
+                        case SUPSEMOP2_WAIT_NS_REL:
+                            pReq->Hdr.rc = SUPSemEventWaitNsRelIntr(pSession, hEvent, pReq->u.In.uArg.cRelNsTimeout);
+                            break;
+                        case SUPSEMOP2_SIGNAL:
                             pReq->Hdr.rc = SUPSemEventSignal(pSession, hEvent);
                             break;
-                        case SUPSEMOP_CLOSE:
+                        case SUPSEMOP2_CLOSE:
                             pReq->Hdr.rc = SUPSemEventClose(pSession, hEvent);
                             break;
-                        case SUPSEMOP_RESET:
+                        case SUPSEMOP2_RESET:
                         default:
                             pReq->Hdr.rc = VERR_INVALID_FUNCTION;
                             break;
@@ -1589,17 +1637,85 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
                     SUPSEMEVENTMULTI hEventMulti = (SUPSEMEVENTMULTI)(uintptr_t)pReq->u.In.hSem;
                     switch (pReq->u.In.uOp)
                     {
-                        case SUPSEMOP_WAIT:
-                            pReq->Hdr.rc = SUPSemEventMultiWaitNoResume(pSession, hEventMulti, pReq->u.In.cMillies);
+                        case SUPSEMOP2_WAIT_MS_REL:
+                            pReq->Hdr.rc = SUPSemEventMultiWaitNoResume(pSession, hEventMulti, pReq->u.In.uArg.cRelMsTimeout);
                             break;
-                        case SUPSEMOP_SIGNAL:
+                        case SUPSEMOP2_WAIT_NS_ABS:
+                            pReq->Hdr.rc = SUPSemEventMultiWaitNsAbsIntr(pSession, hEventMulti, pReq->u.In.uArg.uAbsNsTimeout);
+                            break;
+                        case SUPSEMOP2_WAIT_NS_REL:
+                            pReq->Hdr.rc = SUPSemEventMultiWaitNsRelIntr(pSession, hEventMulti, pReq->u.In.uArg.cRelNsTimeout);
+                            break;
+                        case SUPSEMOP2_SIGNAL:
                             pReq->Hdr.rc = SUPSemEventMultiSignal(pSession, hEventMulti);
                             break;
-                        case SUPSEMOP_CLOSE:
+                        case SUPSEMOP2_CLOSE:
                             pReq->Hdr.rc = SUPSemEventMultiClose(pSession, hEventMulti);
                             break;
-                        case SUPSEMOP_RESET:
+                        case SUPSEMOP2_RESET:
                             pReq->Hdr.rc = SUPSemEventMultiReset(pSession, hEventMulti);
+                            break;
+                        default:
+                            pReq->Hdr.rc = VERR_INVALID_FUNCTION;
+                            break;
+                    }
+                    break;
+                }
+
+                default:
+                    pReq->Hdr.rc = VERR_INVALID_PARAMETER;
+                    break;
+            }
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_SEM_OP3):
+        {
+            /* validate */
+            PSUPSEMOP3 pReq = (PSUPSEMOP3)pReqHdr;
+            REQ_CHECK_SIZES_EX(SUP_IOCTL_SEM_OP3, SUP_IOCTL_SEM_OP3_SIZE_IN, SUP_IOCTL_SEM_OP3_SIZE_OUT);
+            REQ_CHECK_EXPR(SUP_IOCTL_SEM_OP3, pReq->u.In.u32Reserved == 0 && pReq->u.In.u64Reserved == 0);
+
+            /* execute */
+            switch (pReq->u.In.uType)
+            {
+                case SUP_SEM_TYPE_EVENT:
+                {
+                    SUPSEMEVENT hEvent = (SUPSEMEVENT)(uintptr_t)pReq->u.In.hSem;
+                    switch (pReq->u.In.uOp)
+                    {
+                        case SUPSEMOP3_CREATE:
+                            REQ_CHECK_EXPR(SUP_IOCTL_SEM_OP3, hEvent == NIL_SUPSEMEVENT);
+                            pReq->Hdr.rc = SUPSemEventCreate(pSession, &hEvent);
+                            pReq->u.Out.hSem = (uint32_t)(uintptr_t)hEvent;
+                            break;
+                        case SUPSEMOP3_GET_RESOLUTION:
+                            REQ_CHECK_EXPR(SUP_IOCTL_SEM_OP3, hEvent == NIL_SUPSEMEVENT);
+                            pReq->Hdr.rc = VINF_SUCCESS;
+                            pReq->Hdr.cbOut = sizeof(*pReq);
+                            pReq->u.Out.cNsResolution = SUPSemEventGetResolution(pSession);
+                            break;
+                        default:
+                            pReq->Hdr.rc = VERR_INVALID_FUNCTION;
+                            break;
+                    }
+                    break;
+                }
+
+                case SUP_SEM_TYPE_EVENT_MULTI:
+                {
+                    SUPSEMEVENTMULTI hEventMulti = (SUPSEMEVENTMULTI)(uintptr_t)pReq->u.In.hSem;
+                    switch (pReq->u.In.uOp)
+                    {
+                        case SUPSEMOP3_CREATE:
+                            REQ_CHECK_EXPR(SUP_IOCTL_SEM_OP3, hEventMulti == NIL_SUPSEMEVENTMULTI);
+                            pReq->Hdr.rc = SUPSemEventMultiCreate(pSession, &hEventMulti);
+                            pReq->u.Out.hSem = (uint32_t)(uintptr_t)hEventMulti;
+                            break;
+                        case SUPSEMOP3_GET_RESOLUTION:
+                            REQ_CHECK_EXPR(SUP_IOCTL_SEM_OP3, hEventMulti == NIL_SUPSEMEVENTMULTI);
+                            pReq->Hdr.rc = VINF_SUCCESS;
+                            pReq->u.Out.cNsResolution = SUPSemEventMultiGetResolution(pSession);
                             break;
                         default:
                             pReq->Hdr.rc = VERR_INVALID_FUNCTION;
@@ -1626,6 +1742,7 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             pReq->Hdr.rc = SUPR0QueryVTCaps(pSession, &pReq->u.Out.Caps);
             if (RT_FAILURE(pReq->Hdr.rc))
                 pReq->Hdr.cbOut = sizeof(pReq->Hdr);
+            VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VINF_SUCCESS, pReq->Hdr.rc);
             return 0;
         }
 
@@ -1633,12 +1750,13 @@ int VBOXCALL supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
             break;
     }
+    VBOXDRV_SUPDRV_IOCTL_RETURN(pSession, uIOCtl, pReqHdr, VERR_GENERAL_FAILURE, VERR_GENERAL_FAILURE);
     return VERR_GENERAL_FAILURE;
 }
 
 
 /**
- * Inter-Driver Communcation (IDC) worker.
+ * Inter-Driver Communication (IDC) worker.
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS on success.
@@ -2653,7 +2771,7 @@ SUPR0DECL(int) SUPR0PageAllocEx(PSUPDRVSESSION pSession, uint32_t cPages, uint32
  * @param   offSub      Where to start mapping. Must be page aligned.
  * @param   cbSub       How much to map. Must be page aligned.
  * @param   fFlags      Flags, MBZ.
- * @param   ppvR0       Where to reutrn the address of the ring-0 mapping on
+ * @param   ppvR0       Where to return the address of the ring-0 mapping on
  *                      success.
  */
 SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t offSub, uint32_t cbSub,
@@ -2707,7 +2825,7 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
     if (hMemObj != NIL_RTR0MEMOBJ)
     {
         /*
-         * Do some furter input validations before calling IPRT.
+         * Do some further input validations before calling IPRT.
          * (Cleanup is done indirectly by telling RTR0MemObjFree to include mappings.)
          */
         size_t cbMemObj = RTR0MemObjSize(hMemObj);
@@ -2797,7 +2915,7 @@ SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR p
         ||  hMemObjR3 != NIL_RTR0MEMOBJ)
     {
         /*
-         * Do some furter input validations before calling IPRT.
+         * Do some further input validations before calling IPRT.
          */
         size_t cbMemObj = hMemObjR0 != NIL_RTR0PTR ? RTR0MemObjSize(hMemObjR0) : RTR0MemObjSize(hMemObjR3);
         if (    offSub < cbMemObj
@@ -3164,8 +3282,10 @@ SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS 
                 else
                     RTMpOnAll(supdrvGipReInitCpuCallback, pGipR0, &u64NanoTS);
 
-                rc = RTTimerStart(pDevExt->pGipTimer, 0);
-                AssertRC(rc); rc = VINF_SUCCESS;
+#ifndef DO_NOT_START_GIP
+                rc = RTTimerStart(pDevExt->pGipTimer, 0); AssertRC(rc);
+#endif
+                rc = VINF_SUCCESS;
             }
         }
     }
@@ -3245,11 +3365,14 @@ SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession)
             &&  !--pDevExt->cGipUsers)
         {
             LogFlow(("SUPR0GipUnmap: Suspends GIP updating\n"));
+#ifndef DO_NOT_START_GIP
             rc = RTTimerStop(pDevExt->pGipTimer); AssertRC(rc); rc = VINF_SUCCESS;
+#endif
 
             if (pDevExt->u32SystemTimerGranularityGrant)
             {
-                int rc2 = RTTimerReleaseSystemGranularity(pDevExt->u32SystemTimerGranularityGrant); AssertRC(rc);
+                int rc2 = RTTimerReleaseSystemGranularity(pDevExt->u32SystemTimerGranularityGrant);
+                AssertRC(rc2);
                 pDevExt->u32SystemTimerGranularityGrant = 0;
             }
         }
@@ -4397,7 +4520,7 @@ static void supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
     pImage->cUsage = 0;
     pImage->pNext  = 0;
     pImage->uState = SUP_IOCTL_LDR_FREE;
-    RTMemExecFree(pImage->pvImageAlloc);
+    RTMemExecFree(pImage->pvImageAlloc, pImage->cbImageBits + 31);
     pImage->pvImageAlloc = NULL;
     RTMemFree(pImage->pachStrTab);
     pImage->pachStrTab = NULL;
@@ -4885,7 +5008,7 @@ static DECLCALLBACK(void) supdrvDetermineAsyncTscWorker(RTCPUID idCpu, void *pvU
  * case we have to choose the asynchronous timer mode.
  *
  * @param   poffMin     Pointer to the determined difference between different cores.
- * @return  false if the time stamp counters appear to be synchron, true otherwise.
+ * @return  false if the time stamp counters appear to be synchronized, true otherwise.
  */
 static bool supdrvDetermineAsyncTsc(uint64_t *poffMin)
 {
@@ -4893,8 +5016,7 @@ static bool supdrvDetermineAsyncTsc(uint64_t *poffMin)
      * Just iterate all the cpus 8 times and make sure that the TSC is
      * ever increasing. We don't bother taking TSC rollover into account.
      */
-    RTCPUSET    CpuSet;
-    int         iLastCpu = RTCpuLastIndex(RTMpGetSet(&CpuSet));
+    int         iEndCpu = RTMpGetArraySize();
     int         iCpu;
     int         cLoops = 8;
     bool        fAsync = false;
@@ -4905,7 +5027,7 @@ static bool supdrvDetermineAsyncTsc(uint64_t *poffMin)
 
     while (cLoops-- > 0)
     {
-        for (iCpu = 0; iCpu <= iLastCpu; iCpu++)
+        for (iCpu = 0; iCpu < iEndCpu; iCpu++)
         {
             uint64_t CurTsc;
             rc = RTMpOnSpecific(RTMpCpuIdFromSetIndex(iCpu), supdrvDetermineAsyncTscWorker, &CurTsc, NULL);
@@ -4941,13 +5063,13 @@ static bool supdrvDetermineAsyncTsc(uint64_t *poffMin)
         }
 
         /* broke out of the loop. */
-        if (iCpu <= iLastCpu)
+        if (iCpu < iEndCpu)
             break;
     }
 
     *poffMin = offMin; /* Almost RTMpOnSpecific profiling. */
-    Log(("supdrvDetermineAsyncTsc: returns %d; iLastCpu=%d rc=%d offMin=%llx offMax=%llx\n",
-         fAsync, iLastCpu, rc, offMin, offMax));
+    Log(("supdrvDetermineAsyncTsc: returns %d; iEndCpu=%d rc=%d offMin=%llx offMax=%llx\n",
+         fAsync, iEndCpu, rc, offMin, offMax));
 #if !defined(RT_OS_SOLARIS) && !defined(RT_OS_OS2) && !defined(RT_OS_WINDOWS)
     OSDBGPRINT(("vboxdrv: fAsync=%d offMin=%#lx offMax=%#lx\n", fAsync, (long)offMin, (long)offMax));
 #endif
@@ -4956,7 +5078,7 @@ static bool supdrvDetermineAsyncTsc(uint64_t *poffMin)
 
 
 /**
- * Determin the GIP TSC mode.
+ * Determine the GIP TSC mode.
  *
  * @returns The most suitable TSC mode.
  * @param   pDevExt     Pointer to the device instance data.
@@ -4966,20 +5088,20 @@ static SUPGIPMODE supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt)
     /*
      * On SMP we're faced with two problems:
      *      (1) There might be a skew between the CPU, so that cpu0
-     *          returns a TSC that is sligtly different from cpu1.
+     *          returns a TSC that is slightly different from cpu1.
      *      (2) Power management (and other things) may cause the TSC
      *          to run at a non-constant speed, and cause the speed
      *          to be different on the cpus. This will result in (1).
      *
      * So, on SMP systems we'll have to select the ASYNC update method
-     * if there are symphoms of these problems.
+     * if there are symptoms of these problems.
      */
     if (RTMpGetCount() > 1)
     {
         uint32_t uEAX, uEBX, uECX, uEDX;
         uint64_t u64DiffCoresIgnored;
 
-        /* Permit the user and/or the OS specfic bits to force async mode. */
+        /* Permit the user and/or the OS specific bits to force async mode. */
         if (supdrvOSGetForcedAsyncTscMode(pDevExt))
             return SUPGIPMODE_ASYNC_TSC;
 
@@ -5021,7 +5143,7 @@ static SUPGIPMODE supdrvGipDeterminTscMode(PSUPDRVDEVEXT pDevExt)
  * @param   pGip        Pointer to the read-write kernel mapping of the GIP.
  * @param   HCPhys      The physical address of the GIP.
  * @param   u64NanoTS   The current nanosecond timestamp.
- * @param   uUpdateHz   The update freqence.
+ * @param   uUpdateHz   The update frequency.
  */
 static void supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPHYS HCPhys, uint64_t u64NanoTS, unsigned uUpdateHz)
 {
@@ -5178,7 +5300,7 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
         u32UpdateIntervalTSC += u32;
         u32UpdateIntervalTSC >>= 1;
 
-        /* Value choosen for a 2GHz Athlon64 running linux 2.6.10/11, . */
+        /* Value chosen for a 2GHz Athlon64 running linux 2.6.10/11, . */
         u32UpdateIntervalTSCSlack = u32UpdateIntervalTSC >> 14;
     }
     else if (pGip->u32UpdateHz >= 90)
@@ -5187,7 +5309,7 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
         u32UpdateIntervalTSC += pGipCpu->au32TSCHistory[(iTSCHistoryHead - 1) & 7];
         u32UpdateIntervalTSC >>= 1;
 
-        /* value choosen on a 2GHz thinkpad running windows */
+        /* value chosen on a 2GHz thinkpad running windows */
         u32UpdateIntervalTSCSlack = u32UpdateIntervalTSC >> 7;
     }
     else
@@ -5218,7 +5340,7 @@ static void supdrvGipDoUpdateCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pGipCpu, ui
 static void supdrvGipUpdate(PSUPGLOBALINFOPAGE pGip, uint64_t u64NanoTS, uint64_t u64TSC, uint64_t iTick)
 {
     /*
-     * Determin the relevant CPU data.
+     * Determine the relevant CPU data.
      */
     PSUPGIPCPU pGipCpu;
     if (pGip->u32Mode != SUPGIPMODE_ASYNC_TSC)

@@ -1,4 +1,4 @@
-/* $Id: STAMInternal.h $ */
+/* $Id: STAMInternal.h 32796 2010-09-28 14:54:41Z vboxsync $ */
 /** @file
  * STAM Internal Header.
  */
@@ -102,6 +102,8 @@ typedef struct STAMUSERPERVM
 
     /** The copy of the GVMM statistics. */
     GVMMSTATS               GVMMStats;
+    /** The number of registered host CPU leaves. */
+    uint32_t                cRegisteredHostCpus;
 } STAMUSERPERVM;
 /** Pointer to the STAM data kept in the UVM. */
 typedef STAMUSERPERVM *PSTAMUSERPERVM;

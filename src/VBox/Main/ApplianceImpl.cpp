@@ -1,4 +1,4 @@
-/* $Id: ApplianceImpl.cpp $ */
+/* $Id: ApplianceImpl.cpp 35284 2010-12-21 20:49:53Z vboxsync $ */
 /** @file
  *
  * IAppliance and IVirtualSystem COM class implementations.
@@ -17,6 +17,7 @@
  */
 
 #include <iprt/path.h>
+#include <iprt/cpp/utils.h>
 
 #include <VBox/com/array.h>
 
@@ -108,7 +109,7 @@ g_osTypes[] =
     { ovf::CIMOSType_CIMOS_Linux_2_6_x_64,                       SchemaDefs_OSTypeId_Linux26_64 },
     { ovf::CIMOSType_CIMOS_Linux_64,                             SchemaDefs_OSTypeId_Linux26_64 },
 
-    // types that we have support for but CIM doesnt
+    // types that we have support for but CIM doesn't
     { ovf::CIMOSType_CIMOS_Linux_2_6_x,                          SchemaDefs_OSTypeId_ArchLinux },
     { ovf::CIMOSType_CIMOS_Linux_2_6_x_64,                       SchemaDefs_OSTypeId_ArchLinux_64 },
     { ovf::CIMOSType_CIMOS_Linux_2_6_x,                          SchemaDefs_OSTypeId_Fedora },
@@ -254,6 +255,21 @@ ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVbox)
     }
 
     return ovf::CIMOSType_CIMOS_Other;
+}
+
+Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type)
+{
+    Utf8Str strType;
+    switch (type)
+    {
+        case NetworkAttachmentType_NAT: strType = "NAT"; break;
+        case NetworkAttachmentType_Bridged: strType = "Bridged"; break;
+        case NetworkAttachmentType_Internal: strType = "Internal"; break;
+        case NetworkAttachmentType_HostOnly: strType = "HostOnly"; break;
+        case NetworkAttachmentType_VDE: strType = "VDE"; break;
+        case NetworkAttachmentType_Null: strType = "Null"; break;
+    }
+    return strType;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -452,6 +468,40 @@ STDMETHODIMP Appliance::COMGETTER(VirtualSystemDescriptions)(ComSafeArrayOut(IVi
     return S_OK;
 }
 
+/**
+ * Public method implementation.
+ * @param aDisks
+ * @return
+ */
+STDMETHODIMP Appliance::COMGETTER(Machines)(ComSafeArrayOut(BSTR, aMachines))
+{
+    CheckComArgOutSafeArrayPointerValid(aMachines);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (!isApplianceIdle())
+        return E_ACCESSDENIED;
+
+    com::SafeArray<BSTR> sfaMachines(m->llGuidsMachinesCreated.size());
+    size_t u = 0;
+    for (std::list<Guid>::const_iterator it = m->llGuidsMachinesCreated.begin();
+         it != m->llGuidsMachinesCreated.end();
+         ++it)
+    {
+        const Guid &uuid = *it;
+        Bstr bstr(uuid.toUtf16());
+        bstr.detachTo(&sfaMachines[u]);
+        ++u;
+    }
+
+    sfaMachines.detachTo(ComSafeArrayOutArg(aMachines));
+
+    return S_OK;
+}
+
 STDMETHODIMP Appliance::CreateVFSExplorer(IN_BSTR aURI, IVFSExplorer **aExplorer)
 {
     CheckComArgOutPointerValid(aExplorer);
@@ -536,12 +586,12 @@ STDMETHODIMP Appliance::GetWarnings(ComSafeArrayOut(BSTR, aWarnings))
  *
  * @return
  */
-bool Appliance::isApplianceIdle() const
+bool Appliance::isApplianceIdle()
 {
     if (m->state == Data::ApplianceImporting)
-        setError(VBOX_E_INVALID_OBJECT_STATE, "The appliance is busy importing files");
+        setError(VBOX_E_INVALID_OBJECT_STATE, tr("The appliance is busy importing files"));
     else if (m->state == Data::ApplianceExporting)
-        setError(VBOX_E_INVALID_OBJECT_STATE, "The appliance is busy exporting files");
+        setError(VBOX_E_INVALID_OBJECT_STATE, tr("The appliance is busy exporting files"));
     else
         return true;
 
@@ -553,8 +603,8 @@ HRESULT Appliance::searchUniqueVMName(Utf8Str& aName) const
     IMachine *machine = NULL;
     char *tmpName = RTStrDup(aName.c_str());
     int i = 1;
-    /* @todo: Maybe too cost-intensive; try to find a lighter way */
-    while (mVirtualBox->FindMachine(Bstr(tmpName), &machine) != VBOX_E_OBJECT_NOT_FOUND)
+    /** @todo: Maybe too cost-intensive; try to find a lighter way */
+    while (mVirtualBox->FindMachine(Bstr(tmpName).raw(), &machine) != VBOX_E_OBJECT_NOT_FOUND)
     {
         RTStrFree(tmpName);
         RTStrAPrintf(&tmpName, "%s_%d", aName.c_str(), i);
@@ -573,9 +623,9 @@ HRESULT Appliance::searchUniqueDiskImageFilePath(Utf8Str& aName) const
     int i = 1;
     /* Check if the file exists or if a file with this path is registered
      * already */
-    /* @todo: Maybe too cost-intensive; try to find a lighter way */
+    /** @todo: Maybe too cost-intensive; try to find a lighter way */
     while (    RTPathExists(tmpName)
-            || mVirtualBox->FindHardDisk(Bstr(tmpName), &harddisk) != VBOX_E_OBJECT_NOT_FOUND
+            || mVirtualBox->FindMedium(Bstr(tmpName).raw(), DeviceType_HardDisk, &harddisk) != VBOX_E_OBJECT_NOT_FOUND
           )
     {
         RTStrFree(tmpName);
@@ -596,22 +646,112 @@ HRESULT Appliance::searchUniqueDiskImageFilePath(Utf8Str& aName) const
 }
 
 /**
- * Little shortcut to SystemProperties::DefaultHardDiskFolder.
- * @param str
+ * Called from Appliance::importImpl() and Appliance::writeImpl() to set up a
+ * progress object with the proper weights and maximum progress values.
+ *
+ * @param pProgress
+ * @param bstrDescription
+ * @param mode
  * @return
  */
-HRESULT Appliance::getDefaultHardDiskFolder(Utf8Str &str) const
+HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
+                                 const Bstr &bstrDescription,
+                                 SetUpProgressMode mode)
 {
-    /* We need the default path for storing disk images */
-    ComPtr<ISystemProperties> systemProps;
-    HRESULT rc = mVirtualBox->COMGETTER(SystemProperties)(systemProps.asOutParam());
-    if (FAILED(rc)) return rc;
-    Bstr bstrDefaultHardDiskFolder;
-    rc = systemProps->COMGETTER(DefaultHardDiskFolder)(bstrDefaultHardDiskFolder.asOutParam());
-    if (FAILED(rc)) return rc;
-    str = bstrDefaultHardDiskFolder;
+    HRESULT rc;
 
-    return S_OK;
+    /* Create the progress object */
+    pProgress.createObject();
+
+    // compute the disks weight (this sets ulTotalDisksMB and cDisks in the instance data)
+    disksWeight();
+
+    m->ulWeightForManifestOperation = 0;
+
+    ULONG cOperations;
+    ULONG ulTotalOperationsWeight;
+
+    cOperations =   1               // one for XML setup
+                  + m->cDisks;      // plus one per disk
+    if (m->ulTotalDisksMB)
+    {
+        m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1 / 100);    // use 1% of the progress for the XML
+        ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightForXmlOperation;
+    }
+    else
+    {
+        // no disks to export:
+        m->ulWeightForXmlOperation = 1;
+        ulTotalOperationsWeight = 1;
+    }
+
+    switch (mode)
+    {
+        case ImportFile:
+        {
+            break;
+        }
+        case WriteFile:
+        {
+            // assume that creating the manifest will take .1% of the time it takes to export the disks
+            if (m->fManifest)
+            {
+                ++cOperations;          // another one for creating the manifest
+
+                m->ulWeightForManifestOperation = (ULONG)((double)m->ulTotalDisksMB * .1 / 100);    // use .5% of the progress for the manifest
+                ulTotalOperationsWeight += m->ulWeightForManifestOperation;
+            }
+            break;
+        }
+        case ImportS3:
+        {
+            cOperations += 1 + 1;     // another one for the manifest file & another one for the import
+            ulTotalOperationsWeight = m->ulTotalDisksMB;
+            if (!m->ulTotalDisksMB)
+                // no disks to export:
+                ulTotalOperationsWeight = 1;
+
+            ULONG ulImportWeight = (ULONG)((double)ulTotalOperationsWeight * 50  / 100);  // use 50% for import
+            ulTotalOperationsWeight += ulImportWeight;
+
+            m->ulWeightForXmlOperation = ulImportWeight; /* save for using later */
+
+            ULONG ulInitWeight = (ULONG)((double)ulTotalOperationsWeight * 0.1  / 100);  // use 0.1% for init
+            ulTotalOperationsWeight += ulInitWeight;
+            break;
+        }
+        case WriteS3:
+        {
+            cOperations += 1 + 1;     // another one for the mf & another one for temporary creation
+
+            if (m->ulTotalDisksMB)
+            {
+                m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1  / 100);    // use 1% of the progress for OVF file upload (we didn't know the size at this point)
+                ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightForXmlOperation;
+            }
+            else
+            {
+                // no disks to export:
+                ulTotalOperationsWeight = 1;
+                m->ulWeightForXmlOperation = 1;
+            }
+            ULONG ulOVFCreationWeight = (ULONG)((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
+            ulTotalOperationsWeight += ulOVFCreationWeight;
+            break;
+        }
+    }
+
+    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightForXmlOperation = %d\n",
+         m->ulTotalDisksMB, m->cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightForXmlOperation));
+
+    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
+                         bstrDescription.raw(),
+                         TRUE /* aCancelable */,
+                         cOperations, // ULONG cOperations,
+                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
+                         bstrDescription.raw(), // CBSTR bstrFirstOperationDescription,
+                         m->ulWeightForXmlOperation); // ULONG ulFirstOperationWeight,
+    return rc;
 }
 
 /**
@@ -631,20 +771,39 @@ void Appliance::waitForAsyncProgress(ComObjPtr<Progress> &pProgressThis,
     BOOL fCompleted;
     BOOL fCanceled;
     ULONG currentPercent;
+    ULONG cOp = 0;
     while (SUCCEEDED(pProgressAsync->COMGETTER(Completed(&fCompleted))))
     {
         rc = pProgressThis->COMGETTER(Canceled)(&fCanceled);
         if (FAILED(rc)) throw rc;
         if (fCanceled)
-        {
             pProgressAsync->Cancel();
-            break;
+        /* Check if the current operation has changed. It is also possible
+           that in the meantime more than one async operation was finished. So
+           we have to loop as long as we reached the same operation count. */
+        ULONG curOp;
+        for(;;)
+        {
+            rc = pProgressAsync->COMGETTER(Operation(&curOp));
+            if (FAILED(rc)) throw rc;
+            if (cOp != curOp)
+            {
+                Bstr bstr;
+                ULONG currentWeight;
+                rc = pProgressAsync->COMGETTER(OperationDescription(bstr.asOutParam()));
+                if (FAILED(rc)) throw rc;
+                rc = pProgressAsync->COMGETTER(OperationWeight(&currentWeight));
+                if (FAILED(rc)) throw rc;
+                rc = pProgressThis->SetNextOperation(bstr.raw(), currentWeight);
+                if (FAILED(rc)) throw rc;
+                ++cOp;
+            }else
+                break;
         }
 
-        rc = pProgressAsync->COMGETTER(Percent(&currentPercent));
+        rc = pProgressAsync->COMGETTER(OperationPercent(&currentPercent));
         if (FAILED(rc)) throw rc;
-        if (!pProgressThis.isNull())
-            pProgressThis->SetCurrentOperationProgress(currentPercent);
+        pProgressThis->SetCurrentOperationProgress(currentPercent);
         if (fCompleted)
             break;
 
@@ -674,7 +833,7 @@ void Appliance::addWarning(const char* aWarning, ...)
 {
     va_list args;
     va_start(args, aWarning);
-    Utf8StrFmtVA str(aWarning, args);
+    Utf8Str str(aWarning, args);
     va_end(args);
     m->llWarnings.push_back(str);
 }
@@ -709,119 +868,127 @@ void Appliance::disksWeight()
 
 }
 
-/**
- * Called from Appliance::importImpl() and Appliance::writeImpl() to set up a
- * progress object with the proper weights and maximum progress values.
- *
- * @param pProgress
- * @param bstrDescription
- * @param mode
- * @return
- */
-HRESULT Appliance::setUpProgress(ComObjPtr<Progress> &pProgress,
-                                 const Bstr &bstrDescription,
-                                 SetUpProgressMode mode)
+void Appliance::parseBucket(Utf8Str &aPath, Utf8Str &aBucket)
 {
-    HRESULT rc;
-
-    /* Create the progress object */
-    pProgress.createObject();
-
-    // compute the disks weight (this sets ulTotalDisksMB and cDisks in the instance data)
-    disksWeight();
-
-#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
-    m->ulWeightForManifestOperation = 0;
-#endif
-
-    ULONG cOperations;
-    ULONG ulTotalOperationsWeight;
-
-    cOperations =   1               // one for XML setup
-                  + m->cDisks;      // plus one per disk
-    if (m->ulTotalDisksMB)
+    /* Buckets are S3 specific. So parse the bucket out of the file path */
+    if (!aPath.startsWith("/"))
+        throw setError(E_INVALIDARG,
+                       tr("The path '%s' must start with /"), aPath.c_str());
+    size_t bpos = aPath.find("/", 1);
+    if (bpos != Utf8Str::npos)
     {
-        m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1 / 100);    // use 1% of the progress for the XML
-        ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightForXmlOperation;
+        aBucket = aPath.substr(1, bpos - 1); /* The bucket without any slashes */
+        aPath = aPath.substr(bpos); /* The rest of the file path */
     }
-    else
-    {
-        // no disks to export:
-        m->ulWeightForXmlOperation = 1;
-        ulTotalOperationsWeight = 1;
-    }
-
-    switch (mode)
-    {
-        case ImportFileNoManifest:
-        break;
-
-#if 0 // VBox 3.2.10: disable manifest checking until it's actually usable
-        case ImportFileWithManifest:
-#endif
-        case WriteFile:
-#if 0 // VBox 3.2.10: disable manifest writing until it's actually usable
-            ++cOperations;          // another one for creating the manifest
-
-            // assume that checking or creating the manifest will take 10% of the time it takes to export the disks
-            m->ulWeightForManifestOperation = m->ulTotalDisksMB / 10;
-            ulTotalOperationsWeight += m->ulWeightForManifestOperation;
-#endif
-        break;
-
-        case ImportS3:
-        {
-            cOperations += 1 + 1;     // another one for the manifest file & another one for the import
-            ulTotalOperationsWeight = m->ulTotalDisksMB;
-            if (!m->ulTotalDisksMB)
-                // no disks to export:
-                ulTotalOperationsWeight = 1;
-
-            ULONG ulImportWeight = (ULONG)((double)ulTotalOperationsWeight * 50  / 100);  // use 50% for import
-            ulTotalOperationsWeight += ulImportWeight;
-
-            m->ulWeightForXmlOperation = ulImportWeight; /* save for using later */
-
-            ULONG ulInitWeight = (ULONG)((double)ulTotalOperationsWeight * 0.1  / 100);  // use 0.1% for init
-            ulTotalOperationsWeight += ulInitWeight;
-        }
-        break;
-
-        case WriteS3:
-        {
-            cOperations += 1 + 1;     // another one for the mf & another one for temporary creation
-
-            if (m->ulTotalDisksMB)
-            {
-                m->ulWeightForXmlOperation = (ULONG)((double)m->ulTotalDisksMB * 1  / 100);    // use 1% of the progress for OVF file upload (we didn't know the size at this point)
-                ulTotalOperationsWeight = m->ulTotalDisksMB + m->ulWeightForXmlOperation;
-            }
-            else
-            {
-                // no disks to export:
-                ulTotalOperationsWeight = 1;
-                m->ulWeightForXmlOperation = 1;
-            }
-            ULONG ulOVFCreationWeight = (ULONG)((double)ulTotalOperationsWeight * 50.0 / 100.0); /* Use 50% for the creation of the OVF & the disks */
-            ulTotalOperationsWeight += ulOVFCreationWeight;
-        }
-        break;
-    }
-
-    Log(("Setting up progress object: ulTotalMB = %d, cDisks = %d, => cOperations = %d, ulTotalOperationsWeight = %d, m->ulWeightForXmlOperation = %d\n",
-         m->ulTotalDisksMB, m->cDisks, cOperations, ulTotalOperationsWeight, m->ulWeightForXmlOperation));
-
-    rc = pProgress->init(mVirtualBox, static_cast<IAppliance*>(this),
-                         bstrDescription,
-                         TRUE /* aCancelable */,
-                         cOperations, // ULONG cOperations,
-                         ulTotalOperationsWeight, // ULONG ulTotalOperationsWeight,
-                         bstrDescription, // CBSTR bstrFirstOperationDescription,
-                         m->ulWeightForXmlOperation); // ULONG ulFirstOperationWeight,
-    return rc;
+    /* If there is no bucket name provided reject it */
+    if (aBucket.isEmpty())
+        throw setError(E_INVALIDARG,
+                       tr("You doesn't provide a bucket name in the URI '%s'"), aPath.c_str());
 }
 
-void Appliance::parseURI(Utf8Str strUri, LocationInfo &locInfo) const
+/**
+ *
+ * @return
+ */
+int Appliance::TaskOVF::startThread()
+{
+    int vrc = RTThreadCreate(NULL, Appliance::taskThreadImportOrExport, this,
+                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
+                             "Appliance::Task");
+
+    if (RT_FAILURE(vrc))
+        return Appliance::setErrorStatic(E_FAIL,
+                                         Utf8StrFmt("Could not create OVF task thread (%Rrc)\n", vrc));
+
+    return S_OK;
+}
+
+/**
+ * Thread function for the thread started in Appliance::readImpl() and Appliance::importImpl()
+ * and Appliance::writeImpl().
+ * This will in turn call Appliance::readFS() or Appliance::readS3() or Appliance::importFS()
+ * or Appliance::importS3() or Appliance::writeFS() or Appliance::writeS3().
+ *
+ * @param aThread
+ * @param pvUser
+ */
+/* static */
+DECLCALLBACK(int) Appliance::taskThreadImportOrExport(RTTHREAD /* aThread */, void *pvUser)
+{
+    std::auto_ptr<TaskOVF> task(static_cast<TaskOVF*>(pvUser));
+    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
+
+    Appliance *pAppliance = task->pAppliance;
+
+    LogFlowFuncEnter();
+    LogFlowFunc(("Appliance %p\n", pAppliance));
+
+    HRESULT taskrc = S_OK;
+
+    switch (task->taskType)
+    {
+        case TaskOVF::Read:
+            if (task->locInfo.storageType == VFSType_File)
+                taskrc = pAppliance->readFS(task.get());
+            else if (task->locInfo.storageType == VFSType_S3)
+#ifdef VBOX_WITH_S3
+                taskrc = pAppliance->readS3(task.get());
+#else
+                taskrc = VERR_NOT_IMPLEMENTED;
+#endif
+        break;
+
+        case TaskOVF::Import:
+            if (task->locInfo.storageType == VFSType_File)
+                taskrc = pAppliance->importFS(task.get());
+            else if (task->locInfo.storageType == VFSType_S3)
+#ifdef VBOX_WITH_S3
+                taskrc = pAppliance->importS3(task.get());
+#else
+                taskrc = VERR_NOT_IMPLEMENTED;
+#endif
+        break;
+
+        case TaskOVF::Write:
+            if (task->locInfo.storageType == VFSType_File)
+                taskrc = pAppliance->writeFS(task.get());
+            else if (task->locInfo.storageType == VFSType_S3)
+#ifdef VBOX_WITH_S3
+                taskrc = pAppliance->writeS3(task.get());
+#else
+                taskrc = VERR_NOT_IMPLEMENTED;
+#endif
+        break;
+    }
+
+    task->rc = taskrc;
+
+    if (!task->pProgress.isNull())
+        task->pProgress->notifyComplete(taskrc);
+
+    LogFlowFuncLeave();
+
+    return VINF_SUCCESS;
+}
+
+/* static */
+int Appliance::TaskOVF::updateProgress(unsigned uPercent, void *pvUser)
+{
+    Appliance::TaskOVF* pTask = *(Appliance::TaskOVF**)pvUser;
+
+    if (    pTask
+         && !pTask->pProgress.isNull())
+    {
+        BOOL fCanceled;
+        pTask->pProgress->COMGETTER(Canceled)(&fCanceled);
+        if (fCanceled)
+            return -1;
+        pTask->pProgress->SetCurrentOperationProgress(uPercent);
+    }
+    return VINF_SUCCESS;
+}
+
+void parseURI(Utf8Str strUri, LocationInfo &locInfo)
 {
     /* Check the URI for the protocol */
     if (strUri.startsWith("file://", Utf8Str::CaseInsensitive)) /* File based */
@@ -866,127 +1033,6 @@ void Appliance::parseURI(Utf8Str strUri, LocationInfo &locInfo) const
     }
 
     locInfo.strPath = strUri;
-}
-
-void Appliance::parseBucket(Utf8Str &aPath, Utf8Str &aBucket) const
-{
-    /* Buckets are S3 specific. So parse the bucket out of the file path */
-    if (!aPath.startsWith("/"))
-        throw setError(E_INVALIDARG,
-                       tr("The path '%s' must start with /"), aPath.c_str());
-    size_t bpos = aPath.find("/", 1);
-    if (bpos != Utf8Str::npos)
-    {
-        aBucket = aPath.substr(1, bpos - 1); /* The bucket without any slashes */
-        aPath = aPath.substr(bpos); /* The rest of the file path */
-    }
-    /* If there is no bucket name provided reject it */
-    if (aBucket.isEmpty())
-        throw setError(E_INVALIDARG,
-                       tr("You doesn't provide a bucket name in the URI '%s'"), aPath.c_str());
-}
-
-Utf8Str Appliance::manifestFileName(Utf8Str aPath) const
-{
-    /* Get the name part */
-    char *pszMfName = RTStrDup(RTPathFilename(aPath.c_str()));
-    /* Strip any extensions */
-    RTPathStripExt(pszMfName);
-    /* Path without the filename */
-    aPath.stripFilename();
-    /* Format the manifest path */
-    Utf8StrFmt strMfFile("%s/%s.mf", aPath.c_str(), pszMfName);
-    RTStrFree(pszMfName);
-    return strMfFile;
-}
-
-/**
- *
- * @return
- */
-int Appliance::TaskOVF::startThread()
-{
-    int vrc = RTThreadCreate(NULL, Appliance::taskThreadImportOrExport, this,
-                             0, RTTHREADTYPE_MAIN_HEAVY_WORKER, 0,
-                             "Appliance::Task");
-
-    ComAssertMsgRCRet(vrc,
-                      ("Could not create OVF task thread (%Rrc)\n", vrc), E_FAIL);
-
-    return S_OK;
-}
-
-/**
- * Thread function for the thread started in Appliance::readImpl() and Appliance::importImpl()
- * and Appliance::writeImpl().
- * This will in turn call Appliance::readFS() or Appliance::readS3() or Appliance::importFS()
- * or Appliance::importS3() or Appliance::writeFS() or Appliance::writeS3().
- *
- * @param aThread
- * @param pvUser
- */
-/* static */
-DECLCALLBACK(int) Appliance::taskThreadImportOrExport(RTTHREAD /* aThread */, void *pvUser)
-{
-    std::auto_ptr<TaskOVF> task(static_cast<TaskOVF*>(pvUser));
-    AssertReturn(task.get(), VERR_GENERAL_FAILURE);
-
-    Appliance *pAppliance = task->pAppliance;
-
-    LogFlowFuncEnter();
-    LogFlowFunc(("Appliance %p\n", pAppliance));
-
-    HRESULT taskrc = S_OK;
-
-    switch (task->taskType)
-    {
-        case TaskOVF::Read:
-            if (task->locInfo.storageType == VFSType_File)
-                taskrc = pAppliance->readFS(task->locInfo);
-            else if (task->locInfo.storageType == VFSType_S3)
-                taskrc = pAppliance->readS3(task.get());
-        break;
-
-        case TaskOVF::Import:
-            if (task->locInfo.storageType == VFSType_File)
-                taskrc = pAppliance->importFS(task->locInfo, task->pProgress);
-            else if (task->locInfo.storageType == VFSType_S3)
-                taskrc = pAppliance->importS3(task.get());
-        break;
-
-        case TaskOVF::Write:
-            if (task->locInfo.storageType == VFSType_File)
-                taskrc = pAppliance->writeFS(task->locInfo, task->enFormat, task->pProgress);
-            else if (task->locInfo.storageType == VFSType_S3)
-                taskrc = pAppliance->writeS3(task.get());
-        break;
-    }
-
-    task->rc = taskrc;
-
-    if (!task->pProgress.isNull())
-        task->pProgress->notifyComplete(taskrc);
-
-    LogFlowFuncLeave();
-
-    return VINF_SUCCESS;
-}
-
-/* static */
-int Appliance::TaskOVF::updateProgress(unsigned uPercent, void *pvUser)
-{
-    Appliance::TaskOVF* pTask = *(Appliance::TaskOVF**)pvUser;
-
-    if (    pTask
-         && !pTask->pProgress.isNull())
-    {
-        BOOL fCanceled;
-        pTask->pProgress->COMGETTER(Canceled)(&fCanceled);
-        if (fCanceled)
-            return -1;
-        pTask->pProgress->SetCurrentOperationProgress(uPercent);
-    }
-    return VINF_SUCCESS;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

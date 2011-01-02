@@ -1,4 +1,4 @@
-/* $Id: crservice.cpp $ */
+/* $Id: crservice.cpp 34571 2010-12-01 13:45:57Z vboxsync $ */
 
 /** @file
  * VBox crOpenGL: Host service entry points.
@@ -52,11 +52,18 @@
 #include <VBox/com/ErrorInfo.h>
 #endif /* RT_OS_WINDOWS */
 
+#ifdef VBOX_WITH_CRHGSMI
+#include <VBox/VBoxVideo.h>
+#endif
+
 #include <VBox/com/errorprint.h>
 
 PVBOXHGCMSVCHELPERS g_pHelpers;
 static IConsole* g_pConsole = NULL;
 static PVM g_pVM = NULL;
+#ifdef VBOX_WITH_CRHGSMI
+static uint8_t* g_pvVRamBase;
+#endif
 
 #ifndef RT_OS_WINDOWS
 #define DWORD int
@@ -64,7 +71,16 @@ static PVM g_pVM = NULL;
 #endif
 
 static const char* gszVBoxOGLSSMMagic = "***OpenGL state data***";
-#define SHCROGL_SSM_VERSION 19
+
+typedef struct _CRVBOXSVCBUFFER_t {
+    uint32_t uiId;
+    uint32_t uiSize;
+    void*    pData;
+    _CRVBOXSVCBUFFER_t *pNext, *pPrev;
+} CRVBOXSVCBUFFER_t;
+
+static CRVBOXSVCBUFFER_t *g_pCRVBoxSVCBuffers = NULL;
+static uint32_t g_CRVBoxSVCBufferID = 0;
 
 static DECLCALLBACK(int) svcUnload (void *)
 {
@@ -123,6 +139,31 @@ static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClie
     rc = crVBoxServerSaveState(pSSM);
     AssertRCReturn(rc, rc);
 
+    /* Save svc buffers info */
+    {
+        CRVBOXSVCBUFFER_t *pBuffer = g_pCRVBoxSVCBuffers;
+
+        rc = SSMR3PutU32(pSSM, g_CRVBoxSVCBufferID);
+        AssertRCReturn(rc, rc);
+
+        while (pBuffer)
+        {
+            rc = SSMR3PutU32(pSSM, pBuffer->uiId);
+            AssertRCReturn(rc, rc);
+
+            rc = SSMR3PutU32(pSSM, pBuffer->uiSize);
+            AssertRCReturn(rc, rc);
+
+            rc = SSMR3PutMem(pSSM, pBuffer->pData, pBuffer->uiSize);
+            AssertRCReturn(rc, rc);
+
+            pBuffer = pBuffer->pNext;
+        }
+
+        rc = SSMR3PutU32(pSSM, 0);
+        AssertRCReturn(rc, rc);
+    }
+
     /* End */
     rc = SSMR3PutStrZ(pSSM, gszVBoxOGLSSMMagic);
     AssertRCReturn(rc, rc);
@@ -150,20 +191,92 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
     /* Version */
     rc = SSMR3GetU32(pSSM, &ui32);
     AssertRCReturn(rc, rc);
-    if ((SHCROGL_SSM_VERSION != ui32)
-        && ((SHCROGL_SSM_VERSION!=4) || (3!=ui32)))
-    {
-        /*@todo: add some warning here*/
-        /*@todo: in many cases saved states would be made without any opengl guest app running.
-         *       that means we could safely restore the default context.
-         */
-        rc = SSMR3SkipToEndOfUnit(pSSM);
-        return rc;
-    }
 
     /* The state itself */
+#if SHCROGL_SSM_VERSION==24
+    if (ui32==23)
+    {
+        rc = crVBoxServerLoadState(pSSM, 24);
+    }
+    else
+#endif
     rc = crVBoxServerLoadState(pSSM, ui32);
+
+    if (rc==VERR_SSM_DATA_UNIT_FORMAT_CHANGED && ui32!=SHCROGL_SSM_VERSION)
+    {
+        LogRel(("SHARED_CROPENGL svcLoadState: unsupported save state version %d\n", ui32));
+
+        /*@todo ugly hack, as we don't know size of stored opengl data try to read untill end of opengl data marker*/
+        /*VboxSharedCrOpenGL isn't last hgcm service now, so can't use SSMR3SkipToEndOfUnit*/
+        {
+            const char *pMatch = &gszVBoxOGLSSMMagic[0];
+            char current;
+
+            while (*pMatch)
+            {
+                rc = SSMR3GetS8(pSSM, (int8_t*)&current);
+                AssertRCReturn(rc, rc);
+
+                if (current==*pMatch)
+                {
+                    pMatch++;
+                }
+                else
+                {
+                    pMatch = &gszVBoxOGLSSMMagic[0];
+                }
+            }
+        }
+
+        return VINF_SUCCESS;
+    }
     AssertRCReturn(rc, rc);
+
+    /* Load svc buffers info */
+    if (ui32>=24)
+    {
+        uint32_t uiId;
+
+        rc = SSMR3GetU32(pSSM, &g_CRVBoxSVCBufferID);
+        AssertRCReturn(rc, rc);
+
+        rc = SSMR3GetU32(pSSM, &uiId);
+        AssertRCReturn(rc, rc);
+
+        while (uiId)
+        {
+            CRVBOXSVCBUFFER_t *pBuffer = (CRVBOXSVCBUFFER_t *) RTMemAlloc(sizeof(CRVBOXSVCBUFFER_t));
+            if (!pBuffer)
+            {
+                return VERR_NO_MEMORY;
+            }
+            pBuffer->uiId = uiId;
+
+            rc = SSMR3GetU32(pSSM, &pBuffer->uiSize);
+            AssertRCReturn(rc, rc);
+
+            pBuffer->pData = RTMemAlloc(pBuffer->uiSize);
+            if (!pBuffer->pData)
+            {
+                RTMemFree(pBuffer);
+                return VERR_NO_MEMORY;
+            }
+
+            rc = SSMR3GetMem(pSSM, pBuffer->pData, pBuffer->uiSize);
+            AssertRCReturn(rc, rc);
+
+            pBuffer->pNext = g_pCRVBoxSVCBuffers;
+            pBuffer->pPrev = NULL;
+            if (g_pCRVBoxSVCBuffers)
+            {
+                g_pCRVBoxSVCBuffers->pPrev = pBuffer;
+            }
+            g_pCRVBoxSVCBuffers = pBuffer;
+
+            rc = SSMR3GetU32(pSSM, &uiId);
+            AssertRCReturn(rc, rc);
+        }
+    }
 
     /* End of data */
     rc = SSMR3GetStrZEx(pSSM, psz, 2000, NULL);
@@ -178,7 +291,7 @@ static void svcClientVersionUnsupported(uint32_t minor, uint32_t major)
 {
     LogRel(("SHARED_CROPENGL: unsupported client version %d.%d\n", minor, major));
 
-    /*MS's opengl32 tryes to load our ICD around 30 times on failure...this is to prevent unnecessary spam*/
+    /*MS's opengl32 tries to load our ICD around 30 times on failure...this is to prevent unnecessary spam*/
     static int shown = 0;
 
     if (g_pVM && !shown)
@@ -221,6 +334,81 @@ static DECLCALLBACK(void) svcPresentFBO(void *data, int32_t screenId, int32_t x,
 
     CHECK_ERROR(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()));
     CHECK_ERROR(pDisplay, DrawToScreen(screenId, (BYTE*)data, x, y, w, h));
+}
+
+static CRVBOXSVCBUFFER_t* svcGetBuffer(uint32_t iBuffer, uint32_t cbBufferSize)
+{
+    CRVBOXSVCBUFFER_t* pBuffer;
+
+    if (iBuffer)
+    {
+        pBuffer = g_pCRVBoxSVCBuffers;
+        while (pBuffer)
+        {
+            if (pBuffer->uiId == iBuffer)
+            {
+                return pBuffer;
+            }
+            pBuffer = pBuffer->pNext;
+        }
+        return NULL;
+    }
+    else /*allocate new buffer*/
+    {
+        pBuffer = (CRVBOXSVCBUFFER_t*) RTMemAlloc(sizeof(CRVBOXSVCBUFFER_t));
+        if (pBuffer)
+        {
+            pBuffer->pData = RTMemAlloc(cbBufferSize);
+            if (!pBuffer->pData)
+            {
+                LogRel(("SHARED_CROPENGL svcGetBuffer: not enough memory (%d)\n", cbBufferSize));
+                RTMemFree(pBuffer);
+                return NULL;
+            }
+            pBuffer->uiId = ++g_CRVBoxSVCBufferID;
+            if (!pBuffer->uiId)
+            {
+                pBuffer->uiId = ++g_CRVBoxSVCBufferID;
+            }
+            Assert(pBuffer->uiId);
+            pBuffer->uiSize = cbBufferSize;
+            pBuffer->pPrev = NULL;
+            pBuffer->pNext = g_pCRVBoxSVCBuffers;
+            if (g_pCRVBoxSVCBuffers)
+            {
+                g_pCRVBoxSVCBuffers->pPrev = pBuffer;
+            }
+            g_pCRVBoxSVCBuffers = pBuffer;
+        }
+        else
+        {
+            LogRel(("SHARED_CROPENGL svcGetBuffer: not enough memory (%d)\n", sizeof(CRVBOXSVCBUFFER_t)));
+        }
+        return pBuffer;
+    }
+}
+
+static void svcFreeBuffer(CRVBOXSVCBUFFER_t* pBuffer)
+{
+    Assert(pBuffer);
+
+    if (pBuffer->pPrev)
+    {
+        pBuffer->pPrev->pNext = pBuffer->pNext;
+    }
+    else
+    {
+        Assert(pBuffer==g_pCRVBoxSVCBuffers);
+        g_pCRVBoxSVCBuffers = pBuffer->pNext;
+    }
+
+    if (pBuffer->pNext)
+    {
+        pBuffer->pNext->pPrev = pBuffer->pPrev;
+    }
+
+    RTMemFree(pBuffer->pData);
+    RTMemFree(pBuffer);
 }
 
 static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
@@ -272,6 +460,46 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                     svcClientVersionUnsupported(0, 0);
                 }
 
+            }
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_INJECT:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_INJECT\n"));
+
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_INJECT)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            if (    paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /* u32ClientID */
+                 || paParms[1].type != VBOX_HGCM_SVC_PARM_PTR   /* pBuffer */
+               )
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                /* Fetch parameters. */
+                uint32_t u32InjectClientID = paParms[0].u.uint32;
+                uint8_t *pBuffer  = (uint8_t *)paParms[1].u.pointer.addr;
+                uint32_t cbBuffer = paParms[1].u.pointer.size;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientWrite(u32InjectClientID, pBuffer, cbBuffer);
+                if (!RT_SUCCESS(rc))
+                {
+                    if (VERR_NOT_SUPPORTED==rc)
+                    {
+                        svcClientVersionUnsupported(0, 0);
+                    }
+                    else
+                    {
+                        crWarning("SHCRGL_GUEST_FN_INJECT failed to inject for %i from %i", u32InjectClientID, u32ClientID);
+                    }
+                }
             }
             break;
         }
@@ -397,6 +625,136 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
             break;
         }
 
+        case SHCRGL_GUEST_FN_SET_PID:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_SET_PID\n"));
+
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_SET_PID)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            if (paParms[0].type != VBOX_HGCM_SVC_PARM_64BIT)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                /* Fetch parameters. */
+                uint64_t pid    = paParms[0].u.uint64;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientSetPID(u32ClientID, pid);
+            }
+
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_WRITE_BUFFER:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_WRITE_BUFFER\n"));
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_WRITE_BUFFER)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            if (   paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT /*iBufferID*/
+                || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT /*cbBufferSize*/
+                || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT /*ui32Offset*/
+                || paParms[3].type != VBOX_HGCM_SVC_PARM_PTR   /*pBuffer*/
+               )
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                /* Fetch parameters. */
+                uint32_t iBuffer      = paParms[0].u.uint32;
+                uint32_t cbBufferSize = paParms[1].u.uint32;
+                uint32_t ui32Offset   = paParms[2].u.uint32;
+                uint8_t *pBuffer      = (uint8_t *)paParms[3].u.pointer.addr;
+                uint32_t cbBuffer     = paParms[3].u.pointer.size;
+
+                /* Execute the function. */
+                CRVBOXSVCBUFFER_t *pSvcBuffer = svcGetBuffer(iBuffer, cbBufferSize);
+                if (!pSvcBuffer || ui32Offset+cbBuffer>cbBufferSize)
+                {
+                    rc = VERR_INVALID_PARAMETER;
+                }
+                else
+                {
+                    memcpy((void*)((uintptr_t)pSvcBuffer->pData+ui32Offset), pBuffer, cbBuffer);
+
+                    /* Return the buffer id */
+                    paParms[0].u.uint32 = pSvcBuffer->uiId;
+                }
+            }
+
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_WRITE_READ_BUFFERED:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_WRITE_READ_BUFFERED\n"));
+
+            /* Verify parameter count and types. */
+            if (cParms != SHCRGL_CPARMS_WRITE_READ_BUFFERED)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            if (    paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT   /* iBufferID */
+                 || paParms[1].type != VBOX_HGCM_SVC_PARM_PTR     /* pWriteback */
+                 || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT   /* cbWriteback */
+                 || !paParms[0].u.uint32 /*iBufferID can't be 0 here*/
+               )
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                /* Fetch parameters. */
+                uint32_t iBuffer = paParms[0].u.uint32;
+                uint8_t *pWriteback  = (uint8_t *)paParms[1].u.pointer.addr;
+                uint32_t cbWriteback = paParms[1].u.pointer.size;
+
+                CRVBOXSVCBUFFER_t *pSvcBuffer = svcGetBuffer(iBuffer, 0);
+                if (!pSvcBuffer)
+                {
+                    LogRel(("SHARED_CROPENGL svcCall(WRITE_READ_BUFFERED): invalid buffer (%d)\n", iBuffer));
+                    rc = VERR_INVALID_PARAMETER;
+                    break;
+                }
+               
+                uint8_t *pBuffer     = (uint8_t *)pSvcBuffer->pData;
+                uint32_t cbBuffer    = pSvcBuffer->uiSize;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientWrite(u32ClientID, pBuffer, cbBuffer);
+                if (!RT_SUCCESS(rc))
+                {
+                    Assert(VERR_NOT_SUPPORTED==rc);
+                    svcClientVersionUnsupported(0, 0);
+                }
+
+                rc = crVBoxServerClientRead(u32ClientID, pWriteback, &cbWriteback);
+
+                if (RT_SUCCESS(rc))
+                {
+                    /* Update parameters.*/
+                    paParms[1].u.pointer.size = cbWriteback;
+                }
+                /* Return the required buffer size always */
+                paParms[2].u.uint32 = cbWriteback;
+
+                svcFreeBuffer(pSvcBuffer);
+            }
+
+            break;
+        }
+
         default:
         {
             rc = VERR_NOT_IMPLEMENTED;
@@ -408,6 +766,237 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
 
     g_pHelpers->pfnCallComplete (callHandle, rc);
 }
+
+#ifdef VBOX_WITH_CRHGSMI
+static int vboxCrHgsmiCtl(PVBOXVDMACMD_CHROMIUM_CTL pCtl)
+{
+    int rc;
+
+    switch (pCtl->enmType)
+    {
+        case VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP:
+        {
+            PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP pSetup = (PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP)pCtl;
+            g_pvVRamBase = (uint8_t*)pSetup->pvRamBase;
+            rc = VINF_SUCCESS;
+        } break;
+        case VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_BEGIN:
+        case VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_END:
+            rc = VINF_SUCCESS;
+            break;
+        default:
+            Assert(0);
+            rc = VERR_INVALID_PARAMETER;
+    }
+
+    return rc;
+}
+
+#define VBOXCRHGSMI_PTR(_off, _t) ((_t*)(g_pvVRamBase + (_off)))
+static int vboxCrHgsmiCmd(PVBOXVDMACMD_CHROMIUM_CMD pCmd)
+{
+    int rc;
+    uint32_t cBuffers = pCmd->cBuffers;
+    uint32_t cParams;
+
+    if (!g_pvVRamBase)
+    {
+        Assert(0);
+        return VERR_INVALID_STATE;
+    }
+
+    if (!cBuffers)
+    {
+        Assert(0);
+        return VERR_INVALID_PARAMETER;
+    }
+
+    cParams = cBuffers-1;
+
+    CRVBOXHGSMIHDR *pHdr = VBOXCRHGSMI_PTR(pCmd->aBuffers[0].offBuffer, CRVBOXHGSMIHDR);
+    uint32_t u32Function = pHdr->u32Function;
+    uint32_t u32ClientID = pHdr->u32ClientID;
+    /* now we compile HGCM params out of HGSMI
+     * @todo: can we avoid this ? */
+    switch (u32Function)
+    {
+
+        case SHCRGL_GUEST_FN_WRITE:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_WRITE\n"));
+
+            CRVBOXHGSMIWRITE* pFnCmd = (CRVBOXHGSMIWRITE*)pHdr;
+
+            /* @todo: Verify  */
+            if (cParams == 1)
+            {
+                VBOXVDMACMD_CHROMIUM_BUFFER *pBuf = &pCmd->aBuffers[1];
+                /* Fetch parameters. */
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR(pBuf->offBuffer, uint8_t);
+                uint32_t cbBuffer = pBuf->cbBuffer;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientWrite(u32ClientID, pBuffer, cbBuffer);
+                if (!RT_SUCCESS(rc))
+                {
+                    Assert(VERR_NOT_SUPPORTED==rc);
+                    svcClientVersionUnsupported(0, 0);
+                }
+            }
+            else
+            {
+                Assert(0);
+                rc = VERR_INVALID_PARAMETER;
+            }
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_INJECT:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_INJECT\n"));
+
+            CRVBOXHGSMIINJECT *pFnCmd = (CRVBOXHGSMIINJECT*)pHdr;
+
+            /* @todo: Verify  */
+            if (cParams == 1)
+            {
+                /* Fetch parameters. */
+                uint32_t u32InjectClientID = pFnCmd->u32ClientID;
+                VBOXVDMACMD_CHROMIUM_BUFFER *pBuf = &pCmd->aBuffers[1];
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR(pBuf->offBuffer, uint8_t);
+                uint32_t cbBuffer = pBuf->cbBuffer;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientWrite(u32InjectClientID, pBuffer, cbBuffer);
+                if (!RT_SUCCESS(rc))
+                {
+                    if (VERR_NOT_SUPPORTED==rc)
+                    {
+                        svcClientVersionUnsupported(0, 0);
+                    }
+                    else
+                    {
+                        crWarning("SHCRGL_GUEST_FN_INJECT failed to inject for %i from %i", u32InjectClientID, u32ClientID);
+                    }
+                }
+            }
+            else
+            {
+                Assert(0);
+                rc = VERR_INVALID_PARAMETER;
+            }
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_READ:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_READ\n"));
+
+            /* @todo: Verify  */
+            if (cParams == 1)
+            {
+                CRVBOXHGSMIREAD *pFnCmd = (CRVBOXHGSMIREAD*)pHdr;
+                VBOXVDMACMD_CHROMIUM_BUFFER *pBuf = &pCmd->aBuffers[1];
+                /* Fetch parameters. */
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR(pBuf->offBuffer, uint8_t);
+                uint32_t cbBuffer = pBuf->cbBuffer;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientRead(u32ClientID, pBuffer, &cbBuffer);
+
+                if (RT_SUCCESS(rc))
+                {
+                    /* Update parameters.*/
+//                    paParms[0].u.pointer.size = cbBuffer; //@todo guest doesn't see this change somehow?
+                } else if (VERR_NOT_SUPPORTED==rc)
+                {
+                    svcClientVersionUnsupported(0, 0);
+                }
+
+                /* Return the required buffer size always */
+                pFnCmd->cbBuffer = cbBuffer;
+            }
+            else
+            {
+                Assert(0);
+                rc = VERR_INVALID_PARAMETER;
+            }
+
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_WRITE_READ:
+        {
+            Log(("svcCall: SHCRGL_GUEST_FN_WRITE_READ\n"));
+
+            /* @todo: Verify  */
+            if (cParams == 2)
+            {
+                CRVBOXHGSMIWRITEREAD *pFnCmd = (CRVBOXHGSMIWRITEREAD*)pHdr;
+                VBOXVDMACMD_CHROMIUM_BUFFER *pBuf = &pCmd->aBuffers[1];
+                VBOXVDMACMD_CHROMIUM_BUFFER *pWbBuf = &pCmd->aBuffers[2];
+
+                /* Fetch parameters. */
+                uint8_t *pBuffer  = VBOXCRHGSMI_PTR(pBuf->offBuffer, uint8_t);
+                uint32_t cbBuffer = pBuf->cbBuffer;
+
+                uint8_t *pWriteback  = VBOXCRHGSMI_PTR(pWbBuf->offBuffer, uint8_t);
+                uint32_t cbWriteback = pWbBuf->cbBuffer;
+
+                /* Execute the function. */
+                rc = crVBoxServerClientWrite(u32ClientID, pBuffer, cbBuffer);
+                if (!RT_SUCCESS(rc))
+                {
+                    Assert(VERR_NOT_SUPPORTED==rc);
+                    svcClientVersionUnsupported(0, 0);
+                }
+
+                rc = crVBoxServerClientRead(u32ClientID, pWriteback, &cbWriteback);
+
+//                if (RT_SUCCESS(rc))
+//                {
+//                    /* Update parameters.*/
+//                    paParms[1].u.pointer.size = cbWriteback;
+//                }
+                /* Return the required buffer size always */
+                pFnCmd->cbWriteback = cbWriteback;
+            }
+            else
+            {
+                Assert(0);
+                rc = VERR_INVALID_PARAMETER;
+            }
+
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_SET_VERSION:
+        {
+            Assert(0);
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+        }
+
+        case SHCRGL_GUEST_FN_SET_PID:
+        {
+            Assert(0);
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+        }
+
+        default:
+        {
+            Assert(0);
+            rc = VERR_NOT_IMPLEMENTED;
+        }
+
+    }
+
+    pHdr->result = rc;
+
+    return VINF_SUCCESS;
+}
+#endif
 
 /*
  * We differentiate between a function handler for the guest and one for the host.
@@ -430,6 +1019,24 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
 
     switch (u32Function)
     {
+#ifdef VBOX_WITH_CRHGSMI
+        case SHCRGL_HOST_FN_CRHGSMI_CMD:
+        {
+            Assert(cParms == 1 && paParms[0].type == VBOX_HGCM_SVC_PARM_PTR);
+            if (cParms == 1 && paParms[0].type == VBOX_HGCM_SVC_PARM_PTR)
+                rc = vboxCrHgsmiCmd((PVBOXVDMACMD_CHROMIUM_CMD)paParms[0].u.pointer.addr);
+            else
+                rc = VERR_INVALID_PARAMETER;
+        } break;
+        case SHCRGL_HOST_FN_CRHGSMI_CTL:
+        {
+            Assert(cParms == 1 && paParms[0].type == VBOX_HGCM_SVC_PARM_PTR);
+            if (cParms == 1 && paParms[0].type == VBOX_HGCM_SVC_PARM_PTR)
+                rc = vboxCrHgsmiCtl((PVBOXVDMACMD_CHROMIUM_CTL)paParms[0].u.pointer.addr);
+            else
+                rc = VERR_INVALID_PARAMETER;
+        } break;
+#endif
         case SHCRGL_HOST_FN_SET_CONSOLE:
         {
             Log(("svcCall: SHCRGL_HOST_FN_SET_DISPLAY\n"));
@@ -464,7 +1071,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                     ComPtr<IDisplay> pDisplay;
                     ComPtr<IFramebuffer> pFramebuffer;
                     LONG xo, yo;
-                    ULONG64 winId = 0;
+                    LONG64 winId = 0;
                     ULONG monitorCount, i, w, h;
 
                     CHECK_ERROR_BREAK(pConsole, COMGETTER(Machine)(pMachine.asOutParam()));
@@ -578,7 +1185,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
                 ComPtr<IDisplay> pDisplay;
                 ComPtr<IFramebuffer> pFramebuffer;
                 LONG xo, yo;
-                ULONG64 winId = 0;
+                LONG64 winId = 0;
                 ULONG w, h;
 
                 Assert(g_pConsole);

@@ -1,4 +1,4 @@
-/* $Id: xml.cpp $ */
+/* $Id: xml.cpp 35128 2010-12-15 12:38:41Z vboxsync $ */
 /** @file
  * IPRT - XML Manipulation API.
  */
@@ -55,7 +55,7 @@
  * of libxml, among other things.
  *
  * The constructor and destructor of this structure are used to perform global
- * module initiaizaton and cleanup. There must be only one global variable of
+ * module initialization and cleanup. There must be only one global variable of
  * this structure.
  */
 static
@@ -467,6 +467,10 @@ Node::~Node()
     delete m;
 }
 
+/**
+ * Private implementation.
+ * @param elmRoot
+ */
 void Node::buildChildren(const ElementNode &elmRoot)       // private
 {
     // go thru this element's attributes
@@ -645,6 +649,12 @@ int Node::getLineNumber() const
     return m_plibNode->line;
 }
 
+/**
+ * Private element constructor.
+ * @param pelmRoot
+ * @param pParent
+ * @param plibNode
+ */
 ElementNode::ElementNode(const ElementNode *pelmRoot,
                          Node *pParent,
                          xmlNode *plibNode)
@@ -827,6 +837,24 @@ bool ElementNode::getAttributeValue(const char *pcszMatch, iprt::MiniString &str
 }
 
 /**
+ * Like getAttributeValue (ministring variant), but makes sure that all backslashes
+ * are converted to forward slashes.
+ * @param pcszMatch
+ * @param str
+ * @return
+ */
+bool ElementNode::getAttributeValuePath(const char *pcszMatch, iprt::MiniString &str) const
+{
+    if (getAttributeValue(pcszMatch, str))
+    {
+        str.findReplace('\\', '/');
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Convenience method which attempts to find the attribute with the given
  * name and returns its value as a signed integer. This calls
  * RTStrToInt32Ex internally and will only output the integer if that
@@ -998,7 +1026,7 @@ ContentNode* ElementNode::addContent(const char *pcszContent)
 }
 
 /**
- * Sets the given attribute.
+ * Sets the given attribute; overloaded version for const char *.
  *
  * If an attribute with the given name exists, it is overwritten,
  * otherwise a new attribute is created. Returns the attribute node
@@ -1042,58 +1070,133 @@ AttributeNode* ElementNode::setAttribute(const char *pcszName, const char *pcszV
 
 }
 
+/**
+ * Like setAttribute (ministring variant), but replaces all backslashes with forward slashes
+ * before calling that one.
+ * @param pcszName
+ * @param strValue
+ * @return
+ */
+AttributeNode* ElementNode::setAttributePath(const char *pcszName, const iprt::MiniString &strValue)
+{
+    iprt::MiniString strTemp(strValue);
+    strTemp.findReplace('\\', '/');
+    return setAttribute(pcszName, strTemp.c_str());
+}
+
+/**
+ * Sets the given attribute; overloaded version for int32_t.
+ *
+ * If an attribute with the given name exists, it is overwritten,
+ * otherwise a new attribute is created. Returns the attribute node
+ * that was either created or changed.
+ *
+ * @param pcszName
+ * @param i
+ * @return
+ */
 AttributeNode* ElementNode::setAttribute(const char *pcszName, int32_t i)
 {
-    char *psz = NULL;
-    RTStrAPrintf(&psz, "%RI32", i);
-    AttributeNode *p = setAttribute(pcszName, psz);
-    RTStrFree(psz);
+    char szValue[10];
+    RTStrPrintf(szValue, sizeof(szValue), "%RI32", i);
+    AttributeNode *p = setAttribute(pcszName, szValue);
     return p;
 }
 
-AttributeNode* ElementNode::setAttribute(const char *pcszName, uint32_t i)
+/**
+ * Sets the given attribute; overloaded version for uint32_t.
+ *
+ * If an attribute with the given name exists, it is overwritten,
+ * otherwise a new attribute is created. Returns the attribute node
+ * that was either created or changed.
+ *
+ * @param pcszName
+ * @param u
+ * @return
+ */
+AttributeNode* ElementNode::setAttribute(const char *pcszName, uint32_t u)
 {
-    char *psz = NULL;
-    RTStrAPrintf(&psz, "%RU32", i);
-    AttributeNode *p = setAttribute(pcszName, psz);
-    RTStrFree(psz);
+    char szValue[10];
+    RTStrPrintf(szValue, sizeof(szValue), "%RU32", u);
+    AttributeNode *p = setAttribute(pcszName, szValue);
     return p;
 }
 
+/**
+ * Sets the given attribute; overloaded version for int64_t.
+ *
+ * If an attribute with the given name exists, it is overwritten,
+ * otherwise a new attribute is created. Returns the attribute node
+ * that was either created or changed.
+ *
+ * @param pcszName
+ * @param i
+ * @return
+ */
 AttributeNode* ElementNode::setAttribute(const char *pcszName, int64_t i)
 {
-    char *psz = NULL;
-    RTStrAPrintf(&psz, "%RI64", i);
-    AttributeNode *p = setAttribute(pcszName, psz);
-    RTStrFree(psz);
+    char szValue[20];
+    RTStrPrintf(szValue, sizeof(szValue), "%RI64", i);
+    AttributeNode *p = setAttribute(pcszName, szValue);
     return p;
 }
 
-AttributeNode* ElementNode::setAttribute(const char *pcszName, uint64_t i)
+/**
+ * Sets the given attribute; overloaded version for uint64_t.
+ *
+ * If an attribute with the given name exists, it is overwritten,
+ * otherwise a new attribute is created. Returns the attribute node
+ * that was either created or changed.
+ *
+ * @param pcszName
+ * @param u
+ * @return
+ */
+AttributeNode* ElementNode::setAttribute(const char *pcszName, uint64_t u)
 {
-    char *psz = NULL;
-    RTStrAPrintf(&psz, "%RU64", i);
-    AttributeNode *p = setAttribute(pcszName, psz);
-    RTStrFree(psz);
+    char szValue[20];
+    RTStrPrintf(szValue, sizeof(szValue), "%RU64", u);
+    AttributeNode *p = setAttribute(pcszName, szValue);
     return p;
 }
 
-AttributeNode* ElementNode::setAttributeHex(const char *pcszName, uint32_t i)
+/**
+ * Sets the given attribute to the given uint32_t, outputs a hexadecimal string.
+ *
+ * If an attribute with the given name exists, it is overwritten,
+ * otherwise a new attribute is created. Returns the attribute node
+ * that was either created or changed.
+ *
+ * @param pcszName
+ * @param u
+ * @return
+ */
+AttributeNode* ElementNode::setAttributeHex(const char *pcszName, uint32_t u)
 {
-    char *psz = NULL;
-    RTStrAPrintf(&psz, "0x%RX32", i);
-    AttributeNode *p = setAttribute(pcszName, psz);
-    RTStrFree(psz);
+    char szValue[10];
+    RTStrPrintf(szValue, sizeof(szValue), "0x%RX32", u);
+    AttributeNode *p = setAttribute(pcszName, szValue);
     return p;
 }
 
+/**
+ * Sets the given attribute; overloaded version for bool.
+ *
+ * If an attribute with the given name exists, it is overwritten,
+ * otherwise a new attribute is created. Returns the attribute node
+ * that was either created or changed.
+ *
+ * @param pcszName
+ * @param i
+ * @return
+ */
 AttributeNode* ElementNode::setAttribute(const char *pcszName, bool f)
 {
     return setAttribute(pcszName, (f) ? "true" : "false");
 }
 
 /**
- * Private constructur for a new attribute node. This one is special:
+ * Private constructor for a new attribute node. This one is special:
  * in ppcszKey, it returns a pointer to a string buffer that should be
  * used to index the attribute correctly with namespaces.
  *
@@ -1339,25 +1442,97 @@ XmlParserBase::~XmlParserBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+// XmlMemParser class
+//
+////////////////////////////////////////////////////////////////////////////////
+
+XmlMemParser::XmlMemParser()
+    : XmlParserBase()
+{
+}
+
+XmlMemParser::~XmlMemParser()
+{
+}
+
+/**
+ * Parse the given buffer and fills the given Document object with its contents.
+ * Throws XmlError on parsing errors.
+ *
+ * The document that is passed in will be reset before being filled if not empty.
+ *
+ * @param pvBuf in: memory buffer to parse.
+ * @param cbSize in: size of the memory buffer.
+ * @param strFilename in: name fo file to parse.
+ * @param doc out: document to be reset and filled with data according to file contents.
+ */
+void XmlMemParser::read(const void* pvBuf, size_t cbSize,
+                        const iprt::MiniString &strFilename,
+                        Document &doc)
+{
+    GlobalLock lock;
+//     global.setExternalEntityLoader(ExternalEntityLoader);
+
+    const char *pcszFilename = strFilename.c_str();
+
+    doc.m->reset();
+    if (!(doc.m->plibDocument = xmlCtxtReadMemory(m_ctxt,
+                                                  (const char*)pvBuf,
+                                                  (int)cbSize,
+                                                  pcszFilename,
+                                                  NULL,       // encoding = auto
+                                                  XML_PARSE_NOBLANKS)))
+        throw XmlError(xmlCtxtGetLastError(m_ctxt));
+
+    doc.refreshInternals();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// XmlMemWriter class
+//
+////////////////////////////////////////////////////////////////////////////////
+
+XmlMemWriter::XmlMemWriter()
+  : m_pBuf(0)
+{
+}
+
+XmlMemWriter::~XmlMemWriter()
+{
+    if (m_pBuf)
+        xmlFree(m_pBuf);
+}
+
+void XmlMemWriter::write(const Document &doc, void **ppvBuf, size_t *pcbSize)
+{
+    if (m_pBuf)
+    {
+        xmlFree(m_pBuf);
+        m_pBuf = 0;
+    }
+    int size;
+    xmlDocDumpFormatMemory(doc.m->plibDocument, (xmlChar**)&m_pBuf, &size, 1);
+    *ppvBuf = m_pBuf;
+    *pcbSize = size;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//
 // XmlFileParser class
 //
 ////////////////////////////////////////////////////////////////////////////////
 
 struct XmlFileParser::Data
 {
-    xmlParserCtxtPtr ctxt;
     iprt::MiniString strXmlFilename;
 
     Data()
     {
-        if (!(ctxt = xmlNewParserCtxt()))
-            throw std::bad_alloc();
     }
 
     ~Data()
     {
-        xmlFreeParserCtxt(ctxt);
-        ctxt = NULL;
     }
 };
 
@@ -1383,7 +1558,7 @@ struct IOContext
     {
     }
 
-    void setError(const xml::Error &x)
+    void setError(const iprt::Error &x)
     {
         error = x.what();
     }
@@ -1430,14 +1605,14 @@ void XmlFileParser::read(const iprt::MiniString &strFilename,
 
     ReadContext context(pcszFilename);
     doc.m->reset();
-    if (!(doc.m->plibDocument = xmlCtxtReadIO(m->ctxt,
+    if (!(doc.m->plibDocument = xmlCtxtReadIO(m_ctxt,
                                               ReadCallback,
                                               CloseCallback,
                                               &context,
                                               pcszFilename,
                                               NULL,       // encoding = auto
                                               XML_PARSE_NOBLANKS)))
-        throw XmlError(xmlCtxtGetLastError(m->ctxt));
+        throw XmlError(xmlCtxtGetLastError(m_ctxt));
 
     doc.refreshInternals();
 }
@@ -1455,7 +1630,7 @@ int XmlFileParser::ReadCallback(void *aCtxt, char *aBuf, int aLen)
         return pContext->file.read(aBuf, aLen);
     }
     catch (const xml::EIPRTFailure &err) { pContext->setError(err); }
-    catch (const xml::Error &err) { pContext->setError(err); }
+    catch (const iprt::Error &err) { pContext->setError(err); }
     catch (const std::exception &err) { pContext->setError(err); }
     catch (...) { pContext->setError(xml::LogicError(RT_SRC_POS)); }
 
@@ -1513,7 +1688,7 @@ void XmlFileWriter::writeInternal(const char *pcszFilename, bool fSafe)
     long rc = xmlSaveDoc(saveCtxt, m->pDoc->m->plibDocument);
     if (rc == -1)
     {
-        /* look if there was a forwared exception from the lower level */
+        /* look if there was a forwarded exception from the lower level */
 //         if (m->trappedErr.get() != NULL)
 //             m->trappedErr->rethrow();
 
@@ -1580,7 +1755,7 @@ int XmlFileWriter::WriteCallback(void *aCtxt, const char *aBuf, int aLen)
         return pContext->file.write(aBuf, aLen);
     }
     catch (const xml::EIPRTFailure &err) { pContext->setError(err); }
-    catch (const xml::Error &err) { pContext->setError(err); }
+    catch (const iprt::Error &err) { pContext->setError(err); }
     catch (const std::exception &err) { pContext->setError(err); }
     catch (...) { pContext->setError(xml::LogicError(RT_SRC_POS)); }
 

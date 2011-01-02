@@ -1,4 +1,4 @@
-/* $Id: VFSExplorerImpl.h $ */
+/* $Id: VFSExplorerImpl.h 33461 2010-10-26 11:55:27Z vboxsync $ */
 
 /** @file
  *
@@ -24,11 +24,9 @@
 
 class ATL_NO_VTABLE VFSExplorer :
     public VirtualBoxBase,
-    public VirtualBoxSupportErrorInfoImpl<VFSExplorer, IVFSExplorer>,
-    public VirtualBoxSupportTranslation<VFSExplorer>,
     VBOX_SCRIPTABLE_IMPL(IVFSExplorer)
 {
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT (VFSExplorer)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(VFSExplorer, IVFSExplorer)
 
     DECLARE_NOT_AGGREGATABLE(VFSExplorer)
 
@@ -49,9 +47,6 @@ class ATL_NO_VTABLE VFSExplorer :
     HRESULT init(VFSType_T aType, Utf8Str aFilePath, Utf8Str aHostname, Utf8Str aUsername, Utf8Str aPassword, VirtualBox *aVirtualBox);
     void uninit();
 
-    // for VirtualBoxSupportErrorInfoImpl
-    static const wchar_t *getComponentName() { return L"VFSExplorer"; }
-
     /* IVFSExplorer properties */
     STDMETHOD(COMGETTER(Path))(BSTR *aPath);
     STDMETHOD(COMGETTER(Type))(VFSType_T *aType);
@@ -62,11 +57,19 @@ class ATL_NO_VTABLE VFSExplorer :
     STDMETHOD(Cd)(IN_BSTR aDir, IProgress **aProgress);
     STDMETHOD(CdUp)(IProgress **aProgress);
 
-    STDMETHOD(EntryList)(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(VFSFileType_T, aTypes));
+    STDMETHOD(EntryList)(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(VFSFileType_T, aTypes), ComSafeArrayOut(ULONG, aSizes), ComSafeArrayOut(ULONG, aModes));
 
     STDMETHOD(Exists)(ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayOut(BSTR, aExists));
 
     STDMETHOD(Remove)(ComSafeArrayIn(IN_BSTR, aNames), IProgress **aProgress);
+
+    /* public methods only for internal purposes */
+
+    static HRESULT setErrorStatic(HRESULT aResultCode,
+                                  const Utf8Str &aText)
+    {
+        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
+    }
 
 private:
     /* Private member vars */

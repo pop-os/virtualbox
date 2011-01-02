@@ -40,6 +40,8 @@
 #define qemu_mallocz RTMemAllocZ
 #define qemu_free RTMemFree
 #define qemu_strdup RTStrDup
+#define qemu_strfree RTStrFree
+#define asprintf     RTStrAPrintf
 
 struct audio_pcm_ops;
 
@@ -119,6 +121,7 @@ struct SWVoiceOut {
     t_sample *conv;
     int64_t ratio;
     st_sample_t *buf;
+    int buf_samples;
     void *rate;
     int total_hw_samples_mixed;
     int active;
@@ -137,6 +140,7 @@ struct SWVoiceIn {
     void *rate;
     int total_hw_samples_acquired;
     st_sample_t *buf;
+    int buf_samples; /* for debugging only */
     f_sample *clip;
     HWVoiceIn *hw;
     char *name;
@@ -312,5 +316,21 @@ DECLINLINE(void) GCC_ATTR ldebug (const char *fmt, ...)  /* shuts up unused warn
 
 DECLCALLBACK(bool) sniffer_run_out (HWVoiceOut *hw, void *pvSamples,
                                     unsigned cSamples);
+
+/*
+ * Filter interface.
+ */
+typedef DECLCALLBACK(int) FNAUDIOINPUTCALLBACK(void* pvCtx, uint32_t cbSamples, const void *pvSamples);
+typedef FNAUDIOINPUTCALLBACK *PFNAUDIOINPUTCALLBACK;
+
+int filter_output_intercepted(void);
+int filter_output_begin(void **ppvOutputCtx, struct audio_pcm_info *pinfo, int samples);
+void filter_output_end(void *pvOutputCtx);
+
+int filter_input_intercepted(void);
+int filter_input_begin(void **ppvInputCtx, PFNAUDIOINPUTCALLBACK pfnCallback, void *pvCallback, HWVoiceIn *phw, int samples);
+void filter_input_end(void *pvInputCtx);
+
+struct audio_driver *filteraudio_install(struct audio_driver *pDrv, void *pDrvOpaque);
 
 #endif /* audio_int.h */

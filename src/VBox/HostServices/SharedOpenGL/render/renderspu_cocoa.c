@@ -67,7 +67,7 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
 
     /* VirtualBox is the only frontend which support 3D right now. */
     char pszName[256];
-    if (RTProcGetExecutableName(pszName, sizeof(pszName)))
+    if (RTProcGetExecutablePath(pszName, sizeof(pszName)))
         /* Check for VirtualBox and VirtualBoxVM */
         if (RTStrNICmp(RTPathFilename(pszName), "VirtualBox", 10) != 0)
             return GL_FALSE;
@@ -78,9 +78,9 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
     pWinInfo->currentCtx = NULL;
 
 #ifdef __LP64__
-    NativeViewRef pParentWin = (NativeViewRef)render_spu_parent_window_id;
+    NativeNSViewRef pParentWin = (NativeNSViewRef)render_spu_parent_window_id;
 #else /* __LP64__ */
-    NativeViewRef pParentWin = (NativeViewRef)(uint32_t)render_spu_parent_window_id;
+    NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
 #endif /* __LP64__ */
 
     cocoaViewCreate(&pWinInfo->window, pParentWin, pVisInfo->visAttribs);
@@ -94,9 +94,9 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
 void renderspu_SystemReparentWindow(WindowInfo *pWinInfo)
 {
 #ifdef __LP64__
-    NativeViewRef pParentWin = (NativeViewRef)render_spu_parent_window_id;
+    NativeNSViewRef pParentWin = (NativeNSViewRef)render_spu_parent_window_id;
 #else /* __LP64__ */
-    NativeViewRef pParentWin = (NativeViewRef)(uint32_t)render_spu_parent_window_id;
+    NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
 #endif /* __LP64__ */
     cocoaViewReparent(pWinInfo->window, pParentWin);
 }
@@ -113,12 +113,12 @@ void renderspu_SystemWindowPosition(WindowInfo *pWinInfo, GLint x, GLint y)
     CRASSERT(pWinInfo);
 
 #ifdef __LP64__
-    NativeViewRef pParentWin = (NativeViewRef)render_spu_parent_window_id;
+    NativeNSViewRef pParentWin = (NativeNSViewRef)render_spu_parent_window_id;
 #else /* __LP64__ */
-    NativeViewRef pParentWin = (NativeViewRef)(uint32_t)render_spu_parent_window_id;
+    NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
 #endif /* __LP64__ */
 
-    /*pParentWin is unused in the call, overwise it might hold incorrect value if for ex. last reparent call was for
+    /*pParentWin is unused in the call, otherwise it might hold incorrect value if for ex. last reparent call was for
       a different screen*/
     cocoaViewSetPosition(pWinInfo->window, pParentWin, x, y);
 }

@@ -77,11 +77,11 @@
 
 /* Qt includes */
 #include <QString>
+#include <QRect>
 #include <QUuid>
 #include <QVector>
+#include <QStringList>
 #include <QMetaType>
-
-#include <iprt/memory> // for auto_copy_ptr
 
 /*
  * Additional COM / XPCOM defines and includes
@@ -120,13 +120,34 @@ class COMErrorInfo
 public:
 
     COMErrorInfo()
-        : mIsNull (true)
-        , mIsBasicAvailable (false), mIsFullAvailable (false)
-        , mResultCode (S_OK) {}
+        : mIsNull(true),
+          mIsBasicAvailable(false),
+          mIsFullAvailable(false),
+          mResultCode(S_OK),
+          m_pNext(NULL)
+    {}
 
-    COMErrorInfo (const CVirtualBoxErrorInfo &info) { init (info); }
+    COMErrorInfo(const COMErrorInfo &info)
+    {
+        copyFrom(info);
+    }
 
-    /* the default copy ctor and assignment op are ok */
+    COMErrorInfo(const CVirtualBoxErrorInfo &info)
+    {
+        init(info);
+    }
+
+    ~COMErrorInfo()
+    {
+        cleanup();
+    }
+
+    COMErrorInfo& operator=(const COMErrorInfo &info)
+    {
+        cleanup();
+        copyFrom(info);
+        return *this;
+    }
 
     bool isNull() const { return mIsNull; }
 
@@ -138,16 +159,18 @@ public:
     QString component() const { return mComponent; }
     QString text() const { return mText; }
 
-    const COMErrorInfo *next() const { return mNext.get(); }
+    const COMErrorInfo *next() const { return m_pNext; }
 
     QString interfaceName() const { return mInterfaceName; }
     QUuid calleeIID() const { return mCalleeIID; }
     QString calleeName() const { return mCalleeName; }
 
 private:
+    void init(const CVirtualBoxErrorInfo &info);
+    void copyFrom(const COMErrorInfo &x);
+    void cleanup();
 
-    void init (const CVirtualBoxErrorInfo &info);
-    void fetchFromCurrentThread (IUnknown *callee, const GUID *calleeIID);
+    void fetchFromCurrentThread(IUnknown *callee, const GUID *calleeIID);
 
     static QString getInterfaceNameFromIID (const QUuid &id);
 
@@ -160,7 +183,7 @@ private:
     QString mComponent;
     QString mText;
 
-    cppx::auto_copy_ptr <COMErrorInfo> mNext;
+    COMErrorInfo *m_pNext;
 
     QString mInterfaceName;
     QUuid mCalleeIID;
@@ -534,9 +557,10 @@ public:
     /**
      * Queries the current result code and error info from the given component.
      */
-    COMResult (const COMBaseWithEI &aComponent)
-        : mRC (aComponent.lastRC())
-        , mErrInfo (aComponent.errorInfo()) {}
+    COMResult(const COMBaseWithEI &aComponent)
+        : mRC(aComponent.lastRC()),
+          mErrInfo(aComponent.errorInfo())
+    { }
 
     /**
      * Queries the current result code from the given component.
@@ -595,7 +619,7 @@ private:
  * starting with the small letter. Utility methods should be not normally
  * called by the end-user client application.
  *
- * @param  I    Interface class (i.e. IUnknown/nsISupports derivant).
+ * @param  I    Interface class (i.e. derived from IUnknown/nsISupports).
  * @param  B    Base class, either COMBase (by default) or COMBaseWithEI.
  */
 template <class I, class B = COMBase>
@@ -728,7 +752,11 @@ public:
     bool operator== (const CInterface &that) const { return mIface == that.mIface; }
     bool operator!= (const CInterface &that) const { return mIface != that.mIface; }
 
-protected:
+/**
+ * @todo: rethink if we'll ever need 'protected' back, removed to allow mIface access in rather
+ *        nontrivial inheritance situations, see 'friend wrappers' code in COMWrappers.xsl
+ */
+//protected:
 
     mutable I *mIface;
 };
@@ -811,8 +839,15 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////
 
-/* include the generated header containing concrete wrapper definitions */
+/* Include the generated header containing wrapper definitions: */
 #include "COMWrappers.h"
+
+/* Declare metatypes for particular wrappers: */
+Q_DECLARE_METATYPE(CProgress);
+Q_DECLARE_METATYPE(CHost);
+Q_DECLARE_METATYPE(CMachine);
+Q_DECLARE_METATYPE(CConsole);
+Q_DECLARE_METATYPE(CHostNetworkInterface);
 
 /** @} */
 

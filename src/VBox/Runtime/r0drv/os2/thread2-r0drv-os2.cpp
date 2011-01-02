@@ -1,4 +1,4 @@
-/* $Id: thread2-r0drv-os2.cpp $ */
+/* $Id: thread2-r0drv-os2.cpp 34256 2010-11-22 15:55:00Z vboxsync $ */
 /** @file
  * IPRT - Threads (Part 2), Ring-0 Driver, Generic Stubs.
  */
@@ -62,6 +62,12 @@ int rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     NOREF(pThread);
     return VERR_NOT_IMPLEMENTED;
+}
+
+
+void rtThreadNativeDestroy(PRTTHREADINT pThread)
+{
+    NOREF(pThread);
 }
 
 

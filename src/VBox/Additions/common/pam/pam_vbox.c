@@ -1,4 +1,4 @@
-/* $Id: pam_vbox.c $ */
+/* $Id: pam_vbox.c 29060 2010-05-05 09:14:49Z vboxsync $ */
 /** @file
  * pam_vbox - PAM module for auto logons.
  */

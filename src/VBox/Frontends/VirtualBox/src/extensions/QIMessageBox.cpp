@@ -1,4 +1,4 @@
-/* $Id: QIMessageBox.cpp $ */
+/* $Id: QIMessageBox.cpp 31319 2010-08-02 16:41:47Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -24,6 +24,7 @@
 #include "QIMessageBox.h"
 #include "QILabel.h"
 #include "QIDialogButtonBox.h"
+#include "UIIconPool.h"
 #ifdef Q_WS_MAC
 # include "VBoxSelectorWnd.h"
 #endif /* Q_WS_MAC */
@@ -64,9 +65,8 @@ QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
 #ifdef Q_WS_MAC
     /* No sheets in another mode than normal for now. Firstly it looks ugly and
      * secondly in some cases it is broken. */
-    if (!(   qobject_cast<UIMachineWindowFullscreen*>(aParent)
-          || qobject_cast<UIMachineWindowSeamless*>(aParent)))
-        setWindowFlags (Qt::Sheet);
+    if (vboxGlobal().isSheetWindowsAllowed(aParent))
+        setWindowFlags(Qt::Sheet);
 #endif /* Q_WS_MAC */
 
     setWindowTitle (aCaption);
@@ -321,19 +321,19 @@ QPixmap QIMessageBox::standardPixmap (QIMessageBox::Icon aIcon)
     switch (aIcon)
     {
         case QIMessageBox::Information:
-            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxInformation, this);
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxInformationIcon, this);
             break;
         case QMessageBox::Warning:
-            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxWarning, this);
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, this);
             break;
         case QIMessageBox::Critical:
-            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxCritical, this);
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxCriticalIcon, this);
             break;
         case QIMessageBox::Question:
-            icon = vboxGlobal().standardIcon (QStyle::SP_MessageBoxQuestion, this);
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxQuestionIcon, this);
             break;
         case QIMessageBox::GuruMeditation:
-            icon = QIcon (":/meditation_32px.png");
+            icon = QIcon(":/meditation_32px.png");
             break;
         default:
             break;

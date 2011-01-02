@@ -56,7 +56,7 @@ HRESULT Shutdown();
  *  @param aIID     ID of the interface to get a name for
  *  @param aName    Resolved interface name or @c NULL on error
  */
-void GetInterfaceNameByIID (const GUID &aIID, BSTR *aName);
+void GetInterfaceNameByIID(const GUID &aIID, BSTR *aName);
 
 /**
  *  Returns the VirtualBox user home directory.

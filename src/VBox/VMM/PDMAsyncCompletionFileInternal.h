@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileInternal.h $ */
+/* $Id: PDMAsyncCompletionFileInternal.h 35205 2010-12-16 18:35:02Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  */
@@ -46,7 +46,7 @@
 RT_C_DECLS_BEGIN
 
 /**
- * A few forward declerations.
+ * A few forward declarations.
  */
 typedef struct PDMASYNCCOMPLETIONENDPOINTFILE *PPDMASYNCCOMPLETIONENDPOINTFILE;
 /** Pointer to a request segment. */
@@ -166,13 +166,14 @@ typedef struct PDMACEPFILEMGR
     uint32_t                               iFreeEntry;
     /** Size of the array. */
     unsigned                               cReqEntries;
-    /** Flag whether at least one endpoint reached its bandwidth limit. */
-    bool                                   fBwLimitReached;
     /** Memory cache for file range locks. */
     RTMEMCACHE                             hMemCacheRangeLocks;
+    /** Number of milliseconds to wait until the bandwidth is refreshed for at least
+     * one endpoint and it is possible to process more requests. */
+    RTMSINTERVAL                           msBwLimitExpired;
     /** Critical section protecting the blocking event handling. */
     RTCRITSECT                             CritSectBlockingEvent;
-    /** Event sempahore for blocking external events.
+    /** Event semaphore for blocking external events.
      * The caller waits on it until the async I/O manager
      * finished processing the event. */
     RTSEMEVENT                             EventSemBlock;
@@ -208,30 +209,6 @@ typedef struct PDMACEPFILEMGR
 typedef PDMACEPFILEMGR *PPDMACEPFILEMGR;
 /** Pointer to a async I/O manager state pointer. */
 typedef PPDMACEPFILEMGR *PPPDMACEPFILEMGR;
-
-/**
- * Bandwidth control manager instance data
- */
-typedef struct PDMACFILEBWMGR
-{
-    /** Maximum number of bytes the VM is allowed to transfer (Max is 4GB/s) */
-    uint32_t          cbVMTransferPerSecMax;
-    /** Number of bytes we start with */
-    uint32_t          cbVMTransferPerSecStart;
-    /** Step after each update */
-    uint32_t          cbVMTransferPerSecStep;
-    /** Number of bytes we are allowed to transfer till the next update.
-     * Resetted by the refresh timer. */
-    volatile uint32_t cbVMTransferAllowed;
-    /** Timestamp of the last update */
-    volatile uint64_t tsUpdatedLast;
-    /** Reference counter - How many endpoints are associated with this manager. */
-    uint32_t          cRefs;
-} PDMACFILEBWMGR;
-/** Pointer to a bandwidth control manager */
-typedef PDMACFILEBWMGR *PPDMACFILEBWMGR;
-/** Pointer to a bandwidth control manager pointer */
-typedef PPDMACFILEBWMGR *PPPDMACFILEBWMGR;
 
 /**
  * A file access range lock.
@@ -452,14 +429,12 @@ typedef struct PDMASYNCCOMPLETIONEPCLASSFILE
     /** Bitmask for checking the alignment of a buffer. */
     RTR3UINTPTR                         uBitmaskAlignment;
 #ifdef VBOX_WITH_STATISTICS
-    uint32_t                            u32Alignment;
+    uint32_t                            u32Alignment[2];
 #endif
     /** Global cache data. */
     PDMACFILECACHEGLOBAL                Cache;
     /** Flag whether the out of resources warning was printed already. */
     bool                                fOutOfResourcesWarningPrinted;
-    /** The global bandwidth control manager */
-    PPDMACFILEBWMGR                     pBwMgr;
 } PDMASYNCCOMPLETIONEPCLASSFILE;
 /** Pointer to the endpoint class data. */
 typedef PDMASYNCCOMPLETIONEPCLASSFILE *PPDMASYNCCOMPLETIONEPCLASSFILE;
@@ -540,26 +515,24 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     R3PTRTYPE(volatile PPDMACTASKFILE)     pTasksFreeTail;
     /** Number of elements in the cache. */
     volatile uint32_t                      cTasksCached;
-
-#ifdef VBOX_WITH_STATISTICS
+    /** Alignment */
     uint32_t                               u32Alignment;
-#endif
     /** Cache of endpoint data. */
     PDMACFILEENDPOINTCACHE                 DataCache;
-    /** Pointer to the associated bandwidth control manager */
-    PPDMACFILEBWMGR                        pBwMgr;
 
     /** Flag whether a flush request is currently active */
     PPDMACTASKFILE                         pFlushReq;
 
 #ifdef VBOX_WITH_STATISTICS
+    /** Alignment */
+    uint32_t                               u32Alignment1;
     /** Time spend in a read. */
     STAMPROFILEADV                         StatRead;
     /** Time spend in a write. */
     STAMPROFILEADV                         StatWrite;
 #endif
 
-    /** Event sempahore for blocking external events.
+    /** Event semaphore for blocking external events.
      * The caller waits on it until the async I/O manager
      * finished processing the event. */
     RTSEMEVENT                             EventSemBlock;
@@ -569,6 +542,12 @@ typedef struct PDMASYNCCOMPLETIONENDPOINTFILE
     bool                                   fReadonly;
     /** Flag whether the host supports the async flush API. */
     bool                                   fAsyncFlushSupported;
+#ifdef VBOX_WITH_DEBUGGER
+    /** Status code to inject for the next complete read. */
+    volatile int                           rcReqRead;
+    /** Status code to inject for the next complete write. */
+    volatile int                           rcReqWrite;
+#endif
     /** Flag whether a blocking event is pending and needs
      * processing by the I/O manager. */
     bool                                   fBlockingEventPending;
@@ -712,8 +691,6 @@ void pdmacFileTaskFree(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint,
 int pdmacFileEpAddTask(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMACTASKFILE pTask);
 
 void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc);
-
-bool pdmacFileBwMgrIsTransferAllowed(PPDMACFILEBWMGR pBwMgr, uint32_t cbTransfer);
 
 int pdmacFileCacheInit(PPDMASYNCCOMPLETIONEPCLASSFILE pClassFile, PCFGMNODE pCfgNode);
 void pdmacFileCacheDestroy(PPDMASYNCCOMPLETIONEPCLASSFILE pClassFile);

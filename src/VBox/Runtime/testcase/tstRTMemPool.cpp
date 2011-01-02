@@ -1,4 +1,4 @@
-/* $Id: tstRTMemPool.cpp $ */
+/* $Id: tstRTMemPool.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT Testcase - MemPool.
  */
@@ -176,7 +176,7 @@ static void tst3(void)
     RTTESTI_CHECK_RC_RETV(RTMemPoolDestroy(hMemPool), VINF_SUCCESS);
 
     /*
-     * Pseudo random freeing to test list maintaince.
+     * Pseudo random freeing to test list maintenance.
      */
     RTRAND hRand;
     RTTESTI_CHECK_RC_OK_RETV(RTRandAdvCreateParkMiller(&hRand));

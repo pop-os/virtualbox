@@ -1,4 +1,4 @@
-/* $Id: RTPathChangeToDosSlashes.cpp $ */
+/* $Id: RTPathChangeToDosSlashes.cpp 34205 2010-11-19 15:09:08Z vboxsync $ */
 /** @file
  * IPRT - RTPathChangeToDosSlashes
  */
@@ -33,7 +33,7 @@
 
 
 /**
- * Changes all the slahes in the specified path to DOS style.
+ * Changes all the slashes in the specified path to DOS style.
  *
  * Unless @a fForce is set, nothing will be done when on a UNIX flavored system
  * since paths wont work with DOS style slashes there.
@@ -52,8 +52,8 @@ RTDECL(char *) RTPathChangeToDosSlashes(char *pszPath, bool fForce)
         char   *psz = pszPath;
         while ((ch = *psz) != '\0')
         {
-            if (ch == '\\')
-                *psz = '/';
+            if (ch == '/')
+                *psz = '\\';
             psz++;
         }
     }

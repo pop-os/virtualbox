@@ -1,4 +1,4 @@
-/* $Id: fs-posix.cpp $ */
+/* $Id: fs-posix.cpp 35015 2010-12-13 14:36:50Z vboxsync $ */
 /** @file
  * IPRT - File System, Linux.
  */
@@ -35,7 +35,7 @@
 #ifdef RT_OS_LINUX
 # include <mntent.h>
 #endif
-#ifdef RT_OS_DARWIN
+#if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
 # include <sys/mount.h>
 #endif
 
@@ -106,7 +106,7 @@ RTR3DECL(int) RTFsQuerySerial(const char *pszFsPath, uint32_t *pu32Serial)
     AssertMsgReturn(VALID_PTR(pu32Serial), ("%p", pu32Serial), VERR_INVALID_PARAMETER);
 
     /*
-     * Conver the path and query the stats.
+     * Convert the path and query the stats.
      * We're simply return the device id.
      */
     char const *pszNativeFsPath;
@@ -246,7 +246,8 @@ RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
                             else if (!strcmp("proc", mntEnt.mnt_type))
                                 *penmType = RTFSTYPE_PROC;
                             else if (   !strcmp("fuse", mntEnt.mnt_type)
-                                     || !strncmp("fuse.", mntEnt.mnt_type, 5))
+                                     || !strncmp("fuse.", mntEnt.mnt_type, 5)
+                                     || !strcmp("fuseblk", mntEnt.mnt_type))
                                 *penmType = RTFSTYPE_FUSE;
                             else
                             {
@@ -268,7 +269,7 @@ RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
             else if (!strcmp("nfs", Stat.st_fstype))
                 *penmType = RTFSTYPE_NFS;
 
-#elif defined(RT_OS_DARWIN)
+#elif defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
             struct statfs statfsBuf;
             if (!statfs(pszNativeFsPath, &statfsBuf))
             {
@@ -285,6 +286,10 @@ RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
                     *penmType = RTFSTYPE_DEVFS;
                 else if (!strcmp("nfs", statfsBuf.f_fstypename))
                     *penmType = RTFSTYPE_NFS;
+                else if (!strcmp("ufs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_UFS;
+                else if (!strcmp("zfs", statfsBuf.f_fstypename))
+                    *penmType = RTFSTYPE_ZFS;
             }
             else
                 rc = RTErrConvertFromErrno(errno);

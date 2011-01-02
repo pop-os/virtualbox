@@ -1,10 +1,10 @@
-/* $Id: log.cpp $ */
+/* $Id: log.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
  * Runtime VBox - Logger.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -271,7 +271,7 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
     *ppLogger = NULL;
 
     if (pszErrorMsg)
-        RTStrPrintf(pszErrorMsg, cchErrorMsg, "unknown error");
+        RTStrPrintf(pszErrorMsg, cchErrorMsg, N_("unknown error"));
 
     /*
      * Allocate a logger instance.
@@ -323,7 +323,7 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
         {
 # ifdef RT_OS_LINUX
             if (pszErrorMsg) /* Most probably SELinux causing trouble since the larger RTMemAlloc succeeded. */
-                RTStrPrintf(pszErrorMsg, cchErrorMsg, "mmap(PROT_WRITE | PROT_EXEC) failed -- SELinux?");
+                RTStrPrintf(pszErrorMsg, cchErrorMsg, N_("mmap(PROT_WRITE | PROT_EXEC) failed -- SELinux?"));
 # endif
             rc = VERR_NO_MEMORY;
         }
@@ -392,7 +392,7 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
                     fOpen |= RTFILE_O_WRITE_THROUGH;
                 rc = RTFileOpen(&pLogger->File, pLogger->pszFilename, fOpen);
                 if (RT_FAILURE(rc) && pszErrorMsg)
-                    RTStrPrintf(pszErrorMsg, cchErrorMsg, "could not open file '%s' (fOpen=%#x)", pLogger->pszFilename, fOpen);
+                    RTStrPrintf(pszErrorMsg, cchErrorMsg, N_("could not open file '%s' (fOpen=%#x)"), pLogger->pszFilename, fOpen);
             }
 #endif  /* IN_RING3 */
 
@@ -421,7 +421,7 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
                 }
 
                 if (pszErrorMsg)
-                    RTStrPrintf(pszErrorMsg, cchErrorMsg, "failed to create sempahore");
+                    RTStrPrintf(pszErrorMsg, cchErrorMsg, N_("failed to create semaphore"));
             }
 #ifdef IN_RING3
             RTFileClose(pLogger->File);
@@ -429,7 +429,7 @@ RTDECL(int) RTLogCreateExV(PRTLOGGER *ppLogger, uint32_t fFlags, const char *psz
 #if defined(LOG_USE_C99) && defined(RT_WITHOUT_EXEC_ALLOC)
             RTMemFree(*(void **)&pLogger->pfnLogger);
 #else
-            RTMemExecFree(*(void **)&pLogger->pfnLogger);
+            RTMemExecFree(*(void **)&pLogger->pfnLogger, 64);
 #endif
         }
         RTMemFree(pLogger);
@@ -578,7 +578,7 @@ RTDECL(int) RTLogDestroy(PRTLOGGER pLogger)
 #if defined(LOG_USE_C99) && defined(RT_WITHOUT_EXEC_ALLOC)
         RTMemFree(*(void **)&pLogger->pfnLogger);
 #else
-        RTMemExecFree(*(void **)&pLogger->pfnLogger);
+        RTMemExecFree(*(void **)&pLogger->pfnLogger, 64);
 #endif
         pLogger->pfnLogger = NULL;
     }
@@ -1129,7 +1129,7 @@ static unsigned rtlogGroupFlags(const char *psz)
     unsigned fFlags = 0;
 
     /*
-     * Litteral flags.
+     * Literal flags.
      */
     while (*psz == '.')
     {
@@ -1431,6 +1431,44 @@ RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszVar)
 RT_EXPORT_SYMBOL(RTLogFlags);
 
 
+/**
+ * Changes the buffering setting of the specified logger.
+ *
+ * This can be used for optimizing longish logging sequences.
+ *
+ * @returns The old state.
+ * @param   pLogger         The logger instance (NULL is an alias for the
+ *                          default logger).
+ * @param   fBuffered       The new state.
+ */
+RTDECL(bool) RTLogSetBuffering(PRTLOGGER pLogger, bool fBuffered)
+{
+    bool fOld;
+
+    /*
+     * Resolve the logger instance.
+     */
+    if (!pLogger)
+    {
+        pLogger = RTLogDefaultInstance();
+        if (!pLogger)
+            return false;
+    }
+
+    rtlogLock(pLogger);
+    fOld  = !!(pLogger->fFlags & RTLOGFLAGS_BUFFERED);
+    if (fBuffered)
+        pLogger->fFlags |= RTLOGFLAGS_BUFFERED;
+    else
+        pLogger->fFlags &= ~RTLOGFLAGS_BUFFERED;
+    rtlogUnlock(pLogger);
+
+    return fOld;
+}
+RT_EXPORT_SYMBOL(RTLogSetBuffering);
+
+
+
 #ifndef IN_RC
 /**
  * Get the current log flags as a string.
@@ -1495,7 +1533,7 @@ RT_EXPORT_SYMBOL(RTLogGetFlags);
 
 
 /**
- * Updates the logger desination using the specified string.
+ * Updates the logger destination using the specified string.
  *
  * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
  * @param   pLogger             Logger instance (NULL for default logger).
@@ -1825,7 +1863,7 @@ RT_EXPORT_SYMBOL(RTLogGetDefaultInstance);
  */
 RTDECL(PRTLOGGER) RTLogSetDefaultInstance(PRTLOGGER pLogger)
 {
-    return (PRTLOGGER)ASMAtomicXchgPtr((void * volatile *)&g_pLogger, pLogger);
+    return ASMAtomicXchgPtrT(&g_pLogger, pLogger, PRTLOGGER);
 }
 RT_EXPORT_SYMBOL(RTLogSetDefaultInstance);
 #endif /* !IN_RC */
@@ -1860,7 +1898,7 @@ RTDECL(int) RTLogSetDefaultInstanceThread(PRTLOGGER pLogger, uintptr_t uKey)
         while (i-- > 0)
             if (g_aPerThreadLoggers[i].NativeThread == Self)
             {
-                ASMAtomicXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].uKey, (void *)uKey);
+                ASMAtomicWritePtr((void * volatile *)&g_aPerThreadLoggers[i].uKey, (void *)uKey);
                 g_aPerThreadLoggers[i].pLogger = pLogger;
                 return VINF_SUCCESS;
             }
@@ -1884,8 +1922,8 @@ RTDECL(int) RTLogSetDefaultInstanceThread(PRTLOGGER pLogger, uintptr_t uKey)
                 if (    g_aPerThreadLoggers[i].NativeThread == NIL_RTNATIVETHREAD
                     &&  ASMAtomicCmpXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].NativeThread, (void *)Self, (void *)NIL_RTNATIVETHREAD))
                 {
-                    ASMAtomicXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].uKey, (void *)uKey);
-                    ASMAtomicXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].pLogger, pLogger);
+                    ASMAtomicWritePtr((void * volatile *)&g_aPerThreadLoggers[i].uKey, (void *)uKey);
+                    ASMAtomicWritePtr(&g_aPerThreadLoggers[i].pLogger, pLogger);
                     return VINF_SUCCESS;
                 }
             }
@@ -1904,9 +1942,9 @@ RTDECL(int) RTLogSetDefaultInstanceThread(PRTLOGGER pLogger, uintptr_t uKey)
             if (    g_aPerThreadLoggers[i].NativeThread == Self
                 ||  g_aPerThreadLoggers[i].uKey == uKey)
             {
-                ASMAtomicXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].uKey, NULL);
-                ASMAtomicXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].pLogger, NULL);
-                ASMAtomicXchgPtr((void * volatile *)&g_aPerThreadLoggers[i].NativeThread, (void *)NIL_RTNATIVETHREAD);
+                ASMAtomicWriteNullPtr((void * volatile *)&g_aPerThreadLoggers[i].uKey);
+                ASMAtomicWriteNullPtr(&g_aPerThreadLoggers[i].pLogger);
+                ASMAtomicWriteHandle(&g_aPerThreadLoggers[i].NativeThread, NIL_RTNATIVETHREAD);
                 ASMAtomicDecS32(&g_cPerThreadLoggers);
             }
 
@@ -1941,7 +1979,7 @@ RT_EXPORT_SYMBOL(RTLogLoggerV);
  * @param   pLogger     Pointer to logger instance. If NULL the default logger instance will be attempted.
  * @param   fFlags      The logging flags.
  * @param   iGroup      The group.
- *                      The value ~0U is reserved for compatability with RTLogLogger[V] and is
+ *                      The value ~0U is reserved for compatibility with RTLogLogger[V] and is
  *                      only for internal usage!
  * @param   pszFormat   Format string.
  * @param   args        Format arguments.
@@ -2123,8 +2161,8 @@ static DECLCALLBACK(size_t) rtR0LogLoggerExFallbackOutput(void *pv, const char *
  * This will happen when we're at a too high IRQL on Windows for instance and
  * needs to be dealt with or we'll drop a lot of log output. This fallback will
  * only output to some of the log destinations as a few of them may be doing
- * dangerouse things. We won't be doing any prefixing here either, at least not
- * for the present, because it's too much hazzle.
+ * dangerous things. We won't be doing any prefixing here either, at least not
+ * for the present, because it's too much hassle.
  *
  * @param   fDestFlags  The destination flags.
  * @param   fFlags      The logger flags.
@@ -2339,11 +2377,7 @@ static DECLCALLBACK(size_t) rtLogOutputPrefixed(void *pv, const char *pachChars,
                 psz = &pLogger->achScratch[pLogger->offScratch];
                 if (pLogger->fFlags & RTLOGFLAGS_PREFIX_TS)
                 {
-#if defined(IN_RING3) || defined(IN_RC)
-                    uint64_t u64 = RTTimeNanoTS();
-#else
-                    uint64_t u64 = ~0;
-#endif
+                    uint64_t     u64    = RTTimeNanoTS();
                     int          iBase  = 16;
                     unsigned int fFlags = RTSTR_F_ZEROPAD;
                     if (pLogger->fFlags & RTLOGFLAGS_DECIMAL_TS)
@@ -2406,7 +2440,7 @@ static DECLCALLBACK(size_t) rtLogOutputPrefixed(void *pv, const char *pachChars,
                 }
                 if (pLogger->fFlags & RTLOGFLAGS_PREFIX_TIME)
                 {
-#ifdef IN_RING3
+#if defined(IN_RING3) || defined(IN_RING0)
                     RTTIMESPEC TimeSpec;
                     RTTIME Time;
                     RTTimeExplode(&Time, RTTimeNow(&TimeSpec));

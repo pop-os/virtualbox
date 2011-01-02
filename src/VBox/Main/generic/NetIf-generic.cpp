@@ -1,10 +1,10 @@
-/* $Id: NetIf-generic.cpp $ */
+/* $Id: NetIf-generic.cpp 32718 2010-09-23 12:57:52Z vboxsync $ */
 /** @file
  * VirtualBox Main - Generic NetIf implementation.
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,7 +126,7 @@ int NetIfEnableDynamicIpConfig(VirtualBox * /* vBox */, HostNetworkInterface * /
 }
 
 
-int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress)
+int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress)
 {
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
     /* create a progress object */
@@ -138,7 +138,7 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
     if (SUCCEEDED(hrc))
     {
         hrc = progress->init(pVBox, host,
-                             Bstr ("Creating host only network interface"),
+                             Bstr("Creating host only network interface").raw(),
                              FALSE /* aCancelable */);
         if (SUCCEEDED(hrc))
         {
@@ -148,7 +148,9 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
             int rc = RTPathExecDir(szAdpCtl, sizeof(szAdpCtl) - sizeof("/" VBOXNETADPCTL_NAME " add"));
             if (RT_FAILURE(rc))
             {
-                progress->notifyComplete(E_FAIL, COM_IIDOF(IHostNetworkInterface), HostNetworkInterface::getComponentName(),
+                progress->notifyComplete(E_FAIL,
+                                         COM_IIDOF(IHostNetworkInterface),
+                                         HostNetworkInterface::getStaticComponentName(),
                                          "Failed to get program path, rc=%Rrc\n", rc);
                 return rc;
             }
@@ -175,7 +177,9 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
                         rc = NetIfGetConfigByName(pInfo);
                         if (RT_FAILURE(rc))
                         {
-                            progress->notifyComplete(E_FAIL, COM_IIDOF(IHostNetworkInterface), HostNetworkInterface::getComponentName(),
+                            progress->notifyComplete(E_FAIL,
+                                                     COM_IIDOF(IHostNetworkInterface),
+                                                     HostNetworkInterface::getStaticComponentName(),
                                                      "Failed to get config info for %s (as reported by '" VBOXNETADPCTL_NAME " add')\n", szBuf);
                         }
                         else
@@ -193,7 +197,10 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
                 }
                 if ((rc = pclose(fp)) != 0)
                 {
-                    progress->notifyComplete(E_FAIL, COM_IIDOF(IHostNetworkInterface), HostNetworkInterface::getComponentName(), "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d)", rc);
+                    progress->notifyComplete(E_FAIL,
+                                             COM_IIDOF(IHostNetworkInterface),
+                                             HostNetworkInterface::getStaticComponentName(),
+                                             "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d)", rc);
                     rc = VERR_INTERNAL_ERROR;
                 }
             }
@@ -212,8 +219,8 @@ int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterfac
 #endif
 }
 
-int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVBox, IN_GUID aId,
-                                         IProgress **aProgress)
+int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
+                                        IProgress **aProgress)
 {
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD)
     /* create a progress object */
@@ -226,21 +233,24 @@ int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVBox, IN_GUID aId,
     {
         Bstr ifname;
         ComPtr<IHostNetworkInterface> iface;
-        if (FAILED(host->FindHostNetworkInterfaceById (Guid(aId).toUtf16(), iface.asOutParam())))
+        if (FAILED(host->FindHostNetworkInterfaceById(Guid(aId).toUtf16().raw(), iface.asOutParam())))
             return VERR_INVALID_PARAMETER;
-        iface->COMGETTER(Name) (ifname.asOutParam());
+        iface->COMGETTER(Name)(ifname.asOutParam());
         if (ifname.isEmpty())
             return VERR_INTERNAL_ERROR;
 
-        rc = progress->init (pVBox, host,
-                            Bstr ("Removing host network interface"),
+        rc = progress->init(pVBox, host,
+                            Bstr("Removing host network interface").raw(),
                             FALSE /* aCancelable */);
         if(SUCCEEDED(rc))
         {
             progress.queryInterfaceTo(aProgress);
             rc = NetIfAdpCtl(Utf8Str(ifname).c_str(), "remove", NULL, NULL);
             if (RT_FAILURE(rc))
-                progress->notifyComplete(E_FAIL, COM_IIDOF(IHostNetworkInterface), HostNetworkInterface::getComponentName(), "Failed to execute '"VBOXNETADPCTL_NAME "' (exit status: %d)", rc);
+                progress->notifyComplete(E_FAIL,
+                                         COM_IIDOF(IHostNetworkInterface),
+                                         HostNetworkInterface::getStaticComponentName(),
+                                         "Failed to execute '"VBOXNETADPCTL_NAME "' (exit status: %d)", rc);
             else
                 progress->notifyComplete(S_OK);
         }

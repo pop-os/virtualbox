@@ -1,4 +1,4 @@
-/* $Id: localipc-win.cpp $ */
+/* $Id: localipc-win.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Local IPC, Windows Implementation Using Named Pipes.
  */
@@ -410,7 +410,7 @@ RTDECL(int) RTLocalIpcServerListen(RTLOCALIPCSERVER hServer, PRTLOCALIPCSESSION 
                 else
                 {
                     /*
-                     * We failed to create a new instance for the server, diconnect
+                     * We failed to create a new instance for the server, disconnect
                      * the client and fail. Don't try service the client here.
                      */
                     rc = RTErrConvertFromWin32(err);

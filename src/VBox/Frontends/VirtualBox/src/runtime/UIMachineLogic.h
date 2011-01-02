@@ -38,10 +38,11 @@ class CUSBDevice;
 class CVirtualBoxErrorInfo;
 class UISession;
 class UIActionsPool;
+class UIKeyboardHandler;
+class UIMouseHandler;
 class UIMachineWindow;
 class UIMachineView;
 class UIDockIconPreview;
-class VBoxChangeDockIconUpdateEvent;
 
 class UIMachineLogic : public QIWithRetranslateUI3<QObject>
 {
@@ -67,6 +68,8 @@ public:
     UIActionsPool* actionsPool() const { return m_pActionsPool; }
     UIVisualStateType visualStateType() const { return m_visualStateType; }
     const QList<UIMachineWindow*>& machineWindows() const { return m_machineWindowsList; }
+    UIKeyboardHandler* keyboardHandler() const { return m_pKeyboardHandler; }
+    UIMouseHandler* mouseHandler() const { return m_pMouseHandler; }
     UIMachineWindow* mainMachineWindow() const;
     UIMachineWindow* defaultMachineWindow() const;
 
@@ -99,6 +102,8 @@ protected:
     void setMachineWindowsCreated(bool fIsWindowsCreated) { m_fIsWindowsCreated = fIsWindowsCreated; }
 
     /* Protected members: */
+    void setKeyboardHandler(UIKeyboardHandler *pKeyboardHandler);
+    void setMouseHandler(UIMouseHandler *pMouseHandler);
     void addMachineWindow(UIMachineWindow *pMachineWindow);
     void retranslateUi();
 #ifdef Q_WS_MAC
@@ -111,17 +116,21 @@ protected:
     virtual void prepareSessionConnections();
     virtual void prepareActionConnections();
     virtual void prepareActionGroups();
+    virtual void prepareHandlers();
 #ifdef Q_WS_MAC
     virtual void prepareDock();
 #endif /* Q_WS_MAC */
     virtual void prepareRequiredFeatures();
+#ifdef VBOX_WITH_DEBUGGER_GUI
+    virtual void prepareDebugger();
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 
     /* Cleanup helpers: */
     //virtual void cleanupRequiredFeatures() {}
-    virtual void cleanupMachineWindows();
 #ifdef Q_WS_MAC
     virtual void cleanupDock();
 #endif /* Q_WS_MAC */
+    virtual void cleanupHandlers();
     //virtual void cleanupActionGroups() {}
     //virtual void cleanupActionConnections() {}
     //virtual void cleanupSessionConnections() {}
@@ -143,7 +152,7 @@ protected slots:
 
 private slots:
 
-    /* "Machine" menu funtionality */
+    /* "Machine" menu functionality */
     void sltToggleGuestAutoresize(bool fEnabled);
     void sltAdjustWindow();
     void sltToggleMouseIntegration(bool fDisabled);
@@ -158,14 +167,15 @@ private slots:
     void sltACPIShutdown();
     void sltClose();
 
-    /* "Device" menu funtionality */
+    /* "Device" menu functionality */
     void sltPrepareStorageMenu();
     void sltMountStorageMedium();
+    void sltMountRecentStorageMedium();
     void sltPrepareUSBMenu();
     void sltAttachUSBDevice();
     void sltOpenNetworkAdaptersDialog();
     void sltOpenSharedFoldersDialog();
-    void sltSwitchVrdp(bool fOn);
+    void sltSwitchVrde(bool fOn);
     void sltInstallGuestAdditions();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -178,7 +188,7 @@ private slots:
 #ifdef RT_OS_DARWIN /* Something is *really* broken in regards of the moc here */
     void sltDockPreviewModeChanged(QAction *pAction);
     void sltDockPreviewMonitorChanged(QAction *pAction);
-    void sltChangeDockIconUpdate(const VBoxChangeDockIconUpdateEvent &event);
+    void sltChangeDockIconUpdate(bool fEnabled);
 #endif /* RT_OS_DARWIN */
 
 private:
@@ -192,6 +202,8 @@ private:
     UISession *m_pSession;
     UIActionsPool *m_pActionsPool;
     UIVisualStateType m_visualStateType;
+    UIKeyboardHandler *m_pKeyboardHandler;
+    UIMouseHandler *m_pMouseHandler;
     QList<UIMachineWindow*> m_machineWindowsList;
 
     QActionGroup *m_pRunningActions;
@@ -220,10 +232,6 @@ private:
 
     /* Friend classes: */
     friend class UIMachineWindow;
-
-#if 0 // TODO: Where to move that?
-    void setViewInSeamlessMode(const QRect &aTargetRect);
-#endif
 };
 
 #endif // __UIMachineLogic_h__

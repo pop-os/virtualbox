@@ -62,6 +62,7 @@ typedef enum MMTAG
 
     MM_TAG_DBGF,
     MM_TAG_DBGF_AS,
+    MM_TAG_DBGF_CORE_WRITE,
     MM_TAG_DBGF_INFO,
     MM_TAG_DBGF_LINE,
     MM_TAG_DBGF_LINE_DUP,
@@ -274,6 +275,7 @@ VMMR3DECL(RTHCPHYS) MMR3HyperHCVirt2HCPhys(PVM pVM, void *pvHC);
 VMMR3DECL(int)      MMR3HyperHCVirt2HCPhysEx(PVM pVM, void *pvHC, PRTHCPHYS pHCPhys);
 VMMR3DECL(void *)   MMR3HyperHCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys);
 VMMR3DECL(int)      MMR3HyperHCPhys2HCVirtEx(PVM pVM, RTHCPHYS HCPhys, void **ppv);
+VMMR3_INT_DECL(int) MMR3HyperQueryInfoFromHCPhys(PVM pVM, RTHCPHYS HCPhys, char *pszWhat, size_t cbWhat, uint32_t *pcbAlloc);
 VMMR3DECL(int)      MMR3HyperReadGCVirt(PVM pVM, void *pvDst, RTGCPTR GCPtr, size_t cb);
 /** @} */
 

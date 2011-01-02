@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.h $ */
+/* $Id: MediumImpl.h 35252 2010-12-20 16:46:31Z vboxsync $ */
 
 /** @file
  *
@@ -20,7 +20,7 @@
 #ifndef ____H_MEDIUMIMPL
 #define ____H_MEDIUMIMPL
 
-#include <VBox/VBoxHDD.h>
+#include <VBox/vd.h>
 
 #include "VirtualBoxBase.h"
 #include "MediumLock.h"
@@ -40,12 +40,10 @@ namespace settings
  */
 class ATL_NO_VTABLE Medium :
     public VirtualBoxBase,
-    public com::SupportErrorInfoImpl<Medium, IMedium>,
-    public VirtualBoxSupportTranslation<Medium>,
     VBOX_SCRIPTABLE_IMPL(IMedium)
 {
 public:
-    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Medium)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(Medium, IMedium)
 
     DECLARE_NOT_AGGREGATABLE(Medium)
 
@@ -68,28 +66,35 @@ public:
                 // and would be ambiguous
 
     // public initializer/uninitializer for internal purposes only
+
+    // initializer to create empty medium (VirtualBox::CreateHardDisk())
     HRESULT init(VirtualBox *aVirtualBox,
-                 CBSTR aFormat,
-                 CBSTR aLocation,
-                 bool *pfNeedsSaveSettings);
+                 const Utf8Str &aFormat,
+                 const Utf8Str &aLocation,
+                 const Guid &uuidMachineRegistry,
+                 GuidList *pllRegistriesThatNeedSaving);
+
+    // initializer for opening existing media
+    // (VirtualBox::OpenMedium(); Machine::AttachDevice())
     HRESULT init(VirtualBox *aVirtualBox,
-                 CBSTR aLocation,
+                 const Utf8Str &aLocation,
                  HDDOpenMode enOpenMode,
-                 DeviceType_T aDeviceType,
-                 BOOL aSetImageId,
-                 const Guid &aImageId,
-                 BOOL aSetParentId,
-                 const Guid &aParentId);
+                 DeviceType_T aDeviceType);
+
     // initializer used when loading settings
     HRESULT init(VirtualBox *aVirtualBox,
                  Medium *aParent,
                  DeviceType_T aDeviceType,
-                 const settings::Medium &data);
+                 const Guid &uuidMachineRegistry,
+                 const settings::Medium &data,
+                 const Utf8Str &strMachineFolder);
+
     // initializer for host floppy/DVD
     HRESULT init(VirtualBox *aVirtualBox,
                  DeviceType_T aDeviceType,
-                 CBSTR aLocation,
-                 CBSTR aDescription = NULL);
+                 const Utf8Str &aLocation,
+                 const Utf8Str &aDescription = Utf8Str::Empty);
+
     void uninit();
 
     void deparent();
@@ -100,12 +105,13 @@ public:
     STDMETHOD(COMGETTER(Description))(BSTR *aDescription);
     STDMETHOD(COMSETTER(Description))(IN_BSTR aDescription);
     STDMETHOD(COMGETTER(State))(MediumState_T *aState);
+    STDMETHOD(COMGETTER(Variant))(ULONG *aVariant);
     STDMETHOD(COMGETTER(Location))(BSTR *aLocation);
     STDMETHOD(COMSETTER(Location))(IN_BSTR aLocation);
     STDMETHOD(COMGETTER(Name))(BSTR *aName);
     STDMETHOD(COMGETTER(DeviceType))(DeviceType_T *aDeviceType);
     STDMETHOD(COMGETTER(HostDrive))(BOOL *aHostDrive);
-    STDMETHOD(COMGETTER(Size))(ULONG64 *aSize);
+    STDMETHOD(COMGETTER(Size))(LONG64 *aSize);
     STDMETHOD(COMGETTER(Format))(BSTR *aFormat);
     STDMETHOD(COMGETTER(MediumFormat))(IMediumFormat **aMediumFormat);
     STDMETHOD(COMGETTER(Type))(MediumType_T *aType);
@@ -114,13 +120,15 @@ public:
     STDMETHOD(COMGETTER(Children))(ComSafeArrayOut(IMedium *, aChildren));
     STDMETHOD(COMGETTER(Base))(IMedium **aBase);
     STDMETHOD(COMGETTER(ReadOnly))(BOOL *aReadOnly);
-    STDMETHOD(COMGETTER(LogicalSize))(ULONG64 *aLogicalSize);
+    STDMETHOD(COMGETTER(LogicalSize))(LONG64 *aLogicalSize);
     STDMETHOD(COMGETTER(AutoReset))(BOOL *aAutoReset);
     STDMETHOD(COMSETTER(AutoReset))(BOOL aAutoReset);
     STDMETHOD(COMGETTER(LastAccessError))(BSTR *aLastAccessError);
     STDMETHOD(COMGETTER(MachineIds))(ComSafeArrayOut(BSTR, aMachineIds));
 
     // IMedium methods
+    STDMETHOD(SetIDs)(BOOL aSetImageId, IN_BSTR aImageId,
+                      BOOL aSetParentId, IN_BSTR aParentId);
     STDMETHOD(RefreshState)(MediumState_T *aState);
     STDMETHOD(GetSnapshotIds)(IN_BSTR aMachineId,
                               ComSafeArrayOut(BSTR, aSnapshotIds));
@@ -136,41 +144,47 @@ public:
                              ComSafeArrayOut(BSTR, aReturnValues));
     STDMETHOD(SetProperties)(ComSafeArrayIn(IN_BSTR, aNames),
                              ComSafeArrayIn(IN_BSTR, aValues));
-    STDMETHOD(CreateBaseStorage)(ULONG64 aLogicalSize,
-                                 MediumVariant_T aVariant,
+    STDMETHOD(CreateBaseStorage)(LONG64 aLogicalSize,
+                                 ULONG aVariant,
                                  IProgress **aProgress);
     STDMETHOD(DeleteStorage)(IProgress **aProgress);
     STDMETHOD(CreateDiffStorage)(IMedium *aTarget,
-                                 MediumVariant_T aVariant,
+                                 ULONG aVariant,
                                  IProgress **aProgress);
     STDMETHOD(MergeTo)(IMedium *aTarget, IProgress **aProgress);
-    STDMETHOD(CloneTo)(IMedium *aTarget, MediumVariant_T aVariant,
+    STDMETHOD(CloneTo)(IMedium *aTarget, ULONG aVariant,
                         IMedium *aParent, IProgress **aProgress);
     STDMETHOD(Compact)(IProgress **aProgress);
-    STDMETHOD(Resize)(ULONG64 aLogicalSize, IProgress **aProgress);
+    STDMETHOD(Resize)(LONG64 aLogicalSize, IProgress **aProgress);
     STDMETHOD(Reset)(IProgress **aProgress);
-
-    // public methods for internal purposes only
-    const ComObjPtr<Medium>& getParent() const;
-    const MediaList& getChildren() const;
 
     // unsafe methods for internal purposes only (ensure there is
     // a caller and a read lock before calling them!)
+    const ComObjPtr<Medium>& getParent() const;
+    const MediaList& getChildren() const;
+
     const Guid& getId() const;
     MediumState_T getState() const;
     MediumVariant_T getVariant() const;
-    const Utf8Str& getLocation() const;
+    bool isHostDrive() const;
     const Utf8Str& getLocationFull() const;
     const Utf8Str& getFormat() const;
     const ComObjPtr<MediumFormat> & getMediumFormat() const;
+    bool isMediumFormatFile() const;
     uint64_t getSize() const;
+    DeviceType_T getDeviceType() const;
     MediumType_T getType() const;
     Utf8Str getName();
 
-    HRESULT attachTo(const Guid &aMachineId,
-                     const Guid &aSnapshotId = Guid::Empty);
-    HRESULT detachFrom(const Guid &aMachineId,
-                       const Guid &aSnapshotId = Guid::Empty);
+    bool addRegistry(const Guid& id);
+    bool isInRegistry(const Guid& id);
+    const Guid& getFirstRegistryMachineId() const;
+    HRESULT addToRegistryIDList(GuidList &llRegistryIDs);
+
+    HRESULT addBackReference(const Guid &aMachineId,
+                             const Guid &aSnapshotId = Guid::Empty);
+    HRESULT removeBackReference(const Guid &aMachineId,
+                                const Guid &aSnapshotId = Guid::Empty);
 
     const Guid* getFirstMachineBackrefId() const;
     const Guid* getFirstMachineBackrefSnapshotId() const;
@@ -179,16 +193,14 @@ public:
     void dumpBackRefs();
 #endif
 
-    HRESULT updatePath(const char *aOldPath, const char *aNewPath);
-    void updatePaths(const char *aOldPath, const char *aNewPath);
+    HRESULT updatePath(const Utf8Str &strOldPath, const Utf8Str &strNewPath);
 
     ComObjPtr<Medium> getBase(uint32_t *aLevel = NULL);
 
     bool isReadOnly();
 
-    HRESULT saveSettings(settings::Medium &data);
-
-    HRESULT compareLocationTo(const char *aLocation, int &aResult);
+    HRESULT saveSettings(settings::Medium &data,
+                         const Utf8Str &strHardDiskFolder);
 
     HRESULT createMediumLockList(bool fFailIfInaccessible,
                                  bool fMediumLockWrite,
@@ -200,9 +212,11 @@ public:
                               MediumLockList *pMediumLockList,
                               ComObjPtr<Progress> *aProgress,
                               bool aWait,
-                              bool *pfNeedsSaveSettings);
+                              GuidList *pllRegistriesThatNeedSaving);
+    Utf8Str getPreferredDiffFormat();
 
-    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait, bool *pfNeedsSaveSettings);
+    HRESULT close(GuidList *pllRegistriesThatNeedSaving, AutoCaller &autoCaller);
+    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait, GuidList *pllRegistriesThatNeedSaving);
     HRESULT markForDeletion();
     HRESULT unmarkForDeletion();
     HRESULT markLockedForDeletion();
@@ -223,39 +237,38 @@ public:
                     MediumLockList *aMediumLockList,
                     ComObjPtr<Progress> *aProgress,
                     bool aWait,
-                    bool *pfNeedsSaveSettings);
+                    GuidList *pllRegistriesThatNeedSaving);
     void cancelMergeTo(const MediaList &aChildrenToReparent,
                        MediumLockList *aMediumLockList);
 
     HRESULT fixParentUuidOfChildren(const MediaList &childrenToReparent);
 
-    /** Returns a preferred format for a differencing hard disk. */
-    Bstr preferredDiffFormat();
-
-    /** For com::SupportErrorInfoImpl. */
-    static const char *ComponentName() { return "Medium"; }
+    HRESULT exportFile(const char *aFilename,
+                       const ComObjPtr<MediumFormat> &aFormat,
+                       MediumVariant_T aVariant,
+                       void *aVDImageIOCallbacks, void *aVDImageIOUser,
+                       const ComObjPtr<Progress> &aProgress);
+    HRESULT importFile(const char *aFilename,
+                       const ComObjPtr<MediumFormat> &aFormat,
+                       MediumVariant_T aVariant,
+                       void *aVDImageIOCallbacks, void *aVDImageIOUser,
+                       const ComObjPtr<Medium> &aParent,
+                       const ComObjPtr<Progress> &aProgress);
 
 private:
 
-    HRESULT queryInfo();
+    HRESULT queryInfo(bool fSetImageId, bool fSetParentId);
 
-    /**
-     * Performs extra checks if the medium can be closed and returns S_OK in
-     * this case. Otherwise, returns a respective error message. Called by
-     * Close() under the medium tree lock and the medium lock.
-     */
     HRESULT canClose();
-
-    /**
-     * Unregisters this medium with mVirtualBox. Called by Close() under
-     * the medium tree lock.
-     */
-    HRESULT unregisterWithVirtualBox(bool *pfNeedsSaveSettings);
+    HRESULT unregisterWithVirtualBox(GuidList *pllRegistriesThatNeedSaving);
 
     HRESULT setStateError();
 
-    HRESULT setLocation(const Utf8Str &aLocation, const Utf8Str &aFormat = Utf8Str());
-    HRESULT setFormat(CBSTR aFormat);
+    HRESULT setLocation(const Utf8Str &aLocation, const Utf8Str &aFormat = Utf8Str::Empty);
+    HRESULT setFormat(const Utf8Str &aFormat);
+
+    VDTYPE convertDeviceType();
+    DeviceType_T convertToDeviceType(VDTYPE enmType);
 
     Utf8Str vdError(int aVRC);
 
@@ -268,8 +281,6 @@ private:
                                                size_t *pcbValue);
     static DECLCALLBACK(int) vdConfigQuery(void *pvUser, const char *pszName,
                                            char *pszValue, size_t cchValue);
-
-    static DECLCALLBACK(int) vdTcpClientClose(RTSOCKET Sock);
 
     static DECLCALLBACK(int) vdTcpSocketCreate(uint32_t fFlags, PVDSOCKET pSock);
     static DECLCALLBACK(int) vdTcpSocketDestroy(VDSOCKET Sock);
@@ -290,20 +301,26 @@ private:
     class CreateDiffTask;
     class CloneTask;
     class CompactTask;
+    class ResizeTask;
     class ResetTask;
     class DeleteTask;
     class MergeTask;
+    class ExportTask;
+    class ImportTask;
     friend class Task;
     friend class CreateBaseTask;
     friend class CreateDiffTask;
     friend class CloneTask;
     friend class CompactTask;
+    friend class ResizeTask;
     friend class ResetTask;
     friend class DeleteTask;
     friend class MergeTask;
+    friend class ExportTask;
+    friend class ImportTask;
 
     HRESULT startThread(Medium::Task *pTask);
-    HRESULT runNow(Medium::Task *pTask, bool *pfNeedsSaveSettings);
+    HRESULT runNow(Medium::Task *pTask, GuidList *pllRegistriesThatNeedSaving);
 
     HRESULT taskCreateBaseHandler(Medium::CreateBaseTask &task);
     HRESULT taskCreateDiffHandler(Medium::CreateDiffTask &task);
@@ -312,6 +329,9 @@ private:
     HRESULT taskDeleteHandler(Medium::DeleteTask &task);
     HRESULT taskResetHandler(Medium::ResetTask &task);
     HRESULT taskCompactHandler(Medium::CompactTask &task);
+    HRESULT taskResizeHandler(Medium::ResizeTask &task);
+    HRESULT taskExportHandler(Medium::ExportTask &task);
+    HRESULT taskImportHandler(Medium::ImportTask &task);
 
     struct Data;            // opaque data struct, defined in MediumImpl.cpp
     Data *m;

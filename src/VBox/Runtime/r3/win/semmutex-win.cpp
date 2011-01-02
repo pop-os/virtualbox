@@ -1,4 +1,4 @@
-/* $Id: semmutex-win.cpp $ */
+/* $Id: semmutex-win.cpp 30111 2010-06-09 12:14:59Z vboxsync $ */
 /** @file
  * IPRT - Mutex Semaphores, Windows.
  */
@@ -137,7 +137,7 @@ RTDECL(int)  RTSemMutexDestroy(RTSEMMUTEX hMutexSem)
      */
     AssertReturn(ASMAtomicCmpXchgU32(&pThis->u32Magic, RTSEMMUTEX_MAGIC_DEAD, RTSEMMUTEX_MAGIC), VERR_INVALID_HANDLE);
     HANDLE hMtx = pThis->hMtx;
-    ASMAtomicWritePtr((void * volatile *)&pThis->hMtx, (void *)INVALID_HANDLE_VALUE);
+    ASMAtomicWritePtr(&pThis->hMtx, INVALID_HANDLE_VALUE);
 
     int rc = VINF_SUCCESS;
     if (!CloseHandle(hMtx))

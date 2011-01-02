@@ -1,4 +1,4 @@
-; $Id: CPUMInternal.mac $
+; $Id: CPUMInternal.mac 34272 2010-11-23 09:51:17Z vboxsync $
 ;; @file
 ; CPUM - Internal header file (asm).
 ;
@@ -86,13 +86,8 @@ struc CPUM
 %endif
 
 %ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
- %if HC_ARCH_BITS == 32
-    .pvApicBase           resd    1
+    .pvApicBase           RTR0PTR_RES 1
     .fApicDisVectors      resd    1
- %else
-    .pvApicBase           resq    1
-    .fApicDisVectors      resd    1
- %endif
 %endif
 
     alignb 64

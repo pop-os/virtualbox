@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-solaris.c $ */
+/* $Id: memobj-r0drv-solaris.c 32919 2010-10-05 13:41:35Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, Solaris.
  */
@@ -178,11 +178,13 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
     /* Allocate physically non-contiguous page-aligned memory. */
     uint64_t physAddr = PhysHighest;
 
-#if 0
+# if 0
     /*
      * The contig_alloc() way of allocating NC pages is broken or does not match our semantics. Refer #4716 for details.
      */
-    /* caddr_t virtAddr  = vbi_phys_alloc(&physAddr, cb, PAGE_SIZE, 0 /* non-contiguous */); */
+#  if 0
+    /* caddr_t virtAddr  = vbi_phys_alloc(&physAddr, cb, PAGE_SIZE, 0 /* non-contiguous */);
+#  endif
     caddr_t virtAddr = ddi_umem_alloc(cb, DDI_UMEM_SLEEP, &pMemSolaris->Cookie);
     if (RT_UNLIKELY(virtAddr == NULL))
     {
@@ -193,7 +195,7 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
     pMemSolaris->Core.u.Phys.PhysBase = physAddr;
     pMemSolaris->Core.u.Phys.fAllocated = true;
     pMemSolaris->pvHandle = NULL;
-#else
+# else
     void *pvPages = vbi_pages_alloc(&physAddr, cb);
     if (!pvPages)
     {
@@ -205,7 +207,7 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
     pMemSolaris->Core.u.Phys.PhysBase = physAddr;
     pMemSolaris->Core.u.Phys.fAllocated = false;
     pMemSolaris->pvHandle = pvPages;
-#endif
+# endif
 
     Assert(!(physAddr & PAGE_OFFSET_MASK));
     *ppMem = &pMemSolaris->Core;
@@ -219,7 +221,7 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
 
 int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
 {
-    AssertMsgReturn(PhysHighest >= 16 *_1M, ("PhysHigest=%RHp\n", PhysHighest), VERR_NOT_IMPLEMENTED);
+    AssertMsgReturn(PhysHighest >= 16 *_1M, ("PhysHigest=%RHp\n", PhysHighest), VERR_NOT_SUPPORTED);
 
     PRTR0MEMOBJSOLARIS pMemSolaris = (PRTR0MEMOBJSOLARIS)rtR0MemObjNew(sizeof(*pMemSolaris), RTR0MEMOBJTYPE_PHYS, NULL, cb);
     if (!pMemSolaris)
@@ -268,7 +270,7 @@ int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS Ph
 
 int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
-    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_IMPLEMENTED);
+    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_SUPPORTED);
 
     /* Create the object. */
     PRTR0MEMOBJSOLARIS pMemSolaris = (PRTR0MEMOBJSOLARIS)rtR0MemObjNew(sizeof(*pMemSolaris), RTR0MEMOBJTYPE_PHYS, NULL, cb);
@@ -377,14 +379,14 @@ int rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, siz
 
 int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return VERR_NOT_SUPPORTED;
 }
 
 int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
                               unsigned fProt, size_t offSub, size_t cbSub)
 {
     /** @todo rtR0MemObjNativeMapKernel / Solaris - Should be fairly simple alloc kernel memory and memload it. */
-    return VERR_NOT_IMPLEMENTED;
+    return VERR_NOT_SUPPORTED;
 }
 
 
@@ -453,14 +455,12 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, PRTR0MEMOBJINTERNAL pMem
         rtR0MemObjDelete(&pMemSolaris->Core);
         return VERR_MAP_FAILED;
     }
-    else
-        rc = VINF_SUCCESS;
 
     pMemSolaris->Core.u.Mapping.R0Process = (RTR0PROCESS)vbi_proc();
     pMemSolaris->Core.pv = virtAddr;
     *ppMem = &pMemSolaris->Core;
     kmem_free(paPhysAddrs, sizeof(uint64_t) * cPages);
-    return rc;
+    return VINF_SUCCESS;
 }
 
 

@@ -1,4 +1,4 @@
-/* $Id: VUSBUrb.cpp $ */
+/* $Id: VUSBUrb.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
 /** @file
  * Virtual USB - URBs.
  */
@@ -72,7 +72,9 @@ DECLINLINE(const char *) vusbUrbStatusName(VUSBSTATUS enmStatus)
 
     return enmStatus < (int)RT_ELEMENTS(s_apszNames)
         ? s_apszNames[enmStatus]
-        : "??";
+        : enmStatus == VUSBSTATUS_INVALID
+            ? "INVALID"
+            : "??";
 }
 
 DECLINLINE(const char *) vusbUrbDirName(VUSBDIRECTION enmDir)
@@ -807,10 +809,10 @@ void vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
                      pszReg, pSetup->wValue));
         }
         else if (cbData)
-            Log(("URB: %*s: QUICKCAM: Unknow request: bRequest=%#x bmRequestType=%#x wValue=%#x wIndex=%#x: %.*Rhxs\n", s_cchMaxMsg, pszMsg,
+            Log(("URB: %*s: QUICKCAM: Unknown request: bRequest=%#x bmRequestType=%#x wValue=%#x wIndex=%#x: %.*Rhxs\n", s_cchMaxMsg, pszMsg,
                  pSetup->bRequest, pSetup->bmRequestType, pSetup->wValue, pSetup->wIndex, cbData, pbData));
         else
-            Log(("URB: %*s: QUICKCAM: Unknow request: bRequest=%#x bmRequestType=%#x wValue=%#x wIndex=%#x: (no data)\n", s_cchMaxMsg, pszMsg,
+            Log(("URB: %*s: QUICKCAM: Unknown request: bRequest=%#x bmRequestType=%#x wValue=%#x wIndex=%#x: (no data)\n", s_cchMaxMsg, pszMsg,
                  pSetup->bRequest, pSetup->bmRequestType, pSetup->wValue, pSetup->wIndex));
     }
 
@@ -1177,7 +1179,7 @@ DECLINLINE(bool) vusbUrbIsRequestSafe(PCVUSBSETUP pSetup, PVUSBURB pUrb)
 
 /**
  * Queues an URB for asynchronous transfer.
- * A list of asynchornous URBs is kept by the roothub.
+ * A list of asynchronous URBs is kept by the roothub.
  *
  * @returns VBox status code (from pfnUrbQueue).
  * @param   pUrb    The URB.
@@ -1279,7 +1281,7 @@ void vusbMsgResetExtraData(PVUSBCTRLEXTRA pExtra)
 /**
  * Callback to free a cancelled message URB.
  *
- * This is yet another place we're we have to performce acrobatics to
+ * This is yet another place we're we have to performance acrobatics to
  * deal with cancelled URBs. sigh.
  *
  * The deal here is that we never free message URBs since they are integrated
@@ -1429,7 +1431,7 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
             return false;
         }
         pExtra->Urb.VUsb.pvFreeCtx = NULL;
-        LogFlow(("vusbMsgSetup: Replacing cancled pExtra=%p with %p.\n", pExtra, pvNew));
+        LogFlow(("vusbMsgSetup: Replacing canceled pExtra=%p with %p.\n", pExtra, pvNew));
         pPipe->pCtrl = pExtra = (PVUSBCTRLEXTRA)pvNew;
         pExtra->pMsg = (PVUSBSETUP)pExtra->Urb.abData;
         pExtra->Urb.enmState = VUSBURBSTATE_ALLOCATED;
@@ -2008,7 +2010,7 @@ static void vusbUrbCompletion(PVUSBURB pUrb)
  * An URB which is in the cancel state after pfnCancel will remain in that
  * state and in the async list until its reaped. When it's finally reaped
  * it will be unlinked and freed without doing any completion.
- * 
+ *
  * There are different modes of canceling an URB. When devices are being
  * disconnected etc., they will be completed with an error (CRC). However,
  * when the HC needs to temporarily halt communication with a device, the

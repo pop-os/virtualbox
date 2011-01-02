@@ -1,4 +1,4 @@
-/* $Id: timer-generic.cpp $ */
+/* $Id: timer-generic.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Timers, Generic.
  */
@@ -86,7 +86,7 @@ typedef struct RTTIMER
 static DECLCALLBACK(int) rtTimerThread(RTTHREAD Thread, void *pvUser);
 
 
-RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, unsigned fFlags, PFNRTTIMER pfnTimer, void *pvUser)
+RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_t fFlags, PFNRTTIMER pfnTimer, void *pvUser)
 {
     *ppTimer = NULL;
 
@@ -190,7 +190,7 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
         return VERR_TIMER_ACTIVE;
 
     /*
-     * Calc when it should start fireing and give the thread a kick so it get going.
+     * Calc when it should start firing and give the thread a kick so it get going.
      */
     u64First += RTTimeNanoTS();
     ASMAtomicXchgU64(&pTimer->iTick, 0);
@@ -224,6 +224,15 @@ RTDECL(int) RTTimerStop(PRTTIMER pTimer)
     return rc;
 }
 RT_EXPORT_SYMBOL(RTTimerStop);
+
+
+RTDECL(int) RTTimerChangeInterval(PRTTIMER pTimer, uint64_t u64NanoInterval)
+{
+    if (!rtTimerIsValid(pTimer))
+        return VERR_INVALID_HANDLE;
+    return VERR_NOT_SUPPORTED;
+}
+RT_EXPORT_SYMBOL(RTTimerChangeInterval);
 
 
 static DECLCALLBACK(int) rtTimerThread(RTTHREAD Thread, void *pvUser)
@@ -324,3 +333,9 @@ RTDECL(int) RTTimerReleaseSystemGranularity(uint32_t u32Granted)
 }
 RT_EXPORT_SYMBOL(RTTimerReleaseSystemGranularity);
 
+
+RTDECL(bool) RTTimerCanDoHighResolution(void)
+{
+    return false;
+}
+RT_EXPORT_SYMBOL(RTTimerCanDoHighResolution);

@@ -1346,7 +1346,7 @@ static int is_fast_jcc_case(DisasContext *s, int b)
 }
 
 /* generate a conditional jump to label 'l1' according to jump opcode
-   value 'b'. In the fast case, T0 is guaranted not to be used. */
+   value 'b'. In the fast case, T0 is guaranteed not to be used. */
 #ifndef VBOX
 static inline void gen_jcc1(DisasContext *s, int cc_op, int b, int l1)
 #else /* VBOX */
@@ -2434,8 +2434,8 @@ static void gen_lea_modrm(DisasContext *s, int modrm, int *reg_ptr, int *offset_
                 gen_op_movl_A0_im(disp);
             }
         }
-        /* XXX: index == 4 is always invalid */
-        if (havesib && (index != 4 || scale != 0)) {
+        /* index == 4 means no index */
+        if (havesib && (index != 4)) {
 #ifdef TARGET_X86_64
             if (s->aflag == 2) {
                 gen_op_addq_A0_reg_sN(scale, index);
@@ -2764,7 +2764,7 @@ static void gen_setcc(DisasContext *s, int b)
         tcg_temp_free(t0);
     } else {
         /* slow case: it is more efficient not to generate a jump,
-           although it is questionnable whether this optimization is
+           although it is questionable whether this optimization is
            worth to */
         inv = b & 1;
         jcc_op = (b >> 1) & 7;
@@ -3641,11 +3641,16 @@ static void gen_sse(DisasContext *s, int b, target_ulong pc_start, int rex_r)
         case 0x1e7: /* movntdq */
         case 0x02b: /* movntps */
         case 0x12b: /* movntps */
-        case 0x3f0: /* lddqu */
             if (mod == 3)
                 goto illegal_op;
             gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
             gen_sto_env_A0(s->mem_index, offsetof(CPUX86State,xmm_regs[reg]));
+            break;
+        case 0x3f0: /* lddqu */
+            if (mod == 3)
+                goto illegal_op;
+            gen_lea_modrm(s, modrm, &reg_addr, &offset_addr);
+            gen_ldo_env_A0(s->mem_index, offsetof(CPUX86State,xmm_regs[reg]));
             break;
         case 0x6e: /* movd mm, ea */
 #ifdef TARGET_X86_64

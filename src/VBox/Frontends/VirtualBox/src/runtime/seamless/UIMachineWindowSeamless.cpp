@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowSeamless.cpp $ */
+/* $Id: UIMachineWindowSeamless.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -30,12 +30,11 @@
 # include "VBoxMiniToolBar.h"
 #endif /* Q_WS_MAC */
 
-#include "UIActionsPool.h"
-#include "UIMachineLogic.h"
-#include "UIMachineLogicSeamless.h"
-#include "UIMachineView.h"
-#include "UIMachineWindowSeamless.h"
 #include "UISession.h"
+#include "UIActionsPool.h"
+#include "UIMachineLogicSeamless.h"
+#include "UIMachineWindowSeamless.h"
+#include "UIMachineViewSeamless.h"
 
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
@@ -74,8 +73,11 @@ UIMachineWindowSeamless::UIMachineWindowSeamless(UIMachineLogic *pMachineLogic, 
     /* Prepare seamless machine view: */
     prepareMachineView();
 
-    /* Prepare mini tool-bar: */
+    /* Prepare handlers: */
+    prepareHandlers();
+
 #ifndef Q_WS_MAC
+    /* Prepare mini tool-bar: */
     prepareMiniToolBar();
 #endif /* Q_WS_MAC */
 
@@ -98,6 +100,14 @@ UIMachineWindowSeamless::~UIMachineWindowSeamless()
 {
     /* Save window settings: */
     saveWindowSettings();
+
+#ifndef Q_WS_MAC
+    /* Cleanup mini tool-bar: */
+    cleanupMiniToolBar();
+#endif /* Q_WS_MAC */
+
+    /* Prepare handlers: */
+    cleanupHandlers();
 
     /* Cleanup machine view: */
     cleanupMachineView();
@@ -139,7 +149,7 @@ void UIMachineWindowSeamless::sltPopupMainMenu()
 void UIMachineWindowSeamless::sltUpdateMiniToolBarMask()
 {
     if (m_pMiniToolBar)
-        setMask(machineView()->lastVisibleRegion());
+        setMask(qobject_cast<UIMachineViewSeamless*>(machineView())->lastVisibleRegion());
 }
 #endif /* Q_WS_MAC */
 
@@ -175,22 +185,7 @@ bool UIMachineWindowSeamless::event(QEvent *pEvent)
 #ifdef Q_WS_X11
 bool UIMachineWindowSeamless::x11Event(XEvent *pEvent)
 {
-    /* Qt bug: when the console view grabs the keyboard, FocusIn, FocusOut,
-     * WindowActivate and WindowDeactivate Qt events are not properly sent
-     * on top level window (i.e. this) deactivation. The fix is to substiute
-     * the mode in FocusOut X11 event structure to NotifyNormal to cause
-     * Qt to process it as desired. */
-    if (pEvent->type == FocusOut)
-    {
-        if (pEvent->xfocus.mode == NotifyWhileGrabbed  &&
-            (pEvent->xfocus.detail == NotifyAncestor ||
-             pEvent->xfocus.detail == NotifyInferior ||
-             pEvent->xfocus.detail == NotifyNonlinear))
-        {
-             pEvent->xfocus.mode = NotifyNormal;
-        }
-    }
-    return false;
+    return UIMachineWindow::x11Event(pEvent);
 }
 #endif
 
@@ -279,12 +274,12 @@ void UIMachineWindowSeamless::prepareMachineView()
     centralWidget()->setLayout(m_pMachineViewContainer);
 
     m_pMachineView = UIMachineView::create(  this
-                                           , vboxGlobal().vmRenderMode()
+                                           , m_uScreenId
+                                           , machineLogic()->visualStateType()
 #ifdef VBOX_WITH_VIDEOHWACCEL
                                            , bAccelerate2DVideo
 #endif
-                                           , machineLogic()->visualStateType()
-                                           , m_uScreenId);
+                                           );
 
     /* Add machine view into layout: */
     m_pMachineViewContainer->addWidget(m_pMachineView, 1, 1, Qt::AlignVCenter | Qt::AlignHCenter);
@@ -328,6 +323,17 @@ void UIMachineWindowSeamless::cleanupMachineView()
     UIMachineView::destroy(m_pMachineView);
     m_pMachineView = 0;
 }
+
+#ifndef Q_WS_MAC
+void UIMachineWindowSeamless::cleanupMiniToolBar()
+{
+    if (m_pMiniToolBar)
+    {
+        delete m_pMiniToolBar;
+        m_pMiniToolBar = 0;
+    }
+}
+#endif /* Q_WS_MAC */
 
 void UIMachineWindowSeamless::cleanupMenu()
 {
@@ -453,11 +459,11 @@ void UIMachineWindowSeamless::setMask(const QRegion &constRegion)
         // mCurrRegion = region;
         // /* We repaint the screen before the ReshapeCustomWindow command. Unfortunately
         //  * this command flushes a copy of the backbuffer to the screen after the new
-        //  * mask is set. This leads into a missplaced drawing of the content. Currently
+        //  * mask is set. This leads into a misplaced drawing of the content. Currently
         //  * no alternative to this and also this is not 100% perfect. */
         // repaint();
         // qApp->processEvents();
-        // /* Now force the reshaping of the window. This is definitly necessary. */
+        // /* Now force the reshaping of the window. This is definitely necessary. */
         // ReshapeCustomWindow (reinterpret_cast <WindowPtr> (winId()));
         QMainWindow::setMask(region);
         // HIWindowInvalidateShadow (::darwinToWindowRef (mConsole->viewport()));

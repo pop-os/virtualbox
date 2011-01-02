@@ -1,4 +1,4 @@
-# $Id: Makefile $
+# $Id: Makefile 33379 2010-10-24 13:22:25Z vboxsync $
 ## @file
 # Makefile for the VirtualBox FreeBSD Host Driver.
 #
@@ -50,7 +50,8 @@ SRCS += \
 
 .PATH:	${.CURDIR}/alloc
 SRCS += \
-	heapsimple.c
+	heapsimple.c \
+	alloc.c
 
 .PATH:	${.CURDIR}/common/err
 SRCS += \
@@ -104,11 +105,16 @@ SRCS += \
 .PATH:	${.CURDIR}/common/checksum
 SRCS += \
 	crc32.c \
-	ipv4.c
+	ipv4.c \
+	ipv6.c
 
 .PATH:	${.CURDIR}/common/table
 SRCS += \
 	avlpv.c
+
+.PATH:	${.CURDIR}/common/time
+SRCS += \
+	time.c
 
 .PATH:	${.CURDIR}/generic
 SRCS += \
@@ -118,8 +124,13 @@ SRCS += \
 	RTLogWriteStdOut-stub-generic.c \
 	RTLogWriteStdErr-stub-generic.c \
 	RTLogWriteUser-generic.c \
+	RTMpGetArraySize-generic.c \
 	RTRandAdvCreateSystemFaster-generic.c \
 	RTRandAdvCreateSystemTruer-generic.c \
+	RTSemEventWait-2-ex-generic.c \
+	RTSemEventWaitNoResume-2-ex-generic.c \
+	RTSemEventMultiWait-2-ex-generic.c \
+	RTSemEventMultiWaitNoResume-2-ex-generic.c \
 	RTTimerCreate-generic.c \
 	timer-generic.c \
 	mppresent-generic.c

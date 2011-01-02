@@ -1,4 +1,4 @@
-/* $Id: iokit.h $ */
+/* $Id: iokit.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Main - Darwin IOKit Routines.
  */
@@ -39,7 +39,7 @@ typedef DARWINDVD *PDARWINDVD;
 
 
 /**
- * Darwin ethernet controler descriptor as returned by DarwinGetEthernetControllers().
+ * Darwin ethernet controller descriptor as returned by DarwinGetEthernetControllers().
  */
 typedef struct DARWINETHERNIC
 {

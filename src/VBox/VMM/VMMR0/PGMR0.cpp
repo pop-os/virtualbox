@@ -1,10 +1,10 @@
-/* $Id: PGMR0.cpp $ */
+/* $Id: PGMR0.cpp 32431 2010-09-11 18:02:17Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Ring-0.
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,10 @@
 #include <iprt/assert.h>
 #include <iprt/mem.h>
 
-RT_C_DECLS_BEGIN
+
+/*
+ * Instantiate the ring-0 header/code templates.
+ */
 #define PGM_BTH_NAME(name)          PGM_BTH_NAME_32BIT_PROT(name)
 #include "PGMR0Bth.h"
 #undef PGM_BTH_NAME
@@ -45,8 +48,6 @@ RT_C_DECLS_BEGIN
 #define PGM_BTH_NAME(name)          PGM_BTH_NAME_EPT_PROT(name)
 #include "PGMR0Bth.h"
 #undef PGM_BTH_NAME
-
-RT_C_DECLS_END
 
 
 /**
@@ -161,6 +162,7 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
     return rc;
 }
 
+
 /**
  * Worker function for PGMR3PhysAllocateLargeHandyPage
  *
@@ -186,27 +188,34 @@ VMMR0DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
     return rc;
 }
 
+
 /**
  * #PF Handler for nested paging.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
  * @param   pVM                 VM Handle.
  * @param   pVCpu               VMCPU Handle.
- * @param   enmShwPagingMode    Paging mode for the nested page tables
+ * @param   enmShwPagingMode    Paging mode for the nested page tables.
  * @param   uErr                The trap error code.
  * @param   pRegFrame           Trap register frame.
- * @param   pvFault             The fault address.
+ * @param   GCPhysFault         The fault address.
  */
-VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPHYS pvFault)
+VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr,
+                                              PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault)
 {
     int rc;
 
-    LogFlow(("PGMTrap0eHandler: uErr=%RGx pvFault=%RGp eip=%RGv\n", uErr, pvFault, (RTGCPTR)pRegFrame->rip));
+    LogFlow(("PGMTrap0eHandler: uErr=%RGx GCPhysFault=%RGp eip=%RGv\n", uErr, GCPhysFault, (RTGCPTR)pRegFrame->rip));
     STAM_PROFILE_START(&pVCpu->pgm.s.StatRZTrap0e, a);
     STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = NULL; } );
 
     /* AMD uses the host's paging mode; Intel has a single mode (EPT). */
-    AssertMsg(enmShwPagingMode == PGMMODE_32_BIT || enmShwPagingMode == PGMMODE_PAE || enmShwPagingMode == PGMMODE_PAE_NX || enmShwPagingMode == PGMMODE_AMD64 || enmShwPagingMode == PGMMODE_AMD64_NX || enmShwPagingMode == PGMMODE_EPT, ("enmShwPagingMode=%d\n", enmShwPagingMode));
+    AssertMsg(   enmShwPagingMode == PGMMODE_32_BIT || enmShwPagingMode == PGMMODE_PAE      || enmShwPagingMode == PGMMODE_PAE_NX
+              || enmShwPagingMode == PGMMODE_AMD64  || enmShwPagingMode == PGMMODE_AMD64_NX || enmShwPagingMode == PGMMODE_EPT,
+              ("enmShwPagingMode=%d\n", enmShwPagingMode));
+
+    /* Reserved shouldn't end up here. */
+    Assert(!(uErr & X86_TRAP_PF_RSVD));
 
 #ifdef VBOX_WITH_STATISTICS
     /*
@@ -217,87 +226,184 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
         if (!(uErr & X86_TRAP_PF_P))
         {
             if (uErr & X86_TRAP_PF_RW)
-                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eUSNotPresentWrite);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eUSNotPresentWrite);
             else
-                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eUSNotPresentRead);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eUSNotPresentRead);
         }
         else if (uErr & X86_TRAP_PF_RW)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eUSWrite);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eUSWrite);
         else if (uErr & X86_TRAP_PF_RSVD)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eUSReserved);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eUSReserved);
         else if (uErr & X86_TRAP_PF_ID)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eUSNXE);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eUSNXE);
         else
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eUSRead);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eUSRead);
     }
     else
     {   /* Supervisor */
         if (!(uErr & X86_TRAP_PF_P))
         {
             if (uErr & X86_TRAP_PF_RW)
-                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eSVNotPresentWrite);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eSVNotPresentWrite);
             else
-                STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eSVNotPresentRead);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eSVNotPresentRead);
         }
         else if (uErr & X86_TRAP_PF_RW)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eSVWrite);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eSVWrite);
         else if (uErr & X86_TRAP_PF_ID)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eSNXE);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eSNXE);
         else if (uErr & X86_TRAP_PF_RSVD)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.StatRZTrap0eSVReserved);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eSVReserved);
     }
 #endif
 
     /*
      * Call the worker.
      *
-     * We pretend the guest is in protected mode without paging, so we can use existing code to build the
-     * nested page tables.
+     * Note! We pretend the guest is in protected mode without paging, so we
+     *       can use existing code to build the nested page tables.
      */
     bool fLockTaken = false;
     switch(enmShwPagingMode)
     {
-    case PGMMODE_32_BIT:
-        rc = PGM_BTH_NAME_32BIT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
-        break;
-    case PGMMODE_PAE:
-    case PGMMODE_PAE_NX:
-        rc = PGM_BTH_NAME_PAE_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
-        break;
-    case PGMMODE_AMD64:
-    case PGMMODE_AMD64_NX:
-        rc = PGM_BTH_NAME_AMD64_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
-        break;
-    case PGMMODE_EPT:
-        rc = PGM_BTH_NAME_EPT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
-        break;
-    default:
-        AssertFailed();
-        rc = VERR_INVALID_PARAMETER;
-        break;
+        case PGMMODE_32_BIT:
+            rc = PGM_BTH_NAME_32BIT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, GCPhysFault, &fLockTaken);
+            break;
+        case PGMMODE_PAE:
+        case PGMMODE_PAE_NX:
+            rc = PGM_BTH_NAME_PAE_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, GCPhysFault, &fLockTaken);
+            break;
+        case PGMMODE_AMD64:
+        case PGMMODE_AMD64_NX:
+            rc = PGM_BTH_NAME_AMD64_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, GCPhysFault, &fLockTaken);
+            break;
+        case PGMMODE_EPT:
+            rc = PGM_BTH_NAME_EPT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, GCPhysFault, &fLockTaken);
+            break;
+        default:
+            AssertFailed();
+            rc = VERR_INVALID_PARAMETER;
+            break;
     }
     if (fLockTaken)
     {
         Assert(PGMIsLockOwner(pVM));
         pgmUnlock(pVM);
     }
+
     if (rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
         rc = VINF_SUCCESS;
-    else
     /* Note: hack alert for difficult to reproduce problem. */
-    if (    rc == VERR_PAGE_NOT_PRESENT                 /* SMP only ; disassembly might fail. */
-        ||  rc == VERR_PAGE_TABLE_NOT_PRESENT           /* seen with UNI & SMP */
-        ||  rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT   /* seen with SMP */
-        ||  rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT)     /* precaution */
+    else if (   rc == VERR_PAGE_NOT_PRESENT                 /* SMP only ; disassembly might fail. */
+             || rc == VERR_PAGE_TABLE_NOT_PRESENT           /* seen with UNI & SMP */
+             || rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT   /* seen with SMP */
+             || rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT)     /* precaution */
     {
-        Log(("WARNING: Unexpected VERR_PAGE_TABLE_NOT_PRESENT (%d) for page fault at %RGp error code %x (rip=%RGv)\n", rc, pvFault, uErr, pRegFrame->rip));
-        /* Some kind of inconsistency in the SMP case; it's safe to just execute the instruction again; not sure about single VCPU VMs though. */
+        Log(("WARNING: Unexpected VERR_PAGE_TABLE_NOT_PRESENT (%d) for page fault at %RGp error code %x (rip=%RGv)\n", rc, GCPhysFault, uErr, pRegFrame->rip));
+        /* Some kind of inconsistency in the SMP case; it's safe to just execute the instruction again; not sure about
+           single VCPU VMs though. */
         rc = VINF_SUCCESS;
     }
 
     STAM_STATS({ if (!pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution))
-                    pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.StatRZTrap0eTime2Misc; });
-    STAM_PROFILE_STOP_EX(&pVCpu->pgm.s.StatRZTrap0e, pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution), a);
+                    pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Misc; });
+    STAM_PROFILE_STOP_EX(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0e, pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution), a);
     return rc;
+}
+
+
+/**
+ * #PF Handler for deliberate nested paging misconfiguration (/reserved bit)
+ * employed for MMIO pages.
+ *
+ * @returns VBox status code (appropriate for trap handling and GC return).
+ * @param   pVM                 The VM Handle.
+ * @param   pVCpu               The current CPU.
+ * @param   enmShwPagingMode    Paging mode for the nested page tables.
+ * @param   pRegFrame           Trap register frame.
+ * @param   GCPhysFault         The fault address.
+ * @param   uErr                The error code, UINT32_MAX if not available
+ *                              (VT-x).
+ */
+VMMR0DECL(VBOXSTRICTRC) PGMR0Trap0eHandlerNPMisconfig(PVM pVM, PVMCPU pVCpu, PGMMODE enmShwPagingMode,
+                                                      PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, uint32_t uErr)
+{
+#ifdef PGM_WITH_MMIO_OPTIMIZATIONS
+    STAM_PROFILE_START(&pVCpu->CTX_SUFF(pStats)->StatR0NpMiscfg, a);
+    VBOXSTRICTRC rc;
+
+    /*
+     * Try lookup the all access physical handler for the address.
+     */
+    pgmLock(pVM);
+    PPGMPHYSHANDLER pHandler = pgmHandlerPhysicalLookup(pVM, GCPhysFault);
+    if (RT_LIKELY(pHandler && pHandler->enmType != PGMPHYSHANDLERTYPE_PHYSICAL_WRITE))
+    {
+        /*
+         * If the handle has aliases page or pages that have been temporarily
+         * disabled, we'll have to take a detour to make sure we resync them
+         * to avoid lots of unnecessary exits.
+         */
+        PPGMPAGE pPage;
+        if (   (   pHandler->cAliasedPages
+                || pHandler->cTmpOffPages)
+            && (   (pPage = pgmPhysGetPage(&pVM->pgm.s, GCPhysFault)) == NULL
+                || PGM_PAGE_GET_HNDL_PHYS_STATE(pPage) == PGM_PAGE_HNDL_PHYS_STATE_DISABLED)
+           )
+        {
+            Log(("PGMR0Trap0eHandlerNPMisconfig: Resyncing aliases / tmp-off page at %RGp (uErr=%#x) %R[pgmpage]\n", GCPhysFault, uErr, pPage));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatR0NpMiscfgSyncPage);
+            rc = pgmShwSyncNestedPageLocked(pVCpu, GCPhysFault, 1 /*cPages*/, enmShwPagingMode);
+            pgmUnlock(pVM);
+        }
+        else
+        {
+            if (pHandler->CTX_SUFF(pfnHandler))
+            {
+                CTX_MID(PFNPGM,PHYSHANDLER) pfnHandler = pHandler->CTX_SUFF(pfnHandler);
+                void                       *pvUser     = pHandler->CTX_SUFF(pvUser);
+                STAM_PROFILE_START(&pHandler->Stat, h);
+                pgmUnlock(pVM);
+
+                Log6(("PGMR0Trap0eHandlerNPMisconfig: calling %p(,%#x,,%RGp,%p)\n", pfnHandler, uErr, GCPhysFault, pvUser));
+                rc = pfnHandler(pVM, uErr == UINT32_MAX ? RTGCPTR_MAX : uErr, pRegFrame, GCPhysFault, GCPhysFault, pvUser);
+
+#ifdef VBOX_WITH_STATISTICS
+                pgmLock(pVM);
+                pHandler = pgmHandlerPhysicalLookup(pVM, GCPhysFault);
+                if (pHandler)
+                    STAM_PROFILE_STOP(&pHandler->Stat, h);
+                pgmUnlock(pVM);
+#endif
+            }
+            else
+            {
+                pgmUnlock(pVM);
+                Log(("PGMR0Trap0eHandlerNPMisconfig: %RGp (uErr=%#x) -> R3\n", GCPhysFault, uErr));
+                rc = VINF_EM_RAW_EMULATE_INSTR;
+            }
+        }
+    }
+    else
+    {
+        /*
+         * Must be out of sync, so do a SyncPage and restart the instruction.
+         *
+         * ASSUMES that ALL handlers are page aligned and covers whole pages
+         * (assumption asserted in PGMHandlerPhysicalRegisterEx).
+         */
+        Log(("PGMR0Trap0eHandlerNPMisconfig: Out of sync page at %RGp (uErr=%#x)\n", GCPhysFault, uErr));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatR0NpMiscfgSyncPage);
+        rc = pgmShwSyncNestedPageLocked(pVCpu, GCPhysFault, 1 /*cPages*/, enmShwPagingMode);
+        pgmUnlock(pVM);
+    }
+
+    STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatR0NpMiscfg, a);
+    return rc;
+
+#else
+    AssertLogRelFailed();
+    return VERR_INTERNAL_ERROR_4;
+#endif
 }
 

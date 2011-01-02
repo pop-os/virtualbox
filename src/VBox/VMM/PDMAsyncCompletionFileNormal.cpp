@@ -1,4 +1,4 @@
-/* $Id: PDMAsyncCompletionFileNormal.cpp $ */
+/* $Id: PDMAsyncCompletionFileNormal.cpp 35205 2010-12-16 18:35:02Z vboxsync $ */
 /** @file
  * PDM Async I/O - Transport data asynchronous in R3 using EMT.
  * Async File I/O manager.
@@ -42,6 +42,9 @@ static PPDMACTASKFILE pdmacFileAioMgrNormalRangeLockFree(PPDMACEPFILEMGR pAioMgr
                                                          PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint,
                                                          PPDMACFILERANGELOCK pRangeLock);
 
+static void pdmacFileAioMgrNormalReqCompleteRc(PPDMACEPFILEMGR pAioMgr, RTFILEAIOREQ hReq,
+                                               int rc, size_t cbTransfered);
+
 int pdmacFileAioMgrNormalInit(PPDMACEPFILEMGR pAioMgr)
 {
     int rc = VINF_SUCCESS;
@@ -55,9 +58,10 @@ int pdmacFileAioMgrNormalInit(PPDMACEPFILEMGR pAioMgr)
     if (RT_SUCCESS(rc))
     {
         /* Initialize request handle array. */
-        pAioMgr->iFreeEntry = 0;
-        pAioMgr->cReqEntries    = pAioMgr->cRequestsActiveMax;
-        pAioMgr->pahReqsFree    = (RTFILEAIOREQ *)RTMemAllocZ(pAioMgr->cReqEntries * sizeof(RTFILEAIOREQ));
+        pAioMgr->iFreeEntry       = 0;
+        pAioMgr->cReqEntries      = pAioMgr->cRequestsActiveMax;
+        pAioMgr->pahReqsFree      = (RTFILEAIOREQ *)RTMemAllocZ(pAioMgr->cReqEntries * sizeof(RTFILEAIOREQ));
+        pAioMgr->msBwLimitExpired = RT_INDEFINITE_WAIT;
 
         if (pAioMgr->pahReqsFree)
         {
@@ -146,7 +150,7 @@ static void pdmacFileAioMgrNormalEndpointsSortByLoad(PPDMACEPFILEMGR pAioMgr)
     }
 
 #ifdef DEBUG
-    /* Validate sorting alogrithm */
+    /* Validate sorting algorithm */
     unsigned cEndpoints = 0;
     pEpCurr = pAioMgr->pEndpointsHead;
 
@@ -199,7 +203,7 @@ static bool pdmacFileAioMgrNormalRemoveEndpoint(PPDMASYNCCOMPLETIONENDPOINTFILE 
     {
         Assert(!pEndpointRemove->pFlushReq);
 
-        /* Reopen the file so that the new endpoint can reassociate with the file */
+        /* Reopen the file so that the new endpoint can re-associate with the file */
         RTFileClose(pEndpointRemove->File);
         int rc = RTFileOpen(&pEndpointRemove->File, pEndpointRemove->Core.pszUri, pEndpointRemove->fFlags);
         AssertRC(rc);
@@ -426,7 +430,7 @@ DECLINLINE(bool) pdmacFileAioMgrNormalRcIsFatal(int rcReq)
  * Error handler which will create the failsafe managers and destroy the failed I/O manager.
  *
  * @returns VBox status code
- * @param   pAioMgr    The I/O manager the error ocurred on.
+ * @param   pAioMgr    The I/O manager the error occurred on.
  * @param   rc         The error code.
  */
 static int pdmacFileAioMgrNormalErrorHandler(PPDMACEPFILEMGR pAioMgr, int rc, RT_SRC_POS_DECL)
@@ -552,84 +556,72 @@ static int pdmacFileAioMgrNormalReqsEnqueue(PPDMACEPFILEMGR pAioMgr,
     rc = RTFileAioCtxSubmit(pAioMgr->hAioCtx, pahReqs, cReqs);
     if (RT_FAILURE(rc))
     {
-        PPDMASYNCCOMPLETIONEPCLASSFILE pEpClass = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->Core.pEpClass;
-        unsigned cReqsResubmit = 0;
-        RTFILEAIOREQ ahReqsResubmit[20];
-
-        /*
-         * We run out of resources.
-         * Need to check which requests got queued
-         * and put the rest on the pending list again.
-         */
-        for (size_t i = 0; i < cReqs; i++)
+        if (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES)
         {
-            int rcReq = RTFileAioReqGetRC(pahReqs[i], NULL);
+            PPDMASYNCCOMPLETIONEPCLASSFILE pEpClass = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->Core.pEpClass;
 
-            if (rcReq != VERR_FILE_AIO_IN_PROGRESS)
+            /* Append any not submitted task to the waiting list. */
+            for (size_t i = 0; i < cReqs; i++)
             {
-                PPDMACTASKFILE pTask = (PPDMACTASKFILE)RTFileAioReqGetUser(pahReqs[i]);
+                int rcReq = RTFileAioReqGetRC(pahReqs[i], NULL);
 
-                if (pTask->enmTransferType == PDMACTASKFILETRANSFER_FLUSH)
+                if (rcReq != VERR_FILE_AIO_IN_PROGRESS)
                 {
-                    /* Mark as not supported. */
-                    if (rcReq != VERR_FILE_AIO_NOT_SUBMITTED)
+                    PPDMACTASKFILE pTask = (PPDMACTASKFILE)RTFileAioReqGetUser(pahReqs[i]);
+
+                    Assert(pTask->hReq == pahReqs[i]);
+                    pdmacFileAioMgrEpAddTask(pEndpoint, pTask);
+                    pAioMgr->cRequestsActive--;
+                    pEndpoint->AioMgr.cRequestsActive--;
+
+                    if (pTask->enmTransferType == PDMACTASKFILETRANSFER_FLUSH)
                     {
-                        LogFlow(("Async flushes are not supported for this endpoint, disabling\n"));
-                        pEndpoint->fAsyncFlushSupported = false;
-                        pdmacFileAioMgrNormalRequestFree(pAioMgr, pahReqs[i]);
-                        rc = VINF_SUCCESS;
-                    }
-                    else
-                    {
-                        AssertMsg(rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES, ("Flush wasn't submitted but we are not out of ressources\n"));
                         /* Clear the pending flush */
-                        pdmacFileAioMgrEpAddTask(pEndpoint, pTask);
                         Assert(pEndpoint->pFlushReq == pTask);
                         pEndpoint->pFlushReq = NULL;
                     }
                 }
-                else
-                {
-                    AssertMsg(rcReq == VERR_FILE_AIO_NOT_SUBMITTED,
-                              ("Request returned unexpected return code: rc=%Rrc\n", rcReq));
-
-                    if (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES)
-                    {
-                        pTask->hReq = pahReqs[i];
-                        pdmacFileAioMgrEpAddTask(pEndpoint, pTask);
-                    }
-                    else
-                    {
-                        ahReqsResubmit[cReqsResubmit] = pahReqs[i];
-                        cReqsResubmit++;
-                    }
-                }
-
-                pEndpoint->AioMgr.cRequestsActive--;
-                pAioMgr->cRequestsActive--;
-
-                if (cReqsResubmit == RT_ELEMENTS(ahReqsResubmit))
-                {
-                    int rc2 = RTFileAioCtxSubmit(pAioMgr->hAioCtx, ahReqsResubmit, cReqsResubmit);
-                    AssertRC(rc2);
-                    pEndpoint->AioMgr.cRequestsActive += cReqsResubmit;
-                    pAioMgr->cRequestsActive += cReqsResubmit;
-                    cReqsResubmit = 0;
-                }
             }
 
-            /* Resubmit tasks. */
-            if (cReqsResubmit)
+            pAioMgr->cRequestsActiveMax = pAioMgr->cRequestsActive;
+
+            /* Print an entry in the release log */
+            if (RT_UNLIKELY(!pEpClass->fOutOfResourcesWarningPrinted))
             {
-                int rc2 = RTFileAioCtxSubmit(pAioMgr->hAioCtx, ahReqsResubmit, cReqsResubmit);
-                AssertRC(rc2);
-                pEndpoint->AioMgr.cRequestsActive += cReqsResubmit;
-                pAioMgr->cRequestsActive += cReqsResubmit;
-                cReqsResubmit = 0;
+                pEpClass->fOutOfResourcesWarningPrinted = true;
+                LogRel(("AIOMgr: Host limits number of active IO requests to %u. Expect a performance impact.\n",
+                        pAioMgr->cRequestsActive));
             }
-            else if (    pEndpoint->pFlushReq
-                     && !pAioMgr->cRequestsActive
-                     && !pEndpoint->fAsyncFlushSupported)
+
+            LogFlow(("Removed requests. I/O manager has a total of %u active requests now\n", pAioMgr->cRequestsActive));
+            LogFlow(("Endpoint has a total of %u active requests now\n", pEndpoint->AioMgr.cRequestsActive));
+            rc = VINF_SUCCESS;
+        }
+        else /* Another kind of error happened (full disk, ...) */
+        {
+            /* An error happened. Find out which one caused the error and resubmit all other tasks. */
+            for (size_t i = 0; i < cReqs; i++)
+            {
+                int rcReq = RTFileAioReqGetRC(pahReqs[i], NULL);
+
+                if (rcReq == VERR_FILE_AIO_NOT_SUBMITTED)
+                {
+                    /* We call ourself again to do any error handling which might come up now. */
+                    rc = pdmacFileAioMgrNormalReqsEnqueue(pAioMgr, pEndpoint, &pahReqs[i], 1);
+                    AssertRC(rc);
+                }
+                else if (rcReq != VERR_FILE_AIO_IN_PROGRESS)
+                {
+                    PPDMACTASKFILE pTask = (PPDMACTASKFILE)RTFileAioReqGetUser(pahReqs[i]);
+
+                    pdmacFileAioMgrNormalReqCompleteRc(pAioMgr, pahReqs[i], rcReq, 0);
+                }
+            }
+
+
+            if (    pEndpoint->pFlushReq
+                && !pAioMgr->cRequestsActive
+                && !pEndpoint->fAsyncFlushSupported)
             {
                 /*
                  * Complete a pending flush if we don't have requests enqueued and the host doesn't support
@@ -643,25 +635,9 @@ static int pdmacFileAioMgrNormalReqsEnqueue(PPDMACEPFILEMGR pAioMgr,
                 pdmacFileTaskFree(pEndpoint, pFlush);
             }
         }
-
-        if (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES)
-        {
-            pAioMgr->cRequestsActiveMax = pAioMgr->cRequestsActive;
-
-            /* Print an entry in the release log */
-            if (RT_UNLIKELY(!pEpClass->fOutOfResourcesWarningPrinted))
-            {
-                pEpClass->fOutOfResourcesWarningPrinted = true;
-                LogRel(("AIOMgr: Host limits number of active IO requests to %u. Expect a performance impact.\n",
-                        pAioMgr->cRequestsActive));
-            }
-        }
-
-        LogFlow(("Removed requests. I/O manager has a total of %u active requests now\n", pAioMgr->cRequestsActive));
-        LogFlow(("Endpoint has a total of %u active requests now\n", pEndpoint->AioMgr.cRequestsActive));
     }
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
 static bool pdmacFileAioMgrNormalIsRangeLocked(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint,
@@ -793,7 +769,7 @@ static int pdmacFileAioMgrNormalTaskPrepareBuffered(PPDMACEPFILEMGR pAioMgr,
      * and will be executed when the active one completes. (The method below
      * which checks whether a range is already used will add the task)
      *
-     * This is neccessary because of the requirement to align all requests to a 512 boundary
+     * This is necessary because of the requirement to align all requests to a 512 boundary
      * which is enforced by the host OS (Linux and Windows atm). It is possible that
      * we have to process unaligned tasks and need to align them using bounce buffers.
      * While the data is fetched from the file another request might arrive writing to
@@ -831,7 +807,10 @@ static int pdmacFileAioMgrNormalTaskPrepareBuffered(PPDMACEPFILEMGR pAioMgr,
                                             pTask);
 
         if (RT_SUCCESS(rc))
+        {
+            pTask->hReq = hReq;
             *phReq = hReq;
+        }
     }
     else
         LogFlow(("Task %#p was deferred because the access range is locked\n", pTask));
@@ -876,7 +855,7 @@ static int pdmacFileAioMgrNormalTaskPrepareNonBuffered(PPDMACEPFILEMGR pAioMgr,
      * and will be executed when the active one completes. (The method below
      * which checks whether a range is already used will add the task)
      *
-     * This is neccessary because of the requirement to align all requests to a 512 boundary
+     * This is necessary because of the requirement to align all requests to a 512 boundary
      * which is enforced by the host OS (Linux and Windows atm). It is possible that
      * we have to process unaligned tasks and need to align them using bounce buffers.
      * While the data is fetched from the file another request might arrive writing to
@@ -959,7 +938,10 @@ static int pdmacFileAioMgrNormalTaskPrepareNonBuffered(PPDMACEPFILEMGR pAioMgr,
             rc = pdmacFileAioMgrNormalRangeLock(pAioMgr, pEndpoint, offStart, cbToTransfer, pTask);
 
             if (RT_SUCCESS(rc))
+            {
+                pTask->hReq = hReq;
                 *phReq = hReq;
+            }
             else
             {
                 /* Cleanup */
@@ -992,11 +974,12 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
            && (pAioMgr->cRequestsActive + cRequests < pAioMgr->cRequestsActiveMax)
            && RT_SUCCESS(rc))
     {
+        RTMSINTERVAL msWhenNext;
         PPDMACTASKFILE pCurr = pTaskHead;
 
-        if (!pdmacFileBwMgrIsTransferAllowed(pEndpoint->pBwMgr, (uint32_t)pCurr->DataSeg.cbSeg))
+        if (!pdmacEpIsTransferAllowed(&pEndpoint->Core, (uint32_t)pCurr->DataSeg.cbSeg, &msWhenNext))
         {
-            pAioMgr->fBwLimitReached = true;
+            pAioMgr->msBwLimitExpired = RT_MIN(pAioMgr->msBwLimitExpired, msWhenNext);
             break;
         }
 
@@ -1029,6 +1012,7 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
                     }
                     else
                     {
+                        pCurr->hReq = hReq;
                         apReqs[cRequests] = hReq;
                         pEndpoint->AioMgr.cReqsProcessed++;
                         cRequests++;
@@ -1106,8 +1090,7 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
         pdmacFileAioMgrEpAddTaskList(pEndpoint, pTaskHead);
 
         if (RT_UNLIKELY(   pAioMgr->cRequestsActiveMax == pAioMgr->cRequestsActive
-                        && !pEndpoint->pFlushReq
-                        && !pAioMgr->fBwLimitReached))
+                        && !pEndpoint->pFlushReq))
         {
 #if 0
             /*
@@ -1193,7 +1176,7 @@ static int pdmacFileAioMgrNormalProcessBlockingEvent(PPDMACEPFILEMGR pAioMgr)
     {
         case PDMACEPFILEAIOMGRBLOCKINGEVENT_ADD_ENDPOINT:
         {
-            PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointNew = (PPDMASYNCCOMPLETIONENDPOINTFILE)ASMAtomicReadPtr((void * volatile *)&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint);
+            PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointNew = ASMAtomicReadPtrT(&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, PPDMASYNCCOMPLETIONENDPOINTFILE);
             AssertMsg(VALID_PTR(pEndpointNew), ("Adding endpoint event without a endpoint to add\n"));
 
             pEndpointNew->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_ACTIVE;
@@ -1212,7 +1195,7 @@ static int pdmacFileAioMgrNormalProcessBlockingEvent(PPDMACEPFILEMGR pAioMgr)
         }
         case PDMACEPFILEAIOMGRBLOCKINGEVENT_REMOVE_ENDPOINT:
         {
-            PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointRemove = (PPDMASYNCCOMPLETIONENDPOINTFILE)ASMAtomicReadPtr((void * volatile *)&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint);
+            PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointRemove = ASMAtomicReadPtrT(&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, PPDMASYNCCOMPLETIONENDPOINTFILE);
             AssertMsg(VALID_PTR(pEndpointRemove), ("Removing endpoint event without a endpoint to remove\n"));
 
             pEndpointRemove->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_REMOVING;
@@ -1221,7 +1204,7 @@ static int pdmacFileAioMgrNormalProcessBlockingEvent(PPDMACEPFILEMGR pAioMgr)
         }
         case PDMACEPFILEAIOMGRBLOCKINGEVENT_CLOSE_ENDPOINT:
         {
-            PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointClose = (PPDMASYNCCOMPLETIONENDPOINTFILE)ASMAtomicReadPtr((void * volatile *)&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint);
+            PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointClose = ASMAtomicReadPtrT(&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, PPDMASYNCCOMPLETIONENDPOINTFILE);
             AssertMsg(VALID_PTR(pEndpointClose), ("Close endpoint event without a endpoint to close\n"));
 
             if (pEndpointClose->enmState == PDMASYNCCOMPLETIONENDPOINTFILESTATE_ACTIVE)
@@ -1289,7 +1272,7 @@ static int pdmacFileAioMgrNormalCheckEndpoints(PPDMACEPFILEMGR pAioMgr)
     int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint = pAioMgr->pEndpointsHead;
 
-    pAioMgr->fBwLimitReached = false;
+    pAioMgr->msBwLimitExpired = RT_INDEFINITE_WAIT;
 
     while (pEndpoint)
     {
@@ -1304,7 +1287,7 @@ static int pdmacFileAioMgrNormalCheckEndpoints(PPDMACEPFILEMGR pAioMgr)
         else if (   !pEndpoint->AioMgr.cRequestsActive
                  && pEndpoint->enmState != PDMASYNCCOMPLETIONENDPOINTFILESTATE_ACTIVE)
         {
-            /* Reopen the file so that the new endpoint can reassociate with the file */
+            /* Reopen the file so that the new endpoint can re-associate with the file */
             RTFileClose(pEndpoint->File);
             rc = RTFileOpen(&pEndpoint->File, pEndpoint->Core.pszUri, pEndpoint->fFlags);
             AssertRC(rc);
@@ -1332,12 +1315,22 @@ static int pdmacFileAioMgrNormalCheckEndpoints(PPDMACEPFILEMGR pAioMgr)
     return rc;
 }
 
+/**
+ * Wrapper around pdmacFileAioMgrNormalReqCompleteRc().
+ */
 static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOREQ hReq)
+{
+    size_t cbTransfered = 0;
+    int rcReq = RTFileAioReqGetRC(hReq, &cbTransfered);
+
+    pdmacFileAioMgrNormalReqCompleteRc(pAioMgr, hReq, rcReq, cbTransfered);
+}
+
+static void pdmacFileAioMgrNormalReqCompleteRc(PPDMACEPFILEMGR pAioMgr, RTFILEAIOREQ hReq,
+                                               int rcReq, size_t cbTransfered)
 {
     int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint;
-    size_t cbTransfered  = 0;
-    int rcReq            = RTFileAioReqGetRC(hReq, &cbTransfered);
     PPDMACTASKFILE pTask = (PPDMACTASKFILE)RTFileAioReqGetUser(hReq);
     PPDMACTASKFILE pTasksWaiting;
 
@@ -1371,7 +1364,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
         }
         else
         {
-            /* Free the lock and process pending tasks if neccessary */
+            /* Free the lock and process pending tasks if necessary */
             pTasksWaiting = pdmacFileAioMgrNormalRangeLockFree(pAioMgr, pEndpoint, pTask->pRangeLock);
             rc = pdmacFileAioMgrNormalProcessTaskList(pTasksWaiting, pAioMgr, pEndpoint);
             AssertRC(rc);
@@ -1390,7 +1383,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                 pTask->pNext = pEndpoint->AioMgr.pReqsPendingHead;
                 pEndpoint->AioMgr.pReqsPendingHead = pTask;
 
-                /* Create a new failsafe manager if neccessary. */
+                /* Create a new failsafe manager if necessary. */
                 if (!pEndpoint->AioMgr.fMoving)
                 {
                     PPDMACEPFILEMGR pAioMgrFailsafe;
@@ -1457,7 +1450,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                 size_t cbToTransfer;
                 uint8_t *pbBuf = NULL;
 
-                LogFlow(("Restarting incomplete transfer %#p (%zu bytes transfered)\n",
+                LogFlow(("Restarting incomplete transfer %#p (%zu bytes transferred)\n",
                          pTask, cbTransfered));
                 Assert(cbTransfered % 512 == 0);
 
@@ -1488,8 +1481,9 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                     rc = RTFileAioReqPrepareWrite(hReq, pEndpoint->File, offStart,
                                                   pbBuf, cbToTransfer, pTask);
                 }
-
                 AssertRC(rc);
+
+                pTask->hReq = hReq;
                 rc = pdmacFileAioMgrNormalReqsEnqueue(pAioMgr, pEndpoint, &hReq, 1);
                 AssertMsg(RT_SUCCESS(rc) || (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES),
                           ("Unexpected return code rc=%Rrc\n", rc));
@@ -1518,6 +1512,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
                 rc = RTFileAioReqPrepareWrite(hReq, pEndpoint->File,
                                               offStart, pTask->pvBounceBuffer, cbToTransfer, pTask);
                 AssertRC(rc);
+                pTask->hReq = hReq;
                 rc = pdmacFileAioMgrNormalReqsEnqueue(pAioMgr, pEndpoint, &hReq, 1);
                 AssertMsg(RT_SUCCESS(rc) || (rc == VERR_FILE_AIO_INSUFFICIENT_RESSOURCES),
                           ("Unexpected return code rc=%Rrc\n", rc));
@@ -1536,7 +1531,7 @@ static void pdmacFileAioMgrNormalReqComplete(PPDMACEPFILEMGR pAioMgr, RTFILEAIOR
 
                 pdmacFileAioMgrNormalRequestFree(pAioMgr, hReq);
 
-                /* Free the lock and process pending tasks if neccessary */
+                /* Free the lock and process pending tasks if necessary */
                 pTasksWaiting = pdmacFileAioMgrNormalRangeLockFree(pAioMgr, pEndpoint, pTask->pRangeLock);
                 if (pTasksWaiting)
                 {
@@ -1608,9 +1603,9 @@ int pdmacFileAioMgrNormal(RTTHREAD ThreadSelf, void *pvUser)
         {
             ASMAtomicWriteBool(&pAioMgr->fWaitingEventSem, true);
             if (!ASMAtomicReadBool(&pAioMgr->fWokenUp))
-                rc = RTSemEventWait(pAioMgr->EventSem, RT_INDEFINITE_WAIT);
+                rc = RTSemEventWait(pAioMgr->EventSem, pAioMgr->msBwLimitExpired);
             ASMAtomicWriteBool(&pAioMgr->fWaitingEventSem, false);
-            AssertRC(rc);
+            Assert(RT_SUCCESS(rc) || rc == VERR_TIMEOUT);
 
             LogFlow(("Got woken up\n"));
             ASMAtomicWriteBool(&pAioMgr->fWokenUp, false);
@@ -1630,68 +1625,56 @@ int pdmacFileAioMgrNormal(RTTHREAD ThreadSelf, void *pvUser)
             rc = pdmacFileAioMgrNormalCheckEndpoints(pAioMgr);
             CHECK_RC(pAioMgr, rc);
 
-            while (   pAioMgr->cRequestsActive
-                   || pAioMgr->fBwLimitReached)
+            while (pAioMgr->cRequestsActive)
             {
-                if (pAioMgr->cRequestsActive)
-                {
-                    RTFILEAIOREQ  apReqs[20];
-                    uint32_t cReqsCompleted = 0;
-                    size_t cReqsWait;
+                RTFILEAIOREQ apReqs[20];
+                uint32_t     cReqsCompleted = 0;
+                size_t       cReqsWait;
 
-                    if (pAioMgr->cRequestsActive > RT_ELEMENTS(apReqs))
-                        cReqsWait = RT_ELEMENTS(apReqs);
-                    else
-                        cReqsWait = pAioMgr->cRequestsActive;
-
-                    LogFlow(("Waiting for %d of %d tasks to complete\n", 1, cReqsWait));
-
-                    rc = RTFileAioCtxWait(pAioMgr->hAioCtx,
-                                          1,
-                                          RT_INDEFINITE_WAIT, apReqs,
-                                          cReqsWait, &cReqsCompleted);
-                    if (RT_FAILURE(rc) && (rc != VERR_INTERRUPTED))
-                        CHECK_RC(pAioMgr, rc);
-
-                    LogFlow(("%d tasks completed\n", cReqsCompleted));
-
-                    for (uint32_t i = 0; i < cReqsCompleted; i++)
-                        pdmacFileAioMgrNormalReqComplete(pAioMgr, apReqs[i]);
-
-                    /* Check for an external blocking event before we go to sleep again. */
-                    if (pAioMgr->fBlockingEventPending)
-                    {
-                        rc = pdmacFileAioMgrNormalProcessBlockingEvent(pAioMgr);
-                        CHECK_RC(pAioMgr, rc);
-                    }
-
-                    /* Update load statistics. */
-                    uint64_t uMillisCurr = RTTimeMilliTS();
-                    if (uMillisCurr > uMillisEnd)
-                    {
-                        PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointCurr = pAioMgr->pEndpointsHead;
-
-                        /* Calculate timespan. */
-                        uMillisCurr -= uMillisEnd;
-
-                        while (pEndpointCurr)
-                        {
-                            pEndpointCurr->AioMgr.cReqsPerSec    = pEndpointCurr->AioMgr.cReqsProcessed / (uMillisCurr + PDMACEPFILEMGR_LOAD_UPDATE_PERIOD);
-                            pEndpointCurr->AioMgr.cReqsProcessed = 0;
-                            pEndpointCurr = pEndpointCurr->AioMgr.pEndpointNext;
-                        }
-
-                        /* Set new update interval */
-                        uMillisEnd = RTTimeMilliTS() + PDMACEPFILEMGR_LOAD_UPDATE_PERIOD;
-                    }
-                }
+                if (pAioMgr->cRequestsActive > RT_ELEMENTS(apReqs))
+                    cReqsWait = RT_ELEMENTS(apReqs);
                 else
+                    cReqsWait = pAioMgr->cRequestsActive;
+
+                LogFlow(("Waiting for %d of %d tasks to complete\n", 1, cReqsWait));
+
+                rc = RTFileAioCtxWait(pAioMgr->hAioCtx,
+                                      1,
+                                      RT_INDEFINITE_WAIT, apReqs,
+                                      cReqsWait, &cReqsCompleted);
+                if (RT_FAILURE(rc) && (rc != VERR_INTERRUPTED))
+                    CHECK_RC(pAioMgr, rc);
+
+                LogFlow(("%d tasks completed\n", cReqsCompleted));
+
+                for (uint32_t i = 0; i < cReqsCompleted; i++)
+                    pdmacFileAioMgrNormalReqComplete(pAioMgr, apReqs[i]);
+
+                /* Check for an external blocking event before we go to sleep again. */
+                if (pAioMgr->fBlockingEventPending)
                 {
-                    /*
-                     * Bandwidth limit reached for all endpoints.
-                     * Yield and wait until we have enough resources again.
-                     */
-                    RTThreadYield();
+                    rc = pdmacFileAioMgrNormalProcessBlockingEvent(pAioMgr);
+                    CHECK_RC(pAioMgr, rc);
+                }
+
+                /* Update load statistics. */
+                uint64_t uMillisCurr = RTTimeMilliTS();
+                if (uMillisCurr > uMillisEnd)
+                {
+                    PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointCurr = pAioMgr->pEndpointsHead;
+
+                    /* Calculate timespan. */
+                    uMillisCurr -= uMillisEnd;
+
+                    while (pEndpointCurr)
+                    {
+                        pEndpointCurr->AioMgr.cReqsPerSec    = pEndpointCurr->AioMgr.cReqsProcessed / (uMillisCurr + PDMACEPFILEMGR_LOAD_UPDATE_PERIOD);
+                        pEndpointCurr->AioMgr.cReqsProcessed = 0;
+                        pEndpointCurr = pEndpointCurr->AioMgr.pEndpointNext;
+                    }
+
+                    /* Set new update interval */
+                    uMillisEnd = RTTimeMilliTS() + PDMACEPFILEMGR_LOAD_UPDATE_PERIOD;
                 }
 
                 /* Check endpoints for new requests. */

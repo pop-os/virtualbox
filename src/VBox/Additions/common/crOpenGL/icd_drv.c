@@ -1,4 +1,4 @@
-/* $Id: icd_drv.c $ */
+/* $Id: icd_drv.c 34887 2010-12-09 14:13:56Z vboxsync $ */
 
 /** @file
  * VBox OpenGL windows ICD driver functions
@@ -85,7 +85,6 @@ BOOL APIENTRY DrvValidateVersion(DWORD version)
         return TRUE;
     }
 
-    crNetTearDown();
     crDebug("DrvValidateVersion %x -> FALSE, going to use system default opengl32.dll\n", version); 
     return FALSE;
 }
@@ -305,7 +304,7 @@ BOOL APIENTRY DrvSwapLayerBuffers(HDC hdc, UINT fuPlanes)
 
 BOOL APIENTRY DrvSwapBuffers(HDC hdc)
 {
-    const WindowInfo *window;
+    WindowInfo *window;
     /*crDebug( "DrvSwapBuffers(0x%x) called", hdc );*/
     window = stubGetWindowInfo(hdc);    
     stubSwapBuffers( window, 0 );

@@ -1,4 +1,4 @@
-/* $Id: ProgressProxyImpl.h $ */
+/* $Id: ProgressProxyImpl.h 30739 2010-07-08 12:27:42Z vboxsync $ */
 /** @file
  * IProgress implementation for Machine::openRemoteSession in VBoxSVC.
  */
@@ -28,11 +28,11 @@
  */
 class ATL_NO_VTABLE ProgressProxy :
     //public com::SupportErrorInfoDerived<Progress, ProgressProxy, IProgress>,
-    public Progress,
-    public VirtualBoxSupportTranslation<ProgressProxy>
+    public Progress
 {
 public:
-    VIRTUALBOXSUPPORTTRANSLATION_OVERRIDE(ProgressProxy)
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(ProgressProxy, IProgress)
+
     DECLARE_NOT_AGGREGATABLE(ProgressProxy)
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
@@ -91,9 +91,9 @@ public:
     HRESULT notifyComplete(HRESULT aResultCode);
     HRESULT notifyComplete(HRESULT aResultCode,
                            const GUID &aIID,
-                           const Bstr &aComponent,
+                           const char *pcszComponent,
                            const char *aText, ...);
-    bool    setOtherProgressObject(IProgress *pOtherProgress);
+    bool setOtherProgressObject(IProgress *pOtherProgress);
 
     /** For com::SupportErrorInfoImpl. */
     static const char *ComponentName() { return "ProgressProxy"; }

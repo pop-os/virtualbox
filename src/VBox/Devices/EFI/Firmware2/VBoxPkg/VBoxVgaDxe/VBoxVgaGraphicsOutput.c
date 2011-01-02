@@ -1,4 +1,4 @@
-/* $Id: VBoxVgaGraphicsOutput.c $ */
+/* $Id: VBoxVgaGraphicsOutput.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * LegacyBiosMpTable.h
  */
@@ -33,7 +33,7 @@ Module Name:
 
 Abstract:
 
-  This file produces the graphics abstration of Graphics Output Protocol. It is called by
+  This file produces the graphics abstraction of Graphics Output Protocol. It is called by
   VBoxVga.c file which deals with the EFI 1.1 driver model.
   This file just does graphics.
 

@@ -1,4 +1,4 @@
-/* $Id: VMM.cpp $ */
+/* $Id: VMM.cpp 34326 2010-11-24 14:03:55Z vboxsync $ */
 /** @file
  * VMM - The Virtual Machine Monitor Core.
  */
@@ -73,6 +73,7 @@
 #include "VMMInternal.h"
 #include "VMMSwitcher/VMMSwitcher.h"
 #include <VBox/vm.h>
+#include <VBox/ftm.h>
 
 #include <VBox/err.h>
 #include <VBox/param.h>
@@ -119,7 +120,7 @@ static DECLCALLBACK(void)   vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char 
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) VMMR3Init(PVM pVM)
+VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
 {
     LogFlow(("VMMR3Init\n"));
 
@@ -139,12 +140,26 @@ VMMR3DECL(int) VMMR3Init(PVM pVM)
     pVM->vmm.s.hEvtMulRendezvousEnterAllAtOnce  = NIL_RTSEMEVENTMULTI;
     pVM->vmm.s.hEvtMulRendezvousDone            = NIL_RTSEMEVENTMULTI;
     pVM->vmm.s.hEvtRendezvousDoneCaller         = NIL_RTSEMEVENT;
-    int rc = CFGMR3QueryU32(CFGMR3GetRoot(pVM), "YieldEMTInterval", &pVM->vmm.s.cYieldEveryMillies);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pVM->vmm.s.cYieldEveryMillies = 23; /* Value arrived at after experimenting with the grub boot prompt. */
-        //pVM->vmm.s.cYieldEveryMillies = 8; //debugging
-    else
-        AssertMsgRCReturn(rc, ("Configuration error. Failed to query \"YieldEMTInterval\", rc=%Rrc\n", rc), rc);
+
+    /** @cfgm{YieldEMTInterval, uint32_t, 1, UINT32_MAX, 23, ms}
+     * The EMT yield interval.  The EMT yielding is a hack we employ to play a
+     * bit nicer with the rest of the system (like for instance the GUI).
+     */
+    int rc = CFGMR3QueryU32Def(CFGMR3GetRoot(pVM), "YieldEMTInterval", &pVM->vmm.s.cYieldEveryMillies,
+                               23 /* Value arrived at after experimenting with the grub boot prompt. */);
+    AssertMsgRCReturn(rc, ("Configuration error. Failed to query \"YieldEMTInterval\", rc=%Rrc\n", rc), rc);
+
+
+    /** @cfgm{VMM/UsePeriodicPreemptionTimers, boolean, true}
+     * Controls whether we employ per-cpu preemption timers to limit the time
+     * spent executing guest code.  This option is not available on all
+     * platforms and we will silently ignore this setting then.  If we are
+     * running in VT-x mode, we will use the VMX-preemption timer instead of
+     * this one when possible.
+     */
+    PCFGMNODE pCfgVMM = CFGMR3GetChild(CFGMR3GetRoot(pVM), "VMM");
+    rc = CFGMR3QueryBoolDef(pCfgVMM, "UsePeriodicPreemptionTimers", &pVM->vmm.s.fUsePeriodicPreemptionTimers, true);
+    AssertMsgRCReturn(rc, ("Configuration error. Failed to query \"VMM/UsePeriodicPreemptionTimers\", rc=%Rrc\n", rc), rc);
 
     /*
      * Initialize the VMM sync critical section and semaphores.
@@ -393,6 +408,14 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPatchIretIRQ,        STAMTYPE_COUNTER, "/VMM/RZRet/PatchIret",           STAMUNIT_OCCURENCES, "Number of VINF_PATM_PENDING_IRQ_AFTER_IRET returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetRescheduleREM,       STAMTYPE_COUNTER, "/VMM/RZRet/ScheduleREM",         STAMUNIT_OCCURENCES, "Number of VINF_EM_RESCHEDULE_REM returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3,                STAMTYPE_COUNTER, "/VMM/RZRet/ToR3",                STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3Unknown,         STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/Unknown",        STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3TMVirt,          STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/TMVirt",         STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3HandyPages,      STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/Handy",          STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3PDMQueues,       STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/PDMQueue",       STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3Rendezvous,      STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/Rendezvous",     STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3Timer,           STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/Timer",          STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3DMA,             STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/DMA",            STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetToR3CritSect,        STAMTYPE_COUNTER, "/VMM/RZRet/ToR3/CritSect",       STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TO_R3 returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetTimerPending,        STAMTYPE_COUNTER, "/VMM/RZRet/TimerPending",        STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_TIMER_PENDING returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetInterruptPending,    STAMTYPE_COUNTER, "/VMM/RZRet/InterruptPending",    STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_INTERRUPT_PENDING returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPATMDuplicateFn,     STAMTYPE_COUNTER, "/VMM/RZRet/PATMDuplicateFn",     STAMUNIT_OCCURENCES, "Number of VINF_PATM_DUPLICATE_FUNCTION returns.");
@@ -423,85 +446,12 @@ static void vmmR3InitRegisterStats(PVM pVM)
 
 
 /**
- * Initializes the per-VCPU VMM.
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- */
-VMMR3DECL(int) VMMR3InitCPU(PVM pVM)
-{
-    LogFlow(("VMMR3InitCPU\n"));
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Ring-3 init finalizing.
- *
- * @returns VBox status code.
- * @param   pVM         The VM handle.
- */
-VMMR3DECL(int) VMMR3InitFinalize(PVM pVM)
-{
-    int rc;
-
-    /*
-     * Set page attributes to r/w for stack pages.
-     */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-    {
-        rc = PGMMapSetPage(pVM, pVM->aCpus[idCpu].vmm.s.pbEMTStackRC, VMM_STACK_SIZE,
-                           X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
-        AssertRCReturn(rc, rc);
-    }
-
-    /*
-     * Create the EMT yield timer.
-     */
-    rc = TMR3TimerCreateInternal(pVM, TMCLOCK_REAL, vmmR3YieldEMT, NULL, "EMT Yielder", &pVM->vmm.s.pYieldTimer);
-    AssertRCReturn(rc, rc);
-
-    rc = TMTimerSetMillies(pVM->vmm.s.pYieldTimer, pVM->vmm.s.cYieldEveryMillies);
-    AssertRCReturn(rc, rc);
-
-#ifdef VBOX_WITH_NMI
-    /*
-     * Map the host APIC into GC - This is AMD/Intel + Host OS specific!
-     */
-    rc = PGMMap(pVM, pVM->vmm.s.GCPtrApicBase, 0xfee00000, PAGE_SIZE,
-                X86_PTE_P | X86_PTE_RW | X86_PTE_PWT | X86_PTE_PCD | X86_PTE_A | X86_PTE_D);
-    AssertRCReturn(rc, rc);
-#endif
-
-#ifdef VBOX_STRICT_VMM_STACK
-    /*
-     * Setup the stack guard pages: Two inaccessible pages at each sides of the
-     * stack to catch over/under-flows.
-     */
-    for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-    {
-        uint8_t *pbEMTStackR3 = pVM->aCpus[idCpu].vmm.s.pbEMTStackR3;
-
-        memset(pbEMTStackR3 - PAGE_SIZE, 0xcc, PAGE_SIZE);
-        MMR3HyperSetGuard(pVM, pbEMTStackR3 - PAGE_SIZE, PAGE_SIZE, true /*fSet*/);
-
-        memset(pbEMTStackR3 + VMM_STACK_SIZE, 0xcc, PAGE_SIZE);
-        MMR3HyperSetGuard(pVM, pbEMTStackR3 + VMM_STACK_SIZE, PAGE_SIZE, true /*fSet*/);
-    }
-    pVM->vmm.s.fStackGuardsStationed = true;
-#endif
-
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Initializes the R0 VMM.
  *
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) VMMR3InitR0(PVM pVM)
+VMMR3_INT_DECL(int) VMMR3InitR0(PVM pVM)
 {
     int    rc;
     PVMCPU pVCpu = VMMGetCpu(pVM);
@@ -563,7 +513,7 @@ VMMR3DECL(int) VMMR3InitR0(PVM pVM)
  * @returns VBox status code.
  * @param   pVM         The VM to operate on.
  */
-VMMR3DECL(int) VMMR3InitRC(PVM pVM)
+VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
 {
     PVMCPU pVCpu = VMMGetCpu(pVM);
     Assert(pVCpu && pVCpu->idCpu == 0);
@@ -636,12 +586,96 @@ VMMR3DECL(int) VMMR3InitRC(PVM pVM)
 
 
 /**
+ * Called when an init phase completes.
+ *
+ * @returns VBox status code.
+ * @param   pVM                 The VM handle.
+ * @param   enmWhat             Which init phase.
+ */
+VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+{
+    int rc = VINF_SUCCESS;
+
+    switch (enmWhat)
+    {
+        case VMINITCOMPLETED_RING3:
+        {
+            /*
+             * Set page attributes to r/w for stack pages.
+             */
+            for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+            {
+                rc = PGMMapSetPage(pVM, pVM->aCpus[idCpu].vmm.s.pbEMTStackRC, VMM_STACK_SIZE,
+                                   X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
+                AssertRCReturn(rc, rc);
+            }
+
+            /*
+             * Create the EMT yield timer.
+             */
+            rc = TMR3TimerCreateInternal(pVM, TMCLOCK_REAL, vmmR3YieldEMT, NULL, "EMT Yielder", &pVM->vmm.s.pYieldTimer);
+            AssertRCReturn(rc, rc);
+
+            rc = TMTimerSetMillies(pVM->vmm.s.pYieldTimer, pVM->vmm.s.cYieldEveryMillies);
+            AssertRCReturn(rc, rc);
+
+#ifdef VBOX_WITH_NMI
+            /*
+             * Map the host APIC into GC - This is AMD/Intel + Host OS specific!
+             */
+            rc = PGMMap(pVM, pVM->vmm.s.GCPtrApicBase, 0xfee00000, PAGE_SIZE,
+                        X86_PTE_P | X86_PTE_RW | X86_PTE_PWT | X86_PTE_PCD | X86_PTE_A | X86_PTE_D);
+            AssertRCReturn(rc, rc);
+#endif
+
+#ifdef VBOX_STRICT_VMM_STACK
+            /*
+             * Setup the stack guard pages: Two inaccessible pages at each sides of the
+             * stack to catch over/under-flows.
+             */
+            for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+            {
+                uint8_t *pbEMTStackR3 = pVM->aCpus[idCpu].vmm.s.pbEMTStackR3;
+
+                memset(pbEMTStackR3 - PAGE_SIZE, 0xcc, PAGE_SIZE);
+                MMR3HyperSetGuard(pVM, pbEMTStackR3 - PAGE_SIZE, PAGE_SIZE, true /*fSet*/);
+
+                memset(pbEMTStackR3 + VMM_STACK_SIZE, 0xcc, PAGE_SIZE);
+                MMR3HyperSetGuard(pVM, pbEMTStackR3 + VMM_STACK_SIZE, PAGE_SIZE, true /*fSet*/);
+            }
+            pVM->vmm.s.fStackGuardsStationed = true;
+#endif
+            break;
+        }
+
+        case VMINITCOMPLETED_RING0:
+        {
+            /*
+             * Disable the periodic preemption timers if we can use the
+             * VMX-preemption timer instead.
+             */
+            if (   pVM->vmm.s.fUsePeriodicPreemptionTimers
+                && HWACCMR3IsVmxPreemptionTimerUsed(pVM))
+                pVM->vmm.s.fUsePeriodicPreemptionTimers = false;
+            LogRel(("VMM: fUsePeriodicPreemptionTimers=%RTbool\n", pVM->vmm.s.fUsePeriodicPreemptionTimers));
+            break;
+        }
+
+        default: /* shuts up gcc */
+            break;
+    }
+
+    return rc;
+}
+
+
+/**
  * Terminate the VMM bits.
  *
  * @returns VINF_SUCCESS.
  * @param   pVM         The VM handle.
  */
-VMMR3DECL(int) VMMR3Term(PVM pVM)
+VMMR3_INT_DECL(int) VMMR3Term(PVM pVM)
 {
     PVMCPU pVCpu = VMMGetCpu(pVM);
     Assert(pVCpu && pVCpu->idCpu == 0);
@@ -715,21 +749,6 @@ VMMR3DECL(int) VMMR3Term(PVM pVM)
 
 
 /**
- * Terminates the per-VCPU VMM.
- *
- * Termination means cleaning up and freeing all resources,
- * the VM it self is at this point powered off or suspended.
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- */
-VMMR3DECL(int) VMMR3TermCPU(PVM pVM)
-{
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Applies relocations to data and code managed by this
  * component. This function will be called at init and
  * whenever the VMM need to relocate it self inside the GC.
@@ -739,7 +758,7 @@ VMMR3DECL(int) VMMR3TermCPU(PVM pVM)
  * @param   pVM         The VM handle.
  * @param   offDelta    The relocation delta.
  */
-VMMR3DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
+VMMR3_INT_DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
     LogFlow(("VMMR3Relocate: offDelta=%RGv\n", offDelta));
 
@@ -790,7 +809,7 @@ VMMR3DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * @returns VBox status code.
  * @param   pVM     The VM handle.
  */
-VMMR3DECL(int)  VMMR3UpdateLoggers(PVM pVM)
+VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
 {
     /*
      * Simply clone the logger instance (for RC).
@@ -1027,7 +1046,7 @@ static DECLCALLBACK(int) vmmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
  *
  * @remark  This has to work before VMMR3Relocate() is called.
  */
-VMMR3DECL(int) VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue)
+VMMR3_INT_DECL(int) VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue)
 {
     if (!strcmp(pszSymbol, "g_Logger"))
     {
@@ -1056,7 +1075,7 @@ VMMR3DECL(int) VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrV
  *
  * @param   pVM             The VM handle.
  */
-VMMR3DECL(void) VMMR3YieldSuspend(PVM pVM)
+VMMR3_INT_DECL(void) VMMR3YieldSuspend(PVM pVM)
 {
     VMCPU_ASSERT_EMT(&pVM->aCpus[0]);
     if (!pVM->vmm.s.cYieldResumeMillies)
@@ -1078,7 +1097,7 @@ VMMR3DECL(void) VMMR3YieldSuspend(PVM pVM)
  *
  * @param   pVM             The VM handle.
  */
-VMMR3DECL(void) VMMR3YieldStop(PVM pVM)
+VMMR3_INT_DECL(void) VMMR3YieldStop(PVM pVM)
 {
     if (!pVM->vmm.s.cYieldResumeMillies)
         TMTimerStop(pVM->vmm.s.pYieldTimer);
@@ -1092,7 +1111,7 @@ VMMR3DECL(void) VMMR3YieldStop(PVM pVM)
  *
  * @param   pVM             The VM handle.
  */
-VMMR3DECL(void) VMMR3YieldResume(PVM pVM)
+VMMR3_INT_DECL(void) VMMR3YieldResume(PVM pVM)
 {
     if (pVM->vmm.s.cYieldResumeMillies)
     {
@@ -1148,7 +1167,7 @@ static DECLCALLBACK(void) vmmR3YieldEMT(PVM pVM, PTMTIMER pTimer, void *pvUser)
  * @param   pVM         VM handle.
  * @param   pVCpu       The VMCPU to operate on.
  */
-VMMR3DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
 {
     Log2(("VMMR3RawRunGC: (cs:eip=%04x:%08x)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
 
@@ -1217,7 +1236,7 @@ VMMR3DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
  * @param   pVM         VM handle.
  * @param   pVCpu       The VMCPU to operate on.
  */
-VMMR3DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
 {
     Log2(("VMMR3HwAccRunGC: (cs:eip=%04x:%08x)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
 
@@ -1234,6 +1253,10 @@ VMMR3DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
                 rc = pVCpu->vmm.s.iLastGZRc;
 #endif
         } while (rc == VINF_EM_RAW_INTERRUPT_HYPER);
+
+#if 0 /* todo triggers too often */
+        Assert(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TO_R3));
+#endif
 
 #ifdef LOG_ENABLED
         /*
@@ -1310,7 +1333,7 @@ DECLCALLBACK(int) vmmR3SendInitIpi(PVM pVM, VMCPUID idCpu)
  * @param   idCpu       Virtual CPU to perform SIPI on
  * @param   uVector     SIPI vector
  */
-VMMR3DECL(void) VMMR3SendSipi(PVM pVM, VMCPUID idCpu,  uint32_t uVector)
+VMMR3_INT_DECL(void) VMMR3SendSipi(PVM pVM, VMCPUID idCpu,  uint32_t uVector)
 {
     AssertReturnVoid(idCpu < pVM->cCpus);
 
@@ -1324,7 +1347,7 @@ VMMR3DECL(void) VMMR3SendSipi(PVM pVM, VMCPUID idCpu,  uint32_t uVector)
  * @param   pVM         The VM to operate on.
  * @param   idCpu       Virtual CPU to perform int IPI on
  */
-VMMR3DECL(void) VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu)
+VMMR3_INT_DECL(void) VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu)
 {
     AssertReturnVoid(idCpu < pVM->cCpus);
 
@@ -1389,7 +1412,8 @@ DECLCALLBACK(int) vmmR3SyncVCpu(PVM pVM)
  * @param   pfnHandler  Callback handler
  * @param   pvUser      User specified parameter
  *
- * @thread EMT
+ * @thread  EMT
+ * @todo    Remove this if not used again soon.
  */
 VMMR3DECL(int) VMMR3AtomicExecuteHandler(PVM pVM, PFNATOMICHANDLER pfnHandler, void *pvUser)
 {
@@ -1451,7 +1475,7 @@ DECL_FORCE_INLINE(int) vmmR3EmtRendezvousNonCallerReturn(PVM pVM)
  *
  * @returns VBox strict informational status code for EM scheduling. No failures
  *          will be returned here, those are for the caller only.  When
- *          fIsCaller is set, VINF_SUCESS is always returned.
+ *          fIsCaller is set, VINF_SUCCESS is always returned.
  *
  * @param   pVM                 The VM handle.
  * @param   pVCpu               The VMCPU structure for the calling EMT.
@@ -1630,7 +1654,7 @@ static int vmmR3EmtRendezvousCommon(PVM pVM, PVMCPU pVCpu, bool fIsCaller,
  *
  * @thread  EMT
  */
-VMMR3DECL(int) VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(int) VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu)
 {
     return vmmR3EmtRendezvousCommon(pVM, pVCpu, false /* fIsCaller */, pVM->vmm.s.fRendezvousFlags,
                                     pVM->vmm.s.pfnRendezvous, pVM->vmm.s.pvRendezvousUser);
@@ -1749,7 +1773,7 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
          * Get the return code and clean up a little bit.
          */
         int rcMy = pVM->vmm.s.i32RendezvousStatus;
-        ASMAtomicWritePtr((void * volatile *)&pVM->vmm.s.pfnRendezvous, NULL);
+        ASMAtomicWriteNullPtr((void * volatile *)&pVM->vmm.s.pfnRendezvous);
 
         ASMAtomicWriteU32(&pVM->vmm.s.u32RendezvousLock, 0);
 
@@ -1782,7 +1806,7 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
  * @param   pvBuf           Where to store the data we've read.
  * @param   cbRead          The number of bytes to read.
  */
-VMMR3DECL(int) VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead)
+VMMR3_INT_DECL(int) VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr, void *pvBuf, size_t cbRead)
 {
     PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
     AssertReturn(pVCpu, VERR_INVALID_PARAMETER);
@@ -2146,6 +2170,10 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
             pVCpu->vmm.s.rcCallRing3 = VINF_SUCCESS;
             break;
 
+        case VMMCALLRING3_FTM_SET_CHECKPOINT:
+            pVCpu->vmm.s.rcCallRing3 = FTMR3SetCheckpoint(pVM, (FTMCHECKPOINTTYPE)pVCpu->vmm.s.u64CallRing3Arg);
+            break;
+
         default:
             AssertMsgFailed(("enmCallRing3Operation=%d\n", pVCpu->vmm.s.enmCallRing3Operation));
             return VERR_INTERNAL_ERROR;
@@ -2211,6 +2239,7 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
     PRINT_FLAG(VM_FF_,EMT_RENDEZVOUS);
     PRINT_FLAG(VM_FF_,PGM_NEED_HANDY_PAGES);
     PRINT_FLAG(VM_FF_,PGM_NO_MEMORY);
+    PRINT_FLAG(VM_FF_,PGM_POOL_FLUSH_PENDING);
     PRINT_FLAG(VM_FF_,REM_HANDLER_NOTIFY);
     PRINT_FLAG(VM_FF_,DEBUG_SUSPEND);
     if (f)
@@ -2249,6 +2278,7 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
         PRINT_FLAG(VMCPU_FF_,PDM_CRITSECT);
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3);
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3_NON_GLOBAL);
+        PRINT_FLAG(VMCPU_FF_,TLB_FLUSH);
         PRINT_FLAG(VMCPU_FF_,TRPM_SYNC_IDT);
         PRINT_FLAG(VMCPU_FF_,SELM_SYNC_TSS);
         PRINT_FLAG(VMCPU_FF_,SELM_SYNC_GDT);

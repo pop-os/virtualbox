@@ -1,10 +1,10 @@
-/* $Id: PGMAllPool.cpp $ */
+/* $Id: PGMAllPool.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * PGM Shadow Page Pool.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,7 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
 static const char *pgmPoolPoolKindToStr(uint8_t enmKind);
 #endif
 #if defined(VBOX_STRICT) && defined(PGMPOOL_WITH_OPTIMIZED_DIRTY_PT)
-static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PTPAE pShwPT, PCX86PTPAE pGstPT);
+static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PTPAE pGstPT);
 #endif
 
 int             pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage);
@@ -87,53 +87,6 @@ DECLINLINE(bool) pgmPoolIsBigPage(PGMPOOLKIND enmKind)
     }
 }
 
-/** @def PGMPOOL_PAGE_2_LOCKED_PTR
- * Maps a pool page pool into the current context and lock it (RC only).
- *
- * @returns VBox status code.
- * @param   pVM     The VM handle.
- * @param   pPage   The pool page.
- *
- * @remark  In RC this uses PGMGCDynMapHCPage(), so it will consume of the
- *          small page window employeed by that function. Be careful.
- * @remark  There is no need to assert on the result.
- */
-#if defined(IN_RC)
-DECLINLINE(void *) PGMPOOL_PAGE_2_LOCKED_PTR(PVM pVM, PPGMPOOLPAGE pPage)
-{
-    void *pv = pgmPoolMapPageInlined(&pVM->pgm.s, pPage);
-
-    /* Make sure the dynamic mapping will not be reused. */
-    if (pv)
-        PGMDynLockHCPage(pVM, (uint8_t *)pv);
-
-    return pv;
-}
-#else
-# define PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage)  PGMPOOL_PAGE_2_PTR(pVM, pPage)
-#endif
-
-/** @def PGMPOOL_UNLOCK_PTR
- * Unlock a previously locked dynamic caching (RC only).
- *
- * @returns VBox status code.
- * @param   pVM     The VM handle.
- * @param   pPage   The pool page.
- *
- * @remark  In RC this uses PGMGCDynMapHCPage(), so it will consume of the
- *          small page window employeed by that function. Be careful.
- * @remark  There is no need to assert on the result.
- */
-#if defined(IN_RC)
-DECLINLINE(void) PGMPOOL_UNLOCK_PTR(PVM pVM, void *pvPage)
-{
-    if (pvPage)
-        PGMDynUnlockHCPage(pVM, (uint8_t *)pvPage);
-}
-#else
-# define PGMPOOL_UNLOCK_PTR(pVM, pPage)  do {} while (0)
-#endif
-
 
 /**
  * Flushes a chain of pages sharing the same access monitor.
@@ -141,6 +94,7 @@ DECLINLINE(void) PGMPOOL_UNLOCK_PTR(PVM pVM, void *pvPage)
  * @returns VBox status code suitable for scheduling.
  * @param   pPool       The pool.
  * @param   pPage       A page in the chain.
+ * @todo VBOXSTRICTRC
  */
 int pgmPoolMonitorChainFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
@@ -219,7 +173,7 @@ DECLINLINE(int) pgmPoolPhysSimpleReadGCPhys(PVM pVM, void *pvDst, CTXTYPE(RTGCPT
  */
 void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS GCPhysFault, CTXTYPE(RTGCPTR, RTHCPTR, RTGCPTR) pvAddress, unsigned cbWrite)
 {
-    AssertMsg(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX, ("%#x (idx=%#x)\n", pPage->iMonitoredPrev, pPage->idx));
+    AssertMsg(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX, ("%u (idx=%u)\n", pPage->iMonitoredPrev, pPage->idx));
     const unsigned off     = GCPhysFault & PAGE_OFFSET_MASK;
     PVM pVM = pPool->CTX_SUFF(pVM);
 
@@ -229,13 +183,13 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
     {
        union
         {
-            void       *pv;
-            PX86PT      pPT;
-            PX86PTPAE   pPTPae;
-            PX86PD      pPD;
-            PX86PDPAE   pPDPae;
-            PX86PDPT    pPDPT;
-            PX86PML4    pPML4;
+            void           *pv;
+            PX86PT          pPT;
+            PPGMSHWPTPAE    pPTPae;
+            PX86PD          pPD;
+            PX86PDPAE       pPDPae;
+            PX86PDPT        pPDPT;
+            PX86PML4        pPML4;
         } uShw;
 
         LogFlow(("pgmPoolMonitorChainChanging: page idx=%d phys=%RGp (next=%d) kind=%s\n", pPage->idx, pPage->GCPhys, pPage->iMonitoredNext, pgmPoolPoolKindToStr(pPage->enmKind), cbWrite));
@@ -246,7 +200,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
             case PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT:
             {
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPT));
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PTE);
                 LogFlow(("PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT iShw=%x\n", iShw));
                 if (uShw.pPT->a[iShw].n.u1Present)
@@ -260,7 +214,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                                uShw.pPT->a[iShw].u & X86_PTE_PAE_PG_MASK,
                                                GstPte.u & X86_PTE_PG_MASK,
                                                iShw);
-                    ASMAtomicWriteSize(&uShw.pPT->a[iShw], 0);
+                    ASMAtomicWriteU32(&uShw.pPT->a[iShw].u, 0);
                 }
                 break;
             }
@@ -269,12 +223,12 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
             case PGMPOOLKIND_PAE_PT_FOR_32BIT_PT:
             {
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPT));
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 if (!((off ^ pPage->GCPhys) & (PAGE_SIZE / 2)))
                 {
                     const unsigned iShw = (off / sizeof(X86PTE)) & (X86_PG_PAE_ENTRIES - 1);
                     LogFlow(("PGMPOOLKIND_PAE_PT_FOR_32BIT_PT iShw=%x\n", iShw));
-                    if (uShw.pPTPae->a[iShw].n.u1Present)
+                    if (PGMSHWPTEPAE_IS_P(uShw.pPTPae->a[iShw]))
                     {
                         X86PTE GstPte;
                         int rc = pgmPoolPhysSimpleReadGCPhys(pVM, &GstPte, pvAddress, GCPhysFault, sizeof(GstPte));
@@ -282,10 +236,10 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
 
                         Log4(("pgmPoolMonitorChainChanging pae_32: deref %016RX64 GCPhys %08RX32\n", uShw.pPT->a[iShw].u & X86_PTE_PAE_PG_MASK, GstPte.u & X86_PTE_PG_MASK));
                         pgmPoolTracDerefGCPhysHint(pPool, pPage,
-                                                   uShw.pPTPae->a[iShw].u & X86_PTE_PAE_PG_MASK,
+                                                   PGMSHWPTEPAE_GET_HCPHYS(uShw.pPTPae->a[iShw]),
                                                    GstPte.u & X86_PTE_PG_MASK,
                                                    iShw);
-                        ASMAtomicWriteSize(&uShw.pPTPae->a[iShw], 0);
+                        PGMSHWPTEPAE_ATOMIC_SET(uShw.pPTPae->a[iShw], 0);
                     }
                 }
                 break;
@@ -299,7 +253,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                 unsigned iGst     = off / sizeof(X86PDE);
                 unsigned iShwPdpt = iGst / 256;
                 unsigned iShw     = (iGst % 256) * 2;
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
 
                 LogFlow(("pgmPoolMonitorChainChanging PAE for 32 bits: iGst=%x iShw=%x idx = %d page idx=%d\n", iGst, iShw, iShwPdpt, pPage->enmKind - PGMPOOLKIND_PAE_PD0_FOR_32BIT_PD));
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPD));
@@ -324,7 +278,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                         uShw.pPDPae->a[iShw+i].u & X86_PDE_PAE_PG_MASK,
                                         pPage->idx,
                                         iShw + i);
-                            ASMAtomicWriteSize(&uShw.pPDPae->a[iShw+i], 0);
+                            ASMAtomicWriteU64(&uShw.pPDPae->a[iShw+i].u, 0);
                         }
 
                         /* paranoia / a bit assumptive. */
@@ -351,7 +305,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                                 uShw.pPDPae->a[iShw2].u & X86_PDE_PAE_PG_MASK,
                                                 pPage->idx,
                                                 iShw2);
-                                    ASMAtomicWriteSize(&uShw.pPDPae->a[iShw2].u, 0);
+                                    ASMAtomicWriteU64(&uShw.pPDPae->a[iShw2].u, 0);
                                 }
                             }
                         }
@@ -362,21 +316,21 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
 
             case PGMPOOLKIND_PAE_PT_FOR_PAE_PT:
             {
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PTEPAE);
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPT));
-                if (uShw.pPTPae->a[iShw].n.u1Present)
+                if (PGMSHWPTEPAE_IS_P(uShw.pPTPae->a[iShw]))
                 {
                     X86PTEPAE GstPte;
                     int rc = pgmPoolPhysSimpleReadGCPhys(pVM, &GstPte, pvAddress, GCPhysFault, sizeof(GstPte));
                     AssertRC(rc);
 
-                    Log4(("pgmPoolMonitorChainChanging pae: deref %016RX64 GCPhys %016RX64\n", uShw.pPTPae->a[iShw].u & X86_PTE_PAE_PG_MASK, GstPte.u & X86_PTE_PAE_PG_MASK));
+                    Log4(("pgmPoolMonitorChainChanging pae: deref %016RX64 GCPhys %016RX64\n", PGMSHWPTEPAE_GET_HCPHYS(uShw.pPTPae->a[iShw]), GstPte.u & X86_PTE_PAE_PG_MASK));
                     pgmPoolTracDerefGCPhysHint(pPool, pPage,
-                                               uShw.pPTPae->a[iShw].u & X86_PTE_PAE_PG_MASK,
+                                               PGMSHWPTEPAE_GET_HCPHYS(uShw.pPTPae->a[iShw]),
                                                GstPte.u & X86_PTE_PAE_PG_MASK,
                                                iShw);
-                    ASMAtomicWriteSize(&uShw.pPTPae->a[iShw].u, 0);
+                    PGMSHWPTEPAE_ATOMIC_SET(uShw.pPTPae->a[iShw], 0);
                 }
 
                 /* paranoia / a bit assumptive. */
@@ -386,7 +340,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                     const unsigned iShw2 = (off + cbWrite - 1) / sizeof(X86PTEPAE);
                     AssertBreak(iShw2 < RT_ELEMENTS(uShw.pPTPae->a));
 
-                    if (uShw.pPTPae->a[iShw2].n.u1Present)
+                    if (PGMSHWPTEPAE_IS_P(uShw.pPTPae->a[iShw2]))
                     {
                         X86PTEPAE GstPte;
 #   ifdef IN_RING3
@@ -395,12 +349,12 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                         int rc = pgmPoolPhysSimpleReadGCPhys(pVM, &GstPte, pvAddress + sizeof(GstPte), GCPhysFault + sizeof(GstPte), sizeof(GstPte));
 #   endif
                         AssertRC(rc);
-                        Log4(("pgmPoolMonitorChainChanging pae: deref %016RX64 GCPhys %016RX64\n", uShw.pPTPae->a[iShw2].u & X86_PTE_PAE_PG_MASK, GstPte.u & X86_PTE_PAE_PG_MASK));
+                        Log4(("pgmPoolMonitorChainChanging pae: deref %016RX64 GCPhys %016RX64\n", PGMSHWPTEPAE_GET_HCPHYS(uShw.pPTPae->a[iShw2]), GstPte.u & X86_PTE_PAE_PG_MASK));
                         pgmPoolTracDerefGCPhysHint(pPool, pPage,
-                                                   uShw.pPTPae->a[iShw2].u & X86_PTE_PAE_PG_MASK,
+                                                   PGMSHWPTEPAE_GET_HCPHYS(uShw.pPTPae->a[iShw2]),
                                                    GstPte.u & X86_PTE_PAE_PG_MASK,
                                                    iShw2);
-                        ASMAtomicWriteSize(&uShw.pPTPae->a[iShw2].u ,0);
+                        PGMSHWPTEPAE_ATOMIC_SET(uShw.pPTPae->a[iShw2], 0);
                     }
                 }
                 break;
@@ -408,7 +362,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
 
             case PGMPOOLKIND_32BIT_PD:
             {
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PTE);         // ASSUMING 32-bit guest paging!
 
                 LogFlow(("pgmPoolMonitorChainChanging: PGMPOOLKIND_32BIT_PD %x\n", iShw));
@@ -418,7 +372,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                 {
                     Assert(pgmMapAreMappingsEnabled(&pVM->pgm.s));
                     VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                    STAM_COUNTER_INC(&(pVCpu->pgm.s.StatRZGuestCR3WriteConflict));
+                    STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
                     LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw=%#x!\n", iShw));
                     break;
                 }
@@ -434,7 +388,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                     uShw.pPD->a[iShw].u & X86_PDE_PAE_PG_MASK,
                                     pPage->idx,
                                     iShw);
-                        ASMAtomicWriteSize(&uShw.pPD->a[iShw].u, 0);
+                        ASMAtomicWriteU32(&uShw.pPD->a[iShw].u, 0);
                     }
                 }
                 /* paranoia / a bit assumptive. */
@@ -449,7 +403,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                         if (uShw.pPD->a[iShw2].u & PGM_PDFLAGS_MAPPING)
                         {
                             Assert(pgmMapAreMappingsEnabled(&pVM->pgm.s));
-                            STAM_COUNTER_INC(&(pVCpu->pgm.s.StatRZGuestCR3WriteConflict));
+                            STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
                             VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
                             LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw2=%#x!\n", iShw2));
                             break;
@@ -466,7 +420,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                             uShw.pPD->a[iShw2].u & X86_PDE_PAE_PG_MASK,
                                             pPage->idx,
                                             iShw2);
-                                ASMAtomicWriteSize(&uShw.pPD->a[iShw2].u, 0);
+                                ASMAtomicWriteU32(&uShw.pPD->a[iShw2].u, 0);
                             }
                         }
                     }
@@ -480,7 +434,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                     ASMProbeReadByte(pvAddress);
 # endif
                     pgmPoolFree(pVM, uShw.pPD->a[iShw].u & X86_PDE_PG_MASK, pPage->idx, iShw);
-                    ASMAtomicWriteSize(&uShw.pPD->a[iShw].u, 0);
+                    ASMAtomicWriteU32(&uShw.pPD->a[iShw].u, 0);
                 }
 #endif
                 break;
@@ -488,7 +442,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
 
             case PGMPOOLKIND_PAE_PD_FOR_PAE_PD:
             {
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PDEPAE);
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPD));
 #ifndef IN_RING0
@@ -496,7 +450,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                 {
                     Assert(pgmMapAreMappingsEnabled(&pVM->pgm.s));
                     VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                    STAM_COUNTER_INC(&(pVCpu->pgm.s.StatRZGuestCR3WriteConflict));
+                    STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
                     LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw=%#x!\n", iShw));
                     break;
                 }
@@ -517,7 +471,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                     uShw.pPDPae->a[iShw].u & X86_PDE_PAE_PG_MASK,
                                     pPage->idx,
                                     iShw);
-                        ASMAtomicWriteSize(&uShw.pPDPae->a[iShw].u, 0);
+                        ASMAtomicWriteU64(&uShw.pPDPae->a[iShw].u, 0);
                     }
                 }
                 /* paranoia / a bit assumptive. */
@@ -533,7 +487,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                     {
                         Assert(pgmMapAreMappingsEnabled(&pVM->pgm.s));
                         VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-                        STAM_COUNTER_INC(&(pVCpu->pgm.s.StatRZGuestCR3WriteConflict));
+                        STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
                         LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw2=%#x!\n", iShw2));
                         break;
                     }
@@ -548,7 +502,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                     uShw.pPDPae->a[iShw2].u & X86_PDE_PAE_PG_MASK,
                                     pPage->idx,
                                     iShw2);
-                        ASMAtomicWriteSize(&uShw.pPDPae->a[iShw2].u, 0);
+                        ASMAtomicWriteU64(&uShw.pPDPae->a[iShw2].u, 0);
                     }
                 }
                 break;
@@ -565,7 +519,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                 /* PDPT roots are not page aligned; 32 byte only! */
                 const unsigned offPdpt = GCPhysFault - pPage->GCPhys;
 
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = offPdpt / sizeof(X86PDPE);
                 if (iShw < X86_PG_PAE_PDPE_ENTRIES)          /* don't use RT_ELEMENTS(uShw.pPDPT->a), because that's for long mode only */
                 {
@@ -573,7 +527,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                     if (uShw.pPDPT->a[iShw].u & PGM_PLXFLAGS_MAPPING)
                     {
                         Assert(pgmMapAreMappingsEnabled(&pVM->pgm.s));
-                        STAM_COUNTER_INC(&(pVCpu->pgm.s.StatRZGuestCR3WriteConflict));
+                        STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
                         VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
                         LogFlow(("pgmPoolMonitorChainChanging: Detected pdpt conflict at iShw=%#x!\n", iShw));
                         break;
@@ -589,7 +543,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                     uShw.pPDPT->a[iShw].u & X86_PDPE_PG_MASK,
                                     pPage->idx,
                                     iShw);
-                        ASMAtomicWriteSize(&uShw.pPDPT->a[iShw].u, 0);
+                        ASMAtomicWriteU64(&uShw.pPDPT->a[iShw].u, 0);
                     }
 
                     /* paranoia / a bit assumptive. */
@@ -604,7 +558,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                             if (uShw.pPDPT->a[iShw2].u & PGM_PLXFLAGS_MAPPING)
                             {
                                 Assert(pgmMapAreMappingsEnabled(&pVM->pgm.s));
-                                STAM_COUNTER_INC(&(pVCpu->pgm.s.StatRZGuestCR3WriteConflict));
+                                STAM_COUNTER_INC(&(pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZGuestCR3WriteConflict));
                                 VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
                                 LogFlow(("pgmPoolMonitorChainChanging: Detected conflict at iShw2=%#x!\n", iShw2));
                                 break;
@@ -620,7 +574,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                             uShw.pPDPT->a[iShw2].u & X86_PDPE_PG_MASK,
                                             pPage->idx,
                                             iShw2);
-                                ASMAtomicWriteSize(&uShw.pPDPT->a[iShw2].u, 0);
+                                ASMAtomicWriteU64(&uShw.pPDPT->a[iShw2].u, 0);
                             }
                         }
                     }
@@ -632,7 +586,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
             case PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD:
             {
                 STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitor,FaultPD));
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PDEPAE);
                 Assert(!(uShw.pPDPae->a[iShw].u & PGM_PDFLAGS_MAPPING));
                 if (uShw.pPDPae->a[iShw].n.u1Present)
@@ -642,7 +596,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                 uShw.pPDPae->a[iShw].u & X86_PDE_PAE_PG_MASK,
                                 pPage->idx,
                                 iShw);
-                    ASMAtomicWriteSize(&uShw.pPDPae->a[iShw].u, 0);
+                    ASMAtomicWriteU64(&uShw.pPDPae->a[iShw].u, 0);
                 }
                 /* paranoia / a bit assumptive. */
                 if (    (off & 7)
@@ -659,7 +613,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                                     uShw.pPDPae->a[iShw2].u & X86_PDE_PAE_PG_MASK,
                                     pPage->idx,
                                     iShw2);
-                        ASMAtomicWriteSize(&uShw.pPDPae->a[iShw2].u, 0);
+                        ASMAtomicWriteU64(&uShw.pPDPae->a[iShw2].u, 0);
                     }
                 }
                 break;
@@ -672,13 +626,13 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                  * Hopefully this doesn't happen very often:
                  * - messing with the bits of pd pointers without changing the physical address
                  */
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PDPE);
                 if (uShw.pPDPT->a[iShw].n.u1Present)
                 {
                     LogFlow(("pgmPoolMonitorChainChanging: pdpt iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPDPT->a[iShw].u));
                     pgmPoolFree(pVM, uShw.pPDPT->a[iShw].u & X86_PDPE_PG_MASK, pPage->idx, iShw);
-                    ASMAtomicWriteSize(&uShw.pPDPT->a[iShw].u, 0);
+                    ASMAtomicWriteU64(&uShw.pPDPT->a[iShw].u, 0);
                 }
                 /* paranoia / a bit assumptive. */
                 if (    (off & 7)
@@ -689,7 +643,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                     {
                         LogFlow(("pgmPoolMonitorChainChanging: pdpt iShw2=%#x: %RX64 -> freeing it!\n", iShw2, uShw.pPDPT->a[iShw2].u));
                         pgmPoolFree(pVM, uShw.pPDPT->a[iShw2].u & X86_PDPE_PG_MASK, pPage->idx, iShw2);
-                        ASMAtomicWriteSize(&uShw.pPDPT->a[iShw2].u, 0);
+                        ASMAtomicWriteU64(&uShw.pPDPT->a[iShw2].u, 0);
                     }
                 }
                 break;
@@ -702,13 +656,13 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                  * Hopefully this doesn't happen very often:
                  * - messing with the bits of pd pointers without changing the physical address
                  */
-                uShw.pv = PGMPOOL_PAGE_2_LOCKED_PTR(pVM, pPage);
+                uShw.pv = PGMPOOL_PAGE_2_PTR(pVM, pPage);
                 const unsigned iShw = off / sizeof(X86PDPE);
                 if (uShw.pPML4->a[iShw].n.u1Present)
                 {
                     LogFlow(("pgmPoolMonitorChainChanging: pml4 iShw=%#x: %RX64 -> freeing it!\n", iShw, uShw.pPML4->a[iShw].u));
                     pgmPoolFree(pVM, uShw.pPML4->a[iShw].u & X86_PML4E_PG_MASK, pPage->idx, iShw);
-                    ASMAtomicWriteSize(&uShw.pPML4->a[iShw].u, 0);
+                    ASMAtomicWriteU64(&uShw.pPML4->a[iShw].u, 0);
                 }
                 /* paranoia / a bit assumptive. */
                 if (    (off & 7)
@@ -719,7 +673,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
                     {
                         LogFlow(("pgmPoolMonitorChainChanging: pml4 iShw2=%#x: %RX64 -> freeing it!\n", iShw2, uShw.pPML4->a[iShw2].u));
                         pgmPoolFree(pVM, uShw.pPML4->a[iShw2].u & X86_PML4E_PG_MASK, pPage->idx, iShw2);
-                        ASMAtomicWriteSize(&uShw.pPML4->a[iShw2].u, 0);
+                        ASMAtomicWriteU64(&uShw.pPML4->a[iShw2].u, 0);
                     }
                 }
                 break;
@@ -729,7 +683,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
             default:
                 AssertFatalMsgFailed(("enmKind=%d\n", pPage->enmKind));
         }
-        PGMPOOL_UNLOCK_PTR(pVM, uShw.pv);
+        PGM_DYNMAP_UNUSED_HINT_VM(pVM, uShw.pv);
 
         /* next */
         if (pPage->iMonitoredNext == NIL_PGMPOOL_IDX)
@@ -744,7 +698,7 @@ void pgmPoolMonitorChainChanging(PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPag
  *
  * Meaning, that the guest is setting up the parent process for Copy-On-Write.
  *
- * @returns true if it's likly that we're forking, otherwise false.
+ * @returns true if it's likely that we're forking, otherwise false.
  * @param   pPool       The pool.
  * @param   pDis        The disassembled instruction.
  * @param   offFault    The access offset.
@@ -873,6 +827,7 @@ DECLINLINE(bool) pgmPoolMonitorIsReused(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
  * @param   pRegFrame   The trap register frame.
  * @param   GCPhysFault The fault address as guest physical address.
  * @param   pvFault     The fault address.
+ * @todo VBOXSTRICTRC
  */
 static int pgmPoolAccessHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
                                      PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
@@ -883,12 +838,16 @@ static int pgmPoolAccessHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGM
     int rc = pgmPoolMonitorChainFlush(pPool, pPage);
 
     /*
-     * Emulate the instruction (xp/w2k problem, requires pc/cr2/sp detection). Must do this in raw mode (!); XP boot will fail otherwise
+     * Emulate the instruction (xp/w2k problem, requires pc/cr2/sp detection).
+     * Must do this in raw mode (!); XP boot will fail otherwise.
      */
     uint32_t cbWritten;
-    int rc2 = EMInterpretInstructionCPUEx(pVM, pVCpu, pDis, pRegFrame, pvFault, &cbWritten, EMCODETYPE_ALL);
+    VBOXSTRICTRC rc2 = EMInterpretInstructionCPU(pVM, pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL, &cbWritten);
     if (RT_SUCCESS(rc2))
+    {
         pRegFrame->rip += pDis->opsize;
+        AssertMsg(rc2 == VINF_SUCCESS, ("%Rrc\n", VBOXSTRICTRC_VAL(rc2))); /* ASSUMES no complicated stuff here. */
+    }
     else if (rc2 == VERR_EM_INTERPRETER)
     {
 #ifdef IN_RC
@@ -907,7 +866,7 @@ static int pgmPoolAccessHandlerFlush(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool, PPGM
         }
     }
     else
-        rc = rc2;
+        rc = VBOXSTRICTRC_VAL(rc2);
 
     LogFlow(("pgmPoolAccessHandlerPT: returns %Rrc (flushed)\n", rc));
     return rc;
@@ -959,10 +918,10 @@ DECLINLINE(int) pgmPoolAccessHandlerSTOSD(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE 
     RTGCUINTPTR pu32 = (RTGCUINTPTR)pvFault;
     while (pRegFrame->rcx)
     {
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-        uint32_t iPrevSubset = PGMDynMapPushAutoSubset(pVCpu);
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+        uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, (RTGCPTR)pu32, uIncrement);
-        PGMDynMapPopAutoSubset(pVCpu, iPrevSubset);
+        PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 #else
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, (RTGCPTR)pu32, uIncrement);
 #endif
@@ -1011,10 +970,10 @@ DECLINLINE(int) pgmPoolAccessHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool
     /*
      * Clear all the pages. ASSUMES that pvFault is readable.
      */
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    uint32_t    iPrevSubset = PGMDynMapPushAutoSubset(pVCpu);
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+    uint32_t    iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
     pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, pvFault, DISGetParamSize(pDis, &pDis->param1));
-    PGMDynMapPopAutoSubset(pVCpu, iPrevSubset);
+    PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 #else
     pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, pvFault, DISGetParamSize(pDis, &pDis->param1));
 #endif
@@ -1023,9 +982,12 @@ DECLINLINE(int) pgmPoolAccessHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool
      * Interpret the instruction.
      */
     uint32_t cb;
-    int rc = EMInterpretInstructionCPUEx(pVM, pVCpu, pDis, pRegFrame, pvFault, &cb, EMCODETYPE_ALL);
+    VBOXSTRICTRC rc = EMInterpretInstructionCPU(pVM, pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL, &cb);
     if (RT_SUCCESS(rc))
+    {
         pRegFrame->rip += pDis->opsize;
+        AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", VBOXSTRICTRC_VAL(rc))); /* ASSUMES no complicated stuff here. */
+    }
     else if (rc == VERR_EM_INTERPRETER)
     {
         LogFlow(("pgmPoolAccessHandlerPTWorker: Interpretation failed for %04x:%RGv - opcode=%d\n",
@@ -1064,8 +1026,8 @@ DECLINLINE(int) pgmPoolAccessHandlerSimple(PVM pVM, PVMCPU pVCpu, PPGMPOOL pPool
     }
 #endif
 
-    LogFlow(("pgmPoolAccessHandlerSimple: returns %Rrc cb=%d\n", rc, cb));
-    return rc;
+    LogFlow(("pgmPoolAccessHandlerSimple: returns %Rrc cb=%d\n", VBOXSTRICTRC_VAL(rc), cb));
+    return VBOXSTRICTRC_VAL(rc);
 }
 
 /**
@@ -1112,10 +1074,12 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
 #if 0 /* test code defined(VBOX_STRICT) && defined(PGMPOOL_WITH_OPTIMIZED_DIRTY_PT) */
     if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
     {
-        void *pvShw = PGMPOOL_PAGE_2_LOCKED_PTR(pPool->CTX_SUFF(pVM), pPage);
+        void *pvShw = PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
         void *pvGst;
         int rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
-        pgmPoolTrackCheckPTPaePae(pPool, pPage, (PX86PTPAE)pvShw, (PCX86PTPAE)pvGst);
+        pgmPoolTrackCheckPTPaePae(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PTPAE)pvGst);
+        PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
+        PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvShw);
     }
 #endif
 
@@ -1141,7 +1105,8 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
 
 #ifdef IN_RING0
     /* Maximum nr of modifications depends on the page type. */
-    if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+    if (    pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT
+        ||  pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_32BIT_PT)
         cMaxModifications = 4;
     else
         cMaxModifications = 24;
@@ -1282,7 +1247,7 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
      */
     if (    pPage->cModifications >= cMaxModifications
         &&  !fForcedFlush
-        &&  pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT
+        &&  (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT || pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_32BIT_PT)
         &&  (   fNotReusedNotForking
              || (   !pgmPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault)
                  && !pgmPoolMonitorIsForking(pPool, pDis, GCPhysFault & PAGE_OFFSET_MASK))
@@ -1328,7 +1293,7 @@ DECLEXPORT(int) pgmPoolAccessHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE 
             pgmPoolAddDirtyPage(pVM, pPool, pPage);
 
             /* Temporarily allow write access to the page table again. */
-            rc = PGMHandlerPhysicalPageTempOff(pVM, pPage->GCPhys, pPage->GCPhys);
+            rc = PGMHandlerPhysicalPageTempOff(pVM, pPage->GCPhys & PAGE_BASE_GC_MASK, pPage->GCPhys & PAGE_BASE_GC_MASK);
             if (rc == VINF_SUCCESS)
             {
                 rc = PGMShwMakePageWritable(pVCpu, pvFault, PGM_MK_PG_IS_WRITE_FAULT);
@@ -1384,34 +1349,35 @@ flushPage:
  * @param   pShwPT      The shadow page table (mapping of the page).
  * @param   pGstPT      The guest page table.
  */
-static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PTPAE pShwPT, PCX86PTPAE pGstPT)
+static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PTPAE pGstPT)
 {
     unsigned cErrors    = 0;
     int      LastRc     = -1;           /* initialized to shut up gcc */
     unsigned LastPTE    = ~0U;          /* initialized to shut up gcc */
     RTHCPHYS LastHCPhys = NIL_RTHCPHYS; /* initialized to shut up gcc */
+    PVM      pVM        = pPool->CTX_SUFF(pVM);
 
 #ifdef VBOX_STRICT
     for (unsigned i = 0; i < RT_MIN(RT_ELEMENTS(pShwPT->a), pPage->iFirstPresent); i++)
-        AssertMsg(!pShwPT->a[i].n.u1Present, ("Unexpected PTE: idx=%d %RX64 (first=%d)\n", i, pShwPT->a[i].u,  pPage->iFirstPresent));
+        AssertMsg(!PGMSHWPTEPAE_IS_P(pShwPT->a[i]), ("Unexpected PTE: idx=%d %RX64 (first=%d)\n", i, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]),  pPage->iFirstPresent));
 #endif
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++)
     {
-        if (pShwPT->a[i].n.u1Present)
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
         {
             RTHCPHYS HCPhys = NIL_RTHCPHYS;
-            int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[i].u & X86_PTE_PAE_PG_MASK, &HCPhys);
+            int rc = PGMPhysGCPhys2HCPhys(pVM, pGstPT->a[i].u & X86_PTE_PAE_PG_MASK, &HCPhys);
             if (    rc != VINF_SUCCESS
-                ||  (pShwPT->a[i].u & X86_PTE_PAE_PG_MASK) != HCPhys)
+                ||  PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]) != HCPhys)
             {
-                Log(("rc=%d idx=%d guest %RX64 shw=%RX64 vs %RHp\n", rc, i, pGstPT->a[i].u, pShwPT->a[i].u, HCPhys));
+                Log(("rc=%d idx=%d guest %RX64 shw=%RX64 vs %RHp\n", rc, i, pGstPT->a[i].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]), HCPhys));
                 LastPTE     = i;
                 LastRc      = rc;
                 LastHCPhys  = HCPhys;
                 cErrors++;
 
                 RTHCPHYS HCPhysPT = NIL_RTHCPHYS;
-                rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pPage->GCPhys, &HCPhysPT);
+                rc = PGMPhysGCPhys2HCPhys(pVM, pPage->GCPhys, &HCPhysPT);
                 AssertRC(rc);
 
                 for (unsigned iPage = 0; iPage < pPool->cCurPages; iPage++)
@@ -1420,24 +1386,91 @@ static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PT
 
                     if (pTempPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
                     {
-                        PX86PTPAE pShwPT2 = (PX86PTPAE)PGMPOOL_PAGE_2_LOCKED_PTR(pPool->CTX_SUFF(pVM), pTempPage);
+                        PPGMSHWPTPAE pShwPT2 = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pVM, pTempPage);
 
                         for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
                         {
-                            if (    pShwPT2->a[j].n.u1Present
-                                &&  pShwPT2->a[j].n.u1Write
-                                &&  ((pShwPT2->a[j].u & X86_PTE_PAE_PG_MASK) == HCPhysPT))
+                            if (   PGMSHWPTEPAE_IS_P_RW(pShwPT2->a[j])
+                                && PGMSHWPTEPAE_GET_HCPHYS(pShwPT2->a[j]) == HCPhysPT)
                             {
-                                Log(("GCPhys=%RGp idx=%d %RX64 vs %RX64\n", pTempPage->GCPhys, j, pShwPT->a[j].u, pShwPT2->a[j].u));
+                                Log(("GCPhys=%RGp idx=%d %RX64 vs %RX64\n", pTempPage->GCPhys, j, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), PGMSHWPTEPAE_GET_LOG(pShwPT2->a[j])));
                             }
                         }
+
+                        PGM_DYNMAP_UNUSED_HINT_VM(pVM, pShwPT2);
                     }
                 }
             }
         }
     }
-    AssertMsg(!cErrors, ("cErrors=%d: last rc=%d idx=%d guest %RX64 shw=%RX64 vs %RHp\n", cErrors, LastRc, LastPTE, pGstPT->a[LastPTE].u, pShwPT->a[LastPTE].u, LastHCPhys));
+    AssertMsg(!cErrors, ("cErrors=%d: last rc=%d idx=%d guest %RX64 shw=%RX64 vs %RHp\n", cErrors, LastRc, LastPTE, pGstPT->a[LastPTE].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[LastPTE]), LastHCPhys));
 }
+
+/**
+ * Check references to guest physical memory in a PAE / 32-bit page table.
+ *
+ * @param   pPool       The pool.
+ * @param   pPage       The page.
+ * @param   pShwPT      The shadow page table (mapping of the page).
+ * @param   pGstPT      The guest page table.
+ */
+static void pgmPoolTrackCheckPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PT pGstPT)
+{
+    unsigned cErrors    = 0;
+    int      LastRc     = -1;           /* initialized to shut up gcc */
+    unsigned LastPTE    = ~0U;          /* initialized to shut up gcc */
+    RTHCPHYS LastHCPhys = NIL_RTHCPHYS; /* initialized to shut up gcc */
+    PVM      pVM        = pPool->CTX_SUFF(pVM);
+
+#ifdef VBOX_STRICT
+    for (unsigned i = 0; i < RT_MIN(RT_ELEMENTS(pShwPT->a), pPage->iFirstPresent); i++)
+        AssertMsg(!PGMSHWPTEPAE_IS_P(pShwPT->a[i]), ("Unexpected PTE: idx=%d %RX64 (first=%d)\n", i, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]),  pPage->iFirstPresent));
+#endif
+    for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++)
+    {
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
+        {
+            RTHCPHYS HCPhys = NIL_RTHCPHYS;
+            int rc = PGMPhysGCPhys2HCPhys(pVM, pGstPT->a[i].u & X86_PTE_PG_MASK, &HCPhys);
+            if (    rc != VINF_SUCCESS
+                ||  PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]) != HCPhys)
+            {
+                Log(("rc=%d idx=%d guest %x shw=%RX64 vs %RHp\n", rc, i, pGstPT->a[i].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]), HCPhys));
+                LastPTE     = i;
+                LastRc      = rc;
+                LastHCPhys  = HCPhys;
+                cErrors++;
+
+                RTHCPHYS HCPhysPT = NIL_RTHCPHYS;
+                rc = PGMPhysGCPhys2HCPhys(pVM, pPage->GCPhys, &HCPhysPT);
+                AssertRC(rc);
+
+                for (unsigned iPage = 0; iPage < pPool->cCurPages; iPage++)
+                {
+                    PPGMPOOLPAGE pTempPage = &pPool->aPages[iPage];
+
+                    if (pTempPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_32BIT_PT)
+                    {
+                        PPGMSHWPTPAE pShwPT2 = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pVM, pTempPage);
+
+                        for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
+                        {
+                            if (   PGMSHWPTEPAE_IS_P_RW(pShwPT2->a[j])
+                                && PGMSHWPTEPAE_GET_HCPHYS(pShwPT2->a[j]) == HCPhysPT)
+                            {
+                                Log(("GCPhys=%RGp idx=%d %RX64 vs %RX64\n", pTempPage->GCPhys, j, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), PGMSHWPTEPAE_GET_LOG(pShwPT2->a[j])));
+                            }
+                        }
+
+                        PGM_DYNMAP_UNUSED_HINT_VM(pVM, pShwPT2);
+                    }
+                }
+            }
+        }
+    }
+    AssertMsg(!cErrors, ("cErrors=%d: last rc=%d idx=%d guest %x shw=%RX64 vs %RHp\n", cErrors, LastRc, LastPTE, pGstPT->a[LastPTE].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[LastPTE]), LastHCPhys));
+}
+
 #  endif /* VBOX_STRICT */
 
 /**
@@ -1452,13 +1485,14 @@ static void pgmPoolTrackCheckPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PT
  * @param   fAllowRemoval   Bail out as soon as we encounter an invalid PTE
  * @param   pfFlush         Flush reused page table (out)
  */
-DECLINLINE(unsigned) pgmPoolTrackFlushPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PTPAE pShwPT, PCX86PTPAE pGstPT, PCX86PTPAE pOldGstPT, bool fAllowRemoval, bool *pfFlush)
+DECLINLINE(unsigned) pgmPoolTrackFlushPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PTPAE pGstPT,
+                                               PCX86PTPAE pOldGstPT, bool fAllowRemoval, bool *pfFlush)
 {
     unsigned cChanged = 0;
 
 #ifdef VBOX_STRICT
     for (unsigned i = 0; i < RT_MIN(RT_ELEMENTS(pShwPT->a), pPage->iFirstPresent); i++)
-        AssertMsg(!pShwPT->a[i].n.u1Present, ("Unexpected PTE: idx=%d %RX64 (first=%d)\n", i, pShwPT->a[i].u,  pPage->iFirstPresent));
+        AssertMsg(!PGMSHWPTEPAE_IS_P(pShwPT->a[i]), ("Unexpected PTE: idx=%d %RX64 (first=%d)\n", i, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]),  pPage->iFirstPresent));
 #endif
     *pfFlush = false;
 
@@ -1476,7 +1510,7 @@ DECLINLINE(unsigned) pgmPoolTrackFlushPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPag
                 return ++cChanged;
             }
         }
-        if (pShwPT->a[i].n.u1Present)
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
         {
             /* If the old cached PTE is identical, then there's no need to flush the shadow copy. */
             if ((pGstPT->a[i].u & X86_PTE_PAE_PG_MASK) == (pOldGstPT->a[i].u & X86_PTE_PAE_PG_MASK))
@@ -1484,10 +1518,10 @@ DECLINLINE(unsigned) pgmPoolTrackFlushPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPag
 #ifdef VBOX_STRICT
                 RTHCPHYS HCPhys = NIL_RTGCPHYS;
                 int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[i].u & X86_PTE_PAE_PG_MASK, &HCPhys);
-                AssertMsg(rc == VINF_SUCCESS && (pShwPT->a[i].u & X86_PTE_PAE_PG_MASK) == HCPhys, ("rc=%d guest %RX64 old %RX64 shw=%RX64 vs %RHp\n", rc, pGstPT->a[i].u, pOldGstPT->a[i].u, pShwPT->a[i].u, HCPhys));
+                AssertMsg(rc == VINF_SUCCESS && PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]) == HCPhys, ("rc=%d guest %RX64 old %RX64 shw=%RX64 vs %RHp\n", rc, pGstPT->a[i].u, pOldGstPT->a[i].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]), HCPhys));
 #endif
-                uint64_t uHostAttr  = pShwPT->a[i].u & (X86_PTE_P | X86_PTE_US | X86_PTE_A | X86_PTE_D | X86_PTE_G | X86_PTE_PAE_NX);
-                bool     fHostRW    = !!(pShwPT->a[i].u & X86_PTE_RW);
+                uint64_t uHostAttr  = PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & (X86_PTE_P | X86_PTE_US | X86_PTE_A | X86_PTE_D | X86_PTE_G | X86_PTE_PAE_NX);
+                bool     fHostRW    = !!(PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & X86_PTE_RW);
                 uint64_t uGuestAttr = pGstPT->a[i].u & (X86_PTE_P | X86_PTE_US | X86_PTE_A | X86_PTE_D | X86_PTE_G | X86_PTE_PAE_NX);
                 bool     fGuestRW   = !!(pGstPT->a[i].u & X86_PTE_RW);
 
@@ -1498,14 +1532,80 @@ DECLINLINE(unsigned) pgmPoolTrackFlushPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPag
             cChanged++;
             /* Something was changed, so flush it. */
             Log4(("pgmPoolTrackDerefPTPaePae: i=%d pte=%RX64 hint=%RX64\n",
-                  i, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, pOldGstPT->a[i].u & X86_PTE_PAE_PG_MASK));
-            pgmPoolTracDerefGCPhysHint(pPool, pPage, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, pOldGstPT->a[i].u & X86_PTE_PAE_PG_MASK, i);
-            ASMAtomicWriteSize(&pShwPT->a[i].u, 0);
+                  i, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pOldGstPT->a[i].u & X86_PTE_PAE_PG_MASK));
+            pgmPoolTracDerefGCPhysHint(pPool, pPage, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pOldGstPT->a[i].u & X86_PTE_PAE_PG_MASK, i);
+            PGMSHWPTEPAE_ATOMIC_SET(pShwPT->a[i], 0);
         }
     }
     return cChanged;
 }
 
+/**
+ * Clear references to guest physical memory in a PAE / PAE page table.
+ *
+ * @returns nr of changed PTEs
+ * @param   pPool           The pool.
+ * @param   pPage           The page.
+ * @param   pShwPT          The shadow page table (mapping of the page).
+ * @param   pGstPT          The guest page table.
+ * @param   pOldGstPT       The old cached guest page table.
+ * @param   fAllowRemoval   Bail out as soon as we encounter an invalid PTE
+ * @param   pfFlush         Flush reused page table (out)
+ */
+DECLINLINE(unsigned) pgmPoolTrackFlushPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PT pGstPT,
+                                                 PCX86PT pOldGstPT, bool fAllowRemoval, bool *pfFlush)
+{
+    unsigned cChanged = 0;
+
+#ifdef VBOX_STRICT
+    for (unsigned i = 0; i < RT_MIN(RT_ELEMENTS(pShwPT->a), pPage->iFirstPresent); i++)
+        AssertMsg(!PGMSHWPTEPAE_IS_P(pShwPT->a[i]), ("Unexpected PTE: idx=%d %RX64 (first=%d)\n", i, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]),  pPage->iFirstPresent));
+#endif
+    *pfFlush = false;
+
+    for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++)
+    {
+        /* Check the new value written by the guest. If present and with a bogus physical address, then
+         * it's fairly safe to assume the guest is reusing the PT.
+         */
+        if (    fAllowRemoval
+            &&  pGstPT->a[i].n.u1Present)
+        {
+            if (!PGMPhysIsGCPhysValid(pPool->CTX_SUFF(pVM), pGstPT->a[i].u & X86_PTE_PG_MASK))
+            {
+                *pfFlush = true;
+                return ++cChanged;
+            }
+        }
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
+        {
+            /* If the old cached PTE is identical, then there's no need to flush the shadow copy. */
+            if ((pGstPT->a[i].u & X86_PTE_PG_MASK) == (pOldGstPT->a[i].u & X86_PTE_PG_MASK))
+            {
+#ifdef VBOX_STRICT
+                RTHCPHYS HCPhys = NIL_RTGCPHYS;
+                int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[i].u & X86_PTE_PG_MASK, &HCPhys);
+                AssertMsg(rc == VINF_SUCCESS && PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]) == HCPhys, ("rc=%d guest %x old %x shw=%RX64 vs %RHp\n", rc, pGstPT->a[i].u, pOldGstPT->a[i].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[i]), HCPhys));
+#endif
+                uint64_t uHostAttr  = PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & (X86_PTE_P | X86_PTE_US | X86_PTE_A | X86_PTE_D | X86_PTE_G);
+                bool     fHostRW    = !!(PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & X86_PTE_RW);
+                uint64_t uGuestAttr = pGstPT->a[i].u & (X86_PTE_P | X86_PTE_US | X86_PTE_A | X86_PTE_D | X86_PTE_G);
+                bool     fGuestRW   = !!(pGstPT->a[i].u & X86_PTE_RW);
+
+                if (    uHostAttr == uGuestAttr
+                    &&  fHostRW <= fGuestRW)
+                    continue;
+            }
+            cChanged++;
+            /* Something was changed, so flush it. */
+            Log4(("pgmPoolTrackDerefPTPaePae: i=%d pte=%RX64 hint=%x\n",
+                  i, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pOldGstPT->a[i].u & X86_PTE_PG_MASK));
+            pgmPoolTracDerefGCPhysHint(pPool, pPage, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pOldGstPT->a[i].u & X86_PTE_PG_MASK, i);
+            PGMSHWPTEPAE_ATOMIC_SET(pShwPT->a[i], 0);
+        }
+    }
+    return cChanged;
+}
 
 /**
  * Flush a dirty page
@@ -1520,11 +1620,11 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
     PPGMPOOLPAGE pPage;
     unsigned     idxPage;
 
-    Assert(idxSlot < RT_ELEMENTS(pPool->aIdxDirtyPages));
-    if (pPool->aIdxDirtyPages[idxSlot] == NIL_PGMPOOL_IDX)
+    Assert(idxSlot < RT_ELEMENTS(pPool->aDirtyPages));
+    if (pPool->aDirtyPages[idxSlot].uIdx == NIL_PGMPOOL_IDX)
         return;
 
-    idxPage = pPool->aIdxDirtyPages[idxSlot];
+    idxPage = pPool->aDirtyPages[idxSlot].uIdx;
     AssertRelease(idxPage != NIL_PGMPOOL_IDX);
     pPage = &pPool->aPages[idxPage];
     Assert(pPage->idx == idxPage);
@@ -1533,14 +1633,15 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
     AssertMsg(pPage->fDirty, ("Page %RGp (slot=%d) not marked dirty!", pPage->GCPhys, idxSlot));
     Log(("Flush dirty page %RGp cMods=%d\n", pPage->GCPhys, pPage->cModifications));
 
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+    PVMCPU   pVCpu = VMMGetCpu(pVM);
+    uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
+#endif
+
     /* First write protect the page again to catch all write accesses. (before checking for changes -> SMP) */
-    int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys);
+    int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys & PAGE_BASE_GC_MASK);
     Assert(rc == VINF_SUCCESS);
     pPage->fDirty = false;
-
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    uint32_t iPrevSubset = PGMDynMapPushAutoSubset(VMMGetCpu(pVM));
-#endif
 
 #ifdef VBOX_STRICT
     uint64_t fFlags = 0;
@@ -1556,13 +1657,23 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
 
     /* Flush those PTEs that have changed. */
     STAM_PROFILE_START(&pPool->StatTrackDeref,a);
-    void *pvShw = PGMPOOL_PAGE_2_LOCKED_PTR(pPool->CTX_SUFF(pVM), pPage);
+    void *pvShw = PGMPOOL_PAGE_2_PTR(pVM, pPage);
     void *pvGst;
+    rc = PGM_GCPHYS_2_PTR_EX(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
     bool  fFlush;
-    rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
-    unsigned cChanges = pgmPoolTrackFlushPTPaePae(pPool, pPage, (PX86PTPAE)pvShw, (PCX86PTPAE)pvGst, (PCX86PTPAE)&pPool->aDirtyPages[idxSlot][0], fAllowRemoval, &fFlush);
+    unsigned cChanges;
+
+    if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+        cChanges = pgmPoolTrackFlushPTPaePae(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PTPAE)pvGst,
+                                             (PCX86PTPAE)&pPool->aDirtyPages[idxSlot].aPage[0], fAllowRemoval, &fFlush);
+    else
+        cChanges = pgmPoolTrackFlushPTPae32Bit(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PT)pvGst,
+                                               (PCX86PT)&pPool->aDirtyPages[idxSlot].aPage[0], fAllowRemoval, &fFlush);
+
+    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
+    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvShw);
     STAM_PROFILE_STOP(&pPool->StatTrackDeref,a);
-    /** Note: we might want to consider keeping the dirty page active in case there were many changes. */
+    /* Note: we might want to consider keeping the dirty page active in case there were many changes. */
 
     /* This page is likely to be modified again, so reduce the nr of modifications just a bit here. */
     Assert(pPage->cModifications);
@@ -1572,12 +1683,12 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
         pPage->cModifications = RT_MAX(1, pPage->cModifications / 2);
 
     STAM_COUNTER_INC(&pPool->StatResetDirtyPages);
-    if (pPool->cDirtyPages == RT_ELEMENTS(pPool->aIdxDirtyPages))
+    if (pPool->cDirtyPages == RT_ELEMENTS(pPool->aDirtyPages))
         pPool->idxFreeDirtyPage = idxSlot;
 
     pPool->cDirtyPages--;
-    pPool->aIdxDirtyPages[idxSlot] = NIL_PGMPOOL_IDX;
-    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aIdxDirtyPages));
+    pPool->aDirtyPages[idxSlot].uIdx = NIL_PGMPOOL_IDX;
+    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aDirtyPages));
     if (fFlush)
     {
         Assert(fAllowRemoval);
@@ -1588,8 +1699,8 @@ static void pgmPoolFlushDirtyPage(PVM pVM, PPGMPOOL pPool, unsigned idxSlot, boo
     else
         Log(("Removed dirty page %RGp cMods=%d cChanges=%d\n", pPage->GCPhys, pPage->cModifications, cChanges));
 
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    PGMDynMapPopAutoSubset(VMMGetCpu(pVM), iPrevSubset);
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+    PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 #endif
 }
 
@@ -1606,58 +1717,65 @@ void pgmPoolAddDirtyPage(PVM pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     unsigned idxFree;
 
     Assert(PGMIsLocked(pVM));
-    AssertCompile(RT_ELEMENTS(pPool->aIdxDirtyPages) == 8 || RT_ELEMENTS(pPool->aIdxDirtyPages) == 16);
+    AssertCompile(RT_ELEMENTS(pPool->aDirtyPages) == 8 || RT_ELEMENTS(pPool->aDirtyPages) == 16);
     Assert(!pPage->fDirty);
 
     idxFree = pPool->idxFreeDirtyPage;
-    Assert(idxFree < RT_ELEMENTS(pPool->aIdxDirtyPages));
+    Assert(idxFree < RT_ELEMENTS(pPool->aDirtyPages));
     Assert(pPage->iMonitoredNext == NIL_PGMPOOL_IDX && pPage->iMonitoredPrev == NIL_PGMPOOL_IDX);
 
-    if (pPool->cDirtyPages >= RT_ELEMENTS(pPool->aIdxDirtyPages))
+    if (pPool->cDirtyPages >= RT_ELEMENTS(pPool->aDirtyPages))
     {
         STAM_COUNTER_INC(&pPool->StatDirtyPageOverFlowFlush);
         pgmPoolFlushDirtyPage(pVM, pPool, idxFree, true /* allow removal of reused page tables*/);
     }
-    Assert(pPool->cDirtyPages < RT_ELEMENTS(pPool->aIdxDirtyPages));
-    AssertMsg(pPool->aIdxDirtyPages[idxFree] == NIL_PGMPOOL_IDX, ("idxFree=%d cDirtyPages=%d\n", idxFree, pPool->cDirtyPages));
+    Assert(pPool->cDirtyPages < RT_ELEMENTS(pPool->aDirtyPages));
+    AssertMsg(pPool->aDirtyPages[idxFree].uIdx == NIL_PGMPOOL_IDX, ("idxFree=%d cDirtyPages=%d\n", idxFree, pPool->cDirtyPages));
 
     Log(("Add dirty page %RGp (slot=%d)\n", pPage->GCPhys, idxFree));
 
-    /* Make a copy of the guest page table as we require valid GCPhys addresses when removing
-     * references to physical pages. (the HCPhys linear lookup is *extremely* expensive!)
+    /*
+     * Make a copy of the guest page table as we require valid GCPhys addresses
+     * when removing references to physical pages.
+     * (The HCPhys linear lookup is *extremely* expensive!)
      */
-    void *pvShw = PGMPOOL_PAGE_2_LOCKED_PTR(pPool->CTX_SUFF(pVM), pPage);
     void *pvGst;
-    int rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
-    memcpy(&pPool->aDirtyPages[idxFree][0], pvGst, PAGE_SIZE);
+    int   rc  = PGM_GCPHYS_2_PTR_EX(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
+    memcpy(&pPool->aDirtyPages[idxFree].aPage[0], pvGst, (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT) ? PAGE_SIZE : PAGE_SIZE/2);
 #ifdef VBOX_STRICT
-    pgmPoolTrackCheckPTPaePae(pPool, pPage, (PX86PTPAE)pvShw, (PCX86PTPAE)pvGst);
+    void *pvShw = PGMPOOL_PAGE_2_PTR(pVM, pPage);
+    if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+        pgmPoolTrackCheckPTPaePae(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PTPAE)pvGst);
+    else
+        pgmPoolTrackCheckPTPae32Bit(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PT)pvGst);
+    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvShw);
 #endif
+    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
 
     STAM_COUNTER_INC(&pPool->StatDirtyPage);
-    pPage->fDirty                  = true;
-    pPage->idxDirty                = idxFree;
-    pPool->aIdxDirtyPages[idxFree] = pPage->idx;
+    pPage->fDirty                    = true;
+    pPage->idxDirty                  = idxFree;
+    pPool->aDirtyPages[idxFree].uIdx = pPage->idx;
     pPool->cDirtyPages++;
 
-    pPool->idxFreeDirtyPage        = (pPool->idxFreeDirtyPage + 1) & (RT_ELEMENTS(pPool->aIdxDirtyPages) - 1);
-    if (    pPool->cDirtyPages < RT_ELEMENTS(pPool->aIdxDirtyPages)
-        &&  pPool->aIdxDirtyPages[pPool->idxFreeDirtyPage] != NIL_PGMPOOL_IDX)
+    pPool->idxFreeDirtyPage        = (pPool->idxFreeDirtyPage + 1) & (RT_ELEMENTS(pPool->aDirtyPages) - 1);
+    if (    pPool->cDirtyPages < RT_ELEMENTS(pPool->aDirtyPages)
+        &&  pPool->aDirtyPages[pPool->idxFreeDirtyPage].uIdx != NIL_PGMPOOL_IDX)
     {
         unsigned i;
-        for (i = 1; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+        for (i = 1; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
         {
-            idxFree = (pPool->idxFreeDirtyPage + i) & (RT_ELEMENTS(pPool->aIdxDirtyPages) - 1);
-            if (pPool->aIdxDirtyPages[idxFree] == NIL_PGMPOOL_IDX)
+            idxFree = (pPool->idxFreeDirtyPage + i) & (RT_ELEMENTS(pPool->aDirtyPages) - 1);
+            if (pPool->aDirtyPages[idxFree].uIdx == NIL_PGMPOOL_IDX)
             {
                 pPool->idxFreeDirtyPage = idxFree;
                 break;
             }
         }
-        Assert(i != RT_ELEMENTS(pPool->aIdxDirtyPages));
+        Assert(i != RT_ELEMENTS(pPool->aDirtyPages));
     }
 
-    Assert(pPool->cDirtyPages == RT_ELEMENTS(pPool->aIdxDirtyPages) || pPool->aIdxDirtyPages[pPool->idxFreeDirtyPage] == NIL_PGMPOOL_IDX);
+    Assert(pPool->cDirtyPages == RT_ELEMENTS(pPool->aDirtyPages) || pPool->aDirtyPages[pPool->idxFreeDirtyPage].uIdx == NIL_PGMPOOL_IDX);
     return;
 }
 # endif /* !IN_RING3 */
@@ -1676,14 +1794,14 @@ bool pgmPoolIsDirtyPage(PVM pVM, RTGCPHYS GCPhys)
     if (!pPool->cDirtyPages)
         return false;
 
-    GCPhys = GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1);
+    GCPhys = GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
 
-    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
     {
-        if (pPool->aIdxDirtyPages[i] != NIL_PGMPOOL_IDX)
+        if (pPool->aDirtyPages[i].uIdx != NIL_PGMPOOL_IDX)
         {
             PPGMPOOLPAGE pPage;
-            unsigned     idxPage = pPool->aIdxDirtyPages[i];
+            unsigned     idxPage = pPool->aDirtyPages[i].uIdx;
 
             pPage = &pPool->aPages[idxPage];
             if (pPage->GCPhys == GCPhys)
@@ -1702,33 +1820,54 @@ void pgmPoolResetDirtyPages(PVM pVM)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     Assert(PGMIsLocked(pVM));
-    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aIdxDirtyPages));
+    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aDirtyPages));
 
     if (!pPool->cDirtyPages)
         return;
 
     Log(("pgmPoolResetDirtyPages\n"));
-    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
         pgmPoolFlushDirtyPage(pVM, pPool, i, true /* allow removal of reused page tables*/);
 
     pPool->idxFreeDirtyPage = 0;
-    if (    pPool->cDirtyPages != RT_ELEMENTS(pPool->aIdxDirtyPages)
-        &&  pPool->aIdxDirtyPages[pPool->idxFreeDirtyPage] != NIL_PGMPOOL_IDX)
+    if (    pPool->cDirtyPages != RT_ELEMENTS(pPool->aDirtyPages)
+        &&  pPool->aDirtyPages[pPool->idxFreeDirtyPage].uIdx != NIL_PGMPOOL_IDX)
     {
         unsigned i;
-        for (i = 1; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+        for (i = 1; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
         {
-            if (pPool->aIdxDirtyPages[i] == NIL_PGMPOOL_IDX)
+            if (pPool->aDirtyPages[i].uIdx == NIL_PGMPOOL_IDX)
             {
                 pPool->idxFreeDirtyPage = i;
                 break;
             }
         }
-        AssertMsg(i != RT_ELEMENTS(pPool->aIdxDirtyPages), ("cDirtyPages %d", pPool->cDirtyPages));
+        AssertMsg(i != RT_ELEMENTS(pPool->aDirtyPages), ("cDirtyPages %d", pPool->cDirtyPages));
     }
 
-    Assert(pPool->aIdxDirtyPages[pPool->idxFreeDirtyPage] == NIL_PGMPOOL_IDX || pPool->cDirtyPages == RT_ELEMENTS(pPool->aIdxDirtyPages));
+    Assert(pPool->aDirtyPages[pPool->idxFreeDirtyPage].uIdx == NIL_PGMPOOL_IDX || pPool->cDirtyPages == RT_ELEMENTS(pPool->aDirtyPages));
     return;
+}
+
+/**
+ * Invalidate the PT entry for the specified page
+ *
+ * @param   pVM             VM Handle.
+ * @param   GCPtrPage       Guest page to invalidate
+ */
+void pgmPoolResetDirtyPage(PVM pVM, RTGCPTR GCPtrPage)
+{
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+    Assert(PGMIsLocked(pVM));
+    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aDirtyPages));
+
+    if (!pPool->cDirtyPages)
+        return;
+
+    Log(("pgmPoolResetDirtyPage %RGv\n", GCPtrPage));
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
+    {
+    }
 }
 
 /**
@@ -1741,19 +1880,19 @@ void pgmPoolInvalidateDirtyPage(PVM pVM, RTGCPHYS GCPhysPT)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     Assert(PGMIsLocked(pVM));
-    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aIdxDirtyPages));
-    unsigned idxDirtyPage = RT_ELEMENTS(pPool->aIdxDirtyPages);
+    Assert(pPool->cDirtyPages <= RT_ELEMENTS(pPool->aDirtyPages));
+    unsigned idxDirtyPage = RT_ELEMENTS(pPool->aDirtyPages);
 
     if (!pPool->cDirtyPages)
         return;
 
-    GCPhysPT = GCPhysPT & ~(RTGCPHYS)(PAGE_SIZE - 1);
+    GCPhysPT = GCPhysPT & ~(RTGCPHYS)PAGE_OFFSET_MASK;
 
-    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
     {
-        if (pPool->aIdxDirtyPages[i] != NIL_PGMPOOL_IDX)
+        if (pPool->aDirtyPages[i].uIdx != NIL_PGMPOOL_IDX)
         {
-            unsigned     idxPage = pPool->aIdxDirtyPages[i];
+            unsigned     idxPage = pPool->aDirtyPages[i].uIdx;
 
             PPGMPOOLPAGE pPage = &pPool->aPages[idxPage];
             if (pPage->GCPhys == GCPhysPT)
@@ -1764,22 +1903,22 @@ void pgmPoolInvalidateDirtyPage(PVM pVM, RTGCPHYS GCPhysPT)
         }
     }
 
-    if (idxDirtyPage != RT_ELEMENTS(pPool->aIdxDirtyPages))
+    if (idxDirtyPage != RT_ELEMENTS(pPool->aDirtyPages))
     {
         pgmPoolFlushDirtyPage(pVM, pPool, idxDirtyPage, true /* allow removal of reused page tables*/);
-        if (    pPool->cDirtyPages != RT_ELEMENTS(pPool->aIdxDirtyPages)
-            &&  pPool->aIdxDirtyPages[pPool->idxFreeDirtyPage] != NIL_PGMPOOL_IDX)
+        if (    pPool->cDirtyPages != RT_ELEMENTS(pPool->aDirtyPages)
+            &&  pPool->aDirtyPages[pPool->idxFreeDirtyPage].uIdx != NIL_PGMPOOL_IDX)
         {
             unsigned i;
-            for (i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
+            for (i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
             {
-                if (pPool->aIdxDirtyPages[i] == NIL_PGMPOOL_IDX)
+                if (pPool->aDirtyPages[i].uIdx == NIL_PGMPOOL_IDX)
                 {
                     pPool->idxFreeDirtyPage = i;
                     break;
                 }
             }
-            AssertMsg(i != RT_ELEMENTS(pPool->aIdxDirtyPages), ("cDirtyPages %d", pPool->cDirtyPages));
+            AssertMsg(i != RT_ELEMENTS(pPool->aDirtyPages), ("cDirtyPages %d", pPool->cDirtyPages));
         }
     }
 }
@@ -1827,7 +1966,7 @@ DECLINLINE(void) pgmPoolHashRemove(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
             }
             if (i == NIL_PGMPOOL_IDX)
             {
-                AssertReleaseMsgFailed(("GCPhys=%RGp idx=%#x\n", pPage->GCPhys, pPage->idx));
+                AssertReleaseMsgFailed(("GCPhys=%RGp idx=%d\n", pPage->GCPhys, pPage->idx));
                 break;
             }
             iPrev = i;
@@ -2030,7 +2169,7 @@ static int pgmPoolCacheAlloc(PPGMPOOL pPool, RTGCPHYS GCPhys, PGMPOOLKIND enmKin
      * Look up the GCPhys in the hash.
      */
     unsigned i = pPool->aiHash[PGMPOOL_HASH(GCPhys)];
-    Log3(("pgmPoolCacheAlloc: %RGp kind %s iUser=%x iUserTable=%x SLOT=%d\n", GCPhys, pgmPoolPoolKindToStr(enmKind), iUser, iUserTable, i));
+    Log3(("pgmPoolCacheAlloc: %RGp kind %s iUser=%d iUserTable=%x SLOT=%d\n", GCPhys, pgmPoolPoolKindToStr(enmKind), iUser, iUserTable, i));
     if (i != NIL_PGMPOOL_IDX)
     {
         do
@@ -2179,7 +2318,7 @@ static PPGMPOOLPAGE pgmPoolMonitorGetPageByGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE p
     /*
      * Look up the GCPhys in the hash.
      */
-    RTGCPHYS GCPhys = pNewPage->GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1);
+    RTGCPHYS GCPhys = pNewPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
     unsigned i = pPool->aiHash[PGMPOOL_HASH(GCPhys)];
     if (i == NIL_PGMPOOL_IDX)
         return NULL;
@@ -2253,7 +2392,7 @@ static PPGMPOOLPAGE pgmPoolMonitorGetPageByGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE p
  */
 static int pgmPoolMonitorInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 {
-    LogFlow(("pgmPoolMonitorInsert %RGp\n", pPage->GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1)));
+    LogFlow(("pgmPoolMonitorInsert %RGp\n", pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK));
 
     /*
      * Filter out the relevant kinds.
@@ -2325,9 +2464,9 @@ static int pgmPoolMonitorInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     {
         Assert(pPage->iMonitoredNext == NIL_PGMPOOL_IDX); Assert(pPage->iMonitoredPrev == NIL_PGMPOOL_IDX);
         PVM pVM = pPool->CTX_SUFF(pVM);
-        const RTGCPHYS GCPhysPage = pPage->GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1);
+        const RTGCPHYS GCPhysPage = pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
         rc = PGMHandlerPhysicalRegisterEx(pVM, PGMPHYSHANDLERTYPE_PHYSICAL_WRITE,
-                                          GCPhysPage, GCPhysPage + (PAGE_SIZE - 1),
+                                          GCPhysPage, GCPhysPage + PAGE_OFFSET_MASK,
                                           pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pPage),
                                           pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pPage),
                                           pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pPage),
@@ -2408,7 +2547,7 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         {
             PPGMPOOLPAGE pNewHead = &pPool->aPages[pPage->iMonitoredNext];
             pNewHead->iMonitoredPrev = NIL_PGMPOOL_IDX;
-            rc = PGMHandlerPhysicalChangeCallbacks(pVM, pPage->GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1),
+            rc = PGMHandlerPhysicalChangeCallbacks(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK,
                                                    pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pNewHead),
                                                    pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pNewHead),
                                                    pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pNewHead),
@@ -2430,7 +2569,7 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     }
     else
     {
-        rc = PGMHandlerPhysicalDeregister(pVM, pPage->GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1));
+        rc = PGMHandlerPhysicalDeregister(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK);
         AssertFatalRC(rc);
         PVMCPU pVCpu = VMMGetCpu(pVM);
         AssertFatalMsg(!(pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL) || VMCPU_FF_ISSET(pVCpu, VMCPU_FF_PGM_SYNC_CR3),
@@ -2477,7 +2616,7 @@ void pgmPoolMonitorModifiedInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 
 /**
  * Removes the page from the list of modified pages and resets the
- * moficiation counter.
+ * modification counter.
  *
  * @param   pPool   The pool.
  * @param   pPage   The page which is believed to be in the list of modified pages.
@@ -2560,13 +2699,13 @@ static void pgmPoolMonitorModifiedClearAll(PVM pVM)
 int pgmPoolSyncCR3(PVMCPU pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
-    LogFlow(("pgmPoolSyncCR3\n"));
+    LogFlow(("pgmPoolSyncCR3 fSyncFlags=%x\n", pVCpu->pgm.s.fSyncFlags));
 
     /*
      * When monitoring shadowed pages, we reset the modification counters on CR3 sync.
      * Occasionally we will have to clear all the shadow page tables because we wanted
      * to monitor a page which was mapped by too many shadowed page tables. This operation
-     * sometimes refered to as a 'lightweight flush'.
+     * sometimes referred to as a 'lightweight flush'.
      */
 # ifdef IN_RING3 /* Don't flush in ring-0 or raw mode, it's taking too long. */
     if (pVCpu->pgm.s.fSyncFlags & PGM_SYNC_CLEAR_PGM_POOL)
@@ -2648,7 +2787,7 @@ DECLINLINE(int) pgmPoolTrackInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTGCPHYS 
     int rc = VINF_SUCCESS;
     PPGMPOOLUSER paUsers = pPool->CTX_SUFF(paUsers);
 
-    LogFlow(("pgmPoolTrackInsert GCPhys=%RGp iUser %x iUserTable %x\n", GCPhys, iUser, iUserTable));
+    LogFlow(("pgmPoolTrackInsert GCPhys=%RGp iUser=%d iUserTable=%x\n", GCPhys, iUser, iUserTable));
 
 #ifdef VBOX_STRICT
     /*
@@ -2732,7 +2871,8 @@ static int pgmPoolTrackAddUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUse
 
 #  ifdef VBOX_STRICT
     /*
-     * Check that the entry doesn't already exists. We only allow multiple users of top-level paging structures (SHW_POOL_ROOT_IDX).
+     * Check that the entry doesn't already exists. We only allow multiple
+     * users of top-level paging structures (SHW_POOL_ROOT_IDX).
      */
     if (pPage->iUserHead != NIL_PGMPOOL_USER_INDEX)
     {
@@ -2836,7 +2976,7 @@ static void pgmPoolTrackFreeUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iU
     }
 
     /* Fatal: didn't find it */
-    AssertFatalMsgFailed(("Didn't find the user entry! iUser=%#x iUserTable=%#x GCPhys=%RGp\n",
+    AssertFatalMsgFailed(("Didn't find the user entry! iUser=%d iUserTable=%#x GCPhys=%RGp\n",
                           iUser, iUserTable, pPage->GCPhys));
 }
 
@@ -2946,26 +3086,25 @@ DECLINLINE(unsigned) pgmPoolTrackGetGuestEntrySize(PGMPOOLKIND enmKind)
 
 
 /**
- * Scans one shadow page table for mappings of a physical page.
+ * Checks one shadow page table entry for a mapping of a physical page.
  *
- * @returns true/false indicating removal of all relevant PTEs
+ * @returns true / false indicating removal of all relevant PTEs
+ *
  * @param   pVM         The VM handle.
  * @param   pPhysPage   The guest page in question.
  * @param   fFlushPTEs  Flush PTEs or allow them to be updated (e.g. in case of an RW bit change)
  * @param   iShw        The shadow page table.
  * @param   iPte        Page table entry or NIL_PGMPOOL_PHYSEXT_IDX_PTE if unknown
- * @param   cRefs       The number of references made in that PT.
  */
-static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlushPTEs, uint16_t iShw, uint16_t iPte, uint16_t cRefs)
+static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlushPTEs, uint16_t iShw, uint16_t iPte)
 {
-    LogFlow(("pgmPoolTrackFlushGCPhysPT: pPhysPage=%RHp iShw=%d iPte=%d cRefs=%d\n", PGM_PAGE_GET_HCPHYS(pPhysPage), iShw, iPte, cRefs));
+    LogFlow(("pgmPoolTrackFlushGCPhysPTInt: pPhysPage=%RHp iShw=%d iPte=%d\n", PGM_PAGE_GET_HCPHYS(pPhysPage), iShw, iPte));
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
-    bool bRet = false;
+    bool     fRet  = false;
 
     /*
      * Assert sanity.
      */
-    Assert(cRefs == 1);
     Assert(iPte != NIL_PGMPOOL_PHYSEXT_IDX_PTE);
     AssertFatalMsg(iShw < pPool->cCurPages && iShw != NIL_PGMPOOL_IDX, ("iShw=%d\n", iShw));
     PPGMPOOLPAGE pPage = &pPool->aPages[iShw];
@@ -2981,32 +3120,31 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
         {
             const uint32_t  u32 = PGM_PAGE_GET_HCPHYS(pPhysPage) | X86_PTE_P;
             PX86PT          pPT = (PX86PT)PGMPOOL_PAGE_2_PTR(pVM, pPage);
-            uint32_t        u32AndMask, u32OrMask;
-
-            u32AndMask = 0;
-            u32OrMask  = 0;
+            uint32_t        u32AndMask = 0;
+            uint32_t        u32OrMask  = 0;
 
             if (!fFlushPTEs)
             {
                 switch (PGM_PAGE_GET_HNDL_PHYS_STATE(pPhysPage))
                 {
-                case PGM_PAGE_HNDL_PHYS_STATE_NONE:         /** No handler installed. */
-                case PGM_PAGE_HNDL_PHYS_STATE_DISABLED:     /** Monitoring is temporarily disabled. */
-                    u32OrMask = X86_PTE_RW;
-                    u32AndMask = UINT32_MAX;
-                    bRet = true;
-                    STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
-                    break;
+                    case PGM_PAGE_HNDL_PHYS_STATE_NONE:         /** No handler installed. */
+                    case PGM_PAGE_HNDL_PHYS_STATE_DISABLED:     /** Monitoring is temporarily disabled. */
+                        u32OrMask = X86_PTE_RW;
+                        u32AndMask = UINT32_MAX;
+                        fRet = true;
+                        STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
+                        break;
 
-                case PGM_PAGE_HNDL_PHYS_STATE_WRITE:        /** Write access is monitored. */
-                    u32OrMask = 0;
-                    u32AndMask = ~X86_PTE_RW;
-                    bRet = true;
-                    STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
-                    break;
-                default:
-                    STAM_COUNTER_INC(&pPool->StatTrackFlushEntry);
-                    break;
+                    case PGM_PAGE_HNDL_PHYS_STATE_WRITE:        /** Write access is monitored. */
+                        u32OrMask = 0;
+                        u32AndMask = ~X86_PTE_RW;
+                        fRet = true;
+                        STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
+                        break;
+                    default:
+                        /* (shouldn't be here, will assert below) */
+                        STAM_COUNTER_INC(&pPool->StatTrackFlushEntry);
+                        break;
                 }
             }
             else
@@ -3015,33 +3153,35 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
             /* Update the counter if we're removing references. */
             if (!u32AndMask)
             {
-                Assert(pPage->cPresent >= cRefs);
-                Assert(pPool->cPresent >= cRefs);
-                pPage->cPresent -= cRefs;
-                pPool->cPresent -= cRefs;
+                Assert(pPage->cPresent );
+                Assert(pPool->cPresent);
+                pPage->cPresent--;
+                pPool->cPresent--;
             }
 
             if ((pPT->a[iPte].u & (X86_PTE_PG_MASK | X86_PTE_P)) == u32)
             {
                 X86PTE Pte;
 
-                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pte=%RX32 cRefs=%#x\n", iPte, pPT->a[iPte], cRefs));
+                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pte=%RX32\n", iPte, pPT->a[iPte]));
                 Pte.u = (pPT->a[iPte].u & u32AndMask) | u32OrMask;
                 if (Pte.u & PGM_PTFLAGS_TRACK_DIRTY)
                     Pte.n.u1Write = 0;    /* need to disallow writes when dirty bit tracking is still active. */
 
-                ASMAtomicWriteSize(&pPT->a[iPte].u, Pte.u);
-                return bRet;
+                ASMAtomicWriteU32(&pPT->a[iPte].u, Pte.u);
+                PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
+                return fRet;
             }
 #ifdef LOG_ENABLED
-            Log(("cRefs=%d iFirstPresent=%d cPresent=%d\n", cRefs, pPage->iFirstPresent, pPage->cPresent));
-            for (unsigned i = 0; i < RT_ELEMENTS(pPT->a); i++)
+            Log(("iFirstPresent=%d cPresent=%d\n", pPage->iFirstPresent, pPage->cPresent));
+            for (unsigned i = 0, cFound = 0; i < RT_ELEMENTS(pPT->a); i++)
                 if ((pPT->a[i].u & (X86_PTE_PG_MASK | X86_PTE_P)) == u32)
                 {
-                    Log(("i=%d cRefs=%d\n", i, cRefs--));
+                    Log(("i=%d cFound=%d\n", i, ++cFound));
                 }
 #endif
-            AssertFatalMsgFailed(("cRefs=%d iFirstPresent=%d cPresent=%d u32=%RX32 poolkind=%x\n", cRefs, pPage->iFirstPresent, pPage->cPresent, u32, pPage->enmKind));
+            AssertFatalMsgFailed(("iFirstPresent=%d cPresent=%d u32=%RX32 poolkind=%x\n", pPage->iFirstPresent, pPage->cPresent, u32, pPage->enmKind));
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
             break;
         }
 
@@ -3053,33 +3193,33 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
         case PGMPOOLKIND_EPT_PT_FOR_PHYS:   /* physical mask the same as PAE; RW bit as well; be careful! */
         {
             const uint64_t  u64 = PGM_PAGE_GET_HCPHYS(pPhysPage) | X86_PTE_P;
-            PX86PTPAE       pPT = (PX86PTPAE)PGMPOOL_PAGE_2_PTR(pVM, pPage);
-            uint64_t        u64AndMask, u64OrMask;
+            PPGMSHWPTPAE    pPT = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pVM, pPage);
+            uint64_t        u64OrMask  = 0;
+            uint64_t        u64AndMask = 0;
 
-            u64OrMask = 0;
-            u64AndMask = 0;
             if (!fFlushPTEs)
             {
                 switch (PGM_PAGE_GET_HNDL_PHYS_STATE(pPhysPage))
                 {
-                case PGM_PAGE_HNDL_PHYS_STATE_NONE:         /** No handler installed. */
-                case PGM_PAGE_HNDL_PHYS_STATE_DISABLED:     /** Monitoring is temporarily disabled. */
-                    u64OrMask = X86_PTE_RW;
-                    u64AndMask = UINT64_MAX;
-                    bRet = true;
-                    STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
-                    break;
+                    case PGM_PAGE_HNDL_PHYS_STATE_NONE:         /* No handler installed. */
+                    case PGM_PAGE_HNDL_PHYS_STATE_DISABLED:     /* Monitoring is temporarily disabled. */
+                        u64OrMask = X86_PTE_RW;
+                        u64AndMask = UINT64_MAX;
+                        fRet = true;
+                        STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
+                        break;
 
-                case PGM_PAGE_HNDL_PHYS_STATE_WRITE:        /** Write access is monitored. */
-                    u64OrMask = 0;
-                    u64AndMask = ~((uint64_t)X86_PTE_RW);
-                    bRet = true;
-                    STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
-                    break;
+                    case PGM_PAGE_HNDL_PHYS_STATE_WRITE:        /* Write access is monitored. */
+                        u64OrMask = 0;
+                        u64AndMask = ~(uint64_t)X86_PTE_RW;
+                        fRet = true;
+                        STAM_COUNTER_INC(&pPool->StatTrackFlushEntryKeep);
+                        break;
 
-                default:
-                    STAM_COUNTER_INC(&pPool->StatTrackFlushEntry);
-                    break;
+                    default:
+                        /* (shouldn't be here, will assert below) */
+                        STAM_COUNTER_INC(&pPool->StatTrackFlushEntry);
+                        break;
                 }
             }
             else
@@ -3088,34 +3228,34 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
             /* Update the counter if we're removing references. */
             if (!u64AndMask)
             {
-                Assert(pPage->cPresent >= cRefs);
-                Assert(pPool->cPresent >= cRefs);
-                pPage->cPresent -= cRefs;
-                pPool->cPresent -= cRefs;
+                Assert(pPage->cPresent);
+                Assert(pPool->cPresent);
+                pPage->cPresent--;
+                pPool->cPresent--;
             }
 
-            if ((pPT->a[iPte].u & (X86_PTE_PAE_PG_MASK | X86_PTE_P)) == u64)
+            if ((PGMSHWPTEPAE_GET_U(pPT->a[iPte]) & (X86_PTE_PAE_PG_MASK | X86_PTE_P | X86_PTE_PAE_MBZ_MASK_NX)) == u64)
             {
                 X86PTEPAE Pte;
 
-                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pte=%RX64 cRefs=%#x\n", iPte, pPT->a[iPte], cRefs));
-                Pte.u = (pPT->a[iPte].u & u64AndMask) | u64OrMask;
+                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pte=%RX64\n", iPte, PGMSHWPTEPAE_GET_LOG(pPT->a[iPte])));
+                Pte.u = (PGMSHWPTEPAE_GET_U(pPT->a[iPte]) & u64AndMask) | u64OrMask;
                 if (Pte.u & PGM_PTFLAGS_TRACK_DIRTY)
                     Pte.n.u1Write = 0;    /* need to disallow writes when dirty bit tracking is still active. */
 
-                ASMAtomicWriteSize(&pPT->a[iPte].u, Pte.u);
-                return bRet;
+                PGMSHWPTEPAE_ATOMIC_SET(pPT->a[iPte], Pte.u);
+                PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
+                return fRet;
             }
 #ifdef LOG_ENABLED
-            Log(("cRefs=%d iFirstPresent=%d cPresent=%d\n", cRefs, pPage->iFirstPresent, pPage->cPresent));
-            Log(("Found %RX64 expected %RX64\n", pPT->a[iPte].u & (X86_PTE_PAE_PG_MASK | X86_PTE_P), u64));
-            for (unsigned i = 0; i < RT_ELEMENTS(pPT->a); i++)
-                if ((pPT->a[i].u & (X86_PTE_PAE_PG_MASK | X86_PTE_P)) == u64)
-                {
-                    Log(("i=%d cRefs=%d\n", i, cRefs--));
-                }
+            Log(("iFirstPresent=%d cPresent=%d\n", pPage->iFirstPresent, pPage->cPresent));
+            Log(("Found %RX64 expected %RX64\n", PGMSHWPTEPAE_GET_U(pPT->a[iPte]) & (X86_PTE_PAE_PG_MASK | X86_PTE_P | X86_PTE_PAE_MBZ_MASK_NX), u64));
+            for (unsigned i = 0, cFound = 0; i < RT_ELEMENTS(pPT->a); i++)
+                if ((PGMSHWPTEPAE_GET_U(pPT->a[i]) & (X86_PTE_PAE_PG_MASK | X86_PTE_P | X86_PTE_PAE_MBZ_MASK_NX)) == u64)
+                    Log(("i=%d cFound=%d\n", i, ++cFound));
 #endif
-            AssertFatalMsgFailed(("cRefs=%d iFirstPresent=%d cPresent=%d u64=%RX64 poolkind=%x\n", cRefs, pPage->iFirstPresent, pPage->cPresent, u64, pPage->enmKind));
+            AssertFatalMsgFailed(("iFirstPresent=%d cPresent=%d u64=%RX64 poolkind=%x iPte=%d PT=%RX64\n", pPage->iFirstPresent, pPage->cPresent, u64, pPage->enmKind, iPte, PGMSHWPTEPAE_GET_LOG(pPT->a[iPte])));
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
             break;
         }
 
@@ -3123,16 +3263,17 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
         /* Large page case only. */
         case PGMPOOLKIND_EPT_PD_FOR_PHYS:
         {
-            Assert(HWACCMIsNestedPagingActive(pVM));
+            Assert(pVM->pgm.s.fNestedPaging);
 
             const uint64_t  u64 = PGM_PAGE_GET_HCPHYS(pPhysPage) | X86_PDE4M_P | X86_PDE4M_PS;
             PEPTPD          pPD = (PEPTPD)PGMPOOL_PAGE_2_PTR(pVM, pPage);
 
             if ((pPD->a[iPte].u & (EPT_PDE2M_PG_MASK | X86_PDE4M_P | X86_PDE4M_PS)) == u64)
             {
-                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pde=%RX64 cRefs=%#x\n", iPte, pPD->a[iPte], cRefs));
+                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pde=%RX64\n", iPte, pPD->a[iPte]));
                 STAM_COUNTER_INC(&pPool->StatTrackFlushEntry);
                 pPD->a[iPte].u = 0;
+                PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPD);
 
                 /* Update the counter as we're removing references. */
                 Assert(pPage->cPresent);
@@ -3140,50 +3281,49 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
                 pPage->cPresent--;
                 pPool->cPresent--;
 
-                return bRet;
+                return fRet;
             }
 # ifdef LOG_ENABLED
-            Log(("cRefs=%d iFirstPresent=%d cPresent=%d\n", cRefs, pPage->iFirstPresent, pPage->cPresent));
-            for (unsigned i = 0; i < RT_ELEMENTS(pPD->a); i++)
+            Log(("iFirstPresent=%d cPresent=%d\n", pPage->iFirstPresent, pPage->cPresent));
+            for (unsigned i = 0, cFound = 0; i < RT_ELEMENTS(pPD->a); i++)
                 if ((pPD->a[i].u & (EPT_PDE2M_PG_MASK | X86_PDE4M_P | X86_PDE4M_PS)) == u64)
-                {
-                    Log(("i=%d cRefs=%d\n", i, cRefs--));
-                }
+                    Log(("i=%d cFound=%d\n", i, ++cFound));
 # endif
-            AssertFatalMsgFailed(("cRefs=%d iFirstPresent=%d cPresent=%d\n", cRefs, pPage->iFirstPresent, pPage->cPresent));
+            AssertFatalMsgFailed(("iFirstPresent=%d cPresent=%d\n", pPage->iFirstPresent, pPage->cPresent));
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPD);
             break;
         }
 
-        /* AMD-V nested paging - @todo merge with EPT as we only check the parts that are identical. */
+        /* AMD-V nested paging */ /** @todo merge with EPT as we only check the parts that are identical. */
         case PGMPOOLKIND_PAE_PD_PHYS:
         {
-            Assert(HWACCMIsNestedPagingActive(pVM));
+            Assert(pVM->pgm.s.fNestedPaging);
 
             const uint64_t  u64 = PGM_PAGE_GET_HCPHYS(pPhysPage) | X86_PDE4M_P | X86_PDE4M_PS;
             PX86PD          pPD = (PX86PD)PGMPOOL_PAGE_2_PTR(pVM, pPage);
 
             if ((pPD->a[iPte].u & (X86_PDE2M_PAE_PG_MASK | X86_PDE4M_P | X86_PDE4M_PS)) == u64)
             {
-                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pde=%RX64 cRefs=%#x\n", iPte, pPD->a[iPte], cRefs));
+                Log4(("pgmPoolTrackFlushGCPhysPTs: i=%d pde=%RX64\n", iPte, pPD->a[iPte]));
                 STAM_COUNTER_INC(&pPool->StatTrackFlushEntry);
                 pPD->a[iPte].u = 0;
+                PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPD);
 
                 /* Update the counter as we're removing references. */
                 Assert(pPage->cPresent);
                 Assert(pPool->cPresent);
                 pPage->cPresent--;
                 pPool->cPresent--;
-                return bRet;
+                return fRet;
             }
 # ifdef LOG_ENABLED
-            Log(("cRefs=%d iFirstPresent=%d cPresent=%d\n", cRefs, pPage->iFirstPresent, pPage->cPresent));
-            for (unsigned i = 0; i < RT_ELEMENTS(pPD->a); i++)
+            Log(("iFirstPresent=%d cPresent=%d\n", pPage->iFirstPresent, pPage->cPresent));
+            for (unsigned i = 0, cFound = 0; i < RT_ELEMENTS(pPD->a); i++)
                 if ((pPD->a[i].u & (X86_PDE2M_PAE_PG_MASK | X86_PDE4M_P | X86_PDE4M_PS)) == u64)
-                {
-                    Log(("i=%d cRefs=%d\n", i, cRefs--));
-                }
+                    Log(("i=%d cFound=%d\n", i, ++cFound));
 # endif
-            AssertFatalMsgFailed(("cRefs=%d iFirstPresent=%d cPresent=%d\n", cRefs, pPage->iFirstPresent, pPage->cPresent));
+            AssertFatalMsgFailed(("iFirstPresent=%d cPresent=%d\n", pPage->iFirstPresent, pPage->cPresent));
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPD);
             break;
         }
 #endif /* PGM_WITH_LARGE_PAGES */
@@ -3191,7 +3331,7 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
         default:
             AssertFatalMsgFailed(("enmKind=%d iShw=%d\n", pPage->enmKind, iShw));
     }
-    return bRet;
+    return fRet;
 }
 
 
@@ -3202,19 +3342,17 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
  * @param   pPhysPage   The guest page in question.
  * @param   fFlushPTEs  Flush PTEs or allow them to be updated (e.g. in case of an RW bit change)
  * @param   iShw        The shadow page table.
- * @param   cRefs       The number of references made in that PT.
  */
-static void pgmPoolTrackFlushGCPhysPT(PVM pVM, PPGMPAGE pPhysPage, bool fFlushPTEs, uint16_t iShw, uint16_t cRefs)
+static void pgmPoolTrackFlushGCPhysPT(PVM pVM, PPGMPAGE pPhysPage, bool fFlushPTEs, uint16_t iShw)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool); NOREF(pPool);
 
     /* We should only come here with when there's only one reference to this physical page. */
     Assert(PGMPOOL_TD_GET_CREFS(PGM_PAGE_GET_TRACKING(pPhysPage)) == 1);
-    Assert(cRefs == 1);
 
-    Log2(("pgmPoolTrackFlushGCPhysPT: pPhysPage=%RHp iShw=%d cRefs=%d\n", PGM_PAGE_GET_HCPHYS(pPhysPage), iShw, cRefs));
+    Log2(("pgmPoolTrackFlushGCPhysPT: pPhysPage=%RHp iShw=%d\n", PGM_PAGE_GET_HCPHYS(pPhysPage), iShw));
     STAM_PROFILE_START(&pPool->StatTrackFlushGCPhysPT, f);
-    bool fKeptPTEs = pgmPoolTrackFlushGCPhysPTInt(pVM, pPhysPage, fFlushPTEs, iShw, PGM_PAGE_GET_PTE_INDEX(pPhysPage), cRefs);
+    bool fKeptPTEs = pgmPoolTrackFlushGCPhysPTInt(pVM, pPhysPage, fFlushPTEs, iShw, PGM_PAGE_GET_PTE_INDEX(pPhysPage));
     if (!fKeptPTEs)
         PGM_PAGE_SET_TRACKING(pPhysPage, 0);
     STAM_PROFILE_STOP(&pPool->StatTrackFlushGCPhysPT, f);
@@ -3248,7 +3386,7 @@ static void pgmPoolTrackFlushGCPhysPTs(PVM pVM, PPGMPAGE pPhysPage, bool fFlushP
         {
             if (pPhysExt->aidx[i] != NIL_PGMPOOL_IDX)
             {
-                bool fKeptPTEs = pgmPoolTrackFlushGCPhysPTInt(pVM, pPhysPage, fFlushPTEs, pPhysExt->aidx[i], pPhysExt->apte[i], 1);
+                bool fKeptPTEs = pgmPoolTrackFlushGCPhysPTInt(pVM, pPhysPage, fFlushPTEs, pPhysExt->aidx[i], pPhysExt->apte[i]);
                 if (!fKeptPTEs)
                 {
                     pPhysExt->aidx[i] = NIL_PGMPOOL_IDX;
@@ -3279,7 +3417,8 @@ static void pgmPoolTrackFlushGCPhysPTs(PVM pVM, PPGMPAGE pPhysPage, bool fFlushP
  * Flushes all shadow page table mappings of the given guest page.
  *
  * This is typically called when the host page backing the guest one has been
- * replaced or when the page protection was changed due to an access handler.
+ * replaced or when the page protection was changed due to a guest access
+ * caught by the monitoring.
  *
  * @returns VBox status code.
  * @retval  VINF_SUCCESS if all references has been successfully cleared.
@@ -3351,26 +3490,28 @@ int pgmPoolTrackUpdateGCPhys(PVM pVM, RTGCPHYS GCPhysPage, PPGMPAGE pPhysPage, b
             rc = VINF_PGM_GCPHYS_ALIASED;
         else
         {
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC) /** @todo we can drop this now. */
             /* Start a subset here because pgmPoolTrackFlushGCPhysPTsSlow and
                pgmPoolTrackFlushGCPhysPTs will/may kill the pool otherwise. */
-            uint32_t iPrevSubset = PGMDynMapPushAutoSubset(pVCpu);
+            uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
 # endif
 
             if (PGMPOOL_TD_GET_CREFS(u16) != PGMPOOL_TD_CREFS_PHYSEXT)
+            {
+                Assert(PGMPOOL_TD_GET_CREFS(u16) == 1);
                 pgmPoolTrackFlushGCPhysPT(pVM,
                                           pPhysPage,
                                           fFlushPTEs,
-                                          PGMPOOL_TD_GET_IDX(u16),
-                                          PGMPOOL_TD_GET_CREFS(u16));
+                                          PGMPOOL_TD_GET_IDX(u16));
+            }
             else if (u16 != PGMPOOL_TD_MAKE(PGMPOOL_TD_CREFS_PHYSEXT, PGMPOOL_TD_IDX_OVERFLOWED))
                 pgmPoolTrackFlushGCPhysPTs(pVM, pPhysPage, fFlushPTEs, PGMPOOL_TD_GET_IDX(u16));
             else
                 rc = pgmPoolTrackFlushGCPhysPTsSlow(pVM, pPhysPage);
             *pfFlushTLBs = true;
 
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-            PGMDynMapPopAutoSubset(pVCpu, iPrevSubset);
+# if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
+            PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 # endif
         }
     }
@@ -3422,8 +3563,8 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
      * Iterate all the pages until we've encountered all that in use.
      * This is simple but not quite optimal solution.
      */
-    const uint64_t  u64   = PGM_PAGE_GET_HCPHYS(pPhysPage) | X86_PTE_P;
-    const uint32_t  u32   = u64;
+    const uint64_t  u64   = PGM_PAGE_GET_HCPHYS(pPhysPage) | X86_PTE_P;   /** @todo drop X86_PTE_P here as we always test if present separately, anyway. */
+    const uint32_t  u32   = u64;                                          /** @todo move into the 32BIT_PT_xx case */
     unsigned        cLeft = pPool->cUsedPages;
     unsigned        iPage = pPool->cCurPages;
     while (--iPage >= PGMPOOL_IDX_FIRST)
@@ -3460,6 +3601,7 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
                             if (!--cPresent)
                                 break;
                         }
+                    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
                     break;
                 }
 
@@ -3469,15 +3611,15 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
                 case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
                 case PGMPOOLKIND_PAE_PT_FOR_PHYS:
                 {
-                    unsigned  cPresent = pPage->cPresent;
-                    PX86PTPAE pPT = (PX86PTPAE)PGMPOOL_PAGE_2_PTR(pVM, pPage);
+                    unsigned        cPresent = pPage->cPresent;
+                    PPGMSHWPTPAE    pPT = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pVM, pPage);
                     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pPT->a); i++)
-                        if (pPT->a[i].n.u1Present)
+                        if (PGMSHWPTEPAE_IS_P(pPT->a[i]))
                         {
-                            if ((pPT->a[i].u & (X86_PTE_PAE_PG_MASK | X86_PTE_P)) == u64)
+                            if ((PGMSHWPTEPAE_GET_U(pPT->a[i]) & (X86_PTE_PAE_PG_MASK | X86_PTE_P)) == u64)
                             {
                                 //Log4(("pgmPoolTrackFlushGCPhysPTsSlow: idx=%d i=%d pte=%RX64\n", iPage, i, pPT->a[i]));
-                                pPT->a[i].u = 0;
+                                PGMSHWPTEPAE_SET(pPT->a[i], 0); /// @todo why not atomic?
 
                                 /* Update the counter as we're removing references. */
                                 Assert(pPage->cPresent);
@@ -3488,6 +3630,7 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
                             if (!--cPresent)
                                 break;
                         }
+                    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
                     break;
                 }
 #ifndef IN_RC
@@ -3512,6 +3655,7 @@ int pgmPoolTrackFlushGCPhysPTsSlow(PVM pVM, PPGMPAGE pPhysPage)
                             if (!--cPresent)
                                 break;
                         }
+                    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pPT);
                     break;
                 }
 #endif
@@ -3628,7 +3772,7 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
         /* 32-bit entries */
         case PGMPOOLKIND_32BIT_PD:
         case PGMPOOLKIND_32BIT_PD_PHYS:
-            ASMAtomicWriteSize(&u.pau32[iUserTable], 0);
+            ASMAtomicWriteU32(&u.pau32[iUserTable], 0);
             break;
 
         /* 64-bit entries */
@@ -3637,13 +3781,15 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
         case PGMPOOLKIND_PAE_PD2_FOR_32BIT_PD:
         case PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD:
         case PGMPOOLKIND_PAE_PD_FOR_PAE_PD:
-#if defined(IN_RC)
-            /* In 32 bits PAE mode we *must* invalidate the TLB when changing a PDPT entry; the CPU fetches them only during cr3 load, so any
+#ifdef IN_RC
+            /*
+             * In 32 bits PAE mode we *must* invalidate the TLB when changing a
+             * PDPT entry; the CPU fetches them only during cr3 load, so any
              * non-present PDPT will continue to cause page faults.
              */
             ASMReloadCR3();
-#endif
             /* no break */
+#endif
         case PGMPOOLKIND_PAE_PD_PHYS:
         case PGMPOOLKIND_PAE_PDPT_PHYS:
         case PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD:
@@ -3656,12 +3802,13 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
         case PGMPOOLKIND_ROOT_NESTED:
         case PGMPOOLKIND_EPT_PDPT_FOR_PHYS:
         case PGMPOOLKIND_EPT_PD_FOR_PHYS:
-            ASMAtomicWriteSize(&u.pau64[iUserTable], 0);
+            ASMAtomicWriteU64(&u.pau64[iUserTable], 0);
             break;
 
         default:
-            AssertFatalMsgFailed(("enmKind=%d iUser=%#x iUserTable=%#x\n", pUserPage->enmKind, pUser->iUser, pUser->iUserTable));
+            AssertFatalMsgFailed(("enmKind=%d iUser=%d iUserTable=%#x\n", pUserPage->enmKind, pUser->iUser, pUser->iUserTable));
     }
+    PGM_DYNMAP_UNUSED_HINT_VM(pPool->CTX_SUFF(pVM), u.pau64);
 }
 
 
@@ -3791,17 +3938,30 @@ static uint16_t pgmPoolTrackPhysExtInsert(PVM pVM, uint16_t iPhysExt, uint16_t i
     PPGMPOOL        pPool = pVM->pgm.s.CTX_SUFF(pPool);
     PPGMPOOLPHYSEXT paPhysExts = pPool->CTX_SUFF(paPhysExts);
 
-    /* special common case. */
+    /*
+     * Special common cases.
+     */
+    if (paPhysExts[iPhysExt].aidx[1] == NIL_PGMPOOL_IDX)
+    {
+        paPhysExts[iPhysExt].aidx[1] = iShwPT;
+        paPhysExts[iPhysExt].apte[1] = iPte;
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackAliasedMany);
+        LogFlow(("pgmPoolTrackPhysExtInsert: %d:{,%d pte %d,}\n", iPhysExt, iShwPT, iPte));
+        return PGMPOOL_TD_MAKE(PGMPOOL_TD_CREFS_PHYSEXT, iPhysExt);
+    }
     if (paPhysExts[iPhysExt].aidx[2] == NIL_PGMPOOL_IDX)
     {
         paPhysExts[iPhysExt].aidx[2] = iShwPT;
         paPhysExts[iPhysExt].apte[2] = iPte;
-        STAM_COUNTER_INC(&pVM->pgm.s.StatTrackAliasedMany);
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackAliasedMany);
         LogFlow(("pgmPoolTrackPhysExtInsert: %d:{,,%d pte %d}\n", iPhysExt, iShwPT, iPte));
         return PGMPOOL_TD_MAKE(PGMPOOL_TD_CREFS_PHYSEXT, iPhysExt);
     }
+    AssertCompile(RT_ELEMENTS(paPhysExts[iPhysExt].aidx) == 3);
 
-    /* general treatment. */
+    /*
+     * General treatment.
+     */
     const uint16_t iPhysExtStart = iPhysExt;
     unsigned cMax = 15;
     for (;;)
@@ -3812,24 +3972,31 @@ static uint16_t pgmPoolTrackPhysExtInsert(PVM pVM, uint16_t iPhysExt, uint16_t i
             {
                 paPhysExts[iPhysExt].aidx[i] = iShwPT;
                 paPhysExts[iPhysExt].apte[i] = iPte;
-                STAM_COUNTER_INC(&pVM->pgm.s.StatTrackAliasedMany);
+                STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackAliasedMany);
                 LogFlow(("pgmPoolTrackPhysExtInsert: %d:{%d pte %d} i=%d cMax=%d\n", iPhysExt, iShwPT, iPte, i, cMax));
                 return PGMPOOL_TD_MAKE(PGMPOOL_TD_CREFS_PHYSEXT, iPhysExtStart);
             }
         if (!--cMax)
         {
-            STAM_COUNTER_INC(&pVM->pgm.s.StatTrackOverflows);
+            STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackOverflows);
             pgmPoolTrackPhysExtFreeList(pVM, iPhysExtStart);
             LogFlow(("pgmPoolTrackPhysExtInsert: overflow (1) iShwPT=%d\n", iShwPT));
             return PGMPOOL_TD_MAKE(PGMPOOL_TD_CREFS_PHYSEXT, PGMPOOL_TD_IDX_OVERFLOWED);
         }
+
+        /* advance */
+        iPhysExt = paPhysExts[iPhysExt].iNext;
+        if (iPhysExt == NIL_PGMPOOL_PHYSEXT_INDEX)
+            break;
     }
 
-    /* add another extent to the list. */
+    /*
+     * Add another extent to the list.
+     */
     PPGMPOOLPHYSEXT pNew = pgmPoolTrackPhysExtAlloc(pVM, &iPhysExt);
     if (!pNew)
     {
-        STAM_COUNTER_INC(&pVM->pgm.s.StatTrackNoExtentsLeft);
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackNoExtentsLeft);
         pgmPoolTrackPhysExtFreeList(pVM, iPhysExtStart);
         LogFlow(("pgmPoolTrackPhysExtInsert: pgmPoolTrackPhysExtAlloc failed iShwPT=%d\n", iShwPT));
         return PGMPOOL_TD_MAKE(PGMPOOL_TD_CREFS_PHYSEXT, PGMPOOL_TD_IDX_OVERFLOWED);
@@ -3867,7 +4034,7 @@ uint16_t pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t u16, ui
         if (pPhysExt)
         {
             LogFlow(("pgmPoolTrackPhysExtAddref: new extent: %d:{%d, %d}\n", iPhysExt, PGMPOOL_TD_GET_IDX(u16), iShwPT));
-            STAM_COUNTER_INC(&pVM->pgm.s.StatTrackAliased);
+            STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackAliased);
             pPhysExt->aidx[0] = PGMPOOL_TD_GET_IDX(u16);
             pPhysExt->apte[0] = PGM_PAGE_GET_PTE_INDEX(pPhysPage);
             pPhysExt->aidx[1] = iShwPT;
@@ -3885,10 +4052,11 @@ uint16_t pgmPoolTrackPhysExtAddref(PVM pVM, PPGMPAGE pPhysPage, uint16_t u16, ui
         u16 = pgmPoolTrackPhysExtInsert(pVM, PGMPOOL_TD_GET_IDX(u16), iShwPT, iPte);
     }
     else
-        STAM_COUNTER_INC(&pVM->pgm.s.StatTrackAliasedLots);
+        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackAliasedLots);
     pgmUnlock(pVM);
     return u16;
 }
+
 
 /**
  * Clear references to guest physical memory.
@@ -4021,8 +4189,7 @@ static void pgmPoolTracDerefGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS 
         }
         pRam = pRam->CTX_SUFF(pNext);
     }
-    if (!pRam)
-        AssertFatalMsgFailed(("HCPhys=%RHp GCPhys=%RGp\n", HCPhys, GCPhys));
+    AssertFatalMsgFailed(("HCPhys=%RHp GCPhys=%RGp\n", HCPhys, GCPhys));
 }
 
 
@@ -4108,6 +4275,8 @@ void pgmPoolTracDerefGCPhysHint(PPGMPOOL pPool, PPGMPOOLPAGE pPage, RTHCPHYS HCP
 DECLINLINE(void) pgmPoolTrackDerefPT32Bit32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PT pShwPT, PCX86PT pGstPT)
 {
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++)
+    {
+        Assert(!(pShwPT->a[i].u & RT_BIT_32(10)));
         if (pShwPT->a[i].n.u1Present)
         {
             Log4(("pgmPoolTrackDerefPT32Bit32Bit: i=%d pte=%RX32 hint=%RX32\n",
@@ -4116,6 +4285,7 @@ DECLINLINE(void) pgmPoolTrackDerefPT32Bit32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPag
             if (!pPage->cPresent)
                 break;
         }
+    }
 }
 
 
@@ -4127,17 +4297,21 @@ DECLINLINE(void) pgmPoolTrackDerefPT32Bit32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPag
  * @param   pShwPT      The shadow page table (mapping of the page).
  * @param   pGstPT      The guest page table (just a half one).
  */
-DECLINLINE(void) pgmPoolTrackDerefPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PTPAE pShwPT, PCX86PT pGstPT)
+DECLINLINE(void) pgmPoolTrackDerefPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PT pGstPT)
 {
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++)
-        if (pShwPT->a[i].n.u1Present)
+    {
+        Assert(   (PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & UINT64_C(0x7ff0000000000400)) == 0
+               || (PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & UINT64_C(0x7ff0000000000400)) == UINT64_C(0x7ff0000000000000));
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
         {
             Log4(("pgmPoolTrackDerefPTPae32Bit: i=%d pte=%RX64 hint=%RX32\n",
-                  i, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, pGstPT->a[i].u & X86_PTE_PG_MASK));
-            pgmPoolTracDerefGCPhysHint(pPool, pPage, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, pGstPT->a[i].u & X86_PTE_PG_MASK, i);
+                  i, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pGstPT->a[i].u & X86_PTE_PG_MASK));
+            pgmPoolTracDerefGCPhysHint(pPool, pPage, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pGstPT->a[i].u & X86_PTE_PG_MASK, i);
             if (!pPage->cPresent)
                 break;
         }
+    }
 }
 
 
@@ -4149,17 +4323,21 @@ DECLINLINE(void) pgmPoolTrackDerefPTPae32Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage,
  * @param   pShwPT      The shadow page table (mapping of the page).
  * @param   pGstPT      The guest page table.
  */
-DECLINLINE(void) pgmPoolTrackDerefPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PTPAE pShwPT, PCX86PTPAE pGstPT)
+DECLINLINE(void) pgmPoolTrackDerefPTPaePae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT, PCX86PTPAE pGstPT)
 {
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++)
-        if (pShwPT->a[i].n.u1Present)
+    {
+        Assert(   (PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & UINT64_C(0x7ff0000000000400)) == 0
+               || (PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & UINT64_C(0x7ff0000000000400)) == UINT64_C(0x7ff0000000000000));
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
         {
             Log4(("pgmPoolTrackDerefPTPaePae: i=%d pte=%RX32 hint=%RX32\n",
-                  i, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, pGstPT->a[i].u & X86_PTE_PAE_PG_MASK));
-            pgmPoolTracDerefGCPhysHint(pPool, pPage, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, pGstPT->a[i].u & X86_PTE_PAE_PG_MASK, i);
+                  i, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pGstPT->a[i].u & X86_PTE_PAE_PG_MASK));
+            pgmPoolTracDerefGCPhysHint(pPool, pPage, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), pGstPT->a[i].u & X86_PTE_PAE_PG_MASK, i);
             if (!pPage->cPresent)
                 break;
         }
+    }
 }
 
 
@@ -4174,6 +4352,8 @@ DECLINLINE(void) pgmPoolTrackDerefPT32Bit4MB(PPGMPOOL pPool, PPGMPOOLPAGE pPage,
 {
     RTGCPHYS GCPhys = pPage->GCPhys + PAGE_SIZE * pPage->iFirstPresent;
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++, GCPhys += PAGE_SIZE)
+    {
+        Assert(!(pShwPT->a[i].u & RT_BIT_32(10)));
         if (pShwPT->a[i].n.u1Present)
         {
             Log4(("pgmPoolTrackDerefPT32Bit4MB: i=%d pte=%RX32 GCPhys=%RGp\n",
@@ -4182,6 +4362,7 @@ DECLINLINE(void) pgmPoolTrackDerefPT32Bit4MB(PPGMPOOL pPool, PPGMPOOLPAGE pPage,
             if (!pPage->cPresent)
                 break;
         }
+    }
 }
 
 
@@ -4192,18 +4373,22 @@ DECLINLINE(void) pgmPoolTrackDerefPT32Bit4MB(PPGMPOOL pPool, PPGMPOOLPAGE pPage,
  * @param   pPage       The page.
  * @param   pShwPT      The shadow page table (mapping of the page).
  */
-DECLINLINE(void) pgmPoolTrackDerefPTPaeBig(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PTPAE pShwPT)
+DECLINLINE(void) pgmPoolTrackDerefPTPaeBig(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PPGMSHWPTPAE pShwPT)
 {
     RTGCPHYS GCPhys = pPage->GCPhys + PAGE_SIZE * pPage->iFirstPresent;
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++, GCPhys += PAGE_SIZE)
-        if (pShwPT->a[i].n.u1Present)
+    {
+        Assert(   (PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & UINT64_C(0x7ff0000000000400)) == 0
+               || (PGMSHWPTEPAE_GET_U(pShwPT->a[i]) & UINT64_C(0x7ff0000000000400)) == UINT64_C(0x7ff0000000000000));
+        if (PGMSHWPTEPAE_IS_P(pShwPT->a[i]))
         {
             Log4(("pgmPoolTrackDerefPTPaeBig: i=%d pte=%RX64 hint=%RGp\n",
-                  i, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, GCPhys));
-            pgmPoolTracDerefGCPhys(pPool, pPage, pShwPT->a[i].u & X86_PTE_PAE_PG_MASK, GCPhys, i);
+                  i, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), GCPhys));
+            pgmPoolTracDerefGCPhys(pPool, pPage, PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[i]), GCPhys, i);
             if (!pPage->cPresent)
                 break;
         }
+    }
 }
 
 
@@ -4218,6 +4403,8 @@ DECLINLINE(void) pgmPoolTrackDerefPTEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPT
 {
     RTGCPHYS GCPhys = pPage->GCPhys + PAGE_SIZE * pPage->iFirstPresent;
     for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++, GCPhys += PAGE_SIZE)
+    {
+        Assert((pShwPT->a[i].u & UINT64_C(0xfff0000000000f80)) == 0);
         if (pShwPT->a[i].n.u1Present)
         {
             Log4(("pgmPoolTrackDerefPTEPT: i=%d pte=%RX64 GCPhys=%RX64\n",
@@ -4226,6 +4413,7 @@ DECLINLINE(void) pgmPoolTrackDerefPTEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPT
             if (!pPage->cPresent)
                 break;
         }
+    }
 }
 
 
@@ -4241,6 +4429,7 @@ DECLINLINE(void) pgmPoolTrackDerefPD(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86PD 
 {
     for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
     {
+        Assert(!(pShwPD->a[i].u & RT_BIT_32(9)));
         if (    pShwPD->a[i].n.u1Present
             &&  !(pShwPD->a[i].u & PGM_PDFLAGS_MAPPING)
            )
@@ -4265,9 +4454,8 @@ DECLINLINE(void) pgmPoolTrackDerefPDPae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86
 {
     for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
     {
-        if (    pShwPD->a[i].n.u1Present
-            &&  !(pShwPD->a[i].u & PGM_PDFLAGS_MAPPING)
-           )
+        if (   pShwPD->a[i].n.u1Present
+            && !(pShwPD->a[i].u & PGM_PDFLAGS_MAPPING))
         {
 #ifdef PGM_WITH_LARGE_PAGES
             if (pShwPD->a[i].b.u1Size)
@@ -4279,6 +4467,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDPae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX86
             else
 #endif
             {
+                Assert((pShwPD->a[i].u & (X86_PDE_PAE_MBZ_MASK_NX | UINT64_C(0x7ff0000000000200))) == 0);
                 PPGMPOOLPAGE pSubPage = (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, pShwPD->a[i].u & X86_PDE_PAE_PG_MASK);
                 if (pSubPage)
                     pgmPoolTrackFreeUser(pPool, pSubPage, pPage->idx, i);
@@ -4301,6 +4490,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDPTPae(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PX
 {
     for (unsigned i = 0; i < X86_PG_PAE_PDPE_ENTRIES; i++)
     {
+        Assert((pShwPDPT->a[i].u & (X86_PDPE_PAE_MBZ_MASK | UINT64_C(0x7ff0000000000200))) == 0);
         if (    pShwPDPT->a[i].n.u1Present
             &&  !(pShwPDPT->a[i].u & PGM_PLXFLAGS_MAPPING)
            )
@@ -4326,7 +4516,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDPT64Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, 
 {
     for (unsigned i = 0; i < RT_ELEMENTS(pShwPDPT->a); i++)
     {
-        Assert(!(pShwPDPT->a[i].u & PGM_PLXFLAGS_MAPPING));
+        Assert((pShwPDPT->a[i].u & (X86_PDPE_LM_MBZ_MASK_NX | UINT64_C(0x7ff0000000000200))) == 0);
         if (pShwPDPT->a[i].n.u1Present)
         {
             PPGMPOOLPAGE pSubPage = (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, pShwPDPT->a[i].u & X86_PDPE_PG_MASK);
@@ -4351,6 +4541,7 @@ DECLINLINE(void) pgmPoolTrackDerefPML464Bit(PPGMPOOL pPool, PPGMPOOLPAGE pPage, 
 {
     for (unsigned i = 0; i < RT_ELEMENTS(pShwPML4->a); i++)
     {
+        Assert((pShwPML4->a[i].u & (X86_PML4E_MBZ_MASK_NX | UINT64_C(0x7ff0000000000200))) == 0);
         if (pShwPML4->a[i].n.u1Present)
         {
             PPGMPOOLPAGE pSubPage = (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, pShwPML4->a[i].u & X86_PDPE_PG_MASK);
@@ -4375,6 +4566,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPT
 {
     for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
     {
+        Assert((pShwPD->a[i].u & UINT64_C(0xfff0000000000f80)) == 0);
         if (pShwPD->a[i].n.u1Present)
         {
 #ifdef PGM_WITH_LARGE_PAGES
@@ -4410,6 +4602,7 @@ DECLINLINE(void) pgmPoolTrackDerefPDPTEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PE
 {
     for (unsigned i = 0; i < RT_ELEMENTS(pShwPDPT->a); i++)
     {
+        Assert((pShwPDPT->a[i].u & UINT64_C(0xfff0000000000f80)) == 0);
         if (pShwPDPT->a[i].n.u1Present)
         {
             PPGMPOOLPAGE pSubPage = (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, pShwPDPT->a[i].u & EPT_PDPTE_PG_MASK);
@@ -4436,15 +4629,17 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     /*
      * Map the shadow page and take action according to the page kind.
      */
-    void *pvShw = PGMPOOL_PAGE_2_LOCKED_PTR(pPool->CTX_SUFF(pVM), pPage);
+    PVM   pVM   = pPool->CTX_SUFF(pVM);
+    void *pvShw = PGMPOOL_PAGE_2_PTR(pVM, pPage);
     switch (pPage->enmKind)
     {
         case PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT:
         {
             STAM_PROFILE_START(&pPool->StatTrackDerefGCPhys, g);
             void *pvGst;
-            int rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
+            int rc = PGM_GCPHYS_2_PTR(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
             pgmPoolTrackDerefPT32Bit32Bit(pPool, pPage, (PX86PT)pvShw, (PCX86PT)pvGst);
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
             STAM_PROFILE_STOP(&pPool->StatTrackDerefGCPhys, g);
             break;
         }
@@ -4453,8 +4648,9 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         {
             STAM_PROFILE_START(&pPool->StatTrackDerefGCPhys, g);
             void *pvGst;
-            int rc = PGM_GCPHYS_2_PTR_EX(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
-            pgmPoolTrackDerefPTPae32Bit(pPool, pPage, (PX86PTPAE)pvShw, (PCX86PT)pvGst);
+            int rc = PGM_GCPHYS_2_PTR_EX(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
+            pgmPoolTrackDerefPTPae32Bit(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PT)pvGst);
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
             STAM_PROFILE_STOP(&pPool->StatTrackDerefGCPhys, g);
             break;
         }
@@ -4463,8 +4659,9 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         {
             STAM_PROFILE_START(&pPool->StatTrackDerefGCPhys, g);
             void *pvGst;
-            int rc = PGM_GCPHYS_2_PTR(pPool->CTX_SUFF(pVM), pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
-            pgmPoolTrackDerefPTPaePae(pPool, pPage, (PX86PTPAE)pvShw, (PCX86PTPAE)pvGst);
+            int rc = PGM_GCPHYS_2_PTR(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
+            pgmPoolTrackDerefPTPaePae(pPool, pPage, (PPGMSHWPTPAE)pvShw, (PCX86PTPAE)pvGst);
+            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
             STAM_PROFILE_STOP(&pPool->StatTrackDerefGCPhys, g);
             break;
         }
@@ -4483,7 +4680,7 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         case PGMPOOLKIND_PAE_PT_FOR_32BIT_4MB:
         {
             STAM_PROFILE_START(&pPool->StatTrackDerefGCPhys, g);
-            pgmPoolTrackDerefPTPaeBig(pPool, pPage, (PX86PTPAE)pvShw);
+            pgmPoolTrackDerefPTPaeBig(pPool, pPage, (PPGMSHWPTPAE)pvShw);
             STAM_PROFILE_STOP(&pPool->StatTrackDerefGCPhys, g);
             break;
         }
@@ -4540,8 +4737,8 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     ASMMemZeroPage(pvShw);
     STAM_PROFILE_STOP(&pPool->StatZeroPage, z);
     pPage->fZeroed = true;
-    PGMPOOL_UNLOCK_PTR(pPool->CTX_SUFF(pVM), pvShw);
     Assert(!pPage->cPresent);
+    PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvShw);
 }
 
 /**
@@ -4590,17 +4787,18 @@ int pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush)
                   || pPage->enmKind == PGMPOOLKIND_PAE_PD0_FOR_32BIT_PD
                   || pPage->enmKind == PGMPOOLKIND_PAE_PD1_FOR_32BIT_PD
                   || pPage->enmKind == PGMPOOLKIND_PAE_PD2_FOR_32BIT_PD
-                  || pPage->enmKind == PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD,
+                  || pPage->enmKind == PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD
+                  || pPage->enmKind == PGMPOOLKIND_ROOT_NESTED,
                   ("Can't free the shadow CR3! (%RHp vs %RHp kind=%d\n", PGMGetHyperCR3(VMMGetCpu(pVM)), pPage->Core.Key, pPage->enmKind));
         Log(("pgmPoolFlushPage: current active shadow CR3, rejected. enmKind=%s idx=%d\n", pgmPoolPoolKindToStr(pPage->enmKind), pPage->idx));
         pgmUnlock(pVM);
         return VINF_SUCCESS;
     }
 
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
     /* Start a subset so we won't run out of mapping space. */
     PVMCPU pVCpu = VMMGetCpu(pVM);
-    uint32_t iPrevSubset = PGMDynMapPushAutoSubset(pVCpu);
+    uint32_t iPrevSubset = PGMRZDynMapPushAutoSubset(pVCpu);
 #endif
 
     /*
@@ -4630,9 +4828,9 @@ int pgmPoolFlushPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, bool fFlush)
      */
     pgmPoolCacheFlushPage(pPool, pPage);
 
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
+#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0) || defined(IN_RC)
     /* Heavy stuff done. */
-    PGMDynMapPopAutoSubset(pVCpu, iPrevSubset);
+    PGMRZDynMapPopAutoSubset(pVCpu, iPrevSubset);
 #endif
 
     /*
@@ -4683,7 +4881,7 @@ void pgmPoolFreeByPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage, uint16_t iUser, uint3
     PVM pVM = pPool->CTX_SUFF(pVM);
 
     STAM_PROFILE_START(&pPool->StatFree, a);
-    LogFlow(("pgmPoolFreeByPage: pPage=%p:{.Key=%RHp, .idx=%d, enmKind=%s} iUser=%#x iUserTable=%#x\n",
+    LogFlow(("pgmPoolFreeByPage: pPage=%p:{.Key=%RHp, .idx=%d, enmKind=%s} iUser=%d iUserTable=%#x\n",
              pPage, pPage->Core.Key, pPage->idx, pgmPoolPoolKindToStr(pPage->enmKind), iUser, iUserTable));
     Assert(pPage->idx >= PGMPOOL_IDX_FIRST);
     pgmLock(pVM);
@@ -4710,7 +4908,7 @@ static int pgmPoolMakeMoreFreePages(PPGMPOOL pPool, PGMPOOLKIND enmKind, uint16_
 {
     PVM pVM = pPool->CTX_SUFF(pVM);
 
-    LogFlow(("pgmPoolMakeMoreFreePages: iUser=%#x\n", iUser));
+    LogFlow(("pgmPoolMakeMoreFreePages: iUser=%d\n", iUser));
 
     /*
      * If the pool isn't full grown yet, expand it.
@@ -4760,14 +4958,15 @@ static int pgmPoolMakeMoreFreePages(PPGMPOOL pPool, PGMPOOLKIND enmKind, uint16_
  * @param   enmAccess   Access type for the mapping (only relevant for big pages)
  * @param   iUser       The shadow page pool index of the user table.
  * @param   iUserTable  The index into the user table (shadowed).
- * @param   ppPage      Where to store the pointer to the page. NULL is stored here on failure.
  * @param   fLockPage   Lock the page
+ * @param   ppPage      Where to store the pointer to the page. NULL is stored here on failure.
  */
-int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, uint16_t iUser, uint32_t iUserTable, PPPGMPOOLPAGE ppPage, bool fLockPage)
+int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS enmAccess, uint16_t iUser, uint32_t iUserTable,
+                   bool fLockPage, PPPGMPOOLPAGE ppPage)
 {
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     STAM_PROFILE_ADV_START(&pPool->StatAlloc, a);
-    LogFlow(("pgmPoolAlloc: GCPhys=%RGp enmKind=%s iUser=%#x iUserTable=%#x\n", GCPhys, pgmPoolPoolKindToStr(enmKind), iUser, iUserTable));
+    LogFlow(("pgmPoolAllocEx: GCPhys=%RGp enmKind=%s iUser=%d iUserTable=%#x\n", GCPhys, pgmPoolPoolKindToStr(enmKind), iUser, iUserTable));
     *ppPage = NULL;
     /** @todo CSAM/PGMPrefetchPage messes up here during CSAMR3CheckGates
      *  (TRPMR3SyncIDT) because of FF priority. Try fix that?
@@ -4784,7 +4983,7 @@ int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS 
                 pgmPoolLockPage(pPool, *ppPage);
             pgmUnlock(pVM);
             STAM_PROFILE_ADV_STOP(&pPool->StatAlloc, a);
-            LogFlow(("pgmPoolAlloc: cached returns %Rrc *ppPage=%p:{.Key=%RHp, .idx=%d}\n", rc2, *ppPage, (*ppPage)->Core.Key, (*ppPage)->idx));
+            LogFlow(("pgmPoolAllocEx: cached returns %Rrc *ppPage=%p:{.Key=%RHp, .idx=%d}\n", rc2, *ppPage, (*ppPage)->Core.Key, (*ppPage)->idx));
             return rc2;
         }
     }
@@ -4800,7 +4999,7 @@ int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS 
         if (RT_FAILURE(rc))
         {
             pgmUnlock(pVM);
-            Log(("pgmPoolAlloc: returns %Rrc (Free)\n", rc));
+            Log(("pgmPoolAllocEx: returns %Rrc (Free)\n", rc));
             STAM_PROFILE_ADV_STOP(&pPool->StatAlloc, a);
             return rc;
         }
@@ -4851,7 +5050,7 @@ int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS 
         pPool->iFreeHead    = pPage->idx;
         pgmUnlock(pVM);
         STAM_PROFILE_ADV_STOP(&pPool->StatAlloc, a);
-        Log(("pgmPoolAlloc: returns %Rrc (Insert)\n", rc3));
+        Log(("pgmPoolAllocEx: returns %Rrc (Insert)\n", rc3));
         return rc3;
     }
 
@@ -4875,7 +5074,7 @@ int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS 
     if (fLockPage)
         pgmPoolLockPage(pPool, pPage);
     pgmUnlock(pVM);
-    LogFlow(("pgmPoolAlloc: returns %Rrc *ppPage=%p:{.Key=%RHp, .idx=%d, .fCached=%RTbool, .fMonitored=%RTbool}\n",
+    LogFlow(("pgmPoolAllocEx: returns %Rrc *ppPage=%p:{.Key=%RHp, .idx=%d, .fCached=%RTbool, .fMonitored=%RTbool}\n",
              rc, pPage, pPage->Core.Key, pPage->idx, pPage->fCached, pPage->fMonitored));
     STAM_PROFILE_ADV_STOP(&pPool->StatAlloc, a);
     return rc;
@@ -4892,7 +5091,7 @@ int pgmPoolAllocEx(PVM pVM, RTGCPHYS GCPhys, PGMPOOLKIND enmKind, PGMPOOLACCESS 
  */
 void pgmPoolFree(PVM pVM, RTHCPHYS HCPhys, uint16_t iUser, uint32_t iUserTable)
 {
-    LogFlow(("pgmPoolFree: HCPhys=%RHp iUser=%#x iUserTable=%#x\n", HCPhys, iUser, iUserTable));
+    LogFlow(("pgmPoolFree: HCPhys=%RHp iUser=%d iUserTable=%#x\n", HCPhys, iUser, iUserTable));
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     pgmPoolFreeByPage(pPool, pgmPoolGetPage(pPool, HCPhys), iUser, iUserTable);
 }
@@ -4913,13 +5112,27 @@ PPGMPOOLPAGE pgmPoolGetPage(PPGMPOOL pPool, RTHCPHYS HCPhys)
     /*
      * Look up the page.
      */
-    pgmLock(pVM);
     PPGMPOOLPAGE pPage = (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, HCPhys & X86_PTE_PAE_PG_MASK);
-    pgmUnlock(pVM);
 
     AssertFatalMsg(pPage && pPage->enmKind != PGMPOOLKIND_FREE, ("HCPhys=%RHp pPage=%p idx=%d\n", HCPhys, pPage, (pPage) ? pPage->idx : 0));
     return pPage;
 }
+
+
+/**
+ * Internal worker for finding a page for debugging purposes, no assertions.
+ *
+ * @returns Pointer to the shadow page structure.  NULL on if not found.
+ * @param   pPool       The pool.
+ * @param   HCPhys      The HC physical address of the shadow page.
+ */
+PPGMPOOLPAGE pgmPoolQueryPageForDbg(PPGMPOOL pPool, RTHCPHYS HCPhys)
+{
+    PVM pVM = pPool->CTX_SUFF(pVM);
+    Assert(PGMIsLockOwner(pVM));
+    return (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, HCPhys & X86_PTE_PAE_PG_MASK);
+}
+
 
 #ifdef IN_RING3 /* currently only used in ring 3; save some space in the R0 & GC modules (left it here as we might need it elsewhere later on) */
 /**
@@ -4937,7 +5150,7 @@ void pgmPoolFlushPageByGCPhys(PVM pVM, RTGCPHYS GCPhys)
     /*
      * Look up the GCPhys in the hash.
      */
-    GCPhys = GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1);
+    GCPhys = GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
     unsigned i = pPool->aiHash[PGMPOOL_HASH(GCPhys)];
     if (i == NIL_PGMPOOL_IDX)
         return;
@@ -5156,8 +5369,8 @@ void pgmR3PoolReset(PVM pVM)
     /* Clear all dirty pages. */
     pPool->idxFreeDirtyPage = 0;
     pPool->cDirtyPages      = 0;
-    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aIdxDirtyPages); i++)
-        pPool->aIdxDirtyPages[i] = NIL_PGMPOOL_IDX;
+    for (unsigned i = 0; i < RT_ELEMENTS(pPool->aDirtyPages); i++)
+        pPool->aDirtyPages[i].uIdx = NIL_PGMPOOL_IDX;
 #endif
 
     /*
@@ -5175,7 +5388,7 @@ void pgmR3PoolReset(PVM pVM)
         pPage->iMonitoredPrev = NIL_PGMPOOL_IDX;
         if (pPage->fMonitored)
         {
-            int rc = PGMHandlerPhysicalChangeCallbacks(pVM, pPage->GCPhys & ~(RTGCPHYS)(PAGE_SIZE - 1),
+            int rc = PGMHandlerPhysicalChangeCallbacks(pVM, pPage->GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK,
                                                        pPool->pfnAccessHandlerR3, MMHyperCCToR3(pVM, pPage),
                                                        pPool->pfnAccessHandlerR0, MMHyperCCToR0(pVM, pPage),
                                                        pPool->pfnAccessHandlerRC, MMHyperCCToRC(pVM, pPage),

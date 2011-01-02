@@ -1,4 +1,4 @@
-/* $Id: SUPSvc.cpp $ */
+/* $Id: SUPSvc.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * VirtualBox Support Service - Common Code.
  */
@@ -282,7 +282,7 @@ void supSvcStopAndDestroyServices(void)
 
 
 /**
- * Logs the message to the appropirate system log.
+ * Logs the message to the appropriate system log.
  *
  * In debug builds this will also put it in the debug log.
  *
@@ -298,7 +298,7 @@ void supSvcLogErrorStr(const char *pszMsg)
 
 
 /**
- * Logs the message to the appropirate system log.
+ * Logs the message to the appropriate system log.
  *
  * In debug builds this will also put it in the debug log.
  *
@@ -324,7 +324,7 @@ void supSvcLogErrorV(const char *pszFormat, va_list va)
 
 
 /**
- * Logs the error message to the appropirate system log.
+ * Logs the error message to the appropriate system log.
  *
  * In debug builds this will also put it in the debug log.
  *

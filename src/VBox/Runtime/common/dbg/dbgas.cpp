@@ -1,4 +1,4 @@
-/* $Id: dbgas.cpp $ */
+/* $Id: dbgas.cpp 33663 2010-11-01 15:58:06Z vboxsync $ */
 /** @file
  * IPRT - Debug Address Space.
  */
@@ -197,11 +197,11 @@ RTDECL(int) RTDbgAsCreate(PRTDBGAS phDbgAs, RTUINTPTR FirstAddr, RTUINTPTR LastA
      * Allocate memory for the instance data.
      */
     size_t cchName = strlen(pszName);
-    PRTDBGASINT pDbgAs = (PRTDBGASINT)RTMemAlloc(RT_OFFSETOF(RTDBGASINT, szName[cchName + 1]));
+    PRTDBGASINT pDbgAs = (PRTDBGASINT)RTMemAllocVar(RT_OFFSETOF(RTDBGASINT, szName[cchName + 1]));
     if (!pDbgAs)
         return VERR_NO_MEMORY;
 
-    /* initalize it. */
+    /* initialize it. */
     pDbgAs->u32Magic    = RTDBGAS_MAGIC;
     pDbgAs->cRefs       = 1;
     pDbgAs->hLock       = NIL_RTSEMRW;
@@ -1021,7 +1021,7 @@ RT_EXPORT_SYMBOL(RTDbgAsModuleByAddr);
  * @param   pszName         The module name.
  * @param   iName           There can be more than one module by the same name
  *                          in an address space. This argument indicates which
- *                          is ment. (0 based)
+ *                          is meant. (0 based)
  * @param   phMod           Where to the return the retained module handle.
  */
 RTDECL(int) RTDbgAsModuleByName(RTDBGAS hDbgAs, const char *pszName, uint32_t iName, PRTDBGMOD phMod)

@@ -22,7 +22,8 @@
  */
 ThreadInfo *packspuNewThread( unsigned long id )
 {
-    ThreadInfo *thread;
+    ThreadInfo *thread=NULL;
+    int i;
 
 #ifdef CHROMIUM_THREADSAFE
     crLockMutex(&_PackMutex);
@@ -31,10 +32,20 @@ ThreadInfo *packspuNewThread( unsigned long id )
 #endif
 
     CRASSERT(pack_spu.numThreads < MAX_THREADS);
-    thread = &(pack_spu.thread[pack_spu.numThreads]);
+    for (i=0; i<MAX_THREADS; ++i)
+    {
+        if (!pack_spu.thread[i].inUse)
+        {
+            thread = &pack_spu.thread[i];
+            break;
+        }
+    }
+    CRASSERT(thread);
 
+    thread->inUse = GL_TRUE;
     thread->id = id;
     thread->currentContext = NULL;
+    thread->bInjectThread = GL_FALSE;
 
     /* connect to the server */
     thread->netServer.name = crStrdup( pack_spu.name );
@@ -48,7 +59,7 @@ ThreadInfo *packspuNewThread( unsigned long id )
     }
     else {
         /* a new pthread */
-        crNetNewClient(pack_spu.thread[0].netServer.conn, &(thread->netServer));
+        crNetNewClient(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn, &(thread->netServer));
         CRASSERT(thread->netServer.conn);
     }
 

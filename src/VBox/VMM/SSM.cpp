@@ -1,10 +1,10 @@
-/* $Id: SSM.cpp $ */
+/* $Id: SSM.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * SSM - Saved State Manager.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -105,7 +105,7 @@
  *       - type 1: Terminator with CRC-32 and unit size.
  *       - type 2: Raw data record.
  *       - type 3: Raw data compressed by LZF. The data is prefixed by a 8-bit
- *                 field countining the length of the uncompressed data given in
+ *                 field containing the length of the uncompressed data given in
  *                 1KB units.
  *       - type 4: Zero data. The record header is followed by a 8-bit field
  *                 counting the length of the zero data given in 1KB units.
@@ -155,7 +155,7 @@
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/crc32.h>
+#include <iprt/crc.h>
 #include <iprt/file.h>
 #include <iprt/mem.h>
 #include <iprt/param.h>
@@ -185,7 +185,7 @@
 
 /** @name SSMFILEHDR::fFlags
  * @{ */
-/** The stream is checkesummed up to the footer using CRC-32. */
+/** The stream is checksummed up to the footer using CRC-32. */
 #define SSMFILEHDR_FLAGS_STREAM_CRC32           RT_BIT_32(0)
 /** Indicates that the file was produced by a live save. */
 #define SSMFILEHDR_FLAGS_STREAM_LIVE_SAVE       RT_BIT_32(1)
@@ -249,9 +249,9 @@
 #define SSMRECTERM_FLAGS_CRC32                  UINT16_C(0x0001)
 /** @} */
 
-/** Start structure magic. (Isacc Asimov) */
+/** Start structure magic. (Isaac Asimov) */
 #define SSMR3STRUCT_BEGIN                       UINT32_C(0x19200102)
-/** End structure magic. (Isacc Asimov) */
+/** End structure magic. (Isaac Asimov) */
 #define SSMR3STRUCT_END                         UINT32_C(0x19920406)
 
 
@@ -471,7 +471,7 @@ typedef struct SSMHANDLE
 
     /** Pointer to the progress callback function. */
     PFNVMPROGRESS           pfnProgress;
-    /** User specified arguemnt to the callback function. */
+    /** User specified argument to the callback function. */
     void                   *pvUser;
     /** Next completion percentage. (corresponds to offEstProgress) */
     unsigned                uPercent;
@@ -484,10 +484,15 @@ typedef struct SSMHANDLE
     uint64_t                offEst;
     /** End of current unit in the estimated file. */
     uint64_t                offEstUnitEnd;
-    /** the amount of % we reserve for the 'prepare' phase */
+    /** The amount of % we reserve for the 'live' stage */
+    unsigned                uPercentLive;
+    /** The amount of % we reserve for the 'prepare' phase */
     unsigned                uPercentPrepare;
-    /** the amount of % we reserve for the 'done' stage */
+    /** The amount of % we reserve for the 'done' stage */
     unsigned                uPercentDone;
+    /** The lowest value reported via SSMR3HandleReportLivePercent during one
+     * vote run. */
+    unsigned                uReportedLivePercent;
     /** The filename, NULL if remote stream. */
     const char             *pszFilename;
 
@@ -871,7 +876,9 @@ static int                  ssmR3LazyInit(PVM pVM);
 static DECLCALLBACK(int)    ssmR3SelfLiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass);
 static DECLCALLBACK(int)    ssmR3SelfSaveExec(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(int)    ssmR3SelfLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+static DECLCALLBACK(int)    ssmR3LiveControlLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 static int                  ssmR3Register(PVM pVM, const char *pszName, uint32_t uInstance, uint32_t uVersion, size_t cbGuess, const char *pszBefore, PSSMUNIT *ppUnit);
+static int                  ssmR3LiveControlEmit(PSSMHANDLE pSSM, long double lrdPct, uint32_t uPass);
 #endif
 
 static int                  ssmR3StrmWriteBuffers(PSSMSTRM pStrm);
@@ -915,6 +922,11 @@ static int ssmR3LazyInit(PVM pVM)
                                    NULL /*pfnLivePrep*/, ssmR3SelfLiveExec, NULL /*pfnLiveVote*/,
                                    NULL /*pfnSavePrep*/, ssmR3SelfSaveExec, NULL /*pfnSaveDone*/,
                                    NULL /*pfnSavePrep*/, ssmR3SelfLoadExec, NULL /*pfnSaveDone*/);
+    if (RT_SUCCESS(rc))
+        rc = SSMR3RegisterInternal(pVM, "SSMLiveControl", 0 /*uInstance*/, 1 /*uVersion*/, 1 /*cbGuess*/,
+                                   NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/,     NULL /*pfnLiveVote*/,
+                                   NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/,     NULL /*pfnSaveDone*/,
+                                   NULL /*pfnSavePrep*/, ssmR3LiveControlLoadExec, NULL /*pfnSaveDone*/);
 
     /*
      * Initialize the cancellation critsect now.
@@ -964,7 +976,7 @@ static DECLCALLBACK(int) ssmR3SelfLiveExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uP
 static DECLCALLBACK(int) ssmR3SelfSaveExec(PVM pVM, PSSMHANDLE pSSM)
 {
     /*
-     * String table containg pairs of variable and value string.
+     * String table containing pairs of variable and value string.
      * Terminated by two empty strings.
      */
     SSMR3PutStrZ(pSSM, "Build Type");
@@ -1043,6 +1055,42 @@ static DECLCALLBACK(int) ssmR3SelfLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uV
 
 
 /**
+ * Load exec callback for the special live save state unit that tracks the
+ * progress of a live save.
+ *
+ * This is saved by ssmR3LiveControlEmit().
+ *
+ * @returns VBox status code.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pSSM            The SSM handle.
+ * @param   uVersion        The version (1).
+ * @param   uPass           The pass.
+ */
+static DECLCALLBACK(int) ssmR3LiveControlLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+{
+    AssertLogRelMsgReturn(uVersion == 1, ("%d", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
+
+    uint16_t uPartsPerTenThousand;
+    int rc = SSMR3GetU16(pSSM, &uPartsPerTenThousand);
+    if (RT_SUCCESS(rc))
+    {
+        /* Scale it down to fit in our exec range. */
+        unsigned uPct = (unsigned)(  (long double)uPartsPerTenThousand / 100
+                                   * (100 - pSSM->uPercentPrepare - pSSM->uPercentDone) / 100)
+                      + pSSM->uPercentPrepare;
+        if (uPct != pSSM->uPercent)
+        {
+            AssertMsg(uPct < 100, ("uPct=%d uPartsPerTenThousand=%d uPercentPrepare=%d uPercentDone=%d\n", uPct, uPartsPerTenThousand, pSSM->uPercentPrepare, pSSM->uPercentDone));
+            pSSM->uPercent = uPct;
+            if (pSSM->pfnProgress)
+                pSSM->pfnProgress(pVM, RT_MIN(uPct, 100 - pSSM->uPercentDone), pSSM->pvUser);
+        }
+    }
+    return rc;
+}
+
+
+/**
  * Internal registration worker.
  *
  * @returns VBox status code.
@@ -1053,7 +1101,7 @@ static DECLCALLBACK(int) ssmR3SelfLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uV
  * @param   cbGuess         The guessed data unit size.
  * @param   pszBefore       Name of data unit to be placed in front of.
  *                          Optional.
- * @param   ppUnit          Where to store the insterted unit node.
+ * @param   ppUnit          Where to store the inserted unit node.
  *                          Caller must fill in the missing details.
  */
 static int ssmR3Register(PVM pVM, const char *pszName, uint32_t uInstance,
@@ -1117,7 +1165,7 @@ static int ssmR3Register(PVM pVM, const char *pszName, uint32_t uInstance,
         return VERR_NO_MEMORY;
 
     /*
-     * Fill in (some) data. (Stuff is zero'ed.)
+     * Fill in (some) data. (Stuff is zero'd.)
      */
     pUnit->u32Version   = uVersion;
     pUnit->u32Instance  = uInstance;
@@ -1359,7 +1407,7 @@ VMMR3DECL(int) SSMR3RegisterExternal(PVM pVM, const char *pszName, uint32_t uIns
  *                          Use NULL to deregister all data units for that device instance.
  * @param   uInstance       The instance identifier of the data unit.
  *                          This must together with the name be unique.
- * @remark  Only for dynmaic data units and dynamic unloaded modules.
+ * @remark  Only for dynamic data units and dynamic unloaded modules.
  */
 VMMR3_INT_DECL(int) SSMR3DeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName, uint32_t uInstance)
 {
@@ -1435,7 +1483,7 @@ VMMR3_INT_DECL(int) SSMR3DeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const cha
  *                          Use NULL to deregister all data units for that driver instance.
  * @param   uInstance       The instance identifier of the data unit.
  *                          This must together with the name be unique. Ignored if pszName is NULL.
- * @remark  Only for dynmaic data units and dynamic unloaded modules.
+ * @remark  Only for dynamic data units and dynamic unloaded modules.
  */
 VMMR3_INT_DECL(int) SSMR3DeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance)
 {
@@ -1506,7 +1554,7 @@ VMMR3_INT_DECL(int) SSMR3DeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const cha
  * @param   pVM             The VM handle.
  * @param   enmType         Unit type
  * @param   pszName         Data unit name.
- * @remark  Only for dynmaic data units.
+ * @remark  Only for dynamic data units.
  */
 static int ssmR3DeregisterByNameAndType(PVM pVM, const char *pszName, SSMUNITTYPE enmType)
 {
@@ -1562,7 +1610,7 @@ static int ssmR3DeregisterByNameAndType(PVM pVM, const char *pszName, SSMUNITTYP
  * @returns VBox status.
  * @param   pVM             The VM handle.
  * @param   pszName         Data unit name.
- * @remark  Only for dynmaic data units.
+ * @remark  Only for dynamic data units.
  */
 VMMR3DECL(int) SSMR3DeregisterInternal(PVM pVM, const char *pszName)
 {
@@ -1576,7 +1624,7 @@ VMMR3DECL(int) SSMR3DeregisterInternal(PVM pVM, const char *pszName)
  * @returns VBox status.
  * @param   pVM             The VM handle.
  * @param   pszName         Data unit name.
- * @remark  Only for dynmaic data units.
+ * @remark  Only for dynamic data units.
  */
 VMMR3DECL(int) SSMR3DeregisterExternal(PVM pVM, const char *pszName)
 {
@@ -1898,9 +1946,9 @@ static void ssmR3StrmPutFreeBuf(PSSMSTRM pStrm, PSSMSTRMBUF pBuf)
 {
     for (;;)
     {
-        PSSMSTRMBUF pCurFreeHead = (PSSMSTRMBUF)ASMAtomicUoReadPtr((void * volatile *)&pStrm->pFree);
-        ASMAtomicUoWritePtr((void * volatile *)&pBuf->pNext, pCurFreeHead);
-        if (ASMAtomicCmpXchgPtr((void * volatile *)&pStrm->pFree, pBuf, pCurFreeHead))
+        PSSMSTRMBUF pCurFreeHead = ASMAtomicUoReadPtrT(&pStrm->pFree, PSSMSTRMBUF);
+        ASMAtomicUoWritePtr(&pBuf->pNext, pCurFreeHead);
+        if (ASMAtomicCmpXchgPtr(&pStrm->pFree, pBuf, pCurFreeHead))
         {
             int rc = RTSemEventSignal(pStrm->hEvtFree);
             AssertRC(rc);
@@ -1922,7 +1970,7 @@ static PSSMSTRMBUF ssmR3StrmGetFreeBuf(PSSMSTRM pStrm)
 {
     for (;;)
     {
-        PSSMSTRMBUF pMine = (PSSMSTRMBUF)ASMAtomicUoReadPtr((void * volatile *)&pStrm->pFree);
+        PSSMSTRMBUF pMine = ASMAtomicUoReadPtrT(&pStrm->pFree, PSSMSTRMBUF);
         if (!pMine)
         {
             if (pStrm->fTerminating)
@@ -1943,7 +1991,7 @@ static PSSMSTRMBUF ssmR3StrmGetFreeBuf(PSSMSTRM pStrm)
             continue;
         }
 
-        if (ASMAtomicCmpXchgPtr((void * volatile *)&pStrm->pFree, pMine->pNext, pMine))
+        if (ASMAtomicCmpXchgPtr(&pStrm->pFree, pMine->pNext, pMine))
         {
             pMine->offStream    = UINT64_MAX;
             pMine->cb           = 0;
@@ -1967,9 +2015,9 @@ static void ssmR3StrmPutBuf(PSSMSTRM pStrm, PSSMSTRMBUF pBuf)
 {
     for (;;)
     {
-        PSSMSTRMBUF pCurHead = (PSSMSTRMBUF)ASMAtomicUoReadPtr((void * volatile *)&pStrm->pHead);
-        ASMAtomicUoWritePtr((void * volatile *)&pBuf->pNext, pCurHead);
-        if (ASMAtomicCmpXchgPtr((void * volatile *)&pStrm->pHead, pBuf, pCurHead))
+        PSSMSTRMBUF pCurHead = ASMAtomicUoReadPtrT(&pStrm->pHead, PSSMSTRMBUF);
+        ASMAtomicUoWritePtr(&pBuf->pNext, pCurHead);
+        if (ASMAtomicCmpXchgPtr(&pStrm->pHead, pBuf, pCurHead))
         {
             int rc = RTSemEventSignal(pStrm->hEvtHead);
             AssertRC(rc);
@@ -2020,7 +2068,7 @@ static PSSMSTRMBUF ssmR3StrmGetBuf(PSSMSTRM pStrm)
             return pMine;
         }
 
-        pMine = (PSSMSTRMBUF)ASMAtomicXchgPtr((void * volatile *)&pStrm->pHead, NULL);
+        pMine = ASMAtomicXchgPtrT(&pStrm->pHead, NULL, PSSMSTRMBUF);
         if (pMine)
             pStrm->pPending = ssmR3StrmReverseList(pMine);
         else
@@ -2116,7 +2164,7 @@ static int ssmR3StrmWriteBuffers(PSSMSTRM pStrm)
     /*
      * Grab the pending list and write it out.
      */
-    PSSMSTRMBUF pHead = (PSSMSTRMBUF)ASMAtomicXchgPtr((void * volatile *)&pStrm->pHead, NULL);
+    PSSMSTRMBUF pHead = ASMAtomicXchgPtrT(&pStrm->pHead, NULL, PSSMSTRMBUF);
     if (!pHead)
         return VINF_SUCCESS;
     pHead = ssmR3StrmReverseList(pHead);
@@ -2552,7 +2600,7 @@ static uint8_t const *ssmR3StrmReadDirect(PSSMSTRM pStrm, size_t cbToRead)
 
     /*
      * Too lazy to fetch more data for the odd case that we're
-     * exactly at the boundrary between two buffers.
+     * exactly at the boundary between two buffers.
      */
     PSSMSTRMBUF pBuf = pStrm->pCur;
     if (RT_LIKELY(pBuf))
@@ -2659,7 +2707,7 @@ static void ssmR3StrmDisableChecksumming(PSSMSTRM pStrm)
 /**
  * Used by SSMR3Seek to position the stream at the new unit.
  *
- * @returns VBox stutus code.
+ * @returns VBox status code.
  * @param   pStrm       The strem handle.
  * @param   off         The seek offset.
  * @param   uMethod     The seek method.
@@ -2762,7 +2810,7 @@ static bool ssmR3StrmIsFile(PSSMSTRM pStrm)
  * @param   poff        Where to optionally store the position.  Useful when
  *                      using a negative off.
  *
- * @remarks Failures occuring while peeking will not be raised on the stream.
+ * @remarks Failures occurring while peeking will not be raised on the stream.
  */
 static int ssmR3StrmPeekAt(PSSMSTRM pStrm, RTFOFF off, void *pvBuf, size_t cbToRead, uint64_t *poff)
 {
@@ -2822,14 +2870,14 @@ static DECLCALLBACK(int) ssmR3StrmIoThread(RTTHREAD hSelf, void *pvStrm)
 
             if (ASMAtomicReadBool(&pStrm->fTerminating))
             {
-                if (!ASMAtomicReadPtr((void * volatile *)&pStrm->pHead))
+                if (!ASMAtomicReadPtrT(&pStrm->pHead, PSSMSTRMBUF))
                 {
                     Log(("ssmR3StrmIoThread: quitting writing because of pending termination.\n"));
                     break;
                 }
                 Log(("ssmR3StrmIoThread: postponing termination because of pending buffers.\n"));
             }
-            else if (!ASMAtomicReadPtr((void * volatile *)&pStrm->pHead))
+            else if (!ASMAtomicReadPtrT(&pStrm->pHead, PSSMSTRMBUF))
             {
                 rc = RTSemEventWait(pStrm->hEvtHead, RT_INDEFINITE_WAIT);
                 AssertLogRelRC(rc);
@@ -2891,28 +2939,32 @@ static void ssmR3StrmStartIoThread(PSSMSTRM pStrm)
 
 
 /**
- * Works the progress calculation.
+ * Works the progress calculation for non-live saves and restores.
  *
  * @param   pSSM        The SSM handle.
- * @param   cbAdvance   Number of bytes to advance
+ * @param   cbAdvance   Number of bytes to advance (with in the current unit).
  */
-static void ssmR3Progress(PSSMHANDLE pSSM, uint64_t cbAdvance)
+static void ssmR3ProgressByByte(PSSMHANDLE pSSM, uint64_t cbAdvance)
 {
-    /* Can't advance it beyond the estimated end of the unit. */
-    uint64_t cbLeft = pSSM->offEstUnitEnd - pSSM->offEst;
-    if (cbAdvance > cbLeft)
-        cbAdvance = cbLeft;
-    pSSM->offEst += cbAdvance;
-
-    /* uPercentPrepare% prepare, xx% exec, uPercentDone% done+crc */
-    while (   pSSM->offEst >= pSSM->offEstProgress
-           && pSSM->uPercent <= 100-pSSM->uPercentDone)
+    if (!pSSM->fLiveSave)
     {
-        if (pSSM->pfnProgress)
-            pSSM->pfnProgress(pSSM->pVM, pSSM->uPercent, pSSM->pvUser);
-        pSSM->uPercent++;
-        pSSM->offEstProgress = (pSSM->uPercent - pSSM->uPercentPrepare) * pSSM->cbEstTotal
-                             / (100 - pSSM->uPercentDone - pSSM->uPercentPrepare);
+        /* Can't advance it beyond the estimated end of the unit. */
+        uint64_t cbLeft = pSSM->offEstUnitEnd - pSSM->offEst;
+        if (cbAdvance > cbLeft)
+            cbAdvance = cbLeft;
+        pSSM->offEst += cbAdvance;
+
+        /* uPercentPrepare% prepare, xx% exec, uPercentDone% done+crc. This is not
+           quite right for live save, but the non-live stage there is very short. */
+        while (   pSSM->offEst >= pSSM->offEstProgress
+               && pSSM->uPercent <= 100 - pSSM->uPercentDone)
+        {
+            if (pSSM->pfnProgress)
+                pSSM->pfnProgress(pSSM->pVM, pSSM->uPercent, pSSM->pvUser);
+            pSSM->uPercent++;
+            pSSM->offEstProgress = (pSSM->uPercent - pSSM->uPercentPrepare - pSSM->uPercentLive) * pSSM->cbEstTotal
+                                 / (100 - pSSM->uPercentDone - pSSM->uPercentPrepare - pSSM->uPercentLive);
+        }
     }
 }
 
@@ -3150,7 +3202,7 @@ static int ssmR3DataFlushBuffer(PSSMHANDLE pSSM)
     int rc = ssmR3DataWriteRecHdr(pSSM, cb, SSM_REC_FLAGS_FIXED | SSM_REC_FLAGS_IMPORTANT | SSM_REC_TYPE_RAW);
     if (RT_SUCCESS(rc))
         rc = ssmR3DataWriteRaw(pSSM, pSSM->u.Write.abDataBuffer, cb);
-    ssmR3Progress(pSSM, cb);
+    ssmR3ProgressByByte(pSSM, cb);
     return rc;
 }
 
@@ -3212,7 +3264,7 @@ static int ssmR3DataWriteBig(PSSMHANDLE pSSM, const void *pvBuf, size_t cbBuf)
                     break;
 
                 pSSM->offUnit += cbRec;
-                ssmR3Progress(pSSM, SSM_ZIP_BLOCK_SIZE);
+                ssmR3ProgressByByte(pSSM, SSM_ZIP_BLOCK_SIZE);
 
                 /* advance */
                 if (cbBuf == SSM_ZIP_BLOCK_SIZE)
@@ -3235,7 +3287,7 @@ static int ssmR3DataWriteBig(PSSMHANDLE pSSM, const void *pvBuf, size_t cbBuf)
                     break;
 
                 /* advance */
-                ssmR3Progress(pSSM, SSM_ZIP_BLOCK_SIZE);
+                ssmR3ProgressByByte(pSSM, SSM_ZIP_BLOCK_SIZE);
                 if (cbBuf == SSM_ZIP_BLOCK_SIZE)
                     return VINF_SUCCESS;
                 cbBuf -= SSM_ZIP_BLOCK_SIZE;
@@ -3249,7 +3301,7 @@ static int ssmR3DataWriteBig(PSSMHANDLE pSSM, const void *pvBuf, size_t cbBuf)
                 rc = ssmR3DataWriteRecHdr(pSSM, cbBuf, SSM_REC_FLAGS_FIXED | SSM_REC_FLAGS_IMPORTANT | SSM_REC_TYPE_RAW);
                 if (RT_SUCCESS(rc))
                     rc = ssmR3DataWriteRaw(pSSM, pvBuf, cbBuf);
-                ssmR3Progress(pSSM, cbBuf);
+                ssmR3ProgressByByte(pSSM, cbBuf);
                 break;
             }
         }
@@ -4060,6 +4112,95 @@ VMMR3DECL(int) SSMR3PutStrZ(PSSMHANDLE pSSM, const char *psz)
 
 
 /**
+ * Emits a SSMLiveControl unit with a new progress report.
+ *
+ * @returns VBox status code.
+ * @param   pSSM                    The saved state handle.
+ * @param   lrdPct                  The progress of the the live save.
+ * @param   uPass                   The current pass.
+ */
+static int ssmR3LiveControlEmit(PSSMHANDLE pSSM, long double lrdPct, uint32_t uPass)
+{
+    AssertMsg(lrdPct <= 100.0, ("%u\n", lrdPct * 100));
+
+    /*
+     * Make sure we're in one of the two EXEC states or we may fail.
+     */
+    SSMSTATE enmSavedState = pSSM->enmOp;
+    if (enmSavedState == SSMSTATE_LIVE_VOTE)
+        pSSM->enmOp = SSMSTATE_LIVE_EXEC;
+    else if (enmSavedState == SSMSTATE_SAVE_DONE)
+        pSSM->enmOp = SSMSTATE_SAVE_EXEC;
+
+    /*
+     * Write the unit header.
+     */
+    SSMFILEUNITHDRV2 UnitHdr;
+    memcpy(&UnitHdr.szMagic[0], SSMFILEUNITHDR_MAGIC, sizeof(UnitHdr.szMagic));
+    UnitHdr.offStream       = ssmR3StrmTell(&pSSM->Strm);
+    UnitHdr.u32CurStreamCRC = ssmR3StrmCurCRC(&pSSM->Strm);
+    UnitHdr.u32CRC          = 0;
+    UnitHdr.u32Version      = 1;
+    UnitHdr.u32Instance     = 0;
+    UnitHdr.u32Pass         = uPass;
+    UnitHdr.fFlags          = 0;
+    UnitHdr.cbName          = sizeof("SSMLiveControl");
+    memcpy(&UnitHdr.szName[0], "SSMLiveControl", UnitHdr.cbName);
+    UnitHdr.u32CRC          = RTCrc32(&UnitHdr, RT_OFFSETOF(SSMFILEUNITHDRV2, szName[UnitHdr.cbName]));
+    Log(("SSM: Unit at %#9llx: '%s', instance %u, pass %#x, version %u\n",
+         UnitHdr.offStream, UnitHdr.szName, UnitHdr.u32Instance, UnitHdr.u32Pass, UnitHdr.u32Version));
+    int rc = ssmR3StrmWrite(&pSSM->Strm, &UnitHdr, RT_OFFSETOF(SSMFILEUNITHDRV2, szName[UnitHdr.cbName]));
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Write the payload.
+         */
+        ssmR3DataWriteBegin(pSSM);
+
+        uint16_t u16PartsPerTenThousand = (uint16_t)(lrdPct * (100 - pSSM->uPercentDone));
+        AssertMsg(u16PartsPerTenThousand <= 10000, ("%u\n", u16PartsPerTenThousand));
+        ssmR3DataWrite(pSSM, &u16PartsPerTenThousand, sizeof(u16PartsPerTenThousand));
+
+        rc = ssmR3DataFlushBuffer(pSSM); /* will return SSMHANDLE::rc if it is set */
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Write the termination record and flush the compression stream.
+             */
+            SSMRECTERM TermRec;
+            TermRec.u8TypeAndFlags   = SSM_REC_FLAGS_FIXED | SSM_REC_FLAGS_IMPORTANT | SSM_REC_TYPE_TERM;
+            TermRec.cbRec            = sizeof(TermRec) - 2;
+            if (pSSM->Strm.fChecksummed)
+            {
+                TermRec.fFlags       = SSMRECTERM_FLAGS_CRC32;
+                TermRec.u32StreamCRC = RTCrc32Finish(RTCrc32Process(ssmR3StrmCurCRC(&pSSM->Strm), &TermRec, 2));
+            }
+            else
+            {
+                TermRec.fFlags       = 0;
+                TermRec.u32StreamCRC = 0;
+            }
+            TermRec.cbUnit           = pSSM->offUnit + sizeof(TermRec);
+            rc = ssmR3DataWriteRaw(pSSM, &TermRec, sizeof(TermRec));
+            if (RT_SUCCESS(rc))
+                rc = ssmR3DataWriteFinish(pSSM);
+            if (RT_SUCCESS(rc))
+            {
+                pSSM->enmOp = enmSavedState;
+                return rc;
+            }
+        }
+    }
+
+    LogRel(("SSM: Failed to write live control unit. rc=%Rrc\n", rc));
+    if (RT_SUCCESS_NP(pSSM->rc))
+        pSSM->rc = rc;
+    pSSM->enmOp = enmSavedState;
+    return rc;
+}
+
+
+/**
  * Do the pfnSaveDone run.
  *
  * @returns VBox status code (pSSM->rc).
@@ -4337,6 +4478,30 @@ static int ssmR3SaveDoFinalization(PVM pVM, PSSMHANDLE pSSM)
 
 
 /**
+ * Works the progress calculation during the exec part of a live save.
+ *
+ * @param   pSSM        The SSM handle.
+ * @param   iUnit       The current unit number.
+ */
+static void ssmR3ProgressByUnit(PSSMHANDLE pSSM, uint32_t iUnit)
+{
+    if (pSSM->fLiveSave)
+    {
+        unsigned    uPctExec = iUnit * 100 / pSSM->pVM->ssm.s.cUnits;
+        unsigned    cPctExec = 100 - pSSM->uPercentDone - pSSM->uPercentPrepare - pSSM->uPercentLive;
+        long double lrdPct   = (long double)uPctExec * cPctExec / 100 + pSSM->uPercentPrepare + pSSM->uPercentLive;
+        unsigned    uPct     = (unsigned)lrdPct;
+        if (uPct != pSSM->uPercent)
+        {
+            ssmR3LiveControlEmit(pSSM, lrdPct, SSM_PASS_FINAL);
+            pSSM->uPercent =  uPct;
+            pSSM->pfnProgress(pSSM->pVM, uPct, pSSM->pvUser);
+        }
+    }
+}
+
+
+/**
  * Do the pfnSaveExec run.
  *
  * @returns VBox status code (pSSM->rc).
@@ -4349,18 +4514,20 @@ static int ssmR3SaveDoExecRun(PVM pVM, PSSMHANDLE pSSM)
     AssertRC(pSSM->rc);
     pSSM->rc = VINF_SUCCESS;
     pSSM->enmOp = SSMSTATE_SAVE_EXEC;
-    for (PSSMUNIT pUnit = pVM->ssm.s.pHead; pUnit; pUnit = pUnit->pNext)
+    unsigned iUnit = 0;
+    for (PSSMUNIT pUnit = pVM->ssm.s.pHead; pUnit; pUnit = pUnit->pNext, iUnit++)
     {
         /*
          * Not all unit have a callback. Skip those which don't and
          * make sure to keep the progress indicator up to date.
          */
+        ssmR3ProgressByUnit(pSSM, iUnit);
         pSSM->offEstUnitEnd += pUnit->cbGuess;
         if (!pUnit->u.Common.pfnSaveExec)
         {
             pUnit->fCalled = true;
             if (pUnit->cbGuess)
-                ssmR3Progress(pSSM, pSSM->offEstUnitEnd - pSSM->offEst);
+                ssmR3ProgressByByte(pSSM, pSSM->offEstUnitEnd - pSSM->offEst);
             continue;
         }
         pUnit->offStream = ssmR3StrmTell(&pSSM->Strm);
@@ -4462,13 +4629,14 @@ static int ssmR3SaveDoExecRun(PVM pVM, PSSMHANDLE pSSM)
         /*
          * Advance the progress indicator to the end of the current unit.
          */
-        ssmR3Progress(pSSM, pSSM->offEstUnitEnd - pSSM->offEst);
+        ssmR3ProgressByByte(pSSM, pSSM->offEstUnitEnd - pSSM->offEst);
     } /* for each unit */
-
+    ssmR3ProgressByUnit(pSSM, pVM->ssm.s.cUnits);
 
     /* (progress should be pending 99% now) */
-    AssertMsg(   pSSM->uPercent == (101 - pSSM->uPercentDone)
-              || pSSM->fLiveSave, ("%d\n", pSSM->uPercent));
+    AssertMsg(   pSSM->uPercent == 101 - pSSM->uPercentDone
+              || pSSM->uPercent == 100 - pSSM->uPercentDone,
+              ("%d\n", pSSM->uPercent));
     return VINF_SUCCESS;
 }
 
@@ -4527,8 +4695,8 @@ static int ssmR3SaveDoPrepRun(PVM pVM, PSSMHANDLE pSSM)
      * Work the progress indicator if we got one.
      */
     if (pSSM->pfnProgress)
-        pSSM->pfnProgress(pVM, pSSM->uPercentPrepare-1, pSSM->pvUser);
-    pSSM->uPercent = pSSM->uPercentPrepare;
+        pSSM->pfnProgress(pVM, pSSM->uPercentPrepare + pSSM->uPercentLive - 1, pSSM->pvUser);
+    pSSM->uPercent = pSSM->uPercentPrepare + pSSM->uPercentLive;
 
     return VINF_SUCCESS;
 }
@@ -4618,7 +4786,7 @@ static int ssmR3WriteHeaderAndClearPerUnitData(PVM pVM, PSSMHANDLE pSSM)
     FileHdr.u16VerMajor  = VBOX_VERSION_MAJOR;
     FileHdr.u16VerMinor  = VBOX_VERSION_MINOR;
     FileHdr.u32VerBuild  = VBOX_VERSION_BUILD;
-    FileHdr.u32SvnRev    = VMMGetSvnRev(),
+    FileHdr.u32SvnRev    = VMMGetSvnRev();
     FileHdr.cHostBits    = HC_ARCH_BITS;
     FileHdr.cbGCPhys     = sizeof(RTGCPHYS);
     FileHdr.cbGCPtr      = sizeof(RTGCPTR);
@@ -4686,8 +4854,10 @@ static int ssmR3SaveDoCreateFile(PVM pVM, const char *pszFilename, PCSSMSTRMOPS 
     pSSM->cbEstTotal                = 0;
     pSSM->offEst                    = 0;
     pSSM->offEstUnitEnd             = 0;
+    pSSM->uPercentLive              = 0;
     pSSM->uPercentPrepare           = 0;
     pSSM->uPercentDone              = 0;
+    pSSM->uReportedLivePercent      = 0;
     pSSM->pszFilename               = pszFilename;
     pSSM->u.Write.offDataBuffer     = 0;
     pSSM->u.Write.cMsMaxDowntime    = UINT32_MAX;
@@ -4715,14 +4885,18 @@ static int ssmR3SaveDoCreateFile(PVM pVM, const char *pszFilename, PCSSMSTRMOPS 
  * @returns VBox status.
  *
  * @param   pVM             The VM handle.
- * @param   pszFilename     Name of the file to save the state in.
+ * @param   pszFilename     Name of the file to save the state in. NULL if pStreamOps is used.
+ * @param   pStreamOps      The stream method table. NULL if pszFilename is
+ *                          used.
+ * @param   pvStreamOpsUser The user argument to the stream methods.
  * @param   enmAfter        What is planned after a successful save operation.
  * @param   pfnProgress     Progress callback. Optional.
  * @param   pvUser          User argument for the progress callback.
  *
  * @thread  EMT
  */
-VMMR3DECL(int) SSMR3Save(PVM pVM, const char *pszFilename, SSMAFTER enmAfter, PFNVMPROGRESS pfnProgress, void *pvUser)
+VMMR3DECL(int) SSMR3Save(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
+                         SSMAFTER enmAfter, PFNVMPROGRESS pfnProgress, void *pvUser)
 {
     LogFlow(("SSMR3Save: pszFilename=%p:{%s} enmAfter=%d pfnProgress=%p pvUser=%p\n", pszFilename, pszFilename, enmAfter, pfnProgress, pvUser));
     VM_ASSERT_EMT0(pVM);
@@ -4735,6 +4909,19 @@ VMMR3DECL(int) SSMR3Save(PVM pVM, const char *pszFilename, SSMAFTER enmAfter, PF
                     ("%d\n", enmAfter),
                     VERR_INVALID_PARAMETER);
 
+    AssertReturn(!pszFilename != !pStreamOps, VERR_INVALID_PARAMETER);
+    if (pStreamOps)
+    {
+        AssertReturn(pStreamOps->u32Version == SSMSTRMOPS_VERSION, VERR_INVALID_MAGIC);
+        AssertReturn(pStreamOps->u32EndVersion == SSMSTRMOPS_VERSION, VERR_INVALID_MAGIC);
+        AssertReturn(pStreamOps->pfnWrite, VERR_INVALID_PARAMETER);
+        AssertReturn(pStreamOps->pfnRead, VERR_INVALID_PARAMETER);
+        AssertReturn(pStreamOps->pfnSeek, VERR_INVALID_PARAMETER);
+        AssertReturn(pStreamOps->pfnTell, VERR_INVALID_PARAMETER);
+        AssertReturn(pStreamOps->pfnSize, VERR_INVALID_PARAMETER);
+        AssertReturn(pStreamOps->pfnClose, VERR_INVALID_PARAMETER);
+    }
+
     /*
      * Create the saved state file and handle.
      *
@@ -4742,12 +4929,14 @@ VMMR3DECL(int) SSMR3Save(PVM pVM, const char *pszFilename, SSMAFTER enmAfter, PF
      * so we reserve 20% for the 'Done' period.
      */
     PSSMHANDLE pSSM;
-    int rc = ssmR3SaveDoCreateFile(pVM, pszFilename, NULL /*pStreamOps*/, NULL /*pvStreamOpsUser*/,
+    int rc = ssmR3SaveDoCreateFile(pVM, pszFilename, pStreamOps, pvStreamOpsUser,
                                    enmAfter, pfnProgress, pvUser, &pSSM);
     if (RT_FAILURE(rc))
         return rc;
+    pSSM->uPercentLive    = 0;
     pSSM->uPercentPrepare = 20;
     pSSM->uPercentDone    = 2;
+    pSSM->fLiveSave       = false;
 
     /*
      * Write the saved state stream header and join paths with
@@ -4763,6 +4952,22 @@ VMMR3DECL(int) SSMR3Save(PVM pVM, const char *pszFilename, SSMAFTER enmAfter, PF
     }
 
     return ssmR3SaveDoClose(pVM, pSSM);
+}
+
+
+/**
+ * Used by PGM to report the completion percentage of the live stage during the
+ * vote run.
+ *
+ * @param   pSSM                The saved state handle.
+ * @param   uPercent            The completion percentage.
+ */
+VMMR3DECL(void) SSMR3HandleReportLivePercent(PSSMHANDLE pSSM, unsigned uPercent)
+{
+    AssertMsgReturnVoid(pSSM->enmOp == SSMSTATE_LIVE_VOTE, ("%d\n", pSSM->enmOp));
+    AssertReturnVoid(uPercent <= 100);
+    if (uPercent < pSSM->uReportedLivePercent)
+        pSSM->uReportedLivePercent = uPercent;
 }
 
 
@@ -4783,6 +4988,10 @@ static int ssmR3LiveDoVoteRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
     AssertRC(pSSM->rc);
     pSSM->rc = VINF_SUCCESS;
     pSSM->enmOp = SSMSTATE_LIVE_VOTE;
+
+    unsigned uPrevPrecent = pSSM->uReportedLivePercent;
+    pSSM->uReportedLivePercent = 101;
+
     for (PSSMUNIT pUnit = pVM->ssm.s.pHead; pUnit; pUnit = pUnit->pNext)
     {
         if (    pUnit->u.Common.pfnLiveVote
@@ -4836,7 +5045,31 @@ static int ssmR3LiveDoVoteRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
         }
     }
     if (rcRet == VINF_SUCCESS)
+    {
         LogRel(("SSM: Step 1 completed after pass %u.\n", uPass));
+        pSSM->uReportedLivePercent = 100;
+    }
+    else
+    {
+        /*
+         * Work the progress callback.
+         */
+        if (pSSM->uReportedLivePercent > 100)
+            pSSM->uReportedLivePercent = 0;
+        if (   pSSM->uReportedLivePercent != uPrevPrecent
+            && pSSM->pfnProgress
+            && pSSM->uPercentLive)
+        {
+            long double lrdPct = (long double)pSSM->uReportedLivePercent * pSSM->uPercentLive / 100;
+            unsigned    uPct   = (unsigned)lrdPct;
+            if (uPct != pSSM->uPercent)
+            {
+                ssmR3LiveControlEmit(pSSM, lrdPct, uPass);
+                pSSM->uPercent = uPct;
+                pSSM->pfnProgress(pVM, uPct, pSSM->pvUser);
+            }
+        }
+    }
     return rcRet;
 }
 
@@ -4995,7 +5228,7 @@ static int ssmR3DoLiveExecVoteLoop(PVM pVM, PSSMHANDLE pSSM)
     /*
      * The pass loop.
      *
-     * The number of interations is restricted for two reasons, first
+     * The number of iterations is restricted for two reasons, first
      * to make sure
      */
 #define SSM_MAX_PASSES  _1M
@@ -5206,7 +5439,8 @@ VMMR3_INT_DECL(int) SSMR3LiveSave(PVM pVM, uint32_t cMsMaxDowntime,
                                    enmAfter, pfnProgress, pvProgressUser, &pSSM);
     if (RT_FAILURE(rc))
         return rc;
-    pSSM->uPercentPrepare        = 20; /** @todo fix these. */
+    pSSM->uPercentLive           = 93;
+    pSSM->uPercentPrepare        = 2;
     pSSM->uPercentDone           = 2;
     pSSM->fLiveSave              = true;
     pSSM->u.Write.cMsMaxDowntime = cMsMaxDowntime;
@@ -5220,7 +5454,7 @@ VMMR3_INT_DECL(int) SSMR3LiveSave(PVM pVM, uint32_t cMsMaxDowntime,
     if (RT_SUCCESS(rc))
     {
         /*
-         * Return and let the requstor thread do the pfnLiveExec/Vote part
+         * Return and let the requestor thread do the pfnLiveExec/Vote part
          * via SSMR3SaveFinishLive
          */
         pSSM->enmOp = SSMSTATE_LIVE_STEP1;
@@ -5301,7 +5535,7 @@ static DECLCALLBACK(int) ssmR3ReadInV1(void *pvSSM, void *pvBuf, size_t cbBuf, s
             pSSM->cbUnitLeftV1 -= cbRead;
             if (pcbRead)
                 *pcbRead = cbRead;
-            ssmR3Progress(pSSM, cbRead);
+            ssmR3ProgressByByte(pSSM, cbRead);
             return VINF_SUCCESS;
         }
         return pSSM->rc = rc;
@@ -5414,7 +5648,7 @@ DECLINLINE(int) ssmR3DataReadV2Raw(PSSMHANDLE pSSM, void *pvBuf, size_t cbToRead
     if (RT_SUCCESS(rc))
     {
         pSSM->offUnit += cbToRead;
-        ssmR3Progress(pSSM, cbToRead);
+        ssmR3ProgressByByte(pSSM, cbToRead);
         return VINF_SUCCESS;
     }
 
@@ -5481,7 +5715,7 @@ static int ssmR3DataReadV2RawLzf(PSSMHANDLE pSSM, void *pvDst, size_t cbDecompr)
     if (pb)
     {
         pSSM->offUnit += cbCompr;
-        ssmR3Progress(pSSM, cbCompr);
+        ssmR3ProgressByByte(pSSM, cbCompr);
     }
     else
     {
@@ -5798,7 +6032,7 @@ static int ssmR3DataReadUnbufferedV2(PSSMHANDLE pSSM, void *pvBuf, size_t cbBuf)
                     return rc;
                 if (cbToRead > cbBuf)
                 {
-                    /* Spill the remainer into the data buffer. */
+                    /* Spill the remainder into the data buffer. */
                     memset(&pSSM->u.Read.abDataBuffer[0], 0, cbToRead - cbBuf);
                     pSSM->u.Read.cbDataBuffer  = cbToRead - (uint32_t)cbBuf;
                     pSSM->u.Read.offDataBuffer = 0;
@@ -6669,7 +6903,7 @@ VMMR3DECL(int) SSMR3GetGCPhys(PSSMHANDLE pSSM, PRTGCPHYS pGCPhys)
  * @remarks This interface only works with saved state version 1.1, if the
  *          format isn't 1.1 the call will be ignored.
  */
-VMMR3_INT_DECL(int) SSMR3SetGCPtrSize(PSSMHANDLE pSSM, unsigned cbGCPtr)
+VMMR3_INT_DECL(int) SSMR3HandleSetGCPtrSize(PSSMHANDLE pSSM, unsigned cbGCPtr)
 {
     Assert(cbGCPtr == sizeof(RTGCPTR32) || cbGCPtr == sizeof(RTGCPTR64));
     if (!pSSM->u.Read.fFixedGCPtrSize)
@@ -7397,24 +7631,26 @@ static int ssmR3OpenFile(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
     /*
      * Initialize the handle.
      */
-    pSSM->pVM               = pVM;
-    pSSM->enmOp             = SSMSTATE_INVALID;
-    pSSM->enmAfter          = SSMAFTER_INVALID;
-    pSSM->fCancelled        = SSMHANDLE_OK;
-    pSSM->rc                = VINF_SUCCESS;
-    pSSM->cbUnitLeftV1      = 0;
-    pSSM->offUnit           = UINT64_MAX;
-    pSSM->fLiveSave         = false;
-    pSSM->pfnProgress       = NULL;
-    pSSM->pvUser            = NULL;
-    pSSM->uPercent          = 0;
-    pSSM->offEstProgress    = 0;
-    pSSM->cbEstTotal        = 0;
-    pSSM->offEst            = 0;
-    pSSM->offEstUnitEnd     = 0;
-    pSSM->uPercentPrepare   = 5;
-    pSSM->uPercentDone      = 2;
-    pSSM->pszFilename       = pszFilename;
+    pSSM->pVM                   = pVM;
+    pSSM->enmOp                 = SSMSTATE_INVALID;
+    pSSM->enmAfter              = SSMAFTER_INVALID;
+    pSSM->fCancelled            = SSMHANDLE_OK;
+    pSSM->rc                    = VINF_SUCCESS;
+    pSSM->cbUnitLeftV1          = 0;
+    pSSM->offUnit               = UINT64_MAX;
+    pSSM->fLiveSave             = false;
+    pSSM->pfnProgress           = NULL;
+    pSSM->pvUser                = NULL;
+    pSSM->uPercent              = 0;
+    pSSM->offEstProgress        = 0;
+    pSSM->cbEstTotal            = 0;
+    pSSM->offEst                = 0;
+    pSSM->offEstUnitEnd         = 0;
+    pSSM->uPercentLive          = 0;
+    pSSM->uPercentPrepare       = 5;
+    pSSM->uPercentDone          = 2;
+    pSSM->uReportedLivePercent  = 0;
+    pSSM->pszFilename           = pszFilename;
 
     pSSM->u.Read.pZipDecompV1   = NULL;
     pSSM->u.Read.uFmtVerMajor   = UINT32_MAX;
@@ -7557,7 +7793,7 @@ static int ssmR3LoadExecV1(PVM pVM, PSSMHANDLE pSSM)
                 {
                     Log(("SSM: EndOfFile: offset %#9llx size %9d\n", offUnit, UnitHdr.cbUnit));
                     /* Complete the progress bar (pending 99% afterwards). */
-                    ssmR3Progress(pSSM, pSSM->cbEstTotal - pSSM->offEst);
+                    ssmR3ProgressByByte(pSSM, pSSM->cbEstTotal - pSSM->offEst);
                     break;
                 }
                 LogRel(("SSM: Invalid unit magic at offset %#llx (%lld), '%.*s'!\n",
@@ -7651,7 +7887,7 @@ static int ssmR3LoadExecV1(PVM pVM, PSSMHANDLE pSSM)
                             {
                                 Log(("SSM: Unit '%s' left %lld bytes unread!\n", pszName, -i64Diff));
                                 rc = ssmR3StrmSkipTo(&pSSM->Strm, offUnit + UnitHdr.cbUnit);
-                                ssmR3Progress(pSSM, offUnit + UnitHdr.cbUnit - pSSM->offEst);
+                                ssmR3ProgressByByte(pSSM, offUnit + UnitHdr.cbUnit - pSSM->offEst);
                             }
                             else if (i64Diff > 0)
                             {
@@ -7848,8 +8084,7 @@ static int ssmR3LoadExecV2(PVM pVM, PSSMHANDLE pSSM)
              * Complete the progress bar (pending 99% afterwards) and RETURN.
              */
             Log(("SSM: Unit at %#9llx: END UNIT\n", offUnit));
-            ssmR3Progress(pSSM, pSSM->cbEstTotal - pSSM->offEst);
-
+            ssmR3ProgressByByte(pSSM, pSSM->cbEstTotal - pSSM->offEst);
             return ssmR3LoadDirectoryAndFooter(pSSM);
         }
         AssertLogRelMsgReturn(UnitHdr.cbName > 1, ("Unit at %#llx (%lld): No name\n", offUnit, offUnit), VERR_SSM_INTEGRITY);
@@ -8002,9 +8237,12 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
         ssmR3StrmStartIoThread(&Handle.Strm);
         ssmR3SetCancellable(pVM, &Handle, true);
 
-        Handle.enmAfter     = enmAfter;
-        Handle.pfnProgress  = pfnProgress;
-        Handle.pvUser       = pvProgressUser;
+        Handle.enmAfter         = enmAfter;
+        Handle.pfnProgress      = pfnProgress;
+        Handle.pvUser           = pvProgressUser;
+        Handle.uPercentLive     = 0;
+        Handle.uPercentPrepare  = 2;
+        Handle.uPercentDone     = 2;
 
         if (Handle.u.Read.u16VerMajor)
             LogRel(("SSM: File header: Format %u.%u, VirtualBox Version %u.%u.%u r%u, %u-bit host, cbGCPhys=%u, cbGCPtr=%u\n",
@@ -8068,9 +8306,9 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
             }
         }
 
-        /* pending 2% */
+        /* end of prepare % */
         if (pfnProgress)
-            pfnProgress(pVM, Handle.uPercentPrepare-1, pvProgressUser);
+            pfnProgress(pVM, Handle.uPercentPrepare - 1, pvProgressUser);
         Handle.uPercent      = Handle.uPercentPrepare;
         Handle.cbEstTotal    = Handle.u.Read.cbLoadFile;
         Handle.offEstUnitEnd = Handle.u.Read.cbLoadFile;
@@ -8091,7 +8329,7 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
             /* (progress should be pending 99% now) */
             AssertMsg(   Handle.fLiveSave
                       || RT_FAILURE(rc)
-                      || Handle.uPercent == (101-Handle.uPercentDone), ("%d\n", Handle.uPercent));
+                      || Handle.uPercent == 101 - Handle.uPercentDone, ("%d\n", Handle.uPercent));
         }
 
         /*
@@ -8388,7 +8626,7 @@ VMMR3DECL(int) SSMR3Close(PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pSSM                The SSM handle.
  * @param   pszUnit             The unit to seek to.
- * @param   iInstance           The particulart insance we seek.
+ * @param   iInstance           The particular instance we seek.
  * @param   piVersion           Where to store the unit version number.
  */
 static int ssmR3FileSeekV1(PSSMHANDLE pSSM, const char *pszUnit, uint32_t iInstance, uint32_t *piVersion)
@@ -8456,7 +8694,7 @@ static int ssmR3FileSeekV1(PSSMHANDLE pSSM, const char *pszUnit, uint32_t iInsta
  * @param   cDirEntries         The number of directory entries.
  * @param   offDir              The directory offset in the file.
  * @param   pszUnit             The unit to seek to.
- * @param   iInstance           The particulart insance we seek.
+ * @param   iInstance           The particular instance we seek.
  * @param   piVersion           Where to store the unit version number.
  */
 static int ssmR3FileSeekSubV2(PSSMHANDLE pSSM, PSSMFILEDIR pDir, size_t cbDir, uint32_t cDirEntries, uint64_t offDir,
@@ -8543,7 +8781,7 @@ static int ssmR3FileSeekSubV2(PSSMHANDLE pSSM, PSSMFILEDIR pDir, size_t cbDir, u
  * @returns VBox status code.
  * @param   pSSM                The SSM handle.
  * @param   pszUnit             The unit to seek to.
- * @param   iInstance           The particulart insance we seek.
+ * @param   iInstance           The particular instance we seek.
  * @param   piVersion           Where to store the unit version number.
  */
 static int ssmR3FileSeekV2(PSSMHANDLE pSSM, const char *pszUnit, uint32_t iInstance, uint32_t *piVersion)
@@ -8732,7 +8970,7 @@ VMMR3DECL(uint32_t) SSMR3HandleMaxDowntime(PSSMHANDLE pSSM)
  * @param   pSSM            The saved state handle.
  *
  * @remarks This method should ONLY be used for hacks when loading OLDER saved
- *          state that have data layout or semantical changes without the
+ *          state that have data layout or semantic changes without the
  *          compulsory version number change.
  */
 VMMR3DECL(uint32_t) SSMR3HandleHostBits(PSSMHANDLE pSSM)
@@ -8750,7 +8988,7 @@ VMMR3DECL(uint32_t) SSMR3HandleHostBits(PSSMHANDLE pSSM)
  * @param   pSSM            The saved state handle.
  *
  * @remarks This method should ONLY be used for hacks when loading OLDER saved
- *          state that have data layout or semantical changes without the
+ *          state that have data layout or semantic changes without the
  *          compulsory version number change.  Be VERY careful with this
  *          function since it will return different values for OSE builds!
  */
@@ -8775,7 +9013,7 @@ VMMR3DECL(uint32_t)     SSMR3HandleRevision(PSSMHANDLE pSSM)
  * @param   pSSM            The saved state handle.
  *
  * @remarks This method should ONLY be used for hacks when loading OLDER saved
- *          state that have data layout or semantical changes without the
+ *          state that have data layout or semantic changes without the
  *          compulsory version number change.
  */
 VMMR3DECL(uint32_t)     SSMR3HandleVersion(PSSMHANDLE pSSM)
@@ -8803,7 +9041,7 @@ VMMR3DECL(uint32_t)     SSMR3HandleVersion(PSSMHANDLE pSSM)
  * @param   pSSM            The saved state handle.
  *
  * @remarks This method should ONLY be used for hacks when loading OLDER saved
- *          state that have data layout or semantical changes without the
+ *          state that have data layout or semantic changes without the
  *          compulsory version number change.
  */
 VMMR3DECL(const char *) SSMR3HandleHostOSAndArch(PSSMHANDLE pSSM)

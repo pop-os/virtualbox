@@ -1,4 +1,4 @@
-/* $Id: QIArrowButtonSwitch.cpp $ */
+/* $Id: QIArrowButtonSwitch.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -18,8 +18,8 @@
  */
 
 /* VBox includes */
-#include "VBoxGlobal.h"
 #include "QIArrowButtonSwitch.h"
+#include "UIIconPool.h"
 
 /* Qt includes */
 #include <QKeyEvent>
@@ -27,7 +27,7 @@
 
 /** @class QIArrowButtonSwitch
  *
- *  The QIArrowButtonSwitch class is an arrow tool-botton with text-label,
+ *  The QIArrowButtonSwitch class is an arrow tool-button with text-label,
  *  used as collaps/expand switch in QIMessageBox class.
  *
  */
@@ -55,8 +55,8 @@ void QIArrowButtonSwitch::buttonClicked()
 
 void QIArrowButtonSwitch::updateIcon()
 {
-    mButton->setIcon (VBoxGlobal::iconSet (mIsExpanded ?
-                      ":/arrow_down_10px.png" : ":/arrow_right_10px.png"));
+    mButton->setIcon(UIIconPool::iconSet(mIsExpanded ?
+                                         ":/arrow_down_10px.png" : ":/arrow_right_10px.png"));
 }
 
 bool QIArrowButtonSwitch::eventFilter (QObject *aObject, QEvent *aEvent)

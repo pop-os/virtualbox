@@ -1,6 +1,6 @@
-/* $Id: pathhost-generic.cpp $ */
+/* $Id: pathhost-generic.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
- * IPRT - Path Convertions, generic pass through.
+ * IPRT - Path Conversions, generic pass through.
  */
 
 /*
@@ -75,6 +75,16 @@ int rtPathFromNativeCopy(char *pszPath, size_t cbPath, const char *pszNativePath
     int rc = RTStrValidateEncodingEx(pszNativePath, RTSTR_MAX, 0 /*fFlags*/);
     if (RT_SUCCESS(rc))
         rc = RTStrCopy(pszPath, cbPath, pszNativePath);
+    NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
+    return rc;
+}
+
+
+int rtPathFromNativeDup(char **ppszPath, const char *pszNativePath, const char *pszBasePath)
+{
+    int rc = RTStrValidateEncodingEx(pszNativePath, RTSTR_MAX, 0 /*fFlags*/);
+    if (RT_SUCCESS(rc))
+        rc = RTStrDupEx(ppszPath, pszNativePath);
     NOREF(pszBasePath); /* We don't query the FS for codeset preferences. */
     return rc;
 }

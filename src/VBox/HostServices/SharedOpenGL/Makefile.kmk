@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 33146 2010-10-15 10:34:58Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox HGCM Service.
 #
@@ -90,6 +90,9 @@ ifdef VBOX_WITH_XPCOM
  VBoxSharedCrOpenGL_LIBS += \
 	$(LIB_XPCOM)
 endif
+ifdef VBOX_WITH_CRHGSMI
+VBoxSharedCrOpenGL_DEFS += VBOX_WITH_CRHGSMI
+endif
 
 #
 # VBoxOGLcrserverlib
@@ -143,6 +146,9 @@ VBoxOGLcrserverlib_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/server_get.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_simpleget.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h
+ifdef VBOXCR_LOGFPS
+VBoxOGLcrserverlib_DEFS += VBOXCR_LOGFPS 
+endif	
 
 #
 # Generate files for VBoxOGLcrserverlib

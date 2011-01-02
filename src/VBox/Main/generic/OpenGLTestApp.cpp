@@ -1,4 +1,4 @@
-/* $Id: OpenGLTestApp.cpp $ */
+/* $Id: OpenGLTestApp.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
 /** @file
  * VBox host opengl support test application.
  */
@@ -165,7 +165,7 @@ static int vboxInitLogging(const char *pszFilename, bool bGenNameSuffix)
 //                       uHostRamMb, uHostRamAvailMb);
         /* the package type is interesting for Linux distributions */
         char szExecName[RTPATH_MAX];
-        char *pszExecName = RTProcGetExecutableName(szExecName, sizeof(szExecName));
+        char *pszExecName = RTProcGetExecutablePath(szExecName, sizeof(szExecName));
         RTLogRelLogger(loggerRelease, 0, ~0U,
                        "Executable: %s\n"
                        "Process ID: %u\n"

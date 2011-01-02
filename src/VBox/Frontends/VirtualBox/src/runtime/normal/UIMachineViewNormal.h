@@ -28,13 +28,14 @@ class UIMachineViewNormal : public UIMachineView
 
 protected:
 
-    /* Normal machine view constructor/destructor: */
+    /* Normal machine-view constructor: */
     UIMachineViewNormal(  UIMachineWindow *pMachineWindow
-                        , VBoxDefs::RenderMode renderMode
+                        , ulong uScreenId
 #ifdef VBOX_WITH_VIDEOHWACCEL
                         , bool bAccelerate2DVideo
 #endif
-                        , ulong uMonitor);
+    );
+    /* Normal machine-view destructor: */
     virtual ~UIMachineViewNormal();
 
 private slots:
@@ -48,6 +49,12 @@ private slots:
     /* Watch dog for desktop resizes: */
     void sltDesktopResized();
 
+#ifdef Q_WS_X11
+    /* Slot to perform synchronized geometry normalization.
+     * Currently its only required under X11 as of its async nature: */
+    virtual void sltNormalizeGeometry() { normalizeGeometry(true); }
+#endif /* Q_WS_X11 */
+
 private:
 
     /* Event handlers: */
@@ -55,6 +62,7 @@ private:
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare helpers: */
+    void prepareCommon();
     void prepareFilters();
     void prepareConnections();
     void prepareConsoleConnections();
@@ -65,6 +73,7 @@ private:
     //void cleanupConsoleConnections() {}
     //void prepareConnections() {}
     //void cleanupFilters() {}
+    //void cleanupCommon() {}
 
     /* Hidden setters: */
     void setGuestAutoresizeEnabled(bool bEnabled);

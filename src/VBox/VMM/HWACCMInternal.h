@@ -1,4 +1,4 @@
-/* $Id: HWACCMInternal.h $ */
+/* $Id: HWACCMInternal.h 34184 2010-11-18 21:19:11Z vboxsync $ */
 /** @file
  * HWACCM - Internal header file.
  */
@@ -24,6 +24,7 @@
 #include <VBox/stam.h>
 #include <VBox/dis.h>
 #include <VBox/hwaccm.h>
+#include <VBox/hwacc_vmx.h>
 #include <VBox/pgm.h>
 #include <VBox/cpum.h>
 #include <iprt/memobj.h>
@@ -80,7 +81,7 @@ RT_C_DECLS_BEGIN
 #define HWACCM_CHANGED_GUEST_IDTR               RT_BIT(5)
 #define HWACCM_CHANGED_GUEST_LDTR               RT_BIT(6)
 #define HWACCM_CHANGED_GUEST_TR                 RT_BIT(7)
-#define HWACCM_CHANGED_GUEST_SYSENTER_MSR       RT_BIT(8)
+#define HWACCM_CHANGED_GUEST_MSR                RT_BIT(8)
 #define HWACCM_CHANGED_GUEST_SEGMENT_REGS       RT_BIT(9)
 #define HWACCM_CHANGED_GUEST_DEBUG              RT_BIT(10)
 #define HWACCM_CHANGED_HOST_CONTEXT             RT_BIT(11)
@@ -93,7 +94,7 @@ RT_C_DECLS_BEGIN
                                             |   HWACCM_CHANGED_GUEST_IDTR         \
                                             |   HWACCM_CHANGED_GUEST_LDTR         \
                                             |   HWACCM_CHANGED_GUEST_TR           \
-                                            |   HWACCM_CHANGED_GUEST_SYSENTER_MSR \
+                                            |   HWACCM_CHANGED_GUEST_MSR          \
                                             |   HWACCM_CHANGED_GUEST_FPU          \
                                             |   HWACCM_CHANGED_GUEST_DEBUG        \
                                             |   HWACCM_CHANGED_HOST_CONTEXT)
@@ -106,7 +107,7 @@ RT_C_DECLS_BEGIN
                                             |   HWACCM_CHANGED_GUEST_IDTR         \
                                             |   HWACCM_CHANGED_GUEST_LDTR         \
                                             |   HWACCM_CHANGED_GUEST_TR           \
-                                            |   HWACCM_CHANGED_GUEST_SYSENTER_MSR \
+                                            |   HWACCM_CHANGED_GUEST_MSR          \
                                             |   HWACCM_CHANGED_GUEST_DEBUG        \
                                             |   HWACCM_CHANGED_GUEST_FPU)
 
@@ -123,7 +124,7 @@ RT_C_DECLS_BEGIN
 #define HWACCM_VMX_TRAP_MASK                RT_BIT(X86_XCPT_DB) | RT_BIT(X86_XCPT_NM) | RT_BIT(X86_XCPT_PF)
 #define HWACCM_SVM_TRAP_MASK                RT_BIT(X86_XCPT_NM) | RT_BIT(X86_XCPT_PF)
 #endif
-/* All exceptions have to be intercept in emulated real-mode (minues NM & PF as they are always intercepted. */
+/* All exceptions have to be intercept in emulated real-mode (minus NM & PF as they are always intercepted. */
 #define HWACCM_VMX_TRAP_MASK_REALMODE       RT_BIT(X86_XCPT_DE) | RT_BIT(X86_XCPT_DB) | RT_BIT(X86_XCPT_NMI) | RT_BIT(X86_XCPT_BP) | RT_BIT(X86_XCPT_OF) | RT_BIT(X86_XCPT_BR) | RT_BIT(X86_XCPT_UD) | RT_BIT(X86_XCPT_DF) | RT_BIT(X86_XCPT_CO_SEG_OVERRUN) | RT_BIT(X86_XCPT_TS) | RT_BIT(X86_XCPT_NP) | RT_BIT(X86_XCPT_SS) | RT_BIT(X86_XCPT_GP) | RT_BIT(X86_XCPT_MF) | RT_BIT(X86_XCPT_AC) | RT_BIT(X86_XCPT_MC) | RT_BIT(X86_XCPT_XF)
 /** @} */
 
@@ -319,7 +320,8 @@ typedef struct HWACCM
 
     struct
     {
-        /** Set by the ring-0 driver to indicate VMX is supported by the CPU. */
+        /** Set by the ring-0 side of HWACCM to indicate VMX is supported by the
+         *  CPU. */
         bool                        fSupported;
 
         /** Set when we've enabled VMX. */
@@ -418,7 +420,8 @@ typedef struct HWACCM
 
     struct
     {
-        /** Set by the ring-0 driver to indicate SVM is supported by the CPU. */
+        /** Set by the ring-0 side of HWACCM to indicate SVM is supported by the
+         *  CPU. */
         bool                        fSupported;
         /** Set when we've enabled SVM. */
         bool                        fEnabled;
@@ -743,7 +746,7 @@ typedef struct HWACCMCPU
         } s;
     } PendingIO;
 
-    /** Currenty shadow paging mode. */
+    /** Currently shadow paging mode. */
     PGMMODE                 enmShadowMode;
 
     /** The CPU ID of the CPU currently owning the VMCS. Set in
@@ -858,6 +861,13 @@ typedef struct HWACCMCPU
     STAMCOUNTER             StatDRxContextSwitch;
     STAMCOUNTER             StatDRxIOCheck;
 
+    STAMCOUNTER             StatLoadMinimal;
+    STAMCOUNTER             StatLoadFull;
+
+#if HC_ARCH_BITS == 32 && defined(VBOX_ENABLE_64_BITS_GUESTS) && !defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
+    STAMCOUNTER             StatFpu64SwitchBack;
+    STAMCOUNTER             StatDebug64SwitchBack;
+#endif
 
 #ifdef VBOX_WITH_STATISTICS
     R3PTRTYPE(PSTAMCOUNTER) paStatExitReason;

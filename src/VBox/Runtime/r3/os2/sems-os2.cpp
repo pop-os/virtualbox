@@ -1,4 +1,4 @@
-/* $Id: sems-os2.cpp $ */
+/* $Id: sems-os2.cpp 33393 2010-10-24 16:17:00Z vboxsync $ */
 /** @file
  * IPRT - Semaphores, OS/2.
  */
@@ -51,7 +51,8 @@ RTDECL(int)  RTSemEventCreate(PRTSEMEVENT phEventSem)
 
 RTDECL(int)  RTSemEventCreateEx(PRTSEMEVENT phEventSem, uint32_t fFlags, RTLOCKVALCLASS hClass, const char *pszNameFmt, ...)
 {
-    AssertReturn(!(fFlags & ~RTSEMEVENT_FLAGS_NO_LOCK_VAL), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(RTSEMEVENT_FLAGS_NO_LOCK_VAL | RTSEMEVENT_FLAGS_BOOTSTRAP_HACK), VERR_INVALID_PARAMETER);
+    Assert(!(fFlags & RTSEMEVENT_FLAGS_BOOTSTRAP_HACK) || (fFlags & RTSEMEVENT_FLAGS_NO_LOCK_VAL));
 
     /*
      * Create the semaphore.
@@ -343,6 +344,14 @@ RTDECL(int)  RTSemMutexRequestNoResume(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMilli
     }
 }
 
+RTDECL(int) RTSemMutexRequestNoResumeDebug(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMillies, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+//    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_DEBUG_API();
+//    return rtSemMutexRequestNoResume(hMutexSem, cMillies, &SrcPos);
+    return RTSemMutexRequestNoResume(hMutexSem, cMillies);
+}
+
+
 RTDECL(int)  RTSemMutexRelease(RTSEMMUTEX hMutexSem)
 {
     /*
@@ -356,7 +365,7 @@ RTDECL(int)  RTSemMutexRelease(RTSEMMUTEX hMutexSem)
 }
 
 
-RTDECL(bool) RTSemMutexIsOwned(RTSEMMUTEX hMutexSem);
+RTDECL(bool) RTSemMutexIsOwned(RTSEMMUTEX hMutexSem)
 {
     /*
      * Unlock mutex semaphore.

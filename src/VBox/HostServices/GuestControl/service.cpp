@@ -1,4 +1,4 @@
-/* $Id: service.cpp $ */
+/* $Id: service.cpp 35035 2010-12-13 16:49:53Z vboxsync $ */
 /** @file
  * Guest Control Service: Controlling the guest.
  */
@@ -27,7 +27,7 @@
  * - Client: A client (e.g. VBoxService) running inside the guest OS waiting for
  *           new host commands to perform. There can be multiple clients connected
  *           to a service. A client is represented by its HGCM client ID.
- * - Context ID: A (almost) unique ID automatically generated on the host (Main API)
+ * - Context ID: An (almost) unique ID automatically generated on the host (Main API)
  *               to not only distinguish clients but individual requests. Because
  *               the host does not know anything about connected clients it needs
  *               an indicator which it can refer to later. This context ID gets
@@ -41,7 +41,7 @@
  * processed, these clients will be set into a deferred state (that is being blocked
  * to return until a new command is available).
  *
- * If a client needs to inform the host that something happend, it can send a
+ * If a client needs to inform the host that something happened, it can send a
  * message to a low level HGCM callback registered in Main. This callback contains
  * the actual data as well as the context ID to let the host do the next necessary
  * steps for this context. This context ID makes it possible to wait for an event
@@ -80,7 +80,7 @@ namespace guestControl {
 /**
  * Structure for holding all clients with their
  * generated host contexts. This is necessary for
- * mainting the relationship between a client and its context IDs.
+ * maintaining the relationship between a client and its context IDs.
  */
 struct ClientContexts
 {
@@ -89,7 +89,7 @@ struct ClientContexts
     /** The list of contexts a client is assigned to. */
     std::list< uint32_t > mContextList;
 
-    /** The normal contructor. */
+    /** The normal constructor. */
     ClientContexts(uint32_t aClientID)
                    : mClientID(aClientID) {}
 };
@@ -112,9 +112,9 @@ struct ClientWaiter
     /** Number of parameters */
     uint32_t mNumParms;
 
-    /** The standard contructor. */
+    /** The standard constructor. */
     ClientWaiter() : mClientID(0), mHandle(0), mParms(NULL), mNumParms(0) {}
-    /** The normal contructor. */
+    /** The normal constructor. */
     ClientWaiter(uint32_t aClientID, VBOXHGCMCALLHANDLE aHandle,
               VBOXHGCMSVCPARM aParms[], uint32_t cParms)
               : mClientID(aClientID), mHandle(aHandle), mParms(aParms), mNumParms(cParms) {}
@@ -132,11 +132,14 @@ struct HostCmd
     /** The context ID this command belongs to. Will be extracted
       * from the HGCM parameters. */
     uint32_t mContextID;
+    /** How many times the host service has tried to deliver this
+     *  command to the guest. */
+    uint32_t mTries;
     /** Dynamic structure for holding the HGCM parms */
     VBOXGUESTCTRPARAMBUFFER mParmBuf;
 
-    /** The standard contructor. */
-    HostCmd() : mContextID(0) {}
+    /** The standard constructor. */
+    HostCmd() : mContextID(0), mTries(0) {}
 };
 /** The host cmd list + iterator type */
 typedef std::list< HostCmd > HostCmdList;
@@ -146,7 +149,7 @@ typedef std::list< HostCmd >::const_iterator HostCmdListIterConst;
 /**
  * Class containing the shared information service functionality.
  */
-class Service : public stdx::non_copyable
+class Service : public iprt::non_copyable
 {
 private:
     /** Type definition for use in callback functions. */
@@ -166,12 +169,14 @@ private:
     HostCmdList mHostCmds;
     /** Client contexts list. */
     ClientContextsList mClientContextsList;
-
+    /** Number of connected clients. */
+    uint32_t mNumClients;
 public:
     explicit Service(PVBOXHGCMSVCHELPERS pHelpers)
         : mpHelpers(pHelpers)
         , mpfnHostCallback(NULL)
         , mpvHostData(NULL)
+        , mNumClients(0)
     {
     }
 
@@ -292,8 +297,15 @@ private:
 };
 
 
-/** @todo Write some nice doc headers! */
-/* Stores a HGCM request in an internal buffer (pEx). Needs to be freed later using execBufferFree(). */
+/**
+ * Stores a HGCM request in an internal buffer. Needs to be free'd using paramBufferFree().
+ *
+ * @return  IPRT status code.
+ * @param   pBuf                    Buffer to store the HGCM request into.
+ * @param   uMsg                    Message type.
+ * @param   cParms                  Number of parameters of HGCM request.
+ * @param   paParms                 Array of parameters of HGCM request.
+ */
 int Service::paramBufferAllocate(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     AssertPtr(pBuf);
@@ -360,7 +372,12 @@ int Service::paramBufferAllocate(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t uMsg, u
     return rc;
 }
 
-/* Frees a buffered HGCM request. */
+/**
+ * Frees a buffered HGCM request.
+ *
+ * @return  IPRT status code.
+ * @param   pBuf                    Parameter buffer to free.
+ */
 void Service::paramBufferFree(PVBOXGUESTCTRPARAMBUFFER pBuf)
 {
     AssertPtr(pBuf);
@@ -381,13 +398,22 @@ void Service::paramBufferFree(PVBOXGUESTCTRPARAMBUFFER pBuf)
     }
 }
 
-/* Assigns data from a buffered HGCM request to the current HGCM request. */
+/**
+ * Assigns data from a buffered HGCM request to the current HGCM request.
+ *
+ * @return  IPRT status code.
+ * @param   pBuf                    Parameter buffer to assign.
+ * @param   cParms                  Number of parameters the HGCM request can handle.
+ * @param   paParms                 Array of parameters of HGCM request to fill the data into.
+ */
 int Service::paramBufferAssign(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     AssertPtr(pBuf);
     int rc = VINF_SUCCESS;
     if (cParms != pBuf->uParmCount)
     {
+        LogFlowFunc(("Parameter count does not match (%u (buffer), %u (guest))\n",
+                     pBuf->uParmCount, cParms));
         rc = VERR_INVALID_PARAMETER;
     }
     else
@@ -407,9 +433,14 @@ int Service::paramBufferAssign(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t cParms, V
                     break;
 
                 case VBOX_HGCM_SVC_PARM_PTR:
-                    memcpy(paParms[i].u.pointer.addr,
-                           pBuf->pParms[i].u.pointer.addr,
-                           pBuf->pParms[i].u.pointer.size);
+                    if (paParms[i].u.pointer.size >= pBuf->pParms[i].u.pointer.size)
+                    {
+                        memcpy(paParms[i].u.pointer.addr,
+                               pBuf->pParms[i].u.pointer.addr,
+                               pBuf->pParms[i].u.pointer.size);
+                    }
+                    else
+                        rc = VERR_BUFFER_OVERFLOW;
                     break;
 
                 default:
@@ -420,15 +451,37 @@ int Service::paramBufferAssign(PVBOXGUESTCTRPARAMBUFFER pBuf, uint32_t cParms, V
     return rc;
 }
 
+/**
+ * Handles a client which just connected.
+ *
+ * @return  IPRT status code.
+ * @param   u32ClientID
+ * @param   pvClient
+ */
 int Service::clientConnect(uint32_t u32ClientID, void *pvClient)
 {
     LogFlowFunc(("New client (%ld) connected\n", u32ClientID));
+    if (mNumClients < UINT32_MAX)
+        mNumClients++;
+    else
+        AssertMsgFailed(("Max. number of clients reached\n"));
     return VINF_SUCCESS;
 }
 
+/**
+ * Handles a client which disconnected. This functiond does some
+ * internal cleanup as well as sends notifications to the host so
+ * that the host can do the same (if required).
+ *
+ * @return  IPRT status code.
+ * @param   u32ClientID             The client's ID of which disconnected.
+ * @param   pvClient                User data, not used at the moment.
+ */
 int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
 {
     LogFlowFunc(("Client (%ld) disconnected\n", u32ClientID));
+    Assert(mNumClients > 0);
+    mNumClients--;
 
     /*
      * Throw out all stale clients.
@@ -481,6 +534,15 @@ int Service::clientDisconnect(uint32_t u32ClientID, void *pvClient)
     return rc;
 }
 
+/**
+ * Sends a specified host command to a client.
+ *
+ * @return  IPRT status code.
+ * @param   pCmd                    Host comamnd to send.
+ * @param   callHandle              Call handle of the client to send the command to.
+ * @param   cParms                  Number of parameters.
+ * @param   paParms                 Array of parameters.
+ */
 int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     AssertPtr(pCmd);
@@ -506,9 +568,15 @@ int Service::sendHostCmdToGuest(HostCmd *pCmd, VBOXHGCMCALLHANDLE callHandle, ui
     return rc;
 }
 
-/*
+/**
  * Either fills in parameters from a pending host command into our guest context or
  * defer the guest call until we have something from the host.
+ *
+ * @return  IPRT status code.
+ * @param   u32ClientID                 The client's ID.
+ * @param   callHandle                  The client's call handle.
+ * @param   cParms                      Number of parameters.
+ * @param   paParms                     Array of parameters.
  */
 int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHandle,
                                  uint32_t cParms, VBOXHGCMSVCPARM paParms[])
@@ -564,13 +632,27 @@ int Service::retrieveNextHostCmd(uint32_t u32ClientID, VBOXHGCMCALLHANDLE callHa
              paramBufferFree(&curCmd.mParmBuf);
              mHostCmds.pop_front();
          }
+         else if (rc == VERR_BUFFER_OVERFLOW)
+         {
+             /* If the client understood the message but supplied too little buffer space
+              * don't send this message again and drop it after 3 unsuccessful attempts.
+              * The host then should take care of next actions (maybe retry it with a smaller buffer). */
+             if (++curCmd.mTries >= 3)
+             {
+                 paramBufferFree(&curCmd.mParmBuf);
+                 mHostCmds.pop_front();
+             }
+         }
     }
     return rc;
 }
 
-/*
+/**
  * Client asks itself (in another thread) to cancel all pending waits which are blocking the client
  * from shutting down / doing something else.
+ *
+ * @return  IPRT status code.
+ * @param   u32ClientID                 The client's ID.
  */
 int Service::cancelPendingWaits(uint32_t u32ClientID)
 {
@@ -582,8 +664,8 @@ int Service::cancelPendingWaits(uint32_t u32ClientID)
         {
             if (it->mNumParms >= 2)
             {
-                it->mParms[0].setUInt32(GETHOSTMSG_EXEC_HOST_CANCEL_WAIT); /* Message ID. */
-                it->mParms[1].setUInt32(0);                                /* Required parameters for message. */
+                it->mParms[0].setUInt32(HOST_CANCEL_PENDING_WAITS); /* Message ID. */
+                it->mParms[1].setUInt32(0);                         /* Required parameters for message. */
             }
             if (mpHelpers)
                 mpHelpers->pfnCallComplete(it->mHandle, rc);
@@ -595,6 +677,15 @@ int Service::cancelPendingWaits(uint32_t u32ClientID)
     return rc;
 }
 
+/**
+ * Notifies the host (using low-level HGCM callbacks) about an event
+ * which was sent from the client.
+ *
+ * @return  IPRT status code.
+ * @param   eFunction               Function (event) that occured.
+ * @param   cParms                  Number of parameters.
+ * @param   paParms                 Array of parameters.
+ */
 int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     LogFlowFunc(("eFunction=%ld, cParms=%ld, paParms=%p\n",
@@ -632,18 +723,50 @@ int Service::notifyHost(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paP
             rc = mpfnHostCallback(mpvHostData, eFunction,
                                   (void *)(&data), sizeof(data));
     }
+    else if (   eFunction == GUEST_EXEC_SEND_INPUT_STATUS
+             && cParms    == 5)
+    {
+        CALLBACKDATAEXECINSTATUS data;
+        data.hdr.u32Magic = CALLBACKDATAMAGICEXECINSTATUS;
+        paParms[0].getUInt32(&data.hdr.u32ContextID);
+
+        paParms[1].getUInt32(&data.u32PID);
+        paParms[2].getUInt32(&data.u32Status);
+        paParms[3].getUInt32(&data.u32Flags);
+        paParms[4].getUInt32(&data.cbProcessed);
+
+        if (mpfnHostCallback)
+            rc = mpfnHostCallback(mpvHostData, eFunction,
+                                  (void *)(&data), sizeof(data));
+    }
     else
         rc = VERR_NOT_SUPPORTED;
     LogFlowFunc(("returning %Rrc\n", rc));
     return rc;
 }
 
+/**
+ * Processes a command receiveed from the host side and re-routes it to
+ * a connect client on the guest.
+ *
+ * @return  IPRT status code.
+ * @param   eFunction               Function code to process.
+ * @param   cParms                  Number of parameters.
+ * @param   paParms                 Array of parameters.
+ */
 int Service::processHostCmd(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    int rc = VINF_SUCCESS;
+    /*
+     * If no client is connected at all we don't buffer any host commands
+     * and immediately return an error to the host. This avoids the host
+     * waiting for a response from the guest side in case VBoxService on
+     * the guest is not running/system is messed up somehow.
+     */
+    if (mNumClients == 0)
+        return VERR_NOT_FOUND;
 
     HostCmd newCmd;
-    rc = paramBufferAllocate(&newCmd.mParmBuf, eFunction, cParms, paParms);
+    int rc = paramBufferAllocate(&newCmd.mParmBuf, eFunction, cParms, paParms);
     if (   RT_SUCCESS(rc)
         && newCmd.mParmBuf.uParmCount > 0)
     {
@@ -717,8 +840,8 @@ void Service::call(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
     {
         switch (eFunction)
         {
-            /* 
-             * The guest asks the host for the next messsage to process. 
+            /*
+             * The guest asks the host for the next message to process.
              */
             case GUEST_GET_HOST_MSG:
                 LogFlowFunc(("GUEST_GET_HOST_MSG\n"));
@@ -736,18 +859,23 @@ void Service::call(VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
                 break;
 
             /*
-             * The guest notifies the host that some output at stdout/stderr is available. 
+             * The guest notifies the host that some output at stdout/stderr is available.
              */
             case GUEST_EXEC_SEND_OUTPUT:
                 LogFlowFunc(("GUEST_EXEC_SEND_OUTPUT\n"));
                 rc = notifyHost(eFunction, cParms, paParms);
                 break;
 
-            /* 
-             * The guest notifies the host of the current client status. 
+            /*
+             * The guest notifies the host of the executed process status.
              */
             case GUEST_EXEC_SEND_STATUS:
-                LogFlowFunc(("SEND_STATUS\n"));
+                LogFlowFunc(("GUEST_EXEC_SEND_STATUS\n"));
+                rc = notifyHost(eFunction, cParms, paParms);
+                break;
+
+            case GUEST_EXEC_SEND_INPUT_STATUS:
+                LogFlowFunc(("GUEST_EXEC_SEND_INPUT_STATUS\n"));
                 rc = notifyHost(eFunction, cParms, paParms);
                 break;
 
@@ -789,9 +917,11 @@ int Service::hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPar
                 rc = processHostCmd(eFunction, cParms, paParms);
                 break;
 
-            /* The host wants to send something to the guest's stdin pipe. */
+            /* The host wants to send something to the
+             * started process' stdin pipe. */
             case HOST_EXEC_SET_INPUT:
                 LogFlowFunc(("HOST_EXEC_SET_INPUT\n"));
+                rc = processHostCmd(eFunction, cParms, paParms);
                 break;
 
             case HOST_EXEC_GET_OUTPUT:
@@ -853,7 +983,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad(VBOXHGCMSVCFNTABLE *pta
         else
         {
             std::auto_ptr<Service> apService;
-            /* No exceptions may propogate outside. */
+            /* No exceptions may propagate outside. */
             try {
                 apService = std::auto_ptr<Service>(new Service(ptable->pHelpers));
             } catch (int rcThrown) {

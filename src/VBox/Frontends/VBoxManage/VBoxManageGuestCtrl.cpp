@@ -1,6 +1,6 @@
-/* $Id: VBoxManageGuestCtrl.cpp $ */
+/* $Id: VBoxManageGuestCtrl.cpp 35057 2010-12-14 09:52:23Z vboxsync $ */
 /** @file
- * VBoxManage - The 'guestcontrol' command.
+ * VBoxManage - Implementation of guestcontrol command.
  */
 
 /*
@@ -20,7 +20,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "VBoxManage.h"
-#include <iprt/stream.h>
 
 #ifndef VBOX_ONLY_DOCS
 
@@ -35,12 +34,13 @@
 
 #include <VBox/HostServices/GuestControlSvc.h> /* for PROC_STS_XXX */
 
-#include <VBox/log.h>
 #include <iprt/asm.h>
+#include <iprt/dir.h>
+#include <iprt/file.h>
+#include <iprt/isofs.h>
 #include <iprt/getopt.h>
-#include <iprt/string.h>
-#include <iprt/time.h>
-#include <iprt/thread.h>
+#include <iprt/list.h>
+#include <iprt/path.h>
 
 #ifdef USE_XPCOM_QUEUE
 # include <sys/select.h>
@@ -62,38 +62,91 @@ using namespace com;
 /** @todo */
 
 /** Set by the signal handler. */
-static volatile bool    g_fExecCanceled = false;
+static volatile bool    g_fGuestCtrlCanceled = false;
 
-#endif /* !VBOX_ONLY_DOCS */
-
-void usageGuestControl(void)
+/*
+ * Structure holding a directory entry.
+ */
+typedef struct DIRECTORYENTRY
 {
-    RTPrintf("VBoxManage guestcontrol     execute <vmname>|<uuid>\n"
-             "                            <path to program>\n"
-             "                            --username <name> --password <password>\n"
-             "                            [--arguments \"<arguments>\"]\n"
-             "                            [--environment \"<NAME>=<VALUE> [<NAME>=<VALUE>]\"]\n"
-             "                            [--flags <flags>] [--timeout <msec>]\n"
-             "                            [--verbose] [--wait-for exit,stdout,stderr||]\n"
-             "\n");
+    char       *pszSourcePath;
+    char       *pszDestPath;
+    RTLISTNODE  Node;
+} DIRECTORYENTRY, *PDIRECTORYENTRY;
+
+#endif /* VBOX_ONLY_DOCS */
+
+void usageGuestControl(PRTSTREAM pStrm)
+{
+    RTStrmPrintf(pStrm,
+                 "VBoxManage guestcontrol     exec[ute] <vmname>|<uuid>\n"
+                 "                            <path to program>\n"
+                 "                            --username <name> --password <password>\n"
+                 "                            [--arguments \"<arguments>\"]\n"
+                 "                            [--environment \"<NAME>=<VALUE> [<NAME>=<VALUE>]\"]\n"
+                 "                            [--flags <flags>] [--timeout <msec>]\n"
+                 "                            [--verbose] [--wait-for exit,stdout,stderr||]\n"
+                 /** @todo Add a "--" parameter (has to be last parameter) to directly execute
+                  *        stuff, e.g. "VBoxManage guestcontrol execute <VMName> --username <> ... -- /bin/rm -Rf /foo". */
+                 "\n"
+                 "                            copyto|cp <vmname>|<uuid>\n"
+                 "                            <source on host> <destination on guest>\n"
+                 "                            --username <name> --password <password>\n"
+                 "                            [--dryrun] [--follow] [--recursive] [--verbose]\n"
+                 "\n"
+                 "                            createdir[ectory]|mkdir|md <vmname>|<uuid>\n"
+                 "                            <directory to create on guest>\n"
+                 "                            --username <name> --password <password>\n"
+                 "                            [--parents] [--mode <mode>] [--verbose]\n"
+                 "\n"
+                 "                            updateadditions <vmname>|<uuid>\n"
+                 "                            [--source <guest additions .ISO>] [--verbose]\n"
+                 "\n");
 }
 
 #ifndef VBOX_ONLY_DOCS
 
 /**
- * Signal handler that sets g_fCanceled.
+ * Signal handler that sets g_fGuestCtrlCanceled.
  *
  * This can be executed on any thread in the process, on Windows it may even be
  * a thread dedicated to delivering this signal.  Do not doing anything
  * unnecessary here.
  */
-static void execProcessSignalHandler(int iSignal)
+static void guestCtrlSignalHandler(int iSignal)
 {
     NOREF(iSignal);
-    ASMAtomicWriteBool(&g_fExecCanceled, true);
+    ASMAtomicWriteBool(&g_fGuestCtrlCanceled, true);
 }
 
-static const char *getStatus(ULONG uStatus)
+/**
+ * Installs a custom signal handler to get notified
+ * whenever the user wants to intercept the program.
+ */
+static void ctrlSignalHandlerInstall()
+{
+    signal(SIGINT,   guestCtrlSignalHandler);
+#ifdef SIGBREAK
+    signal(SIGBREAK, guestCtrlSignalHandler);
+#endif
+}
+
+/**
+ * Uninstalls a previously installed signal handler.
+ */
+static void ctrlSignalHandlerUninstall()
+{
+    signal(SIGINT,   SIG_DFL);
+#ifdef SIGBREAK
+    signal(SIGBREAK, SIG_DFL);
+#endif
+}
+
+/**
+ * Translates a process status to a human readable
+ * string.
+ */
+static const char *ctrlExecGetStatus(ULONG uStatus)
 {
     switch (uStatus)
     {
@@ -118,7 +171,113 @@ static const char *getStatus(ULONG uStatus)
     }
 }
 
-static int handleExecProgram(HandlerArg *a)
+static int ctrlPrintError(com::ErrorInfo &errorInfo)
+{
+    if (   errorInfo.isFullAvailable()
+        || errorInfo.isBasicAvailable())
+    {
+        /* If we got a VBOX_E_IPRT error we handle the error in a more gentle way
+         * because it contains more accurate info about what went wrong. */
+        if (errorInfo.getResultCode() == VBOX_E_IPRT_ERROR)
+            RTMsgError("%ls.", errorInfo.getText().raw());
+        else
+        {
+            RTMsgError("Error details:");
+            GluePrintErrorInfo(errorInfo);
+        }
+        return VERR_GENERAL_FAILURE; /** @todo */
+    }
+    AssertMsgFailedReturn(("Object has indicated no error!?\n"),
+                          VERR_INVALID_PARAMETER);
+}
+
+static int ctrlPrintError(IUnknown *pObj, const GUID &aIID)
+{
+    com::ErrorInfo ErrInfo(pObj, aIID);
+    return ctrlPrintError(ErrInfo);
+}
+
+
+static int ctrlPrintProgressError(ComPtr<IProgress> progress)
+{
+    int rc;
+    BOOL fCanceled;
+    if (   SUCCEEDED(progress->COMGETTER(Canceled(&fCanceled)))
+        && fCanceled)
+    {
+        rc = VERR_CANCELLED;
+    }
+    else
+    {
+        com::ProgressErrorInfo ErrInfo(progress);
+        rc = ctrlPrintError(ErrInfo);
+    }
+    return rc;
+}
+
+/**
+ * Un-initializes the VM after guest control usage.
+ */
+static void ctrlUninitVM(HandlerArg *pArg)
+{
+    AssertPtrReturnVoid(pArg);
+    if (pArg->session)
+        pArg->session->UnlockMachine();
+}
+
+/**
+ * Initializes the VM, that is checks whether it's up and
+ * running, if it can be locked (shared only) and returns a
+ * valid IGuest pointer on success.
+ *
+ * @return  IPRT status code.
+ * @param   pArg            Our command line argument structure.
+ * @param   pszNameOrId     The VM's name or UUID to use.
+ * @param   pGuest          Pointer where to store the IGuest interface.
+ */
+static int ctrlInitVM(HandlerArg *pArg, const char *pszNameOrId, ComPtr<IGuest> *pGuest)
+{
+    AssertPtrReturn(pArg, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszNameOrId, VERR_INVALID_PARAMETER);
+
+    /* Lookup VM. */
+    ComPtr<IMachine> machine;
+    /* Assume it's an UUID. */
+    HRESULT rc;
+    CHECK_ERROR(pArg->virtualBox, FindMachine(Bstr(pszNameOrId).raw(),
+                                              machine.asOutParam()));
+    if (FAILED(rc))
+        return VERR_NOT_FOUND;
+
+    /* Machine is running? */
+    MachineState_T machineState;
+    CHECK_ERROR_RET(machine, COMGETTER(State)(&machineState), 1);
+    if (machineState != MachineState_Running)
+    {
+        RTMsgError("Machine \"%s\" is not running!\n", pszNameOrId);
+        return VERR_VM_INVALID_VM_STATE;
+    }
+
+    do
+    {
+        /* Open a session for the VM. */
+        CHECK_ERROR_BREAK(machine, LockMachine(pArg->session, LockType_Shared));
+        /* Get the associated console. */
+        ComPtr<IConsole> console;
+        CHECK_ERROR_BREAK(pArg->session, COMGETTER(Console)(console.asOutParam()));
+        /* ... and session machine. */
+        ComPtr<IMachine> sessionMachine;
+        CHECK_ERROR_BREAK(pArg->session, COMGETTER(Machine)(sessionMachine.asOutParam()));
+        /* Get IGuest interface. */
+        CHECK_ERROR_BREAK(console, COMGETTER(Guest)(pGuest->asOutParam()));
+    } while (0);
+
+    if (FAILED(rc))
+        ctrlUninitVM(pArg);
+    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_GENERAL_FAILURE;
+}
+
+static int handleCtrlExecProgram(HandlerArg *a)
 {
     /*
      * Check the syntax.  We can deduce the correct syntax from the number of
@@ -127,10 +286,28 @@ static int handleExecProgram(HandlerArg *a)
     if (a->argc < 2) /* At least the command we want to execute in the guest should be present :-). */
         return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
 
-    Utf8Str Utf8Cmd(a->argv[1]);
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--arguments",           'a',         RTGETOPT_REQ_STRING  },
+        { "--environment",         'e',         RTGETOPT_REQ_STRING  },
+        { "--flags",               'f',         RTGETOPT_REQ_STRING  },
+        { "--password",            'p',         RTGETOPT_REQ_STRING  },
+        { "--timeout",             't',         RTGETOPT_REQ_UINT32  },
+        { "--username",            'u',         RTGETOPT_REQ_STRING  },
+        { "--verbose",             'v',         RTGETOPT_REQ_NOTHING },
+        { "--wait-for",            'w',         RTGETOPT_REQ_STRING  }
+    };
+
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0);
+
+    Utf8Str Utf8Cmd;
     uint32_t uFlags = 0;
-    com::SafeArray <BSTR> args;
-    com::SafeArray <BSTR> env;
+    /* Note: this uses IN_BSTR as it must be BSTR on COM and CBSTR on XPCOM */
+    com::SafeArray<IN_BSTR> args;
+    com::SafeArray<IN_BSTR> env;
     Utf8Str Utf8UserName;
     Utf8Str Utf8Password;
     uint32_t u32TimeoutMS = 0;
@@ -140,221 +317,156 @@ static int handleExecProgram(HandlerArg *a)
     bool fVerbose = false;
     bool fTimeout = false;
 
-    /* Always use the actual command line as argv[0]. */
-    args.push_back(Bstr(Utf8Cmd));
-
-    /* Iterate through all possible commands (if available). */
-    bool usageOK = true;
-    for (int i = 2; usageOK && i < a->argc; i++)
+    int vrc = VINF_SUCCESS;
+    bool fUsageOK = true;
+    while (   (ch = RTGetOpt(&GetState, &ValueUnion))
+           && RT_SUCCESS(vrc))
     {
-        if (   !strcmp(a->argv[i], "--arguments")
-            || !strcmp(a->argv[i], "--args")
-            || !strcmp(a->argv[i], "--arg"))
+        /* For options that require an argument, ValueUnion has received the value. */
+        switch (ch)
         {
-            if (i + 1 >= a->argc)
-                usageOK = false;
-            else
+            case 'a': /* Arguments */
             {
                 char **papszArg;
                 int cArgs;
 
-                int vrc = RTGetOptArgvFromString(&papszArg, &cArgs, a->argv[i + 1], NULL);
+                vrc = RTGetOptArgvFromString(&papszArg, &cArgs, ValueUnion.psz, NULL);
                 if (RT_SUCCESS(vrc))
                 {
                     for (int j = 0; j < cArgs; j++)
-                        args.push_back(Bstr(papszArg[j]));
+                        args.push_back(Bstr(papszArg[j]).raw());
 
                     RTGetOptArgvFree(papszArg);
                 }
-                ++i;
+                break;
             }
-        }
-        else if (   !strcmp(a->argv[i], "--environment")
-                 || !strcmp(a->argv[i], "--env"))
-        {
-            if (i + 1 >= a->argc)
-                usageOK = false;
-            else
+
+            case 'e': /* Environment */
             {
                 char **papszArg;
                 int cArgs;
 
-                int vrc = RTGetOptArgvFromString(&papszArg, &cArgs, a->argv[i + 1], NULL);
+                vrc = RTGetOptArgvFromString(&papszArg, &cArgs, ValueUnion.psz, NULL);
                 if (RT_SUCCESS(vrc))
                 {
                     for (int j = 0; j < cArgs; j++)
-                        env.push_back(Bstr(papszArg[j]));
+                        env.push_back(Bstr(papszArg[j]).raw());
 
                     RTGetOptArgvFree(papszArg);
                 }
-                ++i;
+                break;
             }
-        }
-        else if (!strcmp(a->argv[i], "--flags"))
-        {
-            if (   i + 1 >= a->argc
-                || RTStrToUInt32Full(a->argv[i + 1], 10, &uFlags) != VINF_SUCCESS)
-                usageOK = false;
-            else
-                ++i;
-        }
-        else if (   !strcmp(a->argv[i], "--username")
-                 || !strcmp(a->argv[i], "--user"))
-        {
-            if (i + 1 >= a->argc)
-                usageOK = false;
-            else
-            {
-                Utf8UserName = a->argv[i + 1];
-                ++i;
-            }
-        }
-        else if (   !strcmp(a->argv[i], "--password")
-                 || !strcmp(a->argv[i], "--pwd"))
-        {
-            if (i + 1 >= a->argc)
-                usageOK = false;
-            else
-            {
-                Utf8Password = a->argv[i + 1];
-                ++i;
-            }
-        }
-        else if (!strcmp(a->argv[i], "--timeout"))
-        {
-            if (   i + 1 >= a->argc
-                || RTStrToUInt32Full(a->argv[i + 1], 10, &u32TimeoutMS) != VINF_SUCCESS
-                || u32TimeoutMS == 0)
-            {
-                usageOK = false;
-            }
-            else
-            {
+
+            case 'f': /* Flags */
+                /** @todo Needs a bit better processing as soon as we have more flags. */
+                /** @todo Add a hidden flag. */
+                if (!RTStrICmp(ValueUnion.psz, "ignoreorphanedprocesses"))
+                    uFlags |= ExecuteProcessFlag_IgnoreOrphanedProcesses;
+                else
+                    fUsageOK = false;
+                break;
+
+            case 'p': /* Password */
+                Utf8Password = ValueUnion.psz;
+                break;
+
+            case 't': /* Timeout */
+                u32TimeoutMS = ValueUnion.u32;
                 fTimeout = true;
-                ++i;
-            }
-        }
-        else if (!strcmp(a->argv[i], "--wait-for"))
-        {
-            if (i + 1 >= a->argc)
-                usageOK = false;
-            else
+                break;
+
+            case 'u': /* User name */
+                Utf8UserName = ValueUnion.psz;
+                break;
+
+            case 'v': /* Verbose */
+                fVerbose = true;
+                break;
+
+            case 'w': /* Wait for ... */
             {
-                if (!strcmp(a->argv[i + 1], "exit"))
+                if (!RTStrICmp(ValueUnion.psz, "exit"))
                     fWaitForExit = true;
-                else if (!strcmp(a->argv[i + 1], "stdout"))
+                else if (!RTStrICmp(ValueUnion.psz, "stdout"))
                 {
                     fWaitForExit = true;
                     fWaitForStdOut = true;
                 }
-                else if (!strcmp(a->argv[i + 1], "stderr"))
+                else if (!RTStrICmp(ValueUnion.psz, "stderr"))
                 {
                     fWaitForExit = true;
                     fWaitForStdErr = true;
                 }
                 else
-                    usageOK = false;
-                ++i;
+                    fUsageOK = false;
+                break;
             }
-        }
-        else if (!strcmp(a->argv[i], "--verbose"))
-        {
-            fVerbose = true;
-        }
-        /** @todo Add fancy piping stuff here. */
-        else
-        {
-            return errorSyntax(USAGE_GUESTCONTROL,
-                               "Invalid parameter '%s'", Utf8Str(a->argv[i]).raw());
+
+            case VINF_GETOPT_NOT_OPTION:
+            {
+                /* The actual command we want to execute on the guest. */
+                Utf8Cmd = ValueUnion.psz;
+                break;
+            }
+
+            default:
+                return RTGetOptPrintError(ch, &ValueUnion);
         }
     }
 
-    if (!usageOK)
+    if (!fUsageOK)
         return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    if (Utf8Cmd.isEmpty())
+        return errorSyntax(USAGE_GUESTCONTROL,
+                           "No command to execute specified!");
 
     if (Utf8UserName.isEmpty())
         return errorSyntax(USAGE_GUESTCONTROL,
                            "No user name specified!");
 
-    /* lookup VM. */
-    ComPtr<IMachine> machine;
-    /* assume it's an UUID */
-    HRESULT rc = a->virtualBox->GetMachine(Bstr(a->argv[0]), machine.asOutParam());
-    if (FAILED(rc) || !machine)
+    HRESULT rc = S_OK;
+    ComPtr<IGuest> guest;
+    vrc = ctrlInitVM(a, a->argv[0] /* VM Name */, &guest);
+    if (RT_SUCCESS(vrc))
     {
-        /* must be a name */
-        CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]), machine.asOutParam()));
-    }
+        ComPtr<IProgress> progress;
+        ULONG uPID = 0;
 
-    if (machine)
-    {
-        do
+        if (fVerbose)
         {
-            Bstr uuid;
-            machine->COMGETTER(Id)(uuid.asOutParam());
+            if (u32TimeoutMS == 0)
+                RTPrintf("Waiting for guest to start process ...\n");
+            else
+                RTPrintf("Waiting for guest to start process (within %ums)\n", u32TimeoutMS);
+        }
 
-            /* open an existing session for VM - so the VM has to be running */
-            CHECK_ERROR_BREAK(a->virtualBox, OpenExistingSession(a->session, uuid));
+        /* Get current time stamp to later calculate rest of timeout left. */
+        uint64_t u64StartMS = RTTimeMilliTS();
 
-            /* get the mutable session machine */
-            a->session->COMGETTER(Machine)(machine.asOutParam());
-
-            /* get the associated console */
-            ComPtr<IConsole> console;
-            CHECK_ERROR_BREAK(a->session, COMGETTER(Console)(console.asOutParam()));
-
-            ComPtr<IGuest> guest;
-            CHECK_ERROR_BREAK(console, COMGETTER(Guest)(guest.asOutParam()));
-
-            ComPtr<IProgress> progress;
-            ULONG uPID = 0;
-
+        /* Execute the process. */
+        rc = guest->ExecuteProcess(Bstr(Utf8Cmd).raw(), uFlags,
+                                   ComSafeArrayAsInParam(args),
+                                   ComSafeArrayAsInParam(env),
+                                   Bstr(Utf8UserName).raw(),
+                                   Bstr(Utf8Password).raw(), u32TimeoutMS,
+                                   &uPID, progress.asOutParam());
+        if (FAILED(rc))
+            vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
+        else
+        {
             if (fVerbose)
-            {
-                if (u32TimeoutMS == 0)
-                    RTPrintf("Waiting for guest to start process ...\n");
-                else
-                    RTPrintf("Waiting for guest to start process (within %ums)\n", u32TimeoutMS);
-            }
-
-            /* Get current time stamp to later calculate rest of timeout left. */
-            uint64_t u64StartMS = RTTimeMilliTS();
-
-            /* Execute the process. */
-            rc = guest->ExecuteProcess(Bstr(Utf8Cmd), uFlags,
-                                       ComSafeArrayAsInParam(args), ComSafeArrayAsInParam(env),
-                                       Bstr(Utf8UserName), Bstr(Utf8Password), u32TimeoutMS,
-                                       &uPID, progress.asOutParam());
-            if (FAILED(rc))
-            {
-                /* If we got a VBOX_E_IPRT error we handle the error in a more gentle way
-                 * because it contains more accurate info about what went wrong. */
-                ErrorInfo info(guest);
-                if (info.isFullAvailable())
-                {
-                    if (rc == VBOX_E_IPRT_ERROR)
-                    {
-                        RTPrintf("%ls.\n", info.getText().raw());
-                    }
-                    else
-                    {
-                        RTPrintf("ERROR: %ls (%Rhrc).\n", info.getText().raw(), info.getResultCode());
-                    }
-                }
-                break;
-            }
-            if (fVerbose)
-                RTPrintf("Process '%s' (PID: %u) started\n", Utf8Cmd.raw(), uPID);
+                RTPrintf("Process '%s' (PID: %u) started\n", Utf8Cmd.c_str(), uPID);
             if (fWaitForExit)
             {
                 if (fTimeout)
                 {
                     /* Calculate timeout value left after process has been started.  */
-                    uint64_t u64Diff = RTTimeMilliTS() - u64StartMS;
-                    /** @todo Check for uint64_t vs. uint32_t here! */
-                    if (u32TimeoutMS > u64Diff) /* Is timeout still bigger than current difference? */
+                    uint64_t u64Elapsed = RTTimeMilliTS() - u64StartMS;
+                    /* Is timeout still bigger than current difference? */
+                    if (u32TimeoutMS > u64Elapsed)
                     {
-                        u32TimeoutMS = u32TimeoutMS - u64Diff;
+                        u32TimeoutMS -= (uint32_t)u64Elapsed;
                         if (fVerbose)
                             RTPrintf("Waiting for process to exit (%ums left) ...\n", u32TimeoutMS);
                     }
@@ -367,7 +479,7 @@ static int handleExecProgram(HandlerArg *a)
                 else if (fVerbose)
                     RTPrintf("Waiting for process to exit ...\n");
 
-                /* setup signal handling if cancelable */
+                /* Setup signal handling if cancelable. */
                 ASSERT(progress);
                 bool fCanceledAlready = false;
                 BOOL fCancelable;
@@ -375,12 +487,7 @@ static int handleExecProgram(HandlerArg *a)
                 if (FAILED(hrc))
                     fCancelable = FALSE;
                 if (fCancelable)
-                {
-                    signal(SIGINT,   execProcessSignalHandler);
-            #ifdef SIGBREAK
-                    signal(SIGBREAK, execProcessSignalHandler);
-            #endif
-                }
+                    ctrlSignalHandlerInstall();
 
                 /* Wait for process to exit ... */
                 BOOL fCompleted = FALSE;
@@ -396,26 +503,14 @@ static int handleExecProgram(HandlerArg *a)
                     if (   fWaitForStdOut
                         || fWaitForStdErr)
                     {
-
                         rc = guest->GetProcessOutput(uPID, 0 /* aFlags */,
                                                      u32TimeoutMS, _64K, ComSafeArrayAsOutParam(aOutputData));
                         if (FAILED(rc))
                         {
-                            /* If we got a VBOX_E_IPRT error we handle the error in a more gentle way
-                             * because it contains more accurate info about what went wrong. */
-                            ErrorInfo info(guest);
-                            if (info.isFullAvailable())
-                            {
-                                if (rc == VBOX_E_IPRT_ERROR)
-                                {
-                                    RTPrintf("%ls.\n", info.getText().raw());
-                                }
-                                else
-                                {
-                                    RTPrintf("ERROR: %ls (%Rhrc).\n", info.getText().raw(), info.getResultCode());
-                                }
-                            }
+                            vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
+
                             cbOutputData = 0;
+                            fCompleted = true; /* rc contains a failure, so we'll go into aborted state down below. */
                         }
                         else
                         {
@@ -443,7 +538,6 @@ static int handleExecProgram(HandlerArg *a)
                             }
                         }
                     }
-
                     if (cbOutputData <= 0) /* No more output data left? */
                     {
                         if (fCompleted)
@@ -458,13 +552,13 @@ static int handleExecProgram(HandlerArg *a)
                     }
 
                     /* Process async cancelation */
-                    if (g_fExecCanceled && !fCanceledAlready)
+                    if (g_fGuestCtrlCanceled && !fCanceledAlready)
                     {
                         hrc = progress->Cancel();
                         if (SUCCEEDED(hrc))
                             fCanceledAlready = TRUE;
                         else
-                            g_fExecCanceled = false;
+                            g_fGuestCtrlCanceled = false;
                     }
 
                     /* Progress canceled by Main API? */
@@ -477,12 +571,7 @@ static int handleExecProgram(HandlerArg *a)
 
                 /* Undo signal handling */
                 if (fCancelable)
-                {
-                    signal(SIGINT,   SIG_DFL);
-            #ifdef SIGBREAK
-                    signal(SIGBREAK, SIG_DFL);
-            #endif
-                }
+                    ctrlSignalHandlerUninstall();
 
                 if (fCanceled)
                 {
@@ -492,37 +581,18 @@ static int handleExecProgram(HandlerArg *a)
                 else if (   fCompleted
                          && SUCCEEDED(rc))
                 {
-                    LONG iRc = false;
+                    LONG iRc;
                     CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
                     if (FAILED(iRc))
                     {
-                        ComPtr<IVirtualBoxErrorInfo> execError;
-                        rc = progress->COMGETTER(ErrorInfo)(execError.asOutParam());
-                        com::ErrorInfo info (execError);
-                        if (SUCCEEDED(rc) && info.isFullAvailable())
-                        {
-                            /* If we got a VBOX_E_IPRT error we handle the error in a more gentle way
-                             * because it contains more accurate info about what went wrong. */
-                            if (info.getResultCode() == VBOX_E_IPRT_ERROR)
-                            {
-                                RTPrintf("%ls.\n", info.getText().raw());
-                            }
-                            else
-                            {
-                                RTPrintf("\n\nProcess error details:\n");
-                                GluePrintErrorInfo(info);
-                                RTPrintf("\n");
-                            }
-                        }
-                        else
-                            AssertMsgFailed(("Full error description is missing!\n"));
+                        vrc = ctrlPrintProgressError(progress);
                     }
                     else if (fVerbose)
                     {
                         ULONG uRetStatus, uRetExitCode, uRetFlags;
                         rc = guest->GetProcessStatus(uPID, &uRetExitCode, &uRetFlags, &uRetStatus);
                         if (SUCCEEDED(rc))
-                            RTPrintf("Exit code=%u (Status=%u [%s], Flags=%u)\n", uRetExitCode, uRetStatus, getStatus(uRetStatus), uRetFlags);
+                            RTPrintf("Exit code=%u (Status=%u [%s], Flags=%u)\n", uRetExitCode, uRetStatus, ctrlExecGetStatus(uRetStatus), uRetFlags);
                     }
                 }
                 else
@@ -531,9 +601,820 @@ static int handleExecProgram(HandlerArg *a)
                         RTPrintf("Process execution aborted!\n");
                 }
             }
-            a->session->Close();
-        } while (0);
+        }
+        ctrlUninitVM(a);
     }
+
+    if (RT_FAILURE(vrc))
+        rc = VBOX_E_IPRT_ERROR;
+    return SUCCEEDED(rc) ? 0 : 1;
+}
+
+/**
+ * Appends a new file/directory entry to a given list.
+ *
+ * @return  IPRT status code.
+ * @param   pszFileSource       Full qualified source path of file to copy (optional).
+ * @param   pszFileDest         Full qualified destination path (optional).
+ * @param   pList               Copy list used for insertion.
+ */
+static int ctrlDirectoryEntryAppend(const char *pszFileSource, const char *pszFileDest,
+                                    PRTLISTNODE pList)
+{
+    AssertPtrReturn(pList, VERR_INVALID_POINTER);
+    AssertReturn(pszFileSource || pszFileDest, VERR_INVALID_PARAMETER);
+
+    PDIRECTORYENTRY pNode = (PDIRECTORYENTRY)RTMemAlloc(sizeof(DIRECTORYENTRY));
+    if (pNode == NULL)
+        return VERR_NO_MEMORY;
+
+    pNode->pszSourcePath = NULL;
+    pNode->pszDestPath = NULL;
+
+    if (pszFileSource)
+    {
+        pNode->pszSourcePath = RTStrDup(pszFileSource);
+        AssertPtrReturn(pNode->pszSourcePath, VERR_NO_MEMORY);
+    }
+    if (pszFileDest)
+    {
+        pNode->pszDestPath = RTStrDup(pszFileDest);
+        AssertPtrReturn(pNode->pszDestPath, VERR_NO_MEMORY);
+    }
+
+    pNode->Node.pPrev = NULL;
+    pNode->Node.pNext = NULL;
+    RTListAppend(pList, &pNode->Node);
+    return VINF_SUCCESS;
+}
+
+/**
+ * Destroys a directory list.
+ *
+ * @param   pList               Pointer to list to destroy.
+ */
+static void ctrlDirectoryListDestroy(PRTLISTNODE pList)
+{
+    AssertPtr(pList);
+
+    /* Destroy file list. */
+    PDIRECTORYENTRY pNode = RTListGetFirst(pList, DIRECTORYENTRY, Node);
+    while (pNode)
+    {
+        PDIRECTORYENTRY pNext = RTListNodeGetNext(&pNode->Node, DIRECTORYENTRY, Node);
+        bool fLast = RTListNodeIsLast(pList, &pNode->Node);
+
+        if (pNode->pszSourcePath)
+            RTStrFree(pNode->pszSourcePath);
+        if (pNode->pszDestPath)
+            RTStrFree(pNode->pszDestPath);
+        RTListNodeRemove(&pNode->Node);
+        RTMemFree(pNode);
+
+        if (fLast)
+            break;
+
+        pNode = pNext;
+    }
+}
+
+
+/**
+ * Reads a specified directory (recursively) based on the copy flags
+ * and appends all matching entries to the supplied list.
+ *
+ * @return  IPRT status code.
+ * @param   pszRootDir          Directory to start with. Must end with
+ *                              a trailing slash and must be absolute.
+ * @param   pszSubDir           Sub directory part relative to the root
+ *                              directory; needed for recursion.
+ * @param   pszFilter           Search filter (e.g. *.pdf).
+ * @param   pszDest             Destination directory.
+ * @param   uFlags              Copy flags.
+ * @param   pcObjects           Where to store the overall objects to
+ *                              copy found.
+ * @param   pList               Pointer to the object list to use.
+ */
+static int ctrlCopyDirectoryRead(const char *pszRootDir, const char *pszSubDir,
+                                 const char *pszFilter, const char *pszDest,
+                                 uint32_t uFlags, uint32_t *pcObjects, PRTLISTNODE pList)
+{
+    AssertPtrReturn(pszRootDir, VERR_INVALID_POINTER);
+    /* Sub directory is optional. */
+    /* Filter directory is optional. */
+    AssertPtrReturn(pszDest, VERR_INVALID_POINTER);
+    AssertPtrReturn(pcObjects, VERR_INVALID_POINTER);
+    AssertPtrReturn(pList, VERR_INVALID_POINTER);
+
+    PRTDIR pDir = NULL;
+
+    int rc = VINF_SUCCESS;
+    char szCurDir[RTPATH_MAX];
+    /* Construct current path. */
+    if (RTStrPrintf(szCurDir, sizeof(szCurDir), pszRootDir))
+    {
+        if (pszSubDir != NULL)
+            rc = RTPathAppend(szCurDir, sizeof(szCurDir), pszSubDir);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    if (RT_SUCCESS(rc))
+    {
+        /* Open directory without a filter - RTDirOpenFiltered unfortunately
+         * cannot handle sub directories so we have to do the filtering ourselves. */
+        rc = RTDirOpen(&pDir, szCurDir);
+        for (;RT_SUCCESS(rc);)
+        {
+            RTDIRENTRY DirEntry;
+            rc = RTDirRead(pDir, &DirEntry, NULL);
+            if (RT_FAILURE(rc))
+            {
+                if (rc == VERR_NO_MORE_FILES)
+                    rc = VINF_SUCCESS;
+                break;
+            }
+            switch (DirEntry.enmType)
+            {
+                case RTDIRENTRYTYPE_DIRECTORY:
+                    /* Skip "." and ".." entrires. */
+                    if (   !strcmp(DirEntry.szName, ".")
+                        || !strcmp(DirEntry.szName, ".."))
+                    {
+                        break;
+                    }
+                    if (uFlags & CopyFileFlag_Recursive)
+                    {
+                        char *pszNewSub = NULL;
+                        if (pszSubDir)
+                            RTStrAPrintf(&pszNewSub, "%s%s/", pszSubDir, DirEntry.szName);
+                        else
+                            RTStrAPrintf(&pszNewSub, "%s/", DirEntry.szName);
+
+                        if (pszNewSub)
+                        {
+                            rc = ctrlCopyDirectoryRead(pszRootDir, pszNewSub,
+                                                       pszFilter, pszDest,
+                                                       uFlags, pcObjects, pList);
+                            RTStrFree(pszNewSub);
+                        }
+                        else
+                            rc = VERR_NO_MEMORY;
+                    }
+                    break;
+
+                case RTDIRENTRYTYPE_SYMLINK:
+                    if (   (uFlags & CopyFileFlag_Recursive)
+                        && (uFlags & CopyFileFlag_FollowLinks))
+                    {
+                        /* Fall through to next case is intentional. */
+                    }
+                    else
+                        break;
+
+                case RTDIRENTRYTYPE_FILE:
+                {
+                    bool fProcess = false;
+                    if (pszFilter && RTStrSimplePatternMatch(pszFilter, DirEntry.szName))
+                        fProcess = true;
+                    else if (!pszFilter)
+                        fProcess = true;
+
+                    if (fProcess)
+                    {
+                        char *pszFileSource = NULL;
+                        char *pszFileDest = NULL;
+                        if (RTStrAPrintf(&pszFileSource, "%s%s%s",
+                                         pszRootDir, pszSubDir ? pszSubDir : "",
+                                         DirEntry.szName) >= 0)
+                        {
+                            if (RTStrAPrintf(&pszFileDest, "%s%s%s",
+                                             pszDest, pszSubDir ? pszSubDir : "",
+                                             DirEntry.szName) <= 0)
+                            {
+                                rc = VERR_NO_MEMORY;
+                            }
+                        }
+                        else
+                            rc = VERR_NO_MEMORY;
+
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = ctrlDirectoryEntryAppend(pszFileSource, pszFileDest, pList);
+                            if (RT_SUCCESS(rc))
+                                *pcObjects = *pcObjects + 1;
+                        }
+
+                        if (pszFileSource)
+                            RTStrFree(pszFileSource);
+                        if (pszFileDest)
+                            RTStrFree(pszFileDest);
+                    }
+                }
+                break;
+
+                default:
+                    break;
+            }
+            if (RT_FAILURE(rc))
+                break;
+        }
+    }
+
+    if (pDir)
+        RTDirClose(pDir);
+    return rc;
+}
+
+/**
+ * Initializes the copy process and builds up an object list
+ * with all required information to start the actual copy process.
+ *
+ * @return  IPRT status code.
+ * @param   pszSource           Source path on host to use.
+ * @param   pszDest             Destination path on guest to use.
+ * @param   uFlags              Copy flags.
+ * @param   pcObjects           Where to store the count of objects to be copied.
+ * @param   pList               Where to store the object list.
+ */
+static int ctrlCopyInit(const char *pszSource, const char *pszDest, uint32_t uFlags,
+                        uint32_t *pcObjects, PRTLISTNODE pList)
+{
+    AssertPtrReturn(pszSource, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszDest, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcObjects, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pList, VERR_INVALID_PARAMETER);
+
+    int rc = VINF_SUCCESS;
+    char *pszSourceAbs = RTPathAbsDup(pszSource);
+    if (pszSourceAbs)
+    {
+        if (   RTPathFilename(pszSourceAbs)
+            && RTFileExists(pszSourceAbs)) /* We have a single file ... */
+        {
+            char *pszDestAbs = RTStrDup(pszDest);
+            if (pszDestAbs)
+            {
+                /* Do we have a trailing slash for the destination?
+                 * Then this is a directory ... */
+                size_t cch = strlen(pszDestAbs);
+                if (    cch > 1
+                    && (   RTPATH_IS_SLASH(pszDestAbs[cch - 1])
+                        || RTPATH_IS_SLASH(pszDestAbs[cch - 2])
+                       )
+                   )
+                {
+                    rc = RTStrAAppend(&pszDestAbs, RTPathFilename(pszSourceAbs));
+                }
+                else
+                {
+                    /* Since the desetination seems not to be a directory,
+                     * we assume that this is the absolute path to the destination
+                     * file -> nothing to do here ... */
+                }
+
+                if (RT_SUCCESS(rc))
+                {
+                    RTListInit(pList);
+                    rc = ctrlDirectoryEntryAppend(pszSourceAbs, pszDestAbs, pList);
+                    *pcObjects = 1;
+                }
+                RTStrFree(pszDestAbs);
+            }
+            else
+                rc = VERR_NO_MEMORY;
+        }
+        else /* ... or a directory. */
+        {
+            /* Append trailing slash to absolute directory. */
+            if (RTDirExists(pszSourceAbs))
+                RTStrAAppend(&pszSourceAbs, RTPATH_SLASH_STR);
+
+            /* Extract directory filter (e.g. "*.exe"). */
+            char *pszFilter = RTPathFilename(pszSourceAbs);
+            char *pszSourceAbsRoot = RTStrDup(pszSourceAbs);
+            char *pszDestAbs = RTStrDup(pszDest);
+            if (   pszSourceAbsRoot
+                && pszDestAbs)
+            {
+                if (pszFilter)
+                {
+                    RTPathStripFilename(pszSourceAbsRoot);
+                    rc = RTStrAAppend(&pszSourceAbsRoot, RTPATH_SLASH_STR);
+                }
+                else
+                {
+                    /*
+                     * If we have more than one file to copy, make sure that we have
+                     * a trailing slash so that we can construct a full path name
+                     * (e.g. "foo.txt" -> "c:/foo/temp.txt") as destination.
+                     */
+                    size_t cch = strlen(pszSourceAbsRoot);
+                    if (    cch > 1
+                        &&  !RTPATH_IS_SLASH(pszSourceAbsRoot[cch - 1])
+                        &&  !RTPATH_IS_SLASH(pszSourceAbsRoot[cch - 2]))
+                    {
+                        rc = RTStrAAppend(&pszSourceAbsRoot, RTPATH_SLASH_STR);
+                    }
+                }
+
+                if (RT_SUCCESS(rc))
+                {
+                    /*
+                     * Make sure we have a valid destination path. All we can do
+                     * here is to check whether we have a trailing slash -- the rest
+                     * (i.e. path creation, rights etc.) needs to be done inside the guest.
+                     */
+                    size_t cch = strlen(pszDestAbs);
+                    if (    cch > 1
+                        &&  !RTPATH_IS_SLASH(pszDestAbs[cch - 1])
+                        &&  !RTPATH_IS_SLASH(pszDestAbs[cch - 2]))
+                    {
+                        rc = RTStrAAppend(&pszDestAbs, RTPATH_SLASH_STR);
+                    }
+                }
+
+                if (RT_SUCCESS(rc))
+                {
+                    RTListInit(pList);
+                    rc = ctrlCopyDirectoryRead(pszSourceAbsRoot, NULL /* Sub directory */,
+                                               pszFilter, pszDestAbs,
+                                               uFlags, pcObjects, pList);
+                    if (RT_SUCCESS(rc) && *pcObjects == 0)
+                        rc = VERR_NOT_FOUND;
+                }
+
+                if (pszDestAbs)
+                    RTStrFree(pszDestAbs);
+                if (pszSourceAbsRoot)
+                    RTStrFree(pszSourceAbsRoot);
+            }
+            else
+                rc = VERR_NO_MEMORY;
+        }
+        RTStrFree(pszSourceAbs);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+    return rc;
+}
+
+/**
+ * Copys a file from host to the guest.
+ *
+ * @return  IPRT status code.
+ * @param   pGuest          IGuest interface pointer.
+ * @param   fVerbose        Verbose flag.
+ * @param   pszSource       Source path of existing host file to copy.
+ * @param   pszDest         Destination path on guest to copy the file to.
+ * @param   pszUserName     User name on guest to use for the copy operation.
+ * @param   pszPassword     Password of user account.
+ * @param   uFlags          Copy flags.
+ */
+static int ctrlCopyFileToGuest(IGuest *pGuest, bool fVerbose, const char *pszSource, const char *pszDest,
+                               const char *pszUserName, const char *pszPassword,
+                               uint32_t uFlags)
+{
+    AssertPtrReturn(pszSource, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszDest, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszUserName, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszPassword, VERR_INVALID_PARAMETER);
+
+    int vrc = VINF_SUCCESS;
+    ComPtr<IProgress> progress;
+    HRESULT rc = pGuest->CopyToGuest(Bstr(pszSource).raw(), Bstr(pszDest).raw(),
+                                     Bstr(pszUserName).raw(), Bstr(pszPassword).raw(),
+                                     uFlags, progress.asOutParam());
+    if (FAILED(rc))
+        vrc = ctrlPrintError(pGuest, COM_IIDOF(IGuest));
+    else
+    {
+        rc = showProgress(progress);
+        if (FAILED(rc))
+            vrc = ctrlPrintProgressError(progress);
+    }
+    return vrc;
+}
+
+static int handleCtrlCopyTo(HandlerArg *a)
+{
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
+    if (a->argc < 3) /* At least the source + destination should be present :-). */
+        return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--dryrun",              'd',         RTGETOPT_REQ_NOTHING },
+        { "--follow",              'F',         RTGETOPT_REQ_NOTHING },
+        { "--password",            'p',         RTGETOPT_REQ_STRING  },
+        { "--recursive",           'R',         RTGETOPT_REQ_NOTHING },
+        { "--username",            'u',         RTGETOPT_REQ_STRING  },
+        { "--verbose",             'v',         RTGETOPT_REQ_NOTHING }
+    };
+
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0);
+
+    Utf8Str Utf8Source;
+    Utf8Str Utf8Dest;
+    Utf8Str Utf8UserName;
+    Utf8Str Utf8Password;
+    uint32_t uFlags = CopyFileFlag_None;
+    bool fVerbose = false;
+    bool fCopyRecursive = false;
+    bool fDryRun = false;
+
+    int vrc = VINF_SUCCESS;
+    uint32_t uNoOptionIdx = 0;
+    bool fUsageOK = true;
+    while (   (ch = RTGetOpt(&GetState, &ValueUnion))
+           && RT_SUCCESS(vrc))
+    {
+        /* For options that require an argument, ValueUnion has received the value. */
+        switch (ch)
+        {
+            case 'd': /* Dry run */
+                fDryRun = true;
+                break;
+
+            case 'F': /* Follow symlinks */
+                uFlags |= CopyFileFlag_FollowLinks;
+                break;
+
+            case 'p': /* Password */
+                Utf8Password = ValueUnion.psz;
+                break;
+
+            case 'R': /* Recursive processing */
+                uFlags |= CopyFileFlag_Recursive;
+                break;
+
+            case 'u': /* User name */
+                Utf8UserName = ValueUnion.psz;
+                break;
+
+            case 'v': /* Verbose */
+                fVerbose = true;
+                break;
+
+            case VINF_GETOPT_NOT_OPTION:
+            {
+                /* Get the actual source + destination. */
+                switch (uNoOptionIdx)
+                {
+                    case 0:
+                        Utf8Source = ValueUnion.psz;
+                        break;
+
+                    case 1:
+                        Utf8Dest = ValueUnion.psz;
+                        break;
+
+                    default:
+                        break;
+                }
+                uNoOptionIdx++;
+                if (uNoOptionIdx == UINT32_MAX)
+                {
+                    RTMsgError("Too many files specified! Aborting.\n");
+                    vrc = VERR_TOO_MUCH_DATA;
+                }
+                break;
+            }
+
+            default:
+                return RTGetOptPrintError(ch, &ValueUnion);
+        }
+    }
+
+    if (!fUsageOK)
+        return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    if (Utf8Source.isEmpty())
+        return errorSyntax(USAGE_GUESTCONTROL,
+                           "No source specified!");
+
+    if (Utf8Dest.isEmpty())
+        return errorSyntax(USAGE_GUESTCONTROL,
+                           "No destination specified!");
+
+    if (Utf8UserName.isEmpty())
+        return errorSyntax(USAGE_GUESTCONTROL,
+                           "No user name specified!");
+    HRESULT rc = S_OK;
+    ComPtr<IGuest> guest;
+    vrc = ctrlInitVM(a, a->argv[0] /* VM Name */, &guest);
+    if (RT_SUCCESS(vrc))
+    {
+        if (fVerbose)
+        {
+            if (fDryRun)
+                RTPrintf("Dry run - no files copied!\n");
+            RTPrintf("Gathering file information ...\n");
+        }
+
+        RTLISTNODE listToCopy;
+        uint32_t cObjects = 0;
+        vrc = ctrlCopyInit(Utf8Source.c_str(), Utf8Dest.c_str(), uFlags,
+                           &cObjects, &listToCopy);
+        if (RT_FAILURE(vrc))
+        {
+            switch (vrc)
+            {
+                case VERR_NOT_FOUND:
+                    RTMsgError("No files to copy found!\n");
+                    break;
+
+                case VERR_FILE_NOT_FOUND:
+                    RTMsgError("Source path \"%s\" not found!\n", Utf8Source.c_str());
+                    break;
+
+                default:
+                    RTMsgError("Failed to initialize, rc=%Rrc\n", vrc);
+                    break;
+            }
+        }
+        else
+        {
+            PDIRECTORYENTRY pNode;
+            if (RT_SUCCESS(vrc))
+            {
+                if (fVerbose)
+                {
+                    if (fCopyRecursive)
+                        RTPrintf("Recursively copying \"%s\" to \"%s\" (%u file(s)) ...\n",
+                                 Utf8Source.c_str(), Utf8Dest.c_str(), cObjects);
+                    else
+                        RTPrintf("Copying \"%s\" to \"%s\" (%u file(s)) ...\n",
+                                 Utf8Source.c_str(), Utf8Dest.c_str(), cObjects);
+                }
+
+                uint32_t uCurObject = 1;
+                RTListForEach(&listToCopy, pNode, DIRECTORYENTRY, Node)
+                {
+                    if (!fDryRun)
+                    {
+                        if (fVerbose)
+                            RTPrintf("Copying \"%s\" to \"%s\" (%u/%u) ...\n",
+                                     pNode->pszSourcePath, pNode->pszDestPath, uCurObject, cObjects);
+                        /* Finally copy the desired file (if no dry run selected). */
+                        if (!fDryRun)
+                            vrc = ctrlCopyFileToGuest(guest, fVerbose, pNode->pszSourcePath, pNode->pszDestPath,
+                                                      Utf8UserName.c_str(), Utf8Password.c_str(), uFlags);
+                    }
+                    if (RT_FAILURE(vrc))
+                        break;
+                    uCurObject++;
+                }
+                if (RT_SUCCESS(vrc) && fVerbose)
+                    RTPrintf("Copy operation successful!\n");
+            }
+            ctrlDirectoryListDestroy(&listToCopy);
+        }
+        ctrlUninitVM(a);
+    }
+
+    if (RT_FAILURE(vrc))
+        rc = VBOX_E_IPRT_ERROR;
+    return SUCCEEDED(rc) ? 0 : 1;
+}
+
+static int handleCtrlCreateDirectory(HandlerArg *a)
+{
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
+    if (a->argc < 2) /* At least the directory we want to create should be present :-). */
+        return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--mode",                'm',         RTGETOPT_REQ_UINT32  },
+        { "--parents",             'P',         RTGETOPT_REQ_NOTHING },
+        { "--password",            'p',         RTGETOPT_REQ_STRING  },
+        { "--username",            'u',         RTGETOPT_REQ_STRING  },
+        { "--verbose",             'v',         RTGETOPT_REQ_NOTHING }
+    };
+
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0);
+
+    Utf8Str Utf8UserName;
+    Utf8Str Utf8Password;
+    uint32_t uFlags = CreateDirectoryFlag_None;
+    uint32_t uMode = 0;
+    bool fVerbose = false;
+
+    RTLISTNODE listDirs;
+    uint32_t uNumDirs = 0;
+    RTListInit(&listDirs);
+
+    int vrc = VINF_SUCCESS;
+    bool fUsageOK = true;
+    while (   (ch = RTGetOpt(&GetState, &ValueUnion))
+           && RT_SUCCESS(vrc))
+    {
+        /* For options that require an argument, ValueUnion has received the value. */
+        switch (ch)
+        {
+            case 'm': /* Mode */
+                uMode = ValueUnion.u32;
+                break;
+
+            case 'P': /* Create parents */
+                uFlags |= CreateDirectoryFlag_Parents;
+                break;
+
+            case 'p': /* Password */
+                Utf8Password = ValueUnion.psz;
+                break;
+
+            case 'u': /* User name */
+                Utf8UserName = ValueUnion.psz;
+                break;
+
+            case 'v': /* Verbose */
+                fVerbose = true;
+                break;
+
+            case VINF_GETOPT_NOT_OPTION:
+            {
+                vrc = ctrlDirectoryEntryAppend(NULL,              /* No source given */
+                                               ValueUnion.psz,    /* Destination */
+                                               &listDirs);
+                if (RT_SUCCESS(vrc))
+                {
+                    uNumDirs++;
+                    if (uNumDirs == UINT32_MAX)
+                    {
+                        RTMsgError("Too many directories specified! Aborting.\n");
+                        vrc = VERR_TOO_MUCH_DATA;
+                    }
+                }
+                break;
+            }
+
+            default:
+                return RTGetOptPrintError(ch, &ValueUnion);
+        }
+    }
+
+    if (!fUsageOK)
+        return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    if (!uNumDirs)
+        return errorSyntax(USAGE_GUESTCONTROL,
+                           "No directory to create specified!");
+
+    if (Utf8UserName.isEmpty())
+        return errorSyntax(USAGE_GUESTCONTROL,
+                           "No user name specified!");
+
+    HRESULT rc = S_OK;
+    ComPtr<IGuest> guest;
+    vrc = ctrlInitVM(a, a->argv[0] /* VM Name */, &guest);
+    if (RT_SUCCESS(vrc))
+    {
+        if (fVerbose && uNumDirs > 1)
+            RTPrintf("Creating %ld directories ...\n", uNumDirs);
+
+        PDIRECTORYENTRY pNode;
+        RTListForEach(&listDirs, pNode, DIRECTORYENTRY, Node)
+        {
+            if (fVerbose)
+                RTPrintf("Creating directory \"%s\" ...\n", pNode->pszDestPath);
+
+            ComPtr<IProgress> progress;
+            rc = guest->CreateDirectory(Bstr(pNode->pszDestPath).raw(),
+                                        Bstr(Utf8UserName).raw(), Bstr(Utf8Password).raw(),
+                                        uMode, uFlags, progress.asOutParam());
+            if (FAILED(rc))
+            {
+                vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
+                break;
+            }
+        }
+        ctrlUninitVM(a);
+    }
+    ctrlDirectoryListDestroy(&listDirs);
+
+    if (RT_FAILURE(vrc))
+        rc = VBOX_E_IPRT_ERROR;
+    return SUCCEEDED(rc) ? 0 : 1;
+}
+
+static int handleCtrlUpdateAdditions(HandlerArg *a)
+{
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
+    if (a->argc < 1) /* At least the VM name should be present :-). */
+        return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    Utf8Str Utf8Source;
+    bool fVerbose = false;
+
+/** @todo r=bird: Use RTGetOpt here, no new code using strcmp-if-switching!  */
+    /* Iterate through all possible commands (if available). */
+    bool usageOK = true;
+    for (int i = 1; usageOK && i < a->argc; i++)
+    {
+        if (!strcmp(a->argv[i], "--source"))
+        {
+            if (i + 1 >= a->argc)
+                usageOK = false;
+            else
+            {
+                Utf8Source = a->argv[i + 1];
+                ++i;
+            }
+        }
+        else if (!strcmp(a->argv[i], "--verbose"))
+            fVerbose = true;
+        else
+            return errorSyntax(USAGE_GUESTCONTROL,
+                               "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
+    }
+
+    if (!usageOK)
+        return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
+
+    HRESULT rc = S_OK;
+    ComPtr<IGuest> guest;
+    int vrc = ctrlInitVM(a, a->argv[0] /* VM Name */, &guest);
+    if (RT_SUCCESS(vrc))
+    {
+        if (fVerbose)
+            RTPrintf("Updating Guest Additions of machine \"%s\" ...\n", a->argv[0]);
+
+#ifdef DEBUG_andy
+        if (Utf8Source.isEmpty())
+            Utf8Source = "c:\\Downloads\\VBoxGuestAdditions-r67158.iso";
+#endif
+        /* Determine source if not set yet. */
+        if (Utf8Source.isEmpty())
+        {
+            char strTemp[RTPATH_MAX];
+            vrc = RTPathAppPrivateNoArch(strTemp, sizeof(strTemp));
+            AssertRC(vrc);
+            Utf8Str Utf8Src1 = Utf8Str(strTemp).append("/VBoxGuestAdditions.iso");
+
+            vrc = RTPathExecDir(strTemp, sizeof(strTemp));
+            AssertRC(vrc);
+            Utf8Str Utf8Src2 = Utf8Str(strTemp).append("/additions/VBoxGuestAdditions.iso");
+
+            /* Check the standard image locations */
+            if (RTFileExists(Utf8Src1.c_str()))
+                Utf8Source = Utf8Src1;
+            else if (RTFileExists(Utf8Src2.c_str()))
+                Utf8Source = Utf8Src2;
+            else
+            {
+                RTMsgError("Source could not be determined! Please use --source to specify a valid source.\n");
+                vrc = VERR_FILE_NOT_FOUND;
+            }
+        }
+        else if (!RTFileExists(Utf8Source.c_str()))
+        {
+            RTMsgError("Source \"%s\" does not exist!\n", Utf8Source.c_str());
+            vrc = VERR_FILE_NOT_FOUND;
+        }
+
+        if (RT_SUCCESS(vrc))
+        {
+            if (fVerbose)
+                RTPrintf("Using source: %s\n", Utf8Source.c_str());
+
+            ComPtr<IProgress> progress;
+            CHECK_ERROR(guest, UpdateGuestAdditions(Bstr(Utf8Source).raw(),
+                                                    /* Wait for whole update process to complete. */
+                                                    AdditionsUpdateFlag_None,
+                                                    progress.asOutParam()));
+            if (FAILED(rc))
+                vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
+            else
+            {
+                rc = showProgress(progress);
+                if (FAILED(rc))
+                    vrc = ctrlPrintProgressError(progress);
+                else if (fVerbose)
+                    RTPrintf("Guest Additions update successful.\n");
+            }
+        }
+        ctrlUninitVM(a);
+    }
+
+    if (RT_FAILURE(vrc))
+        rc = VBOX_E_IPRT_ERROR;
     return SUCCEEDED(rc) ? 0 : 1;
 }
 
@@ -549,13 +1430,32 @@ int handleGuestControl(HandlerArg *a)
     arg.argc = a->argc - 1;
     arg.argv = a->argv + 1;
 
-    if (a->argc == 0)
+    if (a->argc <= 0)
         return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");
 
     /* switch (cmd) */
-    if (   strcmp(a->argv[0], "exec") == 0
-        || strcmp(a->argv[0], "execute") == 0)
-        return handleExecProgram(&arg);
+    if (   !RTStrICmp(a->argv[0], "exec")
+        || !RTStrICmp(a->argv[0], "execute"))
+    {
+        return handleCtrlExecProgram(&arg);
+    }
+    else if (   !RTStrICmp(a->argv[0], "copyto")
+             || !RTStrICmp(a->argv[0], "cp"))
+    {
+        return handleCtrlCopyTo(&arg);
+    }
+    else if (   !RTStrICmp(a->argv[0], "createdirectory")
+             || !RTStrICmp(a->argv[0], "createdir")
+             || !RTStrICmp(a->argv[0], "mkdir")
+             || !RTStrICmp(a->argv[0], "md"))
+    {
+        return handleCtrlCreateDirectory(&arg);
+    }
+    else if (   !RTStrICmp(a->argv[0], "updateadditions")
+             || !RTStrICmp(a->argv[0], "updateadds"))
+    {
+        return handleCtrlUpdateAdditions(&arg);
+    }
 
     /* default: */
     return errorSyntax(USAGE_GUESTCONTROL, "Incorrect parameters");

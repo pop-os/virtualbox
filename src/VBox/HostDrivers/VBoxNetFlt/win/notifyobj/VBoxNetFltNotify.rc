@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltNotify.rc $ */
+/* $Id: VBoxNetFltNotify.rc 32394 2010-09-10 12:13:11Z vboxsync $ */
 /** @file
  * VBoxNetFltNotify - Resource file containing version info and icon.
  */

@@ -1,4 +1,4 @@
-/* $Id: EMInternal.h $ */
+/* $Id: EMInternal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * EM - Internal header file.
  */
@@ -53,6 +53,8 @@ RT_C_DECLS_BEGIN
 /* Monitor instruction was executed previously. */
 #define EMMWAIT_FLAG_MONITOR_ACTIVE     RT_BIT(2)
 
+/** EM time slice in ms; used for capping execution time. */
+#define EM_TIME_SLICE                   100
 
 /**
  * Cli node structure
@@ -351,6 +353,14 @@ typedef struct EMCPU
     RTGCPTR                 aPadding1;
 #endif
 
+    /** Start of the current time slice in ms. */
+    uint64_t                u64TimeSliceStart;
+    /** Start of the current time slice in thread execution time (ms). */
+    uint64_t                u64TimeSliceStartExec;
+    /** Current time slice value. */
+    uint64_t                u64TimeSliceExec;
+    uint64_t                u64Alignment;
+
     /* MWait halt state. */
     struct
     {
@@ -390,6 +400,7 @@ typedef struct EMCPU
      * @{ */
     STAMPROFILE             StatForcedActions;
     STAMPROFILE             StatHalted;
+    STAMPROFILEADV          StatCapped;
     STAMPROFILEADV          StatHwAccEntry;
     STAMPROFILE             StatHwAccExec;
     STAMPROFILE             StatREMEmu;
@@ -420,7 +431,7 @@ typedef struct EMCPU
     RTRCPTR                 padding0;
 #endif
 
-    /** Tree for keeping track of cli occurances (debug only). */
+    /** Tree for keeping track of cli occurrences (debug only). */
     R3PTRTYPE(PAVLGCPTRNODECORE) pCliStatTree;
     STAMCOUNTER             StatTotalClis;
 #if 0

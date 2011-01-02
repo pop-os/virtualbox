@@ -1,4 +1,4 @@
-/* $Id: QILabel.cpp $ */
+/* $Id: QILabel.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -32,10 +32,10 @@
 #include <QPainter>
 #include <QStyleOptionFocusRect>
 
-/* Local inclused */
+/* Local includes */
 #include "QILabel.h"
 
-/* Some constant predefines */
+/* Some constant regular expressions */
 const QRegExp QILabel::mCopyRegExp = QRegExp ("<[^>]*>");
 QRegExp QILabel::mElideRegExp = QRegExp ("(<compact\\s+elipsis=\"(start|middle|end)\"?>([^<]*)</compact>)");
 
@@ -236,6 +236,12 @@ void QILabel::paintEvent (QPaintEvent *aEvent)
         option.initFrom (this);
         style()->drawPrimitive (QStyle::PE_FrameFocusRect, &option, &painter, this);
     }
+}
+
+void QILabel::showEvent(QShowEvent *pEvent)
+{
+    QLabel::showEvent(pEvent);
+    emit shown();
 }
 
 void QILabel::init()

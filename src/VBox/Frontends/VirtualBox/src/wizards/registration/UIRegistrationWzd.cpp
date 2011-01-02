@@ -1,4 +1,4 @@
-/* $Id: UIRegistrationWzd.cpp $ */
+/* $Id: UIRegistrationWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -478,7 +478,7 @@ UIRegistrationWzdPage1::UIRegistrationWzdPage1()
     QRegExp passwordExp ("[a-zA-Z0-9_\\-\\+=`~!@#$%^&\\*\\(\\)?\\[\\]:;,\\./]+");
 
     m_pLeOldEmail->setMaxLength(50);
-    /* New accounts *must* have a valid email as user name. Thats not the case
+    /* New accounts *must* have a valid email as user name. This not the case
      * for old existing accounts. So we don't force the email format, so that
      * old accounts could be used for registration also. */
     m_pLeOldEmail->setValidator(new QRegExpValidator(nameExp, this));
@@ -568,6 +568,14 @@ bool UIRegistrationWzdPage1::isComplete() const
 
 bool UIRegistrationWzdPage1::validatePage()
 {
+    startProcessing();
+    bool fResult = registration();
+    endProcessing();
+    return fResult;
+}
+
+bool UIRegistrationWzdPage1::registration()
+{
     /* Create registration engine */
     RegistrationEngine engine(this);
 
@@ -641,7 +649,7 @@ void UIRegistrationWzdPage1::populateCountries()
          << "Andorra"
          << "Angola"
          << "Anguilla"
-         << "Antartica"
+         << "Antarctica"
          << "Antigua & Barbuda"
          << "Argentina"
          << "Armenia"

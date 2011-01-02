@@ -8,6 +8,7 @@
 #include "cr_error.h"
 #include "cr_mem.h"
 #include "cr_version.h"
+#include <stdio.h>
 #include <math.h>
 
 #if defined(WINDOWS)
@@ -46,6 +47,9 @@ static int crSizeOfType( GLenum type )
         case GL_UNSIGNED_INT_8_8_8_8_REV:
         case GL_UNSIGNED_INT_10_10_10_2:
         case GL_UNSIGNED_INT_2_10_10_10_REV:
+#endif
+#ifdef CR_EXT_framebuffer_object
+        case GL_UNSIGNED_INT_24_8:
 #endif
         case GL_UNSIGNED_INT:
         case GL_INT:
@@ -98,6 +102,10 @@ int crPixelSize( GLenum format, GLenum type )
         case GL_UNSIGNED_INT_8_8_8_8_REV:
         case GL_UNSIGNED_INT_10_10_10_2:
         case GL_UNSIGNED_INT_2_10_10_10_REV:
+            return 4;
+#endif
+#ifdef CR_EXT_framebuffer_object
+        case GL_UNSIGNED_INT_24_8:
             return 4;
 #endif
         case GL_UNSIGNED_INT:
@@ -1407,7 +1415,7 @@ swap4(GLuint *ui, GLuint n)
 
 
 /**
- * Return number of bytes of storage needed to accomodate an
+ * Return number of bytes of storage needed to accommodate an
  * image with the given format, type, and size.
  * \return size in bytes or -1 if bad format or type
  */
@@ -1434,7 +1442,7 @@ unsigned int crImageSize( GLenum format, GLenum type, GLsizei width, GLsizei hei
 }
 
 /**
- * Return number of bytes of storage needed to accomodate a
+ * Return number of bytes of storage needed to accommodate a
  * 3D texture with the give format, type, and size.
  * \return size in bytes or -1 if bad format or type
  */
@@ -1774,4 +1782,62 @@ void crBitmapCopy( GLsizei width, GLsizei height, GLubyte *dstPtr,
             }
         }
     }
+}
+
+static int _tnum = 0;
+#pragma pack(1)
+typedef struct tgaheader_tag
+{
+    char  idlen;
+
+    char  colormap;
+
+    char  imagetype;
+
+    short cm_index;
+    short cm_len;
+    char  cm_entrysize;
+
+    short x, y, w, h;
+    char  depth;
+    char  imagedesc;
+    
+} tgaheader_t;
+#pragma pack()
+
+void crDumpTGA(GLint w, GLint h, GLvoid *data)
+{
+    char fname[200];
+
+    if (!w || !h) return;
+
+    sprintf(fname, "tex%i.tga", _tnum++);
+    crDumpNamedTGA(fname, w, h, data);
+}
+
+void crDumpNamedTGA(const char* fname, GLint w, GLint h, GLvoid *data)
+{
+    tgaheader_t header;
+    FILE *out;
+
+    out = fopen(fname, "w");
+    if (!out) crError("can't create %s!", fname);
+
+    header.idlen = 0;
+    header.colormap = 0;
+    header.imagetype = 2;
+    header.cm_index = 0;
+    header.cm_len = 0;
+    header.cm_entrysize = 0;
+    header.x = 0;
+    header.y = 0;
+    header.w = w;
+    header.h = h;
+    header.depth = 32;
+    header.imagedesc = 0x08;
+    fwrite(&header, sizeof(header), 1, out);
+
+    fwrite(data, w*h*4, 1, out);
+
+    fclose(out);
 }

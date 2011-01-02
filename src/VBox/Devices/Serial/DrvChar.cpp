@@ -1,4 +1,4 @@
-/* $Id: DrvChar.cpp $ */
+/* $Id: DrvChar.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * Driver that adapts PDMISTREAM into PDMICHARCONNECTOR / PDMICHARPORT.
  *
@@ -67,7 +67,7 @@ typedef struct DRVCHAR
     RTTHREAD                    ReceiveThread;
     /** Send thread ID. */
     RTTHREAD                    SendThread;
-    /** Send event semephore */
+    /** Send event semaphore */
     RTSEMEVENT                  SendSem;
 
     /** Internal send FIFO queue */

@@ -141,8 +141,8 @@ public class metrictest implements Runnable
 
     public metrictest()
     {
-        vbox = VirtualBox.connect("http://localhost:18083/");
-        mgr = new IWebsessionManager(vbox.getRemoteWSPort());
+        mgr = new IWebsessionManager("http://localhost:18083/");
+        vbox = mgr.logon("test", "test");
         System.out.println("Initialized connection to VirtualBox version " + vbox.getVersion());
         perf = new PerformanceCollector(vbox);
     }
@@ -216,7 +216,7 @@ public class metrictest implements Runnable
         Runtime.getRuntime().addShutdownHook(new Thread(c));
         // Start metric collection
         c.setup();
-        // Obtain and print out stats continuosly until ctrl-C is pressed
+        // Obtain and print out stats continuously until ctrl-C is pressed
         while (true)
         {
             Thread.sleep(1000); // Sleep for a second

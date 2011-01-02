@@ -1,4 +1,4 @@
-/* $Id: VBoxGuestR3LibAdditions.cpp $ */
+/* $Id: VBoxGuestR3LibAdditions.cpp 30959 2010-07-21 13:22:08Z vboxsync $ */
 /** @file
  * VBoxGuestR3Lib - Ring-3 Support Library for VirtualBox guest additions, Additions Info.
  */
@@ -142,21 +142,22 @@ static int vbglR3CloseAdditionsWinStoragePath(HKEY hKey)
  * Reports the Guest Additions status of a certain facility to the host.
  *
  * @returns IPRT status value
- * @param uFacility
- * @param uStatus
- * @param uFlags
+ * @param   enmFacility     The facility to report the status on.
+ * @param   enmStatus       The new status of the facility.
+ * @param   fReserved       Reserved for future use (what?).
  */
-VBGLR3DECL(int) VbglR3ReportAdditionsStatus(VBoxGuestStatusFacility Facility, VBoxGuestStatusCurrent StatusCurrent, uint32_t uFlags)
+VBGLR3DECL(int) VbglR3ReportAdditionsStatus(VBoxGuestStatusFacility enmFacility,
+                                            VBoxGuestStatusCurrent enmStatusCurrent,
+                                            uint32_t fReserved)
 {
     VMMDevReportGuestStatus Report;
     RT_ZERO(Report);
     int rc = vmmdevInitRequest((VMMDevRequestHeader*)&Report, VMMDevReq_ReportGuestStatus);
     if (RT_SUCCESS(rc))
     {
-
-        Report.guestStatus.facility = Facility;
-        Report.guestStatus.status = StatusCurrent;
-        Report.guestStatus.flags = uFlags;
+        Report.guestStatus.facility = enmFacility;
+        Report.guestStatus.status   = enmStatusCurrent;
+        Report.guestStatus.flags    = fReserved;
 
         rc = vbglR3GRPerform(&Report.header);
     }

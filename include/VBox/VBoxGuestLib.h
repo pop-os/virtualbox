@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -378,7 +378,7 @@ DECLVBGL(RTCCPHYS) VbglPhysHeapGetPhysAddr (void *p);
 DECLVBGL(void) VbglPhysHeapFree (void *p);
 
 DECLVBGL(int) VbglQueryVMMDevMemory (VMMDevMemory **ppVMMDevMemory);
-DECLR0VBGL(bool)    VbglR0CanUsePhysPageList(void);
+DECLR0VBGL(bool) VbglR0CanUsePhysPageList(void);
 
 #endif /* IN_RING0 && !IN_RING0_AGNOSTIC */
 /** @} */
@@ -472,6 +472,12 @@ VBGLR3DECL(int)     VbglR3MemBalloonRefresh(uint32_t *pcChunks, bool *pfHandleIn
 VBGLR3DECL(int)     VbglR3MemBalloonChange(void *pv, bool fInflate);
 /** @}  */
 
+/** @name Core Dump
+ * @{ */
+VBGLR3DECL(int)     VbglR3WriteCoreDump(void);
+
+/** @}  */
+
 # ifdef VBOX_WITH_GUEST_PROPS
 /** @name Guest properties
  * @{ */
@@ -507,6 +513,34 @@ VBGLR3DECL(int)     VbglR3HostVersionLastCheckedStore(uint32_t u32ClientId, cons
 /** @}  */
 # endif /* VBOX_WITH_GUEST_PROPS defined */
 
+# ifdef VBOX_WITH_SHARED_FOLDERS
+/** @name Shared folders
+ * @{ */
+/**
+ * Structure containing mapping information for a shared folder.
+ */
+typedef struct VBGLR3SHAREDFOLDERMAPPING
+{
+    /** Mapping status. */
+    uint32_t u32Status;
+    /** Root handle. */
+    uint32_t u32Root;
+} VBGLR3SHAREDFOLDERMAPPING;
+/** Pointer to a shared folder mapping information struct. */
+typedef VBGLR3SHAREDFOLDERMAPPING *PVBGLR3SHAREDFOLDERMAPPING;
+
+VBGLR3DECL(int)     VbglR3SharedFolderConnect(uint32_t *pu32ClientId);
+VBGLR3DECL(int)     VbglR3SharedFolderDisconnect(uint32_t u32ClientId);
+VBGLR3DECL(bool)    VbglR3SharedFolderExists(uint32_t u32ClientId, const char *pszShareName);
+VBGLR3DECL(int)     VbglR3SharedFolderGetMappings(uint32_t u32ClientId, bool fAutoMountOnly,
+                                                  PVBGLR3SHAREDFOLDERMAPPING *ppaMappings, uint32_t *pcMappings);
+VBGLR3DECL(void)    VbglR3SharedFolderFreeMappings(PVBGLR3SHAREDFOLDERMAPPING paMappings);
+VBGLR3DECL(int)     VbglR3SharedFolderGetName(uint32_t  u32ClientId,uint32_t u32Root, char **ppszName);
+VBGLR3DECL(int)     VbglR3SharedFolderGetMountPrefix(char **ppszPrefix);
+VBGLR3DECL(int)     VbglR3SharedFolderGetMountDir(char **ppszDir);
+/** @}  */
+# endif /* VBOX_WITH_SHARED_FOLDERS defined */
+
 # ifdef VBOX_WITH_GUEST_CONTROL
 /** @name Guest control
  * @{ */
@@ -523,9 +557,13 @@ VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmd(uint32_t  u32ClientId,    uint
                                                   char     *pszUser,        uint32_t  cbUser,
                                                   char     *pszPassword,    uint32_t  cbPassword,
                                                   uint32_t *puTimeLimit);
-VBGLR3DECL(int) VbglR3GuestCtrlExecGetHostCmdOutput(uint32_t  u32ClientId,    uint32_t  uNumParms,
-                                                    uint32_t *puContext,      uint32_t *puPID,
-                                                    uint32_t *puHandle,       uint32_t *puFlags);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmdInput(uint32_t  u32ClientId,    uint32_t   uNumParms,
+                                                       uint32_t *puContext,      uint32_t  *puPID,
+                                                       uint32_t *puFlags,        void      *pvData,
+                                                       uint32_t  cbData,         uint32_t  *pcbSize);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecGetHostCmdOutput(uint32_t  u32ClientId,    uint32_t  uNumParms,
+                                                        uint32_t *puContext,      uint32_t *puPID,
+                                                        uint32_t *puHandle,       uint32_t *puFlags);
 VBGLR3DECL(int)     VbglR3GuestCtrlExecReportStatus(uint32_t  u32ClientId,
                                                     uint32_t  u32Context,
                                                     uint32_t  u32PID,
@@ -540,6 +578,12 @@ VBGLR3DECL(int)     VbglR3GuestCtrlExecSendOut(uint32_t     u32ClientId,
                                                uint32_t     u32Flags,
                                                void        *pvData,
                                                uint32_t     cbData);
+VBGLR3DECL(int)     VbglR3GuestCtrlExecReportStatusIn(uint32_t     u32ClientId,
+                                                      uint32_t     u32Context,
+                                                      uint32_t     u32PID,
+                                                      uint32_t     u32Status,
+                                                      uint32_t     u32Flags,
+                                                      uint32_t     cbWritten);
 /** @}  */
 # endif /* VBOX_WITH_GUEST_CONTROL defined */
 

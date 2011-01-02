@@ -1,4 +1,4 @@
-/* $Id: VBoxDefs.cpp $ */
+/* $Id: VBoxDefs.cpp 34961 2010-12-10 15:36:39Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,15 +17,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Local includes */
 #include <VBoxDefs.h>
 
-const QUuid QUuid_null;
+/* Global includes */
+#include <QStringList>
 
-const char* VBoxDefs::GUI_LastWindowPosition = "GUI/LastWindowPostion";
-const char* VBoxDefs::GUI_LastWindowPosition_Max = "max";
+const char* VBoxDefs::GUI_LastWindowPosition = "GUI/LastWindowPosition";
+const char* VBoxDefs::GUI_LastNormalWindowPosition = "GUI/LastNormalWindowPosition";
+const char* VBoxDefs::GUI_LastScaleWindowPosition = "GUI/LastScaleWindowPosition";
+const char* VBoxDefs::GUI_LastWindowState_Max = "max";
 const char* VBoxDefs::GUI_LastGuestSizeHint = "GUI/LastGuestSizeHint";
+const char* VBoxDefs::GUI_Toolbar = "GUI/Toolbar";
+const char* VBoxDefs::GUI_Statusbar = "GUI/Statusbar";
+const char* VBoxDefs::GUI_SplitterSizes = "GUI/SplitterSizes";
 const char* VBoxDefs::GUI_Fullscreen = "GUI/Fullscreen";
 const char* VBoxDefs::GUI_Seamless = "GUI/Seamless";
+const char* VBoxDefs::GUI_Scale = "GUI/Scale";
 const char* VBoxDefs::GUI_VirtualScreenToHostScreen = "GUI/VirtualScreenToHostScreen";
 const char* VBoxDefs::GUI_AutoresizeGuest = "GUI/AutoresizeGuest";
 const char* VBoxDefs::GUI_FirstRun = "GUI/FirstRun";
@@ -37,6 +45,10 @@ const char* VBoxDefs::GUI_LastCloseAction = "GUI/LastCloseAction";
 const char* VBoxDefs::GUI_RestrictedCloseActions = "GUI/RestrictedCloseActions";
 const char* VBoxDefs::GUI_SuppressMessages = "GUI/SuppressMessages";
 const char* VBoxDefs::GUI_PermanentSharedFoldersAtRuntime = "GUI/PermanentSharedFoldersAtRuntime";
+const char* VBoxDefs::GUI_LanguageId = "GUI/LanguageID";
+const char* VBoxDefs::GUI_PreviewUpdate = "GUI/PreviewUpdate";
+const char* VBoxDefs::GUI_DetailsPageBoxes = "GUI/DetailsPageBoxes";
+const char* VBoxDefs::GUI_SelectorVMPositions = "GUI/SelectorVMPositions";
 #ifdef Q_WS_X11
 const char* VBoxDefs::GUI_LicenseKey = "GUI/LicenseAgreed";
 #endif
@@ -50,6 +62,7 @@ const char* VBoxDefs::GUI_InfoDlgState = "GUI/InfoDlgState";
 const char* VBoxDefs::GUI_RenderMode = "GUI/RenderMode";
 #ifdef VBOX_GUI_WITH_SYSTRAY
 const char* VBoxDefs::GUI_TrayIconWinID = "GUI/TrayIcon/WinID";
+const char* VBoxDefs::GUI_TrayIconEnabled = "GUI/TrayIcon/Enabled";
 const char* VBoxDefs::GUI_MainWindowCount = "GUI/MainWindowCount";
 #endif
 #ifdef Q_WS_MAC
@@ -63,6 +76,9 @@ const char* VBoxDefs::GUI_Export_Username = "GUI/Export/Username";
 const char* VBoxDefs::GUI_Export_Hostname = "GUI/Export/Hostname";
 const char* VBoxDefs::GUI_Export_Bucket = "GUI/Export/Bucket";
 const char* VBoxDefs::GUI_PreventBetaWarning = "GUI/PreventBetaWarning";
+const char* VBoxDefs::GUI_RecentListHD = "GUI/RecentListHD";
+const char* VBoxDefs::GUI_RecentListCD = "GUI/RecentListCD";
+const char* VBoxDefs::GUI_RecentListFD = "GUI/RecentListFD";
 #ifdef VBOX_WITH_VIDEOHWACCEL
 const char* VBoxDefs::GUI_Accelerate2D_StretchLinear = "GUI/Accelerate2D/StretchLinear";
 const char* VBoxDefs::GUI_Accelerate2D_PixformatYV12 = "GUI/Accelerate2D/PixformatYV12";
@@ -70,4 +86,12 @@ const char* VBoxDefs::GUI_Accelerate2D_PixformatUYVY = "GUI/Accelerate2D/Pixform
 const char* VBoxDefs::GUI_Accelerate2D_PixformatYUY2 = "GUI/Accelerate2D/PixformatYUY2";
 const char* VBoxDefs::GUI_Accelerate2D_PixformatAYUV = "GUI/Accelerate2D/PixformatAYUV";
 #endif
+#ifdef VBOX_WITH_DEBUGGER_GUI
+const char* VBoxDefs::GUI_DbgEnabled = "GUI/Dbg/Enabled";
+const char* VBoxDefs::GUI_DbgAutoShow = "GUI/Dbg/AutoShow";
+#endif
+
+QStringList VBoxDefs::VBoxFileExts = QStringList() << "xml" << "vbox";
+QStringList VBoxDefs::VBoxExtPackFileExts = QStringList() << "vbox-extpack";
+QStringList VBoxDefs::OVFFileExts = QStringList() << "ovf" << "ova";
 

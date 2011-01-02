@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 33540 2010-10-28 09:27:05Z vboxsync $
 ## @file
 # Sub-Makefile for the Network Filter Driver (VBoxNetFlt).
 #
@@ -323,10 +323,6 @@ vboxnetflt_INCS.linux   := \
 vboxnetflt_INCS         := \
 	$(PATH_SUB_CURRENT)
 vboxnetflt_LDFLAGS.solaris += -N drv/vboxdrv
-  ifdef VBOXNETFLT_SOLARIS_USE_NETINFO
-vboxnetflt_DEFS.solaris += VBOXNETFLT_SOLARIS_USE_NETINFO
-vboxnetflt_LDFLAGS.solaris += -N misc/neti
-  endif
 vboxnetflt_LIBS = \
 	$(PATH_LIB)/SUPR0IdcClient$(VBOX_SUFF_LIB)
 ## @todo vboxflt should resolves all the IPRT bits from vboxdrv.
@@ -357,7 +353,7 @@ endif # to be removed.
 
 ifeq ($(KBUILD_TARGET),linux)
  #
- # Install source files for compliation on Linux.
+ # Install source files for compilation on Linux.
  # files_vboxnetflt defines VBOX_VBOXNETFLT_SOURCES.
  #
  include $(PATH_SUB_CURRENT)/linux/files_vboxnetflt
@@ -375,7 +371,7 @@ ifeq ($(KBUILD_TARGET),linux)
  VBoxNetFlt-sh_MODE    = a+rx,u+w
  VBoxNetFlt-sh_SOURCES = \
 	$(PATH_VBoxNetFlt-sh)/build_in_tmp \
-	$(if $(VBOX_OSE),,$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers)
+	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
  VBoxNetFlt-sh_CLEAN   = $(PATH_VBoxNetFlt-sh)/build_in_tmp
 
 
@@ -411,7 +407,7 @@ $(PATH_OUT)/opt_netgraph.h:
 	echo > $(PATH_OUT)/opt_netgraph.h
 
  #
- # Install source files for compliation on FreeBSD.
+ # Install source files for compilation on FreeBSD.
  # files_vboxnetflt defines VBOX_VBOXNETFLT_SOURCES.
  #
  include $(PATH_SUB_CURRENT)/freebsd/files_vboxnetflt

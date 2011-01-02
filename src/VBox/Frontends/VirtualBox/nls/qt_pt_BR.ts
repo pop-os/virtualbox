@@ -2,6 +2,37 @@
 <!DOCTYPE TS>
 <TS version="2.0" language="pt">
 <context>
+    <name>MAC_APPLICATION_MENU</name>
+    <message>
+        <source>Services</source>
+        <translation>Serviços</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ocultar %1</translation>
+    </message>
+    <message>
+        <source>Hide Others</source>
+        <translation>Ocultar Outros</translation>
+    </message>
+    <message>
+        <source>Show All</source>
+        <translation>Mostrar Tudo</translation>
+    </message>
+    <message>
+        <source>Preferences...</source>
+        <translation>Preferências...</translation>
+    </message>
+    <message>
+        <source>Quit %1</source>
+        <translation>Sair do %1</translation>
+    </message>
+    <message>
+        <source>About %1</source>
+        <translation>Sobre o %1</translation>
+    </message>
+</context>
+<context>
     <name>AudioOutput</name>
     <message>
         <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>

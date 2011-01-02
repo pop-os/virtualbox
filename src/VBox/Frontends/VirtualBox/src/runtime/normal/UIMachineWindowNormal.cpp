@@ -1,4 +1,4 @@
-/* $Id: UIMachineWindowNormal.cpp $ */
+/* $Id: UIMachineWindowNormal.cpp 30930 2010-07-20 14:26:06Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -28,14 +28,16 @@
 #include "VBoxProblemReporter.h"
 #include "VBoxUtils.h"
 
+#include "UISession.h"
 #include "UIActionsPool.h"
+#include "UIIndicatorsPool.h"
+#include "UIKeyboardHandler.h"
+#include "UIMouseHandler.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindowNormal.h"
+#include "UIMachineView.h"
 #include "UIDownloaderAdditions.h"
 #include "UIDownloaderUserManual.h"
-#include "UIIndicatorsPool.h"
-#include "UIMachineLogic.h"
-#include "UIMachineView.h"
-#include "UIMachineWindowNormal.h"
-#include "UISession.h"
 
 #include "QIStatusBar.h"
 #include "QIStateIndicator.h"
@@ -78,6 +80,9 @@ UIMachineWindowNormal::UIMachineWindowNormal(UIMachineLogic *pMachineLogic, ulon
     /* Prepare normal machine view: */
     prepareMachineView();
 
+    /* Prepare handlers: */
+    prepareHandlers();
+
     /* Load normal window settings: */
     loadWindowSettings();
 
@@ -92,6 +97,9 @@ UIMachineWindowNormal::~UIMachineWindowNormal()
 {
     /* Save normal window settings: */
     saveWindowSettings();
+
+    /* Prepare handlers: */
+    cleanupHandlers();
 
     /* Cleanup normal machine view: */
     cleanupMachineView();
@@ -318,22 +326,7 @@ bool UIMachineWindowNormal::event(QEvent *pEvent)
 #ifdef Q_WS_X11
 bool UIMachineWindowNormal::x11Event(XEvent *pEvent)
 {
-    /* Qt bug: when the console view grabs the keyboard, FocusIn, FocusOut,
-     * WindowActivate and WindowDeactivate Qt events are not properly sent
-     * on top level window (i.e. this) deactivation. The fix is to substiute
-     * the mode in FocusOut X11 event structure to NotifyNormal to cause
-     * Qt to process it as desired. */
-    if (pEvent->type == FocusOut)
-    {
-        if (pEvent->xfocus.mode == NotifyWhileGrabbed  &&
-            (pEvent->xfocus.detail == NotifyAncestor ||
-             pEvent->xfocus.detail == NotifyInferior ||
-             pEvent->xfocus.detail == NotifyNonlinear))
-        {
-             pEvent->xfocus.mode = NotifyNormal;
-        }
-    }
-    return false;
+    return UIMachineWindow::x11Event(pEvent);
 }
 #endif
 
@@ -487,12 +480,12 @@ void UIMachineWindowNormal::prepareMachineView()
     centralWidget()->setLayout(m_pMachineViewContainer);
 
     m_pMachineView = UIMachineView::create(  this
-                                           , vboxGlobal().vmRenderMode()
+                                           , m_uScreenId
+                                           , machineLogic()->visualStateType()
 #ifdef VBOX_WITH_VIDEOHWACCEL
                                            , bAccelerate2DVideo
 #endif
-                                           , machineLogic()->visualStateType()
-                                           , m_uScreenId);
+                                           );
 
     /* Add machine view into layout: */
     m_pMachineViewContainer->addWidget(m_pMachineView, 1, 1);
@@ -501,14 +494,14 @@ void UIMachineWindowNormal::prepareMachineView()
     if (machineView())
     {
         /* Keyboard state-change updater: */
-        connect(machineView(), SIGNAL(keyboardStateChanged(int)), indicatorsPool()->indicator(UIIndicatorIndex_Hostkey), SLOT(setState(int)));
+        connect(machineLogic()->keyboardHandler(), SIGNAL(keyboardStateChanged(int)), indicatorsPool()->indicator(UIIndicatorIndex_Hostkey), SLOT(setState(int)));
 
         /* Mouse state-change updater: */
-        connect(machineView(), SIGNAL(mouseStateChanged(int)), indicatorsPool()->indicator(UIIndicatorIndex_Mouse), SLOT(setState(int)));
+        connect(machineLogic()->mouseHandler(), SIGNAL(mouseStateChanged(int)), indicatorsPool()->indicator(UIIndicatorIndex_Mouse), SLOT(setState(int)));
 
         /* Early initialize required connections: */
-        indicatorsPool()->indicator(UIIndicatorIndex_Hostkey)->setState(machineView()->keyboardState());
-        indicatorsPool()->indicator(UIIndicatorIndex_Mouse)->setState(machineView()->mouseState());
+        indicatorsPool()->indicator(UIIndicatorIndex_Hostkey)->setState(machineLogic()->keyboardHandler()->keyboardState());
+        indicatorsPool()->indicator(UIIndicatorIndex_Mouse)->setState(machineLogic()->mouseHandler()->mouseState());
     }
 }
 
@@ -519,42 +512,50 @@ void UIMachineWindowNormal::loadWindowSettings()
 
     /* Load extra-data settings: */
     {
-        QString strPositionAddress = m_uScreenId == 0 ? QString("%1").arg(VBoxDefs::GUI_LastWindowPosition) :
-                                     QString("%1%2").arg(VBoxDefs::GUI_LastWindowPosition).arg(m_uScreenId);
-        QString strPositionSettings = machine.GetExtraData(strPositionAddress);
+        QString strPositionAddress = m_uScreenId == 0 ? QString("%1").arg(VBoxDefs::GUI_LastNormalWindowPosition) :
+                                     QString("%1%2").arg(VBoxDefs::GUI_LastNormalWindowPosition).arg(m_uScreenId);
+        QStringList strPositionSettings = machine.GetExtraDataStringList(strPositionAddress);
 
-        bool ok = false, max = false;
+        bool ok = !strPositionSettings.isEmpty(), max = false;
         int x = 0, y = 0, w = 0, h = 0;
-        x = strPositionSettings.section(',', 0, 0).toInt(&ok);
-        if (ok)
-            y = strPositionSettings.section(',', 1, 1).toInt(&ok);
-        if (ok)
-            w = strPositionSettings.section(',', 2, 2).toInt(&ok);
-        if (ok)
-            h = strPositionSettings.section(',', 3, 3).toInt(&ok);
-        if (ok)
-            max = strPositionSettings.section(',', 4, 4) == VBoxDefs::GUI_LastWindowPosition_Max;
+
+        if (ok && strPositionSettings.size() > 0)
+            x = strPositionSettings[0].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 1)
+            y = strPositionSettings[1].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 2)
+            w = strPositionSettings[2].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 3)
+            h = strPositionSettings[3].toInt(&ok);
+        else ok = false;
+        if (ok && strPositionSettings.size() > 4)
+            max = strPositionSettings[4] == VBoxDefs::GUI_LastWindowState_Max;
 
         QRect ar = ok ? QApplication::desktop()->availableGeometry(QPoint(x, y)) :
                         QApplication::desktop()->availableGeometry(machineWindow());
 
-        if (ok /* if previous parameters were read correctly */)
+        /* If previous parameters were read correctly: */
+        if (ok)
         {
+            /* If previous machine state is SAVED: */
             if (machine.GetState() == KMachineState_Saved)
             {
-                /* restore from a saved state: restore window size and position */
+                /* Restore window size and position: */
                 m_normalGeometry = QRect(x, y, w, h);
                 setGeometry(m_normalGeometry);
             }
+            /* If previous machine state is not SAVED: */
             else
             {
-                /* not restored from a saved state: restore only the last position */
-                move(x, y);
+                /* Restore only window position: */
+                m_normalGeometry = QRect(x, y, width(), height());
+                setGeometry(m_normalGeometry);
                 if (machineView())
                     machineView()->normalizeGeometry(false /* adjust position? */);
-
             }
-
             /* Maximize if needed: */
             if (max)
                 setWindowState(windowState() | Qt::WindowMaximized);
@@ -564,7 +565,6 @@ void UIMachineWindowNormal::loadWindowSettings()
             /* Normalize view early to the optimal size: */
             if (machineView())
                 machineView()->normalizeGeometry(true /* adjust position? */);
-
             /* Move newly created window to the screen center: */
             m_normalGeometry = geometry();
             m_normalGeometry.moveCenter(ar.center());
@@ -620,9 +620,9 @@ void UIMachineWindowNormal::saveWindowSettings()
                                     .arg(m_normalGeometry.x()).arg(m_normalGeometry.y())
                                     .arg(m_normalGeometry.width()).arg(m_normalGeometry.height());
         if (isMaximizedChecked())
-            strWindowPosition += QString(",%1").arg(VBoxDefs::GUI_LastWindowPosition_Max);
-        QString strPositionAddress = m_uScreenId == 0 ? QString("%1").arg(VBoxDefs::GUI_LastWindowPosition) :
-                                     QString("%1%2").arg(VBoxDefs::GUI_LastWindowPosition).arg(m_uScreenId);
+            strWindowPosition += QString(",%1").arg(VBoxDefs::GUI_LastWindowState_Max);
+        QString strPositionAddress = m_uScreenId == 0 ? QString("%1").arg(VBoxDefs::GUI_LastNormalWindowPosition) :
+                                     QString("%1%2").arg(VBoxDefs::GUI_LastNormalWindowPosition).arg(m_uScreenId);
         machine.SetExtraData(strPositionAddress, strWindowPosition);
     }
 }

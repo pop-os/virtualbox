@@ -144,10 +144,10 @@ typedef struct _HGSMIINSTANCE
     RTCRITSECT    hostHeapCritSect;    /* Heap serialization lock. */
 
     HGSMILIST hostFIFO;                /* Pending host buffers. */
-    HGSMILIST hostFIFORead;            /* Host buffers readed by the guest. */
+    HGSMILIST hostFIFORead;            /* Host buffers read by the guest. */
     HGSMILIST hostFIFOProcessed;       /* Processed by the guest. */
     HGSMILIST hostFIFOFree;            /* Buffers for reuse. */
-#ifdef VBOXVDMA
+#ifdef VBOX_WITH_WDDM
     HGSMILIST guestCmdCompleted;       /* list of completed guest commands to be returned to the guest*/
 #endif
     RTCRITSECT    hostFIFOCritSect;    /* FIFO serialization lock. */
@@ -209,7 +209,7 @@ typedef struct _HGSMIHOSTFIFOENTRY
 
 static DECLCALLBACK(void) hgsmiHostCommandFreeCallback (void *pvCallback);
 
-#ifdef VBOXVDMA
+#ifdef VBOX_WITH_WDDM
 
 typedef struct _HGSMIGUESTCOMPLENTRY
 {
@@ -368,23 +368,9 @@ void HGSMIGuestWrite (PHGSMIINSTANCE pIns,
     HGSMIBufferProcess (&pIns->area, &pIns->channelInfo, offBuffer);
 }
 
-/* Called from HGSMI_IO_GUEST read handler. */
-HGSMIOFFSET HGSMIGuestRead (PHGSMIINSTANCE pIns)
+#ifdef VBOX_WITH_WDDM
+static HGSMIOFFSET hgsmiProcessGuestCmdCompletion(HGSMIINSTANCE *pIns)
 {
-    LogFlowFunc(("pIns %p\n", pIns));
-
-    AssertPtr(pIns);
-
-    VM_ASSERT_EMT(pIns->pVM);
-
-#ifndef VBOXVDMA
-    /* Currently there is no functionality here. */
-    NOREF(pIns);
-
-    return HGSMIOFFSET_VOID;
-#else
-    /* use this to speedup guest cmd completion
-     * this mechanism is alternative to submitting H->G command for notification */
     HGSMIOFFSET offCmd = HGSMIOFFSET_VOID;
     int rc = hgsmiFIFOLock(pIns);
     AssertRC(rc);
@@ -396,7 +382,10 @@ HGSMIOFFSET HGSMIGuestRead (PHGSMIINSTANCE pIns)
             hgsmiListRemove (&pIns->guestCmdCompleted, pHead, NULL);
 
         if(!pIns->guestCmdCompleted.pHead)
-            pIns->pHGFlags->u32HostFlags &= (~HGSMIHOSTFLAGS_GCOMMAND_COMPLETED);
+        {
+            if(pIns->pHGFlags)
+                pIns->pHGFlags->u32HostFlags &= (~HGSMIHOSTFLAGS_GCOMMAND_COMPLETED);
+        }
 
         hgsmiFIFOUnlock(pIns);
 
@@ -410,7 +399,29 @@ HGSMIOFFSET HGSMIGuestRead (PHGSMIINSTANCE pIns)
             hgsmiGuestCompletionFIFOFree (pIns, pEntry);
         }
     }
-    /* Special value that means there is no host buffers to be processed. */
+    return offCmd;
+}
+#endif
+
+
+/* Called from HGSMI_IO_GUEST read handler. */
+HGSMIOFFSET HGSMIGuestRead (PHGSMIINSTANCE pIns)
+{
+    LogFlowFunc(("pIns %p\n", pIns));
+
+    AssertPtr(pIns);
+
+    VM_ASSERT_EMT(pIns->pVM);
+
+#ifndef VBOX_WITH_WDDM
+    /* Currently there is no functionality here. */
+    NOREF(pIns);
+
+    return HGSMIOFFSET_VOID;
+#else
+    /* use this to speedup guest cmd completion
+     * this mechanism is alternative to submitting H->G command for notification */
+    HGSMIOFFSET offCmd = hgsmiProcessGuestCmdCompletion(pIns);
     return offCmd;
 #endif
 }
@@ -1013,7 +1024,7 @@ int HGSMIHostCommandAlloc (HGSMIINSTANCE *pIns,
 /**
  * Convenience function that allows posting the host command asynchronously
  * and make it freed on completion.
- * The caller does not get notified in any way on command complation,
+ * The caller does not get notified in any way on command completion,
  * on success return the pvMem buffer can not be used after being passed to this function
  *
  * @param pIns  Pointer to HGSMI instance,
@@ -1247,6 +1258,9 @@ int HGSMIHostSaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM)
             rc = hgsmiHostSaveFifoLocked (&pIns->hostFIFO, pSSM); AssertRC(rc);
             rc = hgsmiHostSaveFifoLocked (&pIns->hostFIFORead, pSSM); AssertRC(rc);
             rc = hgsmiHostSaveFifoLocked (&pIns->hostFIFOProcessed, pSSM); AssertRC(rc);
+#ifdef VBOX_WITH_WDDM
+            rc = hgsmiHostSaveFifoLocked (&pIns->guestCmdCompleted, pSSM); AssertRC(rc);
+#endif
 
             hgsmiFIFOUnlock (pIns);
         }
@@ -1310,6 +1324,10 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
                     rc = hgsmiHostLoadFifoLocked (pIns, &pIns->hostFIFORead, pSSM);
                 if (RT_SUCCESS(rc))
                     rc = hgsmiHostLoadFifoLocked (pIns, &pIns->hostFIFOProcessed, pSSM);
+#ifdef VBOX_WITH_WDDM
+                if (RT_SUCCESS(rc) && u32Version > VGA_SAVEDSTATE_VERSION_PRE_WDDM)
+                    rc = hgsmiHostLoadFifoLocked (pIns, &pIns->hostFIFOProcessed, pSSM);
+#endif
 
                 hgsmiFIFOUnlock (pIns);
             }
@@ -1631,6 +1649,10 @@ uint32_t HGSMIReset (PHGSMIINSTANCE pIns)
     /* .. and complete them */
     while(hgsmiProcessHostCmdCompletion (pIns, 0, true)) {}
 
+#ifdef VBOX_WITH_WDDM
+    while(hgsmiProcessGuestCmdCompletion(pIns) != HGSMIOFFSET_VOID) {}
+#endif
+
     HGSMIHeapSetupUnitialized (&pIns->hostHeap);
 
     return flags;
@@ -1665,11 +1687,11 @@ void HGSMIDestroy (PHGSMIINSTANCE pIns)
     LogFlowFunc(("leave\n"));
 }
 
-#ifdef VBOXVDMA
+#ifdef VBOX_WITH_WDDM
 
 static int hgsmiGuestCommandComplete (HGSMIINSTANCE *pIns, HGSMIOFFSET offMem)
 {
-    HGSMIGUESTCOMPLENTRY *pEntry;
+    HGSMIGUESTCOMPLENTRY *pEntry = NULL;
 
     int rc = hgsmiGuestCompletionFIFOAlloc (pIns, &pEntry);
     AssertRC(rc);

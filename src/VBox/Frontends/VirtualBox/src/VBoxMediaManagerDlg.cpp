@@ -1,4 +1,4 @@
-/* $Id: VBoxMediaManagerDlg.cpp $ */
+/* $Id: VBoxMediaManagerDlg.cpp 34983 2010-12-13 10:14:08Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -38,10 +38,16 @@
 #include "VBoxMediaManagerDlg.h"
 #include "UINewHDWzd.h"
 #include "VBoxProblemReporter.h"
-#include "VBoxToolBar.h"
+#include "UIToolBar.h"
 #include "QIFileDialog.h"
 #include "QILabel.h"
+#include "UIIconPool.h"
+#include "UIVirtualBoxEventHandler.h"
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#ifdef Q_WS_MAC
+# include "UIWindowMenuManager.h"
+#endif /* Q_WS_MAC */
 
 class AddVDMUrlsEvent: public QEvent
 {
@@ -201,8 +207,8 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */, Qt::Window
     Ui::VBoxMediaManagerDlg::setupUi (this);
 
     /* Apply window icons */
-    setWindowIcon (vboxGlobal().iconSetFull (QSize (32, 32), QSize (16, 16),
-                                             ":/diskimage_32px.png", ":/diskimage_16px.png"));
+    setWindowIcon(UIIconPool::iconSetFull(QSize (32, 32), QSize (16, 16),
+                                          ":/diskimage_32px.png", ":/diskimage_16px.png"));
 
     mVBox = vboxGlobal().virtualBox();
     Assert (!mVBox.isNull());
@@ -211,9 +217,9 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */, Qt::Window
         mDVDImagesInaccessible =
             mFloppyImagesInaccessible = false;
 
-    mHardDiskIcon    = VBoxGlobal::iconSet (":/hd_16px.png", ":/hd_disabled_16px.png");
-    mDVDImageIcon    = VBoxGlobal::iconSet (":/cd_16px.png", ":/cd_disabled_16px.png");
-    mFloppyImageIcon = VBoxGlobal::iconSet (":/fd_16px.png", ":/fd_disabled_16px.png");
+    mHardDiskIcon    = UIIconPool::iconSet(":/hd_16px.png", ":/hd_disabled_16px.png");
+    mDVDImageIcon    = UIIconPool::iconSet(":/cd_16px.png", ":/cd_disabled_16px.png");
+    mFloppyImageIcon = UIIconPool::iconSet(":/fd_16px.png", ":/fd_disabled_16px.png");
 
     /* Setup tab-widget icons */
     mTabWidget->setTabIcon (HDTab, mHardDiskIcon);
@@ -290,23 +296,23 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */, Qt::Window
     connect (mReleaseAction, SIGNAL (triggered()), this, SLOT (doReleaseMedium()));
     connect (mRefreshAction, SIGNAL (triggered()), this, SLOT (refreshAll()));
 
-    mNewAction->setIcon (VBoxGlobal::iconSetFull (
+    mNewAction->setIcon(UIIconPool::iconSetFull (
         QSize (22, 22), QSize (16, 16),
         ":/hd_new_22px.png", ":/hd_new_16px.png",
         ":/hd_new_disabled_22px.png", ":/hd_new_disabled_16px.png"));
-    mAddAction->setIcon (VBoxGlobal::iconSetFull (
+    mAddAction->setIcon(UIIconPool::iconSetFull (
         QSize (22, 22), QSize (16, 16),
         ":/hd_add_22px.png", ":/hd_add_16px.png",
         ":/hd_add_disabled_22px.png", ":/hd_add_disabled_16px.png"));
-    mRemoveAction->setIcon (VBoxGlobal::iconSetFull (
+    mRemoveAction->setIcon(UIIconPool::iconSetFull (
         QSize (22, 22), QSize (16, 16),
         ":/hd_remove_22px.png", ":/hd_remove_16px.png",
         ":/hd_remove_disabled_22px.png", ":/hd_remove_disabled_16px.png"));
-    mReleaseAction->setIcon (VBoxGlobal::iconSetFull (
+    mReleaseAction->setIcon(UIIconPool::iconSetFull (
         QSize (22, 22), QSize (16, 16),
         ":/hd_release_22px.png", ":/hd_release_16px.png",
         ":/hd_release_disabled_22px.png", ":/hd_release_disabled_16px.png"));
-    mRefreshAction->setIcon (VBoxGlobal::iconSetFull (
+    mRefreshAction->setIcon(UIIconPool::iconSetFull (
         QSize (22, 22), QSize (16, 16),
         ":/refresh_22px.png", ":/refresh_16px.png",
         ":/refresh_disabled_22px.png", ":/refresh_disabled_16px.png"));
@@ -315,7 +321,7 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */, Qt::Window
     mActionsContextMenu->addAction (mReleaseAction);
 
     /* Toolbar composing */
-    mToolBar = new VBoxToolBar (this);
+    mToolBar = new UIToolBar (this);
     mToolBar->setIconSize (QSize (22, 22));
     mToolBar->setToolButtonStyle (Qt::ToolButtonTextUnderIcon);
     mToolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
@@ -337,22 +343,22 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */, Qt::Window
     VBoxGlobal::setLayoutMargin (mainLayout, 5);
 #endif /* MAC_LEOPARD_STYLE */
 
-    mToolBar->addAction (mNewAction);
-    mToolBar->addAction (mAddAction);
-    mToolBar->addSeparator();
+//    mToolBar->addAction (mNewAction);
+//    mToolBar->addAction (mAddAction);
+//    mToolBar->addSeparator();
     mToolBar->addAction (mRemoveAction);
     mToolBar->addAction (mReleaseAction);
-    mToolBar->addSeparator();
+//    mToolBar->addSeparator();
     mToolBar->addAction (mRefreshAction);
 
     /* Menu bar */
     mActionsMenu = menuBar()->addMenu (QString::null);
-    mActionsMenu->addAction (mNewAction);
-    mActionsMenu->addAction (mAddAction);
-    mActionsMenu->addSeparator();
+//    mActionsMenu->addAction (mNewAction);
+//    mActionsMenu->addAction (mAddAction);
+//    mActionsMenu->addSeparator();
     mActionsMenu->addAction (mRemoveAction);
     mActionsMenu->addAction (mReleaseAction);
-    mActionsMenu->addSeparator();
+//    mActionsMenu->addSeparator();
     mActionsMenu->addAction (mRefreshAction);
 
     /* Setup information pane */
@@ -378,6 +384,13 @@ VBoxMediaManagerDlg::VBoxMediaManagerDlg (QWidget *aParent /* = 0 */, Qt::Window
 
 VBoxMediaManagerDlg::~VBoxMediaManagerDlg()
 {
+#ifdef Q_WS_MAC
+    if (!mDoSelect)
+    {
+        UIWindowMenuManager::instance()->removeWindow(this);
+        UIWindowMenuManager::instance()->destroyMenu(this);
+    }
+#endif /* Q_WS_MAC */
     delete mToolBar;
 }
 
@@ -494,6 +507,14 @@ void VBoxMediaManagerDlg::setup (VBoxDefs::MediumType aType, bool aDoSelect,
     /* Applying language settings */
     retranslateUi();
 
+#ifdef Q_WS_MAC
+    if (!mDoSelect)
+    {
+        menuBar()->addMenu(UIWindowMenuManager::instance()->createMenu(this));
+        UIWindowMenuManager::instance()->addWindow(this);
+    }
+#endif /* Q_WS_MAC */
+
     mSetupMode = false;
 }
 
@@ -515,12 +536,12 @@ void VBoxMediaManagerDlg::showModeless (QWidget *aCenterWidget /* = 0 */, bool a
          * the contents of the modeless dialog */
         /// @todo refreshAll() may be slow, so it may be better to analyze
         //  event details and update only what is changed */
-        connect (&vboxGlobal(), SIGNAL (machineDataChanged (const VBoxMachineDataChangeEvent &)),
-                 mModelessDialog, SLOT (refreshAll()));
-        connect (&vboxGlobal(), SIGNAL (machineRegistered (const VBoxMachineRegisteredEvent &)),
-                 mModelessDialog, SLOT (refreshAll()));
-        connect (&vboxGlobal(), SIGNAL (snapshotChanged (const VBoxSnapshotEvent &)),
-                 mModelessDialog, SLOT (refreshAll()));
+        connect (gVBoxEvents, SIGNAL(sigMachineDataChange(QString)),
+                 mModelessDialog, SLOT(refreshAll()));
+        connect (gVBoxEvents, SIGNAL(sigMachineRegistered(QString, bool)),
+                 mModelessDialog, SLOT(refreshAll()));
+        connect (gVBoxEvents, SIGNAL(sigSnapshotChange(QString, QString)),
+                 mModelessDialog, SLOT(refreshAll()));
     }
 
     mModelessDialog->show();
@@ -956,52 +977,54 @@ void VBoxMediaManagerDlg::doAddMedium()
              && item->state() != KMediumState_NotCreated)
         dir = QFileInfo (item->location().trimmed()).absolutePath();
 
-    if (dir.isEmpty())
-        if (type == VBoxDefs::MediumType_HardDisk)
-            dir = mVBox.GetSystemProperties().GetDefaultHardDiskFolder();
-
     if (dir.isEmpty() || !QFileInfo (dir).exists())
         dir = mVBox.GetHomeFolder();
 
+    QList < QPair <QString, QString> > filterList;
+    QStringList backends;
+    QStringList allPrefix;
+    QString     allType;
+
     switch (type)
     {
-        case VBoxDefs::MediumType_HardDisk:
-        {
-            QList < QPair <QString, QString> > filterList = vboxGlobal().HDDBackends();
-            QStringList backends;
-            QStringList allPrefix;
-            for (int i = 0; i < filterList.count(); ++i)
-            {
-                QPair <QString, QString> item = filterList.at (i);
-                /* Create one backend filter string */
-                backends << QString ("%1 (%2)").arg (item.first). arg (item.second);
-                /* Save the suffix's for the "All" entry */
-                allPrefix << item.second;
-            }
-            if (!allPrefix.isEmpty())
-                backends.insert (0, tr ("All hard disk images (%1)").arg (allPrefix.join (" ").trimmed()));
-            backends << tr ("All files (*)");
-            filter = backends.join (";;").trimmed();
-
-            title = tr ("Select a hard disk image file");
-            break;
-        }
         case VBoxDefs::MediumType_DVD:
         {
-            filter = tr ("CD/DVD-ROM images (*.iso);;All files (*)");
+            filterList = vboxGlobal().DVDBackends();
             title = tr ("Select a CD/DVD-ROM disk image file");
+            allType = tr ("CD/DVD-ROM disk");
+            break;
+        }
+        case VBoxDefs::MediumType_HardDisk:
+        {
+            filterList = vboxGlobal().HDDBackends();
+            title = tr ("Select a hard disk image file");
+            allType = tr ("hard disk");
             break;
         }
         case VBoxDefs::MediumType_Floppy:
         {
-            filter = tr ("Floppy images (*.img);;All files (*)");
+            filterList = vboxGlobal().FloppyBackends();
             title = tr ("Select a floppy disk image file");
+            allType = tr ("floppy disk");
             break;
         }
         default:
             AssertMsgFailed (("Selected tree should be equal to one item in VBoxDefs::MediumType.\n"));
             break;
     }
+
+    for (int i = 0; i < filterList.count(); ++i)
+    {
+        QPair <QString, QString> item = filterList.at (i);
+        /* Create one backend filter string */
+        backends << QString ("%1 (%2)").arg (item.first). arg (item.second);
+        /* Save the suffix's for the "All" entry */
+        allPrefix << item.second;
+    }
+    if (!allPrefix.isEmpty())
+        backends.insert (0, tr ("All %1 images (%2)").arg (allType). arg (allPrefix.join (" ").trimmed()));
+    backends << tr ("All files (*)");
+    filter = backends.join (";;").trimmed();
 
     QStringList files = QIFileDialog::getOpenFileNames (dir, filter, this, title);
     foreach (QString loc, files)
@@ -1040,7 +1063,8 @@ void VBoxMediaManagerDlg::doRemoveMedium()
              * VBoxProblemReporter::confirmRemoveMedium() is aware of that and
              * will give a corresponding hint. Therefore, once the code is
              * changed below, the hint should be re-checked for validity. */
-            if (item->state() != KMediumState_Inaccessible)
+            if (item->state() != KMediumState_Inaccessible &&
+                item->medium().medium().GetMediumFormat().GetCapabilities() & MediumFormatCapabilities_File)
             {
                 int rc = vboxProblem().
                     confirmDeleteHardDiskStorage (this, item->location());
@@ -1053,25 +1077,16 @@ void VBoxMediaManagerDlg::doRemoveMedium()
 
             if (deleteStorage)
             {
-                bool success = false;
-
                 CProgress progress = hardDisk.DeleteStorage();
                 if (hardDisk.isOk())
                 {
-                    vboxProblem().showModalProgressDialog (progress, windowTitle(), parentWidget());
-                    if (progress.isOk() && progress.GetResultCode() == S_OK)
-                        success = true;
+                    vboxProblem().showModalProgressDialog(progress, windowTitle(), ":/progress_media_delete_90px.png", this, true);
+                    if (!(progress.isOk() && progress.GetResultCode() == S_OK))
+                    {
+                        vboxProblem().cannotDeleteHardDiskStorage(this, hardDisk, progress);
+                        return;
+                    }
                 }
-
-                if (success)
-                    vboxGlobal().removeMedium (VBoxDefs::MediumType_HardDisk, id);
-                else
-                    vboxProblem().cannotDeleteHardDiskStorage (this, hardDisk, progress);
-
-                /* We don't want to close the hard disk because it was
-                 * implicitly closed and removed from the list of known media
-                 * on storage deletion */
-                return;
             }
 
             hardDisk.Close();
@@ -1119,7 +1134,7 @@ void VBoxMediaManagerDlg::doReleaseMedium()
     const QList <QString> &machineIds = item->medium().curStateMachineIds();
     for (QList <QString>::const_iterator it = machineIds.begin(); it != machineIds.end(); ++ it)
     {
-        CMachine m = mVBox.GetMachine (*it);
+        CMachine m = mVBox.FindMachine (*it);
         if (!mVBox.isOk())
             continue;
 
@@ -1169,7 +1184,7 @@ bool VBoxMediaManagerDlg::releaseMediumFrom (const VBoxMedium &aMedium, const QS
     /* or to some other */
     else
     {
-        session = vboxGlobal().openSession (aMachineId);
+        session = vboxGlobal().openSession(aMachineId);
         if (session.isNull())
             return false;
 
@@ -1194,7 +1209,7 @@ bool VBoxMediaManagerDlg::releaseMediumFrom (const VBoxMedium &aMedium, const QS
                     {
                         CStorageController controller = machine.GetStorageControllerByName (attachment.GetController());
                         vboxProblem().cannotDetachDevice (this, machine, VBoxDefs::MediumType_HardDisk, aMedium.location(),
-                                                          controller.GetBus(), attachment.GetPort(), attachment.GetDevice());
+                                                          StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice()));
                         success = false;
                         break;
                     }
@@ -1212,7 +1227,7 @@ bool VBoxMediaManagerDlg::releaseMediumFrom (const VBoxMedium &aMedium, const QS
                 VBoxMedium medium = vboxGlobal().findMedium (attachment.GetMedium().isNull() ? QString() : attachment.GetMedium().GetId());
                 if (medium.id() == aMedium.id())
                 {
-                    machine.MountMedium (attachment.GetController(), attachment.GetPort(), attachment.GetDevice(), QString(""), false /* force */);
+                    machine.MountMedium (attachment.GetController(), attachment.GetPort(), attachment.GetDevice(), CMedium(), false /* force */);
                     if (!machine.isOk())
                     {
                         vboxProblem().cannotRemountMedium (this, machine, aMedium, false /* mount? */, false /* retry? */);
@@ -1233,7 +1248,7 @@ bool VBoxMediaManagerDlg::releaseMediumFrom (const VBoxMedium &aMedium, const QS
                 VBoxMedium medium = vboxGlobal().findMedium (attachment.GetMedium().isNull() ? QString() : attachment.GetMedium().GetId());
                 if (medium.id() == aMedium.id())
                 {
-                    machine.MountMedium (attachment.GetController(), attachment.GetPort(), attachment.GetDevice(), QString(""), false /* force */);
+                    machine.MountMedium (attachment.GetController(), attachment.GetPort(), attachment.GetDevice(), CMedium(), false /* force */);
                     if (!machine.isOk())
                     {
                         vboxProblem().cannotRemountMedium (this, machine, aMedium, false /* mount? */, false /* retry? */);
@@ -1260,7 +1275,7 @@ bool VBoxMediaManagerDlg::releaseMediumFrom (const VBoxMedium &aMedium, const QS
 
     /* If a new session was opened, we must close it */
     if (!session.isNull())
-        session.Close();
+        session.UnlockMachine();
 
     return success;
 }
@@ -1441,9 +1456,9 @@ void VBoxMediaManagerDlg::showContextMenu (const QPoint &aPos)
     }
 }
 
-void VBoxMediaManagerDlg::machineStateChanged (const VBoxMachineStateChangeEvent &aEvent)
+void VBoxMediaManagerDlg::machineStateChanged(QString /* strId */, KMachineState state)
 {
-    switch (aEvent.state)
+    switch (state)
     {
         case KMachineState_PoweredOff:
         case KMachineState_Aborted:
@@ -1495,44 +1510,36 @@ void VBoxMediaManagerDlg::performTablesAdjustment()
     }
 }
 
-void VBoxMediaManagerDlg::addMediumToList (const QString &aLocation, VBoxDefs::MediumType aType)
+void VBoxMediaManagerDlg::addMediumToList(const QString &aLocation, VBoxDefs::MediumType aType)
 {
     AssertReturnVoid (!aLocation.isEmpty());
 
-    QString uuid;
     VBoxMedium medium;
+    KDeviceType devType;
 
     switch (aType)
     {
         case VBoxDefs::MediumType_HardDisk:
-        {
-            CMedium hd = mVBox.OpenHardDisk (aLocation, KAccessMode_ReadWrite, false, "", false, "");
-            if (mVBox.isOk())
-                medium = VBoxMedium (CMedium (hd), VBoxDefs::MediumType_HardDisk, KMediumState_Created);
-            break;
-        }
+            devType = KDeviceType_HardDisk;
+        break;
         case VBoxDefs::MediumType_DVD:
-        {
-            CMedium image = mVBox.OpenDVDImage (aLocation, uuid);
-            if (mVBox.isOk())
-                medium = VBoxMedium (CMedium (image), VBoxDefs::MediumType_DVD, KMediumState_Created);
-            break;
-        }
+            devType = KDeviceType_DVD;
+        break;
         case VBoxDefs::MediumType_Floppy:
-        {
-            CMedium image = mVBox.OpenFloppyImage (aLocation, uuid);
-            if (mVBox.isOk())
-                medium = VBoxMedium (CMedium (image), VBoxDefs::MediumType_Floppy, KMediumState_Created);
-            break;
-        }
+            devType = KDeviceType_Floppy;
+        break;
         default:
             AssertMsgFailedReturnVoid (("Invalid aType %d\n", aType));
     }
 
+    CMedium med = mVBox.OpenMedium(aLocation, devType, KAccessMode_ReadWrite);
+    if (mVBox.isOk())
+        medium = VBoxMedium(CMedium(med), aType, KMediumState_Created);
+
     if (!mVBox.isOk())
-        vboxProblem().cannotOpenMedium (this, mVBox, aType, aLocation);
+        vboxProblem().cannotOpenMedium(this, mVBox, aType, aLocation);
     else
-        vboxGlobal().addMedium (medium);
+        vboxGlobal().addMedium(medium);
 }
 
 MediaItem* VBoxMediaManagerDlg::createHardDiskItem (QTreeWidget *aTree, const VBoxMedium &aMedium) const
@@ -1544,13 +1551,15 @@ MediaItem* VBoxMediaManagerDlg::createHardDiskItem (QTreeWidget *aTree, const VB
     CMedium parent = aMedium.medium().GetParent();
     if (parent.isNull())
     {
-        item = new MediaItem (aTree, aMedium, this);
+        item = new MediaItem(aTree, aMedium, this);
     }
     else
     {
         MediaItem *root = searchItem (aTree, parent.GetId());
-        AssertReturn (root, 0);
-        item = new MediaItem (root, aMedium, this);
+        if (root)
+            item = new MediaItem(root, aMedium, this);
+        else
+            item = new MediaItem(aTree, aMedium, this);
     }
 
     return item;

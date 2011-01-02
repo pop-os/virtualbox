@@ -1,4 +1,4 @@
-/* $Id: CFGM.cpp $ */
+/* $Id: CFGM.cpp 34240 2010-11-22 14:24:49Z vboxsync $ */
 /** @file
  * CFGM - Configuration Manager.
  */
@@ -1297,7 +1297,7 @@ VMMR3DECL(int) CFGMR3InsertNode(PCFGMNODE pNode, const char *pszName, PCFGMNODE 
     if (pNode)
     {
         /*
-         * If given a path we have to deal with it component by compontent.
+         * If given a path we have to deal with it component by component.
          */
         while (*pszName == '/')
             pszName++;
@@ -1690,26 +1690,31 @@ VMMR3DECL(int) CFGMR3InsertInteger(PCFGMNODE pNode, const char *pszName, uint64_
 
 
 /**
- * Inserts a new string value.
+ * Inserts a new string value. This variant expects that the caller know the length
+ * of the string already so we can avoid calling strlen() here.
  *
  * @returns VBox status code.
  * @param   pNode           Parent node.
  * @param   pszName         Value name.
- * @param   pszString       The value.
+ * @param   pszString       The value. Must not be NULL.
+ * @param   cchString       The length of the string excluding the
+ *                          terminator.
  */
-VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const char *pszString)
+VMMR3DECL(int) CFGMR3InsertStringN(PCFGMNODE pNode, const char *pszName, const char *pszString, size_t cchString)
 {
+    Assert(RTStrNLen(pszString, cchString) == cchString);
+
     int rc;
     if (pNode)
     {
         /*
          * Allocate string object first.
          */
-        size_t cbString = strlen(pszString) + 1;
-        char *pszStringCopy = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_STRING, cbString);
+        char *pszStringCopy = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_STRING, cchString + 1);
         if (pszStringCopy)
         {
-            memcpy(pszStringCopy, pszString, cbString);
+            memcpy(pszStringCopy, pszString, cchString);
+            pszStringCopy[cchString] = '\0';
 
             /*
              * Create value leaf and set it to string type.
@@ -1720,7 +1725,7 @@ VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const ch
             {
                 pLeaf->enmType = CFGMVALUETYPE_STRING;
                 pLeaf->Value.String.psz = pszStringCopy;
-                pLeaf->Value.String.cb  = cbString;
+                pLeaf->Value.String.cb  = cchString + 1;
             }
             else
                 MMR3HeapFree(pszStringCopy);
@@ -1732,6 +1737,21 @@ VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const ch
         rc = VERR_CFGM_NO_PARENT;
 
     return rc;
+}
+
+
+/**
+ * Inserts a new string value. Calls strlen(pszString) internally; if you know the
+ * length of the string, CFGMR3InsertStringLengthKnown() is faster.
+ *
+ * @returns VBox status code.
+ * @param   pNode           Parent node.
+ * @param   pszName         Value name.
+ * @param   pszString       The value.
+ */
+VMMR3DECL(int) CFGMR3InsertString(PCFGMNODE pNode, const char *pszName, const char *pszString)
+{
+    return CFGMR3InsertStringN(pNode, pszName, pszString, strlen(pszString));
 }
 
 
@@ -2634,30 +2654,43 @@ VMMR3DECL(int) CFGMR3QueryStringAlloc(PCFGMNODE pNode, const char *pszName, char
  * @param   pszName         Value name. This value must be of zero terminated character string type.
  * @param   ppszString      Where to store the string pointer. Not set on failure.
  *                          Free this using MMR3HeapFree().
+ * @param   pszDef          The default return value.  This can be NULL.
  */
 VMMR3DECL(int) CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *pszName, char **ppszString, const char *pszDef)
 {
-    size_t cbString;
-    int rc = CFGMR3QuerySize(pNode, pszName, &cbString);
-    if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
-    {
-        cbString = strlen(pszDef) + 1;
-        rc = VINF_SUCCESS;
-    }
+    /*
+     * (Don't call CFGMR3QuerySize and CFGMR3QueryStringDef here as the latter
+     * cannot handle pszDef being NULL.)
+     */
+    PCFGMLEAF pLeaf;
+    int rc = cfgmR3ResolveLeaf(pNode, pszName, &pLeaf);
     if (RT_SUCCESS(rc))
     {
-        char *pszString = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_USER, cbString);
-        if (pszString)
+        if (pLeaf->enmType == CFGMVALUETYPE_STRING)
         {
-            rc = CFGMR3QueryStringDef(pNode, pszName, pszString, cbString, pszDef);
-            if (RT_SUCCESS(rc))
+            size_t const cbSrc = pLeaf->Value.String.cb;
+            char *pszString = (char *)MMR3HeapAlloc(pNode->pVM, MM_TAG_CFGM_USER, cbSrc);
+            if (pszString)
+            {
+                memcpy(pszString, pLeaf->Value.String.psz, cbSrc);
                 *ppszString = pszString;
+            }
             else
-                MMR3HeapFree(pszString);
+                rc = VERR_NO_MEMORY;
         }
         else
-            rc = VERR_NO_MEMORY;
+            rc = VERR_CFGM_NOT_STRING;
     }
+    if (RT_FAILURE(rc))
+    {
+        if (!pszDef)
+            *ppszString = NULL;
+        else
+            *ppszString = MMR3HeapStrDup(pNode->pVM, MM_TAG_CFGM_USER, pszDef);
+        if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
+            rc = VINF_SUCCESS;
+    }
+
     return rc;
 }
 
@@ -2670,7 +2703,9 @@ VMMR3DECL(int) CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *pszName, c
 VMMR3DECL(void) CFGMR3Dump(PCFGMNODE pRoot)
 {
     LogRel(("************************* CFGM dump *************************\n"));
+    bool fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
     cfgmR3Dump(pRoot, 0, DBGFR3InfoLogRelHlp());
+    RTLogRelSetBuffering(fOldBuffered);
     LogRel(("********************* End of CFGM dump **********************\n"));
 }
 
@@ -2709,7 +2744,7 @@ static DECLCALLBACK(void) cfgmR3Info(PVM pVM, PCDBGFINFOHLP pHlp, const char *ps
 
 
 /**
- * Recursivly prints a path name.
+ * Recursively prints a path name.
  */
 static void cfgmR3DumpPath(PCFGMNODE pNode, PCDBGFINFOHLP pHlp)
 {

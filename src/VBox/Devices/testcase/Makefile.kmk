@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk $
+# $Id: Makefile.kmk 34092 2010-11-16 00:14:37Z vboxsync $
 ## @file
 # Sub-Makefile for the device testcases.
 #
@@ -35,9 +35,9 @@ VBOX_DEVICES_TESTS_FEATURES = \
 	$(if $(VBOX_WITH_SCSI),VBOX_WITH_SCSI,) \
 	$(if $(VBOX_WITH_BUSLOGIC),VBOX_WITH_BUSLOGIC,) \
 	$(if $(VBOX_WITH_LSILOGIC),VBOX_WITH_LSILOGIC,) \
-	$(if $(VBOX_WITH_HPET),VBOX_WITH_HPET,) \
 	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
-	$(if $(VBOX_WITH_VDMA),VBOXVDMA,) \
+	$(if $(VBOX_WITH_CRHGSMI),VBOX_WITH_CRHGSMI,) \
+	$(if $(VBOX_WITH_VDMA),VBOX_WITH_VDMA,) \
 	$(if $(VBOX_WITH_WDDM),VBOX_WITH_WDDM,) \
 	$(if $(VBOX_WITH_VIDEOHWACCEL),VBOX_WITH_VIDEOHWACCEL,)
 

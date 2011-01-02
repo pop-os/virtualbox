@@ -1,4 +1,4 @@
-/* $Id: kHlpString-iprt.cpp $ */
+/* $Id: kHlpString-iprt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
 /** @file
  * kHlpString - String And Memory Routines, IPRT based implementation.
  */

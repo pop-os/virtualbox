@@ -1,4 +1,4 @@
-/* $Id: string.h $ */
+/* $Id: string.h 35128 2010-12-15 12:38:41Z vboxsync $ */
 
 /** @file
  * MS COM / XPCOM Abstraction Layer:
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,14 +37,14 @@
 # define __STDC_CONSTANT_MACROS
 #endif
 
-#if defined (VBOX_WITH_XPCOM)
+#if defined(VBOX_WITH_XPCOM)
 # include <nsMemory.h>
 #endif
 
 #include "VBox/com/defs.h"
 #include "VBox/com/assert.h"
 
-#include <iprt/alloc.h>
+#include <iprt/mem.h>
 #include <iprt/cpp/ministring.h>
 
 namespace com
@@ -106,7 +106,7 @@ public:
         copyFrom((const OLECHAR *)that);
     }
 
-#if defined (VBOX_WITH_XPCOM)
+#if defined(VBOX_WITH_XPCOM)
     Bstr(const wchar_t *that)
     {
         AssertCompile(sizeof(wchar_t) == sizeof(OLECHAR));
@@ -116,12 +116,17 @@ public:
 
     Bstr(const iprt::MiniString &that)
     {
-        copyFrom(that.raw());
+        copyFrom(that.c_str());
     }
 
     Bstr(const char *that)
     {
         copyFrom(that);
+    }
+
+    Bstr(const char *a_pThat, size_t a_cchMax)
+    {
+        copyFromN(a_pThat, a_cchMax);
     }
 
     ~Bstr()
@@ -143,7 +148,7 @@ public:
         return *this;
     }
 
-#if defined (VBOX_WITH_XPCOM)
+#if defined(VBOX_WITH_XPCOM)
     Bstr& operator=(const wchar_t *that)
     {
         cleanup();
@@ -157,6 +162,8 @@ public:
         cleanup();
         return *this;
     }
+
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
 
     /** Case sensitivity selector. */
     enum CaseSensitivity
@@ -178,9 +185,14 @@ public:
         return ::RTUtf16LocaleICmp((PRTUTF16)m_bstr, (PRTUTF16)str);
     }
 
-    int compare(BSTR str) const
+    int compare(BSTR str, CaseSensitivity cs = CaseSensitive) const
     {
-        return compare((CBSTR)str);
+        return compare((CBSTR)str, cs);
+    }
+
+    int compare(const Bstr &that, CaseSensitivity cs = CaseSensitive) const
+    {
+        return compare(that.m_bstr, cs);
     }
 
     bool operator==(const Bstr &that) const { return !compare(that.m_bstr); }
@@ -200,29 +212,20 @@ public:
      *
      * @note Always use this method to check if an instance is empty. Do not
      * use length() because that may need to run through the entire string
-     * (Bstr does not cache string lengths). Also do not use operator bool();
-     * for one, MSVC is really annoying with its thinking that that is ambiguous,
-     * and even though operator bool() is protected with Bstr, at least gcc uses
-     * operator CBSTR() when a construct like "if (string)" is encountered, which
-     * is always true now since it raw() never returns an empty string. Again,
-     * always use isEmpty() even though if (string) may compile!
+     * (Bstr does not cache string lengths).
      */
     bool isEmpty() const { return m_bstr == NULL || *m_bstr == 0; }
 
+    /**
+     * Returns true if the member string has a length of one or more.
+     *
+     * @returns true if not empty, false if empty (NULL or "").
+     */
+    bool isNotEmpty() const { return m_bstr != NULL && *m_bstr != 0; }
+
     size_t length() const { return isEmpty() ? 0 : ::RTUtf16Len((PRTUTF16)m_bstr); }
 
-    /**
-     * Returns true if the member string is not empty. I'd like to make this
-     * private but since we require operator BSTR() it's futile anyway because
-     * the compiler will then (wrongly) use that one instead. Also if this is
-     * private the odd WORKAROUND_MSVC7_ERROR_C2593_FOR_BOOL_OP macro below
-     * will fail on Windows.
-     */
-    operator bool() const
-    {
-        return m_bstr != NULL;
-    }
-
+#if defined(VBOX_WITH_XPCOM)
     /**
      *  Returns a pointer to the raw member UTF-16 string. If the member string is empty,
      *  returns a pointer to a global variable containing an empty BSTR with a proper zero
@@ -235,19 +238,24 @@ public:
 
         return g_bstrEmpty;
     }
-
+#else
     /**
-     * Convenience operator so that Bstr's can be passed to CBSTR input parameters
-     * of COM methods.
+     *  Windows-only hack, as the automatically generated headers use BSTR.
+     *  So if we don't want to cast like crazy we have to be more loose than
+     *  on XPCOM.
+     *
+     *  Returns a pointer to the raw member UTF-16 string. If the member string is empty,
+     *  returns a pointer to a global variable containing an empty BSTR with a proper zero
+     *  length prefix so that Windows is happy.
      */
-    operator CBSTR() const { return raw(); }
+    BSTR raw() const
+    {
+        if (m_bstr)
+            return m_bstr;
 
-    /**
-     * Convenience operator so that Bstr's can be passed to CBSTR input parameters
-     * of COM methods. Unfortunately this is required for Windows since with
-     * MSCOM, input BSTR parameters of interface methods are not const.
-     */
-    operator BSTR() { return (BSTR)raw(); }
+        return g_bstrEmpty;
+    }
+#endif
 
     /**
      *  Returns a non-const raw pointer that allows to modify the string directly.
@@ -320,9 +328,9 @@ public:
     }
 
     /**
-     *  Static immutable null object. May be used for comparison purposes.
+     *  Static immutable empty-string object. May be used for comparison purposes.
      */
-    static const Bstr Null;
+    static const Bstr Empty;
 
 protected:
 
@@ -385,6 +393,17 @@ protected:
             m_bstr = NULL;
     }
 
+    /**
+     * Variant of copyFrom for sub-string constructors.
+     *
+     * @param   a_pszSrc            The source string.
+     * @param   a_cchMax            The maximum number of chars (not
+     *                              codepoints) to copy.  If you pass RTSTR_MAX
+     *                              it'll be exactly like copyFrom().
+     * @throws  std::bad_alloc
+     */
+    void copyFromN(const char *a_pszSrc, size_t a_cchSrc);
+
     BSTR m_bstr;
 
     friend class Utf8Str; /* to access our raw_copy() */
@@ -396,8 +415,6 @@ inline bool operator!=(CBSTR l, const Bstr &r) { return r.operator!=(l); }
 inline bool operator==(BSTR l, const Bstr &r) { return r.operator==(l); }
 inline bool operator!=(BSTR l, const Bstr &r) { return r.operator!=(l); }
 
-// work around error C2593 of the stupid MSVC 7.x ambiguity resolver
-WORKAROUND_MSVC7_ERROR_C2593_FOR_BOOL_OP(Bstr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -430,12 +447,27 @@ public:
 
     Utf8Str(const Bstr &that)
     {
-        copyFrom(that);
+        copyFrom(that.raw());
     }
 
     Utf8Str(CBSTR that)
     {
         copyFrom(that);
+    }
+
+    /**
+     * Constructs a new string given the format string and the list of the
+     * arguments for the format string.
+     *
+     * @param   a_pszFormat     Pointer to the format string (UTF-8),
+     *                          @see pg_rt_str_format.
+     * @param   a_va            Argument vector containing the arguments
+     *                          specified by the format string.
+     * @sa      iprt::MiniString::printfV
+     */
+    Utf8Str(const char *a_pszFormat, va_list a_va)
+        : MiniString(a_pszFormat, a_va)
+    {
     }
 
     Utf8Str& operator=(const MiniString &that)
@@ -453,7 +485,7 @@ public:
     Utf8Str& operator=(const Bstr &that)
     {
         cleanup();
-        copyFrom(that);
+        copyFrom(that.raw());
         return *this;
     }
 
@@ -464,7 +496,9 @@ public:
         return *this;
     }
 
-#if defined (VBOX_WITH_XPCOM)
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
+
+#if defined(VBOX_WITH_XPCOM)
     /**
      * Intended to assign instances to |char *| out parameters from within the
      * interface method. Transfers the ownership of the duplicated string to the
@@ -493,163 +527,81 @@ public:
     }
 
     /**
-     * Converts "this" to lower case by calling RTStrToLower().
-     * @return
-     */
-    Utf8Str& toLower();
-
-    /**
-     * Converts "this" to upper case by calling RTStrToUpper().
-     * @return
-     */
-    Utf8Str& toUpper();
-
-    /**
      * Removes a trailing slash from the member string, if present.
      * Calls RTPathStripTrailingSlash() without having to mess with mutableRaw().
      */
-    void stripTrailingSlash();
+    Utf8Str& stripTrailingSlash();
 
     /**
      * Removes a trailing filename from the member string, if present.
      * Calls RTPathStripFilename() without having to mess with mutableRaw().
      */
-    void stripFilename();
+    Utf8Str& stripFilename();
+
+    /**
+     * Removes the path component from the member string, if present.
+     * Calls RTPathFilename() without having to mess with mutableRaw().
+     */
+    Utf8Str& stripPath();
 
     /**
      * Removes a trailing file name extension from the member string, if present.
      * Calls RTPathStripExt() without having to mess with mutableRaw().
      */
-    void stripExt();
+    Utf8Str& stripExt();
 
     /**
-     * Attempts to convert the member string into a 32-bit integer.
-     *
-     * @returns 32-bit unsigned number on success.
-     * @returns 0 on failure.
+     *  Static immutable empty-string object. May be used for comparison purposes.
      */
-    int toInt32() const
-    {
-        return RTStrToInt32(m_psz);
-    }
-
-    /**
-     * Attempts to convert the member string into an unsigned 32-bit integer.
-     *
-     * @returns 32-bit unsigned number on success.
-     * @returns 0 on failure.
-     */
-    int toUInt32() const
-    {
-        return RTStrToUInt32(m_psz);
-    }
-
-    /**
-     *  Static immutable null object. May be used for comparison purposes.
-     */
-    static const Utf8Str Null;
+    static const Utf8Str Empty;
 
 protected:
 
-    /**
-     * As with the ministring::copyFrom() variants, this unconditionally
-     * sets the members to a copy of the given other strings and makes
-     * no assumptions about previous contents. This can therefore be used
-     * both in copy constructors, when member variables have no defined
-     * value, and in assignments after having called cleanup().
-     *
-     * This variant converts from a UTF-16 string, most probably from
-     * a Bstr assignment.
-     *
-     * @param rs
-     */
-    void copyFrom(CBSTR s)
-    {
-        if (s && *s)
-        {
-            RTUtf16ToUtf8((PRTUTF16)s, &m_psz); /** @todo r=bird: This isn't throwing std::bad_alloc / handling return codes.
-                                                 * Also, this technically requires using RTStrFree, ministring::cleanup() uses RTMemFree. */
-            m_cbLength = strlen(m_psz);         /** @todo optimize by using a different RTUtf* function */
-            m_cbAllocated = m_cbLength + 1;
-        }
-        else
-        {
-            m_cbLength = 0;
-            m_cbAllocated = 0;
-            m_psz = NULL;
-        }
-    }
+    void copyFrom(CBSTR s);
 
     friend class Bstr; /* to access our raw_copy() */
 };
 
 /**
- *  This class is a printf-like formatter for Utf8Str strings. Its purpose is
- *  to construct Utf8Str objects from a format string and a list of arguments
- *  for the format string.
+ * Class with iprt::MiniString::printf as constructor for your convenience.
  *
- *  The usage of this class is like the following:
- *  <code>
- *      Utf8StrFmt string ("program name = %s", argv[0]);
- *  </code>
+ * Constructing a Utf8Str string object from a format string and a variable
+ * number of arguments can easily be confused with the other Utf8Str
+ * constructures, thus this child class.
+ *
+ * The usage of this class is like the following:
+ * @code
+    Utf8StrFmt strName("program name = %s", argv[0]);
+   @endcode
  */
 class Utf8StrFmt : public Utf8Str
 {
 public:
 
     /**
-     *  Constructs a new string given the format string and the list
-     *  of the arguments for the format string.
+     * Constructs a new string given the format string and the list of the
+     * arguments for the format string.
      *
-     *  @param format   printf-like format string (in UTF-8 encoding)
-     *  @param ...      list of the arguments for the format string
+     * @param   a_pszFormat     Pointer to the format string (UTF-8),
+     *                          @see pg_rt_str_format.
+     * @param   ...             Ellipsis containing the arguments specified by
+     *                          the format string.
      */
-    explicit Utf8StrFmt(const char *format, ...)
+    explicit Utf8StrFmt(const char *a_pszFormat, ...)
     {
-        va_list args;
-        va_start(args, format);
-        init(format, args);
-        va_end(args);
+        va_list va;
+        va_start(va, a_pszFormat);
+        printfV(a_pszFormat, va);
+        va_end(va);
     }
 
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
+
 protected:
-
-    Utf8StrFmt() {}
-
-    void init(const char *format, va_list args);
+    Utf8StrFmt()
+    { }
 
 private:
-
-    static DECLCALLBACK(size_t) strOutput(void *pvArg, const char *pachChars,
-                                          size_t cbChars);
-};
-
-/**
- *  This class is a vprintf-like formatter for Utf8Str strings. It is
- *  identical to Utf8StrFmt except that its constructor takes a va_list
- *  argument instead of ellipsis.
- *
- *  Note that a separate class is necessary because va_list is defined as
- *  |char *| on most platforms. For this reason, if we had two overloaded
- *  constructors in Utf8StrFmt (one taking ellipsis and another one taking
- *  va_list) then composing a constructor call using exactly two |char *|
- *  arguments would cause the compiler to use the va_list overload instead of
- *  the ellipsis one which is obviously wrong. The compiler would choose
- *  va_list because ellipsis has the lowest rank when it comes to resolving
- *  overloads, as opposed to va_list which is an exact match for |char *|.
- */
-class Utf8StrFmtVA : public Utf8StrFmt
-{
-public:
-
-    /**
-     *  Constructs a new string given the format string and the list
-     *  of the arguments for the format string.
-     *
-     *  @param format   printf-like format string (in UTF-8 encoding)
-     *  @param args     list of arguments for the format string
-     */
-    Utf8StrFmtVA(const char *format, va_list args) { init(format, args); }
 };
 
 /**
@@ -670,13 +622,15 @@ public:
     {
         va_list args;
         va_start(args, aFormat);
-        copyFrom(Utf8StrFmtVA(aFormat, args).c_str());
+        copyFrom(Utf8Str(aFormat, args).c_str());
         va_end(args);
     }
+
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
 
 /**
- * The BstrFmtVA class is a shortcut to <tt>Bstr(Utf8StrFmtVA(...))</tt>.
+ * The BstrFmtVA class is a shortcut to <tt>Bstr(Utf8Str(format,va))</tt>.
  */
 class BstrFmtVA : public Bstr
 {
@@ -691,8 +645,10 @@ public:
      */
     BstrFmtVA(const char *aFormat, va_list aArgs)
     {
-        copyFrom(Utf8StrFmtVA(aFormat, aArgs).c_str());
+        copyFrom(Utf8Str(aFormat, aArgs).c_str());
     }
+
+    RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
 
 } /* namespace com */

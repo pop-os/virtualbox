@@ -1,4 +1,4 @@
-/* $Id: memobj-r0drv-freebsd.c $ */
+/* $Id: memobj-r0drv-freebsd.c 33540 2010-10-28 09:27:05Z vboxsync $ */
 /** @file
  * IPRT - Ring-0 Memory Objects, FreeBSD.
  */
@@ -374,7 +374,7 @@ int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecu
                                         0,                    /* lowest physical address*/
                                         _4G-1,                /* highest physical address */
                                         PAGE_SIZE,            /* alignment. */
-                                        0);                   /* boundrary */
+                                        0);                   /* boundary */
     if (pMemFreeBSD->Core.pv)
     {
         pMemFreeBSD->Core.u.Cont.Phys = vtophys(pMemFreeBSD->Core.pv);
@@ -491,7 +491,7 @@ int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS Ph
                                         0,                    /* lowest physical address*/
                                         _4G-1,                /* highest physical address */
                                         uAlignment,           /* alignment. */
-                                        0);                   /* boundrary */
+                                        0);                   /* boundary */
     if (pMemFreeBSD->Core.pv)
     {
         pMemFreeBSD->Core.u.Cont.Phys = vtophys(pMemFreeBSD->Core.pv);
@@ -517,7 +517,7 @@ int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS 
 
 int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
-    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_IMPLEMENTED);
+    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_SUPPORTED);
 
     /* create the object. */
     PRTR0MEMOBJFREEBSD pMemFreeBSD = (PRTR0MEMOBJFREEBSD)rtR0MemObjNew(sizeof(*pMemFreeBSD), RTR0MEMOBJTYPE_PHYS, NULL, cb);
@@ -697,7 +697,7 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
 /* Phys: see pmap_mapdev in i386/i386/pmap.c (http://fxr.watson.org/fxr/source/i386/i386/pmap.c?v=RELENG62#L2860) */
 /** @todo finish the implementation. */
 
-    return VERR_NOT_IMPLEMENTED;
+    return VERR_NOT_SUPPORTED;
 }
 
 

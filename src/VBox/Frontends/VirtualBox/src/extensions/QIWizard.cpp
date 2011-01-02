@@ -1,4 +1,4 @@
-/* $Id: QIWizard.cpp $ */
+/* $Id: QIWizard.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -202,5 +202,17 @@ QString QIWizardPage::standardHelpText() const
 #else /* Q_WS_MAC */
         .arg(VBoxGlobal::replaceHtmlEntities(VBoxGlobal::removeAccelMark(wizard()->buttonText(QWizard::CancelButton))));
 #endif /* Q_WS_MAC */
+}
+
+void QIWizardPage::startProcessing()
+{
+    if (isFinalPage())
+        wizard()->button(QWizard::FinishButton)->setEnabled(false);
+}
+
+void QIWizardPage::endProcessing()
+{
+    if (isFinalPage())
+        wizard()->button(QWizard::FinishButton)->setEnabled(true);
 }
 
