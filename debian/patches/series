@@ -9,3 +9,4 @@
 22-no-static-libstdcpp.patch
 23-remove-invalid-chars-check.patch
 27-hide-host-cache-warning.patch
+28-no-selinux-fedora.patch

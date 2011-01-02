@@ -1,0 +1,16 @@
+Description: Don't install the selinux-fedora module.
+Author: Felix Geyer <debfx-pkg@fobos.de>
+
+diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk virtualbox-ose-4.0.0-dfsg/src/VBox/Additions/linux/Makefile.kmk
+--- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk	2010-12-05 19:17:42.000000000 +0100
++++ virtualbox-ose-4.0.0-dfsg/src/VBox/Additions/linux/Makefile.kmk	2011-01-02 11:02:43.379712209 +0100
+@@ -315,8 +315,7 @@
+ 	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
+ 	$(VBOX_REL_X11_ADD_INST)50-vboxmouse.conf \
+ 	$(VBOX_REL_LNX_ADD_INST)70-xorg-vboxmouse.rules \
+-	$(VBOX_REL_LNX_ADD_INST)90-vboxguest.fdi \
+-	selinux-fedora/vbox_x11.pp
++	$(VBOX_REL_LNX_ADD_INST)90-vboxguest.fdi
+ 
+ INSTALLS += lnx_add_inst-license
+ lnx_add_inst-license_INST = $(subst $(PATH_TARGET),obj,$(VBOX_LNX_ADD_INST_OUT_DIR))/
