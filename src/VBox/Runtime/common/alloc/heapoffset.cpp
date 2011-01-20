@@ -1,4 +1,4 @@
-/* $Id: heapoffset.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: heapoffset.cpp 35525 2011-01-13 14:00:37Z vboxsync $ */
 /** @file
  * IPRT - An Offset Based Heap.
  */
@@ -34,10 +34,10 @@
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#include <iprt/string.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
 #include <iprt/param.h>
+#include <iprt/string.h>
 
 #include "internal/magics.h"
 

@@ -1,4 +1,4 @@
-/* $Id: TRPMAll.cpp 31402 2010-08-05 12:28:18Z vboxsync $ */
+/* $Id: TRPMAll.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * TRPM - Trap Monitor - Any Context.
  */
@@ -20,23 +20,23 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_TRPM
-#include <VBox/trpm.h>
-#include <VBox/pgm.h>
-#include <VBox/mm.h>
-#include <VBox/patm.h>
-#include <VBox/selm.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/trpm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/patm.h>
+#include <VBox/vmm/selm.h>
+#include <VBox/vmm/stam.h>
 #include "TRPMInternal.h"
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/err.h>
 #include <VBox/x86.h>
-#include <VBox/em.h>
+#include <VBox/vmm/em.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/param.h>
-#include <include/internal/pgm.h>
+#include "internal/pgm.h"
 
 
 

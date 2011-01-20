@@ -1,4 +1,4 @@
-/* $Id: DevEEPROM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevEEPROM.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DevEEPROM - Microware-compatible 64x16-bit 93C46 EEPROM Emulation.
  */
@@ -17,7 +17,7 @@
 
 #define LOG_GROUP LOG_GROUP_DEV_E1000   /// @todo Add a EEPROM logging group.
 #include <VBox/log.h>
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/string.h>
 #include "DevEEPROM.h"
 

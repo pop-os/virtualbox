@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h 34754 2010-12-06 14:40:03Z vboxsync $ */
+/* $Id: DisplayImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of Display class
@@ -20,7 +20,7 @@
 #define ____H_DISPLAYIMPL
 
 #include <iprt/semaphore.h>
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 
 #include "Framebuffer.h"
 struct VBVACMDHDR;

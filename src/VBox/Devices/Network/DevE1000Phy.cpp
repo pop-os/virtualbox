@@ -1,4 +1,4 @@
-/** $Id: DevE1000Phy.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/** $Id: DevE1000Phy.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DevE1000Phy - Intel 82540EM Ethernet Controller Internal PHY Emulation.
  *
@@ -32,7 +32,7 @@
 
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/ssm.h>
+#include <VBox/vmm/ssm.h>
 #include "DevE1000Phy.h"
 
 /* Little helpers ************************************************************/

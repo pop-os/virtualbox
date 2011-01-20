@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk 34355 2010-11-25 09:17:01Z vboxsync $
+# $Id: Makefile.kmk 35450 2011-01-10 11:14:34Z vboxsync $
 ## @file
 # Sub-Makefile for VBoxRes.dll.
 #
 
 #
-# Copyright (C) 2010 Oracle Corporation
+# Copyright (C) 2010-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -22,12 +22,13 @@ DLLS += VBoxRes
 VBoxRes_TEMPLATE = VBOXR3STATIC
 VBoxRes_DEPS     = $(VBOX_SVN_REV_KMK)
 VBoxRes_SOURCES = \
+	dummy.cpp \
 	VBoxRes.rc
 
 # The icon location is configurable.
-VBoxRes.rc_INCS += $(PATH_VBoxRes)
-VBoxRes.rc_DEPS += $(PATH_VBoxRes)/VBoxRes-icons.rc
-VBoxRes.rc_CLEAN = $(PATH_VBoxRes)/VBoxRes-icons.rc
+VBoxRes.rc_INCS += $(VBoxRes_0_OUTDIR)
+VBoxRes.rc_DEPS += $(VBoxRes_0_OUTDIR)/VBoxRes-icons.rc
+VBoxRes.rc_CLEAN = $(VBoxRes_0_OUTDIR)/VBoxRes-icons.rc
 
 # The resource path.
 VBOX_RESOURCES_PATH_WIN := $(subst /,\\,$(PATH_ROOT))/src/VBox/Resources/win
@@ -55,7 +56,7 @@ VBOX_RESOURCES_WIN := \
 	$(VBOX_WINDOWS_ICON_EXT_OVA) \
 	$(VBOX_WINDOWS_ICON_EXT_OVF)
 
-$$(PATH_VBoxRes)/VBoxRes-icons.rc: \
+$$(VBoxRes_0_OUTDIR)/VBoxRes-icons.rc: \
 		$$(VBOX_RESOURCES_WIN) $(MAKEFILE_CURRENT) | $$(dir $$@)
 	$(RM) -f $@
 	$(APPEND) $@ 'IDI_VIRTUALBOX            ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'

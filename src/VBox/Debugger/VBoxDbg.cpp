@@ -1,4 +1,4 @@
-/* $Id: VBoxDbg.cpp 31530 2010-08-10 12:24:45Z vboxsync $ */
+/* $Id: VBoxDbg.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox Debugger GUI.
  */
@@ -21,7 +21,7 @@
 #define LOG_GROUP LOG_GROUP_DBGG
 #define VBOX_COM_NO_ATL
 #include <VBox/dbggui.h>
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>

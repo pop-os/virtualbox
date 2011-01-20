@@ -48,6 +48,7 @@
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 # include "UIWindowMenuManager.h"
+# include "UIImageTools.h"
 #endif
 
 /* Global includes */
@@ -220,7 +221,7 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
     pLeftVLayout->setContentsMargins(0, 0, 0, 0);
     pLeftVLayout->setSpacing(0);
 # ifdef BIG_TOOLBAR
-    m_pBar = new UIBar(this);
+    m_pBar = new UIMainBar(this);
     m_pBar->setContentWidget(mVMToolBar);
     pLeftVLayout->addWidget(m_pBar);
     pLeftVLayout->addWidget(m_pSplitter);
@@ -431,7 +432,7 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
     connect(mVmNewAction, SIGNAL(triggered()), this, SLOT(vmNew()));
     connect(mVmAddAction, SIGNAL(triggered()), this, SLOT(vmAdd()));
 
-    connect(mVmConfigAction, SIGNAL(triggered()), this, SLOT(vmSettings()), Qt::QueuedConnection);
+    connect(mVmConfigAction, SIGNAL(triggered()), this, SLOT(vmSettings()));
     connect(mVmDeleteAction, SIGNAL(triggered()), this, SLOT(vmDelete()));
     connect(mVmStartAction, SIGNAL(triggered()), this, SLOT(vmStart()));
     connect(mVmDiscardAction, SIGNAL(triggered()), this, SLOT(vmDiscard()));
@@ -487,6 +488,12 @@ VBoxSelectorWnd(VBoxSelectorWnd **aSelf, QWidget* aParent,
 
 #ifdef Q_WS_MAC
     UIWindowMenuManager::instance()->addWindow(this);
+    /* Beta label? */
+    if (vboxGlobal().isBeta())
+    {
+        QPixmap betaLabel = ::betaLabelSleeve(QSize(107, 16));
+        ::darwinLabelWindow(this, &betaLabel, false);
+    }
 #endif /* Q_WS_MAC */
 }
 
@@ -1178,7 +1185,7 @@ void VBoxSelectorWnd::retranslateUi()
 #else
     QString title(VBOX_PRODUCT);
 #endif
-    title += " " + tr("Manager");
+    title += " " + tr("Manager", "Note: main window title which is pretended by the product name.");
 
 #ifdef VBOX_BLEEDING_EDGE
     title += QString(" EXPERIMENTAL build ")
@@ -1426,7 +1433,14 @@ void VBoxSelectorWnd::vmListViewCurrentChanged(bool aRefreshDetails,
         mVmShowLogsAction->setEnabled(true);
         /* Enable the shell interaction features. */
         mVmOpenInFileManagerAction->setEnabled(true);
+#ifdef Q_WS_MAC
+        /* On Mac OS X this are real alias files, which don't work with the old
+         * legacy xml files. On the other OS's some kind of start up script is
+         * used. */
+        mVmCreateShortcut->setEnabled(item->settingsFile().endsWith(".vbox", Qt::CaseInsensitive));
+#else /* Q_WS_MAC */
         mVmCreateShortcut->setEnabled(true);
+#endif /* Q_WS_MAC */
     }
     else
     {

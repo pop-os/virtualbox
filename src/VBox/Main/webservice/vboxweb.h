@@ -2,7 +2,7 @@
  * vboxweb.h:
  *      header file for "real" web server code.
  *
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,6 @@ typedef std::string vbox__uuid;
  *
  ****************************************************************************/
 
-extern ComPtr<IVirtualBox> g_pVirtualBox;
 extern bool g_fVerbose;
 
 extern PRTSTREAM g_pstrLog;
@@ -133,7 +132,8 @@ class WebServiceSession
         ~WebServiceSession();
 
         int authenticate(const char *pcszUsername,
-                         const char *pcszPassword);
+                         const char *pcszPassword,
+                         IVirtualBox **ppVirtualBox);
 
         ManagedObjectRef* findRefFromPtr(const IUnknown *pObject);
 

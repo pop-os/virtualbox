@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHelp.cpp 35194 2010-12-16 15:36:09Z vboxsync $ */
+/* $Id: VBoxManageHelp.cpp 35508 2011-01-12 14:54:12Z vboxsync $ */
 /** @file
  * VBoxManage - help and other message output.
  */
@@ -611,7 +611,12 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                      "VBoxManage debugvm          <uuid>|<name>\n"
                      "                            dumpguestcore --filename <name> |\n"
+                     "                            info <item> [args] |\n"
                      "                            injectnmi |\n"
+                     "                            osdetect |\n"
+                     "                            osinfo |\n"
+                     "                            getregisters [--cpu <id>] <reg>|all ... |\n"
+                     "                            setregisters [--cpu <id>] <reg>=<value> ... |\n"
                      "                            statistics [--reset] [--pattern <pattern>]\n"
                      "                            [--descriptions]\n"
                      "\n");
@@ -648,7 +653,7 @@ void printUsage(USAGECATEGORY u64Cmd, PRTSTREAM pStrm)
                      "                            [--dhcp |\n"
                      "                            --ip<ipv4> [--netmask<ipv4> (def: 255.255.255.0)] |\n"
                      "                            --ipv6<ipv6> [--netmasklengthv6<length> (def: 64)]]\n"
-# if defined(RT_OS_WINDOWS)
+# if !defined(RT_OS_SOLARIS)
                      "                            create |\n"
                      "                            remove <name>\n"
 # endif

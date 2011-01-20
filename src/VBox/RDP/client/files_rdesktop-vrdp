@@ -1,4 +1,4 @@
-# $Id: files_rdesktop-vrdp 32472 2010-09-14 10:26:19Z vboxsync $
+# $Id: files_rdesktop-vrdp 35368 2010-12-30 13:38:23Z vboxsync $
 ## @file
 # VBox - rdesktop with VRDP enhancements archive file list.
 #
@@ -14,6 +14,8 @@
 # VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
+
+## @todo r=bird: Why is this in a separate file when only the Makefile.kmk is referring it?
 
 rdesktop-nonbin_SOURCES = \
 	$(PATH_OUT)/product-generated.h=>include/product-generated.h \
@@ -66,7 +68,7 @@ rdesktop-nonbin_SOURCES = \
 	$(PATH_ROOT)/src/VBox/HostDrivers/VBoxUSB/USBLib.cpp=>vrdp/USBLib.cpp \
 	$(PATH_ROOT)/src/VBox/Main/include/USBGetDevices.h=>vrdp/USBGetDevices.h \
 	$(PATH_ROOT)/src/VBox/Main/include/vector.h=>vrdp/vector.h \
-	$(PATH_ROOT)/src/VBox/Main/linux/USBGetDevices.cpp=>vrdp/USBGetDevices.cpp \
+	$(PATH_ROOT)/src/VBox/Main/src-server/linux/USBGetDevices.cpp=>vrdp/USBGetDevices.cpp \
 	$(PATH_ROOT)/src/VBox/RDP/client/bitmap.c=>bitmap.c \
 	$(PATH_ROOT)/src/VBox/RDP/client/bootstrap=>bootstrap \
 	$(PATH_ROOT)/src/VBox/RDP/client/cache.c=>cache.c \
@@ -232,3 +234,4 @@ rdesktop-nonbin_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Runtime/r3/posix/path-posix.cpp=>Runtime/r3/posix/path-posix.cpp \
 	$(PATH_ROOT)/src/VBox/Runtime/r3/posix/utf8-posix.cpp=>Runtime/r3/posix/utf8-posix.cpp \
 	$(PATH_ROOT)/src/VBox/Runtime/r3/stream.cpp=>Runtime/r3/stream.cpp
+

@@ -1,4 +1,4 @@
-/* $Id: DrvRawFile.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvRawFile.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox stream drivers - Raw file output.
  */
@@ -20,7 +20,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEFAULT
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
 #include <iprt/mem.h>
@@ -29,7 +29,7 @@
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

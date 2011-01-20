@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice-stub.cpp 31890 2010-08-24 07:50:47Z vboxsync $ */
+/* $Id: USBProxyDevice-stub.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * USB device proxy - Stub.
  */
@@ -19,7 +19,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 
 #include "USBProxyDevice.h"
 

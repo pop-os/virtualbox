@@ -266,8 +266,8 @@
 #define VERR_DBGF_OS_NOT_DETCTED            (-1209)
 /** The OS was not detected. */
 #define VINF_DBGF_OS_NOT_DETCTED            1209
-/** Invalid register number. */
-#define VERR_DBGF_INVALID_REGISTER          (-1210)
+/** The specified register was not found. */
+#define VERR_DBGF_REGISTER_NOT_FOUND        (-1210)
 /** The value was truncated to fit.
  * For queries this means that the register is wider than the queried value.
  * For setters this means that the value is wider than the register. */
@@ -276,6 +276,10 @@
  * For queries this means that the register is narrower than the queried value.
  * For setters this means that the value is narrower than the register. */
 #define VINF_DBGF_ZERO_EXTENDED_REGISTER    1212
+/** The requested type conversion was not supported. */
+#define VERR_DBGF_UNSUPPORTED_CAST          (-1213)
+/** The register is read-only and cannot be modified. */
+#define VERR_DBGF_READ_ONLY_REGISTER        (-1214)
 /** @} */
 
 
@@ -1654,7 +1658,7 @@
  */
 /** The host is not supported. Uninstall the extension pack.
  * Returned by the VBOXEXTPACKREG::pfnInstalled. */
-#define VERR_EXTPACK_UNSUPPORTED_HOST_UNINSTALL     (-5000)
+#define VERR_EXTPACK_UNSUPPORTED_HOST_UNINSTALL     (-6000)
 /** @} */
 
 /* SED-END */

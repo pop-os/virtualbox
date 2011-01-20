@@ -1,4 +1,4 @@
-/* $Id: DrvVD.cpp 35162 2010-12-15 19:39:54Z vboxsync $ */
+/* $Id: DrvVD.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DrvVD - Generic VBox disk media driver.
  */
@@ -21,9 +21,9 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VD
 #include <VBox/vd.h>
-#include <VBox/pdmdrv.h>
-#include <VBox/pdmasynccompletion.h>
-#include <VBox/pdmblkcache.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmasynccompletion.h>
+#include <VBox/vmm/pdmblkcache.h>
 #include <iprt/asm.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
@@ -46,7 +46,7 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 #endif /* VBOX_WITH_INIP */
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 #ifdef VBOX_WITH_INIP
 /* Small hack to get at lwIP initialized status */

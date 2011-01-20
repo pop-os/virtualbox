@@ -1,4 +1,4 @@
-/* $Id: DrvHostSerial.cpp 34215 2010-11-19 17:41:49Z vboxsync $ */
+/* $Id: DrvHostSerial.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox stream I/O devices: Host serial driver
  */
@@ -21,7 +21,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_HOST_SERIAL
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/err.h>
 
 #include <VBox/log.h>
@@ -68,7 +68,7 @@
 # include <Windows.h>
 #endif
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /** Size of the send fifo queue (in bytes) */
@@ -932,7 +932,7 @@ static DECLCALLBACK(int) drvHostSerialMonitorThread(PPDMDRVINS pDrvIns, PPDMTHRE
     do
     {
         unsigned int statusLines;
-       
+
         /*
          * Get the status line state.
          */

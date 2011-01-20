@@ -1,4 +1,4 @@
-/* $Id: DevEFI.cpp 35218 2010-12-17 12:45:16Z vboxsync $ */
+/* $Id: DevEFI.cpp 35431 2011-01-07 15:19:34Z vboxsync $ */
 /** @file
  * DevEFI - EFI <-> VirtualBox Integration Framework.
  */
@@ -20,13 +20,13 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_EFI
 
-#include <VBox/pdmdev.h>
-#include <VBox/pgm.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/mm.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -43,8 +43,8 @@
 #endif
 
 #include "Firmware2/VBoxPkg/Include/DevEFI.h"
-#include "../Builtins.h"
-#include "../Builtins2.h"
+#include "VBoxDD.h"
+#include "VBoxDD2.h"
 #include "../PC/DevFwCommon.h"
 
 /* EFI includes */
@@ -612,7 +612,8 @@ static int efiFindEntryPoint(EFI_FFS_FILE_HEADER const *pFfsFile, uint32_t cbFfs
         EFI_IMAGE_NT_HEADERS32  Nt32;
         EFI_IMAGE_NT_HEADERS64  Nt64;
         EFI_TE_IMAGE_HEADER     Te;
-    } const *pHdr = (EfiHdrUnion const *)pbImage;
+    };
+    EfiHdrUnion const *pHdr = (EfiHdrUnion const *)pbImage;
 
     /* Skip MZ if found. */
     if (pHdr->Dos.e_magic == RT_MAKE_U16('M',  'Z'))

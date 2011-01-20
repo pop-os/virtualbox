@@ -1,4 +1,4 @@
-/* $Id: DevPCI.cpp 34751 2010-12-06 14:26:43Z vboxsync $ */
+/* $Id: DevPCI.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DevPCI - PCI BUS Device.
  */
@@ -47,12 +47,12 @@
 /* Hack to get PCIDEVICEINT declare at the right point - include "PCIInternal.h". */
 #define PCI_INCLUDE_PRIVATE
 #include <VBox/pci.h>
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

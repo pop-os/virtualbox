@@ -1,4 +1,4 @@
-/* $Id: vm.h 32206 2010-09-02 14:13:13Z vboxsync $ */
+/* $Id: vm.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VM - Internal VMM header file.
  */
@@ -18,7 +18,7 @@
 #ifndef ___VM_include_internal_h
 #define ___VM_include_internal_h
 
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 
 VMMR3DECL(int) VMR3SaveFT(PVM pVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser, bool *pfSuspended, bool fSkipStateChanges);
 VMMR3DECL(int) VMR3LoadFromStreamFT(PVM pVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser);

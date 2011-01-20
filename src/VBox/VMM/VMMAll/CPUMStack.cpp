@@ -1,4 +1,4 @@
-/* $Id: CPUMStack.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: CPUMStack.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * CPUM - CPU Monitor(/Manager) - Stack manipulation.
  */
@@ -19,10 +19,10 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/cpum.h>
+#include <VBox/vmm/cpum.h>
 #include "CPUMInternal.h"
-#include <VBox/vm.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/mm.h>
 
 /** Disable stack frame pointer generation here. */
 #if defined(_MSC_VER) && !defined(DEBUG)

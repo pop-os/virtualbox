@@ -1,4 +1,4 @@
-/* $Id: filteraudio.c 34969 2010-12-10 19:08:32Z vboxsync $ */
+/* $Id: filteraudio.c 35487 2011-01-11 13:45:20Z vboxsync $ */
 /** @file
  * VBox audio devices: filter driver, which sits between the host audio driver
  * and the virtual audio device and intercept all host driver operations.
@@ -728,6 +728,15 @@ static int filteraudio_ctl_in(HWVoiceIn *phw, int cmd, ...)
         /* Check if the voice has been intercepted. */
         if (!pVoice->fIntercepted)
         {
+            if (!pVoice->fHostOK)
+            {
+                /* Host did not initialize the voice. Theoretically should not happen, because
+                 * audio.c should not disable a voice which has not been enabled at all.
+                 */
+                Log(("FilterAudio: [Input]: ctl_in DISABLE voice %p (hw %p) not available on host\n", pVoice, pVoice->phw));
+                return -1;
+            }
+
             /* Note: audio.c does not use variable parameters '...', so ok to forward only 'phw' and 'cmd'. */
             Log(("FilterAudio: [Input]: forwarding ctl_in DISABLE for voice %p (hw %p)\n", pVoice, pVoice->phw));
             return filter_conf.pDrv->pcm_ops->ctl_in(phw, cmd);
@@ -769,8 +778,12 @@ static void filteraudio_fini_in(HWVoiceIn *phw)
     pVoice = (filterVoiceIn *)((uint8_t *)phw + filter_conf.pDrv->voice_size_in);
 
     /* Uninitialize both host and filter parts of the voice. */
-    Log(("FilterAudio: [Input]: forwarding fini_in for voice %p (hw %p)\n", pVoice, pVoice->phw));
-    filter_conf.pDrv->pcm_ops->fini_in(phw);
+    if (pVoice->fHostOK)
+    {
+        /* Uninit host part only if it was initialized by host. */
+        Log(("FilterAudio: [Input]: forwarding fini_in for voice %p (hw %p)\n", pVoice, pVoice->phw));
+        filter_conf.pDrv->pcm_ops->fini_in(phw);
+    }
 
     Log(("FilterAudio: [Input]: fini_in for voice %p (hw %p)\n", pVoice, pVoice->phw));
 
@@ -877,6 +890,7 @@ static void filteraudio_audio_fini(void *opaque)
     {
         filter_conf.pDrv->fini(opaque);
         filter_conf.pDrv = NULL;
+        filter_conf.pDrvOpaque = NULL;
     }
 }
 
@@ -929,4 +943,40 @@ struct audio_driver *filteraudio_install(struct audio_driver *pDrv, void *pDrvOp
     filter_conf.pDrvOpaque = pDrvOpaque;
 
     return &filteraudio_audio_driver;
+}
+
+int filteraudio_is_host_voice_in_ok(struct audio_driver *pDrv, HWVoiceIn *phw)
+{
+    filterVoiceIn *pVoice;
+
+    if (pDrv != &filteraudio_audio_driver)
+    {
+        /* This is not the driver for which the filter was installed.
+         * The filter has no idea and assumes that if the voice
+         * is not NULL then it is a valid host voice.
+         */
+        return (phw != NULL);
+    }
+
+    if (!filter_conf.pDrv)
+    {
+        AssertFailed();
+        return (phw != NULL);
+    }
+
+    pVoice = (filterVoiceIn *)((uint8_t *)phw + filter_conf.pDrv->voice_size_in);
+
+    return pVoice->fHostOK;
+}
+
+int filteraudio_is_host_voice_out_ok(struct audio_driver *pDrv, HWVoiceOut *phw)
+{
+    /* Output is not yet implemented and there are no filter voices.
+     * The filter has no idea and assumes that if the voice
+     * is not NULL then it is a valid host voice.
+     *
+     * @todo: similar to filteraudio_is_host_voice_in_ok
+     */
+    NOREF(pDrv);
+    return (phw != NULL);
 }

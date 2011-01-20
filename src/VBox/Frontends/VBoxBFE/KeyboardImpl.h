@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: KeyboardImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of Keyboard class and related things
@@ -19,7 +19,7 @@
 #ifndef ____H_KEYBOARDIMPL
 #define ____H_KEYBOARDIMPL
 
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 
 /** Simple keyboard event class. */
 class KeyboardEvent

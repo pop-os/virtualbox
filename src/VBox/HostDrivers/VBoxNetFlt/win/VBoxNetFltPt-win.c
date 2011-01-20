@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFltPt-win.c 34109 2010-11-16 12:02:12Z vboxsync $ */
+/* $Id: VBoxNetFltPt-win.c 35359 2010-12-28 08:18:10Z vboxsync $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), Windows Specific Code. Protocol edge of ndis filter driver
  */
@@ -968,7 +968,7 @@ static bool vboxNetFltWinPtTransferDataCompleteActive(IN PADAPT pAdapt,
                 if(!vboxNetFltWinLbIsFromIntNet(pLb))
                 {
                     /* the packet is not from int net, need to pass it up to the host */
-                    vboxNetFltWinPtQueueReceivedPacket(pAdapt, pPacket, FALSE);
+                    vboxNetFltWinPtQueueReceivedPacket(pAdapt, pPacket, TRUE);
                     /* dereference NetFlt, pAdapt will be dereferenced on Packet return */
                     vboxNetFltWinDereferenceNetFlt(pNetFltIf);
                     break;
@@ -1162,7 +1162,8 @@ vboxNetFltWinPtFlushReceiveQueue(
 static INT
 vboxNetFltWinRecvPacketPassThru(
     IN PADAPT            pAdapt,
-    IN PNDIS_PACKET           pPacket
+    IN PNDIS_PACKET           pPacket,
+    IN BOOLEAN bForceIndicate
     )
 {
     NDIS_STATUS         fStatus;
@@ -1189,7 +1190,7 @@ vboxNetFltWinRecvPacketPassThru(
             return 0;
         }
 
-        vboxNetFltWinPtQueueReceivedPacket(pAdapt, pMyPacket, FALSE);
+        vboxNetFltWinPtQueueReceivedPacket(pAdapt, pMyPacket, bForceIndicate);
 
         return 1;
     }
@@ -1365,7 +1366,7 @@ vboxNetFltWinPtReceiveActive(
                         false); /* bool bCopyMemory */
                     if(pMyPacket)
                     {
-                        vboxNetFltWinPtQueueReceivedPacket(pAdapt, pMyPacket, FALSE);
+                        vboxNetFltWinPtQueueReceivedPacket(pAdapt, pMyPacket, TRUE);
                         /* dereference the NetFlt here & indicate SUCCESS, which would mean the caller would not do a dereference
                          * the pAdapt dereference will be done on packet return */
                         vboxNetFltWinDereferenceNetFlt(pNetFlt);
@@ -2103,7 +2104,7 @@ vboxNetFltWinPtReceivePacket(
 #endif
             }
 
-            cRefCount = vboxNetFltWinRecvPacketPassThru(pAdapt, pPacket);
+            cRefCount = vboxNetFltWinRecvPacketPassThru(pAdapt, pPacket, bNetFltActive);
             if(cRefCount)
             {
                 Assert(cRefCount == 1);

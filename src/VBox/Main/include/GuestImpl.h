@@ -1,5 +1,4 @@
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
@@ -24,7 +23,7 @@
 
 #ifdef VBOX_WITH_GUEST_CONTROL
 # include <VBox/HostServices/GuestControlSvc.h>
-# include <hgcm/HGCM.h>
+# include "HGCM.h"
 using namespace guestControl;
 #endif
 
@@ -179,8 +178,10 @@ private:
     int notifyCtrlExecInStatus(uint32_t u32Function, PCALLBACKDATAEXECINSTATUS pData);
     CallbackMapIter getCtrlCallbackContextByID(uint32_t u32ContextID);
     GuestProcessMapIter getProcessByPID(uint32_t u32PID);
+    void notifyCtrlCallbackContext(Guest::CallbackMapIter it, const char *pszText);
     void destroyCtrlCallbackContext(CallbackMapIter it);
     uint32_t addCtrlCallbackContext(eVBoxGuestCtrlCallbackType enmType, void *pvData, uint32_t cbData, Progress* pProgress);
+    HRESULT waitForProcessStatusChange(ULONG uPID, ULONG *puRetStatus, ULONG *puRetExitCode, ULONG uTimeoutMS);
 # endif
 
     struct Data

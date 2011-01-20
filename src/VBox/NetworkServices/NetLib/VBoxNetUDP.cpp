@@ -1,4 +1,4 @@
-/* $Id: VBoxNetUDP.cpp 31272 2010-08-02 09:11:22Z vboxsync $ */
+/* $Id: VBoxNetUDP.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBoxNetUDP - IntNet UDP Client Routines.
  */
@@ -24,7 +24,7 @@
 #include <iprt/string.h>
 #include <iprt/rand.h>
 #include <VBox/log.h>
-#include <VBox/pdmnetinline.h>
+#include <VBox/vmm/pdmnetinline.h>
 #include <VBox/intnetinline.h>
 
 

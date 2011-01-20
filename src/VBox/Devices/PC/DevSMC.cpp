@@ -1,4 +1,4 @@
-/* $Id: DevSMC.cpp 29569 2010-05-17 15:37:01Z vboxsync $ */
+/* $Id: DevSMC.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DevSMC - SMC device emulation.
  */
@@ -50,9 +50,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_SMC
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <VBox/log.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/stam.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #ifdef IN_RING0
@@ -61,7 +61,7 @@
 # include <iprt/thread.h>
 #endif
 
-#include "../Builtins2.h"
+#include "VBoxDD2.h"
 
 
 /*******************************************************************************

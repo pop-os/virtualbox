@@ -1,4 +1,4 @@
-$Id: ReadMe.txt 29156 2010-05-06 13:50:07Z vboxsync $
+$Id: ReadMe.txt 35557 2011-01-14 13:12:26Z vboxsync $
 
 Setting up the source trees
 ===========================
@@ -14,12 +14,12 @@ Enter into the edk2 directory and check out EFI/Firmware2/VBoxPkg into a
 VBoxPkg subdirectory:
 
   svn checkout \
-    https://linserv.germany.sun.com/vbox/svn/trunk/src/VBox/Devices/EFI/Firmware2/VBoxPkg VBoxPkg
+    http://www.virtualbox.org/svn/vbox/trunk/src/VBox/Devices/EFI/Firmware2/VBoxPkg VBoxPkg
 
 Enter into the VBoxPkg/Include and check out include/iprt and include/VBox:
 
-  svn checkout https://linserv.germany.sun.com/vbox/svn/trunk/include/iprt iprt
-  svn checkout https://linserv.germany.sun.com/vbox/svn/trunk/include/VBox VBox
+  svn checkout http://www.virtualbox.org/svn/vbox/trunk/include/iprt iprt
+  svn checkout http://www.virtualbox.org/svn/vbox/trunk/include/VBox VBox
 
 Then copy version-generated.h from
 <VBox-trunk>/out/win.*/*/version-generated.h (into VBoxPkg/include/).

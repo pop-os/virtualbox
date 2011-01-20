@@ -1,4 +1,4 @@
-/* $Id: Pcap.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: Pcap.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Helpers for writing libpcap files.
  */
@@ -24,7 +24,7 @@
 #include <iprt/stream.h>
 #include <iprt/time.h>
 #include <iprt/err.h>
-#include <VBox/pdmnetinline.h>
+#include <VBox/vmm/pdmnetinline.h>
 
 
 /*******************************************************************************

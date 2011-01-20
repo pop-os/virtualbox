@@ -1,4 +1,4 @@
-/* $Id: DevFwCommon.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DevFwCommon.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * FwCommon - Shared firmware code (used by DevPcBios & DevEFI).
  */
@@ -19,7 +19,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -34,8 +34,8 @@
 #include <iprt/uuid.h>
 #include <iprt/system.h>
 
-#include "../Builtins.h"
-#include "../Builtins2.h"
+#include "VBoxDD.h"
+#include "VBoxDD2.h"
 #include "DevFwCommon.h"
 
 

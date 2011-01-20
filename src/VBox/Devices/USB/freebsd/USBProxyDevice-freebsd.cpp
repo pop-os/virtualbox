@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice-freebsd.cpp 34127 2010-11-16 17:19:29Z vboxsync $ */
+/* $Id: USBProxyDevice-freebsd.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * USB device proxy - the FreeBSD backend.
  */
@@ -39,7 +39,7 @@
 #include <dev/usb/usbdi.h>
 #include <dev/usb/usb_ioctl.h>
 
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/vusb.h>

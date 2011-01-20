@@ -1,4 +1,4 @@
-/* $Id: DevParallel.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevParallel.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DevParallel - Parallel (Port) Device Emulation.
  *
@@ -22,14 +22,14 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_PARALLEL
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/uuid.h>
 #include <iprt/string.h>
 #include <iprt/semaphore.h>
 #include <iprt/critsect.h>
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

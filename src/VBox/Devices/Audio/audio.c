@@ -22,9 +22,9 @@
  * THE SOFTWARE.
  */
 #define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/err.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/mm.h>
 
 #include <VBox/log.h>
 #include <iprt/asm-math.h>
@@ -33,8 +33,8 @@
 #include <iprt/string.h>
 #include <iprt/alloc.h>
 
-#include "Builtins.h"
-#include "../../vl_vbox.h"
+#include "VBoxDD.h"
+#include "vl_vbox.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -121,11 +121,7 @@ static struct {
     int plive;
 } conf = {
     {                           /* DAC fixed settings */
-#ifndef VBOX_WITH_AUDIO_FLEXIBLE_FORMAT
         1,                      /* enabled */
-#else
-        0,
-#endif
         1,                      /* nb_voices */
         1,                      /* greedy */
         {
@@ -136,11 +132,7 @@ static struct {
     },
 
     {                           /* ADC fixed settings */
-#ifndef VBOX_WITH_AUDIO_FLEXIBLE_FORMAT
         1,                      /* enabled */
-#else
-        0,
-#endif
         1,                      /* nb_voices */
         1,                      /* greedy */
         {
@@ -1947,6 +1939,28 @@ void AUD_set_volume (audmixerctl_t mt, int *mute, uint8_t *lvol, uint8_t *rvol)
 void AUD_set_record_source (audrecsource_t *ars, audrecsource_t *als)
 {
     LogRel(("Audio: set_record_source ars=%d als=%d (not implemented)\n", *ars, *als));
+}
+
+int AUD_is_host_voice_in_ok(SWVoiceIn *sw)
+{
+    AudioState *s = &glob_audio_state;
+
+    if (sw == NULL) {
+        return 0;
+    }
+
+    return filteraudio_is_host_voice_in_ok(s->drv, sw->hw);
+}
+
+int AUD_is_host_voice_out_ok(SWVoiceOut *sw)
+{
+    AudioState *s = &glob_audio_state;
+
+    if (sw == NULL) {
+        return 0;
+    }
+
+    return filteraudio_is_host_voice_out_ok(s->drv, sw->hw);
 }
 
 /**

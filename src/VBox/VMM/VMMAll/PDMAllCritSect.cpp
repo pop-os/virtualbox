@@ -1,4 +1,4 @@
-/* $Id: PDMAllCritSect.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: PDMAllCritSect.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * PDM - Critical Sections, All Contexts.
  */
@@ -20,13 +20,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM//_CRITSECT
-#include "../PDMInternal.h"
-#include <VBox/pdmcritsect.h>
-#include <VBox/mm.h>
-#include <VBox/vmm.h>
-#include <VBox/vm.h>
+#include "PDMInternal.h"
+#include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/err.h>
-#include <VBox/hwaccm.h>
+#include <VBox/vmm/hwaccm.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>

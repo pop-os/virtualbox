@@ -1,4 +1,4 @@
-/* $Id: precomp.h 33882 2010-11-09 09:32:27Z vboxsync $*/
+/* $Id: precomp.h 35347 2010-12-27 16:25:58Z vboxsync $*/
 /** @file
  * Header used if VBOX_WITH_PRECOMPILED_HEADERS is active.
  */
@@ -319,7 +319,7 @@ RT_C_DECLS_END                          /* rhel3 build hack */
 #include <VBox/VBoxGL2D.h>
 #ifdef VBOX_WITH_VIDEOHWACCEL
 # include <VBox/VBoxVideo.h>
-# include <VBox/ssm.h>
+# include <VBox/vmm/ssm.h>
 #endif
 
 #ifdef Q_WS_MAC

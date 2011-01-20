@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice-linux.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: USBProxyDevice-linux.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * USB device proxy - the Linux backend.
  */
@@ -70,7 +70,7 @@
 #endif
 
 #ifndef RDESKTOP
-# include <VBox/pdm.h>
+# include <VBox/vmm/pdm.h>
 #else
 # define RTCRITSECT          void *
 static inline int rtcsNoop() { return VINF_SUCCESS; }

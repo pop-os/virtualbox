@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35152 2010-12-15 16:45:42Z vboxsync $
+# $Id: Makefile.kmk 35351 2010-12-27 17:04:17Z vboxsync $
 ## @file
 # Sub-Makefile for the VirtualBox Guest/Host OpenGL part
 #
@@ -41,7 +41,7 @@ endif
 #
 VBoxOGLcrutil_TEMPLATE      = VBOXCROGLR3GUESTDLL
 if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
- VBoxOGLcrutil_NOINST.win.x86 = true
+ VBoxOGLcrutil_NOINST.win = true
 endif
 VBoxOGLcrutil_SDKS.win      = DXSDK
 VBoxOGLcrutil_INTERMEDIATES = $(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h
@@ -85,11 +85,10 @@ VBoxOGLcrutil_LIBS.win = \
 	$(PATH_SDK_DXSDK_LIB)/dxguid.lib
 VBoxOGLcrutil_LIBS = \
 	$(VBOX_LIB_IPRT_GUEST_R3_SHARED) \
-	$(VBOX_LIB_VBGL_R3_SHARED) \
-	$(VBOX_LIB_IPRT_GUEST_R3_SHARED)
+	$(VBOX_LIB_VBGL_R3_SHARED)
 ifdef VBOX_WITH_CRHGSMI
-VBoxOGLcrutil_DEFS.win.x86    += VBOX_WITH_CRHGSMI
-VBoxOGLcrutil_LIBS.win.x86    += $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB)
+VBoxOGLcrutil_DEFS.win    += VBOX_WITH_CRHGSMI
+VBoxOGLcrutil_LIBS.win    += $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB)
 endif
 VBoxOGLcrutil_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/debug_opcodes.c
@@ -98,6 +97,29 @@ VBoxOGLcrutil_CLEAN = \
 VBoxOGLcrutil_pixel.c_CFLAGS.win.x86     += -Od
 VBoxOGLhostcrutil_pixel.c_CFLAGS.win.x86 += -Od
 
+if defined(VBOX_WITH_WDDM) && !defined(VBOX_WITHOUT_ADDITIONS)
+#
+# VBoxOGLcrutil-x86 - x86 VBoxOGLcrutil version built for amd64 build
+#
+DLLS.win.amd64 += VBoxOGLcrutil-x86
+VBoxOGLcrutil-x86_TEMPLATE      = VBOXCROGLR3GUESTDLL
+VBoxOGLcrutil-x86_EXTENDS = VBoxOGLcrutil
+VBoxOGLcrutil-x86_BLD_TRG_ARCH = x86
+VBoxOGLcrutil-x86_LIBS = $(VBOX_LIB_IPRT_GUEST_R3_SHARED_X86) \
+	$(VBOX_LIB_VBGL_R3_SHARED_X86)
+VBoxOGLcrutil-x86_LIBS.win = \
+	$(PATH_SDK_DXSDK_LIB.x86)/ddraw.lib \
+	$(PATH_SDK_DXSDK_LIB.x86)/dxguid.lib
+ifdef VBOX_WITH_CRHGSMI
+# VBOX_WITH_CRHGSMI define is inherited from VBoxOGLcrutil
+VBoxOGLcrutil-x86_LIBS.win    += $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi-x86$(VBOX_SUFF_LIB)
+endif
+VBoxOGLcrutil-x86_DEFS = $(VBoxOGLcrutil_DEFS) VBOX_WDDM_WOW64
+# vc7 hangs during compilation of this file when optimizations are enabled.
+VBoxOGLcrutil-x86_pixel.c_CFLAGS += -Od
+VBoxOGLcrutil-x86_pixel.c_CFLAGS += -Od
+endif
+
 #
 # VBoxOGLhostcrutil
 #
@@ -105,7 +127,7 @@ VBoxOGLhostcrutil_EXTENDS  = VBoxOGLcrutil
 VBoxOGLhostcrutil_TEMPLATE = VBOXCROGLR3HOSTDLL
 if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
  # need to reset the NOINST flag
- VBoxOGLhostcrutil_NOINST.win.x86 = $(NO_SUCH_VARIABLE)
+ VBoxOGLhostcrutil_NOINST.win = $(NO_SUCH_VARIABLE)
 endif
 VBoxOGLhostcrutil_LDFLAGS.darwin = $(VBoxOGLcrutil_LDFLAGS.darwin) \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhostcrutil.dylib
@@ -116,8 +138,8 @@ VBoxOGLhostcrutil_LDFLAGS.darwin = $(VBoxOGLcrutil_LDFLAGS.darwin) \
 VBoxOGLhostcrutil_LIBS.win = $(VBoxOGLcrutil_LIBS.win)
 VBoxOGLhostcrutil_LIBS     = $(LIB_RUNTIME)
 ifdef VBOX_WITH_CRHGSMI
-VBoxOGLhostcrutil_DEFS.win.x86 = $(subst VBOX_WITH_CRHGSMI,,$(VBoxOGLcrutil_DEFS.win.x86))
-VBoxOGLhostcrutil_LIBS.win.x86 = $(subst $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB),,$(VBoxOGLcrutil_LIBS.win.x86))
+VBoxOGLhostcrutil_DEFS.win = $(subst VBOX_WITH_CRHGSMI,,$(VBoxOGLcrutil_DEFS.win))
+VBoxOGLhostcrutil_LIBS.win = $(subst $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB),,$(VBoxOGLcrutil_LIBS.win))
 endif
 
 #
@@ -126,7 +148,6 @@ endif
 $(VBOX_PATH_CROGL_GENFILES)/debug_opcodes.c: $(PATH_SUB_CURRENT)/util/debug_opcodes.py $(VBOX_CROGL_API_FILES) | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
-
 
 #
 # VBoxOGLcrpacker
@@ -220,6 +241,17 @@ VBoxOGLcrpacker_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_currentpointers.h
 
+if defined(VBOX_WITH_WDDM) && !defined(VBOX_WITHOUT_ADDITIONS)
+#
+# VBoxOGLcrpacker-x86 - x86 VBoxOGLcrpacker version built for amd64 build
+#
+LIBRARIES.win.amd64 += VBoxOGLcrpacker-x86
+VBoxOGLcrpacker-x86_TEMPLATE = VBOXCROGLR3GUESTLIB
+VBoxOGLcrpacker-x86_EXTENDS = VBoxOGLcrpacker
+VBoxOGLcrpacker-x86_BLD_TRG_ARCH = x86
+VBoxOGLcrpacker-x86_DEFS = $(VBoxOGLcrpacker_DEFS) VBOX_WDDM_WOW64
+endif
+
 #
 # VBoxOGLhostcrpacker
 #
@@ -288,8 +320,20 @@ VBoxOGLspuload_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
 
 
+if defined(VBOX_WITH_WDDM) && !defined(VBOX_WITHOUT_ADDITIONS)
 #
-# VBoxOGLspuload
+# VBoxOGLspuload-x86 - x86 VBoxOGLspuload version built for amd64 build
+#
+LIBRARIES.win.amd64 += VBoxOGLspuload-x86
+VBoxOGLspuload-x86_TEMPLATE = VBOXCROGLR3GUESTLIB
+VBoxOGLspuload-x86_EXTENDS = VBoxOGLspuload
+VBoxOGLspuload-x86_BLD_TRG_ARCH = x86
+VBoxOGLspuload-x86_DEFS = $(VBoxOGLspuload_DEFS) VBOX_WDDM_WOW64
+endif
+
+
+#
+# VBoxOGLhostspuload
 #
 VBoxOGLhostspuload_EXTENDS  = VBoxOGLspuload
 VBoxOGLhostspuload_TEMPLATE = VBOXCROGLR3HOSTLIB
@@ -401,8 +445,21 @@ VBoxOGLcrstate_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h
 ifneq ($(KBUILD_TARGET),win)
 state_tracker/state_lists.c_CFLAGS += $(VBOX_GCC_Wno-pointer-sign)
-VBoxOGLcrstate_CFLAGS += 
+VBoxOGLcrstate_CFLAGS +=
 endif
+
+
+if defined(VBOX_WITH_WDDM) && !defined(VBOX_WITHOUT_ADDITIONS)
+#
+# VBoxOGLcrstate-x86 - x86 VBoxOGLcrstate version built for amd64 build
+#
+LIBRARIES.win.amd64 += VBoxOGLcrstate-x86
+VBoxOGLcrstate-x86_TEMPLATE = VBOXCROGLR3GUESTLIB
+VBoxOGLcrstate-x86_EXTENDS = VBoxOGLcrstate
+VBoxOGLcrstate-x86_BLD_TRG_ARCH = x86
+VBoxOGLcrstate-x86_DEFS = $(VBoxOGLcrstate_DEFS) VBOX_WDDM_WOW64
+endif
+
 
 #
 # VBoxOGLhostcrstate
@@ -494,7 +551,7 @@ $(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h: $(addprefix $(PATH_SUB_CURREN
 #
 VBoxOGLerrorspu_TEMPLATE = VBOXCROGLR3GUESTDLL
 if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
- VBoxOGLerrorspu_NOINST.win.x86 = true
+ VBoxOGLerrorspu_NOINST.win = true
 endif
 VBoxOGLerrorspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
@@ -513,6 +570,19 @@ VBoxOGLerrorspu_CLEAN = \
 VBoxOGLerrorspu_LIBS = \
 	$(VBOX_LIB_OGL_CRUTIL)
 
+if defined(VBOX_WITH_WDDM) && !defined(VBOX_WITHOUT_ADDITIONS)
+#
+# VBoxOGLerrorspu-x86 - x86 VBoxOGLerrorspu version built for amd64 build
+#
+DLLS.win.amd64 += VBoxOGLerrorspu-x86
+VBoxOGLerrorspu-x86_TEMPLATE = VBOXCROGLR3GUESTDLL
+VBoxOGLerrorspu-x86_EXTENDS = VBoxOGLerrorspu
+VBoxOGLerrorspu-x86_BLD_TRG_ARCH = x86
+VBoxOGLerrorspu-x86_LIBS = \
+	$(VBOX_LIB_OGL_CRUTIL_X86)
+VBoxOGLerrorspu-x86_DEFS = $(VBoxOGLerrorspu_DEFS) VBOX_WDDM_WOW64
+endif
+
 #
 # VBoxOGLhosterrorspu
 #
@@ -520,7 +590,7 @@ VBoxOGLhosterrorspu_EXTENDS  = VBoxOGLerrorspu
 VBoxOGLhosterrorspu_TEMPLATE = VBOXCROGLR3HOSTDLL
 if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
  # need to reset the NOINST flag
- VBoxOGLhosterrorspu_NOINST.win.x86 = $(NO_SUCH_VARIABLE)
+ VBoxOGLhosterrorspu_NOINST.win = $(NO_SUCH_VARIABLE)
 endif
 VBoxOGLhosterrorspu_LDFLAGS.darwin += $(VBoxOGLerrorspu_LDFLAGS.darwin) \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLhosterrorspu.dylib
@@ -534,6 +604,5 @@ VBoxOGLhosterrorspu_LIBS  = \
 $(VBOX_PATH_CROGL_GENFILES)/errorspu.c: $(PATH_SUB_CURRENT)/error/error.py $(VBOX_CROGL_API_FILES)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI)
-
 include	$(KBUILD_PATH)/subfooter.kmk
 

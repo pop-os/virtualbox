@@ -1,4 +1,4 @@
-/* $Id: VBoxManageStorageController.cpp 35241 2010-12-20 13:14:55Z vboxsync $ */
+/* $Id: VBoxManageStorageController.cpp 35389 2011-01-03 13:21:55Z vboxsync $ */
 /** @file
  * VBoxManage - The storage controller related commands.
  */
@@ -375,7 +375,7 @@ int handleStorageAttach(HandlerArg *a)
                  */
                 if (ctlType == StorageControllerType_I82078)        // floppy controller
                     devTypeRequested = DeviceType_Floppy;
-                else
+                else if (pszMedium)
                 {
                     /*
                      * for SATA/SCSI/IDE it is hard to tell if it is a harddisk or

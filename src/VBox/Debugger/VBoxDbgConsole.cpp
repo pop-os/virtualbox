@@ -1,4 +1,4 @@
-/* $Id: VBoxDbgConsole.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VBoxDbgConsole.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox Debugger GUI - Console.
  */
@@ -31,7 +31,7 @@
 #include <QContextMenuEvent>
 
 #include <VBox/dbg.h>
-#include <VBox/cfgm.h>
+#include <VBox/vmm/cfgm.h>
 #include <VBox/err.h>
 
 #include <iprt/thread.h>

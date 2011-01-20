@@ -1,4 +1,4 @@
-/* $Id: TRPMR0.cpp 34020 2010-11-12 09:12:09Z vboxsync $ */
+/* $Id: TRPMR0.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * TRPM - The Trap Monitor - HC Ring 0
  */
@@ -20,10 +20,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_TRPM
-#include <VBox/trpm.h>
+#include <VBox/vmm/trpm.h>
 #include "TRPMInternal.h"
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>

@@ -1,4 +1,4 @@
-/* $Id: DrvSCSIHost.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DrvSCSIHost.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox storage drivers: Host SCSI access driver.
  */
@@ -20,9 +20,9 @@
 *******************************************************************************/
 //#define DEBUG
 #define LOG_GROUP LOG_GROUP_DRV_SCSIHOST
-#include <VBox/pdmdrv.h>
-#include <VBox/pdmifs.h>
-#include <VBox/pdmthread.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmifs.h>
+#include <VBox/vmm/pdmthread.h>
 #include <VBox/scsi.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
@@ -37,7 +37,7 @@
 # include <sys/ioctl.h>
 #endif
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 /**
  * SCSI driver instance data.

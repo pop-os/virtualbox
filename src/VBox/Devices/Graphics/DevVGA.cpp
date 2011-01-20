@@ -1,4 +1,4 @@
-/* $Id: DevVGA.cpp 35025 2010-12-13 16:01:15Z vboxsync $ */
+/* $Id: DevVGA.cpp 35409 2011-01-05 16:01:54Z vboxsync $ */
 /** @file
  * DevVGA - VBox VGA/VESA device.
  */
@@ -105,8 +105,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VGA
-#include <VBox/pdmdev.h>
-#include <VBox/pgm.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pgm.h>
 #ifdef IN_RING3
 #include <iprt/alloc.h>
 #include <iprt/ctype.h>
@@ -131,8 +131,8 @@
 #endif
 
 #include "vl_vbox.h"
-#include "Builtins.h"
-#include "Builtins2.h"
+#include "VBoxDD.h"
+#include "VBoxDD2.h"
 
 
 /*******************************************************************************
@@ -1037,6 +1037,11 @@ static int vbe_ioport_write_data(void *opaque, uint32_t addr, uint32_t val)
                                      s->vbe_regs[VBE_DISPI_INDEX_VIRT_WIDTH], s->vbe_regs[VBE_DISPI_INDEX_YRES], cb, s->vram_size));
                     return VINF_SUCCESS; /* Note: silent failure like before */
                 }
+
+                /* When VBE interface is enabled, it is reset. */
+                s->vbe_regs[VBE_DISPI_INDEX_X_OFFSET] = 0;
+                s->vbe_regs[VBE_DISPI_INDEX_Y_OFFSET] = 0;
+                fRecalculate = true;
 
                 /* clear the screen (should be done in BIOS) */
                 if (!(val & VBE_DISPI_NOCLEARMEM)) {
@@ -4655,6 +4660,11 @@ static DECLCALLBACK(int) vgaPortTakeScreenshot(PPDMIDISPLAYPORT pInterface, uint
                 *pcbData = cbRequired;
                 *pcx = Connector.cx;
                 *pcy = Connector.cy;
+            }
+            else
+            {
+                /* If we do not return a success, then the data buffer must be freed. */
+                RTMemFree(pu8Data);
             }
         }
     }

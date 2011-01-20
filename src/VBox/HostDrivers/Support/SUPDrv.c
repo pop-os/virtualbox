@@ -1,4 +1,4 @@
-/* $Revision: 35051 $ */
+/* $Revision: 35346 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common code.
  */
@@ -58,8 +58,8 @@
 #include <VBox/param.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
-#include <VBox/hwacc_svm.h>
-#include <VBox/hwacc_vmx.h>
+#include <VBox/vmm/hwacc_svm.h>
+#include <VBox/vmm/hwacc_vmx.h>
 #include <VBox/x86.h>
 
 #ifdef VBOX_WITH_DTRACE

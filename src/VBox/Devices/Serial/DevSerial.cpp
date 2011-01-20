@@ -1,4 +1,4 @@
-/* $Id: DevSerial.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DevSerial.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DevSerial - 16550A UART emulation.
  * (taken from hw/serial.c 2010/05/15 with modifications)
@@ -47,14 +47,14 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_SERIAL
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/uuid.h>
 #include <iprt/string.h>
 #include <iprt/semaphore.h>
 #include <iprt/critsect.h>
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 #undef VBOX_SERIAL_PCI /* The PCI variant has lots of problems: wrong IRQ line and wrong IO base assigned. */
 

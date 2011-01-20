@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInCommonELF.cpp 31530 2010-08-10 12:24:45Z vboxsync $ */
+/* $Id: DBGPlugInCommonELF.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGPlugInCommonELF - Common code for dealing with ELF images.
  */
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
 #include "DBGPlugInCommonELF.h"
 
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 #include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>

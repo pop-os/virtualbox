@@ -1,4 +1,4 @@
-/* $Id: ATAController.h 35214 2010-12-17 10:10:07Z vboxsync $ */
+/* $Id: ATAController.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller types.
  */
@@ -21,13 +21,13 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #ifdef IN_RING3
 # include <iprt/semaphore.h>
 # include <iprt/thread.h>
 #endif /* IN_RING3 */
 #include <iprt/critsect.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/stam.h>
 
 #include "PIIX3ATABmDma.h"
 #include "ide.h"

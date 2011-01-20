@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.h 35177 2010-12-16 12:41:35Z vboxsync $ */
+/* $Id: DisplayImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -22,7 +22,7 @@
 #include "SchemaDefs.h"
 
 #include <iprt/semaphore.h>
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <VBox/VMMDev.h>
 #include <VBox/VBoxVideo.h>
 
@@ -144,10 +144,9 @@ public:
     }
     void getFramebufferDimensions(int32_t *px1, int32_t *py1, int32_t *px2,
                                   int32_t *py2);
-#ifdef MMSEAMLESS
+
     int handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect);
     int handleQueryVisibleRegion(uint32_t *pcRect, PRTRECT pRect);
-#endif
 
     int VideoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory);
     void VideoAccelFlush (void);
@@ -272,7 +271,6 @@ private:
 
     void handleResizeCompletedEMT (void);
 
-#ifdef VBOX_WITH_OLD_VBVA_LOCK
     RTCRITSECT mVBVALock;
     volatile uint32_t mfu32PendingVideoAccelDisable;
 
@@ -291,7 +289,6 @@ private:
     /* Functions run under VBVA lock. */
     int videoAccelEnable (bool fEnable, VBVAMEMORY *pVbvaMemory);
     void videoAccelFlush (void);
-#endif /* VBOX_WITH_OLD_VBVA_LOCK */
 
 #ifdef VBOX_WITH_HGSMI
     volatile uint32_t mu32UpdateVBVAFlags;

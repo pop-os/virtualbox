@@ -1,4 +1,4 @@
-/* $Id: MsixCommon.cpp 33317 2010-10-21 16:01:42Z vboxsync $ */
+/* $Id: MsixCommon.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * MSI-X support routines
  */
@@ -19,9 +19,9 @@
 #define PCI_INCLUDE_PRIVATE
 #include <VBox/pci.h>
 #include <VBox/msi.h>
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <VBox/log.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/mm.h>
 
 #include <iprt/assert.h>
 

@@ -1,4 +1,4 @@
-/* $Id: USBProxyDevice-darwin.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: USBProxyDevice-darwin.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * USB device proxy - the Darwin backend.
  */
@@ -32,7 +32,7 @@
 
 #include <VBox/log.h>
 #include <VBox/err.h>
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 
 #include <iprt/assert.h>
 #include <iprt/critsect.h>

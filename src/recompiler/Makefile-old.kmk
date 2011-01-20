@@ -1,4 +1,4 @@
-# $Id: Makefile-old.kmk 29373 2010-05-11 16:12:52Z vboxsync $
+# $Id: Makefile-old.kmk 35572 2011-01-14 14:51:16Z vboxsync $
 ## @file
 # The OLD Recompiler Sub-Makefile body.
 #
@@ -124,7 +124,7 @@ $(REM_MOD)_INCS            = \
 	tcg \
 	fpu \
 	$(PATH_$(REM_MOD)) \
-	$(PATH_ROOT)/src/VBox/VMM \
+	$(PATH_ROOT)/src/VBox/VMM/include \
 	.
 ifn1of ($($(REM_MOD)_DEFS),DEBUG_TMP_LOGGING)
 $(REM_MOD)_DEFS           += LOG_USE_C99
@@ -201,7 +201,7 @@ if defined(VBOX_USE_REM2) || defined(VBOX_USE_REM64)
 # The VBoxREM2, VBoxREM32 and VBoxREM64 wrapper.
 #
 DLLS += VBoxREMWrapper
-VBoxREMWrapper_TEMPLATE    = VBOXR3
+VBoxREMWrapper_TEMPLATE    = VBoxR3DllWarnNoPic
 VBoxREMWrapper_NAME        = VBoxREM
 VBoxREMWrapper_DEFS        = IN_REM_R3
  ifdef VBOX_USE_REM64
@@ -256,7 +256,7 @@ endif # USE_VBOXREM64
 # won't be built until after all the other DLLs.
 #
 IMPORT_LIBS += VBoxREMImp
-VBoxREMImp_TEMPLATE        = VBOXR3
+VBoxREMImp_TEMPLATE        = VBoxR3Dll
  ifn1of ($(KBUILD_TARGET), os2 win)
 VBoxREMImp_NAME            = VBoxREM
  endif

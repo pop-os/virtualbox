@@ -1,10 +1,10 @@
-# $Id: Makefile.kmk 33146 2010-10-15 10:34:58Z vboxsync $
+# $Id: Makefile.kmk 35447 2011-01-10 11:12:06Z vboxsync $
 ## @file
-# Sub-Makefile for the VirtualBox HGCM Service.
+# Sub-Makefile for the Shared OpenGL Host Service.
 #
 
 #
-# Copyright (C) 2008 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -55,12 +55,9 @@ VBoxSharedCrOpenGL_INTERMEDIATES = \
 	$(TEMPLATE_VBOXMAINEXE_INTERMEDIATES)
 VBoxSharedCrOpenGL_INCS.win = \
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_INC) \
-	$(VBOX_PATH_SDK)/bindings/mscom/include \
-VBoxSharedCrOpenGL_INCS = \
-	$(PATH_VBoxSVC) \
-	$(PATH_VBoxCOM)
+	$(VBOX_PATH_SDK)/bindings/mscom/include
 ifdef VBOX_WITH_XPCOM
- VBoxSharedCrOpenGL_INCS += \
+VBoxSharedCrOpenGL_INCS += \
  	$(VBOX_XPCOM_INCS)
 endif
 VBoxSharedCrOpenGL_SOURCES = \
@@ -147,8 +144,8 @@ VBoxOGLcrserverlib_CLEAN = \
 	$(VBOX_PATH_CROGL_GENFILES)/server_simpleget.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h
 ifdef VBOXCR_LOGFPS
-VBoxOGLcrserverlib_DEFS += VBOXCR_LOGFPS 
-endif	
+VBoxOGLcrserverlib_DEFS += VBOXCR_LOGFPS
+endif
 
 #
 # Generate files for VBoxOGLcrserverlib

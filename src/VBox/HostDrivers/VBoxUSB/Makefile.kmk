@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 31911 2010-08-24 11:56:45Z vboxsync $
+# $Id: Makefile.kmk 35440 2011-01-09 23:43:10Z vboxsync $
 ## @file
 # Sub-Makefile for the Windows USB drivers.
 #
@@ -59,7 +59,7 @@ tstUSBFilter_DEFS = IN_USBLIB
 tstUSBFilter_SOURCES  = \
 	testcase/tstUSBFilter.cpp
 tstUSBFilter_LIBS  = \
-        $(TARGET_USBLib)
+        $(USBLib_1_TARGET)
 endif
 
 

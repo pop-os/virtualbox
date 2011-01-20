@@ -1,4 +1,4 @@
-/* $Id: DevDMA.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DevDMA.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DevDMA - DMA Controller Device.
  */
@@ -45,7 +45,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <VBox/err.h>
 
 #define LOG_GROUP LOG_GROUP_DEFAULT ///@todo LOG_GROUP_DEV_DMA
@@ -56,8 +56,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../Builtins.h"
-#include "../vl_vbox.h"
+#include "VBoxDD.h"
+#include "vl_vbox.h"
 typedef PFNDMATRANSFERHANDLER DMA_transfer_handler;
 
 #else  /* !VBOX */

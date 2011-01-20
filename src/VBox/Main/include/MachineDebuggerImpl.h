@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.h 35250 2010-12-20 16:10:30Z vboxsync $ */
+/* $Id: MachineDebuggerImpl.h 35506 2011-01-12 14:50:52Z vboxsync $ */
 
 /** @file
  *
@@ -120,5 +120,5 @@ private:
     bool mFlushMode;
 };
 
-#endif /* ____H_MACHINEDEBUGGER */
+#endif /* !____H_MACHINEDEBUGGER */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

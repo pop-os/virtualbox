@@ -1,4 +1,4 @@
-/* $Id: VBoxUtils-darwin-cocoa.mm 34401 2010-11-26 16:37:51Z vboxsync $ */
+/* $Id: VBoxUtils-darwin-cocoa.mm 35424 2011-01-07 13:05:41Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -93,6 +93,29 @@ NativeNSStringRef darwinToNativeString(const char* pcszString)
 void darwinSetShowsToolbarButtonImpl(NativeNSWindowRef pWindow, bool fEnabled)
 {
     [pWindow setShowsToolbarButton:fEnabled];
+}
+
+void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool fCenter)
+{
+    /* Get the parent view of the close button. */
+    NSView *wv = [[pWindow standardWindowButton:NSWindowCloseButton] superview];
+    if (wv)
+    {
+        /* We have to calculate the size of the title bar for the center case. */
+        NSSize s = [pImage size];
+        NSSize s1 = [wv frame].size;
+        NSSize s2 = [[pWindow contentView] frame].size;
+        /* Correctly position the label. */
+        NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(s1.width - s.width - (fCenter ? 10 : 0),
+                                                                        fCenter ? s2.height + (s1.height - s2.height - s.height) / 2 : s1.height - s.height - 1,
+                                                                        s.width, s.height)];
+        /* Configure the NSImageView for auto moving. */
+        [iv setImage:pImage];
+        [iv setAutoresizesSubviews:true];
+        [iv setAutoresizingMask:NSViewMinXMargin | NSViewMinYMargin];
+        /* Add it to the parent of the close button. */
+        [wv addSubview:iv positioned:NSWindowBelow relativeTo:nil];
+    }
 }
 
 void darwinSetShowsResizeIndicatorImpl(NativeNSWindowRef pWindow, bool fEnabled)

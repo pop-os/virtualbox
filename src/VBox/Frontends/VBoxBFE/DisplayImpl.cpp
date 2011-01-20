@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 34754 2010-12-06 14:40:03Z vboxsync $ */
+/* $Id: DisplayImpl.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of Display class
@@ -28,9 +28,9 @@
 #include <iprt/mem.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/VMMDev.h>
-#include <VBox/cfgm.h>
+#include <VBox/vmm/cfgm.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>

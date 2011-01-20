@@ -1,4 +1,4 @@
-/* $Id: VMAll.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VMAll.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VM - Virtual Machine All Contexts.
  */
@@ -21,9 +21,9 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VM
 #include "VMInternal.h"
-#include <VBox/vmm.h>
-#include <VBox/mm.h>
-#include <VBox/vm.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 

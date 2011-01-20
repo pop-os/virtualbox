@@ -1,4 +1,4 @@
-/* $Id: xkbtoscan.h 33653 2010-11-01 14:05:21Z vboxsync $ */
+/* $Id: xkbtoscan.h 35478 2011-01-11 11:36:23Z vboxsync $ */
 /** @file
  * VBox/Frontends/Common - X11 keyboard driver translation tables (XT scan
  *                         code mappings for XKB key names).
@@ -37,6 +37,9 @@ enum { XKB_NAME_SIZE = 4 };
 
 /**
  * This table contains a list of mappings of XKB key names to XT scan codes.
+ * We only use XKB to look up layout-dependent keys (mainly the alpha-numeric
+ * ones), so that user re-mappings will work at least for the remaining keys.
+ * This is the reason for the commented out entries in the table.
  */
 struct
 {
@@ -44,7 +47,7 @@ struct
     unsigned uScan;
 } xkbMap[] =
 {
-    { "ESC", 0x1 },
+/*    { "ESC", 0x1 }, */
     { "AE01", 0x2 },
     { "AE02", 0x3 },
     { "AE03", 0x4 },
@@ -57,8 +60,8 @@ struct
     { "AE10", 0xb },
     { "AE11", 0xc },
     { "AE12", 0xd },
-    { "BKSP", 0xe },
-    { "TAB", 0xf },
+/*    { "BKSP", 0xe },
+    { "TAB", 0xf }, */
     { "AD01", 0x10 },
     { "AD02", 0x11 },
     { "AD03", 0x12 },
@@ -71,8 +74,8 @@ struct
     { "AD10", 0x19 },
     { "AD11", 0x1a },
     { "AD12", 0x1b },
-    { "RTRN", 0x1c },
-    { "LCTL", 0x1d },
+/*    { "RTRN", 0x1c },
+    { "LCTL", 0x1d }, */
     { "AC01", 0x1e },
     { "AC02", 0x1f },
     { "AC03", 0x20 },
@@ -85,7 +88,7 @@ struct
     { "AC10", 0x27 },
     { "AC11", 0x28 },
     { "TLDE", 0x29 },
-    { "LFSH", 0x2a },
+/*    { "LFSH", 0x2a }, */
     { "BKSL", 0x2b },
     { "AB01", 0x2c },
     { "AB02", 0x2d },
@@ -97,7 +100,7 @@ struct
     { "AB08", 0x33 },
     { "AB09", 0x34 },
     { "AB10", 0x35 },
-    { "RTSH", 0x36 },
+/*    { "RTSH", 0x36 },
     { "KPMU", 0x37 },
     { "LALT", 0x38 },
     { "SPCE", 0x39 },
@@ -127,12 +130,12 @@ struct
     { "KP3", 0x51 },
     { "KP0", 0x52 },
     { "KPDL", 0x53 },
-    { "LVL3", 0x138 },
+    { "LVL3", 0x138 }, */
     { "LSGT", 0x56 },
-    { "FK11", 0x57 },
-    { "FK12", 0x58 },
+/*    { "FK11", 0x57 },
+    { "FK12", 0x58 }, */
     { "AB11", 0x73 },
-    { "KATA", 0x0 },
+/*    { "KATA", 0x0 },
     { "HIRA", 0x0 },
     { "HENK", 0x79 },
     { "HKTG", 0x70 },
@@ -287,5 +290,5 @@ struct
     { "I250", 0x0 },
     { "I251", 0x0 },
     { "I252", 0x0 },
-    { "I253", 0x0 }
+    { "I253", 0x0 } */
 };

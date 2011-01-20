@@ -1,4 +1,4 @@
-/* $Id: VUSBUrb.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
+/* $Id: VUSBUrb.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Virtual USB - URBs.
  */
@@ -19,8 +19,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VUSB
-#include <VBox/pdm.h>
-#include <VBox/vmapi.h>
+#include <VBox/vmm/pdm.h>
+#include <VBox/vmm/vmapi.h>
 #include <VBox/err.h>
 #include <iprt/alloc.h>
 #include <VBox/log.h>

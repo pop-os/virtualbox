@@ -1,4 +1,4 @@
-/* $Id: tstCFGM.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstCFGM.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Testcase for CFGM.
  */
@@ -21,10 +21,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/sup.h>
-#include <VBox/cfgm.h>
-#include <VBox/mm.h>
-#include <VBox/vm.h>
-#include <VBox/uvm.h>
+#include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 
 #include <VBox/err.h>
 #include <VBox/param.h>

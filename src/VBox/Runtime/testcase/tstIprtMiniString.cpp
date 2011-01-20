@@ -1,4 +1,4 @@
-/* $Id: tstIprtMiniString.cpp 33862 2010-11-08 17:07:49Z vboxsync $ */
+/* $Id: tstIprtMiniString.cpp 35568 2011-01-14 14:24:53Z vboxsync $ */
 /** @file
  * IPRT Testcase - iprt::MiniString.
  */
@@ -210,6 +210,50 @@ static void test1(RTTEST hTest)
     iprt::MiniString SubStr15(SubStrBase, 2, 5);
     CHECK_EQUAL(SubStr15, "cdef");
 
+    /* substr() and substrCP() functions */
+    iprt::MiniString strTest("");
+    CHECK_EQUAL(strTest.substr(0), "");
+    CHECK_EQUAL(strTest.substrCP(0), "");
+    CHECK_EQUAL(strTest.substr(1), "");
+    CHECK_EQUAL(strTest.substrCP(1), "");
+
+    /* now let's have some non-ASCII to chew on */
+    strTest = "abcdefßäbcdef";
+            // 13 codepoints, but 15 bytes (excluding null terminator);
+            // "ß" and "ä" consume two bytes each
+    CHECK_EQUAL(strTest.substr(0),   strTest.c_str());
+    CHECK_EQUAL(strTest.substrCP(0), strTest.c_str());
+
+    CHECK_EQUAL(strTest.substr(2),   "cdefßäbcdef");
+    CHECK_EQUAL(strTest.substrCP(2), "cdefßäbcdef");
+
+    CHECK_EQUAL(strTest.substr(2, 2),   "cd");
+    CHECK_EQUAL(strTest.substrCP(2, 2), "cd");
+
+    CHECK_EQUAL(strTest.substr(6),   "ßäbcdef");
+    CHECK_EQUAL(strTest.substrCP(6), "ßäbcdef");
+
+    CHECK_EQUAL(strTest.substr(6, 2),   "ß");           // UTF-8 "ß" consumes two bytes
+    CHECK_EQUAL(strTest.substrCP(6, 1), "ß");
+
+    CHECK_EQUAL(strTest.substr(8),   "äbcdef");         // UTF-8 "ß" consumes two bytes
+    CHECK_EQUAL(strTest.substrCP(7), "äbcdef");
+
+    CHECK_EQUAL(strTest.substr(8, 3),   "äb");          // UTF-8 "ä" consumes two bytes
+    CHECK_EQUAL(strTest.substrCP(7, 2), "äb");
+
+    CHECK_EQUAL(strTest.substr(14, 1),   "f");
+    CHECK_EQUAL(strTest.substrCP(12, 1), "f");
+
+    CHECK_EQUAL(strTest.substr(15, 1),   "");
+    CHECK_EQUAL(strTest.substrCP(13, 1), "");
+
+    CHECK_EQUAL(strTest.substr(16, 1),   "");
+    CHECK_EQUAL(strTest.substrCP(15, 1), "");
+
+    /* and check cooperation with find() */
+    size_t pos = strTest.find("ß");
+    CHECK_EQUAL(strTest.substr(pos), "ßäbcdef");
 
     /* special constructor and assignment arguments */
     iprt::MiniString StrCtor1("");

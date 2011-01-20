@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35206 2010-12-16 21:54:47Z vboxsync $
+# $Id: Makefile.kmk 35463 2011-01-10 16:29:56Z vboxsync $
 ## @file
 # Makefile for the Linux installer.
 #
@@ -76,10 +76,10 @@ linux-misc_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/$(if $(VBOX_OSE),OSE,NonOSE)/VirtualBox_32px.png=>VBox.png \
 	$(PATH_ROOT)/src/VBox/Installer/common/virtualbox.xml \
 	$(if $(VBOX_OSE),,$(VBOX_BRAND_LICENSE_TXT)=>LICENSE) \
-	$(if $(VBOX_WITH_QTGUI),$(PATH_linux-misc)/virtualbox.desktop,)
-linux-misc_CLEAN = $(PATH_linux-misc)/virtualbox.desktop
+	$(if $(VBOX_WITH_QTGUI),$(linux-misc_0_OUTDIR)/virtualbox.desktop,)
+linux-misc_CLEAN = $(linux-misc_0_OUTDIR)/virtualbox.desktop
 
-$$(PATH_linux-misc)/virtualbox.desktop: $(PATH_ROOT)/src/VBox/Installer/common/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
+$$(linux-misc_0_OUTDIR)/virtualbox.desktop: $(PATH_ROOT)/src/VBox/Installer/common/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
 ifdef VBOX_PATH_PACKAGE_DOCS
 	$(QUIET)$(SED) -e "s+@VBOX_DOC_PATH@+$(VBOX_PATH_PACKAGE_DOCS)+" \

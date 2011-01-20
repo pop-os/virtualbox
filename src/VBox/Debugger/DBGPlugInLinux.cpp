@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInLinux.cpp 31530 2010-08-10 12:24:45Z vboxsync $ */
+/* $Id: DBGPlugInLinux.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGPlugInLinux - Debugger and Guest OS Digger Plugin For Linux.
  */
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
 #include "DBGPlugIns.h"
 #include "DBGPlugInCommonELF.h"
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>

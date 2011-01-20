@@ -1,4 +1,4 @@
-/* $Id: DevAHCI.cpp 35214 2010-12-17 10:10:07Z vboxsync $ */
+/* $Id: DevAHCI.cpp 35560 2011-01-14 13:37:32Z vboxsync $ */
 /** @file
  * VBox storage devices: AHCI controller device (disk and cdrom).
  *                       Implements the AHCI standard 1.1
@@ -37,10 +37,10 @@
 *******************************************************************************/
 //#define DEBUG
 #define LOG_GROUP LOG_GROUP_DEV_AHCI
-#include <VBox/pdmdev.h>
-#include <VBox/pdmqueue.h>
-#include <VBox/pdmthread.h>
-#include <VBox/pdmcritsect.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmqueue.h>
+#include <VBox/vmm/pdmthread.h>
+#include <VBox/vmm/pdmcritsect.h>
 #include <VBox/scsi.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -56,7 +56,7 @@
 
 #include "ide.h"
 #include "ATAController.h"
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 #define AHCI_MAX_NR_PORTS_IMPL 30
 #define AHCI_NR_COMMAND_SLOTS 32
@@ -4038,7 +4038,8 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIPORTTASKSTA
                             PPDMDEVINS pDevIns = pAhci->CTX_SUFF(pDevIns);
 
                             rc2 = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                                  (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 2, pAhciPort->pDrvMount, false);
+                                                  (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
+                                                  pAhciPort->pDrvMount, false/*=fForce*/, true/*=fEject*/);
                             Assert(RT_SUCCESS(rc2) || (rc == VERR_PDM_MEDIA_LOCKED));
                         }
                         break;

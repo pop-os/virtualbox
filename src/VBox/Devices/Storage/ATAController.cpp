@@ -1,4 +1,4 @@
-/* $Id: ATAController.cpp 35214 2010-12-17 10:10:07Z vboxsync $ */
+/* $Id: ATAController.cpp 35595 2011-01-17 20:05:15Z vboxsync $ */
 /** @file
  * DevATA, DevAHCI - Shared ATA/ATAPI controller code (disk and cdrom).
  *
@@ -21,7 +21,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_IDE
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #ifdef IN_RING3
@@ -33,9 +33,9 @@
 #endif /* IN_RING3 */
 #include <iprt/critsect.h>
 #include <iprt/asm.h>
-#include <VBox/stam.h>
-#include <VBox/mm.h>
-#include <VBox/pgm.h>
+#include <VBox/vmm/stam.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/pgm.h>
 
 #include <VBox/scsi.h>
 
@@ -2287,7 +2287,8 @@ static void atapiParseCmdVirtualATAPI(AHCIATADevState *s)
 
                         PDMCritSectLeave(&pCtl->lock);
                         rc = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                             (PFNRT)s->pDrvMount->pfnUnmount, 2, s->pDrvMount, false);
+                                             (PFNRT)s->pDrvMount->pfnUnmount, 3, s->pDrvMount,
+                                             false /*=fForce*/, true /*=fEeject*/);
                         AssertReleaseRC(rc);
                         {
                             STAM_PROFILE_START(&pCtl->StatLockWait, a);
@@ -2920,7 +2921,7 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
             s->fLBA48 = true;
         case ATA_READ_SECTORS:
         case ATA_READ_SECTORS_WITHOUT_RETRIES:
-            if (!s->pDrvBlock)
+            if (!s->pDrvBlock || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = 1;
             ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
@@ -2929,13 +2930,15 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
             s->fLBA48 = true;
         case ATA_WRITE_SECTORS:
         case ATA_WRITE_SECTORS_WITHOUT_RETRIES:
+            if (!s->pDrvBlock || s->fATAPI)
+                goto abort_cmd;
             s->cSectorsPerIRQ = 1;
             ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
             break;
         case ATA_READ_MULTIPLE_EXT:
             s->fLBA48 = true;
         case ATA_READ_MULTIPLE:
-            if (!s->cMultSectors)
+            if (!s->pDrvBlock || !s->cMultSectors || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = s->cMultSectors;
             ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_FROM_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_READ_SECTORS, false);
@@ -2943,7 +2946,7 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
         case ATA_WRITE_MULTIPLE_EXT:
             s->fLBA48 = true;
         case ATA_WRITE_MULTIPLE:
-            if (!s->cMultSectors)
+            if (!s->pDrvBlock || !s->cMultSectors || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = s->cMultSectors;
             ataStartTransfer(s, ataGetNSectors(s) * 512, PDMBLOCKTXDIR_TO_DEVICE, ATAFN_BT_READ_WRITE_SECTORS, ATAFN_SS_WRITE_SECTORS, false);
@@ -2952,7 +2955,7 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
             s->fLBA48 = true;
         case ATA_READ_DMA:
         case ATA_READ_DMA_WITHOUT_RETRIES:
-            if (!s->pDrvBlock)
+            if (!s->pDrvBlock || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = ATA_MAX_MULT_SECTORS;
             s->fDMA = true;
@@ -2962,7 +2965,7 @@ static void ataParseCmd(AHCIATADevState *s, uint8_t cmd)
             s->fLBA48 = true;
         case ATA_WRITE_DMA:
         case ATA_WRITE_DMA_WITHOUT_RETRIES:
-            if (!s->pDrvBlock)
+            if (!s->pDrvBlock || s->fATAPI)
                 goto abort_cmd;
             s->cSectorsPerIRQ = ATA_MAX_MULT_SECTORS;
             s->fDMA = true;

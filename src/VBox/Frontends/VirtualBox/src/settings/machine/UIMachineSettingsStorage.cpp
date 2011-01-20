@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsStorage.cpp 35133 2010-12-15 13:32:39Z vboxsync $ */
+/* $Id: UIMachineSettingsStorage.cpp 35475 2011-01-11 10:50:13Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -764,6 +764,7 @@ StorageModel::StorageModel (QObject *aParent)
     : QAbstractItemModel (aParent)
     , mRootItem (new RootItem)
     , mToolTipType (DefaultToolTip)
+    , m_chipsetType(KChipsetType_PIIX3)
 {
 }
 
@@ -1554,7 +1555,7 @@ void StorageDelegate::paint (QPainter *aPainter, const QStyleOptionViewItem &aOp
 class UIMediumIDHolder : public QObject
 {
     Q_OBJECT;
-    
+
 public:
 
     UIMediumIDHolder(QWidget *pParent) : QObject(pParent) {}
@@ -1930,7 +1931,7 @@ void UIMachineSettingsStorage::saveFromCacheTo(QVariant &data)
                 vboxProblem().cannotAttachDevice(m_machine, VBoxDefs::MediumType_HardDisk, vboxMedium.location(),
                                                  StorageSlot(controllerData.m_controllerBus,
                                                              attachmentData.m_iAttachmentPort,
-                                                             attachmentData.m_iAttachmentDevice));
+                                                             attachmentData.m_iAttachmentDevice), this);
             }
         }
         if (!failed() && controllerData.m_controllerBus == KStorageBus_SATA)
@@ -2054,7 +2055,7 @@ void UIMachineSettingsStorage::showEvent (QShowEvent *aEvent)
         mLtAttachment->setColumnMinimumWidth (1, maxWidth);
 #endif
     }
-    UISettingsPage::showEvent (aEvent);
+    UISettingsPageMachine::showEvent (aEvent);
 }
 
 void UIMachineSettingsStorage::mediumUpdated (const VBoxMedium &aMedium)
@@ -2461,7 +2462,7 @@ void UIMachineSettingsStorage::sltUnmountDevice()
 
 void UIMachineSettingsStorage::sltChooseExistingMedium()
 {
-	QString strMachineFolder(QFileInfo(m_machine.GetSettingsFilePath()).absolutePath());
+    QString strMachineFolder(QFileInfo(m_machine.GetSettingsFilePath()).absolutePath());
     QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediumIdHolder->type(), this, strMachineFolder);
     if (!strMediumId.isNull())
         m_pMediumIdHolder->setId(strMediumId);
@@ -2487,7 +2488,7 @@ void UIMachineSettingsStorage::sltChooseRecentMedium()
         QStringList mediumInfoList = pChooseRecentMediumAction->data().toString().split(',');
         VBoxDefs::MediumType mediumType = (VBoxDefs::MediumType)mediumInfoList[0].toUInt();
         QString strMediumLocation = mediumInfoList[1];
-        QString strMediumId = vboxGlobal().openMedium(mediumType, strMediumLocation);
+        QString strMediumId = vboxGlobal().openMedium(mediumType, strMediumLocation, this);
         if (!strMediumId.isNull())
             m_pMediumIdHolder->setId(strMediumId);
     }

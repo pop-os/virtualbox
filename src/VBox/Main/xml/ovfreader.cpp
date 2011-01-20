@@ -1,4 +1,4 @@
-/* $Id: ovfreader.cpp 34501 2010-11-30 12:30:30Z vboxsync $ */
+/* $Id: ovfreader.cpp 35566 2011-01-14 14:16:22Z vboxsync $ */
 /** @file
  *
  * OVF reader declarations. Depends only on IPRT, including the iprt::MiniString
@@ -422,6 +422,13 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         uint32_t ulType;
                         pelmItemChild->copyValue(ulType);
                         i.resourceType = (ResourceType_T)ulType;
+                        i.fResourceRequired = true;
+                        const char *pcszAttValue;
+                        if (pelmItem->getAttributeValue("required", pcszAttValue))
+                        {
+                            if (!strcmp(pcszAttValue, "false"))
+                                i.fResourceRequired = false;
+                        }
                     }
                     else if (!strcmp(pcszItemChildName, "OtherResourceType"))
                         i.strOtherResourceType = pelmItemChild->getValue();
@@ -690,10 +697,16 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                     break;
 
                     default:
-                        throw OVFLogicError(N_("Error reading \"%s\": Unknown resource type %d in hardware item, line %d"),
-                                            m_strPath.c_str(),
-                                            i.resourceType,
-                                            i.ulLineNumber);
+                    {
+                        /* If this unknown resource type isn't required, we simply skip it. */
+                        if (i.fResourceRequired)
+                        {
+                            throw OVFLogicError(N_("Error reading \"%s\": Unknown resource type %d in hardware item, line %d"),
+                                                m_strPath.c_str(),
+                                                i.resourceType,
+                                                i.ulLineNumber);
+                        }
+                    }
                 } // end switch
             }
 
@@ -737,11 +750,11 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         i.strAddressOnParent.toInt(vd.ulAddressOnParent);
                         // ovf://disk/lamp
                         // 123456789012345
-                        if (i.strHostResource.substr(0, 11) == "ovf://disk/")
+                        if (i.strHostResource.startsWith("ovf://disk/"))
                             vd.strDiskId = i.strHostResource.substr(11);
-                        else if (i.strHostResource.substr(0, 10) == "ovf:/disk/")
+                        else if (i.strHostResource.startsWith("ovf:/disk/"))
                             vd.strDiskId = i.strHostResource.substr(10);
-                        else if (i.strHostResource.substr(0, 6) == "/disk/")
+                        else if (i.strHostResource.startsWith("/disk/"))
                             vd.strDiskId = i.strHostResource.substr(6);
 
                         if (    !(vd.strDiskId.length())

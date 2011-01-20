@@ -1,4 +1,4 @@
-/* $Id: DrvBlock.cpp 34433 2010-11-27 11:09:38Z vboxsync $ */
+/* $Id: DrvBlock.cpp 35560 2011-01-14 13:37:32Z vboxsync $ */
 /** @file
  * VBox storage devices: Generic block driver
  */
@@ -20,12 +20,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_BLOCK
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 
 /** @def VBOX_PERIODIC_FLUSH
@@ -624,7 +624,7 @@ static DECLCALLBACK(int) drvblockMount(PPDMIMOUNT pInterface, const char *pszFil
 
 
 /** @copydoc PDMIMOUNT::pfnUnmount */
-static DECLCALLBACK(int) drvblockUnmount(PPDMIMOUNT pInterface, bool fForce)
+static DECLCALLBACK(int) drvblockUnmount(PPDMIMOUNT pInterface, bool fForce, bool fEject)
 {
     PDRVBLOCK pThis = PDMIMOUNT_2_DRVBLOCK(pInterface);
 

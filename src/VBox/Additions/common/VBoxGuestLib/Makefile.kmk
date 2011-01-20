@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 34801 2010-12-07 16:25:14Z vboxsync $
+# $Id: Makefile.kmk 35380 2010-12-30 16:06:17Z vboxsync $
 ## @file
 # Sub-Makefile for the common guest addition code library.
 #
@@ -44,7 +44,7 @@ ifndef VBOX_ONLY_TESTSUITE
   	VBoxGuestR3LibXFree86
  endif
 endif
-LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86
+LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86 VBoxGuestR3LibShared-x86
 
 
 #
@@ -53,7 +53,7 @@ LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86
 VBoxGuestR0Lib_TEMPLATE     = VBOXGUESTR0LIB
 VBoxGuestR0Lib_DEFS         = VBOX_WITH_HGCM
 VBoxGuestR0Lib_INCS         = \
-	$(PATH_VBoxGuestR0Lib)
+	$(VBoxGuestR0Lib_0_OUTDIR)
 VBoxGuestR0Lib_SOURCES      = \
 	GenericRequest.cpp \
 	SysHlp.cpp \
@@ -141,6 +141,13 @@ VBoxGuestR3LibShared_INST    := $(INST_ADDITIONS_LIB)
 #
 VBoxGuestR3Lib-x86_EXTENDS      := VBoxGuestR3Lib
 VBoxGuestR3Lib-x86_BLD_TRG_ARCH := x86
+
+
+#
+# VBoxGuestR3LibShared-x86 - an x86 (32-bit) variant of VBoxGuestR3LibShared for 64-bit Windows.
+#
+VBoxGuestR3LibShared-x86_EXTENDS      := VBoxGuestR3LibShared
+VBoxGuestR3LibShared-x86_BLD_TRG_ARCH := x86
 
 
 #

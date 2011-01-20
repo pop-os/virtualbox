@@ -1,4 +1,4 @@
-/* $Id: StatusImpl.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: StatusImpl.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Implementation of VMStatus class
@@ -21,8 +21,8 @@
 #else
 # include <VBox/com/defs.h>
 #endif
-#include <VBox/pdm.h>
-#include <VBox/cfgm.h>
+#include <VBox/vmm/pdm.h>
+#include <VBox/vmm/cfgm.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>

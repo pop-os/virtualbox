@@ -1,4 +1,4 @@
-/* $Id: tstDBGCStubs.cpp 34902 2010-12-09 16:16:51Z vboxsync $ */
+/* $Id: tstDBGCStubs.cpp 35614 2011-01-18 14:44:19Z vboxsync $ */
 /** @file
  * DBGC Testcase - Command Parser, VMM Stub Functions.
  */
@@ -16,11 +16,11 @@
  */
 
 #include <VBox/err.h>
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 
 
 
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr)
 {
     return NULL;
@@ -189,22 +189,31 @@ VMMDECL(int) DBGFR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_
 {
     return VERR_INTERNAL_ERROR;
 }
-VMMR3DECL(int) DBGFR3RegQueryU8(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     *pu8)
+VMMR3DECL(int) DBGFR3RegCpuQueryU8(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     *pu8)
 {
     return VERR_INTERNAL_ERROR;
 }
-VMMR3DECL(int) DBGFR3RegQueryU16( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    *pu16)
+VMMR3DECL(int) DBGFR3RegCpuQueryU16( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    *pu16)
 {
     return VERR_INTERNAL_ERROR;
 }
-VMMR3DECL(int) DBGFR3RegQueryU32( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    *pu32)
+VMMR3DECL(int) DBGFR3RegCpuQueryU32( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    *pu32)
 {
     return VERR_INTERNAL_ERROR;
 }
-VMMR3DECL(int) DBGFR3RegQueryU64( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    *pu64)
+VMMR3DECL(int) DBGFR3RegCpuQueryU64( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    *pu64)
 {
     return VERR_INTERNAL_ERROR;
 }
+VMMR3DECL(int) DBGFR3RegNmQuery(    PVM pVM, VMCPUID idDefCpu, const char *pszReg, PDBGFREGVAL pValue, PDBGFREGVALTYPE penmType)
+{
+    return VERR_INTERNAL_ERROR;
+}
+VMMR3DECL(int) DBGFR3RegPrintf(PVM pVM, VMCPUID idCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, ...)
+{
+    return VERR_INTERNAL_ERROR;
+}
+
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr)
 {
     return NULL;
@@ -246,7 +255,7 @@ VMMR3DECL(int) DBGFR3CoreWrite(PVM pVM, const char *pszFilename, bool fReplaceFi
 // The rest should eventually be replaced by DBGF calls and eliminated. //
 /////////////////////////////////////////////////////////////////////////
 
-#include <VBox/cpum.h>
+#include <VBox/vmm/cpum.h>
 
 VMMDECL(uint64_t) CPUMGetGuestCR3(PVMCPU pVCpu)
 {
@@ -315,7 +324,7 @@ VMMDECL(int) CPUMQueryHyperCtxPtr(PVMCPU pVCpu, PCPUMCTX *ppCtx)
 
 
 
-#include <VBox/mm.h>
+#include <VBox/vmm/mm.h>
 
 VMMR3DECL(int) MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv)
 {
@@ -325,7 +334,7 @@ VMMR3DECL(int) MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv)
 
 
 
-#include <VBox/pgm.h>
+#include <VBox/vmm/pgm.h>
 
 VMMDECL(RTHCPHYS) PGMGetHyperCR3(PVMCPU pVCpu)
 {
@@ -348,7 +357,7 @@ VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PVM pVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
 }
 
 
-#include <VBox/vmm.h>
+#include <VBox/vmm/vmm.h>
 
 VMMDECL(PVMCPU) VMMGetCpuById(PVM pVM, RTCPUID idCpu)
 {

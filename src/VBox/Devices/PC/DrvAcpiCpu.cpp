@@ -1,4 +1,4 @@
-/* $Id: DrvAcpiCpu.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: DrvAcpiCpu.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DrvAcpiCpu - ACPI CPU dummy driver for hotplugging.
  */
@@ -20,13 +20,13 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_ACPI
 
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 
 /**

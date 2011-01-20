@@ -1,4 +1,4 @@
-/* $Id: VBoxManageMisc.cpp 35273 2010-12-21 12:52:38Z vboxsync $ */
+/* $Id: VBoxManageMisc.cpp 35523 2011-01-13 13:12:03Z vboxsync $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -371,9 +371,7 @@ int handleStartVM(HandlerArg *a)
         CHECK_ERROR_RET(progress, COMGETTER(ResultCode)(&iRc), rc);
         if (FAILED(iRc))
         {
-            ComPtr<IVirtualBoxErrorInfo> errorInfo;
-            CHECK_ERROR_RET(progress, COMGETTER(ErrorInfo)(errorInfo.asOutParam()), 1);
-            ErrorInfo info(errorInfo, COM_IIDOF(IVirtualBoxErrorInfo));
+            ProgressErrorInfo info(progress);
             com::GluePrintErrorInfo(info);
         }
         else
@@ -860,8 +858,16 @@ int handleExtPack(HandlerArg *a)
         CHECK_ERROR2_RET(ptrExtPackFile, COMGETTER(Name)(bstrName.asOutParam()), RTEXITCODE_FAILURE);
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2_RET(ptrExtPackFile, Install(fReplace, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
-        if (!ptrProgress.isNull())
-            CHECK_ERROR2_RET(ptrProgress, WaitForCompletion(-1), RTEXITCODE_FAILURE);
+        hrc = showProgress(ptrProgress);
+        if (FAILED(hrc))
+        {
+            com::ProgressErrorInfo ErrInfo(ptrProgress);
+            if (ErrInfo.isBasicAvailable())
+                RTMsgError("Failed to install \"%s\": %lS", szPath, ErrInfo.getText().raw());
+            else
+                RTMsgError("Failed to install \"%s\": No error message available!", szPath);
+            return RTEXITCODE_FAILURE;
+        }
         RTPrintf("Successfully installed \"%lS\".\n", bstrName.raw());
     }
     else if (!strcmp(a->argv[0], "uninstall"))
@@ -899,8 +905,16 @@ int handleExtPack(HandlerArg *a)
         Bstr bstrName(pszName);
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2_RET(ptrExtPackMgr, Uninstall(bstrName.raw(), fForced, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
-        if (!ptrProgress.isNull())
-            CHECK_ERROR2_RET(ptrProgress, WaitForCompletion(-1), RTEXITCODE_FAILURE);
+        hrc = showProgress(ptrProgress);
+        if (FAILED(hrc))
+        {
+            com::ProgressErrorInfo ErrInfo(ptrProgress);
+            if (ErrInfo.isBasicAvailable())
+                RTMsgError("Failed to uninstall \"%s\": %lS", pszName, ErrInfo.getText().raw());
+            else
+                RTMsgError("Failed to uninstall \"%s\": No error message available!", pszName);
+            return RTEXITCODE_FAILURE;
+        }
         RTPrintf("Successfully uninstalled \"%s\".\n", pszName);
     }
     else if (!strcmp(a->argv[0], "cleanup"))

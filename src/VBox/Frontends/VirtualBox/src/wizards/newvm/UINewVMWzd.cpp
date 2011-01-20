@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
+/* $Id: UINewVMWzd.cpp 35587 2011-01-17 14:21:04Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -265,7 +265,13 @@ bool UINewVMWzdPage2::validatePage()
 bool UINewVMWzdPage2::createMachineFolder()
 {
     /* Cleanup old folder if present: */
-    cleanupMachineFolder();
+    bool fMachineFolderDeleted = cleanupMachineFolder();
+    if (!fMachineFolderDeleted)
+    {
+        vboxProblem().warnAboutCannotCreateMachineFolder(this, m_strMachineFolder);
+        return false;
+    }
+
     /* Get VBox: */
     CVirtualBox vbox = vboxGlobal().virtualBox();
     /* Get default machines directory: */
@@ -275,20 +281,25 @@ bool UINewVMWzdPage2::createMachineFolder()
     QFileInfo fileInfo(strMachineFilename);
     /* Get machine directory: */
     QString strMachineFolder = fileInfo.absolutePath();
+
     /* Try to create this machine directory (and it's predecessors): */
     bool fMachineFolderCreated = QDir().mkpath(strMachineFolder);
+    if (!fMachineFolderCreated)
+    {
+        vboxProblem().warnAboutCannotCreateMachineFolder(this, strMachineFolder);
+        return false;
+    }
+
     /* Initialize machine dir value: */
-    if (fMachineFolderCreated)
-        m_strMachineFolder = strMachineFolder;
-    /* Return creation result: */
-    return fMachineFolderCreated;
+    m_strMachineFolder = strMachineFolder;
+    return true;
 }
 
 bool UINewVMWzdPage2::cleanupMachineFolder()
 {
     /* Return if machine folder was NOT set: */
     if (m_strMachineFolder.isEmpty())
-        return false;
+        return true;
     /* Try to cleanup this machine directory (and it's predecessors): */
     bool fMachineFolderRemoved = QDir().rmpath(m_strMachineFolder);
     /* Reset machine dir value: */

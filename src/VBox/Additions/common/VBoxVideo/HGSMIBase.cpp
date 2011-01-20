@@ -1,4 +1,4 @@
-/* $Id: HGSMIBase.cpp 35118 2010-12-15 10:48:29Z vboxsync $ */
+/* $Id: HGSMIBase.cpp 35398 2011-01-04 09:39:07Z vboxsync $ */
 /** @file
  * VirtualBox Video driver, common code - HGSMI initialisation and helper
  * functions.
@@ -24,8 +24,7 @@
 
 #include <iprt/asm.h>
 #include <iprt/log.h>
-
-#include <string.h>
+#include <iprt/string.h>
 
 /** Send completion notification to the host for the command located at offset
  * @a offt into the host command buffer. */

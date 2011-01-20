@@ -1,4 +1,4 @@
-/* $Id: VMMAll.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VMMAll.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VMM All Contexts.
  */
@@ -20,10 +20,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_VMM
-#include <VBox/vmm.h>
+#include <VBox/vmm/vmm.h>
 #include "VMMInternal.h"
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/param.h>
 #include <iprt/thread.h>
 #include <iprt/mp.h>

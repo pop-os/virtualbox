@@ -1,4 +1,4 @@
-/* $Id: manifest-file.cpp 34381 2010-11-25 15:49:11Z vboxsync $ */
+/* $Id: manifest-file.cpp 35351 2010-12-27 17:04:17Z vboxsync $ */
 /** @file
  * IPRT - Manifest, the bits with file dependencies
  */
@@ -81,5 +81,4 @@ RTDECL(int) RTManifestWriteStandardToFile(RTMANIFEST hManifest, const char *pszF
     }
     return rc;
 }
-
 

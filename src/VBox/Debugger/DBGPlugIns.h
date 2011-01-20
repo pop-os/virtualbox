@@ -1,4 +1,4 @@
-/* $Id: DBGPlugIns.h 31531 2010-08-10 12:29:45Z vboxsync $ */
+/* $Id: DBGPlugIns.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGPlugIns - Debugger Plug-Ins.
  *
@@ -21,7 +21,7 @@
 #ifndef ___Debugger_DBGPlugIns_h
 #define ___Debugger_DBGPlugIns_h
 
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 
 RT_C_DECLS_BEGIN
 

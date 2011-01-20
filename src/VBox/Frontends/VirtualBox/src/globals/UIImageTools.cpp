@@ -1,4 +1,4 @@
-/* $Id: UIImageTools.cpp 30692 2010-07-07 09:17:35Z vboxsync $ */
+/* $Id: UIImageTools.cpp 35424 2011-01-07 13:05:41Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -19,6 +19,12 @@
 
 /* Local include */
 #include "UIImageTools.h"
+
+/* Qt includes */
+#include <QPainter>
+
+/* System includes */
+#include <math.h>
 
 /* Todo: Think about the naming convention and if the images should be
  * processed in place or return changed copies. Make it more uniform. Add
@@ -141,6 +147,7 @@ void blurImageHorizontal(const QImage &source, QImage &dest, int r)
         }
     }
 }
+
 void blurImageVertical(const QImage &source, QImage &dest, int r)
 {
     QSize s = source.size();
@@ -194,5 +201,79 @@ void blurImageVertical(const QImage &source, QImage &dest, int r)
             dest.setPixel(x, y, qRgba(rt / b, gt / b, bt / b, at / b));
         }
     }
+}
+
+static QImage betaLabelImage(const QSize& ls)
+{
+    /* Beta label */
+    QColor bgc(246, 179, 0);
+    QImage i(ls, QImage::Format_ARGB32);
+    i.fill(Qt::transparent);
+    QPainter p(&i);
+    p.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
+    p.setPen(Qt::NoPen);
+    /* Background */
+    p.setBrush(bgc);
+    p.drawRect(0, 0, ls.width(), ls.height());
+    /* The black stripes */
+    p.setPen(QPen(QColor(70, 70, 70), 5));
+    float c = ((float)ls.width() / ls.height()) + 1;
+    float g = (ls.width() / (c - 1));
+    for (int i = 0; i < c; ++i)
+        p.drawLine(-g / 2 + g * i, ls.height(), -g / 2 + g * (i + 1), 0);
+    /* The text */
+    QFont f = p.font();
+    f.setBold(true);
+    QPainterPath tp;
+    tp.addText(0, 0, f, "BETA");
+    QRectF r = tp.boundingRect();
+    /* Center the text path */
+    p.translate((ls.width() - r.width()) / 2, ls.height() - (ls.height() - r.height()) / 2);
+    QPainterPathStroker pps;
+    QPainterPath pp = pps.createStroke(tp);
+    p.setPen(QPen(bgc.darker(80), 2, Qt::SolidLine, Qt::RoundCap));
+    p.drawPath(pp);
+    p.setBrush(Qt::black);
+    p.setPen(Qt::NoPen);
+    p.drawPath(tp);
+    p.end();
+
+    /* Smoothing */
+    QImage i1(ls, QImage::Format_ARGB32);
+    i1.fill(Qt::transparent);
+    QPainter p1(&i1);
+    p1.setCompositionMode(QPainter::CompositionMode_Source);
+    p1.drawImage(0, 0, i);
+    p1.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    QLinearGradient lg(0, 0, ls.width(), 0);
+    lg.setColorAt(0, QColor(Qt::transparent));
+    lg.setColorAt(0.20, QColor(Qt::white));
+    lg.setColorAt(0.80, QColor(Qt::white));
+    lg.setColorAt(1, QColor(Qt::transparent));
+    p1.fillRect(0, 0, ls.width(), ls.height(), lg);
+    p1.end();
+
+    return i1;
+}
+
+QPixmap betaLabel(const QSize &ls /* = QSize(80, 16) */)
+{
+    return QPixmap::fromImage(betaLabelImage(ls));
+}
+
+QPixmap betaLabelSleeve(const QSize &ls /* = QSize(80, 16) */)
+{
+    const QImage &i = betaLabelImage(ls);
+    /* Create a secondary image which will contain the rotated banner. */
+    int w = sqrtf(powf(ls.width(), 2) / 2);
+    QImage i1(w, w, QImage::Format_ARGB32);
+    i1.fill(Qt::transparent);
+    QPainter p1(&i1);
+    p1.setRenderHints(QPainter::SmoothPixmapTransform);
+    p1.rotate(45);
+    p1.drawImage(0, -ls.height(), i);
+    p1.end();
+
+    return QPixmap::fromImage(i1);
 }
 

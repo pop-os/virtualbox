@@ -1,4 +1,4 @@
-/* $Id: solaudio.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: solaudio.c 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VirtualBox Audio Driver - Solaris host.
  */
@@ -31,7 +31,7 @@
 #include <VBox/log.h>
 #include <iprt/env.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 #include "vl_vbox.h"
 #include "audio.h"
 #include <iprt/alloc.h>
