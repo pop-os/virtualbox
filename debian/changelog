@@ -9,8 +9,9 @@ virtualbox-ose (4.0.2-dfsg-1) UNRELEASED; urgency=low
   * Add 28-no-selinux-fedora.patch so VirtualBox doesn't try to install
     selinux-fedora/vbox_x11.pp which is stripped by the dfsg-free target.
   * Update install files.
+  * Add 29-fix-ftbfs-as-needed.patch to fix FTBFS with ld --as-needed.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 02 Jan 2011 21:53:27 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 20 Jan 2011 17:52:05 +0100
 
 virtualbox-ose (3.2.12-dfsg-1) unstable; urgency=low
 

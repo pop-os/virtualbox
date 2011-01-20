@@ -1,0 +1,37 @@
+Description: Fix FTBFS with ld --as-needed.
+Origin: Felix Geyer <debfx-pkg@fobos.de>, http://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/app-emulation/virtualbox/files/virtualbox-ose-asneeded.patch?revision=1.1
+
+--- virtualbox-ose-4.0.2-dfsg.orig/Config.kmk
++++ virtualbox-ose-4.0.2-dfsg/src/Config.kmk
+@@ -4152,10 +4152,12 @@
+ 	iconv \
+ 	rt \
+ 	$(TEMPLATE_VBOXBLDPROG_LIBS.freebsd)
+-TEMPLATE_VBoxAdvBldProg_LIBS.linux = \
+-	$(TEMPLATE_VBOXBLDPROG_LIBS) \
+-	crypt \
+-	$(TEMPLATE_VBOXBLDPROG_LIBS.linux)
++ifeq ($(KBUILD_TARGET),linux)
++ TEMPLATE_VBoxAdvBldProg_LIBS    += \
++	$(TEMPLATE_VBOXBLDPROG_LIBS) \
++	crypt \
++	$(TEMPLATE_VBOXBLDPROG_LIBS.linux)
++endif
+ TEMPLATE_VBoxAdvBldProg_LIBS.solaris = \
+ 	$(TEMPLATE_VBOXBLDPROG_LIBS) \
+ 	contract \
+--- virtualbox-ose-4.0.2-dfsg.orig/src/libs/xpcom18a4/Makefile.kmk
++++ virtualbox-ose-4.0.2-dfsg/src/libs/xpcom18a4/Makefile.kmk
+@@ -469,9 +469,9 @@
+  libIDL_config_cflags := $(shell $(VBOX_LIBIDL_CONFIG) --cflags)
+  libIDL_config_libs   := $(shell $(VBOX_LIBIDL_CONFIG) --libs)
+  xpidl_CFLAGS = \
+-	$(libIDL_config_cflags)
+- xpidl_LDFLAGS = \
+-	$(libIDL_config_libs)
++	$(shell pkg-config --cflags libIDL-2.0)
++ xpidl_LDFLAGS = $(shell pkg-config --libs-only-L libIDL-2.0)
++ xpidl_LIBS = $(shell pkg-config --libs-only-l libIDL-2.0 | sed -e 's/-l//g')
+  xpidl_LDFLAGS.linux = \
+ 	$(VBOX_LD_as_needed)
+ endif
