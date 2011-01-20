@@ -8,7 +8,7 @@ Origin: http://cvs.rpmfusion.org/viewvc/rpms/VirtualBox-OSE/devel/VirtualBox-OSE
 diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk
 --- virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.1.0-dfsg/src/VBox/Additions/x11/VBoxClient/Makefile.kmk	2009-10-07 18:44:29.962989537 +0200
-@@ -68,20 +68,6 @@
+@@ -69,20 +69,6 @@
  ifdef VBOX_WITH_GUEST_PROPS
   VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
  endif
@@ -18,10 +18,10 @@ diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/Additions/x11/VBoxClient/Makefil
 -#
 -# Actually, this is darn annoying and will *NOT* be tolerated for any new code!
 -#
--VBoxClient_LIBPATH  += $(PATH_VBoxClient)
--VBoxClient_ORDERDEPS = $(PATH_VBoxClient)/libstdc++.a
--VBoxClient_CLEAN     = $(PATH_VBoxClient)/libstdc++.a
--$$(PATH_VBoxClient)/libstdc++.a:
+-VBoxClient_LIBPATH  += $(VBoxClient_0_OUTDIR)
+-VBoxClient_ORDERDEPS = $(VBoxClient_0_OUTDIR)/libstdc++.a
+-VBoxClient_CLEAN     = $(VBoxClient_0_OUTDIR)/libstdc++.a
+-$$(VBoxClient_0_OUTDIR)/libstdc++.a:
 -	$(call MSG_L1,Forcing static libstdc++)
 -	$(QUIET)$(MKDIR) -p $(@D)
 -	$(QUIET)$(LN_EXT) -sf `$(TOOL_$(VBOX_GCC_TOOL)_CXX) $(TEMPLATE_VBOXGUESTR3CPPEXE_CXXFLAGS.$(KBUILD_TARGET_ARCH)) -print-file-name=libstdc++.a` $@ \

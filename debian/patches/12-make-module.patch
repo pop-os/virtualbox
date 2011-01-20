@@ -4,7 +4,7 @@ Author: Michael Meskes <meskes@debian.org>
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/linux/sharedfolders/Makefile.module virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/linux/sharedfolders/Makefile.module	2009-10-07 11:27:13.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/Additions/linux/sharedfolders/Makefile.module	2009-10-07 13:43:30.705472033 +0200
-@@ -37,9 +37,21 @@
+@@ -33,9 +33,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -31,7 +31,7 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/Additions/linux/sharedfolders/Ma
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/Support/linux/Makefile virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/Support/linux/Makefile
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/Support/linux/Makefile	2009-10-07 11:27:14.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/Support/linux/Makefile	2009-10-07 13:43:30.705472033 +0200
-@@ -48,9 +48,21 @@
+@@ -44,9 +44,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -58,7 +58,7 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/Support/linux/Makefi
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile	2009-10-07 11:27:14.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile	2009-10-07 13:43:30.705472033 +0200
-@@ -39,9 +39,21 @@
+@@ -35,9 +35,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -85,7 +85,7 @@ diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetAdp/linux/Mak
 diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
 --- virtualbox-ose-3.0.8-dfsg~/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2009-10-07 11:27:14.000000000 +0200
 +++ virtualbox-ose-3.0.8-dfsg/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2009-10-07 13:43:30.705472033 +0200
-@@ -39,9 +39,21 @@
+@@ -35,9 +35,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)

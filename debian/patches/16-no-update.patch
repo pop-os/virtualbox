@@ -5,7 +5,7 @@ Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <debfx-pkg@fobos.de>
 diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp
 --- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2010-12-17 16:14:24.000000000 +0100
 +++ virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/globals/VBoxGlobal.cpp	2011-01-01 23:55:23.240440031 +0100
-@@ -4531,6 +4531,9 @@
+@@ -4565,6 +4565,9 @@
   */
  void VBoxGlobal::showUpdateDialog (bool aForce)
  {
@@ -18,7 +18,7 @@ diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/globa
 diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp
 --- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp	2010-11-22 11:05:07.000000000 +0100
 +++ virtualbox-ose-4.0.0-dfsg/src/VBox/Frontends/VirtualBox/src/runtime/UIMachineMenuBar.cpp	2011-01-01 23:56:55.292774878 +0100
-@@ -222,13 +222,6 @@
+@@ -266,13 +266,6 @@
  #if defined(Q_WS_MAC) && (QT_VERSION < 0x040700)
      if (m_fIsFirstTime)
  # endif

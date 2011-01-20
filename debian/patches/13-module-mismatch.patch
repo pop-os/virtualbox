@@ -1,10 +1,10 @@
 Description: Adjusts failure message with Debian specific solution.
 Author: Daniel Baumann <daniel@debian.org>
 
-diff -urNad virtualbox-ose-3.0.8-dfsg~/src/VBox/VMM/VM.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/VMM/VM.cpp
---- virtualbox-ose-3.0.8-dfsg~/src/VBox/VMM/VM.cpp	2009-10-07 13:43:36.542988533 +0200
-+++ virtualbox-ose-3.0.8-dfsg/src/VBox/VMM/VM.cpp	2009-10-07 13:43:37.342988388 +0200
-@@ -383,9 +383,11 @@
+diff -urNad virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp virtualbox-ose-3.0.8-dfsg/src/VBox/VMM/VMMR3/VM.cpp
+--- virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp	2011-01-20 11:58:26.000000000 +0100
++++ virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp	2011-01-20 11:58:27.000000000 +0100
+@@ -410,9 +410,11 @@
                      break;
                  case VERR_VERSION_MISMATCH:
                  case VERR_VM_DRIVER_VERSION_MISMATCH:

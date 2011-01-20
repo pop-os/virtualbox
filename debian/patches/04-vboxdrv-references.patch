@@ -1,10 +1,9 @@
-Description: Change error messages for vboxdrv failure, according to
- virtualbox-ose-dkms.
+Description: Change error messages for vboxdrv failure, according to virtualbox-ose-dkms.
 Author: Daniel Hahler <ubuntu@thequod.de>
 
-diff -urNad virtualbox-ose-3.1.0-dfsg~/src/VBox/VMM/VM.cpp virtualbox-ose-3.1.0-dfsg/src/VBox/VMM/VM.cpp
---- virtualbox-ose-3.1.0-dfsg~/src/VBox/VMM/VM.cpp	2009-10-07 11:27:14.000000000 +0200
-+++ virtualbox-ose-3.1.0-dfsg/src/VBox/VMM/VM.cpp	2009-10-07 13:42:18.215472116 +0200
+diff -urNad virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp
+--- virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp	2011-01-20 11:55:54.000000000 +0100
++++ virtualbox-ose-4.0.2-dfsg/src/VBox/VMM/VMMR3/VM.cpp	2011-01-20 11:56:18.215472116 +0100
 @@ -289,10 +289,8 @@
  
  #ifdef RT_OS_LINUX
