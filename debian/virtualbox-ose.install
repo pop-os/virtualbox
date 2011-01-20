@@ -25,5 +25,3 @@ out/bin/sdk/bindings/xpcom/java /usr/lib/virtualbox/sdk/bindings/xpcom
 out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom
 
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox
-
-out/bin/UserManual.pdf /usr/share/doc/virtualbox-ose
