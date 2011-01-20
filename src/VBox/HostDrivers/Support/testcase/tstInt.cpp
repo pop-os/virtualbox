@@ -1,4 +1,4 @@
-/* $Id: tstInt.cpp 29250 2010-05-09 17:53:58Z vboxsync $ */
+/* $Id: tstInt.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * SUP Testcase - Test the interrupt gate feature of the support library.
  */
@@ -29,8 +29,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/sup.h>
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <iprt/asm-amd64-x86.h>

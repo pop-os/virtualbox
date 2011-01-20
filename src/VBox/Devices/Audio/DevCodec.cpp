@@ -1,4 +1,4 @@
-/* $Id: DevCodec.cpp 34933 2010-12-10 06:50:03Z vboxsync $ */
+/* $Id: DevCodec.cpp 35515 2011-01-13 07:35:07Z vboxsync $ */
 /** @file
  * DevCodec - VBox ICH Intel HD Audio Codec.
  */
@@ -15,7 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 #define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/uuid.h>
 #include <iprt/string.h>
@@ -23,7 +23,7 @@
 #include <iprt/asm.h>
 #include <iprt/cpp/utils.h>
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 extern "C" {
 #include "audio.h"
 }
@@ -2130,13 +2130,41 @@ static void po_callback (void *opaque, int avail)
     pState->pfnTransfer(pState, PO_INDEX, avail);
 }
 
-static void mc_callback (void *opaque, int avail)
+/**
+ *
+ * routines open one of the voices (IN, OUT) with corresponding parameters.
+ * this routine could be called from HDA on setting/resseting sound format.
+ *
+ * @todo: probably passed settings should be verified (if AFG's declared proposed format) before enabling.
+ */
+int codecOpenVoice(CODECState *pState, ENMSOUNDSOURCE enmSoundSource, audsettings_t *pAudioSettings)
 {
-    CODECState *pState = (CODECState *)opaque;
-    pState->pfnTransfer(pState, MC_INDEX, avail);
+    int rc = 0;
+    Assert((pState && pAudioSettings));
+    if (   !pState
+        || !pAudioSettings)
+        return -1;
+    switch (enmSoundSource)
+    {
+        case PI_INDEX:
+            pState->SwVoiceIn = AUD_open_in(&pState->card, pState->SwVoiceIn, "hda.in", pState, pi_callback, pAudioSettings);
+            rc = pState->SwVoiceIn ? 0 : 1;
+            break;
+        case PO_INDEX:
+            pState->SwVoiceOut = AUD_open_out(&pState->card, pState->SwVoiceOut, "hda.out", pState, po_callback, pAudioSettings);
+            rc = pState->SwVoiceOut ? 0 : 1;
+            break;
+        default:
+            return -1;
+    }
+    if (!rc)
+        LogRel(("HDAcodec: can't open %s fmt(freq: %d)\n",
+            enmSoundSource == PI_INDEX? "in" : "out",
+            pAudioSettings->freq));
+    return rc;
 }
 
-int codecConstruct(CODECState *pState, ENMCODEC enmCodec)
+int codecConstruct(PPDMDEVINS pDevIns, CODECState *pState, ENMCODEC enmCodec)
 {
     audsettings_t as;
     int rc;
@@ -2173,49 +2201,11 @@ int codecConstruct(CODECState *pState, ENMCODEC enmCodec)
     as.nchannels = 2;
     as.fmt = AUD_FMT_S16;
     as.endianness = 0;
-    #define SETUP_AUDIO_FORMAT(pState, base, mult, div, name, as, in_callback, out_callback)                                \
-    do{                                                                                                                     \
-        AUDIO_FORMAT_SELECTOR((pState), Out, (base), (mult), div) = AUD_open_out(&(pState)->card,                           \
-            AUDIO_FORMAT_SELECTOR(pState, Out, (base), (mult), (div)), name ".out", (pState), (out_callback), &(as));       \
-        if (!AUDIO_FORMAT_SELECTOR(pState, Out, (base), (mult), (div)))                                                     \
-            LogRel (("HDAcodec: WARNING: Unable to open PCM OUT(%s)!\n", name ".out"));                                     \
-        AUDIO_FORMAT_SELECTOR(pState, In, (base), (mult), (div)) = AUD_open_in(&(pState)->card,                             \
-            AUDIO_FORMAT_SELECTOR(pState, In, (base), (mult), (div)), name ".in", (pState), (in_callback), &(as));          \
-        if (!AUDIO_FORMAT_SELECTOR(pState, In, (base), (mult), (div)))                                                      \
-            LogRel (("HDAcodec: WARNING: Unable to open PCM IN(%s)!\n", name ".in"));                                       \
-    } while(0)
-    #define IS_FORMAT_SUPPORTED_BY_HOST(pState, base, mult, div) (AUDIO_FORMAT_SELECTOR((pState), Out, (base), (mult), (div)) \
-        && AUDIO_FORMAT_SELECTOR((pState), In, (base), (mult), (div)))
 
     pState->pNodes[1].node.au32F00_param[0xA] = CODEC_F00_0A_16_BIT;
-    SETUP_AUDIO_FORMAT(pState, AFMT_HZ_44_1K, AFMT_MULT_X1, AFMT_DIV_X1, "hda44_1", as, pi_callback, po_callback);
-    pState->pNodes[1].node.au32F00_param[0xA] |= IS_FORMAT_SUPPORTED_BY_HOST(pState, AFMT_HZ_44_1K, AFMT_MULT_X1, AFMT_DIV_X1) ? CODEC_F00_0A_44_1KHZ : 0;
-
-#ifdef VBOX_WITH_AUDIO_FLEXIBLE_FORMAT
-    as.freq *= 2; /* 2 * 44.1kHz */
-    SETUP_AUDIO_FORMAT(pState, AFMT_HZ_44_1K, AFMT_MULT_X2, AFMT_DIV_X1, "hda44_1_2x", as, pi_callback, po_callback);
-    pState->pNodes[1].node.au32F00_param[0xA] |= IS_FORMAT_SUPPORTED_BY_HOST(pState, AFMT_HZ_44_1K, AFMT_MULT_X2, AFMT_DIV_X1) ? CODEC_F00_0A_44_1KHZ_MULT_2X : 0;
-
-    as.freq *= 2; /* 4 * 44.1kHz */
-    SETUP_AUDIO_FORMAT(pState, AFMT_HZ_44_1K, AFMT_MULT_X4, AFMT_DIV_X1, "hda44_1_4x", as, pi_callback, po_callback);
-    pState->pNodes[1].node.au32F00_param[0xA] |= IS_FORMAT_SUPPORTED_BY_HOST(pState, AFMT_HZ_44_1K, AFMT_MULT_X4, AFMT_DIV_X1) ? CODEC_F00_0A_44_1KHZ_MULT_4X : 0;
-
-    as.freq = 48000;
-    SETUP_AUDIO_FORMAT(pState, AFMT_HZ_48K, AFMT_MULT_X1, AFMT_DIV_X1, "hda48", as, pi_callback, po_callback);
-    pState->pNodes[1].node.au32F00_param[0xA] |= IS_FORMAT_SUPPORTED_BY_HOST(pState, AFMT_HZ_48K, AFMT_MULT_X1, AFMT_DIV_X1) ? CODEC_F00_0A_48KHZ : 0;
-
-# if 0
-    as.freq *= 2; /* 2 * 48kHz */
-    SETUP_AUDIO_FORMAT(pState, AFMT_HZ_48K, AFMT_MULT_X2, AFMT_DIV_X1, "hda48_2x", as, pi_callback, po_callback);
-    pState->pNodes[1].node.au32F00_param[0xA] |= IS_FORMAT_SUPPORTED_BY_HOST(pState, AFMT_HZ_48K, AFMT_MULT_X2, AFMT_DIV_X1) ? CODEC_F00_0A_48KHZ_MULT_2X : 0;
-
-    as.freq *= 2; /* 4 * 48kHz */
-    SETUP_AUDIO_FORMAT(pState, AFMT_HZ_48K, AFMT_MULT_X4, AFMT_DIV_X1, "hda48_4x", as, pi_callback, po_callback);
-    pState->pNodes[1].node.au32F00_param[0xA] |= IS_FORMAT_SUPPORTED_BY_HOST(pState, AFMT_HZ_48K, AFMT_MULT_X4, AFMT_DIV_X1) ? CODEC_F00_0A_48KHZ_MULT_4X : 0;
-# endif
-#endif
-    #undef SETUP_AUDIO_FORMAT
-    #undef IS_FORMAT_SUPPORTED_BY_HOST
+    codecOpenVoice(pState, PI_INDEX, &as);
+    codecOpenVoice(pState, PO_INDEX, &as);
+    pState->pNodes[1].node.au32F00_param[0xA] |= CODEC_F00_0A_44_1KHZ;
 
     uint8_t i;
     Assert(pState->pNodes);
@@ -2227,6 +2217,43 @@ int codecConstruct(CODECState *pState, ENMCODEC enmCodec)
 
     codecToAudVolume(&pState->pNodes[pState->u8DacLineOut].dac.B_params, AUD_MIXER_VOLUME);
     codecToAudVolume(&pState->pNodes[pState->u8AdcVolsLineIn].adcvol.B_params, AUD_MIXER_LINE_IN);
+
+    /* If no host voices were created, then fallback to nul audio. */
+    if (!AUD_is_host_voice_in_ok(pState->SwVoiceIn))
+        LogRel (("HDA: WARNING: Unable to open PCM IN!\n"));
+    if (!AUD_is_host_voice_out_ok(pState->SwVoiceOut))
+        LogRel (("HDA: WARNING: Unable to open PCM OUT!\n"));
+
+    if (   !AUD_is_host_voice_in_ok(pState->SwVoiceIn)
+        && !AUD_is_host_voice_out_ok(pState->SwVoiceOut))
+    {
+        /* Was not able initialize *any* voice. Select the NULL audio driver instead */
+        AUD_close_in  (&pState->card, pState->SwVoiceIn);
+        AUD_close_out (&pState->card, pState->SwVoiceOut);
+        pState->SwVoiceOut = NULL;
+        pState->SwVoiceIn = NULL;
+        AUD_init_null ();
+
+        PDMDevHlpVMSetRuntimeError (pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
+            N_ ("No audio devices could be opened. Selecting the NULL audio backend "
+                "with the consequence that no sound is audible"));
+    }
+    else if (   !AUD_is_host_voice_in_ok(pState->SwVoiceIn)
+             || !AUD_is_host_voice_out_ok(pState->SwVoiceOut))
+    {
+        char   szMissingVoices[128];
+        size_t len = 0;
+        if (!AUD_is_host_voice_in_ok(pState->SwVoiceIn))
+            len = RTStrPrintf (szMissingVoices, sizeof(szMissingVoices), "PCM_in");
+        if (!AUD_is_host_voice_out_ok(pState->SwVoiceOut))
+            len += RTStrPrintf (szMissingVoices + len, sizeof(szMissingVoices) - len, len ? ", PCM_out" : "PCM_out");
+
+        PDMDevHlpVMSetRuntimeError (pDevIns, 0 /*fFlags*/, "HostAudioNotResponding",
+            N_ ("Some audio devices (%s) could not be opened. Guest applications generating audio "
+                "output or depending on audio input may hang. Make sure your host audio device "
+                "is working properly. Check the logfile for error messages of the audio "
+                "subsystem"), szMissingVoices);
+    }
 
     return VINF_SUCCESS;
 }

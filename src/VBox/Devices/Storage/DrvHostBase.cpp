@@ -1,4 +1,4 @@
-/* $Id: DrvHostBase.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DrvHostBase.cpp 35560 2011-01-14 13:37:32Z vboxsync $ */
 /** @file
  * DrvHostBase - Host base drive access driver.
  */
@@ -111,7 +111,7 @@ NTSTATUS __stdcall NtQueryVolumeInformationFile(
 # error "Unsupported Platform."
 #endif
 
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
 #include <iprt/path.h>
@@ -477,7 +477,7 @@ static DECLCALLBACK(int) drvHostBaseMount(PPDMIMOUNT pInterface, const char *psz
 
 
 /** @copydoc PDMIMOUNT::pfnUnmount */
-static DECLCALLBACK(int) drvHostBaseUnmount(PPDMIMOUNT pInterface, bool fForce)
+static DECLCALLBACK(int) drvHostBaseUnmount(PPDMIMOUNT pInterface, bool fForce, bool fEject)
 {
      LogFlow(("drvHostBaseUnmount: returns VERR_NOT_SUPPORTED\n"));
      return VERR_NOT_SUPPORTED;

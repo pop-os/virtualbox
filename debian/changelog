@@ -1,4 +1,4 @@
-virtualbox-ose (4.0.0-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (4.0.2-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Adapt patches for new upstream version.

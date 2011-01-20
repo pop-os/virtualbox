@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInDiggers.cpp 31530 2010-08-10 12:24:45Z vboxsync $ */
+/* $Id: DBGPlugInDiggers.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGPlugInDiggers - Debugger and Guest OS Digger Plug-in.
  */
@@ -21,7 +21,7 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 #include "DBGPlugIns.h"
 #include <VBox/version.h>
 #include <VBox/err.h>

@@ -1,4 +1,4 @@
-/* $Id: VBVABase.cpp 35292 2010-12-22 11:56:59Z vboxsync $ */
+/* $Id: VBVABase.cpp 35398 2011-01-04 09:39:07Z vboxsync $ */
 /** @file
  * VirtualBox Video driver, common code - VBVA initialisation and helper
  * functions.
@@ -21,8 +21,7 @@
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
-
-#include <string.h>
+#include <iprt/string.h>
 
 /*
  * There is a hardware ring buffer in the graphics device video RAM, formerly

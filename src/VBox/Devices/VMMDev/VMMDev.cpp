@@ -1,4 +1,4 @@
-/* $Id: VMMDev.cpp 34902 2010-12-09 16:16:51Z vboxsync $ */
+/* $Id: VMMDev.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device.
  */
@@ -24,15 +24,15 @@
 
 #define LOG_GROUP LOG_GROUP_DEV_VMM
 #include <VBox/VMMDev.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/mm.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/file.h>
-#include <VBox/pgm.h>
+#include <VBox/vmm/pgm.h>
 #include <VBox/err.h>
-#include <VBox/vm.h> /* for VM_IS_EMT */
+#include <VBox/vmm/vm.h> /* for VM_IS_EMT */
 #include <VBox/dbg.h>
 
 #include <iprt/asm.h>

@@ -1,4 +1,4 @@
-/* $Id: ovfreader.h 35043 2010-12-13 20:31:13Z vboxsync $ */
+/* $Id: ovfreader.h 35536 2011-01-13 15:12:10Z vboxsync $ */
 /** @file
  * OVF reader declarations.
  *
@@ -216,6 +216,7 @@ struct VirtualHardwareItem
     ResourceType_T resourceType;
     iprt::MiniString strOtherResourceType;
     iprt::MiniString strResourceSubType;
+    bool fResourceRequired;
 
     iprt::MiniString strHostResource;   // "Abstractly specifies how a device shall connect to a resource on the deployment platform.
                                         // Not all devices need a backing." Used with disk items, for which this references a virtual

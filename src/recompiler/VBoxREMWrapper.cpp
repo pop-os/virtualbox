@@ -1,4 +1,4 @@
-/* $Id: VBoxREMWrapper.cpp 35191 2010-12-16 15:25:20Z vboxsync $ */
+/* $Id: VBoxREMWrapper.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  *
  * VBoxREM Win64 DLL Wrapper.
@@ -196,21 +196,21 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_REM
-#include <VBox/rem.h>
-#include <VBox/vmm.h>
-#include <VBox/dbgf.h>
+#include <VBox/vmm/rem.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/dbg.h>
-#include <VBox/csam.h>
-#include <VBox/mm.h>
-#include <VBox/em.h>
-#include <VBox/ssm.h>
-#include <VBox/hwaccm.h>
-#include <VBox/patm.h>
-#include <VBox/pdm.h>
-#include <VBox/pdmcritsect.h>
-#include <VBox/pgm.h>
-#include <VBox/iom.h>
-#include <VBox/vm.h>
+#include <VBox/vmm/csam.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/em.h>
+#include <VBox/vmm/ssm.h>
+#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/patm.h>
+#include <VBox/vmm/pdm.h>
+#include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/iom.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/dis.h>

@@ -5,7 +5,7 @@
  *      (plus static gSOAP server code) to implement the actual webservice
  *      server, to which clients can connect.
  *
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,11 +21,16 @@
 
 // vbox headers
 #include <VBox/com/com.h>
+#include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/EventQueue.h>
+#include <VBox/com/listeners.h>
 #include <VBox/VBoxAuth.h>
 #include <VBox/version.h>
+#include <VBox/log.h>
+
+#include <package-generated.h>
 
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
@@ -39,6 +44,8 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
+#include <iprt/path.h>
+#include <iprt/system.h>
 
 // workaround for compile problems on gcc 4.1
 #ifdef __GNUC__
@@ -85,7 +92,7 @@ int fntWatchdog(RTTHREAD ThreadSelf, void *pvUser);
  *
  ****************************************************************************/
 
-ComPtr<IVirtualBox>     g_pVirtualBox = NULL;
+static ComPtr<IVirtualBoxClient> g_pVirtualBoxClient = NULL;
 
 // generated strings in methodmaps.cpp
 extern const char       *g_pcszISession,
@@ -97,13 +104,14 @@ extern const char       *g_pcszISession,
 int                     g_iWatchdogTimeoutSecs = DEFAULT_TIMEOUT_SECS;
 int                     g_iWatchdogCheckInterval = 5;
 
-const char              *g_pcszBindToHost = NULL;       // host; NULL = current machine
+const char              *g_pcszBindToHost = NULL;       // host; NULL = localhost
 unsigned int            g_uBindToPort = 18083;          // port
 unsigned int            g_uBacklog = 100;               // backlog = max queue size for requests
 unsigned int            g_cMaxWorkerThreads = 100;      // max. no. of worker threads
 unsigned int            g_cMaxKeepAlive = 100;          // maximum number of soap requests in one connection
 
 bool                    g_fVerbose = false;             // be verbose
+bool                    g_fStdOutLogging = true;        // log to stdout
 PRTSTREAM               g_pStrmLog = NULL;
 
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
@@ -124,6 +132,11 @@ SoapQ               *g_pSoapQ = NULL;
 
 // this mutex protects the auth lib and authentication
 util::WriteLockHandle  *g_pAuthLibLockHandle;
+
+// this mutex protects the global VirtualBox reference below
+static util::RWLockHandle *g_pVirtualBoxLockHandle;
+
+static ComPtr<IVirtualBox> g_pVirtualBox = NULL;
 
 // this mutex protects all of the below
 util::WriteLockHandle  *g_pSessionsLockHandle;
@@ -253,7 +266,7 @@ public:
                SoapQ &q,
                const struct soap *soap)
         : m_u(u),
-          m_strThread(com::Utf8StrFmt("SoapQWrk%02d", m_u)),
+          m_strThread(com::Utf8StrFmt("SQW%02d", m_u)),
           m_pQ(&q)
     {
         // make a copy of the soap struct for the new thread
@@ -471,6 +484,79 @@ void SoapThread::process()
     }
 }
 
+/****************************************************************************
+ *
+ * VirtualBoxClient event listener
+ *
+ ****************************************************************************/
+
+class VirtualBoxClientEventListener
+{
+public:
+    VirtualBoxClientEventListener()
+    {
+    }
+
+    virtual ~VirtualBoxClientEventListener()
+    {
+    }
+
+    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent *aEvent)
+    {
+        switch (aType)
+        {
+            case VBoxEventType_OnVBoxSVCAvailabilityChanged:
+            {
+                ComPtr<IVBoxSVCAvailabilityChangedEvent> pVSACEv = aEvent;
+                Assert(pVSACEv);
+                BOOL fAvailable = FALSE;
+                pVSACEv->COMGETTER(Available)(&fAvailable);
+                if (!fAvailable)
+                {
+                    WebLog("VBoxSVC became unavailable\n");
+                    {
+                        util::AutoWriteLock vlock(g_pVirtualBoxLockHandle COMMA_LOCKVAL_SRC_POS);
+                        g_pVirtualBox = NULL;
+                    }
+                    {
+                        // we're messing with sessions, so lock them
+                        util::AutoWriteLock lock(g_pSessionsLockHandle COMMA_LOCKVAL_SRC_POS);
+                        WEBDEBUG(("SVC unavailable: deleting %d sessions\n", g_mapSessions.size()));
+
+                        SessionsMap::iterator it = g_mapSessions.begin(),
+                                              itEnd = g_mapSessions.end();
+                        while (it != itEnd)
+                        {
+                            WebServiceSession *pSession = it->second;
+                            WEBDEBUG(("SVC unavailable: Session %llX stale, deleting\n", pSession->getID()));
+                            delete pSession;
+                            it = g_mapSessions.begin();
+                        }
+                    }
+                }
+                else
+                {
+                    WebLog("VBoxSVC became available\n");
+                    util::AutoWriteLock vlock(g_pVirtualBoxLockHandle COMMA_LOCKVAL_SRC_POS);
+                    HRESULT hrc = g_pVirtualBoxClient->COMGETTER(VirtualBox)(g_pVirtualBox.asOutParam());
+                    AssertComRC(hrc);
+                }
+                break;
+            }
+            default:
+                AssertFailed();
+        }
+
+        return S_OK;
+    }
+
+private:
+};
+
+typedef ListenerImpl<VirtualBoxClientEventListener> VirtualBoxClientEventListenerImpl;
+
+VBOX_LISTENER_DECLARE(VirtualBoxClientEventListenerImpl)
+
 /**
  * Implementation for WEBLOG macro defined in vboxweb.h; this prints a message
  * to the console and optionally to the file that may have been given to the
@@ -485,41 +571,48 @@ void WebLog(const char *pszFormat, ...)
     RTStrAPrintfV(&psz, pszFormat, args);
     va_end(args);
 
-    const char *pcszPrefix = "[   ]";
-    util::AutoReadLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
-    ThreadsMap::iterator it = g_mapThreads.find(RTThreadSelf());
-    if (it != g_mapThreads.end())
-        pcszPrefix = it->second.c_str();
-    thrLock.release();
-
-    // make a timestamp
-    RTTIMESPEC ts;
-    RTTimeLocalNow(&ts);
-    RTTIME t;
-    RTTimeExplode(&t, &ts);
-
-    com::Utf8StrFmt strPrefix("%04d-%02d-%02d %02d:%02d:%02d %s",
-                              t.i32Year, t.u8Month, t.u8MonthDay,
-                              t.u8Hour, t.u8Minute, t.u8Second,
-                              pcszPrefix);
-
-    // synchronize the actual output
-    util::AutoWriteLock logLock(g_pWebLogLockHandle COMMA_LOCKVAL_SRC_POS);
-    // terminal
-    RTPrintf("%s %s", strPrefix.c_str(), psz);
-
-    // log file
-    if (g_pStrmLog)
+    if (g_fStdOutLogging || g_pStrmLog)
     {
-        RTStrmPrintf(g_pStrmLog, "%s %s", strPrefix.c_str(), psz);
-        RTStrmFlush(g_pStrmLog);
-    }
+        const char *pcszPrefix = "[   ]";
+        util::AutoReadLock thrLock(g_pThreadsLockHandle COMMA_LOCKVAL_SRC_POS);
+        ThreadsMap::iterator it = g_mapThreads.find(RTThreadSelf());
+        if (it != g_mapThreads.end())
+            pcszPrefix = it->second.c_str();
+        thrLock.release();
+
+        // make a timestamp
+        RTTIMESPEC ts;
+        RTTimeLocalNow(&ts);
+        RTTIME t;
+        RTTimeExplode(&t, &ts);
+
+        com::Utf8StrFmt strPrefix("%04d-%02d-%02d %02d:%02d:%02d %s",
+                                  t.i32Year, t.u8Month, t.u8MonthDay,
+                                  t.u8Hour, t.u8Minute, t.u8Second,
+                                  pcszPrefix);
+
+        // synchronize the actual output
+        util::AutoWriteLock logLock(g_pWebLogLockHandle COMMA_LOCKVAL_SRC_POS);
+        // terminal
+        if (g_fStdOutLogging)
+            RTPrintf("%s %s", strPrefix.c_str(), psz);
+
+        // log file
+        if (g_pStrmLog)
+        {
+            RTStrmPrintf(g_pStrmLog, "%s %s", strPrefix.c_str(), psz);
+            RTStrmFlush(g_pStrmLog);
+        }
 
 #ifdef DEBUG
-    // logger instance
-    RTLogLoggerEx(LOG_INSTANCE, RTLOGGRPFLAGS_DJ, LOG_GROUP, "%s %s", pcszPrefix, psz);
+        // debug logger instance
+        RTLogLoggerEx(LOG_INSTANCE, RTLOGGRPFLAGS_DJ, LOG_GROUP, "%s %s", pcszPrefix, psz);
 #endif
-    logLock.release();
+
+        logLock.release();
+    }
+
+    LogRel(("%s", psz));
 
     RTStrFree(psz);
 }
@@ -560,9 +653,9 @@ void doQueuesLoop()
 
     int m, s; // master and slave sockets
     m = soap_bind(&soap,
-                  g_pcszBindToHost,     // host: current machine
-                  g_uBindToPort,     // port
-                  g_uBacklog);     // backlog = max queue size for requests
+                  g_pcszBindToHost ? g_pcszBindToHost : "localhost",    // safe default host
+                  g_uBindToPort,    // port
+                  g_uBacklog);      // backlog = max queue size for requests
     if (m < 0)
         WebLogSoapError(&soap);
     else
@@ -623,7 +716,7 @@ int fntQPumper(RTTHREAD ThreadSelf, void *pvUser)
  * @param argv[]
  * @return
  */
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     // initialize runtime
     int rc = RTR3Init();
@@ -647,7 +740,14 @@ int main(int argc, char* argv[])
         switch (c)
         {
             case 'H':
-                g_pcszBindToHost = ValueUnion.psz;
+                if (!ValueUnion.psz || !*ValueUnion.psz)
+                {
+                    /* Normalize NULL/empty string to NULL, which will be
+                     * interpreted as "localhost" below. */
+                    g_pcszBindToHost = NULL;
+                }
+                else
+                    g_pcszBindToHost = ValueUnion.psz;
                 break;
 
             case 'p':
@@ -711,9 +811,84 @@ int main(int argc, char* argv[])
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     if (g_fDaemonize)
     {
+        /* prepare release logging */
+        char szLogFile[RTPATH_MAX];
+
+        rc = com::GetVBoxUserHomeDirectory(szLogFile, sizeof(szLogFile));
+        if (RT_FAILURE(rc))
+             return RTMsgErrorExit(RTEXITCODE_FAILURE, "could not get base directory for logging: %Rrc", rc);
+        rc = RTPathAppend(szLogFile, sizeof(szLogFile), "vboxwebsrv.log");
+        if (RT_FAILURE(rc))
+             return RTMsgErrorExit(RTEXITCODE_FAILURE, "could not construct logging path: %Rrc", rc);
+
         rc = RTProcDaemonizeUsingFork(false /* fNoChDir */, false /* fNoClose */, pszPidFile);
         if (RT_FAILURE(rc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to daemonize, rc=%Rrc. exiting.", rc);
+
+        /* From now on it's a waste of CPU cycles to send logging to stdout. */
+        g_fStdOutLogging = false;
+
+        /* create release logger */
+        PRTLOGGER loggerRelease;
+        static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
+        RTUINT fFlags = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG;
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+        fFlags |= RTLOGFLAGS_USECRLF;
+#endif
+        char szError[RTPATH_MAX + 128] = "";
+        int vrc = RTLogCreateEx(&loggerRelease, fFlags, "all",
+                                "VBOXWEBSRV_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
+                                RTLOGDEST_FILE, szError, sizeof(szError), szLogFile);
+        if (RT_SUCCESS(vrc))
+        {
+            /* some introductory information */
+            RTTIMESPEC timeSpec;
+            char szTmp[256];
+            RTTimeSpecToString(RTTimeNow(&timeSpec), szTmp, sizeof(szTmp));
+            RTLogRelLogger(loggerRelease, 0, ~0U,
+                           "VirtualBox web service %s r%u %s (%s %s) release log\n"
+#ifdef VBOX_BLEEDING_EDGE
+                           "EXPERIMENTAL build " VBOX_BLEEDING_EDGE "\n"
+#endif
+                           "Log opened %s\n",
+                           VBOX_VERSION_STRING, RTBldCfgRevision(), VBOX_BUILD_TARGET,
+                           __DATE__, __TIME__, szTmp);
+
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                RTLogRelLogger(loggerRelease, 0, ~0U, "OS Product: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                RTLogRelLogger(loggerRelease, 0, ~0U, "OS Release: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                RTLogRelLogger(loggerRelease, 0, ~0U, "OS Version: %s\n", szTmp);
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                RTLogRelLogger(loggerRelease, 0, ~0U, "OS Service Pack: %s\n", szTmp);
+
+            /* the package type is interesting for Linux distributions */
+            char szExecName[RTPATH_MAX];
+            char *pszExecName = RTProcGetExecutablePath(szExecName, sizeof(szExecName));
+            RTLogRelLogger(loggerRelease, 0, ~0U,
+                           "Executable: %s\n"
+                           "Process ID: %u\n"
+                           "Package type: %s"
+#ifdef VBOX_OSE
+                           " (OSE)"
+#endif
+                           "\n",
+                           pszExecName ? pszExecName : "unknown",
+                           RTProcSelf(),
+                           VBOX_PACKAGE_STRING);
+
+            /* register this logger as the release logger */
+            RTLogRelSetDefaultInstance(loggerRelease);
+
+            /* Explicitly flush the log in case of VBOXWEBSRV_RELEASE_LOG=buffered. */
+            RTLogFlush(loggerRelease);
+        }
+        else
+            return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
     }
 #endif
 
@@ -722,20 +897,10 @@ int main(int argc, char* argv[])
     if (FAILED(hrc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to initialize COM! hrc=%Rhrc\n", hrc);
 
-    ComPtr<ISession> session;
-
-    hrc = g_pVirtualBox.createLocalObject(CLSID_VirtualBox);
-    if (FAILED(hrc))
-        RTMsgError("failed to create the VirtualBox object!");
-    else
-    {
-        hrc = session.createInprocObject(CLSID_Session);
-        if (FAILED(hrc))
-            RTMsgError("failed to create a session object!");
-    }
-
+    hrc = g_pVirtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
     if (FAILED(hrc))
     {
+        RTMsgError("failed to create the VirtualBoxClient object!");
         com::ErrorInfo info;
         if (!info.isFullAvailable() && !info.isBasicAvailable())
         {
@@ -747,8 +912,27 @@ int main(int argc, char* argv[])
         return RTEXITCODE_FAILURE;
     }
 
+    hrc = g_pVirtualBoxClient->COMGETTER(VirtualBox)(g_pVirtualBox.asOutParam());
+    if (FAILED(hrc))
+    {
+        RTMsgError("Failed to get VirtualBox object (rc=%Rhrc)!", hrc);
+        return RTEXITCODE_FAILURE;
+    }
+
+    /* VirtualBoxClient events registration. */
+    IEventListener *vboxClientListener = NULL;
+    {
+        ComPtr<IEventSource> pES;
+        CHECK_ERROR(g_pVirtualBoxClient, COMGETTER(EventSource)(pES.asOutParam()));
+        vboxClientListener = new VirtualBoxClientEventListenerImpl();
+        com::SafeArray<VBoxEventType_T> eventTypes;
+        eventTypes.push_back(VBoxEventType_OnVBoxSVCAvailabilityChanged);
+        CHECK_ERROR(pES, RegisterListener(vboxClientListener, ComSafeArrayAsInParam(eventTypes), true));
+    }
+
     // create the global mutexes
     g_pAuthLibLockHandle = new util::WriteLockHandle(util::LOCKCLASS_WEBSERVICE);
+    g_pVirtualBoxLockHandle = new util::RWLockHandle(util::LOCKCLASS_WEBSERVICE);
     g_pSessionsLockHandle = new util::WriteLockHandle(util::LOCKCLASS_WEBSERVICE);
     g_pThreadsLockHandle = new util::RWLockHandle(util::LOCKCLASS_OBJECTSTATE);
     g_pWebLogLockHandle = new util::WriteLockHandle(util::LOCKCLASS_WEBSERVICE);
@@ -760,7 +944,7 @@ int main(int argc, char* argv[])
                         0,           // cbStack (default)
                         RTTHREADTYPE_MAIN_WORKER,
                         0,           // flags
-                        "SoapQPumper");
+                        "SQPmp");
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Cannot start SOAP queue pumper thread: %Rrc", rc);
 
@@ -787,6 +971,16 @@ int main(int argc, char* argv[])
         rc = pQ->processEventQueue(RT_INDEFINITE_WAIT);
         if (RT_FAILURE(rc))
             RTMsgError("processEventQueue -> %Rrc", rc);
+    }
+
+    /* VirtualBoxClient events unregistration. */
+    if (vboxClientListener)
+    {
+        ComPtr<IEventSource> pES;
+        CHECK_ERROR(g_pVirtualBoxClient, COMGETTER(EventSource)(pES.asOutParam()));
+        if (!pES.isNull())
+            CHECK_ERROR(pES, UnregisterListener(vboxClientListener));
+        vboxClientListener->Release();
     }
 
     com::Shutdown();
@@ -1123,9 +1317,18 @@ WebServiceSession::~WebServiceSession()
  */
 
 int WebServiceSession::authenticate(const char *pcszUsername,
-                                    const char *pcszPassword)
+                                    const char *pcszPassword,
+                                    IVirtualBox **ppVirtualBox)
 {
     int rc = VERR_WEB_NOT_AUTHENTICATED;
+    ComPtr<IVirtualBox> pVirtualBox;
+    {
+        util::AutoReadLock vlock(g_pVirtualBoxLockHandle COMMA_LOCKVAL_SRC_POS);
+        pVirtualBox = g_pVirtualBox;
+    }
+    pVirtualBox.queryInterfaceTo(ppVirtualBox);
+    if (pVirtualBox.isNull())
+        return rc;
 
     util::AutoReadLock lock(g_pAuthLibLockHandle COMMA_LOCKVAL_SRC_POS);
 
@@ -1138,7 +1341,7 @@ int WebServiceSession::authenticate(const char *pcszUsername,
     {
         // retrieve authentication library from system properties
         ComPtr<ISystemProperties> systemProperties;
-        g_pVirtualBox->COMGETTER(SystemProperties)(systemProperties.asOutParam());
+        pVirtualBox->COMGETTER(SystemProperties)(systemProperties.asOutParam());
 
         com::Bstr authLibrary;
         systemProperties->COMGETTER(WebServiceAuthLibrary)(authLibrary.asOutParam());
@@ -1218,7 +1421,8 @@ int WebServiceSession::authenticate(const char *pcszUsername,
             // now create the ISession object that this webservice session can use
             // (and of which IWebsessionManager::getSessionObject returns a managed object reference)
             ComPtr<ISession> session;
-            if (FAILED(rc = session.createInprocObject(CLSID_Session)))
+            rc = g_pVirtualBoxClient->COMGETTER(Session)(session.asOutParam());
+            if (FAILED(rc))
             {
                 WEBDEBUG(("ERROR: cannot create session object!"));
                 break;
@@ -1537,7 +1741,7 @@ int __vbox__IManagedObjectRef_USCOREgetInterfaceName(
     _vbox__IManagedObjectRef_USCOREgetInterfaceName *req,
     _vbox__IManagedObjectRef_USCOREgetInterfaceNameResponse *resp)
 {
-    HRESULT rc = SOAP_OK;
+    HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
     do
@@ -1572,7 +1776,7 @@ int __vbox__IManagedObjectRef_USCORErelease(
     _vbox__IManagedObjectRef_USCORErelease *req,
     _vbox__IManagedObjectRef_USCOREreleaseResponse *resp)
 {
-    HRESULT rc = SOAP_OK;
+    HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
     do
@@ -1639,11 +1843,11 @@ int __vbox__IManagedObjectRef_USCORErelease(
  * @return
  */
 int __vbox__IWebsessionManager_USCORElogon(
-        struct soap*,
+        struct soap *soap,
         _vbox__IWebsessionManager_USCORElogon *req,
         _vbox__IWebsessionManager_USCORElogonResponse *resp)
 {
-    HRESULT rc = SOAP_OK;
+    HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
     do
@@ -1654,24 +1858,33 @@ int __vbox__IWebsessionManager_USCORElogon(
         // create new session; the constructor stores the new session
         // in the global map automatically
         WebServiceSession *pSession = new WebServiceSession();
+        ComPtr<IVirtualBox> pVirtualBox;
 
         // authenticate the user
         if (!(pSession->authenticate(req->username.c_str(),
-                                     req->password.c_str())))
+                                     req->password.c_str(),
+                                     pVirtualBox.asOutParam())))
         {
             // in the new session, create a managed object reference (MOR) for the
             // global VirtualBox object; this encodes the session ID in the MOR so
             // that it will be implicitly be included in all future requests of this
             // webservice client
-            ComPtr<IUnknown> p2 = g_pVirtualBox;
+            ComPtr<IUnknown> p2 = pVirtualBox;
+            if (pVirtualBox.isNull() || p2.isNull())
+            {
+                rc = E_FAIL;
+                break;
+            }
             ManagedObjectRef *pRef = new ManagedObjectRef(*pSession,
                                                           p2,                       // IUnknown *pobjUnknown
-                                                          g_pVirtualBox,            // void *pobjInterface
+                                                          pVirtualBox,              // void *pobjInterface
                                                           COM_IIDOF(IVirtualBox),
                                                           g_pcszIVirtualBox);
             resp->returnval = pRef->getWSDLID();
             WEBDEBUG(("VirtualBox object ref is %s\n", resp->returnval.c_str()));
         }
+        else
+            rc = E_FAIL;
     } while (0);
 
     WEBDEBUG(("-- leaving %s, rc: 0x%lX\n", __FUNCTION__, rc));
@@ -1689,7 +1902,7 @@ int __vbox__IWebsessionManager_USCOREgetSessionObject(
         _vbox__IWebsessionManager_USCOREgetSessionObject *req,
         _vbox__IWebsessionManager_USCOREgetSessionObjectResponse *resp)
 {
-    HRESULT rc = SOAP_OK;
+    HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
     do
@@ -1722,7 +1935,7 @@ int __vbox__IWebsessionManager_USCORElogoff(
         _vbox__IWebsessionManager_USCORElogoff *req,
         _vbox__IWebsessionManager_USCORElogoffResponse *resp)
 {
-    HRESULT rc = SOAP_OK;
+    HRESULT rc = S_OK;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
     do

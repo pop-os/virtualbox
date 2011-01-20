@@ -1,4 +1,4 @@
-/* $Id: CPUMR0.cpp 33938 2010-11-10 15:50:41Z vboxsync $ */
+/* $Id: CPUMR0.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * CPUM - Host Context Ring 0.
  */
@@ -20,13 +20,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_CPUM
-#include <VBox/cpum.h>
+#include <VBox/vmm/cpum.h>
 #include "CPUMInternal.h"
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/x86.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/hwaccm.h>
+#include <VBox/vmm/hwaccm.h>
 #include <iprt/assert.h>
 #include <iprt/asm-amd64-x86.h>
 #ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI

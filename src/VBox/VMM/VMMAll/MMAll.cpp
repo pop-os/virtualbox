@@ -1,4 +1,4 @@
-/* $Id: MMAll.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: MMAll.cpp 35410 2011-01-05 17:21:11Z vboxsync $ */
 /** @file
  * MM - Memory Manager - Any Context.
  */
@@ -20,10 +20,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_MM_HYPER
-#include <VBox/mm.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/vmm.h>
 #include "MMInternal.h"
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -575,6 +575,7 @@ const char *mmGetTagName(MMTAG enmTag)
         TAG2STR(DBGF_LINE_DUP);
         TAG2STR(DBGF_MODULE);
         TAG2STR(DBGF_OS);
+        TAG2STR(DBGF_REG);
         TAG2STR(DBGF_STACK);
         TAG2STR(DBGF_SYMBOL);
         TAG2STR(DBGF_SYMBOL_DUP);

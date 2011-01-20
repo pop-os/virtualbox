@@ -24,11 +24,7 @@
 
 #include "xf86.h"
 #define NEED_XF86_TYPES
-#ifdef NO_ANSIC
-# include <string.h>
-#else
-# include "xf86_ansic.h"
-#endif
+#include <iprt/string.h>
 #include "compiler.h"
 #include "cursorstr.h"
 
@@ -319,7 +315,7 @@ vboxSetupVRAMVbva(ScrnInfoPtr pScrn, VBOXPtr pVBox)
         TRACE_LOG("VBVA buffer offset for screen %u: 0x%lx\n", i,
                   (unsigned long) pVBox->cbFBMax);
         VBoxVBVASetupBufferContext(&pVBox->aVbvaCtx[i],
-                                   pVBox->aoffVBVABuffer[i], 
+                                   pVBox->aoffVBVABuffer[i],
                                    VBVA_MIN_BUFFER_SIZE);
     }
     TRACE_LOG("Maximum framebuffer size: %lu (0x%lx)\n",

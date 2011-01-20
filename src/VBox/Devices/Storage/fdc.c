@@ -1,4 +1,4 @@
-/* $Id: fdc.c 34294 2010-11-23 16:11:48Z vboxsync $ */
+/* $Id: fdc.c 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox storage devices: Floppy disk controller
  */
@@ -46,13 +46,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_FDC
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 
-#include "Builtins.h"
-#include "../vl_vbox.h"
+#include "VBoxDD.h"
+#include "vl_vbox.h"
 
 #define FDC_SAVESTATE_CURRENT   2       /* The new and improved saved state. */
 #define FDC_SAVESTATE_OLD       1       /* The original saved state. */
@@ -438,9 +438,9 @@ enum {
 };
 
 enum {
-    FD_STATE_MULTI  = 0x01,	/* multi track flag */
-    FD_STATE_FORMAT = 0x02,	/* format flag */
-    FD_STATE_SEEK   = 0x04 	/* seek flag */
+    FD_STATE_MULTI  = 0x01,     /* multi track flag */
+    FD_STATE_FORMAT = 0x02,     /* format flag */
+    FD_STATE_SEEK   = 0x04      /* seek flag */
 };
 
 enum {
@@ -2169,7 +2169,7 @@ static DECLCALLBACK(int) fdcLoadExec (PPDMDEVINS pDevIns,
         }
     }
     else    /* New state - straightforward. */
-    {        
+    {
         Assert(uVersion == FDC_SAVESTATE_CURRENT);
         /* Load the FDC I/O registers... */
         SSMR3GetU8(pSSMHandle, &s->sra);

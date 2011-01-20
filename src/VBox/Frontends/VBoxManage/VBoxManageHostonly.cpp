@@ -1,4 +1,4 @@
-/* $Id: VBoxManageHostonly.cpp 32727 2010-09-23 14:31:31Z vboxsync $ */
+/* $Id: VBoxManageHostonly.cpp 35330 2010-12-24 18:05:33Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of hostonlyif command.
  */
@@ -44,7 +44,7 @@
 #ifndef VBOX_ONLY_DOCS
 using namespace com;
 
-#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
+#if defined(VBOX_WITH_NETFLT) && !defined(RT_OS_SOLARIS)
 static int handleCreate(HandlerArg *a, int iStart, int *pcProcessed)
 {
 //    if (a->argc - iStart < 1)
@@ -96,16 +96,16 @@ static int handleRemove(HandlerArg *a, int iStart, int *pcProcessed)
     index++;
 
     ComPtr<IHost> host;
-    CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
+    CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), 1);
 
     ComPtr<IHostNetworkInterface> hif;
-    CHECK_ERROR(host, FindHostNetworkInterfaceByName(name.raw(), hif.asOutParam()));
+    CHECK_ERROR_RET(host, FindHostNetworkInterfaceByName(name.raw(), hif.asOutParam()), 1);
 
     Bstr guid;
-    CHECK_ERROR(hif, COMGETTER(Id)(guid.asOutParam()));
+    CHECK_ERROR_RET(hif, COMGETTER(Id)(guid.asOutParam()), 1);
 
     ComPtr<IProgress> progress;
-    CHECK_ERROR(host, RemoveHostOnlyNetworkInterface(guid.raw(), progress.asOutParam()));
+    CHECK_ERROR_RET(host, RemoveHostOnlyNetworkInterface(guid.raw(), progress.asOutParam()), 1);
 
     rc = showProgress(progress);
     *pcProcessed = index - iStart;
@@ -296,7 +296,7 @@ int handleHostonlyIf(HandlerArg *a)
 //            else
 //                break;
         }
-#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
+#if defined(VBOX_WITH_NETFLT) && !defined(RT_OS_SOLARIS)
         else if (strcmp(a->argv[i], "create") == 0)
         {
             int cProcessed;

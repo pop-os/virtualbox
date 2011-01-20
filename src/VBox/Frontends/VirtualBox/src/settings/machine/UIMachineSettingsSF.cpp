@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsSF.cpp 34740 2010-12-06 11:56:28Z vboxsync $ */
+/* $Id: UIMachineSettingsSF.cpp 35475 2011-01-11 10:50:13Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -640,7 +640,7 @@ void UIMachineSettingsSF::adjustFields()
 
 void UIMachineSettingsSF::showEvent (QShowEvent *aEvent)
 {
-    QWidget::showEvent (aEvent);
+    UISettingsPageMachine::showEvent (aEvent);
 
     /* Connect header-resize signal just before widget is shown after all the items properly loaded and initialized. */
     connect (mTwFolders->header(), SIGNAL (sectionResized (int, int, int)), this, SLOT (adjustFields()));

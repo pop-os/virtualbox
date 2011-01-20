@@ -1,4 +1,4 @@
-; $Id: CPUMAllA.asm 30164 2010-06-11 14:16:09Z vboxsync $
+; $Id: CPUMAllA.asm 35346 2010-12-27 16:13:13Z vboxsync $
 ;; @file
 ; CPUM - Guest Context Assembly Routines.
 ;
@@ -19,12 +19,12 @@
 ;* Header Files                                                                *
 ;*******************************************************************************
 %include "VBox/asmdefs.mac"
-%include "VBox/vm.mac"
+%include "VBox/vmm/vm.mac"
 %include "VBox/err.mac"
-%include "VBox/stam.mac"
+%include "VBox/vmm/stam.mac"
 %include "CPUMInternal.mac"
 %include "VBox/x86.mac"
-%include "VBox/cpum.mac"
+%include "VBox/vmm/cpum.mac"
 
 %ifdef IN_RING3
  %error "The jump table doesn't link on leopard."

@@ -1,4 +1,4 @@
-# $Id: .scm-settings 33676 2010-11-02 09:48:24Z vboxsync $
+# $Id: .scm-settings 35579 2011-01-17 09:36:05Z vboxsync $
 ## @file
 # Top level source code massager settings.
 #
@@ -98,6 +98,7 @@
 */src/VBox/Devices/EFI/Firmware2/VBoxPkg/VBoxVgaDxe/Edid.c: --no-convert-tabs
 */src/VBox/Devices/EFI/Firmware2/VBoxPkg/VBoxFsDxe/*.*: --no-convert-tabs
 */src/apps/tunctl/tunctl.c: --no-convert-tabs
+*/src/VBox/Main/src-all/DisplayResampleImage.cpp: --no-convert-tabs
 vboxvideo_drm.c: --no-convert-tabs
 *linux.mod.c: --no-convert-tabs
 */src/VBox/Main/DisplayResampleImage.cpp: --no-convert-tabs

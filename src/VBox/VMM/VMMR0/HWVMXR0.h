@@ -1,4 +1,4 @@
-/* $Id: HWVMXR0.h 34998 2010-12-13 12:53:16Z vboxsync $ */
+/* $Id: HWVMXR0.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * HWACCM VT-x - Internal header file.
  */
@@ -20,12 +20,12 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/em.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/em.h>
+#include <VBox/vmm/stam.h>
 #include <VBox/dis.h>
-#include <VBox/hwaccm.h>
-#include <VBox/pgm.h>
-#include <VBox/hwacc_vmx.h>
+#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/hwacc_vmx.h>
 
 RT_C_DECLS_BEGIN
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxProblemReporter.cpp 35274 2010-12-21 12:53:59Z vboxsync $ */
+/* $Id: VBoxProblemReporter.cpp 35587 2011-01-17 14:21:04Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1969,6 +1969,14 @@ bool VBoxProblemReporter::confirmVMReset (QWidget *aParent)
             "it to be lost.</p>"),
         "confirmVMReset" /* aAutoConfirmId */,
         tr ("Reset", "machine"));
+}
+
+void VBoxProblemReporter::warnAboutCannotCreateMachineFolder(QWidget *pParent, const QString &strFolderName)
+{
+    message(pParent ? pParent : mainWindowShown(), Critical,
+            tr("<p>Cannot create the machine folder:</p>"
+               "<p><b>%1</b></p>"
+               "<p>Please check you have the permissions required to do so.</p>").arg(strFolderName));
 }
 
 /**

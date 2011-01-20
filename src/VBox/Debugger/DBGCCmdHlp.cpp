@@ -1,4 +1,4 @@
-/* $Id: DBGCCmdHlp.cpp 31966 2010-08-25 16:15:25Z vboxsync $ */
+/* $Id: DBGCCmdHlp.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, Command Helpers.
  */
@@ -20,12 +20,12 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
-#include <VBox/dbgf.h>
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
-#include <VBox/mm.h>
-#include <VBox/pgm.h>
-#include <VBox/selm.h>
+#include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/selm.h>
 #include <VBox/dis.h>
 #include <VBox/param.h>
 #include <VBox/err.h>

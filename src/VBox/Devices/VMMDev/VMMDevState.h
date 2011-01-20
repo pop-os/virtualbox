@@ -1,4 +1,4 @@
-/* $Id: VMMDevState.h 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VMMDevState.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VMMDev - Guest <-> VMM/Host communication device, internal header.
  */
@@ -19,8 +19,8 @@
 #define ___VMMDev_VMMDevState_h
 
 #include <VBox/VMMDev.h>
-#include <VBox/pdmdev.h>
-#include <VBox/pdmifs.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmifs.h>
 
 #define TIMESYNC_BACKDOOR
 

@@ -1,4 +1,4 @@
-/* $Id: VUSBReadAhead.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VUSBReadAhead.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Virtual USB - Read-ahead buffering for periodic endpoints.
  */
@@ -20,8 +20,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_VUSB
-#include <VBox/pdm.h>
-#include <VBox/vmapi.h>
+#include <VBox/vmm/pdm.h>
+#include <VBox/vmm/vmapi.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/alloc.h>

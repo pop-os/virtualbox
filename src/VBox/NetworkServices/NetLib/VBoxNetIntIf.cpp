@@ -1,4 +1,4 @@
-/* $Id: VBoxNetIntIf.cpp 35163 2010-12-16 07:37:00Z vboxsync $ */
+/* $Id: VBoxNetIntIf.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBoxNetIntIf - IntNet Interface Client Routines.
  */
@@ -23,7 +23,7 @@
 #include <VBox/intnet.h>
 #include <VBox/intnetinline.h>
 #include <VBox/sup.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 

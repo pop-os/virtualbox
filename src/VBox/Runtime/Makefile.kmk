@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35182 2010-12-16 13:57:44Z vboxsync $
+# $Id: Makefile.kmk 35585 2011-01-17 14:20:13Z vboxsync $
 ## @file
 # Sub-Makefile for the IPRT (IPRT).
 #
@@ -32,7 +32,7 @@ ifdef VBOX_ONLY_ADDITIONS
  # Only build the additions, sort out the legacy names first.
  #
  LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
- LIBRARIES.win.amd64 += RuntimeGuestR3-x86
+ LIBRARIES.win.amd64 += RuntimeGuestR3-x86 RuntimeGuestR3Shared-x86
  ifdef VBOX_WITH_ADDITION_DRIVERS
   LIBRARIES += RuntimeGuestR0
   #LIBRARIES.os2 += RuntimeGuestR0OS2Warp3
@@ -85,7 +85,7 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS
  endif
  ifdef VBOX_WITH_ADDITIONS
   LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
-  LIBRARIES.win.amd64 += RuntimeGuestR3-x86
+  LIBRARIES.win.amd64 += RuntimeGuestR3-x86 RuntimeGuestR3Shared-x86
   ifdef VBOX_WITH_ADDITION_DRIVERS
    LIBRARIES += RuntimeGuestR0
   endif
@@ -364,6 +364,7 @@ RuntimeR3_SOURCES       = \
 	common/string/simplepattern.cpp \
 	common/string/straprintf.cpp \
 	common/string/strformat.cpp \
+	common/string/strformatnum.cpp \
 	common/string/strformatrt.cpp \
 	common/string/strformattype.cpp \
 	common/string/stringalloc.cpp \
@@ -1011,6 +1012,13 @@ RuntimeGuestR3Shared_INST                = $(INST_ADDITIONS_LIB)
 
 
 #
+# RuntimeGuestR3Shared-x86 - Same as RuntimeGuestR3Shared, except that it's targeting x86.
+#
+RuntimeGuestR3Shared-x86_EXTENDS           	:= RuntimeGuestR3Shared
+RuntimeGuestR3Shared-x86_BLD_TRG_ARCH         := x86
+
+
+#
 # RuntimeGuestR3Mini - Minimal Guest Additions Runtime which does not require
 #                      initialization and can be linked into an .so. Intended
 #                      for X11 drivers, GRADD and similar.
@@ -1072,6 +1080,7 @@ RuntimeGuestR3Mini_SOURCES = \
 	common/string/RTStrStr.cpp \
 	common/string/straprintf.cpp \
 	common/string/strformat.cpp \
+	common/string/strformatnum.cpp \
 	common/string/strformatrt.cpp \
 	common/string/strformattype.cpp \
 	common/string/stringalloc.cpp \
@@ -1152,7 +1161,7 @@ RuntimeLnxHostR3_INCS          = \
 #
 # VBoxRT - Shared Object / DLL version.
 #
-VBoxRT_TEMPLATE                = VBoxR3Dll
+VBoxRT_TEMPLATE                = VBoxR3DllNoPic
 VBoxRT_SDKS                    = VBOX_OPENSSL VBOX_LIBXML2 VBOX_BOOST
 ifdef VBOX_WITH_LIBCURL
  VBoxRT_SDKS                  += VBOX_LIBCURL
@@ -1273,7 +1282,7 @@ VBoxRTDummy_LIBS = $(PATH_BIN)/VBoxRT.so
 VBoxRTDummy_CLEAN= $(PATH_BIN)/VBoxRT.so
 BLDDIRS += $(PATH_BIN)
 
-$(PATH_BIN)/VBoxRT.so: $$(TARGET_VBoxRT) | $$(dir $$@)
+$(PATH_BIN)/VBoxRT.so: $$(VBoxRT_1_TARGET) | $$(dir $$@)
 	$(INSTALL) $< $@
 	chcon -t texrel_shlib_t $@ || true
 
@@ -1548,6 +1557,7 @@ RuntimeR0Drv_SOURCES    = \
 	common/string/RTStrNLen.cpp \
 	common/string/RTStrNLenEx.cpp \
 	common/string/strformat.cpp \
+	common/string/strformatnum.cpp \
 	common/string/strformatrt.cpp \
 	common/string/strformattype.cpp \
 	common/string/strprintf.cpp \
@@ -1874,6 +1884,7 @@ ifdef VBOX_WITH_RAW_MODE
  	common/misc/sanity-c.c \
  	common/misc/sanity-cpp.cpp \
  	common/string/strformat.cpp \
+ 	common/string/strformatnum.cpp \
  	common/string/strformatrt.cpp \
  	common/string/strformattype.cpp \
  	common/string/strncmp.cpp \

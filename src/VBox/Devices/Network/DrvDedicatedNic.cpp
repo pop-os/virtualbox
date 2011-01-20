@@ -1,4 +1,4 @@
-/* $Id: DrvDedicatedNic.cpp 31094 2010-07-26 08:14:34Z vboxsync $ */
+/* $Id: DrvDedicatedNic.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DrvDedicatedNic - Experimental network driver for using a dedicated (V)NIC.
  */
@@ -20,10 +20,10 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEFAULT
 #include <VBox/log.h>
-#include <VBox/pdmcritsect.h>
-#include <VBox/pdmdrv.h>
-#include <VBox/pdmnetifs.h>
-#include <VBox/pdmnetinline.h>
+#include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmnetifs.h>
+#include <VBox/vmm/pdmnetinline.h>
 #include <VBox/intnet.h>
 #include <VBox/intnetinline.h>
 
@@ -35,7 +35,7 @@
 #include <iprt/thread.h>
 #include <iprt/uuid.h>
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 31667 2010-08-13 15:57:03Z vboxsync $
+# $Id: Makefile.kmk 35380 2010-12-30 16:06:17Z vboxsync $
 ## @file
 # Sub-Makefile for the stub installer.
 #
@@ -41,12 +41,12 @@ VBoxStub.cpp_DEFS += VBOX_SVN_REV=$(VBOX_SVN_REV)
 VBoxStub.cpp_DEPS = $(VBOX_SVN_REV_KMK)
 
 # The icon location is configurable.
-VBoxStub.rc_INCS += $(PATH_VBoxStub)
-VBoxStub.rc_DEPS += $(PATH_VBoxStub)/VBoxStub-icon.rc
-VBoxStub.rc_CLEAN = $(PATH_VBoxStub)/VBoxStub-icon.rc
+VBoxStub.rc_INCS += $(VBoxStub_0_OUTDIR)
+VBoxStub.rc_DEPS += $(VBoxStub_0_OUTDIR)/VBoxStub-icon.rc
+VBoxStub.rc_CLEAN = $(VBoxStub_0_OUTDIR)/VBoxStub-icon.rc
 
 # Icon include file.
-$$(PATH_VBoxStub)/VBoxStub-icon.rc: $(VBOX_WINDOWS_ICON_FILE) $(MAKEFILE_CURRENT) | $$(dir $$@)
+$$(VBoxStub_0_OUTDIR)/VBoxStub-icon.rc: $(VBOX_WINDOWS_ICON_FILE) $(MAKEFILE_CURRENT) | $$(dir $$@)
 	$(APPEND) -t $@ 'IDI_VIRTUALBOX ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
 
 endif # x86 only

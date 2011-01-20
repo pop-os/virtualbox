@@ -19,7 +19,7 @@
 #include <Windows.h>
 #include <mmsystem.h>
 
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/err.h>
 
 #define LOG_GROUP LOG_GROUP_DEV_AC97
@@ -29,8 +29,8 @@
 #include <iprt/string.h>
 #include <iprt/alloc.h>
 
-#include "Builtins.h"
-#include "../../vl_vbox.h"
+#include "VBoxDD.h"
+#include "vl_vbox.h"
 
 #include "audio.h"
 #include "audio_int.h"

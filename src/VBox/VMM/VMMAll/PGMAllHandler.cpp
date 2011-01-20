@@ -1,4 +1,4 @@
-/* $Id: PGMAllHandler.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: PGMAllHandler.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * PGM - Page Manager / Monitor, Access Handlers.
  */
@@ -20,18 +20,18 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM
-#include <VBox/dbgf.h>
-#include <VBox/pgm.h>
-#include <VBox/iom.h>
-#include <VBox/mm.h>
-#include <VBox/em.h>
-#include <VBox/stam.h>
-#include <VBox/rem.h>
-#include <VBox/dbgf.h>
-#include <VBox/rem.h>
-#include "../PGMInternal.h"
-#include <VBox/vm.h>
-#include "../PGMInline.h"
+#include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/iom.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/em.h>
+#include <VBox/vmm/stam.h>
+#include <VBox/vmm/rem.h>
+#include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/rem.h>
+#include "PGMInternal.h"
+#include <VBox/vmm/vm.h>
+#include "PGMInline.h"
 
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -39,7 +39,7 @@
 #include <iprt/string.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
-#include <VBox/selm.h>
+#include <VBox/vmm/selm.h>
 
 
 /*******************************************************************************

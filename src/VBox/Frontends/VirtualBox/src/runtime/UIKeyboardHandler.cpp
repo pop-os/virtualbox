@@ -1,4 +1,4 @@
-/* $Id: UIKeyboardHandler.cpp 35176 2010-12-16 12:41:00Z vboxsync $ */
+/* $Id: UIKeyboardHandler.cpp 35351 2010-12-27 17:04:17Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -315,7 +315,7 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
             if (!(pMsg->lParam & 0x80000000))
                 flags |= KeyPressed;
 
-            /* Check for special Korean keys. Based on the keyboard layout selected 
+            /* Check for special Korean keys. Based on the keyboard layout selected
              * on the host, the scancode in lParam might be 0x71/0x72 or 0xF1/0xF2.
              * In either case, we must deliver 0xF1/0xF2 scancode to the guest when
              * the key is pressed and nothing when it's released.
@@ -489,7 +489,7 @@ bool UIKeyboardHandler::x11EventFilter(XEvent *pEvent, ulong uScreenId)
             /* Special Korean keys must send scancode 0xF1/0xF2 when pressed and nothing
              * when released.
              */
-            if (scan == 0x71 || scan == 0x72) 
+            if (scan == 0x71 || scan == 0x72)
             {
                 if (pEvent->type == XKeyRelease)  /* Ignore. */
                 {

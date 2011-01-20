@@ -1,4 +1,4 @@
-/* $Id: tstSSM.cpp 31895 2010-08-24 09:00:14Z vboxsync $ */
+/* $Id: tstSSM.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Saved State Manager Testcase.
  */
@@ -19,12 +19,12 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/ssm.h>
-#include "../VMInternal.h" /* createFakeVM */
-#include <VBox/vm.h>
-#include <VBox/uvm.h>
-#include <VBox/mm.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/ssm.h>
+#include "VMInternal.h" /* createFakeVM */
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/stam.h>
 
 #include <VBox/log.h>
 #include <VBox/sup.h>

@@ -1,4 +1,4 @@
-; $Id: tstMicroRCA.asm 28800 2010-04-27 08:22:32Z vboxsync $
+; $Id: tstMicroRCA.asm 35346 2010-12-27 16:13:13Z vboxsync $
 ;; @file
 ; tstMicroRCA
 ;
@@ -20,9 +20,9 @@
 ;*******************************************************************************
 %include "VBox/asmdefs.mac"
 %include "VBox/x86.mac"
-%include "VBox/cpum.mac"
+%include "VBox/vmm/cpum.mac"
 %include "VBox/err.mac"
-%include "VBox/vm.mac"
+%include "VBox/vmm/vm.mac"
 %include "tstMicro.mac"
 
 

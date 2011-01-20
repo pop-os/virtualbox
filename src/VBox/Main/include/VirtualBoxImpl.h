@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxImpl.h 34244 2010-11-22 14:31:02Z vboxsync $ */
+/* $Id: VirtualBoxImpl.h 35608 2011-01-18 14:19:31Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -232,6 +232,7 @@ public:
     HRESULT findRemoveableMedium(DeviceType_T mediumType,
                                  const Guid &uuid,
                                  bool fRefresh,
+                                 bool aSetError,
                                  ComObjPtr<Medium> &pMedium);
 
     HRESULT findGuestOSType(const Bstr &bstrOSType,

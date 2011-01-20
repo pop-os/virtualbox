@@ -1,4 +1,4 @@
-/* $Id: scm.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: scm.cpp 35404 2011-01-05 11:32:29Z vboxsync $ */
 /** @file
  * IPRT Testcase / Tool - Source Code Massager.
  */
@@ -3517,6 +3517,7 @@ static bool rewrite_Makefile_kmk(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
  *      - ensure new line at end of file.
  *      - Indentation of precompiler statements (#ifdef, #defines).
  *      - space between functions.
+ *      - string.h -> iprt/string.h, stdarg.h -> iprt/stdarg.h, etc.
  */
 static bool rewrite_C_and_CPP(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
@@ -4089,7 +4090,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 33540 $";
+                static const char s_szRev[] = "$Revision: 35404 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

@@ -1,4 +1,4 @@
-/* $Id: TMAllCpu.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: TMAllCpu.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * TM - Timeout Manager, CPU Time, All Contexts.
  */
@@ -20,10 +20,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_TM
-#include <VBox/tm.h>
+#include <VBox/vmm/tm.h>
 #include <iprt/asm-amd64-x86.h> /* for SUPGetCpuHzFromGIP */
-#include "../TMInternal.h"
-#include <VBox/vm.h>
+#include "TMInternal.h"
+#include <VBox/vmm/vm.h>
 #include <VBox/sup.h>
 
 #include <VBox/param.h>

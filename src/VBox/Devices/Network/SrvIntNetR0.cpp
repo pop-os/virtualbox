@@ -1,4 +1,4 @@
-/* $Id: SrvIntNetR0.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
+/* $Id: SrvIntNetR0.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Internal networking - The ring 0 service.
  */
@@ -22,9 +22,9 @@
 #define LOG_GROUP LOG_GROUP_SRV_INTNET
 #include <VBox/intnet.h>
 #include <VBox/intnetinline.h>
-#include <VBox/pdmnetinline.h>
+#include <VBox/vmm/pdmnetinline.h>
 #include <VBox/sup.h>
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/log.h>
 
 #include <iprt/asm.h>

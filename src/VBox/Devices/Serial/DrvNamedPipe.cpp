@@ -1,4 +1,4 @@
-/* $Id: DrvNamedPipe.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DrvNamedPipe.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * Named pipe / local socket stream driver.
  */
@@ -20,7 +20,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_NAMEDPIPE
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
 #include <iprt/stream.h>
@@ -29,7 +29,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/uuid.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 #ifdef RT_OS_WINDOWS
 # include <windows.h>

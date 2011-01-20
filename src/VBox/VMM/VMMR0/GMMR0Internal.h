@@ -1,4 +1,4 @@
-/* $Id: GMMR0Internal.h 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: GMMR0Internal.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * GMM - The Global Memory Manager, Internal Header.
  */
@@ -18,7 +18,7 @@
 #ifndef ___GMMR0Internal_h
 #define ___GMMR0Internal_h
 
-#include <VBox/gmm.h>
+#include <VBox/vmm/gmm.h>
 #include <iprt/avl.h>
 
 /**

@@ -1,4 +1,4 @@
-/* $Id: DevLsiLogicSCSI.cpp 34433 2010-11-27 11:09:38Z vboxsync $ */
+/* $Id: DevLsiLogicSCSI.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox storage devices: LsiLogic LSI53c1030 SCSI controller.
  */
@@ -17,9 +17,9 @@
 
 //#define DEBUG
 #define LOG_GROUP LOG_GROUP_DEV_LSILOGICSCSI
-#include <VBox/pdmdev.h>
-#include <VBox/pdmqueue.h>
-#include <VBox/pdmcritsect.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmqueue.h>
+#include <VBox/vmm/pdmcritsect.h>
 #include <VBox/scsi.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -35,7 +35,7 @@
 #include "DevLsiLogicSCSI.h"
 #include "VBoxSCSI.h"
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 /** The current saved state version. */
 #define LSILOGIC_SAVED_STATE_VERSION          3

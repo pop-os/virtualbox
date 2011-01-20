@@ -1,4 +1,4 @@
-/* $Id: slirp.c 34235 2010-11-22 11:44:41Z vboxsync $ */
+/* $Id: slirp.c 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * NAT - slirp glue.
  */
@@ -47,7 +47,7 @@
 #endif
 
 #include <VBox/err.h>
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
 #ifndef RT_OS_WINDOWS

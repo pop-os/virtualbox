@@ -1,4 +1,4 @@
-/* $Id: tstVMStructRC.cpp 34163 2010-11-18 12:16:43Z vboxsync $ */
+/* $Id: tstVMStructRC.cpp 35601 2011-01-18 10:43:11Z vboxsync $ */
 /** @file
  * tstVMMStructRC - Generate structure member and size checks from the
  *                  RC perspective.
@@ -50,34 +50,34 @@ AssertCompileSize(RTHCPHYS, 8);
 *   Header Files                                                               *
 *******************************************************************************/
 #define IN_TSTVMSTRUCTGC 1
-#include <VBox/cfgm.h>
-#include <VBox/cpum.h>
-#include <VBox/mm.h>
-#include <VBox/pgm.h>
-#include <VBox/selm.h>
-#include <VBox/trpm.h>
-#include <VBox/vmm.h>
-#include <VBox/stam.h>
-#include "../PDMInternal.h"
-#include <VBox/pdm.h>
-#include "../CFGMInternal.h"
-#include "../CPUMInternal.h"
-#include "../MMInternal.h"
-#include "../PGMInternal.h"
-#include "../SELMInternal.h"
-#include "../TRPMInternal.h"
-#include "../TMInternal.h"
-#include "../IOMInternal.h"
-#include "../REMInternal.h"
-#include "../HWACCMInternal.h"
-#include "../PATM/PATMInternal.h"
-#include "../VMMInternal.h"
-#include "../DBGFInternal.h"
-#include "../STAMInternal.h"
-#include "../PATM/CSAMInternal.h"
-#include "../EMInternal.h"
-#include "../REMInternal.h"
-#include <VBox/vm.h>
+#include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/cpum.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/selm.h>
+#include <VBox/vmm/trpm.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/stam.h>
+#include "PDMInternal.h"
+#include <VBox/vmm/pdm.h>
+#include "CFGMInternal.h"
+#include "CPUMInternal.h"
+#include "MMInternal.h"
+#include "PGMInternal.h"
+#include "SELMInternal.h"
+#include "TRPMInternal.h"
+#include "TMInternal.h"
+#include "IOMInternal.h"
+#include "REMInternal.h"
+#include "HWACCMInternal.h"
+#include "PATMInternal.h"
+#include "VMMInternal.h"
+#include "DBGFInternal.h"
+#include "STAMInternal.h"
+#include "CSAMInternal.h"
+#include "EMInternal.h"
+#include "REMInternal.h"
+#include <VBox/vmm/vm.h>
 #include <VBox/param.h>
 #include <VBox/x86.h>
 #include <iprt/assert.h>
@@ -124,11 +124,17 @@ int main()
     GEN_CHECK_OFF(DBGF, cBreakpoints);
     GEN_CHECK_OFF(DBGF, aHwBreakpoints);
     GEN_CHECK_OFF(DBGF, aBreakpoints);
+    GEN_CHECK_OFF(DBGF, hAsDbLock);
+    GEN_CHECK_OFF(DBGF, hRegDbLock);
+    GEN_CHECK_OFF(DBGF, RegSetSpace);
+    GEN_CHECK_OFF(DBGF, pCurOS);
     GEN_CHECK_SIZE(DBGFEVENT);
 
     GEN_CHECK_SIZE(DBGFCPU);
     GEN_CHECK_OFF(DBGFCPU, iActiveBp);
     GEN_CHECK_OFF(DBGFCPU, fSingleSteppingRaw);
+    GEN_CHECK_OFF(DBGFCPU, pGuestRegSet);
+    GEN_CHECK_OFF(DBGFCPU, pHyperRegSet);
 
     GEN_CHECK_SIZE(EM);
     GEN_CHECK_OFF(EM, offVM);

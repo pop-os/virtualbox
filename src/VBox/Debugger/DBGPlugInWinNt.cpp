@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInWinNt.cpp 31531 2010-08-10 12:29:45Z vboxsync $ */
+/* $Id: DBGPlugInWinNt.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGPlugInWindows - Debugger and Guest OS Digger Plugin For Windows NT.
  */
@@ -21,7 +21,7 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
 #include "DBGPlugIns.h"
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <iprt/string.h>

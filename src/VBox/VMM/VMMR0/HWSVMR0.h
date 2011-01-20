@@ -1,4 +1,4 @@
-/* $Id: HWSVMR0.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: HWSVMR0.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * HWACCM AMD-V - Internal header file.
  */
@@ -20,12 +20,12 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/em.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/em.h>
+#include <VBox/vmm/stam.h>
 #include <VBox/dis.h>
-#include <VBox/hwaccm.h>
-#include <VBox/pgm.h>
-#include <VBox/hwacc_svm.h>
+#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/hwacc_svm.h>
 
 RT_C_DECLS_BEGIN
 

@@ -1,4 +1,4 @@
-/* $Id: tstVMMR0CallHost-1.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstVMMR0CallHost-1.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Testcase for the VMMR0JMPBUF operations.
  */
@@ -28,7 +28,7 @@
 
 #define IN_VMM_R0
 #define IN_RING0 /* pretent we're in Ring-0 to get the prototypes. */
-#include <VBox/vmm.h>
+#include <VBox/vmm/vmm.h>
 #include "VMMInternal.h"
 
 

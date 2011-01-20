@@ -1,4 +1,4 @@
-/* $Id: PGMR0SharedPage.cpp 31441 2010-08-06 14:13:01Z vboxsync $ */
+/* $Id: PGMR0SharedPage.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * PGM - Page Manager and Monitor, Page Sharing, Ring-0.
  */
@@ -19,11 +19,11 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM_SHARED
-#include <VBox/pgm.h>
-#include <VBox/gmm.h>
-#include "../PGMInternal.h"
-#include <VBox/vm.h>
-#include "../PGMInline.h"
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/gmm.h>
+#include "PGMInternal.h"
+#include <VBox/vmm/vm.h>
+#include "PGMInline.h"
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>

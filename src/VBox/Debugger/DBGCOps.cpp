@@ -1,4 +1,4 @@
-/* $Id: DBGCOps.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DBGCOps.cpp 35513 2011-01-12 17:50:43Z vboxsync $ */
 /** @file
  * DBGC - Debugger Console, Operators.
  */
@@ -21,12 +21,12 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
-#include <VBox/dbgf.h>
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
-#include <VBox/mm.h>
-#include <VBox/pgm.h>
-#include <VBox/selm.h>
+#include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/selm.h>
 #include <VBox/dis.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
@@ -52,6 +52,7 @@ static DECLCALLBACK(int) dbgcOpPluss(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResu
 static DECLCALLBACK(int) dbgcOpBooleanNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
 static DECLCALLBACK(int) dbgcOpBitwiseNot(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
 static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
+static DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult);
 
 static DECLCALLBACK(int) dbgcOpAddrFar(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2, PDBGCVAR pResult);
 static DECLCALLBACK(int) dbgcOpMult(PDBGC pDbgc, PCDBGCVAR pArg1, PCDBGCVAR pArg2, PDBGCVAR pResult);
@@ -179,6 +180,7 @@ const DBGCOP g_aOps[] =
     { {'#'},            1,       false,      3,              dbgcOpAddrHost,     NULL,                       "Flat host address." },
     { {'#','%','%'},    3,       false,      3,              dbgcOpAddrHostPhys, NULL,                       "Physical host address." },
     { {'$'},            1,       false,      3,              dbgcOpVar,          NULL,                       "Reference a variable." },
+    { {'@'},            1,       false,      3,              dbgcOpRegister,     NULL,                       "Reference a register." },
     { {'*'},            1,       true,       10,             NULL,               dbgcOpMult,                 "Multiplication." },
     { {'/'},            1,       true,       11,             NULL,               dbgcOpDiv,                  "Division." },
     { {'%'},            1,       true,       12,             NULL,               dbgcOpMod,                  "Modulus." },
@@ -465,6 +467,79 @@ static DECLCALLBACK(int) dbgcOpVar(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult
     }
 
     return VERR_PARSE_VARIABLE_NOT_FOUND;
+}
+
+
+/**
+ * Reference register (unary).
+ *
+ * @returns VINF_SUCCESS on success.
+ * @returns VBox evaluation / parsing error code on failure.
+ *          The caller does the bitching.
+ * @param   pDbgc       Debugger console instance data.
+ * @param   pArg        The argument.
+ * @param   pResult     Where to store the result.
+ */
+static DECLCALLBACK(int) dbgcOpRegister(PDBGC pDbgc, PCDBGCVAR pArg, PDBGCVAR pResult)
+{
+    LogFlow(("dbgcOpRegister: %s\n", pArg->u.pszString));
+
+    /*
+     * Parse sanity.
+     */
+    if (pArg->enmType != DBGCVAR_TYPE_STRING)
+        return VERR_PARSE_INCORRECT_ARG_TYPE;
+
+    /*
+     * Get the register.
+     */
+    DBGFREGVALTYPE  enmType;
+    DBGFREGVAL      Value;
+    int rc = DBGFR3RegNmQuery(pDbgc->pVM, pDbgc->idCpu, pArg->u.pszString, &Value, &enmType);
+    if (RT_SUCCESS(rc))
+    {
+        rc = VERR_INTERNAL_ERROR_5;
+        switch (enmType)
+        {
+            case DBGFREGVALTYPE_U8:
+                DBGCVAR_INIT_NUMBER(pResult, Value.u8);
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_U16:
+                DBGCVAR_INIT_NUMBER(pResult, Value.u16);
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_U32:
+                DBGCVAR_INIT_NUMBER(pResult, Value.u32);
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_U64:
+                DBGCVAR_INIT_NUMBER(pResult, Value.u64);
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_U128:
+                DBGCVAR_INIT_NUMBER(pResult, Value.u128.s.Lo);
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_R80:
+#ifdef RT_COMPILER_WITH_80BIT_LONG_DOUBLE
+                DBGCVAR_INIT_NUMBER(pResult, (uint64_t)Value.r80.lrd);
+#else
+                DBGCVAR_INIT_NUMBER(pResult, (uint64_t)Value.r80.sj64.u63Fraction);
+#endif
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_DTR:
+                DBGCVAR_INIT_NUMBER(pResult, Value.dtr.u64Base);
+                return VINF_SUCCESS;
+
+            case DBGFREGVALTYPE_INVALID:
+            case DBGFREGVALTYPE_END:
+            case DBGFREGVALTYPE_32BIT_HACK:
+                break;
+        }
+    }
+    return rc;
 }
 
 

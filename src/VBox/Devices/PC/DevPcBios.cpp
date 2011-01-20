@@ -1,4 +1,4 @@
-/* $Id: DevPcBios.cpp 34458 2010-11-29 12:29:23Z vboxsync $ */
+/* $Id: DevPcBios.cpp 35400 2011-01-04 11:58:52Z vboxsync $ */
 /** @file
  * PC BIOS Device.
  */
@@ -19,9 +19,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_PC_BIOS
-#include <VBox/pdmdev.h>
-#include <VBox/mm.h>
-#include <VBox/pgm.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/pgm.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
@@ -34,8 +34,8 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 
-#include "../Builtins.h"
-#include "../Builtins2.h"
+#include "VBoxDD.h"
+#include "VBoxDD2.h"
 #include "DevPcBios.h"
 #include "DevFwCommon.h"
 
@@ -1351,8 +1351,10 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
      */
     if (pThis->pu8LanBoot == NULL)
     {
+#ifdef VBOX_WITH_PXE_ROM
         pu8LanBootBinary = g_abNetBiosBinary;
         cbLanBootBinary  = g_cbNetBiosBinary;
+#endif
     }
     else
     {

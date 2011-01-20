@@ -1,4 +1,4 @@
-/* $Id: UIBar.cpp 30868 2010-07-16 09:42:12Z vboxsync $ */
+/* $Id: UIBar.cpp 35424 2011-01-07 13:05:41Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -19,11 +19,14 @@
 
 /* Local includes */
 #include "UIBar.h"
+#include "UIImageTools.h"
+#include "VBoxGlobal.h"
 
 /* Global includes */
 #include <QPaintEvent>
 #include <QPainter>
 #include <QVBoxLayout>
+#include <QPixmapCache>
 
 UIBar::UIBar(QWidget *pParent /* = 0 */)
   : QWidget(pParent)
@@ -105,4 +108,32 @@ void UIBar::paintContent(QPainter *pPainter)
 }
 
 #endif /* !Q_WS_MAC */
+
+UIMainBar::UIMainBar(QWidget *pParent /* = 0 */)
+  : UIBar(pParent)
+  , m_fShowBetaLabel(false)
+{
+    /* Check for beta versions */
+    if (vboxGlobal().isBeta())
+        m_fShowBetaLabel = true;
+}
+
+void UIMainBar::paintEvent(QPaintEvent *pEvent)
+{
+    UIBar::paintEvent(pEvent);
+    if (m_fShowBetaLabel)
+    {
+        QPixmap betaLabel;
+        const QString key("vbox:betaLabelSleeve");
+        if (!QPixmapCache::find(key, betaLabel))
+        {
+            betaLabel = ::betaLabelSleeve();
+            QPixmapCache::insert(key, betaLabel);
+        }
+        QSize s = size();
+        QPainter painter(this);
+        painter.setClipRect(pEvent->rect());
+        painter.drawPixmap(s.width() - betaLabel.width(), 0, betaLabel);
+    }
+}
 

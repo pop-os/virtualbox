@@ -1,4 +1,4 @@
-/* $Id: DrvVDE.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DrvVDE.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VDE network transport driver.
  */
@@ -21,9 +21,9 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_TUN
 #include <VBox/log.h>
-#include <VBox/pdmdrv.h>
-#include <VBox/pdmnetifs.h>
-#include <VBox/pdmnetinline.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmnetifs.h>
+#include <VBox/vmm/pdmnetinline.h>
 #include <VBox/VDEPlug.h>
 
 #include <iprt/asm.h>
@@ -44,7 +44,7 @@
 #include <errno.h>
 #include <unistd.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

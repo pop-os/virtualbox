@@ -1,4 +1,4 @@
-/* $Id: KeyboardImpl.h 33849 2010-11-08 14:36:38Z vboxsync $ */
+/* $Id: KeyboardImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -22,7 +22,7 @@
 #include "ConsoleEvents.h"
 #include "EventImpl.h"
 
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 
 /** Limit of simultaneously attached devices (just USB and/or PS/2). */
 enum { KEYBOARD_MAX_DEVICES = 2 };

@@ -1,10 +1,10 @@
-/* $Id: MachineImpl.h 35175 2010-12-16 12:36:00Z vboxsync $ */
+/* $Id: MachineImpl.h 35460 2011-01-10 14:24:13Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -926,6 +926,8 @@ public:
     STDMETHOD(GetIPCId)(BSTR *id);
     STDMETHOD(BeginPowerUp)(IProgress *aProgress);
     STDMETHOD(EndPowerUp)(LONG iResult);
+    STDMETHOD(BeginPoweringDown)(IProgress **aProgress);
+    STDMETHOD(EndPoweringDown)(LONG aResult, IN_BSTR aErrMsg);
     STDMETHOD(RunUSBDeviceFilters)(IUSBDevice *aUSBDevice, BOOL *aMatched, ULONG *aMaskedIfs);
     STDMETHOD(CaptureUSBDevice)(IN_BSTR aId);
     STDMETHOD(DetachUSBDevice)(IN_BSTR aId, BOOL aDone);

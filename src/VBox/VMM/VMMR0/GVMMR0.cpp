@@ -1,4 +1,4 @@
-/* $Id: GVMMR0.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: GVMMR0.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * GVMM - Global VM Manager.
  */
@@ -50,12 +50,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_GVMM
-#include <VBox/gvmm.h>
-#include <VBox/gmm.h>
+#include <VBox/vmm/gvmm.h>
+#include <VBox/vmm/gmm.h>
 #include "GVMMR0Internal.h"
-#include <VBox/gvm.h>
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/gvm.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <iprt/asm.h>

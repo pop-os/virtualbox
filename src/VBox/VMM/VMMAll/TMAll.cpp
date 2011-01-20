@@ -1,4 +1,4 @@
-/* $Id: TMAll.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: TMAll.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * TM - Timeout Manager, all contexts.
  */
@@ -20,13 +20,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_TM
-#include <VBox/tm.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/tm.h>
+#include <VBox/vmm/mm.h>
 #ifdef IN_RING3
-# include <VBox/rem.h>
+# include <VBox/vmm/rem.h>
 #endif
 #include "TMInternal.h"
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 
 #include <VBox/param.h>
 #include <VBox/err.h>

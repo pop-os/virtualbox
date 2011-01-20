@@ -18,7 +18,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP   LOG_GROUP_USB_MSD
-#include <VBox/pdmusb.h>
+#include <VBox/vmm/pdmusb.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
@@ -27,7 +27,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************
@@ -615,8 +615,8 @@ static int usbHidCompleteStall(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb, cons
         pEp->fHalted = true;
     else
     {
+        pThis->aEps[0].fHalted = true;
         pThis->aEps[1].fHalted = true;
-        pThis->aEps[2].fHalted = true;
     }
 
     usbHidLinkDone(pThis, pUrb);

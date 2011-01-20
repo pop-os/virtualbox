@@ -1,4 +1,4 @@
-/* $Id: slirp.h 34103 2010-11-16 11:18:55Z vboxsync $ */
+/* $Id: slirp.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * NAT - slirp (declarations/defines).
  */
@@ -18,7 +18,7 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-#include <VBox/stam.h>
+#include <VBox/vmm/stam.h>
 
 #ifdef RT_OS_WINDOWS
 # include <winsock2.h>

@@ -1,4 +1,4 @@
-/* $Id: COMDefs.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: COMDefs.cpp 35524 2011-01-13 13:41:03Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -225,7 +225,15 @@ void COMBase::FromSafeArray (const com::SafeGUIDArray &aArr,
 
 void COMErrorInfo::init(const CVirtualBoxErrorInfo &info)
 {
-    AssertReturnVoid (!info.isNull());
+    if (info.isNull())
+    {
+        mIsNull = true;
+        mIsBasicAvailable = false;
+        mIsFullAvailable = false;
+        mResultCode = S_OK;
+        m_pNext = NULL;
+        AssertMsgFailedReturnVoid(("error info is NULL!\n"));
+    }
 
     bool gotSomething = false;
     bool gotAll = true;

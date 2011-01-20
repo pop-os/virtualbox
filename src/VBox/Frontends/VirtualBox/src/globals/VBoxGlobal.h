@@ -127,7 +127,8 @@ public:
     static QString qtCTVersionString();
     static uint qtCTVersion();
 
-    QString versionString() { return mVerString; }
+    QString versionString() const { return mVerString; }
+    bool isBeta() const;
 
     CVirtualBox virtualBox() const { return mVBox; }
 
@@ -144,6 +145,11 @@ public:
     /* main window handle storage */
     void setMainWindow (QWidget *aMainWindow) { mMainWindow = aMainWindow; }
     QWidget *mainWindow() const { return mMainWindow; }
+
+#ifdef VBOX_GUI_WITH_PIDFILE
+    void createPidfile();
+    void deletePidfile();
+#endif
 
     /* branding */
     bool brandingIsActive (bool aForce = false);
@@ -180,9 +186,9 @@ public:
 
     bool isStartPausedEnabled() const { return mStartPaused; }
 #else
-    bool isDebuggerAutoShowEnabled() const { return false; }
-    bool isDebuggerAutoShowCommandLineEnabled() const { return false; }
-    bool isDebuggerAutoShowStatisticsEnabled() const { return false; }
+    bool isDebuggerAutoShowEnabled(CMachine & /*aMachine*/) const { return false; }
+    bool isDebuggerAutoShowCommandLineEnabled(CMachine & /*aMachine*/) const { return false; }
+    bool isDebuggerAutoShowStatisticsEnabled(CMachine & /*aMachine*/) const { return false; }
 
     bool isStartPausedEnabled() const { return false; }
 #endif
@@ -594,7 +600,7 @@ public:
 
     QString openMediumWithFileOpenDialog(VBoxDefs::MediumType mediumType, QWidget *pParent = 0,
                                          const QString &strDefaultFolder = QString(), bool fUseLastFolder = true);
-    QString openMedium(VBoxDefs::MediumType mediumType, QString strMediumLocation);
+    QString openMedium(VBoxDefs::MediumType mediumType, QString strMediumLocation, QWidget *pParent = 0);
 
     /* Returns the number of current running Fe/Qt4 main windows. */
     int mainWindowCount();
@@ -860,6 +866,10 @@ private:
     QPixmap mWarningIcon, mErrorIcon;
 
     QFileIconProvider m_globalIconProvider;
+
+#ifdef VBOX_GUI_WITH_PIDFILE
+    QString m_strPidfile;
+#endif
 
     friend VBoxGlobal &vboxGlobal();
 };

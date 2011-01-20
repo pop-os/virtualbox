@@ -1,4 +1,4 @@
-; $Id: AMD64andLegacy.mac 34986 2010-12-13 10:38:20Z vboxsync $
+; $Id: AMD64andLegacy.mac 35418 2011-01-06 21:15:28Z vboxsync $
 ;; @file
 ; VMM - World Switchers, template for AMD64 to PAE and 32-bit.
 ;
@@ -24,11 +24,11 @@
 %include "VBox/asmdefs.mac"
 %include "VBox/apic.mac"
 %include "VBox/x86.mac"
-%include "VBox/cpum.mac"
-%include "VBox/stam.mac"
-%include "VBox/vm.mac"
+%include "VBox/vmm/cpum.mac"
+%include "VBox/vmm/stam.mac"
+%include "VBox/vmm/vm.mac"
 %include "CPUMInternal.mac"
-%include "VMMSwitcher/VMMSwitcher.mac"
+%include "VMMSwitcher.mac"
 
 
 ;
@@ -267,7 +267,6 @@ BEGINPROC vmmR0HostToGuestAsm
     rdmsr
     mov     [rbx + r8 + CPUMCPU.Host.efer], eax
     mov     [rbx + r8 + CPUMCPU.Host.efer + 4], edx
-    mov     ecx, MSR_K6_EFER
     mov     rdx, rbx
     ; special registers.
     sldt    [rdx + r8 + CPUMCPU.Host.ldtr]

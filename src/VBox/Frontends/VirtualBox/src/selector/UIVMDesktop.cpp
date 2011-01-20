@@ -1,4 +1,4 @@
-/* $Id: UIVMDesktop.cpp 33471 2010-10-26 14:19:13Z vboxsync $ */
+/* $Id: UIVMDesktop.cpp 35415 2011-01-06 17:33:14Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -1357,7 +1357,11 @@ UIVMDesktop::UIVMDesktop(UIToolBar *pToolBar, QAction *pRefreshAction, QWidget *
         pToolBar->addWidget(new UIHorizontalSpacerWidget(this));
         pToolBar->addWidget(m_pHeaderBtn);
         QWidget *pSpace = new QWidget(this);
-        pSpace->setFixedSize(10, 1);
+        /* We need a little bit more space for the beta label. */
+        if (vboxGlobal().isBeta())
+            pSpace->setFixedSize(28, 1);
+        else
+            pSpace->setFixedSize(10, 1);
         pToolBar->addWidget(pSpace);
         pToolBar->updateLayout();
     } else

@@ -1,4 +1,4 @@
-/* $Id: socket.c 34103 2010-11-16 11:18:55Z vboxsync $ */
+/* $Id: socket.c 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * NAT - socket handling.
  */
@@ -31,7 +31,7 @@
 #ifdef __sun__
 #include <sys/filio.h>
 #endif
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #if defined (RT_OS_WINDOWS)
 #include <iphlpapi.h>
 #include <icmpapi.h>

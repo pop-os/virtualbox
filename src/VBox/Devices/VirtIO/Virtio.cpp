@@ -1,4 +1,4 @@
-/* $Id: Virtio.cpp 33325 2010-10-21 20:34:14Z vboxsync $ */
+/* $Id: Virtio.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Virtio - Virtio Common Functions (VRing, VQueue, Virtio PCI)
  */
@@ -20,7 +20,7 @@
 
 #include <iprt/param.h>
 #include <iprt/uuid.h>
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include "Virtio.h"
 
 #define INSTANCE(pState) pState->szInstance

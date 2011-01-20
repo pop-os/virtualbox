@@ -1,4 +1,4 @@
-/* $Id: DevAPIC.cpp 33595 2010-10-29 10:35:00Z vboxsync $ */
+/* $Id: DevAPIC.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * Advanced Programmable Interrupt Controller (APIC) Device and
  * I/O Advanced Programmable Interrupt Controller (IO-APIC) Device.
@@ -25,16 +25,16 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_APIC
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 
 #include <VBox/log.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/stam.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 
 #include <VBox/msi.h>
 
-#include "Builtins2.h"
+#include "VBoxDD2.h"
 
 #define MSR_IA32_APICBASE               0x1b
 #define MSR_IA32_APICBASE_BSP           (1<<8)

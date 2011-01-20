@@ -1,4 +1,4 @@
-/* $Id: UIFrameBufferQuartz2D.cpp 35281 2010-12-21 17:08:46Z vboxsync $ */
+/* $Id: UIFrameBufferQuartz2D.cpp 35615 2011-01-18 14:48:41Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -398,7 +398,7 @@ void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
 //        int bitmapBytesPerRow = RT_ALIGN (m_width * 4, 16);
         int bitmapBytesPerRow = m_width * 4;
         int bitmapByteCount = (bitmapBytesPerRow * m_height);
-        m_pBitmapData = RTMemAlloc(bitmapByteCount);
+        m_pBitmapData = RTMemAllocZ(bitmapByteCount);
         CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, m_pBitmapData, bitmapByteCount, NULL);
         m_image = CGImageCreate(m_width, m_height, 8, 32, bitmapBytesPerRow, cs,
                                 kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,

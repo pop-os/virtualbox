@@ -1,5 +1,175 @@
 <?xml version="1.0" encoding="UTF-8"?>
- 
+
+  <sect1>
+    <title>Version 4.0.2 (2011-01-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: don't crash if a removable host drive referenced from the VM
+          settings vanished</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a crash when using the KDE4 Oxygen theme and clicked
+          on the settings button (4.0 regression; bug #7875)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: properly warn if the machine folder cannot be
+          created (bug #8031)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: several fixes for multimonitor X11 guests</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: don't make the installer helper application suid root
+          (Linux .deb/.rpm packages only)</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: improved user experience on Vista / Windows 7 when installing
+          an extension pack</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: fixed issue with non-ascii characters in the path name
+          during installing an extension pack (bug #9717)</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: fixed SELinux issues on 32-bit Linux hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Host-only interface creation and removal is now
+          supported for all platforms except Solaris (bug #7741)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed segmentation fault when removing non-existent
+          host-only interface</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed possible crashes with VMDK/VHD images with snapshots
+          and async I/O (4.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: don't eject the physical medium if a DVD/CDROM/floppy drive is
+          detached from a VM (bug #5825)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: be more robust when a faulty guest sends ATA commands to an
+          ATAPI device (bug #6597)</para>
+      </listitem>
+
+      <listitem>
+        <para>Parallels: fixed deletion of the image during suspend, pause or
+          power off (4.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged networking: fixed host kernel panic when bridging
+          to devices with no TX queue (4.0 regression; Linux hosts only; bug #7908)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: port-forwarding rule registration respects protocol parameter (bug #8094)</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: fixed PXE boot issues with WDS (bug #6330)</para>
+      </listitem>
+
+      <listitem>
+        <para>Virtio-net: fixed the issue with TX performance in some Linux
+          guests</para>
+      </listitem>
+
+      <listitem>
+        <para>ICH9: fixed VM crash (software virtualization only; bug #7885)</para>
+      </listitem>
+
+      <listitem>
+        <para>VGA: fixed VESA screen issue (4.0 regression; bug #7986)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: fixed parameter parsing when creating symbolic
+          links, fixes 32-bit/64-bit bitness issue (bug #818)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed crash under rare circumstances due to an invalid
+          logging string (4.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: improve error information propagation for errors preventing
+          a VM start</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed problems with snapshots and non-ASCII characters in
+          machine paths (bug #8024)</para>
+      </listitem>
+
+      <listitem>
+        <para>Webservice: now listens to localhost by default as documented
+          (bug #6067)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: do not fail loading machine settings if removeable drive attachment (host drive or image)
+          cannot be found; with 4.0 this is much more likely when machines are moved from one host to another</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: fixed issue that changing a snapshot name or description was
+          not saved to machine XML</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF/OVA: fixed import of files created by other OVF tools (bug
+         #7983)</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: fix a crash during USB device enumeration (bug
+         #7981)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed a crash during USB device enumeration.</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: try a bit harder to allocate memory (bug #8035; 4.0
+          regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: fixed parsing of parameters for guest control in
+          VBoxService (4.0 regression; bug #8010)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: automatic logon on Windows Vista/Windows 7 now supports
+          unlocking previously locked workstations</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
   <sect1>
     <title>Version 4.0.0 (2010-12-22)</title>
 

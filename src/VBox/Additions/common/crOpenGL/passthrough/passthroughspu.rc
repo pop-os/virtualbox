@@ -1,4 +1,4 @@
-/* $Id: passthroughspu.rc 32394 2010-09-10 12:13:11Z vboxsync $ */
+/* $Id: passthroughspu.rc 35319 2010-12-24 15:42:36Z vboxsync $ */
 /** @file
  * VBoxOGLpassthroughspu - Resource file containing version info and icon.
  */
@@ -38,7 +38,11 @@ BEGIN
          VALUE "FileVersion",      VBOX_VERSION_MAJOR "." VBOX_VERSION_MINOR "." VBOX_VERSION_BUILD "." VBOX_SVN_REV "\0"
          VALUE "InternalName",     "VBoxOGLpassthroughspu\0"
          VALUE "LegalCopyright",   VBOX_RC_LEGAL_COPYRIGHT
+#ifdef VBOX_WDDM_WOW64
+         VALUE "OriginalFilename", "VBoxOGLpassthroughspu-x86.dll\0"
+#else
          VALUE "OriginalFilename", "VBoxOGLpassthroughspu.dll\0"
+#endif
          VALUE "ProductName",      VBOX_PRODUCT " Guest Additions\0"
          VALUE "ProductVersion",   VBOX_VERSION_MAJOR "." VBOX_VERSION_MINOR "." VBOX_VERSION_BUILD ".r" VBOX_SVN_REV "\0"
       END

@@ -1,4 +1,4 @@
-/* $Id: DevLPC.cpp 35286 2010-12-22 08:22:33Z vboxsync $ */
+/* $Id: DevLPC.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DevLPC - LPC device emulation
  */
@@ -47,13 +47,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_LPC
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <VBox/log.h>
-#include <VBox/stam.h>
+#include <VBox/vmm/stam.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 
-#include "../Builtins2.h"
+#include "VBoxDD2.h"
 
 #define RCBA_BASE                0xFED1C000
 

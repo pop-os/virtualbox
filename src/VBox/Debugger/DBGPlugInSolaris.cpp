@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInSolaris.cpp 35254 2010-12-20 16:49:31Z vboxsync $ */
+/* $Id: DBGPlugInSolaris.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * DBGPlugInSolaris - Debugger and Guest OS Digger Plugin For Solaris.
  */
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DBGF ///@todo add new log group.
 #include "DBGPlugIns.h"
 #include "DBGPlugInCommonELF.h"
-#include <VBox/dbgf.h>
+#include <VBox/vmm/dbgf.h>
 #include <iprt/asm.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>

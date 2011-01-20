@@ -1,10 +1,10 @@
-/* $Id: ConsoleImpl.h 35171 2010-12-16 10:53:50Z vboxsync $ */
+/* $Id: ConsoleImpl.h 35460 2011-01-10 14:24:13Z vboxsync $ */
 /** @file
  * VBox Console COM Class definition
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,13 +44,13 @@ class ExtPackManager;
 #endif
 
 #include <VBox/RemoteDesktop/VRDE.h>
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>  /* For the property notification callback */
 #endif
 
 #ifdef RT_OS_WINDOWS
-# include "win/VBoxComEvents.h"
+# include "../src-server/win/VBoxComEvents.h"
 #endif
 
 struct VUSBIRHCONFIG;
@@ -434,7 +434,7 @@ private:
     HRESULT consoleInitReleaseLog(const ComPtr<IMachine> aMachine);
 
     HRESULT powerUp(IProgress **aProgress, bool aPaused);
-    HRESULT powerDown(Progress *aProgress = NULL);
+    HRESULT powerDown(IProgress *aProgress = NULL);
 
     HRESULT callTapSetupApplication(bool isStatic, RTFILE tapFD, Bstr &tapDevice,
                                     Bstr &tapSetupApplication);

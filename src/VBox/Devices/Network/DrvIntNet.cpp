@@ -1,4 +1,4 @@
-/* $Id: DrvIntNet.cpp 34335 2010-11-24 17:49:09Z vboxsync $ */
+/* $Id: DrvIntNet.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * DrvIntNet - Internal network transport driver.
  */
@@ -19,13 +19,13 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_INTNET
-#include <VBox/pdmdrv.h>
-#include <VBox/pdmnetinline.h>
-#include <VBox/pdmnetifs.h>
-#include <VBox/cfgm.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmnetinline.h>
+#include <VBox/vmm/pdmnetifs.h>
+#include <VBox/vmm/cfgm.h>
 #include <VBox/intnet.h>
 #include <VBox/intnetinline.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/sup.h>
 #include <VBox/err.h>
 
@@ -42,7 +42,7 @@
 #include <iprt/thread.h>
 #include <iprt/uuid.h>
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

@@ -1,4 +1,4 @@
-/* $Id: UsbMsd.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: UsbMsd.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * UsbMSD - USB Mass Storage Device Emulation.
  */
@@ -19,7 +19,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP   LOG_GROUP_USB_MSD
-#include <VBox/pdmusb.h>
+#include <VBox/vmm/pdmusb.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/scsi.h>
@@ -29,7 +29,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 
 /*******************************************************************************

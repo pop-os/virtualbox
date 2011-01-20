@@ -1,4 +1,4 @@
-/* $Id: VMMDev.h 30776 2010-07-12 08:05:23Z vboxsync $ */
+/* $Id: VMMDev.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox frontends: Basic Frontend (BFE):
  * Declaration of VMMDev: driver interface to VMM device
@@ -19,7 +19,7 @@
 #ifndef ____H_VMMDEV
 #define ____H_VMMDEV
 
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 
 class VMMDev
 {

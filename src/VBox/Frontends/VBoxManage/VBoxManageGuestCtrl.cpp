@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestCtrl.cpp 35057 2010-12-14 09:52:23Z vboxsync $ */
+/* $Id: VBoxManageGuestCtrl.cpp 35541 2011-01-13 15:41:29Z vboxsync $ */
 /** @file
  * VBoxManage - Implementation of guestcontrol command.
  */
@@ -41,6 +41,7 @@
 #include <iprt/getopt.h>
 #include <iprt/list.h>
 #include <iprt/path.h>
+#include <iprt/thread.h>
 
 #ifdef USE_XPCOM_QUEUE
 # include <sys/select.h>
@@ -315,7 +316,6 @@ static int handleCtrlExecProgram(HandlerArg *a)
     bool fWaitForStdOut = false;
     bool fWaitForStdErr = false;
     bool fVerbose = false;
-    bool fTimeout = false;
 
     int vrc = VINF_SUCCESS;
     bool fUsageOK = true;
@@ -372,7 +372,6 @@ static int handleCtrlExecProgram(HandlerArg *a)
 
             case 't': /* Timeout */
                 u32TimeoutMS = ValueUnion.u32;
-                fTimeout = true;
                 break;
 
             case 'u': /* User name */
@@ -459,16 +458,15 @@ static int handleCtrlExecProgram(HandlerArg *a)
                 RTPrintf("Process '%s' (PID: %u) started\n", Utf8Cmd.c_str(), uPID);
             if (fWaitForExit)
             {
-                if (fTimeout)
+                if (u32TimeoutMS) /* Wait with a certain timeout. */
                 {
                     /* Calculate timeout value left after process has been started.  */
                     uint64_t u64Elapsed = RTTimeMilliTS() - u64StartMS;
                     /* Is timeout still bigger than current difference? */
                     if (u32TimeoutMS > u64Elapsed)
                     {
-                        u32TimeoutMS -= (uint32_t)u64Elapsed;
                         if (fVerbose)
-                            RTPrintf("Waiting for process to exit (%ums left) ...\n", u32TimeoutMS);
+                            RTPrintf("Waiting for process to exit (%ums left) ...\n", u32TimeoutMS - u64Elapsed);
                     }
                     else
                     {
@@ -476,7 +474,7 @@ static int handleCtrlExecProgram(HandlerArg *a)
                             RTPrintf("No time left to wait for process!\n");
                     }
                 }
-                else if (fVerbose)
+                else if (fVerbose) /* Wait forever. */
                     RTPrintf("Waiting for process to exit ...\n");
 
                 /* Setup signal handling if cancelable. */
@@ -504,13 +502,12 @@ static int handleCtrlExecProgram(HandlerArg *a)
                         || fWaitForStdErr)
                     {
                         rc = guest->GetProcessOutput(uPID, 0 /* aFlags */,
-                                                     u32TimeoutMS, _64K, ComSafeArrayAsOutParam(aOutputData));
+                                                     RT_MAX(0, u32TimeoutMS - (RTTimeMilliTS() - u64StartMS)) /* Timeout in ms */,
+                                                     _64K, ComSafeArrayAsOutParam(aOutputData));
                         if (FAILED(rc))
                         {
                             vrc = ctrlPrintError(guest, COM_IIDOF(IGuest));
-
                             cbOutputData = 0;
-                            fCompleted = true; /* rc contains a failure, so we'll go into aborted state down below. */
                         }
                         else
                         {
@@ -538,18 +535,10 @@ static int handleCtrlExecProgram(HandlerArg *a)
                             }
                         }
                     }
-                    if (cbOutputData <= 0) /* No more output data left? */
-                    {
-                        if (fCompleted)
-                            break;
 
-                        if (   fTimeout
-                            && RTTimeMilliTS() - u64StartMS > u32TimeoutMS + 5000)
-                        {
-                            progress->Cancel();
-                            break;
-                        }
-                    }
+                    /* No more output data left? Then wait a little while ... */
+                    if (cbOutputData <= 0)
+                        progress->WaitForCompletion(1 /* ms */);
 
                     /* Process async cancelation */
                     if (g_fGuestCtrlCanceled && !fCanceledAlready)
@@ -565,6 +554,14 @@ static int handleCtrlExecProgram(HandlerArg *a)
                     if (   SUCCEEDED(progress->COMGETTER(Canceled(&fCanceled)))
                         && fCanceled)
                     {
+                        break;
+                    }
+
+                    /* Did we run out of time? */
+                    if (   u32TimeoutMS
+                        && RTTimeMilliTS() - u64StartMS > u32TimeoutMS)
+                    {
+                        progress->Cancel();
                         break;
                     }
                 }

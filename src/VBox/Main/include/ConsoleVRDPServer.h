@@ -1,7 +1,5 @@
-/* $Id: ConsoleVRDPServer.h 34906 2010-12-09 16:29:49Z vboxsync $ */
-
+/* $Id: ConsoleVRDPServer.h 35374 2010-12-30 14:42:15Z vboxsync $ */
 /** @file
- *
  * VBox Console VRDE Server Helper class and implementation of IVRDEServerInfo
  */
 
@@ -21,7 +19,7 @@
 #define ____H_CONSOLEVRDPSERVER
 
 #include "RemoteUSBBackend.h"
-#include <hgcm/HGCM.h>
+#include "HGCM.h"
 
 #include <VBox/VBoxAuth.h>
 

@@ -1,4 +1,4 @@
-/* $Id: VBoxDbgBase.h 31530 2010-08-10 12:24:45Z vboxsync $ */
+/* $Id: VBoxDbgBase.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox Debugger GUI - Base classes.
  */
@@ -20,8 +20,8 @@
 #define ___Debugger_VBoxDbgBase_h
 
 
-#include <VBox/stam.h>
-#include <VBox/vmapi.h>
+#include <VBox/vmm/stam.h>
+#include <VBox/vmm/vmapi.h>
 #include <VBox/dbg.h>
 #include <iprt/thread.h>
 #include <QString>

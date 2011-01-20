@@ -1,4 +1,4 @@
-/* $Id: tstHelp.h 30217 2010-06-16 01:43:23Z vboxsync $ */
+/* $Id: tstHelp.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VMM testcase - Helper stuff.
  */
@@ -19,7 +19,7 @@
 #define ___tstHelp_h
 
 #include <VBox/cdefs.h>
-#include <VBox/cpum.h>
+#include <VBox/vmm/cpum.h>
 
 RT_C_DECLS_BEGIN
 void tstDumpCtx(PCPUMCTX pCtx, const char *pszComment);

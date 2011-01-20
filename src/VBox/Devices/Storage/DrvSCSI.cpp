@@ -1,4 +1,4 @@
-/* $Id: DrvSCSI.cpp 34452 2010-11-29 11:20:09Z vboxsync $ */
+/* $Id: DrvSCSI.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox storage drivers: Generic SCSI command parser and execution driver
  */
@@ -20,9 +20,9 @@
 *******************************************************************************/
 //#define DEBUG
 #define LOG_GROUP LOG_GROUP_DRV_SCSI
-#include <VBox/pdmdrv.h>
-#include <VBox/pdmifs.h>
-#include <VBox/pdmthread.h>
+#include <VBox/vmm/pdmdrv.h>
+#include <VBox/vmm/pdmifs.h>
+#include <VBox/vmm/pdmthread.h>
 #include <VBox/vscsi.h>
 #include <VBox/scsi.h>
 #include <iprt/asm.h>
@@ -33,7 +33,7 @@
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 
-#include "Builtins.h"
+#include "VBoxDD.h"
 
 /** The maximum number of release log entries per device. */
 #define MAX_LOG_REL_ERRORS  1024

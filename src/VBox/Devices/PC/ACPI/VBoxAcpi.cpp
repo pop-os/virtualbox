@@ -1,4 +1,4 @@
-/* $Id: VBoxAcpi.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VBoxAcpi.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBoxAcpi - VirtualBox ACPI manipulation functionality.
  */
@@ -20,12 +20,12 @@
 #endif
 
 #define LOG_GROUP LOG_GROUP_DEV_ACPI
-#include <VBox/pdmdev.h>
-#include <VBox/pgm.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pgm.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
-#include <VBox/cfgm.h>
-#include <VBox/mm.h>
+#include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/mm.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/string.h>

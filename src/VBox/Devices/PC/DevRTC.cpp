@@ -1,4 +1,4 @@
-/* $Id: DevRTC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DevRTC.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * Motorola MC146818 RTC/CMOS Device with PIIX4 extensions.
  */
@@ -44,7 +44,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_RTC
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <VBox/log.h>
 #include <iprt/asm-math.h>
 #include <iprt/assert.h>
@@ -55,7 +55,7 @@
 # include <iprt/uuid.h>
 #endif /* IN_RING3 */
 
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 struct RTCState;
 typedef struct RTCState RTCState;

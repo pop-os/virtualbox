@@ -1,4 +1,4 @@
-/* $Id: tstAnimate.cpp 32190 2010-09-02 12:20:06Z vboxsync $ */
+/* $Id: tstAnimate.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VBox Animation Testcase / Tool.
  */
@@ -19,17 +19,17 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <VBox/vm.h>
-#include <VBox/vmm.h>
-#include <VBox/cpum.h>
-#include <VBox/cfgm.h>
-#include <VBox/em.h>
-#include <VBox/pgm.h>
-#include <VBox/rem.h>
-#include <VBox/ssm.h>
-#include <VBox/dbgf.h>
+#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/cpum.h>
+#include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/em.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/rem.h>
+#include <VBox/vmm/ssm.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
-#include <VBox/pdmifs.h>
+#include <VBox/vmm/pdmifs.h>
 #include <VBox/param.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>

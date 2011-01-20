@@ -1,4 +1,4 @@
-/* $Id: DevBusLogic.cpp 34433 2010-11-27 11:09:38Z vboxsync $ */
+/* $Id: DevBusLogic.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
 /** @file
  * VBox storage devices: BusLogic SCSI host adapter BT-958.
  */
@@ -22,9 +22,9 @@
 *******************************************************************************/
 //#define DEBUG
 #define LOG_GROUP LOG_GROUP_DEV_BUSLOGIC
-#include <VBox/pdmdev.h>
-#include <VBox/pdmifs.h>
-#include <VBox/pdmcritsect.h>
+#include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmifs.h>
+#include <VBox/vmm/pdmcritsect.h>
 #include <VBox/scsi.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -38,7 +38,7 @@
 #endif
 
 #include "VBoxSCSI.h"
-#include "../Builtins.h"
+#include "VBoxDD.h"
 
 /* Maximum number of attached devices the adapter can handle. */
 #define BUSLOGIC_MAX_DEVICES 16

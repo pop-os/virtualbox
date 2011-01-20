@@ -1,4 +1,4 @@
-/* $Id: UISession.cpp 35141 2010-12-15 15:51:59Z vboxsync $ */
+/* $Id: UISession.cpp 35564 2011-01-14 13:52:02Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -279,6 +279,10 @@ void UISession::powerUp()
            machine.GetAccelerate2DVideoEnabled() && VBoxGlobal::isAcceleration2DVideoAvailable()
                  ? "enabled"
                  : "disabled"));
+#endif
+
+#ifdef VBOX_GUI_WITH_PIDFILE
+    vboxGlobal().createPidfile();
 #endif
 
     /* Warn listeners about machine was started: */

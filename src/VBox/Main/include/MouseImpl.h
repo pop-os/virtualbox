@@ -1,4 +1,4 @@
-/* $Id: MouseImpl.h 35212 2010-12-16 23:15:43Z vboxsync $ */
+/* $Id: MouseImpl.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -24,7 +24,7 @@
 #ifndef VBOXBFE_WITHOUT_COM
 #include "EventImpl.h"
 #endif
-#include <VBox/pdmdrv.h>
+#include <VBox/vmm/pdmdrv.h>
 
 /** Maximum number of devices supported */
 enum { MOUSE_MAX_DEVICES = 3 };

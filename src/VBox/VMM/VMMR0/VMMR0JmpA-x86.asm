@@ -1,4 +1,4 @@
-; $Id: VMMR0JmpA-x86.asm 33540 2010-10-28 09:27:05Z vboxsync $
+; $Id: VMMR0JmpA-x86.asm 35334 2010-12-27 12:27:46Z vboxsync $
 ;; @file
 ; VMM - R0 SetJmp / LongJmp routines for X86.
 ;
@@ -19,7 +19,7 @@
 ;* Header Files                                                                *
 ;*******************************************************************************
 %include "VBox/asmdefs.mac"
-%include "../VMMInternal.mac"
+%include "VMMInternal.mac"
 %include "iprt/err.mac"
 %include "VBox/param.mac"
 

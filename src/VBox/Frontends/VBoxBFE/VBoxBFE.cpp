@@ -1,4 +1,4 @@
-/* $Id: VBoxBFE.cpp 33590 2010-10-29 08:55:09Z vboxsync $ */
+/* $Id: VBoxBFE.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * Basic Frontend (BFE): VBoxBFE main routines.
  *
@@ -36,7 +36,7 @@ using namespace com;
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
-#include <VBox/pdm.h>
+#include <VBox/vmm/pdm.h>
 #include <VBox/version.h>
 #ifdef VBOXBFE_WITH_USB
 # include <VBox/vusb.h>

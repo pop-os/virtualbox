@@ -1,4 +1,4 @@
-/* $Id: VBoxGlobal.cpp 35191 2010-12-16 15:25:20Z vboxsync $ */
+/* $Id: VBoxGlobal.cpp 35564 2011-01-14 13:52:02Z vboxsync $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -64,6 +64,10 @@
 #include <QDir>
 #include <QHelpEvent>
 #include <QLocale>
+
+#ifdef VBOX_GUI_WITH_PIDFILE
+# include <QTextStream>
+#endif /* VBOX_GUI_WITH_PIDFILE */
 
 #include <math.h>
 
@@ -363,6 +367,11 @@ uint VBoxGlobal::qtCTVersion()
            ct_ver_str.section ('.', 2, 2).toInt();
 }
 
+bool VBoxGlobal::isBeta() const
+{
+    return mVBox.GetVersion().contains("BETA", Qt::CaseInsensitive);
+}
+
 /**
  *  Sets the new global settings and saves them to the VirtualBox server.
  */
@@ -438,6 +447,31 @@ UIMachine* VBoxGlobal::virtualMachine()
 {
     return m_pVirtualMachine;
 }
+
+#ifdef VBOX_GUI_WITH_PIDFILE
+void VBoxGlobal::createPidfile()
+{
+    if (!m_strPidfile.isEmpty())
+    {
+        qint64 pid = qApp->applicationPid();
+        QFile file(m_strPidfile);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        {
+             QTextStream out(&file);
+             out << pid << endl;
+        }
+        else
+            LogRel(("Failed to create pid file %s\n", m_strPidfile.toUtf8().constData()));
+    }
+}
+
+void VBoxGlobal::deletePidfile()
+{
+    if (   !m_strPidfile.isEmpty()
+        && QFile::exists(m_strPidfile))
+        QFile::remove(m_strPidfile);
+}
+#endif
 
 bool VBoxGlobal::brandingIsActive (bool aForce /* = false*/)
 {
@@ -2654,12 +2688,12 @@ QString VBoxGlobal::openMediumWithFileOpenDialog(VBoxDefs::MediumType mediumType
 
     /* If dialog has some result: */
     if (!files.empty() && !files[0].isEmpty())
-        return openMedium(mediumType, files[0]);
+        return openMedium(mediumType, files[0], pParent);
 
     return QString();
 }
 
-QString VBoxGlobal::openMedium(VBoxDefs::MediumType mediumType, QString strMediumLocation)
+QString VBoxGlobal::openMedium(VBoxDefs::MediumType mediumType, QString strMediumLocation, QWidget *pParent /* = 0*/)
 {
     /* Convert to native separators: */
     strMediumLocation = QDir::toNativeSeparators(strMediumLocation);
@@ -2702,7 +2736,7 @@ QString VBoxGlobal::openMedium(VBoxDefs::MediumType mediumType, QString strMediu
         return vboxMedium.id();
     }
     else
-        vboxProblem().cannotOpenMedium(0, vbox, mediumType, strMediumLocation);
+        vboxProblem().cannotOpenMedium(pParent, vbox, mediumType, strMediumLocation);
 
     return QString();
 }
@@ -5000,6 +5034,13 @@ void VBoxGlobal::init()
                 startVM = true;
             }
         }
+#ifdef VBOX_GUI_WITH_PIDFILE
+        else if (!::strcmp(arg, "-pidfile") || !::strcmp(arg, "--pidfile"))
+        {
+            if (++i < argc)
+                m_strPidfile = QString(qApp->argv()[i]);
+        }
+#endif /* VBOX_GUI_WITH_PIDFILE */
         else if (!::strcmp(arg, "-seamless") || !::strcmp(arg, "--seamless"))
         {
             bForceSeamless = true;
@@ -5166,6 +5207,10 @@ void VBoxGlobal::cleanup()
             AssertWrapperOk (mVBox);
         }
     }
+#endif
+
+#ifdef VBOX_GUI_WITH_PIDFILE
+    deletePidfile();
 #endif
 
     /* Destroy our event handlers */

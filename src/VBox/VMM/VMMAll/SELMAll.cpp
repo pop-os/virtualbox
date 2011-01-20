@@ -1,4 +1,4 @@
-/* $Id: SELMAll.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: SELMAll.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * SELM All contexts.
  */
@@ -20,18 +20,18 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_SELM
-#include <VBox/selm.h>
-#include <VBox/stam.h>
-#include <VBox/mm.h>
-#include <VBox/pgm.h>
+#include <VBox/vmm/selm.h>
+#include <VBox/vmm/stam.h>
+#include <VBox/vmm/mm.h>
+#include <VBox/vmm/pgm.h>
 #include "SELMInternal.h"
-#include <VBox/vm.h>
+#include <VBox/vmm/vm.h>
 #include <VBox/x86.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>
-#include <VBox/vmm.h>
+#include <VBox/vmm/vmm.h>
 
 
 

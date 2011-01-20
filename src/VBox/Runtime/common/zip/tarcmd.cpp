@@ -1,4 +1,4 @@
-/* $Id: tarcmd.cpp 34179 2010-11-18 15:49:17Z vboxsync $ */
+/* $Id: tarcmd.cpp 35351 2010-12-27 17:04:17Z vboxsync $ */
 /** @file
  * IPRT - TAR Command.
  */
@@ -666,5 +666,4 @@ RTDECL(RTEXITCODE) RTZipTarCmd(unsigned cArgs, char **papszArgs)
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "Internal error");
     }
 }
-
 

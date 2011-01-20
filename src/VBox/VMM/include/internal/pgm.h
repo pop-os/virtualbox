@@ -1,4 +1,4 @@
-/* $Id: pgm.h 32302 2010-09-08 09:21:30Z vboxsync $ */
+/* $Id: pgm.h 35346 2010-12-27 16:13:13Z vboxsync $ */
 /** @file
  * PGM - Internal VMM header file.
  */
@@ -18,7 +18,7 @@
 #ifndef ___PGM_include_internal_h
 #define ___PGM_include_internal_h
 
-#include <VBox/pgm.h>
+#include <VBox/vmm/pgm.h>
 
 /** @defgroup grp_pgm_int   Internals
  * @ingroup grp_pgm

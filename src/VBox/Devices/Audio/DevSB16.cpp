@@ -1,4 +1,4 @@
-/* $Id: DevSB16.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DevSB16.cpp 35487 2011-01-11 13:45:20Z vboxsync $ */
 /** @file
  * DevSB16 - VBox SB16 Audio Controller.
  *
@@ -32,11 +32,11 @@
  */
 
 #define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/pdmdev.h>
+#include <VBox/vmm/pdmdev.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
-#include "../vl_vbox.h"
+#include "vl_vbox.h"
 
 extern "C" {
 #include "audio.h"
@@ -1899,8 +1899,9 @@ static DECLCALLBACK(int) sb16Construct (PPDMDEVINS pDevIns, int iInstance, PCFGM
     AUD_register_card("sb16", &s->card);
     legacy_reset(s);
 
-    if (!s->voice)
+    if (!AUD_is_host_voice_out_ok(s->voice))
     {
+        LogRel (("SB16: WARNING: Unable to open PCM OUT!\n"));
         AUD_close_out(&s->card, s->voice);
         s->voice = NULL;
         AUD_init_null();

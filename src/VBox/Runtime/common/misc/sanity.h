@@ -1,4 +1,4 @@
-/* $Id: sanity.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: sanity.h 35512 2011-01-12 17:50:12Z vboxsync $ */
 /** @file
  * IPRT - Setup Sanity Checks, C and C++.
  */
@@ -208,4 +208,8 @@ AssertCompileSize(RTUINT16U,  2);
 AssertCompileSize(RTUINT32U,  4);
 AssertCompileSize(RTUINT64U,  8);
 AssertCompileSize(RTUINT128U, 16);
+/*AssertCompileSize(RTFLOAT32U, 8);*/
+AssertCompileSize(RTFLOAT64U, 8);
+AssertCompileSize(RTFLOAT80U, 10);
+/*AssertCompileSize(RTFLOAT128U, 16);*/
 
