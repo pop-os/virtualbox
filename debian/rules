@@ -232,6 +232,9 @@ override_dh_shlibdeps:
 	    -dRecommends debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -dDepends
 	dh_shlibdeps --remaining-packages
 
+override_dh_compress:
+	dh_compress -X.pdf
+
 override_dh_auto_clean:
 	dh_auto_clean
 
