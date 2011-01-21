@@ -1,6 +1,4 @@
 /usr/share/virtualbox/VBox.sh /usr/bin/virtualbox
 /usr/share/virtualbox/VBox.sh /usr/bin/VirtualBox
 
-/usr/share/icons/hicolor/32x32/apps/virtualbox-ose.png /usr/share/pixmaps/virtualbox-ose.png
-
 /usr/share/man/man1/VirtualBox.1 /usr/share/man/man1/virtualbox.1
