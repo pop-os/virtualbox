@@ -1,7 +1,8 @@
 virtualbox-ose (4.0.2-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
-    - Ships with a manual and upstream changelog. (Closes: #483702, #541127)
+    - Ships with a manual and upstream changelog.
+      (Closes: #483702, #541127; LP: #243782)
   * Adapt patches for new upstream version.
   * Add new required build-dependencies:
     default-jdk, genisoimage, makeself, texlive-fonts-extra,
