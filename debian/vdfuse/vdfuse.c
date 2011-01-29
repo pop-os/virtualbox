@@ -25,6 +25,7 @@
  *                            Fix _FILE_OFFSET_BITS
  *                            Option for older VBox
  *         07      22 Feb 10  VBOX_SUCCESS macro was removed, replace with RT_SUCCESS
+ *         08      27 Jun 10  Support for snapshots through frontend (-s option)
  *
  *
  * DESCRIPTION
@@ -81,8 +82,9 @@
 #define IN_RING3
 #define BLOCKSIZE 512
 #define UNALLOCATED -1
-#define GETOPT_ARGS "rgvawt:f:dh?"
+#define GETOPT_ARGS "rgvawt:s:f:dh?"
 #define HOSTPARTITION_MAX 100
+#define DIFFERENCING_MAX 100
 #define PNAMESIZE 15
 #define MBR_START 446
 #define EBR_START 446
@@ -104,29 +106,21 @@ static int VD_readdir (const char *p, void *buf, fuse_fill_dir_t filler, off_t o
 static int VD_getattr (const char *p, struct stat *stbuf);
 void       VD_destroy (void *u);
 
-// Note that this abstraction layer was initially here to allow a version of this to be compiled with
-// Version 1.x using the VBox/VBoxHDD.h interface, but since this has been withdrawn for 2.x and I can
-// no longer test this, I've decided to remove this old API code, but I have left the abstraction in
-// I also used the ...testcase/tstVD.cpp as a coding template to work out how to call the VD routines.
-
 // if you don't have VBoxHDD.h, run 'svn co http://www.virtualbox.org/svn/vbox/trunk/include'
-// if your VirtualBox version is older than 2.1, add -DOLDVBOXHDD to your gcc flags
-#ifdef OLDVBOXHDD // < v2.1
-#include <VBox/VBoxHDD-new.h>
-#else // >= v2.1
+// if your VirtualBox version is older than 4.0, add -DOLDVBOXHDD to your gcc flags
+#ifdef OLDVBOXHDD // < v4.0
 #include <VBox/VBoxHDD.h>
+#else // >= v4.0
+#include <VBox/vd.h>
 #endif
 #define DISKread(o,b,s) VDRead (hdDisk,o,b,s);
 #define DISKwrite(o,b,s) VDWrite (hdDisk,o,b,s);
-#define DISKclose VDClose(hdDisk, 0)
+#define DISKclose VDCloseAll(hdDisk)
 #define DISKsize VDGetSize(hdDisk, 0)
 #define DISKflush VDFlush(hdDisk)
-#define DISKopen(t,i) if (RT_FAILURE(VDInterfaceAdd(&vdError, "VD Error", VDINTERFACETYPE_ERROR, \
-                            &vdErrorCallbacks, NULL, &pVDifs))) \
-                            usageAndExit("invalid initialisation of VD interface"); \
-   if (RT_FAILURE(VDCreate(&vdError, &hdDisk))) usageAndExit("invalid initialisation of VD interface"); \
+#define DISKopen(t,i) \
    if (RT_FAILURE(VDOpen(hdDisk,t , i, readonly ? VD_OPEN_FLAGS_READONLY : VD_OPEN_FLAGS_NORMAL, NULL))) \
-      usageAndExit("opening vbox image failed"); \
+      usageAndExit("opening vbox image failed");
 
 PVBOXHDD         hdDisk;
 PVDINTERFACE     pVDifs = NULL;
@@ -161,12 +155,25 @@ typedef struct {
    MBRentry    descriptor;       // copy of MBR / EBR descriptor that defines the partion
 } Partition;
 
+#pragma pack( push )
+#pragma pack( 1 )
+
+typedef struct {
+   char fill[ MBR_START ];
+   MBRentry descriptor[ 4 ];
+   uint16_t signature;
+} MBRblock;
+
+
 typedef struct {                 // See http://en.wikipedia.org/wiki/Extended_boot_record for details
+  char fill[ EBR_START ];
   MBRentry     descriptor;
   MBRentry     chain;
   MBRentry     fill1, fill2;
   uint16_t     signature;
 } EBRentry;
+
+#pragma pack( pop )
 
 Partition partitionTable[HOSTPARTITION_MAX+1]; // Note the partitionTable[0] is reserved for the EntireDisk descriptor
 static int lastPartition = 0;
@@ -209,6 +216,9 @@ int main (int argc, char **argv) {
    int          debug         = 0;
    int          foreground    = 0;
    char         c;
+   int          i;
+   char        *differencing[DIFFERENCING_MAX];
+   int          differencingLen = 0;
 
    extern char *optarg;
    extern int   optind, optopt;
@@ -226,6 +236,11 @@ int main (int argc, char **argv) {
       case 'a' : allowall = 1;                    break;
       case 'w' : allowall = 1; allowallw = 1;     break;
       case 't' : diskType = (char *) optarg;      break;           // ignored if OLDAPI
+      case 's' :
+        if (differencingLen == DIFFERENCING_MAX)
+          usageAndExit("Too many differencing disks");
+      	differencing[differencingLen++] = (char *)optarg;
+      	break;
       case 'f' : imagefilename =  (char *)optarg; break;
       case 'd' : foreground = 1; debug = 1;       break;
       case 'h' : usageAndExit(NULL);
@@ -241,7 +256,10 @@ int main (int argc, char **argv) {
    if (!imagefilename) usageAndExit("no image chosen");
    if (stat(imagefilename, &VDfile_stat)<0) usageAndExit("cannot access imagefile");
    if (access (imagefilename, F_OK | R_OK | ((!readonly) ? W_OK : 0))
-       > 0) usageAndExit("cannot access imagefile");
+       < 0) usageAndExit("cannot access imagefile");
+   for (i = 0; i < differencingLen; i++)
+     if (access(differencing[i], F_OK | R_OK | ((readonly) ? 0 : W_OK)) < 0)
+       usageAndExit("cannot access differencing imagefile %s", differencing[i]);
 
 #define IS_TYPE(s) (strcmp (s, diskType) == 0)
    if ( !(IS_TYPE("auto") || IS_TYPE("VDI" ) || IS_TYPE("VMDK") || IS_TYPE("VHD" ) ||
@@ -251,7 +269,20 @@ int main (int argc, char **argv) {
    //
    // *** Open the VDI, parse the MBR + EBRs and connect to the fuse service ***
    //
+   if (RT_FAILURE(VDInterfaceAdd(&vdError, "VD Error", VDINTERFACETYPE_ERROR,
+     &vdErrorCallbacks, NULL, &pVDifs)))
+       usageAndExit("invalid initialisation of VD interface");
+   if (RT_FAILURE(VDCreate(&vdError, VDTYPE_HDD, &hdDisk)))
+     usageAndExit("invalid initialisation of VD interface");
    DISKopen(diskType, imagefilename);
+   
+   for (i = 0; i < differencingLen; i++)
+   {
+     char *diffType;
+     char *diffFilename = differencing[i];
+     detectDiskType (&diffType, diffFilename);
+     DISKopen (diffType, diffFilename);
+   }
 
    initialisePartitionTable();
 
@@ -305,6 +336,7 @@ void usageAndExit(char *optFormat, ... ) {
           "\t-t\tspecify type (VDI, VMDK, VHD, or raw; default: auto)\n"
 #endif
           "\t-f\tVDimage file\n"
+//        "\t-s\tdifferencing disk files\n"    // prevent misuse
           "\t-a\tallow all users to read disk\n"
           "\t-w\tallow all users to read and write to disk\n"
           "\t-g\trun in foreground\n"
@@ -340,10 +372,13 @@ void vdErrorCallback(void *pvUser UNUSED, int rc, const char *file, unsigned iLi
 // simple (but up to a max 100 partitions :lol:).  Note than unlike partRead, this doesn't resort the
 // partitions.
 //
+//int VDRead(PVBOXHDD pDisk, uint64_t uOffset, void *pvBuf, size_t cbRead, int ii );
+
 void initialisePartitionTable(void) {
-   uint16_t MBRsignature;
+   //uint16_t MBRsignature;
    int      entendedFlag = UNALLOCATED;
    int      i;
+   MBRblock mbrb;
 
    memset(partitionTable, 0, sizeof(partitionTable));
    for (i=0; i <= (signed) (sizeof(partitionTable)/sizeof(Partition)) ; i++) partitionTable[i].no = UNALLOCATED;
@@ -355,9 +390,9 @@ void initialisePartitionTable(void) {
    //
    // Check that this is unformated or a DOS partitioned disk.  Sorry but other formats not supported.
    //
-   DISKread(MBR_START + 4 * sizeof(MBRentry), &MBRsignature, sizeof (MBRsignature));
-   if (MBRsignature == 0x0000) return;  // an unformated disk is allowed but only EntireDisk is defined
-   if (MBRsignature != 0xaa55) usageAndExit("Invalid MBR found on image with signature 0x%04hX", MBRsignature);
+   DISKread(0, &mbrb, sizeof (mbrb) );
+   if (mbrb.signature == 0x0000) return;  // an unformated disk is allowed but only EntireDisk is defined
+   if (mbrb.signature != 0xaa55) usageAndExit("Invalid MBR found on image with signature 0x%04hX", mbrb.signature);
 
    //
    // Process the four physical partition entires in the MBR
@@ -365,7 +400,8 @@ void initialisePartitionTable(void) {
    for (i = 1; i <= 4; i++) {
       Partition *p = partitionTable + i;
 //    MBRentry  *m = &(p->descriptor);
-      DISKread (MBR_START + (i-1) * sizeof(MBRentry), &(p->descriptor), sizeof(MBRentry));
+      //DISKread (MBR_START + (i-1) * sizeof(MBRentry), &(p->descriptor), sizeof(MBRentry));
+      memcpy( &(p->descriptor), &mbrb.descriptor[ i - 1 ], sizeof( MBRentry ) );
       if ((p->descriptor).type == 0) continue;
       if (PARTTYPE_IS_EXTENDED((p->descriptor).type)) {
          if (entendedFlag != UNALLOCATED) usageAndExit("More than one extended partition in MBR");
@@ -439,15 +475,15 @@ int detectDiskType (char **disktype, char *filename) {
    int fd = open (filename, O_RDONLY);
    read (fd, buf, sizeof (buf));
 
-   if (strncmp (buf, "connectix", 8) == 0)  *disktype = "VHD";
+   if (strncmp (buf, "conectix", 8) == 0)  *disktype = "VHD";
    else if (strncmp (buf, "VMDK", 4) == 0)  *disktype = "VMDK";
    else if (strncmp (buf, "KDMV", 4) == 0)  *disktype = "VMDK";
    else if (strncmp (buf, "<<<",  3) == 0)  *disktype = "VDI";
-   else usageAndExit("cannot autodetect disk type");
+   else usageAndExit("cannot autodetect disk type of %s", filename);
 
    vbprintf ("disktype is %s", *disktype);
-   return 0;
    close(fd);
+   return 0;
 }
 
 //====================================================================================================

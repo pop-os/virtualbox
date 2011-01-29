@@ -16,8 +16,9 @@ virtualbox-ose (4.0.2-dfsg-1) UNRELEASED; urgency=low
   * Fix the watch file.
   * Update man pages.
   * Support passing through USB 1.1 devices to virtual machines.
+  * Update vdfuse for VirtualBox 4.
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 22 Jan 2011 11:56:03 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sat, 29 Jan 2011 19:49:39 +0100
 
 virtualbox-ose (3.2.12-dfsg-1) unstable; urgency=low
 
