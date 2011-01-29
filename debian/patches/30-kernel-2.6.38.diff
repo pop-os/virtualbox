@@ -1,0 +1,92 @@
+Description: Add support for kernel 2.6.38 (rc2).
+Origin: upstream, http://www.virtualbox.org/changeset/35647
+
+--- a/include/iprt/types.h (revision 35584)
++++ b/include/iprt/types.h (revision 35647)
+@@ -102,6 +102,11 @@
+ #  define false linux_false
+ #  define uintptr_t linux_uintptr_t
+-#  ifndef AUTOCONF_INCLUDED
+-#   include <linux/autoconf.h>
++#  include <linux/version.h>
++#  if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
++#   include <generated/autoconf.h>
++#  else
++#   ifndef AUTOCONF_INCLUDED
++#    include <linux/autoconf.h>
++#   endif
+ #  endif
+ #  include <linux/types.h>
+--- a/src/VBox/Runtime/include/internal/iprt.h (revision 29250)
++++ b/src/VBox/Runtime/include/internal/iprt.h (revision 35647)
+@@ -40,9 +40,13 @@
+  && !defined(RT_NO_EXPORT_SYMBOL)
+ # define bool linux_bool /* see r0drv/linux/the-linux-kernel.h */
+-# ifndef AUTOCONF_INCLUDED
+-#  include <linux/autoconf.h>
++# include <linux/version.h>
++# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
++#  include <generated/autoconf.h>
++# else
++#  ifndef AUTOCONF_INCLUDED
++#   include <linux/autoconf.h>
++#  endif
+ # endif
+ # if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
+-#  include <linux/version.h>
+ #  define MODVERSIONS
+ #  if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 71)
+--- a/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h (revision 33441)
++++ b/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h (revision 35647)
+@@ -35,8 +35,12 @@
+ #define bool linux_bool
+ 
+-#ifndef AUTOCONF_INCLUDED
+-# include <linux/autoconf.h>
+-#endif
+ #include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
++# include <generated/autoconf.h>
++#else
++# ifndef AUTOCONF_INCLUDED
++#  include <linux/autoconf.h>
++# endif
++#endif
+ 
+ /* We only support 2.4 and 2.6 series kernels */
+--- a/src/VBox/HostDrivers/Support/SUPDrvInternal.h (revision 35494)
++++ b/src/VBox/HostDrivers/Support/SUPDrvInternal.h (revision 35647)
+@@ -76,8 +76,12 @@
+ 
+ #elif defined(RT_OS_LINUX)
+-#   ifndef AUTOCONF_INCLUDED
+-#    include <linux/autoconf.h>
++#   include <linux/version.h>
++#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
++#    include <generated/autoconf.h>
++#   else
++#    ifndef AUTOCONF_INCLUDED
++#     include <linux/autoconf.h>
++#    endif
+ #   endif
+-#   include <linux/version.h>
+ #   if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
+ #       define MODVERSIONS
+--- a/src/VBox/Additions/linux/drm/vboxvideo_drm.c (revision 33754)
++++ b/src/VBox/Additions/linux/drm/vboxvideo_drm.c (revision 35647)
+@@ -50,8 +50,12 @@
+  */
+ 
+-#ifndef AUTOCONF_INCLUDED
+-# include <linux/autoconf.h>
++#include <linux/version.h>
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,30)
++# include <generated/autoconf.h>
++#else
++# ifndef AUTOCONF_INCLUDED
++#  include <linux/autoconf.h>
++# endif
+ #endif
+-#include <linux/version.h>
+ #include <linux/module.h>
+ #include "version-generated.h"
