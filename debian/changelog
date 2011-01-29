@@ -1,6 +1,6 @@
 virtualbox-ose (4.0.2-dfsg-1) UNRELEASED; urgency=low
 
-  * New upstream release.
+  * New upstream release. (LP: #709027)
     - Ships with a manual and upstream changelog.
       (Closes: #483702, #541127; LP: #243782)
   * Adapt patches for new upstream version.
