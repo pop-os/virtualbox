@@ -1,4 +1,4 @@
-virtualbox-ose (4.0.2-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (4.0.2-dfsg-1) unstable; urgency=low
 
   * New upstream release. (LP: #709027)
     - Ships with a manual and upstream changelog.
