@@ -11,4 +11,3 @@
 27-hide-host-cache-warning.patch
 28-no-selinux-fedora.patch
 29-fix-ftbfs-as-needed.patch
-30-kernel-2.6.38.diff
