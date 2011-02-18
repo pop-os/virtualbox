@@ -1,3 +1,14 @@
+virtualbox-ose (4.0.4-dfsg-1) UNRELEASED; urgency=low
+
+  [ Felix Geyer ]
+  * New upstream release.
+
+  [ Patrick Winnertz ]
+  * Add if statement around adduser to prevent failure in some cases.
+    (Closes: #611604)
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 18 Feb 2011 14:14:20 +0100
+
 virtualbox-ose (4.0.2-dfsg-1) unstable; urgency=low
 
   * New upstream release. (LP: #709027)
