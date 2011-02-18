@@ -4,12 +4,13 @@ virtualbox-ose (4.0.4-dfsg-1) UNRELEASED; urgency=low
   * New upstream release.
   * Drop 30-kernel-2.6.38.diff, applied upstream.
   * Adapt 18-system-xorg.patch to new upstream version.
+  * Drop unused lintian overrides.
 
   [ Patrick Winnertz ]
   * Add if statement around adduser to prevent failure in some cases.
     (Closes: #611604)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 18 Feb 2011 15:19:20 +0100
+ -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 18 Feb 2011 18:09:29 +0100
 
 virtualbox-ose (4.0.2-dfsg-1) unstable; urgency=low
 
