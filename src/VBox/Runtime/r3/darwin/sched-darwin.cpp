@@ -1,4 +1,4 @@
-/* $Id: sched-darwin.cpp 30111 2010-06-09 12:14:59Z vboxsync $ */
+/* $Id: sched-darwin.cpp $ */
 /** @file
  * IPRT - Scheduling, Darwin.
  */

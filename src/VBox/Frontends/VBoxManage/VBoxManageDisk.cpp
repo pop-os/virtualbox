@@ -1,4 +1,4 @@
-/* $Id: VBoxManageDisk.cpp 35261 2010-12-20 17:44:59Z vboxsync $ */
+/* $Id: VBoxManageDisk.cpp $ */
 /** @file
  * VBoxManage - The disk related commands.
  */
@@ -957,7 +957,7 @@ int handleShowHardDiskInfo(HandlerArg *a)
 
         LONG64 logicalSize;
         hardDisk->COMGETTER(LogicalSize)(&logicalSize);
-        RTPrintf("Logical size:         %lld MBytes\n", logicalSize);
+        RTPrintf("Logical size:         %lld MBytes\n", logicalSize >> 20);
         LONG64 actualSize;
         hardDisk->COMGETTER(Size)(&actualSize);
         RTPrintf("Current size on disk: %lld MBytes\n", actualSize >> 20);

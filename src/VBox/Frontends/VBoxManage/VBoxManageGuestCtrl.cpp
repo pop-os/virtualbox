@@ -1,4 +1,4 @@
-/* $Id: VBoxManageGuestCtrl.cpp 35541 2011-01-13 15:41:29Z vboxsync $ */
+/* $Id: VBoxManageGuestCtrl.cpp $ */
 /** @file
  * VBoxManage - Implementation of guestcontrol command.
  */
@@ -255,7 +255,8 @@ static int ctrlInitVM(HandlerArg *pArg, const char *pszNameOrId, ComPtr<IGuest> 
     CHECK_ERROR_RET(machine, COMGETTER(State)(&machineState), 1);
     if (machineState != MachineState_Running)
     {
-        RTMsgError("Machine \"%s\" is not running!\n", pszNameOrId);
+        RTMsgError("Machine \"%s\" is not running (currently %s)!\n",
+                   pszNameOrId, stateToName(machineState, false));
         return VERR_VM_INVALID_VM_STATE;
     }
 
@@ -490,6 +491,7 @@ static int handleCtrlExecProgram(HandlerArg *a)
                 /* Wait for process to exit ... */
                 BOOL fCompleted = FALSE;
                 BOOL fCanceled = FALSE;
+                int cMilliesSleep = 0;
                 while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
                 {
                     SafeArray<BYTE> aOutputData;
@@ -536,9 +538,18 @@ static int handleCtrlExecProgram(HandlerArg *a)
                         }
                     }
 
-                    /* No more output data left? Then wait a little while ... */
+                    /* No more output data left? */
                     if (cbOutputData <= 0)
+                    {
+                        /* Only break out from process handling loop if we processed (displayed)
+                         * all output data or if there simply never was output data and the process
+                         * has been marked as complete. */
+                        if (fCompleted)
+                            break;
+
+                        /* Then wait a little while ... */
                         progress->WaitForCompletion(1 /* ms */);
+                    }
 
                     /* Process async cancelation */
                     if (g_fGuestCtrlCanceled && !fCanceledAlready)
@@ -564,6 +575,17 @@ static int handleCtrlExecProgram(HandlerArg *a)
                         progress->Cancel();
                         break;
                     }
+
+                    /* Don't hog the CPU in a busy loop! */
+                    if (cbOutputData <= 0)
+                    {
+                        if (cMilliesSleep < 100)
+                            cMilliesSleep++;
+                        RTPrintf("cMilliesSleep = %d\n", cMilliesSleep);
+                        RTThreadSleep(cMilliesSleep);
+                    }
+                    else
+                        cMilliesSleep = 0;
                 }
 
                 /* Undo signal handling */

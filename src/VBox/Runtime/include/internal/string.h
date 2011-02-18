@@ -1,4 +1,4 @@
-/* $Id: string.h 28903 2010-04-29 14:58:12Z vboxsync $ */
+/* $Id: string.h $ */
 /** @file
  * IPRT - Internal RTStr header.
  */

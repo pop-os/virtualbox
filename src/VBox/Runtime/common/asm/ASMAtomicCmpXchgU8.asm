@@ -1,4 +1,4 @@
-; $Id: ASMAtomicCmpXchgU8.asm 33540 2010-10-28 09:27:05Z vboxsync $
+; $Id: ASMAtomicCmpXchgU8.asm $
 ;; @file
 ; IPRT - ASMAtomicCmpXchgU8().
 ;

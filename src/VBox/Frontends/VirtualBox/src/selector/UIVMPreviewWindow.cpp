@@ -1,4 +1,4 @@
-/* $Id: UIVMPreviewWindow.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: UIVMPreviewWindow.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -94,6 +94,8 @@ UIVMPreviewWindow::~UIVMPreviewWindow()
         delete m_pbgImage;
     if (m_pGlossyImg)
         delete m_pGlossyImg;
+    if (m_pPreviewImg)
+        delete m_pPreviewImg;
 }
 
 void UIVMPreviewWindow::setMachine(const CMachine& machine)
@@ -126,6 +128,7 @@ void UIVMPreviewWindow::retranslateUi()
 void UIVMPreviewWindow::resizeEvent(QResizeEvent *pEvent)
 {
     repaintBGImages();
+    sltRecreatePreview();
     QWidget::resizeEvent(pEvent);
 }
 
@@ -227,7 +230,9 @@ void UIVMPreviewWindow::sltRecreatePreview()
         m_pPreviewImg = 0;
     }
 
-    if (!m_machine.isNull())
+    if (   !m_machine.isNull()
+        && m_vRect.width() > 0
+        && m_vRect.height() > 0)
     {
         Assert(m_machineState != KMachineState_Null);
         QImage image(size(), QImage::Format_ARGB32);
@@ -395,15 +400,21 @@ void UIVMPreviewWindow::repaintBGImages()
 {
     /* Delete the old images */
     if (m_pbgImage)
+    {
         delete m_pbgImage;
+        m_pbgImage = 0;
+    }
     if (m_pGlossyImg)
+    {
         delete m_pGlossyImg;
+        m_pGlossyImg = 0;
+    }
 
     /* Check that there is enough room for our fancy stuff. If not we just
-     * draw nothing. */
+     * draw nothing (the border and the blur radius). */
     QRect cr = contentsRect();
-    if (   cr.width()  < 30
-        || cr.height() < 30)
+    if (   cr.width()  < 41
+        || cr.height() < 41)
         return;
 
     QPalette pal = palette();

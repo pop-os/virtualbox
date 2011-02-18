@@ -1,4 +1,4 @@
-/* $Id: MachineDebuggerImpl.cpp 35586 2011-01-17 14:20:59Z vboxsync $ */
+/* $Id: MachineDebuggerImpl.cpp $ */
 /** @file
  * VBox IMachineDebugger COM class implementation.
  */

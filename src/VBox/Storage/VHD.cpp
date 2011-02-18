@@ -1,4 +1,4 @@
-/* $Id: VHD.cpp 34147 2010-11-17 20:46:42Z vboxsync $ */
+/* $Id: VHD.cpp $ */
 /** @file
  * VHD Disk image, Core Code.
  */

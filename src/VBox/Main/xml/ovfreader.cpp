@@ -1,4 +1,4 @@
-/* $Id: ovfreader.cpp 35566 2011-01-14 14:16:22Z vboxsync $ */
+/* $Id: ovfreader.cpp $ */
 /** @file
  *
  * OVF reader declarations. Depends only on IPRT, including the iprt::MiniString

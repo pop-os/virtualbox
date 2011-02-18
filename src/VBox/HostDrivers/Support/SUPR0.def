@@ -1,4 +1,4 @@
-; $Id: SUPR0.def 33167 2010-10-15 18:16:59Z vboxsync $
+; $Id: SUPR0.def $
 ;; @file
 ; VirtualBox Support Driver - Exports.
 ;

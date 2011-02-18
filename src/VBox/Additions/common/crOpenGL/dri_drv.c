@@ -1,4 +1,4 @@
-/* $Id: dri_drv.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: dri_drv.c $ */
 
 /** @file
  * VBox OpenGL DRI driver functions

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 34233 2010-11-22 11:25:55Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for Solaris Virtio drivers.
 #

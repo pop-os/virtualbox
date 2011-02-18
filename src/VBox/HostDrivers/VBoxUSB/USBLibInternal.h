@@ -1,4 +1,4 @@
-/* $Id: USBLibInternal.h 31898 2010-08-24 09:28:43Z vboxsync $ */
+/* $Id: USBLibInternal.h $ */
 /** @file
  * USBLIB - Internal header.
  */

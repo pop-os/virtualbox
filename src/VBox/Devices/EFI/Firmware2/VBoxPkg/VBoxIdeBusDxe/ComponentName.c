@@ -1,4 +1,4 @@
-/* $Id: ComponentName.c 33027 2010-10-11 06:17:12Z vboxsync $ */
+/* $Id: ComponentName.c $ */
 /** @file
  * ComponentName.c
  */

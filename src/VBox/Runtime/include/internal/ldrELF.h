@@ -1,4 +1,4 @@
-/* $Id: ldrELF.h 32204 2010-09-02 14:06:26Z vboxsync $ */
+/* $Id: ldrELF.h $ */
 /** @file
  * ELF types, current architecture.
  */

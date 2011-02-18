@@ -1,4 +1,4 @@
-/* $Id: VBoxOSTypeSelectorWidget.cpp 33781 2010-11-04 15:59:35Z vboxsync $ */
+/* $Id: VBoxOSTypeSelectorWidget.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

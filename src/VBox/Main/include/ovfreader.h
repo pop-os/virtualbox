@@ -1,4 +1,4 @@
-/* $Id: ovfreader.h 35536 2011-01-13 15:12:10Z vboxsync $ */
+/* $Id: ovfreader.h $ */
 /** @file
  * OVF reader declarations.
  *

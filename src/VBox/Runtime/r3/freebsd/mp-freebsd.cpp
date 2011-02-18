@@ -1,4 +1,4 @@
-/* $Id: mp-freebsd.cpp 34170 2010-11-18 13:19:08Z vboxsync $ */
+/* $Id: mp-freebsd.cpp $ */
 /** @file
  * IPRT - Multiprocessor, FreeBSD.
  */

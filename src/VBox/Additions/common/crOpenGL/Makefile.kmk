@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35578 2011-01-16 19:39:38Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the VirtualBox Guest OpenGL part
 #

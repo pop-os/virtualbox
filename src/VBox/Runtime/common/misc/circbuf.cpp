@@ -1,4 +1,4 @@
-/* $Id: circbuf.cpp 33286 2010-10-21 09:48:00Z vboxsync $ */
+/* $Id: circbuf.cpp $ */
 /** @file
  * IPRT - Lock Free Circular Buffer
  */

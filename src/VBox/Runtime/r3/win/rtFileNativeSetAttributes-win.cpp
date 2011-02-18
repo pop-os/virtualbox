@@ -1,4 +1,4 @@
-/* $Id: rtFileNativeSetAttributes-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: rtFileNativeSetAttributes-win.cpp $ */
 /** @file
  * IPRT - NtSetInformationFile wrapper.
  */

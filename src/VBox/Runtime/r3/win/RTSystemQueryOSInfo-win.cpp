@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryOSInfo-win.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTSystemQueryOSInfo-win.cpp $ */
 /** @file
  * IPRT - RTSystemQueryOSInfo, generic stub.
  */

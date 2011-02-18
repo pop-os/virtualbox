@@ -1,4 +1,4 @@
-/* $Id: MediumFormatImpl.h 33524 2010-10-27 16:44:37Z vboxsync $ */
+/* $Id: MediumFormatImpl.h $ */
 
 /** @file
  *

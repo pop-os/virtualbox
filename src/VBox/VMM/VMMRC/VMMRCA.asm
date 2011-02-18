@@ -1,4 +1,4 @@
-; $Id: VMMRCA.asm 35335 2010-12-27 12:34:40Z vboxsync $
+; $Id: VMMRCA.asm $
 ;; @file
 ; VMMGC - Raw-mode Context Virtual Machine Monitor assembly routines.
 ;

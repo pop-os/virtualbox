@@ -1,4 +1,4 @@
-/* $Id: DevPciRaw.cpp 35358 2010-12-28 07:58:40Z vboxsync $ */
+/* $Id: DevPciRaw.cpp $ */
 /** @file
  * PCI passthrough device emulation.
  */

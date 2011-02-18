@@ -1,4 +1,4 @@
-/* $Id: PGMAll.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: PGMAll.cpp $ */
 /** @file
  * PGM - Page Manager and Monitor - All context code.
  */
@@ -2305,7 +2305,7 @@ VMMDECL(bool) PGMIsLockOwner(PVM pVM)
  */
 VMMDECL(void) PGMSetLargePageUsage(PVM pVM, bool fUseLargePages)
 {
-      pVM->fUseLargePages = fUseLargePages;
+    pVM->fUseLargePages = fUseLargePages;
 }
 
 /**

@@ -1,4 +1,4 @@
-/* $Id: UINewVMWzd.cpp 35587 2011-01-17 14:21:04Z vboxsync $ */
+/* $Id: UINewVMWzd.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):
@@ -880,12 +880,17 @@ bool UINewVMWzdPage5::constructMachine()
         if (!success)
         {
             /* Unregister on failure */
+#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
+            /* XXX currently disabled due to a bug in ComSafeArrayIn on 64-bit Windows hosts! */
+            m_Machine.Unregister(KCleanupMode_DetachAllReturnNone);
+#else
             QVector<CMedium> aMedia = m_Machine.Unregister(KCleanupMode_UnregisterOnly);   //  @todo replace with DetachAllReturnHardDisksOnly once a progress dialog is in place below
             if (vbox.isOk())
             {
                 CProgress progress = m_Machine.Delete(aMedia);
                 progress.WaitForCompletion(-1);         // @todo do this nicely with a progress dialog, this can delete lots of files
             }
+#endif
             return false;
         }
     }

@@ -1,4 +1,4 @@
-/* $Id: EventImpl.cpp 35368 2010-12-30 13:38:23Z vboxsync $ */
+/* $Id: EventImpl.cpp $ */
 /** @file
  * VirtualBox COM Event class implementation
  */
@@ -897,7 +897,6 @@ HRESULT ListenerRecord::eventProcessed (IEvent* aEvent, PendingEventsMap::iterat
         mOwner->m->mPendingMap.erase(pit);
     }
 
-    Assert(pit->second >= 0);
     return S_OK;
 }
 

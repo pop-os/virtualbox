@@ -1,4 +1,4 @@
-/* $Id: PerformanceDarwin.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: PerformanceDarwin.cpp $ */
 /** @file
  * VBox Darwin-specific Performance Classes implementation.
  */

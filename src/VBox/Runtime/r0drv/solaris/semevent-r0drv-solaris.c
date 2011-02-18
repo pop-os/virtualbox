@@ -1,4 +1,4 @@
-/* $Id: semevent-r0drv-solaris.c 33676 2010-11-02 09:48:24Z vboxsync $ */
+/* $Id: semevent-r0drv-solaris.c $ */
 /** @file
  * IPRT - Single Release Event Semaphores, Ring-0 Driver, Solaris.
  */

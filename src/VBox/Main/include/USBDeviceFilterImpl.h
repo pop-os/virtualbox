@@ -1,4 +1,4 @@
-/* $Id: USBDeviceFilterImpl.h 31892 2010-08-24 08:00:51Z vboxsync $ */
+/* $Id: USBDeviceFilterImpl.h $ */
 /** @file
  * Declaration of USBDeviceFilter and HostUSBDeviceFilter.
  */

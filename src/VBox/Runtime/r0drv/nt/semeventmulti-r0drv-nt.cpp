@@ -1,4 +1,4 @@
-/* $Id: semeventmulti-r0drv-nt.cpp 33158 2010-10-15 12:15:13Z vboxsync $ */
+/* $Id: semeventmulti-r0drv-nt.cpp $ */
 /** @file
  * IPRT -  Multiple Release Event Semaphores, Ring-0 Driver, NT.
  */

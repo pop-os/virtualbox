@@ -1,4 +1,4 @@
-/* $Id: tstTSC.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: tstTSC.cpp $ */
 /** @file
  * IPRT Testcase - SMP TSC testcase.
  */

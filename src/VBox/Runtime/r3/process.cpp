@@ -1,4 +1,4 @@
-/* $Id: process.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
+/* $Id: process.cpp $ */
 /** @file
  * IPRT - Process, Common.
  */

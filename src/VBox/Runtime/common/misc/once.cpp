@@ -1,4 +1,4 @@
-/* $Id: once.cpp 33262 2010-10-20 14:23:32Z vboxsync $ */
+/* $Id: once.cpp $ */
 /** @file
  * IPRT - Execute Once.
  */

@@ -1,4 +1,4 @@
-/* $Id: tstIprtMiniString.cpp 35568 2011-01-14 14:24:53Z vboxsync $ */
+/* $Id: tstIprtMiniString.cpp $ */
 /** @file
  * IPRT Testcase - iprt::MiniString.
  */

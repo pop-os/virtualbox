@@ -1,4 +1,4 @@
-/* $Id: main.cpp 35564 2011-01-14 13:52:02Z vboxsync $ */
+/* $Id: main.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -260,7 +260,7 @@ static void showHelp()
             "  --rmode %-18s select different render mode (default is %s)\n"
             "  --no-startvm-errormsgbox   do not show a message box for VM start errors\n"
 # ifdef VBOX_GUI_WITH_PIDFILE
-            "  --pid-file file            create a pidfile file when a VM is up and running\n"
+            "  --pidfile file             create a pidfile file when a VM is up and running\n"
 # endif
 # ifdef VBOX_WITH_DEBUGGER_GUI
             "  --dbg                      enable the GUI debug menu\n"

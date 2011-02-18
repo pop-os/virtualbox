@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29774 2010-05-25 11:31:58Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the VirtualBox X11 keyboard library
 #

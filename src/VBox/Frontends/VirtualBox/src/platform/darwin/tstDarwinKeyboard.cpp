@@ -1,4 +1,4 @@
-/* $Id: tstDarwinKeyboard.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstDarwinKeyboard.cpp $ */
 /** @file
  * Common GUI Library - Testcase - Darwin Keyboard routines.
  *

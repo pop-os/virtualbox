@@ -1,4 +1,4 @@
-/* $Id: tftp.c 30363 2010-06-22 11:21:22Z vboxsync $ */
+/* $Id: tftp.c $ */
 /** @file
  * NAT - TFTP server.
  */

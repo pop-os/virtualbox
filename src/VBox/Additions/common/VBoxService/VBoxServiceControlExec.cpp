@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceControlExec.cpp 35526 2011-01-13 14:21:12Z vboxsync $ */
+/* $Id: VBoxServiceControlExec.cpp $ */
 /** @file
  * VBoxServiceControlExec - Utility functions for process execution.
  */

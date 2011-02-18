@@ -1,4 +1,4 @@
-/* $Id: VBoxManageMisc.cpp 35523 2011-01-13 13:12:03Z vboxsync $ */
+/* $Id: VBoxManageMisc.cpp $ */
 /** @file
  * VBoxManage - VirtualBox's command-line interface.
  */
@@ -155,18 +155,27 @@ int handleUnregisterVM(HandlerArg *a)
     {
         SafeIfaceArray<IMedium> aMedia;
         CleanupMode_T cleanupMode = CleanupMode_DetachAllReturnNone;
+#if !defined(RT_OS_WINDOWS) || !defined(RT_ARCH_AMD64)
+            /* XXX currently disabled due to a bug in ComSafeArrayIn on 64-bit Windows hosts! */
         if (fDelete)
             cleanupMode = CleanupMode_DetachAllReturnHardDisksOnly;
+#endif
         CHECK_ERROR(machine, Unregister(cleanupMode,
                                         ComSafeArrayAsOutParam(aMedia)));
         if (SUCCEEDED(rc))
         {
+#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
+            /* XXX currently disabled due to a bug in ComSafeArrayIn on 64-bit Windows hosts! */
+            RTPrintf("The ''--delete'' parameter is ignored on Windows/x64 to prevent a crash.\n"
+                     "This will be fixed in the next release.");
+#else
             if (fDelete)
             {
                 ComPtr<IProgress> pProgress;
                 CHECK_ERROR(machine, Delete(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()));
                 CHECK_ERROR(pProgress, WaitForCompletion(-1));
             }
+#endif
         }
     }
     return SUCCEEDED(rc) ? 0 : 1;

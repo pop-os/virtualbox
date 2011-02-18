@@ -1,4 +1,4 @@
-/* $Id: tstRTSemEventMulti.cpp 32970 2010-10-07 10:08:00Z vboxsync $ */
+/* $Id: tstRTSemEventMulti.cpp $ */
 /** @file
  * IPRT Testcase - Multiple Release Event Semaphores.
  */

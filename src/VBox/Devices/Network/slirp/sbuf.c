@@ -1,4 +1,4 @@
-/* $Id: sbuf.c 34103 2010-11-16 11:18:55Z vboxsync $ */
+/* $Id: sbuf.c $ */
 /** @file
  * NAT - sbuf implemenation.
  */

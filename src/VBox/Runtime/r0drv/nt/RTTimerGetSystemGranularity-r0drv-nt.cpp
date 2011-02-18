@@ -1,4 +1,4 @@
-/* $Id: RTTimerGetSystemGranularity-r0drv-nt.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: RTTimerGetSystemGranularity-r0drv-nt.cpp $ */
 /** @file
  * IPRT - RTTimerGetSystemGranularity, Ring-0 Driver, NT.
  */

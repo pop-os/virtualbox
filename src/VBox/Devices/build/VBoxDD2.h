@@ -1,4 +1,4 @@
-/* $Id: VBoxDD2.h 35400 2011-01-04 11:58:52Z vboxsync $ */
+/* $Id: VBoxDD2.h $ */
 /** @file
  * Built-in drivers & devices part 2 header.
  *

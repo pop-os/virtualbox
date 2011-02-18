@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.cpp 35553 2011-01-14 00:02:56Z vboxsync $ */
+/* $Id: MediumImpl.cpp $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -1621,7 +1621,8 @@ STDMETHODIMP Medium::COMSETTER(Type)(MediumType_T aType)
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     // we access mParent and members
-    AutoMultiWriteLock2 mlock(&m->pVirtualBox->getMediaTreeLockHandle(), this->lockHandle() COMMA_LOCKVAL_SRC_POS);
+    AutoMultiWriteLock2 mlock(&m->pVirtualBox->getMediaTreeLockHandle(),
+                              this->lockHandle() COMMA_LOCKVAL_SRC_POS);
 
     switch (m->state)
     {
@@ -3071,16 +3072,17 @@ Utf8Str Medium::getName()
  * one registry, which causes trouble with keeping diff images in sync.
  * See getFirstRegistryMachineId() for details.
  *
+ * Must have caller + locking!
+ *
+ * If fRecurse == true, then additionally the media tree lock must be held for reading.
+ *
  * @param id
+ * @param fRecurse If true, recurses into child media to make sure the whole tree has registries in sync.
  * @return true if the registry was added; false if the given id was already on the list.
  */
-bool Medium::addRegistry(const Guid& id)
+bool Medium::addRegistry(const Guid& id, bool fRecurse)
 {
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return false;
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
+    // hard disks cannot be in more than one registry
     if (    m->devType == DeviceType_HardDisk
          && m->llRegistryIDs.size() > 0
        )
@@ -3095,12 +3097,78 @@ bool Medium::addRegistry(const Guid& id)
             return false;
     }
 
-    m->llRegistryIDs.push_back(id);
+    addRegistryImpl(id, fRecurse);
+
     return true;
 }
 
 /**
+ * Private implementation for addRegistry() so we can recurse more efficiently.
+ * @param id
+ * @param fRecurse
+ */
+void Medium::addRegistryImpl(const Guid& id, bool fRecurse)
+{
+    m->llRegistryIDs.push_back(id);
+
+    if (fRecurse)
+    {
+        for (MediaList::iterator it = m->llChildren.begin();
+             it != m->llChildren.end();
+             ++it)
+        {
+            Medium *pChild = *it;
+            // recurse!
+            pChild->addRegistryImpl(id, fRecurse);
+        }
+    }
+}
+
+/**
+ * Removes the given UUID from the list of media registry UUIDs. Returns true
+ * if found or false if not.
+ *
+ * Must have caller + locking!
+ *
+ * If fRecurse == true, then additionally the media tree lock must be held for reading.
+ *
+ * @param id
+ * @param fRecurse If true, recurses into child media to make sure the whole tree has registries in sync.
+ * @return
+ */
+bool Medium::removeRegistry(const Guid& id, bool fRecurse)
+{
+    for (GuidList::iterator it = m->llRegistryIDs.begin();
+         it != m->llRegistryIDs.end();
+         ++it)
+    {
+        if ((*it) == id)
+        {
+            m->llRegistryIDs.erase(it);
+
+            if (fRecurse)
+            {
+                for (MediaList::iterator it2 = m->llChildren.begin();
+                     it2 != m->llChildren.end();
+                     ++it2)
+                {
+                    Medium *pChild = *it2;
+                    pChild->removeRegistry(id, true);
+                }
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * Returns true if id is in the list of media registries for this medium.
+ *
+ * Must have caller + locking!
+ *
  * @param id
  * @return
  */
@@ -3126,8 +3194,8 @@ bool Medium::isInRegistry(const Guid& id)
  * Internal method to return the medium's first registry machine (i.e. the machine in whose
  * machine XML this medium is listed).
  *
- * Every medium must now (4.0) reside in at least one media registry, which is identified by
- * a UUID. This is either a machine UUID if the machine is from 4.0 or newer, in which case
+ * Every attached medium must now (4.0) reside in at least one media registry, which is identified
+ * by a UUID. This is either a machine UUID if the machine is from 4.0 or newer, in which case
  * machines have their own media registries, or it is the pseudo-UUID of the VirtualBox
  * object if the machine is old and still needs the global registry in VirtualBox.xml.
  *
@@ -3136,16 +3204,25 @@ bool Medium::isInRegistry(const Guid& id)
  * in sync. (This is the "cloned VM" case in which VM1 may link to the disks of VM2; in this
  * case, only VM2's registry is used for the disk in question.)
  *
+ * If there is no medium registry, particularly if the medium has not been attached yet, this
+ * does not modify uuid and returns false.
+ *
  * ISOs and RAWs, by contrast, can be in more than one repository to make things easier for
  * the user.
  *
  * Must have caller + locking!
  *
- * @return
+ * @param uuid Receives first registry machine UUID, if available.
+ * @return true if uuid was set.
  */
-const Guid& Medium::getFirstRegistryMachineId() const
+bool Medium::getFirstRegistryMachineId(Guid &uuid) const
 {
-    return m->llRegistryIDs.front();
+    if (m->llRegistryIDs.size())
+    {
+        uuid = m->llRegistryIDs.front();
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -3318,6 +3395,33 @@ const Guid* Medium::getFirstMachineBackrefId() const
         return NULL;
 
     return &m->backRefs.front().machineId;
+}
+
+/**
+ * Internal method which returns a machine that either this medium or one of its children
+ * is attached to. This is used for finding a replacement media registry when an existing
+ * media registry is about to be deleted in VirtualBox::unregisterMachine().
+ *
+ * Must have caller + locking, *and* caller must hold the media tree lock!
+ * @return
+ */
+const Guid* Medium::getAnyMachineBackref() const
+{
+    if (m->backRefs.size())
+        return &m->backRefs.front().machineId;
+
+    for (MediaList::iterator it = m->llChildren.begin();
+         it != m->llChildren.end();
+         ++it)
+    {
+        Medium *pChild = *it;
+        // recurse for this child
+        const Guid* puuid;
+        if ((puuid = pChild->getAnyMachineBackref()))
+            return puuid;
+    }
+
+    return NULL;
 }
 
 const Guid* Medium::getFirstMachineBackrefSnapshotId() const
@@ -6167,7 +6271,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
     MediumVariant_T variant = MediumVariant_Standard;
     bool fGenerateUuid = false;
 
-    GuidList llRegistriesThatNeedSaving;
+    GuidList llRegistriesThatNeedSaving;        // gets copied to task pointer later in synchronous mode
 
     try
     {

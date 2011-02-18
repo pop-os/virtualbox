@@ -1,4 +1,4 @@
-/* $Id: poll-os2.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: poll-os2.cpp $ */
 /** @file
  * IPRT - Polling I/O Handles, OS/2 Implementation.
  */

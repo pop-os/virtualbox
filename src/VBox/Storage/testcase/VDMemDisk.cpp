@@ -1,4 +1,4 @@
-/** $Id: VDMemDisk.cpp 35596 2011-01-17 22:00:13Z vboxsync $ */
+/** $Id: VDMemDisk.cpp $ */
 /** @file
  *
  * VBox HDD container test utility, memory disk/file.

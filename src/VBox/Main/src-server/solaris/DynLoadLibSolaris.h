@@ -1,4 +1,4 @@
-/* $Id: DynLoadLibSolaris.h 31340 2010-08-03 14:29:43Z vboxsync $ */
+/* $Id: DynLoadLibSolaris.h $ */
 /** @file
  * Dynamically loaded libraries for Solaris hosts, Internal header.
  */

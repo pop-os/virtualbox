@@ -1,4 +1,4 @@
-/* $Id: DevPS2.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
+/* $Id: DevPS2.cpp $ */
 /** @file
  * DevPS2 - PS/2 keyboard & mouse controller device.
  */

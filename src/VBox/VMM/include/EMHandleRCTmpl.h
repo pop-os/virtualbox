@@ -1,4 +1,4 @@
-/* $Id: EMHandleRCTmpl.h 35333 2010-12-27 12:10:56Z vboxsync $ */
+/* $Id: EMHandleRCTmpl.h $ */
 /** @file
  * EM - emR3[Raw|Hwaccm]HandleRC template.
  */

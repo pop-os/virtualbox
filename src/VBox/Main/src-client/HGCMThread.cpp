@@ -1,4 +1,4 @@
-/* $Id: HGCMThread.cpp 35374 2010-12-30 14:42:15Z vboxsync $ */
+/* $Id: HGCMThread.cpp $ */
 /** @file
  * HGCMThread - Host-Guest Communication Manager Threads
  */
@@ -194,8 +194,6 @@ static DECLCALLBACK(int) hgcmWorkerThreadFunc (RTTHREAD ThreadSelf, void *pvUser
     pThread->m_pfnThread (pThread->Handle (), pThread->m_pvUser);
 
     pThread->m_fu32ThreadFlags |= HGCMMSG_TF_TERMINATED;
-
-    hgcmObjDeleteHandle (pThread->Handle ());
 
     pThread->m_thread = NIL_RTTHREAD;
 
@@ -688,6 +686,8 @@ int hgcmThreadWait (HGCMTHREADHANDLE hThread)
 
         hgcmObjDereference (pThread);
     }
+
+    hgcmObjDeleteHandle (hThread);
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;

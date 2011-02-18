@@ -1,4 +1,4 @@
-/* $Id: SnapshotImpl.cpp 35602 2011-01-18 11:27:20Z vboxsync $ */
+/* $Id: SnapshotImpl.cpp $ */
 
 /** @file
  *
@@ -810,7 +810,7 @@ HRESULT Snapshot::saveSnapshot(settings::Snapshot &data, bool aAttrsOnly)
  * they should go thru the list from the beginning to the end because media
  * cannot be closed if they have children.
  *
- * This calls uninit() on itself, so the snapshots tree becomes invalid after this.
+ * This calls uninit() on itself, so the snapshots tree (beginning with a machine's pFirstSnapshot) becomes invalid after this.
  * It does not alter the main machine's snapshot pointers (pFirstSnapshot, pCurrentSnapshot).
  *
  * Caller must hold the machine write lock (which protects the snapshots tree!)
@@ -1485,6 +1485,11 @@ STDMETHODIMP SessionMachine::BeginTakingSnapshot(IConsole *aInitiator,
                                stateTo.c_str(),
                                vrc);
         }
+
+        // if we got this far without an error, then save the media registries
+        // that got modified for the diff images
+        alock.release();
+        mParent->saveRegistries(llRegistriesThatNeedSaving);
     }
     catch (HRESULT hrc)
     {
@@ -1510,10 +1515,6 @@ STDMETHODIMP SessionMachine::BeginTakingSnapshot(IConsole *aInitiator,
         strStateFilePath.cloneTo(aStateFilePath);
     else
         *aStateFilePath = NULL;
-
-    // @todo r=dj normally we would need to save the settings if fNeedsGlobalSaveSettings was set to true,
-    // but since we have no error handling that cleans up the diff image that might have gotten created,
-    // there's no point in saving the disk registry at this point either... this needs fixing.
 
     LogFlowThisFunc(("LEAVE - %Rhrc [%s]\n", rc, Global::stringifyMachineState(mData->mMachineState) ));
     return rc;
@@ -2418,6 +2419,12 @@ void SessionMachine::deleteSnapshotHandler(DeleteSnapshotTask &aTask)
                 }
                 else
                     fOnlineMergePossible = false;
+/// @todo remove this once the fix for windows/64bit API crashes for
+// SafeIfaceArray has been backported
+#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
+                if (fOnlineMergePossible)
+                    throw setError(E_NOTIMPL, tr("Live snapshot deletion on Windows/x64 is disabled to prevent a crash (will be fixed in the next release)"));
+#endif
             }
             rc = prepareDeleteSnapshotMedium(pHD, machineId, snapshotId,
                                              fOnlineMergePossible,

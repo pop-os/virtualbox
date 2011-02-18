@@ -1,4 +1,4 @@
-/* $Id: glx_c_exports.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: glx_c_exports.c $ */
 /** @file
  *
  * VirtualBox guest OpenGL DRI GLX C stubs

@@ -1,4 +1,4 @@
-/* $Id: DevDMA.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
+/* $Id: DevDMA.cpp $ */
 /** @file
  * DevDMA - DMA Controller Device.
  */

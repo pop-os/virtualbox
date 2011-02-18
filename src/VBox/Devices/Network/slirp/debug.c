@@ -1,4 +1,4 @@
-/* $Id: debug.c 35351 2010-12-27 17:04:17Z vboxsync $ */
+/* $Id: debug.c $ */
 /** @file
  * NAT - debug helpers.
  */

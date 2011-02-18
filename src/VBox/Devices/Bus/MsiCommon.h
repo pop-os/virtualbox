@@ -1,4 +1,4 @@
-/* $Id: MsiCommon.h 33315 2010-10-21 15:53:09Z vboxsync $ */
+/* $Id: MsiCommon.h $ */
 /** @file
  * Header for MSI/MSI-X support routines.
  */

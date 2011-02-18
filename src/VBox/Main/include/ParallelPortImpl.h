@@ -1,4 +1,4 @@
-/* $Id: ParallelPortImpl.h 30764 2010-07-09 14:12:12Z vboxsync $ */
+/* $Id: ParallelPortImpl.h $ */
 
 /** @file
  * VirtualBox COM class implementation.

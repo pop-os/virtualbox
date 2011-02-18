@@ -1,4 +1,4 @@
-/* $Id: icmp_var.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: icmp_var.h $ */
 /** @file
  * NAT - ICMP handling (declarations/defines).
  */

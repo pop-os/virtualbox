@@ -1,4 +1,4 @@
-/* $Id: DBGPlugInCommonELFTmpl.cpp.h 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: DBGPlugInCommonELFTmpl.cpp.h $ */
 /** @file
  * DBGPlugInCommonELF - Code Template for dealing with one kind of ELF.
  */

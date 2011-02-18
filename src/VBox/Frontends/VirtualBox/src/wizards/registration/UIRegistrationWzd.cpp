@@ -1,4 +1,4 @@
-/* $Id: UIRegistrationWzd.cpp 35234 2010-12-20 09:40:31Z vboxsync $ */
+/* $Id: UIRegistrationWzd.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

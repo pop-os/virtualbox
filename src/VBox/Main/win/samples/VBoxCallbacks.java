@@ -1,4 +1,4 @@
-/* $Id: VBoxCallbacks.java 31883 2010-08-24 07:17:28Z vboxsync $ */
+/* $Id: VBoxCallbacks.java $ */
 /*
  * Copyright (C) 2010 Oracle Corporation
  *

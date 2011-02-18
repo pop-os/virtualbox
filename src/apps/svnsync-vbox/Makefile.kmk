@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 31666 2010-08-13 15:55:20Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for svnsync-vbox.
 #

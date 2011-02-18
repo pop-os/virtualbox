@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VBoxNetAdp.c $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Common Code.
  */
@@ -587,7 +587,7 @@ static DECLCALLBACK(void) vboxNetAdpPortRetain(PINTNETTRUNKIFPORT pIfPort)
 }
 
 
-int vboxNetAdpCreate (PINTNETTRUNKFACTORY pIfFactory, PVBOXNETADP *ppNew)
+int vboxNetAdpCreate(PINTNETTRUNKFACTORY pIfFactory, PVBOXNETADP *ppNew)
 {
     int rc;
     unsigned i;
@@ -617,7 +617,7 @@ int vboxNetAdpCreate (PINTNETTRUNKFACTORY pIfFactory, PVBOXNETADP *ppNew)
     return VERR_OUT_OF_RESOURCES;
 }
 
-int vboxNetAdpDestroy (PVBOXNETADP pThis)
+int vboxNetAdpDestroy(PVBOXNETADP pThis)
 {
     int rc = VINF_SUCCESS;
     RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
@@ -1055,8 +1055,40 @@ DECLHIDDEN(int) vboxNetAdpInitGlobals(PVBOXNETADPGLOBALS pGlobals)
 
 
 VBOXNETADP g_aAdapters[VBOXNETADP_MAX_INSTANCES];
+static uint8_t g_aUnits[VBOXNETADP_MAX_UNITS/8];
 
 
+DECLINLINE(int) vboxNetAdpGetUnitByName(const char *pcszName)
+{
+    uint32_t iUnit = RTStrToUInt32(pcszName + sizeof(VBOXNETADP_NAME) - 1);
+    bool fOld;
+
+    if (iUnit >= VBOXNETADP_MAX_UNITS)
+        return -1;
+
+    fOld = ASMAtomicBitTestAndSet(g_aUnits, iUnit);
+    return fOld ? -1 : (int)iUnit;
+}
+
+DECLINLINE(int) vboxNetAdpGetNextAvailableUnit(void)
+{
+    bool fOld;
+    int iUnit;
+    /* There is absolutely no chance that all units are taken */
+    do {
+        iUnit = ASMBitFirstClear(g_aUnits, VBOXNETADP_MAX_UNITS);
+        if (iUnit < 0)
+            break;
+        fOld = ASMAtomicBitTestAndSet(g_aUnits, iUnit);
+    } while (fOld);
+
+    return iUnit;
+}
+
+DECLINLINE(void) vboxNetAdpReleaseUnit(int iUnit)
+{
+    Assert(ASMAtomicBitTestAndClear(g_aUnits, iUnit));
+}
 
 /**
  * Generate a suitable MAC address.
@@ -1071,12 +1103,12 @@ DECLHIDDEN(void) vboxNetAdpComposeMACAddress(PVBOXNETADP pThis, PRTMAC pMac)
     pMac->au8[1] = 0x00;
     pMac->au8[2] = 0x27;
 
-    pMac->au8[3] = 0; /* pThis->uUnit >> 16; */
-    pMac->au8[4] = 0; /* pThis->uUnit >> 8; */
-    pMac->au8[5] = pThis->uUnit;
+    pMac->au8[3] = 0; /* pThis->iUnit >> 16; */
+    pMac->au8[4] = 0; /* pThis->iUnit >> 8; */
+    pMac->au8[5] = pThis->iUnit;
 }
 
-int vboxNetAdpCreate (PVBOXNETADP *ppNew)
+int vboxNetAdpCreate(PVBOXNETADP *ppNew, const char *pcszName)
 {
     int rc;
     unsigned i;
@@ -1089,22 +1121,41 @@ int vboxNetAdpCreate (PVBOXNETADP *ppNew)
             RTMAC Mac;
             /* Found an empty slot -- use it. */
             Log(("vboxNetAdpCreate: found empty slot: %d\n", i));
-            vboxNetAdpComposeMACAddress(pThis, &Mac);
-            rc = vboxNetAdpOsCreate(pThis, &Mac);
-            Log(("vboxNetAdpCreate: pThis=%p pThis->szName=%p\n", pThis, pThis->szName));
+            if (pcszName)
+            {
+                Log(("vboxNetAdpCreate: using name: %s\n", pcszName));
+                pThis->iUnit = vboxNetAdpGetUnitByName(pcszName);
+                strncpy(pThis->szName, pcszName, sizeof(pThis->szName));
+                pThis->szName[sizeof(pThis->szName) - 1] = '\0';
+            }
+            else
+            {
+                pThis->iUnit = vboxNetAdpGetNextAvailableUnit();
+                pThis->szName[0] = '\0';
+            }
+            if (pThis->iUnit < 0)
+                rc = VERR_INVALID_PARAMETER;
+            else
+            {
+                vboxNetAdpComposeMACAddress(pThis, &Mac);
+                rc = vboxNetAdpOsCreate(pThis, &Mac);
+                Log(("vboxNetAdpCreate: pThis=%p pThis->iUnit=%d, pThis->szName=%s\n",
+                     pThis, pThis->iUnit, pThis->szName));
+            }
             if (RT_SUCCESS(rc))
             {
                 *ppNew = pThis;
                 ASMAtomicWriteU32((uint32_t volatile *)&pThis->enmState, kVBoxNetAdpState_Active);
+                Log2(("VBoxNetAdpCreate: Created %s\n", g_aAdapters[i].szName));
             }
             else
             {
                 ASMAtomicWriteU32((uint32_t volatile *)&pThis->enmState, kVBoxNetAdpState_Invalid);
                 Log(("vboxNetAdpCreate: vboxNetAdpOsCreate failed with '%Rrc'.\n", rc));
             }
-            Log2(("VBoxNetAdpCreate: Created %s\n", g_aAdapters[i].szName));
             for (i = 0; i < RT_ELEMENTS(g_aAdapters); i++)
-                Log2(("VBoxNetAdpCreate: Scanning entry: state=%d name=%s\n", g_aAdapters[i].enmState, g_aAdapters[i].szName));
+                Log2(("VBoxNetAdpCreate: Scanning entry: state=%d unit=%d name=%s\n",
+                      g_aAdapters[i].enmState, g_aAdapters[i].iUnit, g_aAdapters[i].szName));
             return rc;
         }
     }
@@ -1114,14 +1165,18 @@ int vboxNetAdpCreate (PVBOXNETADP *ppNew)
     return VERR_OUT_OF_RESOURCES;
 }
 
-int vboxNetAdpDestroy (PVBOXNETADP pThis)
+int vboxNetAdpDestroy(PVBOXNETADP pThis)
 {
     int rc = VINF_SUCCESS;
 
     if (!ASMAtomicCmpXchgU32((uint32_t volatile *)&pThis->enmState, kVBoxNetAdpState_Transitional, kVBoxNetAdpState_Active))
         return VERR_INTNET_FLT_IF_BUSY;
 
+    Assert(pThis->iUnit >= 0 && pThis->iUnit < VBOXNETADP_MAX_UNITS);
     vboxNetAdpOsDestroy(pThis);
+    vboxNetAdpReleaseUnit(pThis->iUnit);
+    pThis->iUnit = -1;
+    pThis->szName[0] = '\0';
 
     ASMAtomicWriteU32((uint32_t volatile *)&pThis->enmState, kVBoxNetAdpState_Invalid);
 
@@ -1135,15 +1190,17 @@ int  vboxNetAdpInit(void)
     /*
      * Init common members and call OS-specific init.
      */
+    memset(g_aUnits, 0, sizeof(g_aUnits));
+    memset(g_aAdapters, 0, sizeof(g_aAdapters));
     for (i = 0; i < RT_ELEMENTS(g_aAdapters); i++)
     {
         g_aAdapters[i].enmState = kVBoxNetAdpState_Invalid;
-        g_aAdapters[i].uUnit    = i;
+        g_aAdapters[i].iUnit    = -1;
         vboxNetAdpOsInit(&g_aAdapters[i]);
     }
 
     /* Create vboxnet0 */
-    return vboxNetAdpCreate(&pVboxnet0);
+    return vboxNetAdpCreate(&pVboxnet0, NULL);
 }
 
 /**

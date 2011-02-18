@@ -1,4 +1,4 @@
-; $Id: tstAsmMovSeg-1.asm 35474 2011-01-11 09:08:30Z vboxsync $
+; $Id: tstAsmMovSeg-1.asm $
 ;; @file
 ; Disassembly testcase - Valid mov from/to segment instructions.
 ;

@@ -1,4 +1,4 @@
-/** @file $Id: vboxvideo_drm.c 33754 2010-11-04 08:56:02Z vboxsync $
+/** @file $Id: vboxvideo_drm.c $
  *
  * VirtualBox Additions Linux kernel driver, DRM support
  */
@@ -49,10 +49,14 @@
  *    Gareth Hughes <gareth@valinux.com>
  */
 
-#ifndef AUTOCONF_INCLUDED
-# include <linux/autoconf.h>
-#endif
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
+# include <generated/autoconf.h>
+#else
+# ifndef AUTOCONF_INCLUDED
+#  include <linux/autoconf.h>
+# endif
+#endif
 #include <linux/module.h>
 #include "version-generated.h"
 

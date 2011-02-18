@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdpInternal.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: VBoxNetAdpInternal.h $ */
 /** @file
  * VBoxNetAdp - Network Filter Driver (Host), Internal Header.
  */
@@ -30,6 +30,7 @@ RT_C_DECLS_BEGIN
 typedef struct VBOXNETADPGLOBALS *PVBOXNETADPGLOBALS;
 
 #define VBOXNETADP_MAX_INSTANCES   8
+#define VBOXNETADP_MAX_UNITS       128
 #define VBOXNETADP_NAME            "vboxnet"
 #define VBOXNETADP_MAX_NAME_LEN    32
 #define VBOXNETADP_MTU             1500
@@ -39,7 +40,7 @@ typedef struct VBOXNETADPGLOBALS *PVBOXNETADPGLOBALS;
 #endif
 
 #define VBOXNETADP_CTL_DEV_NAME    "vboxnetctl"
-#define VBOXNETADP_CTL_ADD    _IOR('v', 1, VBOXNETADPREQ)
+#define VBOXNETADP_CTL_ADD   _IOWR('v', 1, VBOXNETADPREQ)
 #define VBOXNETADP_CTL_REMOVE _IOW('v', 2, VBOXNETADPREQ)
 
 typedef struct VBoxNetAdpReq
@@ -84,7 +85,7 @@ struct VBoxNetAdapter
     /** Denotes availability of this slot in adapter array. */
     VBOXNETADPSTATE   enmState;
     /** Corresponds to the digit at the end of device name. */
-    uint32_t          uUnit;
+    int               iUnit;
 
     union
     {
@@ -140,7 +141,7 @@ typedef VBOXNETADP *PVBOXNETADP;
 
 DECLHIDDEN(int) vboxNetAdpInit(void);
 DECLHIDDEN(void) vboxNetAdpShutdown(void);
-DECLHIDDEN(int) vboxNetAdpCreate (PVBOXNETADP *ppNew);
+DECLHIDDEN(int) vboxNetAdpCreate(PVBOXNETADP *ppNew, const char *pcszName);
 DECLHIDDEN(int) vboxNetAdpDestroy(PVBOXNETADP pThis);
 DECLHIDDEN(PVBOXNETADP) vboxNetAdpFindByName(const char *pszName);
 DECLHIDDEN(void) vboxNetAdpComposeMACAddress(PVBOXNETADP pThis, PRTMAC pMac);

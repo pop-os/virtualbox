@@ -1,4 +1,4 @@
-/* $Id: crservice.cpp 35347 2010-12-27 16:25:58Z vboxsync $ */
+/* $Id: crservice.cpp $ */
 
 /** @file
  * VBox crOpenGL: Host service entry points.

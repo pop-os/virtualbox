@@ -1,4 +1,4 @@
-/* $Id: VirtualBoxManager.java 31008 2010-07-22 15:24:27Z vboxsync $ */
+/* $Id: VirtualBoxManager.java $ */
 /*
  * Copyright (C) 2010 Oracle Corporation
  *

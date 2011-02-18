@@ -1,4 +1,4 @@
-/* $Id: vboxvideo.c 35616 2011-01-18 14:52:52Z vboxsync $ */
+/* $Id: vboxvideo.c $ */
 /** @file
  *
  * Linux Additions X11 graphics driver
@@ -403,7 +403,7 @@ vbox_output_detect (xf86OutputPtr output)
     return XF86OutputStatusConnected;
 }
 
-static void
+static DisplayModePtr
 vbox_output_add_mode (VBOXPtr pVBox, DisplayModePtr *pModes,
                       const char *pszName, int x, int y,
                       Bool isPreferred, Bool isUserDef)
@@ -437,13 +437,14 @@ vbox_output_add_mode (VBOXPtr pVBox, DisplayModePtr *pModes,
         pMode->name          = xnfstrdup(pszName);
     }
     *pModes = xf86ModesAdd(*pModes, pMode);
+    return pMode;
 }
 
 static DisplayModePtr
 vbox_output_get_modes (xf86OutputPtr output)
 {
-    unsigned i;
-    DisplayModePtr pModes = NULL;
+    unsigned i, cIndex = 0;
+    DisplayModePtr pModes = NULL, pMode;
     ScrnInfoPtr pScrn = output->scrn;
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
@@ -451,7 +452,16 @@ vbox_output_get_modes (xf86OutputPtr output)
     uint32_t x, y, bpp, iScreen;
     iScreen = (uintptr_t)output->driver_private;
     vboxGetPreferredMode(pScrn, iScreen, &x, &y, &bpp);
-    vbox_output_add_mode(pVBox, &pModes, NULL, x, y, TRUE, FALSE);
+    pMode = vbox_output_add_mode(pVBox, &pModes, NULL, x, y, TRUE, FALSE);
+    VBOXEDIDSet(output, pMode);
+    /* Add standard modes supported by the host */
+    for ( ; ; )
+    {
+        cIndex = vboxNextStandardMode(pScrn, cIndex, &x, &y, NULL);
+        if (cIndex == 0)
+            break;
+        vbox_output_add_mode(pVBox, &pModes, NULL, x, y, FALSE, FALSE);
+    }
 
     /* Also report any modes the user may have requested in the xorg.conf
      * configuration file. */
@@ -469,10 +479,13 @@ vbox_output_get_modes (xf86OutputPtr output)
 static Atom
 vboxAtomVBoxMode(void)
 {
-    static Atom rc = 0;
-    if (!rc)
-        rc = MakeAtom("VBOX_MODE", sizeof("VBOX_MODE") - 1, TRUE);
-    return rc;
+    return MakeAtom("VBOX_MODE", sizeof("VBOX_MODE") - 1, TRUE);
+}
+
+static Atom
+vboxAtomEDID(void)
+{
+    return MakeAtom("EDID", sizeof("EDID") - 1, TRUE);
 }
 
 /** We use this for receiving information from clients for the purpose of
@@ -503,6 +516,8 @@ vbox_output_set_property(xf86OutputPtr output, Atom property,
         pVBox->aPreferredSize[cDisplay].cy = h;
         return TRUE;
     }
+    if (property == vboxAtomEDID())
+        return TRUE;
     return FALSE;
 }
 #endif
@@ -932,10 +947,6 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     /* Framebuffer-related setup */
     pScrn->bitmapBitOrder = BITMAP_BIT_ORDER;
 
-    /* VGA hardware initialisation */
-    if (!vgaHWGetHWRec(pScrn))
-        return FALSE;
-
     TRACE_EXIT();
     return (TRUE);
 }
@@ -975,6 +986,11 @@ VBOXScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
     unsigned flags;
 
     TRACE_ENTRY();
+
+    /* VGA hardware initialisation */
+    if (!vgaHWGetHWRec(pScrn))
+        return FALSE;
+
     /* We make use of the X11 VBE code to save and restore text mode, in
        order to keep our code simple. */
     if ((pVBox->pVbe = VBEExtendedInit(NULL, pVBox->pEnt->index,
@@ -1319,7 +1335,6 @@ VBOXSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth,
             unsigned cHeight, int x, int y)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
-    Bool rc = TRUE, fActive = !pVBox->afDisabled[cDisplay];
     uint32_t offStart, cwReal = cWidth;
 
     TRACE_LOG("cDisplay=%u, cWidth=%u, cHeight=%u, x=%d, y=%d, displayWidth=%d\n",
@@ -1334,35 +1349,34 @@ VBOXSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth,
      * VBOXPreInit. */
     if (   offStart + pVBox->cbLine * cHeight > pVBox->cbFBMax
         || pVBox->cbLine * pScrn->virtualY > pVBox->cbFBMax)
-        fActive = FALSE;
+        return FALSE;
     /* Deactivate the screen if it is outside of the virtual framebuffer and
      * clamp it to lie inside if it is partly outside. */
     if (x >= pScrn->displayWidth || x + (int) cWidth <= 0)
-        fActive = FALSE;
+        return FALSE;
     else
         cwReal = RT_MIN((int) cWidth, pScrn->displayWidth - x);
-    TRACE_LOG("pVBox->afDisabled[cDisplay]=%d, fActive=%d\n",
-              (int)pVBox->afDisabled[cDisplay], (int)fActive);
+    TRACE_LOG("pVBox->afDisabled[cDisplay]=%d\n",
+              (int)pVBox->afDisabled[cDisplay]);
     /* Don't fiddle with the hardware if we are switched
      * to a virtual terminal. */
-    if (!pVBox->vtSwitch && fActive)
+    if (pVBox->vtSwitch)
+        return TRUE;
+    if (cDisplay == 0)
+        VBoxVideoSetModeRegisters(cwReal, cHeight, pScrn->displayWidth,
+                                  vboxBPP(pScrn), x, y);
+    /* Tell the host we support graphics */
+    if (vbox_device_available(pVBox))
+        vboxEnableGraphicsCap(pVBox);
+    if (pVBox->fHaveHGSMI)
     {
-        if (cDisplay == 0)
-            VBoxVideoSetModeRegisters(cwReal, cHeight, pScrn->displayWidth,
-                                      vboxBPP(pScrn), x, y);
-        /* Tell the host we support graphics */
-        if (vbox_device_available(pVBox))
-            vboxEnableGraphicsCap(pVBox);
-    }
-    if (   (pVBox->fHaveHGSMI)
-        && !pVBox->vtSwitch)
+        uint16_t fFlags = VBVA_SCREEN_F_ACTIVE;
+        fFlags |= (pVBox->afDisabled[cDisplay] ? VBVA_SCREEN_F_DISABLED : 0);
         VBoxHGSMIProcessDisplayInfo(&pVBox->guestCtx, cDisplay, x, y,
                                     offStart, pVBox->cbLine, cwReal, cHeight,
-                                    vboxBPP(pScrn),
-                                      VBVA_SCREEN_F_ACTIVE
-                                    | (fActive ? 0: VBVA_SCREEN_F_DISABLED));
-    TRACE_LOG("returning %s\n", rc ? "TRUE" : "FALSE");
-    return rc;
+                                    vboxBPP(pScrn), fFlags);
+    }
+    return TRUE;
 }
 
 /** Resize the virtual framebuffer.  After resizing we reset all modes

@@ -1,4 +1,4 @@
-/* $Id: SUPR0IdcClient-freebsd.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: SUPR0IdcClient-freebsd.c $ */
 /** @file
  * VirtualBox Support Driver - IDC Client Lib, FreeBSD Specific Code.
  */

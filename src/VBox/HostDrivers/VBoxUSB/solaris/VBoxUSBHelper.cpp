@@ -1,4 +1,4 @@
-/** $Id: VBoxUSBHelper.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/** $Id: VBoxUSBHelper.cpp $ */
 /** @file
  * VBoxUSBHelper, setuid binary wrapper for dynamic driver alias updating.
  */

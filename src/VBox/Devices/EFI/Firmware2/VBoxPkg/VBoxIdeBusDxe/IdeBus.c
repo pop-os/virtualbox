@@ -1,4 +1,4 @@
-/* $Id: IdeBus.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: IdeBus.c $ */
 /** @file
  * IdeBus.c
  */

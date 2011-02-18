@@ -1,4 +1,4 @@
-/* $Id: UIPopupBox.cpp 30904 2010-07-19 09:43:24Z vboxsync $ */
+/* $Id: UIPopupBox.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

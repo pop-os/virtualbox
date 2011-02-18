@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35166 2010-12-16 10:10:51Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the Windows installer.
 #

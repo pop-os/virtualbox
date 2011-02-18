@@ -1,4 +1,4 @@
-; $Id: PAEToPAE.asm 28800 2010-04-27 08:22:32Z vboxsync $
+; $Id: PAEToPAE.asm $
 ;; @file
 ; VMM - World Switchers, PAE to PAE
 ;

@@ -1,4 +1,4 @@
-/* $Id: tstHostHardwareLinux.cpp 34341 2010-11-24 20:14:36Z vboxsync $ */
+/* $Id: tstHostHardwareLinux.cpp $ */
 /** @file
  *
  * Test executable for quickly excercising/debugging the Linux host hardware

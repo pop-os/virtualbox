@@ -1,4 +1,4 @@
-/* $Id: DrvSCSI.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
+/* $Id: DrvSCSI.cpp $ */
 /** @file
  * VBox storage drivers: Generic SCSI command parser and execution driver
  */

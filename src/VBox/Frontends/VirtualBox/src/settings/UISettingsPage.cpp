@@ -1,4 +1,4 @@
-/* $Id: UISettingsPage.cpp 34740 2010-12-06 11:56:28Z vboxsync $ */
+/* $Id: UISettingsPage.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

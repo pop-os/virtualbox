@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 29654 2010-05-18 21:37:32Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Top-level makefile for the VBox frontends.
 #

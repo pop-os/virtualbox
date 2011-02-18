@@ -1,4 +1,4 @@
-/* $Id: UIMachineSettingsNetwork.cpp 34094 2010-11-16 10:13:01Z vboxsync $ */
+/* $Id: UIMachineSettingsNetwork.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

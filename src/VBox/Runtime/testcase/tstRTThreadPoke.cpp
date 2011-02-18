@@ -1,4 +1,4 @@
-/* $Id: tstRTThreadPoke.cpp 35351 2010-12-27 17:04:17Z vboxsync $ */
+/* $Id: tstRTThreadPoke.cpp $ */
 /** @file
  * IPRT Testcase - RTThreadPoke.
  */

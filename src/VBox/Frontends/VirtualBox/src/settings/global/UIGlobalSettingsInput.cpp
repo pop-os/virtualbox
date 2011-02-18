@@ -1,4 +1,4 @@
-/* $Id: UIGlobalSettingsInput.cpp 33960 2010-11-11 09:53:04Z vboxsync $ */
+/* $Id: UIGlobalSettingsInput.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

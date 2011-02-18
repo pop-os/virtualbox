@@ -1,4 +1,4 @@
-/* $Id: vfsbase.cpp 35213 2010-12-16 23:54:29Z vboxsync $ */
+/* $Id: vfsbase.cpp $ */
 /** @file
  * IPRT - Virtual File System, Base.
  */

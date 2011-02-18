@@ -1,4 +1,4 @@
-/* $Id: VBoxPkg.h 29252 2010-05-09 17:58:53Z vboxsync $ */
+/* $Id: VBoxPkg.h $ */
 /** @file
  * VBoxPkg.h - Common header, must be include before IPRT and VBox headers.
  */

@@ -1,4 +1,4 @@
-/* $Id: string.cpp 35128 2010-12-15 12:38:41Z vboxsync $ */
+/* $Id: string.cpp $ */
 
 /** @file
  *

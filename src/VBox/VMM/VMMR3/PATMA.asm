@@ -1,4 +1,4 @@
-; $Id: PATMA.asm 35348 2010-12-27 16:35:23Z vboxsync $
+; $Id: PATMA.asm $
 ;; @file
 ; PATM Assembly Routines.
 ;

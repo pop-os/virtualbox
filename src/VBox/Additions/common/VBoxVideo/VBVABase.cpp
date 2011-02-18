@@ -1,4 +1,4 @@
-/* $Id: VBVABase.cpp 35398 2011-01-04 09:39:07Z vboxsync $ */
+/* $Id: VBVABase.cpp $ */
 /** @file
  * VirtualBox Video driver, common code - VBVA initialisation and helper
  * functions.

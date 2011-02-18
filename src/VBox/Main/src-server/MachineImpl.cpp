@@ -1,4 +1,4 @@
-/* $Id: MachineImpl.cpp 35610 2011-01-18 14:24:36Z vboxsync $ */
+/* $Id: MachineImpl.cpp $ */
 /** @file
  * Implementation of IMachine in VBoxSVC.
  */
@@ -3619,10 +3619,20 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
 
         ComObjPtr<Medium> diff;
         diff.createObject();
+        // store this diff in the same registry as the parent
+        Guid uuidRegistryParent;
+        if (!medium->getFirstRegistryMachineId(uuidRegistryParent))
+        {
+            // parent image has no registry: this can happen if we're attaching a new immutable
+            // image that has not yet been attached (medium then points to the base and we're
+            // creating the diff image for the immutable, and the parent is not yet registered);
+            // put the parent in the machine registry then
+            addMediumToRegistry(medium, llRegistriesThatNeedSaving, &uuidRegistryParent);
+        }
         rc = diff->init(mParent,
                         medium->getPreferredDiffFormat(),
                         strFullSnapshotFolder.append(RTPATH_SLASH_STR),
-                        medium->getFirstRegistryMachineId(),         // store this diff in the same registry as the parent
+                        uuidRegistryParent,
                         &llRegistriesThatNeedSaving);
         if (FAILED(rc)) return rc;
 
@@ -3697,17 +3707,9 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
         // here we can fail because of Deleting, or being in process of creating a Diff
         if (FAILED(rc)) return rc;
 
-        // and decide which medium registry to use now that the medium is attached:
-        Guid uuid;
-        if (mData->pMachineConfigFile->canHaveOwnMediaRegistry())
-            // machine XML is VirtualBox 4.0 or higher:
-            uuid = getId();     // machine UUID
-        else
-            uuid = mParent->getGlobalRegistryId(); // VirtualBox global registry UUID
-
-        if (medium->addRegistry(uuid))
-            // registry actually changed:
-            mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
+        addMediumToRegistry(medium,
+                            llRegistriesThatNeedSaving,
+                            NULL /* Guid *puuid */);
     }
 
     /* success: finally remember the attachment */
@@ -3943,17 +3945,7 @@ STDMETHODIMP Machine::MountMedium(IN_BSTR aControllerName,
         {
             pMedium->addBackReference(mData->mUuid);
 
-            // and decide which medium registry to use now that the medium is attached:
-            Guid uuid;
-            if (mData->pMachineConfigFile->canHaveOwnMediaRegistry())
-                // machine XML is VirtualBox 4.0 or higher:
-                uuid = getId();     // machine UUID
-            else
-                uuid = mParent->getGlobalRegistryId(); // VirtualBox global registry UUID
-
-            if (pMedium->addRegistry(uuid))
-                // registry actually changed:
-                mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
+            addMediumToRegistry(pMedium, llRegistriesThatNeedSaving, NULL /* Guid *puuid */ );
         }
 
         pAttach->updateMedium(pMedium);
@@ -4319,16 +4311,15 @@ STDMETHODIMP Machine::Unregister(CleanupMode_T cleanupMode,
                         tr("Cannot unregister the machine '%s' because it has %d snapshots"),
                            mUserData->s.strName.c_str(), cSnapshots);
 
-    // this list collects the medium objects from all medium attachments
-    // which got detached from the machine and its snapshots, in the following
-    // order:
-    // 1) media from machine attachments (these have the "leaf" attachments with snapshots
-    //    and must be closed first, or closing the parents will fail because they will
-    //    children);
+    // This list collects the medium objects from all medium attachments
+    // which we will detach from the machine and its snapshots, in a specific
+    // order which allows for closing all media without getting "media in use"
+    // errors, simply by going through the list from the front to the back:
+    // 1) first media from machine attachments (these have the "leaf" attachments with snapshots
+    //    and must be closed before the parent media from the snapshots, or closing the parents
+    //    will fail because they still have children);
     // 2) media from the youngest snapshots followed by those from the parent snapshots until
-    //    the root ("first") snapshot of the machine
-    // This order allows for closing the media on this list from the beginning to the end
-    // without getting "media in use" errors.
+    //    the root ("first") snapshot of the machine.
     MediaList llMedia;
 
     if (    !mMediaData.isNull()      // can be NULL if machine is inaccessible
@@ -7669,6 +7660,10 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
         /* associate the medium with this machine and snapshot */
         if (!medium.isNull())
         {
+            AutoCaller medCaller(medium);
+            if (FAILED(medCaller.rc())) return medCaller.rc();
+            AutoWriteLock mlock(medium COMMA_LOCKVAL_SRC_POS);
+
             if (isSnapshotMachine())
                 rc = medium->addBackReference(mData->mUuid, *puuidSnapshot);
             else
@@ -7676,7 +7671,7 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
 
             if (puuidRegistry)
                 // caller wants registry ID to be set on all attached media (OVF import case)
-                medium->addRegistry(*puuidRegistry);
+                medium->addRegistry(*puuidRegistry, false /* fRecurse */);
         }
 
         if (FAILED(rc))
@@ -8655,6 +8650,44 @@ HRESULT Machine::saveStateSettings(int aFlags)
 }
 
 /**
+ * Ensures that the given medium is added to a media registry. If this machine
+ * was created with 4.0 or later, then the machine registry is used. Otherwise
+ * the global VirtualBox media registry is used. If the medium was actually
+ * added to a registry (because it wasn't in the registry yet), the UUID of
+ * that registry is added to the given list so that the caller can save the
+ * registry.
+ *
+ * Caller must hold machine read lock!
+ *
+ * @param pMedium
+ * @param llRegistriesThatNeedSaving
+ * @param puuid Optional buffer that receives the registry UUID that was used.
+ */
+void Machine::addMediumToRegistry(ComObjPtr<Medium> &pMedium,
+                                  GuidList &llRegistriesThatNeedSaving,
+                                  Guid *puuid)
+{
+    // decide which medium registry to use now that the medium is attached:
+    Guid uuid;
+    if (mData->pMachineConfigFile->canHaveOwnMediaRegistry())
+        // machine XML is VirtualBox 4.0 or higher:
+        uuid = getId();     // machine UUID
+    else
+        uuid = mParent->getGlobalRegistryId(); // VirtualBox global registry UUID
+
+    AutoCaller autoCaller(pMedium);
+    if (FAILED(autoCaller.rc())) return;
+    AutoWriteLock alock(pMedium COMMA_LOCKVAL_SRC_POS);
+
+    if (pMedium->addRegistry(uuid, false /* fRecurse */))
+        // registry actually changed:
+        mParent->addGuidToListUniquely(llRegistriesThatNeedSaving, uuid);
+
+    if (puuid)
+        *puuid = uuid;
+}
+
+/**
  * Creates differencing hard disks for all normal hard disks attached to this
  * machine and a new set of attachments to refer to created disks.
  *
@@ -8810,10 +8843,15 @@ HRESULT Machine::createImplicitDiffs(IProgress *aProgress,
 
             ComObjPtr<Medium> diff;
             diff.createObject();
+            // store the diff in the same registry as the parent
+            // (this cannot fail here because we can't create implicit diffs for
+            // unregistered images)
+            Guid uuidRegistryParent;
+            Assert(pMedium->getFirstRegistryMachineId(uuidRegistryParent));
             rc = diff->init(mParent,
                             pMedium->getPreferredDiffFormat(),
                             strFullSnapshotFolder.append(RTPATH_SLASH_STR),
-                            pMedium->getFirstRegistryMachineId(),        // store the diff in the same registry as the parent
+                            uuidRegistryParent,
                             pllRegistriesThatNeedSaving);
             if (FAILED(rc)) throw rc;
 
@@ -8898,8 +8936,7 @@ HRESULT Machine::createImplicitDiffs(IProgress *aProgress,
  * Note that to delete hard disks created by #AttachMedium() this method is
  * called from #fixupMedia() when the changes are rolled back.
  *
- * @param pfNeedsSaveSettings Optional pointer to a bool that must have been initialized to false and that will be set to true
- *                by this function if the caller should invoke VirtualBox::saveSettings() because the global settings have changed.
+ * @param pllRegistriesThatNeedSaving Optional pointer to a list of UUIDs to receive the registry IDs that need saving
  *
  * @note Locks this object for writing.
  */
@@ -9084,8 +9121,7 @@ MediumAttachment* Machine::findAttachment(const MediaData::AttachmentList &ll,
  * @param pAttach Medium attachment to detach.
  * @param writeLock Machine write lock which the caller must have locked once. This may be released temporarily in here.
  * @param pSnapshot If NULL, then the detachment is for the current machine. Otherwise this is for a SnapshotMachine, and this must be its snapshot.
- * @param pfNeedsSaveSettings Optional pointer to a bool that must have been initialized to false and that will be set to true
- *                by this function if the caller should invoke VirtualBox::saveSettings() because the global settings have changed.
+ * @param pllRegistriesThatNeedSaving Optional pointer to a list of UUIDs to receive the registry IDs that need saving
  * @return
  */
 HRESULT Machine::detachDevice(MediumAttachment *pAttach,
@@ -9115,7 +9151,8 @@ HRESULT Machine::detachDevice(MediumAttachment *pAttach,
 
         writeLock.release();
 
-        HRESULT rc = oldmedium->deleteStorage(NULL /*aProgress*/, true /*aWait*/,
+        HRESULT rc = oldmedium->deleteStorage(NULL /*aProgress*/,
+                                              true /*aWait*/,
                                               pllRegistriesThatNeedSaving);
 
         writeLock.acquire();
@@ -9147,14 +9184,21 @@ HRESULT Machine::detachDevice(MediumAttachment *pAttach,
 }
 
 /**
- * Goes thru all medium attachments of the list and calls detachDevice() on each
- * of them and attaches all Medium objects found in the process to the given list,
- * depending on cleanupMode.
+ * Goes thru all media of the given list and
+ *
+ * 1) calls detachDevice() on each of them for this machine and
+ * 2) adds all Medium objects found in the process to the given list,
+ *    depending on cleanupMode.
+ *
+ * If cleanupMode is CleanupMode_DetachAllReturnHardDisksOnly, this only
+ * adds hard disks to the list. If it is CleanupMode_Full, this adds all
+ * media to the list.
  *
  * This gets called from Machine::Unregister, both for the actual Machine and
  * the SnapshotMachine objects that might be found in the snapshots.
  *
- * Requires caller and locking.
+ * Requires caller and locking. The machine lock must be passed in because it
+ * will be passed on to detachDevice which needs it for temporary unlocking.
  *
  * @param writeLock Machine lock from top-level caller; this gets passed to detachDevice.
  * @param pSnapshot Must be NULL when called for a "real" Machine or a snapshot object if called for a SnapshotMachine.
@@ -9180,7 +9224,7 @@ HRESULT Machine::detachAllMedia(AutoWriteLock &writeLock,
          it != llAttachments2.end();
          ++it)
     {
-        ComObjPtr<MediumAttachment> pAttach = *it;
+        ComObjPtr<MediumAttachment> &pAttach = *it;
         ComObjPtr<Medium> pMedium = pAttach->getMedium();
 
         if (!pMedium.isNull())

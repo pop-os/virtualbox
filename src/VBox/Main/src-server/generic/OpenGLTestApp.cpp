@@ -1,4 +1,4 @@
-/* $Id: OpenGLTestApp.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
+/* $Id: OpenGLTestApp.cpp $ */
 /** @file
  * VBox host opengl support test application.
  */

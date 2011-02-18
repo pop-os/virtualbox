@@ -1,4 +1,4 @@
-/* $Id: preload.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: preload.cpp $ */
 /** @file
  * bin2c - Binary 2 C Structure Converter.
  */
@@ -146,7 +146,7 @@ int main(int argc, char **argv)
             if (   !strcmp(argv[i], "--version")
                 || !strcmp(argv[i], "-V"))
             {
-                printf("$Revision: 28800 $\n");
+                printf("$Revision: 60692 $\n");
                 return 0;
             }
             fprintf(stderr, "syntax error: unknown option '%s'\n", argv[i]);

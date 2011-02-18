@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 # Hal driver description for the vboxmouse driver
-# $Id: 90-vboxguest.fdi 32396 2010-09-10 12:22:20Z vboxsync $
+# $Id: 90-vboxguest.fdi $
 
      Copyright (C) 2008-2010 Oracle Corporation
 

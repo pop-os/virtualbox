@@ -1,5 +1,5 @@
 #!/bin/bash
-# $Id: pure_test.sh 28800 2010-04-27 08:22:32Z vboxsync $
+# $Id: pure_test.sh $
 ## @file
 # pure_test.sh - test the effect of __attribute__((pure)) on a set of
 #                functions.

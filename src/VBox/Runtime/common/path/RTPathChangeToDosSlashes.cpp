@@ -1,4 +1,4 @@
-/* $Id: RTPathChangeToDosSlashes.cpp 34205 2010-11-19 15:09:08Z vboxsync $ */
+/* $Id: RTPathChangeToDosSlashes.cpp $ */
 /** @file
  * IPRT - RTPathChangeToDosSlashes
  */

@@ -1,4 +1,4 @@
-/* $Id: sleepqueue-r0drv-freebsd.h 33527 2010-10-27 17:09:25Z vboxsync $ */
+/* $Id: sleepqueue-r0drv-freebsd.h $ */
 /** @file
  * IPRT - FreeBSD Ring-0 Driver Helpers for Abstracting Sleep Queues,
  */
