@@ -1,4 +1,4 @@
-/* $Id: PGMInline.h 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: PGMInline.h $ */
 /** @file
  * PGM - Inlined functions.
  */
@@ -562,6 +562,39 @@ DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PPGM pPGM, PPGMPAGE pPage, RTGCPHYS
 }
 
 #endif /* !IN_RC */
+
+
+/**
+ * Enables write monitoring for an allocated page.
+ *  
+ * The caller is responsible for updating the shadow page tables. 
+ *  
+ * @param   pVM         The VM handle.
+ * @param   pPage       The page to write monitor. 
+ * @param   GCPhysPage  The address of the page.
+ */
+DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhysPage)
+{
+    Assert(PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_ALLOCATED);
+    Assert(PGMIsLockOwner(pVM));
+
+    PGM_PAGE_SET_STATE(pPage, PGM_PAGE_STATE_WRITE_MONITORED);
+    pVM->pgm.s.cMonitoredPages++;
+
+    /* Large pages must disabled. */
+    if (PGM_PAGE_GET_PDE_TYPE(pPage) == PGM_PAGE_PDE_TYPE_PDE)
+    {
+        PPGMPAGE pFirstPage = pgmPhysGetPage(&pVM->pgm.s, GCPhysPage & X86_PDE2M_PAE_PG_MASK);
+        AssertFatal(pFirstPage);
+        if (PGM_PAGE_GET_PDE_TYPE(pFirstPage) == PGM_PAGE_PDE_TYPE_PDE)
+        {
+            PGM_PAGE_SET_PDE_TYPE(pFirstPage, PGM_PAGE_PDE_TYPE_PDE_DISABLED);
+            pVM->pgm.s.cLargePagesDisabled++;
+        }
+        else
+            Assert(PGM_PAGE_GET_PDE_TYPE(pFirstPage) == PGM_PAGE_PDE_TYPE_PDE_DISABLED);
+    }
+}
 
 
 /**

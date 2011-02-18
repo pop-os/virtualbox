@@ -1,4 +1,4 @@
-/* $Id: FramebufferImpl.h 30714 2010-07-07 16:20:03Z vboxsync $ */
+/* $Id: FramebufferImpl.h $ */
 
 /** @file
  *

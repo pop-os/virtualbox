@@ -1,4 +1,4 @@
-/* $Id: tstRTCircBuf.cpp 33286 2010-10-21 09:48:00Z vboxsync $ */
+/* $Id: tstRTCircBuf.cpp $ */
 /** @file
  * IPRT Testcase - Lock free circular buffers.
  */

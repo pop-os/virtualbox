@@ -1,4 +1,4 @@
-/* $Id: keyboard-tables.h 35479 2011-01-11 11:37:08Z vboxsync $ */
+/* $Id: keyboard-tables.h $ */
 /** @file
  * VBox/Frontends/Common - X11 keyboard driver translation tables.
  */

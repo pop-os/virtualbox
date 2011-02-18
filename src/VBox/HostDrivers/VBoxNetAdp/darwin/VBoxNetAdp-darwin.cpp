@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-darwin.cpp 30320 2010-06-21 08:35:09Z vboxsync $ */
+/* $Id: VBoxNetAdp-darwin.cpp $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), Darwin Specific Code.
  */
@@ -135,7 +135,7 @@ static void vboxNetAdpDarwinComposeUUID(PVBOXNETADP pThis, PRTUUID pUuid)
     memcpy(pUuid->au8, "vboxnet", 7);
     pUuid->Gen.u8ClockSeqHiAndReserved = (pUuid->Gen.u8ClockSeqHiAndReserved & 0x3f) | 0x80;
     pUuid->Gen.u16TimeHiAndVersion = (pUuid->Gen.u16TimeHiAndVersion & 0x0fff) | 0x4000;
-    pUuid->Gen.u8ClockSeqLow = pThis->uUnit;
+    pUuid->Gen.u8ClockSeqLow = pThis->iUnit;
     vboxNetAdpComposeMACAddress(pThis, (PRTMAC)pUuid->Gen.au8Node);
 }
 
@@ -214,12 +214,12 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
     mac.sdl_slen = 0;
     memcpy(LLADDR(&mac), pMACAddress->au8, mac.sdl_alen);
 
-    RTStrPrintf(pThis->szName, VBOXNETADP_MAX_NAME_LEN, "%s%d", VBOXNETADP_NAME, pThis->uUnit);
+    RTStrPrintf(pThis->szName, VBOXNETADP_MAX_NAME_LEN, "%s%d", VBOXNETADP_NAME, pThis->iUnit);
     vboxNetAdpDarwinComposeUUID(pThis, &uuid);
     Params.uniqueid = uuid.au8;
     Params.uniqueid_len = sizeof(uuid);
     Params.name = VBOXNETADP_NAME;
-    Params.unit = pThis->uUnit;
+    Params.unit = pThis->iUnit;
     Params.family = IFNET_FAMILY_ETHERNET;
     Params.type = IFT_ETHER;
     Params.output = vboxNetAdpDarwinOutput;
@@ -292,7 +292,7 @@ void vboxNetAdpOsDestroy(PVBOXNETADP pThis)
     rc = RTSemEventWait(pThis->u.s.hEvtDetached, VBOXNETADP_DETACH_TIMEOUT);
     if (rc == VERR_TIMEOUT)
         LogRel(("VBoxAdpDrv: Failed to detach interface %s%d\n.",
-                VBOXNETADP_NAME, pThis->uUnit));
+                VBOXNETADP_NAME, pThis->iUnit));
     err = ifnet_release(pThis->u.s.pIface);
     if (err)
         Log(("vboxNetAdpUnregisterDevice: Failed to release interface (err=%d).\n", err));
@@ -346,12 +346,15 @@ static int VBoxNetAdpDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFla
     {
         case IOCBASECMD(VBOXNETADP_CTL_ADD):
         {
-            if (   (IOC_DIRMASK & iCmd) != IOC_OUT
+            if (   (IOC_DIRMASK & iCmd) != IOC_INOUT
                 || cbReq < sizeof(VBOXNETADPREQ))
                 return EINVAL;
 
             PVBOXNETADP pNew;
-            rc = vboxNetAdpCreate(&pNew);
+            Log(("VBoxNetAdpDarwinIOCtl: szName=%s\n", pReq->szName));
+            rc = vboxNetAdpCreate(&pNew, 
+                                  pReq->szName[0] && RTStrEnd(pReq->szName, RT_MIN(cbReq, sizeof(pReq->szName))) ?
+                                  pReq->szName : NULL);
             if (RT_FAILURE(rc))
                 return EINVAL;
 

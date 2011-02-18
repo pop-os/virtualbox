@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35450 2011-01-10 11:14:34Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for VBoxRes.dll.
 #

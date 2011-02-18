@@ -1,4 +1,4 @@
-/* $Id: vmstarter.mm 34275 2010-11-23 11:08:52Z vboxsync $ */
+/* $Id: vmstarter.mm $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

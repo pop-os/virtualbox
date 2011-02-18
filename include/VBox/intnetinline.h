@@ -1,4 +1,4 @@
-/* $Id: intnetinline.h 28848 2010-04-27 17:06:44Z vboxsync $ */
+/* $Id: intnetinline.h $ */
 /** @file
  * INTNET - Internal Networking, Inlined Code. (DEV,++)
  *

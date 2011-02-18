@@ -1,4 +1,4 @@
-/* $Id: lockvalidator.h 35499 2011-01-12 08:33:45Z vboxsync $ */
+/* $Id: lockvalidator.h $ */
 /** @file
  * IPRT - Internal RTLockValidator header.
  */

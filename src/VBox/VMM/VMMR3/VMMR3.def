@@ -1,4 +1,4 @@
-; $Id: VMMR3.def 34703 2010-12-03 15:13:38Z vboxsync $
+; $Id: VMMR3.def $
 ;; @file
 ; VMM Ring-3 Context DLL - Definition file.
 

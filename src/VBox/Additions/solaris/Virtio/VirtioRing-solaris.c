@@ -1,4 +1,4 @@
-/* $Id: VirtioRing-solaris.c 34233 2010-11-22 11:25:55Z vboxsync $ */
+/* $Id: VirtioRing-solaris.c $ */
 /** @file
  * VirtualBox Guest Additions: Virtio Driver for Solaris, Ring implementation.
  */

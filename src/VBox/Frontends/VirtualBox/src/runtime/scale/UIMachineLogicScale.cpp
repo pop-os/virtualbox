@@ -1,4 +1,4 @@
-/* $Id: UIMachineLogicScale.cpp 34984 2010-12-13 10:29:58Z vboxsync $ */
+/* $Id: UIMachineLogicScale.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):

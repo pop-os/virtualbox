@@ -1,4 +1,4 @@
-/* $Id: SUPLib-os2.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: SUPLib-os2.cpp $ */
 /** @file
  * VirtualBox Support Library - OS/2 specific parts.
  */

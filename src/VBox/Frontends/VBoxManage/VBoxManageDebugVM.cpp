@@ -1,4 +1,4 @@
-/* $Id: VBoxManageDebugVM.cpp 35550 2011-01-13 18:08:54Z vboxsync $ */
+/* $Id: VBoxManageDebugVM.cpp $ */
 /** @file
  * VBoxManage - Implementation of the debugvm command.
  */

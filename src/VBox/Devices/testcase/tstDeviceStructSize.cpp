@@ -1,4 +1,4 @@
-/* $Id: tstDeviceStructSize.cpp 32471 2010-09-14 10:26:07Z vboxsync $ */
+/* $Id: tstDeviceStructSize.cpp $ */
 /** @file
  * tstDeviceStructSize - testcase for check structure sizes/alignment
  *                       and to verify that HC and RC uses the same

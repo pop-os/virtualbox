@@ -1,4 +1,4 @@
-/* $Id: tstSemMutex.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: tstSemMutex.cpp $ */
 /** @file
  * IPRT Testcase - Simple Mutex Semaphore Smoke Test.
  */

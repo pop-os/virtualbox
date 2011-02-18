@@ -1,4 +1,4 @@
-/* $Id: PATMInternal.h 35348 2010-12-27 16:35:23Z vboxsync $ */
+/* $Id: PATMInternal.h $ */
 /** @file
  * PATM - Internal header file.
  */

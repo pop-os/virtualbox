@@ -1,4 +1,4 @@
-/* $Id: RTFileQuerySize-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTFileQuerySize-generic.cpp $ */
 /** @file
  * IPRT - RTFileQuerySize, generic implementation.
  */

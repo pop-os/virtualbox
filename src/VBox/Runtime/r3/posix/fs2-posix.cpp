@@ -1,4 +1,4 @@
-/* $Id: fs2-posix.cpp 34015 2010-11-12 00:15:05Z vboxsync $ */
+/* $Id: fs2-posix.cpp $ */
 /** @file
  * IPRT - File System Helpers, POSIX, Part 2.
  */

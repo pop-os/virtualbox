@@ -1,4 +1,4 @@
-/* $Id: avl_Get.cpp.h 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: avl_Get.cpp.h $ */
 /** @file
  * kAVLGet - get routine for AVL trees.
  */

@@ -1,4 +1,4 @@
-/* $Id: RTMpGetOnlineCount-generic.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: RTMpGetOnlineCount-generic.cpp $ */
 /** @file
  * IPRT - Multiprocessor, Generic RTMpGetOnlineCount.
  */

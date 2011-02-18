@@ -1,4 +1,4 @@
-/* $Id: vboxvfs_vfsops.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: vboxvfs_vfsops.c $ */
 /** @file
  * Description.
  */

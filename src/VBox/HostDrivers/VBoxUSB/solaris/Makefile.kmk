@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 31911 2010-08-24 11:56:45Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Solaris VBoxUSB kernel extension.
 #

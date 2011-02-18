@@ -1,4 +1,4 @@
-/* $Id: randadv.cpp 34507 2010-11-30 13:14:14Z vboxsync $ */
+/* $Id: randadv.cpp $ */
 /** @file
  * IPRT - Random Numbers, Generic Glue.
  */

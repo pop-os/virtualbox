@@ -1,4 +1,4 @@
-/* $Id: BasePeCoffLibInternals.h 29081 2010-05-05 13:32:04Z vboxsync $ */
+/* $Id: BasePeCoffLibInternals.h $ */
 /** @file
  * BasePeCoffLibInternals.h
  */

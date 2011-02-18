@@ -1,4 +1,4 @@
-/* $Id: env-posix.cpp 33464 2010-10-26 12:27:50Z vboxsync $ */
+/* $Id: env-posix.cpp $ */
 /** @file
  * IPRT - Environment, Posix.
  */

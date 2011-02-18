@@ -1,4 +1,4 @@
-/* $Id: tstOVF.cpp 33294 2010-10-21 10:45:26Z vboxsync $ */
+/* $Id: tstOVF.cpp $ */
 /** @file
  *
  * tstOVF - testcases for OVF import and export

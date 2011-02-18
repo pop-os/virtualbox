@@ -1,4 +1,4 @@
-/* $Id: VBox-CodingGuidelines.cpp 30954 2010-07-21 12:37:49Z vboxsync $ */
+/* $Id: VBox-CodingGuidelines.cpp $ */
 /** @file
  * VBox - Coding Guidelines.
  */

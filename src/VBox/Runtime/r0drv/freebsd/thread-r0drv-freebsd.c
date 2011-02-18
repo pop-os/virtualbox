@@ -1,4 +1,4 @@
-/* $Id: thread-r0drv-freebsd.c 29500 2010-05-14 21:43:06Z vboxsync $ */
+/* $Id: thread-r0drv-freebsd.c $ */
 /** @file
  * IPRT - Threads (Part 1), Ring-0 Driver, FreeBSD.
  */
@@ -101,7 +101,11 @@ RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
 
 RTDECL(bool) RTThreadYield(void)
 {
+#if __FreeBSD_version >= 900032
+    kern_yield(curthread->td_user_pri);
+#else
     uio_yield();
+#endif
     return false; /** @todo figure this one ... */
 }
 

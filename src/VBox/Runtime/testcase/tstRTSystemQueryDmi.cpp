@@ -1,4 +1,4 @@
-/* $Id: tstRTSystemQueryDmi.cpp 30320 2010-06-21 08:35:09Z vboxsync $ */
+/* $Id: tstRTSystemQueryDmi.cpp $ */
 /** @file
  * IPRT Testcase - RTSystemQueryDmi*.
  */

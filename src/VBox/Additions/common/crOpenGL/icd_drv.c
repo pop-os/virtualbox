@@ -1,4 +1,4 @@
-/* $Id: icd_drv.c 34887 2010-12-09 14:13:56Z vboxsync $ */
+/* $Id: icd_drv.c $ */
 
 /** @file
  * VBox OpenGL windows ICD driver functions

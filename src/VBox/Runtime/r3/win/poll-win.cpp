@@ -1,4 +1,4 @@
-/* $Id: poll-win.cpp 32431 2010-09-11 18:02:17Z vboxsync $ */
+/* $Id: poll-win.cpp $ */
 /** @file
  * IPRT - Polling I/O Handles, Windows Implementation.
  *

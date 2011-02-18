@@ -1,4 +1,4 @@
-/* $Id: RTSystemQueryDmiString-win.cpp 34510 2010-11-30 13:22:33Z vboxsync $ */
+/* $Id: RTSystemQueryDmiString-win.cpp $ */
 /** @file
  * IPRT - RTSystemQueryDmiString, windows ring-3.
  */

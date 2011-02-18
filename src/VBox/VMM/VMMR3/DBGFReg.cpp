@@ -1,4 +1,4 @@
-/* $Id: DBGFReg.cpp 35609 2011-01-18 14:24:34Z vboxsync $ */
+/* $Id: DBGFReg.cpp $ */
 /** @file
  * DBGF - Debugger Facility, Register Methods.
  */

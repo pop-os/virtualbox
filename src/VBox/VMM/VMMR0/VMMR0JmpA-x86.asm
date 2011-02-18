@@ -1,4 +1,4 @@
-; $Id: VMMR0JmpA-x86.asm 35334 2010-12-27 12:27:46Z vboxsync $
+; $Id: VMMR0JmpA-x86.asm $
 ;; @file
 ; VMM - R0 SetJmp / LongJmp routines for X86.
 ;

@@ -1,4 +1,4 @@
-/* $Id: ExtPackManagerImpl.cpp 35523 2011-01-13 13:12:03Z vboxsync $ */
+/* $Id: ExtPackManagerImpl.cpp $ */
 /** @file
  * VirtualBox Main - interface for Extension Packs, VBoxSVC & VBoxC.
  */
@@ -2407,8 +2407,8 @@ void ExtPackManager::removeExtPack(const char *a_pszName)
  * This may remove the extension pack from the list, so any non-smart pointers
  * to the extension pack object may become invalid.
  *
- * @returns S_OK and *ppExtPack on success, COM status code and error message
- *          on failure.
+ * @returns S_OK and *a_ppExtPack on success, COM status code and error
+ *          message on failure.  Note that *a_ppExtPack can be NULL.
  *
  * @param   a_pszName           The extension to update..
  * @param   a_fUnusableIsError  If @c true, report an unusable extension pack
@@ -2605,7 +2605,7 @@ HRESULT ExtPackManager::doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace, 
             if (SUCCEEDED(hrc))
             {
                 hrc = refreshExtPack(pStrName->c_str(), true /*a_fUnusableIsError*/, &pExtPack);
-                if (SUCCEEDED(hrc))
+                if (SUCCEEDED(hrc) && pExtPack)
                 {
                     RTERRINFOSTATIC ErrInfo;
                     RTErrInfoInitStatic(&ErrInfo);
@@ -2631,6 +2631,9 @@ HRESULT ExtPackManager::doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace, 
                                        ErrInfo.Core.rc, ErrInfo.Core.pszMsg);
                     }
                 }
+                else if (SUCCEEDED(hrc))
+                    hrc = setError(E_FAIL, tr("Installing extension pack '%s' failed under mysterious circumstances"),
+                                   pStrName->c_str());
             }
             else
             {

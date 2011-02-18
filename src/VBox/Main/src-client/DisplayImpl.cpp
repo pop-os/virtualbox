@@ -1,4 +1,4 @@
-/* $Id: DisplayImpl.cpp 35612 2011-01-18 14:34:31Z vboxsync $ */
+/* $Id: DisplayImpl.cpp $ */
 /** @file
  * VirtualBox COM class implementation
  */
@@ -762,6 +762,7 @@ void Display::handleResizeCompletedEMT (void)
             continue;
         }
 
+        /* @todo Merge these two 'if's within one 'if (!pFBInfo->pFramebuffer.isNull())' */
         if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN && !pFBInfo->pFramebuffer.isNull())
         {
             /* Primary framebuffer has completed the resize. Update the connector data for VGA device. */
@@ -773,11 +774,21 @@ void Display::handleResizeCompletedEMT (void)
 
             pFBInfo->fDefaultFormat = (usesGuestVRAM == FALSE);
 
+            /* If the primary framebuffer is disabled, tell the VGA device to not to copy
+             * pixels from VRAM to the framebuffer.
+             */
             if (pFBInfo->fDisabled)
                 mpDrv->pUpPort->pfnSetRenderVRAM (mpDrv->pUpPort, false);
             else
                 mpDrv->pUpPort->pfnSetRenderVRAM (mpDrv->pUpPort,
                                                   pFBInfo->fDefaultFormat);
+
+            /* If the screen resize was because of disabling, tell framebuffer to repaint.
+             * The framebuffer if now in default format so it will not use guest VRAM
+             * and will show usually black image which is there after framebuffer resize.
+             */
+            if (pFBInfo->fDisabled)
+                pFBInfo->pFramebuffer->NotifyUpdate(0, 0, mpDrv->IConnector.cx, mpDrv->IConnector.cy);
         }
         else if (!pFBInfo->pFramebuffer.isNull())
         {
@@ -785,6 +796,13 @@ void Display::handleResizeCompletedEMT (void)
             pFBInfo->pFramebuffer->COMGETTER(UsesGuestVRAM) (&usesGuestVRAM);
 
             pFBInfo->fDefaultFormat = (usesGuestVRAM == FALSE);
+
+            /* If the screen resize was because of disabling, tell framebuffer to repaint.
+             * The framebuffer if now in default format so it will not use guest VRAM
+             * and will show usually black image which is there after framebuffer resize.
+             */
+            if (pFBInfo->fDisabled)
+                pFBInfo->pFramebuffer->NotifyUpdate(0, 0, pFBInfo->w, pFBInfo->h);
         }
         LogFlow(("[%d]: default format %d\n", uScreenId, pFBInfo->fDefaultFormat));
 
@@ -2226,6 +2244,10 @@ int Display::displayTakeScreenshotEMT(Display *pDisplay, ULONG aScreenId, uint8_
                     *pu32Width = width;
                     *pu32Height = height;
                 }
+                else
+                {
+                    RTMemFree(pu8Data);
+                }
             }
         }
         else
@@ -2295,8 +2317,15 @@ static int displayTakeScreenshot(PVM pVM, Display *pDisplay, struct DRVMAINDISPL
                            srcW, srcH);
         }
 
-        /* This can be called from any thread. */
-        pDrv->pUpPort->pfnFreeScreenshot (pDrv->pUpPort, pu8Data);
+        if (aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
+        {
+            /* This can be called from any thread. */
+            pDrv->pUpPort->pfnFreeScreenshot (pDrv->pUpPort, pu8Data);
+        }
+        else
+        {
+            RTMemFree(pu8Data);
+        }
     }
 
     return vrc;
@@ -2317,6 +2346,12 @@ STDMETHODIMP Display::TakeScreenShot (ULONG aScreenId, BYTE *address, ULONG widt
     CheckComArgNotNull(address);
     CheckComArgExpr(width, width != 0);
     CheckComArgExpr(height, height != 0);
+
+    /* Do not allow too large screenshots. This also filters out negative
+     * values passed as either 'width' or 'height'.
+     */
+    CheckComArgExpr(width, width <= 32767);
+    CheckComArgExpr(height, height <= 32767);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -2366,6 +2401,12 @@ STDMETHODIMP Display::TakeScreenShotToArray (ULONG aScreenId, ULONG width, ULONG
     CheckComArgOutSafeArrayPointerValid(aScreenData);
     CheckComArgExpr(width, width != 0);
     CheckComArgExpr(height, height != 0);
+
+    /* Do not allow too large screenshots. This also filters out negative
+     * values passed as either 'width' or 'height'.
+     */
+    CheckComArgExpr(width, width <= 32767);
+    CheckComArgExpr(height, height <= 32767);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -2439,6 +2480,12 @@ STDMETHODIMP Display::TakeScreenShotPNGToArray (ULONG aScreenId, ULONG width, UL
     CheckComArgOutSafeArrayPointerValid(aScreenData);
     CheckComArgExpr(width, width != 0);
     CheckComArgExpr(height, height != 0);
+
+    /* Do not allow too large screenshots. This also filters out negative
+     * values passed as either 'width' or 'height'.
+     */
+    CheckComArgExpr(width, width <= 32767);
+    CheckComArgExpr(height, height <= 32767);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -3043,17 +3090,10 @@ DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterf
                 /* The resize status could be not Void here because a pending resize is issued. */
                 continue;
             }
-            /* Continue with normal processing because the status here is ResizeStatus_Void. */
-            if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
-            {
-                /* Repaint the display because VM continued to run during the framebuffer resize. */
-                if (!pFBInfo->pFramebuffer.isNull())
-                {
-                    pDisplay->vbvaLock();
-                    pDrv->pUpPort->pfnUpdateDisplayAll(pDrv->pUpPort);
-                    pDisplay->vbvaUnlock();
-                }
-            }
+            /* Continue with normal processing because the status here is ResizeStatus_Void.
+             * Repaint all displays because VM continued to run during the framebuffer resize.
+             */
+            pDisplay->InvalidateAndUpdateEMT(pDisplay);
         }
         else if (u32ResizeStatus == ResizeStatus_InProgress)
         {
@@ -3737,6 +3777,8 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
         return VINF_SUCCESS;
     }
 
+    bool fResize = pFBInfo->fDisabled; /* If display was disabled, do a resize, because the framebuffer was changed. */
+
     if (pFBInfo->fDisabled)
     {
         pFBInfo->fDisabled = false;
@@ -3756,11 +3798,12 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
     /* Check if this is a real resize or a notification about the screen origin.
      * The guest uses this VBVAResize call for both.
      */
-    bool fResize =    pFBInfo->u16BitsPerPixel != pScreen->u16BitsPerPixel
-                   || pFBInfo->pu8FramebufferVRAM != (uint8_t *)pvVRAM + pScreen->u32StartOffset
-                   || pFBInfo->u32LineSize != pScreen->u32LineSize
-                   || pFBInfo->w != pScreen->u32Width
-                   || pFBInfo->h != pScreen->u32Height;
+    fResize =    fResize
+              || pFBInfo->u16BitsPerPixel != pScreen->u16BitsPerPixel
+              || pFBInfo->pu8FramebufferVRAM != (uint8_t *)pvVRAM + pScreen->u32StartOffset
+              || pFBInfo->u32LineSize != pScreen->u32LineSize
+              || pFBInfo->w != pScreen->u32Width
+              || pFBInfo->h != pScreen->u32Height;
 
     bool fNewOrigin =    pFBInfo->xOrigin != pScreen->i32OriginX
                       || pFBInfo->yOrigin != pScreen->i32OriginY;

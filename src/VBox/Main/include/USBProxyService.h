@@ -1,4 +1,4 @@
-/* $Id: USBProxyService.h 34341 2010-11-24 20:14:36Z vboxsync $ */
+/* $Id: USBProxyService.h $ */
 /** @file
  * VirtualBox USB Proxy Service (base) class.
  */

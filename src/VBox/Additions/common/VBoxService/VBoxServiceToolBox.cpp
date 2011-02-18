@@ -1,4 +1,4 @@
-/* $Id: VBoxServiceToolBox.cpp 35244 2010-12-20 13:46:17Z vboxsync $ */
+/* $Id: VBoxServiceToolBox.cpp $ */
 /** @file
  * VBoxServiceToolBox - Internal (BusyBox-like) toolbox.
  */

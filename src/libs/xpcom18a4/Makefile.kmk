@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35440 2011-01-09 23:43:10Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for XPCOM.
 #

@@ -1,4 +1,4 @@
-/* $Id: PCIInternal.h 35358 2010-12-28 07:58:40Z vboxsync $ */
+/* $Id: PCIInternal.h $ */
 /** @file
  * DevPCI - PCI Internal header - Only for hiding bits of PCIDEVICE.
  */

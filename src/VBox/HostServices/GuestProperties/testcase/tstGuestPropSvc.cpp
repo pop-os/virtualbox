@@ -1,4 +1,4 @@
-/* $Id: tstGuestPropSvc.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: tstGuestPropSvc.cpp $ */
 /** @file
  *
  * Testcase for the guest property service.

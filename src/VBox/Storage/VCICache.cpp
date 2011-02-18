@@ -1,4 +1,4 @@
-/* $Id: VCICache.cpp 33745 2010-11-03 18:31:53Z vboxsync $ */
+/* $Id: VCICache.cpp $ */
 /** @file
  * VCICacheCore - VirtualBox Cache Image, Core Code.
  */

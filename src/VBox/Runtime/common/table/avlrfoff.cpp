@@ -1,4 +1,4 @@
-/* $Id: avlrfoff.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: avlrfoff.cpp $ */
 /** @file
  * IPRT - AVL tree, RTFOFF, range, unique keys.
  */

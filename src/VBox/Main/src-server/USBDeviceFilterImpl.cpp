@@ -1,4 +1,4 @@
-/* $Id: USBDeviceFilterImpl.cpp 35368 2010-12-30 13:38:23Z vboxsync $ */
+/* $Id: USBDeviceFilterImpl.cpp $ */
 /** @file
  * Implementation of VirtualBox COM components: USBDeviceFilter and HostUSBDeviceFilter
  */

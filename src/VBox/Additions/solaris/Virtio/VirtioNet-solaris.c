@@ -1,4 +1,4 @@
-/* $Id: VirtioNet-solaris.c 34143 2010-11-17 20:05:36Z vboxsync $ */
+/* $Id: VirtioNet-solaris.c $ */
 /** @file
  * VirtualBox Guest Additions: Virtio Network Driver for Solaris.
  */

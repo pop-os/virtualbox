@@ -1,4 +1,4 @@
-/* $Id: strcmp_alias.c 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: strcmp_alias.c $ */
 /** @file
  * IPRT - No-CRT strcmp() alias for gcc.
  */

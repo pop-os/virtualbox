@@ -1,4 +1,4 @@
-/* $Id: NATEngineImpl.h 33825 2010-11-08 10:16:25Z vboxsync $ */
+/* $Id: NATEngineImpl.h $ */
 
 /** @file
  *

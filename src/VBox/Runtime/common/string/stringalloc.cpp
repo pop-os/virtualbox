@@ -1,4 +1,4 @@
-/* $Id: stringalloc.cpp 34032 2010-11-12 16:20:25Z vboxsync $ */
+/* $Id: stringalloc.cpp $ */
 /** @file
  * IPRT - String Manipulation.
  */

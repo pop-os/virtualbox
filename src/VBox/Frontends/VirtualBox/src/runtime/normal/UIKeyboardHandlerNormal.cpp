@@ -1,4 +1,4 @@
-/* $Id: UIKeyboardHandlerNormal.cpp 30675 2010-07-06 14:57:01Z vboxsync $ */
+/* $Id: UIKeyboardHandlerNormal.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -25,6 +25,7 @@
 /* Local includes */
 #include "UIKeyboardHandlerNormal.h"
 #include "UIMachineWindow.h"
+#include "UIMachineShortcuts.h"
 
 /* Fullscreen keyboard-handler constructor: */
 UIKeyboardHandlerNormal::UIKeyboardHandlerNormal(UIMachineLogic* pMachineLogic)
@@ -57,7 +58,7 @@ bool UIKeyboardHandlerNormal::eventFilter(QObject *pWatchedObject, QEvent *pEven
                 /* Get key-event: */
                 QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
                 /* Process Host+Home as menu-bar activator: */
-                if (isHostKeyPressed() && pKeyEvent->key() == Qt::Key_Home)
+                if (isHostKeyPressed() && pKeyEvent->key() == gMS->keySequence(UIMachineShortcuts::PopupMenuShortcut))
                 {
                     /* Trying to get menu-bar: */
                     QMenuBar *pMenuBar = qobject_cast<QMainWindow*>(m_windows[uScreenId]->machineWindow())->menuBar();

@@ -1,4 +1,4 @@
-/* $Id: GMMR0Internal.h 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: GMMR0Internal.h $ */
 /** @file
  * GMM - The Global Memory Manager, Internal Header.
  */

@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35596 2011-01-17 22:00:13Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the storage device & driver testcases.
 #

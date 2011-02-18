@@ -1,4 +1,4 @@
-/* $Id: MediumImpl.h 35252 2010-12-20 16:46:31Z vboxsync $ */
+/* $Id: MediumImpl.h $ */
 
 /** @file
  *
@@ -176,9 +176,13 @@ public:
     MediumType_T getType() const;
     Utf8Str getName();
 
-    bool addRegistry(const Guid& id);
+    bool addRegistry(const Guid& id, bool fRecurse);
+private:
+    void addRegistryImpl(const Guid& id, bool fRecurse);
+public:
+    bool removeRegistry(const Guid& id, bool fRecurse);
     bool isInRegistry(const Guid& id);
-    const Guid& getFirstRegistryMachineId() const;
+    bool getFirstRegistryMachineId(Guid &uuid) const;
     HRESULT addToRegistryIDList(GuidList &llRegistryIDs);
 
     HRESULT addBackReference(const Guid &aMachineId,
@@ -187,6 +191,7 @@ public:
                                 const Guid &aSnapshotId = Guid::Empty);
 
     const Guid* getFirstMachineBackrefId() const;
+    const Guid* getAnyMachineBackref() const;
     const Guid* getFirstMachineBackrefSnapshotId() const;
 
 #ifdef DEBUG

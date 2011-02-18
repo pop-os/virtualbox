@@ -1,4 +1,4 @@
-/* $Id: kHlpAssert-iprt.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: kHlpAssert-iprt.cpp $ */
 /** @file
  * kHlpEnv - Assertions, IPRT based implementation.
  */

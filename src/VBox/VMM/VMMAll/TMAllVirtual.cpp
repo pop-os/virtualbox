@@ -1,4 +1,4 @@
-/* $Id: TMAllVirtual.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: TMAllVirtual.cpp $ */
 /** @file
  * TM - Timeout Manager, Virtual Time, All Contexts.
  */

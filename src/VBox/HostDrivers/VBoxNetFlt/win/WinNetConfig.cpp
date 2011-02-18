@@ -1,4 +1,4 @@
-/* $Id: WinNetConfig.cpp 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: WinNetConfig.cpp $ */
 /** @file
  * VBoxNetCfgWin - Briefly describe this file, optionally with a longer description in a separate paragraph.
  */

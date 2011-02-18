@@ -1,4 +1,4 @@
-/* $Id: VSCSIIoReq.cpp 32983 2010-10-07 15:14:54Z vboxsync $ */
+/* $Id: VSCSIIoReq.cpp $ */
 /** @file
  * Virtual SCSI driver: I/O request handling.
  */

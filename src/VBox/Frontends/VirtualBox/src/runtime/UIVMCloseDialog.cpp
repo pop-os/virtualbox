@@ -1,4 +1,4 @@
-/* $Id: UIVMCloseDialog.cpp 32483 2010-09-14 13:45:07Z vboxsync $ */
+/* $Id: UIVMCloseDialog.cpp $ */
 /** @file
  *
  * VBox frontends: Qt4 GUI ("VirtualBox"):

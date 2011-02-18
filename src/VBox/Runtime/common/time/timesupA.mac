@@ -1,4 +1,4 @@
-; $Id: timesupA.mac 33540 2010-10-28 09:27:05Z vboxsync $
+; $Id: timesupA.mac $
 ;; @file
 ; IPRT - Time using SUPLib, the Assembly Code Template.
 ;

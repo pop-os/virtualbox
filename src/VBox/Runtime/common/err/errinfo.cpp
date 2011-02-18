@@ -1,4 +1,4 @@
-/* $Id: errinfo.cpp 35182 2010-12-16 13:57:44Z vboxsync $ */
+/* $Id: errinfo.cpp $ */
 /** @file
  * IPRT - Error Info.
  */

@@ -1,4 +1,4 @@
-/* $Id: thread.h 34256 2010-11-22 15:55:00Z vboxsync $ */
+/* $Id: thread.h $ */
 /** @file
  * IPRT - Internal RTThread header.
  */

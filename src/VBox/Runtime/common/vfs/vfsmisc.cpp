@@ -1,4 +1,4 @@
-/* $Id: vfsmisc.cpp 33973 2010-11-11 11:10:10Z vboxsync $ */
+/* $Id: vfsmisc.cpp $ */
 /** @file
  * IPRT - Virtual File System, Misc functions with heavy dependencies.
  */

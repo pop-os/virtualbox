@@ -1,4 +1,4 @@
-/* $Id: VBoxProblemReporter.cpp 35587 2011-01-17 14:21:04Z vboxsync $ */
+/* $Id: VBoxProblemReporter.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -388,6 +388,14 @@ void VBoxProblemReporter::checkForMountedWrongUSB() const
                      "checkForMountedWrongUSB");
     }
 #endif
+}
+
+void VBoxProblemReporter::showWin64Warning()
+{
+    message
+        (0, Warning,
+         tr ("Deletion of all files belonging to the VM is currently disabled on "
+             "Windows/x64 to prevent a crash. That will be fixed in the next release."));
 }
 
 void VBoxProblemReporter::showBETAWarning()

@@ -151,6 +151,7 @@ public:
 
     void checkForMountedWrongUSB() const;
 
+    void showWin64Warning();
     void showBETAWarning();
     void showBEBWarning();
 

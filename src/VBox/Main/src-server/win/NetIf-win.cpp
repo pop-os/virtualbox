@@ -1,4 +1,4 @@
-/* $Id: NetIf-win.cpp 35368 2010-12-30 13:38:23Z vboxsync $ */
+/* $Id: NetIf-win.cpp $ */
 /** @file
  * Main - NetIfList, Windows implementation.
  */
@@ -1084,7 +1084,8 @@ int NetIfGetConfigByName(PNETIFINFO)
 
 int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
                                         IHostNetworkInterface **aHostNetworkInterface,
-                                        IProgress **aProgress)
+                                        IProgress **aProgress,
+                                        const char *pcszName)
 {
 #ifndef VBOX_WITH_NETFLT
     return VERR_NOT_IMPLEMENTED;

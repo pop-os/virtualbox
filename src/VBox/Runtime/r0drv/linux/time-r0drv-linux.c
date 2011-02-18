@@ -1,4 +1,4 @@
-/* $Id: time-r0drv-linux.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: time-r0drv-linux.c $ */
 /** @file
  * IPRT - Time, Ring-0 Driver, Linux.
  */

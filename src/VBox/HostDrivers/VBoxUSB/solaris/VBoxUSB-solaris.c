@@ -1,4 +1,4 @@
-/* $Id: VBoxUSB-solaris.c 33595 2010-10-29 10:35:00Z vboxsync $ */
+/* $Id: VBoxUSB-solaris.c $ */
 /** @file
  * VirtualBox USB Client Driver, Solaris Hosts.
  */

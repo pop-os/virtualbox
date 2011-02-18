@@ -1,4 +1,4 @@
-/* $Id: USBLib-win.cpp 34306 2010-11-24 08:00:20Z vboxsync $ */
+/* $Id: USBLib-win.cpp $ */
 /** @file
  * USBLIB - USB support library interface, Windows.
  */

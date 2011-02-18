@@ -1,4 +1,4 @@
-/* $Id: vfschain.cpp 34179 2010-11-18 15:49:17Z vboxsync $ */
+/* $Id: vfschain.cpp $ */
 /** @file
  * IPRT - Virtual File System, Chains.
  */

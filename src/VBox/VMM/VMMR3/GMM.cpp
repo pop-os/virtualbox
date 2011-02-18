@@ -1,4 +1,4 @@
-/* $Id: GMM.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: GMM.cpp $ */
 /** @file
  * GMM - Global Memory Manager, ring-3 request wrappers.
  */

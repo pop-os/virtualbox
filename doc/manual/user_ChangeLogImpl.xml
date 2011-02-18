@@ -1,6 +1,217 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.0.4 (2011-02-17)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed recompiler crashes under certain conditions
+          (bugs #8255, #8319 and further)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed running 64-bit guests on 32-bit host with nested paging
+          enabled on AMD CPUs (4.0 regression; bug #7938)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed timing issues / hangs for certain guests using the
+          programmable interval timer (bugs #8033 and #8062)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: large page and monitoring fixes for live snapshots
+          (bugs #7910, #8059, #8125)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed error message when trying to exceed the maximum
+          number of host network interfaces</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed saving of changes to the metadata of an existing
+          snapshot (bug #8145)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed rare crash on X11 hosts (bug #8131)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: when selecting a shared folder, start the file dialog in
+          the users home directory (bug #8017)</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: enforce the correct permissions which might be restricted
+          by umask when creating directories (non-Windows hosts only; bug #7878)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSDL: fixed crash when starting by specifying the VM UUID
+          (4.0 regression; bug #8342)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: allow savestate even if the VM is already paused</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed <emphasis>modifyvm --synthcpu</emphasis>
+          (bug #6577)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed hang when doing <emphasis>guestcontrol execute
+            --wait-for exit</emphasis> and displaying process status on exit
+          (bug #8235)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: decreased CPU load during <emphasis>guestcontrol execute
+            --wait-for exit/stdout</emphasis> while waiting for the guest process
+          to terminate (bug #7872)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed <emphasis>list hostdvds/hostfloppies</emphasis></para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed <emphasis>storageattach</emphasis> for host
+          DVD drives and host floppy drives</para>
+      </listitem>
+
+      <listitem>
+        <para>Metrics: introduced <emphasis>RAM/VMM</emphasis> base metric.</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: improved sanity check when taking a VM screen shot
+          (bug #7966)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed a crash under rare circumstances if a VM failed to start</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed attaching of immutable disk images (bug #8105)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed a crash at VM shutdown (bug #6443)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed incorrect handling of cross-referenced medium
+          attachments (bug #8129)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: fixed truncating of big integer values (4.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: properly store the ICH9 chipset type (bug #8123)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-Only &amp; Bridged Networking: fixed VBox DHCP server startup issue
+          for Windows hosts (4.0 regression; bug #7905)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-Only Networking: re-create vboxnetX interfaces after
+          vboxnetadp.ko module reload on Linux and Darwin (bugs #5934, #6341)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed an mbuf leak under rare circumstances (bug #7459)</para>
+      </listitem>
+
+      <listitem>
+        <para>ACPI: don't allow the guest to enter S4 by default and don't
+          announce S1 and S4 in the ACPI tables if disabled (bug #8008)</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics card: made re-enabling disabled screens work correctly
+           to prevent problems when X11 guests enter screen saving mode
+           (bug #8122)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed write errors with snapshots if the host cache is
+          disabled (4.0 regression; bug #8221)</para>
+      </listitem>
+
+      <listitem>
+        <para>ATA/SATA: fixed reset handling after ACPI suspend/resume</para>
+      </listitem>
+
+      <listitem>
+        <para>BusLogic: fixed hang with SMP VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: another attempt to prevent lost characters during transmission
+          (bug #1548)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts/guests: Linux 2.6.38-rc1 compile fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed VBoxSVC crash when listing host interfaces
+          without default gateway (64-bit hosts only; bug #7955)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris/Darwin hosts: fixed VM CPU execution cap</para>
+      </listitem>
+
+      <listitem>
+        <para>X.Org guests: fixed a crash on X server restart
+           (bug #8231)</para>
+      </listitem>
+
+      <listitem>
+        <para>X.Org guests: support X.Org Server 1.10 pre-release and Ubuntu
+           11.04 Alpha.</para>
+      </listitem>
+
+      <listitem>
+        <para>X.Org guests: Add EDID emulation in the graphics driver to
+          prevent GNOME settings daemon changing the mode on login.</para>
+      </listitem>
+
+      <listitem>
+        <para>X.Org guests: never send graphics modes to the host that older
+           VirtualBox versions can't handle.</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed a memory leak in the shared folders code if
+          a host link is not readable (bug #8185)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed handling of Security Attention Sequence (SAS)
+          with VBoxGINA</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.0.2 (2011-01-18)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

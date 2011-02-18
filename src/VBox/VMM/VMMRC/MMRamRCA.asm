@@ -1,4 +1,4 @@
-; $Id: MMRamRCA.asm 35335 2010-12-27 12:34:40Z vboxsync $
+; $Id: MMRamRCA.asm $
 ;; @file
 ; MMRamGCA - Guest Context Ram access Assembly Routines.
 ;

@@ -1,4 +1,4 @@
-/* $Id: VBoxFBOverlay.cpp 35500 2011-01-12 09:25:33Z vboxsync $ */
+/* $Id: VBoxFBOverlay.cpp $ */
 /** @file
  * VBoxFBOverlay implementation
  */

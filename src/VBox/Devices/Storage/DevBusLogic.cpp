@@ -1,4 +1,4 @@
-/* $Id: DevBusLogic.cpp 35353 2010-12-27 17:25:52Z vboxsync $ */
+/* $Id: DevBusLogic.cpp $ */
 /** @file
  * VBox storage devices: BusLogic SCSI host adapter BT-958.
  */
@@ -1619,6 +1619,8 @@ static int buslogicRegisterWrite(PBUSLOGIC pBusLogic, unsigned iRegister, uint8_
             /* Fast path for mailbox execution command. */
             if ((uVal == BUSLOGICCOMMAND_EXECUTE_MAILBOX_COMMAND) && (pBusLogic->uOperationCode == 0xff))
             {
+                AssertMsg(pBusLogic->cMailboxesReady < pBusLogic->cMailbox,
+                          ("Mailbox count exceeded, max is %u\n", pBusLogic->cMailbox));
                 ASMAtomicIncU32(&pBusLogic->cMailboxesReady);
                 if (!ASMAtomicXchgBool(&pBusLogic->fNotificationSend, true))
                 {
@@ -2326,11 +2328,19 @@ static int buslogicProcessMailboxNext(PBUSLOGIC pBusLogic)
 static DECLCALLBACK(bool) buslogicNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
 {
     PBUSLOGIC  pBusLogic = PDMINS_2_DATA(pDevIns, PBUSLOGIC);
-
-    AssertMsg(pBusLogic->cMailboxesReady > 0, ("Got notification without any mailboxes ready\n"));
+    uint32_t cMailboxesReady = 0;
 
     /* Reset notification send flag now. */
+    Assert(pBusLogic->fNotificationSend);
     ASMAtomicXchgBool(&pBusLogic->fNotificationSend, false);
+
+    /*
+     * It is possible that there is a notification send but that there is no mailbox ready
+     * in the SMP case. Just do nothing.
+     */
+    cMailboxesReady = ASMAtomicXchgU32(&pBusLogic->cMailboxesReady, 0);
+    if (!cMailboxesReady)
+        return true;
 
     /* Process mailboxes. */
     do
@@ -2339,7 +2349,7 @@ static DECLCALLBACK(bool) buslogicNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQU
 
         rc = buslogicProcessMailboxNext(pBusLogic);
         AssertMsgRC(rc, ("Processing mailbox failed rc=%Rrc\n", rc));
-    } while (ASMAtomicDecU32(&pBusLogic->cMailboxesReady) > 0);
+    } while (--cMailboxesReady > 0);
 
     return true;
 }

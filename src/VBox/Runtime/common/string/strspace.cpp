@@ -1,4 +1,4 @@
-/* $Id: strspace.cpp 35464 2011-01-10 16:30:27Z vboxsync $ */
+/* $Id: strspace.cpp $ */
 /** @file
  * IPRT - Unique String Spaces.
  */

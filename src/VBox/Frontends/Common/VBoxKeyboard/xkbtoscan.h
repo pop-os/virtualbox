@@ -1,4 +1,4 @@
-/* $Id: xkbtoscan.h 35478 2011-01-11 11:36:23Z vboxsync $ */
+/* $Id: xkbtoscan.h $ */
 /** @file
  * VBox/Frontends/Common - X11 keyboard driver translation tables (XT scan
  *                         code mappings for XKB key names).

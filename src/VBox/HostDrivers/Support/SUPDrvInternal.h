@@ -1,4 +1,4 @@
-/* $Revision: 35494 $ */
+/* $Revision: 69603 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
@@ -75,10 +75,14 @@
     RT_C_DECLS_END
 
 #elif defined(RT_OS_LINUX)
-#   ifndef AUTOCONF_INCLUDED
-#    include <linux/autoconf.h>
-#   endif
 #   include <linux/version.h>
+#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
+#    include <generated/autoconf.h>
+#   else
+#    ifndef AUTOCONF_INCLUDED
+#     include <linux/autoconf.h>
+#    endif
+#   endif
 #   if defined(CONFIG_MODVERSIONS) && !defined(MODVERSIONS)
 #       define MODVERSIONS
 #       if LINUX_VERSION_CODE < KERNEL_VERSION(2, 5, 71)

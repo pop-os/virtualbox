@@ -1,4 +1,4 @@
-# $Id: Makefile 32404 2010-09-10 13:17:42Z vboxsync $
+# $Id: Makefile $
 #* @file
 # Makefile - assembling the iso image for experimenting with EFI.
 #/

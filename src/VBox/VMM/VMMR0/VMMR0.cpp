@@ -1,4 +1,4 @@
-/* $Id: VMMR0.cpp 35346 2010-12-27 16:13:13Z vboxsync $ */
+/* $Id: VMMR0.cpp $ */
 /** @file
  * VMM - Host Context Ring 0.
  */
@@ -132,10 +132,12 @@ VMMR0DECL(int) ModuleInit(void)
                                 LogFlow(("ModuleInit: returns success.\n"));
                                 return VINF_SUCCESS;
                             }
-                        }
 
-                        /* bail out */
-                        LogFlow(("ModuleTerm: returns %Rrc\n", rc));
+                            /*
+                             * Bail out.
+                             */
+                            IntNetR0Term();
+                        }
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
                         PGMR0DynMapTerm();
 #endif

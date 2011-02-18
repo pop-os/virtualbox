@@ -1,4 +1,4 @@
-/* $Id: DBGCEmulateCodeView.cpp 35614 2011-01-18 14:44:19Z vboxsync $ */
+/* $Id: DBGCEmulateCodeView.cpp $ */
 /** @file
  * DBGC - Debugger Console, CodeView / WinDbg Emulation.
  */

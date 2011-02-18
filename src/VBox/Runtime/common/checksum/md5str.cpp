@@ -1,4 +1,4 @@
-/* $Id: md5str.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: md5str.cpp $ */
 /** @file
  * IPRT - MD5 string functions.
  */

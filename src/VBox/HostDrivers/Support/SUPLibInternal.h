@@ -1,4 +1,4 @@
-/* $Id: SUPLibInternal.h 35188 2010-12-16 15:13:07Z vboxsync $ */
+/* $Id: SUPLibInternal.h $ */
 /** @file
  * VirtualBox Support Library - Internal header.
  */

@@ -1,4 +1,4 @@
-/* $Id: VBoxNetAdp-freebsd.c 33540 2010-10-28 09:27:05Z vboxsync $ */
+/* $Id: VBoxNetAdp-freebsd.c $ */
 /** @file
  * VBoxNetAdp - Virtual Network Adapter Driver (Host), FreeBSD Specific Code.
  */
@@ -156,11 +156,13 @@ VBoxNetAdpFreeBSDCtrlioctl(struct cdev *dev, u_long iCmd, caddr_t data, int flag
     switch (iCmd)
     {
         case VBOXNETADP_CTL_ADD:
-            if (   !(iCmd & IOC_OUT)   /* paranoia*/
+            if (   !(iCmd & IOC_INOUT)   /* paranoia*/
                 || IOCPARM_LEN(iCmd) < sizeof(*pReq))
                 return EINVAL;
 
-            rc = vboxNetAdpCreate(&pAdp);
+            rc = vboxNetAdpCreate(&pAdp,
+                                  pReq->szName[0] && RTStrEnd(pReq->szName, RT_MIN(IOCPARM_LEN(iCmd), sizeof(pReq->szName))) ?
+                                  pReq->szName : NULL);
             if (RT_FAILURE(rc))
                 return EINVAL;
 
@@ -262,7 +264,7 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMac)
     if (ifp == NULL)
         return VERR_NO_MEMORY;
 
-    if_initname(ifp, VBOXNETADP_NAME, pThis->uUnit);
+    if_initname(ifp, VBOXNETADP_NAME, pThis->iUnit);
     ifp->if_softc = pThis;
     ifp->if_mtu = ETHERMTU;
     ifp->if_flags = IFF_BROADCAST | IFF_SIMPLEX | IFF_MULTICAST;

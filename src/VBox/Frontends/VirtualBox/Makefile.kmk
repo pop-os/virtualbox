@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 35564 2011-01-14 13:52:02Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Makefile for the VirtualBox Qt GUI.
 #
@@ -129,7 +129,9 @@ VirtualBox_DEFS          += \
 	$(if $(VBOX_WITH_NETFLT)$(eq $(KBUILD_TARGET),freebsd),VBOX_WITH_NETFLT) \
 	$(if $(VBOX_WITH_VDE),VBOX_WITH_VDE) \
 	$(if $(VBOX_WITH_EHCI),VBOX_WITH_EHCI) \
-	$(if $(VBOX_GUI_WITH_PIDFILE),VBOX_GUI_WITH_PIDFILE,)
+	$(if $(VBOX_GUI_WITH_PIDFILE),VBOX_GUI_WITH_PIDFILE) \
+	$(if $(VBOX_GUI_WITH_KEYS_RESET_HANDLER),VBOX_GUI_WITH_KEYS_RESET_HANDLER) \
+	$(if $(VBOX_GUI_WITH_CUSTOMIZATIONS1),VBOX_GUI_WITH_CUSTOMIZATIONS1)
 ifdef VBOX_WITH_DEBUGGER_GUI
  VirtualBox_DEFS        += VBOX_WITH_DEBUGGER_GUI
  if "$(KBUILD_TYPE)" != "release"
@@ -506,6 +508,7 @@ VirtualBox_SOURCES = \
 	src/widgets/VBoxOSTypeSelectorButton.cpp \
 	src/widgets/VBoxOSTypeSelectorWidget.cpp \
 	src/widgets/VBoxWarningPane.cpp \
+	src/selector/UISelectorShortcuts.cpp \
 	src/selector/UIVMDesktop.cpp \
 	src/selector/UIVMItem.cpp \
 	src/selector/UIVMListView.cpp \
@@ -524,6 +527,7 @@ VirtualBox_SOURCES = \
 	src/runtime/UIMachine.cpp \
 	src/runtime/UIMachineLogic.cpp \
 	src/runtime/UIMachineMenuBar.cpp \
+	src/runtime/UIMachineShortcuts.cpp \
 	src/runtime/UIMachineView.cpp \
 	src/runtime/UIMachineWindow.cpp \
 	src/runtime/UIMouseHandler.cpp \

@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Id: mod.sh 33144 2010-10-14 22:11:36Z vboxsync $
+# $Id: mod.sh $
 ## @file
 # Helper script for installing the solaris module in a development environment.
 #

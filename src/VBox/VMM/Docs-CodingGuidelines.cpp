@@ -1,4 +1,4 @@
-/* $Id: Docs-CodingGuidelines.cpp 35350 2010-12-27 16:57:10Z vboxsync $ */
+/* $Id: Docs-CodingGuidelines.cpp $ */
 /** @file
  * VMM - Coding Guidelines.
  */

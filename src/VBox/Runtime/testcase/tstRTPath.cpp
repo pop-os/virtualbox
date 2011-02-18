@@ -1,4 +1,4 @@
-/* $Id: tstRTPath.cpp 33806 2010-11-05 17:20:15Z vboxsync $ */
+/* $Id: tstRTPath.cpp $ */
 /** @file
  * IPRT Testcase - Test various path functions.
  */

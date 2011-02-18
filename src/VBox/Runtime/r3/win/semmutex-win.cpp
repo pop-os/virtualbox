@@ -1,4 +1,4 @@
-/* $Id: semmutex-win.cpp 30111 2010-06-09 12:14:59Z vboxsync $ */
+/* $Id: semmutex-win.cpp $ */
 /** @file
  * IPRT - Mutex Semaphores, Windows.
  */

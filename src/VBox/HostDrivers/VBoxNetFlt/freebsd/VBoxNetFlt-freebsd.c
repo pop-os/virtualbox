@@ -1,4 +1,4 @@
-/* $Id: VBoxNetFlt-freebsd.c 30111 2010-06-09 12:14:59Z vboxsync $ */
+/* $Id: VBoxNetFlt-freebsd.c $ */
 /** @file
  * VBoxNetFlt - Network Filter Driver (Host), FreeBSD Specific Code.
  */

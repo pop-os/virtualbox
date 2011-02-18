@@ -1,4 +1,4 @@
-/* $Id: USBGetDevices.cpp 35599 2011-01-18 09:52:52Z vboxsync $ */
+/* $Id: USBGetDevices.cpp $ */
 /** @file
  * VirtualBox Linux host USB device enumeration.
  */

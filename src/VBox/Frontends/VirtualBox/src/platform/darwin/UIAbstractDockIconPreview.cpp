@@ -1,4 +1,4 @@
-/* $Id: UIAbstractDockIconPreview.cpp 28800 2010-04-27 08:22:32Z vboxsync $ */
+/* $Id: UIAbstractDockIconPreview.cpp $ */
 /** @file
  * Qt GUI - Realtime Dock Icon Preview
  */

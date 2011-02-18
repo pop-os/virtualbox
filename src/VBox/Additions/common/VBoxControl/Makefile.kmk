@@ -1,4 +1,4 @@
-# $Id: Makefile.kmk 31002 2010-07-22 14:45:41Z vboxsync $
+# $Id: Makefile.kmk $
 ## @file
 # Sub-Makefile for the Guest Additions Command Line Management Interface.
 #
