@@ -1,7 +1,7 @@
 virtualbox-ose (4.0.4-dfsg-1) UNRELEASED; urgency=low
 
   [ Felix Geyer ]
-  * New upstream release.
+  * New upstream release. (LP: #722431)
   * Drop 30-kernel-2.6.38.diff, applied upstream.
   * Adapt 18-system-xorg.patch to new upstream version.
   * Drop unused lintian overrides.
