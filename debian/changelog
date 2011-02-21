@@ -1,4 +1,4 @@
-virtualbox-ose (4.0.4-dfsg-1) UNRELEASED; urgency=low
+virtualbox-ose (4.0.4-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
   * New upstream release. (LP: #722431)
