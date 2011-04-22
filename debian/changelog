@@ -7,6 +7,7 @@ virtualbox-ose (4.0.6-dfsg-1) UNRELEASED; urgency=low
   * Pass --enable-vnc to configure instead of enabling it in LocalConfig.kmk.
   * Drop Conflicts between virtualbox-ose-dkms and virtualbox-ose-guest-dkms
     as the kernel module symbols are mangled now.
+  * Add lintian overrides for no-symbols-control-file usr/lib/VBoxOGL*.so.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
