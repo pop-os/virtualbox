@@ -58,7 +58,7 @@ extern "C" void* xf86memset(const void*,int,xf86size_t);
 DECLINLINE(char const *) RTStrEnd(char const *pszString, size_t cchMax)
 {
     /* Avoid potential issues with memchr seen in glibc. */
-    if (cchMax > RTSTR_MEMCHR_MAX)
+    while (cchMax > RTSTR_MEMCHR_MAX)
     {
         char const *pszRet = (char const *)memchr(pszString, '\0', RTSTR_MEMCHR_MAX);
         if (RT_LIKELY(pszRet))
@@ -72,7 +72,7 @@ DECLINLINE(char const *) RTStrEnd(char const *pszString, size_t cchMax)
 DECLINLINE(char *) RTStrEnd(char *pszString, size_t cchMax)
 {
     /* Avoid potential issues with memchr seen in glibc. */
-    if (cchMax > RTSTR_MEMCHR_MAX)
+    while (cchMax > RTSTR_MEMCHR_MAX)
     {
         char *pszRet = (char *)memchr(pszString, '\0', RTSTR_MEMCHR_MAX);
         if (RT_LIKELY(pszRet))

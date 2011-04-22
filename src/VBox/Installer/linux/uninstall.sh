@@ -47,12 +47,16 @@ if [ "$PREV_INSTALLATION" = "" ]; then
     abort "Couldn't find a VirtualBox installation to uninstall."
 fi
 
+# Stop the ballon control service
+stop_init_script vboxballoonctrl-service
 # Stop the web service
 stop_init_script vboxweb-service
 # Do this check here after we terminated the web service
 check_running
 # Terminate VBoxNetDHCP if running
 terminate_proc VBoxNetDHCP
+delrunlevel vboxballoonctrl-service > /dev/null 2>&1
+remove_init_script vboxballoonctrl-service
 delrunlevel vboxweb-service > /dev/null 2>&1
 remove_init_script vboxweb-service
 # Stop kernel module and uninstall runlevel script
@@ -94,6 +98,7 @@ rm -f \
   /usr/bin/VBoxTunctl \
   /usr/bin/virtualbox \
   /usr/share/pixmaps/VBox.png \
+  /usr/share/pixmaps/virtualbox.png \
   /usr/share/applications/virtualbox.desktop \
   /usr/share/mime/packages/virtualbox.xml \
   /usr/bin/rdesktop-vrdp \

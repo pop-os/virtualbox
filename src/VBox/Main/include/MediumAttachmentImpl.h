@@ -49,7 +49,7 @@ public:
                  LONG aDevice,
                  DeviceType_T aType,
                  bool fPassthrough,
-                 BandwidthGroup *aBandwidthGroup);
+                 const Utf8Str &strBandwidthGroup);
     void uninit();
 
     HRESULT FinalConstruct();
@@ -79,7 +79,7 @@ public:
     LONG getDevice() const;
     DeviceType_T getType() const;
     bool getPassthrough() const;
-    const ComObjPtr<BandwidthGroup>& getBandwidthGroup() const;
+    const Utf8Str& getBandwidthGroup() const;
 
     bool matches(CBSTR aControllerName, LONG aPort, LONG aDevice);
 
@@ -90,7 +90,9 @@ public:
     void updatePassthrough(bool aPassthrough);
 
     /** Must be called from under this object's write lock. */
-    void updateBandwidthGroup(const ComObjPtr<BandwidthGroup> &aBandwidthGroup);
+    void updateBandwidthGroup(const Utf8Str &aBandwidthGroup);
+
+    void updateParentMachine(Machine * const pMachine);
 
     /** Get a unique and somewhat descriptive name for logging. */
     const char* getLogName(void) const { return mLogName.c_str(); }

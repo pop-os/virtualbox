@@ -736,11 +736,12 @@
           <para>Under the "Remote display" tab, if the VirtualBox Remote
           Display Extension (VRDE) is installed, you can enable the VRDP server
           that is built into VirtualBox. This allows you to connect to the
-          virtual machine remotely with any standard RDP viewer, such as
-          <computeroutput>mstsc.exe</computeroutput> that comes with Microsoft
-          Windows or, on Linux systems, the standard open-source
-          <computeroutput>rdesktop</computeroutput> program. These features
-          are described in detail in <xref linkend="vrde" />.</para>
+          console of the virtual machine remotely with any standard RDP viewer,
+          such as <computeroutput>mstsc.exe</computeroutput> that comes with
+          Microsoft Windows. On Linux and Solaris systems you can use the
+          standard open-source <computeroutput>rdesktop</computeroutput>
+          program. These features are described in detail in
+          <xref linkend="vrde" />.</para>
         </glossdef>
       </glossentry>
     </glosslist>
@@ -1054,7 +1055,7 @@
                       through a named pipe. You can use a helper program
                       called VMware Serial Line Gateway, available for
                       download at <literal> <ulink
-                      url="http://www.l4ka.org/tools/vmwaregateway.php">http://www.l4ka.org/tools/vmwaregateway.php</ulink>
+                      url="http://www.l4ka.org/91.php">http://www.l4ka.org/91.php</ulink>
                       </literal>. This tool provides a fixed server mode named
                       pipe at
                       <computeroutput>\\.\pipe\vmwaredebug</computeroutput>

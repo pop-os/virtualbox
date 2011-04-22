@@ -926,6 +926,13 @@ typedef PPGMPAGE *PPPGMPAGE;
 #define PGM_PAGE_IS_BALLOONED(pPage)        ( (pPage)->uStateY == PGM_PAGE_STATE_BALLOONED )
 
 /**
+ * Checks if the page is allocated.
+ * @returns true/false.
+ * @param   pPage       Pointer to the physical guest page tracking structure.
+ */
+#define PGM_PAGE_IS_ALLOCATED(pPage)        ( (pPage)->uStateY == PGM_PAGE_STATE_ALLOCATED )
+
+/**
  * Marks the page as written to (for GMM change monitoring).
  * @param   pPage       Pointer to the physical guest page tracking structure.
  */
@@ -1669,17 +1676,13 @@ typedef struct PGMRCDYNMAPENTRY
     /** The number of references. */
     int32_t volatile            cRefs;
     /** PTE pointer union. */
-    union PGMRCDYNMAPENTRY_PPTE
+    struct PGMRCDYNMAPENTRY_PPTE
     {
         /** PTE pointer, 32-bit legacy version. */
         RCPTRTYPE(PX86PTE)      pLegacy;
         /** PTE pointer, PAE version. */
         RCPTRTYPE(PX86PTEPAE)   pPae;
-        /** PTE pointer, the void version. */
-        RTRCPTR                 pv;
     } uPte;
-    /** Alignment padding. */
-    RTRCPTR                     RCPtrAlignment;
 } PGMRCDYNMAPENTRY;
 /** Pointer to a dynamic mapping cache entry for the raw-mode context. */
 typedef PGMRCDYNMAPENTRY *PPGMRCDYNMAPENTRY;
@@ -1704,8 +1707,6 @@ typedef struct PGMRCDYNMAP
     RCPTRTYPE(PPGMRCDYNMAPENTRY)    paPages;
     /** The cache size given as a number of pages. */
     uint32_t                        cPages;
-    /** Whether it's 32-bit legacy or PAE/AMD64 paging mode. */
-    bool                            fLegacyMode;
     /** The current load.
      * This does not include guard pages. */
     uint32_t                        cLoad;

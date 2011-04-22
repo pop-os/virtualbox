@@ -71,6 +71,41 @@ ifndef VBOX_ONLY_TESTSUITE
   include $(PATH_SUB_CURRENT)/darwin/Makefile.kmk
  endif
 
+ ifeq ($(KBUILD_TARGET),linux)
+  INSTALLS += LnxAddIso-scripts
+  LnxAddIso-scripts_INST    = bin/additions
+  LnxAddIso-scripts_MODE    = a+rx,u+w
+  LnxAddIso-scripts_SOURCES = \
+	$(LnxAddIso-scripts_0_OUTDIR)/runasroot.sh \
+	$(LnxAddIso-scripts_0_OUTDIR)/autorun.sh
+  LnxAddIso-scripts_CLEAN = \
+	$(LnxAddIso-scripts_0_OUTDIR)/runasroot.sh \
+	$(LnxAddIso-scripts_0_OUTDIR)/autorun.sh
+
+  $$(LnxAddIso-scripts_0_OUTDIR)/runasroot.sh: \
+	$(PATH_SUB_CURRENT)/../Installer/linux/runasroot.sh \
+	$(PATH_SUB_CURRENT)/../Installer/linux/sh-utils.sh \
+	| $$(dir $$@)
+	$(QUIET)$(SED) \
+	    -e '/#include sh-utils.sh/ {' \
+	    -e "r $(PATH_ROOT)/src/VBox/Installer/linux/sh-utils.sh" \
+	    -e 'd' \
+	    -e '}' \
+	    --output $@ \
+	    $<
+
+  $$(LnxAddIso-scripts_0_OUTDIR)/autorun.sh: \
+	$(PATH_SUB_CURRENT)/linux/installer/autorun.sh \
+	$(PATH_SUB_CURRENT)/../Installer/linux/sh-utils.sh \
+	| $$(dir $$@)
+	$(QUIET)$(SED) \
+	    -e '/#include sh-utils.sh/ {' \
+	    -e "r $(PATH_ROOT)/src/VBox/Installer/linux/sh-utils.sh" \
+	    -e 'd' \
+	    -e '}' \
+	    --output $@ \
+	    $<
+ endif # KBUILD_TARGET == linux
  ifeq ($(KBUILD_TARGET),win)
   #
   # Inf2Cat requires all the files referenced in the .inf file
@@ -189,6 +224,7 @@ ifdef VBOX_WITH_ADDITIONS_ISO.linux.x86
  endif
  GUESTADDITIONS_FILESPEC.linux.x86 = \
 	$(VBOX_LNX_ADD_X86_RUN_PKG)=$(VBOX_PATH_ADDITIONS.linux.x86)/VBoxLinuxAdditions.run \
+	runasroot.sh=$(VBOX_PATH_ADDITIONS.linux.x86)/runasroot.sh \
 	autorun.sh=$(VBOX_PATH_ADDITIONS.linux.x86)/autorun.sh
 endif
 

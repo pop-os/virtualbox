@@ -85,7 +85,7 @@ RTDECL(RTCPUID) RTMpCpuId(void)
 
 RTDECL(int) RTMpCpuIdToSetIndex(RTCPUID idCpu)
 {
-    return idCpu < MY_DARWIN_MAX_CPUS ? (int)idCpu : -1;
+    return idCpu < RTCPUSET_MAX_CPUS && idCpu < MY_DARWIN_MAX_CPUS ? (int)idCpu : -1;
 }
 
 
@@ -146,24 +146,6 @@ RTDECL(RTCPUID) RTMpGetOnlineCount(void)
 RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 {
     /** @todo darwin R0 MP */
-    return RTMpIsCpuPossible(idCpu);
-}
-
-
-RTDECL(PRTCPUSET) RTMpGetPresentSet(PRTCPUSET pSet)
-{
-    return RTMpGetSet(pSet);
-}
-
-
-RTDECL(RTCPUID) RTMpGetPresentCount(void)
-{
-    return RTMpGetCount();
-}
-
-
-RTDECL(bool) RTMpIsCpuPresent(RTCPUID idCpu)
-{
     return RTMpIsCpuPossible(idCpu);
 }
 

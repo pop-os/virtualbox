@@ -514,6 +514,8 @@ void VBoxServiceMainWait(void)
 
 int main(int argc, char **argv)
 {
+    RTEXITCODE rcExit;
+
     /*
      * Init globals and such.
      */
@@ -521,18 +523,16 @@ int main(int argc, char **argv)
 
     g_pszProgName = RTPathFilename(argv[0]);
 
-    int rc;
+
 #ifdef VBOXSERVICE_TOOLBOX
-    if (argc > 1)
-    {
-        /*
-         * Run toolbox code before all other stuff, especially before checking the global
-         * mutex because VBoxService might spawn itself to execute some commands.
-         */
-        int iExitCode;
-        if (VBoxServiceToolboxMain(argc - 1, &argv[1], &iExitCode))
-            return iExitCode;
-    }
+    /*
+     * Run toolbox code before all other stuff since these things are simpler
+     * shell/file/text utility like programs that just happens to be inside
+     * VBoxService and shouldn't be subject to /dev/vboxguest, pid-files and
+     * global mutex restrictions.
+     */
+    if (VBoxServiceToolboxMain(argc, argv, &rcExit))
+        return rcExit;
 #endif
 
     /*
@@ -542,7 +542,7 @@ int main(int argc, char **argv)
      * do to some initial stuff with it.
      */
     VBoxServiceVerbose(2, "Calling VbgR3Init()\n");
-    rc = VbglR3Init();
+    int rc = VbglR3Init();
     if (RT_FAILURE(rc))
         return VBoxServiceError("VbglR3Init failed with rc=%Rrc.\n", rc);
 
@@ -722,7 +722,6 @@ int main(int argc, char **argv)
     /*
      * Daemonize if requested.
      */
-    RTEXITCODE rcExit;
     if (fDaemonize && !fDaemonized)
     {
 #ifdef RT_OS_WINDOWS

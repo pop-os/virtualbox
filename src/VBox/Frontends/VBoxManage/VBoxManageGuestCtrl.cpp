@@ -404,8 +404,13 @@ static int handleCtrlExecProgram(HandlerArg *a)
 
             case VINF_GETOPT_NOT_OPTION:
             {
-                /* The actual command we want to execute on the guest. */
-                Utf8Cmd = ValueUnion.psz;
+                if (!strlen(ValueUnion.psz))
+                    continue;
+
+                if (args.size() == 0 && Utf8Cmd.isEmpty())
+                    Utf8Cmd = ValueUnion.psz;
+                else
+                    args.push_back(Bstr(ValueUnion.psz).raw());
                 break;
             }
 
@@ -491,7 +496,6 @@ static int handleCtrlExecProgram(HandlerArg *a)
                 /* Wait for process to exit ... */
                 BOOL fCompleted = FALSE;
                 BOOL fCanceled = FALSE;
-                int cMilliesSleep = 0;
                 while (SUCCEEDED(progress->COMGETTER(Completed(&fCompleted))))
                 {
                     SafeArray<BYTE> aOutputData;
@@ -546,9 +550,6 @@ static int handleCtrlExecProgram(HandlerArg *a)
                          * has been marked as complete. */
                         if (fCompleted)
                             break;
-
-                        /* Then wait a little while ... */
-                        progress->WaitForCompletion(1 /* ms */);
                     }
 
                     /* Process async cancelation */
@@ -575,17 +576,6 @@ static int handleCtrlExecProgram(HandlerArg *a)
                         progress->Cancel();
                         break;
                     }
-
-                    /* Don't hog the CPU in a busy loop! */
-                    if (cbOutputData <= 0)
-                    {
-                        if (cMilliesSleep < 100)
-                            cMilliesSleep++;
-                        RTPrintf("cMilliesSleep = %d\n", cMilliesSleep);
-                        RTThreadSleep(cMilliesSleep);
-                    }
-                    else
-                        cMilliesSleep = 0;
                 }
 
                 /* Undo signal handling */
@@ -1138,9 +1128,9 @@ static int handleCtrlCopyTo(HandlerArg *a)
         }
 
         RTLISTNODE listToCopy;
-        uint32_t cObjects = 0;
+        uint32_t cTotalObjects = 0;
         vrc = ctrlCopyInit(Utf8Source.c_str(), Utf8Dest.c_str(), uFlags,
-                           &cObjects, &listToCopy);
+                           &cTotalObjects, &listToCopy);
         if (RT_FAILURE(vrc))
         {
             switch (vrc)
@@ -1167,10 +1157,10 @@ static int handleCtrlCopyTo(HandlerArg *a)
                 {
                     if (fCopyRecursive)
                         RTPrintf("Recursively copying \"%s\" to \"%s\" (%u file(s)) ...\n",
-                                 Utf8Source.c_str(), Utf8Dest.c_str(), cObjects);
+                                 Utf8Source.c_str(), Utf8Dest.c_str(), cTotalObjects);
                     else
                         RTPrintf("Copying \"%s\" to \"%s\" (%u file(s)) ...\n",
-                                 Utf8Source.c_str(), Utf8Dest.c_str(), cObjects);
+                                 Utf8Source.c_str(), Utf8Dest.c_str(), cTotalObjects);
                 }
 
                 uint32_t uCurObject = 1;
@@ -1180,7 +1170,7 @@ static int handleCtrlCopyTo(HandlerArg *a)
                     {
                         if (fVerbose)
                             RTPrintf("Copying \"%s\" to \"%s\" (%u/%u) ...\n",
-                                     pNode->pszSourcePath, pNode->pszDestPath, uCurObject, cObjects);
+                                     pNode->pszSourcePath, pNode->pszDestPath, uCurObject, cTotalObjects);
                         /* Finally copy the desired file (if no dry run selected). */
                         if (!fDryRun)
                             vrc = ctrlCopyFileToGuest(guest, fVerbose, pNode->pszSourcePath, pNode->pszDestPath,
@@ -1191,6 +1181,13 @@ static int handleCtrlCopyTo(HandlerArg *a)
                     uCurObject++;
                 }
                 if (RT_SUCCESS(vrc) && fVerbose)
+                    RTPrintf("Copy operation successful!\n");
+
+                Assert(cTotalObjects >= uCurObject - 1);
+                if (cTotalObjects != uCurObject - 1)
+                    RTPrintf("Warning: %u elements instead of %ld were copied!\n",
+                             uCurObject - 1, cTotalObjects);
+                else if (RT_SUCCESS(vrc) && fVerbose)
                     RTPrintf("Copy operation successful!\n");
             }
             ctrlDirectoryListDestroy(&listToCopy);

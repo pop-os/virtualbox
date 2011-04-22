@@ -17,6 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/* Global includes */
+#include <QShortcut>
+
 /* Local includes */
 #include "UIGlobalSettingsInput.h"
 #include "VBoxGlobalSettings.h"
@@ -26,6 +29,11 @@ UIGlobalSettingsInput::UIGlobalSettingsInput()
 {
     /* Apply UI decorations: */
     Ui::UIGlobalSettingsInput::setupUi(this);
+
+    /* Set the new shortcut for the eraze-host-combo button: */
+    m_pResetHostCombinationButton->setShortcut(QKeySequence());
+    new QShortcut(QKeySequence(Qt::Key_Delete), m_pResetHostCombinationButton, SLOT(animateClick()));
+    new QShortcut(QKeySequence(Qt::Key_Backspace), m_pResetHostCombinationButton, SLOT(animateClick()));
 
     /* Apply language settings: */
     retranslateUi();
@@ -39,7 +47,7 @@ void UIGlobalSettingsInput::loadToCacheFrom(QVariant &data)
     UISettingsPageGlobal::fetchData(data);
 
     /* Load to cache: */
-    m_cache.m_iHostKey = m_settings.hostKey();
+    m_cache.m_strHostCombo = m_settings.hostCombo();
     m_cache.m_fAutoCapture = m_settings.autoCapture();
 
     /* Upload properties & settings to data: */
@@ -51,7 +59,7 @@ void UIGlobalSettingsInput::loadToCacheFrom(QVariant &data)
 void UIGlobalSettingsInput::getFromCache()
 {
     /* Fetch from cache: */
-    m_pHostKeyEditor->setKey(m_cache.m_iHostKey);
+    m_pHostKeyEditor->setCombo(m_cache.m_strHostCombo);
     m_pEnableAutoGrabCheckbox->setChecked(m_cache.m_fAutoCapture);
 }
 
@@ -60,7 +68,7 @@ void UIGlobalSettingsInput::getFromCache()
 void UIGlobalSettingsInput::putToCache()
 {
     /* Upload to cache: */
-    m_cache.m_iHostKey = m_pHostKeyEditor->key();
+    m_cache.m_strHostCombo = m_pHostKeyEditor->combo();
     m_cache.m_fAutoCapture = m_pEnableAutoGrabCheckbox->isChecked();
 }
 
@@ -72,7 +80,7 @@ void UIGlobalSettingsInput::saveFromCacheTo(QVariant &data)
     UISettingsPageGlobal::fetchData(data);
 
     /* Save from cache: */
-    m_settings.setHostKey(m_cache.m_iHostKey);
+    m_settings.setHostCombo(m_cache.m_strHostCombo);
     m_settings.setAutoCapture(m_cache.m_fAutoCapture);
 
     /* Upload properties & settings to data: */
@@ -83,8 +91,8 @@ void UIGlobalSettingsInput::saveFromCacheTo(QVariant &data)
 void UIGlobalSettingsInput::setOrderAfter(QWidget *pWidget)
 {
     setTabOrder(pWidget, m_pHostKeyEditor);
-    setTabOrder(m_pHostKeyEditor, m_pResetHostKeyButton);
-    setTabOrder(m_pResetHostKeyButton, m_pEnableAutoGrabCheckbox);
+    setTabOrder(m_pHostKeyEditor, m_pResetHostCombinationButton);
+    setTabOrder(m_pResetHostCombinationButton, m_pEnableAutoGrabCheckbox);
 }
 
 /* Translation stuff: */

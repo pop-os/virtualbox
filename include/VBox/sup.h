@@ -30,6 +30,7 @@
 #include <VBox/types.h>
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
+#include <iprt/cpuset.h>
 
 RT_C_DECLS_BEGIN
 
@@ -87,11 +88,25 @@ typedef enum SUPPAGINGMODE
 } SUPPAGINGMODE;
 
 
-#pragma pack(1) /* paranoia */
+/**
+ * The CPU state.
+ */
+typedef enum SUPGIPCPUSTATE
+{
+    /** Invalid CPU state / unused CPU entry. */
+    SUPGIPCPUSTATE_INVALID = 0,
+    /** The CPU is not present. */
+    SUPGIPCPUSTATE_ABSENT,
+    /** The CPU is offline. */
+    SUPGIPCPUSTATE_OFFLINE,
+    /** The CPU is online. */
+    SUPGIPCPUSTATE_ONLINE,
+    /** Force 32-bit enum type. */
+    SUPGIPCPUSTATE_32_BIT_HACK = 0x7fffffff
+} SUPGIPCPUSTATE;
 
 /**
  * Per CPU data.
- * This is only used when
  */
 typedef struct SUPGIPCPU
 {
@@ -124,15 +139,30 @@ typedef struct SUPGIPCPU
     volatile uint32_t   au32TSCHistory[8];
     /** The interval between the last two NanoTS updates. (experiment for now) */
     volatile uint32_t   u32PrevUpdateIntervalNS;
+
     /** Reserved for future per processor data. */
-    volatile uint32_t   au32Reserved[5];
+    volatile uint32_t   au32Reserved[5+5];
+
+    /** @todo Add topology/NUMA info. */
+    /** The CPU state. */
+    SUPGIPCPUSTATE volatile enmState;
+    /** The host CPU ID of this CPU (the SUPGIPCPU is indexed by APIC ID). */
+    RTCPUID                 idCpu;
+    /** The CPU set index of this CPU. */
+    int16_t                 iCpuSet;
+    /** The APIC ID of this CPU. */
+    uint16_t                idApic;
 } SUPGIPCPU;
-AssertCompileSize(SUPGIPCPU, 96);
-/*AssertCompileMemberAlignment(SUPGIPCPU, u64TSC, 8); -fixme */
+AssertCompileSize(RTCPUID, 4);
+AssertCompileSize(SUPGIPCPU, 128);
+AssertCompileMemberAlignment(SUPGIPCPU, u64NanoTS, 8);
+AssertCompileMemberAlignment(SUPGIPCPU, u64TSC, 8);
 
 /** Pointer to per cpu data.
  * @remark there is no const version of this typedef, see g_pSUPGlobalInfoPage for details. */
 typedef SUPGIPCPU *PSUPGIPCPU;
+
+
 
 /**
  * Global Information Page.
@@ -150,39 +180,64 @@ typedef struct SUPGLOBALINFOPAGE
 
     /** The GIP update mode, see SUPGIPMODE. */
     uint32_t            u32Mode;
-    /** Reserved / padding. */
-    uint32_t            u32Padding0;
+    /** The number of entries in the CPU table.
+     * (This can work as RTMpGetArraySize().)  */
+    uint16_t            cCpus;
+    /** The size of the GIP in pages. */
+    uint16_t            cPages;
     /** The update frequency of the of the NanoTS. */
     volatile uint32_t   u32UpdateHz;
     /** The update interval in nanoseconds. (10^9 / u32UpdateHz) */
     volatile uint32_t   u32UpdateIntervalNS;
     /** The timestamp of the last time we update the update frequency. */
     volatile uint64_t   u64NanoTSLastUpdateHz;
+    /** The set of online CPUs. */
+    RTCPUSET            OnlineCpuSet;
+    /** The set of present CPUs. */
+    RTCPUSET            PresentCpuSet;
+    /** The set of possible CPUs. */
+    RTCPUSET            PossibleCpuSet;
+    /** The number of CPUs that are online. */
+    volatile uint16_t   cOnlineCpus;
+    /** The number of CPUs present in the system. */
+    volatile uint16_t   cPresentCpus;
+    /** The highest number of CPUs possible. */
+    uint16_t            cPossibleCpus;
+    /** The highest number of CPUs possible. */
+    uint16_t            u16Padding0;
+    /** The max CPU ID (RTMpGetMaxCpuId). */
+    RTCPUID             idCpuMax;
 
     /** Padding / reserved space for future data. */
-    uint32_t            au32Padding1[56];
+    uint32_t            au32Padding1[29];
+
+    /** Table indexed by the CPU APIC ID to get the CPU table index. */
+    uint16_t            aiCpuFromApicId[256];
+    /** CPU set index to CPU table index. */
+    uint16_t            aiCpuFromCpuSetIdx[RTCPUSET_MAX_CPUS];
 
     /** Array of per-cpu data.
-     * If u32Mode == SUPGIPMODE_SYNC_TSC then only the first entry is used.
-     * If u32Mode == SUPGIPMODE_ASYNC_TSC then the CPU ACPI ID is used as an
-     * index into the array. */
-    SUPGIPCPU           aCPUs[32];
+     * This is index by ApicId via the aiCpuFromApicId table.
+     *
+     * The clock and frequency information is updated for all CPUs if u32Mode
+     * is SUPGIPMODE_ASYNC_TSC, otherwise (SUPGIPMODE_SYNC_TSC) only the first
+     * entry is updated. */
+    SUPGIPCPU           aCPUs[1];
 } SUPGLOBALINFOPAGE;
-AssertCompile(sizeof(SUPGLOBALINFOPAGE) <= 0x1000);
-/* AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPU, 32); - fixme */
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, u64NanoTSLastUpdateHz, 8);
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPUs, 256);
 
 /** Pointer to the global info page.
  * @remark there is no const version of this typedef, see g_pSUPGlobalInfoPage for details. */
 typedef SUPGLOBALINFOPAGE *PSUPGLOBALINFOPAGE;
 
-#pragma pack() /* end of paranoia */
 
 /** The value of the SUPGLOBALINFOPAGE::u32Magic field. (Soryo Fuyumi) */
 #define SUPGLOBALINFOPAGE_MAGIC     0x19590106
 /** The GIP version.
  * Upper 16 bits is the major version. Major version is only changed with
  * incompatible changes in the GIP. */
-#define SUPGLOBALINFOPAGE_VERSION   0x00020000
+#define SUPGLOBALINFOPAGE_VERSION   0x00030000
 
 /**
  * SUPGLOBALINFOPAGE::u32Mode values.
@@ -249,7 +304,7 @@ SUPDECL(PSUPGLOBALINFOPAGE)             SUPGetGIP(void);
 /**
  * Gets the TSC frequency of the calling CPU.
  *
- * @returns TSC frequency.
+ * @returns TSC frequency, UINT64_MAX on failure.
  * @param   pGip        The GIP pointer.
  */
 DECLINLINE(uint64_t) SUPGetCpuHzFromGIP(PSUPGLOBALINFOPAGE pGip)
@@ -257,15 +312,15 @@ DECLINLINE(uint64_t) SUPGetCpuHzFromGIP(PSUPGLOBALINFOPAGE pGip)
     unsigned iCpu;
 
     if (RT_UNLIKELY(!pGip || pGip->u32Magic != SUPGLOBALINFOPAGE_MAGIC))
-        return ~(uint64_t)0;
+        return UINT64_MAX;
 
     if (pGip->u32Mode != SUPGIPMODE_ASYNC_TSC)
         iCpu = 0;
     else
     {
-        iCpu = ASMGetApicId();
-        if (RT_UNLIKELY(iCpu >= RT_ELEMENTS(pGip->aCPUs)))
-            return ~(uint64_t)0;
+        iCpu = pGip->aiCpuFromApicId[ASMGetApicId()];
+        if (iCpu >= pGip->cCpus)
+            return UINT64_MAX;
     }
 
     return pGip->aCPUs[iCpu].u64CpuHz;

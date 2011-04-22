@@ -84,12 +84,18 @@ float darwinSmallFontSize();
 bool darwinSetFrontMostProcess();
 uint64_t darwinGetCurrentProcessId();
 
+void darwinInstallResizeDelegate(NativeNSWindowRef pWindow);
+void darwinUninstallResizeDelegate(NativeNSWindowRef pWindow);
+
 bool darwinUnifiedToolbarEvents(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
+bool darwinMouseGrabEvents(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
 void darwinCreateContextMenuEvent(void *pvWin, int x, int y);
 
 bool darwinIsApplicationCommand(ConstNativeNSEventRef pEvent);
 
 void darwinRetranslateAppMenu();
+
+void darwinSendMouseGrabEvents(QWidget *pWidget, int type, int button, int buttons, int x, int y);
 
 QString darwinResolveAlias(const QString &strFile);
 
@@ -168,6 +174,42 @@ NativeNSImageRef darwinToNSImageRef(const QPixmap *pPixmap);
 NativeNSImageRef darwinToNSImageRef(const char *pczSource);
 
 #ifndef __OBJC__
+
+#include <QEvent>
+class UIGrabMouseEvent: public QEvent
+{
+public:
+    enum { GrabMouseEvent = QEvent::User + 200 };
+
+    UIGrabMouseEvent(QEvent::Type type, Qt::MouseButton button, Qt::MouseButtons buttons, int x, int y, int wheelDelta, Qt::Orientation o)
+      : QEvent((QEvent::Type)GrabMouseEvent)
+      , m_type(type)
+      , m_button(button)
+      , m_buttons(buttons)
+      , m_x(x)
+      , m_y(y)
+      , m_wheelDelta(wheelDelta)
+      , m_orientation(o)
+    {}
+    QEvent::Type mouseEventType() const { return m_type; }
+    Qt::MouseButton button() const { return m_button; }
+    Qt::MouseButtons buttons() const { return m_buttons; }
+    int xDelta() const { return m_x; }
+    int yDelta() const { return m_y; }
+    int wheelDelta() const { return m_wheelDelta; }
+    Qt::Orientation orientation() const { return m_orientation; }
+
+private:
+    /* Private members */
+    QEvent::Type m_type;
+    Qt::MouseButton m_button;
+    Qt::MouseButtons m_buttons;
+    int m_x;
+    int m_y;
+    int m_wheelDelta;
+    Qt::Orientation m_orientation;
+};
+
 /********************************************************************************
  *
  * Simple setter methods (Qt Wrapper)
@@ -196,14 +238,19 @@ int  darwinWindowToolBarHeight(QWidget *pWidget);
 bool darwinIsToolbarVisible(QToolBar *pToolBar);
 bool darwinIsWindowMaximized(QWidget *pWidget);
 void darwinMinaturizeWindow(QWidget *pWidget);
-
 bool darwinOpenFile(const QString &strFile);
 
 QString darwinSystemLanguage(void);
 QPixmap darwinCreateDragPixmap(const QPixmap& aPixmap, const QString &aText);
 
+void darwinInstallResizeDelegate(QWidget *pWidget);
+void darwinUninstallResizeDelegate(QWidget *pWidget);
+
 void darwinRegisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
 void darwinUnregisterForUnifiedToolbarContextMenuEvents(QMainWindow *pWindow);
+
+void darwinMouseGrab(QWidget *pWidget);
+void darwinMouseRelease(QWidget *pWidget);
 #endif /* !__OBJC__ */
 
 #endif /* !___VBoxUtils_darwin_h */

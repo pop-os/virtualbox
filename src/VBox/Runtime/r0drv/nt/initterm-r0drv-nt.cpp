@@ -83,6 +83,7 @@ int rtR0InitNative(void)
 #endif
     RTCpuSetEmpty(&g_rtMpNtCpuSet);
     RTCpuSetFromU64(&g_rtMpNtCpuSet, ActiveProcessors);
+/** @todo Port to W2K8 with > 64 cpus/threads. */
 
 #ifdef IPRT_TARGET_NT4
     g_pfnrtNtExSetTimerResolution = NULL;

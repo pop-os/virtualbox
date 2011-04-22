@@ -111,185 +111,6 @@
     </message>
 </context>
 <context>
-    <name>QIHotKeyEdit</name>
-    <message>
-        <source>Left </source>
-        <translation>Links</translation>
-    </message>
-    <message>
-        <source>Right </source>
-        <translation>Rechts</translation>
-    </message>
-    <message>
-        <source>Left Shift</source>
-        <translation>Umsch Links</translation>
-    </message>
-    <message>
-        <source>Right Shift</source>
-        <translation>Umsch Rechts</translation>
-    </message>
-    <message>
-        <source>Left Ctrl</source>
-        <translation>Strg Links</translation>
-    </message>
-    <message>
-        <source>Right Ctrl</source>
-        <translation>Strg Rechts</translation>
-    </message>
-    <message>
-        <source>Left Alt</source>
-        <translation>Alt Links</translation>
-    </message>
-    <message>
-        <source>Right Alt</source>
-        <translation>Alt Rechts</translation>
-    </message>
-    <message>
-        <source>Left WinKey</source>
-        <translation>Win Links</translation>
-    </message>
-    <message>
-        <source>Right WinKey</source>
-        <translation>Win Rechts</translation>
-    </message>
-    <message>
-        <source>Menu key</source>
-        <translation>Menü</translation>
-    </message>
-    <message>
-        <source>Alt Gr</source>
-        <translation>AltGr</translation>
-    </message>
-    <message>
-        <source>Caps Lock</source>
-        <translation>Umsch Lock</translation>
-    </message>
-    <message>
-        <source>Scroll Lock</source>
-        <translation>Rollen Lock</translation>
-    </message>
-    <message>
-        <source>&lt;key_%1&gt;</source>
-        <translation>&lt;Taste_%1&gt;</translation>
-    </message>
-    <message>
-        <source>Pause</source>
-        <translation type="obsolete">Pause</translation>
-    </message>
-    <message>
-        <source>Print Screen</source>
-        <translation type="obsolete">Druck</translation>
-    </message>
-    <message>
-        <source>F1</source>
-        <translation type="obsolete">F1</translation>
-    </message>
-    <message>
-        <source>F2</source>
-        <translation type="obsolete">F2</translation>
-    </message>
-    <message>
-        <source>F3</source>
-        <translation type="obsolete">F3</translation>
-    </message>
-    <message>
-        <source>F4</source>
-        <translation type="obsolete">F4</translation>
-    </message>
-    <message>
-        <source>F5</source>
-        <translation type="obsolete">F5</translation>
-    </message>
-    <message>
-        <source>F6</source>
-        <translation type="obsolete">F6</translation>
-    </message>
-    <message>
-        <source>F7</source>
-        <translation type="obsolete">F7</translation>
-    </message>
-    <message>
-        <source>F8</source>
-        <translation type="obsolete">F8</translation>
-    </message>
-    <message>
-        <source>F9</source>
-        <translation type="obsolete">F9</translation>
-    </message>
-    <message>
-        <source>F10</source>
-        <translation type="obsolete">F10</translation>
-    </message>
-    <message>
-        <source>F11</source>
-        <translation type="obsolete">F11</translation>
-    </message>
-    <message>
-        <source>F12</source>
-        <translation type="obsolete">F12</translation>
-    </message>
-    <message>
-        <source>F13</source>
-        <translation type="obsolete">F13</translation>
-    </message>
-    <message>
-        <source>F14</source>
-        <translation type="obsolete">F14</translation>
-    </message>
-    <message>
-        <source>F15</source>
-        <translation type="obsolete">F15</translation>
-    </message>
-    <message>
-        <source>F16</source>
-        <translation type="obsolete">F16</translation>
-    </message>
-    <message>
-        <source>F17</source>
-        <translation type="obsolete">F17</translation>
-    </message>
-    <message>
-        <source>F18</source>
-        <translation type="obsolete">F18</translation>
-    </message>
-    <message>
-        <source>F19</source>
-        <translation type="obsolete">F19</translation>
-    </message>
-    <message>
-        <source>F20</source>
-        <translation type="obsolete">F20</translation>
-    </message>
-    <message>
-        <source>F21</source>
-        <translation type="obsolete">F21</translation>
-    </message>
-    <message>
-        <source>F22</source>
-        <translation type="obsolete">F22</translation>
-    </message>
-    <message>
-        <source>F23</source>
-        <translation type="obsolete">F23</translation>
-    </message>
-    <message>
-        <source>F24</source>
-        <translation type="obsolete">F24</translation>
-    </message>
-    <message>
-        <source>Num Lock</source>
-        <translation type="obsolete">Num</translation>
-    </message>
-    <message>
-        <source>Forward</source>
-        <translation type="obsolete">Vorw</translation>
-    </message>
-    <message>
-        <source>Back</source>
-        <translation type="obsolete">Rückw</translation>
-    </message>
-</context>
-<context>
     <name>QIHttp</name>
     <message>
         <source>Connection timed out</source>
@@ -438,10 +259,6 @@
     </message>
     <message>
         <source>ACPI Sh&amp;utdown</source>
-        <translation>Ausschalten per &amp;ACPI</translation>
-    </message>
-    <message>
-        <source>ACPI S&amp;hutdown</source>
         <translation>Ausschalten per &amp;ACPI</translation>
     </message>
     <message>
@@ -1237,20 +1054,20 @@
         <translation>Zeigt die Taste, die als Host-Taste für VM-Fenster verwendet wird. Aktivieren Sie dieses Feld und betätigen Sie eine Taste, um diese als Host-Taste festzulegen. Als Host-Taste eignen sich üblicherweise nur Strg, Umsch, Alt usw.</translation>
     </message>
     <message>
-        <source>Reset Host Key</source>
-        <translation>Host-Taste zurücksetzen</translation>
-    </message>
-    <message>
-        <source>Resets the key used as a Host Key in the VM window.</source>
-        <translation>Zurücksetzen der Host-Taste für VM-Fenster.</translation>
-    </message>
-    <message>
         <source>When checked, the keyboard is automatically captured every time the VM window is activated. When the keyboard is captured, all keystrokes (including system ones like Alt-Tab) are directed to the VM.</source>
         <translation>Ist diese Funktion eingeschaltet, wird die Tastatur jedes Mal automatisch gefangen, wenn das VM-Fenster aktiviert wird. In diesem Fall werden alle Tastendrücke (einschließlich Alt-Tab) in die VM umgeleitet.</translation>
     </message>
     <message>
         <source>&amp;Auto Capture Keyboard</source>
         <translation>&amp;Auto-Fangmodus für Tastatur</translation>
+    </message>
+    <message>
+        <source>Reset host combination</source>
+        <translation>keine Tastenkombination</translation>
+    </message>
+    <message>
+        <source>Resets the key combination used as the host combination in the VM window.</source>
+        <translation>Deaktiviert die VM-Steuerung über Host-Taste(n-Kombination).</translation>
     </message>
 </context>
 <context>
@@ -1443,10 +1260,6 @@
         <translation>Name</translation>
     </message>
     <message>
-        <source>New Host-Only Interface</source>
-        <translation type="obsolete">Neues Host-Only Interface</translation>
-    </message>
-    <message>
         <source>Networking</source>
         <translation>Netzwerk</translation>
     </message>
@@ -1602,6 +1415,73 @@
     <message>
         <source>&amp;Help</source>
         <translation>&amp;Hilfe</translation>
+    </message>
+</context>
+<context>
+    <name>UIHotKeyEditor</name>
+    <message>
+        <source>&lt;key_%1&gt;</source>
+        <translation>&lt;Taste_%1&gt;</translation>
+    </message>
+    <message>
+        <source>Left </source>
+        <translation>Links</translation>
+    </message>
+    <message>
+        <source>Right </source>
+        <translation>Rechts</translation>
+    </message>
+    <message>
+        <source>Left Shift</source>
+        <translation>Umsch Links</translation>
+    </message>
+    <message>
+        <source>Right Shift</source>
+        <translation>Umsch Rechts</translation>
+    </message>
+    <message>
+        <source>Left Ctrl</source>
+        <translation>Strg Links</translation>
+    </message>
+    <message>
+        <source>Right Ctrl</source>
+        <translation>Strg Rechts</translation>
+    </message>
+    <message>
+        <source>Left Alt</source>
+        <translation>Alt Links</translation>
+    </message>
+    <message>
+        <source>Right Alt</source>
+        <translation>Alt Rechts</translation>
+    </message>
+    <message>
+        <source>Left WinKey</source>
+        <translation>Win Links</translation>
+    </message>
+    <message>
+        <source>Right WinKey</source>
+        <translation>Win Rechts</translation>
+    </message>
+    <message>
+        <source>Menu key</source>
+        <translation>Menü</translation>
+    </message>
+    <message>
+        <source>Alt Gr</source>
+        <translation>AltGr</translation>
+    </message>
+    <message>
+        <source>Caps Lock</source>
+        <translation>Umsch Lock</translation>
+    </message>
+    <message>
+        <source>Scroll Lock</source>
+        <translation>Rollen Lock</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation>keine</translation>
     </message>
 </context>
 <context>
@@ -1776,10 +1656,6 @@
 </context>
 <context>
     <name>UIMachineLogic</name>
-    <message>
-        <source>VirtualBox OSE</source>
-        <translation>VirtualBox OSE</translation>
-    </message>
     <message>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation> Experimentelle Version %1r%2 - %3</translation>
@@ -2971,6 +2847,10 @@
         <source>&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
         <translation>&lt;nobr&gt;Zustand: %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>USB 2.0 is currently enabled for this virtual machine. However this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
+        <translation>wurde die USB-2.0-Unterstützung aktiviert. Dies erfordert allerdings die Installation des &lt;b&gt;%1&lt;/b&gt;. Sie finden dieses Zusatzpaket auf der offiziellen Webseite von VirtualBox. Ohne dieses Paket wird diese Einstellung deaktiviert, sobald Sie die Einstellungen der VM abspeichern.</translation>
     </message>
 </context>
 <context>
@@ -4719,48 +4599,6 @@
         <comment>medium</comment>
         <translation>Diese Basisfestplatte ist indirekt über die folgenden Differenzfestplatten eingebunden:</translation>
     </message>
-    <message numerus="yes">
-        <source>%n year(s)</source>
-        <translation>
-            <numerusform>%n Jahr</numerusform>
-            <numerusform>%n Jahre</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n month(s)</source>
-        <translation>
-            <numerusform>%n Monat</numerusform>
-            <numerusform>%n Monate</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n day(s)</source>
-        <translation>
-            <numerusform>%n Tag</numerusform>
-            <numerusform>%n Tage</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n hour(s)</source>
-        <translation>
-            <numerusform>%n Stunde</numerusform>
-            <numerusform>%n Stunden</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n minute(s)</source>
-        <translation>
-            <numerusform>%n Minute</numerusform>
-            <numerusform>%n Minuten</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n second(s)</source>
-        <translation>
-            <numerusform>%n Sekunde</numerusform>
-            <numerusform>%n Sekunden</numerusform>
-        </translation>
-    </message>
     <message>
         <source>(CD/DVD)</source>
         <translation>(CD/DVD)</translation>
@@ -4960,13 +4798,51 @@
         <source>and</source>
         <translation>und</translation>
     </message>
+    <message numerus="yes">
+        <source>%n year(s)</source>
+        <translation>
+            <numerusform>%n Jahr</numerusform>
+            <numerusform>%n Jahre</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s)</source>
+        <translation>
+            <numerusform>%n Monat</numerusform>
+            <numerusform>%n Monate</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s)</source>
+        <translation>
+            <numerusform>%n Tag</numerusform>
+            <numerusform>%n Tage</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s)</source>
+        <translation>
+            <numerusform>%n Stunde</numerusform>
+            <numerusform>%n Stunden</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n Minute</numerusform>
+            <numerusform>%n Minuten</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s)</source>
+        <translation>
+            <numerusform>%n Sekunde</numerusform>
+            <numerusform>%n Sekunden</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
-    <message>
-        <source>&apos;%1 (0x%2)&apos; is an invalid host key code.</source>
-        <translation>&apos;%1 (0x%2)&apos; ist kein gültiger Tastencode.</translation>
-    </message>
     <message>
         <source>The value &apos;%1&apos; of the key &apos;%2&apos; doesn&apos;t match the regexp constraint &apos;%3&apos;.</source>
         <translation>Der Wert &apos;%1&apos; des Schlüssels &apos;%2&apos; passt nicht auf den regulären Ausdruck &apos;%3&apos;.</translation>
@@ -4974,6 +4850,10 @@
     <message>
         <source>Cannot delete the key &apos;%1&apos;.</source>
         <translation>Der Schlüssel &apos;%1&apos; konnte nicht gelöscht werden.</translation>
+    </message>
+    <message>
+        <source>&apos;%1&apos; is an invalid host-combination code-sequence.</source>
+        <translation>&apos;%1&apos; ist eine nicht zulässige Tastenkombination.</translation>
     </message>
 </context>
 <context>
@@ -6178,7 +6058,19 @@
     </message>
     <message>
         <source>&lt;p&gt;Cannot create the machine folder:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Please check you have the permissions required to do so.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Der Ordner für die virtuelle Maschine kann nicht angelegt werden:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Bitte überprüfen Sie die Zugriffsrechte.&lt;/p&gt;</translation>
+        <translation type="obsolete">&lt;p&gt;Der Ordner für die virtuelle Maschine kann nicht angelegt werden:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Bitte überprüfen Sie die Zugriffsrechte.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Deletion of all files belonging to the VM is currently disabled on Windows/x64 to prevent a crash. That will be fixed in the next release.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Für diese VM wurde USB-2.0-Unterstützung aktiviert. Dies erfordert allerdings die Installation des &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Sie finden dieses Zusatzpaket auf der offiziellen Webseite von VirtualBox. Nach der Installation können Sie die USB-2.0-Unterstützung aktivieren. Ohne dieses Paket wird diese Einstellung deaktiviert, sobald Sie die Einstellungen der VM abspeichern.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that the parent really exists and that you have permissions to create the machine folder.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das Verzeichnis für die virtuellen Maschinen &lt;b&gt;%1&lt;/b&gt; kann im Verzeichnis &lt;nobr&gt;&lt;b&gt;%2&lt;/nobr&gt; nicht erzeugt werden. &lt;/p&gt;&lt;p&gt;Bitte stellen Sie sicher, dass das übergeordnete Verzeichnis vorhanden und schreibbar ist.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -6205,10 +6097,6 @@
 </context>
 <context>
     <name>VBoxSelectorWnd</name>
-    <message>
-        <source>VirtualBox OSE</source>
-        <translation>VirtualBox OSE</translation>
-    </message>
     <message>
         <source>&amp;Preferences...</source>
         <comment>global settings</comment>
@@ -6288,7 +6176,7 @@
     </message>
     <message>
         <source>R&amp;esume</source>
-        <translation>&amp;Fortfahren</translation>
+        <translation type="obsolete">&amp;Fortfahren</translation>
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>
@@ -6364,10 +6252,6 @@
     <message>
         <source>Virtual machine files (%1)</source>
         <translation>Virtuelle-Maschinen-Dateien (%1)</translation>
-    </message>
-    <message>
-        <source>Manager</source>
-        <translation type="obsolete">Manager</translation>
     </message>
     <message>
         <source>&amp;Add...</source>

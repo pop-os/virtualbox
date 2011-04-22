@@ -1,6 +1,281 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.0.6 (2011-04-21)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed incorrect handling of ballooned pages when restoring
+          a VMM from a saved state</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: don't crash on hosts with more than 64 cores / hyperthreads;
+          implemented support for up to 256 host cores (except Windows hosts; bug #8489)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed guru meditation for PAE guests running on hosts without PAE
+          (bug #8006)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed slow Linux guests with raw mode and recent guest kernels
+          (bug #8726)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: support host key combinations (bug #979)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed progress indicator (bug #7814)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: show the mouse pointer while the VM is paused if the USB
+          tablet mouse emulation is used (bug #6799)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: adapt the snapshot folder as well when renaming a VM
+          (bug #8469)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: persistently remember the last folders of the disk/DVD/floppy
+          selectors</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: never allow to start a VM with USB-2.0 activated if the
+          proper extension pack is missing (bug #8182)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed hang/crash when opening a file dialog in an non-existing
+          folder (bug #8673)</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: fixed a bug which could lose entries in the media
+          registry when restoring a snapshot (bug #8363)</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: allow snapshots to be stored in the VM directory</para>
+      </listitem>
+
+      <listitem>
+        <para>3D support: fixed a crash if a VM was forced to terminate
+          (Windows hosts only; bug #7133)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed memory leak (4.0 regression; bug #7966)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed access to iSCSI targets over internal network</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed reading from disks with more than one snapshot for
+          VHD and VMDK images with disabled host cache (bug #8408)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a possible hang during VM suspend after an
+          I/O error occurred</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a possible hang during VM suspend / reset
+          (bug #8276, #8294)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: automatically create a diff image when attaching a
+          streamOptimized VMDK image to a VM</para>
+      </listitem>
+
+      <listitem>
+        <para>ATA/SATA: fixed automounting of virtual CD/DVD mediums with recent
+          Linux distributions by correctly reporting the current profile as 'none'
+          if no medium is present</para>
+      </listitem>
+
+      <listitem>
+        <para>Buslogic: fixed emulation for certain guests (e.g. jRockit VE)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-Only Networking: fixed interface creation failure on Windows
+          hosts (4.0.4 regression; bug #8362)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-Only &amp; Bridged &amp; Internal Networking: fix for processing
+          promiscuous mode requests by VMs, defaulting to switch behaviour</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-Only Networking: fixed connectivity issue after resuming the
+          host from sleep (bug #3625)</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged Networking: support for interface bonding on Mac OS X hosts (bug #8731)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed processing of ARP announcements for guests with static
+          assigned IPs (bug #8609)</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: backward compatibility with VRDPAuth external authentication
+          library (bug #8063)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: don't fail to start a VM if a path is not absolute,
+          for example when importing an OVF from a different host (bug #7941)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed crash under certain conditions (bug #8527)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a crash when plugging certain USB devices (bug #8699)</para>
+      </listitem>
+
+      <listitem>
+        <para>HPET: fixed time jumps when reading the counter (bug #8707)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF/OVA: automatically adjust disk paths if the VM name is
+          changed on import</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF/OVA: fix export to slow medias</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF/OVA: automatically repair inconsistent appliances with
+          multiple disks (bug #8253)</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: fixed an assertion triggered under certain conditions
+          (bug #8593)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed occasional hangs during VM shutdown because
+          sometimes COM was not properly uninitialized</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: prevent the mouse from leaving the VM window while
+          captured</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: keep aspect ratio while resizing in scale mode
+          (shift for old behaviour) (part of bug #7822)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 hosts: fixed Yen key support (bug #8438)
+          </para>
+      </listitem>
+
+      <listitem>
+        <para>X11 hosts: fixed a regression which caused Host+F1 to pop up
+          help instead of sending Ctrl+Alt+F1</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / Linux Additions: mangle IPRT symbols to allow installing
+          VirtualBox inside a VM while the Guest Additions are active (bug #5686)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / Linux guests: workaround for a bug in GLIBC older than
+          version 1.11 leading to crashes under certain conditions (signed/unsigned
+          problem with memchr on 64-bit machines)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: fixed a deadlock in event semaphores that could lead
+          to unkillable VM processes</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed Sysprep parameter handling</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed spontaneous guest reboots under certain
+          circumstances (4.0.2 regression; bugs #8406, #8429)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: added auto logon support for locked workstations
+          on legacy Windows versions</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed driver bugcheck error when handling PnP
+          messages (4.0 regression; bug 8367)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed memory leak in VBoxVideo</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: added support for X.Org Server 1.10 final</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux kernel 2.6.39-rc1 fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: improved auto-run support (bug #5509)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix mouse support on SUSE 11 SP 1 guests
+          (bug #7946)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added support for X.Org Server 1.9</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: various bugfixes for guest control execution</para>
+      </listitem>
+
+      <listitem>
+        <para>Webservice: use own log file, with log rotation to limit size</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.0.4 (2011-02-17)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -735,7 +1010,7 @@
 
       <listitem>
         <para>Keyboard: fixes for the USB keyboard emulation;
-          fixes for Koran keyboards</para>
+          fixes for Korean keyboards</para>
       </listitem>
 
       <listitem>
@@ -3976,11 +4251,11 @@
       </listitem>
 
       <listitem>
-        <para>Solaris host: fixed a preemption issue causing VMs to never start on Solaris 10 (bug #4328)</para>
+        <para>Solaris hosts: fixed a preemption issue causing VMs to never start on Solaris 10 (bug #4328)</para>
       </listitem>
 
       <listitem>
-        <para>Solaris guest: fixed mouse integration for OpenSolaris 2009.06 (bug #4365) </para>
+        <para>Solaris guests: fixed mouse integration for OpenSolaris 2009.06 (bug #4365) </para>
       </listitem>
 
       <listitem>

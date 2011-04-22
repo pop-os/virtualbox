@@ -94,8 +94,9 @@ BEGINPROC rtTimeNanoTSInternalAsm
  %ifdef NEED_TRANSACTION_ID
     mov     u32ApicIdPlus, ebx
  %endif
-    ; pGipCpu = &pGip->aCPU[u8ApicId];
+    ; pGipCpu = &pGip->aCPU[pGip->aiCpuFromApicId[u8ApicId]];
     shr     ebx, 24
+    movzx   ebx, word [esi + ebx * 2 + SUPGLOBALINFOPAGE.aiCpuFromApicId]
     mov     eax, SUPGIPCPU_size
     mul     ebx
     lea     edi, [esi + eax + SUPGLOBALINFOPAGE.aCPUs]  ; edi == &pGip->aCPU[u8ApicId];
@@ -515,10 +516,10 @@ BEGINPROC rtTimeNanoTSInternalAsm
  %ifdef NEED_TRANSACTION_ID
     mov     u32ApicIdPlus, ebx
  %endif
-    ; pGipCpu = &pGip->aCPU[u8ApicId];
+    ; pGipCpu = &pGip->aCPU[pGip->aiCpuFromApicId[u8ApicId]];
     shr     ebx, 24
-    mov     eax, SUPGIPCPU_size
-    mul     ebx
+    movzx   eax, word [pGip + rbx * 2 + SUPGLOBALINFOPAGE.aiCpuFromApicId]
+    imul    eax, SUPGIPCPU_size
     lea     pGipCPU, [pGip + rax + SUPGLOBALINFOPAGE.aCPUs]
 %else
     lea     pGipCPU, [pGip + SUPGLOBALINFOPAGE.aCPUs]

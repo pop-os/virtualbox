@@ -437,8 +437,16 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
         && requestHeader.requestType != VMMDevReq_ReportGuestInfo
         && requestHeader.requestType != VMMDevReq_WriteCoreDump)
     {
-        Log(("VMMDev: guest has not yet reported to us. Refusing operation.\n"));
+        Log(("VMMDev: guest has not yet reported to us. Refusing operation of request #%d!\n",
+             requestHeader.requestType));
         requestHeader.rc = VERR_NOT_SUPPORTED;
+        static int cRelWarn;
+        if (cRelWarn < 10)
+        {
+            cRelWarn++;
+            LogRel(("VMMDev: the guest has not yet reported to us -- refusing operation of request #%d\n",
+                    requestHeader.requestType));
+        }
         rcRet = VINF_SUCCESS;
         goto l_end;
     }
@@ -446,7 +454,12 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
     /* Check upper limit */
     if (requestHeader.size > VMMDEV_MAX_VMMDEVREQ_SIZE)
     {
-        LogRel(("VMMDev: request packet too big (%x). Refusing operation.\n", requestHeader.size));
+        static int cRelWarn;
+        if (cRelWarn < 50)
+        {
+            cRelWarn++;
+            LogRel(("VMMDev: request packet too big (%x). Refusing operation.\n", requestHeader.size));
+        }
         requestHeader.rc = VERR_NOT_SUPPORTED;
         rcRet = VINF_SUCCESS;
         goto l_end;

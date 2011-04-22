@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -135,8 +135,10 @@ typedef struct
     uint32_t    cbOffset;
     /** Critical section protecting this buffer structure. */
     RTCRITSECT  CritSect;
-    /** Indicates the health condition of the child process. */
-    bool        fAlive;
+    /** Flag indicating whether this pipe buffer accepts new
+     *  data to be written to or not. If not enabled, already
+     *  (allocated) buffered data still can be read out. */
+    bool        fEnabled;
     /** Set if it's necessary to write to the notification pipe. */
     bool        fNeedNotification;
     /** Set if the pipe needs to be closed after the next read/write. */
@@ -146,6 +148,9 @@ typedef struct
     RTPIPE      hNotificationPipeW;
     /** The other end of hNotificationPipeW. */
     RTPIPE      hNotificationPipeR;
+    /** The event semaphore for getting notified whether something
+     *  has changed, e.g. written or read from this buffer. */
+    RTSEMEVENT  hEventSem;
 } VBOXSERVICECTRLEXECPIPEBUF;
 /** Pointer to buffered pipe data. */
 typedef VBOXSERVICECTRLEXECPIPEBUF *PVBOXSERVICECTRLEXECPIPEBUF;
@@ -279,7 +284,7 @@ extern void         VBoxServiceWinSetStopPendingStatus(uint32_t uCheckPoint);
 #endif
 
 #ifdef VBOXSERVICE_TOOLBOX
-extern bool         VBoxServiceToolboxMain(int argc, char **argv, int *piExitCode);
+extern bool         VBoxServiceToolboxMain(int argc, char **argv, RTEXITCODE *prcExit);
 #endif
 
 #ifdef RT_OS_WINDOWS
@@ -297,12 +302,7 @@ extern int          VBoxServiceControlExecProcess(uint32_t uContext, const char 
                                                   const char *pszArgs, uint32_t uNumArgs,
                                                   const char *pszEnv, uint32_t cbEnv, uint32_t uNumEnvVars,
                                                   const char *pszUser, const char *pszPassword, uint32_t uTimeLimitMS);
-extern void         VBoxServiceControlExecDestroyThreadData(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
-extern void         VBoxServiceControlExecDeletePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf);
-extern int          VBoxServiceControlExecReadPipeBufferContent(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
-                                                                uint8_t *pbBuffer, uint32_t cbBuffer, uint32_t *pcbToRead);
-extern int          VBoxServiceControlExecWritePipeBuffer(PVBOXSERVICECTRLEXECPIPEBUF pBuf,
-                                                          uint8_t *pbData, uint32_t cbData, bool fPendingClose, uint32_t *pcbWritten);
+extern void         VBoxServiceControlExecThreadDestroy(PVBOXSERVICECTRLTHREADDATAEXEC pThread);
 #endif /* VBOX_WITH_GUEST_CONTROL */
 
 #ifdef VBOXSERVICE_MANAGEMENT

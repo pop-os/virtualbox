@@ -3948,12 +3948,11 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher(RTTHREAD /* thread */, void *pvUser)
     size_t cnt = 0;
     size_t cntSpawned = 0;
 
+    VirtualBoxBase::initializeComForThread();
+
 #if defined(RT_OS_WINDOWS)
 
-    HRESULT hrc = CoInitializeEx(NULL,
-                                 COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE |
-                                 COINIT_SPEED_OVER_MEMORY);
-    AssertComRC(hrc);
+    HRESULT hrc;
 
     /// @todo (dmik) processes reaping!
 
@@ -4406,6 +4405,7 @@ DECLCALLBACK(int) VirtualBox::ClientWatcher(RTTHREAD /* thread */, void *pvUser)
 # error "Port me!"
 #endif
 
+    VirtualBoxBase::uninitializeComForThread();
     LogFlowFuncLeave();
     return 0;
 }
@@ -4521,7 +4521,7 @@ STDMETHODIMP VirtualBox::FindDHCPServerByNetworkName(IN_BSTR aName, IDHCPServer 
          ++it)
     {
         rc = (*it)->COMGETTER(NetworkName)(bstr.asOutParam());
-        if (FAILED(rc)) throw rc;
+        if (FAILED(rc)) return rc;
 
         if (bstr == aName)
         {

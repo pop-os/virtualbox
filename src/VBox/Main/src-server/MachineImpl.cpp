@@ -153,7 +153,7 @@ Machine::HWData::HWData()
     mMonitorCount = 1;
     mHWVirtExEnabled = true;
     mHWVirtExNestedPagingEnabled = true;
-#if HC_ARCH_BITS == 64 && !defined(RT_OS_LINUX)
+#if HC_ARCH_BITS == 64 && !defined(RT_OS_LINUX) && !defined(RT_OS_SOLARIS)
     mHWVirtExLargePagesEnabled = true;
 #else
     /* Not supported on 32 bits hosts. */
@@ -2188,6 +2188,8 @@ STDMETHODIMP Machine::COMGETTER(USBController)(IUSBController **aUSBController)
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    clearError();
     MultiResult rc(S_OK);
 
 # ifdef VBOX_WITH_USB
@@ -3027,7 +3029,7 @@ STDMETHODIMP Machine::LockMachine(ISession *aSession,
         {
             // this machine is awaiting for a spawning session to be opened:
             // then the calling process must be the one that got started by
-            // launchVMProcess()
+            // LaunchVMProcess()
 
             LogFlowThisFunc(("mSession.mPid=%d(0x%x)\n", mData->mSession.mPid, mData->mSession.mPid));
             LogFlowThisFunc(("session.pid=%d(0x%x)\n", pid, pid));
@@ -3035,7 +3037,7 @@ STDMETHODIMP Machine::LockMachine(ISession *aSession,
             if (mData->mSession.mPid != pid)
                 return setError(E_ACCESSDENIED,
                                 tr("An unexpected process (PID=0x%08X) has tried to lock the "
-                                   "machine '%s', while only the process started by launchVMProcess (PID=0x%08X) is allowed"),
+                                   "machine '%s', while only the process started by LaunchVMProcess (PID=0x%08X) is allowed"),
                                 pid, mUserData->s.strName.c_str(), mData->mSession.mPid);
         }
 
@@ -3064,8 +3066,8 @@ STDMETHODIMP Machine::LockMachine(ISession *aSession,
             /*
              *  Leave the lock before calling the client process -- it will call
              *  Machine/SessionMachine methods. Leaving the lock here is quite safe
-             *  because the state is Spawning, so that openRemotesession() and
-             *  openExistingSession() calls will fail. This method, called before we
+             *  because the state is Spawning, so that LaunchVMProcess() and
+             *  LockMachine() calls will fail. This method, called before we
              *  enter the lock again, will fail because of the wrong PID.
              *
              *  Note that mData->mSession.mRemoteControls accessed outside
@@ -3103,7 +3105,7 @@ STDMETHODIMP Machine::LockMachine(ISession *aSession,
                 if (SUCCEEDED(rc))
                 {
                     /*
-                     *  after openRemoteSession(), the first and the only
+                     *  after LaunchVMProcess(), the first and the only
                      *  entry in remoteControls is that remote session
                      */
                     LogFlowThisFunc(("Calling AssignRemoteMachine()...\n"));
@@ -3210,26 +3212,41 @@ STDMETHODIMP Machine::LaunchVMProcess(ISession *aSession,
                                       IN_BSTR aEnvironment,
                                       IProgress **aProgress)
 {
-    CheckComArgNotNull(aSession);
     CheckComArgStrNotEmptyOrNull(aType);
+    Utf8Str strType(aType);
+    Utf8Str strEnvironment(aEnvironment);
+    /* "emergencystop" doesn't need the session, so skip the checks/interface
+     * retrieval. This code doesn't quite fit in here, but introducing a
+     * special API method would be even more effort, and would require explicit
+     * support by every API client. It's better to hide the feature a bit. */
+    if (strType != "emergencystop")
+        CheckComArgNotNull(aSession);
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* check the session state */
-    SessionState_T state;
-    HRESULT rc = aSession->COMGETTER(State)(&state);
-    if (FAILED(rc)) return rc;
+    ComPtr<IInternalSessionControl> control;
+    HRESULT rc = S_OK;
 
-    if (state != SessionState_Unlocked)
-        return setError(VBOX_E_INVALID_OBJECT_STATE,
-                        tr("The given session is busy"));
+    if (strType != "emergencystop")
+    {
+        /* check the session state */
+        SessionState_T state;
+        rc = aSession->COMGETTER(State)(&state);
+        if (FAILED(rc))
+            return rc;
 
-    /* get the IInternalSessionControl interface */
-    ComPtr<IInternalSessionControl> control = aSession;
-    ComAssertMsgRet(!!control, ("No IInternalSessionControl interface"),
-                      E_INVALIDARG);
+        if (state != SessionState_Unlocked)
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("The given session is busy"));
+
+        /* get the IInternalSessionControl interface */
+        control = aSession;
+        ComAssertMsgRet(!control.isNull(),
+                        ("No IInternalSessionControl interface"),
+                        E_INVALIDARG);
+    }
 
     /* get the teleporter enable state for the progress object init. */
     BOOL fTeleporterEnabled;
@@ -3238,29 +3255,60 @@ STDMETHODIMP Machine::LaunchVMProcess(ISession *aSession,
         return rc;
 
     /* create a progress object */
-    ComObjPtr<ProgressProxy> progress;
-    progress.createObject();
-    rc = progress->init(mParent,
-                        static_cast<IMachine*>(this),
-                        Bstr(tr("Spawning session")).raw(),
-                        TRUE /* aCancelable */,
-                        fTeleporterEnabled ? 20 : 10 /* uTotalOperationsWeight */,
-                        Bstr(tr("Spawning session")).raw(),
-                        2 /* uFirstOperationWeight */,
-                        fTeleporterEnabled ? 3 : 1 /* cOtherProgressObjectOperations */);
-    if (SUCCEEDED(rc))
+    if (strType != "emergencystop")
     {
-        rc = openRemoteSession(control, aType, aEnvironment, progress);
+        ComObjPtr<ProgressProxy> progress;
+        progress.createObject();
+        rc = progress->init(mParent,
+                            static_cast<IMachine*>(this),
+                            Bstr(tr("Starting VM")).raw(),
+                            TRUE /* aCancelable */,
+                            fTeleporterEnabled ? 20 : 10 /* uTotalOperationsWeight */,
+                            BstrFmt(tr("Creating process for virtual machine \"%s\" (%s)"), mUserData->s.strName.c_str(), strType.c_str()).raw(),
+                            2 /* uFirstOperationWeight */,
+                            fTeleporterEnabled ? 3 : 1 /* cOtherProgressObjectOperations */);
+
         if (SUCCEEDED(rc))
         {
-            progress.queryInterfaceTo(aProgress);
+            rc = launchVMProcess(control, strType, strEnvironment, progress);
+            if (SUCCEEDED(rc))
+            {
+                progress.queryInterfaceTo(aProgress);
 
-            /* signal the client watcher thread */
-            mParent->updateClientWatcher();
+                /* signal the client watcher thread */
+                mParent->updateClientWatcher();
 
-            /* fire an event */
-            mParent->onSessionStateChange(getId(), SessionState_Spawning);
+                /* fire an event */
+                mParent->onSessionStateChange(getId(), SessionState_Spawning);
+            }
         }
+    }
+    else
+    {
+        /* no progress object - either instant success or failure */
+        *aProgress = NULL;
+
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        if (mData->mSession.mState != SessionState_Locked)
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("The machine '%s' is not locked by a session"),
+                            mUserData->s.strName.c_str());
+
+        /* must have a VM process associated - do not kill normal API clients
+         * with an open session */
+        if (!Global::IsOnline(mData->mMachineState))
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("The machine '%s' does not have a VM process"),
+                            mUserData->s.strName.c_str());
+
+        /* forcibly terminate the VM process */
+        if (mData->mSession.mPid != NIL_RTPROCESS)
+            RTProcTerminate(mData->mSession.mPid);
+
+        /* signal the client watcher thread, as most likely the client has
+         * been terminated */
+        mParent->updateClientWatcher();
     }
 
     return rc;
@@ -3315,7 +3363,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                                    DeviceType_T aType,
                                    IMedium *aMedium)
 {
-    LogFlowThisFunc(("aControllerName=\"%ls\" aControllerPort=%d aDevice=%d aType=%d aId=\"%ls\"\n",
+    LogFlowThisFunc(("aControllerName=\"%ls\" aControllerPort=%d aDevice=%d aType=%d aMedium=%p\n",
                      aControllerName, aControllerPort, aDevice, aType, aMedium));
 
     CheckComArgStrNotEmptyOrNull(aControllerName);
@@ -3697,7 +3745,7 @@ STDMETHODIMP Machine::AttachDevice(IN_BSTR aControllerName,
                           aDevice,
                           aType,
                           fIndirect,
-                          NULL);
+                          Utf8Str::Empty);
     if (FAILED(rc)) return rc;
 
     if (associate && !medium.isNull())
@@ -3859,7 +3907,23 @@ STDMETHODIMP Machine::SetBandwidthGroupForDevice(IN_BSTR aControllerName, LONG a
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
-    pAttach->updateBandwidthGroup(group);
+    const Utf8Str strBandwidthGroupOld = pAttach->getBandwidthGroup();
+    if (strBandwidthGroupOld.isNotEmpty())
+    {
+        /* Get the bandwidth group object and release it - this must not fail. */
+        ComObjPtr<BandwidthGroup> pBandwidthGroupOld;
+        rc = getBandwidthGroup(strBandwidthGroupOld, pBandwidthGroupOld, false);
+        Assert(SUCCEEDED(rc));
+
+        pBandwidthGroupOld->release();
+        pAttach->updateBandwidthGroup(Utf8Str::Empty);
+    }
+
+    if (!group.isNull())
+    {
+        group->reference();
+        pAttach->updateBandwidthGroup(group->getName());
+    }
 
     return S_OK;
 }
@@ -4638,15 +4702,22 @@ STDMETHODIMP Machine::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL 
     HRESULT rc = checkStateDependency(MutableStateDep);
     if (FAILED(rc)) return rc;
 
+    Utf8Str strName(aName);
+
     ComObjPtr<SharedFolder> sharedFolder;
-    rc = findSharedFolder(aName, sharedFolder, false /* aSetError */);
+    rc = findSharedFolder(strName, sharedFolder, false /* aSetError */);
     if (SUCCEEDED(rc))
         return setError(VBOX_E_OBJECT_IN_USE,
-                        tr("Shared folder named '%ls' already exists"),
-                        aName);
+                        tr("Shared folder named '%s' already exists"),
+                        strName.c_str());
 
     sharedFolder.createObject();
-    rc = sharedFolder->init(getMachine(), aName, aHostPath, aWritable, aAutoMount);
+    rc = sharedFolder->init(getMachine(),
+                            strName,
+                            aHostPath,
+                            !!aWritable,
+                            !!aAutoMount,
+                           true /* fFailOnError */);
     if (FAILED(rc)) return rc;
 
     setModified(IsModified_SharedFolders);
@@ -4954,6 +5025,12 @@ HRESULT Machine::setGuestPropertyToService(IN_BSTR aName, IN_BSTR aValue,
 HRESULT Machine::setGuestPropertyToVM(IN_BSTR aName, IN_BSTR aValue,
                                       IN_BSTR aFlags)
 {
+    CheckComArgStrNotEmptyOrNull(aName);
+    if ((aValue != NULL) && !VALID_PTR(aValue))
+        return E_INVALIDARG;
+    if ((aFlags != NULL) && !VALID_PTR(aFlags))
+        return E_INVALIDARG;
+
     HRESULT rc;
 
     try {
@@ -4969,7 +5046,8 @@ HRESULT Machine::setGuestPropertyToVM(IN_BSTR aName, IN_BSTR aValue,
                      (aName,
                       /** @todo Fix when adding DeleteGuestProperty(),
                                    see defect. */
-                      *aValue ? aValue : NULL, aFlags, true /* isSetter */,
+                      aValue, aFlags,
+                      true /* isSetter */,
                       &dummy, &dummy64, &dummy);
     }
     catch (std::bad_alloc &)
@@ -5942,8 +6020,14 @@ void Machine::copyPathRelativeToMachine(const Utf8Str &strSource,
     strTarget = mData->m_strConfigFileFull;
     strTarget.stripFilename();
     if (RTPathStartsWith(strSource.c_str(), strTarget.c_str()))
+    {
         // is relative: then append what's left
         strTarget = strSource.substr(strTarget.length() + 1); // skip '/'
+        // for empty paths (only possible for subdirs) use "." to avoid
+        // triggering default settings for not present config attributes.
+        if (strTarget.isEmpty())
+            strTarget = ".";
+    }
     else
         // is not relative: then overwrite
         strTarget = strSource;
@@ -5988,10 +6072,10 @@ Utf8Str Machine::queryLogFilename(ULONG idx)
  *  @note Locks this object for writing, calls the client process
  *        (inside the lock).
  */
-HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
-                                   IN_BSTR aType,
-                                   IN_BSTR aEnvironment,
-                                   ProgressProxy *aProgress)
+HRESULT Machine::launchVMProcess(IInternalSessionControl *aControl,
+                                 const Utf8Str &strType,
+                                 const Utf8Str &strEnvironment,
+                                 ProgressProxy *aProgress)
 {
     LogFlowThisFuncEnter();
 
@@ -6034,7 +6118,7 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
 
     RTENV env = RTENV_DEFAULT;
 
-    if (aEnvironment != NULL && *aEnvironment)
+    if (!strEnvironment.isEmpty())
     {
         char *newEnvStr = NULL;
 
@@ -6044,7 +6128,7 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
             int vrc2 = RTEnvClone(&env, RTENV_DEFAULT);
             AssertRCBreakStmt(vrc2, vrc = vrc2);
 
-            newEnvStr = RTStrDup(Utf8Str(aEnvironment).c_str());
+            newEnvStr = RTStrDup(strEnvironment.c_str());
             AssertPtrBreakStmt(newEnvStr, vrc = vrc2);
 
             /* put new variables to the environment
@@ -6082,8 +6166,6 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
         if (newEnvStr != NULL)
             RTStrFree(newEnvStr);
     }
-
-    Utf8Str strType(aType);
 
     /* Qt is default */
 #ifdef VBOX_WITH_QTGUI
@@ -6145,7 +6227,11 @@ HRESULT Machine::openRemoteSession(IInternalSessionControl *aControl,
 
         Utf8Str idStr = mData->mUuid.toString();
         /* Leave space for "--capture" arg. */
-        const char * args[] = {szPath, "--comment", mUserData->s.strName.c_str(), "--startvm", idStr.c_str(), 0, 0 };
+        const char * args[] = {szPath, "--comment", mUserData->s.strName.c_str(),
+                                       "--startvm", idStr.c_str(),
+                                       "--vrde", "config",
+                                       0, /* For "--capture". */
+                                       0 };
         if (strType == "capture")
         {
             unsigned pos = RT_ELEMENTS(args) - 2;
@@ -6950,25 +7036,27 @@ HRESULT Machine::setMachineState(MachineState_T aMachineState)
  *  @note
  *      must be called from under the object's lock!
  */
-HRESULT Machine::findSharedFolder(CBSTR aName,
+HRESULT Machine::findSharedFolder(const Utf8Str &aName,
                                   ComObjPtr<SharedFolder> &aSharedFolder,
                                   bool aSetError /* = false */)
 {
-    bool found = false;
+    HRESULT rc = VBOX_E_OBJECT_NOT_FOUND;
     for (HWData::SharedFolderList::const_iterator it = mHWData->mSharedFolders.begin();
-        !found && it != mHWData->mSharedFolders.end();
+        it != mHWData->mSharedFolders.end();
         ++it)
     {
-        AutoWriteLock alock(*it COMMA_LOCKVAL_SRC_POS);
-        found = (*it)->getName() == aName;
-        if (found)
-            aSharedFolder = *it;
+        SharedFolder *pSF = *it;
+        AutoCaller autoCaller(pSF);
+        if (pSF->getName() == aName)
+        {
+            aSharedFolder = pSF;
+            rc = S_OK;
+            break;
+        }
     }
 
-    HRESULT rc = found ? S_OK : VBOX_E_OBJECT_NOT_FOUND;
-
-    if (aSetError && !found)
-        setError(rc, tr("Could not find a shared folder named '%ls'"), aName);
+    if (aSetError && FAILED(rc))
+        setError(rc, tr("Could not find a shared folder named '%s'"), aName.c_str());
 
     return rc;
 }
@@ -7642,6 +7730,7 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
                                 dev.strBwGroup.c_str(),
                                 mUserData->s.strName.c_str(),
                                 mData->m_strConfigFileFull.c_str());
+            pBwGroup->reference();
         }
 
         const Bstr controllerName = aStorageController->getName();
@@ -7654,7 +7743,7 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
                                dev.lDevice,
                                dev.deviceType,
                                dev.fPassThrough,
-                               pBwGroup);
+                               pBwGroup.isNull() ? Utf8Str::Empty : pBwGroup->getName());
         if (FAILED(rc)) break;
 
         /* associate the medium with this machine and snapshot */
@@ -7849,6 +7938,7 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         bool fileRenamed = false;
 
         Utf8Str configFile, newConfigFile;
+        Utf8Str configFilePrev, newConfigFilePrev;
         Utf8Str configDir, newConfigDir;
 
         do
@@ -7914,6 +8004,11 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                         break;
                     }
                     fileRenamed = true;
+                    configFilePrev = configFile;
+                    configFilePrev += "-prev";
+                    newConfigFilePrev = newConfigFile;
+                    newConfigFilePrev += "-prev";
+                    RTFileRename(configFilePrev.c_str(), newConfigFilePrev.c_str(), 0);
                 }
             }
 
@@ -7953,7 +8048,10 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         {
             /* silently try to rename everything back */
             if (fileRenamed)
+            {
+                RTFileRename(newConfigFilePrev.c_str(), configFilePrev.c_str(), 0);
                 RTFileRename(newConfigFile.c_str(), configFile.c_str(), 0);
+            }
             if (dirRenamed)
                 RTPathRename(newConfigDir.c_str(), configDir.c_str(), 0);
         }
@@ -8424,12 +8522,14 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
             it != mHWData->mSharedFolders.end();
             ++it)
         {
-            ComObjPtr<SharedFolder> pFolder = *it;
+            SharedFolder *pSF = *it;
+            AutoCaller sfCaller(pSF);
+            AutoReadLock sfLock(pSF COMMA_LOCKVAL_SRC_POS);
             settings::SharedFolder sf;
-            sf.strName = pFolder->getName();
-            sf.strHostPath = pFolder->getHostPath();
-            sf.fWritable = !!pFolder->isWritable();
-            sf.fAutoMount = !!pFolder->isAutoMounted();
+            sf.strName = pSF->getName();
+            sf.strHostPath = pSF->getHostPath();
+            sf.fWritable = !!pSF->isWritable();
+            sf.fAutoMount = !!pSF->isAutoMounted();
 
             data.llSharedFolders.push_back(sf);
         }
@@ -8462,7 +8562,8 @@ HRESULT Machine::saveHardware(settings::Hardware &data)
             if (   (   mData->mMachineState == MachineState_PoweredOff
                     || mData->mMachineState == MachineState_Aborted
                     || mData->mMachineState == MachineState_Teleported)
-                && property.mFlags & guestProp::TRANSIENT)
+                && (   property.mFlags & guestProp::TRANSIENT
+                    || property.mFlags & guestProp::TRANSRESET))
                 continue;
             settings::GuestProperty prop;
             prop.strName = property.strName;
@@ -8565,7 +8666,6 @@ HRESULT Machine::saveStorageDevices(ComObjPtr<StorageController> aStorageControl
 
         MediumAttachment *pAttach = *it;
         Medium *pMedium = pAttach->getMedium();
-        BandwidthGroup *pBwGroup = pAttach->getBandwidthGroup();
 
         dev.deviceType = pAttach->getType();
         dev.lPort = pAttach->getPort();
@@ -8579,10 +8679,7 @@ HRESULT Machine::saveStorageDevices(ComObjPtr<StorageController> aStorageControl
             dev.fPassThrough = pAttach->getPassthrough();
         }
 
-        if (pBwGroup)
-        {
-            dev.strBwGroup = pBwGroup->getName();
-        }
+        dev.strBwGroup = pAttach->getBandwidthGroup();
 
         data.llAttachedDevices.push_back(dev);
     }
@@ -9403,6 +9500,23 @@ void Machine::commitMedia(bool aOnline /*= false*/)
 
     if (isSessionMachine())
     {
+        /*
+         * Update the parent machine to point to the new owner.
+         * This is necessary because the stored parent will point to the
+         * session machine otherwise and cause crashes or errors later
+         * when the session machine gets invalid.
+         *
+         * @todo: Change the MediumAttachment class to behave like any other class
+         *        in this regard by creating peer MediumAttachment objects for
+         *        session machines and share the data with the peer machine.
+         */
+        for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
+             it != mMediaData->mAttachments.end();
+             ++it)
+        {
+            (*it)->updateParentMachine(mPeer);
+        }
+
         /* attach new data to the primary machine and reshare it */
         mPeer->mMediaData.attach(mMediaData);
     }
@@ -10316,7 +10430,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     if (!mData->mSession.mType.isEmpty())
     {
         /* mType is not null when this machine's process has been started by
-         * Machine::launchVMProcess(), therefore it is our child.  We
+         * Machine::LaunchVMProcess(), therefore it is our child.  We
          * need to queue the PID to reap the process (and avoid zombies on
          * Linux). */
         Assert(mData->mSession.mPid != NIL_RTPROCESS);
@@ -10540,7 +10654,7 @@ STDMETHODIMP SessionMachine::EndPowerUp(LONG iResult)
     if (mData->mSession.mState != SessionState_Locked)
         return VBOX_E_INVALID_OBJECT_STATE;
 
-    /* Finalize the openRemoteSession progress object. */
+    /* Finalize the LaunchVMProcess progress object. */
     if (mData->mSession.mProgress)
     {
         mData->mSession.mProgress->notifyComplete((HRESULT)iResult);
@@ -10690,6 +10804,7 @@ STDMETHODIMP SessionMachine::CaptureUSBDevice(IN_BSTR aId)
 
 #ifdef VBOX_WITH_USB
     /* if captureDeviceForVM() fails, it must have set extended error info */
+    clearError();
     MultiResult rc = mParent->host()->checkUSBProxyService();
     if (FAILED(rc)) return rc;
 
@@ -10842,7 +10957,7 @@ STDMETHODIMP SessionMachine::OnSessionEnd(ISession *aSession,
          * #checkForDeath() is called to uninitialize this session object after
          * it releases the IPC semaphore.
          * Note! Because we're "reusing" mProgress here, this must be a proxy
-         *       object just like for openRemoteSession. */
+         *       object just like for LaunchVMProcess. */
         Assert(mData->mSession.mProgress.isNull());
         ComObjPtr<ProgressProxy> progress;
         progress.createObject();
@@ -11725,6 +11840,7 @@ HRESULT SessionMachine::lockMedia()
     /* bail out if trying to lock things with already set up locking */
     AssertReturn(mData->mSession.mLockedMedia.IsEmpty(), E_FAIL);
 
+    clearError();
     MultiResult mrc(S_OK);
 
     /* Collect locking information for all medium objects attached to the VM. */
@@ -11987,7 +12103,8 @@ HRESULT SessionMachine::setMachineState(MachineState_T aMachineState)
         if (!fNeedsSaving)
             for (it = mHWData->mGuestProperties.begin();
                  it != mHWData->mGuestProperties.end(); ++it)
-                if (it->mFlags & guestProp::TRANSIENT)
+                if (   (it->mFlags & guestProp::TRANSIENT)
+                    || (it->mFlags & guestProp::TRANSRESET))
                 {
                     fNeedsSaving = true;
                     break;

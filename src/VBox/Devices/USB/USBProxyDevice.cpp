@@ -268,6 +268,34 @@ static int count_descriptors(struct desc_counts *cnt, uint8_t *buf, size_t len)
     return 1;
 }
 
+/* Given the pointer to an interface or endpoint descriptor, find any following
+ * non-standard (vendor or class) descriptors.
+ */
+static const void *collect_stray_bits(uint8_t *this_desc, uint8_t *end, uint16_t *cbExtra)
+{
+    uint8_t *tmp, *buf;
+    uint8_t type;
+
+    Assert(*(this_desc + 1) == VUSB_DT_INTERFACE || *(this_desc + 1) == VUSB_DT_ENDPOINT);
+    buf = this_desc;
+
+    /* Skip the current interface/endpoint descriptor. */
+    buf += *(uint8_t *)buf;
+
+    /* Loop until we find another descriptor we understand. */
+    for (tmp = buf; ((tmp + 1) < end) && *tmp; tmp += *tmp)
+    {
+        type = *(tmp + 1);
+        if (type == VUSB_DT_INTERFACE || type == VUSB_DT_ENDPOINT)
+            break;
+    }
+    *cbExtra = tmp - buf;
+    if (*cbExtra)
+        return buf;
+    else
+        return NULL;
+}
+
 /* Setup a vusb_interface structure given some preallocated structures
  * to use, (we counted them already)
  */
@@ -278,6 +306,7 @@ static int copy_interface(PVUSBINTERFACE pIf, uint8_t ifnum,
     PVUSBDESCINTERFACEEX cur_if = NULL;
     uint32_t altmap[4] = {0,};
     uint8_t *tmp, *end = buf + len;
+    uint8_t *orig_desc = buf;
     uint8_t alt;
     int state;
     size_t num_ep = 0;
@@ -319,7 +348,15 @@ static int copy_interface(PVUSBINTERFACE pIf, uint8_t ifnum,
                 pIf->paSettings = cur_if;
 
             memcpy(cur_if, ifd, sizeof(cur_if->Core));
-            /** @todo copy any additional descriptor bytes into pvMore */
+
+            /* Point to additional interface descriptor bytes, if any. */
+            AssertCompile(sizeof(cur_if->Core) == VUSB_DT_INTERFACE_MIN_LEN);
+            if (cur_if->Core.bLength - VUSB_DT_INTERFACE_MIN_LEN > 0)
+                cur_if->pvMore = tmp + VUSB_DT_INTERFACE_MIN_LEN;
+            else
+                cur_if->pvMore = NULL;
+
+            cur_if->pvClass = collect_stray_bits(tmp, end, &cur_if->cbClass);
 
             pIf->cSettings++;
 
@@ -342,7 +379,16 @@ static int copy_interface(PVUSBINTERFACE pIf, uint8_t ifnum,
                 return 0;
 
             memcpy(cur_ep, epd, sizeof(cur_ep->Core));
-            /** @todo copy any additional descriptor bytes into pvMore */
+
+            /* Point to additional endpoint descriptor bytes, if any. */
+            AssertCompile(sizeof(cur_ep->Core) == VUSB_DT_ENDPOINT_MIN_LEN);
+            if (cur_ep->Core.bLength - VUSB_DT_ENDPOINT_MIN_LEN > 0)
+                cur_ep->pvMore = tmp + VUSB_DT_ENDPOINT_MIN_LEN;
+            else
+                cur_ep->pvMore = NULL;
+
+            cur_ep->pvClass = collect_stray_bits(tmp, end, &cur_ep->cbClass);
+
             cur_ep->Core.wMaxPacketSize = RT_LE2H_U16(cur_ep->Core.wMaxPacketSize);
 
             num_ep++;
@@ -404,6 +450,9 @@ static bool copy_config(PUSBPROXYDEV pProxyDev, uint8_t idx, PVUSBDESCCONFIGEX o
         return false;
     }
 
+    /* Stash a pointer to the raw config descriptor; we may need bits of it later.  */
+    out->pvOriginal = descs;
+
     pIf = (PVUSBINTERFACE)out->paIfs;
     ifd = (PVUSBDESCINTERFACEEX)&pIf[cnt.num_if];
     epd = (PVUSBDESCENDPOINTEX)&ifd[cnt.num_id];
@@ -420,12 +469,11 @@ static bool copy_config(PUSBPROXYDEV pProxyDev, uint8_t idx, PVUSBDESCCONFIGEX o
     for(i=0; i < 4; i++)
         for(x=0; x < 32; x++)
             if ( cnt.idmap[i] & (1 << x) )
-                if ( !copy_interface(pIf++, (i << 6) | x, &ifd, &epd, (uint8_t *)descs, tot_len) ) {
+                if ( !copy_interface(pIf++, (i << 6) | x, &ifd, &epd, (uint8_t *)out->pvOriginal, tot_len) ) {
                     Log(("copy_interface(%d,,) failed\n", pIf - 1));
                     goto err;
                 }
 
-    free_desc(descs);
     return true;
 err:
     Log(("usb-proxy: config%u: Corrupted configuration descriptor\n", idx));
@@ -668,7 +716,10 @@ static DECLCALLBACK(void) usbProxyDestruct(PPDMUSBINS pUsbIns)
     if (pThis->paCfgDescs)
     {
         for (unsigned i = 0; i < pThis->DevDesc.bNumConfigurations; i++)
+        {
             RTMemFree((void *)pThis->paCfgDescs[i].paIfs);
+            RTMemFree((void *)pThis->paCfgDescs[i].pvOriginal);
+        }
         /** @todo bugref{2693} cleanup */
         RTMemFree(pThis->paCfgDescs);
         pThis->paCfgDescs = NULL;

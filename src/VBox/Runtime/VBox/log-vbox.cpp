@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -411,9 +411,7 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 
 # else  /* IN_GUEST */
     /* The user destination is backdoor logging. */
-    rc = RTLogCreate(&pLogger, 0, NULL, "VBOX_LOG",
-                     RT_ELEMENTS(g_apszGroups), &g_apszGroups[0],
-                     RTLOGDEST_USER, "VBox.log");
+    rc = RTLogCreate(&pLogger, 0, NULL, "VBOX_LOG", RT_ELEMENTS(g_apszGroups), &g_apszGroups[0], RTLOGDEST_USER, "VBox.log");
 # endif /* IN_GUEST */
 
 #else /* IN_RING0 */

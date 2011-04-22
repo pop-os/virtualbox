@@ -310,7 +310,7 @@ vboxvideo_drv_110_INCS = \
 	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
 	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
 	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.9.99.901+git20110131.be3be758 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.10.0 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
 	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
 vboxvideo_drv_110_INCS += $(PATH_ROOT)/src/VBox/Runtime/include

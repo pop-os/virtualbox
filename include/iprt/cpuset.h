@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,12 +38,6 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
-/**
- * The maximum number of CPUs a set can contain and IPRT is able
- * to reference.
- * @remarks This is the maximum value of the supported platforms.
- */
-#define RTCPUSET_MAX_CPUS       64
 
 /**
  * Clear all CPUs.
@@ -53,7 +47,9 @@ RT_C_DECLS_BEGIN
  */
 DECLINLINE(PRTCPUSET) RTCpuSetEmpty(PRTCPUSET pSet)
 {
-    *pSet = 0;
+    unsigned i;
+    for (i = 0; i < RT_ELEMENTS(pSet->bmSet); i++)
+        pSet->bmSet[i] = 0;
     return pSet;
 }
 
@@ -66,7 +62,9 @@ DECLINLINE(PRTCPUSET) RTCpuSetEmpty(PRTCPUSET pSet)
  */
 DECLINLINE(PRTCPUSET) RTCpuSetFill(PRTCPUSET pSet)
 {
-    *pSet = UINT64_MAX;
+    unsigned i;
+    for (i = 0; i < RT_ELEMENTS(pSet->bmSet); i++)
+        pSet->bmSet[i] = UINT64_MAX;
     return pSet;
 }
 
@@ -83,6 +81,23 @@ DECLINLINE(int) RTCpuSetAdd(PRTCPUSET pSet, RTCPUID idCpu)
 {
     int iCpu = RTMpCpuIdToSetIndex(idCpu);
     if (RT_UNLIKELY(iCpu < 0))
+        return -1;
+    ASMAtomicBitSet(pSet, iCpu);
+    return 0;
+}
+
+
+/**
+ * Adds a CPU given by its identifier to the set.
+ *
+ * @returns 0 on success, -1 if iCpu isn't valid.
+ * @param   pSet    Pointer to the set.
+ * @param   iCpu    The index of the CPU to add.
+ * @remarks The modification is atomic.
+ */
+DECLINLINE(int) RTCpuSetAddByIndex(PRTCPUSET pSet, int iCpu)
+{
+    if (RT_UNLIKELY((unsigned)iCpu >= RTCPUSET_MAX_CPUS))
         return -1;
     ASMAtomicBitSet(pSet, iCpu);
     return 0;
@@ -110,7 +125,7 @@ DECLINLINE(int) RTCpuSetDel(PRTCPUSET pSet, RTCPUID idCpu)
 /**
  * Removes a CPU given by its index from the set.
  *
- * @returns 0 on success, -1 if idCpu isn't valid.
+ * @returns 0 on success, -1 if iCpu isn't valid.
  * @param   pSet    Pointer to the set.
  * @param   iCpu    The index of the CPU to delete.
  * @remarks The modification is atomic.
@@ -166,7 +181,11 @@ DECLINLINE(bool) RTCpuSetIsMemberByIndex(PCRTCPUSET pSet, int iCpu)
  */
 DECLINLINE(bool) RTCpuSetIsEqual(PCRTCPUSET pSet1, PCRTCPUSET pSet2)
 {
-    return *pSet1 == *pSet2 ? true : false;
+    unsigned i;
+    for (i = 0; i < RT_ELEMENTS(pSet1->bmSet); i++)
+        if (pSet1->bmSet[i] != pSet2->bmSet[i])
+            return false;
+    return true;
 }
 
 
@@ -175,10 +194,11 @@ DECLINLINE(bool) RTCpuSetIsEqual(PCRTCPUSET pSet1, PCRTCPUSET pSet2)
  *
  * @returns The mask.
  * @param   pSet    Pointer to the set.
+ * @remarks Use with extreme care as it may lose information!
  */
 DECLINLINE(uint64_t) RTCpuSetToU64(PCRTCPUSET pSet)
 {
-    return *pSet;
+    return pSet->bmSet[0];
 }
 
 
@@ -190,7 +210,12 @@ DECLINLINE(uint64_t) RTCpuSetToU64(PCRTCPUSET pSet)
  */
 DECLINLINE(PRTCPUSET) RTCpuSetFromU64(PRTCPUSET pSet, uint64_t fMask)
 {
-    *pSet = fMask;
+    unsigned i;
+
+    pSet->bmSet[0] = fMask;
+    for (i = 1; i < RT_ELEMENTS(pSet->bmSet); i++)
+        pSet->bmSet[i] = 0;
+
     return pSet;
 }
 
@@ -203,11 +228,23 @@ DECLINLINE(PRTCPUSET) RTCpuSetFromU64(PRTCPUSET pSet, uint64_t fMask)
  */
 DECLINLINE(int) RTCpuSetCount(PCRTCPUSET pSet)
 {
-    int     cCpus = 0;
-    RTCPUID iCpu = 64;
-    while (iCpu-- > 0)
-        if (*pSet & RT_BIT_64(iCpu))
-            cCpus++;
+    int         cCpus = 0;
+    unsigned    i;
+
+    for (i = 0; i < RT_ELEMENTS(pSet->bmSet); i++)
+    {
+        uint64_t u64 = pSet->bmSet[i];
+        if (u64 != 0)
+        {
+            unsigned iCpu = 64;
+            while (iCpu-- > 0)
+            {
+                if (u64 & 1)
+                    cCpus++;
+                u64 >>= 1;
+            }
+        }
+    }
     return cCpus;
 }
 
@@ -220,12 +257,24 @@ DECLINLINE(int) RTCpuSetCount(PCRTCPUSET pSet)
  */
 DECLINLINE(int) RTCpuLastIndex(PCRTCPUSET pSet)
 {
-    /* There are more efficient ways to do this in asm.h... */
-    int iCpu = RTCPUSET_MAX_CPUS;
-    while (iCpu-- > 0)
-        if (*pSet & RT_BIT_64(iCpu))
-            return iCpu;
-    return iCpu;
+    unsigned i = RT_ELEMENTS(pSet->bmSet);
+    while (i-- > 0)
+    {
+        uint64_t u64 = pSet->bmSet[i];
+        if (u64)
+        {
+            /* There are more efficient ways to do this in asm.h... */
+            unsigned iBit;
+            for (iBit = 63; iBit > 0; iBit--)
+            {
+                if (u64 & RT_BIT_64(63))
+                    break;
+                u64 <<= 1;
+            }
+            return i * 64 + iBit;
+        }
+    }
+    return 0;
 }
 
 

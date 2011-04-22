@@ -470,17 +470,6 @@ DECLCALLBACK(int) Console::configConstructor(PVM pVM, void *pvConsole)
 {
     LogFlowFuncEnter();
 
-#if !defined(VBOX_WITH_XPCOM)
-    {
-        /* initialize COM */
-        HRESULT hrc = CoInitializeEx(NULL,
-                                     COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE |
-                                     COINIT_SPEED_OVER_MEMORY);
-        LogFlow(("Console::configConstructor(): CoInitializeEx()=%08X\n", hrc));
-        AssertComRCReturn(hrc, VERR_GENERAL_FAILURE);
-    }
-#endif
-
     AssertReturn(pvConsole, VERR_GENERAL_FAILURE);
     ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
 
@@ -2105,20 +2094,13 @@ int Console::configConstructorInner(PVM pVM, AutoWriteLock *pAlock)
 # ifdef VBOX_WITH_EXTPACK
                     else
                     {
-                        /* Fatal if a saved state is being restored, otherwise ignorable. */
-                        if (mMachineState == MachineState_Restoring)
-                            return VMSetError(pVM, VERR_NOT_FOUND, RT_SRC_POS,
-                                    N_("Implementation of the USB 2.0 controller not found!\n"
-                                       "Because the USB 2.0 controller state is part of the saved "
-                                       "VM state, the VM cannot be started. To fix "
-                                       "this problem, either install the '%s' or disable USB 2.0 "
-                                       "support in the VM settings"),
-                                    s_pszUsbExtPackName);
-                        setVMRuntimeErrorCallbackF(pVM, this, 0, "ExtPackNoEhci",
+                        /* Always fatal! Up to VBox 4.0.4 we allowed to start the VM anyway
+                         * but this induced problems when the user saved + restored the VM! */
+                        return VMSetError(pVM, VERR_NOT_FOUND, RT_SRC_POS,
                                 N_("Implementation of the USB 2.0 controller not found!\n"
-                                   "The device will be disabled. You can ignore this warning "
-                                   "but there will be no USB 2.0 support in your VM. To fix "
-                                   "this issue, either install the '%s' or disable USB 2.0 "
+                                   "Because the USB 2.0 controller state is part of the saved "
+                                   "VM state, the VM cannot be started. To fix "
+                                   "this problem, either install the '%s' or disable USB 2.0 "
                                    "support in the VM settings"),
                                 s_pszUsbExtPackName);
                     }
@@ -3269,15 +3251,15 @@ int Console::configMedium(PCFGMNODE pLunL0,
                         }
                     }
 
-                    /* Custom code: put marker to not use host IP stack to driver
-                     * configuration node. Simplifies life of DrvVD a bit. */
-                    if (!fHostIP)
-                        InsertConfigInteger(pCfg, "HostIPStack", 0);
-
                     /* next */
                     pParent = pCur;
                     pParentMedium = pMedium;
                 }
+
+                /* Custom code: put marker to not use host IP stack to driver
+                 * configuration node. Simplifies life of DrvVD a bit. */
+                if (!fHostIP)
+                    InsertConfigInteger(pCfg, "HostIPStack", 0);
             }
         }
 #undef H
@@ -3356,6 +3338,12 @@ int Console::configNetwork(const char *pszDevice,
         BOOL fSniffer;
         hrc = aNetworkAdapter->COMGETTER(TraceEnabled)(&fSniffer);
         H();
+
+        hrc = pMachine->GetExtraData(Bstr("VBoxInternal2/AllowPromiscousGuests").raw(), bstr.asOutParam());
+        if (SUCCEEDED(hrc) && bstr.isEmpty())
+            hrc = virtualBox->GetExtraData(Bstr("VBoxInternal2/AllowPromiscousGuests").raw(), bstr.asOutParam());
+        H();
+        const char * const pszPromiscuousGuestPolicy = bstr.isNotEmpty() ? "allow-all" : "deny";
 
         if (fAttachDetach && fSniffer)
         {
@@ -3520,12 +3508,12 @@ int Console::configNetwork(const char *pszDevice,
         Log2((#res " %s pos:%d, ppos:%d\n", res.c_str(), pos, ppos)); \
         ppos = pos + 1; \
     } while (0)
-                ITERATE_TO_NEXT_TERM(strName, utf, pos, ppos);
-                ITERATE_TO_NEXT_TERM(strProto, utf, pos, ppos);
-                ITERATE_TO_NEXT_TERM(strHostIP, utf, pos, ppos);
-                ITERATE_TO_NEXT_TERM(strHostPort, utf, pos, ppos);
-                ITERATE_TO_NEXT_TERM(strGuestIP, utf, pos, ppos);
-                strGuestPort = utf.substr(ppos, utf.length() - ppos);
+                    ITERATE_TO_NEXT_TERM(strName, utf, pos, ppos);
+                    ITERATE_TO_NEXT_TERM(strProto, utf, pos, ppos);
+                    ITERATE_TO_NEXT_TERM(strHostIP, utf, pos, ppos);
+                    ITERATE_TO_NEXT_TERM(strHostPort, utf, pos, ppos);
+                    ITERATE_TO_NEXT_TERM(strGuestIP, utf, pos, ppos);
+                    strGuestPort = utf.substr(ppos, utf.length() - ppos);
 #undef ITERATE_TO_NEXT_TERM
 
                     uint32_t proto = strProto.toUInt32();
@@ -3632,20 +3620,22 @@ int Console::configNetwork(const char *pszDevice,
                 char szTrunk[8];
                 strncpy(szTrunk, pszHifName, sizeof(szTrunk));
                 char *pszColon = (char *)memchr(szTrunk, ':', sizeof(szTrunk));
-                if (!pszColon)
-                {
-                    /*
-                    * Dynamic changing of attachment causes an attempt to configure
-                    * network with invalid host adapter (as it is must be changed before
-                    * the attachment), calling Detach here will cause a deadlock.
-                    * See #4750.
-                    * hrc = aNetworkAdapter->Detach();                        H();
-                    */
-                    return VMSetError(pVM, VERR_INTERNAL_ERROR, RT_SRC_POS,
-                                      N_("Malformed host interface networking name '%ls'"),
-                                      HifName.raw());
-                }
-                *pszColon = '\0';
+// Quick fix for #5633
+//                 if (!pszColon)
+//                 {
+//                     /*
+//                     * Dynamic changing of attachment causes an attempt to configure
+//                     * network with invalid host adapter (as it is must be changed before
+//                     * the attachment), calling Detach here will cause a deadlock.
+//                     * See #4750.
+//                     * hrc = aNetworkAdapter->Detach();                        H();
+//                     */
+//                     return VMSetError(pVM, VERR_INTERNAL_ERROR, RT_SRC_POS,
+//                                       N_("Malformed host interface networking name '%ls'"),
+//                                       HifName.raw());
+//                 }
+                if (pszColon)
+                    *pszColon = '\0';
                 const char *pszTrunk = szTrunk;
 
 # elif defined(RT_OS_SOLARIS)
@@ -3845,6 +3835,7 @@ int Console::configNetwork(const char *pszDevice,
                 InsertConfigString(pCfg, "Trunk", pszTrunk);
                 InsertConfigInteger(pCfg, "TrunkType", kIntNetTrunkType_NetFlt);
                 InsertConfigInteger(pCfg, "IgnoreConnectFailure", (uint64_t)fIgnoreConnectFailure);
+                InsertConfigString(pCfg, "IfPolicyPromisc", pszPromiscuousGuestPolicy);
                 char szNetwork[INTNET_MAX_NETWORK_NAME];
                 RTStrPrintf(szNetwork, sizeof(szNetwork), "HostInterfaceNetworking-%s", pszHifName);
                 InsertConfigString(pCfg, "Network", szNetwork);
@@ -3982,12 +3973,12 @@ int Console::configNetwork(const char *pszDevice,
 
 # if defined(RT_OS_SOLARIS)
 #  if 0 /* bird: this is a bit questionable and might cause more trouble than its worth.  */
-            /* Zone access restriction, don't allow snooping the global zone. */
-            zoneid_t ZoneId = getzoneid();
-            if (ZoneId != GLOBAL_ZONEID)
-            {
-                InsertConfigInteger(pCfg, "IgnoreAllPromisc", true);
-            }
+                /* Zone access restriction, don't allow snooping the global zone. */
+                zoneid_t ZoneId = getzoneid();
+                if (ZoneId != GLOBAL_ZONEID)
+                {
+                    InsertConfigInteger(pCfg, "IgnoreAllPromisc", true);
+                }
 #  endif
 # endif
 
@@ -4016,6 +4007,7 @@ int Console::configNetwork(const char *pszDevice,
                     InsertConfigNode(pLunL0, "Config", &pCfg);
                     InsertConfigString(pCfg, "Network", bstr);
                     InsertConfigInteger(pCfg, "TrunkType", kIntNetTrunkType_WhateverNone);
+                    InsertConfigString(pCfg, "IfPolicyPromisc", pszPromiscuousGuestPolicy);
                     networkName = bstr;
                     trunkType = Bstr(TRUNKTYPE_WHATEVER);
                 }
@@ -4108,7 +4100,7 @@ int Console::configNetwork(const char *pszDevice,
                     LogRel(("NetworkAttachmentType_HostOnly: VBoxNetCfgWinGetComponentByGuid failed, hrc=%Rhrc (0x%x)\n", hrc, hrc));
                     H();
                 }
-#define VBOX_WIN_BINDNAME_PREFIX "\\DEVICE\\"
+#  define VBOX_WIN_BINDNAME_PREFIX "\\DEVICE\\"
                 char szTrunkName[INTNET_MAX_TRUNK_NAME];
                 char *pszTrunkName = szTrunkName;
                 wchar_t * pswzBindName;
@@ -4164,7 +4156,7 @@ int Console::configNetwork(const char *pszDevice,
                 InsertConfigInteger(pCfg, "TrunkType", kIntNetTrunkType_NetAdp);
                 InsertConfigString(pCfg, "Trunk", pszTrunk);
                 InsertConfigString(pCfg, "Network", szNetwork);
-                InsertConfigInteger(pCfg, "IgnoreConnectFailure", (uint64_t)fIgnoreConnectFailure);
+                InsertConfigInteger(pCfg, "IgnoreConnectFailure", (uint64_t)fIgnoreConnectFailure); /** @todo why is this windows only?? */
                 networkName = Bstr(szNetwork);
                 trunkName   = Bstr(pszTrunk);
                 trunkType   = TRUNKTYPE_NETADP;
@@ -4184,6 +4176,8 @@ int Console::configNetwork(const char *pszDevice,
                 trunkName   = Bstr(pszHifName);
                 trunkType   = TRUNKTYPE_NETFLT;
 #endif
+                InsertConfigString(pCfg, "IfPolicyPromisc", pszPromiscuousGuestPolicy);
+
 #if !defined(RT_OS_WINDOWS) && defined(VBOX_WITH_NETFLT)
 
                 Bstr tmpAddr, tmpMask;

@@ -3080,9 +3080,11 @@ static int atapiGetConfigurationSS(PAHCIPORTTASKSTATE pAhciPortTaskState, PAHCIP
     memset(aBuf, '\0', 32);
     ataH2BE_U32(aBuf, 16);
     /** @todo implement switching between CD-ROM and DVD-ROM profile (the only
-     * way to differentiate them right now is based on the image size). Also
-     * implement signalling "no current profile" if no medium is loaded. */
-    ataH2BE_U16(aBuf + 6, 0x08); /* current profile: read-only CD */
+     * way to differentiate them right now is based on the image size). */
+    if (pAhciPort->cTotalSectors)
+        ataH2BE_U16(aBuf + 6, 0x08); /* current profile: read-only CD */
+    else
+        ataH2BE_U16(aBuf + 6, 0x00); /* current profile: none -> no media */
 
     ataH2BE_U16(aBuf + 8, 0); /* feature 0: list of profiles supported */
     aBuf[10] = (0 << 2) | (1 << 1) | (1 || 0); /* version 0, persistent, current */
@@ -4040,7 +4042,7 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIPORTTASKSTA
                             rc2 = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
                                                   (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,
                                                   pAhciPort->pDrvMount, false/*=fForce*/, true/*=fEject*/);
-                            Assert(RT_SUCCESS(rc2) || (rc == VERR_PDM_MEDIA_LOCKED));
+                            Assert(RT_SUCCESS(rc2) || (rc2 == VERR_PDM_MEDIA_LOCKED) || (rc2 = VERR_PDM_MEDIA_NOT_MOUNTED));
                         }
                         break;
                     case 3: /* 11 - Load media */
