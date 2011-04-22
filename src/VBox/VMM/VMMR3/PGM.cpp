@@ -2039,6 +2039,8 @@ VMMR3DECL(int) PGMR3InitFinalize(PVM pVM)
     pVM->pgm.s.paDynPageMap32BitPTEsGC = pMapping->aPTs[iPT].pPTRC      + iPG * sizeof(pMapping->aPTs[0].pPTR3->a[0]);
     pVM->pgm.s.paDynPageMapPaePTEsGC   = pMapping->aPTs[iPT].paPaePTsRC + iPG * sizeof(pMapping->aPTs[0].paPaePTsR3->a[0]);
 
+    LogFlowFunc(("paDynPageMap32BitPTEsGC=%#p paDynPageMapPaePTEsGC=%#p\n", pVM->pgm.s.paDynPageMap32BitPTEsGC, pVM->pgm.s.paDynPageMapPaePTEsGC));
+
     /* init cache area */
     RTHCPHYS HCPhysDummy = MMR3PageDummyHCPhys(pVM);
     for (uint32_t offDynMap = 0; offDynMap < MM_HYPER_DYNAMIC_SIZE; offDynMap += PAGE_SIZE)
@@ -2225,8 +2227,9 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 
         for (uint32_t iPage = 0; iPage < pDynMap->cPages; iPage++)
         {
-            paPages[iPage].pvPage  += offDelta;
-            paPages[iPage].uPte.pv += offDelta;
+            paPages[iPage].pvPage       += offDelta;
+            paPages[iPage].uPte.pLegacy += offDelta;
+            paPages[iPage].uPte.pPae    += offDelta;
         }
     }
 

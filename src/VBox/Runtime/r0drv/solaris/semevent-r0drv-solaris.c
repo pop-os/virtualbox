@@ -28,6 +28,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define RTSEMEVENT_WITHOUT_REMAPPING
 #include "the-solaris-kernel.h"
 #include "internal/iprt.h"
 #include <iprt/semaphore.h>
@@ -63,8 +64,8 @@ typedef struct RTSEMEVENTSOLENTRY
     RTLISTNODE          Node;
     /** The thread. */
     kthread_t          *pThread;
-    /** Flag set when waking up the thread by signal or destroy. */
-    bool volatile       fWokenUp;
+    /** Set to @c true when waking up the thread by signal or destroy. */
+    uint32_t volatile  fWokenUp;
 } RTSEMEVENTSOLENTRY;
 /** Pointer to waiter entry. */
 typedef RTSEMEVENTSOLENTRY *PRTSEMEVENTSOLENTRY;
@@ -297,7 +298,7 @@ static int rtR0SemEventSolWait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint6
                     else
                     {
                         /* Do the wait and then recheck the conditions. */
-                        rtR0SemSolWaitDoIt(&Wait, &pThis->Cnd, &pThis->Mtx);
+                        rtR0SemSolWaitDoIt(&Wait, &pThis->Cnd, &pThis->Mtx, &Waiter.fWokenUp, false);
                         continue;
                     }
                 }
@@ -315,7 +316,6 @@ static int rtR0SemEventSolWait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint6
 }
 
 
-#undef RTSemEventWaitEx
 RTDECL(int)  RTSemEventWaitEx(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout)
 {
 #ifndef RTSEMEVENT_STRICT

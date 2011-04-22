@@ -2342,9 +2342,11 @@ static bool atapiGetConfigurationSS(ATADevState *s)
     memset(pbBuf, '\0', 32);
     ataH2BE_U32(pbBuf, 16);
     /** @todo implement switching between CD-ROM and DVD-ROM profile (the only
-     * way to differentiate them right now is based on the image size). Also
-     * implement signalling "no current profile" if no medium is loaded. */
-    ataH2BE_U16(pbBuf + 6, 0x08); /* current profile: read-only CD */
+     * way to differentiate them right now is based on the image size). */
+    if (s->cTotalSectors)
+        ataH2BE_U16(pbBuf + 6, 0x08); /* current profile: read-only CD */
+    else
+        ataH2BE_U16(pbBuf + 6, 0x00); /* current profile: none -> no media */
 
     ataH2BE_U16(pbBuf + 8, 0); /* feature 0: list of profiles supported */
     pbBuf[10] = (0 << 2) | (1 << 1) | (1 || 0); /* version 0, persistent, current */
@@ -2983,7 +2985,7 @@ static void atapiParseCmdVirtualATAPI(ATADevState *s)
                         rc = VMR3ReqCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
                                              (PFNRT)s->pDrvMount->pfnUnmount, 3,
                                              s->pDrvMount /*=fForce*/, true /*=fEject*/);
-                        Assert(RT_SUCCESS(rc) || (rc == VERR_PDM_MEDIA_LOCKED));
+                        Assert(RT_SUCCESS(rc) || (rc == VERR_PDM_MEDIA_LOCKED) || (rc = VERR_PDM_MEDIA_NOT_MOUNTED));
                         {
                             STAM_PROFILE_START(&pCtl->StatLockWait, a);
                             PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);

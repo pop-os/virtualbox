@@ -407,21 +407,31 @@ public:
     class SharedFolderData
     {
     public:
-        SharedFolderData() {}
-        SharedFolderData(Bstr aHostPath, BOOL aWritable, BOOL aAutoMount)
-           : mHostPath(aHostPath)
-           , mWritable(aWritable)
-           , mAutoMount(aAutoMount) {}
+        SharedFolderData()
+        { }
+
+        SharedFolderData(const Utf8Str &aHostPath,
+                         bool aWritable,
+                         bool aAutoMount)
+           : m_strHostPath(aHostPath),
+             m_fWritable(aWritable),
+             m_fAutoMount(aAutoMount)
+        { }
+
+        // copy constructor
         SharedFolderData(const SharedFolderData& aThat)
-           : mHostPath(aThat.mHostPath)
-           , mWritable(aThat.mWritable)
-           , mAutoMount(aThat.mAutoMount) {}
-        Bstr mHostPath;
-        BOOL mWritable;
-        BOOL mAutoMount;
+           : m_strHostPath(aThat.m_strHostPath),
+             m_fWritable(aThat.m_fWritable),
+             m_fAutoMount(aThat.m_fAutoMount)
+        { }
+
+        Utf8Str m_strHostPath;
+        bool m_fWritable;
+        bool m_fAutoMount;
     };
-    typedef std::map <Bstr, ComObjPtr<SharedFolder> > SharedFolderMap;
-    typedef std::map <Bstr, SharedFolderData> SharedFolderDataMap;
+
+    typedef std::map<Utf8Str, ComObjPtr<SharedFolder> > SharedFolderMap;
+    typedef std::map<Utf8Str, SharedFolderData> SharedFolderDataMap;
 
 private:
 
@@ -449,16 +459,16 @@ private:
         return setMachineState(aMachineState, false /* aUpdateServer */);
     }
 
-    HRESULT findSharedFolder(CBSTR aName,
+    HRESULT findSharedFolder(const Utf8Str &strName,
                              ComObjPtr<SharedFolder> &aSharedFolder,
                              bool aSetError = false);
 
     HRESULT fetchSharedFolders(BOOL aGlobal);
-    bool findOtherSharedFolder(IN_BSTR aName,
+    bool findOtherSharedFolder(const Utf8Str &straName,
                                SharedFolderDataMap::const_iterator &aIt);
 
-    HRESULT createSharedFolder(CBSTR aName, SharedFolderData aData);
-    HRESULT removeSharedFolder(CBSTR aName);
+    HRESULT createSharedFolder(const Utf8Str &strName, const SharedFolderData &aData);
+    HRESULT removeSharedFolder(const Utf8Str &strName);
 
     static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
     int configConstructorInner(PVM pVM, AutoWriteLock *pAlock);
@@ -564,7 +574,11 @@ private:
     static DECLCALLBACK(int)   saveStateThread(RTTHREAD Thread, void *pvUser);
     static DECLCALLBACK(int)   powerDownThread(RTTHREAD Thread, void *pvUser);
 
-    static DECLCALLBACK(int)    vmm2User_SaveState(PCVMM2USERMETHODS pThis, PVM pVM);
+    static DECLCALLBACK(int)    vmm2User_SaveState(PCVMM2USERMETHODS pThis, PUVM pUVM);
+    static DECLCALLBACK(void)   vmm2User_NotifyEmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu);
+    static DECLCALLBACK(void)   vmm2User_NotifyEmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu);
+    static DECLCALLBACK(void)   vmm2User_NotifyPdmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM);
+    static DECLCALLBACK(void)   vmm2User_NotifyPdmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM);
 
     static DECLCALLBACK(void *) drvStatus_QueryInterface(PPDMIBASE pInterface, const char *pszIID);
     static DECLCALLBACK(void)   drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface, unsigned iLUN);
@@ -593,9 +607,10 @@ private:
                                                            ComSafeArrayOut(LONG64, aTimestamps),
                                                            ComSafeArrayOut(BSTR, aFlags));
 
-    bool enabledGuestPropertiesVRDP(void);
-    void updateGuestPropertiesVRDPLogon(uint32_t u32ClientId, const char *pszUser, const char *pszDomain);
-    void updateGuestPropertiesVRDPDisconnect(uint32_t u32ClientId);
+    void guestPropertiesHandleVMReset(void);
+    bool guestPropertiesVRDPEnabled(void);
+    void guestPropertiesVRDPUpdateLogon(uint32_t u32ClientId, const char *pszUser, const char *pszDomain);
+    void guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId);
 #endif
 
     /** @name Teleporter support
@@ -632,9 +647,9 @@ private:
     USBDeviceList mUSBDevices;
     RemoteUSBDeviceList mRemoteUSBDevices;
 
-    SharedFolderMap mSharedFolders;
-    SharedFolderDataMap mMachineSharedFolders;
-    SharedFolderDataMap mGlobalSharedFolders;
+    SharedFolderDataMap m_mapGlobalSharedFolders;
+    SharedFolderDataMap m_mapMachineSharedFolders;
+    SharedFolderMap m_mapSharedFolders;             // the console instances
 
     /** The VM instance handle. */
     PVM mpVM;
@@ -655,9 +670,11 @@ private:
     /** true if we already listed the disk type of the snapshot folder. */
     bool mfSnapshotFolderDiskTypeShown : 1;
 
-    /** Pointer to the VMM -> User (that's us) callbacks.
-     * This structure is followed by a pointer to the Console object. */
-    PCVMM2USERMETHODS mpVmm2UserMethods;
+    /** Pointer to the VMM -> User (that's us) callbacks. */
+    struct MYVMM2USERMETHODS : public VMM2USERMETHODS
+    {
+        Console *pConsole;
+    } *mpVmm2UserMethods;
 
     /** The current network attachment type in the VM.
      * This doesn't have to match the network attachment type maintained in the

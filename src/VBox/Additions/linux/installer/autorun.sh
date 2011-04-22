@@ -1,10 +1,11 @@
 #!/bin/sh
+# $Id: autorun.sh $
 #
-# VirtualBox Guest Additions installation script for Linux
+# VirtualBox Guest Additions installation script for *nix guests
 #
 
 #
-# Copyright (C) 2009-2010 Oracle Corporation
+# Copyright (C) 2009-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,6 +17,8 @@
 #
 
 PATH=$PATH:/bin:/sbin:/usr/sbin
+
+#include sh-utils.sh
 
 ostype=`uname -s`
 if test "$ostype" != "Linux" && test "$ostype" != "SunOS" ; then
@@ -40,9 +43,19 @@ esac
 
 # execute the installer
 if test "$ostype" = "Linux"; then
-    if test -f "$path/VBoxLinuxAdditions.run"; then
-      exec gksu /bin/sh "$path/VBoxLinuxAdditions.run"
-    fi
+    for i in "$path/VBoxLinuxAdditions.run" \
+        "$path/VBoxLinuxAdditions-$arch.run"; do
+        if test -f "$i"; then
+            getxterm
+            case "$gxtpath" in ?*)
+                TITLE="VirtualBox Guest Additions installation"
+                BINARY="`quotify "$i"`"
+                exec "$gxtpath" "$gxttitle" "$TITLE" "$gxtexec" /bin/sh "$path/runasroot.sh" --has-terminal "$TITLE" "/bin/sh $BINARY --xwin" "Please try running "\""$i"\"" manually."
+                exit
+                ;;
+            esac
+        fi
+    done
 
     # else: unknown failure
     echo "Linux guest additions installer not found -- try to start them manually."

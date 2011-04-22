@@ -32,6 +32,7 @@
 #include "BIOSSettingsImpl.h"
 #include "StorageControllerImpl.h"          // required for MachineImpl.h to compile on Windows
 #include "BandwidthControlImpl.h"
+#include "BandwidthGroupImpl.h"
 #include "VBox/settings.h"
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 #include "Performance.h"
@@ -125,13 +126,13 @@ public:
             /** list of controls of all opened remote sessions */
             RemoteControlList mRemoteControls;
 
-            /** openRemoteSession() and OnSessionEnd() progress indicator */
+            /** launchVMProcess() and OnSessionEnd() progress indicator */
             ComObjPtr<ProgressProxy> mProgress;
 
             /**
-             * PID of the session object that must be passed to openSession() to
-             * finalize the openRemoteSession() request (i.e., PID of the
-             * process created by openRemoteSession())
+             * PID of the session object that must be passed to openSession()
+             * to finalize the launchVMProcess() request (i.e., PID of the
+             * process created by launchVMProcess())
              */
             RTPROCESS mPid;
 
@@ -642,9 +643,10 @@ public:
     void getLogFolder(Utf8Str &aLogFolder);
     Utf8Str queryLogFilename(ULONG idx);
 
-    HRESULT openRemoteSession(IInternalSessionControl *aControl,
-                              IN_BSTR aType, IN_BSTR aEnvironment,
-                              ProgressProxy *aProgress);
+    HRESULT launchVMProcess(IInternalSessionControl *aControl,
+                            const Utf8Str &strType,
+                            const Utf8Str &strEnvironment,
+                            ProgressProxy *aProgress);
 
     HRESULT getDirectControl(ComPtr<IInternalSessionControl> *directControl)
     {
@@ -714,6 +716,15 @@ public:
                                BOOL *aRegistered = NULL);
     void releaseStateDependency();
 
+    HRESULT getBandwidthGroup(const Utf8Str &strBandwidthGroup,
+                              ComObjPtr<BandwidthGroup> &pBandwidthGroup,
+                              bool fSetError = false)
+    {
+        return mBandwidthControl->getBandwidthGroupByName(strBandwidthGroup,
+                                                          pBandwidthGroup,
+                                                          fSetError);
+    }
+
 protected:
 
     HRESULT checkStateDependency(StateDependency aDepType);
@@ -724,7 +735,7 @@ protected:
 
     virtual HRESULT setMachineState(MachineState_T aMachineState);
 
-    HRESULT findSharedFolder(CBSTR aName,
+    HRESULT findSharedFolder(const Utf8Str &aName,
                              ComObjPtr<SharedFolder> &aSharedFolder,
                              bool aSetError = false);
 

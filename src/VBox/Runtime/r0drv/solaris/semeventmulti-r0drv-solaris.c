@@ -28,6 +28,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define RTSEMEVENTMULTI_WITHOUT_REMAPPING
 #include "the-solaris-kernel.h"
 #include "internal/iprt.h"
 #include <iprt/semaphore.h>
@@ -302,7 +303,7 @@ static int rtR0SemEventMultiSolWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t fFl
                     else
                     {
                         /* Do the wait and then recheck the conditions. */
-                        rtR0SemSolWaitDoIt(&Wait, &pThis->Cnd, &pThis->Mtx);
+                        rtR0SemSolWaitDoIt(&Wait, &pThis->Cnd, &pThis->Mtx, &pThis->fStateAndGen, fOrgStateAndGen);
                         continue;
                     }
                 }
@@ -319,7 +320,6 @@ static int rtR0SemEventMultiSolWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t fFl
 
 
 
-#undef RTSemEventMultiWaitEx
 RTDECL(int)  RTSemEventMultiWaitEx(RTSEMEVENTMULTI hEventMultiSem, uint32_t fFlags, uint64_t uTimeout)
 {
 #ifndef RTSEMEVENT_STRICT

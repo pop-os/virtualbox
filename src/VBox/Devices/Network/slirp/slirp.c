@@ -1459,7 +1459,14 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 /* We've received an announce about address assignment,
                  * let's do an ARP cache update
                  */
-                slirp_arp_cache_update_or_add(pData, *(uint32_t *)ah->ar_tip, &eh->h_dest[0]);
+                static bool fGratuitousArpReported;
+                if (!fGratuitousArpReported)
+                {
+                    LogRel(("NAT: Gratuitous ARP [IP:%R[IP4], ether:%R[ether]]\n",
+                            ah->ar_sip, ah->ar_sha));
+                    fGratuitousArpReported = true;
+                }
+                slirp_arp_cache_update_or_add(pData, *(uint32_t *)ah->ar_sip, &ah->ar_sha[0]);
             }
             break;
 
@@ -1957,7 +1964,8 @@ int slirp_arp_lookup_ether_by_ip(PNATState pData, uint32_t ip, uint8_t *ether)
 
     LIST_FOREACH(ac, &pData->arp_cache, list)
     {
-        if (ac->ip == ip)
+        if (   ac->ip == ip
+            && memcmp(ac->ether, broadcast_ethaddr, ETH_ALEN) != 0)
         {
             memcpy(ether, ac->ether, ETH_ALEN);
             return VINF_SUCCESS;
@@ -2021,24 +2029,19 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     if_encap(pData, ETH_P_ARP, m, ETH_ENCAP_URG);
 }
 
-int slirp_arp_cache_update_or_add(PNATState pData, uint32_t dst, const uint8_t *mac)
-{
-    if (slirp_arp_cache_update(pData, dst, mac))
-        slirp_arp_cache_add(pData, dst, mac);
-
-    return 0;
-}
-
 /* updates the arp cache
+ * @note: this is helper function, slirp_arp_cache_update_or_add should be used.
  * @returns 0 - if has found and updated
  *          1 - if hasn't found.
  */
-int slirp_arp_cache_update(PNATState pData, uint32_t dst, const uint8_t *mac)
+static inline int slirp_arp_cache_update(PNATState pData, uint32_t dst, const uint8_t *mac)
 {
     struct arp_cache_entry *ac;
+    Assert((   memcmp(mac, broadcast_ethaddr, ETH_ALEN)
+            && memcmp(mac, zerro_ethaddr, ETH_ALEN)));
     LIST_FOREACH(ac, &pData->arp_cache, list)
     {
-        if (memcmp(ac->ether, mac, ETH_ALEN) == 0)
+        if (!memcmp(ac->ether, mac, ETH_ALEN))
         {
             ac->ip = dst;
             return 0;
@@ -2046,10 +2049,16 @@ int slirp_arp_cache_update(PNATState pData, uint32_t dst, const uint8_t *mac)
     }
     return 1;
 }
+/**
+ * add entry to the arp cache
+ * @note: this is helper function, slirp_arp_cache_update_or_add should be used.
+ */
 
-void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether)
+static inline void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether)
 {
     struct arp_cache_entry *ac = NULL;
+    Assert((   memcmp(ether, broadcast_ethaddr, ETH_ALEN)
+            && memcmp(ether, zerro_ethaddr, ETH_ALEN)));
     ac = RTMemAllocZ(sizeof(struct arp_cache_entry));
     if (ac == NULL)
     {
@@ -2060,6 +2069,31 @@ void slirp_arp_cache_add(PNATState pData, uint32_t ip, const uint8_t *ether)
     memcpy(ac->ether, ether, ETH_ALEN);
     LIST_INSERT_HEAD(&pData->arp_cache, ac, list);
 }
+
+/* updates or adds entry to the arp cache
+ * @returns 0 - if has found and updated
+ *          1 - if hasn't found.
+ */
+int slirp_arp_cache_update_or_add(PNATState pData, uint32_t dst, const uint8_t *mac)
+{
+    if (   !memcmp(mac, broadcast_ethaddr, ETH_ALEN)
+        || !memcmp(mac, zerro_ethaddr, ETH_ALEN))
+    {
+        static bool fBroadcastEtherAddReported;
+        if (!fBroadcastEtherAddReported)
+        {
+            LogRel(("NAT: Attempt to add pair [%R[ether]:%R[IP4]] in ARP cache was ignored\n",
+                    mac, &dst));
+            fBroadcastEtherAddReported = true;
+        }
+        return 1;
+    }
+    if (slirp_arp_cache_update(pData, dst, mac))
+        slirp_arp_cache_add(pData, dst, mac);
+
+    return 0;
+}
+
 
 void slirp_set_mtu(PNATState pData, int mtu)
 {

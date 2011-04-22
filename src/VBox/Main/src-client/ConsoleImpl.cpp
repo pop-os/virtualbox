@@ -324,6 +324,7 @@ private:
 
 typedef ListenerImpl<VmEventListener, Console*> VmEventListenerImpl;
 
+
 VBOX_LISTENER_DECLARE(VmEventListenerImpl)
 
 
@@ -368,14 +369,18 @@ HRESULT Console::FinalConstruct()
     for (unsigned i = 0; i < RT_ELEMENTS(maStorageDevType); ++ i)
         maStorageDevType[i] = DeviceType_Null;
 
-    VMM2USERMETHODS *pVmm2UserMethods = (VMM2USERMETHODS *)RTMemAlloc(sizeof(*mpVmm2UserMethods) + sizeof(Console *));
+    MYVMM2USERMETHODS *pVmm2UserMethods = (MYVMM2USERMETHODS *)RTMemAllocZ(sizeof(*mpVmm2UserMethods) + sizeof(Console *));
     if (!pVmm2UserMethods)
         return E_OUTOFMEMORY;
-    pVmm2UserMethods->u32Magic      = VMM2USERMETHODS_MAGIC;
-    pVmm2UserMethods->u32Version    = VMM2USERMETHODS_VERSION;
-    pVmm2UserMethods->pfnSaveState  = Console::vmm2User_SaveState;
-    pVmm2UserMethods->u32EndMagic   = VMM2USERMETHODS_MAGIC;
-    *(Console **)(pVmm2UserMethods + 1) = this; /* lazy bird. */
+    pVmm2UserMethods->u32Magic          = VMM2USERMETHODS_MAGIC;
+    pVmm2UserMethods->u32Version        = VMM2USERMETHODS_VERSION;
+    pVmm2UserMethods->pfnSaveState      = Console::vmm2User_SaveState;
+    pVmm2UserMethods->pfnNotifyEmtInit  = Console::vmm2User_NotifyEmtInit;
+    pVmm2UserMethods->pfnNotifyEmtTerm  = Console::vmm2User_NotifyEmtTerm;
+    pVmm2UserMethods->pfnNotifyPdmtInit = Console::vmm2User_NotifyPdmtInit;
+    pVmm2UserMethods->pfnNotifyPdmtTerm = Console::vmm2User_NotifyPdmtTerm;
+    pVmm2UserMethods->u32EndMagic       = VMM2USERMETHODS_MAGIC;
+    pVmm2UserMethods->pConsole          = this;
     mpVmm2UserMethods = pVmm2UserMethods;
 
     return S_OK;
@@ -581,10 +586,10 @@ void Console::uninit()
         mBusMgr = NULL;
     }
 
-    mGlobalSharedFolders.clear();
-    mMachineSharedFolders.clear();
+    m_mapGlobalSharedFolders.clear();
+    m_mapMachineSharedFolders.clear();
+    m_mapSharedFolders.clear();             // console instances
 
-    mSharedFolders.clear();
     mRemoteUSBDevices.clear();
     mUSBDevices.clear();
 
@@ -645,27 +650,56 @@ void Console::uninit()
 
 #ifdef VBOX_WITH_GUEST_PROPS
 
-bool Console::enabledGuestPropertiesVRDP(void)
+/**
+ * Handles guest properties on a VM reset.
+ * At the moment we only delete properties which have the flag
+ * "TRANSRESET".
+ */
+void Console::guestPropertiesHandleVMReset(void)
+{
+    com::SafeArray<BSTR>   arrNames;
+    com::SafeArray<BSTR>   arrValues;
+    com::SafeArray<LONG64> arrTimestamps;
+    com::SafeArray<BSTR>   arrFlags;
+    HRESULT hrc = enumerateGuestProperties(Bstr("*").raw(),
+                                           ComSafeArrayAsOutParam(arrNames),
+                                           ComSafeArrayAsOutParam(arrValues),
+                                           ComSafeArrayAsOutParam(arrTimestamps),
+                                           ComSafeArrayAsOutParam(arrFlags));
+    if (SUCCEEDED(hrc))
+    {
+        for (size_t i = 0; i < arrFlags.size(); i++)
+        {
+            /* Delete all properties which have the flag "TRANSRESET". */
+            if (Utf8Str(arrFlags[i]).contains("TRANSRESET", Utf8Str::CaseInsensitive))
+            {
+                hrc = mMachine->SetGuestProperty(arrNames[i], Bstr("").raw() /* Value */,
+                                                 Bstr("").raw() /* Flags */);
+                if (FAILED(hrc))
+                    LogRel(("RESET: Could not delete transient property \"%ls\", rc=%Rhrc\n",
+                            arrNames[i], hrc));
+            }
+        }
+    }
+    else
+        LogRel(("RESET: Unable to enumerate guest properties, rc=%Rhrc\n", hrc));
+}
+
+bool Console::guestPropertiesVRDPEnabled(void)
 {
     Bstr value;
     HRESULT hrc = mMachine->GetExtraData(Bstr("VBoxInternal2/EnableGuestPropertiesVRDP").raw(),
                                          value.asOutParam());
-    if (hrc == S_OK)
-    {
-        if (value == "1")
-        {
-            return true;
-        }
-    }
+    if (   hrc   == S_OK
+        && value == "1")
+        return true;
     return false;
 }
 
-void Console::updateGuestPropertiesVRDPLogon(uint32_t u32ClientId, const char *pszUser, const char *pszDomain)
+void Console::guestPropertiesVRDPUpdateLogon(uint32_t u32ClientId, const char *pszUser, const char *pszDomain)
 {
-    if (!enabledGuestPropertiesVRDP())
-    {
+    if (!guestPropertiesVRDPEnabled())
         return;
-    }
 
     char szPropNm[256];
     Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
@@ -697,9 +731,9 @@ void Console::updateGuestPropertiesVRDPLogon(uint32_t u32ClientId, const char *p
     return;
 }
 
-void Console::updateGuestPropertiesVRDPDisconnect(uint32_t u32ClientId)
+void Console::guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId)
 {
-    if (!enabledGuestPropertiesVRDP())
+    if (!guestPropertiesVRDPEnabled())
         return;
 
     Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
@@ -933,7 +967,7 @@ int Console::VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const ch
     }
 
 #ifdef VBOX_WITH_GUEST_PROPS
-    updateGuestPropertiesVRDPLogon(u32ClientId, pszUser, pszDomain);
+    guestPropertiesVRDPUpdateLogon(u32ClientId, pszUser, pszDomain);
 #endif /* VBOX_WITH_GUEST_PROPS */
 
     /* Check if the successfully verified credentials are to be sent to the guest. */
@@ -1068,7 +1102,7 @@ void Console::VRDPClientDisconnect(uint32_t u32ClientId,
         mConsoleVRDPServer->AuthDisconnect(uuid, u32ClientId);
 
 #ifdef VBOX_WITH_GUEST_PROPS
-    updateGuestPropertiesVRDPDisconnect(u32ClientId);
+    guestPropertiesVRDPUpdateDisconnect(u32ClientId);
 #endif /* VBOX_WITH_GUEST_PROPS */
 
     if (u32Clients == 0)
@@ -1238,32 +1272,33 @@ Console::saveStateFileExec(PSSMHANDLE pSSM, void *pvUser)
 
     AutoReadLock alock(that COMMA_LOCKVAL_SRC_POS);
 
-    int vrc = SSMR3PutU32(pSSM, (uint32_t)that->mSharedFolders.size());
+    int vrc = SSMR3PutU32(pSSM, (uint32_t)that->m_mapSharedFolders.size());
     AssertRC(vrc);
 
-    for (SharedFolderMap::const_iterator it = that->mSharedFolders.begin();
-         it != that->mSharedFolders.end();
+    for (SharedFolderMap::const_iterator it = that->m_mapSharedFolders.begin();
+         it != that->m_mapSharedFolders.end();
          ++ it)
     {
-        ComObjPtr<SharedFolder> pSharedFolder = (*it).second;
-        // don't lock the folder because methods we access are const
+        SharedFolder *pSF = (*it).second;
+        AutoCaller sfCaller(pSF);
+        AutoReadLock sfLock(pSF COMMA_LOCKVAL_SRC_POS);
 
-        Utf8Str name = pSharedFolder->getName();
+        Utf8Str name = pSF->getName();
         vrc = SSMR3PutU32(pSSM, (uint32_t)name.length() + 1 /* term. 0 */);
         AssertRC(vrc);
         vrc = SSMR3PutStrZ(pSSM, name.c_str());
         AssertRC(vrc);
 
-        Utf8Str hostPath = pSharedFolder->getHostPath();
+        Utf8Str hostPath = pSF->getHostPath();
         vrc = SSMR3PutU32(pSSM, (uint32_t)hostPath.length() + 1 /* term. 0 */);
         AssertRC(vrc);
         vrc = SSMR3PutStrZ(pSSM, hostPath.c_str());
         AssertRC(vrc);
 
-        vrc = SSMR3PutBool(pSSM, !!pSharedFolder->isWritable());
+        vrc = SSMR3PutBool(pSSM, !!pSF->isWritable());
         AssertRC(vrc);
 
-        vrc = SSMR3PutBool(pSSM, !!pSharedFolder->isAutoMounted());
+        vrc = SSMR3PutBool(pSSM, !!pSF->isAutoMounted());
         AssertRC(vrc);
     }
 
@@ -1316,7 +1351,7 @@ Console::loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AssertReturn(mSharedFolders.size() == 0, VERR_INTERNAL_ERROR);
+    AssertReturn(m_mapSharedFolders.size() == 0, VERR_INTERNAL_ERROR);
 
     uint32_t size = 0;
     int vrc = SSMR3GetU32(pSSM, &size);
@@ -1324,8 +1359,8 @@ Console::loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version)
 
     for (uint32_t i = 0; i < size; ++ i)
     {
-        Bstr name;
-        Bstr hostPath;
+        Utf8Str strName;
+        Utf8Str strHostPath;
         bool writable = true;
         bool autoMount = false;
 
@@ -1337,7 +1372,7 @@ Console::loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version)
         buf = new char[szBuf];
         vrc = SSMR3GetStrZ(pSSM, buf, szBuf);
         AssertRC(vrc);
-        name = buf;
+        strName = buf;
         delete[] buf;
 
         vrc = SSMR3GetU32(pSSM, &szBuf);
@@ -1345,7 +1380,7 @@ Console::loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version)
         buf = new char[szBuf];
         vrc = SSMR3GetStrZ(pSSM, buf, szBuf);
         AssertRC(vrc);
-        hostPath = buf;
+        strHostPath = buf;
         delete[] buf;
 
         if (u32Version > 0x00010000)
@@ -1356,11 +1391,15 @@ Console::loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version)
 
         ComObjPtr<SharedFolder> pSharedFolder;
         pSharedFolder.createObject();
-        HRESULT rc = pSharedFolder->init(this, name.raw(), hostPath.raw(),
-                                         writable, autoMount);
+        HRESULT rc = pSharedFolder->init(this,
+                                         strName,
+                                         strHostPath,
+                                         writable,
+                                         autoMount,
+                                         false /* fFailOnError */);
         AssertComRCReturn(rc, VERR_INTERNAL_ERROR);
 
-        mSharedFolders.insert(std::make_pair(name, pSharedFolder));
+        m_mapSharedFolders.insert(std::make_pair(strName, pSharedFolder));
     }
 
     return VINF_SUCCESS;
@@ -1677,7 +1716,7 @@ Console::COMGETTER(SharedFolders)(ComSafeArrayOut(ISharedFolder *, aSharedFolder
     HRESULT rc = loadDataFromSavedState();
     if (FAILED(rc)) return rc;
 
-    SafeIfaceArray<ISharedFolder> sf(mSharedFolders);
+    SafeIfaceArray<ISharedFolder> sf(m_mapSharedFolders);
     sf.detachTo(ComSafeArrayOutArg(aSharedFolders));
 
     return S_OK;
@@ -2824,8 +2863,13 @@ Console::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BO
     CheckComArgStrNotEmptyOrNull(aName);
     CheckComArgStrNotEmptyOrNull(aHostPath);
 
+    LogFlowThisFunc(("Entering for '%ls' -> '%ls'\n", aName, aHostPath));
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    Utf8Str strName(aName);
+    Utf8Str strHostPath(aHostPath);
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2844,14 +2888,19 @@ Console::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BO
             Global::stringifyMachineState(mMachineState));
 
     ComObjPtr<SharedFolder> pSharedFolder;
-    HRESULT rc = findSharedFolder(aName, pSharedFolder, false /* aSetError */);
+    HRESULT rc = findSharedFolder(strName, pSharedFolder, false /* aSetError */);
     if (SUCCEEDED(rc))
         return setError(VBOX_E_FILE_ERROR,
-            tr("Shared folder named '%ls' already exists"),
-            aName);
+                        tr("Shared folder named '%s' already exists"),
+                        strName.c_str());
 
     pSharedFolder.createObject();
-    rc = pSharedFolder->init(this, aName, aHostPath, aWritable, aAutoMount);
+    rc = pSharedFolder->init(this,
+                             strName,
+                             strHostPath,
+                             aWritable,
+                             aAutoMount,
+                             true /* fFailOnError */);
     if (FAILED(rc)) return rc;
 
     /* protect mpVM (if not NULL) */
@@ -2879,10 +2928,12 @@ Console::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BO
         if (FAILED(rc)) return rc;
     }
 
-    mSharedFolders.insert(std::make_pair(aName, pSharedFolder));
+    m_mapSharedFolders.insert(std::make_pair(aName, pSharedFolder));
 
     /* notify console callbacks after the folder is added to the list */
     fireSharedFolderChangedEvent(mEventSource, Scope_Session);
+
+    LogFlowThisFunc(("Leaving for '%ls' -> '%ls'\n", aName, aHostPath));
 
     return rc;
 }
@@ -2893,6 +2944,10 @@ STDMETHODIMP Console::RemoveSharedFolder(IN_BSTR aName)
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    LogFlowThisFunc(("Entering for '%ls'\n", aName));
+
+    Utf8Str strName(aName);
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2927,23 +2982,25 @@ STDMETHODIMP Console::RemoveSharedFolder(IN_BSTR aName)
          * folder. */
 
         /* first, remove the given folder */
-        rc = removeSharedFolder(aName);
+        rc = removeSharedFolder(strName);
         if (FAILED(rc)) return rc;
 
         /* first, remove the machine or the global folder if there is any */
         SharedFolderDataMap::const_iterator it;
-        if (findOtherSharedFolder(aName, it))
+        if (findOtherSharedFolder(strName, it))
         {
-            rc = createSharedFolder(aName, it->second);
+            rc = createSharedFolder(strName, it->second);
             /* don't check rc here because we need to remove the console
              * folder from the collection even on failure */
         }
     }
 
-    mSharedFolders.erase(aName);
+    m_mapSharedFolders.erase(strName);
 
     /* notify console callbacks after the folder is removed to the list */
     fireSharedFolderChangedEvent(mEventSource, Scope_Session);
+
+    LogFlowThisFunc(("Leaving for '%ls'\n", aName));
 
     return rc;
 }
@@ -5253,8 +5310,9 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
 #endif
     char szError[RTPATH_MAX + 128] = "";
     int vrc = RTLogCreateEx(&loggerRelease, fFlags, "all",
-                            "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
-                            RTLOGDEST_FILE, szError, sizeof(szError), logFile.c_str());
+                            "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups, RTLOGDEST_FILE,
+                            NULL /* pfnBeginEnd */, 0 /* cHistory */, 0 /* cbHistoryFileMax */, 0 /* uHistoryTimeMax */,
+                            szError, sizeof(szError), logFile.c_str());
     if (RT_SUCCESS(vrc))
     {
         /* some introductory information */
@@ -5504,22 +5562,38 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
         /* Check all types of shared folders and compose a single list */
         SharedFolderDataMap sharedFolders;
         {
+            // @todo umoeller
+
             /* first, insert global folders */
-            for (SharedFolderDataMap::const_iterator it = mGlobalSharedFolders.begin();
-                 it != mGlobalSharedFolders.end(); ++ it)
-                sharedFolders[it->first] = it->second;
+            for (SharedFolderDataMap::const_iterator it = m_mapGlobalSharedFolders.begin();
+                 it != m_mapGlobalSharedFolders.end();
+                 ++it)
+            {
+                const SharedFolderData &d = it->second;
+                sharedFolders[it->first] = d;
+            }
 
             /* second, insert machine folders */
-            for (SharedFolderDataMap::const_iterator it = mMachineSharedFolders.begin();
-                 it != mMachineSharedFolders.end(); ++ it)
-                sharedFolders[it->first] = it->second;
+            for (SharedFolderDataMap::const_iterator it = m_mapMachineSharedFolders.begin();
+                 it != m_mapMachineSharedFolders.end();
+                 ++it)
+            {
+                const SharedFolderData &d = it->second;
+                sharedFolders[it->first] = d;
+            }
 
             /* third, insert console folders */
-            for (SharedFolderMap::const_iterator it = mSharedFolders.begin();
-                 it != mSharedFolders.end(); ++ it)
-                sharedFolders[it->first] = SharedFolderData(it->second->getHostPath(),
-                                                            it->second->isWritable(),
-                                                            it->second->isAutoMounted());
+            for (SharedFolderMap::const_iterator it = m_mapSharedFolders.begin();
+                 it != m_mapSharedFolders.end();
+                 ++it)
+            {
+                SharedFolder *pSF = it->second;
+                AutoCaller sfCaller(pSF);
+                AutoReadLock sfLock(pSF COMMA_LOCKVAL_SRC_POS);
+                sharedFolders[it->first] = SharedFolderData(pSF->getHostPath(),
+                                                            pSF->isWritable(),
+                                                            pSF->isAutoMounted());
+            }
         }
 
         Bstr savedStateFile;
@@ -6112,15 +6186,15 @@ HRESULT Console::setMachineState(MachineState_T aMachineState,
  *
  * @note The caller must lock this object for writing.
  */
-HRESULT Console::findSharedFolder(CBSTR aName,
+HRESULT Console::findSharedFolder(const Utf8Str &strName,
                                   ComObjPtr<SharedFolder> &aSharedFolder,
                                   bool aSetError /* = false */)
 {
     /* sanity check */
     AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
 
-    SharedFolderMap::const_iterator it = mSharedFolders.find(aName);
-    if (it != mSharedFolders.end())
+    SharedFolderMap::const_iterator it = m_mapSharedFolders.find(strName);
+    if (it != m_mapSharedFolders.end())
     {
         aSharedFolder = it->second;
         return S_OK;
@@ -6128,8 +6202,8 @@ HRESULT Console::findSharedFolder(CBSTR aName,
 
     if (aSetError)
         setError(VBOX_E_FILE_ERROR,
-            tr("Could not find a shared folder named '%ls'."),
-            aName);
+            tr("Could not find a shared folder named '%s'."),
+            strName.c_str());
 
     return VBOX_E_FILE_ERROR;
 }
@@ -6147,6 +6221,8 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
     AssertReturn(AutoCaller(this).state() == InInit ||
                  isWriteLockOnCurrentThread(), E_FAIL);
 
+    LogFlowThisFunc(("Entering\n"));
+
     /* protect mpVM (if not NULL) */
     AutoVMCallerQuietWeak autoVMCaller(this);
 
@@ -6157,102 +6233,123 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
                   && m_pVMMDev
                   && m_pVMMDev->isShFlActive();
 
-    if (aGlobal)
+    try
     {
-        /// @todo grab & process global folders when they are done
-    }
-    else
-    {
-        SharedFolderDataMap oldFolders;
-        if (online)
-            oldFolders = mMachineSharedFolders;
-
-        mMachineSharedFolders.clear();
-
-        SafeIfaceArray<ISharedFolder> folders;
-        rc = mMachine->COMGETTER(SharedFolders)(ComSafeArrayAsOutParam(folders));
-        AssertComRCReturnRC(rc);
-
-        for (size_t i = 0; i < folders.size(); ++i)
+        if (aGlobal)
         {
-            ComPtr<ISharedFolder> pSharedFolder = folders[i];
+            /// @todo grab & process global folders when they are done
+        }
+        else
+        {
+            SharedFolderDataMap oldFolders;
+            if (online)
+                oldFolders = m_mapMachineSharedFolders;
 
-            Bstr name;
-            Bstr hostPath;
-            BOOL writable;
-            BOOL autoMount;
+            m_mapMachineSharedFolders.clear();
 
-            rc = pSharedFolder->COMGETTER(Name)(name.asOutParam());
-            if (FAILED(rc)) break;
-            rc = pSharedFolder->COMGETTER(HostPath)(hostPath.asOutParam());
-            if (FAILED(rc)) break;
-            rc = pSharedFolder->COMGETTER(Writable)(&writable);
-            if (FAILED(rc)) break;
-            rc = pSharedFolder->COMGETTER(AutoMount)(&autoMount);
-            if (FAILED(rc)) break;
+            SafeIfaceArray<ISharedFolder> folders;
+            rc = mMachine->COMGETTER(SharedFolders)(ComSafeArrayAsOutParam(folders));
+            if (FAILED(rc)) throw rc;
 
-            mMachineSharedFolders.insert(std::make_pair(name, SharedFolderData(hostPath, writable, autoMount)));
+            for (size_t i = 0; i < folders.size(); ++i)
+            {
+                ComPtr<ISharedFolder> pSharedFolder = folders[i];
 
-            /* send changes to HGCM if the VM is running */
-            /// @todo report errors as runtime warnings through VMSetError
+                Bstr bstrName;
+                Bstr bstrHostPath;
+                BOOL writable;
+                BOOL autoMount;
+
+                rc = pSharedFolder->COMGETTER(Name)(bstrName.asOutParam());
+                if (FAILED(rc)) throw rc;
+                Utf8Str strName(bstrName);
+
+                rc = pSharedFolder->COMGETTER(HostPath)(bstrHostPath.asOutParam());
+                if (FAILED(rc)) throw rc;
+                Utf8Str strHostPath(bstrHostPath);
+
+                rc = pSharedFolder->COMGETTER(Writable)(&writable);
+                if (FAILED(rc)) throw rc;
+
+                rc = pSharedFolder->COMGETTER(AutoMount)(&autoMount);
+                if (FAILED(rc)) throw rc;
+
+                m_mapMachineSharedFolders.insert(std::make_pair(strName,
+                                                                SharedFolderData(strHostPath, writable, autoMount)));
+
+                /* send changes to HGCM if the VM is running */
+                /// @todo umoeller report errors as runtime warnings through VMSetError
+                if (online)
+                {
+                    SharedFolderDataMap::iterator it = oldFolders.find(strName);
+                    if (    it == oldFolders.end()
+                         || it->second.m_strHostPath != strHostPath)
+                    {
+                        /* a new machine folder is added or
+                         * the existing machine folder is changed */
+                        if (m_mapSharedFolders.find(strName) != m_mapSharedFolders.end())
+                            ; /* the console folder exists, nothing to do */
+                        else
+                        {
+                            /* remove the old machine folder (when changed)
+                             * or the global folder if any (when new) */
+                            if (    it != oldFolders.end()
+                                 || m_mapGlobalSharedFolders.find(strName) != m_mapGlobalSharedFolders.end()
+                               )
+                            {
+                                rc = removeSharedFolder(strName);
+                                if (FAILED(rc)) throw rc;
+                            }
+
+                            /* create the new machine folder */
+                            rc = createSharedFolder(strName,
+                                                    SharedFolderData(strHostPath,
+                                                                     writable,
+                                                                     autoMount));
+                            if (FAILED(rc)) throw rc;
+                        }
+                    }
+                    /* forget the processed (or identical) folder */
+                    if (it != oldFolders.end())
+                        oldFolders.erase(it);
+                }
+            }
+
+            /* process outdated (removed) folders */
             if (online)
             {
-                SharedFolderDataMap::iterator it = oldFolders.find(name);
-                if (it == oldFolders.end() || it->second.mHostPath != hostPath)
+                for (SharedFolderDataMap::const_iterator it = oldFolders.begin();
+                     it != oldFolders.end(); ++ it)
                 {
-                    /* a new machine folder is added or
-                     * the existing machine folder is changed */
-                    if (mSharedFolders.find(name) != mSharedFolders.end())
+                    if (m_mapSharedFolders.find(it->first) != m_mapSharedFolders.end())
                         ; /* the console folder exists, nothing to do */
                     else
                     {
-                        /* remove the old machine folder (when changed)
-                         * or the global folder if any (when new) */
-                        if (it != oldFolders.end() ||
-                            mGlobalSharedFolders.find(name) !=
-                                mGlobalSharedFolders.end())
-                            rc = removeSharedFolder(name.raw());
-                        /* create the new machine folder */
-                        rc = createSharedFolder(name.raw(),
-                                                SharedFolderData(hostPath,
-                                                                 writable,
-                                                                 autoMount));
+                        /* remove the outdated machine folder */
+                        rc = removeSharedFolder(it->first);
+                        if (FAILED(rc)) throw rc;
+
+                        /* create the global folder if there is any */
+                        SharedFolderDataMap::const_iterator git =
+                            m_mapGlobalSharedFolders.find(it->first);
+                        if (git != m_mapGlobalSharedFolders.end())
+                        {
+                            rc = createSharedFolder(git->first, git->second);
+                            if (FAILED(rc)) throw rc;
+                        }
                     }
                 }
-                /* forget the processed (or identical) folder */
-                if (it != oldFolders.end())
-                    oldFolders.erase(it);
-
-                rc = S_OK;
             }
-        }
-
-        AssertComRCReturnRC(rc);
-
-        /* process outdated (removed) folders */
-        /// @todo report errors as runtime warnings through VMSetError
-        if (online)
-        {
-            for (SharedFolderDataMap::const_iterator it = oldFolders.begin();
-                 it != oldFolders.end(); ++ it)
-            {
-                if (mSharedFolders.find(it->first) != mSharedFolders.end())
-                    ; /* the console folder exists, nothing to do */
-                else
-                {
-                    /* remove the outdated machine folder */
-                    rc = removeSharedFolder(it->first.raw());
-                    /* create the global folder if there is any */
-                    SharedFolderDataMap::const_iterator git =
-                        mGlobalSharedFolders.find(it->first);
-                    if (git != mGlobalSharedFolders.end())
-                        rc = createSharedFolder(git->first.raw(), git->second);
-                }
-            }
-
-            rc = S_OK;
         }
     }
+    catch (HRESULT rc2)
+    {
+        if (online)
+            setVMRuntimeErrorCallbackF(mpVM, this, 0, "BrokenSharedFolder",
+                                       N_("Broken shared folder!"));
+    }
+
+    LogFlowThisFunc(("Leaving\n"));
 
     return rc;
 }
@@ -6267,20 +6364,20 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
  *
  * @note The caller must lock this object for reading.
  */
-bool Console::findOtherSharedFolder(IN_BSTR aName,
+bool Console::findOtherSharedFolder(const Utf8Str &strName,
                                     SharedFolderDataMap::const_iterator &aIt)
 {
     /* sanity check */
     AssertReturn(isWriteLockOnCurrentThread(), false);
 
     /* first, search machine folders */
-    aIt = mMachineSharedFolders.find(aName);
-    if (aIt != mMachineSharedFolders.end())
+    aIt = m_mapMachineSharedFolders.find(strName);
+    if (aIt != m_mapMachineSharedFolders.end())
         return true;
 
     /* second, search machine folders */
-    aIt = mGlobalSharedFolders.find(aName);
-    if (aIt != mGlobalSharedFolders.end())
+    aIt = m_mapGlobalSharedFolders.find(strName);
+    if (aIt != m_mapGlobalSharedFolders.end())
         return true;
 
     return false;
@@ -6295,10 +6392,10 @@ bool Console::findOtherSharedFolder(IN_BSTR aName,
  * @note Must be called from under AutoVMCaller and when mpVM != NULL!
  * @note Doesn't lock anything.
  */
-HRESULT Console::createSharedFolder(CBSTR aName, SharedFolderData aData)
+HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderData &aData)
 {
-    ComAssertRet(aName && *aName, E_FAIL);
-    ComAssertRet(!aData.mHostPath.isEmpty(), E_FAIL);
+    ComAssertRet(strName.isNotEmpty(), E_FAIL);
+    ComAssertRet(aData.m_strHostPath.isNotEmpty(), E_FAIL);
 
     /* sanity checks */
     AssertReturn(mpVM, E_FAIL);
@@ -6308,14 +6405,40 @@ HRESULT Console::createSharedFolder(CBSTR aName, SharedFolderData aData)
     SHFLSTRING *pFolderName, *pMapName;
     size_t cbString;
 
-    Log(("Adding shared folder '%ls' -> '%ls'\n", aName, aData.mHostPath.raw()));
+    Log(("Adding shared folder '%s' -> '%s'\n", strName.c_str(), aData.m_strHostPath.c_str()));
 
-    cbString = (RTUtf16Len(aData.mHostPath.raw()) + 1) * sizeof(RTUTF16);
+    // check whether the path is valid and exists
+    /* Check whether the path is full (absolute) */
+    char hostPathFull[RTPATH_MAX];
+    int vrc = RTPathAbsEx(NULL,
+                          aData.m_strHostPath.c_str(),
+                          hostPathFull,
+                          sizeof(hostPathFull));
+    if (RT_FAILURE(vrc))
+        return setError(E_INVALIDARG,
+                        tr("Invalid shared folder path: '%s' (%Rrc)"),
+                        aData.m_strHostPath.c_str(), vrc);
+
+    if (RTPathCompare(aData.m_strHostPath.c_str(), hostPathFull) != 0)
+        return setError(E_INVALIDARG,
+                        tr("Shared folder path '%s' is not absolute"),
+                        aData.m_strHostPath.c_str());
+    if (!RTPathExists(hostPathFull))
+        return setError(E_INVALIDARG,
+                        tr("Shared folder path '%s' does not exist on the host"),
+                        aData.m_strHostPath.c_str());
+
+    // now that we know the path is good, give it to HGCM
+
+    Bstr bstrName(strName);
+    Bstr bstrHostPath(aData.m_strHostPath);
+
+    cbString = (bstrHostPath.length() + 1) * sizeof(RTUTF16);
     if (cbString >= UINT16_MAX)
         return setError(E_INVALIDARG, tr("The name is too long"));
-    pFolderName = (SHFLSTRING *) RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
+    pFolderName = (SHFLSTRING*)RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
     Assert(pFolderName);
-    memcpy(pFolderName->String.ucs2, aData.mHostPath.raw(), cbString);
+    memcpy(pFolderName->String.ucs2, bstrHostPath.raw(), cbString);
 
     pFolderName->u16Size   = (uint16_t)cbString;
     pFolderName->u16Length = (uint16_t)cbString - sizeof(RTUTF16);
@@ -6324,15 +6447,15 @@ HRESULT Console::createSharedFolder(CBSTR aName, SharedFolderData aData)
     parms[0].u.pointer.addr = pFolderName;
     parms[0].u.pointer.size = sizeof(SHFLSTRING) + (uint16_t)cbString;
 
-    cbString = (RTUtf16Len(aName) + 1) * sizeof(RTUTF16);
+    cbString = (bstrName.length() + 1) * sizeof(RTUTF16);
     if (cbString >= UINT16_MAX)
     {
         RTMemFree(pFolderName);
         return setError(E_INVALIDARG, tr("The host path is too long"));
     }
-    pMapName = (SHFLSTRING *) RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
+    pMapName = (SHFLSTRING*)RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
     Assert(pMapName);
-    memcpy(pMapName->String.ucs2, aName, cbString);
+    memcpy(pMapName->String.ucs2, bstrName.raw(), cbString);
 
     pMapName->u16Size   = (uint16_t)cbString;
     pMapName->u16Length = (uint16_t)cbString - sizeof(RTUTF16);
@@ -6342,7 +6465,7 @@ HRESULT Console::createSharedFolder(CBSTR aName, SharedFolderData aData)
     parms[1].u.pointer.size = sizeof(SHFLSTRING) + (uint16_t)cbString;
 
     parms[2].type = VBOX_HGCM_SVC_PARM_32BIT;
-    parms[2].u.uint32 = aData.mWritable;
+    parms[2].u.uint32 = aData.m_fWritable;
 
     /*
      * Auto-mount flag; is indicated by using the SHFL_CPARMS_ADD_MAPPING2
@@ -6351,18 +6474,18 @@ HRESULT Console::createSharedFolder(CBSTR aName, SharedFolderData aData)
      * backwards compatible.
      */
     parms[3].type = VBOX_HGCM_SVC_PARM_32BIT;
-    parms[3].u.uint32 = aData.mAutoMount;
+    parms[3].u.uint32 = aData.m_fAutoMount;
 
-    int vrc = m_pVMMDev->hgcmHostCall("VBoxSharedFolders",
-                                      SHFL_FN_ADD_MAPPING,
-                                      SHFL_CPARMS_ADD_MAPPING2, &parms[0]);
+    vrc = m_pVMMDev->hgcmHostCall("VBoxSharedFolders",
+                                  SHFL_FN_ADD_MAPPING,
+                                  SHFL_CPARMS_ADD_MAPPING2, &parms[0]);
     RTMemFree(pFolderName);
     RTMemFree(pMapName);
 
     if (RT_FAILURE(vrc))
         return setError(E_FAIL,
-            tr("Could not create a shared folder '%ls' mapped to '%ls' (%Rrc)"),
-            aName, aData.mHostPath.raw(), vrc);
+            tr("Could not create a shared folder '%s' mapped to '%s' (%Rrc)"),
+            strName.c_str(), aData.m_strHostPath.c_str(), vrc);
 
     return S_OK;
 }
@@ -6375,9 +6498,9 @@ HRESULT Console::createSharedFolder(CBSTR aName, SharedFolderData aData)
  * @note Must be called from under AutoVMCaller and when mpVM != NULL!
  * @note Doesn't lock anything.
  */
-HRESULT Console::removeSharedFolder(CBSTR aName)
+HRESULT Console::removeSharedFolder(const Utf8Str &strName)
 {
-    ComAssertRet(aName && *aName, E_FAIL);
+    ComAssertRet(strName.isNotEmpty(), E_FAIL);
 
     /* sanity checks */
     AssertReturn(mpVM, E_FAIL);
@@ -6387,14 +6510,15 @@ HRESULT Console::removeSharedFolder(CBSTR aName)
     SHFLSTRING *pMapName;
     size_t cbString;
 
-    Log(("Removing shared folder '%ls'\n", aName));
+    Log(("Removing shared folder '%s'\n", strName.c_str()));
 
-    cbString = (RTUtf16Len(aName) + 1) * sizeof(RTUTF16);
+    Bstr bstrName(strName);
+    cbString = (bstrName.length() + 1) * sizeof(RTUTF16);
     if (cbString >= UINT16_MAX)
         return setError(E_INVALIDARG, tr("The name is too long"));
     pMapName = (SHFLSTRING *) RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
     Assert(pMapName);
-    memcpy(pMapName->String.ucs2, aName, cbString);
+    memcpy(pMapName->String.ucs2, bstrName.raw(), cbString);
 
     pMapName->u16Size   = (uint16_t)cbString;
     pMapName->u16Length = (uint16_t)cbString - sizeof(RTUTF16);
@@ -6409,8 +6533,8 @@ HRESULT Console::removeSharedFolder(CBSTR aName)
     RTMemFree(pMapName);
     if (RT_FAILURE(vrc))
         return setError(E_FAIL,
-                        tr("Could not remove the shared folder '%ls' (%Rrc)"),
-                        aName, vrc);
+                        tr("Could not remove the shared folder '%s' (%Rrc)"),
+                        strName.c_str(), vrc);
 
     return S_OK;
 }
@@ -6586,6 +6710,15 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PVM aVM,
                     that->setMachineState(MachineState_PoweredOff);
                     break;
             }
+            break;
+        }
+
+        case VMSTATE_RESETTING:
+        {
+    #ifdef VBOX_WITH_GUEST_PROPS
+            /* Do not take any read/write locks here! */
+            that->guestPropertiesHandleVMReset();
+    #endif
             break;
         }
 
@@ -7437,6 +7570,14 @@ void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *p
      */
     while (cbDevList >= 2 && e->oNext)
     {
+        /* Sanitize incoming strings in case they aren't valid UTF-8. */
+        if (e->oManufacturer)
+            RTStrPurgeEncoding((char *)e + e->oManufacturer);
+        if (e->oProduct)
+            RTStrPurgeEncoding((char *)e + e->oProduct);
+        if (e->oSerialNumber)
+            RTStrPurgeEncoding((char *)e + e->oSerialNumber);
+
         LogFlowThisFunc(("vendor %04X, product %04X, name = %s\n",
                           e->idVendor, e->idProduct,
                           e->oProduct? (char *)e + e->oProduct: ""));
@@ -7588,15 +7729,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
     AssertReturn(!task->mConsole.isNull(), VERR_INVALID_PARAMETER);
     AssertReturn(!task->mProgress.isNull(), VERR_INVALID_PARAMETER);
 
-#if defined(RT_OS_WINDOWS)
-    {
-        /* initialize COM */
-        HRESULT hrc = CoInitializeEx(NULL,
-                                     COINIT_MULTITHREADED | COINIT_DISABLE_OLE1DDE |
-                                     COINIT_SPEED_OVER_MEMORY);
-        LogFlowFunc(("CoInitializeEx()=%Rhrc\n", hrc));
-    }
-#endif
+    VirtualBoxBase::initializeComForThread();
 
     HRESULT rc = S_OK;
     int vrc = VINF_SUCCESS;
@@ -7771,11 +7904,21 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                          it != task->mSharedFolders.end();
                          ++it)
                     {
-                        rc = pConsole->createSharedFolder((*it).first.raw(),
-                                                         (*it).second);
-                        if (FAILED(rc)) break;
+                        const SharedFolderData &d = it->second;
+                        rc = pConsole->createSharedFolder(it->first, d);
+                        if (FAILED(rc))
+                        {
+                            ErrorInfoKeeper eik;
+                            setVMRuntimeErrorCallbackF(pVM, pConsole, 0, "BrokenSharedFolder",
+                                                       N_("The shared folder '%s' could not be set up: %ls.\n"
+                                                          "The shared folder setup will not be complete. It is recommended to power down the virtual machine and "
+                                                          "fix the shared folder settings while the machine is not running."),
+                                                       it->first.c_str(), eik.getText().raw());
+                            break;
+                        }
                     }
-                    if (FAILED(rc)) break;
+                    if (FAILED(rc))
+                        rc = S_OK;          // do not fail with broken shared folders
 
                     /* enter the lock again */
                     alock.enter();
@@ -8543,10 +8686,11 @@ DECLCALLBACK(int) Console::powerDownThread(RTTHREAD Thread, void *pvUser)
 /**
  * @interface_method_impl{VMM2USERMETHODS,pfnSaveState}
  */
-/*static*/
-DECLCALLBACK(int) Console::vmm2User_SaveState(PCVMM2USERMETHODS pThis, PVM pVM)
+/*static*/ DECLCALLBACK(int)
+Console::vmm2User_SaveState(PCVMM2USERMETHODS pThis, PUVM pUVM)
 {
-    Console *pConsole = *(Console **)(pThis + 1); /* lazy bird */
+    Console *pConsole = ((MYVMM2USERMETHODS *)pThis)->pConsole;
+    NOREF(pUVM);
 
     /*
      * For now, just call SaveState.  We should probably try notify the GUI so
@@ -8555,6 +8699,47 @@ DECLCALLBACK(int) Console::vmm2User_SaveState(PCVMM2USERMETHODS pThis, PVM pVM)
     HRESULT hrc = pConsole->SaveState(NULL);
     return SUCCEEDED(hrc) ? VINF_SUCCESS : Global::vboxStatusCodeFromCOM(hrc);
 }
+
+/**
+ * @interface_method_impl{VMM2USERMETHODS,pfnNotifyEmtInit}
+ */
+/*static*/ DECLCALLBACK(void)
+Console::vmm2User_NotifyEmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu)
+{
+    NOREF(pThis); NOREF(pUVM); NOREF(pUVCpu);
+    VirtualBoxBase::initializeComForThread();
+}
+
+/**
+ * @interface_method_impl{VMM2USERMETHODS,pfnNotifyEmtTerm}
+ */
+/*static*/ DECLCALLBACK(void)
+Console::vmm2User_NotifyEmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu)
+{
+    NOREF(pThis); NOREF(pUVM); NOREF(pUVCpu);
+    VirtualBoxBase::uninitializeComForThread();
+}
+
+/**
+ * @interface_method_impl{VMM2USERMETHODS,pfnNotifyPdmtInit}
+ */
+/*static*/ DECLCALLBACK(void)
+Console::vmm2User_NotifyPdmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM)
+{
+    NOREF(pThis); NOREF(pUVM);
+    VirtualBoxBase::initializeComForThread();
+}
+
+/**
+ * @interface_method_impl{VMM2USERMETHODS,pfnNotifyPdmtTerm}
+ */
+/*static*/ DECLCALLBACK(void)
+Console::vmm2User_NotifyPdmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM)
+{
+    NOREF(pThis); NOREF(pUVM);
+    VirtualBoxBase::uninitializeComForThread();
+}
+
 
 
 

@@ -398,6 +398,7 @@ public:
     void cannotRemoveSharedFolder(const CConsole &console, const QString &strName,
                                   const QString &strPath, QWidget *pParent = 0);
     void remindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
+    void remindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent = 0);
 
 signals:
 
@@ -420,6 +421,7 @@ signals:
     void sigCannotRemoveSharedFolder(const CConsole &console, const QString &strName,
                                      const QString &strPath, QWidget *pParent);
     void sigRemindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
+    void sigRemindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent);
 
 public slots:
 
@@ -447,6 +449,7 @@ private slots:
     void sltCannotRemoveSharedFolder(const CConsole &console, const QString &strName,
                                      const QString &strPath, QWidget *pParent);
     void sltRemindAboutWrongColorDepth(ulong uRealBPP, ulong uWantedBPP);
+    void sltRemindAboutUnsupportedUSB2(const QString &strExtPackName, QWidget *pParent);
 
 private:
 

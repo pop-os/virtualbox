@@ -99,10 +99,8 @@ static const USBSUFF s_aIntervalSuff[] =
  */
 static const USBDEVTREELOCATION s_aTreeLocations[] =
 {
-    { "/proc/bus/usb", false },
-    { "/dev/bus/usb",  false },
     { "/dev/vboxusb",  true },
-    { "/dev/bus/usb",  true },
+    { "/proc/bus/usb", false },
 };
 
 
@@ -1444,17 +1442,7 @@ PCUSBDEVTREELOCATION USBProxyLinuxGetDeviceRoot(bool fPreferSysfs)
             if (   fHaveInotify
                 && !pcBestSysfs
                 && RTPathExists(s_aTreeLocations[i].szDevicesRoot))
-            {
-                PUSBDEVICE pDevices;
-
-                pDevices = getDevicesFromSysfs(s_aTreeLocations[i].szDevicesRoot,
-                                               true);
-                if (pDevices)
-                {
-                    pcBestSysfs = &s_aTreeLocations[i];
-                    deviceListFree(&pDevices);
-                }
-            }
+                pcBestSysfs = &s_aTreeLocations[i];
         }
     if (pcBestUsbfs && !fPreferSysfs)
         return pcBestUsbfs;

@@ -752,7 +752,7 @@ STDMETHODIMP Host::COMGETTER(USBDevices)(ComSafeArrayOut(IHostUSBDevice*, aUSBDe
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    MultiResult rc = checkUSBProxyService();
+    HRESULT rc = checkUSBProxyService();
     if (FAILED(rc)) return rc;
 
     return m->pUSBProxyService->getDeviceCollection(ComSafeArrayOutArg(aUSBDevices));
@@ -779,7 +779,7 @@ STDMETHODIMP Host::COMGETTER(USBDeviceFilters)(ComSafeArrayOut(IHostUSBDeviceFil
 
     AutoMultiWriteLock2 alock(this->lockHandle(), &m->usbListsLock COMMA_LOCKVAL_SRC_POS);
 
-    MultiResult rc = checkUSBProxyService();
+    HRESULT rc = checkUSBProxyService();
     if (FAILED(rc)) return rc;
 
     SafeIfaceArray<IHostUSBDeviceFilter> collection(m->llUSBDeviceFilters);
@@ -1099,26 +1099,7 @@ STDMETHODIMP Host::CreateHostOnlyNetworkInterface(IHostNetworkInterface **aHostN
 
     int r = NetIfCreateHostOnlyNetworkInterface(m->pParent, aHostNetworkInterface, aProgress);
     if (RT_SUCCESS(r))
-    {
-        Bstr name;
-
-        HRESULT hrc = (*aHostNetworkInterface)->COMGETTER(Name)(name.asOutParam());
-        ComAssertComRCRet(hrc, hrc);
-        /*
-         * We need to write the default IP address and mask to extra data now,
-         * so the interface gets re-created after vboxnetadp.ko reload.
-         * Note that we avoid calling EnableStaticIpConfig since it would
-         * change the address on host's interface as well and we want to
-         * postpone the change until VM actually starts.
-         */
-        hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPAddress", name.raw()).raw(),
-                                    getDefaultIPv4Address(name).raw());
-        ComAssertComRCRet(hrc, hrc);
-        hrc = m->pParent->SetExtraData(BstrFmt("HostOnly/%ls/IPNetMask", name.raw()).raw(),
-                                    Bstr(VBOXNET_IPV4MASK_DEFAULT).raw());
-
-        return hrc;
-    }
+        return S_OK;
 
     return r == VERR_NOT_IMPLEMENTED ? E_NOTIMPL : E_FAIL;
 #else
@@ -1213,6 +1194,7 @@ STDMETHODIMP Host::InsertUSBDeviceFilter(ULONG aPosition,
 
     AutoMultiWriteLock2 alock(this->lockHandle(), &m->usbListsLock COMMA_LOCKVAL_SRC_POS);
 
+    clearError();
     MultiResult rc = checkUSBProxyService();
     if (FAILED(rc)) return rc;
 
@@ -1274,6 +1256,7 @@ STDMETHODIMP Host::RemoveUSBDeviceFilter(ULONG aPosition)
 
     AutoMultiWriteLock2 alock(this->lockHandle(), &m->usbListsLock COMMA_LOCKVAL_SRC_POS);
 
+    clearError();
     MultiResult rc = checkUSBProxyService();
     if (FAILED(rc)) return rc;
 

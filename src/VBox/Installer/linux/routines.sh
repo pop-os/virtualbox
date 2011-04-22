@@ -2,7 +2,7 @@
 # VirtualBox installer shell routines
 #
 
-# Copyright (C) 2007-2010 Oracle Corporation
+# Copyright (C) 2007-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -330,7 +330,7 @@ start_init_script() {
 
 # Stop the init script "name"
 #
-# syntax: start_init_script name
+# syntax: stop_init_script name
 
 stop_init_script() {
     self=stop_init_script
@@ -542,8 +542,8 @@ setup_init_script()
     # Redhat chkconfig information.
     if test "$ro_INIT_TYPE" = "sysv" -a -r "$scriptname"; then
         orders=`grep '^#['"$spaces"']*chkconfig:' "$scriptname" |
-            sed -e 's/^#['"$spaces"']*chkconfig:\s*[0-9]*['"$spaces"']*//'`
-        expr "$orders" : '[0-9]*['"$spaces"']*[0-9]*$' > /dev/null ||
+            sed -e 's/^#['"$spaces"']*chkconfig:['"$spaces"']*[0-9]*['"$spaces"']*//'`
+        expr "$orders" : '.*[0-9][0-9]*['"$spaces"']['"$spaces"']*[0-9][0-9]*$' > /dev/null ||
             {
                 log "$self: bad or missing chkconfig line in init script $scriptname"
                 return 1

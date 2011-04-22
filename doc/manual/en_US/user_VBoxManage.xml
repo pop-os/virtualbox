@@ -1736,11 +1736,12 @@ Virtual system 0:
     <screen>VBoxManage storagectl       &lt;uuid|vmname&gt;
                             --name &lt;name&gt;
                             [--add &lt;ide/sata/scsi/floppy&gt;]
-                            [--controller &lt;LsiLogic/BusLogic/IntelAhci/PIIX3/
-                                           PIIX4/ICH6/I8207&gt;]
+                            [--controller &lt;LsiLogic|LSILogicSAS|BusLogic|
+                                          IntelAhci|PIIX3|PIIX4|ICH6|I82078&gt;]
                             [--sataideemulation&lt;1-4&gt; &lt;1-30&gt;]
                             [--sataportcount &lt;1-30&gt;]
                             [--hostiocache on|off]
+                            [--bootable on|off]
                             [--remove]</screen>
 
     <para>where the parameters mean: <glosslist>
@@ -1806,6 +1807,14 @@ Virtual system 0:
             <para>Configures the use of the host I/O cache for all disk images
             attached to this storage controller. For details, please see <xref
             linkend="iocaching" />.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm>bootable</glossterm>
+
+          <glossdef>
+            <para>Selects whether this controller is bootable.</para>
           </glossdef>
         </glossentry>
 
@@ -2308,7 +2317,7 @@ Value: 2006.01.01</screen>
           <para><computeroutput>get &lt;vm&gt;</computeroutput>: This
           retrieves the value of a single property only. If the property
           cannot be found (e.g. because the guest is not running), this will
-          print "No value set!".</para>
+          print <screen>No value set!</screen></para>
         </listitem>
 
         <listitem>
@@ -2322,6 +2331,11 @@ Value: 2006.01.01</screen>
               <listitem>
                 <para><computeroutput>TRANSIENT</computeroutput>: the value
                 will not be stored with the VM data when the VM exits;</para>
+              </listitem>
+
+              <listitem>
+                <para><computeroutput>TRANSRESET</computeroutput>: the value
+                will be deleted as soon as the VM restarts and/or exits;</para>
               </listitem>
 
               <listitem>
@@ -2533,7 +2547,7 @@ Value: 2006.01.01</screen>
           files from the host to the guest (only with installed Guest
           Additions 4.0 and later).</para>
 
-          <screen>VBoxManage copyto|cp &lt;vmname&gt;|&lt;uuid&gt;
+          <screen>VBoxManage guestcontrol copyto|cp &lt;vmname&gt;|&lt;uuid&gt;
             &lt;source on host&gt; &lt;destination on guest&gt;
             --username &lt;name&gt; --password &lt;password&gt;
             [--dryrun] [--follow] [--recursive] [--verbose]</screen>
@@ -2638,7 +2652,7 @@ Value: 2006.01.01</screen>
           copying files from the host to the guest (only with installed Guest
           Additions 4.0 and later).</para>
 
-          <screen>VBoxManage createdir[ectory]|mkdir|md &lt;vmname&gt;|&lt;uuid&gt;
+          <screen>VBoxManage guestcontrol createdir[ectory]|mkdir|md &lt;vmname&gt;|&lt;uuid&gt;
             &lt;directory to create on guest&gt;
             [--username "&lt;name&gt;"] [--password "&lt;password&gt;"]
             [--parents] [--mode &lt;mode&gt;] [--verbose]</screen>

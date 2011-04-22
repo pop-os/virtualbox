@@ -1,4 +1,4 @@
-# $Revision: 66549 $
+# $Revision: 70883 $
 ## @file
 # Makefile for the VirtualBox Linux Host Driver.
 #
@@ -118,6 +118,7 @@ OBJS   = \
 	common/misc/assert.o \
 	common/misc/handletable.o \
 	common/misc/handletablectx.o \
+	common/string/RTStrCopyP.o \
 	common/string/strformat.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
@@ -135,6 +136,7 @@ OBJS   = \
 	generic/RTSemEventMultiWait-2-ex-generic.o \
 	generic/RTSemEventMultiWaitNoResume-2-ex-generic.o \
 	generic/RTTimerCreate-generic.o \
+	generic/mppresent-generic.o \
 	generic/uuid-generic.o \
 	VBox/log-vbox.o
 ifeq ($(BUILD_TARGET_ARCH),x86)
@@ -171,16 +173,7 @@ ifeq ($(KERNELRELEASE),)
                       Linux kernel. If this is not correct, specify \
 		      KERN_DIR=<directory> and run Make again.)
   endif
-  # check if versions match -- works only for later 2.6 kernels
-  VBOX_KERN_VER := $(shell $(MAKE) -sC $(KERN_DIR) --no-print-directory kernelrelease 2> /dev/null || true)
-  ifneq ($(VBOX_KERN_VER),)
-   ifneq ($(VBOX_KERN_VER),$(shell uname -r))
-    $(error Error: /usr/src/linux (version $(VBOX_KERN_VER)) does not match \
-                   the current kernel (version $(shell uname -r)))
-   endif
-  endif
  else
-  # build for a dedicated kernel, no version check
   ifneq ($(shell if test -d $(KERN_DIR); then echo yes; fi),yes)
    $(error Error: KERN_DIR does not point to a directory)
   endif
@@ -236,6 +229,11 @@ ifndef INCL
  INCL    += $(addprefix -I$(KBUILD_EXTMOD)/vboxdrv,/ /include /r0drv/linux)
  export INCL
 endif
+ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxdrv),)
+ MANGLING := $(KBUILD_EXTMOD)/vboxdrv/include/VBox/SUPDrvMangling.h
+else
+ MANGLING := $(KBUILD_EXTMOD)/include/VBox/SUPDrvMangling.h
+endif
 KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 \
 	    -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING
 ifdef VBOX_REDHAT_KABI
@@ -262,7 +260,7 @@ MODULE_EXT    := ko
 $(MODULE)-y   := $(OBJS)
 
 # build defs
-EXTRA_CFLAGS  += $(INCL) $(KFLAGS) $(KDEBUG)
+EXTRA_CFLAGS  += -include $(MANGLING) $(INCL) $(KFLAGS) $(KDEBUG)
 
 all: $(MODULE)
 
@@ -303,3 +301,12 @@ clean:
  endif
 
 endif # eq($(MAKECMDGOALS),clean)
+
+check: $(MODULE)
+	@if ! readelf -p __ksymtab_strings vboxdrv.ko | grep -E "\[.*\]  *(RT|g_..*RT.*)"; then \
+	    echo "All exported IPRT symbols are properly renamed!"; \
+	 else \
+	    echo "error: Some exported IPRT symbols was not properly renamed! See above." >&2; \
+	    false; \
+	 fi
+

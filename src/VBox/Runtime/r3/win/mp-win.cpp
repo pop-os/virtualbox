@@ -35,6 +35,9 @@
 #include <iprt/assert.h>
 
 
+AssertCompile(MAXIMUM_PROCESSORS <= RTCPUSET_MAX_CPUS);
+
+
 /** @todo RTmpCpuId(). */
 
 RTDECL(int) RTMpCpuIdToSetIndex(RTCPUID idCpu)
@@ -92,6 +95,7 @@ RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet)
 {
     SYSTEM_INFO SysInfo;
     GetSystemInfo(&SysInfo);
+/** @todo port to W2K8 / W7 w/ > 64 CPUs & grouping. */
     return RTCpuSetFromU64(pSet, SysInfo.dwActiveProcessorMask);
 }
 

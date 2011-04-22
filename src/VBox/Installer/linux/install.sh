@@ -4,7 +4,7 @@
 # VirtualBox linux installation script
 
 #
-# Copyright (C) 2007-2010 Oracle Corporation
+# Copyright (C) 2007-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -103,6 +103,7 @@ check_previous() {
     check_binary "/usr/bin/VBoxSDL" "$install_dir" &&
     check_binary "/usr/bin/VBoxVRDP" "$install_dir" &&
     check_binary "/usr/bin/VBoxHeadless" "$install_dir" &&
+    check_binary "/usr/bin/VBoxBalloonCtrl" "$install_dir" &&
     check_binary "/usr/bin/vboxwebsrv" "$install_dir"
 }
 
@@ -118,6 +119,9 @@ check_root
 
 # Set up logging before anything else
 create_log $LOG
+
+# Now stop the ballon control service otherwise it will keep VBoxSVC running
+stop_init_script vboxballoonctrl-service
 
 # Now stop the web service otherwise it will keep VBoxSVC running
 stop_init_script vboxweb-service
@@ -368,9 +372,12 @@ if [ "$ACTION" = "install" ]; then
 
     # Install runlevel scripts
     install_init_script vboxdrv.sh vboxdrv
+    install_init_script vboxballoonctrl-service.sh vboxballoonctrl-service
     install_init_script vboxweb-service.sh vboxweb-service
     delrunlevel vboxdrv > /dev/null 2>&1
     addrunlevel vboxdrv 20 80 # This may produce useful output
+    delrunlevel vboxballoonctrl-service > /dev/null 2>&1
+    addrunlevel vboxballoonctrl-service 25 75 # This may produce useful output
     delrunlevel vboxweb-service > /dev/null 2>&1
     addrunlevel vboxweb-service 25 75 # This may produce useful output
 
@@ -383,8 +390,11 @@ if [ "$ACTION" = "install" ]; then
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxSDL
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxVRDP
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxHeadless
+    ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxBalloonCtrl
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/vboxwebsrv
     ln -sf $INSTALLATION_DIR/VBox.png /usr/share/pixmaps/VBox.png
+    # Unity and Nautilus seem to look here for their icons
+    ln -sf $INSTALLATION_DIR/icons/128x128/virtualbox.png /usr/share/pixmaps/virtualbox.png
     ln -sf $INSTALLATION_DIR/virtualbox.desktop /usr/share/applications/virtualbox.desktop
     ln -sf $INSTALLATION_DIR/virtualbox.xml /usr/share/mime/packages/virtualbox.xml
     ln -sf $INSTALLATION_DIR/rdesktop-vrdp /usr/bin/rdesktop-vrdp
@@ -403,9 +413,14 @@ if [ "$ACTION" = "install" ]; then
         cd $i
         if [ -d /usr/share/icons/hicolor/$i ]; then
             for j in *; do
-                if [ -d /usr/share/icons/hicolor/$i/mimetypes ]; then
-                    ln -s $INSTALLATION_DIR/icons/$i/$j /usr/share/icons/hicolor/$i/mimetypes/$j
-                    echo /usr/share/icons/hicolor/$i/mimetypes/$j >> $CONFIG_DIR/$CONFIG_FILES
+                if [ "$j" = "virtualbox.png" ]; then
+                    dst=apps
+                else
+                    dst=mimetypes
+                fi
+                if [ -d /usr/share/icons/hicolor/$i/$dst ]; then
+                    ln -s $INSTALLATION_DIR/icons/$i/$j /usr/share/icons/hicolor/$i/$dst/$j
+                    echo /usr/share/icons/hicolor/$i/$dst/$j >> $CONFIG_DIR/$CONFIG_FILES
                 fi
             done
         fi
@@ -494,6 +509,7 @@ if [ "$ACTION" = "install" ]; then
             MODULE_FAILED="true"
             RC_SCRIPT=1
         fi
+        start_init_script vboxballoonctrl-service
         start_init_script vboxweb-service
         log ""
         log "End of the output from the Linux kernel build system."

@@ -58,12 +58,16 @@ enum { MAX_GUEST_NOTIFICATIONS = 256 };
  */
 enum ePropFlags
 {
-    NILFLAG     = 0,
-    TRANSIENT   = RT_BIT(1),
-    RDONLYGUEST = RT_BIT(2),
-    RDONLYHOST  = RT_BIT(3),
-    READONLY    = RDONLYGUEST | RDONLYHOST,
-    ALLFLAGS    = TRANSIENT | READONLY
+    NILFLAG          = 0,
+    /** Transient until VM gets shut down. */
+    TRANSIENT        = RT_BIT(1),
+    RDONLYGUEST      = RT_BIT(2),
+    RDONLYHOST       = RT_BIT(3),
+    /** Transient until VM gets a reset / restarts.
+     *  Implies TRANSIENT. */
+    TRANSRESET       = RT_BIT(4),
+    READONLY         = RDONLYGUEST | RDONLYHOST,
+    ALLFLAGS         = TRANSIENT | READONLY | TRANSRESET
 };
 
 /**
@@ -74,7 +78,7 @@ enum ePropFlags
  */
 DECLINLINE(const char *) flagName(uint32_t fFlag)
 {
-    switch(fFlag)
+    switch (fFlag)
     {
         case TRANSIENT:
             return "TRANSIENT";
@@ -84,9 +88,12 @@ DECLINLINE(const char *) flagName(uint32_t fFlag)
             return "RDONLYHOST";
         case READONLY:
             return "READONLY";
+        case TRANSRESET:
+            return "TRANSRESET";
         default:
-            return NULL;
+            break;
     }
+    return NULL;
 }
 
 /**
@@ -105,7 +112,7 @@ DECLINLINE(size_t) flagNameLen(uint32_t fFlag)
  * Maximum length for the property flags field.  We only ever return one of
  * RDONLYGUEST, RDONLYHOST and RDONLY
  */
-enum { MAX_FLAGS_LEN =   sizeof("TRANSIENT, RDONLYGUEST") };
+enum { MAX_FLAGS_LEN = sizeof("TRANSIENT, RDONLYGUEST, TRANSRESET") };
 
 /**
  * Parse a guest properties flags string for flag names and make sure that
@@ -122,7 +129,7 @@ DECLINLINE(int) validateFlags(const char *pcszFlags, uint32_t *pfFlags)
 {
     static const uint32_t s_aFlagList[] =
     {
-        TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST
+        TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST, TRANSRESET
     };
     const char *pcszNext = pcszFlags;
     int rc = VINF_SUCCESS;
@@ -171,19 +178,23 @@ DECLINLINE(int) validateFlags(const char *pcszFlags, uint32_t *pfFlags)
  */
 DECLINLINE(int) writeFlags(uint32_t fFlags, char *pszFlags)
 {
+    /* Putting READONLY before the other RDONLY flags keeps the result short. */
     static const uint32_t s_aFlagList[] =
     {
-        TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST
+        TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST, TRANSRESET
     };
-    char *pszNext = pszFlags;
     int rc = VINF_SUCCESS;
+
     AssertLogRelReturn(VALID_PTR(pszFlags), VERR_INVALID_POINTER);
-    if ((fFlags & ~ALLFLAGS) != NILFLAG)
-        rc = VERR_INVALID_PARAMETER;
-    if (RT_SUCCESS(rc))
+    if ((fFlags & ~ALLFLAGS) == NILFLAG)
     {
-        unsigned i = 0;
-        for (; i < RT_ELEMENTS(s_aFlagList); ++i)
+        /* TRANSRESET implies TRANSIENT.  For compatability with old clients we
+           always set TRANSIENT when TRANSRESET appears. */
+        if (fFlags & TRANSRESET)
+            fFlags |= TRANSIENT;
+
+        char *pszNext = pszFlags;
+        for (unsigned i = 0; i < RT_ELEMENTS(s_aFlagList); ++i)
         {
             if (s_aFlagList[i] == (fFlags & s_aFlagList[i]))
             {
@@ -198,9 +209,11 @@ DECLINLINE(int) writeFlags(uint32_t fFlags, char *pszFlags)
             }
         }
         *pszNext = '\0';
-        if (fFlags != NILFLAG)
-            rc = VERR_INVALID_PARAMETER;  /* But pszFlags will still be set right. */
+
+        Assert(fFlags == NILFLAG); /* bad s_aFlagList */
     }
+    else
+        rc = VERR_INVALID_PARAMETER;
     return rc;
 }
 

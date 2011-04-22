@@ -255,7 +255,6 @@ HRESULT Guest::taskCopyFile(TaskGuest *aTask)
                             RTPathChangeToUnixSlashes(szOutput, true /* Force conversion. */);
                         }
 
-                        args.push_back(Bstr(VBOXSERVICE_TOOL_CAT).raw()); /* The actual (internal) tool to use (as argv[0]). */
                         args.push_back(Bstr(szOutput).raw());             /* We want to write a file ... */
                     }
                     else
@@ -326,6 +325,8 @@ HRESULT Guest::taskCopyFile(TaskGuest *aTask)
                             ULONG uFlags = ProcessInputFlag_None;
                             /* Did we reach the end of the content we want to transfer (last chunk)? */
                             if (   (cbRead < _64K)
+                                /* Did we reach the last block which is exactly _64K? */
+                                || (cbToRead - cbRead == 0)
                                 /* ... or does the user want to cancel? */
                                 || (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
                                     && fCanceled)
@@ -564,7 +565,6 @@ HRESULT Guest::taskUpdateGuestAdditions(TaskGuest *aTask)
                 com::SafeArray<IN_BSTR> args;
                 com::SafeArray<IN_BSTR> env;
 
-                args.push_back(Bstr(VBOXSERVICE_TOOL_CAT).raw());     /* The actual (internal) tool to use (as argv[0]). */
                 args.push_back(Bstr("--output").raw());               /* We want to write a file ... */
                 args.push_back(Bstr(strInstallerPath.c_str()).raw()); /* ... with this path. */
 
@@ -628,14 +628,14 @@ HRESULT Guest::taskUpdateGuestAdditions(TaskGuest *aTask)
                         aTask->progress->SetCurrentOperationProgress(20);
 
                         /* Wait for process to exit ... */
-                        SafeArray<BYTE> aInputData(_1M);
+                        SafeArray<BYTE> aInputData(_64K);
                         while (   SUCCEEDED(progressCat->COMGETTER(Completed(&fCompleted)))
                                && !fCompleted)
                         {
                             size_t cbRead;
                             /* cbLength contains remaining bytes of our installer file
                              * opened above to read. */
-                            size_t cbToRead = RT_MIN(cbLength, _1M);
+                            size_t cbToRead = RT_MIN(cbLength, _64K);
                             if (cbToRead)
                             {
                                 vrc = RTFileRead(iso.file, (uint8_t*)aInputData.raw(), cbToRead, &cbRead);
@@ -648,7 +648,9 @@ HRESULT Guest::taskUpdateGuestAdditions(TaskGuest *aTask)
 
                                     /* Did we reach the end of the content we want to transfer (last chunk)? */
                                     ULONG uFlags = ProcessInputFlag_None;
-                                    if (   (cbRead < _1M)
+                                    if (   (cbRead < _64K)
+                                        /* Did we reach the last block which is exactly _64K? */
+                                        || (cbToRead - cbRead == 0)
                                         /* ... or does the user want to cancel? */
                                         || (   SUCCEEDED(aTask->progress->COMGETTER(Canceled(&fCanceled)))
                                             && fCanceled)
@@ -1234,7 +1236,7 @@ int Guest::notifyCtrlExecOut(uint32_t             u32Function,
             if (   SUCCEEDED(it->second.pProgress->COMGETTER(Completed)(&fCompleted))
                 && !fCompleted)
             {
-                    /* If we previously got completed notification, don't trigger again. */
+                /* If we previously got completed notification, don't trigger again. */
                 it->second.pProgress->notifyComplete(S_OK);
             }
         }
@@ -1261,6 +1263,9 @@ int Guest::notifyCtrlExecInStatus(uint32_t                  u32Function,
 
         /* Save bytes processed. */
         pCBData->cbProcessed = pData->cbProcessed;
+        pCBData->u32Status = pData->u32Status;
+        pCBData->u32Flags = pData->u32Flags;
+        pCBData->u32PID = pData->u32PID;
 
         /* Only trigger completion once. */
         BOOL fCompleted;
@@ -1941,27 +1946,41 @@ STDMETHODIMP Guest::SetProcessInput(ULONG aPID, ULONG aFlags, ULONG aTimeoutMS, 
                     rc = it->second.pProgress->WaitForCompletion(aTimeoutMS);
                     if (FAILED(rc)) throw rc;
 
-                    /* Was the call completed within time? */
-                    LONG uResult;
-                    if (   SUCCEEDED(it->second.pProgress->COMGETTER(ResultCode)(&uResult))
-                        && uResult == S_OK)
-                    {
-                        PCALLBACKDATAEXECINSTATUS pStatusData = (PCALLBACKDATAEXECINSTATUS)it->second.pvData;
-                        AssertPtr(pStatusData);
-                        Assert(it->second.cbData == sizeof(CALLBACKDATAEXECINSTATUS));
+                    /* Was the operation canceled by one of the parties? */
+                    rc = it->second.pProgress->COMGETTER(Canceled)(&fCanceled);
+                    if (FAILED(rc)) throw rc;
 
-                        *aBytesWritten = pStatusData->cbProcessed;
-                    }
-                    else if (   SUCCEEDED(it->second.pProgress->COMGETTER(Canceled)(&fCanceled))
-                             && fCanceled)
+                    if (!fCanceled)
                     {
-                        rc = setError(VBOX_E_IPRT_ERROR,
-                                      tr("The input operation was canceled by the guest"));
+                        BOOL fCompleted;
+                        if (   SUCCEEDED(it->second.pProgress->COMGETTER(Completed)(&fCompleted))
+                            && fCompleted)
+                        {
+                            AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+                            PCALLBACKDATAEXECINSTATUS pStatusData = (PCALLBACKDATAEXECINSTATUS)it->second.pvData;
+                            AssertPtr(pStatusData);
+                            Assert(it->second.cbData == sizeof(CALLBACKDATAEXECINSTATUS));
+
+                            switch (pStatusData->u32Status)
+                            {
+                                case INPUT_STS_WRITTEN:
+                                    *aBytesWritten = pStatusData->cbProcessed;
+                                    break;
+
+                                default:
+                                    rc = setError(VBOX_E_IPRT_ERROR,
+                                                  tr("Client error %u while processing input data"), pStatusData->u32Status);
+                                    break;
+                            }
+                        }
+                        else
+                            rc = setError(VBOX_E_IPRT_ERROR,
+                                          tr("The input operation was not acknowledged from guest within time (%ums)"), aTimeoutMS);
                     }
                     else
                         rc = setError(VBOX_E_IPRT_ERROR,
-                                      tr("The input operation was not acknowledged from guest within time (%ums)"), aTimeoutMS);
-
+                                      tr("The input operation was canceled by the guest"));
                     {
                         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
                         /* Destroy locally used progress object. */
@@ -2372,7 +2391,6 @@ HRESULT Guest::createDirectoryInternal(IN_BSTR aDirectory,
         /*
          * Prepare tool command line.
          */
-        args.push_back(Bstr(VBOXSERVICE_TOOL_MKDIR).raw()); /* The actual (internal) tool to use (as argv[0]). */
         if (aFlags & CreateDirectoryFlag_Parents)
             args.push_back(Bstr("--parents").raw());        /* We also want to create the parent directories. */
         if (aMode > 0)
@@ -2438,7 +2456,7 @@ HRESULT Guest::createDirectoryInternal(IN_BSTR aDirectory,
                     if (SUCCEEDED(rc) && uRetExitCode != 0)
                     {
                         rc = setError(VBOX_E_IPRT_ERROR,
-                                      tr("Error while creating directory"));
+                                      tr("Error %u while creating directory"), uRetExitCode);
                     }
                 }
             }

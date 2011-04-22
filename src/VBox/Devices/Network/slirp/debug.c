@@ -247,10 +247,10 @@ print_ether_address(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
                    int cchWidth, int cchPrecision, unsigned fFlags,
                    void *pvUser)
 {
-    char *ether = (char *)pvUser;
+    char *ether = (char *)pvValue;
 
     AssertReturn(strcmp(pszType, "ether") == 0, 0);
-    if (ether != NULL)
+    if (ether)
         return RTStrFormat(pfnOutput, pvArgOutput, NULL, 0,
             "[ether %hhx:%hhx:%hhx:%hhx:%hhx:%hhx]",
             ether[0], ether[1], ether[2],

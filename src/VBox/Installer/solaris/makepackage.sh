@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2010 Oracle Corporation
+# Copyright (C) 2007-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -115,6 +115,7 @@ fi
 cd "$VBOX_INSTALLED_DIR"
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxManage
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxSDL
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxBalloonCtrl
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/vboxwebsrv
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/webtest
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxZoneAccess
@@ -175,6 +176,7 @@ filelist_fixup prototype '$3 == "platform/i86pc/kernel/drv/amd64/vboxusb"'      
 
 # Manifest class action scripts
 filelist_fixup prototype '$3 == "var/svc/manifest/application/virtualbox/virtualbox-webservice.xml"'    '$2 = "manifest";$6 = "sys"'
+filelist_fixup prototype '$3 == "var/svc/manifest/application/virtualbox/virtualbox-balloonctrl.xml"'   '$2 = "manifest";$6 = "sys"'
 filelist_fixup prototype '$3 == "var/svc/manifest/application/virtualbox/virtualbox-zoneaccess.xml"'    '$2 = "manifest";$6 = "sys"'
 
 # Use 'root' as group so as to match attributes with the previous installation and prevent a conflict. Otherwise pkgadd bails out thinking

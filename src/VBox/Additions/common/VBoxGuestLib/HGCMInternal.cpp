@@ -1,4 +1,4 @@
-/* $Revision: 67140 $ */
+/* $Revision: 70398 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
@@ -399,7 +399,7 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
 
                     if (VBGLR0_CAN_USE_PHYS_PAGE_LIST())
                     {
-                        size_t cPages = RTR0MemObjSize(hObj);
+                        size_t const cPages = RTR0MemObjSize(hObj) >> PAGE_SHIFT;
                         *pcbExtra += RT_OFFSETOF(HGCMPageListInfo, aPages[cPages]);
                     }
                 }

@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 70080 $)
+# Linux Additions X11 setup init script ($Revision: 71289 $)
 #
 
 #
@@ -319,12 +319,12 @@ setup()
         esac
     fi
     case $x_version in
-        1.10.99.* )
+        1.*.99.* )
             echo "Warning: unsupported pre-release version of X.Org Server installed.  Not"
             echo "installing the X.Org drivers."
             dox11config=""
             ;;
-        1.9.99.* | 1.10.* )
+        1.10.* )
             begin "Installing X.Org Server 1.10 modules"
             vboxvideo_src=vboxvideo_drv_110.so
             vboxmouse_src=vboxmouse_drv_110.so
@@ -332,7 +332,7 @@ setup()
             # Does Fedora still ship without vboxvideo detection?
             # test "$system" = "redhat" || setupxorgconf=""
             ;;
-        1.8.99.* | 1.9.* )
+        1.9.* )
             begin "Installing X.Org Server 1.9 modules"
             vboxvideo_src=vboxvideo_drv_19.so
             vboxmouse_src=vboxmouse_drv_19.so
@@ -340,7 +340,7 @@ setup()
             # Fedora 14 looks likely to ship without vboxvideo detection
             # test "$system" = "redhat" || setupxorgconf=""
             ;;
-        1.7.99.* | 1.8.* )
+        1.8.* )
             begin "Installing X.Org Server 1.8 modules"
             vboxvideo_src=vboxvideo_drv_18.so
             vboxmouse_src=vboxmouse_drv_18.so
@@ -348,36 +348,32 @@ setup()
             # Fedora 13 shipped without vboxvideo detection
             test "$system" = "redhat" || setupxorgconf=""
             ;;
-        1.6.99.* | 1.7.* )
+        1.7.* )
             begin "Installing X.Org Server 1.7 modules"
             vboxvideo_src=vboxvideo_drv_17.so
             vboxmouse_src=vboxmouse_drv_17.so
             setupxorgconf=""
             test "$system" = "debian" && doxorgconfd="true"
             ;;
-        1.5.99.* | 1.6.* )
+        1.6.* )
             begin "Installing X.Org Server 1.6 modules"
             vboxvideo_src=vboxvideo_drv_16.so
             vboxmouse_src=vboxmouse_drv_16.so
-            # SUSE with X.Org Server 1.6 knows about vboxvideo
-            test "$system" = "suse" && setupxorgconf=""
+            # SUSE SLE* with X.Org 1.6 does not do input autodetection;
+            # openSUSE does.
+            if grep -q -E '^SLE[^ ]' /etc/SuSE-brand 2>/dev/null; then
+                automouse=""
+                newmouse="--newMouse"
+            else
+                test "$system" = "suse" && setupxorgconf=""
+            fi
             ;;
-        1.4.99.901 | 1.4.99.902 )
-            echo "Warning: you are using a pre-release version of X.Org server 1.5 which is known"
-            echo "not to work with the VirtualBox Guest Additions.  Please update to a more"
-            echo "recent version (for example by installing all updates in your guest) and then"
-            echo "set up the Guest Additions for X.Org server by running"
-            echo ""
-            echo "  /usr/lib[64]/VBoxGuestAdditions/vboxadd-x11 setup"
-            dox11config=""
-            ;;
-        1.4.99.* | 1.5.* )
-            # Fedora 9 shipped X.Org Server version 1.4.99.9x (1.5.0 RC)
-            # in its released version
+        1.5.* )
             begin "Installing X.Org Server 1.5 modules"
             vboxvideo_src=vboxvideo_drv_15.so
             vboxmouse_src=vboxmouse_drv_15.so
-            # SUSE with X.Org 1.5 is a special case, and is handled specially
+            # SUSE with X.Org 1.5 is another special case, and is also
+            # handled specially
             test "$system" = "suse" &&
             { automouse=""; newmouse="--newMouse"; }
             ;;
@@ -492,7 +488,7 @@ setup()
                 # This is normally silent.  I have purposely not redirected
                 # error output as I want to know if something goes wrong,
                 # particularly if the command syntax ever changes.
-                udevadm trigger --action=change --subsystem-match=misc --subsystem-match=input
+                udevadm trigger --action=change --subsystem-match=misc
             fi
             test -d /usr/share/X11/xorg.conf.d &&
                 install -o 0 -g 0 -m 0644 "$share_dir/50-vboxmouse.conf" /usr/share/X11/xorg.conf.d
@@ -640,7 +636,7 @@ EOF
     # Remove other files
     rm /etc/hal/fdi/policy/90-vboxguest.fdi 2>/dev/null
     rm /etc/udev/rules.d/70-xorg-vboxmouse.rules 2>/dev/null
-    udevadm trigger --action=change --subsystem-match=misc --subsystem-match=input 2>/dev/null
+    udevadm trigger --action=change --subsystem-match=misc 2>/dev/null
     rm /usr/lib/X11/xorg.conf.d/50-vboxmouse.conf 2>/dev/null
     rm /usr/share/X11/xorg.conf.d/50-vboxmouse.conf 2>/dev/null
     rm /usr/share/xserver-xorg/pci/vboxvideo.ids 2>/dev/null

@@ -519,6 +519,11 @@ void UIVMListView::checkDragEvent(QDragMoveEvent *pEvent)
         {
             pEvent->setDropAction(Qt::CopyAction);
             pEvent->accept();
+        }else if (   VBoxGlobal::hasAllowedExtension(file, VBoxDefs::VBoxExtPackFileExts)
+                  && pEvent->possibleActions().testFlag(Qt::CopyAction))
+        {
+            pEvent->setDropAction(Qt::CopyAction);
+            pEvent->accept();
         }
     }
 }
@@ -593,10 +598,11 @@ QPixmap UIVMListView::dragPixmap(const QModelIndex &index) const
     p.setPen(Qt::white);
     p.setFont(font());
     p.drawText(QRect(margin, margin + osTypeSize.height() + space,  s.width() - 2 * margin, nameSize.height()), Qt::AlignCenter, name);
-#ifdef Q_WS_MAC
+	/* Transparent icons are not supported on all platforms. */
+#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
     p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
     p.fillRect(image.rect(), QColor(0, 0, 0, 177));
-#endif /* Q_WS_MAC */
+#endif /* defined(Q_WS_MAC) || defined(Q_WS_WIN) */
     p.end();
     /* Some Qt versions seems buggy in creating QPixmap from QImage. Seems they
      * don't clear the background. */
@@ -943,9 +949,9 @@ void UIVMItemPainter::calcLayout(const QModelIndex &aIndex,
     /* Really basic layout management.
      * First layout as usual */
     aOSType->moveTo(m_Margin, m_Margin);
-    aVMName->moveTo(m_Margin + aOSType->width() + m_Spacing, m_Margin);
+    aVMName->moveTo(aOSType->right() + m_Spacing, m_Margin);
     aShot->moveTo(aVMName->right() + nameSpaceWidth, aVMName->top());
-    aStateIcon->moveTo(aVMName->left(), aVMName->bottom());
+    aStateIcon->moveTo(aVMName->left(), aOSType->bottom() - aStateIcon->height());
     aState->moveTo(aStateIcon->right() + stateSpaceWidth, aStateIcon->top());
     /* Do grouping for the automatic center routine.
      * First the states group: */
