@@ -6,12 +6,12 @@ virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxRT.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/VBoxVMM.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxC.so
 virtualbox-ose: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxSVCM.so
-virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2GC.gc
-virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDD2R0.r0
-virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDDGC.gc
-virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VBoxDDR0.r0
-virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VMMGC.gc
-virtualbox-ose: unstripped-binary-or-object ./usr/lib/virtualbox/VMMR0.r0
+virtualbox-ose: unstripped-binary-or-object usr/lib/virtualbox/VBoxDD2GC.gc
+virtualbox-ose: unstripped-binary-or-object usr/lib/virtualbox/VBoxDD2R0.r0
+virtualbox-ose: unstripped-binary-or-object usr/lib/virtualbox/VBoxDDGC.gc
+virtualbox-ose: unstripped-binary-or-object usr/lib/virtualbox/VBoxDDR0.r0
+virtualbox-ose: unstripped-binary-or-object usr/lib/virtualbox/VMMGC.gc
+virtualbox-ose: unstripped-binary-or-object usr/lib/virtualbox/VMMR0.r0
 virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxHeadless 6755 root/root
 virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxNetAdpCtl 6755 root/root
 virtualbox-ose: setuid-gid-binary usr/lib/virtualbox/VBoxNetDHCP 6755 root/root
