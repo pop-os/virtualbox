@@ -73,7 +73,8 @@ override_dh_auto_configure:
 	    --with-linux="/usr" \
 	    --disable-kmods \
 	    --enable-webservice \
-	    --enable-vde
+	    --enable-vde \
+	    --enable-vnc
 
 override_dh_auto_build:
 	# Building package

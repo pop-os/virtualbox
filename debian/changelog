@@ -4,6 +4,7 @@ virtualbox-ose (4.0.6-dfsg-1) UNRELEASED; urgency=low
   * Adapt 07-vboxnetflt-reference.patch to new upstream version.
   * Update overrides for lintian 2.5.
   * Register mime types and install icons.
+  * Pass --enable-vnc to configure instead of enabling it in LocalConfig.kmk.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
