@@ -15,6 +15,7 @@ virtualbox-ose (4.0.6-dfsg-1) UNRELEASED; urgency=low
   * Strip *.gc and *.r0 files that are not handled by dh_strip and fix their
     file permissions.
   * Drop obsolete alternate build-dependency libcurl3-openssl-dev.
+  * Bump Standards-Version to 3.9.2, no changes needed.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 

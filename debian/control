@@ -63,7 +63,7 @@ Build-Depends: bcc,
                yasm (>= 0.7.0),
                zlib1g-dev
 XS-Python-Version: >= 2.5
-Standards-Version: 3.9.1
+Standards-Version: 3.9.2
 Homepage: http://www.virtualbox.org/
 Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
 Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
