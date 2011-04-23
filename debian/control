@@ -210,6 +210,7 @@ Package: virtualbox-ose-guest-utils
 Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
+         adduser,
          pciutils
 Recommends: virtualbox-ose-guest-dkms (= ${source:Version}) | virtualbox-ose-guest-source (= ${source:Version}),
             virtualbox-ose-guest-x11 (= ${binary:Version})
