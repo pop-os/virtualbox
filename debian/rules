@@ -91,7 +91,7 @@ override_dh_auto_build:
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
 
 	mkdir -p out/vdfuse
-	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
+	gcc debian/vdfuse/vdfuse.c -o out/vdfuse/vdfuse -pipe -g -Wl,--as-needed -Wl,--rpath,$(INSTALL_PATH) -Wall \
 	    $(shell pkg-config --cflags --libs fuse) -Iinclude $(addprefix out/bin/, \
 	    VBoxDD.so VBoxDD2.so VBoxDDU.so VBoxVMM.so VBoxREM.so VBoxRT.so)
 
