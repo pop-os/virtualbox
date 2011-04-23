@@ -19,7 +19,7 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-X11_BACKPORT = 
+DIST_RELEASE := $(shell lsb_release -si)/$(shell lsb_release -sc)
 
 XSERVER_VERSION = 17
 INSTALL_X11_PCI_ID = 0
@@ -28,14 +28,14 @@ INSTALL_X11_UDEV = 1
 INSTALL_XORGCONFD = new
 XORG_PKG_ABI = new
 
-ifeq ($(X11_BACKPORT),lenny)
+ifeq ($(DIST_RELEASE),Debian/lenny)
 	XSERVER_VERSION = 14
 	INSTALL_X11_PCI_ID = 1
 	INSTALL_X11_HAL = 1
 	INSTALL_X11_UDEV = 0
 	INSTALL_XORGCONFD = no
 	XORG_PKG_ABI = old
-else ifeq ($(X11_BACKPORT),lucid)
+else ifeq ($(DIST_RELEASE),Ubuntu/lucid)
 	INSTALL_XORGCONFD = old
 	XORG_PKG_ABI = old
 endif
@@ -66,6 +66,8 @@ endif
 	dh $@ --with quilt,python_central,dkms
 
 override_dh_auto_configure:
+	@echo Building for $(DIST_RELEASE)
+
 	mkdir -p out
 	./configure \
 	    --ose \
