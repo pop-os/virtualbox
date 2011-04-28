@@ -125,7 +125,7 @@ Package: virtualbox-ose-dkms
 Replaces: virtualbox-ose-source (<< 3.1.0-dfsg-1)
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, virtualbox-ose
 Description: x86 virtualization solution - kernel module sources for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -158,7 +158,7 @@ Package: virtualbox-ose-guest-dkms
 Replaces: virtualbox-ose-guest-source (<< 3.1.0-dfsg-1)
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}
+Depends: ${misc:Depends}, virtualbox-ose-guest-utils
 Description: x86 virtualization solution - guest addition module source for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
