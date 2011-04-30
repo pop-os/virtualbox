@@ -19,6 +19,8 @@ virtualbox-ose (4.0.6-dfsg-1) UNRELEASED; urgency=low
   * Build vdfuse with debugging symbols.
   * Make virtualbox-ose-dkms depend on virtualbox-ose and
     virtualbox-ose-guest-dkms on virtualbox-ose-guest-utils.
+  * Don't fail package removal if the virtualbox-ose init script exits with
+    an error.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
