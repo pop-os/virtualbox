@@ -6,8 +6,8 @@ set -e
 
 #case "$1" in
 #  remove|purge)
-#    # Remove usb device tree
-#    rm -rf /dev/vboxusb
+#	# Remove usb device tree
+#	rm -rf /dev/vboxusb
 #  ;;
 #esac
 

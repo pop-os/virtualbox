@@ -5,7 +5,7 @@ set -e
 #DEBHELPER#
 
 case "$1" in
-	install|upgrade)
+  install|upgrade)
 		# These are no longer used
 		for mod in vboxdrv vboxnetflt vboxnetadp; do
 			dkms status -m $mod | while read line; do
@@ -19,5 +19,5 @@ case "$1" in
 				fi
 			done
 		done
-	;;
+  ;;
 esac

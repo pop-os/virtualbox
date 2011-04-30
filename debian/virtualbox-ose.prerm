@@ -3,11 +3,7 @@
 set -e
 
 if [ -x "/etc/init.d/virtualbox-ose" ] && [ "$1" = remove ]; then
-	if [ -x "`which invoke-rc.d 2>/dev/null`" ]; then
-		invoke-rc.d virtualbox-ose stop || true
-	else
-		/etc/init.d/virtualbox-ose stop || true
-	fi
+	invoke-rc.d virtualbox-ose stop || true
 fi
 
 #DEBHELPER#

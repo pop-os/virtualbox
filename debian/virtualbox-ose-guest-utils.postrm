@@ -4,6 +4,6 @@ set -e
 
 #DEBHELPER#
 
-if [ "$1" = "purge" ]; then
+if [ "$1" = purge ]; then
     delgroup --quiet vboxsf || true
 fi
