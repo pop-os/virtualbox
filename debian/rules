@@ -1,18 +1,18 @@
 #!/usr/bin/make -f
 
 # Name of the source packages
-psource:=virtualbox-ose-source
-gsource:=virtualbox-ose-guest-source
-pdkms:=virtualbox-ose-dkms
-gdkms:=virtualbox-ose-guest-dkms
+psource:=virtualbox-source
+gsource:=virtualbox-guest-source
+pdkms:=virtualbox-dkms
+gdkms:=virtualbox-guest-dkms
 
 # The short upstream name
-sname:=virtualbox-ose
-sxname:=virtualbox-ose-qt
-gname:=virtualbox-ose-guest
-uname:=virtualbox-ose-guest-utils
-uxname:=virtualbox-ose-guest-x11
-fname:=virtualbox-ose-fuse
+sname:=virtualbox
+sxname:=virtualbox-qt
+gname:=virtualbox-guest
+uname:=virtualbox-guest-utils
+uxname:=virtualbox-guest-x11
+fname:=virtualbox-fuse
 
 INSTALL_PATH:=/usr/lib/virtualbox
 MAKE:=kmk
@@ -100,12 +100,12 @@ override_dh_auto_build:
 	xsltproc --nonet --stringparam section.autolabel 1 \
 	    -o debian/README.Debian.html \
 	    /usr/share/xml/docbook/stylesheet/nwalsh/html/docbook.xsl \
-	    debian/virtualbox-ose.files/README.Debian.xml
+	    debian/virtualbox.files/README.Debian.xml
 
 	chmod 755 debian/lynx-dump-postprocess
 	export LC_ALL=C; lynx -force_html -dump debian/README.Debian.html | \
-	    ./debian/lynx-dump-postprocess > debian/virtualbox-ose.README.Debian.tmp
-	mv debian/virtualbox-ose.README.Debian.tmp debian/virtualbox-ose.README.Debian
+	    ./debian/lynx-dump-postprocess > debian/virtualbox.README.Debian.tmp
+	mv debian/virtualbox.README.Debian.tmp debian/virtualbox.README.Debian
 
 override_dh_auto_install:
 	dh_auto_install
@@ -250,7 +250,7 @@ override_dh_auto_clean:
 	# Cleaning package
 	rm -rf out
 	rm -f build-stamp
-	rm -f debian/virtualbox-ose.README.Debian debian/README.Debian.html
+	rm -f debian/virtualbox.README.Debian debian/README.Debian.html
 	rm -f debian/$(pdkms).install
 	rm -f debian/$(gdkms).install
 	rm -f debian/$(pdkms).links
@@ -282,7 +282,7 @@ dfsg-free: clean
 	    -type f ! -wholename '*/xorg/Pci.h' -exec rm -rf {} \;
 	find src/VBox/Additions/x11/x11include/1.4 -mindepth 1 \
 	    -depth -type d -empty -exec rmdir {} \;
-	cd ..; mv $(CURDIR) virtualbox-ose-$(upstreamversion)-dfsg; \
+	cd ..; mv $(CURDIR) virtualbox-$(upstreamversion)-dfsg; \
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
-	        -czf virtualbox-ose_$(upstreamversion)-dfsg.orig.tar.gz \
-	        virtualbox-ose-$(upstreamversion)-dfsg
+	        -czf virtualbox_$(upstreamversion)-dfsg.orig.tar.gz \
+	        virtualbox-$(upstreamversion)-dfsg

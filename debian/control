@@ -1,4 +1,4 @@
-Source: virtualbox-ose
+Source: virtualbox
 Section: misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
@@ -64,15 +64,17 @@ Build-Depends: bcc,
 XS-Python-Version: >= 2.5
 Standards-Version: 3.9.2
 Homepage: http://www.virtualbox.org/
-Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox-ose.git
-Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox-ose.git
+Vcs-Git: git://git.debian.org/git/pkg-virtualbox/virtualbox.git
+Vcs-Browser: http://git.debian.org/?p=pkg-virtualbox/virtualbox.git
 
-Package: virtualbox-ose-qt
+Package: virtualbox-qt
 Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         virtualbox-ose (= ${binary:Version})
-Replaces: virtualbox-ose (<< 2.2.0-dfsg-1)
+         virtualbox (= ${binary:Version})
+Breaks: virtualbox-ose-qt (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-qt (<< 4.0.6-dfsg-1~),
+          virtualbox-ose (<< 2.2.0-dfsg-1~)
 Description: x86 virtualization solution - Qt based user interface
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -81,19 +83,21 @@ Description: x86 virtualization solution - Qt based user interface
  This package provides the Qt based graphical user interface of the Open Source
  Edition of VirtualBox.
 
-Package: virtualbox-ose
+Package: virtualbox
 Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${python:Depends},
          adduser
-Recommends: virtualbox-ose-dkms (= ${source:Version}) | virtualbox-ose-source (= ${source:Version}),
-            virtualbox-ose-qt (= ${binary:Version}),
+Recommends: virtualbox-dkms (= ${source:Version}) | virtualbox-source (= ${source:Version}),
+            virtualbox-qt (= ${binary:Version}),
             ${shlibs:Recommends}
 Suggests: virtualbox-guest-additions,
           libasound2, libpulse0,
           vde2
-Conflicts: virtualbox, virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
+Conflicts: virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
+Breaks: virtualbox-ose (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose (<< 4.0.6-dfsg-1~)
 XB-Python-Version: ${python:Versions}
 Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
@@ -101,17 +105,19 @@ Description: x86 virtualization solution - base binaries
  Linux system.
  .
  This package provides the binaries for the Open Source Edition of
- VirtualBox. Either the virtualbox-ose-dkms or the virtualbox-ose-source
+ VirtualBox. Either the virtualbox-dkms or the virtualbox-source
  package is also required in order to compile the kernel modules needed for
- virtualbox-ose. A graphical user interface for VirtualBox is provided by the
- package virtualbox-ose-qt.
+ virtualbox. A graphical user interface for VirtualBox is provided by the
+ package virtualbox-qt.
 
-Package: virtualbox-ose-dbg
+Package: virtualbox-dbg
 Section: debug
 Priority: extra
 Architecture: amd64 i386
 Depends: ${misc:Depends},
-         virtualbox-ose (= ${binary:Version}) | virtualbox-ose-guest-utils (= ${binary:Version})
+         virtualbox (= ${binary:Version}) | virtualbox-guest-utils (= ${binary:Version})
+Breaks: virtualbox-ose-dbg (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-dbg (<< 4.0.6-dfsg-1~)
 Description: x86 virtualization solution - debugging symbols
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -120,22 +126,23 @@ Description: x86 virtualization solution - debugging symbols
  This package provides the debugging symbols for the Open Source Edition of
  VirtualBox.
 
-Package: virtualbox-ose-dkms
-Replaces: virtualbox-ose-source (<< 3.1.0-dfsg-1)
+Package: virtualbox-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, virtualbox-ose
+Depends: ${misc:Depends}, virtualbox
+Breaks: virtualbox-ose-dkms (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-dkms (<< 4.0.6-dfsg-1~),
+          virtualbox-ose-source (<< 3.1.0-dfsg-1~)
 Description: x86 virtualization solution - kernel module sources for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
  This package provides the source code for the virtualbox kernel module to be
- build with dkms.  The virtualbox-ose package is also required in order to make
- use of these modules. Kernel sources or headers are required to compile this
+ build with dkms. Kernel sources or headers are required to compile this
  module.
 
-Package: virtualbox-ose-source
+Package: virtualbox-source
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, 
@@ -144,31 +151,35 @@ Depends: ${misc:Depends},
          bzip2,
          kbuild
 Recommends: module-assistant
+Breaks: virtualbox-ose-source (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-source (<< 4.0.6-dfsg-1~)
 Description: x86 virtualization solution - kernel module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
  This package provides the source code for the virtualbox kernel module.
- The virtualbox-ose package is also required in order to make use of these
+ The virtualbox package is also required in order to make use of these
  modules. Kernel sources or headers are required to compile this module.
 
-Package: virtualbox-ose-guest-dkms
-Replaces: virtualbox-ose-guest-source (<< 3.1.0-dfsg-1)
+Package: virtualbox-guest-dkms
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, virtualbox-ose-guest-utils
+Depends: ${misc:Depends},
+         virtualbox-guest-utils
+Breaks: virtualbox-ose-guest-dkms (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-guest-dkms (<< 4.0.6-dfsg-1~),
+          virtualbox-ose-guest-source (<< 3.1.0-dfsg-1~)
 Description: x86 virtualization solution - guest addition module source for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
  This package provides the source code for the virtualbox guest addition kernel
- modules to be build with dkms. The virtualbox-ose-guest-utils package is also
- required in order to make use of these modules. Kernel sources or headers are
- required to compile these modules.
+ modules to be build with dkms. Kernel sources or headers are required to compile
+ these modules.
 
-Package: virtualbox-ose-guest-source
+Package: virtualbox-guest-source
 Section: kernel
 Architecture: all
 Depends: ${misc:Depends}, 
@@ -177,26 +188,30 @@ Depends: ${misc:Depends},
          bzip2,
          kbuild
 Recommends: module-assistant
+Breaks: virtualbox-ose-guest-source (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-guest-source (<< 4.0.6-dfsg-1~)
 Description: x86 virtualization solution - guest addition module source
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
  This package provides the source code for the virtualbox guest addition kernel
- modules. The virtualbox-ose-guest-utils package is also required in order to
+ modules. The virtualbox-guest-utils package is also required in order to
  make use of these modules. Kernel sources or headers are required to compile
  these modules.
 
-Package: virtualbox-ose-guest-x11
+Package: virtualbox-guest-x11
 Section: x11
 Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          ${xserver:Depends},
-         virtualbox-ose-guest-utils (= ${binary:Version})
+         virtualbox-guest-utils (= ${binary:Version})
 Provides: ${xviddriver:Provides},
           ${xinpdriver:Provides}
-Replaces: virtualbox-ose-guest-utils (<< 2.2.0-dfsg-1)
+Breaks: virtualbox-ose-guest-source (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-guest-source (<< 4.0.6-dfsg-1~),
+          virtualbox-ose-guest-utils (<< 2.2.0-dfsg-1~)
 Description: x86 virtualization solution - X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -206,14 +221,16 @@ Description: x86 virtualization solution - X11 guest utilities
  VirtualBox. These utilities are meant to be run inside the virtual machine.
  They provide closer integration and improve the interactive performance.
 
-Package: virtualbox-ose-guest-utils
+Package: virtualbox-guest-utils
 Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
          adduser,
          pciutils
-Recommends: virtualbox-ose-guest-dkms (= ${source:Version}) | virtualbox-ose-guest-source (= ${source:Version}),
-            virtualbox-ose-guest-x11 (= ${binary:Version})
+Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}),
+            virtualbox-guest-x11 (= ${binary:Version})
+Breaks: virtualbox-ose-guest-utils (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-guest-utils (<< 4.0.6-dfsg-1~)
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -224,11 +241,13 @@ Description: x86 virtualization solution - non-X11 guest utilities
  They provide closer integration and allow to share data through shared folders
  between the host system and the virtual machine.
 
-Package: virtualbox-ose-fuse
+Package: virtualbox-fuse
 Architecture: amd64 i386
 Depends: ${shlibs:Depends},
          ${misc:Depends},
-         virtualbox-ose (= ${binary:Version})
+         virtualbox (= ${binary:Version})
+Breaks: virtualbox-ose-fuse (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-fuse (<< 4.0.6-dfsg-1~)
 Description: x86 virtualization solution - virtual filesystem
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -237,3 +256,82 @@ Description: x86 virtualization solution - virtual filesystem
  This package provides a FUSE-based VFS (Virtual FileSystem) to mount a
  VirtualBox disk so all partitions can be loop-mounted.
 
+Package: virtualbox-ose-qt
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-qt
+Description: transitional package for virtualbox-qt
+ This is a dummy transitional package for virtualbox-qt and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox
+Description: transitional package for virtualbox
+ This is a dummy transitional package for virtualbox and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-dbg
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-dbg
+Description: transitional package for virtualbox-dbg
+ This is a dummy transitional package for virtualbox-dbg and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-dkms
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-dkms
+Description: transitional package for virtualbox-dkms
+ This is a dummy transitional package for virtualbox-dkms and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-source
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-source
+Description: transitional package for virtualbox-source
+ This is a dummy transitional package for virtualbox-source and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-guest-dkms
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-guest-dkms
+Description: transitional package for virtualbox-guest-dkms
+ This is a dummy transitional package for virtualbox-guest-dkms and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-guest-source
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-guest-source
+Description: transitional package for virtualbox-guest-source
+ This is a dummy transitional package for virtualbox-guest-source and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-guest-x11
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-guest-x11
+Description: transitional package for virtualbox-guest-x11
+ This is a dummy transitional package for virtualbox-guest-x11 and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-guest-utils
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-guest-utils
+Description: transitional package for virtualbox-guest-utils
+ This is a dummy transitional package for virtualbox-guest-utils and can be
+ safely removed after the installation is complete.
+
+Package: virtualbox-ose-fuse
+Architecture: all
+Depends: ${misc:Depends},
+         virtualbox-fuse
+Description: transitional package for virtualbox-fuse
+ This is a dummy transitional package for virtualbox-fuse and can be
+ safely removed after the installation is complete.

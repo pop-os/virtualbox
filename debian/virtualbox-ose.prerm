@@ -1,9 +1,0 @@
-#!/bin/sh
-
-set -e
-
-if [ -x "/etc/init.d/virtualbox-ose" ] && [ "$1" = remove ]; then
-	invoke-rc.d virtualbox-ose stop || true
-fi
-
-#DEBHELPER#
