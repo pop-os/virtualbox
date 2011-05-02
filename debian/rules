@@ -19,7 +19,8 @@ MAKE:=kmk
 
 upstreamversion := $(shell dpkg-parsechangelog | sed -n 's/^Version: *\([^-]\+\)-.\+/\1/p')
 
-DIST_RELEASE := $(shell lsb_release -si)/$(shell lsb_release -sc)
+DIST_NAME := $(shell lsb_release -si)
+DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
 XSERVER_VERSION = 17
 INSTALL_X11_PCI_ID = 0
@@ -86,6 +87,7 @@ override_dh_auto_build:
 	    PATH_OUT=$(abspath out) \
 	    TOOL_YASM_AS=yasm \
 	    XSERVER_VERSION=$(XSERVER_VERSION) \
+	    VBOX_VERSION_STRING='$$(VBOX_VERSION_MAJOR).$$(VBOX_VERSION_MINOR).$$(VBOX_VERSION_BUILD)'_$(DIST_NAME) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    $(if $(DH_VERBOSE),KBUILD_VERBOSE=2,)
