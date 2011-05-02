@@ -64,7 +64,7 @@ endif
 
 
 %:
-	dh $@ --with quilt,python_central,dkms
+	dh $@ --with python_central,dkms
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
