@@ -6,7 +6,7 @@ virtualbox (4.0.6-dfsg-1) UNRELEASED; urgency=low
   * Register mime types and install icons.
   * Pass --enable-vnc to configure instead of enabling it in LocalConfig.kmk.
   * Drop Conflicts between virtualbox-ose-dkms and virtualbox-ose-guest-dkms
-    as the kernel module symbols are mangled now.
+    as the kernel module symbols are mangled now. (Closes: #625742)
   * Add lintian overrides for no-symbols-control-file usr/lib/VBoxOGL*.so.
   * Create vboxsf group in virtualbox-ose-guest-utils postinst to make
     auto-mounting shared folders work.
