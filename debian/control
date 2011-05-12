@@ -176,8 +176,8 @@ Description: x86 virtualization solution - guest addition module source for dkms
  Linux system.
  .
  This package provides the source code for the virtualbox guest addition kernel
- modules to be build with dkms. Kernel sources or headers are required to compile
- these modules.
+ modules to be build with dkms. Kernel sources or headers are required to
+ compile these modules.
 
 Package: virtualbox-guest-source
 Section: kernel
@@ -273,6 +273,7 @@ Description: transitional package for virtualbox
  safely removed after the installation is complete.
 
 Package: virtualbox-ose-dbg
+Priority: extra
 Architecture: all
 Depends: ${misc:Depends},
          virtualbox-dbg
