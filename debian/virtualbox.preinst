@@ -22,20 +22,16 @@ rm_conffile() {
 	fi
 }
 
-if [ "$1" = install -o "$1" = upgrade ] && [ -n "$2" ]; then
-	if dpkg --compare-versions "$2" lt "2.1.2-dfsg-1~"; then
-		rm_conffile virtualbox-ose /etc/network/if-post-down.d/virtualbox-ose
-		rm_conffile virtualbox-ose /etc/network/if-pre-up.d/virtualbox-ose
-		rm_conffile virtualbox-ose /etc/vbox/interfaces
-	fi
+if [ "$1" = install ]; then
+	# virtualbox-ose << 2.1.2-dfsg-1~
+	rm_conffile virtualbox-ose /etc/network/if-post-down.d/virtualbox-ose
+	rm_conffile virtualbox-ose /etc/network/if-pre-up.d/virtualbox-ose
+	rm_conffile virtualbox-ose /etc/vbox/interfaces
 
-	# Remove /etc/vbox/vbox.cfg
-	if dpkg --compare-versions "$2" lt "2.2.2-dfsg-3"; then
-		rm_conffile virtualbox-ose /etc/vbox/vbox.cfg
-	fi
+	# virtualbox-ose << 2.2.2-dfsg-3~
+	rm_conffile virtualbox-ose /etc/vbox/vbox.cfg
 
-	if dpkg --compare-versions "$2" lt "4.0.6-dfsg-1~"; then
-		rm_conffile virtualbox-ose /etc/default/virtualbox-ose
-		rm_conffile virtualbox-ose /etc/init.d/virtualbox-ose
-	fi
+	# virtualbox-ose << 4.0.6-dfsg-1~
+	rm_conffile virtualbox-ose /etc/default/virtualbox-ose
+	rm_conffile virtualbox-ose /etc/init.d/virtualbox-ose
 fi
