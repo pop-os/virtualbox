@@ -13,3 +13,4 @@ VBOX_PATH_APP_DOCS = /usr/share/doc/virtualbox-ose
 VBOX_WITH_VNC := 1
 VBOX_WITH_VBOXBFE :=
 VBOX_JAVA_HOME := /usr/lib/jvm/default-java
+VBOX_WITH_WARNINGS_AS_ERRORS =
