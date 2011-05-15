@@ -92,7 +92,7 @@ Depends: ${shlibs:Depends},
 Recommends: virtualbox-dkms (= ${source:Version}) | virtualbox-source (= ${source:Version}),
             virtualbox-qt (= ${binary:Version}),
             ${shlibs:Recommends}
-Suggests: virtualbox-guest-additions,
+Suggests: virtualbox-guest-additions-iso,
           libasound2, libpulse0,
           vde2
 Conflicts: virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
@@ -145,7 +145,7 @@ Description: x86 virtualization solution - kernel module sources for dkms
 Package: virtualbox-source
 Section: kernel
 Architecture: all
-Depends: ${misc:Depends}, 
+Depends: ${misc:Depends},
          build-essential,
          debhelper (>= 5),
          bzip2,
