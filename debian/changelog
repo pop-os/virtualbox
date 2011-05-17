@@ -31,6 +31,7 @@ virtualbox (4.0.8-dfsg-1) UNRELEASED; urgency=low
   * Compress orig tarball with bzip2.
   * Drop support for building on lenny.
   * Update 28-no-selinux-fedora.patch to new upstream version.
+  * Drop 30-enable-gcc46.patch, fixed upstream.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
