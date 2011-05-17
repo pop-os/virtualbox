@@ -12,3 +12,4 @@ VBOX_PATH_APP_PRIVATE := /usr/share/virtualbox
 VBOX_PATH_APP_DOCS = /usr/share/doc/virtualbox
 VBOX_WITH_VBOXBFE :=
 VBOX_JAVA_HOME := /usr/lib/jvm/default-java
+VBOX_WITH_WARNINGS_AS_ERRORS =

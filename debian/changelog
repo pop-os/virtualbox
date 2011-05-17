@@ -31,6 +31,14 @@ virtualbox (4.0.6-dfsg-1) UNRELEASED; urgency=low
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
+virtualbox-ose (4.0.4-dfsg-2) unstable; urgency=low
+
+  * Fix FTBFS with gcc 4.6. (Closes: #625658, #626148)
+    - Add 30-enable-gcc46.patch
+    - debian/LocalConfig.kmk: don't treat gcc warnings as errors.
+
+ -- Felix Geyer <debfx-pkg@fobos.de>  Thu, 12 May 2011 15:38:04 +0200
+
 virtualbox-ose (4.0.4-dfsg-1) unstable; urgency=low
 
   [ Felix Geyer ]
