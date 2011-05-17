@@ -276,13 +276,8 @@ dfsg-free: clean
 	rm -rf ./src/libs/zlib*
 	rm -rf ./src/VBox/Additions/linux/selinux-fedora
 	find src/VBox/Additions/x11/x11include -mindepth 1 -maxdepth 1 \
-	    -type d ! -name '*mesa-*' ! -name '1.4' -exec rm -rf {} \;
-	# x11include/1.4/xorg/Pci.h is required for lenny backports
-	find src/VBox/Additions/x11/x11include/1.4 -mindepth 1 \
-	    -type f ! -wholename '*/xorg/Pci.h' -exec rm -rf {} \;
-	find src/VBox/Additions/x11/x11include/1.4 -mindepth 1 \
-	    -depth -type d -empty -exec rmdir {} \;
+	    -type d ! -name '*mesa-*' -exec rm -rf {} \;
 	cd ..; mv $(CURDIR) virtualbox-$(upstreamversion)-dfsg; \
 	    tar --exclude .svn --exclude '.git*' --exclude debian \
-	        -czf virtualbox_$(upstreamversion)-dfsg.orig.tar.gz \
+	        -cjf virtualbox_$(upstreamversion)-dfsg.orig.tar.bz2 \
 	        virtualbox-$(upstreamversion)-dfsg
