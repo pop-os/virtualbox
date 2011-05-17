@@ -94,15 +94,6 @@ static const USBSUFF s_aIntervalSuff[] =
     { "",   0,    0,       0 }  /* term */
 };
 
-/**
- * List of well-known USB device tree locations.
- */
-static const USBDEVTREELOCATION s_aTreeLocations[] =
-{
-    { "/dev/vboxusb",  true },
-    { "/proc/bus/usb", false },
-};
-
 
 /**
  * "reads" the number suffix. It's more like validating it and
@@ -1398,9 +1389,36 @@ static PUSBDEVICE getDevicesFromSysfs(const char *pcszDevicesRoot, bool testfs)
 #endif  /* !VBOX_USB_WITH_SYSFS */
 }
 
+#ifdef UNIT_TEST
+/* Set up mock functions for USBProxyLinuxCheckDeviceRoot - here dlsym and close
+ * for the inotify presence check. */
+static int testInotifyInitGood(void) { return 0; }
+static int testInotifyInitBad(void) { return -1; }
+static bool s_fHaveInotifyLibC = true;
+static bool s_fHaveInotifyKernel = true;
+
+static void *testDLSym(void *handle, const char *symbol)
+{
+    Assert(handle == RTLD_DEFAULT);
+    Assert(!RTStrCmp(symbol, "inotify_init"));
+    if (!s_fHaveInotifyLibC)
+        return NULL;
+    if (s_fHaveInotifyKernel)
+        return (void *)testInotifyInitGood;
+    return (void *)testInotifyInitBad;
+}
+
+void TestUSBSetInotifyAvailable(bool fHaveInotifyLibC, bool fHaveInotifyKernel)
+{
+    s_fHaveInotifyLibC = fHaveInotifyLibC;
+    s_fHaveInotifyKernel = fHaveInotifyKernel;
+}
+# define dlsym testDLSym
+# define close(a) do {} while(0)
+#endif
+
 /** Is inotify available and working on this system?  This is a requirement
  * for using USB with sysfs */
-/** @todo test the "inotify in glibc but not in the kernel" case. */
 static bool inotifyAvailable(void)
 {
     int (*inotify_init)(void);
@@ -1415,40 +1433,96 @@ static bool inotifyAvailable(void)
     return true;
 }
 
-PCUSBDEVTREELOCATION USBProxyLinuxGetDeviceRoot(bool fPreferSysfs)
+#ifdef UNIT_TEST
+# undef dlsym
+# undef close
+#endif
+
+#ifdef UNIT_TEST
+/** Unit test list of usbfs addresses of connected devices. */
+static const char **s_pacszUsbfsDeviceAddresses = NULL;
+
+static PUSBDEVICE testGetUsbfsDevices(const char *pcszUsbfsRoot, bool testfs)
 {
-    PCUSBDEVTREELOCATION pcBestUsbfs = NULL;
-    PCUSBDEVTREELOCATION pcBestSysfs = NULL;
-
-    bool fHaveInotify = inotifyAvailable();
-    for (unsigned i = 0; i < RT_ELEMENTS(s_aTreeLocations); ++i)
-        if (!s_aTreeLocations[i].fUseSysfs)
+    const char **pcsz;
+    PUSBDEVICE pList = NULL, pTail = NULL;
+    for (pcsz = s_pacszUsbfsDeviceAddresses; pcsz && *pcsz; ++pcsz)
+    {
+        PUSBDEVICE pNext = (PUSBDEVICE)RTMemAllocZ(sizeof(USBDEVICE));
+        if (pNext)
+            pNext->pszAddress = RTStrDup(*pcsz);
+        if (!pNext || !pNext->pszAddress)
         {
-            if (!pcBestUsbfs)
-            {
-                PUSBDEVICE pDevices;
-
-                pDevices = getDevicesFromUsbfs(s_aTreeLocations[i].szDevicesRoot,
-                                               true);
-                if (pDevices)
-                {
-                    pcBestUsbfs = &s_aTreeLocations[i];
-                    deviceListFree(&pDevices);
-                }
-            }
+            deviceListFree(&pList);
+            return NULL;
         }
+        if (pTail)
+            pTail->pNext = pNext;
         else
-        {
-            if (   fHaveInotify
-                && !pcBestSysfs
-                && RTPathExists(s_aTreeLocations[i].szDevicesRoot))
-                pcBestSysfs = &s_aTreeLocations[i];
-        }
-    if (pcBestUsbfs && !fPreferSysfs)
-        return pcBestUsbfs;
-    return pcBestSysfs;
+            pList = pNext;
+        pTail = pNext;
+    }
+    return pList;
+}
+# define getDevicesFromUsbfs testGetUsbfsDevices
+
+void TestUSBSetAvailableUsbfsDevices(const char **pacszDeviceAddresses)
+{
+    s_pacszUsbfsDeviceAddresses = pacszDeviceAddresses;
 }
 
+/** Unit test list of files reported as accessible by access(3).  We only do
+ * accessible or not accessible. */
+static const char **s_pacszAccessibleFiles = NULL;
+
+static int testAccess(const char *pcszPath, int mode)
+{
+    const char **pcsz;
+    for (pcsz = s_pacszAccessibleFiles; pcsz && *pcsz; ++pcsz)
+        if (!RTStrCmp(pcszPath, *pcsz))
+            return 0;
+    return -1;
+}
+# define access testAccess
+
+void TestUSBSetAccessibleFiles(const char **pacszAccessibleFiles)
+{
+    s_pacszAccessibleFiles = pacszAccessibleFiles;
+}
+#endif
+
+bool USBProxyLinuxCheckDeviceRoot(const char *pcszRoot, bool fIsDeviceNodes)
+{
+    bool fOK = false;
+    if (!fIsDeviceNodes)  /* usbfs */
+    {
+        PUSBDEVICE pDevices;
+
+        if (!access(pcszRoot, R_OK | X_OK))
+        {
+            fOK = true;
+            pDevices = getDevicesFromUsbfs(pcszRoot, true);
+            if (pDevices)
+            {
+                PUSBDEVICE pDevice;
+
+                for (pDevice = pDevices; pDevice && fOK; pDevice = pDevice->pNext)
+                    if (access(pDevice->pszAddress, R_OK | W_OK))
+                        fOK = false;
+                deviceListFree(&pDevices);
+            }
+        }
+    }
+    else  /* device nodes */
+        if (inotifyAvailable() && !access(pcszRoot, R_OK | X_OK))
+            fOK = true;
+    return fOK;
+}
+
+#ifdef UNIT_TEST
+# undef getDevicesFromUsbfs
+# undef access
+#endif
 
 PUSBDEVICE USBProxyLinuxGetDevices(const char *pcszDevicesRoot,
                                    bool fUseSysfs)

@@ -1438,6 +1438,17 @@ static void arp_input(PNATState pData, struct mbuf *m)
                 {
                     case CTL_DNS:
                     case CTL_ALIAS:
+                    case CTL_TFTP:
+                        if (!slirpMbufTagService(pData, mr, (uint8_t)(htip & ~pData->netmask)))
+                        {
+                            static bool fTagErrorReported;
+                            if (!fTagErrorReported)
+                            {
+                                LogRel(("NAT: couldn't add the tag(PACKET_SERVICE:%d) to mbuf:%p\n",
+                                            (uint8_t)(htip & ~pData->netmask), m));
+                                fTagErrorReported = true;
+                            }
+                        }
                         rah->ar_sha[5] = (uint8_t)(htip & ~pData->netmask);
                         break;
                     default:;
@@ -1562,6 +1573,8 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
 
     if (memcmp(eh->h_source, special_ethaddr, ETH_ALEN) != 0)
     {
+        struct m_tag *t = m_tag_first(m);
+        uint8_t u8ServiceId = CTL_ALIAS;
         memcpy(eh->h_dest, eh->h_source, ETH_ALEN);
         memcpy(eh->h_source, special_ethaddr, ETH_ALEN);
         Assert(memcmp(eh->h_dest, special_ethaddr, ETH_ALEN) != 0);
@@ -1571,6 +1584,13 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
             m_freem(pData, m);
             goto done;
         }
+        if (   t
+            && (t = m_tag_find(m, PACKET_SERVICE, NULL)))
+        {
+            Assert(t);
+            u8ServiceId = *(uint8_t *)&t[1];
+        }
+        eh->h_source[5] = u8ServiceId;
     }
     /*
      * we're processing the chain, that isn't not expected.
@@ -2019,6 +2039,8 @@ void slirp_arp_who_has(PNATState pData, uint32_t dst)
     ahdr->ar_pln = 4;
     ahdr->ar_op = RT_H2N_U16_C(ARPOP_REQUEST);
     memcpy(ahdr->ar_sha, special_ethaddr, ETH_ALEN);
+    /* we assume that this request come from gw, but not from DNS or TFTP */
+    ahdr->ar_sha[5] = CTL_ALIAS;
     *(uint32_t *)ahdr->ar_sip = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
     memset(ahdr->ar_tha, 0xff, ETH_ALEN); /*broadcast*/
     *(uint32_t *)ahdr->ar_tip = dst;

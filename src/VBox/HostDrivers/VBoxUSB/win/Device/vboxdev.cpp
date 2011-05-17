@@ -1867,6 +1867,16 @@ VBOXUSB_PIPE_INFO *VBoxUSBGetPipeState(PDEVICE_EXTENSION pDevice, uint32_t EndPo
     return NULL;
 }
 
+static VOID VBoxUSBStringDescriptorToUnicodeString(PUSB_STRING_DESCRIPTOR pDr, PUNICODE_STRING pUnicode)
+{
+    /* for some reason the string dr sometimes contains a non-null terminated string
+     * although we zeroed up the complete descriptor buffer
+     * this is why RtlInitUnicodeString won't work
+     * we need to init the scting length based on dr length */
+    pUnicode->Buffer = pDr->bString;
+    pUnicode->Length = pUnicode->MaximumLength = pDr->bLength - RT_OFFSETOF(USB_STRING_DESCRIPTOR, bString);
+}
+
 /**
  * Get a valid USB string descriptor language ID (the first ID found).
  *
@@ -1984,13 +1994,17 @@ NTSTATUS VBoxUSBGetDeviceDescription(PDEVICE_EXTENSION pDevice)
         /* Did we get a string back or not? */
         if (pstrdescr->bLength > sizeof(USB_STRING_DESCRIPTOR))
         {
-            RtlInitUnicodeString(&ustr, pstrdescr->bString);
-            RtlInitAnsiString(&astr, NULL);
-
-            RtlUnicodeStringToAnsiString(&astr, &ustr, TRUE);
-
-            strncpy(pDevice->usbdev.szSerial, astr.Buffer, sizeof(pDevice->usbdev.szSerial));
-            RtlFreeAnsiString(&astr);
+            VBoxUSBStringDescriptorToUnicodeString(pstrdescr, &ustr);
+            astr.Buffer = pDevice->usbdev.szSerial;
+            astr.Length = 0;
+            astr.MaximumLength = (USHORT)sizeof(pDevice->usbdev.szSerial) - 1;
+            memset(pDevice->usbdev.szSerial, 0, sizeof(pDevice->usbdev.szSerial));
+            status = RtlUnicodeStringToAnsiString(&astr, &ustr, FALSE);
+            if (!NT_SUCCESS(status))
+            {
+                AssertMsgFailed((__FUNCTION__": RtlUnicodeStringToAnsiString Failed status (0x%x)\n", status));
+                goto fail;
+            }
         }
     }
 

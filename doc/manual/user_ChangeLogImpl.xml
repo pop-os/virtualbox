@@ -1,6 +1,127 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.0.8 (2011-05-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed incompatibility with recent Mac OS X
+          versions in 64-bit mode (bug #8474)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed incompatibility with hosts with more
+          than 16 cores (bug #8389)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed painting corruptions on a second monitor in
+          64-bit mode (bug #7606)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: restored functionality to set an empty host key to disallow any
+          host key combination (4.0.6 regression; bug #8793)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: more expressive error messages for USB proxy permission
+          problems (mainly Linux hosts; bug #8823)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: added <computeroutput>controlvm screenshotpng</computeroutput>
+          subcommand for saving the screenshot of a running VM in PNG format</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxHeadless: fixed potential crash during shutdown
+          (Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: built-in services use the correct Ethernet addresses in
+          Ethernet header and in ARP requests</para>
+      </listitem>
+      
+      <listitem>
+        <para>Host-only networking: fixed adapter reference counting</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: fixed rare guest crashes with Linux SMP guests (bug #8755)</para>
+      </listitem>
+
+      <listitem>
+        <para>SATA: fixed guest disk corruption under rare circumstances
+          (only relevant for guests with more than 2GB RAM; bug #8826)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed data corruption after a snapshot was taken with
+          asynchronous I/O enabled (bug #8498)</para>
+      </listitem>
+
+      <listitem>
+        <para>Floppy: several improvement</para>
+      </listitem>
+
+      <listitem>
+        <para>HPET: another fix for time jumps (bug #8707)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: use correct permissions when creating /dev/vboxusb
+          (Linux hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: removed assumption that string descriptors are null-terminated
+          (Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D support: fixed a potential crash when resizing the guest
+          window</para>
+      </listitem>
+
+      <listitem>
+        <para>3D support: fixed GNOME 3 rendering under Ubuntu 11.04 and
+          Fedora 15</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: fixed another bug which could lose entries in the media
+          registry when restoring a snapshot (bug #8363)</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: don't stop mounting the other valid folders if one
+          host folder is inaccessible (4.0.6 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: check whether gcc and make are installed before  
+          building kernel modules (bug #8795)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: added support for X.Org Server 1.10</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Additions: fixed inappropriate Guest Additions update
+          notification when using vendor-specific version suffixes (bug #8844)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.0.6 (2011-04-21)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -235,7 +356,7 @@
 
       <listitem>
         <para>Windows Additions: fixed driver bugcheck error when handling PnP
-          messages (4.0 regression; bug 8367)</para>
+          messages (4.0 regression; bug #8367)</para>
       </listitem>
 
       <listitem>
@@ -544,7 +665,7 @@
 
       <listitem>
         <para>Storage: fixed possible crashes with VMDK/VHD images with snapshots
-          and async I/O (4.0 regression)</para>
+          and asynchronous I/O (4.0 regression)</para>
       </listitem>
 
       <listitem>
@@ -1418,7 +1539,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: switch to native file dialogs (Windows hosts only; bug 5459)</para>
+        <para>GUI: switch to native file dialogs (Windows hosts only; bug #5459)</para>
       </listitem>
 
       <listitem>
@@ -1650,7 +1771,7 @@
 
       <listitem>
         <para>Storage: fixed hang with images located on filesystems which
-          don't support async I/O (bug #6905)</para>
+          don't support asynchronous I/O (bug #6905)</para>
       </listitem>
 
       <listitem>
@@ -3917,7 +4038,7 @@
       </listitem>
 
       <listitem>
-        <para>NAT: fixed ethernet address corruptions (bug #4839)</para>
+        <para>NAT: fixed Ethernet address corruptions (bug #4839)</para>
       </listitem>
 
       <listitem>

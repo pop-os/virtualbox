@@ -74,29 +74,37 @@ static inline void deviceListFree(PUSBDEVICE *ppHead)
 
 RT_C_DECLS_BEGIN
 
-/** List of well-known USB device tree locations */
-typedef struct USBDEVTREELOCATION
-{
-    /** The root of the device tree for this location. */
-    char szDevicesRoot[256];
-    /** Whether this location requires device enumeration using sysfs. */
-    bool fUseSysfs;
-} USBDEVTREELOCATION, *PUSBDEVTREELOCATION;
-typedef const USBDEVTREELOCATION *PCUSBDEVTREELOCATION;
-
 /**
- * Get the USB device tree root
- * @param  fPreferSysfs  whether we wish to use sysfs over usbfs for
- *                       enumeration if we have the choice
- * @note   returns a pointer into a static array so it will stay valid
+ * Check whether a USB device tree root is usable
+ * @param pcszRoot        the path to the root of the device tree
+ * @param fIsDeviceNodes  whether this is a device node (or usbfs) tree
+ * @note  returns a pointer into a static array so it will stay valid
  */
-extern PCUSBDEVTREELOCATION USBProxyLinuxGetDeviceRoot(bool fPreferSysfs);
+extern bool USBProxyLinuxCheckDeviceRoot(const char *pcszRoot,
+                                         bool fIsDeviceNodes);
+
+#ifdef UNIT_TEST
+/**
+ * Specify the list of devices that will appear to be available through
+ * usbfs during unit testing (of USBProxyLinuxGetDevices)
+ * @param  pacszDeviceAddresses  NULL terminated array of usbfs device addresses
+ */
+extern void TestUSBSetAvailableUsbfsDevices(const char **pacszDeviceAddresses);
+/**
+ * Specify the list of files that access will report as accessible (at present
+ * we only do accessible or not accessible) during unit testing (of
+ * USBProxyLinuxGetDevices)
+ * @param  pacszAccessibleFiles  NULL terminated array of file paths to be
+ *                               reported accessible
+ */
+extern void TestUSBSetAccessibleFiles(const char **pacszAccessibleFiles);
+#endif
 
 /**
  * Get the list of USB devices supported by the system.  Should be freed using
  * @a deviceFree or something equivalent.
  * @param pcszDevicesRoot  the path to the root of the device tree
- * @param fUseSysfs       whether to use sysfs (or usbfs) for enumeration
+ * @param fUseSysfs        whether to use sysfs (or usbfs) for enumeration
  */
 extern PUSBDEVICE USBProxyLinuxGetDevices(const char *pcszDevicesRoot,
                                           bool fUseSysfs);

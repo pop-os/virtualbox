@@ -3592,7 +3592,7 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
     </message>
     <message>
         <source>&lt;p&gt;Select a virtual hard disk to be used as the boot hard disk of the virtual machine. You can either create a new hard disk or select an existing one from the drop-down list or by pressing corresponding button (to invoke file-open window).&lt;/p&gt;&lt;p&gt;If you need a more complicated hard disk setup, you can also skip this step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Choisissez un disque dur virtuel à utiliser pour l&apos;amorçage de la machine virtuelle. Void pouvez soit créer un nouveau disque, soit choisir un disque existant dans la liste ou en cliquant sur le bouton corréspontand.&lt;/p&gt;&lt;p&gt;Si vous avez besoin d&apos;une configuration de disques plus complexe, vous pouvez sauter cette étape et allouer des disques plus tard dans la Configuration de la machine.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Choisissez un disque dur virtuel à utiliser pour l&apos;amorçage de la machine virtuelle. Vous pouvez soit créer un nouveau disque, soit choisir un disque existant dans la liste ou en cliquant sur le bouton correspondant.&lt;/p&gt;&lt;p&gt;Si vous avez besoin d&apos;une configuration de disques plus complexe, vous pouvez sauter cette étape et allouer des disques plus tard dans la Configuration de la machine.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual hard disk file...</source>
@@ -6820,6 +6820,26 @@ And the size is not necessarily &quot;in megabytes&quot;, the slider chooses the
     <message>
         <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
         <translation>&lt;p&gt;USB 2.0 est active pour cette machine virtuelle, mais ceci nécessite que l&apos;extension &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; soit installée.&lt;/p&gt;&lt;p&gt;Veuillez installer l&apos;extension à partir du site de téléchargement VirtualBox. Vous pourrez alors réactiver USB 2.0. En attendant, la fonctionnalité sera désactivée si vous n&apos;annulez pas les changements actuels.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Could not load the Host USB Proxy Service (VERR_FILE_NOT_FOUND). The service might not be installed on the host computer</source>
+        <translation>Le service de relais de périphériques USB n&apos;a pas pû être activé (erreur VERR_FILE_NOT_FOUND). Il se peut que le service ne soit pas installé sur l&apos;ordinateur hôte</translation>
+    </message>
+    <message>
+        <source>VirtualBox is not currently allowed to access USB devices.  You can change this by adding your user to the &apos;vboxusers&apos; group.  Please see the user manual for a more detailed explanation</source>
+        <translation>VirtualBox n&apos;est pas autorisé à accéder aux périphériques USB actuellement. Vous pouvez changer ceci en ajoutant votre nom d&apos;utilisateur au groupe «vboxusers». Veuillez consulter le guide de l&apos;utilisateur pour des explications plus détaillées</translation>
+    </message>
+    <message>
+        <source>VirtualBox is not currently allowed to access USB devices.  You can change this by allowing your user to access the &apos;usbfs&apos; folder and files.  Please see the user manual for a more detailed explanation</source>
+        <translation>VirtualBox n&apos;est pas autorisé à accéder aux périphériques USB actuellement. Vous pouvez changer ceci en donnant accès pour votre nom d&apos;utilisateur aux fichiers et dossiers «usbfs». Veuillez consulter le guide de l&apos;utilisateur pour des explications plus détaillées</translation>
+    </message>
+    <message>
+        <source>The USB Proxy Service has not yet been ported to this host</source>
+        <translation>Le service de relais de périphériques USB n&apos;a pas encore été porté sur ce système d&apos;exploitation</translation>
+    </message>
+    <message>
+        <source>Could not load the Host USB Proxy service</source>
+        <translation>Le service de relais de périphériques USB n&apos;a pas pû être activé</translation>
     </message>
 </context>
 <context>

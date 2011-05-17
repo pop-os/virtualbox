@@ -333,7 +333,7 @@ static void hpetProgramTimer(HpetTimer *pTimer)
      */
     if ((pTimer->u64Config & HPET_TN_32BIT) && !(pTimer->u64Config & HPET_TN_PERIODIC))
     {
-        u32TillWrap = 0xffffffff - (uint32_t)u64Ticks;
+        u32TillWrap = 0xffffffff - (uint32_t)u64Ticks + 1;
         if (u32TillWrap < (uint32_t)u64Diff)
         {
             u64Diff = u32TillWrap;

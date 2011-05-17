@@ -151,7 +151,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
                 LONG lSecsRem = 0;
                 progress->COMGETTER(TimeRemaining)(&lSecsRem);
 
-                RTStrmPrintf(g_pStdErr, "(%ld/%ld) %ls %ld%% => %ld%% (%d s remaining)\n", ulOperation + 1, cOperations, bstrOperationDescription.raw(), ulCurrentOperationPercent, ulCurrentPercent, lSecsRem);
+                RTStrmPrintf(g_pStdErr, "(%u/%u) %ls %02u%% => %02u%% (%d s remaining)\n", ulOperation + 1, cOperations, bstrOperationDescription.raw(), ulCurrentOperationPercent, ulCurrentPercent, lSecsRem);
                 ulLastPercent = ulCurrentPercent;
                 ulLastOperationPercent = ulCurrentOperationPercent;
             }
@@ -166,7 +166,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
                 {
                     if (curVal < 100)
                     {
-                        RTStrmPrintf(g_pStdErr, "%ld%%...", curVal);
+                        RTStrmPrintf(g_pStdErr, "%u%%...", curVal);
                         RTStrmFlush(g_pStdErr);
                     }
                 }
@@ -231,6 +231,12 @@ HRESULT showProgress(ComPtr<IProgress> progress)
 
 #endif /* !VBOX_ONLY_DOCS */
 
+#ifdef RT_OS_WINDOWS 
+// Required for ATL
+static CComModule _Module;
+#endif
+
+
 int main(int argc, char *argv[])
 {
     /*
@@ -293,6 +299,13 @@ int main(int argc, char *argv[])
         {
             /* suppress the logo */
             fShowLogo = false;
+            iCmd++;
+        }
+        else if (   !strcmp(argv[i], "--detailed-progress")
+                 || !strcmp(argv[i], "-d"))
+        {
+            /* detailed progress report */
+            g_fDetailedProgress = true;
             iCmd++;
         }
         else

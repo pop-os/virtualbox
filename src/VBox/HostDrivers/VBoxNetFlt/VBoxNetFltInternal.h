@@ -179,16 +179,18 @@ typedef struct VBOXNETFLTINS
 #  ifdef VBOX_WITH_NETFLT_CROSSBOW
             /** Whether the underlying interface is a VNIC or not. */
             bool fIsVNIC;
+            /** Whether the underlying interface is a VNIC template or not. */
+            bool fIsVNICTemplate;
             /** Handle to list of created VNICs. */
             list_t hVNICs;
             /** Instance number while creating VNICs. */
             uint64_t uInstance;
-            /** Pointer to the VNIC instance data. */
-            void *pvVNIC;
             /** The MAC address of the host interface. */
             RTMAC MacAddr;
-            /** Whether required capabilities have been reported. */
-            bool fReportedInfo;
+            /** Handle of this interface (lower MAC). */
+            mac_handle_t hInterface;
+            /** Handle to link state notifier. */
+            mac_notify_handle_t hNotify;
 #  else
             /** Pointer to the bound IPv4 stream. */
             struct vboxnetflt_stream_t * volatile pIp4Stream;
