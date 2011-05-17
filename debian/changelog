@@ -1,4 +1,4 @@
-virtualbox (4.0.6-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.0.8-dfsg-1) UNRELEASED; urgency=low
 
   * New upstream release.
   * Adapt 07-vboxnetflt-reference.patch to new upstream version.
