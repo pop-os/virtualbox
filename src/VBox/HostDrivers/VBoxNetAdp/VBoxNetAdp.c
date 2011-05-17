@@ -601,8 +601,9 @@ int vboxNetAdpCreate(PINTNETTRUNKFACTORY pIfFactory, PVBOXNETADP *ppNew)
         if (vboxNetAdpCheckAndSetState(pThis, kVBoxNetAdpState_Invalid, kVBoxNetAdpState_Transitional))
         {
             /* Found an empty slot -- use it. */
+            uint32_t cRefs = ASMAtomicIncU32(&pThis->cRefs);
+            Assert(cRefs == 1);
             RTMAC Mac;
-            Assert(ASMAtomicIncU32(&pThis->cRefs) == 1);
             vboxNetAdpComposeMACAddress(pThis, &Mac);
             rc = vboxNetAdpOsCreate(pThis, &Mac);
             *ppNew = pThis;
@@ -1087,7 +1088,9 @@ DECLINLINE(int) vboxNetAdpGetNextAvailableUnit(void)
 
 DECLINLINE(void) vboxNetAdpReleaseUnit(int iUnit)
 {
-    Assert(ASMAtomicBitTestAndClear(g_aUnits, iUnit));
+    bool fSet = ASMAtomicBitTestAndClear(g_aUnits, iUnit);
+    NOREF(fSet);
+    Assert(fSet);
 }
 
 /**

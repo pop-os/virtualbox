@@ -953,12 +953,12 @@
         <translation>Netzwerk</translation>
     </message>
     <message>
-        <source>VirtualBox - %1</source>
-        <translation></translation>
-    </message>
-    <message>
         <source>Extensions</source>
         <translation>Zusatzpakete</translation>
+    </message>
+    <message>
+        <source>VirtualBox - %1</source>
+        <translation></translation>
     </message>
 </context>
 <context>
@@ -4772,7 +4772,7 @@
     <message>
         <source>Null</source>
         <comment>AuthType</comment>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <source>External</source>
@@ -5643,7 +5643,7 @@
     </message>
     <message>
         <source>Could not access USB on the host system, because neither the USB file system (usbfs) nor the DBus and hal services are currently available. If you wish to use host USB devices inside guest systems, you must correct this and restart VirtualBox.</source>
-        <translation>Der Zugriff auf USB-Geräte des Hosts ist nicht möglich, weil weder das USB-Dateisystem (usbfs) mit den entsprechenden Rechten gemountet ist, noch der DBus / Hal-Service verfügbar ist. Falls Sie USB-Geräte des Hosts innerhalb von Gästen nutzen wollen, müssen Sie dieses Problem beheben und VirtualBox neu starten.</translation>
+        <translation type="obsolete">Der Zugriff auf USB-Geräte des Hosts ist nicht möglich, weil weder das USB-Dateisystem (usbfs) mit den entsprechenden Rechten gemountet ist, noch der DBus / Hal-Service verfügbar ist. Falls Sie USB-Geräte des Hosts innerhalb von Gästen nutzen wollen, müssen Sie dieses Problem beheben und VirtualBox neu starten.</translation>
     </message>
     <message>
         <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not support software shutdown.</source>
@@ -6072,6 +6072,26 @@
         <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that the parent really exists and that you have permissions to create the machine folder.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Das Verzeichnis für die virtuellen Maschinen &lt;b&gt;%1&lt;/b&gt; kann im Verzeichnis &lt;nobr&gt;&lt;b&gt;%2&lt;/nobr&gt; nicht erzeugt werden. &lt;/p&gt;&lt;p&gt;Bitte stellen Sie sicher, dass das übergeordnete Verzeichnis vorhanden und schreibbar ist.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>Could not load the Host USB Proxy Service (VERR_FILE_NOT_FOUND). The service might not be installed on the host computer</source>
+        <translation>Der USB-Proxy-Dienst konnte nicht gestarted werden. Dieser Dienst ist möglicherweise nicht auf diesem Computer installiert</translation>
+    </message>
+    <message>
+        <source>VirtualBox is not currently allowed to access USB devices.  You can change this by adding your user to the &apos;vboxusers&apos; group.  Please see the user manual for a more detailed explanation</source>
+        <translation>VirtualBox kann nicht auf USB-Geräte zugreifen. Dieses Problem kann dadurch gelöst werden, indem der aktuelle Nutzer Mitglied der Gruppe &apos;vboxusers&apos; wird. In der Dokumentation finden Sie eine genauere Erklärung</translation>
+    </message>
+    <message>
+        <source>VirtualBox is not currently allowed to access USB devices.  You can change this by allowing your user to access the &apos;usbfs&apos; folder and files.  Please see the user manual for a more detailed explanation</source>
+        <translation>VirtualBox kann nicht auf USB-Geräte zugreifen. Dieses Problem wird gelöst, wenn der aktuelle Nutzer auf die Dateien und Order des USB-Dateisystems (usbfs) zugreifen kann. In der Dokumentation finden Sie eine genauere Erklärung</translation>
+    </message>
+    <message>
+        <source>The USB Proxy Service has not yet been ported to this host</source>
+        <translation>Der USB-Proxy-Dienst wurde nicht auf diesen Host portiert</translation>
+    </message>
+    <message>
+        <source>Could not load the Host USB Proxy service</source>
+        <translation>Der USB-Proxy-Dienst konnte nicht gestartet werden</translation>
+    </message>
 </context>
 <context>
     <name>VBoxSFDialog</name>
@@ -6173,10 +6193,6 @@
     <message>
         <source>Show the log files of the selected virtual machine</source>
         <translation>Zeigt die Log-Dateien der ausgewählten virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>R&amp;esume</source>
-        <translation type="obsolete">&amp;Fortfahren</translation>
     </message>
     <message>
         <source>Resume the execution of the virtual machine</source>

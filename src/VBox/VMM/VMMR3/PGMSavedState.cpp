@@ -2218,7 +2218,13 @@ static int pgmR3LoadPageBitsOld(PVM pVM, PSSMHANDLE pSSM, uint8_t uType, PPGMPAG
      * Match up the type, dealing with MMIO2 aliases (dropped).
      */
     AssertLogRelMsgReturn(   PGM_PAGE_GET_TYPE(pPage) == uType
-                          || uType == PGMPAGETYPE_INVALID,
+                          || uType == PGMPAGETYPE_INVALID
+                          /* kudge for the expanded PXE bios (r67885) - #5687: */
+                          || (   uType == PGMPAGETYPE_RAM
+                              && GCPhys >= 0xed000
+                              && GCPhys <= 0xeffff
+                              && PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_ROM)
+                          ,
                           ("pPage=%R[pgmpage] GCPhys=%#x %s\n", pPage, GCPhys, pRam->pszDesc),
                           VERR_SSM_UNEXPECTED_DATA);
 

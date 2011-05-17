@@ -744,7 +744,6 @@ void UIVMSettingsDlg::putBackTo()
         }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
-#ifndef VBOX_OSE
         /* Enable OHCI controller if HID is enabled: */
         if (pSystemPage && pSystemPage->isHIDEnabled())
         {
@@ -752,7 +751,6 @@ void UIVMSettingsDlg::putBackTo()
             if (!controller.isNull())
                 controller.SetEnabled(true);
         }
-#endif /* !VBOX_OSE */
 
         /* Clear the "GUI_FirstRun" extra data key in case if
          * the boot order or disk configuration were changed: */
@@ -894,7 +892,6 @@ bool UIVMSettingsDlg::recorrelate(QWidget *pPage, QString &strWarning)
     }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
-#ifndef VBOX_OSE
     if (pPage == m_pSelector->idToPage(VMSettingsPage_System))
     {
         /* Get System & USB pages: */
@@ -913,7 +910,6 @@ bool UIVMSettingsDlg::recorrelate(QWidget *pPage, QString &strWarning)
             return true;
         }
     }
-#endif /* !VBOX_OSE */
 
     if (pPage == m_pSelector->idToPage(VMSettingsPage_Storage))
     {
@@ -1016,7 +1012,7 @@ bool UIVMSettingsDlg::isAvailable(int id)
             /* Get the USB controller object: */
             CUSBController controller = m_machine.GetUSBController();
             /* Show the machine error message if any: */
-            if (!m_machine.isReallyOk())
+            if (!m_machine.isReallyOk() && !controller.isNull() && controller.GetEnabled())
                 vboxProblem().cannotAccessUSB(m_machine);
             /* Check if USB is implemented: */
             if (controller.isNull() || !controller.GetProxyAvailable())

@@ -1456,7 +1456,7 @@ if mach is None:
 else:
     session = mgr.getSessionObject(vbox)
     # one can also start headless session with "headless" instead of "gui"
-    progress = vb.openRemoteSession(session, mach.id, "gui", "")
+    progress = mach.launchVMProcess(session, mach.id, "gui", "")
     progress.waitForCompletion(-1)
     session.close()
         </screen>
@@ -1746,19 +1746,18 @@ IFoo *foo;
 rc = object-&gt;vtbl-&gt;Method(object, args, ..., &amp;foo);</screen>
 
           <para>As a real-world example of a method invocation, let's call
-          <xref linkend="IVirtualBox__openRemoteSession"
-          xreflabel="IVirtualBox::openRemoteSession" /> which returns an
+          <xref linkend="IMachine__launchVMProcess"
+          xreflabel="IMachine::launchVMProcess" /> which returns an
           IProgress object. Note again that the method name is
           capitalized.</para>
 
           <screen>IProgress *progress;
 ...
-rc = vbox-&gt;vtbl-&gt;OpenRemoteSession(
-    vbox,          /* this  */
+rc = vbox-&gt;vtbl-&gt;LaunchVMProcess(
+    machine,       /* this  */
     session,       /* arg 1 */
-    id,            /* arg 2 */
-    sessionType,   /* arg 3 */
-    env,           /* arg 4 */
+    sessionType,   /* arg 2 */
+    env,           /* arg 3 */
     &amp;progress      /* Out   */
 );
 </screen>
@@ -4002,20 +4001,20 @@ AuthResult AUTHCALL AuthEntry(
         </listitem>
 
         <listitem>
-          <para>The <xref linkend="IVRDPServer" xreflabel="IVRDPServer" />,
-          <xref linkend="IRemoteDisplayInfo" xreflabel="IRemoteDisplayInfo" />
-          and IConsoleCallback interfaces were changed to reflect VRDP server
-          ability to bind to one of available ports from a list of
-          ports.</para>
+          <para>The <computeroutput>IVRDPServer</computeroutput>,
+          <computeroutput>IRemoteDisplayInfo</computeroutput> and
+          <computeroutput>IConsoleCallback</computeroutput>  interfaces were
+          changed to reflect VRDP server ability to bind to one of available
+          ports from a list of ports.</para>
 
           <para>The <computeroutput>IVRDPServer::port</computeroutput>
-          attribute has been replaced with <xref linkend="IVRDPServer__ports"
-          xreflabel="IVRDPServer::ports" />, which is a comma-separated list
-          of ports or ranges of ports.</para>
+          attribute has been replaced with
+          <computeroutput>IVRDPServer::ports</computeroutput>, which is a
+          comma-separated list of ports or ranges of ports.</para>
 
-          <para>An <xref linkend="IRemoteDisplayInfo__port"
-          xreflabel="IRemoteDisplayInfo::port" /> attribute has been added for
-          querying the actual port VRDP server listens on.</para>
+          <para>An <computeroutput>IRemoteDisplayInfo::port</computeroutput>
+          attribute has been added for querying the actual port VRDP server
+          listens on.</para>
 
           <para>An IConsoleCallback::onRemoteDisplayInfoChange() notification
           callback has been added.</para>

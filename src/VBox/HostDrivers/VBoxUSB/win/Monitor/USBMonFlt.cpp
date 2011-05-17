@@ -730,6 +730,16 @@ fail:
     return status;
 }
 
+static VOID VBoxUSBStringDescriptorToUnicodeString(PUSB_STRING_DESCRIPTOR pDr, PUNICODE_STRING pUnicode)
+{
+    /* for some reason the string dr sometimes contains a non-null terminated string
+     * although we zeroed up the complete descriptor buffer
+     * this is why RtlInitUnicodeString won't work
+     * we need to init the scting length based on dr length */
+    pUnicode->Buffer = pDr->bString;
+    pUnicode->Length = pUnicode->MaximumLength = pDr->bLength - RT_OFFSETOF(USB_STRING_DESCRIPTOR, bString);
+}
+
 NTSTATUS VBoxUSBGetStringDescriptor(PDEVICE_OBJECT pDevObj, char *dest, unsigned size, int index, int lang_id)
 {
     NTSTATUS                status;
@@ -765,11 +775,17 @@ NTSTATUS VBoxUSBGetStringDescriptor(PDEVICE_OBJECT pDevObj, char *dest, unsigned
         }
         if (pstrdescr->bLength > sizeof(USB_STRING_DESCRIPTOR))
         {
-            RtlInitUnicodeString(&ustr, pstrdescr->bString);
-            RtlInitAnsiString(&astr, NULL);
-            RtlUnicodeStringToAnsiString(&astr, &ustr, TRUE);
-            strncpy(dest, astr.Buffer, size);
-            RtlFreeAnsiString(&astr);
+            VBoxUSBStringDescriptorToUnicodeString(pstrdescr, &ustr);
+            astr.Buffer = dest;
+            astr.Length = 0;
+            astr.MaximumLength = (USHORT)size - 1;
+            memset(dest, 0, size);
+            status = RtlUnicodeStringToAnsiString(&astr, &ustr, FALSE);
+            if (!NT_SUCCESS(status))
+            {
+                AssertMsgFailed((__FUNCTION__": RtlUnicodeStringToAnsiString Failed status (0x%x)\n", status));
+                goto fail;
+            }
         }
     }
     status = STATUS_SUCCESS;

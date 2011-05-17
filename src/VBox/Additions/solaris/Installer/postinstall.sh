@@ -22,70 +22,55 @@
 # terms and conditions of either the GPL or the CDDL or both.
 #
 
+# uncompress(directory, file)
+# Updates package metadata and uncompresses the file.
+uncompress_file()
+{
+    if test -z "$1" || test -z "$2"; then
+        echo "missing argument to uncompress_file()"
+        return 1
+    fi
+
+    # Remove compressed path from the pkg
+    /usr/sbin/removef $PKGINST "$1/$2.Z" 1>/dev/null
+
+    # Add uncompressed path to the pkg
+    /usr/sbin/installf -c none $PKGINST "$1/$2" f
+
+    # Uncompress the file (removes compressed file when done)
+    uncompress -f "$1/$2.Z" > /dev/null 2>&1
+}
+
 uncompress_files()
 {
-    # Remove compressed names from the pkg
-    /usr/sbin/removef $PKGINST "$1/VBoxClient.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/VBoxService.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/VBoxControl.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_13.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_14.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_15.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_16.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_17.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_18.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_19.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxvideo_drv_71.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_14.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_15.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_16.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_17.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_18.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_19.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_70.so.Z" 1>/dev/null
-    /usr/sbin/removef $PKGINST "$1/vboxmouse_drv_71.so.Z" 1>/dev/null
+    # VBox guest files
+    uncompress_file "$1" "VBoxClient"
+    uncompress_file "$1" "VBoxService"
+    uncompress_file "$1" "VBoxControl"
 
-    # Add uncompressed names to the pkg
-    /usr/sbin/installf -c none $PKGINST "$1/VBoxClient" f
-    /usr/sbin/installf -c none $PKGINST "$1/VBoxService" f
-    /usr/sbin/installf -c none $PKGINST "$1/VBoxControl" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_13.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_14.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_15.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_16.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_17.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_18.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_19.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxvideo_drv_71.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_14.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_15.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_16.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_17.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_18.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_19.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_70.so" f
-    /usr/sbin/installf -c none $PKGINST "$1/vboxmouse_drv_71.so" f
+    # VBox Xorg Video drivers
+    uncompress_file "$1" "vboxvideo_drv_13.so"
+    uncompress_file "$1" "vboxvideo_drv_14.so" 
+    uncompress_file "$1" "vboxvideo_drv_15.so" 
+    uncompress_file "$1" "vboxvideo_drv_16.so" 
+    uncompress_file "$1" "vboxvideo_drv_17.so" 
+    uncompress_file "$1" "vboxvideo_drv_18.so" 
+    uncompress_file "$1" "vboxvideo_drv_19.so" 
+    uncompress_file "$1" "vboxvideo_drv_110.so"
+    uncompress_file "$1" "vboxvideo_drv_70.so" 
+    uncompress_file "$1" "vboxvideo_drv_71.so" 
 
-    # Overwrite compressed with uncompressed file
-    uncompress -f "$1/VBoxClient.Z" > /dev/null 2>&1
-    uncompress -f "$1/VBoxService.Z" > /dev/null 2>&1
-    uncompress -f "$1/VBoxControl.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_13.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_14.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_15.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_16.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_17.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_18.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_19.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxvideo_drv_71.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_14.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_15.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_16.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_17.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_18.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_19.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_70.so.Z" > /dev/null 2>&1
-    uncompress -f "$1/vboxmouse_drv_71.so.Z" > /dev/null 2>&1
+    # VBox Xorg Mouse drivers
+    uncompress_file "$1" "vboxmouse_drv_13.so" 
+    uncompress_file "$1" "vboxmouse_drv_14.so" 
+    uncompress_file "$1" "vboxmouse_drv_15.so" 
+    uncompress_file "$1" "vboxmouse_drv_16.so" 
+    uncompress_file "$1" "vboxmouse_drv_17.so" 
+    uncompress_file "$1" "vboxmouse_drv_18.so" 
+    uncompress_file "$1" "vboxmouse_drv_19.so" 
+    uncompress_file "$1" "vboxmouse_drv_110.so"
+    uncompress_file "$1" "vboxmouse_drv_70.so"
+    uncompress_file "$1" "vboxmouse_drv_71.so"
 }
 
 solaris64dir="amd64"
@@ -190,6 +175,10 @@ if test ! -z "$xorgbin"; then
             vboxmouse_src="vboxmouse_drv_19.so"
             vboxvideo_src="vboxvideo_drv_19.so"
             ;;
+        1.10.*)
+            vboxmouse_src="vboxmouse_drv_110.so"
+            vboxvideo_src="vboxvideo_drv_110.so"
+            ;;
         7.1.* | *7.2.* )
             vboxmouse_src="vboxmouse_drv_71.so"
             vboxvideo_src="vboxvideo_drv_71.so"
@@ -223,6 +212,16 @@ if test ! -z "$xorgbin"; then
         vboxmouse64_dest_base=$vboxmouse32_dest_base/$solaris64dir
         vboxvideo64_dest_base=$vboxvideo32_dest_base/$solaris64dir
 
+        # snv_163 drops 32-bit support completely, and uses 32-bit locations for the 64-bit stuff. Ugly.
+        # We try to detect this by looking at bitness of "mouse_drv.so", and adjust our destination paths accordingly.
+        bitsize=`file $vboxmouse32_dest_base/mouse_drv.so | grep "32-bit"`
+        skip32="no"
+        if test -z "$bitsize"; then
+            skip32="yes"
+            vboxmouse64_dest_base=$vboxmouse32_dest_base
+            vboxvideo64_dest_base=$vboxvideo32_dest_base
+        fi
+
         # Make sure destination path exists
         if test ! -d $vboxmouse32_dest_base || test ! -d $vboxvideo32_dest_base || test ! -d $vboxmouse64_dest_base || test ! -d $vboxvideo64_dest_base; then
             echo "*** Missing destination paths for mouse or video modules. Aborting."
@@ -232,7 +231,7 @@ if test ! -z "$xorgbin"; then
             retval=2
         else
             # 32-bit x11 drivers
-            if test -f "$vboxadditions32_path/$vboxmouse_src"; then
+            if test "$skip32" = "no" && test -f "$vboxadditions32_path/$vboxmouse_src"; then
                 vboxmouse_dest="$vboxmouse32_dest_base/vboxmouse_drv.so"
                 vboxvideo_dest="$vboxvideo32_dest_base/vboxvideo_drv.so"
                 /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
@@ -287,7 +286,7 @@ if test ! -z "$xorgbin"; then
                 7.1.* | 7.2.* | 6.9.* | 7.0.* | 1.3.* )
                     $vboxadditions_path/x11config.pl
                     ;;
-                1.4.* | 1.5.* | 1.6.* | 1.7.* | 1.8.* | 1.9.* )
+                1.4.* | 1.5.* | 1.6.* | 1.7.* | 1.8.* | 1.9.* | 1.10.*)
                     $vboxadditions_path/x11config15sol.pl
                     ;;
             esac

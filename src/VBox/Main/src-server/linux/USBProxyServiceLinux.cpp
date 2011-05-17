@@ -31,6 +31,7 @@
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
+#include <iprt/dir.h>
 #include <iprt/env.h>
 #include <iprt/file.h>
 #include <iprt/err.h>
@@ -61,10 +62,38 @@ USBProxyServiceLinux::USBProxyServiceLinux(Host *aHost)
     : USBProxyService(aHost), mFile(NIL_RTFILE), mWakeupPipeR(NIL_RTFILE),
       mWakeupPipeW(NIL_RTFILE), mUsingUsbfsDevices(true /* see init */),
       mUdevPolls(0), mpWaiter(NULL)
+#ifdef UNIT_TEST
+      , mpcszTestUsbfsRoot(NULL), mfTestUsbfsAccessible(false),
+      mpcszTestDevicesRoot(NULL), mfTestDevicesAccessible(false),
+      mrcTestMethodInitResult(VINF_SUCCESS), mpcszTestEnvUsb(NULL),
+      mpcszTestEnvUsbRoot(NULL)
+#endif
 {
     LogFlowThisFunc(("aHost=%p\n", aHost));
 }
 
+#ifdef UNIT_TEST
+/* For testing we redefine anything that accesses the outside world to
+ * return test values. */
+# define RTEnvGet(a) \
+    (  !RTStrCmp(a, "VBOX_USB") ? mpcszTestEnvUsb \
+     : !RTStrCmp(a, "VBOX_USB_ROOT") ? mpcszTestEnvUsbRoot \
+     : NULL)
+# define USBProxyLinuxCheckDeviceRoot(pcszPath, fUseNodes) \
+    (   ((fUseNodes) && mfTestDevicesAccessible \
+                     && !RTStrCmp(pcszPath, mpcszTestDevicesRoot)) \
+     || (!(fUseNodes) && mfTestUsbfsAccessible \
+                      && !RTStrCmp(pcszPath, mpcszTestUsbfsRoot)))
+# define RTDirExists(pcszDir) \
+    (   (pcszDir) \
+     && (   !RTStrCmp(pcszDir, mpcszTestDevicesRoot) \
+         || !RTStrCmp(pcszDir, mpcszTestUsbfsRoot)))
+# define RTFileExists(pcszFile) \
+    (   (pcszFile) \
+     && mpcszTestUsbfsRoot \
+     && !RTStrNCmp(pcszFile, mpcszTestUsbfsRoot, strlen(mpcszTestUsbfsRoot)) \
+     && !RTStrCmp(pcszFile + strlen(mpcszTestUsbfsRoot), "/devices"))
+#endif
 
 /**
  * Initializes the object (called right after construction).
@@ -81,17 +110,14 @@ HRESULT USBProxyServiceLinux::init(void)
 
     /*
      * We have two methods available for getting host USB device data - using
-     * USBFS and using sysfs/hal.  The default choice depends on build-time
-     * settings and an environment variable; if the default is not available
-     * we fall back to the second.
-     * In the event of both failing, the error from the second method tried
-     * will be presented to the user.
+     * USBFS and using sysfs.  The default choice is sysfs; if that is not
+     * available we fall back to USBFS.
+     * In the event of both failing, an appropriate error will be returned.
+     * The user may also specify a method and root using the VBOX_USB and
+     * VBOX_USB_ROOT environment variables.  In this case we don't check
+     * the root they provide for validity.
      */
-#ifdef VBOX_WITH_SYSFS_BY_DEFAULT
-    bool fUseSysfs = true;
-#else
-    bool fUseSysfs = false;
-#endif
+    bool fUsbfsChosen = false, fSysfsChosen = false;
     const char *pcszUsbFromEnv = RTEnvGet("VBOX_USB");
     const char *pcszUsbRoot = NULL;
     if (pcszUsbFromEnv)
@@ -102,37 +128,49 @@ HRESULT USBProxyServiceLinux::init(void)
         if (!RTStrICmp(pcszUsbFromEnv, "USBFS"))
         {
             LogRel(("Default USB access method set to \"usbfs\" from environment\n"));
-            fUseSysfs = false;
+            fUsbfsChosen = true;
         }
         else if (!RTStrICmp(pcszUsbFromEnv, "SYSFS"))
         {
             LogRel(("Default USB method set to \"sysfs\" from environment\n"));
-            fUseSysfs = true;
+            fSysfsChosen = true;
         }
         else
         {
             LogRel(("Invalid VBOX_USB environment variable setting \"%s\"\n",
                     pcszUsbFromEnv));
             fValidVBoxUSB = false;
+            pcszUsbFromEnv = NULL;
         }
         if (!fValidVBoxUSB && pcszUsbRoot)
             pcszUsbRoot = NULL;
     }
     if (!pcszUsbRoot)
     {
-        PCUSBDEVTREELOCATION pcLocation;
-        pcLocation = USBProxyLinuxGetDeviceRoot(fUseSysfs);
-        if (pcLocation)
+        if (   !fUsbfsChosen
+            && USBProxyLinuxCheckDeviceRoot("/dev/vboxusb", true))
         {
-            pcszUsbRoot = pcLocation->szDevicesRoot;
-            fUseSysfs = pcLocation->fUseSysfs;
+            fSysfsChosen = true;
+            pcszUsbRoot = "/dev/vboxusb";
+        }
+        else if (   !fSysfsChosen
+                 && USBProxyLinuxCheckDeviceRoot("/proc/bus/usb", false))
+        {
+            fUsbfsChosen = true;
+            pcszUsbRoot = "/proc/bus/usb";
         }
     }
+    else if (!USBProxyLinuxCheckDeviceRoot(pcszUsbRoot, fSysfsChosen))
+        pcszUsbRoot = NULL;
     if (pcszUsbRoot)
     {
-        mUsingUsbfsDevices = !fUseSysfs;
+        mUsingUsbfsDevices = fUsbfsChosen;
         mDevicesRoot = pcszUsbRoot;
+#ifndef UNIT_TEST /* Hack for now */
         int rc = mUsingUsbfsDevices ? initUsbfs() : initSysfs();
+#else
+        int rc = mrcTestMethodInitResult;
+#endif
         /* For the day when we have VBoxSVC release logging... */
         LogRel((RT_SUCCESS(rc) ? "Successfully initialised host USB using %s\n"
                                : "Failed to initialise host USB using %s\n",
@@ -140,10 +178,19 @@ HRESULT USBProxyServiceLinux::init(void)
         mLastError = rc;
     }
     else
-        mLastError = VERR_NOT_FOUND;
+        mLastError =   pcszUsbFromEnv ? VERR_NOT_FOUND
+                     : RTDirExists("/dev/vboxusb") ? VERR_VUSB_USB_DEVICE_PERMISSION
+                     : RTFileExists("/proc/bus/usb/devices") ? VERR_VUSB_USBFS_PERMISSION
+                     : VERR_NOT_FOUND;
     return S_OK;
 }
 
+#ifdef UNIT_TEST
+# undef RTEnvGet
+# undef USBProxyLinuxCheckDeviceRoot
+# undef RTDirExists
+# undef RTFileExists
+#endif
 
 /**
  * Initialization routine for the usbfs based operation.

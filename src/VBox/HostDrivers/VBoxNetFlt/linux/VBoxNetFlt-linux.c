@@ -1350,7 +1350,7 @@ static int vboxNetFltLinuxPacketHandler(struct sk_buff *pBuf,
 
     pThis = VBOX_FLT_PT_TO_INST(pPacketType);
     pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
-    if (pThis->u.s.pDev != pSkbDev)
+    if (pDev != pSkbDev)
     {
         Log(("vboxNetFltLinuxPacketHandler: Devices do not match, pThis may be wrong! pThis=%p\n", pThis));
         return 0;
@@ -2506,7 +2506,7 @@ int  vboxNetFltOsPreInitInstance(PVBOXNETFLTINS pThis)
     /*
      * Init the linux specific members.
      */
-    pThis->u.s.pDev = NULL;
+    ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
     pThis->u.s.fRegistered = false;
     pThis->u.s.fPromiscuousSet = false;
     memset(&pThis->u.s.PacketType, 0, sizeof(pThis->u.s.PacketType));

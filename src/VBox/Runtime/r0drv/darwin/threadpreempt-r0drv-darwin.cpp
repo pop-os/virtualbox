@@ -36,6 +36,7 @@
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/assert.h>
+#include <iprt/cpuset.h>
 #include <iprt/err.h>
 #include <iprt/mp.h>
 
@@ -56,7 +57,7 @@ typedef RTDARWINPREEMPTHACK *PRTDARWINPREEMPTHACK;
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-static RTDARWINPREEMPTHACK  g_aPreemptHacks[16]; /* see MAX_CPUS in i386/mp.h */
+static RTDARWINPREEMPTHACK  g_aPreemptHacks[RTCPUSET_MAX_CPUS];
 
 
 /**
@@ -107,14 +108,12 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 
     /* HACK ALERT! This ASSUMES that the cpu_pending_ast member of cpu_data_t doesn't move. */
     uint32_t ast_pending;
-#if 1
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
     __asm__ volatile("movl %%gs:%P1,%0\n\t"
                      : "=r" (ast_pending)
-                     : "i"  (7*sizeof(void*) + 7*sizeof(int)));
+                     : "i"  (__builtin_offsetof(struct my_cpu_data_x86, cpu_pending_ast)) );
 #else
-    cpu_data_t *pCpu = current_cpu_datap(void);
-    AssertCompileMemberOffset(cpu_data_t, cpu_pending_ast, 7*sizeof(void*) + 7*sizeof(int));
-    cpu_pending_ast = pCpu->cpu_pending_ast;
+# error "Port me"
 #endif
     AssertMsg(!(ast_pending & UINT32_C(0xfffff000)),("%#x\n", ast_pending));
     return (ast_pending & (AST_PREEMPT | AST_URGENT)) != 0;
@@ -123,7 +122,7 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 
 RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 {
-    /* yes, we think thaat RTThreadPreemptIsPending is reliable... */
+    /* yes, we think that RTThreadPreemptIsPending is reliable... */
     return true;
 }
 

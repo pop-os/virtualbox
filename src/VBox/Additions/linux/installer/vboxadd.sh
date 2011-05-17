@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 70087 $)
+# Linux Additions kernel module init script ($Revision: 71770 $)
 #
 
 #
@@ -167,6 +167,12 @@ dev=/dev/vboxguest
 userdev=/dev/vboxuser
 owner=vboxadd
 group=1
+
+test_for_gcc_and_make()
+{
+    which make > /dev/null 2>&1 || printf "\nThe make utility was not found. If the following module compilation fails then\nthis could be the reason and you should try installing it.\n"
+    which gcc > /dev/null 2>&1 || printf "\nThe gcc utility was not found. If the following module compilation fails then\nthis could be the reason and you should try installing it.\n"
+}
 
 test_sane_kernel_dir()
 {
@@ -364,6 +370,7 @@ setup_modules()
         return 0
     fi
 
+    test_for_gcc_and_make
     test_sane_kernel_dir
 
     if ! sh /usr/share/$PACKAGE/test/build_in_tmp \
@@ -455,9 +462,20 @@ extra_setup()
 
     # Put mount.vboxsf in the right place
     ln -sf "$lib_path/$PACKAGE/mount.vboxsf" /sbin
-    # At least Fedora 11 and Fedora 12 demand on the correct security context when
-    # executing this command from service scripts. Shouldn't hurt for other distributions.
+    # At least Fedora 11 and Fedora 12 require the correct security context when
+    # executing this command from service scripts. Shouldn't hurt for other
+    # distributions.
     chcon -u system_u -t mount_exec_t "$lib_path/$PACKAGE/mount.vboxsf" > /dev/null 2>&1
+    # And at least Fedora 15 needs this for the acceleration support check to
+    # work
+    redhat_release=`cat /etc/redhat-release 2> /dev/null`
+    case "$redhat_release" in Fedora\ release\ 15* )
+        for i in "$lib_path"/*.so
+        do
+            restorecon "$i" >/dev/null
+        done
+        ;;
+    esac
 
     succ_msg
 }
