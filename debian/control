@@ -93,7 +93,6 @@ Recommends: virtualbox-dkms (= ${source:Version}) | virtualbox-source (= ${sourc
             virtualbox-qt (= ${binary:Version}),
             ${shlibs:Recommends}
 Suggests: virtualbox-guest-additions-iso,
-          libasound2, libpulse0,
           vde2
 Conflicts: virtualbox-2.0, virtualbox-2.1, virtualbox-2.2, virtualbox-3.0
 Breaks: virtualbox-ose (<< 4.0.6-dfsg-1~)
