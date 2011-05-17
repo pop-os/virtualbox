@@ -23,20 +23,10 @@ DIST_NAME := $(shell lsb_release -si)
 DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
 XSERVER_VERSION = 17
-INSTALL_X11_PCI_ID = 0
-INSTALL_X11_HAL = 0
-INSTALL_X11_UDEV = 1
 INSTALL_XORGCONFD = new
 XORG_PKG_ABI = new
 
-ifeq ($(DIST_RELEASE),Debian/lenny)
-	XSERVER_VERSION = 14
-	INSTALL_X11_PCI_ID = 1
-	INSTALL_X11_HAL = 1
-	INSTALL_X11_UDEV = 0
-	INSTALL_XORGCONFD = no
-	XORG_PKG_ABI = old
-else ifeq ($(DIST_RELEASE),Ubuntu/lucid)
+ifeq ($(DIST_RELEASE),Ubuntu/lucid)
 	INSTALL_XORGCONFD = old
 	XORG_PKG_ABI = old
 endif
@@ -152,23 +142,11 @@ endif # ifeq ($(XORG_PKG_ABI),new)
 override_dh_install:
 	dh_install
 
-ifeq ($(INSTALL_X11_PCI_ID),1)
-	dh_install -p$(uxname) --ignore debian/$(uxname).install \
-	    src/VBox/Additions/x11/Installer/vboxvideo.ids \
-	    /usr/share/xserver-xorg/pci
-endif
-
-ifeq ($(INSTALL_X11_HAL),1)
-	dh_install -p$(uxname) --ignore debian/$(uxname).install \
-	    src/VBox/Additions/linux/installer/90-vboxguest.fdi \
-	    /usr/share/hal/fdi/policy/20thirdparty
-endif
-
 ifeq ($(INSTALL_XORGCONFD),new)
 	dh_install -p$(uxname) --ignore debian/$(uxname).install \
 	    src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
 	    /usr/share/X11/xorg.conf.d
-else ifeq ($(INSTALL_XORGCONFD),old)
+else
 	dh_install -p$(uxname) --ignore debian/$(uxname).install \
 	    src/VBox/Additions/x11/Installer/50-vboxmouse.conf \
 	    /usr/lib/X11/xorg.conf.d
@@ -213,12 +191,8 @@ ifneq (,$(filter $(psource), $(shell dh_listpackages)))
 endif
 
 override_dh_installudev:
-ifeq ($(INSTALL_X11_UDEV),1)
 	dh_installudev -p$(uxname) --priority=69
 	dh_installudev --remaining-packages
-else
-	dh_installudev -N$(uxname)
-endif
 
 override_dh_installinit:
 	dh_installinit --no-start
