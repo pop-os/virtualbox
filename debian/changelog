@@ -34,6 +34,9 @@ virtualbox (4.0.8-dfsg-1) UNRELEASED; urgency=low
   * Drop 30-enable-gcc46.patch, fixed upstream.
   * In udev rules: use "RUN+=" rather than "RUN=". (LP: #776535)
   * Drop libasound2 and libpulse0 from suggests.
+  * Only display warnings about broken USB support when it's actually used
+    (i.e. the machine has USB device filters).
+    - Add 30-usb-warning-filters.patch
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
