@@ -4,7 +4,26 @@ set -e
 
 #DEBHELPER#
 
+mv_conffile() {
+	local OLDCONFFILE="$1"
+	local NEWCONFFILE="$2"
+
+	[ -e "$OLDCONFFILE" ] || return 0
+
+	echo "Preserving user changes to $NEWCONFFILE ..."
+	mv -f "$NEWCONFFILE" "$NEWCONFFILE".dpkg-new
+	mv -f "$OLDCONFFILE" "$NEWCONFFILE"
+}
+
 if [ "$1" = configure ]; then
+	if [ -e /etc/default/virtualbox-ose ]; then
+		mv_conffile /etc/default/virtualbox-ose /etc/default/virtualbox
+		sed -i 's/^# Defaults for virtualbox-ose initscript$/# Defaults for virtualbox initscript/g' /etc/default/virtualbox
+		sed -i 's/^# sourced by \/etc\/init\.d\/virtualbox-ose$/# sourced by \/etc\/init.d\/virtualbox/g' /etc/default/virtualbox
+		sed -i 's/^# installed at \/etc\/default\/virtualbox-ose by the maintainer scripts$/# installed at \/etc\/default\/virtualbox by the maintainer scripts/g' /etc/default/virtualbox
+		sed -i 's/^# Set this to 1 if you would like the virtualbox-ose modules to be loaded by/# Set this to 1 if you would like the virtualbox modules to be loaded by/g' /etc/default/virtualbox
+	fi
+
 	if [ -z `getent group vboxusers` ]; then
 		addgroup --system --quiet vboxusers
 	fi
