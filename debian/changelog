@@ -1,6 +1,6 @@
 virtualbox (4.0.8-dfsg-1) UNRELEASED; urgency=low
 
-  * New upstream release.
+  * New upstream release. (Closes: #627680)
   * Adapt 07-vboxnetflt-reference.patch to new upstream version.
   * Update overrides for lintian 2.5.
   * Register mime types and install icons.
