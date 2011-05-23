@@ -37,6 +37,7 @@ virtualbox (4.0.8-dfsg-1) UNRELEASED; urgency=low
   * Only display warnings about broken USB support when it's actually used
     (i.e. the machine has USB device filters).
     - Add 30-usb-warning-filters.patch
+  * Move VBoxCreateUSBNode.sh to /lib/udev. (Closes: #627528)
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Fri, 22 Apr 2011 11:31:53 +0200
 
