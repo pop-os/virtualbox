@@ -80,8 +80,7 @@ Description: x86 virtualization solution - Qt based user interface
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the Qt based graphical user interface of the Open Source
- Edition of VirtualBox.
+ This package provides the Qt based graphical user interface for VirtualBox.
 
 Package: virtualbox
 Architecture: amd64 i386
@@ -103,11 +102,10 @@ Description: x86 virtualization solution - base binaries
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the binaries for the Open Source Edition of
- VirtualBox. Either the virtualbox-dkms or the virtualbox-source
- package is also required in order to compile the kernel modules needed for
- virtualbox. A graphical user interface for VirtualBox is provided by the
- package virtualbox-qt.
+ This package provides the binaries for VirtualBox. Either the virtualbox-dkms
+ or the virtualbox-source package is also required in order to compile the
+ kernel modules needed for virtualbox. A graphical user interface for
+ VirtualBox is provided by the package virtualbox-qt.
 
 Package: virtualbox-dbg
 Section: debug
@@ -122,8 +120,7 @@ Description: x86 virtualization solution - debugging symbols
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the debugging symbols for the Open Source Edition of
- VirtualBox.
+ This package provides the debugging symbols for VirtualBox.
 
 Package: virtualbox-dkms
 Section: kernel
@@ -216,8 +213,8 @@ Description: x86 virtualization solution - X11 guest utilities
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the X11 guest utilities of the Open Source Edition of
- VirtualBox. These utilities are meant to be run inside the virtual machine.
+ This package provides the X11 guest utilities for VirtualBox. These utilities
+ are meant to be run inside the virtual machine.
  They provide closer integration and improve the interactive performance.
 
 Package: virtualbox-guest-utils
@@ -235,8 +232,8 @@ Description: x86 virtualization solution - non-X11 guest utilities
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
  Linux system.
  .
- This package provides the non-X11 guest utilities of the Open Source Edition of
- VirtualBox. These utilities are meant to be run inside the virtual machine.
+ This package provides the non-X11 guest utilities for VirtualBox. These
+ utilities are meant to be run inside the virtual machine.
  They provide closer integration and allow to share data through shared folders
  between the host system and the virtual machine.
 
