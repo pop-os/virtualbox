@@ -427,7 +427,7 @@ void initialisePartitionTable(void) {
          lastPartition++;
          Partition *p = partitionTable + i;
 
-         DISKread (uStart + uOffset + EBR_START, &ebr, sizeof(ebr));
+         DISKread (uStart + uOffset, &ebr, sizeof(ebr));
 
          if (ebr.signature != 0xaa55)    usageAndExit("Invalid EBR signature found on image");
          if ((ebr.descriptor).type == 0) usageAndExit("Logical partition with type 0 encountered");
@@ -441,7 +441,7 @@ void initialisePartitionTable(void) {
 
          if (ebr.chain.type == 0) break;
          if (!PARTTYPE_IS_EXTENDED(ebr.chain.type)) usageAndExit("Logical partition chain broken");
-         uOffset = (ebr.chain).offset;
+         uOffset = (off_t)((ebr.chain).offset) * BLOCKSIZE;
       }
    }
    //
