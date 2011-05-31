@@ -45,7 +45,7 @@ virtualbox (4.0.8-dfsg-1) unstable; urgency=low
 
   [ Michael Meskes ]
   * Patch vdfuse to not pad structure twice.
-    Thanks to Dave Vasilevsky <dave@vasilevsky.ca> (Closes: #622659)
+    Thanks to Dave Vasilevsky <dave@vasilevsky.ca> (Closes: #622659; LP: #759988)
 
  -- Michael Meskes <meskes@debian.org>  Thu, 26 May 2011 10:57:47 +0200
 
