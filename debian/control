@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Michael Meskes <meskes@debian.org>,
            Felix Geyer <debfx-pkg@fobos.de>
+DM-Upload-Allowed: yes
 Build-Depends: bcc,
                bzip2,
                debhelper (>= 7.2.7~),
