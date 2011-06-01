@@ -206,8 +206,8 @@ Depends: ${shlibs:Depends},
          virtualbox-guest-utils (= ${binary:Version})
 Provides: ${xviddriver:Provides},
           ${xinpdriver:Provides}
-Breaks: virtualbox-ose-guest-source (<< 4.0.6-dfsg-1~)
-Replaces: virtualbox-ose-guest-source (<< 4.0.6-dfsg-1~),
+Breaks: virtualbox-ose-guest-x11 (<< 4.0.6-dfsg-1~)
+Replaces: virtualbox-ose-guest-x11 (<< 4.0.6-dfsg-1~),
           virtualbox-ose-guest-utils (<< 2.2.0-dfsg-1~)
 Description: x86 virtualization solution - X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
