@@ -1,4 +1,4 @@
-virtualbox (4.0.8-dfsg-2) UNRELEASED; urgency=low
+virtualbox (4.0.8-dfsg-2) unstable; urgency=low
 
   * Add virtualbox-guest-x11 Breaks/Replaces virtualbox-ose-guest-x11.
     (Closes: #628784)
