@@ -56,21 +56,6 @@ start()
 	log_begin_msg "Starting VirtualBox kernel modules"
 	
 	if ! running vboxdrv; then
-		# HACK: disable the hardware performance counter framework
-		if [ -e /proc/sys/kernel/perf_counter_paranoid ]; then
-			if [ $(cat /proc/sys/kernel/perf_counter_paranoid) -ne 2 ]; then
-				log_warning_msg "Disabling the hardware performance counter framework"
-				echo 2 > /proc/sys/kernel/perf_counter_paranoid 
-			fi
-		fi
-		
-		if [ -e /proc/sys/kernel/perf_event_paranoid ]; then
-			if [ $(cat /proc/sys/kernel/perf_event_paranoid) -ne 2 ]; then
-				log_warning_msg "Disabling the hardware performance counter framework"
-				echo 2 > /proc/sys/kernel/perf_event_paranoid 
-			fi
-		fi
-
 		if ! modprobe vboxdrv > /dev/null 2>&1; then
 			if ! find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|grep -q vboxdrv; then
 				log_failure_msg "No suitable module for running kernel found"
