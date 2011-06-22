@@ -4,6 +4,8 @@ virtualbox (4.0.8-dfsg-3) UNRELEASED; urgency=low
     needed anymore since VirtualBox 4.0.0.
   * Add 31-multiarch-dri-path.patch to fix 3d guest acceleration with the
     multiarched mesa package.
+  * Add 32-linux-3.0-vtx-detection.patch to enable VT-x on Linux 3.0.
+    (LP: #799253)
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 07 Jun 2011 13:57:18 +0200
 
