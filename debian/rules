@@ -24,31 +24,78 @@ DIST_RELEASE := $(DIST_NAME)/$(shell lsb_release -sc)
 
 XSERVER_VERSION = 17
 INSTALL_XORGCONFD = new
-XORG_PKG_ABI = new
+XORG_PKG_ABI = 3
+
+ifeq ($(DIST_RELEASE),Debian/squeeze)
+	XORG_PKG_ABI = 2
+endif
+
+ifeq ($(DIST_RELEASE),Ubuntu/maverick)
+	XORG_PKG_ABI = 2
+endif
 
 ifeq ($(DIST_RELEASE),Ubuntu/lucid)
 	INSTALL_XORGCONFD = old
-	XORG_PKG_ABI = old
+	XORG_PKG_ABI = 1
 endif
 
 
-ifeq ($(XORG_PKG_ABI),new)
-	# Some defines needed for X
+ifeq ($(XORG_PKG_ABI),3)
+	INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
+	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
+
+	SERVER_DEPENDS = $(INPUTDEP), $(VIDEODEP)
+	VIDDRIVER_PROVIDES = xorg-driver-video
+	INPDRIVER_PROVIDES = xorg-driver-input
+
+	ifeq ($(strip $(INPUTDEP)),)
+		XORG_PKG_ABI_ERROR = INPUTDEP is empty
+	endif
+	ifeq ($(strip $(VIDEODEP)),)
+		XORG_PKG_ABI_ERROR = VIDEODEP is empty
+	endif
+endif
+ifeq ($(XORG_PKG_ABI),2)
 	VIDEODEP = $(shell cat /usr/share/xserver-xorg/videodrvdep 2>/dev/null)
 	INPUTDEP = $(shell cat /usr/share/xserver-xorg/xinputdep 2>/dev/null)
-	# these two can be removed post-squeeze
 	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
 	INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
+
+	SERVER_DEPENDS = $(INPUTDEP), $(VIDEODEP)
 	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
 	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
-else
-	# Some defines needed for X
+
+	ifeq ($(strip $(INPUTDEP)),)
+		XORG_PKG_ABI_ERROR = INPUTDEP is empty
+	endif
+	ifeq ($(strip $(VIDEODEP)),)
+		XORG_PKG_ABI_ERROR = VIDEODEP is empty
+	endif
+	ifeq ($(strip $(VIDEOABI)),)
+		XORG_PKG_ABI_ERROR = VIDEOABI is empty
+	endif
+	ifeq ($(strip $(INPUTABI)),)
+		XORG_PKG_ABI_ERROR = INPUTABI is empty
+	endif
+endif
+ifeq ($(XORG_PKG_ABI),1)
 	SERVERMINVERS = $(shell cat /usr/share/xserver-xorg/serverminver 2>/dev/null)
 	VIDEOABI = $(shell cat /usr/share/xserver-xorg/videoabiver 2>/dev/null)
 	INPUTABI = $(shell cat /usr/share/xserver-xorg/inputabiver 2>/dev/null)
+
 	SERVER_DEPENDS = xserver-xorg-core (>= $(SERVERMINVERS))
 	VIDDRIVER_PROVIDES = xserver-xorg-video-$(VIDEOABI)
 	INPDRIVER_PROVIDES = xserver-xorg-input-$(INPUTABI)
+
+	ifeq ($(strip $(SERVERMINVERS)),)
+		XORG_PKG_ABI_ERROR = SERVERMINVERS is empty
+	endif
+	ifeq ($(strip $(VIDEOABI)),)
+		XORG_PKG_ABI_ERROR = VIDEOABI is empty
+	endif
+	ifeq ($(strip $(INPUTABI)),)
+		XORG_PKG_ABI_ERROR = INPUTABI is empty
+	endif
 endif
 
 
@@ -58,6 +105,11 @@ endif
 
 override_dh_auto_configure:
 	@echo Building for $(DIST_RELEASE)
+
+ifdef XORG_PKG_ABI_ERROR
+	@echo 'error: $(XORG_PKG_ABI_ERROR)'
+	@exit 1
+endif
 
 	mkdir -p out
 	./configure \
@@ -111,33 +163,9 @@ override_dh_auto_install:
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).install.in > debian/$(pdkms).install
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).install.in > debian/$(gdkms).install
 
-ifeq ($(XORG_PKG_ABI),new)
-
-ifeq ($(VIDEODEP),)
-	@echo 'error: xserver-xorg-dev >= 1.7.6.901 needs to be installed'
-	@exit 1
-else
-	echo "xviddriver:Depends=$(VIDEODEP)" >> debian/$(uxname).substvars
-	echo "xinpdriver:Depends=$(INPUTDEP)" >> debian/$(uxname).substvars
-	# the following is there for compatibility...
-	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
-	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
-	echo "xserver:Depends=$(VIDEODEP), $(INPUTDEP)" >> debian/$(uxname).substvars
-endif
-
-else # ifeq ($(XORG_PKG_ABI),new)
-
-ifeq ($(SERVERMINVERS),)
-	@echo error: xserver-xorg-dev needs to be installed
-	@exit 1
-else
 	echo "xserver:Depends=$(SERVER_DEPENDS)" >> debian/$(uxname).substvars
 	echo "xviddriver:Provides=$(VIDDRIVER_PROVIDES)" >> debian/$(uxname).substvars
 	echo "xinpdriver:Provides=$(INPDRIVER_PROVIDES)" >> debian/$(uxname).substvars
-endif
-
-endif # ifeq ($(XORG_PKG_ABI),new)
-
 
 override_dh_install:
 	dh_install
