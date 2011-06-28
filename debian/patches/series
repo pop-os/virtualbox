@@ -13,3 +13,4 @@
 29-fix-ftbfs-as-needed.patch
 30-usb-warning-filters.patch
 31-multiarch-dri-path.patch
+32-disable-guest-version-check.patch

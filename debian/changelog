@@ -7,6 +7,8 @@ virtualbox (4.0.10-dfsg-1) UNRELEASED; urgency=low
   * Add 31-multiarch-dri-path.patch to fix 3d guest acceleration with the
     multiarched mesa package.
   * Use new Provides scheme for xorg video and input drivers. (Closes: #631612)
+  * Add 32-disable-guest-version-check.patch to disable notifications about
+    outdated guest additions.
 
  -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 07 Jun 2011 13:57:18 +0200
 
