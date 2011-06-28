@@ -1,12 +1,12 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Secure sockets abstraction layer
-   Copyright (C) Matthew Chapman 1999-2007
-   Copyright (C) Jay Sorg 2006-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright (C) Jay Sorg <j@american-data.com> 2006-2008
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -170,7 +169,7 @@ ssl_cert_to_rkey(SSL_CERT * cert, uint32 * key_len)
 		return NULL;
 	}
 
-	lkey = RSAPublicKey_dup((RSA *) epk->pkey.ptr);
+	lkey = RSAPublicKey_dup(EVP_PKEY_get1_RSA(epk));
 	EVP_PKEY_free(epk);
 	*key_len = RSA_size(lkey);
 	return lkey;
@@ -232,4 +231,14 @@ ssl_sig_ok(uint8 * exponent, uint32 exp_len, uint8 * modulus, uint32 mod_len,
 	   FIXME:
 	 */
 	return True;
+}
+
+
+void
+ssl_hmac_md5(const void *key, int key_len, const unsigned char *msg, int msg_len, unsigned char *md)
+{
+	HMAC_CTX ctx;
+	HMAC_CTX_init(&ctx);
+	HMAC(EVP_md5(), key, key_len, msg, msg_len, md, NULL);
+	HMAC_CTX_cleanup(&ctx);
 }

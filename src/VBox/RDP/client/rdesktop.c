@@ -1,11 +1,13 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Entrypoint and utility functions
-   Copyright (C) Matthew Chapman 1999-2008
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright 2002-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
+   Copyright 2010-2011 Henrik Andersson <hean01@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -37,6 +38,7 @@
 #include <sys/times.h>		/* times */
 #include <ctype.h>		/* toupper */
 #include <errno.h>
+#include <signal.h>
 #include "rdesktop.h"
 
 #ifdef VBOX
@@ -62,19 +64,18 @@
 #include "ssl.h"
 
 char g_title[64] = "";
-char g_username[64];
+char *g_username;
 char g_hostname[16];
 char g_keymapname[PATH_MAX] = "";
 unsigned int g_keylayout = 0x409;	/* Defaults to US keyboard layout */
 int g_keyboard_type = 0x4;	/* Defaults to US keyboard layout */
 int g_keyboard_subtype = 0x0;	/* Defaults to US keyboard layout */
 int g_keyboard_functionkeys = 0xc;	/* Defaults to US keyboard layout */
-
-int g_width = 800;		/* width is special: If 0, the
-				   geometry will be fetched from
-				   _NET_WORKAREA. If negative,
-				   absolute value specifies the
-				   percent of the whole screen. */
+int g_sizeopt = 0;		/* If non-zero, a special size has been
+				   requested. If 1, the geometry will be fetched
+				   from _NET_WORKAREA. If negative, absolute value
+				   specifies the percent of the whole screen. */
+int g_width = 800;
 int g_height = 600;
 int g_xpos = 0;
 int g_ypos = 0;
@@ -110,6 +111,7 @@ RD_BOOL g_lspci_enabled = False;
 RD_BOOL g_owncolmap = False;
 RD_BOOL g_ownbackstore = True;	/* We can't rely on external BackingStore */
 RD_BOOL g_seamless_rdp = False;
+RD_BOOL g_user_quit = False;
 uint32 g_embed_wnd;
 uint32 g_rdp5_performanceflags =
 	RDP5_NO_WALLPAPER | RDP5_NO_FULLWINDOWDRAG | RDP5_NO_MENUANIMATIONS;
@@ -118,9 +120,15 @@ RD_BOOL g_redirect = False;
 char g_redirect_server[64];
 char g_redirect_domain[16];
 char g_redirect_password[64];
-char g_redirect_username[64];
+char *g_redirect_username;
 char g_redirect_cookie[128];
 uint32 g_redirect_flags = 0;
+
+uint32 g_reconnect_logonid = 0;
+char g_reconnect_random[16];
+RD_BOOL g_has_reconnect_random = False;
+uint8 g_client_random[SEC_RANDOM_SIZE];
+RD_BOOL g_pending_resize = False;
 
 #ifdef WITH_RDPSND
 RD_BOOL g_rdpsnd = False;
@@ -150,9 +158,10 @@ static void
 usage(char *program)
 {
 	fprintf(stderr, "rdesktop: A Remote Desktop Protocol client.\n");
-	fprintf(stderr, "Version " VERSION ". Copyright (C) 1999-2008 Matthew Chapman.\n");
+	fprintf(stderr,
+		"Version " PACKAGE_VERSION ". Copyright (C) 1999-2011 Matthew Chapman et al.\n");
 #ifdef VBOX
-	fprintf(stderr, "Modified for VirtualBox by " VBOX_VENDOR "\n");
+        fprintf(stderr, "Modified for VirtualBox by " VBOX_VENDOR "\n");
 #endif
 	fprintf(stderr, "See http://www.rdesktop.org/ for more information.\n\n");
 
@@ -243,91 +252,116 @@ usage(char *program)
 	fprintf(stderr, "   -5: use RDP version 5 (default)\n");
 }
 
-static void
-print_disconnect_reason(uint16 reason)
+static int
+handle_disconnect_reason(RD_BOOL deactivated, uint16 reason)
 {
 	char *text;
+	int retval;
 
 	switch (reason)
 	{
 		case exDiscReasonNoInfo:
 			text = "No information available";
+			if (deactivated)
+				retval = EX_OK;
+			else
+				retval = EXRD_UNKNOWN;
 			break;
 
 		case exDiscReasonAPIInitiatedDisconnect:
+		case exDiscReasonWindows7Disconnect:
 			text = "Server initiated disconnect";
+			retval = EXRD_API_DISCONNECT;
 			break;
 
 		case exDiscReasonAPIInitiatedLogoff:
 			text = "Server initiated logoff";
+			retval = EXRD_API_LOGOFF;
 			break;
 
 		case exDiscReasonServerIdleTimeout:
 			text = "Server idle timeout reached";
+			retval = EXRD_IDLE_TIMEOUT;
 			break;
 
 		case exDiscReasonServerLogonTimeout:
 			text = "Server logon timeout reached";
+			retval = EXRD_LOGON_TIMEOUT;
 			break;
 
 		case exDiscReasonReplacedByOtherConnection:
 			text = "The session was replaced";
+			retval = EXRD_REPLACED;
 			break;
 
 		case exDiscReasonOutOfMemory:
 			text = "The server is out of memory";
+			retval = EXRD_OUT_OF_MEM;
 			break;
 
 		case exDiscReasonServerDeniedConnection:
 			text = "The server denied the connection";
+			retval = EXRD_DENIED;
 			break;
 
 		case exDiscReasonServerDeniedConnectionFips:
 			text = "The server denied the connection for security reason";
+			retval = EXRD_DENIED_FIPS;
 			break;
 
 		case exDiscReasonLicenseInternal:
 			text = "Internal licensing error";
+			retval = EXRD_LIC_INTERNAL;
 			break;
 
 		case exDiscReasonLicenseNoLicenseServer:
 			text = "No license server available";
+			retval = EXRD_LIC_NOSERVER;
 			break;
 
 		case exDiscReasonLicenseNoLicense:
 			text = "No valid license available";
+			retval = EXRD_LIC_NOLICENSE;
 			break;
 
 		case exDiscReasonLicenseErrClientMsg:
 			text = "Invalid licensing message";
+			retval = EXRD_LIC_MSG;
 			break;
 
 		case exDiscReasonLicenseHwidDoesntMatchLicense:
 			text = "Hardware id doesn't match software license";
+			retval = EXRD_LIC_HWID;
 			break;
 
 		case exDiscReasonLicenseErrClientLicense:
 			text = "Client license error";
+			retval = EXRD_LIC_CLIENT;
 			break;
 
 		case exDiscReasonLicenseCantFinishProtocol:
 			text = "Network error during licensing protocol";
+			retval = EXRD_LIC_NET;
 			break;
 
 		case exDiscReasonLicenseClientEndedProtocol:
 			text = "Licensing protocol was not completed";
+			retval = EXRD_LIC_PROTO;
 			break;
 
 		case exDiscReasonLicenseErrClientEncryption:
 			text = "Incorrect client license enryption";
+			retval = EXRD_LIC_ENC;
 			break;
 
 		case exDiscReasonLicenseCantUpgradeLicense:
 			text = "Can't upgrade license";
+			retval = EXRD_LIC_UPGRADE;
 			break;
 
 		case exDiscReasonLicenseNoRemoteConnections:
 			text = "The server is not licensed to accept remote connections";
+			retval = EXRD_LIC_NOREMOTE;
 			break;
 
 		default:
@@ -339,14 +373,24 @@ print_disconnect_reason(uint16 reason)
 			{
 				text = "Unknown reason";
 			}
+			retval = EXRD_UNKNOWN;
 	}
-	fprintf(stderr, "disconnect: %s.\n", text);
+	if (reason != exDiscReasonNoInfo)
+		fprintf(stderr, "disconnect: %s.\n", text);
+
+	return retval;
 }
 
 static void
 rdesktop_reset_state(void)
 {
 	rdp_reset_state();
+#ifdef WITH_SCARD
+	scard_reset_state();
+#endif
+#ifdef WITH_RDPSND
+	rdpsnd_reset_state();
+#endif
 }
 
 static RD_BOOL
@@ -447,7 +491,7 @@ main(int argc, char *argv[])
 {
 	char server[64];
 	char fullhostname[64];
-	char domain[16];
+	char domain[256];
 	char password[64];
 	char shell[256];
 	char directory[256];
@@ -459,8 +503,6 @@ main(int argc, char *argv[])
 	char *locale = NULL;
 	int username_option = 0;
 	RD_BOOL geometry_option = False;
-	int run_count = 0;	/* Session Directory support */
-	RD_BOOL continue_connect = True;	/* Session Directory support */
 #ifdef WITH_RDPSND
 	char *rdpsnd_optarg = NULL;
 #endif
@@ -474,6 +516,15 @@ main(int argc, char *argv[])
 	}
 
 #endif
+
+	/* Ignore SIGPIPE, since we are using popen() */
+	struct sigaction act;
+	memset(&act, 0, sizeof(act));
+	act.sa_handler = SIG_IGN;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = 0;
+	sigaction(SIGPIPE, &act, NULL);
+
 	flags = RDP_LOGON_NORMAL;
 	prompt_password = False;
 	domain[0] = password[0] = shell[0] = directory[0] = 0;
@@ -511,7 +562,8 @@ main(int argc, char *argv[])
 				break;
 
 			case 'u':
-				STRNCPY(g_username, optarg, sizeof(g_username));
+				g_username = (char *) xmalloc(strlen(optarg) + 1);
+				STRNCPY(g_username, optarg, strlen(optarg) + 1);
 				username_option = 1;
 				break;
 
@@ -564,7 +616,7 @@ main(int argc, char *argv[])
 				g_fullscreen = False;
 				if (!strcmp(optarg, "workarea"))
 				{
-					g_width = g_height = 0;
+					g_sizeopt = 1;
 					break;
 				}
 
@@ -572,7 +624,7 @@ main(int argc, char *argv[])
 				if (g_width <= 0)
 				{
 					error("invalid geometry\n");
-					return 1;
+					return EX_USAGE;
 				}
 
 				if (*p == 'x')
@@ -581,12 +633,13 @@ main(int argc, char *argv[])
 				if (g_height <= 0)
 				{
 					error("invalid geometry\n");
-					return 1;
+					return EX_USAGE;
 				}
 
 				if (*p == '%')
 				{
-					g_width = -g_width;
+					g_sizeopt = -g_width;
+					g_width = 800;
 					p++;
 				}
 
@@ -650,7 +703,7 @@ main(int argc, char *argv[])
 				if (*p)
 				{
 					error("invalid button size\n");
-					return 1;
+					return EX_USAGE;
 				}
 
 				break;
@@ -675,7 +728,7 @@ main(int argc, char *argv[])
 				    && g_server_depth != 32)
 				{
 					error("Invalid server colour depth.\n");
-					return 1;
+					return EX_USAGE;
 				}
 				break;
 
@@ -834,14 +887,14 @@ main(int argc, char *argv[])
 			case '?':
 			default:
 				usage(argv[0]);
-				return 1;
+				return EX_USAGE;
 		}
 	}
 
 	if (argc - optind != 1)
 	{
 		usage(argv[0]);
-		return 1;
+		return EX_USAGE;
 	}
 
 	STRNCPY(server, argv[optind], sizeof(server));
@@ -852,35 +905,35 @@ main(int argc, char *argv[])
 		if (g_win_button_size)
 		{
 			error("You cannot use -S and -A at the same time\n");
-			return 1;
+			return EX_USAGE;
 		}
 		g_rdp5_performanceflags &= ~RDP5_NO_FULLWINDOWDRAG;
 		if (geometry_option)
 		{
 			error("You cannot use -g and -A at the same time\n");
-			return 1;
+			return EX_USAGE;
 		}
 		if (g_fullscreen)
 		{
 			error("You cannot use -f and -A at the same time\n");
-			return 1;
+			return EX_USAGE;
 		}
 		if (g_hide_decorations)
 		{
 			error("You cannot use -D and -A at the same time\n");
-			return 1;
+			return EX_USAGE;
 		}
 		if (g_embed_wnd)
 		{
 			error("You cannot use -X and -A at the same time\n");
-			return 1;
+			return EX_USAGE;
 		}
 		if (!g_use_rdp5)
 		{
 			error("You cannot use -4 and -A at the same time\n");
-			return 1;
+			return EX_USAGE;
 		}
-		g_width = -100;
+		g_sizeopt = -100;
 		g_grab_keyboard = False;
 	}
 
@@ -890,10 +943,12 @@ main(int argc, char *argv[])
 		if ((pw == NULL) || (pw->pw_name == NULL))
 		{
 			error("could not determine username, use -u\n");
-			return 1;
+			return EX_OSERR;
 		}
-
-		STRNCPY(g_username, pw->pw_name, sizeof(g_username));
+		/* +1 for trailing \0 */
+		int pwlen = strlen(pw->pw_name) + 1;
+		g_username = (char *) xmalloc(pwlen);
+		STRNCPY(g_username, pw->pw_name, pwlen);
 	}
 
 #ifdef HAVE_ICONV
@@ -915,7 +970,7 @@ main(int argc, char *argv[])
 		if (gethostname(fullhostname, sizeof(fullhostname)) == -1)
 		{
 			error("could not determine local hostname, use -n\n");
-			return 1;
+			return EX_OSERR;
 		}
 
 		p = strchr(fullhostname, '.');
@@ -951,19 +1006,17 @@ main(int argc, char *argv[])
 
 #ifdef RDP2VNC
 	rdp2vnc_connect(server, flags, domain, password, shell, directory);
-	return 0;
+	return EX_OK;
 #else
 
 	if (!ui_init())
-		return 1;
+		return EX_OSERR;
 
 #ifdef WITH_RDPSND
 	if (g_rdpsnd)
 	{
 		if (!rdpsnd_init(rdpsnd_optarg))
-		{
 			warning("Initializing sound-support failed!\n");
-		}
 	}
 #endif
 
@@ -977,16 +1030,24 @@ main(int argc, char *argv[])
 
 	rdpdr_init();
 
-	while (run_count < 2 && continue_connect)	/* add support for Session Directory; only reconnect once */
+	while (1)
 	{
-		if (run_count == 0)
+		rdesktop_reset_state();
+
+		if (g_redirect)
 		{
-			if (!rdp_connect(server, flags, domain, password, shell, directory))
-				return 1;
+			STRNCPY(domain, g_redirect_domain, sizeof(domain));
+			xfree(g_username);
+			g_username = (char *) xmalloc(strlen(g_redirect_username) + 1);
+			STRNCPY(g_username, g_redirect_username, sizeof(g_username));
+			STRNCPY(password, g_redirect_password, sizeof(password));
+			STRNCPY(server, g_redirect_server, sizeof(server));
+			flags |= RDP_LOGON_AUTO;
 		}
-		else if (!rdp_reconnect
-			 (server, flags, domain, password, shell, directory, g_redirect_cookie))
-			return 1;
+
+		ui_init_connection();
+		if (!rdp_connect(server, flags, domain, password, shell, directory, g_redirect))
+			return EX_PROTOCOL;
 
 		/* By setting encryption to False here, we have an encrypted login 
 		   packet but unencrypted transfer of other packets */
@@ -997,72 +1058,48 @@ main(int argc, char *argv[])
 		DEBUG(("Connection successful.\n"));
 		memset(password, 0, sizeof(password));
 
-		if (run_count == 0)
+		if (!g_redirect)
 			if (!ui_create_window())
-				continue_connect = False;
+				return EX_OSERR;
 
-		if (continue_connect)
-			rdp_main_loop(&deactivated, &ext_disc_reason);
+		g_redirect = False;
+		rdp_main_loop(&deactivated, &ext_disc_reason);
 
 		DEBUG(("Disconnecting...\n"));
 		rdp_disconnect();
 
-		if ((g_redirect == True) && (run_count == 0))	/* Support for Session Directory */
+		if (g_redirect)
+			continue;
+
+		ui_seamless_end();
+		ui_destroy_window();
+		if (g_pending_resize)
 		{
-			/* reset state of major globals */
-			rdesktop_reset_state();
-
-			STRNCPY(domain, g_redirect_domain, sizeof(domain));
-			STRNCPY(g_username, g_redirect_username, sizeof(g_username));
-			STRNCPY(password, g_redirect_password, sizeof(password));
-			STRNCPY(server, g_redirect_server, sizeof(server));
-			flags |= RDP_LOGON_AUTO;
-
-			g_redirect = False;
+			/* If we have a pending resize, reconnect using the new size, rather than exit */
+			g_pending_resize = False;
+			continue;
 		}
-		else
-		{
-			continue_connect = False;
-			ui_destroy_window();
-			break;
-		}
-
-		run_count++;
+		break;
 	}
 
 	cache_save_state();
 	ui_deinit();
 
 #ifdef WITH_RDPUSB
-	if (g_rdpusb)
-		rdpusb_close();
+        if (g_rdpusb)
+                rdpusb_close();
 #endif
 
-	if (ext_disc_reason >= 2)
-		print_disconnect_reason(ext_disc_reason);
+	if (g_user_quit)
+		return EXRD_WINDOW_CLOSED;
 
-	if (deactivated)
-	{
-		/* clean disconnect */
-		return 0;
-	}
-	else
-	{
-		if (ext_disc_reason == exDiscReasonAPIInitiatedDisconnect
-		    || ext_disc_reason == exDiscReasonAPIInitiatedLogoff)
-		{
-			/* not so clean disconnect, but nothing to worry about */
-			return 0;
-		}
-		else
-		{
-			/* return error */
-			return 2;
-		}
-	}
+	return handle_disconnect_reason(deactivated, ext_disc_reason);
 
 #endif
+	if (g_redirect_username)
+		xfree(g_redirect_username);
 
+	xfree(g_username);
 }
 
 #ifdef EGD_SOCKET
@@ -1156,7 +1193,7 @@ xmalloc(int size)
 	if (mem == NULL)
 	{
 		error("xmalloc %d\n", size);
-		exit(1);
+		exit(EX_UNAVAILABLE);
 	}
 	return mem;
 }
@@ -1168,7 +1205,7 @@ exit_if_null(void *ptr)
 	if (ptr == NULL)
 	{
 		error("unexpected null pointer. Out of memory?\n");
-		exit(1);
+		exit(EX_UNAVAILABLE);
 	}
 }
 
@@ -1180,7 +1217,7 @@ xstrdup(const char *s)
 	if (mem == NULL)
 	{
 		perror("strdup");
-		exit(1);
+		exit(EX_UNAVAILABLE);
 	}
 	return mem;
 }
@@ -1197,7 +1234,7 @@ xrealloc(void *oldmem, size_t size)
 	if (mem == NULL)
 	{
 		error("xrealloc %ld\n", size);
-		exit(1);
+		exit(EX_UNAVAILABLE);
 	}
 	return mem;
 }

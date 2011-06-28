@@ -18,6 +18,9 @@
 # Never use exit 2 or exit 20 etc., the return codes are used in
 # SRv4 postinstall procedures which carry special meaning. Just use exit 1 for failure.
 
+LANG=C
+export LANG
+
 # S10 or OpenSoalris
 HOST_OS_MAJORVERSION=`uname -r`
 # Which OpenSolaris version (snv_xxx or oi_xxx)?
@@ -751,6 +754,7 @@ cleanup_install()
 # !! failure is always fatal
 postinstall()
 {
+    infoprint "Detected Solaris $HOST_OS_MAJORVERSION Version $HOST_OS_MINORVERSION" 
     infoprint "Loading VirtualBox kernel modules..."
     install_drivers
 

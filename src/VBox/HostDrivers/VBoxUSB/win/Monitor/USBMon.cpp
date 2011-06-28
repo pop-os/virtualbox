@@ -755,6 +755,9 @@ NTSTATUS _stdcall VBoxUSBMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
             if (!pNewIrp)
                 break;
 
+            /* The driver verifier claims all PNP irps must have Status preset to STATUS_NOT_SUPPORTED */
+            pNewIrp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+
             /* Get the next stack location as that is used for the new irp */
             newIrpStack = IoGetNextIrpStackLocation(pNewIrp);
             Assert(newIrpStack);
@@ -796,6 +799,9 @@ NTSTATUS _stdcall VBoxUSBMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
             Assert(pNewIrp);
             if (!pNewIrp)
                 break;
+
+            /* The driver verifier claims all PNP irps must have Status preset to STATUS_NOT_SUPPORTED */
+            pNewIrp->IoStatus.Status = STATUS_NOT_SUPPORTED;
 
             /* Get the next stack location as that is used for the new irp */
             newIrpStack = IoGetNextIrpStackLocation(pNewIrp);

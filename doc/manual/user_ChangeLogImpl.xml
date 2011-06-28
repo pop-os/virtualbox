@@ -1,6 +1,111 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.0.10 (2011-06-22)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: fixed disappearing settings widgets on KDE hosts (bug #6809)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed hang under rare circumstances with flat VMDK images</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: a saved VM could not be restored under certain circumstances
+          after the host kernel was updated (bug #8983)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: refuse to create a medium with an invalid variant
+          (for example Split2G with VDI; bug #7227)</para>
+      </listitem>
+
+      <listitem>
+        <para>iSCSI: pause the VM if a request times out</para>
+      </listitem>
+
+      <listitem>
+        <para>Snapshots: none of the hard disk attachments must be attached to
+          another VM in normal mode when creating a snapshot</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed occasional VM hangs with SMP guests (bug #4580)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: proper device detection on RHEL/OEL/CentOS 5 guests
+          (partial fix for bug #8978)</para>
+      </listitem>
+
+      <listitem>
+        <para>ACPI: force the ACPI timer to return monotonic values for improve behavior
+          with SMP Linux guests (bug #8511 and others)</para>
+      </listitem>
+
+      <listitem>
+        <para>RDP: fixed screen corruption under rare circumstances (bug #8977)</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: updated to version 1.7.0</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: under rare circumstances some data at the end of a VMDK
+          file was not written during export</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: Lion fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: GNOME 3 fix</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed VT-x detection on Linux 3.0 hosts (bug #9071)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed Python 2.7 bindings in the universal Linux
+          binaries</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed leak of thread and process handles</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fixed bug when determining the extended version
+          of the Guest Additions (4.0.8 regression; bug #8948)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed installation to 64-bit Solaris 10u9 guests
+          (4.0.8 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: RHEL6.1/OL6.1 compile fix</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed a memory leak during <computeroutput>VBoxManage
+            guestcontrol execute</computeroutput> (bug #9068)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.0.8 (2011-05-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

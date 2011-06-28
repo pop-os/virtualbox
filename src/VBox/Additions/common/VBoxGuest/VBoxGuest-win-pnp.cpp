@@ -240,9 +240,14 @@ NTSTATUS vboxguestwinPnP(PDEVICE_OBJECT pDevObj, PIRP pIrp)
                 /* This IRP passed down to lower driver. */
                 pIrp->IoStatus.Status = STATUS_SUCCESS;
 
-                rc = vboxguestwinSendIrpSynchronously(pDevExt->win.s.pNextLowerDriver, pIrp, TRUE);
+                IoSkipCurrentIrpStackLocation(pIrp);
 
-                /* Do not complete the IRP. */
+                rc = IoCallDriver(pDevExt->win.s.pNextLowerDriver, pIrp);
+                Log(("VBoxGuest::vboxguestwinGuestPnp: QUERY_REMOVE_DEVICE: Next lower driver replied rc = 0x%x\n", rc));
+
+                /* we must not do anything the IRP after doing IoSkip & CallDriver
+                 * since the driver below us will complete (or already have completed) the IRP.
+                 * I.e. just return the status we got from IoCallDriver */
                 return rc;
             }
 
@@ -330,9 +335,14 @@ NTSTATUS vboxguestwinPnP(PDEVICE_OBJECT pDevObj, PIRP pIrp)
                 /* This IRP passed down to lower driver. */
                 pIrp->IoStatus.Status = STATUS_SUCCESS;
 
-                rc = vboxguestwinSendIrpSynchronously(pDevExt->win.s.pNextLowerDriver, pIrp, TRUE);
+                IoSkipCurrentIrpStackLocation(pIrp);
 
-                /* Do not complete the IRP. */
+                rc = IoCallDriver(pDevExt->win.s.pNextLowerDriver, pIrp);
+                Log(("VBoxGuest::vboxguestwinGuestPnp: QUERY_STOP_DEVICE: Next lower driver replied rc = 0x%x\n", rc));
+
+                /* we must not do anything with the IRP after doing IoSkip & CallDriver
+                 * since the driver below us will complete (or already have completed) the IRP.
+                 * I.e. just return the status we got from IoCallDriver */
                 return rc;
             }
 

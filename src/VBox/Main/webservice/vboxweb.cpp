@@ -724,7 +724,7 @@ void doQueuesLoop()
             if (s < 0)
             {
                 WebLogSoapError(&soap);
-                break;
+                continue;
             }
 
             // add the socket to the queue and tell worker threads to

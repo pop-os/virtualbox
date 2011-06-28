@@ -1,4 +1,4 @@
-AC_INIT(rdesktop, 1.6.0)
+AC_INIT(rdesktop, 1.7.0)
 
 AC_CONFIG_SRCDIR([rdesktop.c])
 
@@ -38,6 +38,7 @@ AC_CHECK_HEADER(sys/filio.h, AC_DEFINE(HAVE_SYS_FILIO_H))
 AC_CHECK_HEADER(sys/strtio.h, AC_DEFINE(HAVE_SYS_STRTIO_H))
 AC_CHECK_HEADER(locale.h, AC_DEFINE(HAVE_LOCALE_H))
 AC_CHECK_HEADER(langinfo.h, AC_DEFINE(HAVE_LANGINFO_H))
+AC_CHECK_HEADER(sysexits.h, AC_DEFINE(HAVE_SYSEXITS_H))
 
 AC_CHECK_TOOL(STRIP, strip, :)
 
@@ -106,6 +107,15 @@ LIBS="$LIBS $ssldir/lib/libcrypto.a"
 LIBS="$LIBS -L$ssldir/lib -lcrypto"
 rpath="$rpath:$ssldir/lib"
              ])
+# xrandr
+if test -n "$PKG_CONFIG"; then
+    PKG_CHECK_MODULES(XRANDR, xrandr, [HAVE_XRANDR=1], [HAVE_XRANDR=0])
+fi
+if test x"$HAVE_XRANDR" = "x1"; then
+    CFLAGS="$CFLAGS $XRANDR_CFLAGS"
+    LIBS="$LIBS $XRANDR_LIBS"
+    AC_DEFINE(HAVE_XRANDR)
+fi
 
 AC_ARG_ENABLE(smartcard,
              [  --enable-smartcard	  Enables smart-card support.
@@ -527,11 +537,11 @@ AC_DEFUN([TYPE_SOCKLEN_T],
 [
    AC_CHECK_TYPE([socklen_t], ,[
       AC_MSG_CHECKING([for socklen_t equivalent])
-      AC_CACHE_VAL([socklen_t_equiv],
+      AC_CACHE_VAL([socklen_t_cv_equiv],
       [
          # Systems have either "struct sockaddr *" or
          # "void *" as the second argument to getpeername
-         socklen_t_equiv=
+         socklen_t_cv_equiv=
          for arg2 in "struct sockaddr" void; do
             for t in int size_t unsigned long "unsigned long"; do
                AC_TRY_COMPILE([
@@ -543,18 +553,18 @@ AC_DEFUN([TYPE_SOCKLEN_T],
                   $t len;
                   getpeername(0,0,&len);
                ],[
-                  socklen_t_equiv="$t"
+                  socklen_t_cv_equiv="$t"
                   break
                ])
             done
          done
 
-         if test "x$socklen_t_equiv" = x; then
+         if test "x$socklen_t_cv_equiv" = x; then
             AC_MSG_ERROR([Cannot find a type to use in place of socklen_t])
          fi
       ])
-      AC_MSG_RESULT($socklen_t_equiv)
-      AC_DEFINE_UNQUOTED(socklen_t, $socklen_t_equiv,
+      AC_MSG_RESULT($socklen_t_cv_equiv)
+      AC_DEFINE_UNQUOTED(socklen_t, $socklen_t_cv_equiv,
 			[type to use in place of socklen_t if not defined])],
       [#include <sys/types.h>
 #include <sys/socket.h>])

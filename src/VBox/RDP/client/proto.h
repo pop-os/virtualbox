@@ -1,10 +1,10 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman 1999-2008
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -53,6 +52,8 @@ void cache_put_desktop(uint32 offset, int cx, int cy, int scanline, int bytes_pe
 		       uint8 * data);
 RD_HCURSOR cache_get_cursor(uint16 cache_idx);
 void cache_put_cursor(uint16 cache_idx, RD_HCURSOR cursor);
+BRUSHDATA *cache_get_brush_data(uint8 colour_code, uint8 idx);
+void cache_put_brush_data(uint8 colour_code, uint8 idx, BRUSHDATA * brush_data);
 /* channels.c */
 VCHANNEL *channel_register(char *name, uint32 flags, void (*callback) (STREAM));
 STREAM channel_init(VCHANNEL * channel, uint32 length);
@@ -82,8 +83,7 @@ void ewmh_init(void);
 STREAM iso_init(int length);
 void iso_send(STREAM s);
 STREAM iso_recv(uint8 * rdpver);
-RD_BOOL iso_connect(char *server, char *username);
-RD_BOOL iso_reconnect(char *server);
+RD_BOOL iso_connect(char *server, char *username, RD_BOOL reconnect);
 void iso_disconnect(void);
 void iso_reset_state(void);
 /* licence.c */
@@ -93,8 +93,7 @@ STREAM mcs_init(int length);
 void mcs_send_to_channel(STREAM s, uint16 channel);
 void mcs_send(STREAM s);
 STREAM mcs_recv(uint16 * channel, uint8 * rdpver);
-RD_BOOL mcs_connect(char *server, STREAM mcs_data, char *username);
-RD_BOOL mcs_reconnect(char *server, STREAM mcs_data);
+RD_BOOL mcs_connect(char *server, STREAM mcs_data, char *username, RD_BOOL reconnect);
 void mcs_disconnect(void);
 void mcs_reset_state(void);
 /* orders.c */
@@ -151,6 +150,7 @@ void rdp_send_input(uint32 time, uint16 message_type, uint16 device_flags, uint1
 		    uint16 param2);
 void rdp_send_client_window_status(int status);
 void process_colour_pointer_pdu(STREAM s);
+void process_new_pointer_pdu(STREAM s);
 void process_cached_pointer_pdu(STREAM s);
 void process_system_pointer_pdu(STREAM s);
 void process_bitmap_updates(STREAM s);
@@ -159,9 +159,7 @@ void process_disconnect_pdu(STREAM s, uint32 * ext_disc_reason);
 void rdp_main_loop(RD_BOOL * deactivated, uint32 * ext_disc_reason);
 RD_BOOL rdp_loop(RD_BOOL * deactivated, uint32 * ext_disc_reason);
 RD_BOOL rdp_connect(char *server, uint32 flags, char *domain, char *password, char *command,
-		    char *directory);
-RD_BOOL rdp_reconnect(char *server, uint32 flags, char *domain, char *password, char *command,
-		      char *directory, char *cookie);
+		    char *directory, RD_BOOL reconnect);
 void rdp_reset_state(void);
 void rdp_disconnect(void);
 /* rdpdr.c */
@@ -169,7 +167,7 @@ int get_device_index(RD_NTHANDLE handle);
 void convert_to_unix_filename(char *filename);
 void rdpdr_send_completion(uint32 device, uint32 id, uint32 status, uint32 result, uint8 * buffer,
 			   uint32 length);
-RD_BOOL rdpdr_init(void);
+RD_BOOL rdpdr_init();
 void rdpdr_add_fds(int *n, fd_set * rfds, fd_set * wfds, struct timeval *tv, RD_BOOL * timeout);
 struct async_iorequest *rdpdr_remove_iorequest(struct async_iorequest *prev,
 					       struct async_iorequest *iorq);
@@ -185,6 +183,7 @@ struct audio_packet *rdpsnd_queue_current_packet(void);
 RD_BOOL rdpsnd_queue_empty(void);
 void rdpsnd_queue_next(unsigned long completed_in_us);
 int rdpsnd_queue_next_tick(void);
+void rdpsnd_reset_state(void);
 /* secure.c */
 void sec_hash_48(uint8 * out, uint8 * in, uint8 * salt1, uint8 * salt2, uint8 salt);
 void sec_hash_16(uint8 * out, uint8 * in, uint8 * salt1, uint8 * salt2);
@@ -197,8 +196,7 @@ void sec_send_to_channel(STREAM s, uint32 flags, uint16 channel);
 void sec_send(STREAM s, uint32 flags);
 void sec_process_mcs_data(STREAM s);
 STREAM sec_recv(uint8 * rdpver);
-RD_BOOL sec_connect(char *server, char *username);
-RD_BOOL sec_reconnect(char *server);
+RD_BOOL sec_connect(char *server, char *username, RD_BOOL reconnect);
 void sec_disconnect(void);
 void sec_reset_state(void);
 /* serial.c */
@@ -243,6 +241,7 @@ void rdp_send_scancode(uint32 time, uint16 flags, uint8 scancode);
 /* xwin.c */
 RD_BOOL get_key_state(unsigned int state, uint32 keysym);
 RD_BOOL ui_init(void);
+void ui_init_connection(void);
 void ui_deinit(void);
 RD_BOOL ui_create_window(void);
 void ui_resize_window(void);
@@ -256,7 +255,7 @@ void ui_destroy_bitmap(RD_HBITMAP bmp);
 RD_HGLYPH ui_create_glyph(int width, int height, uint8 * data);
 void ui_destroy_glyph(RD_HGLYPH glyph);
 RD_HCURSOR ui_create_cursor(unsigned int x, unsigned int y, int width, int height, uint8 * andmask,
-			    uint8 * xormask);
+			    uint8 * xormask, int bpp);
 void ui_set_cursor(RD_HCURSOR cursor);
 void ui_destroy_cursor(RD_HCURSOR cursor);
 void ui_set_null_cursor(void);
@@ -290,6 +289,7 @@ void ui_desktop_restore(uint32 offset, int x, int y, int cx, int cy);
 void ui_begin_update(void);
 void ui_end_update(void);
 void ui_seamless_begin(RD_BOOL hidden);
+void ui_seamless_end();
 void ui_seamless_hide_desktop(void);
 void ui_seamless_unhide_desktop(void);
 void ui_seamless_toggle(void);
@@ -322,6 +322,9 @@ unsigned int seamless_send_destroy(unsigned long id);
 /* scard.c */
 void scard_lock(int lock);
 void scard_unlock(int lock);
+int scard_enum_devices(uint32 * id, char *optarg);
+void scardSetInfo(uint32 device, uint32 id, uint32 bytes_out);
+void scard_reset_state();
 /* vrdp/rdpusb.c */
 RD_BOOL rdpusb_init(void);
 void rdpusb_close (void);

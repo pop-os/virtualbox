@@ -1,11 +1,12 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Protocol services - TCP layer
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright 2005-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -65,6 +65,7 @@ static int g_sock;
 static struct stream g_in;
 static struct stream g_out[STREAM_COUNT];
 int g_tcp_port_rdp = TCP_PORT_RDP;
+extern RD_BOOL g_user_quit;
 
 /* wait till socket is ready to write or timeout */
 static RD_BOOL
@@ -182,8 +183,11 @@ tcp_recv(STREAM s, uint32 length)
 	while (length > 0)
 	{
 		if (!ui_select(g_sock))
+		{
 			/* User quit */
+			g_user_quit = True;
 			return NULL;
+		}
 
 		rcvd = recv(g_sock, s->end, length, 0);
 		if (rcvd < 0)

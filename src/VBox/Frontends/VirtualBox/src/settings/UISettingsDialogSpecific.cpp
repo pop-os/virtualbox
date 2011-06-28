@@ -433,6 +433,9 @@ void UIGLSettingsDlg::putBackTo()
 
 void UIGLSettingsDlg::retranslateUi()
 {
+    /* Base-class UI translation: */
+    UISettingsDialog::retranslateUi();
+
     /* Set dialog's name: */
     setWindowTitle(title());
 
@@ -459,9 +462,6 @@ void UIGLSettingsDlg::retranslateUi()
 
     /* Translate the selector: */
     m_pSelector->polish();
-
-    /* Base-class UI translation: */
-    UISettingsDialog::retranslateUi();
 }
 
 QString UIGLSettingsDlg::title() const
@@ -767,13 +767,22 @@ void UIVMSettingsDlg::putBackTo()
 
 void UIVMSettingsDlg::retranslateUi()
 {
+    /* We have to make sure that the Network, Serial & Parallel pages are retranslated
+     * before they are revalidated. Cause: They do string comparing within
+     * vboxGlobal which is retranslated at that point already: */
+    QEvent event(QEvent::LanguageChange);
+    if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Network))
+        qApp->sendEvent(pPage, &event);
+    if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Serial))
+        qApp->sendEvent(pPage, &event);
+    if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Parallel))
+        qApp->sendEvent(pPage, &event);
+
+    /* Base-class UI translation: */
+    UISettingsDialog::retranslateUi();
+
     /* Set dialog's name: */
     setWindowTitle(title());
-
-    /* We have to make sure that the Serial & Network subpages are retranslated
-     * before they are revalidated. Cause: They do string comparing within
-     * vboxGlobal which is retranslated at that point already. */
-    QEvent event(QEvent::LanguageChange);
 
     /* General page: */
     m_pSelector->setItemText(VMSettingsPage_General, tr("General"));
@@ -792,21 +801,15 @@ void UIVMSettingsDlg::retranslateUi()
 
     /* Network page: */
     m_pSelector->setItemText(VMSettingsPage_Network, tr("Network"));
-    if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Network))
-        qApp->sendEvent(pPage, &event);
 
     /* Ports page: */
     m_pSelector->setItemText(VMSettingsPage_Ports, tr("Ports"));
 
     /* Serial page: */
     m_pSelector->setItemText(VMSettingsPage_Serial, tr("Serial Ports"));
-    if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Serial))
-        qApp->sendEvent(pPage, &event);
 
     /* Parallel page: */
     m_pSelector->setItemText(VMSettingsPage_Parallel, tr("Parallel Ports"));
-    if (QWidget *pPage = m_pSelector->idToPage(VMSettingsPage_Parallel))
-        qApp->sendEvent(pPage, &event);
 
     /* USB page: */
     m_pSelector->setItemText(VMSettingsPage_USB, tr("USB"));
@@ -816,18 +819,6 @@ void UIVMSettingsDlg::retranslateUi()
 
     /* Translate the selector: */
     m_pSelector->polish();
-
-    /* Base-class UI translation: */
-    UISettingsDialog::retranslateUi();
-
-    /* Revalidate all pages to retranslate the warning messages also: */
-    QList<QIWidgetValidator*> validators = findChildren<QIWidgetValidator*>();
-    for (int i = 0; i < validators.size(); ++i)
-    {
-        QIWidgetValidator *pValidator = validators[i];
-        if (!pValidator->isValid())
-            sltRevalidate(pValidator);
-    }
 }
 
 QString UIVMSettingsDlg::title() const

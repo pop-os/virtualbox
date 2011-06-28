@@ -1381,7 +1381,7 @@ static DECLCALLBACK(int) vboxbfeConfigConstructor(PVM pVM, void *pvUser)
     /*
      * PDM.
      */
-    rc = PDMR3RegisterDrivers(pVM, VBoxDriversRegister);                            UPDATE_RC();
+    rc = PDMR3DrvStaticRegistration(pVM, VBoxDriversRegister);                      UPDATE_RC();
 
     /*
      * Devices

@@ -7757,6 +7757,8 @@ HRESULT Machine::loadStorageDevices(StorageController *aStorageController,
                 rc = medium->addBackReference(mData->mUuid, *puuidSnapshot);
             else
                 rc = medium->addBackReference(mData->mUuid);
+            /* If the medium->addBackReference fails it sets an appropriate
+             * error message, so no need to do any guesswork here. */
 
             if (puuidRegistry)
                 // caller wants registry ID to be set on all attached media (OVF import case)
@@ -9013,8 +9015,8 @@ HRESULT Machine::createImplicitDiffs(IProgress *aProgress,
     {
         ErrorInfoKeeper eik;
 
-        rc = lockedMediaMap->Clear();
-        AssertComRC(rc);
+        HRESULT rc1 = lockedMediaMap->Clear();
+        AssertComRC(rc1);
     }
 
     if (FAILED(rc))

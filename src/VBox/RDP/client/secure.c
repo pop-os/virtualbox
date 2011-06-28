@@ -1,11 +1,12 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Protocol services - RDP encryption and licensing
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright 2005-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -44,6 +44,7 @@ extern RD_BOOL g_console_session;
 extern int g_server_depth;
 extern VCHANNEL g_channels[];
 extern unsigned int g_num_channels;
+extern uint8 g_client_random[SEC_RANDOM_SIZE];
 
 static int g_rc4_key_len;
 static SSL_RC4 g_rc4_decrypt_key;
@@ -677,7 +678,6 @@ static void
 sec_process_crypt_info(STREAM s)
 {
 	uint8 *server_random = NULL;
-	uint8 client_random[SEC_RANDOM_SIZE];
 	uint8 modulus[SEC_MAX_MODULUS_SIZE];
 	uint8 exponent[SEC_EXPONENT_SIZE];
 	uint32 rc4_key_size;
@@ -690,10 +690,10 @@ sec_process_crypt_info(STREAM s)
 		return;
 	}
 	DEBUG(("Generating client random\n"));
-	generate_random(client_random);
-	sec_rsa_encrypt(g_sec_crypted_random, client_random, SEC_RANDOM_SIZE,
+	generate_random(g_client_random);
+	sec_rsa_encrypt(g_sec_crypted_random, g_client_random, SEC_RANDOM_SIZE,
 			g_server_public_key_len, modulus, exponent);
-	sec_generate_keys(client_random, server_random, rc4_key_size);
+	sec_generate_keys(g_client_random, server_random, rc4_key_size);
 }
 
 
@@ -835,7 +835,8 @@ sec_recv(uint8 * rdpver)
 		if (channel != MCS_GLOBAL_CHANNEL)
 		{
 			channel_process(s, channel);
-			*rdpver = 0xff;
+			if (rdpver != NULL)
+				*rdpver = 0xff;
 			return s;
 		}
 
@@ -847,7 +848,7 @@ sec_recv(uint8 * rdpver)
 
 /* Establish a secure connection */
 RD_BOOL
-sec_connect(char *server, char *username)
+sec_connect(char *server, char *username, RD_BOOL reconnect)
 {
 	struct stream mcs_data;
 
@@ -856,28 +857,7 @@ sec_connect(char *server, char *username)
 	mcs_data.p = mcs_data.data = (uint8 *) xmalloc(mcs_data.size);
 	sec_out_mcs_data(&mcs_data);
 
-	if (!mcs_connect(server, &mcs_data, username))
-		return False;
-
-	/*      sec_process_mcs_data(&mcs_data); */
-	if (g_encryption)
-		sec_establish_key();
-	xfree(mcs_data.data);
-	return True;
-}
-
-/* Establish a secure connection */
-RD_BOOL
-sec_reconnect(char *server)
-{
-	struct stream mcs_data;
-
-	/* We exchange some RDP data during the MCS-Connect */
-	mcs_data.size = 512;
-	mcs_data.p = mcs_data.data = (uint8 *) xmalloc(mcs_data.size);
-	sec_out_mcs_data(&mcs_data);
-
-	if (!mcs_reconnect(server, &mcs_data))
+	if (!mcs_connect(server, &mcs_data, username, reconnect))
 		return False;
 
 	/*      sec_process_mcs_data(&mcs_data); */

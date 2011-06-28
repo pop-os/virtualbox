@@ -1,13 +1,14 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Sound Channel Process Functions - Open Sound System
-   Copyright (C) Matthew Chapman 2003-2007
-   Copyright (C) GuoJunBo guojunbo@ict.ac.cn 2003
-   Copyright 2006-2007 Pierre Ossman <ossman@cendio.se> for Cendio AB
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 2003-2008
+   Copyright (C) GuoJunBo <guojunbo@ict.ac.cn> 2003
+   Copyright 2006-2008 Pierre Ossman <ossman@cendio.se> for Cendio AB
+   Copyright 2005-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,8 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -37,6 +37,8 @@
 #undef _FILE_OFFSET_BITS
 #endif
 
+#include <assert.h>
+
 #include "rdesktop.h"
 #include "rdpsnd.h"
 #include "rdpsnd_dsp.h"
@@ -55,13 +57,9 @@
 
 static int dsp_fd = -1;
 static int dsp_mode;
-static int dsp_refs;
 
 static RD_BOOL dsp_configured;
 static RD_BOOL dsp_broken;
-
-static RD_BOOL dsp_out;
-static RD_BOOL dsp_in;
 
 static int stereo;
 static int format;
@@ -73,24 +71,25 @@ static RD_BOOL in_esddsp;
 /* This is a just a forward declaration */
 static struct audio_driver oss_driver;
 
-void oss_play(void);
-void oss_record(void);
+static void oss_play(void);
+static void oss_record(void);
+static RD_BOOL oss_set_format(RD_WAVEFORMATEX * pwfx);
 
-void
+static void
 oss_add_fds(int *n, fd_set * rfds, fd_set * wfds, struct timeval *tv)
 {
 	if (dsp_fd == -1)
 		return;
 
-	if (dsp_out && !rdpsnd_queue_empty())
+	if ((dsp_mode == O_WRONLY || dsp_mode == O_RDWR) && !rdpsnd_queue_empty())
 		FD_SET(dsp_fd, wfds);
-	if (dsp_in)
+	if (dsp_mode == O_RDONLY || dsp_mode == O_RDWR)
 		FD_SET(dsp_fd, rfds);
 	if (dsp_fd > *n)
 		*n = dsp_fd;
 }
 
-void
+static void
 oss_check_fds(fd_set * rfds, fd_set * wfds)
 {
 	if (FD_ISSET(dsp_fd, wfds))
@@ -121,115 +120,129 @@ detect_esddsp(void)
 	return True;
 }
 
-RD_BOOL
-oss_open(int fallback)
-{
-	int caps;
 
+static void
+oss_restore_format()
+{
+	RD_WAVEFORMATEX wfx;
+	memset(&wfx, 0, sizeof(RD_WAVEFORMATEX));
+	switch (format)
+	{
+		case AFMT_U8:
+			wfx.wBitsPerSample = 8;
+			break;
+		case AFMT_S16_LE:
+			wfx.wBitsPerSample = 16;
+			break;
+		default:
+			wfx.wBitsPerSample = 0;
+	}
+	wfx.nChannels = stereo ? 2 : 1;
+	wfx.nSamplesPerSec = snd_rate;
+	oss_set_format(&wfx);
+}
+
+
+static RD_BOOL
+oss_open(int wanted)
+{
 	if (dsp_fd != -1)
 	{
-		dsp_refs++;
-
-		if (dsp_mode == O_RDWR)
+		if (wanted == dsp_mode)
+		{
+			/* should probably not happen */
 			return True;
-
-		if (dsp_mode == fallback)
-			return True;
-
-		dsp_refs--;
-		return False;
+		}
+		else
+		{
+			/* device open but not our mode. Before
+			   reopening O_RDWR, verify that the device is
+			   duplex capable */
+			int caps;
+			ioctl(dsp_fd, SNDCTL_DSP_SETDUPLEX, 0);
+			if ((ioctl(dsp_fd, SNDCTL_DSP_GETCAPS, &caps) < 0)
+			    || !(caps & DSP_CAP_DUPLEX))
+			{
+				warning("This device is not capable of full duplex operation.\n");
+				return False;
+			}
+			close(dsp_fd);
+			dsp_mode = O_RDWR;
+		}
+	}
+	else
+	{
+		dsp_mode = wanted;
 	}
 
 	dsp_configured = False;
 	dsp_broken = False;
 
-	dsp_mode = O_RDWR;
-	dsp_fd = open(dsp_dev, O_RDWR | O_NONBLOCK);
-	if (dsp_fd != -1)
-	{
-		ioctl(dsp_fd, SNDCTL_DSP_SETDUPLEX, 0);
-
-		if ((ioctl(dsp_fd, SNDCTL_DSP_GETCAPS, &caps) < 0) || !(caps & DSP_CAP_DUPLEX))
-		{
-			close(dsp_fd);
-			dsp_fd = -1;
-		}
-	}
+	dsp_fd = open(dsp_dev, dsp_mode | O_NONBLOCK);
 
 	if (dsp_fd == -1)
 	{
-		dsp_mode = fallback;
-
-		dsp_fd = open(dsp_dev, dsp_mode | O_NONBLOCK);
-		if (dsp_fd == -1)
-		{
-			perror(dsp_dev);
-			return False;
-		}
+		perror(dsp_dev);
+		return False;
 	}
-
-	dsp_refs++;
 
 	in_esddsp = detect_esddsp();
 
 	return True;
 }
 
-void
+static void
 oss_close(void)
 {
-	dsp_refs--;
-
-	if (dsp_refs != 0)
-		return;
-
 	close(dsp_fd);
 	dsp_fd = -1;
 }
 
-RD_BOOL
+static RD_BOOL
 oss_open_out(void)
 {
 	if (!oss_open(O_WRONLY))
 		return False;
 
-	dsp_out = True;
-
 	return True;
 }
 
-void
+static void
 oss_close_out(void)
 {
 	oss_close();
+	if (dsp_mode == O_RDWR)
+	{
+		if (oss_open(O_RDONLY))
+			oss_restore_format();
+	}
 
 	/* Ack all remaining packets */
 	while (!rdpsnd_queue_empty())
 		rdpsnd_queue_next(0);
-
-	dsp_out = False;
 }
 
-RD_BOOL
+static RD_BOOL
 oss_open_in(void)
 {
 	if (!oss_open(O_RDONLY))
 		return False;
 
-	dsp_in = True;
-
 	return True;
 }
 
-void
+static void
 oss_close_in(void)
 {
 	oss_close();
-
-	dsp_in = False;
+	if (dsp_mode == O_RDWR)
+	{
+		if (oss_open(O_WRONLY))
+			oss_restore_format();
+	}
 }
 
-RD_BOOL
+static RD_BOOL
 oss_format_supported(RD_WAVEFORMATEX * pwfx)
 {
 	if (pwfx->wFormatTag != WAVE_FORMAT_PCM)
@@ -242,11 +255,13 @@ oss_format_supported(RD_WAVEFORMATEX * pwfx)
 	return True;
 }
 
-RD_BOOL
+static RD_BOOL
 oss_set_format(RD_WAVEFORMATEX * pwfx)
 {
 	int fragments;
 	static RD_BOOL driver_broken = False;
+
+	assert(dsp_fd != -1);
 
 	if (dsp_configured)
 	{
@@ -255,7 +270,7 @@ oss_set_format(RD_WAVEFORMATEX * pwfx)
 		if ((pwfx->wBitsPerSample == 16) && (format != AFMT_S16_LE))
 			return False;
 
-		if ((pwfx->nChannels == 2) != !!stereo)
+		if ((pwfx->nChannels == 2) != ! !stereo)
 			return False;
 
 		if (pwfx->nSamplesPerSec != snd_rate)
@@ -363,7 +378,7 @@ oss_set_format(RD_WAVEFORMATEX * pwfx)
 	return True;
 }
 
-void
+static void
 oss_volume(uint16 left, uint16 right)
 {
 	uint32 volume;
@@ -380,12 +395,14 @@ oss_volume(uint16 left, uint16 right)
 	}
 }
 
-void
+static void
 oss_play(void)
 {
 	struct audio_packet *packet;
 	ssize_t len;
 	STREAM out;
+
+	assert(dsp_fd != -1);
 
 	/* We shouldn't be called if the queue is empty, but still */
 	if (rdpsnd_queue_empty())
@@ -449,11 +466,13 @@ oss_play(void)
 	}
 }
 
-void
+static void
 oss_record(void)
 {
 	char buffer[32768];
 	int len;
+
+	assert(dsp_fd != -1);
 
 	len = read(dsp_fd, buffer, sizeof(buffer));
 	if (len == -1)

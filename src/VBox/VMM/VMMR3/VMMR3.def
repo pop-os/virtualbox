@@ -92,6 +92,8 @@ EXPORTS
     CFGMR3QueryString
     CFGMR3QueryStringAlloc
 
+    IOMR3GetCritSect
+
     MMR3HeapFree
     MMR3HeapRealloc
 

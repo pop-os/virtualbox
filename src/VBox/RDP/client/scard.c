@@ -2,10 +2,11 @@
    rdesktop: A Remote Desktop Protocol client.
    Smart Card support
    Copyright (C) Alexi Volkov <alexi@myrealbox.com> 2006
+   Copyright 2010 Pierre Ossman <ossman@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -33,6 +33,7 @@
 #include <strings.h>
 #include <sys/types.h>
 #include <time.h>
+#include <arpa/inet.h>
 #ifndef MAKE_PROTO
 #ifdef __APPLE__
 #include <PCSC/wintypes.h>
@@ -42,6 +43,9 @@
 #include <wintypes.h>
 #include <pcsclite.h>
 #include <winscard.h>
+#ifdef PCSCLITE_VERSION_NUMBER
+#include <reader.h>
+#endif
 #endif /* PCSC_OSX */
 #include "rdesktop.h"
 #include "scard.h"
@@ -49,7 +53,9 @@
 /* variable segment */
 
 #define SCARD_MAX_MEM 102400
+#ifndef SCARD_AUTOALLOCATE
 #define SCARD_AUTOALLOCATE -1
+#endif
 #define	OUT_STREAM_SIZE	4096
 
 #ifdef B_ENDIAN
@@ -943,6 +949,8 @@ TS_SCardDisconnect(STREAM in, STREAM out)
 	return rv;
 }
 
+/* Currently unused */
+#if 0
 static int
 needStatusRecheck(MYPCSC_DWORD rv, MYPCSC_LPSCARD_READERSTATE_A rsArray, SERVER_DWORD dwCount)
 {
@@ -969,21 +977,7 @@ mappedStatus(MYPCSC_DWORD code)
 	code &= 0x0000FFFF;
 	return (code % 2);
 }
-
-static MYPCSC_DWORD
-incStatus(MYPCSC_DWORD code, RD_BOOL mapped)
-{
-	if (mapped || (code & SCARD_STATE_CHANGED))
-	{
-		MYPCSC_DWORD count = (code >> 16) & 0x0000FFFF;
-		count++;
-		if (mapped && !(count % 2))
-			count++;
-		return (code & 0x0000FFFF) | (count << 16);
-	}
-	else
-		return code;
-}
+#endif
 
 static void
 copyReaderState_MyPCSCToServer(MYPCSC_LPSCARD_READERSTATE_A src, SERVER_LPSCARD_READERSTATE_A dst,
@@ -1032,13 +1026,9 @@ TS_SCardGetStatusChange(STREAM in, STREAM out, RD_BOOL wide)
 	SERVER_DWORD dwTimeout;
 	SERVER_DWORD dwCount;
 	SERVER_LPSCARD_READERSTATE_A rsArray, cur;
-	SERVER_DWORD *stateArray = NULL, *curState;
 	MYPCSC_LPSCARD_READERSTATE_A myRsArray;
 	long i;
 	PMEM_HANDLE lcHandle = NULL;
-#if 0
-	RD_BOOL mapped = False;
-#endif
 
 	in->p += 0x18;
 	in_uint32_le(in, dwTimeout);
@@ -1056,9 +1046,6 @@ TS_SCardGetStatusChange(STREAM in, STREAM out, RD_BOOL wide)
 		if (!rsArray)
 			return SC_returnNoMemoryError(&lcHandle, in, out);
 		memset(rsArray, 0, dwCount * sizeof(SERVER_SCARD_READERSTATE_A));
-		stateArray = SC_xmalloc(&lcHandle, dwCount * sizeof(MYPCSC_DWORD));
-		if (!stateArray)
-			return SC_returnNoMemoryError(&lcHandle, in, out);
 		/* skip two pointers at beginning of struct */
 		for (i = 0, cur = (SERVER_LPSCARD_READERSTATE_A) ((unsigned char **) rsArray + 2);
 		     i < dwCount; i++, cur++)
@@ -1067,8 +1054,7 @@ TS_SCardGetStatusChange(STREAM in, STREAM out, RD_BOOL wide)
 			in_uint8a(in, cur, SERVER_SCARDSTATESIZE);
 		}
 
-		for (i = 0, cur = rsArray, curState = stateArray;
-		     i < dwCount; i++, cur++, curState++)
+		for (i = 0, cur = rsArray; i < dwCount; i++, cur++)
 		{
 			SERVER_DWORD dataLength;
 
@@ -1076,31 +1062,6 @@ TS_SCardGetStatusChange(STREAM in, STREAM out, RD_BOOL wide)
 			cur->dwCurrentState = swap32(cur->dwCurrentState);
 			cur->dwEventState = swap32(cur->dwEventState);
 			cur->cbAtr = swap32(cur->cbAtr);
-
-			/* reset Current state hign bytes; */
-			*curState = cur->dwCurrentState;
-			cur->dwCurrentState &= 0x0000FFFF;
-			cur->dwEventState &= 0x0000FFFF;
-
-#if 0
-			if (cur->dwCurrentState == (SCARD_STATE_CHANGED | SCARD_STATE_PRESENT))
-			{
-				cur->dwCurrentState = 0x00000000;
-				mapped = True;
-			}
-
-			if (mappedStatus(*curState))
-			{
-				cur->dwCurrentState &= ~SCARD_STATE_INUSE;
-				cur->dwEventState &= ~SCARD_STATE_INUSE;
-
-				if (cur->dwCurrentState & SCARD_STATE_EMPTY)
-				{
-					cur->dwCurrentState &= ~SCARD_STATE_EMPTY;
-					cur->dwCurrentState |= SCARD_STATE_UNKNOWN;
-				}
-			}
-#endif
 
 			in->p += 0x08;
 			in_uint32_le(in, dataLength);
@@ -1115,14 +1076,11 @@ TS_SCardGetStatusChange(STREAM in, STREAM out, RD_BOOL wide)
 			DEBUG_SCARD(("SCARD:        user: 0x%08x, state: 0x%08x, event: 0x%08x\n",
 				     (unsigned) cur->pvUserData, (unsigned) cur->dwCurrentState,
 				     (unsigned) cur->dwEventState));
-			DEBUG_SCARD(("SCARD:            current state: 0x%08x\n",
-				     (unsigned) *curState));
 		}
 	}
 	else
 	{
 		rsArray = NULL;
-		stateArray = NULL;
 	}
 
 	myRsArray = SC_xmalloc(&lcHandle, dwCount * sizeof(MYPCSC_SCARD_READERSTATE_A));
@@ -1149,36 +1107,8 @@ TS_SCardGetStatusChange(STREAM in, STREAM out, RD_BOOL wide)
 	out_uint32_le(out, 0x00084dd8);
 	out_uint32_le(out, dwCount);
 
-	for (i = 0, cur = rsArray, curState = stateArray; i < dwCount; i++, cur++, curState++)
+	for (i = 0, cur = rsArray; i < dwCount; i++, cur++)
 	{
-
-		cur->dwCurrentState = (*curState);
-		cur->dwEventState |= (*curState) & 0xFFFF0000;
-
-#if 0
-		if (mapped && (cur->dwCurrentState & SCARD_STATE_PRESENT)
-		    && (cur->dwCurrentState & SCARD_STATE_CHANGED)
-		    && (cur->dwEventState & SCARD_STATE_PRESENT)
-		    && (cur->dwEventState & SCARD_STATE_CHANGED))
-		{
-			cur->dwEventState |= SCARD_STATE_INUSE;
-		}
-		else if (cur->dwEventState & SCARD_STATE_UNKNOWN)
-		{
-			cur->dwEventState &= ~SCARD_STATE_UNKNOWN;
-			cur->dwEventState |= SCARD_STATE_EMPTY;
-			mapped = True;
-		}
-		else if ((!mapped) && (cur->dwEventState & SCARD_STATE_INUSE))
-		{
-			mapped = True;
-			cur->dwEventState &= ~SCARD_STATE_INUSE;
-		}
-
-		cur->dwEventState = incStatus(cur->dwEventState, mapped);
-#endif
-		cur->dwEventState = incStatus(cur->dwEventState, False);
-
 		DEBUG_SCARD(("SCARD:    \"%s\"\n", cur->szReader ? cur->szReader : "NULL"));
 		DEBUG_SCARD(("SCARD:        user: 0x%08x, state: 0x%08x, event: 0x%08x\n",
 			     (unsigned) cur->pvUserData, (unsigned) cur->dwCurrentState,
@@ -1861,6 +1791,8 @@ TS_SCardState(STREAM in, STREAM out)
 
 #ifndef WITH_PCSC120
 
+/* Currently unused */
+#if 0
 static MYPCSC_DWORD
 TS_SCardListReaderGroups(STREAM in, STREAM out)
 {
@@ -1920,6 +1852,7 @@ TS_SCardListReaderGroups(STREAM in, STREAM out)
 	SC_xfreeallmemory(&lcHandle);
 	return rv;
 }
+#endif
 
 static MYPCSC_DWORD
 TS_SCardGetAttrib(STREAM in, STREAM out)
@@ -2016,6 +1949,8 @@ TS_SCardGetAttrib(STREAM in, STREAM out)
 	return rv;
 }
 
+/* Currently unused */
+#if 0
 static MYPCSC_DWORD
 TS_SCardSetAttrib(STREAM in, STREAM out)
 {
@@ -2069,6 +2004,7 @@ TS_SCardSetAttrib(STREAM in, STREAM out)
 	SC_xfreeallmemory(&lcHandle);
 	return rv;
 }
+#endif
 
 #endif
 
@@ -2106,10 +2042,27 @@ TS_SCardControl(STREAM in, STREAM out)
 	{
 		/* read real input size */
 		in_uint32_le(in, nInBufferSize);
-		pInBuffer = SC_xmalloc(&lcHandle, nInBufferSize);
-		if (!pInBuffer)
-			return SC_returnNoMemoryError(&lcHandle, in, out);
-		in_uint8a(in, pInBuffer, nInBufferSize);
+		if (nInBufferSize > 0)
+		{
+			pInBuffer = SC_xmalloc(&lcHandle, nInBufferSize);
+			if (!pInBuffer)
+				return SC_returnNoMemoryError(&lcHandle, in, out);
+			in_uint8a(in, pInBuffer, nInBufferSize);
+		}
+	}
+
+	DEBUG_SCARD(("SCARD: SCardControl(context: 0x%08x, hcard: 0x%08x, code: 0x%08x, in: %d bytes, out: %d bytes)\n", (unsigned) hContext, (unsigned) hCard, (unsigned) dwControlCode, (int) nInBufferSize, (int) nOutBufferSize));
+
+	/* Is this a proper Windows smart card ioctl? */
+	if ((dwControlCode & 0xffff0000) == (49 << 16))
+	{
+		/* Translate to local encoding */
+		dwControlCode = (dwControlCode & 0x3ffc) >> 2;
+		dwControlCode = SCARD_CTL_CODE(dwControlCode);
+	}
+	else
+	{
+		warning("Bogus smart card control code 0x%08x\n", dwControlCode);
 	}
 
 #if 0
@@ -2127,8 +2080,6 @@ TS_SCardControl(STREAM in, STREAM out)
 	pOutBuffer = SC_xmalloc(&lcHandle, nOutBufferRealSize);
 	if (!pOutBuffer)
 		return SC_returnNoMemoryError(&lcHandle, in, out);
-
-	DEBUG_SCARD(("SCARD: SCardControl(context: 0x%08x, hcard: 0x%08x, code: 0x%08x, in: %d bytes, out: %d bytes)\n", (unsigned) hContext, (unsigned) hCard, (unsigned) dwControlCode, (int) nInBufferSize, (int) nOutBufferSize));
 
 	sc_nBytesReturned = nBytesReturned;
 	myHCard = scHandleToMyPCSC(hCard);
@@ -2151,6 +2102,24 @@ TS_SCardControl(STREAM in, STREAM out)
 	{
 		DEBUG_SCARD(("SCARD: -> Success (out: %d bytes)\n", (int) nBytesReturned));
 	}
+
+#ifdef PCSCLITE_VERSION_NUMBER
+	if (dwControlCode == SCARD_CTL_CODE(3400))
+	{
+		int i;
+		SERVER_DWORD cc;
+
+		for (i = 0; i < nBytesReturned / 6; i++)
+		{
+			memcpy(&cc, pOutBuffer + 2 + i * 6, 4);
+			cc = ntohl(cc);
+			cc = cc - 0x42000000;
+			cc = (49 << 16) | (cc << 2);
+			cc = htonl(cc);
+			memcpy(pOutBuffer + 2 + i * 6, &cc, 4);
+		}
+	}
+#endif
 
 	out_uint32_le(out, nBytesReturned);
 	out_uint32_le(out, 0x00000004);
@@ -2383,6 +2352,8 @@ duplicateStream(PMEM_HANDLE * handle, STREAM s, uint32 buffer_size, RD_BOOL isIn
 	return d;
 }
 
+/* Currently unused */
+#if 0
 static void
 freeStream(PMEM_HANDLE * handle, STREAM s)
 {
@@ -2393,6 +2364,7 @@ freeStream(PMEM_HANDLE * handle, STREAM s)
 		SC_xfree(handle, s);
 	}
 }
+#endif
 
 static PSCThreadData
 SC_addToQueue(RD_NTHANDLE handle, uint32 request, STREAM in, STREAM out)
@@ -2621,4 +2593,14 @@ void
 scard_unlock(int lock)
 {
 	pthread_mutex_unlock(scard_mutex[lock]);
+}
+
+void
+scard_reset_state()
+{
+	curDevice = 0;
+	curId = 0;
+	curBytesOut = 0;
+
+	queueFirst = queueLast = NULL;
 }

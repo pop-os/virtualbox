@@ -1,12 +1,13 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    User interface services - X Window System
-   Copyright (C) Matthew Chapman 1999-2008
-   Copyright 2007 Pierre Ossman <ossman@cendio.se> for Cendio AB
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright 2007-2008 Pierre Ossman <ossman@cendio.se> for Cendio AB
+   Copyright 2002-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -15,8 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -38,7 +38,11 @@
 #include <strings.h>
 #include "rdesktop.h"
 #include "xproto.h"
+#ifdef HAVE_XRANDR
+#include <X11/extensions/Xrandr.h>
+#endif
 
+extern int g_sizeopt;
 extern int g_width;
 extern int g_height;
 extern int g_xpos;
@@ -48,6 +52,7 @@ extern RD_BOOL g_sendmotion;
 extern RD_BOOL g_fullscreen;
 extern RD_BOOL g_grab_keyboard;
 extern RD_BOOL g_hide_decorations;
+extern RD_BOOL g_pending_resize;
 extern char g_title[];
 /* Color depth of the RDP session.
    As of RDP 5.1, it may be 8, 15, 16 or 24. */
@@ -1828,6 +1833,7 @@ error_handler(Display * dpy, XErrorEvent * eev)
 	return g_old_error_handler(dpy, eev);
 }
 
+/* Initialize the UI. This is done once per process. */
 RD_BOOL
 ui_init(void)
 {
@@ -1884,44 +1890,6 @@ ui_init(void)
 		g_ownbackstore = True;
 	}
 
-	/*
-	 * Determine desktop size
-	 */
-	if (g_fullscreen)
-	{
-		g_width = WidthOfScreen(g_screen);
-		g_height = HeightOfScreen(g_screen);
-		g_using_full_workarea = True;
-	}
-	else if (g_width < 0)
-	{
-		/* Percent of screen */
-		if (-g_width >= 100)
-			g_using_full_workarea = True;
-		g_height = HeightOfScreen(g_screen) * (-g_width) / 100;
-		g_width = WidthOfScreen(g_screen) * (-g_width) / 100;
-	}
-	else if (g_width == 0)
-	{
-		/* Fetch geometry from _NET_WORKAREA */
-		uint32 x, y, cx, cy;
-		if (get_current_workarea(&x, &y, &cx, &cy) == 0)
-		{
-			g_width = cx;
-			g_height = cy;
-			g_using_full_workarea = True;
-		}
-		else
-		{
-			warning("Failed to get workarea: probably your window manager does not support extended hints\n");
-			g_width = WidthOfScreen(g_screen);
-			g_height = HeightOfScreen(g_screen);
-		}
-	}
-
-	/* make sure width is a multiple of 4 */
-	g_width = (g_width + 3) & ~3;
-
 	g_mod_map = XGetModifierMapping(g_display);
 	xwin_refresh_pointer_map();
 
@@ -1942,15 +1910,56 @@ ui_init(void)
 	return True;
 }
 
+
+/* 
+   Initialize connection specific data, such as session size. 
+ */
+void
+ui_init_connection(void)
+{
+	/*
+	 * Determine desktop size
+	 */
+	if (g_fullscreen)
+	{
+		g_width = WidthOfScreen(g_screen);
+		g_height = HeightOfScreen(g_screen);
+		g_using_full_workarea = True;
+	}
+	else if (g_sizeopt < 0)
+	{
+		/* Percent of screen */
+		if (-g_sizeopt >= 100)
+			g_using_full_workarea = True;
+		g_height = HeightOfScreen(g_screen) * (-g_sizeopt) / 100;
+		g_width = WidthOfScreen(g_screen) * (-g_sizeopt) / 100;
+	}
+	else if (g_sizeopt == 1)
+	{
+		/* Fetch geometry from _NET_WORKAREA */
+		uint32 x, y, cx, cy;
+		if (get_current_workarea(&x, &y, &cx, &cy) == 0)
+		{
+			g_width = cx;
+			g_height = cy;
+			g_using_full_workarea = True;
+		}
+		else
+		{
+			warning("Failed to get workarea: probably your window manager does not support extended hints\n");
+			g_width = WidthOfScreen(g_screen);
+			g_height = HeightOfScreen(g_screen);
+		}
+	}
+
+	/* make sure width is a multiple of 4 */
+	g_width = (g_width + 3) & ~3;
+}
+
+
 void
 ui_deinit(void)
 {
-	while (g_seamless_windows)
-	{
-		XDestroyWindow(g_display, g_seamless_windows->wnd);
-		sw_remove_window(g_seamless_windows);
-	}
-
 	xclip_deinit();
 
 	if (g_IM != NULL)
@@ -1960,9 +1969,6 @@ ui_deinit(void)
 		ui_destroy_cursor(g_null_cursor);
 
 	XFreeModifiermap(g_mod_map);
-
-	if (g_ownbackstore)
-		XFreePixmap(g_display, g_backstore);
 
 	XFreeGC(g_display, g_gc);
 	XCloseDisplay(g_display);
@@ -1974,7 +1980,6 @@ static void
 get_window_attribs(XSetWindowAttributes * attribs)
 {
 	attribs->background_pixel = BlackPixelOfScreen(g_screen);
-	attribs->background_pixel = WhitePixelOfScreen(g_screen);
 	attribs->border_pixel = WhitePixelOfScreen(g_screen);
 	attribs->backing_store = g_ownbackstore ? NotUseful : Always;
 	attribs->override_redirect = g_fullscreen;
@@ -2088,6 +2093,9 @@ ui_create_window(void)
 	}
 
 	XSelectInput(g_display, g_wnd, input_mask);
+#ifdef HAVE_XRANDR
+	XSelectInput(g_display, RootWindowOfScreen(g_screen), StructureNotifyMask);
+#endif
 	XMapWindow(g_display, g_wnd);
 
 	/* wait for VisibilityNotify */
@@ -2108,7 +2116,8 @@ ui_create_window(void)
 
 	/* create invisible 1x1 cursor to be used as null cursor */
 	if (g_null_cursor == NULL)
-		g_null_cursor = ui_create_cursor(0, 0, 1, 1, null_pointer_mask, null_pointer_data);
+		g_null_cursor =
+			ui_create_cursor(0, 0, 1, 1, null_pointer_mask, null_pointer_data, 24);
 
 	if (g_seamless_rdp)
 	{
@@ -2158,6 +2167,13 @@ ui_destroy_window(void)
 		XDestroyIC(g_IC);
 
 	XDestroyWindow(g_display, g_wnd);
+	g_wnd = 0;
+
+	if (g_backstore)
+	{
+		XFreePixmap(g_display, g_backstore);
+		g_backstore = 0;
+	}
 }
 
 void
@@ -2294,6 +2310,15 @@ xwin_process_events(void)
 	{
 		XNextEvent(g_display, &xevent);
 
+		if (!g_wnd)
+			/* Ignore events between ui_destroy_window and ui_create_window */
+			continue;
+
+		/* Also ignore root window events except ConfigureNotify */
+		if (xevent.type != ConfigureNotify
+		    && xevent.xany.window == DefaultRootWindow(g_display))
+			continue;
+
 		if ((g_IC != NULL) && (XFilterEvent(&xevent, None) == True))
 		{
 			DEBUG_KBD(("Filtering event\n"));
@@ -2350,6 +2375,7 @@ xwin_process_events(void)
 				DEBUG_KBD(("KeyPress for keysym (0x%lx, %s)\n", keysym,
 					   get_ksname(keysym)));
 
+				set_keypress_keysym(xevent.xkey.keycode, keysym);
 				ev_time = time(NULL);
 				if (handle_special_keys(keysym, xevent.xkey.state, ev_time, True))
 					break;
@@ -2366,6 +2392,7 @@ xwin_process_events(void)
 				DEBUG_KBD(("\nKeyRelease for keysym (0x%lx, %s)\n", keysym,
 					   get_ksname(keysym)));
 
+				keysym = reset_keypress_keysym(xevent.xkey.keycode, keysym);
 				ev_time = time(NULL);
 				if (handle_special_keys(keysym, xevent.xkey.state, ev_time, False))
 					break;
@@ -2574,6 +2601,20 @@ xwin_process_events(void)
 					rdp_send_client_window_status(0);
 				break;
 			case ConfigureNotify:
+#ifdef HAVE_XRANDR
+				if ((g_sizeopt || g_fullscreen)
+				    && xevent.xconfigure.window == DefaultRootWindow(g_display))
+				{
+					if (xevent.xconfigure.width != WidthOfScreen(g_screen)
+					    || xevent.xconfigure.height != HeightOfScreen(g_screen))
+					{
+						XRRUpdateConfiguration(&xevent);
+						XSync(g_display, False);
+						g_pending_resize = True;
+					}
+
+				}
+#endif
 				if (!g_seamless_active)
 					break;
 
@@ -2797,9 +2838,62 @@ ui_destroy_glyph(RD_HGLYPH glyph)
 	XFreePixmap(g_display, (Pixmap) glyph);
 }
 
+/* convert next pixel to 32 bpp */
+static int
+get_next_xor_pixel(uint8 * xormask, int bpp, int *k)
+{
+	int rv = 0;
+	PixelColour pc;
+	uint8 *s8;
+	uint16 *s16;
+
+	switch (bpp)
+	{
+		case 1:
+			s8 = xormask + (*k) / 8;
+			rv = (*s8) & (0x80 >> ((*k) % 8));
+			rv = rv ? 0xffffff : 0;
+			(*k) += 1;
+			break;
+		case 8:
+			s8 = xormask + *k;
+			/* should use colour map */
+			rv = s8[0];
+			rv = rv ? 0xffffff : 0;
+			(*k) += 1;
+			break;
+		case 15:
+			s16 = (uint16 *) xormask;
+			SPLITCOLOUR15(s16[*k], pc);
+			rv = (pc.red << 16) | (pc.green << 8) | pc.blue;
+			(*k) += 1;
+			break;
+		case 16:
+			s16 = (uint16 *) xormask;
+			SPLITCOLOUR16(s16[*k], pc);
+			rv = (pc.red << 16) | (pc.green << 8) | pc.blue;
+			(*k) += 1;
+			break;
+		case 24:
+			s8 = xormask + *k;
+			rv = (s8[0] << 16) | (s8[1] << 8) | s8[2];
+			(*k) += 3;
+			break;
+		case 32:
+			s8 = xormask + *k;
+			rv = (s8[1] << 16) | (s8[2] << 8) | s8[3];
+			(*k) += 4;
+			break;
+		default:
+			error("unknown bpp in get_next_xor_pixel %d\n", bpp);
+			break;
+	}
+	return rv;
+}
+
 RD_HCURSOR
 ui_create_cursor(unsigned int x, unsigned int y, int width, int height,
-		 uint8 * andmask, uint8 * xormask)
+		 uint8 * andmask, uint8 * xormask, int bpp)
 {
 	RD_HGLYPH maskglyph, cursorglyph;
 	XColor bg, fg;
@@ -2807,9 +2901,10 @@ ui_create_cursor(unsigned int x, unsigned int y, int width, int height,
 	uint8 *cursor, *pcursor;
 	uint8 *mask, *pmask;
 	uint8 nextbit;
-	int scanline, offset;
-	int i, j;
+	int scanline, offset, delta;
+	int i, j, k;
 
+	k = 0;
 	scanline = (width + 7) / 8;
 	offset = scanline * height;
 
@@ -2818,11 +2913,19 @@ ui_create_cursor(unsigned int x, unsigned int y, int width, int height,
 
 	mask = (uint8 *) xmalloc(offset);
 	memset(mask, 0, offset);
-
+	if (bpp == 1)
+	{
+		offset = 0;
+		delta = scanline;
+	}
+	else
+	{
+		offset = scanline * height - scanline;
+		delta = -scanline;
+	}
 	/* approximate AND and XOR masks with a monochrome X pointer */
 	for (i = 0; i < height; i++)
 	{
-		offset -= scanline;
 		pcursor = &cursor[offset];
 		pmask = &mask[offset];
 
@@ -2830,7 +2933,7 @@ ui_create_cursor(unsigned int x, unsigned int y, int width, int height,
 		{
 			for (nextbit = 0x80; nextbit != 0; nextbit >>= 1)
 			{
-				if (xormask[0] || xormask[1] || xormask[2])
+				if (get_next_xor_pixel(xormask, bpp, &k))
 				{
 					*pcursor |= (~(*andmask) & nextbit);
 					*pmask |= nextbit;
@@ -2840,14 +2943,13 @@ ui_create_cursor(unsigned int x, unsigned int y, int width, int height,
 					*pcursor |= ((*andmask) & nextbit);
 					*pmask |= (~(*andmask) & nextbit);
 				}
-
-				xormask += 3;
 			}
 
 			andmask++;
 			pcursor++;
 			pmask++;
 		}
+		offset += delta;
 	}
 
 	fg.red = fg.blue = fg.green = 0xffff;
@@ -3097,18 +3199,45 @@ ui_patblt(uint8 opcode,
 			break;
 
 		case 3:	/* Pattern */
-			for (i = 0; i != 8; i++)
-				ipattern[7 - i] = brush->pattern[i];
-			fill = (Pixmap) ui_create_glyph(8, 8, ipattern);
-			SET_FOREGROUND(bgcolour);
-			SET_BACKGROUND(fgcolour);
-			XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
-			XSetStipple(g_display, g_gc, fill);
-			XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
-			FILL_RECTANGLE_BACKSTORE(x, y, cx, cy);
-			XSetFillStyle(g_display, g_gc, FillSolid);
-			XSetTSOrigin(g_display, g_gc, 0, 0);
-			ui_destroy_glyph((RD_HGLYPH) fill);
+			if (brush->bd == 0)	/* rdp4 brush */
+			{
+				for (i = 0; i != 8; i++)
+					ipattern[7 - i] = brush->pattern[i];
+				fill = (Pixmap) ui_create_glyph(8, 8, ipattern);
+				SET_FOREGROUND(bgcolour);
+				SET_BACKGROUND(fgcolour);
+				XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
+				XSetStipple(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				FILL_RECTANGLE_BACKSTORE(x, y, cx, cy);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_glyph((RD_HGLYPH) fill);
+			}
+			else if (brush->bd->colour_code > 1)	/* > 1 bpp */
+			{
+				fill = (Pixmap) ui_create_bitmap(8, 8, brush->bd->data);
+				XSetFillStyle(g_display, g_gc, FillTiled);
+				XSetTile(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				FILL_RECTANGLE_BACKSTORE(x, y, cx, cy);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_bitmap((RD_HBITMAP) fill);
+			}
+			else
+			{
+				fill = (Pixmap) ui_create_glyph(8, 8, brush->bd->data);
+				SET_FOREGROUND(bgcolour);
+				SET_BACKGROUND(fgcolour);
+				XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
+				XSetStipple(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				FILL_RECTANGLE_BACKSTORE(x, y, cx, cy);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_glyph((RD_HGLYPH) fill);
+			}
 			break;
 
 		default:
@@ -3271,18 +3400,45 @@ ui_polygon(uint8 opcode,
 			break;
 
 		case 3:	/* Pattern */
-			for (i = 0; i != 8; i++)
-				ipattern[7 - i] = brush->pattern[i];
-			fill = (Pixmap) ui_create_glyph(8, 8, ipattern);
-			SET_FOREGROUND(bgcolour);
-			SET_BACKGROUND(fgcolour);
-			XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
-			XSetStipple(g_display, g_gc, fill);
-			XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
-			FILL_POLYGON((XPoint *) point, npoints);
-			XSetFillStyle(g_display, g_gc, FillSolid);
-			XSetTSOrigin(g_display, g_gc, 0, 0);
-			ui_destroy_glyph((RD_HGLYPH) fill);
+			if (brush->bd == 0)	/* rdp4 brush */
+			{
+				for (i = 0; i != 8; i++)
+					ipattern[7 - i] = brush->pattern[i];
+				fill = (Pixmap) ui_create_glyph(8, 8, ipattern);
+				SET_FOREGROUND(bgcolour);
+				SET_BACKGROUND(fgcolour);
+				XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
+				XSetStipple(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				FILL_POLYGON((XPoint *) point, npoints);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_glyph((RD_HGLYPH) fill);
+			}
+			else if (brush->bd->colour_code > 1)	/* > 1 bpp */
+			{
+				fill = (Pixmap) ui_create_bitmap(8, 8, brush->bd->data);
+				XSetFillStyle(g_display, g_gc, FillTiled);
+				XSetTile(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				FILL_POLYGON((XPoint *) point, npoints);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_bitmap((RD_HBITMAP) fill);
+			}
+			else
+			{
+				fill = (Pixmap) ui_create_glyph(8, 8, brush->bd->data);
+				SET_FOREGROUND(bgcolour);
+				SET_BACKGROUND(fgcolour);
+				XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
+				XSetStipple(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				FILL_POLYGON((XPoint *) point, npoints);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_glyph((RD_HGLYPH) fill);
+			}
 			break;
 
 		default:
@@ -3349,18 +3505,45 @@ ui_ellipse(uint8 opcode,
 			break;
 
 		case 3:	/* Pattern */
-			for (i = 0; i != 8; i++)
-				ipattern[7 - i] = brush->pattern[i];
-			fill = (Pixmap) ui_create_glyph(8, 8, ipattern);
-			SET_FOREGROUND(bgcolour);
-			SET_BACKGROUND(fgcolour);
-			XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
-			XSetStipple(g_display, g_gc, fill);
-			XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
-			DRAW_ELLIPSE(x, y, cx, cy, fillmode);
-			XSetFillStyle(g_display, g_gc, FillSolid);
-			XSetTSOrigin(g_display, g_gc, 0, 0);
-			ui_destroy_glyph((RD_HGLYPH) fill);
+			if (brush->bd == 0)	/* rdp4 brush */
+			{
+				for (i = 0; i != 8; i++)
+					ipattern[7 - i] = brush->pattern[i];
+				fill = (Pixmap) ui_create_glyph(8, 8, ipattern);
+				SET_FOREGROUND(bgcolour);
+				SET_BACKGROUND(fgcolour);
+				XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
+				XSetStipple(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				DRAW_ELLIPSE(x, y, cx, cy, fillmode);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_glyph((RD_HGLYPH) fill);
+			}
+			else if (brush->bd->colour_code > 1)	/* > 1 bpp */
+			{
+				fill = (Pixmap) ui_create_bitmap(8, 8, brush->bd->data);
+				XSetFillStyle(g_display, g_gc, FillTiled);
+				XSetTile(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				DRAW_ELLIPSE(x, y, cx, cy, fillmode);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_bitmap((RD_HBITMAP) fill);
+			}
+			else
+			{
+				fill = (Pixmap) ui_create_glyph(8, 8, brush->bd->data);
+				SET_FOREGROUND(bgcolour);
+				SET_BACKGROUND(fgcolour);
+				XSetFillStyle(g_display, g_gc, FillOpaqueStippled);
+				XSetStipple(g_display, g_gc, fill);
+				XSetTSOrigin(g_display, g_gc, brush->xorigin, brush->yorigin);
+				DRAW_ELLIPSE(x, y, cx, cy, fillmode);
+				XSetFillStyle(g_display, g_gc, FillSolid);
+				XSetTSOrigin(g_display, g_gc, 0, 0);
+				ui_destroy_glyph((RD_HGLYPH) fill);
+			}
 			break;
 
 		default:
@@ -3618,6 +3801,7 @@ ui_begin_update(void)
 void
 ui_end_update(void)
 {
+	XFlush(g_display);
 }
 
 
@@ -3635,6 +3819,22 @@ ui_seamless_begin(RD_BOOL hidden)
 
 	if (!hidden)
 		ui_seamless_toggle();
+}
+
+
+void
+ui_seamless_end()
+{
+	/* Destroy all seamless windows */
+	while (g_seamless_windows)
+	{
+		XDestroyWindow(g_display, g_seamless_windows->wnd);
+		sw_remove_window(g_seamless_windows);
+	}
+
+	g_seamless_started = False;
+	g_seamless_active = False;
+	g_seamless_hidden = False;
 }
 
 

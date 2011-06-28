@@ -211,6 +211,8 @@ typedef struct VUSBDEV
     RTTHREAD            hResetThread;
     /** Pointer to the reset thread arguments. */
     void               *pvResetArgs;
+    /** The reset timer handle. */
+    PTMTIMER            pResetTimer;
 } VUSBDEV;
 
 
@@ -337,6 +339,9 @@ typedef struct VUSBROOTHUB
     /** The HUB.
      * @todo remove this? */
     VUSBHUB                 Hub;
+#if HC_ARCH_BITS == 32
+    uint32_t                Alignment0;
+#endif
     /** Address hash table. */
     PVUSBDEV                apAddrHash[VUSB_ADDR_HASHSZ];
     /** List of async URBs. */
@@ -353,9 +358,6 @@ typedef struct VUSBROOTHUB
 
     /** Chain of devices attached to this hub. */
     PVUSBDEV                pDevices;
-#if HC_ARCH_BITS == 32
-//    uint32_t                Alignment0;
-#endif
     /** Availability Bitmap. */
     VUSBPORTBITMAP          Bitmap;
 

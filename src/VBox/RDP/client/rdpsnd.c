@@ -1,13 +1,14 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Sound Channel Process Functions
-   Copyright 2006-2007 Pierre Ossman <ossman@cendio.se> for Cendio AB
-   Copyright (C) Matthew Chapman 2003-2007
-   Copyright (C) GuoJunBo guojunbo@ict.ac.cn 2003
+   Copyright 2006-2010 Pierre Ossman <ossman@cendio.se> for Cendio AB
+   Copyright 2009-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 2003-2008
+   Copyright (C) GuoJunBo <guojunbo@ict.ac.cn> 2003
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,8 +17,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -59,6 +59,9 @@ static VCHANNEL *rdpsnddbg_channel;
 static struct audio_driver *drivers = NULL;
 struct audio_driver *current_driver = NULL;
 
+static RD_BOOL rdpsnd_negotiated;
+static RD_BOOL rdpsnd_rec_negotiated;
+
 static RD_BOOL device_open;
 static RD_BOOL rec_device_open;
 
@@ -83,6 +86,7 @@ void (*wave_out_play) (void);
 
 static void rdpsnd_queue_write(STREAM s, uint16 tick, uint8 index);
 static void rdpsnd_queue_init(void);
+static void rdpsnd_queue_clear(void);
 static void rdpsnd_queue_complete_pending(void);
 static long rdpsnd_queue_next_completion(void);
 
@@ -157,6 +161,16 @@ rdpsnd_flush_record(void)
 		DEBUG_SOUND(("RDPSND: -> RDPSND_REC_DATA(length: %u)\n", (unsigned) chunk_size));
 	}
 
+	record_buffer_size = 0;
+}
+
+static void
+rdpsnd_clear_record(void)
+{
+	/*
+	 * Silently drop everything we have in the record buffer as
+	 * we've somehow gotten a reset in regard to the server.
+	 */
 	record_buffer_size = 0;
 }
 
@@ -243,6 +257,13 @@ rdpsnd_process_negotiate(STREAM in)
 	DEBUG_SOUND(("RDPSND: RDPSND_NEGOTIATE(formats: %d, pad: 0x%02x, version: %x)\n",
 		     (int) in_format_count, (unsigned) pad, (unsigned) version));
 
+	if (rdpsnd_negotiated)
+	{
+		error("RDPSND: Extra RDPSND_NEGOTIATE in the middle of a session\n");
+		/* Do a complete reset of the sound state */
+		rdpsnd_reset_state();
+	}
+
 	if (!current_driver)
 		device_available = rdpsnd_auto_select();
 
@@ -316,6 +337,8 @@ rdpsnd_process_negotiate(STREAM in)
 	DEBUG_SOUND(("RDPSND: -> RDPSND_NEGOTIATE(formats: %d)\n", (int) format_count));
 
 	rdpsnd_send(out);
+
+	rdpsnd_negotiated = True;
 }
 
 static void
@@ -354,6 +377,13 @@ rdpsnd_process_rec_negotiate(STREAM in)
 
 	DEBUG_SOUND(("RDPSND: RDPSND_REC_NEGOTIATE(formats: %d, version: %x)\n",
 		     (int) in_format_count, (unsigned) version));
+
+	if (rdpsnd_rec_negotiated)
+	{
+		error("RDPSND: Extra RDPSND_REC_NEGOTIATE in the middle of a session\n");
+		/* Do a complete reset of the sound state */
+		rdpsnd_reset_state();
+	}
 
 	if (!current_driver)
 		device_available = rdpsnd_auto_select();
@@ -425,6 +455,8 @@ rdpsnd_process_rec_negotiate(STREAM in)
 	DEBUG_SOUND(("RDPSND: -> RDPSND_REC_NEGOTIATE(formats: %d)\n", (int) rec_format_count));
 
 	rdpsnd_send(out);
+
+	rdpsnd_rec_negotiated = True;
 }
 
 static void
@@ -737,6 +769,23 @@ rdpsnd_init(char *optarg)
 }
 
 void
+rdpsnd_reset_state(void)
+{
+	if (device_open)
+		current_driver->wave_out_close();
+	device_open = False;
+	rdpsnd_queue_clear();
+	rdpsnd_negotiated = False;
+
+	if (rec_device_open)
+		current_driver->wave_in_close();
+	rec_device_open = False;
+	rdpsnd_clear_record();
+	rdpsnd_rec_negotiated = False;
+}
+
+
+void
 rdpsnd_show_help(void)
 {
 	struct audio_driver *pos;
@@ -818,6 +867,23 @@ rdpsnd_queue_empty(void)
 static void
 rdpsnd_queue_init(void)
 {
+	queue_pending = queue_lo = queue_hi = 0;
+}
+
+static void
+rdpsnd_queue_clear(void)
+{
+	struct audio_packet *packet;
+
+	/* Go through everything, not just the pending packets */
+	while (queue_pending != queue_hi)
+	{
+		packet = &packet_queue[queue_pending];
+		xfree(packet->s.data);
+		queue_pending = (queue_pending + 1) % MAX_QUEUE;
+	}
+
+	/* Reset everything back to the initial state */
 	queue_pending = queue_lo = queue_hi = 0;
 }
 

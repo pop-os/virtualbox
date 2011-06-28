@@ -1007,14 +1007,14 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysWriteProtectRAMRendezvous(PVM pVM, PV
                             /* Remember this dirty page for the next (memory) sync. */
                             PGM_PAGE_SET_FT_DIRTY(pPage);
                         }
-    
+
                         pgmPhysPageWriteMonitor(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT));
                         break;
-    
+
                     case PGM_PAGE_STATE_SHARED:
                         AssertFailed();
                         break;
-    
+
                     case PGM_PAGE_STATE_WRITE_MONITORED:    /* nothing to change. */
                     default:
                         break;
@@ -1878,10 +1878,12 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
     AssertPtrReturn(pszDesc, VERR_INVALID_POINTER);
     AssertReturn(*pszDesc, VERR_INVALID_PARAMETER);
 
+    int rc = pgmLock(pVM);
+    AssertRCReturn(rc, rc);
+
     /*
      * Make sure there's a RAM range structure for the region.
      */
-    int rc;
     RTGCPHYS GCPhysLast = GCPhys + (cb - 1);
     bool fRamExists = false;
     PPGMRAMRANGE pRamPrev = NULL;
@@ -1892,23 +1894,29 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
             &&  GCPhys     <= pRam->GCPhysLast)
         {
             /* Simplification: all within the same range. */
-            AssertLogRelMsgReturn(   GCPhys     >= pRam->GCPhys
-                                  && GCPhysLast <= pRam->GCPhysLast,
-                                  ("%RGp-%RGp (MMIO/%s) falls partly outside %RGp-%RGp (%s)\n",
-                                   GCPhys, GCPhysLast, pszDesc,
-                                   pRam->GCPhys, pRam->GCPhysLast, pRam->pszDesc),
-                                  VERR_PGM_RAM_CONFLICT);
+            if (RT_UNLIKELY(!(   GCPhys     >= pRam->GCPhys
+                              && GCPhysLast <= pRam->GCPhysLast)))
+            {
+                AssertLogRelMsgFailed(("%RGp-%RGp (MMIO/%s) falls partly outside %RGp-%RGp (%s)\n",
+                                       GCPhys, GCPhysLast, pszDesc,
+                                       pRam->GCPhys, pRam->GCPhysLast, pRam->pszDesc));
+                pgmUnlock(pVM);
+                return VERR_PGM_RAM_CONFLICT;
+            }
 
             /* Check that it's all RAM or MMIO pages. */
             PCPGMPAGE pPage = &pRam->aPages[(GCPhys - pRam->GCPhys) >> PAGE_SHIFT];
             uint32_t cLeft = cb >> PAGE_SHIFT;
             while (cLeft-- > 0)
             {
-                AssertLogRelMsgReturn(   PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_RAM
-                                      || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO,
-                                      ("%RGp-%RGp (MMIO/%s): %RGp is not a RAM or MMIO page - type=%d desc=%s\n",
-                                       GCPhys, GCPhysLast, pszDesc, PGM_PAGE_GET_TYPE(pPage), pRam->pszDesc),
-                                      VERR_PGM_RAM_CONFLICT);
+                if (RT_UNLIKELY(!(   PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_RAM
+                                  || PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_MMIO)))
+                {
+                    AssertLogRelMsgFailed(("%RGp-%RGp (MMIO/%s): %RGp is not a RAM or MMIO page - type=%d desc=%s\n",
+                                           GCPhys, GCPhysLast, pszDesc, PGM_PAGE_GET_TYPE(pPage), pRam->pszDesc));
+                    pgmUnlock(pVM);
+                    return VERR_PGM_RAM_CONFLICT;
+                }
                 pPage++;
             }
 
@@ -1931,13 +1939,13 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
          * RAM pages currently mapped here. This might not be 100% correct
          * for PCI memory, but we're doing the same thing for MMIO2 pages.
          */
-        rc = pgmLock(pVM);
-        if (RT_SUCCESS(rc))
+        rc = pgmR3PhysFreePageRange(pVM, pRam, GCPhys, GCPhysLast, PGMPAGETYPE_MMIO);
+        if (RT_FAILURE(rc))
         {
-            rc = pgmR3PhysFreePageRange(pVM, pRam, GCPhys, GCPhysLast, PGMPAGETYPE_MMIO);
+            AssertRC(rc);
             pgmUnlock(pVM);
+            return rc;
         }
-        AssertRCReturn(rc, rc);
 
         /* Force a PGM pool flush as guest ram references have been changed. */
         /** todo; not entirely SMP safe; assuming for now the guest takes care of this internally (not touch mapped mmio while changing the mapping). */
@@ -1947,8 +1955,6 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
     }
     else
     {
-        pgmLock(pVM);
-
         /*
          * No RAM range, insert an ad hoc one.
          *
@@ -1960,7 +1966,12 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
         const uint32_t cPages = cb >> PAGE_SHIFT;
         const size_t cbRamRange = RT_OFFSETOF(PGMRAMRANGE, aPages[cPages]);
         rc = MMHyperAlloc(pVM, RT_OFFSETOF(PGMRAMRANGE, aPages[cPages]), 16, MM_TAG_PGM_PHYS, (void **)&pNew);
-        AssertLogRelMsgRCReturn(rc, ("cbRamRange=%zu\n", cbRamRange), rc);
+        if (RT_FAILURE(rc))
+        {
+            AssertLogRelMsgFailed(("cbRamRange=%zu\n", cbRamRange));
+            pgmUnlock(pVM);
+            return rc;
+        }
 
         /* Initialize the range. */
         pNew->pSelfR0       = MMHyperCCToR0(pVM, pNew);
@@ -1984,8 +1995,6 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
 
         /* link it */
         pgmR3PhysLinkRamRange(pVM, pNew, pRamPrev);
-
-        pgmUnlock(pVM);
     }
 
     /*
@@ -2008,6 +2017,7 @@ VMMR3DECL(int) PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb,
     }
     PGMPhysInvalidatePageMapTLB(pVM);
 
+    pgmUnlock(pVM);
     return rc;
 }
 
@@ -2027,10 +2037,13 @@ VMMR3DECL(int) PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
 {
     VM_ASSERT_EMT(pVM);
 
+    int rc = pgmLock(pVM);
+    AssertRCReturn(rc, rc);
+
     /*
      * First deregister the handler, then check if we should remove the ram range.
      */
-    int rc = PGMHandlerPhysicalDeregister(pVM, GCPhys);
+    rc = PGMHandlerPhysicalDeregister(pVM, GCPhys);
     if (RT_SUCCESS(rc))
     {
         RTGCPHYS        GCPhysLast  = GCPhys + (cb - 1);
@@ -2121,6 +2134,7 @@ VMMR3DECL(int) PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb)
     VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
 
     PGMPhysInvalidatePageMapTLB(pVM);
+    pgmUnlock(pVM);
     return rc;
 }
 

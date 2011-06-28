@@ -1489,10 +1489,11 @@ static DECLCALLBACK(int) vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, 
                     Log(("VMMDevReq_VideoSetVisibleRegion no rectangles!!!\n"));
                     pRequestHeader->rc = VERR_INVALID_PARAMETER;
                 }
-                else
-                if (pRequestHeader->size != sizeof(VMMDevVideoSetVisibleRegion) + (ptr->cRect-1)*sizeof(RTRECT))
+                else if (   ptr->cRect > _1M /* restrict to sane range */
+                         || pRequestHeader->size != sizeof(VMMDevVideoSetVisibleRegion) + ptr->cRect * sizeof(RTRECT) - sizeof(RTRECT))
                 {
-                    Log(("VMMDevReq_VideoSetVisibleRegion request size too small!!!\n"));
+                    Log(("VMMDevReq_VideoSetVisibleRegion: cRects=%#x doesn't match size=%#x or is out of bounds\n",
+                         ptr->cRect, pRequestHeader->size));
                     pRequestHeader->rc = VERR_INVALID_PARAMETER;
                 }
                 else

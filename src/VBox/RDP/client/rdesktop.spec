@@ -1,6 +1,6 @@
 Summary: Remote Desktop Protocol client
 Name: rdesktop
-Version: 1.6.0
+Version: 1.7.0
 Release: 1
 License: GPL; see COPYING
 Group: Applications/Communications
@@ -30,10 +30,6 @@ make install DESTDIR=$RPM_BUILD_ROOT
 %{_bindir}/rdesktop
 %{_mandir}/man1/rdesktop.1*
 %{_datadir}/rdesktop/keymaps
-
-%post
-
-%postun
 
 %clean
 rm -rf $RPM_BUILD_ROOT

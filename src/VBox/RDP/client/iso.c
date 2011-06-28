@@ -1,11 +1,12 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Protocol services - ISO layer
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright 2005-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -183,38 +183,21 @@ iso_recv(uint8 * rdpver)
 
 /* Establish a connection up to the ISO layer */
 RD_BOOL
-iso_connect(char *server, char *username)
+iso_connect(char *server, char *username, RD_BOOL reconnect)
 {
 	uint8 code = 0;
 
 	if (!tcp_connect(server))
 		return False;
 
-	iso_send_connection_request(username);
-
-	if (iso_recv_msg(&code, NULL) == NULL)
-		return False;
-
-	if (code != ISO_PDU_CC)
+	if (reconnect)
 	{
-		error("expected CC, got 0x%x\n", code);
-		tcp_disconnect();
-		return False;
+		iso_send_msg(ISO_PDU_CR);
 	}
-
-	return True;
-}
-
-/* Establish a reconnection up to the ISO layer */
-RD_BOOL
-iso_reconnect(char *server)
-{
-	uint8 code = 0;
-
-	if (!tcp_connect(server))
-		return False;
-
-	iso_send_msg(ISO_PDU_CR);
+	else
+	{
+		iso_send_connection_request(username);
+	}
 
 	if (iso_recv_msg(&code, NULL) == NULL)
 		return False;

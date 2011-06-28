@@ -2451,7 +2451,7 @@ public class VirtualBoxManager
         this.vbox = new IVirtualBox((org.mozilla.interfaces.IVirtualBox) this.componentManager
                     .createInstanceByContractID("@virtualbox.org/VirtualBox;1",
                                                 null,
-						org.mozilla.interfaces.IVirtualBox.IVIRTUALBOX_IID));
+                                                org.mozilla.interfaces.IVirtualBox.IVIRTUALBOX_IID));
     }
 
     public void connect(String url, String username, String passwd)
@@ -3216,7 +3216,7 @@ public class Helper {
             throw new AssertionError(e);
         }
     }
-    // temporary methods, will bo away soon
+    // temporary methods, will go away soon
     public static byte[] wrapBytes(List<Short> arr)
     {
        if (arr == null)
@@ -3394,40 +3394,44 @@ public class VirtualBoxManager
         this.port = pool.getPort();
         try {
             ((BindingProvider)port).getRequestContext().
-                 put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, url);
-             String handle = port.iWebsessionManagerLogon(username, passwd);
-             this.vbox = new IVirtualBox(handle, port);
-         }  catch (Throwable t) {
-             if (this.port != null)
+                put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, url);
+            String handle = port.iWebsessionManagerLogon(username, passwd);
+            this.vbox = new IVirtualBox(handle, port);
+        } catch (Throwable t) {
+            if (this.port != null && pool != null) {
                 pool.releasePort(this.port);
-             // we have to throw smth derived from RuntimeException
-             throw new VBoxException(t, t.getMessage());
-          }
+                this.port = null;
+            }
+            // we have to throw smth derived from RuntimeException
+            throw new VBoxException(t, t.getMessage());
+        }
     }
 
     public void connect(String url, String username, String passwd,
                         Map<String, Object> requestContext, Map<String, Object> responseContext)
     {
-         this.port = pool.getPort();
+        this.port = pool.getPort();
 
-         try {
-           ((BindingProvider)port).getRequestContext();
-           if (requestContext != null)
-               ((BindingProvider)port).getRequestContext().putAll(requestContext);
+        try {
+            ((BindingProvider)port).getRequestContext();
+            if (requestContext != null)
+                ((BindingProvider)port).getRequestContext().putAll(requestContext);
 
-           if (responseContext != null)
-               ((BindingProvider)port).getResponseContext().putAll(responseContext);
+            if (responseContext != null)
+                ((BindingProvider)port).getResponseContext().putAll(responseContext);
 
-           ((BindingProvider)port).getRequestContext().
+            ((BindingProvider)port).getRequestContext().
                 put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, url);
             String handle = port.iWebsessionManagerLogon(username, passwd);
             this.vbox = new IVirtualBox(handle, port);
-          } catch (Throwable t) {
-             if (this.port != null)
-                pool.releasePort(port);
-             // we have to throw smth derived from RuntimeException
-             throw new VBoxException(t, t.getMessage());
-          }
+        } catch (Throwable t) {
+            if (this.port != null && pool != null) {
+                pool.releasePort(this.port);
+                this.port = null;
+            }
+            // we have to throw smth derived from RuntimeException
+            throw new VBoxException(t, t.getMessage());
+        }
     }
 
     public void disconnect()
@@ -3440,10 +3444,10 @@ public class VirtualBoxManager
         } catch (RuntimeFaultMsg e) {
             throw new VBoxException(e, e.getMessage());
         } finally {
-           if (this.port != null) {
-             pool.releasePort(this.port);
-             this.port = null;
-           }
+            if (this.port != null) {
+                pool.releasePort(this.port);
+                this.port = null;
+            }
         }
     }
 

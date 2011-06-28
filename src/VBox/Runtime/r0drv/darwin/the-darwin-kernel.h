@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,8 @@
 #include <sys/ioccom.h>
 #include <sys/malloc.h>
 #include <sys/proc.h>
+#include <sys/vnode.h>
+#include <sys/fcntl.h>
 #include <IOKit/IOTypes.h>
 #include <IOKit/IOLib.h>
 #include <IOKit/IOMemoryDescriptor.h>
@@ -149,11 +151,19 @@ RT_C_DECLS_END
 /*
  * Internals of the Darwin Ring-0 IPRT.
  */
-
 RT_C_DECLS_BEGIN
-extern lck_grp_t *g_pDarwinLockGroup;
+
+/* initterm-r0drv-darwin.cpp. */
+typedef uint32_t *  (*PFNR0DARWINASTPENDING)(void);
+typedef void        (*PFNR0DARWINCPUINTERRUPT)(int);
+extern lck_grp_t                  *g_pDarwinLockGroup;
+extern PFNR0DARWINASTPENDING       g_pfnR0DarwinAstPending;
+extern PFNR0DARWINCPUINTERRUPT     g_pfnR0DarwinCpuInterrupt;
+
+/* threadpreempt-r0drv-darwin.cpp */
 int  rtThreadPreemptDarwinInit(void);
 void rtThreadPreemptDarwinTerm(void);
+
 RT_C_DECLS_END
 
 

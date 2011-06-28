@@ -2,12 +2,12 @@
    rdesktop: A Remote Desktop Protocol client.
    User interface services - X keyboard mapping
 
-   Copyright (C) Matthew Chapman 1999-2007
-   Copyright (C) Peter Astrand <astrand@cendio.se> 2003-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright (C) 2003-2008 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -40,6 +39,7 @@
 #include <limits.h>
 #include <time.h>
 #include <string.h>
+#include <assert.h>
 #include "rdesktop.h"
 #include "scancodes.h"
 
@@ -61,6 +61,7 @@ extern RD_BOOL g_numlock_sync;
 
 static RD_BOOL keymap_loaded;
 static key_translation *keymap[KEYMAP_SIZE];
+static KeySym keypress_keysyms[256];
 static int min_keycode;
 static uint16 remote_modifier_state = 0;
 static uint16 saved_remote_modifier_state = 0;
@@ -512,6 +513,36 @@ reset_winkey(uint32 ev_time)
 	}
 }
 
+
+void
+set_keypress_keysym(unsigned int keycode, KeySym keysym)
+{
+	if (keycode < 8 || keycode > 255)
+		return;
+	keypress_keysyms[keycode] = keysym;
+}
+
+
+KeySym
+reset_keypress_keysym(unsigned int keycode, KeySym keysym)
+{
+	KeySym ks;
+	if (keycode < 8 || keycode > 255)
+		return keysym;
+	ks = keypress_keysyms[keycode];
+	if (ks != 0)
+	{
+		keypress_keysyms[keycode] = 0;
+	}
+	else
+	{
+		ks = keysym;
+	}
+
+	return ks;
+}
+
+
 /* Handle special key combinations */
 RD_BOOL
 handle_special_keys(uint32 keysym, unsigned int state, uint32 ev_time, RD_BOOL pressed)
@@ -826,7 +857,7 @@ save_remote_modifiers(uint8 scancode)
 void
 restore_remote_modifiers(uint32 ev_time, uint8 scancode)
 {
-	key_translation dummy;
+	key_translation dummy = { };
 
 	if (is_modifier(scancode))
 		return;

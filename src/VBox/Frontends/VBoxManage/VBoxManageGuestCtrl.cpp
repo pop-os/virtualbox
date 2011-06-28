@@ -363,6 +363,8 @@ static int handleCtrlExecProgram(HandlerArg *a)
                 /** @todo Add a hidden flag. */
                 if (!RTStrICmp(ValueUnion.psz, "ignoreorphanedprocesses"))
                     uFlags |= ExecuteProcessFlag_IgnoreOrphanedProcesses;
+                else if (!RTStrICmp(ValueUnion.psz, "noprofile"))
+                    uFlags |= ExecuteProcessFlag_NoProfile;
                 else
                     fUsageOK = false;
                 break;
