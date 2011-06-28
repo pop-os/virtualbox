@@ -1,10 +1,10 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -13,8 +13,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -119,14 +118,14 @@ printer_create(uint32 device_id, uint32 access, uint32 share_mode, uint32 dispos
 	pprinter_data = (PRINTER *) g_rdpdr_device[device_id].pdevice_data;
 
 	/* default printer name use default printer queue as well in unix */
-	if (!strcmp(pprinter_data->printer, "mydeskjet"))
+	if (strncmp(pprinter_data->printer, "mydeskjet", strlen(pprinter_data->printer)) == 0)
 	{
 		pprinter_data->printer_fp = popen("lpr", "w");
 	}
 	else
 	{
 #ifdef VBOX
-		snprintf(cmd, sizeof(cmd), "lpr -P %s", pprinter_data->printer);
+                snprintf(cmd, sizeof(cmd), "lpr -P %s", pprinter_data->printer);
 #else
 		sprintf(cmd, "lpr -P %s", pprinter_data->printer);
 #endif

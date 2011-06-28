@@ -1,11 +1,12 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Disk Redirection
-   Copyright (C) Jeroen Meijer 2003-2007
+   Copyright (C) Jeroen Meijer <jeroen@oldambt7.com> 2003-2008
+   Copyright 2003-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -369,6 +369,19 @@ disk_create(uint32 device_id, uint32 accessmask, uint32 sharemode, uint32 create
 	sprintf(path, "%s%s", g_rdpdr_device[device_id].local_path, filename);
 #endif
 
+	/* Protect against mailicous servers:
+	   somelongpath/..     not allowed
+	   somelongpath/../b   not allowed
+	   somelongpath/..b    in principle ok, but currently not allowed
+	   somelongpath/b..    ok
+	   somelongpath/b..b   ok
+	   somelongpath/b../c  ok
+	 */
+	if (strstr(path, "/.."))
+	{
+		return RD_STATUS_ACCESS_DENIED;
+	}
+
 	switch (create_disposition)
 	{
 		case CREATE_ALWAYS:
@@ -493,7 +506,7 @@ disk_create(uint32 device_id, uint32 accessmask, uint32 sharemode, uint32 create
 	{
 		error("Maximum number of open files (%s) reached. Increase MAX_OPEN_FILES!\n",
 		      handle);
-		exit(1);
+		exit(EX_SOFTWARE);
 	}
 
 	if (dirp)
@@ -713,7 +726,7 @@ disk_query_information(RD_NTHANDLE handle, uint32 info_class, STREAM out)
 RD_NTSTATUS
 disk_set_information(RD_NTHANDLE handle, uint32 info_class, STREAM in, STREAM out)
 {
-	uint32 length, file_attributes, ft_high, ft_low, delete_on_close;
+	uint32 length, file_attributes, ft_high, ft_low;
 	char newname[PATH_MAX], fullpath[PATH_MAX];
 	struct fileinfo *pfinfo;
 	int mode;
@@ -848,12 +861,45 @@ disk_set_information(RD_NTHANDLE handle, uint32 info_class, STREAM in, STREAM ou
 			   the delete. See
 			   http://www.osronline.com/article.cfm?article=245. */
 
-			in_uint32_le(in, delete_on_close);
+			/* FileDispositionInformation always sets delete_on_close to true.
+			   "STREAM in" includes Length(4bytes) , Padding(24bytes) and SetBuffer(zero byte).
+			   Length is always set to zero.
+			   [MS-RDPEFS] http://msdn.microsoft.com/en-us/library/cc241305%28PROT.10%29.aspx
+			   - 2.2.3.3.9 Server Drive Set Information Request
+			 */
+			in_uint8s(in, 4);	/* length of SetBuffer */
+			in_uint8s(in, 24);	/* padding */
 
-			if (delete_on_close ||
-			    (pfinfo->
-			     accessmask & (FILE_DELETE_ON_CLOSE | FILE_COMPLETE_IF_OPLOCKED)))
+
+			if ((pfinfo->accessmask &
+			     (FILE_DELETE_ON_CLOSE | FILE_COMPLETE_IF_OPLOCKED)))
 			{
+				/* if file exists in directory , necessary to return RD_STATUS_DIRECTORY_NOT_EMPTY with win2008
+				   [MS-RDPEFS] http://msdn.microsoft.com/en-us/library/cc241305%28PROT.10%29.aspx
+				   - 2.2.3.3.9 Server Drive Set Information Request
+				   - 2.2.3.4.9 Client Drive Set Information Response
+				   [MS-FSCC] http://msdn.microsoft.com/en-us/library/cc231987%28PROT.10%29.aspx
+				   - 2.4.11 FileDispositionInformation
+				   [FSBO] http://msdn.microsoft.com/en-us/library/cc246487%28PROT.13%29.aspx
+				   - 4.3.2 Set Delete-on-close using FileDispositionInformation Information Class (IRP_MJ_SET_INFORMATION)
+				 */
+				if (pfinfo->pdir)
+				{
+					DIR *dp = opendir(pfinfo->path);
+					struct dirent *dir;
+
+					while ((dir = readdir(dp)) != NULL)
+					{
+						if (strcmp(dir->d_name, ".") != 0
+						    && strcmp(dir->d_name, "..") != 0)
+						{
+							closedir(dp);
+							return RD_STATUS_DIRECTORY_NOT_EMPTY;
+						}
+					}
+					closedir(dp);
+				}
+
 				pfinfo->delete_on_close = True;
 			}
 
@@ -1105,6 +1151,18 @@ disk_query_volume_information(RD_NTHANDLE handle, uint32 info_class, STREAM out)
 			out_uint32_le(out, 0x200);	/* Bytes per sector */
 			break;
 
+		case FileFsFullSizeInformation:
+
+			out_uint32_le(out, stat_fs.f_blocks);	/* Total allocation units low */
+			out_uint32_le(out, 0);	/* Total allocation units high */
+			out_uint32_le(out, stat_fs.f_blocks);	/* Caller allocation units low */
+			out_uint32_le(out, 0);	/* Caller allocation units high */
+			out_uint32_le(out, stat_fs.f_bfree);	/* Available allocation units */
+			out_uint32_le(out, 0);	/* Available allowcation units */
+			out_uint32_le(out, stat_fs.f_bsize / 0x200);	/* Sectors per allocation unit */
+			out_uint32_le(out, 0x200);	/* Bytes per sector */
+			break;
+
 		case FileFsAttributeInformation:
 
 			out_uint32_le(out, FS_CASE_SENSITIVE | FS_CASE_IS_PRESERVED);	/* fs attributes */
@@ -1117,7 +1175,6 @@ disk_query_volume_information(RD_NTHANDLE handle, uint32 info_class, STREAM out)
 		case FileFsLabelInformation:
 		case FileFsDeviceInformation:
 		case FileFsControlInformation:
-		case FileFsFullSizeInformation:
 		case FileFsObjectIdInformation:
 		case FileFsMaximumInformation:
 
@@ -1144,9 +1201,13 @@ disk_query_directory(RD_NTHANDLE handle, uint32 info_class, char *pattern, STREA
 	dirname = pfinfo->path;
 	file_attributes = 0;
 
+
 	switch (info_class)
 	{
 		case FileBothDirectoryInformation:
+		case FileDirectoryInformation:
+		case FileFullDirectoryInformation:
+		case FileNamesInformation:
 
 			/* If a search pattern is received, remember this pattern, and restart search */
 			if (pattern[0] != 0)
@@ -1199,7 +1260,53 @@ disk_query_directory(RD_NTHANDLE handle, uint32 info_class, char *pattern, STREA
 				file_attributes |= FILE_ATTRIBUTE_READONLY;
 
 			/* Return requested information */
-			out_uint8s(out, 8);	/* unknown zero */
+			out_uint32_le(out, 0);	/* NextEntryOffset */
+			out_uint32_le(out, 0);	/* FileIndex zero */
+			break;
+
+		default:
+			unimpl("IRP Query Directory sub: 0x%x\n", info_class);
+			return RD_STATUS_INVALID_PARAMETER;
+	}
+
+	switch (info_class)
+	{
+		case FileBothDirectoryInformation:
+
+			seconds_since_1970_to_filetime(get_create_time(&filestat), &ft_high,
+						       &ft_low);
+			out_uint32_le(out, ft_low);	/* create time */
+			out_uint32_le(out, ft_high);
+
+			seconds_since_1970_to_filetime(filestat.st_atime, &ft_high, &ft_low);
+			out_uint32_le(out, ft_low);	/* last_access_time */
+			out_uint32_le(out, ft_high);
+
+			seconds_since_1970_to_filetime(filestat.st_mtime, &ft_high, &ft_low);
+			out_uint32_le(out, ft_low);	/* last_write_time */
+			out_uint32_le(out, ft_high);
+
+			seconds_since_1970_to_filetime(filestat.st_ctime, &ft_high, &ft_low);
+			out_uint32_le(out, ft_low);	/* change_write_time */
+			out_uint32_le(out, ft_high);
+
+			out_uint32_le(out, filestat.st_size);	/* filesize low */
+			out_uint32_le(out, 0);	/* filesize high */
+			out_uint32_le(out, filestat.st_size);	/* filesize low */
+			out_uint32_le(out, 0);	/* filesize high */
+			out_uint32_le(out, file_attributes);	/* FileAttributes */
+			out_uint32_le(out, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
+			out_uint32_le(out, 0);	/* EaSize */
+			out_uint8(out, 0);	/* ShortNameLength */
+			/* this should be correct according to MS-FSCC specification
+			   but it only works when commented out... */
+			/* out_uint8(out, 0); *//* Reserved/Padding */
+			out_uint8s(out, 2 * 12);	/* ShortName (8.3 name) */
+			rdp_out_unistr(out, pdirent->d_name, 2 * strlen(pdirent->d_name));
+			break;
+
+
+		case FileDirectoryInformation:
 
 			seconds_since_1970_to_filetime(get_create_time(&filestat), &ft_high,
 						       &ft_low);
@@ -1223,17 +1330,49 @@ disk_query_directory(RD_NTHANDLE handle, uint32 info_class, char *pattern, STREA
 			out_uint32_le(out, filestat.st_size);	/* filesize low */
 			out_uint32_le(out, 0);	/* filesize high */
 			out_uint32_le(out, file_attributes);
-			out_uint8(out, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
-			out_uint8s(out, 7);	/* pad? */
-			out_uint8(out, 0);	/* 8.3 file length */
-			out_uint8s(out, 2 * 12);	/* 8.3 unicode length */
+			out_uint32_le(out, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
 			rdp_out_unistr(out, pdirent->d_name, 2 * strlen(pdirent->d_name));
 			break;
 
+
+		case FileFullDirectoryInformation:
+
+			seconds_since_1970_to_filetime(get_create_time(&filestat), &ft_high,
+						       &ft_low);
+			out_uint32_le(out, ft_low);	/* create time */
+			out_uint32_le(out, ft_high);
+
+			seconds_since_1970_to_filetime(filestat.st_atime, &ft_high, &ft_low);
+			out_uint32_le(out, ft_low);	/* last_access_time */
+			out_uint32_le(out, ft_high);
+
+			seconds_since_1970_to_filetime(filestat.st_mtime, &ft_high, &ft_low);
+			out_uint32_le(out, ft_low);	/* last_write_time */
+			out_uint32_le(out, ft_high);
+
+			seconds_since_1970_to_filetime(filestat.st_ctime, &ft_high, &ft_low);
+			out_uint32_le(out, ft_low);	/* change_write_time */
+			out_uint32_le(out, ft_high);
+
+			out_uint32_le(out, filestat.st_size);	/* filesize low */
+			out_uint32_le(out, 0);	/* filesize high */
+			out_uint32_le(out, filestat.st_size);	/* filesize low */
+			out_uint32_le(out, 0);	/* filesize high */
+			out_uint32_le(out, file_attributes);
+			out_uint32_le(out, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
+			out_uint32_le(out, 0);	/* EaSize */
+			rdp_out_unistr(out, pdirent->d_name, 2 * strlen(pdirent->d_name));
+			break;
+
+
+		case FileNamesInformation:
+
+			out_uint32_le(out, 2 * strlen(pdirent->d_name) + 2);	/* unicode length */
+			rdp_out_unistr(out, pdirent->d_name, 2 * strlen(pdirent->d_name));
+			break;
+
+
 		default:
-			/* FIXME: Support FileDirectoryInformation,
-			   FileFullDirectoryInformation, and
-			   FileNamesInformation */
 
 			unimpl("IRP Query Directory sub: 0x%x\n", info_class);
 			return RD_STATUS_INVALID_PARAMETER;

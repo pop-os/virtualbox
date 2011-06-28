@@ -449,7 +449,7 @@ int main()
     GEN_CHECK_OFF(ACPIState, pm1a_en);
     GEN_CHECK_OFF(ACPIState, pm1a_sts);
     GEN_CHECK_OFF(ACPIState, pm1a_ctl);
-    GEN_CHECK_OFF(ACPIState, pm_timer_initial);
+    GEN_CHECK_OFF(ACPIState, u64PmTimerInitial);
     GEN_CHECK_OFF(ACPIState, tsR3);
     GEN_CHECK_OFF(ACPIState, tsR0);
     GEN_CHECK_OFF(ACPIState, tsRC);
@@ -907,6 +907,9 @@ int main()
     GEN_CHECK_OFF(EHCIROOTHUB, pIDev);
     GEN_CHECK_OFF(EHCIROOTHUB, IBase);
     GEN_CHECK_OFF(EHCIROOTHUB, IRhPort);
+    GEN_CHECK_OFF(EHCIROOTHUB, Led);
+    GEN_CHECK_OFF(EHCIROOTHUB, ILeds);
+    GEN_CHECK_OFF(EHCIROOTHUB, pLedsConnector);
     GEN_CHECK_OFF(EHCIROOTHUB, status);
     GEN_CHECK_OFF(EHCIROOTHUB, desc_a);
     GEN_CHECK_OFF(EHCIROOTHUB, desc_b);
@@ -924,11 +927,24 @@ int main()
     GEN_CHECK_OFF(EHCI, pDevInsR3);
     GEN_CHECK_OFF(EHCI, pDevInsR0);
     GEN_CHECK_OFF(EHCI, pDevInsRC);
+    GEN_CHECK_OFF(EHCI, MMIOBase);
     GEN_CHECK_OFF(EHCI, SofTime);
     GEN_CHECK_OFF(EHCI, RootHub);
+    GEN_CHECK_OFF(EHCI, cap_length);
+    GEN_CHECK_OFF(EHCI, hci_version);
+    GEN_CHECK_OFF(EHCI, hcs_params);
+    GEN_CHECK_OFF(EHCI, hcc_params);
+    GEN_CHECK_OFF(EHCI, cmd);
     GEN_CHECK_OFF(EHCI, intr_status);
     GEN_CHECK_OFF(EHCI, intr);
+    GEN_CHECK_OFF(EHCI, frame_idx);
+    GEN_CHECK_OFF(EHCI, ds_segment);
+    GEN_CHECK_OFF(EHCI, periodic_list_base);
+    GEN_CHECK_OFF(EHCI, async_list_base);
+    GEN_CHECK_OFF(EHCI, config);
+    GEN_CHECK_OFF(EHCI, uIrqInterval);
     GEN_CHECK_OFF(EHCI, HcFmNumber);
+    GEN_CHECK_OFF(EHCI, uFramesPerTimerCall);
     GEN_CHECK_OFF(EHCI, cTicksPerFrame);
     GEN_CHECK_OFF(EHCI, cTicksPerUsbTick);
     GEN_CHECK_OFF(EHCI, cInFlight);
@@ -936,6 +952,7 @@ int main()
     GEN_CHECK_OFF(EHCI, aInFlight[0].GCPhysTD);
     GEN_CHECK_OFF(EHCI, aInFlight[0].pUrb);
     GEN_CHECK_OFF(EHCI, aInFlight[1]);
+    GEN_CHECK_OFF(EHCI, aInFlight[256]);
     GEN_CHECK_OFF(EHCI, pLoad);
     GEN_CHECK_OFF(EHCI, fAsyncTraversalTimerActive);
 #  ifdef VBOX_WITH_STATISTICS
@@ -944,6 +961,17 @@ int main()
     GEN_CHECK_OFF(EHCI, StatDroppedUrbs);
     GEN_CHECK_OFF(EHCI, StatTimer);
 #  endif
+    GEN_CHECK_OFF(EHCI, SavedStateEnd);
+    GEN_CHECK_OFF(EHCI, u64TimerHz);
+    GEN_CHECK_OFF(EHCI, cIdleCycles);
+    GEN_CHECK_OFF(EHCI, uFrameRate);
+    GEN_CHECK_OFF(EHCI, fIdle);
+    GEN_CHECK_OFF(EHCI, pEOFTimerSyncR3);
+    GEN_CHECK_OFF(EHCI, pEOFTimerSyncR0);
+    GEN_CHECK_OFF(EHCI, pEOFTimerSyncRC);
+    GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncRC);
+    GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncR3);
+    GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncR0);
 # endif /* VBOX_WITH_EHCI */
 #endif /* VBOX_WITH_USB */
 
@@ -1271,6 +1299,7 @@ int main()
     GEN_CHECK_OFF(AHCI, fSignalIdle);
     GEN_CHECK_OFF(AHCI, fBootable);
     GEN_CHECK_OFF(AHCI, cPortsImpl);
+    GEN_CHECK_OFF(AHCI, cCmdSlotsAvail);
     GEN_CHECK_OFF(AHCI, f8ByteMMIO4BytesWrittenSuccessfully);
 #endif /* VBOX_WITH_AHCI */
 

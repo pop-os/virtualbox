@@ -23,7 +23,7 @@ ifdef VBOX_WITH_MAIN
  include $(PATH_SUB_CURRENT)/VBoxManage/Makefile.kmk
 endif
 ifndef VBOX_ONLY_DOCS
- ifndef VBOX_OSE
+ ifdef VBOX_WITH_MAIN
   include $(PATH_SUB_CURRENT)/VBoxBalloonCtrl/Makefile.kmk
  endif
  ifdef VBOX_WITH_VBOXSDL

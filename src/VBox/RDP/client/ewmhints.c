@@ -4,22 +4,21 @@
    Support functions for Extended Window Manager Hints,
    http://www.freedesktop.org/wiki/Standards_2fwm_2dspec
 
-   Copyright 2005 Peter Astrand <astrand@cendio.se> for Cendio AB
+   Copyright 2005-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
    Copyright 2007 Pierre Ossman <ossman@cendio.se> for Cendio AB
-   
-   This program is free software; you can redistribute it and/or modify
+
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -144,7 +143,7 @@ get_current_workarea(uint32 * x, uint32 * y, uint32 * width, uint32 * height)
 	int current_desktop;
 	unsigned long nitems_return;
 	unsigned char *prop_return;
-	uint32 *return_words;
+	long *return_words;
 	const uint32 net_workarea_x_offset = 0;
 	const uint32 net_workarea_y_offset = 1;
 	const uint32 net_workarea_width_offset = 2;
@@ -167,7 +166,7 @@ get_current_workarea(uint32 * x, uint32 * y, uint32 * width, uint32 * height)
 	if (current_desktop < 0)
 		return -1;
 
-	return_words = (uint32 *) prop_return;
+	return_words = (long *) prop_return;
 
 	*x = return_words[current_desktop * 4 + net_workarea_x_offset];
 	*y = return_words[current_desktop * 4 + net_workarea_y_offset];
@@ -441,15 +440,15 @@ ewmh_set_icon(Window wnd, int width, int height, const char *rgba_data)
 {
 	unsigned long nitems, i;
 	unsigned char *props;
-	uint32 *cur_set, *new_set;
-	uint32 *icon;
+	unsigned long *cur_set, *new_set;
+	unsigned long *icon;
 
 	cur_set = NULL;
 	new_set = NULL;
 
 	if (get_property_value(wnd, "_NET_WM_ICON", 10000, &nitems, &props, 1) >= 0)
 	{
-		cur_set = (uint32 *) props;
+		cur_set = (unsigned long *) props;
 
 		for (i = 0; i < nitems;)
 		{
@@ -463,15 +462,15 @@ ewmh_set_icon(Window wnd, int width, int height, const char *rgba_data)
 			icon = cur_set + i;
 		else
 		{
-			new_set = xmalloc((nitems + width * height + 2) * 4);
-			memcpy(new_set, cur_set, nitems * 4);
+			new_set = xmalloc((nitems + width * height + 2) * sizeof(unsigned long));
+			memcpy(new_set, cur_set, nitems * sizeof(unsigned long));
 			icon = new_set + nitems;
 			nitems += width * height + 2;
 		}
 	}
 	else
 	{
-		new_set = xmalloc((width * height + 2) * 4);
+		new_set = xmalloc((width * height + 2) * sizeof(unsigned long));
 		icon = new_set;
 		nitems = width * height + 2;
 	}
@@ -503,7 +502,7 @@ ewmh_del_icon(Window wnd, int width, int height)
 {
 	unsigned long nitems, i, icon_size;
 	unsigned char *props;
-	uint32 *cur_set, *new_set;
+	unsigned long *cur_set, *new_set;
 
 	cur_set = NULL;
 	new_set = NULL;
@@ -511,7 +510,7 @@ ewmh_del_icon(Window wnd, int width, int height)
 	if (get_property_value(wnd, "_NET_WM_ICON", 10000, &nitems, &props, 1) < 0)
 		return;
 
-	cur_set = (uint32 *) props;
+	cur_set = (unsigned long *) props;
 
 	for (i = 0; i < nitems;)
 	{
@@ -525,12 +524,13 @@ ewmh_del_icon(Window wnd, int width, int height)
 		goto out;
 
 	icon_size = width * height + 2;
-	new_set = xmalloc((nitems - icon_size) * 4);
+	new_set = xmalloc((nitems - icon_size) * sizeof(unsigned long));
 
 	if (i != 0)
-		memcpy(new_set, cur_set, i * 4);
+		memcpy(new_set, cur_set, i * sizeof(unsigned long));
 	if (i != nitems - icon_size)
-		memcpy(new_set + i * 4, cur_set + i * 4 + icon_size, nitems - icon_size);
+		memcpy(new_set + i, cur_set + i + icon_size,
+		       (nitems - (i + icon_size)) * sizeof(unsigned long));
 
 	nitems -= icon_size;
 

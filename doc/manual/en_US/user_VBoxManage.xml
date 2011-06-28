@@ -1898,6 +1898,12 @@ Virtual system 0:
         "showvdiinfo" command is also supported and mapped internally to the
         "showhdinfo" command.</para>
       </note></para>
+    <para>The disk image must be specified either by its UUID (if the medium
+      is registered) or by its filename. Registered images can be listed by
+      <computeroutput>VBoxManage list hdds</computeroutput> (see <xref linkend="vboxmanage-list" />
+      for more information). A filename must be specified as valid path, either
+      as an absolute path or as a relative path starting from the current
+      directory.</para>
   </sect1>
 
   <sect1 id="vboxmanage-createvdi">
@@ -1972,6 +1978,12 @@ Virtual system 0:
         mapped internally to the "modifyhd" command.</para>
       </note></para>
 
+      <para>The disk image to modify must be specified either by its UUID
+        (if the medium is registered) or by its filename. Registered images
+        can be listed by <computeroutput>VBoxManage list hdds</computeroutput>
+        (see <xref linkend="vboxmanage-list" /> for more information).
+        A filename must be specified as valid path, either as an absolute path
+        or as a relative path starting from the current directory.</para>
     <para>The following options are available:<itemizedlist>
         <listitem>
           <para>With the <computeroutput>--type</computeroutput> argument, you
@@ -2041,7 +2053,13 @@ Virtual system 0:
                            [--variant Standard,Fixed,Split2G,Stream,ESX]
                            [--existing]</screen>
 
-    <para>where the parameters mean:<glosslist>
+    <para>The disk image to clone as well as the target image must be described
+       either by its UUIDs (if the mediums are registered) or by its filename.
+       Registered images can be listed by <computeroutput>VBoxManage list hdds</computeroutput>
+       (see <xref linkend="vboxmanage-list" /> for more information).
+       A filename must be specified as valid path, either as an absolute path or
+       as a relative path starting from the current directory.</para>
+    <para>The following options are available:<glosslist>
         <glossentry>
           <glossterm>format</glossterm>
 

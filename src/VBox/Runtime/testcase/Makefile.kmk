@@ -138,7 +138,8 @@ PROGRAMS.solaris += \
 PROGRAMS.l4 += \
 	tstIoCtl
 PROGRAMS.darwin += \
-	tstDarwinSched
+	tstDarwinSched \
+	tstRTDarwinMachKernel
 ifdef VBOX_WITH_LIBCURL
  PROGRAMS += \
 	tstRTS3
@@ -563,6 +564,12 @@ tstR0ThreadPreemptionDriver_SOURCES = tstR0ThreadPreemptionDriver.cpp
 #
 
 tstDarwinSched_SOURCES = tstDarwinSched.cpp
+
+tstRTDarwinMachKernel_TEMPLATE = VBOXR3TSTEXE
+tstRTDarwinMachKernel_INCS     = ../include
+tstRTDarwinMachKernel_SOURCES  = \
+	tstRTDarwinMachKernel.cpp \
+	../r0drv/darwin/mach_kernel-r0drv-darwin.cpp
 
 ntGetTimerResolution_SOURCES = ntGetTimerResolution.cpp
 ntGetTimerResolution_SDKS.win = WINPSDK W2K3DDK VBOX_NTDLL

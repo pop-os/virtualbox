@@ -94,7 +94,7 @@ clean:
 
 .PHONY: distclean
 distclean: clean
-	rm -rf autom4te.cache config.log config.status Makefile
+	rm -rf autom4te.cache config.log config.status Makefile rdesktop-$(VERSION).tar.gz
 
 .PHONY: dist
 dist: rdesktop-$(VERSION).tar.gz
@@ -159,5 +159,6 @@ configure: configure.ac
 .c.o:
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-.cpp.o:
-	$(CXX) $(CFLAGS) -o $@ -c $<
+.PHONY: doc/AUTHORS
+doc/AUTHORS:
+	./genauthors *.c

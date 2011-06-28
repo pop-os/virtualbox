@@ -1,11 +1,12 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Protocol services - Multipoint Communications Service
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
+   Copyright 2005-2011 Peter Astrand <astrand@cendio.se> for Cendio AB
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +15,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -381,54 +381,12 @@ mcs_recv(uint16 * channel, uint8 * rdpver)
 	return s;
 }
 
-/* Establish a connection up to the MCS layer */
 RD_BOOL
-mcs_connect(char *server, STREAM mcs_data, char *username)
+mcs_connect(char *server, STREAM mcs_data, char *username, RD_BOOL reconnect)
 {
 	unsigned int i;
 
-	if (!iso_connect(server, username))
-		return False;
-
-	mcs_send_connect_initial(mcs_data);
-	if (!mcs_recv_connect_response(mcs_data))
-		goto error;
-
-	mcs_send_edrq();
-
-	mcs_send_aurq();
-	if (!mcs_recv_aucf(&g_mcs_userid))
-		goto error;
-
-	mcs_send_cjrq(g_mcs_userid + MCS_USERCHANNEL_BASE);
-
-	if (!mcs_recv_cjcf())
-		goto error;
-
-	mcs_send_cjrq(MCS_GLOBAL_CHANNEL);
-	if (!mcs_recv_cjcf())
-		goto error;
-
-	for (i = 0; i < g_num_channels; i++)
-	{
-		mcs_send_cjrq(g_channels[i].mcs_id);
-		if (!mcs_recv_cjcf())
-			goto error;
-	}
-	return True;
-
-      error:
-	iso_disconnect();
-	return False;
-}
-
-/* Establish a connection up to the MCS layer */
-RD_BOOL
-mcs_reconnect(char *server, STREAM mcs_data)
-{
-	unsigned int i;
-
-	if (!iso_reconnect(server))
+	if (!iso_connect(server, username, reconnect))
 		return False;
 
 	mcs_send_connect_initial(mcs_data);

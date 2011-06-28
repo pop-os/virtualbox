@@ -144,6 +144,10 @@ VBGLR3DECL(int) VbglR3SeamlessSendRects(uint32_t cRects, PRTRECT pRects)
 
     if (!cRects || !pRects)
         return VINF_SUCCESS;
+    AssertMsgReturn(cRects <= _1M, ("%u\n", cRects), VERR_OUT_OF_RANGE);
+    AssertReturn(sizeof(VMMDevVideoSetVisibleRegion)+(cRects-1)*sizeof(RTRECT)
+                 == sizeof(VMMDevVideoSetVisibleRegion)+(uint64_t)(cRects-1)*sizeof(RTRECT), VERR_INVALID_PARAMETER);
+
     rc = vbglR3GRAlloc((VMMDevRequestHeader **)&pReq,
                        sizeof(VMMDevVideoSetVisibleRegion) + (cRects - 1) * sizeof(RTRECT),
                        VMMDevReq_VideoSetVisibleRegion);

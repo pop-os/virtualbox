@@ -2618,12 +2618,14 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                 if (   rc == VINF_VD_ASYNC_IO_FINISHED
                     && ASMAtomicCmpXchgBool(&pIoCtxParent->fComplete, true, false))
                 {
+                    RTCritSectLeave(&pDisk->CritSect);
                     LogFlowFunc(("Parent I/O context completed pIoCtxParent=%#p rcReq=%Rrc\n", pIoCtxParent, pIoCtxParent->rcReq));
                     pIoCtxParent->Type.Root.pfnComplete(pIoCtxParent->Type.Root.pvUser1,
                                                         pIoCtxParent->Type.Root.pvUser2,
                                                         pIoCtxParent->rcReq);
                     vdThreadFinishWrite(pDisk);
                     vdIoCtxFree(pDisk, pIoCtxParent);
+                    RTCritSectEnter(&pDisk->CritSect);
                 }
 
                 /* Process any pending writes if the current request didn't caused another growing. */
@@ -2664,12 +2666,14 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                         if (   rc == VINF_VD_ASYNC_IO_FINISHED
                             && ASMAtomicCmpXchgBool(&pIoCtxWait->fComplete, true, false))
                         {
+                            RTCritSectLeave(&pDisk->CritSect);
                             LogFlowFunc(("Waiting I/O context completed pIoCtxWait=%#p\n", pIoCtxWait));
                             vdThreadFinishWrite(pDisk);
                             pIoCtxWait->Type.Root.pfnComplete(pIoCtxWait->Type.Root.pvUser1,
                                                               pIoCtxWait->Type.Root.pvUser2,
                                                               pIoCtxWait->rcReq);
                             vdIoCtxFree(pDisk, pIoCtxWait);
+                            RTCritSectEnter(&pDisk->CritSect);
                         }
                     } while (!RTListIsEmpty(&ListTmp));
                 }
@@ -2692,9 +2696,11 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                 }
 
                 LogFlowFunc(("I/O context completed pIoCtx=%#p rcReq=%Rrc\n", pIoCtx, pIoCtx->rcReq));
+                RTCritSectLeave(&pDisk->CritSect);
                 pIoCtx->Type.Root.pfnComplete(pIoCtx->Type.Root.pvUser1,
                                               pIoCtx->Type.Root.pvUser2,
                                               pIoCtx->rcReq);
+                RTCritSectEnter(&pDisk->CritSect);
             }
 
             vdIoCtxFree(pDisk, pIoCtx);
@@ -2718,21 +2724,20 @@ static int vdUserXferCompleted(PVDIOSTORAGE pIoStorage, PVDIOCTX pIoCtx,
     LogFlowFunc(("pIoStorage=%#p pIoCtx=%#p pfnComplete=%#p pvUser=%#p cbTransfer=%zu rcReq=%Rrc\n",
                  pIoStorage, pIoCtx, pfnComplete, pvUser, cbTransfer, rcReq));
 
+    RTCritSectEnter(&pDisk->CritSect);
     Assert(pIoCtx->cbTransferLeft >= cbTransfer);
     ASMAtomicSubU32(&pIoCtx->cbTransferLeft, cbTransfer);
     ASMAtomicDecU32(&pIoCtx->cDataTransfersPending);
 
     if (pfnComplete)
-    {
-        RTCritSectEnter(&pDisk->CritSect);
         rc = pfnComplete(pIoStorage->pVDIo->pBackendData, pIoCtx, pvUser, rcReq);
-        RTCritSectLeave(&pDisk->CritSect);
-    }
 
     if (RT_SUCCESS(rc))
         rc = vdIoCtxContinue(pIoCtx, rcReq);
     else if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
         rc = VINF_SUCCESS;
+
+    RTCritSectLeave(&pDisk->CritSect);
 
     return rc;
 }
@@ -2774,7 +2779,6 @@ static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnCo
     }
     else
         RTListMove(&ListIoCtxWaiting, &pMetaXfer->ListIoCtxWaiting);
-    RTCritSectLeave(&pDisk->CritSect);
 
     /* Go through the waiting list and continue the I/O contexts. */
     while (!RTListIsEmpty(&ListIoCtxWaiting))
@@ -2789,11 +2793,7 @@ static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnCo
         ASMAtomicDecU32(&pIoCtx->cMetaTransfersPending);
 
         if (pfnComplete)
-        {
-            RTCritSectEnter(&pDisk->CritSect);
             rc = pfnComplete(pIoStorage->pVDIo->pBackendData, pIoCtx, pvUser, rcReq);
-            RTCritSectLeave(&pDisk->CritSect);
-        }
 
         LogFlow(("Completion callback for I/O context %#p returned %Rrc\n", pIoCtx, rc));
 
@@ -2809,7 +2809,6 @@ static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnCo
     /* Remove if not used anymore. */
     if (RT_SUCCESS(rcReq) && !fFlush)
     {
-        RTCritSectEnter(&pDisk->CritSect);
         pMetaXfer->cRefs--;
         if (!pMetaXfer->cRefs && RTListIsEmpty(&pMetaXfer->ListIoCtxWaiting))
         {
@@ -2819,10 +2818,11 @@ static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnCo
             Assert(fRemoved);
             RTMemFree(pMetaXfer);
         }
-        RTCritSectLeave(&pDisk->CritSect);
     }
     else if (fFlush)
         RTMemFree(pMetaXfer);
+
+    RTCritSectLeave(&pDisk->CritSect);
 
     return VINF_SUCCESS;
 }
@@ -3498,10 +3498,10 @@ static void vdIOIntIoCtxCompleted(void *pvUser, PVDIOCTX pIoCtx, int rcReq,
     if (!pIoCtx->cbTransferLeft)
         pIoCtx->pfnIoCtxTransfer = NULL;
 
+    vdIoCtxContinue(pIoCtx, rcReq);
+
     rc = RTCritSectLeave(&pDisk->CritSect);
     AssertRC(rc);
-
-    vdIoCtxContinue(pIoCtx, rcReq);
 }
 
 /**

@@ -201,6 +201,7 @@ public:
     void cannotStopMachine (const CConsole &console);
     void cannotStopMachine (const CProgress &progress);
     void cannotDeleteMachine (const CMachine &machine);
+    void cannotDeleteMachine(const CMachine &machine, const CProgress &progress);
     void cannotDiscardSavedState (const CConsole &console);
 
     void cannotSendACPIToMachine();

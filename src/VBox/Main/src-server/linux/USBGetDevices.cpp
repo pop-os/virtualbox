@@ -824,25 +824,35 @@ static int USBDevInfoInit(USBDeviceInfo *pSelf, const char *aDevice,
 
 #define USBDEVICE_MAJOR 189
 
-/** Deduce the bus that a USB device is plugged into from the device node
- * number.  See drivers/usb/core/hub.c:usb_new_device as of Linux 2.6.20. */
-static unsigned usbBusFromDevNum(dev_t devNum)
+/** Calculate the bus (a.k.a root hub) number of a USB device from it's sysfs
+ * path.  sysfs nodes representing root hubs have file names of the form
+ * usb<n>, where n is the bus number; other devices start with that number.
+ * See [http://www.linux-usb.org/FAQ.html#i6] and
+ * [http://www.kernel.org/doc/Documentation/usb/proc_usb_info.txt] for
+ * equivalent information about usbfs.
+ * @returns a bus number greater than 0 on success or 0 on failure.
+ */
+static unsigned usbGetBusFromSysfsPath(const char *pcszPath)
 {
-    AssertReturn(devNum, 0);
-    AssertReturn(major(devNum) == USBDEVICE_MAJOR, 0);
-    return (minor(devNum) >> 7) + 1;
+    const char *pcszFile = strrchr(pcszPath, '/');
+    if (!pcszFile)
+        return 0;
+    unsigned bus = RTStrToUInt32(pcszFile + 1);
+    if (   !bus
+        && pcszFile[1] == 'u' && pcszFile[2] == 's' && pcszFile[3] == 'b')
+    bus = RTStrToUInt32(pcszFile + 4);
+    return bus;
 }
 
-
-/** Deduce the device number of a USB device on the bus from the device node
- * number.  See drivers/usb/core/hub.c:usb_new_device as of Linux 2.6.20. */
-static unsigned usbDeviceFromDevNum(dev_t devNum)
+/** Calculate the device number of a USB device.  See
+ * drivers/usb/core/hub.c:usb_new_device as of Linux 2.6.20. */
+static dev_t usbMakeDevNum(unsigned bus, unsigned device)
 {
-    AssertReturn(devNum, 0);
-    AssertReturn(major(devNum) == USBDEVICE_MAJOR, 0);
-    return (minor(devNum) & 127) + 1;
+    AssertReturn(bus > 0, 0);
+    AssertReturn(((device - 1) & ~127) == 0, 0);
+    AssertReturn(device > 0, 0);
+    return makedev(USBDEVICE_MAJOR, ((bus - 1) << 7) + device - 1);
 }
-
 
 /**
  * If a file @a pcszNode from /sys/bus/usb/devices is a device rather than an
@@ -853,12 +863,15 @@ static int addIfDevice(const char *pcszDevicesRoot,
                        VECTOR_OBJ(USBDeviceInfo) *pvecDevInfo)
 {
     const char *pcszFile = strrchr(pcszNode, '/');
+    if (!pcszFile)
+        return VERR_INVALID_PARAMETER;
     if (strchr(pcszFile, ':'))
         return VINF_SUCCESS;
-    dev_t devnum = RTLinuxSysFsReadDevNumFile("%s/dev", pcszNode);
-    /* Sanity test of our static helpers */
-    Assert(usbBusFromDevNum(makedev(USBDEVICE_MAJOR, 517)) == 5);
-    Assert(usbDeviceFromDevNum(makedev(USBDEVICE_MAJOR, 517)) == 6);
+    unsigned bus = usbGetBusFromSysfsPath(pcszNode);
+    if (!bus)
+        return VINF_SUCCESS;
+    unsigned device = RTLinuxSysFsReadIntFile(10, "%s/devnum", pcszNode);
+    dev_t devnum = usbMakeDevNum(bus, device);
     if (!devnum)
         return VINF_SUCCESS;
     char szDevPath[RTPATH_MAX];
@@ -866,9 +879,7 @@ static int addIfDevice(const char *pcszDevicesRoot,
     cchDevPath = RTLinuxFindDevicePath(devnum, RTFS_TYPE_DEV_CHAR,
                                        szDevPath, sizeof(szDevPath),
                                        "%s/%.3d/%.3d",
-                                       pcszDevicesRoot,
-                                       usbBusFromDevNum(devnum),
-                                       usbDeviceFromDevNum(devnum));
+                                       pcszDevicesRoot, bus, device);
     if (cchDevPath < 0)
         return VINF_SUCCESS;
 
@@ -1225,7 +1236,7 @@ static void fillInDeviceFromSysfs(USBDEVICE *Dev, USBDeviceInfo *pInfo)
 
     /* Fill in the simple fields */
     Dev->enmState           = USBDEVICESTATE_UNUSED;
-    Dev->bBus               = RTLinuxSysFsReadIntFile(10, "%s/busnum", pszSysfsPath);
+    Dev->bBus               = usbGetBusFromSysfsPath(pszSysfsPath);
     Dev->bDeviceClass       = RTLinuxSysFsReadIntFile(16, "%s/bDeviceClass", pszSysfsPath);
     Dev->bDeviceSubClass    = RTLinuxSysFsReadIntFile(16, "%s/bDeviceSubClass", pszSysfsPath);
     Dev->bDeviceProtocol    = RTLinuxSysFsReadIntFile(16, "%s/bDeviceProtocol", pszSysfsPath);

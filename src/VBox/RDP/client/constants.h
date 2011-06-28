@@ -1,11 +1,11 @@
 /*
    rdesktop: A Remote Desktop Protocol client.
    Miscellaneous protocol constants
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman 1999-2008
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -131,10 +130,24 @@ enum RDP_DATA_PDU_TYPE
 	RDP_DATA_PDU_SYNCHRONISE = 31,
 	RDP_DATA_PDU_BELL = 34,
 	RDP_DATA_PDU_CLIENT_WINDOW_STATUS = 35,
-	RDP_DATA_PDU_LOGON = 38,
+	RDP_DATA_PDU_LOGON = 38,	/* PDUTYPE2_SAVE_SESSION_INFO */
 	RDP_DATA_PDU_FONT2 = 39,
 	RDP_DATA_PDU_KEYBOARD_INDICATORS = 41,
 	RDP_DATA_PDU_DISCONNECT = 47
+};
+
+enum RDP_SAVE_SESSION_PDU_TYPE
+{
+	INFOTYPE_LOGON = 0,
+	INFOTYPE_LOGON_LONG = 1,
+	INFOTYPE_LOGON_PLAINNOTIFY = 2,
+	INFOTYPE_LOGON_EXTENDED_INF = 3
+};
+
+enum RDP_LOGON_INFO_EXTENDED_TYPE
+{
+	LOGON_EX_AUTORECONNECTCOOKIE = 1,
+	LOGON_EX_LOGONERRORS = 2
 };
 
 enum RDP_CONTROL_PDU_TYPE
@@ -158,7 +171,8 @@ enum RDP_POINTER_PDU_TYPE
 	RDP_POINTER_SYSTEM = 1,
 	RDP_POINTER_MOVE = 3,
 	RDP_POINTER_COLOR = 6,
-	RDP_POINTER_CACHED = 7
+	RDP_POINTER_CACHED = 7,
+	RDP_POINTER_NEW = 8
 };
 
 enum RDP_SYSTEM_POINTER_TYPE
@@ -254,12 +268,16 @@ enum RDP_INPUT_DEVICE
 
 #define RDP_CAPSET_POINTER	8
 #define RDP_CAPLEN_POINTER	0x08
+#define RDP_CAPLEN_NEWPOINTER	0x0a
 
 #define RDP_CAPSET_SHARE	9
 #define RDP_CAPLEN_SHARE	0x08
 
 #define RDP_CAPSET_COLCACHE	10
 #define RDP_CAPLEN_COLCACHE	0x08
+
+#define RDP_CAPSET_BRUSHCACHE	15
+#define RDP_CAPLEN_BRUSHCACHE	0x08
 
 #define RDP_CAPSET_BMPCACHE2	19
 #define RDP_CAPLEN_BMPCACHE2	0x28
@@ -389,6 +407,7 @@ enum RDP_INPUT_DEVICE
 #define RD_STATUS_TIMEOUT                  0xc0000102
 #define RD_STATUS_NOTIFY_ENUM_DIR          0xc000010c
 #define RD_STATUS_CANCELLED                0xc0000120
+#define RD_STATUS_DIRECTORY_NOT_EMPTY      0xc0000101
 
 
 /* RDPDR constants */
@@ -415,6 +434,7 @@ enum RDP_INPUT_DEVICE
 #define exDiscReasonOutOfMemory				0x0006
 #define exDiscReasonServerDeniedConnection		0x0007
 #define exDiscReasonServerDeniedConnectionFips		0x0008
+#define exDiscReasonWindows7Disconnect                  0x000b	/* unofficial */
 #define exDiscReasonLicenseInternal			0x0100
 #define exDiscReasonLicenseNoLicenseServer		0x0101
 #define exDiscReasonLicenseNoLicense			0x0102
@@ -446,3 +466,20 @@ enum RDP_INPUT_DEVICE
 #define SCARD_LOCK_CHANNEL	2
 #define SCARD_LOCK_RDPDR	3
 #define SCARD_LOCK_LAST		4
+
+
+/* redirect flags, from [MS-RDPBCGR] 2.2.13.1 */
+enum RDP_PDU_REDIRECT_FLAGS
+{
+	PDU_REDIRECT_HAS_IP = 0x1,
+	PDU_REDIRECT_HAS_COOKIE = 0x2,
+	PDU_REDIRECT_HAS_USERNAME = 0x4,
+	PDU_REDIRECT_HAS_DOMAIN = 0x8,
+	PDU_REDIRECT_HAS_PASSWORD = 0x10,
+	PDU_REDIRECT_DONT_STORE_USERNAME = 0x20,
+	PDU_REDIRECT_USE_SMARTCARD = 0x40,
+	PDU_REDIRECT_INFORMATIONAL = 0x80,
+	PDU_REDIRECT_HAS_TARGET_FQDN = 0x100,
+	PDU_REDIRECT_HAS_TARGET_NETBIOS = 0x200,
+	PDU_REDIRECT_HAS_TARGET_IP_ARRAY = 0x800
+};

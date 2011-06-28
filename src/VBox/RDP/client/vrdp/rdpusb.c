@@ -259,6 +259,9 @@ static void *buildWireListFromDevices(PUSBDEVICE pDevices, int *pLen)
                                    + RT_BOOL(pEntry->oProduct)
                                    + RT_BOOL(pEntry->oSerialNumber),
                          free(pBuf), NULL);
+        Assert(pEntry->oManufacturer == 0 || pBuf[iCurrent + pEntry->oManufacturer] != '\0');
+        Assert(pEntry->oProduct == 0 || pBuf[iCurrent + pEntry->oProduct] != '\0');
+        Assert(pEntry->oSerialNumber == 0 || pBuf[iCurrent + pEntry->oSerialNumber] != '\0');
         AssertReturnStmt(cZeros == 0 || pBuf[iCurrent + iNext - 1] == '\0',
                          free(pBuf), NULL);
     }
@@ -314,7 +317,7 @@ rdpusb_send(STREAM s)
 static void
 rdpusb_send_reply (uint8_t code, uint8_t status, uint32_t devid)
 {
-	STREAM s = rdpusb_init_packet(1, code);
+	STREAM s = rdpusb_init_packet(5, code);
 	out_uint8(s, status);
 	out_uint32_le(s, devid);
 	s_mark_end(s);

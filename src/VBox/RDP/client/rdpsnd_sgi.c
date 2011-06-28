@@ -1,13 +1,13 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
    Sound Channel Process Functions - SGI/IRIX
-   Copyright (C) Matthew Chapman 2003-2007
-   Copyright (C) GuoJunBo guojunbo@ict.ac.cn 2003
-   Copyright (C) Jeremy Meng void.foo@gmail.com 2004, 2005
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 2003-2008
+   Copyright (C) GuoJunBo <guojunbo@ict.ac.cn> 2003
+   Copyright (C) Jeremy Meng <void.foo@gmail.com> 2004-2005
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -16,8 +16,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*

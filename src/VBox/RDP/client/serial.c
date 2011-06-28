@@ -1,11 +1,11 @@
 /* -*- c-basic-offset: 8 -*-
    rdesktop: A Remote Desktop Protocol client.
 
-   Copyright (C) Matthew Chapman 1999-2007
+   Copyright (C) Matthew Chapman <matthewc.unsw.edu.au> 1999-2008
 
-   This program is free software; you can redistribute it and/or modify
+   This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2 of the License, or
+   the Free Software Foundation, either version 3 of the License, or
    (at your option) any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -14,8 +14,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -281,9 +280,8 @@ get_termios(SERIAL_DEVICE * pser_inf, RD_NTHANDLE serial_fd)
 
 	pser_inf->stop_bits = (ptermios->c_cflag & CSTOPB) ? STOP_BITS_2 : STOP_BITS_1;
 	pser_inf->parity =
-		(ptermios->
-		 c_cflag & PARENB) ? ((ptermios->
-				       c_cflag & PARODD) ? ODD_PARITY : EVEN_PARITY) : NO_PARITY;
+		(ptermios->c_cflag & PARENB) ? ((ptermios->c_cflag & PARODD) ? ODD_PARITY :
+						EVEN_PARITY) : NO_PARITY;
 	switch (ptermios->c_cflag & CSIZE)
 	{
 		case CS5:

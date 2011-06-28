@@ -203,7 +203,7 @@ static HANDLE rtProcWinFindPid(RTPROCESS pid)
 
 
 /**
- * Removes a process from g_paProcesses.
+ * Removes a process from g_paProcesses and closes the process handle.
  *
  * @param   pid                 The process to remove (pid).
  */
@@ -214,11 +214,16 @@ static void rtProcWinRemovePid(RTPROCESS pid)
     while (i-- > 0)
         if (g_paProcesses[i].pid == pid)
         {
+            HANDLE hProcess = g_paProcesses[i].hProcess;
+
             g_cProcesses--;
             uint32_t cToMove = g_cProcesses - i;
             if (cToMove)
                 memmove(&g_paProcesses[i], &g_paProcesses[i + 1], cToMove * sizeof(g_paProcesses[0]));
-            break;
+
+            RTCritSectLeave(&g_CritSect);
+            CloseHandle(hProcess);
+            return;
         }
     RTCritSectLeave(&g_CritSect);
 }
@@ -861,70 +866,83 @@ static int rtProcCreateAsUserHlp(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUT
                 /* Nothing to do here right now. */
             }
 
-            /*
-             * If we didn't find a matching VBoxTray, just use the token we got
-             * above from LogonUserW(). This enables us to at least run processes with
-             * desktop interaction without UI.
-             */
-            phToken = fFound ? &hTokenUserDesktop : &hTokenLogon;
+            /** @todo Hmm, this function already is too big! We need to split
+             *        it up into several small parts. */
 
-            RTLDRMOD hUserenv;
-            int rc = RTLdrLoad("Userenv.dll", &hUserenv);
-            if (RT_SUCCESS(rc))
+            /* If we got an error due to account lookup/loading above, don't
+             * continue here. */
+            if (dwErr == NO_ERROR)
             {
-                PFNLOADUSERPROFILEW pfnLoadUserProfileW;
-                rc = RTLdrGetSymbol(hUserenv, "LoadUserProfileW", (void**)&pfnLoadUserProfileW);
+                /*
+                 * If we didn't find a matching VBoxTray, just use the token we got
+                 * above from LogonUserW(). This enables us to at least run processes with
+                 * desktop interaction without UI.
+                 */
+                phToken = fFound ? &hTokenUserDesktop : &hTokenLogon;
+                RTLDRMOD hUserenv;
+                int rc = RTLdrLoad("Userenv.dll", &hUserenv);
                 if (RT_SUCCESS(rc))
                 {
-                    PFNUNLOADUSERPROFILE pfnUnloadUserProfile;
-                    rc = RTLdrGetSymbol(hUserenv, "UnloadUserProfile", (void**)&pfnUnloadUserProfile);
+                    PFNLOADUSERPROFILEW pfnLoadUserProfileW;
+                    rc = RTLdrGetSymbol(hUserenv, "LoadUserProfileW", (void**)&pfnLoadUserProfileW);
                     if (RT_SUCCESS(rc))
                     {
-                        PROFILEINFOW profileInfo;
-                        ZeroMemory(&profileInfo, sizeof(profileInfo));
-                        profileInfo.dwSize = sizeof(profileInfo);
-                        profileInfo.lpUserName = pwszUser;
-                        profileInfo.dwFlags = PI_NOUI; /* Prevents the display of profile error messages. */
-
-                        if (pfnLoadUserProfileW(*phToken, &profileInfo))
+                        PFNUNLOADUSERPROFILE pfnUnloadUserProfile;
+                        rc = RTLdrGetSymbol(hUserenv, "UnloadUserProfile", (void**)&pfnUnloadUserProfile);
+                        if (RT_SUCCESS(rc))
                         {
-                            PRTUTF16 pwszzBlock;
-                            rc = rtProcEnvironmentCreateFromToken(*phToken, hEnv, &pwszzBlock);
-                            if (RT_SUCCESS(rc))
+                            PROFILEINFOW profileInfo;
+                            if (!(fFlags & RTPROC_FLAGS_NO_PROFILE))
                             {
-                                /*
-                                 * Useful KB articles:
-                                 *      http://support.microsoft.com/kb/165194/
-                                 *      http://support.microsoft.com/kb/184802/
-                                 *      http://support.microsoft.com/kb/327618/
-                                 */
-                                fRc = CreateProcessAsUserW(*phToken,
-                                                           pwszExec,
-                                                           pwszCmdLine,
-                                                           NULL,         /* pProcessAttributes */
-                                                           NULL,         /* pThreadAttributes */
-                                                           TRUE,         /* fInheritHandles */
-                                                           dwCreationFlags,
-                                                           pwszzBlock,
-                                                           NULL,         /* pCurrentDirectory */
-                                                           pStartupInfo,
-                                                           pProcInfo);
-                                if (fRc)
-                                    dwErr = NO_ERROR;
-                                else
-                                    dwErr = GetLastError(); /* CreateProcessAsUserW() failed. */
-                                rtProcEnvironmentDestroy(pwszzBlock);
+                                ZeroMemory(&profileInfo, sizeof(profileInfo));
+                                profileInfo.dwSize = sizeof(profileInfo);
+                                profileInfo.lpUserName = pwszUser;
+                                profileInfo.dwFlags = PI_NOUI; /* Prevents the display of profile error messages. */
+
+                                if (!pfnLoadUserProfileW(*phToken, &profileInfo))
+                                    dwErr = GetLastError();
                             }
-                            else
-                                dwErr = rc;
-                            pfnUnloadUserProfile(*phToken, profileInfo.hProfile);
+
+                            if (dwErr == NO_ERROR)
+                            {
+                                PRTUTF16 pwszzBlock;
+                                rc = rtProcEnvironmentCreateFromToken(*phToken, hEnv, &pwszzBlock);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    /*
+                                     * Useful KB articles:
+                                     *      http://support.microsoft.com/kb/165194/
+                                     *      http://support.microsoft.com/kb/184802/
+                                     *      http://support.microsoft.com/kb/327618/
+                                     */
+                                    fRc = CreateProcessAsUserW(*phToken,
+                                                               pwszExec,
+                                                               pwszCmdLine,
+                                                               NULL,         /* pProcessAttributes */
+                                                               NULL,         /* pThreadAttributes */
+                                                               TRUE,         /* fInheritHandles */
+                                                               dwCreationFlags,
+                                                               pwszzBlock,
+                                                               NULL,         /* pCurrentDirectory */
+                                                               pStartupInfo,
+                                                               pProcInfo);
+                                    if (fRc)
+                                        dwErr = NO_ERROR;
+                                    else
+                                        dwErr = GetLastError(); /* CreateProcessAsUserW() failed. */
+                                    rtProcEnvironmentDestroy(pwszzBlock);
+                                }
+                                else
+                                    dwErr = rc;
+
+                                if (!(fFlags & RTPROC_FLAGS_NO_PROFILE))
+                                    pfnUnloadUserProfile(*phToken, profileInfo.hProfile);
+                            }
                         }
-                        else
-                            dwErr = GetLastError(); /* LoadUserProfileW() failed. */
                     }
-                }
-                RTLdrClose(hUserenv);
-            }
+                    RTLdrClose(hUserenv);
+                } /* Userenv.dll found/loaded? */
+            } /* Account lookup succeeded? */
             if (hTokenUserDesktop != INVALID_HANDLE_VALUE)
                 CloseHandle(hTokenUserDesktop);
             rtProcUserLogoff(hTokenLogon);
@@ -948,7 +966,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
      */
     AssertPtrReturn(pszExec, VERR_INVALID_POINTER);
     AssertReturn(*pszExec, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_HIDDEN |RTPROC_FLAGS_SERVICE)), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_HIDDEN | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_SAME_CONTRACT | RTPROC_FLAGS_NO_PROFILE)), VERR_INVALID_PARAMETER);
     AssertReturn(!(fFlags & RTPROC_FLAGS_DETACHED) || !phProcess, VERR_INVALID_PARAMETER);
     AssertReturn(hEnv != NIL_RTENV, VERR_INVALID_PARAMETER);
     AssertPtrReturn(papszArgs, VERR_INVALID_PARAMETER);
@@ -1168,63 +1186,80 @@ RTR3DECL(int) RTProcWait(RTPROCESS Process, unsigned fFlags, PRTPROCSTATUS pProc
      * Try find the process among the ones we've spawned, otherwise, attempt
      * opening the specified process.
      */
+    HANDLE hOpenedProc = NULL;
     HANDLE hProcess = rtProcWinFindPid(Process);
     if (hProcess == NULL)
-        hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, FALSE, Process);
-    if (hProcess != NULL)
     {
-        /*
-         * Wait for it to terminate.
-         */
-        DWORD Millies = fFlags == RTPROCWAIT_FLAGS_BLOCK ? INFINITE : 0;
-        DWORD WaitRc = WaitForSingleObjectEx(hProcess, Millies, TRUE);
-        while (WaitRc == WAIT_IO_COMPLETION)
-            WaitRc = WaitForSingleObjectEx(hProcess, Millies, TRUE);
-        switch (WaitRc)
+        hProcess = hOpenedProc = OpenProcess(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, FALSE, Process);
+        if (hProcess == NULL)
         {
-            /*
-             * It has terminated.
-             */
-            case WAIT_OBJECT_0:
-            {
-                DWORD dwExitCode;
-                if (GetExitCodeProcess(hProcess, &dwExitCode))
-                {
-                    /** @todo the exit code can be special statuses. */
-                    if (pProcStatus)
-                    {
-                        pProcStatus->enmReason = RTPROCEXITREASON_NORMAL;
-                        pProcStatus->iStatus = (int)dwExitCode;
-                    }
-                    rtProcWinRemovePid(Process);
-                    return VINF_SUCCESS;
-                }
-                break;
-            }
-
-            /*
-             * It hasn't terminated just yet.
-             */
-            case WAIT_TIMEOUT:
-                return VERR_PROCESS_RUNNING;
-
-            /*
-             * Something went wrong...
-             */
-            case WAIT_FAILED:
-                break;
-            case WAIT_ABANDONED:
-                AssertFailed();
-                return VERR_GENERAL_FAILURE;
-            default:
-                AssertMsgFailed(("WaitRc=%RU32\n", WaitRc));
-                return VERR_GENERAL_FAILURE;
+            DWORD dwErr = GetLastError();
+            if (dwErr == ERROR_INVALID_PARAMETER)
+                return VERR_PROCESS_NOT_FOUND;
+            return RTErrConvertFromWin32(dwErr);
         }
     }
-    DWORD dwErr = GetLastError();
-    if (dwErr == ERROR_INVALID_PARAMETER)
-        return VERR_PROCESS_NOT_FOUND;
-    return RTErrConvertFromWin32(dwErr);
+
+    /*
+     * Wait for it to terminate.
+     */
+    DWORD Millies = fFlags == RTPROCWAIT_FLAGS_BLOCK ? INFINITE : 0;
+    DWORD WaitRc = WaitForSingleObjectEx(hProcess, Millies, TRUE);
+    while (WaitRc == WAIT_IO_COMPLETION)
+        WaitRc = WaitForSingleObjectEx(hProcess, Millies, TRUE);
+    switch (WaitRc)
+    {
+        /*
+         * It has terminated.
+         */
+        case WAIT_OBJECT_0:
+        {
+            DWORD dwExitCode;
+            if (GetExitCodeProcess(hProcess, &dwExitCode))
+            {
+                /** @todo the exit code can be special statuses. */
+                if (pProcStatus)
+                {
+                    pProcStatus->enmReason = RTPROCEXITREASON_NORMAL;
+                    pProcStatus->iStatus = (int)dwExitCode;
+                }
+                if (hOpenedProc == NULL)
+                    rtProcWinRemovePid(Process);
+                rc = VINF_SUCCESS;
+            }
+            else
+                rc = RTErrConvertFromWin32(GetLastError());
+            break;
+        }
+
+        /*
+         * It hasn't terminated just yet.
+         */
+        case WAIT_TIMEOUT:
+            rc = VERR_PROCESS_RUNNING;
+            break;
+
+        /*
+         * Something went wrong...
+         */
+        case WAIT_FAILED:
+            rc = RTErrConvertFromWin32(GetLastError());
+            break;
+
+        case WAIT_ABANDONED:
+            AssertFailed();
+            rc = VERR_GENERAL_FAILURE;
+            break;
+
+        default:
+            AssertMsgFailed(("WaitRc=%RU32\n", WaitRc));
+            rc = VERR_GENERAL_FAILURE;
+            break;
+    }
+
+    if (hOpenedProc != NULL)
+        CloseHandle(hOpenedProc);
+    return rc;
 }
 
 
