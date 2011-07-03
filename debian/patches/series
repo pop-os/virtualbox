@@ -14,3 +14,4 @@
 30-usb-warning-filters.patch
 31-multiarch-dri-path.patch
 32-disable-guest-version-check.patch
+33-link-static-libgsoap.patch
