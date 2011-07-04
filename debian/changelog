@@ -1,4 +1,4 @@
-virtualbox (4.0.10-dfsg-1) UNRELEASED; urgency=low
+virtualbox (4.0.10-dfsg-1) unstable; urgency=low
 
   * New upstream release.
     - Fixes VT-x detection on Linux 3.0 hosts. (LP: #799253)
@@ -11,7 +11,7 @@ virtualbox (4.0.10-dfsg-1) UNRELEASED; urgency=low
     outdated guest additions.
   * Link against the static gsoap++ library to fix FTBFS. (Closes: #632368)
 
- -- Felix Geyer <debfx-pkg@fobos.de>  Tue, 07 Jun 2011 13:57:18 +0200
+ -- Felix Geyer <debfx-pkg@fobos.de>  Sun, 03 Jul 2011 18:43:49 +0200
 
 virtualbox (4.0.8-dfsg-2) unstable; urgency=low
 
