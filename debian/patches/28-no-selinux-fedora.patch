@@ -14,4 +14,4 @@ diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk v
 +	$(VBOX_REL_LNX_ADD_INST)90-vboxguest.fdi
  
  INSTALLS += lnx_add_inst-license
- lnx_add_inst-license_INST = $(subst $(PATH_TARGET),obj,$(VBOX_LNX_ADD_INST_OUT_DIR))/
+ lnx_add_inst-license_INST = $(subst $(PATH_TARGET),obj,$(VBOX_LNX_ADD_INST_OUT_DIR))

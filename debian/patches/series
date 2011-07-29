@@ -6,12 +6,10 @@
 13-module-mismatch.patch
 16-no-update.patch
 18-system-xorg.patch
-22-no-static-libstdcpp.patch
 23-remove-invalid-chars-check.patch
 27-hide-host-cache-warning.patch
 28-no-selinux-fedora.patch
 29-fix-ftbfs-as-needed.patch
 30-usb-warning-filters.patch
-31-multiarch-dri-path.patch
 32-disable-guest-version-check.patch
 33-link-static-libgsoap.patch
